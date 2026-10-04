@@ -249,16 +249,18 @@ impl NeighbourView {
         self.neighbours.iter().filter_map(|n| n.tube.as_ref()).flat_map(|g| ship.tube_mouths(g)).collect()
     }
 
-    /// The SIGHT blockers the neighbours make (`wall_collision::ship_sight_segments`): each one's
-    /// walls with its door and windows open, at its plot, and its corridor's two side walls.
-    /// Nothing here is ever a walking collider.
-    pub fn sight_segments(&self) -> Vec<crate::ship::wall_collision::WallSegment> {
-        use crate::ship::wall_collision::{corridor_side_walls, sight_segments_with_shell_cuts, WallSegment};
+    /// The walls the neighbours make: each one's walls with its door open, at its plot (its windows
+    /// open too when `sight`), and its corridor's two side walls. For the HUD's sight check
+    /// (`wall_collision::ship_sight_segments`) and the rig's walls (`everyones_walls`); never a
+    /// walking collider of this game.
+    pub fn segments(&self, sight: bool) -> Vec<crate::ship::wall_collision::WallSegment> {
+        use crate::ship::wall_collision::{corridor_side_walls, sight_segments_with_shell_cuts, wall_segments_with_shell_cuts, WallSegment};
         let mut out = Vec::new();
         for n in &self.neighbours {
             let cuts: Vec<ShellCut> = own_cut(n).into_iter().collect();
             let (ox, oz) = (n.plot.origin.0, n.plot.origin.2);
-            out.extend(sight_segments_with_shell_cuts(&n.design.body, &cuts).into_iter().map(|s| WallSegment {
+            let own = if sight { sight_segments_with_shell_cuts(&n.design.body, &cuts) } else { wall_segments_with_shell_cuts(&n.design.body, &cuts) };
+            out.extend(own.into_iter().map(|s| WallSegment {
                 a: (s.a.0 + ox, s.a.1 + oz),
                 b: (s.b.0 + ox, s.b.1 + oz),
                 half_thickness: s.half_thickness,

@@ -493,6 +493,18 @@ test("a back-and-forth walk is judged on one forward leg, picked by the clock", 
   assert.ok(picked.pass, explain(picked));
 });
 
+// Increment 2 review, finding 11: with the view asked for and no frame carrying a
+// camera (a recorder change that drops or renames `cam`), in_view simply was not
+// added, and the run passed with one check fewer. It must FAIL instead. Seen red
+// 2026-10-04 on c98c5465b: "a recording with no camera judged the view: (no
+// in_view check)".
+test("a recording with no camera FAILS in_view when the view is asked for", () => {
+  const r = judge(framesFrom(frameTimes(RECORD_S), smooth, { cam: undefined }).map(({ cam, ...f }) => f));
+  const c = check(r, "in_view");
+  assert.equal(c.ok, false, `a recording with no camera judged the view: ${c.detail}`);
+  assert.match(c.detail, /carries no camera/);
+});
+
 test("checkView false drops the in-view check and nothing else", () => {
   const away = [30, 1.7, 20, Math.PI, -0.05]; // facing away from the walk
   const r = judge(framesFrom(frameTimes(RECORD_S), smooth, { cam: away }), { checkView: false });
@@ -614,7 +626,7 @@ test("respawn: judged like a rejoin, under its own check ids", () => {
 // (src/ship/door_points.rs). These tests route on a copy of that report for the
 // shipped ship, seen from p1 (fixtures/door-points-p1.json); the Rust test
 // door_points::the_rigs_fixture_is_what_the_game_reports keeps the copy true.
-const { doorRoute, routeClear, farPlaces, farthestFrom, placeAt, judgeMeet, judgeReboot } = require("../lib/copresence-judge.js");
+const { doorRoute, routeClear, routeWalls, farPlaces, farthestFrom, placeAt, judgeMeet, judgeReboot } = require("../lib/copresence-judge.js");
 const DOORS = require("./fixtures/door-points-p1.json");
 const P2_DOOR = [53.5, 1.7, 139.5];
 const MEET_CAM = [76, 1.7, 64];
@@ -690,9 +702,18 @@ const P2_TUBE = { min: DOORS.doors[2].tube[0], max: DOORS.doors[2].tube[1] };
 const MEET_OK = {
   commons: COMMONS_BOX,
   gameFrom: P1_SPAWN,
-  gameSteps: [[54, 1.7, 40], [66, 1.7, 40], MEET_CAM, MEET_CAM],
+  // Round the Commons' room block by its west side (doorRoute's detour), as the rig plans it.
+  gameSteps: [[54, 1.7, 40], [66, 1.7, 40], [66, 1.7, 64], MEET_CAM, MEET_CAM],
+  // What the walker at home logged the relay passing on, in order (the door first: the game
+  // stood there when the walk began).
+  gameRelayed: [P1_SPAWN, [54, 1.7, 40], [66, 1.7, 40], [66, 1.7, 64], [76, 1.7, 64.02]],
   gameCamera: MEET_CAM,
   gameHeld: [76, 1.7, 64.02],
+  line: MEET_LINE,
+  walls: DOORS.walls,
+  walkerDoor: P2_DOOR,
+  walker: { start: P2_DOOR },
+  walker_route: [P2_DOOR, ...doorRoute(DOORS, P2_DOOR, MEET_LINE.start).waypoints],
   walkerTube: P2_TUBE,
   walkerDrawn: [P2_DOOR, [54, 1.7, 139], [60, 1.7, 139], [66, 1.7, 139], [70, 1.7, 100], [70, 1.7, 80], [70, 1.7, 74], [72, 1.7, 70]],
   walkerSawGame: [MEET_CAM],
@@ -701,9 +722,12 @@ test("meet: a meeting in the Commons passes", () => {
   const r = judgeMeet(MEET_OK);
   assert.ok(r.pass, explain(r));
   assert.deepEqual(r.checks.map((c) => c.id), [
-    "meet_game_steps_the_relay_accepts",
+    "meet_game_steps_planned_short",
+    "meet_game_steps_relayed",
     "meet_game_in_commons",
     "meet_relay_holds_game_there",
+    "meet_routes_clear_of_walls",
+    "meet_walker_from_its_door",
     "meet_walker_through_its_corridor",
     "meet_walker_into_commons",
     "meet_walker_sees_game",
@@ -712,10 +736,24 @@ test("meet: a meeting in the Commons passes", () => {
 
 // What must fail, one broken thing at a time. Seen red 2026-10-04 with judgeMeet
 // passing anything: "one 130 m jump from the end of First Street should fail
-// meet_game_steps_the_relay_accepts; failed: nothing".
+// meet_game_steps_planned_short; failed: nothing". The increment 2 review's cases
+// (findings 12 to 14) were seen red 2026-10-04 on c98c5465b's judge, which had
+// none of their checks: "the relay passed on none of the middle steps should
+// fail meet_game_steps_relayed; failed: nothing", and the same for
+// meet_walker_from_its_door and meet_routes_clear_of_walls.
 test("meet: each broken meeting FAILS its own check", () => {
+  const across = (p, q) => [[(p[0] + q[0]) / 2, (p[2] + q[2]) / 2 - 1, (p[0] + q[0]) / 2, (p[2] + q[2]) / 2 + 1]];
   for (const [what, bad, id] of [
-    ["one 130 m jump from the end of First Street", { gameSteps: [MEET_CAM], gameFrom: [70, 1.7, 194] }, "meet_game_steps_the_relay_accepts"],
+    ["one 130 m jump from the end of First Street", { gameSteps: [MEET_CAM], gameFrom: [70, 1.7, 194] }, "meet_game_steps_planned_short"],
+    ["the relay passed on none of the middle steps", { gameRelayed: [P1_SPAWN, [76, 1.7, 64.02]] }, "meet_game_steps_relayed"],
+    ["the relay passed on nothing (an empty walker log)", { gameRelayed: [] }, "meet_game_steps_relayed"],
+    ["the relay passed the steps on out of order", { gameRelayed: [P1_SPAWN, [66, 1.7, 40], [54, 1.7, 40], [66, 1.7, 64], MEET_CAM] }, "meet_game_steps_relayed"],
+    ["no record of what the relay passed on", { gameRelayed: undefined }, "meet_game_steps_relayed"],
+    ["the relay spawned the walker in the middle of its plot", { walker: { start: [27.5, 1.7, 143.5] } }, "meet_walker_from_its_door"],
+    ["a wall moved across the game's way in", { walls: [...DOORS.walls, ...across([54, 1.7, 40], [66, 1.7, 40])] }, "meet_routes_clear_of_walls"],
+    ["a wall moved across the walker's way out", { walls: [...DOORS.walls, [60, 135, 60, 143]] }, "meet_routes_clear_of_walls"],
+    ["a wall between the camera and the line", { walls: [...DOORS.walls, [70, 67, 82, 67]] }, "meet_routes_clear_of_walls"],
+    ["no record of the walls", { walls: undefined }, "meet_routes_clear_of_walls"],
     ["the game left in First Street", { gameCamera: [70, 1.7, 120], gameHeld: [70, 1.7, 120], walkerSawGame: [[70, 1.7, 120]] }, "meet_game_in_commons"],
     ["the relay refused the last move", { gameHeld: [66, 1.7, 40] }, "meet_relay_holds_game_there"],
     ["the walker drawn walking through the wall, never in its corridor", { walkerDrawn: [P2_DOOR, [60, 1.7, 120], [70, 1.7, 74], [72, 1.7, 70]] }, "meet_walker_through_its_corridor"],
@@ -728,6 +766,45 @@ test("meet: each broken meeting FAILS its own check", () => {
     assert.ok(failed.includes(id), `${what} should fail ${id}; failed: ${failed.join(", ") || "nothing"}`);
   }
   assert.equal(judgeMeet(null).pass, false, "a meeting nobody recorded fails");
+});
+
+// Increment 2 review, finding 14: inside a zone a route is a straight line, and
+// nothing checked it against the zone's walls (the walker from p1 passes 1.2 m from
+// the room block's corner). The door points now carry every wall a person walks
+// against (everyone's, a neighbour's way home included), and on the shipped ship
+// the meeting's routes from both doors, and the camera's view of the line, cross
+// none of them. A wall a Dev edit moved across one is found. (It found one at
+// once: the game's way in from p1 went straight through the room block, in every
+// green run of the branch, since the `cam` verb stands the camera anywhere; doorRoute
+// now goes round by one corner.) Seen red 2026-10-04
+// with routeWalls finding nothing (the c98c5465b judge had no wall check): "the
+// room block's wall moved across p1's way in was not found".
+test("routes: the shipped meeting's routes and view cross no wall; a wall moved across one is found", () => {
+  assert.ok(Array.isArray(DOORS.walls) && DOORS.walls.length > 50, "the door points carry the ship's walls");
+  for (const door of [P1_SPAWN, P2_DOOR]) {
+    const game = doorRoute(DOORS, door, MEET_CAM, 40);
+    assert.equal(routeWalls([door, ...game.points], DOORS.walls), null, `the game's way in from ${door} crosses a wall`);
+    const walker = doorRoute(DOORS, door, MEET_LINE.start);
+    assert.equal(routeWalls([door, ...walker.waypoints], DOORS.walls), null, `the walker's way out from ${door} crosses a wall`);
+  }
+  const mid = MEET_LINE.start.map((v, k) => (v + MEET_LINE.end[k]) / 2);
+  for (const p of [MEET_LINE.start, mid, MEET_LINE.end]) assert.equal(routeWalls([MEET_CAM, p], DOORS.walls), null, `a wall between the camera and ${p}`);
+  // The room block's south wall stretched west to x 65.5 by a Dev edit, across p1's way in as it
+  // was planned before the edit: found.
+  const moved = [...DOORS.walls, [65.5, 49, 72, 49]];
+  const hit = routeWalls([P1_SPAWN, ...doorRoute(DOORS, P1_SPAWN, MEET_CAM, 40).points], moved);
+  assert.ok(hit, "the room block's wall moved across p1's way in was not found");
+  assert.deepEqual(hit.wall, [65.5, 49, 72, 49]);
+  // Planned on the edited walls, there is no way round by one corner (the block on one side,
+  // the stretched wall on the other): the route stays straight, and the check finds it.
+  const round = doorRoute({ ...DOORS, walls: moved }, P1_SPAWN, MEET_CAM, 40);
+  assert.ok(routeWalls([P1_SPAWN, ...round.points], moved), `a way in with no clear corner passed: ${JSON.stringify(round.waypoints)}`);
+  // On the shipped walls the way in goes round the room block by its west side, while the
+  // straight way the rig planned before doorRoute knew the walls goes through it.
+  assert.deepEqual(doorRoute(DOORS, P1_SPAWN, MEET_CAM).waypoints, [[54, 1.7, 40], [66, 1.7, 40], [66, 1.7, 64], MEET_CAM]);
+  assert.ok(routeWalls([P1_SPAWN, [54, 1.7, 40], [66, 1.7, 40], MEET_CAM], DOORS.walls), "the straight way through the room block was not found");
+  // Touching a wall's end, or running along one, is no crossing.
+  assert.equal(routeWalls([[0, 0, 0], [10, 0, 0]], [[10, 0, 10, 5], [2, 0, 8, 0]]), null);
 });
 
 // The second boot against the same relay (the remembered plot): the home built

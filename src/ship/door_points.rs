@@ -10,6 +10,12 @@
 //! neighbours.rs). A home put away (a guest's, `ShipStructure::put_home_away`) is no place of the
 //! ship. DOORS join two places: every ship corridor, and every plot's door corridor, each with its two
 //! mouths and a step a metre inside each end at eye height, which is where a walk goes through.
+//!
+//! WALLS (increment 2 review, finding 14): every wall a person walks against, as segments across
+//! the floor, the neighbours' included as their holders walk them (`wall_collision::
+//! everyones_walls`). A route the rig plans through the doors goes straight across each place, so
+//! scripts/lib/copresence-judge.js `routeWalls` checks no leg of it crosses one: a Dev edit that
+//! moves an interior wall across a scripted walk fails the rig instead of walking through it.
 
 use crate::ship::ship_structure::{CorridorAxis, CorridorGeom, HomeDesign, ShipStructure, HOME_ZONE_ID, SPAWN_EYE_HEIGHT_M};
 use glam::Vec3;
@@ -63,6 +69,8 @@ pub struct DoorPoints {
     pub ship_hash: String,
     pub places: Vec<RoutePlace>,
     pub doors: Vec<RouteDoor>,
+    /// Every wall a person walks against: [ax, az, bx, bz], ship metres across the floor.
+    pub walls: Vec<[f32; 4]>,
 }
 
 fn door_of(from: String, to: String, g: &CorridorGeom) -> RouteDoor {
@@ -128,7 +136,8 @@ pub fn door_points(ship: &ShipStructure) -> DoorPoints {
             doors.push(door_of(format!("plot:{}", p.id), format!("zone:{}", p.door.zone), &g));
         }
     }
-    DoorPoints { ship_hash: ship.ship_hash(), places, doors }
+    let walls = crate::ship::wall_collision::everyones_walls(ship).into_iter().map(|w| [w.a.0, w.a.1, w.b.0, w.b.1]).collect();
+    DoorPoints { ship_hash: ship.ship_hash(), places, doors, walls }
 }
 
 #[cfg(test)]
@@ -211,6 +220,25 @@ mod tests {
         fixture.as_object_mut().unwrap().remove("ship_hash");
         let ours_f32 = |v: &serde_json::Value| -> String { serde_json::to_string(&round_floats(v)).unwrap() };
         assert_eq!(ours_f32(&ours), ours_f32(&fixture), "the report differs from the rig's fixture; the report is:\n{}", serde_json::to_string_pretty(&door_points(&on("p1"))).unwrap());
+    }
+
+    /// Rewrite the rig's fixture from what the game reports (dev tooling: run with `--ignored`
+    /// after a ship file change, when `the_rigs_fixture_is_what_the_game_reports` fails). One
+    /// place, door or wall per line, numbers to 4 decimals, the hash a placeholder.
+    #[test]
+    #[ignore]
+    fn write_the_rigs_fixture() {
+        let v = round_floats(&serde_json::from_str(&serde_json::to_value(door_points(&on("p1"))).unwrap().to_string()).unwrap());
+        let rows = |key: &str| v[key].as_array().unwrap().iter().map(|x| format!("    {}", serde_json::to_string(x).unwrap())).collect::<Vec<_>>().join(",\n");
+        let text = format!(
+            "{{\n  \"ship_hash\": \"PLACEHOLDER\",\n  \"places\": [\n{}\n  ],\n  \"doors\": [\n{}\n  ],\n  \"walls\": [\n{}\n  ]\n}}\n",
+            rows("places"),
+            rows("doors"),
+            rows("walls")
+        );
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/tests/fixtures/door-points-p1.json");
+        std::fs::write(&path, text).unwrap();
+        println!("wrote {}", path.display());
     }
 
     /// Every number rounded to 4 decimals (an f32 printed through serde_json carries its binary

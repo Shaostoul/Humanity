@@ -310,13 +310,16 @@ function verdict(m, dir) {
   add("no_panics", panics === 0, `${panics} PANIC line(s) in run.log`);
   // BUG-133: a data file served from the copy built into the exe (the tree's
   // was missing or did not parse) makes the run about other data than the tree's.
-  const builtin = m.builtin_data || [];
+  // Not recorded fails (the increment 2 review's finding 15, the same pattern in --plots).
+  const builtin = m.builtin_data;
   add(
     "no_builtin_data",
-    builtin.length === 0,
-    builtin.length
-      ? `${builtin.length} line(s) in run.log/relay.log serving a built-in copy: ${builtin[0].replace(/^.*?\[built-in data copy\]\s*/, "")}`
-      : "every data file came from the tree's data/ (no built-in copy served)",
+    Array.isArray(builtin) && builtin.length === 0,
+    !Array.isArray(builtin)
+      ? "not recorded: which data files came from the copy built into the exe"
+      : builtin.length
+        ? `${builtin.length} line(s) in run.log/relay.log serving a built-in copy: ${builtin[0].replace(/^.*?\[built-in data copy\]\s*/, "")}`
+        : "every data file came from the tree's data/ (no built-in copy served)",
   );
   return { checks, pass: checks.every((c) => c.ok), stats: judged ? judged.stats : null };
 }
@@ -1047,38 +1050,42 @@ function meetChecks(m, dir) {
     return checks;
   }
   add("camera_parked", s.meet_camera && s.meet_camera.ok, s.meet_camera ? s.meet_camera.detail : "never parked");
-  // (A manifest from before the view was cleared at the meeting has no record: judged by the pictures alone.)
-  if (s.meet_view) add("view_clear", s.meet_view.ok, s.meet_view.detail);
+  // A missing record FAILS (increment 2 review, finding 15: it used to leave the check out).
+  add("view_clear", s.meet_view && s.meet_view.ok, s.meet_view ? s.meet_view.detail : "not recorded: the first-run windows were never cleared at the meeting");
   add("route_clear", meet.route_clear, `the walker's route ${(meet.walker_route || []).map((p) => `(${p.map((v) => Number(v).toFixed(1)).join(", ")})`).join(" -> ")} ${meet.route_clear ? "never runs along the line" : "RUNS ALONG THE LINE and could pass for the walk"}`);
   const samplesPath = meet.samples ? path.join(dir, meet.samples) : null;
   const frames = samplesPath && fs.existsSync(samplesPath) ? JSON.parse(fs.readFileSync(samplesPath, "utf8")).frames || [] : [];
   const walker = { id: meet.walker ? meet.walker.id : null, name: (meet.walker && meet.walker.name) || "TestBotPlots" };
   const walkerDrawn = [];
   for (const fr of frames) for (const p of fr.players || []) if (walker.id !== null && Number(p.id) === Number(walker.id)) walkerDrawn.push(p.pos.map(Number));
-  for (const c of judgeMeet({ ...meet, walkerDrawn }).checks) checks.push(c);
+  // The walls every route and the view are checked against: the door points the game reported.
+  const walls = m.door_points && Array.isArray(m.door_points.walls) ? m.door_points.walls : undefined;
+  for (const c of judgeMeet({ ...meet, walls, walkerDrawn }).checks) checks.push(c);
   if (frames.length && meet.line) {
     // The walk is judged on the first forward leg AFTER the pictures (the walker walks the line
     // back and forth): each capture holds the game for one long frame (465 ms on a busy machine,
     // 2026-10-04), its figure buffer runs dry, and the frames after it ease back at up to 1.86 m/s
     // for a 1.4 m/s walk. That is the rig disturbing the drawing, not the drawing; the at-home
-    // walk is judged on a forward leg the same way. A manifest with no capture times (written
-    // before this) is judged on the first pass, as it was.
+    // walk is judged on a forward leg the same way. A run with no capture times FAILS here
+    // (increment 2 review, finding 15: it used to be judged on the first pass instead).
     const onLine = meet.walker ? meet.walker.on_line_epoch_ms : null;
     const shotTimes = (meet.screenshots || []).map((s) => Number(s.taken_epoch_ms)).filter(Number.isFinite);
     const legMs = ((2 * meet.line.radius) / m.speed) * 1000;
-    const leg = Number.isFinite(onLine) && shotTimes.length ? forwardLegStart(onLine, m.speed, meet.line.radius, Math.max(...shotTimes) + 500) : onLine;
+    const leg = Number.isFinite(onLine) && shotTimes.length ? forwardLegStart(onLine, m.speed, meet.line.radius, Math.max(...shotTimes) + 500) : NaN;
     const epochs = frames.map((f) => Number(f.epoch_ms)).filter(Number.isFinite);
     const whole = Number.isFinite(leg) && epochs.length && leg + legMs + 500 <= epochs[epochs.length - 1];
     add(
       "leg_recorded",
       whole,
       Number.isFinite(leg) && epochs.length
-        ? `the judged forward leg starts ${((leg - (onLine || leg)) / 1000).toFixed(2)} s after the walker reached the line (${leg === onLine ? "the first pass: this run recorded no capture times" : "the first after the pictures"}) and lasts ${(legMs / 1000).toFixed(2)} s; the recording ran to ${((epochs[epochs.length - 1] - leg) / 1000).toFixed(2)} s past its start` +
+        ? `the judged forward leg starts ${((leg - onLine) / 1000).toFixed(2)} s after the walker reached the line (the first after the pictures) and lasts ${(legMs / 1000).toFixed(2)} s; the recording ran to ${((epochs[epochs.length - 1] - leg) / 1000).toFixed(2)} s past its start` +
             (whole ? "" : ": NOT all of it inside the recording")
-        : "no time the walker reached the line, or no frame times",
+        : !shotTimes.length
+          ? "not recorded: when the pictures were taken, so the leg after them cannot be found"
+          : "no time the walker reached the line, or no frame times",
     );
     if (whole) {
-      const j = judgeCopresence({ frames, walker, line: meet.line, speed: m.speed, onLineEpochMs: leg, fromEpochMs: leg === onLine ? null : leg, checkView: true });
+      const j = judgeCopresence({ frames, walker, line: meet.line, speed: m.speed, onLineEpochMs: leg, fromEpochMs: leg, checkView: true });
       for (const c of j.checks) checks.push({ ...c, id: `meet_${c.id}` });
     }
   } else {
@@ -1100,9 +1107,9 @@ function plotsVerdict(m, dir) {
   const add = (id, ok, detail) => checks.push({ id, ok: !!ok, detail });
   const s = m.steps_ok || {};
   add("relay_up", s.relay && s.relay.ok, s.relay ? s.relay.detail : "never started");
-  // How the game came into the world (a menu entry must have run the race). A
-  // manifest from before --entry existed entered by autopilot: every run did.
-  for (const c of judgeEntry(m.entry || { kind: "autopilot" }).checks) checks.push(c);
+  // How the game came into the world (a menu entry must have run the race). Not recorded fails
+  // (judgeEntry's entry_known).
+  for (const c of judgeEntry(m.entry).checks) checks.push(c);
   add("game_in_world", s.joined && s.joined.ok, s.joined ? s.joined.detail : "never joined");
   add("walker_in_world", s.walker && s.walker.ok, s.walker ? s.walker.detail : "never ran");
   const samplesPath = m.samples ? path.join(dir, m.samples) : null;
@@ -1175,17 +1182,17 @@ function plotsVerdict(m, dir) {
   const panics = Number(m.panics || 0);
   add("no_panics", panics === 0, `${panics} PANIC line(s) in run.log`);
   // BUG-133, as the default rig: a data file served from the copy built into the exe makes the
-  // run about other data than the tree's. Both boots' run.logs and the relay's log. (A manifest
-  // from before this has no record: not judged.)
-  if (Array.isArray(m.builtin_data)) {
-    add(
-      "no_builtin_data",
-      m.builtin_data.length === 0,
-      m.builtin_data.length
+  // run about other data than the tree's. Both boots' run.logs and the relay's log. Not recorded
+  // fails (increment 2 review, finding 15).
+  add(
+    "no_builtin_data",
+    Array.isArray(m.builtin_data) && m.builtin_data.length === 0,
+    !Array.isArray(m.builtin_data)
+      ? "not recorded: which data files came from the copy built into the exe"
+      : m.builtin_data.length
         ? `${m.builtin_data.length} line(s) in run.log/relay.log serving a built-in copy: ${m.builtin_data[0].replace(/^.*?\[built-in data copy\]\s*/, "")}`
         : "every data file came from the tree's data/ (no built-in copy served), in both boots and the relay",
-    );
-  }
+  );
   return { checks, pass: checks.every((c) => c.ok), stats };
 }
 
@@ -1705,8 +1712,15 @@ async function runPlotsOnce(order, runStamp, cleanups) {
       camera_yaw: camB ? camB.yaw : myaw,
       gameFrom: gameDoor,
       gameSteps: [...gameSteps.slice(1), camB ? camB.pos : meetCam],
+      // Every position the relay passed on for the game on its way (the walker at home logged
+      // them): judgeMeet finds each planned step among them, in order (increment 2 review,
+      // finding 12; the plan alone was judged before).
+      gameRelayed: gameSeen,
       gameCamera: camB ? camB.pos : null,
       gameHeld,
+      // The walker's door, from the door points: it must come back into the world there
+      // (finding 13, judgeMeet's walker_from_its_door).
+      walkerDoor: wPlace.door,
       walkerTube: wDoor ? { min: wDoor.tube[0], max: wDoor.tube[1] } : null,
       walkerSawGame: sawGame,
       walker_route: [wPlace.door, ...wRoute.waypoints],

@@ -357,7 +357,12 @@ function judgeCopresence({ frames, walker, line, speed, onLineEpochMs, fromEpoch
         : "no time for when the walker reached the line, so where it really was cannot be told",
     );
   }
-  if (checkView && pass.some((s) => s.cam)) {
+  // Asked for, the view is always judged: a recording with no camera on any frame of the pass
+  // (a recorder that dropped or renamed `cam`) FAILS here instead of leaving the check out
+  // (increment 2 review, finding 11: the run passed with one check fewer).
+  if (checkView && !pass.some((s) => s.cam)) {
+    add("in_view", false, "the recording carries no camera, so the view cannot be judged");
+  } else if (checkView) {
     stats.max_view_angle_deg = maxAngle;
     add(
       "in_view",
@@ -752,6 +757,12 @@ function stepsAlong(from, points, maxStep) {
  *              moving the game with the showcase `cam` verb)
  *   doors      "from->to" for each door crossed
  *   error      why there is no route (an unknown place, no doors between)
+ * Inside a place each leg is a straight line. When the report carries its
+ * walls (`walls`, every wall a person walks against) a leg that would cross one
+ * goes round by one corner instead, along x then z or along z then x, whichever
+ * is clear (`detourRound`): the game's way in from p1 went straight through the
+ * Commons' room block (increment 2 review, finding 14; found by `routeWalls`).
+ * A leg with no clear corner stays straight, and `routeWalls` then says so.
  * Pure.
  */
 function doorRoute(report, from, to, maxStep = 40) {
@@ -773,8 +784,25 @@ function doorRoute(report, from, to, maxStep = 40) {
   if (!prev.has(b.id)) return { waypoints: [], points: [], doors: [], error: `no doors lead from ${a.id} to ${b.id}` };
   const crossings = [];
   for (let id = b.id; prev.get(id); id = prev.get(id).from) crossings.unshift(prev.get(id));
-  const waypoints = [...crossings.flatMap((c) => c.steps.map((s) => s.slice())), to.slice()];
+  const straight = [...crossings.flatMap((c) => c.steps.map((s) => s.slice())), to.slice()];
+  const waypoints = [];
+  let at = from;
+  for (const p of straight) {
+    waypoints.push(...detourRound(at, p, report.walls));
+    at = p;
+  }
   return { waypoints, points: stepsAlong(from, waypoints, maxStep), doors: crossings.map((c) => `${c.door.from}->${c.door.to}`), error: null };
+}
+
+/** The points to walk from `a` to `b` (b last): [b] when the straight leg crosses
+ *  none of `walls`, else round one corner, [corner, b], along x first or along z
+ *  first, whichever crosses none; [b] when neither does (`doorRoute`). Pure. */
+function detourRound(a, b, walls) {
+  if (!Array.isArray(walls) || !routeWalls([a, b], walls)) return [b];
+  for (const corner of [[b[0], a[1], a[2]], [a[0], a[1], b[2]]]) {
+    if (!routeWalls([a, corner, b], walls)) return [corner, b];
+  }
+  return [b];
 }
 
 /** True when no leg of the walk `points` (its start first, ending at the
@@ -793,6 +821,27 @@ function routeClear(points, line, limits = LIMITS) {
     }
   }
   return true;
+}
+
+/** The first wall of `walls` (the door points' `walls`: [ax, az, bx, bz] each, ship metres
+ *  across the floor) that the walk `points` crosses, as { leg, from, to, wall }, or null.
+ *  A proper crossing only: touching a wall's end, or running along one, does not count, which
+ *  errs toward passing a route that grazes a doorway's edge. Inside a place a route is a
+ *  straight line between its steps (doorRoute), so this is what says it does not walk through
+ *  an interior wall a Dev edit put across it (increment 2 review, finding 14). Pure. */
+function routeWalls(points, walls) {
+  const orient = (ax, az, bx, bz, cx, cz) => (bx - ax) * (cz - az) - (bz - az) * (cx - ax);
+  for (let i = 1; i < (points || []).length; i++) {
+    const [p, q] = [points[i - 1].map(Number), points[i].map(Number)];
+    for (const w of walls || []) {
+      const d1 = orient(p[0], p[2], q[0], q[2], w[0], w[1]);
+      const d2 = orient(p[0], p[2], q[0], q[2], w[2], w[3]);
+      const d3 = orient(w[0], w[1], w[2], w[3], p[0], p[2]);
+      const d4 = orient(w[0], w[1], w[2], w[3], q[0], q[2]);
+      if (d1 * d2 < 0 && d3 * d4 < 0) return { leg: i, from: p, to: q, wall: w };
+    }
+  }
+  return null;
 }
 
 /** Places on the floor of every shared zone of the report: each zone's four
@@ -848,12 +897,35 @@ function judgeMeet(meet) {
   const steps = Array.isArray(m.gameSteps) ? m.gameSteps : [];
   let longest = 0;
   for (let i = 0; i < steps.length; i++) longest = Math.max(longest, d3(i ? steps[i - 1] : m.gameFrom, steps[i]));
+  // The PLAN: no step longer than the relay's rule allows (the 90 m the design names). What the
+  // relay did with each is the next check (increment 2 review, finding 12: this one alone, named
+  // as if the relay had accepted each step, read nothing the relay said).
   add(
-    "game_steps_the_relay_accepts",
+    "game_steps_planned_short",
     steps.length > 0 && longest <= MEET_MAX_STEP_M,
     steps.length
-      ? `the game was moved from its door ${fmt3(m.gameFrom)} in ${steps.length} steps, the longest ${longest.toFixed(1)} m (at most ${MEET_MAX_STEP_M} m)`
+      ? `the game's way in was planned from its door ${fmt3(m.gameFrom)} in ${steps.length} steps, the longest ${longest.toFixed(1)} m (at most ${MEET_MAX_STEP_M} m)`
       : "the game was never moved",
+  );
+  // Each planned step, in order, among the positions the relay passed on for the game (the
+  // first walker, at home, logs them): a step the relay turned down would leave the game
+  // stranded behind it, whatever the plan said.
+  const relayed = Array.isArray(m.gameRelayed) ? m.gameRelayed : null;
+  let from = 0;
+  const missed = [];
+  for (const s of steps) {
+    const at = relayed ? relayed.findIndex((r, i) => i >= from && d3(r, s) <= 0.5) : -1;
+    if (at < 0) missed.push(s);
+    else from = at;
+  }
+  add(
+    "game_steps_relayed",
+    !!relayed && steps.length > 0 && missed.length === 0,
+    !relayed
+      ? "what the relay passed on for the game was not recorded"
+      : missed.length
+        ? `${missed.length} of ${steps.length} planned steps never passed on by the relay in order (first ${fmt3(missed[0])}); it passed on ${relayed.length} position(s)`
+        : `the relay passed on every one of the ${steps.length} planned steps, in order (${relayed.length} position(s) logged)`,
   );
   add(
     "game_in_commons",
@@ -866,6 +938,38 @@ function judgeMeet(meet) {
     "relay_holds_game_there",
     held <= 0.5,
     `the relay last passed the game on at ${fmt3(m.gameHeld)}, ${Number.isFinite(held) ? held.toFixed(2) : "?"} m from its camera (at most 0.5: a move refused leaves it behind)`,
+  );
+  // Nothing crosses a wall (finding 14): the game's way in, the walker's way out, and the camera's
+  // view of the line, against every wall a person walks against (the door points' `walls`).
+  const walls = Array.isArray(m.walls) ? m.walls : null;
+  const line = m.line || null;
+  const mid = line ? line.start.map((v, k) => (Number(v) + Number(line.end[k])) / 2) : null;
+  const crossings = walls
+    ? [
+        ["the game's way in", routeWalls([m.gameFrom, ...steps].filter(Array.isArray), walls)],
+        ["the walker's way out", routeWalls(Array.isArray(m.walker_route) ? m.walker_route : [], walls)],
+        ...(line && Array.isArray(m.gameCamera) ? [line.start, mid, line.end].map((p) => ["the camera's view of the line", routeWalls([m.gameCamera, p], walls)]) : []),
+      ].filter(([, hit]) => hit)
+    : [];
+  add(
+    "routes_clear_of_walls",
+    !!walls && !!line && Array.isArray(m.walker_route) && crossings.length === 0,
+    !walls
+      ? "the walls were not recorded (the door points carry them)"
+      : !line || !Array.isArray(m.walker_route)
+        ? "the line or the walker's route was not recorded"
+        : crossings.length
+          ? `${crossings[0][0]} crosses the wall (${crossings[0][1].wall.map((v) => Number(v).toFixed(2)).join(", ")}) between ${fmt3(crossings[0][1].from)} and ${fmt3(crossings[0][1].to)}`
+          : `the game's way in, the walker's way out and the camera's view of the line cross none of the ${walls.length} walls`,
+  );
+  // The walker came back into the world AT ITS DOOR (finding 13): its join named the door
+  // (--home-spawn), and the relay must have spawned it there, not in the middle of its plot.
+  const start = m.walker && m.walker.start;
+  const fromDoor = d3(start, m.walkerDoor);
+  add(
+    "walker_from_its_door",
+    fromDoor <= 0.5,
+    `the relay spawned the walker at ${fmt3(start)}, ${Number.isFinite(fromDoor) ? fromDoor.toFixed(2) : "?"} m from its door ${fmt3(m.walkerDoor)} (at most 0.5)`,
   );
   const drawn = Array.isArray(m.walkerDrawn) ? m.walkerDrawn : [];
   const inTube = drawn.filter((p) => inBox(p, m.walkerTube, 0.05)).length;
@@ -1000,6 +1104,7 @@ module.exports = {
   placeAt,
   doorRoute,
   routeClear,
+  routeWalls,
   farPlaces,
   farthestFrom,
   judgeMeet,

@@ -133,7 +133,7 @@ fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], see_through_wind
 /// SIDE walls as blocking rails -- and NOTHING across its open ends, so the player walks down the
 /// hallway but not through its sides.
 pub fn ship_wall_segments(ship: &crate::ship::ship_structure::ShipStructure) -> Vec<WallSegment> {
-    ship_segments_impl(ship, false)
+    ship_segments_impl(ship, false, false)
 }
 
 /// SIGHT blockers for the whole ship (v0.975): window apertures open, everything else as
@@ -146,7 +146,18 @@ pub fn ship_wall_segments(ship: &crate::ship::ship_structure::ShipStructure) -> 
 /// live door list the caller adds, so a neighbour walking home through it is seen, and nothing
 /// behind a shut door is. The walking segments keep that wall whole: no one walks in there.
 pub fn ship_sight_segments(ship: &crate::ship::ship_structure::ShipStructure) -> Vec<WallSegment> {
-    ship_segments_impl(ship, true)
+    ship_segments_impl(ship, true, true)
+}
+
+/// The walls EVERY player walks against at once: this game's own (`ship_wall_segments`) plus each
+/// neighbour's, as its holder walks it (its home's walls with its door open and its windows
+/// solid, its corridor's side walls, and the hole its corridor makes in the shared zone it runs
+/// to open). Not a collider of this game, where a neighbour's home stops nobody: the rig's door
+/// points carry it (src/ship/door_points.rs `walls`), so a scripted player's route, which walks a
+/// neighbour's way home, is checked against walls that really stand there (increment 2 review,
+/// finding 14).
+pub fn everyones_walls(ship: &crate::ship::ship_structure::ShipStructure) -> Vec<WallSegment> {
+    ship_segments_impl(ship, false, true)
 }
 
 /// The two side walls of a corridor tube, the full run, as blockers: what a ship corridor
@@ -161,10 +172,11 @@ pub(crate) fn corridor_side_walls(g: &crate::ship::ship_structure::CorridorGeom)
     })
 }
 
-fn ship_segments_impl(ship: &crate::ship::ship_structure::ShipStructure, sight: bool) -> Vec<WallSegment> {
+/// `sight`: windows open (glass). `neighbours`: the neighbours' walls and corridors too, and the
+/// holes their corridors make in the shared zones open (`ship_sight_segments`, `everyones_walls`).
+fn ship_segments_impl(ship: &crate::ship::ship_structure::ShipStructure, sight: bool, neighbours: bool) -> Vec<WallSegment> {
     let mut segs = Vec::new();
-    // The neighbours, for sight only (see `ship_sight_segments`).
-    let neighbours = sight.then(|| crate::ship::neighbours::neighbour_view(ship));
+    let neighbours = neighbours.then(|| crate::ship::neighbours::neighbour_view(ship));
     for (zi, zone) in ship.zones.iter().enumerate() {
         // A home put away stops nobody (ship homes increment 2, `ShipStructure::put_home_away`):
         // collision tests x and z only, so its walls would stand in the ship's own footprint.
@@ -190,7 +202,7 @@ fn ship_segments_impl(ship: &crate::ship::ship_structure::ShipStructure, sight: 
         segs.extend(corridor_side_walls(&g));
     }
     if let Some(n) = &neighbours {
-        segs.extend(n.sight_segments());
+        segs.extend(n.segments(sight));
     }
     segs
 }
