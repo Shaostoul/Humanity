@@ -42,8 +42,12 @@ the arithmetic below leans on.
   or above 85 dBA can cause hearing loss." The louder the sound, the
   shorter the time it takes. The damage is to the hair cells of the
   inner ear, and the NIDCD is plain about them: "Unlike bird and
-  amphibian hair cells, human hair cells don't grow back." Hearing lost
-  this way does not come back.
+  amphibian hair cells, human hair cells don't grow back." When noise
+  kills them, the hearing they gave does not come back either. Not
+  every noise injury is permanent: the NIDCD says
+  noise-induced hearing loss "can be temporary or permanent." But
+  hearing that seems to come back can still hide lasting damage, as
+  "The warning you get" below explains, so never count on recovering.
 - **One very loud bang.** Gunshots and explosions, the NIDCD says, can
   rupture the eardrum or damage the bones of the middle ear, and that
   kind of hearing loss "can be immediate and permanent." Its hearing
@@ -66,6 +70,11 @@ the arithmetic below leans on.
   you can hear thunder, chances are that you're within striking distance
   of the storm." Its rule: "When Thunder Roars, Go Indoors!" Then wait 30
   minutes after the last lightning or thunder before going back out.
+  Being indoors is not the end of it: the weather service says that
+  inside, you should not touch anything plugged into an electrical
+  outlet, plumbing or corded phones, should keep away from outside doors
+  and windows, and should not lie on a garage floor. The full wording is
+  under "Count from somewhere safe" below.
 - **Children cannot protect their own ears.** Among the NIDCD's
   prevention steps: "Protect the ears of children who are too young to
   protect their own." Its fact sheet says earmuffs are easier than
@@ -185,7 +194,13 @@ arithmetic:
   safe place while counting." The count is not a way to decide whether
   you can stay out. If you can hear thunder at all, you are probably
   within reach. Substantial buildings and hard-topped vehicles are safe;
-  rain shelters, small sheds and open vehicles are not.
+  rain shelters, small sheds and open vehicles are not. And once you are
+  inside, in the weather service's words: "When inside, do not touch
+  anything that is plugged into an electrical outlet, plumbing, and
+  corded phones. Cell phones and cordless phones are safe. Also, keep
+  away from outside doors and windows and do not lie on a garage floor."
+  Plumbing means the bath, the shower and the sink too, so leave washing
+  until the storm has passed (our reading of "plumbing").
 - **The sound tells you about the path.** A sharp crack or click means
   the lightning passed nearby; a rumble means it was at least several
   miles away. The weather service explains that a lightning channel runs
@@ -296,8 +311,12 @@ A generator measures 85 dBA at 2 metres (our example figure). Outdoors,
 with nothing to reflect the sound, OSHA's 6 dB rule gives about 79 dBA
 at 4 metres, 73 at 8 metres and 67 at 16 metres (arithmetic). Every
 doubling of distance cuts it by the same amount, so the first few metres
-matter most. The same arithmetic says that standing right beside it, at
-half a metre, you would be near 97 dBA.
+matter most. Do not run the rule the other way to work out the level
+right beside the machine: it holds only some distance out, and OSHA's
+manual says that in the near field, the space immediately around a
+source, measurements are not reliable because small changes in position
+make big differences. Close up, simply assume it is louder than the
+2-metre figure and protect your ears (our reading).
 
 There is a second reason to put a generator far away, and it is the
 bigger one: its exhaust. The Consumer Product Safety Commission's rules
@@ -531,8 +550,10 @@ Something Broke](/library#working-out-why-something-broke) is the next step.
   NIDCD's fact sheet says to consult a hearing health professional.
 - **An ear that hurts, bleeds, leaks fluid, or was hit by a blast:** a
   health professional, not a home remedy (general practice).
-- **Lightning:** no amount of counting makes outdoors safe. Go indoors
-  (National Weather Service).
+- **Lightning:** no amount of counting makes outdoors safe. Go indoors,
+  and once inside keep away from anything plugged into an outlet,
+  plumbing, corded phones, and outside doors and windows, until 30
+  minutes after the last thunder (National Weather Service).
 
 ## How the game models it
 
@@ -550,8 +571,9 @@ it does not model hearing at all.
   at a fixed distance: outdoors it loses about 6 dB each time the
   distance doubles, as OSHA describes, so it fades fast at first and
   then slowly, and never quite to nothing.
-- **Footsteps and doors.** Walking plays a footstep every 1.5 metres,
-  grass on a planet's ground and metal anywhere else. The doors of your
+- **Footsteps and doors.** Walking plays a footstep every 1.5 metres:
+  grass on a planet's ground, and metal aboard the station when you are
+  in first person. Walking anywhere else makes no footstep sound. The doors of your
   home aboard the station sound when they open and close if you are
   within 25 metres, and a door you built sounds when you open or shut
   it. None of these is placed in space: a door 20 metres away sounds as
@@ -575,8 +597,8 @@ outside.
 
 ## You own this when
 
-- You know that hearing lost to noise does not come back, and that the
-  damage does not hurt while it happens.
+- You know that the hair cells noise kills do not grow back, and that
+  the damage does not hurt while it happens.
 - You can use the raised-voice test, and you wear protection when you
   have to shout at arm's length.
 - You know NIOSH's 85 dBA for 8 hours, and that every 3 dB more halves
@@ -585,7 +607,8 @@ outside.
   explain why the NRR on the box is more than you will get.
 - You protect children's ears for them.
 - You treat sudden hearing loss as an emergency.
-- You go indoors when you hear thunder, and wait 30 minutes after the
+- You go indoors when you hear thunder, keep off plumbing, corded phones
+  and anything plugged in while it lasts, and wait 30 minutes after the
   last of it.
 - You can count from lightning to thunder and turn it into a distance,
   and use an echo to measure a long way off.
@@ -629,7 +652,8 @@ were read on 3 October 2026.
   Publication No. 14-4233, text updated March 2014, page last updated 16
   April 2025 (70 dBA unlikely to cause hearing loss and 85 dBA and above
   able to; the table of familiar sounds; hair cells that do not grow
-  back; impulse sounds that can be immediate and permanent; tinnitus;
+  back; noise-induced hearing loss that "can be temporary or
+  permanent"; impulse sounds that can be immediate and permanent; tinnitus;
   temporary loss that disappears 16 to 48 hours later, possibly with
   lasting damage; the prevention steps, including protecting children's
   ears and having your hearing tested).
@@ -707,8 +731,10 @@ were read on 3 October 2026.
   Lightning Safety Tips and Resources and its overview,
   undated ("When Thunder Roars, Go Indoors!"; substantial buildings and
   hard-topped vehicles are safe, rain shelters, small sheds and open
-  vehicles are not; wait 30 minutes after the last lightning or
-  thunder).
+  vehicles are not; indoors, do not touch anything plugged into an
+  outlet, plumbing or corded phones, cell and cordless phones being
+  safe, keep away from outside doors and windows, and do not lie on a
+  garage floor; wait 30 minutes after the last lightning or thunder).
   https://www.weather.gov/safety/lightning-science-thunder
   https://www.weather.gov/safety/lightning-safety-overview
 
@@ -717,7 +743,8 @@ were read on 3 October 2026.
 - Volume settings: `draw_audio_content` in `src/gui/pages/settings.rs`.
 - Screen sound: `audio_placement`, `AUDIO_MAX_DISTANCE_M` (50 metres)
   and the muted start in `src/engine/screens/video.rs`.
-- Footsteps (every 1.5 metres, grass on a planet and metal elsewhere)
+- Footsteps (every 1.5 metres, grass on a planet's ground and metal
+  aboard the station in first person, silent elsewhere)
   and the one-shot sound queue: the audio block of `src/lib.rs`; door
   sounds within 25 metres: `src/engine/home_meshes.rs`; the sound
   catalogue, `data/sounds.toml`.
@@ -744,7 +771,10 @@ were read on 3 October 2026.
   tenfold intensity with the Navy course's tenfold-for-double rule.
 - The two-mower and four-mower figures, the generator distances and the
   yard-work exposure: arithmetic from OSHA's and NIOSH's rules, with our
-  own example figures.
+  own example figures. Assuming a machine is louder up close than a
+  reading taken farther out: our reading of OSHA's near-field caution.
+- Leaving baths, showers and washing up until a thunderstorm has
+  passed: our reading of the weather service's "plumbing".
 - Using NIOSH's stricter limit at home rather than OSHA's.
 - Holding a phone meter at your ear, and that a phone is a guide rather
   than a calibrated instrument.

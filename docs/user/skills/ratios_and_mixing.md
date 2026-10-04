@@ -40,23 +40,32 @@ you check that an answer is the right size.
 
 ## First: where a wrong mix hurts people
 
-- **Infant formula.** The FDA says to "Use the amount of water and number
+- **Infant formula.** The FDA's first instruction is about the water
+  itself: "Use water from a safe source to mix with powdered infant
+  formula. If you are not sure if your tap water is safe to use for
+  preparing infant formula, contact your local health department or use
+  bottled water." Then it says to "Use the amount of water and number
   of powder scoops listed on the instructions of the infant formula
   label. Be sure to use the scoop provided by the manufacturer. Always
   measure the water first and then add the powder." Liquid concentrate
   must be mixed with an equal amount of water; ready-to-feed formula
   needs no mixing at all, so adding water to it is a mistake (our
-  reading of the FDA's three forms). The FDA also advises against making
-  homemade formula at all: it has had reports of babies hospitalised
-  after being fed it. Formula is a recipe that must never be stretched,
+  reading of the FDA's three forms). Formula that is not fed straight
+  away goes in the refrigerator at once and is used within 24 hours, and
+  whatever is left in the bottle after a feed is thrown away (FDA). The
+  FDA also advises against making homemade formula at all: it has had
+  reports of babies hospitalised after being fed it. Formula is a recipe that must never be stretched,
   strengthened or improvised (our reading).
 - **Canning.** USDA: "Do not alter vinegar, food, or water proportions in
   a recipe or use a vinegar with unknown acidity." And: "Use only recipes
   with tested proportions of ingredients." Its guide adds that the proportion
   of fresh food to other ingredients affects flavour "and, in many
-  instances, safety." Never scale, halve, double or adjust a canning
-  recipe; [Why Canning Has Rules](why_canning_has_rules.md) explains
-  what is at stake.
+  instances, safety." So never change a canning recipe's proportions,
+  and never double a jam or jelly batch: to make more, make another
+  batch (USDA, below). Going further and not scaling a canning recipe
+  at all, halving included, is our own stricter rule, because scaling is
+  the easiest way to change a proportion by mistake. [Why Canning Has
+  Rules](why_canning_has_rules.md) explains what is at stake.
 - **Bleach and other cleaners.** The CDC: "Never mix bleach with ammonia
   or other cleaners. This will produce a poisonous gas." Stronger is not
   better, and two products are not a recipe: mix only one product, with
@@ -77,6 +86,20 @@ you check that an answer is the right size.
   cement burns". The burns can keep getting worse after the cement is
   off the skin. Gloves, boots and eye protection are below, in the
   concrete section.
+- **Dry cement and lime dust.** The powder is a hazard before any water
+  goes in. OSHA sets a workplace limit for "the inhalation hazards of
+  working with dry portland cement". NIOSH's Pocket Guide to Chemical
+  Hazards lists irritation of the eyes, skin and nose, and coughing,
+  among the effects of portland cement, and names the eyes, skin and
+  respiratory system as the organs it affects. For hydrated lime (calcium hydroxide), which
+  goes into mortar, it lists eye and skin burns, coughing and
+  bronchitis. For both it says to prevent skin and eye contact. Wear the
+  same gloves and eye protection for dry bags as for wet mixes, open
+  and tip bags gently and low down so you raise as little dust as you
+  can, and mix in the open air with the wind at your back (general
+  practice). NIOSH's first aid: for dust in the eyes, "Irrigate
+  immediately"; for someone who has breathed in cement dust, "Fresh
+  air".
 - **Medicine doses.** A dose is not a ratio to scale up or down yourself,
   for a child, a pet or a larger person. Use the label or ask a
   pharmacist (general practice). [Units and Converting
@@ -157,7 +180,10 @@ hard to undo (general practice).
 
 ### What does not scale
 
-- **Canning recipes, ever.** Above, and in [Why Canning Has
+- **Canning recipes.** The USDA's rule is that the proportions never
+  change. Scaling is the easiest way to change them by mistake, so our
+  stricter rule is not to scale a canning recipe at all: make it as
+  written, as many times as you need. More in [Why Canning Has
   Rules](why_canning_has_rules.md).
 - **Jams and jellies.** USDA: "make one batch at a time, according to
   the recipe. Increasing the quantities often results in soft gels." It
@@ -252,9 +278,9 @@ For cleaning mould off hard surfaces, the CDC gives a bleach solution of
 "no more than 1 cup of household laundry bleach in 1 gallon of water".
 That is at most 1:16, since a gallon is 16 cups (arithmetic). The words
 "no more than" matter: this is a ceiling, not a target. The CDC says to
-wear rubber boots, rubber gloves and goggles, and never to mix the bleach
-with any other cleaner; keep the room aired while you work (general
-practice). [Ventilation, Damp and
+wear rubber boots, rubber gloves and goggles, to "Open windows and doors
+to provide fresh air", and never to mix the bleach with any other
+cleaner. [Ventilation, Damp and
 Mould](ventilation_damp_and_mould.md) says when bleach is the wrong tool
 altogether.
 
@@ -294,8 +320,9 @@ allow for water already in wet aggregate.
 
 **Worked example: mixing by hand** (the manual's method; the bucket
 counts are our example). Use buckets of the same size: 1 of cement, 2 of
-sand, 3 of gravel. The manual says to mix on a clean, level, moistened
-surface with tight joints, or in a mixing box; spread the cement over the
+sand, 3 of gravel. The manual says to mix on a clean, even, paved
+surface or a wood platform with tight joints, moistened and level, or in
+a hoe box, a box you mix in with a hoe; spread the cement over the
 sand and the gravel over the cement; turn the dry materials at least
 three times until the colour is even; then add water slowly while
 turning at least three times more, until it is the right consistency.
@@ -312,7 +339,9 @@ code and, where it says so, an engineer (general practice).
 The same manual gives mortar types by volume. Type N, for general use in
 above-grade masonry, is one part portland cement, one part hydrated lime
 and six parts sand. It says to convert volume parts to weight by
-multiplying each by its weight per cubic foot.
+multiplying each by its weight per cubic foot. Hydrated lime needs the
+same care as cement: NIOSH lists eye and skin burns among its effects
+(see "Dry cement and lime dust" at the top of this guide).
 
 **Worked example** (arithmetic, from the manual's weights): Type N by
 weight is 94 pounds of cement, 50 of lime and 6 x 85 = 510 of damp,
@@ -348,6 +377,11 @@ applies just as well to a weekend slab (our reading):
   skin-softening products, which can seal the cement onto the skin.
   Take off watches and rings, which trap cement against the skin.
 - Change out of clothes that wet cement has soaked into.
+- Treat the dry powder with the same respect: gloves and eye protection
+  when you open and tip the bags, as little dust as you can raise, and
+  the open air rather than a closed shed (general practice, from the
+  NIOSH and OSHA warnings at the top of this guide). If someone has
+  breathed in cement dust, NIOSH's first aid is "Fresh air".
 
 Burns that need care are covered in [Treating Burns](treating_burns.md),
 but a cement burn of any size is a reason to see a professional, as OSHA
@@ -403,10 +437,13 @@ Different ratios forgive different errors (our framing):
 
 - **Infant formula questions,** especially for a baby under three months
   old, born prematurely, or with a weakened immune system: the FDA says
-  to contact the baby's paediatrician about any extra precautions.
+  to contact the baby's paediatrician about any extra precautions. Not
+  sure your tap water is safe for formula: your local health department,
+  or bottled water (FDA).
 - **Medicine doses:** the label, a pharmacist or a doctor (general
   practice).
-- **Canning recipes:** tested recipes only, unaltered (USDA).
+- **Canning recipes:** tested recipes only, with their proportions
+  unaltered, and jams and jellies one batch at a time (USDA).
 - **Structural concrete:** your local building code, and an engineer
   where the code requires one (general practice).
 - **A cement burn:** a health care professional, immediately (OSHA).
@@ -481,6 +518,10 @@ nothing goes wrong if you get a mixture wrong, because you cannot.
 - You wear gloves, boots and eye protection with wet cement, wash it off
   in clean cool water, and treat a cement burn as a reason to see a
   professional.
+- You handle dry cement and hydrated lime with gloves and eye
+  protection, raising as little dust as you can, in the open air.
+- You make infant formula with water from a safe source, and ask your
+  health department when you are not sure of your tap water.
 - You mix two-stroke fuel at your engine's own ratio.
 - You know which ratios forgive you and which never do.
 
@@ -504,8 +545,10 @@ public domain. Web pages were read on 3 October 2026.
   raw materials to 2,600 to 3,000 degrees F into clinker; bulking of damp
   sand, and care when proportioning by volume; measurement by weight the
   most reliable; the 1:2:3 method "regardless of the units of measure
-  used"; measuring water accurately every batch; hand mixing, turning
-  three times dry and three times wet; mortar types by volume, Type N 1
+  used"; measuring water accurately every batch; hand mixing on a clean,
+  even, paved surface or a wood platform with tight joints, moistened
+  and level, or in a hoe box, turning three times dry and three times
+  wet; mortar types by volume, Type N 1
   part portland cement, 1 part lime, 6 parts sand; converting volume to
   weight with 94 pounds of portland cement, 50 of hydrated lime and 85 of
   damp, loose mortar sand per cubic foot). Read as the full scanned text.
@@ -520,14 +563,22 @@ public domain. Web pages were read on 3 October 2026.
   kneeboards; eye protection; washing in clean, cool water with a
   pH-neutral or slightly acidic soap; no abrasives, waterless cleaners,
   lanolin or petroleum jelly; no watches or rings; changing contaminated
-  clothes).
+  clothes; the permissible exposure limit set "to address the inhalation
+  hazards of working with dry portland cement").
   https://www.osha.gov/sites/default/files/publications/OSHA-3351-portland-cement.pdf
 - National Institute for Occupational Safety and Health. *NIOSH Pocket
   Guide to Chemical Hazards*, Portland cement, page dated 30 October 2019
-  (first aid for the eyes: "Irrigate immediately"; for the skin, soap
-  wash promptly). Read through a page summary, because cdc.gov refuses
-  scripted downloads.
+  (symptoms including irritation of the eyes, skin and nose, and cough;
+  the eyes, skin and respiratory system as target organs; prevent skin
+  and eye contact; first aid for the eyes: "Irrigate immediately"; for
+  the skin, soap wash promptly; for breathing: "Fresh air"). And Calcium
+  hydroxide, whose synonyms include hydrated lime, page dated 30 October
+  2019 (symptoms including eye and skin burns, cough and bronchitis;
+  prevent skin and eye contact; first aid for the eyes: "Irrigate
+  immediately"). Both read through a page summary, because cdc.gov
+  refuses scripted downloads.
   https://www.cdc.gov/niosh/npg/npgd0521.html
+  https://www.cdc.gov/niosh/npg/npgd0092.html
 - National Institute of Standards and Technology, Office of Weights and
   Measures. Culinary Measurement Tips, created 1 March 2023, updated 29
   April 2026 (measuring by mass with a kitchen scale as best practice;
@@ -547,8 +598,12 @@ public domain. Web pages were read on 3 October 2026.
   https://nchfp.uga.edu/papers/guide/GUIDE01_HomeCan_rev0715.pdf
 - US Food and Drug Administration. Infant Formula Safety: Do's and
   Don'ts, Consumer Update, content current as of 31 May 2023 (do not
-  make homemade formula; reports of babies hospitalised; the water and
-  scoops on the label, the manufacturer's scoop, water first; powder,
+  make homemade formula; reports of babies hospitalised; "Use water from
+  a safe source", and the local health department or bottled water when
+  unsure of tap water; the water and scoops on the label, the
+  manufacturer's scoop, water first; formula not fed at once
+  refrigerated and used within 24 hours, leftovers in the bottle
+  discarded; powder,
   liquid concentrate mixed with an equal amount of water, and
   ready-to-feed needing no mixing; contact the paediatrician for very
   young, premature or immune-weakened babies).
@@ -584,9 +639,10 @@ public domain. Web pages were read on 3 October 2026.
 - Centers for Disease Control and Prevention. About Mold, page dated 26
   September 2024 (a bleach solution of "no more than 1 cup of household
   laundry bleach in 1 gallon of water"; "Never mix bleach with ammonia or
-  other cleaners. This will produce a poisonous gas."; rubber boots,
-  rubber gloves and goggles). Read through a page summary, because cdc.gov
-  refuses scripted downloads.
+  other cleaners. This will produce a poisonous gas."; "Open windows and
+  doors to provide fresh air."; rubber boots, rubber gloves and
+  goggles). Read through a page summary, because cdc.gov refuses
+  scripted downloads.
   https://www.cdc.gov/mold-health/about/index.html
 
 ### Inside this project
@@ -628,8 +684,12 @@ public domain. Web pages were read on 3 October 2026.
   the compost buckets and the two-stroke amounts.
 - That a US gallon of water weighs about 8.34 pounds, and that hydration
   is the reaction that hardens cement: general knowledge.
-- Applying OSHA's worker booklet to work at home; keeping the room aired
-  while cleaning with bleach.
+- Applying OSHA's worker booklet to work at home.
+- Not scaling a canning recipe at all, halving included: our stricter
+  rule, going beyond the USDA's rule on proportions and jam batches.
+- Handling dry cement and lime with gloves and eye protection, tipping
+  bags gently and low down, and mixing in the open air with the wind at
+  your back: general practice from the NIOSH and OSHA warnings.
 - Writing the scale factor down, ticking off lines, adding salt and
   spices gradually, checking that a scaled amount is the right size.
 - Cooking times and heat not scaling with the batch.

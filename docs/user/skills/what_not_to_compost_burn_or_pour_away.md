@@ -72,8 +72,8 @@ covers oily rags, which can catch fire on their own.
 - **A broken mercury thermometer or fluorescent bulb.** The EPA says
   never to vacuum or sweep up mercury from a broken thermometer, and not
   to vacuum a broken fluorescent bulb unless glass remains after every
-  other step. Clear people and pets out of the room first. The steps are
-  below.
+  other step. Clear people and pets out of the room first, and open it
+  to the outdoors with a window or door. The steps are below.
 - **Old building materials.** The EPA: if you suspect a material
   contains asbestos, "don't touch it", and if in doubt treat it as if it
   does and leave it alone. It also warns that work which disturbs painted
@@ -236,7 +236,7 @@ hazardous waste collection.
 | Button or coin cells | Watches, hearing aids, car keys, calculators | Not in the trash or recycling; tape them or bag each one; keep them away from young children |
 | Lithium single-use | Cameras, smoke alarms, remotes | Look for the word "lithium" on it; not in the trash or recycling |
 | Rechargeable: nickel-cadmium, nickel-metal hydride, lithium-ion and small sealed lead-acid | Power tools, phones, laptops, toys, backup power supplies | Not in the trash or recycling; to a recycler, a retailer take-back or a hazardous waste collection; tape the terminals or bag each one |
-| Car and other lead-acid batteries | Cars, boats, motorcycles, sump pump backups | Up to 18 pounds of lead and about a gallon of corrosive acid; return to the retailer or a hazardous waste collection, never the trash |
+| Car and other lead-acid batteries | Cars, boats, motorcycles, sump pump backups | Up to 18 pounds of lead and about a gallon of corrosive acid; return to the retailer or a hazardous waste collection, never the trash or recycling bin |
 | Batteries built into a device | Phones, laptops, many toys | Take the whole device to an electronics recycler or a take-back programme |
 
 **Worked example: a drawer of dead batteries.** Sort them by what is
@@ -303,8 +303,10 @@ bulb:
 2. **During cleanup:** do not vacuum, unless glass remains after every
    other step, because vacuuming can spread mercury powder or vapour.
    Scoop up glass and powder with stiff paper or cardboard, pick up the
-   rest with sticky tape, and put it all in a glass jar with a metal lid
-   or a sealable plastic bag.
+   rest with sticky tape, and on a hard floor wipe the area clean with
+   damp paper towels or disposable wet wipes. Put it all, tape and
+   towels included, in a glass jar with a metal lid or a sealable
+   plastic bag. A carpet or rug has its own steps on the EPA's page.
 3. **After cleanup:** put the debris and cleanup materials outdoors in a
    trash container or protected area at once, and check with your local
    government whether fluorescent bulbs, broken or not, must go to a
@@ -315,10 +317,24 @@ For a broken mercury thermometer the EPA adds four things never to do:
 never use a vacuum cleaner (it puts mercury into the air), never use a
 broom (it breaks it into smaller droplets and spreads them), never pour
 it down a drain, and never walk around in shoes that might have mercury
-on them. Have everyone else leave, keep pets out, and do not let children
-help. Wear gloves, gather the beads with cardboard or a squeegee, and
-bag, label and dispose of everything as your local health department,
-waste authority or fire department directs. If a thermometer's paper
+on them. Then, in order:
+
+1. **Before cleanup:** have everyone else leave, without walking through
+   the mercury on the way out, and keep pets out. "Open all windows and
+   doors to the outside; shut all doors to other parts of the house." Do
+   not let children help.
+2. **During cleanup:** wear gloves, gather the beads with cardboard or a
+   squeegee, and bag, label and dispose of everything as your local
+   health department, waste authority or fire department directs.
+   Mercury cleans up easily from wood, linoleum, tile and other smooth
+   surfaces. If it lands on a carpet, curtains, upholstery or anything
+   else absorbent, the EPA says those items should be thrown away, and
+   for a carpet: "Only cut and remove the affected portion of the
+   contaminated carpet for disposal."
+3. **After cleanup:** "keep the area well ventilated to the outside
+   (i.e., windows open and fans in exterior windows running) for at
+   least 24 hours after your successful cleanup", and keep pets and
+   children out of the area. If a thermometer's paper
 scale says "mercury free", it is not mercury; if it does not, the EPA
 says to assume it is. A spill bigger than a thermometer's is a different
 job, and the EPA has separate guidance for it. With questions about
@@ -368,7 +384,13 @@ arrangement; each rule comes from the sections above).
 2. **Hazardous waste collection:** half-used paint, solvents, pesticides
    and weedkillers, pool chemicals, in their original labelled
    containers, lids tight, nothing mixed, nothing poured together to
-   save space.
+   save space. Read each label for its disposal directions first: the
+   EPA says to do so "to reduce the risk of products exploding,
+   igniting, leaking, mixing with other chemicals, or posing other
+   hazards on the way to a disposal facility." Keep pool chlorine apart
+   from fuels, solvents, oil and other chemicals in its own sealed bag
+   or tub, never in the same tray, so that nothing can reach it if a
+   container leaks (general practice).
 3. **Battery recycler or retailer:** the old car battery, handled as the
    warnings on it say (the EPA's precaution for lead-acid batteries);
    power-tool packs and loose cells with their terminals taped.
@@ -381,8 +403,9 @@ arrangement; each rule comes from the sections above).
 7. **Compost:** only the plant matter the EPA's list allows.
 
 Carry the hazardous piles in a box that cannot tip, with nothing that
-could leak loose in the car, and drive them straight there (general
-practice).
+could leak loose in the car, the pool chemicals kept apart as above, and
+drive them straight there (general practice). The label check in step 2
+is the EPA's own precaution for exactly this trip.
 
 ## Know where your own work stops
 
@@ -420,8 +443,8 @@ compost.
 - **Composting at the Composter.** Recipes at a Composter make Fertilizer
   from sawdust with seed press cake or wheat bran, or from olive or apple
   pomace. Under the default settings, the Dev play mode (Settings >
-  Gameplay > Play mode) makes the materials free when you craft by hand,
-  and while "Start every session from the default home" is on, which it
+  Gameplay > Play mode) does not use up the materials when you craft by
+  hand, though you still need them in your inventory to start, and while "Start every session from the default home" is on, which it
   is by default, only your character carries between launches.
 
 What the game leaves out, so you do not learn it from the game: in the
@@ -456,7 +479,8 @@ untended one may take a year.
 - You get rid of medicines through a take-back, and sharps in a proper
   container, the FDA's way.
 - You can clean up a broken fluorescent bulb or a mercury thermometer
-  without a vacuum or a broom.
+  without a vacuum or a broom, with the room aired to the outdoors
+  before and after.
 - You recycle used oil and the filter.
 - You leave suspected asbestos alone, and you treat old paint in a
   pre-1978 house as lead until shown otherwise.
@@ -486,8 +510,11 @@ public domain. Web pages were read on 3 October 2026.
   containers; never mix, "Incompatible products might react, ignite, or
   explode", and contaminated leftovers that "might become unrecyclable";
   corroding containers to the hazardous materials official or
-  fire department; residual chemicals in empty containers; garages that
-  may accept used motor oil).
+  fire department; residual chemicals in empty containers; reading
+  labels for disposal directions to reduce the risk of products
+  "exploding, igniting, leaking, mixing with other chemicals, or posing
+  other hazards on the way to a disposal facility"; garages that may
+  accept used motor oil).
   https://www.epa.gov/hw/household-hazardous-waste-hhw
 - US Environmental Protection Agency. *Read the Label First: Protect
   Your Household*, brochure EPA 740-F-15-006, undated (dangerous to put
@@ -510,7 +537,8 @@ public domain. Web pages were read on 3 October 2026.
   identified by marking and labelling; the table of alkaline and
   zinc-carbon, button and coin, lithium single-use, rechargeable, and
   lead-acid batteries with up to 18 pounds of lead and about one gallon
-  of acid; button cells a swallowing hazard; whole devices to
+  of acid, kept out of the trash and municipal recycling bins; button
+  cells a swallowing hazard; whole devices to
   electronics recyclers). And Used Lithium-Ion Batteries, last updated
   20 March 2026 (damaged or crushed in transport or sorting equipment, a
   fire hazard; a damaged battery calls for the manufacturer's handling
@@ -525,13 +553,18 @@ public domain. Web pages were read on 3 October 2026.
   https://www.epa.gov/recycle/managing-reusing-and-recycling-used-oil
 - US Environmental Protection Agency. Cleaning Up a Broken CFL, last
   updated 28 September 2026 (before, during and after cleanup; do not
-  vacuum unless glass remains; the jar or sealable bag; debris outdoors;
-  local rules on fluorescent bulbs; keep airing the room for several
-  hours). And What to Do if a Mercury Thermometer Breaks, last updated 14
-  November 2025 (never a vacuum, never a broom, never down a drain, never
-  walking in contaminated shoes; everyone else out, no children helping;
-  the cleanup items and steps; "mercury free" on the scale, otherwise
-  assume mercury; call a physician or poison control at 1-800-222-1222).
+  vacuum unless glass remains; damp paper towels or wet wipes on hard
+  surfaces; the jar or sealable bag; debris outdoors; local rules on
+  fluorescent bulbs; keep airing the room for several hours). And What
+  to Do if a Mercury Thermometer Breaks, last updated 14 November 2025
+  (never a vacuum, never a broom, never down a drain, never walking in
+  contaminated shoes; everyone else out, no children helping; "Open all
+  windows and doors to the outside; shut all doors to other parts of the
+  house"; the cleanup items and steps; absorbent items thrown away, and
+  only the affected portion of a carpet cut out; the area kept well
+  ventilated to the outside for at least 24 hours afterwards; "mercury
+  free" on the scale, otherwise assume mercury; call a physician or
+  poison control at 1-800-222-1222).
   https://www.epa.gov/cfl/cleaning-broken-cfl
   https://www.epa.gov/mercury/what-do-if-mercury-thermometer-breaks
 - US Environmental Protection Agency. Chromated Arsenicals (CCA), last
@@ -644,7 +677,9 @@ public domain. Web pages were read on 3 October 2026.
   drawer, and getting away from a burning one and calling the fire
   service.
 - The garage sorting order, carrying hazardous waste in a box that cannot
-  tip and driving it straight to the collection.
+  tip and driving it straight to the collection; keeping pool chlorine
+  apart from fuels, solvents and other chemicals in its own sealed bag or
+  tub.
 - Keeping button batteries in a closed box until the recycling trip.
 - Keeping gas cylinders out of the household bin and away from fire,
   even when they seem empty, and asking the waste service or seller.
