@@ -225,24 +225,27 @@
       "version": "0.157.0",
       "feature": "AI sample client end-to-end",
       "what_to_test": "Run `node scripts/ai-sample-client.js` from the repo root.",
-      "expected": "Connects, identifies, joins, perceives Crew Quarters with ~30+ entities, interacts with one, perceives again, disconnects cleanly. Should complete in under 10 seconds.",
-      "category": "perception-api"
+      "expected": "Connects, identifies, joins, perceives The Commons (the guest spot: a join naming no ship spawns there, with no plot) with its furniture and the crew working nearby, interacts with one, perceives again, disconnects cleanly. Should complete in under 10 seconds.",
+      "category": "perception-api",
+      "note": "Since increment 3 of the ship homes design (2026-10-04) the relay's world is the mothership, not the Pioneer: its rooms are The Commons, its Mess hall and First Street. scripts/ai-sample-client.js cannot sign in today (it predates the identify challenge) and its tour assumes the Pioneer; until it is brought up to date, drive these by hand over the WebSocket (docs/ai/onboarding.md)."
     },
     {
       "id": "v0158-ambient-bot",
       "version": "0.158.0",
-      "feature": "Ambient maintenance_bot wanders Cargo Bay",
-      "what_to_test": "Use the AI sample client (or game_perceive directly) while standing in or near the Cargo Bay. Take two perception snapshots ~2 seconds apart.",
-      "expected": "A 'maintenance_bot' entity appears in the nearby_entities list. Its position changes between the two snapshots (Brownian wander within bounds).",
-      "category": "perception-api"
+      "feature": "Ambient maintenance bot (CB-7) works the mess hall",
+      "what_to_test": "Perceive (game_perceive) while standing in the Commons' mess hall, its north strip (ship x 65..95, z 20..28). Take two perception snapshots ~2 seconds apart.",
+      "expected": "A 'maintenance_bot' entity (CB-7) appears in the nearby_entities list. Its position changes between the two snapshots as it walks between its chores (restocking the stores, wiping the tables, sweeping the floor).",
+      "category": "perception-api",
+      "note": "Since increment 3 of the ship homes design (2026-10-04) the relay's world is the mothership, not the Pioneer: its rooms are The Commons, its Mess hall and First Street."
     },
     {
       "id": "v0160-ambient-crew",
       "version": "0.160.0",
-      "feature": "Ambient NPC crew per room, role-tagged characters",
-      "what_to_test": "Run `node scripts/ai-sample-client.js`. Modify it (or perceive multiple rooms) to peek at: bridge, medbay, engineering, cargo, hydroponics, crew_quarters.",
-      "expected": "Each room has a unique role-named NPC: Helm Officer Vex (bridge), Dr. Kel (medbay), Chief Tan (engineering), CB-7 (cargo, replaces old maintenance_bot), Botanist Yara (hydroponics), Crewmate Nia (crew_quarters). All wander Brownian-style within their room bounds.",
-      "category": "perception-api"
+      "feature": "The ship's crew, role-tagged, at work in the shared places",
+      "what_to_test": "Perceive in The Commons (its east aisle, ship x 88..92) and in its mess hall.",
+      "expected": "Six crew, each with a post: Helm Officer Vex, Dr. Kel, Chief Tan and Botanist Yara in The Commons; CB-7 and Crewmate Nia in the mess hall. Each walks between its own chore sites (data/npc/chores.ron) and goes to its own seat in the mess hall at meal times (everyone but CB-7, who does not eat). No crew member is ever on a home's plot.",
+      "category": "perception-api",
+      "note": "Since increment 3 of the ship homes design (2026-10-04) the relay's world is the mothership, not the Pioneer: its rooms are The Commons, its Mess hall and First Street."
     },
     {
       "id": "v0161-perception-per-action-rate-limit",
@@ -256,8 +259,8 @@
       "id": "v0162-npc-dialog",
       "version": "0.162.0",
       "feature": "NPC dialog, crew talks back",
-      "what_to_test": "Run `node scripts/ai-sample-client.js`. Watch the interact response. (Or in-game: walk up to Helm Officer Vex, Dr. Kel, Chief Tan, CB-7, Botanist Yara, Crewmate Nia and interact.)",
-      "expected": "The interact result includes 'speaker' (NPC name) and 'dialog_line' (a random one of 4 personality lines per NPC). Bot prints e.g.: NPC dialog, Helm Officer Vex: \"Course laid in. We're holding orbit at 412 km.\" Other nearby clients see the dialog in the broadcast too.",
+      "what_to_test": "Interact (game_interact) with a crew member within 5 m. (Or in-game: walk up to Helm Officer Vex, Dr. Kel, Chief Tan, CB-7, Botanist Yara or Crewmate Nia and interact.)",
+      "expected": "The interact result includes 'speaker' (the crew member's name) and 'dialog_line' (a random one of their lines in data/npc/crew.ron). E.g. Helm Officer Vex: \"On a cruise this long the helm mostly flies itself. I keep the notices instead.\" Other nearby clients see the dialog in the broadcast too. Only crew speak: inspecting furniture or the mess hall's food store carries no speaker.",
       "category": "perception-api"
     },
     {
@@ -283,7 +286,7 @@
       "version": "0.165.0",
       "feature": "Ambient NPC chatter, world talks to itself",
       "what_to_test": "Run `node scripts/ai-sample-client.js` and let it idle for 60+ seconds after the demo completes (before the 20s safety-net timeout), actually update the timeout in the script to 120s for this test. Watch the WebSocket for game_ambient_chatter events.",
-      "expected": "Roughly every 45 seconds a random NPC broadcasts one of their dialog lines. Bot prints e.g.: Ambient chatter, Botanist Yara (hydroponics): \"Lettuce harvest in three days. Tell the galley.\" Event includes entity_id, speaker, room_id, position, line.",
+      "expected": "Roughly every 45 seconds a random crew member broadcasts one of their dialog lines. E.g.: Ambient chatter, Botanist Yara (commons): \"Lettuce harvest in three days. Tell the mess hall.\" Event includes entity_id, speaker, room_id, position, line.",
       "category": "perception-api",
       "note": "Chatter only fires when at least one NPC has a non-empty `dialog` array. Skipped if relay is fresh and entities not yet populated."
     },
@@ -299,10 +302,10 @@
       "id": "v0167-explore-ship-quest",
       "version": "0.167.0",
       "feature": "Starter quest, Explore Ship",
-      "what_to_test": "Run `node scripts/ai-sample-client.js`. Look for the Quest line in the game_welcome log. Then in-game: walk into each room aboard the Pioneer (bridge, medbay, engineering, cargo, hydroponics, crew quarters).",
-      "expected": "Welcome shows: 'Quest: Find your bearings (1/N)' (1 because spawn room is pre-marked visited). Each new room entered triggers a private game_quest_progress event with visited_count + total. Visiting all rooms triggers public game_quest_completed broadcast.",
+      "what_to_test": "Join, then walk into each shared place aboard the ship (The Commons, its Mess hall, First Street), then back onto your own home's plot.",
+      "expected": "Welcome shows 'Find your bearings' with total = the three places plus your home (a guest, with no plot, has no home step). Each new place entered fires a private game_quest_progress with visited_count + total. Stepping onto your own plot after every place finishes it ('home' step) with a public game_quest_completed. Standing on your plot before visiting every place does not count.",
       "category": "game-systems",
-      "note": "Quest data lives on the player entity's components.current_quest. PERSIST_KEY bumped to v4 so old snapshots without quest data don't shadow new players."
+      "note": "Since increment 3 of the ship homes design (2026-10-04) the relay's world is the mothership, not the Pioneer: its rooms are The Commons, its Mess hall and First Street."
     },
     {
       "id": "v0168-quest-tour-client",
@@ -317,7 +320,7 @@
       "version": "0.169.0",
       "feature": "NPC greets player on first room entry",
       "what_to_test": "Run `node scripts/ai-sample-client.js` and watch for NPC greeting lines during the room tour.",
-      "expected": "Each new room entry fires a private game_npc_greeting event with the resident NPC's speaker + a random greeting line (e.g., 'Dr. Kel: \"Welcome to medical. State your symptom, briefly.\"'). Greetings only fire on FIRST entry per room per player, re-entering doesn't re-trigger.",
+      "expected": "Each new place entered fires a private game_npc_greeting from a crew member posted there, with a random greeting line (e.g., 'Dr. Kel: \"Clinic hour. State your symptom, briefly.\"'). Greetings only fire on FIRST entry per place per player; re-entering does not re-trigger.",
       "category": "perception-api",
       "note": "PERSIST_KEY bumped to v5 since NPC component schema added 'greetings' field."
     },
@@ -326,7 +329,7 @@
       "version": "0.170.0",
       "feature": "Quest chain, Meet the Crew unlocks after Explore Ship",
       "what_to_test": "Run `node scripts/ai-sample-client.js`. After explore_ship completes, watch for game_quest_unlocked event then the new meeting_crew phase that talks to each NPC.",
-      "expected": "Bot finishes the room tour, sees explore_ship complete, gets game_quest_unlocked for meet_the_crew, then revisits each room and talks to each NPC. Each talk fires game_quest_progress for meet_the_crew. After all 6 NPCs, meet_the_crew completes and bot disconnects.",
+      "expected": "After explore_ship completes, game_quest_unlocked for meet_the_crew. Talking to each crew member fires game_quest_progress for meet_the_crew. After all 6 crew, meet_the_crew completes. Inspecting the mess hall's food store does not count as meeting anyone.",
       "category": "game-systems",
       "note": "PERSIST_KEY bumped to v6 since player components schema added a chained quest. Old snapshots get a fresh quest on next reload."
     },
@@ -343,10 +346,10 @@
       "id": "v0172-survey-storage-quest",
       "version": "0.172.0",
       "feature": "Third quest, Survey the Storage",
-      "what_to_test": "Run `node scripts/ai-sample-client.js`. After meet_the_crew completes, watch for survey_storage chained quest. Bot tours each room and scans every storage entity (locker / cabinet / bin).",
-      "expected": "Quest unlocked with goal = total storage entities (locker in quarters, medicine_cabinet in medbay, tool_cabinet + spare_parts_bin in engineering, harvest_bin in hydroponics, inventory_terminal in cargo = 6 storage). Each scan fires game_quest_progress. After all scanned, quest completes with +300 XP +15 rep, totals: 600 XP / 30 rep.",
+      "what_to_test": "After meet_the_crew completes, watch for the survey_storage chained quest. Scan every storage entity aboard (interact with it within 5 m).",
+      "expected": "Quest unlocked with goal = total storage entities: the tool cabinet and harvest bin in The Commons, the locker and the food store in its mess hall, and the locker on First Street = 5 storage. Each scan fires game_quest_progress. After all scanned, quest completes with +300 XP +15 rep, totals: 600 XP / 30 rep.",
       "category": "game-systems",
-      "note": "PERSIST_KEY bumped to v8 since equipment entities gained 'storage' boolean. Validates the quest framework chains an arbitrary number of quests."
+      "note": "Since increment 3 of the ship homes design (2026-10-04) the relay's world is the mothership, not the Pioneer: its rooms are The Commons, its Mess hall and First Street. The survey counts whatever data/ships/room_equipment.ron furnishes the ship's rooms with, plus the food stores (data/food/ship_stores.ron)."
     },
     {
       "id": "v0173-rgb-nav-separator",
