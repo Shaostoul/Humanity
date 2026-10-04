@@ -3702,9 +3702,10 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             "Pipes, hoses and cables show what they are made of, and coloured bands say what \
              flows inside them: beside each machine, just past each bend and at least every 6 m \
              along a run, the way ships mark their piping (ISO 14726). Drinking water is blue, \
-             fuel brown, ventilation air white and sewage black, and electrical cables carry a \
-             brown and an orange stripe. Simplified shows one band of the main colour; Full \
-             shows the whole marker, such as blue, green, blue for drinking water.",
+             fuel brown, ventilation air white and sewage black. Simplified shows one band of \
+             the main colour (orange on electrical cables); Full shows the whole marker, such \
+             as blue, green, blue for drinking water and a brown and an orange stripe on \
+             electrical cables.",
         );
         ui.horizontal(|ui| {
             for (full, label) in [(false, "Simplified"), (true, "Full")] {
