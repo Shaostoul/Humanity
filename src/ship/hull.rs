@@ -1084,7 +1084,7 @@ mod tests {
         assert_eq!(geom.holes.len(), 6, "home + commons + street roofs and the three corridor lids are open");
         // The neighbour's plot (p2, z 99..188) is inside the hull too (increment 2: the hull wraps
         // every plot, whoever holds it). Seen red 2026-10-04 with the neighbours left out of
-        // `hull_geom`: "the neighbour's plot p2 is sliced by the hull at long 99".
+        // `hull_geom`: "the neighbour's plot p2 is sliced by the hull at long 143.5".
         for p in ship.neighbour_plots() {
             let (lo, hi) = p.aabb();
             let req_hw = (lo.x - geom.frame.lat_center).abs().max((hi.x - geom.frame.lat_center).abs()) + profile.margin;

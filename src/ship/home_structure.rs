@@ -1913,8 +1913,9 @@ mod tests {
     /// industrial) gets the generic box filler from zone_filler.ron, tinted by its zone type's own
     /// colour. A RESIDENTIAL zone draws nothing since increment 2: the homes of a residential area
     /// are the ship's plots (src/ship/neighbours.rs), which replaced the v0.638 tiling of clones of
-    /// the player's own home. Seen red 2026-10-04 with the old residential branch put back (it tiled
-    /// clones): "a residential zone draws no home clones: 4 groups (2196 vertices) became 6 (4980)".
+    /// the player's own home. Seen red 2026-10-04 with a residential branch put back that stamps a
+    /// clone of the home's shell into the zone, as the old tiling did: "a residential zone draws no
+    /// home clones: 1 groups (192 vertices) became 3 (392)".
     #[test]
     fn zone_filler_populates_interiors() {
         // A tiny box home (12x12): a residential zone of 30 x 30 m would have held four clones.

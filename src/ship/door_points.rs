@@ -157,8 +157,8 @@ mod tests {
     /// steps stand inside the two places it joins, and its mouths are the corridor the game draws
     /// (the home's own corridor for its plot, the neighbour's tube for the other). The numbers are
     /// the ship file's (section 2.4 of the design). Seen red 2026-10-04 with the steps taken a
-    /// metre OUTWARD from each mouth instead of in: "plot:p1 -> zone:commons: step [56.0, 1.7, 40.0]
-    /// is not inside plot:p1".
+    /// metre OUTWARD from each mouth instead of in: "zone:commons -> zone:street-1: step [70.0, 1.7,
+    /// 76.0] is not inside zone:commons".
     #[test]
     fn every_door_of_the_shipped_ship_joins_two_places_where_the_game_draws_it() {
         for own in ["p1", "p2"] {
@@ -198,8 +198,8 @@ mod tests {
     /// for the shipped ship from p1 (scripts/tests/fixtures/door-points-p1.json); it must be what the
     /// game really reports, or those tests prove routes on a ship that does not exist. Everything but
     /// the hash, which the routes never read. When the ship file changes this fails: write the
-    /// report it prints into the fixture. Seen red 2026-10-04 with the fixture's p2 door lat set to
-    /// 138: the two values differ at `doors[2].lat`.
+    /// report it prints into the fixture. Seen red 2026-10-04 with the steps taken a metre outward
+    /// (the red check above): "the report differs from the rig's fixture; the report is: ...".
     #[test]
     fn the_rigs_fixture_is_what_the_game_reports() {
         let ours = serde_json::to_value(door_points(&on("p1"))).unwrap();

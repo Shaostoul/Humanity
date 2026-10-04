@@ -1835,8 +1835,9 @@ mod tests {
     /// welcome puts it AWAY: off every plot, at `HOME_AWAY_ORIGIN`, so both plots are drawn as
     /// neighbours'. Respawn is the Commons. A home already away moves nothing.
     ///
-    /// Seen red 2026-10-04 with the 1b guest arm (the home back on the default plot):
-    /// "a guest whose home stood on p1 still draws it on a plot: Some(\"p1\")".
+    /// Seen red 2026-10-04 with the guest arm putting nothing away (`away: None`, as 1b's left a
+    /// home on the default plot where it stood): "a guest whose home stood on p1 still draws it on a
+    /// plot: None" (and `a_full_ship_makes_a_guest_in_the_commons` failed with `away: None`).
     #[test]
     fn a_guest_puts_its_home_away_and_draws_none_of_its_own() {
         for own in ["p1", "p2"] {
@@ -1871,7 +1872,7 @@ mod tests {
     /// `HOME_AWAY_ORIGIN`, so everything it holds is carried by the same delta (`home_box`,
     /// `home_box_change`). The box where a home is kept shares no footprint with any plot or zone
     /// of the ship, since the carry tests x and z only. Seen red 2026-10-04 with `home_box` reading
-    /// only the plot (None while away): "putting the home away carries nothing: Republish".
+    /// only the plot (None while away): "a home put away has a box: where it is kept".
     #[test]
     fn a_home_put_away_comes_back_onto_a_plot_with_everything_it_holds() {
         let ship = booted();
@@ -1964,7 +1965,8 @@ mod tests {
     /// An old config.json, written before increment 2, has no `home_plots`: it loads, with none
     /// remembered (so the first world entry builds on the default plot, as 1b did), and a config
     /// with one round-trips it. Seen red 2026-10-04 with the field's `#[serde(default)]` removed:
-    /// "a config from before increment 2 does not load: missing field `home_plots`".
+    /// "a config from before increment 2 does not load: missing field `home_plots` at line 1 column
+    /// 39" (and every AppConfig::default() panicked: "every field must carry a serde default").
     #[test]
     fn an_old_config_loads_with_no_plot_remembered() {
         let old: crate::config::AppConfig = serde_json::from_str("{\"server_url\": \"http://127.0.0.1:3210\"}")

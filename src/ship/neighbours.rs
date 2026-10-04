@@ -212,7 +212,7 @@ mod tests {
     /// While the home is put away (a guest), EVERY plot is a neighbour's, and nothing of the home
     /// is drawn: no geometry and no room at the place it is kept, and every plot drawn. Seen red
     /// 2026-10-04 with `generate_meshes` drawing the home put away like any zone: "the home put away
-    /// is drawn: 31 rooms at its place".
+    /// is drawn: 23 rooms at its place".
     #[test]
     fn a_home_put_away_is_drawn_nowhere_and_every_plot_is_a_neighbours() {
         let away = on("p1").put_home_away().expect("the home can be put away");

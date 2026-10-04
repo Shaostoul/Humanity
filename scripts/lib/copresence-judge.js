@@ -154,9 +154,9 @@ function viewAngle(cam, p) {
  *           same clock: the start of the forward leg being judged, so the end
  *           of the leg before it (walking back) is never mistaken for it.
  *   checkView  (default true) whether to check the figure was in the
- *           camera's view. The --plots run turns it off: the two players
- *           stand in their own homes and cannot see each other until
- *           increment 2.
+ *           camera's view. The --plots run turns it off for the walk at home
+ *           (the two players stand in their own homes and cannot see each
+ *           other), and on for the meeting in the Commons (increment 2).
  * Returns { pass, checks: [{ id, ok, detail }], stats }.
  */
 function judgeCopresence({ frames, walker, line, speed, onLineEpochMs, fromEpochMs = null, checkView = true }, limits = LIMITS) {
@@ -378,7 +378,8 @@ function judgeCopresence({ frames, walker, line, speed, onLineEpochMs, fromEpoch
 // plots, by the order they joined; the game's camera is inside the plot the
 // game should hold; and every position the game DREW for the walker is inside
 // the walker's plot (the recorder records figures off screen too). Whether
-// they can see each other waits for increment 2.
+// they can see each other is the meeting in the Commons (increment 2, below:
+// door points and routes, `judgeMeet`).
 
 /** True when the walker's straight approach from `from` to the line's start
  *  can never pass for the walk: no point of it is within WINDOW_TOL of the

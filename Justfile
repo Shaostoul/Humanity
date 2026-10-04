@@ -611,21 +611,26 @@ verify-second-player:
 # counted under its nameplate). Refuses (exit 1) while ANY HumanityOS.exe runs (one
 # GPU) or when the exe is older than the source; exit 2 = a check failed. About a
 # minute. Evidence in .probe-rig/copresence/runs/<stamp>/.
-#   just verify-copresence --plots    homes on plots (increment 1b of
+#   just verify-copresence --plots    homes on plots (increments 1b and 2 of
 #     docs/design/ship-homes-and-logistics.md): two runs, walker first then game
-#     first, each with its own relay and boot. Judges the two plot ids differ by
+#     first, each with its own relay and boot. At home: the two plot ids differ by
 #     the join order, the game's camera is inside the plot it should hold after
 #     joining, every position the game drew for the walker is inside the
-#     walker's plot, and one forward leg of the walk is smooth. No view or
-#     screenshot checks (two homes cannot see each other until increment 2).
-#     Then the game steps out of the shared world and back, moved over 100 m
-#     from its door while out: it must stand where the relay respawns it, and
-#     its next move must reach the walker. --order walker-first|game-first runs
-#     one. game-first comes into the world the way a returning player does:
-#     connected and identified on the main menu first, then the menu's Enter
-#     World pressed (the join gate then runs before the world has loaded);
-#     walker-first by the autopilot. --entry menu|autopilot picks one for both.
-#     About 6 minutes.
+#     walker's plot, and one forward leg of the walk is smooth. Then the two MEET
+#     IN THE COMMONS (meet_* checks): the game reports its door points, is moved
+#     from its door into the Commons in 40 m steps, and the walker walks out of
+#     its home through its own corridor into the Commons and across the game's
+#     view; the view, the smoothness and both screenshots (its teal body counted)
+#     are judged there. Then the game steps out of the shared world and back,
+#     moved over 100 m from its door while out: it must stand where the relay
+#     respawns it, and its next move must reach the walker; Respawn and the build
+#     editor the same way. Last the game boots a SECOND time against the same
+#     relay: it must build its home on the plot it held before joining (reboot_*).
+#     --order walker-first|game-first runs one. game-first comes into the world
+#     the way a returning player does: connected and identified on the main menu
+#     first, then the menu's Enter World pressed (the join gate then runs before
+#     the world has loaded); walker-first by the autopilot. --entry
+#     menu|autopilot picks one for both. About 10 minutes per order.
 #   just verify-copresence --dry-verdict <manifest.json>   re-judge without booting
 [positional-arguments]
 verify-copresence *ARGS:
