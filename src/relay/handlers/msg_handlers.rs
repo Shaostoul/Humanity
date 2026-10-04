@@ -3651,10 +3651,12 @@ pub async fn handle_game_perceive(
         "position": position,
         "location": location,
         "nearby_entities": nearby_filtered,
+        // The ship and its clock (increment 3: the hardcoded "Earth LEO" orbit described the
+        // retired Pioneer and nothing the relay knows).
         "environment": {
             "game_time": world.game_time,
+            "time_scale": world.time_scale,
             "ship": world.ship_name,
-            "orbit": "Earth LEO, 400km altitude",
         },
         "player": {
             "entity_id": player_id,
@@ -3765,9 +3767,9 @@ pub async fn handle_game_interact(
         })
         .filter(|s| !s.is_empty());
 
-    let speaker_name: Option<String> = target.components.get("name")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
+    // Only a crew member speaks (a name AND lines to say): the ship's food stores carry a name
+    // for perception but are not someone to meet (the review of increment 3, finding 8).
+    let speaker_name: Option<String> = world.crew_name_of(entity_id);
 
     let mut response = serde_json::json!({
         "type": "game_interact_result",
@@ -3807,20 +3809,11 @@ pub async fn handle_game_interact(
         message: format!("__game__:{}", broadcast),
     });
 
-    // Quest progress for the meet_the_crew (NPC speaker) AND survey_storage
-    // (storage entity) flows. record_npc_talk fires only when interacting
-    // with a named NPC; record_storage_scan fires only when interacting
-    // with a storage entity. Both are mutually exclusive in practice but
-    // the handler runs both checks so verbs stay forgiving.
+    // Quest progress for the meet_the_crew (a crew member) AND survey_storage (a storage
+    // entity) flows: game_state.rs record_interaction_quest.
     {
         let mut world = state.game_world.write().await;
-        let mut progress: Option<crate::relay::handlers::game_state::QuestProgress> = None;
-        if let Some(ref npc_name) = speaker_name {
-            progress = world.record_npc_talk(player_id, npc_name);
-        }
-        if progress.is_none() {
-            progress = world.record_storage_scan(player_id, entity_id);
-        }
+        let progress = world.record_interaction_quest(player_id, entity_id);
         // Apply reward + chain ONLY when the action completed the quest.
         let reward_and_next = if progress.as_ref().map_or(false, |p| p.complete) {
             let r = world.apply_quest_reward(player_id);

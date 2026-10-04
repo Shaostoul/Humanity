@@ -33,7 +33,10 @@
 //!
 //! THE STORED WORLD of the Pioneer (`PREVIOUS_PERSIST_KEY`) is upgraded once at startup
 //! (`upgrade_previous_world`): what it says about players is kept, the Pioneer-built crew and
-//! furniture are not.
+//! furniture are not. A stored world of THIS version never puts back the crew, furniture or
+//! stores as they were stored: they are built from the files at every start and only what
+//! changes about them carries over (`carry_over_ship_state`), so a ship file edited between two
+//! starts cannot leave a store in a wall or a crew walk headed onto a plot.
 
 use super::game_state::{DoorDef, GameEntity, GameWorld, QuestProgress, RoomInfo, ShipRoom};
 use crate::ship::ship_structure::{PlotArrival, ShipStructure};
@@ -303,11 +306,20 @@ impl GameWorld {
     ///
     /// What carries over: every player in it is a ghost (no socket survives a restart), so
     /// each one's progress is written to `player_progress` exactly as a restore does for its
-    /// own ghosts, and they rejoin with it; the world clock; and the entity-id high-water
-    /// mark, so no id is handed out twice. What does not: everything the Pioneer built (its
-    /// crew walking its rooms, which the game drew inside plot p1, and the furniture and
-    /// windows of its rooms): the freshly built ship's crew, furniture and stores stay. The
-    /// old row is then deleted and this world written in its place, so the upgrade runs once.
+    /// own ghosts, and they rejoin with it (unless their row there is already AHEAD of it,
+    /// see below); the world clock; and the entity-id high-water mark, so no id is handed out
+    /// twice. What does not: everything the Pioneer built (its crew walking its rooms, which
+    /// the game drew inside plot p1, and the furniture and windows of its rooms): the freshly
+    /// built ship's crew, furniture and stores stay, their meal clocks started again from the
+    /// carried clock (`restart_meal_clocks`: started at the fresh world's 0, a clock a day
+    /// on had every eater overdue at once, all walking to eat on the first tick and in
+    /// lockstep for good). The old row is then deleted and this world written in its place, so
+    /// the upgrade runs once.
+    ///
+    /// A player whose `player_progress` row is already ahead of the old world's copy (more XP
+    /// or more finished quests) keeps the row: that happens only when storing the upgraded world
+    /// failed, the old row stayed, the player earned more on this code and the upgrade runs
+    /// again at the next start.
     ///
     /// The old blob is read loosely (a JSON value, entity by entity), so a field the old code
     /// wrote that this one does not know, or one entity of a shape it cannot read, skips that
@@ -337,6 +349,13 @@ impl GameWorld {
                 }
                 let Some(owner) = e.owner.clone() else { continue };
                 let (quest, completed, xp, rep) = progress_of(&e);
+                if let Ok(Some(row)) = db.load_player_progress(&owner) {
+                    if row.xp > xp || row.completed_quests.len() > completed.len() {
+                        tracing::info!("Previous stored world: {owner}'s saved progress is ahead of it (xp {} > {xp}, or more quests done); kept", row.xp);
+                        ghosts += 1;
+                        continue;
+                    }
+                }
                 if let Err(err) = db.save_player_progress(&owner, quest.as_deref(), &completed, xp, rep) {
                     tracing::warn!("Could not keep the progress of {owner} from the previous stored world: {err}");
                 }
@@ -348,6 +367,9 @@ impl GameWorld {
         if time.is_finite() && time > self.game_time {
             self.game_time = time;
         }
+        // The crew's meal clocks were started at the fresh world's clock (0): start them again
+        // from the carried one, staggered (the review of increment 3, finding 2).
+        self.restart_meal_clocks();
         self.next_entity_id = self.next_entity_id.max(next).max(old.next_entity_id);
         match self.save_to_db(db) {
             Ok(()) => {
@@ -363,6 +385,57 @@ impl GameWorld {
             self.next_entity_id
         );
         true
+    }
+}
+
+/// What a crew member carries from a stored world into the one built from the files: its meal
+/// clock, what it has eaten and missed, its home credit, and its place in its chore rotation.
+/// Not its position, its walk in progress or its activity: those are where the OLD files put
+/// it, and it starts again from its first site (`populate_ship_entities`).
+const CREW_CARRIED: [&str; 6] = ["next_meal_at", "meals_eaten", "meals_at_home", "meals_missed", "home_meal_credit", "chores_done"];
+
+impl GameWorld {
+    /// Restore a stored world's SHIP-BUILT things (`ship_built`: the crew, furniture and food
+    /// stores `populate_ship_entities` stands from the files) onto the ones this start built,
+    /// and hand back every other stored entity (players, anything made at runtime) for
+    /// `restore_from_db` to put back. Called with the clock already set to the stored one.
+    ///
+    /// The files can change between a save and the next start (an editor save of the ship, a
+    /// refit of the mess hall, a moved chore spot), and a snapshot restored whole kept the
+    /// store, the furniture and each crew member's walk where the OLD files put them, possibly
+    /// in a wall or on someone's plot, for good: the plot and room checks run only when things
+    /// are stood up (the review of increment 3, finding 10). So the freshly built ones stay,
+    /// and only what changes about them carries over, matched by what names them: each store's
+    /// stock by its `store_id` (kept to the store's capacity now), each crew member's
+    /// `CREW_CARRIED` by its name. Furniture changes nothing at runtime. A crew member the
+    /// snapshot does not know keeps the meal clock `restart_meal_clocks` gives it from the
+    /// stored clock; a store or crew member the files no longer have is dropped.
+    pub(crate) fn carry_over_ship_state(&mut self, stored: std::collections::HashMap<u64, GameEntity>) -> Vec<(u64, GameEntity)> {
+        self.restart_meal_clocks();
+        let mut rest = Vec::new();
+        for (id, old) in stored {
+            let c = &old.components;
+            if !c.get("ship_built").and_then(|v| v.as_bool()).unwrap_or(false) {
+                rest.push((id, old));
+                continue;
+            }
+            if old.entity_type == "food_store" {
+                let Some(sid) = c.get("store_id").and_then(|v| v.as_str()) else { continue };
+                let Some(meals) = c.get("meals").and_then(|v| v.as_f64()).filter(|m| m.is_finite()) else { continue };
+                let Some(e) = self.entities.values_mut().find(|e| e.entity_type == "food_store" && e.components.get("store_id").and_then(|v| v.as_str()) == Some(sid)) else { continue };
+                let cap = e.components.get("capacity").and_then(|v| v.as_f64()).unwrap_or(f64::INFINITY);
+                e.components["meals"] = serde_json::json!(meals.clamp(0.0, cap));
+            } else if c.get("chore_agent").is_some() {
+                let Some(name) = c.get("name").and_then(|v| v.as_str()) else { continue };
+                let Some(e) = self.entities.values_mut().find(|e| e.components.get("chore_agent").is_some() && e.components.get("name").and_then(|v| v.as_str()) == Some(name)) else { continue };
+                for k in CREW_CARRIED {
+                    if let Some(v) = c.get(k) {
+                        e.components[k] = v.clone();
+                    }
+                }
+            }
+        }
+        rest
     }
 }
 
@@ -502,10 +575,12 @@ mod tests {
         }
     }
 
-    /// NO CREW FIGURE IS EVER ON A PLOT, and the crew stay in the Commons: two hours of the
-    /// relay's clock with a meal due every 15 minutes (so every eater walks to the mess hall and
-    /// back several times), every crew position after every second and every position the
-    /// relay sends the games (`game_npc_update`), on no plot and inside the Commons' box.
+    /// NO CREW FIGURE IS EVER ON A PLOT, and the crew stay in the Commons: two REAL hours of
+    /// ticks (six game days at the shipped 72x) with a meal due every 15 game minutes, so every
+    /// eater goes to its seat in the mess hall between almost every two chores, every crew
+    /// position after every second and every position the relay sends the games
+    /// (`game_npc_update`), on no plot and inside the Commons' box. (The crew walk and work in
+    /// real seconds; only the meal clock is game time.)
     ///
     /// Seen red 2026-10-04 with the Pioneer put back through this code (the rooms read from
     /// data/ships/starter_fleet.ron, the previous chores each at its room's centre, the previous
@@ -656,6 +731,10 @@ mod tests {
             assert_ne!(e.entity_type, "player", "a ghost player came back into the world");
         }
         assert!(world.entities.values().any(|e| e.entity_type == "food_store"), "the ship's stores stand in the upgraded world");
+        // This fixture's clock is 30 s, under one meal interval, so this cannot fail here; the
+        // fixture of `an_old_stored_world_keeps_earned_progress` (a day and a half) is where
+        // it can.
+        meal_clocks_staggered(&world).unwrap();
         assert!(db.load_game_world(GameWorld::PREVIOUS_PERSIST_KEY).unwrap().is_none(), "the old world was deleted after the upgrade");
         assert!(db.load_game_world(GameWorld::PERSIST_KEY).unwrap().is_some(), "the upgraded world was stored");
 
@@ -684,6 +763,249 @@ mod tests {
         assert!(db.load_game_world(GameWorld::PREVIOUS_PERSIST_KEY).unwrap().is_none());
         drop(db);
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// Every crew member who eats has its next meal still to come, and no two at the same moment
+    /// (the stagger `GameWorld::restart_meal_clocks` gives them), else why not.
+    fn meal_clocks_staggered(world: &GameWorld) -> Result<(), String> {
+        let mut at: Vec<(String, f64)> = world
+            .entities
+            .values()
+            .filter(|e| e.components.get("eats").and_then(|v| v.as_bool()) == Some(true))
+            .map(|e| (e.components["name"].as_str().unwrap_or("?").to_string(), e.components["next_meal_at"].as_f64().unwrap_or(f64::NAN)))
+            .collect();
+        if at.len() < 2 {
+            return Err(format!("only {} eater(s) in the world", at.len()));
+        }
+        at.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        let now = world.game_time;
+        let overdue: Vec<&(String, f64)> = at.iter().filter(|(_, t)| !(*t > now)).collect();
+        if !overdue.is_empty() {
+            return Err(format!("{} of {} eaters' meals are already due at {now:.0} s: {overdue:?}", overdue.len(), at.len()));
+        }
+        for w in at.windows(2) {
+            if w[1].1 - w[0].1 < 1.0 {
+                return Err(format!("{} and {} are due to eat at the same moment ({:.0} s)", w[0].0, w[1].0, w[0].1));
+            }
+        }
+        Ok(())
+    }
+
+    /// AN OLD STORED WORLD KEEPS EARNED PROGRESS (the review of increment 3, finding 3), and its
+    /// crew keep their meal stagger (finding 2). The first upgrade fixture's only player had
+    /// earned nothing, so a progress_of that dropped XP, reputation or the finished quests passed
+    /// it; and its clock was 30 s, so it could not show the crew's meal clocks left at the fresh
+    /// world's 0 while the clock jumped to the old world's (every eater overdue, all five
+    /// walking to the mess hall on the first tick and eating in lockstep for good).
+    ///
+    /// tests/fixtures/relay/pioneer_world_v9_progress.json is EXACTLY what the code live on the
+    /// server stored (main at 13affbd52, v0.1452.1: the same snapshot shape as 1297cde96 under
+    /// the same key, with the 72x clock): `GameWorld::new()`, a player "e11e0007" spawned in
+    /// the Crew Quarters who visited every room (explore_ship complete), `apply_quest_reward`
+    /// and `chain_next_quest` (xp 100, reputation 5, completed ["explore_ship"], now on
+    /// meet_the_crew), 30 real minutes of 20 Hz ticks (the clock at 129,600 s, a day and a
+    /// half), then `save_to_db` and the stored blob copied out unedited.
+    ///
+    /// Seen red 2026-10-04 before the upgrade restarted the meal clocks: "5 of 5 eaters' meals
+    /// are already due at 129600 s"; and, with progress_of zeroing xp (a deliberate break, put
+    /// back): "the xp they earned carried over / left: 0 / right: 100".
+    #[test]
+    fn an_old_stored_world_keeps_earned_progress() {
+        let (db, path) = temp_db("upgrade_progress");
+        let blob = include_str!("../../../tests/fixtures/relay/pioneer_world_v9_progress.json");
+        let old: serde_json::Value = serde_json::from_str(blob).expect("the fixture parses");
+        let old_time = old["game_time"].as_f64().unwrap();
+        assert!(old_time > 86_400.0, "the fixture's clock is past a day: {old_time}");
+        db.save_game_world(GameWorld::PREVIOUS_PERSIST_KEY, blob, old_time, old["next_entity_id"].as_u64().unwrap()).unwrap();
+        drop(db);
+        let db = crate::relay::storage::Storage::open(&path).expect("the database opens");
+        let mut world = GameWorld::new();
+        assert!(world.restore_from_db(&db), "the old world was found and upgraded");
+
+        let p = db.load_player_progress("e11e0007").unwrap().expect("the previous world's player kept no progress");
+        assert_eq!(p.xp, 100, "the xp they earned carried over");
+        assert_eq!(p.reputation, 5, "the reputation they earned carried over");
+        assert_eq!(p.completed_quests, vec!["explore_ship".to_string()], "the quest they finished carried over");
+        assert_eq!(p.current_quest.as_deref(), Some("meet_the_crew"), "the quest they were on carried over");
+        meal_clocks_staggered(&world).unwrap();
+
+        // Their next join re-seeds them onto meet_the_crew with what they earned (the join's
+        // own path, msg_handlers.rs handle_game_join).
+        let id = world.spawn_player("e11e0007", [0.0, 1.0, 0.0]);
+        world.seed_player_progress(id, p.current_quest.as_deref(), &p.completed_quests, p.xp, p.reputation);
+        let c = &world.entities[&id].components;
+        assert_eq!(c["current_quest"]["id"], "meet_the_crew", "{}", c["current_quest"]);
+        assert_eq!((c["xp"].as_u64(), c["reputation"].as_u64()), (Some(100), Some(5)));
+        assert_eq!(c["completed_quests"], serde_json::json!(["explore_ship"]));
+        drop(db);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// AN UPGRADE NEVER WRITES OLDER PROGRESS OVER NEWER (the review of increment 3, finding 3's
+    /// related edge). If storing the upgraded world fails, the old world stays and is upgraded
+    /// again at the next start, by which time the player may have earned more (saved to
+    /// player_progress as they go). Their row is then ahead of the old world's copy and keeps.
+    ///
+    /// Seen red 2026-10-04 with the upgrade writing every old player's progress whatever the row
+    /// held: "a second upgrade put the old world's progress over what they earned since / left:
+    /// 100 / right: 300".
+    #[test]
+    fn an_upgrade_never_writes_older_progress_over_newer() {
+        let (db, path) = temp_db("upgrade_newer");
+        let blob = include_str!("../../../tests/fixtures/relay/pioneer_world_v9_progress.json");
+        let old: serde_json::Value = serde_json::from_str(blob).unwrap();
+        db.save_game_world(GameWorld::PREVIOUS_PERSIST_KEY, blob, old["game_time"].as_f64().unwrap(), old["next_entity_id"].as_u64().unwrap()).unwrap();
+        let done = vec!["explore_ship".to_string(), "meet_the_crew".to_string()];
+        db.save_player_progress("e11e0007", Some("survey_storage"), &done, 300, 15).unwrap();
+        let mut world = GameWorld::new();
+        assert!(world.restore_from_db(&db));
+        let p = db.load_player_progress("e11e0007").unwrap().unwrap();
+        assert_eq!(p.xp, 300, "a second upgrade put the old world's progress over what they earned since");
+        assert_eq!(p.current_quest.as_deref(), Some("survey_storage"));
+        assert_eq!(p.completed_quests, done);
+        drop(db);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// NO TWO CREW STAND ON ONE SPOT (the review of increment 3, finding 9): every chore site is
+    /// at least a metre from every other, and every crew member who eats has a seat of its own
+    /// in the mess hall. Two crew at one spot are drawn as one fused figure; the whole crew
+    /// once had one meal spot, so any two eating at once fused.
+    ///
+    /// Seen red 2026-10-04 with the shipped files before this: "notice_board and
+    /// garden_pump_check stand 0.00 m apart at (90.0, 1.0, 33.0)"; then, with those two apart
+    /// and the one shared meal put back: "Crewmate Nia and Dr. Kel eat at the same seat (94.0,
+    /// 1.0, 24.5)".
+    #[test]
+    fn no_two_crew_stand_on_one_spot() {
+        let world = GameWorld::new();
+        let sites: Vec<(&str, [f32; 3])> = world.chores.iter().map(|c| (c.id.as_str(), world.chore_site_of(c).unwrap())).collect();
+        for (i, (a, pa)) in sites.iter().enumerate() {
+            for (b, pb) in sites.iter().skip(i + 1) {
+                let d = ((pa[0] - pb[0]).powi(2) + (pa[2] - pb[2]).powi(2)).sqrt();
+                assert!(d >= 1.0, "{a} and {b} stand {d:.2} m apart at {}", fmt3(*pa));
+            }
+        }
+        let mut seats: Vec<(String, [f32; 3])> = Vec::new();
+        for e in world.entities.values().filter(|e| e.components.get("eats").and_then(|v| v.as_bool()) == Some(true)) {
+            let name = e.components["name"].as_str().unwrap_or("?").to_string();
+            let role = e.components["role"].as_str().unwrap_or("");
+            let meal = world.meal_chore_for(role).unwrap_or_else(|| panic!("{name} eats but has no meal chore"));
+            let seat = world.chore_site_of(&world.chores[meal]).unwrap();
+            if let Some((other, _)) = seats.iter().find(|(_, s)| ((s[0] - seat[0]).powi(2) + (s[2] - seat[2]).powi(2)).sqrt() < 1.0) {
+                let (first, second) = if *other < name { (other.clone(), name.clone()) } else { (name.clone(), other.clone()) };
+                panic!("{first} and {second} eat at the same seat {}", fmt3(seat));
+            }
+            seats.push((name, seat));
+        }
+        assert!(seats.len() >= 5, "the shipped crew's eaters: {}", seats.len());
+    }
+
+    /// A STORED WORLD STANDS THE SHIP-BUILT THINGS WHERE THE FILES PUT THEM (the review of
+    /// increment 3, finding 10). After the first save every restart restores the world from its
+    /// snapshot, but the ship file, the chores and the stores file can change between (an
+    /// editor save, a refit of the mess hall): a snapshot taken whole would keep the store, the
+    /// furniture and each crew member's walk where the OLD files put them, possibly in a wall
+    /// or on someone's plot, for good. So the crew, furniture and stores are built from the
+    /// files at every start and only what CHANGES about them carries over: each store's stock,
+    /// each crew member's meal clock, meals and place in its chore rotation.
+    ///
+    /// A snapshot is saved, then edited the way an old ship file would have left it (the store,
+    /// a piece of furniture and a crew member on plot p1, that crew member's walk headed
+    /// there), and restored.
+    ///
+    /// Seen red 2026-10-04 with the snapshot restored whole: "notice_board stands on plot p1 at
+    /// (10.0, 1.0, 10.0)" (the piece of furniture the edit moved).
+    #[test]
+    fn a_stored_world_stands_the_ship_built_things_where_the_files_put_them() {
+        let (db, path) = temp_db("restore_rebuild");
+        let mut world = GameWorld::new();
+        super::super::ship_stores::meals_every(&mut world, 1.0);
+        for _ in 0..(20 * 60 * 5) {
+            world.tick(0.05); // five real minutes: six game hours at 72x, several meals each
+        }
+        let store_id = *world.entities.iter().find(|(_, e)| e.entity_type == "food_store").map(|(id, _)| id).unwrap();
+        let store_at = world.entities[&store_id].position;
+        world.save_to_db(&db).unwrap();
+
+        // The snapshot as an old ship file would have left it.
+        let snap = db.load_game_world(GameWorld::PERSIST_KEY).unwrap().unwrap();
+        let mut blob: serde_json::Value = serde_json::from_str(&snap.snapshot_json).unwrap();
+        let on_p1 = serde_json::json!([10.0, 1.0, 10.0]);
+        let mut saved: std::collections::HashMap<String, serde_json::Value> = Default::default();
+        let mut moved_crew = false;
+        let mut moved_furniture = false;
+        let mut saved_meals = 0.0;
+        for (_, e) in blob["entities"].as_object_mut().unwrap().iter_mut() {
+            if e["entity_type"] == "food_store" {
+                e["components"]["meals"] = serde_json::json!(37.0);
+                saved_meals = 37.0;
+                e["position"] = on_p1.clone();
+            } else if e["components"].get("chore_agent").is_some() {
+                let name = e["components"]["name"].as_str().unwrap().to_string();
+                e["components"]["meals_eaten"] = serde_json::json!(4);
+                e["components"]["chores_done"] = serde_json::json!(9);
+                saved.insert(name, e["components"].clone());
+                if !moved_crew {
+                    e["position"] = on_p1.clone();
+                    e["components"]["chore"] = serde_json::json!({ "id": "x", "label": "x", "room_id": "commons", "state": "traveling", "target": [10.0, 1.0, 10.0], "remaining": 10.0, "meal": false });
+                    moved_crew = true;
+                }
+            } else if e["entity_type"] != "player" && !moved_furniture {
+                e["position"] = on_p1.clone();
+                moved_furniture = true;
+            }
+        }
+        assert!(moved_crew && moved_furniture && saved_meals > 0.0);
+        db.save_game_world(GameWorld::PERSIST_KEY, &blob.to_string(), snap.game_time, snap.next_entity_id).unwrap();
+
+        let mut restored = GameWorld::new();
+        assert!(restored.restore_from_db(&db));
+        assert_eq!(restored.game_time, snap.game_time, "the clock carried over");
+        let plots = restored.ship_plots.plots.clone();
+        for e in restored.entities.values() {
+            if let Some(p) = plot_at(&plots, e.position) {
+                panic!("{} stands on plot {} at {}", e.entity_type, p.id, fmt3(e.position));
+            }
+            if let Some(t) = e.components.get("chore").and_then(|c| c.get("target")).and_then(|t| t.as_array()) {
+                let t = [t[0].as_f64().unwrap() as f32, t[1].as_f64().unwrap() as f32, t[2].as_f64().unwrap() as f32];
+                assert!(plot_at(&plots, t).is_none(), "a crew member walks toward plot p1 at {}", fmt3(t));
+            }
+        }
+        let store = restored.entities.values().find(|e| e.entity_type == "food_store").expect("the store stands");
+        assert_eq!(store.position, store_at, "the store stands where the stores file puts it");
+        assert_eq!(store.components["meals"].as_f64(), Some(saved_meals), "its stock carried over");
+        for e in restored.entities.values().filter(|e| e.components.get("chore_agent").is_some()) {
+            let name = e.components["name"].as_str().unwrap();
+            let was = saved.get(name).unwrap_or_else(|| panic!("{name} was not in the snapshot"));
+            for k in ["meals_eaten", "chores_done", "next_meal_at", "meals_missed"] {
+                assert_eq!(e.components.get(k), was.get(k), "{name}'s {k} carried over");
+            }
+        }
+        drop(db);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A RELAY WITH NO CHORES FILE STILL PUTS THE CREW TO WORK (the review of increment 3,
+    /// finding 11). A relay in a folder with no data/ still gets the ship, the crew and the
+    /// stores from the copies built into the exe; with no copy of the chores the crew stood in
+    /// the middle of the Commons, inside its walled room block, and wandered through its walls.
+    /// Now the chores have a built-in copy too, used when the file is missing or does not parse.
+    ///
+    /// Seen red 2026-10-04 before the built-in copy: "no chores without the file: 0 of 16".
+    #[test]
+    fn a_relay_with_no_chores_file_still_puts_the_crew_to_work() {
+        let shipped = GameWorld::new().chores.len();
+        let mut world = GameWorld::new();
+        world.chores.clear();
+        world.load_chores_at(std::path::Path::new("no-such-folder/npc/chores.ron"));
+        assert_eq!(world.chores.len(), shipped, "no chores without the file: {} of {shipped}", world.chores.len());
+        let bad = std::env::temp_dir().join(format!("hum_bad_chores_{}.ron", std::process::id()));
+        std::fs::write(&bad, "[ this is not ron").unwrap();
+        world.chores.clear();
+        world.load_chores_at(&bad);
+        assert_eq!(world.chores.len(), shipped, "a chores file that does not parse left {} of {shipped}", world.chores.len());
+        let _ = std::fs::remove_file(&bad);
     }
 
     /// The plot of the shipped ship with this id, as the relay hands it out.

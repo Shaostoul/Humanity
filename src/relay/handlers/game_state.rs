@@ -357,6 +357,11 @@ pub struct GameWorld {
     pub chores: Vec<ChoreDef>,
     /// The ship's food stores and who eats from them (data/food/ship_stores.ron, ship_stores.rs).
     pub provisions: super::ship_stores::Provisions,
+    /// When each PERSON (by key) may next take a meal from the stores, game seconds: a player
+    /// takes one meal a meal interval, like the crew (ship_stores.rs `take_meal`). Kept by key,
+    /// not on the player's entity, so stepping out of the world and back in does not reset it;
+    /// not saved with the world (a restart forgets it, and the next meal is simply allowed).
+    pub player_next_meal: HashMap<String, f64>,
     /// Accumulator throttling traveling-NPC position broadcasts (not persisted).
     npc_broadcast_accum: f64,
     /// The mothership's plots (increment 1b of docs/design/ship-homes-and-logistics.md):
@@ -484,6 +489,7 @@ impl GameWorld {
             ship_name: String::new(),
             chores: Vec::new(),
             provisions: super::ship_stores::Provisions::load(),
+            player_next_meal: HashMap::new(),
             npc_broadcast_accum: 0.0,
             ship_plots: Default::default(),
         };
@@ -496,22 +502,33 @@ impl GameWorld {
     /// Load the crew chore catalog from data/npc/chores.ron. A chore whose place is not a room
     /// of the ship, whose spot lies outside that room, or whose site stands on a plot (someone's
     /// home) is dropped with a warning: a typo must not strand an NPC walking forever toward
-    /// nowhere, nor walk the crew into a home. Missing/unparseable file -> empty catalog ->
-    /// crew keep the legacy wander behavior.
+    /// nowhere, nor walk the crew into a home. A file that is missing or does not parse is
+    /// replaced by the copy built into the exe (logged as such, like crew.ron and the ship
+    /// file): a relay in a folder with no data/ still gets the ship, the crew and the stores
+    /// from their built-in copies, and with no chores its crew stood in the Commons' middle,
+    /// inside the walled room block, and wandered through its walls (the review of increment
+    /// 3, finding 11). The wander drift now runs only if the built-in copy is empty too, which
+    /// a test rules out.
     fn load_chores(&mut self) {
-        let path = "data/npc/chores.ron";
-        let contents = match std::fs::read_to_string(path) {
-            Ok(c) => c,
-            Err(e) => {
-                tracing::warn!("Could not load {}: {} -- crew NPCs will wander instead of doing chores", path, e);
-                return;
-            }
-        };
+        self.load_chores_at(std::path::Path::new("data/npc/chores.ron"));
+    }
+
+    /// `load_chores` from a given file (the tests point it at a missing one and a broken one).
+    pub(crate) fn load_chores_at(&mut self, file: &std::path::Path) {
+        const BUILT_IN: &str = include_str!("../../../data/npc/chores.ron");
+        let path = file.display().to_string();
+        let contents = std::fs::read_to_string(file).unwrap_or_else(|e| {
+            crate::embedded_data::note_builtin_copy("npc/chores.ron", format_args!("{path} could not be read ({e})"));
+            BUILT_IN.to_string()
+        });
         let chores: Vec<ChoreDef> = match ron::from_str(&contents) {
             Ok(v) => v,
             Err(e) => {
-                tracing::warn!("Failed to parse {}: {} -- crew NPCs will wander instead of doing chores", path, e);
-                return;
+                crate::embedded_data::note_builtin_copy("npc/chores.ron", format_args!("{path} does not parse ({e})"));
+                ron::from_str(BUILT_IN).unwrap_or_else(|e| {
+                    tracing::error!("The built-in chores do not parse either ({e}); the crew will wander instead of doing chores");
+                    Vec::new()
+                })
             }
         };
         let (valid, dropped): (Vec<ChoreDef>, Vec<ChoreDef>) = chores.into_iter().partition(|c| self.chore_site_of(c).is_some());
@@ -579,6 +596,9 @@ impl GameWorld {
                     owner: None,
                     components: serde_json::json!({
                         "interactable": true,
+                        // Built from the files at every start (ship_world.rs
+                        // `carry_over_ship_state`): a stored world never moves it.
+                        "ship_built": true,
                         "room_id": room.id,
                         "description": format!("{} in {}", equip, room.name),
                         // Storage flag for the survey_storage quest (v0.172).
@@ -609,10 +629,7 @@ impl GameWorld {
         // crew started in the middle of their room, and the Commons' middle is inside its
         // room block, behind walls. A crew member whose post is not a room of the ship is
         // left out with a warning.
-        let interval = self.provisions.meal_interval_s();
-        let eaters = crew_defs().iter().filter(|c| c.eats).count().max(1) as f64;
         let mut npc_seq: u64 = 0;
-        let mut eater_seq = 0.0_f64;
         for crew in crew_defs() {
             let Some(room) = rooms.iter().find(|r| r.id == crew.post) else {
                 tracing::warn!("Crew member {} names unknown post '{}'; left out", crew.name, crew.post);
@@ -624,8 +641,11 @@ impl GameWorld {
                 .unwrap_or_else(|| super::ship_world::room_point(room, None));
             let id = self.next_entity_id;
             self.next_entity_id += 1;
-            let mut components = serde_json::json!({
+            let components = serde_json::json!({
                 "interactable": true,
+                // Built from the files at every start; a stored world carries over only its meal
+                // clock, meals and place in its rotation (ship_world.rs `carry_over_ship_state`).
+                "ship_built": true,
                 "room_id": room.id,
                 "name": crew.name,
                 "role": crew.role,
@@ -651,10 +671,6 @@ impl GameWorld {
                     "y": start[1],
                 },
             });
-            if crew.eats {
-                eater_seq += 1.0;
-                Self::start_meal_clock(&mut components, self.game_time, interval, eater_seq / (eaters + 1.0));
-            }
             self.entities.insert(id, GameEntity {
                 entity_type: crew.npc_type.clone(),
                 position: start,
@@ -665,6 +681,9 @@ impl GameWorld {
             });
             npc_seq += 1;
         }
+
+        // Every eater's meal clock, staggered so they come to eat one at a time (ship_stores.rs).
+        self.restart_meal_clocks();
 
         tracing::info!("Populated {} ship entities across {} rooms",
             self.entities.len(), self.rooms.len());
@@ -946,6 +965,24 @@ impl GameWorld {
         })
     }
 
+    /// The name a crew member answers to, for an entity the player interacts with: Some only
+    /// for a CREW member, an entity with a name AND lines to say (`dialog`), the same test
+    /// `crew_npc_count` counts the meet-the-crew quest's total by. The ship's food stores carry
+    /// a `name` for agents' perception and say nothing (the review of increment 3, finding 8).
+    pub fn crew_name_of(&self, entity_id: u64) -> Option<String> {
+        let c = &self.entities.get(&entity_id)?.components;
+        c.get("dialog")?;
+        c.get("name").and_then(|v| v.as_str()).map(String::from)
+    }
+
+    /// What a player's interaction with `entity_id` did to their quest: meeting a crew member
+    /// (meet_the_crew), else scanning a storage entity (survey_storage). Called by
+    /// handle_game_interact for every interaction that reached its target.
+    pub fn record_interaction_quest(&mut self, player_id: u64, entity_id: u64) -> Option<QuestProgress> {
+        let talked = self.crew_name_of(entity_id).and_then(|name| self.record_npc_talk(player_id, &name));
+        talked.or_else(|| self.record_storage_scan(player_id, entity_id))
+    }
+
     /// Apply the reward block from a player's just-completed current_quest:
     /// adds xp + reputation to the player's stats, appends the quest id to
     /// `completed_quests`, and returns the QuestReward (with running totals).
@@ -1112,8 +1149,11 @@ impl GameWorld {
     pub fn tick(&mut self, dt: f64) -> Vec<NpcChoreEvent> {
         self.game_time += dt * self.time_scale;
         let mut events: Vec<NpcChoreEvent> = Vec::new();
-        // What the ship's farms (and any NPC homestead) put into the food stores this tick.
-        self.stock_stores(dt);
+        // What the ship's farms (and any NPC homestead) put into the food stores this tick, on
+        // the GAME clock: meals come on it (ship_stores.rs `meal_due`), so the farms must fill
+        // on it too, or at any speed but 1x the crew eat faster than the stores fill (the review
+        // of increment 3, finding 1: at 72x the 90 meals were gone in two real hours).
+        self.stock_stores(dt * self.time_scale);
 
         // Throttle traveling-position broadcasts to NPC_POSITION_BROADCAST_INTERVAL.
         self.npc_broadcast_accum += dt;
@@ -1471,9 +1511,11 @@ impl GameWorld {
     }
 
     /// Restore world entities from the SQLite snapshot if one exists.
-    /// Returns true if a snapshot was found and applied. Replaces the freshly
-    /// populated ship entities with the persisted set so player movement,
-    /// inventory, and quest state survive relay restarts.
+    /// Returns true if a snapshot was found and applied. The crew, furniture and
+    /// food stores stay as this start built them from the files, with only what
+    /// changes about them carried over from the snapshot (ship_world.rs
+    /// `carry_over_ship_state`: stock, meal clocks, chore rotation); everything
+    /// else in it is put back, and its players are reaped as ghosts below.
     pub fn restore_from_db(&mut self, db: &crate::relay::storage::Storage) -> bool {
         #[derive(Deserialize)]
         struct Snapshot {
@@ -1493,11 +1535,24 @@ impl GameWorld {
         };
         match serde_json::from_str::<Snapshot>(&snapshot.snapshot_json) {
             Ok(snap) => {
-                self.entities = snap.entities;
                 // Never hand out an id below either the snapshot's high-water
                 // mark OR the freshly-populated world's — avoids id reuse.
                 self.next_entity_id = snap.next_entity_id.max(self.next_entity_id);
                 self.game_time = snap.game_time;
+                // The ship-built things from the files, their changing state from the
+                // snapshot (the review of increment 3, finding 10); the rest of the
+                // snapshot back in, each under its stored id unless a freshly built
+                // thing holds it.
+                for (id, e) in self.carry_over_ship_state(snap.entities) {
+                    let id = if self.entities.contains_key(&id) {
+                        let fresh = self.next_entity_id;
+                        self.next_entity_id += 1;
+                        fresh
+                    } else {
+                        id
+                    };
+                    self.entities.insert(id, e);
+                }
                 // Reap GHOST players (v0.779): no sockets exist at startup, so
                 // every restored player entity is connectionless — it inflated
                 // the public game_players count forever (handle_game_disconnect

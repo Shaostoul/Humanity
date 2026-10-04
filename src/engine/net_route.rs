@@ -365,7 +365,8 @@ const HAIR_CENTRE_IN_HEAD_RADII: [f32; 3] = [0.0, 0.05, -0.12];
 /// A crew member's position is their standing height, this far over their
 /// feet: net/sync.rs grounds every crew member to `NPC_LOCAL_STANDING_Y`
 /// (1.0) over the home floor at y = 0, and the relay's chore sites are a
-/// room's floor + 1.0 too (relay/handlers/game_state.rs `chore_site`).
+/// room's floor + 1.0 too (relay/handlers/game_state.rs `chore_site_of`, at
+/// ship_world.rs `STANDING_Y_M`).
 const CREW_POSITION_OVER_FEET_M: f32 = 1.0;
 
 /// Where each piece of a figure goes, built UP from its `feet`: the body from

@@ -34,7 +34,9 @@
 //                 member who eats does it when its meal is due and takes one
 //                 meal from the ship's food stores in that place when it is
 //                 done (data/food/ship_stores.ron, the same stock players take
-//                 theirs from)
+//                 theirs from). Each eater sits at the meal naming its role,
+//                 else at the one open to everyone (empty roles), so two crew
+//                 eating at once are never drawn as one figure on one spot
 //
 // Rules the relay tests hold these to (src/relay/handlers/game_state.rs):
 //   - no site stands on a plot (someone's home); load_chores drops one that
@@ -46,7 +48,11 @@
 //     mess hall or uses its east end (ship x 89..94) and the east aisle
 //     (ship x 88..92, z 33..61);
 //   - every role's sites are at least two places 5 m apart, so the crew
-//     visibly walk between tasks instead of pacing on one spot.
+//     visibly walk between tasks instead of pacing on one spot;
+//   - no two sites in this file are less than 1 m apart, and every crew member
+//     who eats has a seat of its own, so two crew are never drawn fused into
+//     one figure (the review of increment 3, finding 9: the notice board and
+//     the garden pumps once shared a spot, and the whole crew one meal spot).
 
 [
     // ── Navigator (Helm Officer Vex): off the helm on a long cruise, keeps the notices ──
@@ -98,7 +104,7 @@
         id: "garden_pump_check",
         label: "Testing the garden's water pumps",
         place: "commons",
-        spot: (25.0, 13.0),
+        spot: (26.0, 16.0),
         duration_secs: 20.0,
         roles: ["chief_engineer"],
     ),
@@ -181,12 +187,59 @@
         roles: ["off_duty"],
     ),
 
-    // ── Meals: everyone who eats, from the ship's stores ──
+    // ── Meals: everyone who eats, from the ship's stores. A seat each along the
+    //    mess hall's east table (ship x 94, z 21.5 to 27.25), and one open to
+    //    any role without a seat of its own ──
+    (
+        id: "meal_navigator",
+        label: "Eating a meal in the mess hall",
+        place: "mess-hall",
+        spot: (29.0, 1.5),
+        duration_secs: 40.0,
+        roles: ["navigator"],
+        meal: true,
+    ),
+    (
+        id: "meal_medical_officer",
+        label: "Eating a meal in the mess hall",
+        place: "mess-hall",
+        spot: (29.0, 3.0),
+        duration_secs: 40.0,
+        roles: ["medical_officer"],
+        meal: true,
+    ),
+    (
+        id: "meal_chief_engineer",
+        label: "Eating a meal in the mess hall",
+        place: "mess-hall",
+        spot: (29.0, 4.5),
+        duration_secs: 40.0,
+        roles: ["chief_engineer"],
+        meal: true,
+    ),
+    (
+        id: "meal_botanist",
+        label: "Eating a meal in the mess hall",
+        place: "mess-hall",
+        spot: (29.0, 6.0),
+        duration_secs: 40.0,
+        roles: ["botanist"],
+        meal: true,
+    ),
+    (
+        id: "meal_off_duty",
+        label: "Eating a meal in the mess hall",
+        place: "mess-hall",
+        spot: (29.0, 7.25),
+        duration_secs: 40.0,
+        roles: ["off_duty"],
+        meal: true,
+    ),
     (
         id: "crew_meal",
         label: "Eating a meal in the mess hall",
         place: "mess-hall",
-        spot: (29.0, 4.5),
+        spot: (27.5, 7.25),
         duration_secs: 40.0,
         roles: [],
         meal: true,
