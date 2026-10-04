@@ -3335,7 +3335,7 @@ pub async fn handle_game_position_update(
     if verdict != super::move_check::Verdict::Accept {
         drop(world);
         if let Some(c) = correction {
-            tracing::warn!("Game: corrected {} ({}): {}", my_key, c["reason"], c["position"]);
+            tracing::warn!("Game: corrected {}.. ({}): {}", my_key.get(..16).unwrap_or(my_key), c["reason"], c["position"]);
             send_game_private(state, my_key, &c).await;
         }
         return;
