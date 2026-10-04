@@ -207,10 +207,10 @@ Rendering items below still run beside it on files that do not overlap.
 **Economy and crafting follow-ups (2026-10-04, from BUG-143/145):** the
 trading post now sells only real items (v0.1453.0), no recipe resells for more
 than its inputs cost at standard grade, and vehicles carry real bills of
-materials (v0.1455.0). Two open, both in `docs/BUGS.md`: BUG-147, the big
-vehicles cannot be hand-crafted from the backpack (needs a build station that
-draws parts from home storage, the right station per vehicle class, and the
-`assemble_*` kit recipes given real bills of materials too); BUG-146, a
+materials (v0.1455.0), and a hand craft draws on the home's storage
+(BUG-147, v0.1457.0). Still to do from that: the right station per vehicle
+class (everything is built at `workbench_0`), and the `assemble_*` kit
+recipes given real bills of materials too. Open in `docs/BUGS.md`: BUG-146, a
 better craft grade still loops at the vendor (the fix is a vendor price that
 responds to how much of a good it already holds, not lower prices). Smaller:
 `craft_optical_fiber` makes copper wire (no optical fibre item), sterile

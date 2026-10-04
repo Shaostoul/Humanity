@@ -3414,7 +3414,7 @@ vendor values grade and quantity (a price that responds to how much of a
 good it already holds, or grade paid on labour rather than on the whole
 price), not in lowering every price below 0.4x its parts.
 
-## BUG-147: the big vehicles cannot be hand-crafted from the backpack (FIXED on a branch, not yet released; found 2026-10-04)
+## BUG-147: the big vehicles cannot be hand-crafted from the backpack (FIXED v0.1457.0, found 2026-10-04)
 
 **Seen:** after the vehicle bills of materials (BUG-145) became realistic. A
 manual craft draws only on the backpack (36 slots, about 65 L). Only the
