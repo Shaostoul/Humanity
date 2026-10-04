@@ -367,7 +367,7 @@ fn legs_of(points: &[Vec3]) -> Vec<Leg> {
 /// direction, and then at intervals so that no two consecutive markers are more than
 /// `rules.interval_m` apart. Every marker's whole band group lies on one straight leg, clear of
 /// the bends. A run too short for any of that still gets one marker, mid-way along its longest
-/// leg.
+/// leg, if that leg can hold the group; a run shorter than one marker gets none.
 pub fn place_markers(points: &[Vec3], rules: &PlacementRules, group_len: f32) -> Vec<MarkerSite> {
     let legs = legs_of(points);
     if legs.is_empty() {
@@ -412,9 +412,15 @@ pub fn place_markers(points: &[Vec3], rules: &PlacementRules, group_len: f32) ->
             candidates.push(site(i, off, MarkerReason::Bend));
         }
     }
-    // Nothing fits anywhere (a stub of a run): one marker in the middle of the longest leg.
+    // Nothing fits anywhere (a stub of a run): one marker in the middle of the longest leg, if
+    // that leg holds a whole group. A run shorter than one marker carries none, as a real short
+    // nipple between two fittings does; the runs either side carry the markers. (A group centred
+    // on a leg shorter than itself stuck out past both ends, 2026-10-04 review.)
     if candidates.is_empty() {
         let (i, l) = legs.iter().enumerate().fold((0, legs[0]), |best, (i, l)| if l.len > best.1.len { (i, *l) } else { best });
+        if l.len < group_len {
+            return Vec::new();
+        }
         return vec![site(i, l.len * 0.5, MarkerReason::End)];
     }
     // Keep the first of any two candidates whose groups would touch (the ends win).
@@ -615,6 +621,26 @@ mod tests {
         let m = place_markers(&stub, &r, group);
         assert_eq!(m.len(), 1, "a 0.4 m run still carries a marker: {m:?}");
         assert_groups_on_their_legs(&stub, &m, group);
+    }
+
+    /// A run shorter than one marker carries none, rather than a marker that sticks out past
+    /// both ends into the fittings (2026-10-04 review): two conduit nodes 0.1 m apart at service
+    /// height route as one 0.1 m leg, and Full mode's 0.18 m triple cannot fit on it. The runs
+    /// either side carry the markers, as on a real short nipple between two fittings. A single
+    /// Simplified band (6 cm) still fits.
+    ///
+    /// Seen red before the fix: "marker at s=0.05 overhangs leg 0 (0..0.1)".
+    #[test]
+    fn a_run_shorter_than_its_marker_carries_none() {
+        let r = rules();
+        let full = 3.0 * r.band_m;
+        let tiny = [Vec3::new(0.0, 2.7, 0.0), Vec3::new(0.1, 2.7, 0.0)];
+        let m = place_markers(&tiny, &r, full);
+        assert_groups_on_their_legs(&tiny, &m, full);
+        assert!(m.is_empty(), "a 0.1 m run cannot hold a {full} m marker: {m:?}");
+        let one_band = place_markers(&tiny, &r, r.band_m);
+        assert_eq!(one_band.len(), 1, "one 6 cm band fits on 0.1 m: {one_band:?}");
+        assert_groups_on_their_legs(&tiny, &one_band, r.band_m);
     }
 
     /// Simplified mode draws one band of the main colour per marker; full mode draws the
