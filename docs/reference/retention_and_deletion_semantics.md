@@ -175,10 +175,55 @@ The stored-data classes removed or bounded after the sealed-sender cutover:
     a plot you still stand on; the server's stored copy of the world loses your
     figure in that step too, so a crash straight after cannot bring your
     progress back; and your game is told you left, with one sentence saying how
-    to come back (reconnect), and does not join again on its own.
+    to come back (open Chat and press Connect), and does not join again on its
+    own. Every client of yours that is online at that moment leaves the server
+    and does not reconnect by itself (BUG-135).
     Admins must hand off the admin role first so a server is never orphaned.
     secure_delete zeroes the freed pages and the WAL is truncated; rotating
     backups hold prior snapshots until they age out, as everywhere else here.
+  - WHAT AN ERASE LEAVES BEHIND, FOR A WHILE (2026-10-04, BUG-135; the
+    operator's decision, verbatim: "Let's go with option 2 that way we have a
+    way to cull the list over a period of time. That way we don't end up with a
+    massive log of all the accounts that erased themselves after many years or a
+    malicious attack."). Before this, a device that was offline during the erase
+    (a second computer with the app closed, a web tab between reconnects) came
+    back later with the same key and was signed up again by itself. Now the
+    server remembers that the account was erased, and only that:
+    - as a ONE-WAY FINGERPRINT of the public key (BLAKE3 keyed with a 32-byte
+      secret the relay creates once and keeps beside the live database, like
+      `backup.key`, in `data/erased-accounts.key`), never the key itself, never
+      the name; with the secret kept outside the database, a copy of the
+      database alone cannot be checked against a list of known keys;
+    - with the DAY of the erase and nothing else (table `erased_accounts
+      (fingerprint, erased_day)`, WITHOUT ROWID, so not even the order of the
+      erases within a day is kept);
+    - for `erased_accounts_ttl_days` days (server setting, default 30), after
+      which the row is deleted by the maintenance sweep (at relay start and every
+      six hours, beside the DM mailbox expiry; a shortened window takes effect at
+      once, because the check reads the setting);
+    - and never more than `erased_accounts_cap` rows (server setting, default
+      100,000): when full, the oldest go first, so a flood of erases cannot grow
+      it without bound.
+    Both settings are in Server Settings > ADMIN > Server policy > Erased
+    accounts. The person reads the real number of days before erasing (native
+    Settings > Account, web Erase account) and again in the receipt:
+    "After the erase this server remembers for 30 days that this account was
+    erased, as a one-way fingerprint that is not your name or your data, so
+    your other devices do not sign you up again by themselves; after that
+    nothing of it is left."
+    What it does: a device of the erased account that connects is told
+    `account_erased` and is not signed in at all (no name registered, no member
+    row, no presence), and a game join from a device still connected from
+    before the erase is refused. Pressing Connect (native) or Enter (web) under
+    the erase note says `sign_up_again` in that connection's identify, which
+    forgets the entry and signs the person up again as a new account; an
+    automatic reconnect never says it. Bots are never affected. The entry is in
+    the person's own export (`erased_here`, the day only); it is the one row an
+    erase writes instead of deleting.
+    Honest residuals: the rows ride into backups like every other row until the
+    backups age out; and if the secret file is lost (a server moved without it),
+    the old fingerprints simply never match again and are culled on schedule,
+    at the cost of the old behaviour (another device may sign up again).
 
   Two corrections to what this section said before 2026-09-06, both of which
   were live for months:

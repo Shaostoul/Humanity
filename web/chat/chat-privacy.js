@@ -212,13 +212,41 @@ async function exportMyAccountData() {
   }
 }
 
+// What the server keeps AFTER an erase, said before the person decides (BUG-135, the
+// operator's option 2, 2026-10-04): the server remembers for a limited time that the account
+// was erased, so the person's other devices do not sign them up again by themselves. `days`
+// is this server's own setting (GET /api/server-info `erased_accounts_ttl_days`); null when it
+// could not be read. The same words as native (src/relay/storage/erased_accounts.rs
+// `erase_memory_sentence`).
+function eraseMemorySentence(days) {
+  const howLong = days === 1 ? 'for 1 day'
+    : (Number.isInteger(days) && days > 0) ? 'for ' + days + ' days'
+    : 'for a set number of days (30 unless its admin changed it)';
+  return 'After the erase this server remembers ' + howLong + ' that this account was erased, as a '
+    + 'one-way fingerprint that is not your name or your data, so your other devices do not '
+    + 'sign you up again by themselves; after that nothing of it is left.';
+}
+
+async function eraseMemoryDays() {
+  try {
+    const res = await fetch('/api/server-info');
+    if (!res.ok) return null;
+    const info = await res.json();
+    return Number.isInteger(info && info.erased_accounts_ttl_days) ? info.erased_accounts_ttl_days : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function deleteMyAccount() {
-  if (!await holdConfirm('Erase your entire account on this server (messages, uploads, profile, mailbox, membership, your progress in the shared world, and your home\'s plot on the ship)? This is permanent. Data on your own devices stays.', { seconds: 5, confirmLabel: 'Hold to erase account' })) return;
+  const remembered = eraseMemorySentence(await eraseMemoryDays());
+  if (!await holdConfirm('Erase your entire account on this server (messages, uploads, profile, mailbox, membership, your progress in the shared world, and your home\'s plot on the ship)? This is permanent. Data on your own devices stays. ' + remembered, { seconds: 5, confirmLabel: 'Hold to erase account' })) return;
   const typed = prompt(
     'This ERASES your account on this server: messages, uploads, profile, '
     + 'mailbox, membership, your progress in the shared world, and your home\'s plot on the ship '
     + '(it goes to the next player; if you come back you get a free plot or a guest place), '
     + 'permanently. Data on your own devices stays.\n\n'
+    + remembered + '\n\n'
     + 'Type your display name exactly to confirm:');
   if (!typed || !typed.trim()) return;
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -251,4 +279,5 @@ window.applyPrivacyTier = applyPrivacyTier;
 window.reassertPrivacyTier = reassertPrivacyTier;
 window.exportMyAccountData = exportMyAccountData;
 window.deleteMyAccount = deleteMyAccount;
+window.eraseMemorySentence = eraseMemorySentence;
 window.setRelayCallsOnly = setRelayCallsOnly;

@@ -33,7 +33,15 @@ use std::sync::Arc;
 ///
 /// Nobody else hears of it. If an earlier join of theirs is still in the world (a reconnect
 /// after their ship changed), it leaves.
+///
+/// First of all, a join from a key whose account was erased here, while this relay remembers
+/// that (BUG-135; sign_ups.rs `refused_erased_join`): refused with reason "account_erased",
+/// the sentence the erase itself sends, so a device still connected from before the erase
+/// cannot claim a plot for the erased account.
 pub async fn refused_join(state: &Arc<RelayState>, my_key: &str, join: &JoinHome) -> bool {
+    if crate::relay::handlers::sign_ups::refused_erased_join(state, my_key).await {
+        return true;
+    }
     let (why, ship, present) = {
         let world = state.game_world.read().await;
         let Some(why) = world.ship_plots.join_refusal(join) else { return false };

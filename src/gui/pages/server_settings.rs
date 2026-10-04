@@ -2196,6 +2196,27 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
             int_input(ui, &mut draft.message_retention_days, 0, 3650);
         });
 
+        // Erased accounts remembered (BUG-135, the operator's option 2, 2026-10-04): the
+        // relay's storage/erased_accounts.rs, culled by these two numbers.
+        ui.add_space(theme.spacing_md);
+        widgets::subsection_label(ui, theme, "Erased accounts");
+        widgets::body_hint(
+            ui, theme,
+            "When someone erases their account here, the server remembers that it was erased, \
+             as a one-way fingerprint of the key and the day, nothing else, so their other \
+             devices do not sign them up again by themselves. After this many days the entry \
+             is deleted, and the list never holds more than the number below: when full, the \
+             oldest go first. People read the number of days before they erase.",
+        );
+        let (ttl_min, ttl_max) = crate::relay::storage::ERASED_ACCOUNTS_TTL_DAYS_RANGE;
+        let (cap_min, cap_max) = crate::relay::storage::ERASED_ACCOUNTS_CAP_RANGE;
+        widgets::form_row(ui, theme, "Remember an erase for (days)", |ui| {
+            int_input(ui, &mut draft.erased_accounts_ttl_days, ttl_min, ttl_max);
+        });
+        widgets::form_row(ui, theme, "Most erased accounts remembered", |ui| {
+            int_input(ui, &mut draft.erased_accounts_cap, cap_min, cap_max);
+        });
+
         ui.add_space(theme.spacing_sm);
         widgets::subsection_label(ui, theme, "Security policy");
         // Full-PQ: the "Require post-quantum signatures" toggle was removed.
@@ -2769,6 +2790,9 @@ fn send_server_settings_update(
                 "dm_mailbox_ttl_days":            draft.dm_mailbox_ttl_days,
                 // Public message retention (2026-08-24).
                 "message_retention_days":         draft.message_retention_days,
+                // Erased accounts remembered: days and cap (BUG-135, 2026-10-04).
+                "erased_accounts_ttl_days":       draft.erased_accounts_ttl_days,
+                "erased_accounts_cap":            draft.erased_accounts_cap,
                 // Guaranteed local-only room toggle (v0.1132).
                 "local_channel_enabled":           draft.local_channel_enabled,
             });

@@ -518,6 +518,21 @@ pub async fn serve_relay(
     state_for_return
 }
 
+/// The cull of the erased accounts this relay remembers (storage/erased_accounts.rs; BUG-135,
+/// the operator's decision of 2026-10-04): entries past the window go, then the oldest past
+/// the cap. Run at start and on the six-hour maintenance sweep, beside the DM mailbox expiry.
+fn sweep_erased_accounts(db: &storage::Storage) {
+    let s = db.get_server_settings().unwrap_or_default();
+    match db.erased_accounts_sweep(s.erased_accounts_ttl_days, s.erased_accounts_cap) {
+        Ok((0, 0)) => {}
+        Ok((expired, trimmed)) => tracing::info!(
+            "Erased accounts: forgot {expired} past the {}-day window and {trimmed} over the cap of {}",
+            s.erased_accounts_ttl_days, s.erased_accounts_cap
+        ),
+        Err(e) => tracing::error!("Erased accounts sweep failed: {e}"),
+    }
+}
+
 pub async fn run_relay() {
     // Wire up logging FIRST (2026-08-12): the headless relay initialized no
     // tracing subscriber at all, so every tracing::info!/warn!/error! in the
@@ -587,6 +602,7 @@ pub async fn run_relay() {
             Ok(n) => tracing::info!("DM mailbox: expired {n} envelope(s) past the {ttl}-day TTL"),
             Err(e) => tracing::error!("DM mailbox boot expiry failed: {e}"),
         }
+        sweep_erased_accounts(&db);
     }
 
     // Owner-is-admin (v0.1134): a self-hosted node grants its OWNER the
@@ -1018,6 +1034,7 @@ pub async fn run_relay() {
                         Ok(n) => tracing::info!("Messages: expired {n} past the {}-day retention", settings.message_retention_days),
                         Err(e) => tracing::error!("Message retention sweep failed: {e}"),
                     }
+                    sweep_erased_accounts(&sweep_state.db);
                 }
 
                 // Ensure backup directory exists.

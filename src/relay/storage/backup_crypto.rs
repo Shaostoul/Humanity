@@ -32,7 +32,15 @@ const KEY_FILE: &str = "backup.key";
 /// on first use. None only on I/O failure (caller falls back to a
 /// plain backup rather than silently having none).
 pub fn load_or_create_key(dir: &Path) -> Option<[u8; 32]> {
-    let path = dir.join(KEY_FILE);
+    load_or_create_named_key(dir, KEY_FILE)
+}
+
+/// The same for any 32-byte machine-local secret kept beside the live database under the
+/// file name `file`: the backup key above, and the erased-accounts fingerprint secret
+/// (storage/erased_accounts.rs, 2026-10-04). One implementation, so both are created, kept
+/// private (0600 on unix) and refused when damaged the same way.
+pub fn load_or_create_named_key(dir: &Path, file: &str) -> Option<[u8; 32]> {
+    let path = dir.join(file);
     if let Ok(bytes) = std::fs::read(&path) {
         if bytes.len() == 32 {
             let mut k = [0u8; 32];
@@ -40,7 +48,7 @@ pub fn load_or_create_key(dir: &Path) -> Option<[u8; 32]> {
             return Some(k);
         }
         tracing::error!(
-            "backup.key at {} has wrong length ({}); refusing to overwrite it — fix or remove it manually",
+            "{file} at {} has wrong length ({}); refusing to overwrite it: fix or remove it manually",
             path.display(),
             bytes.len()
         );
@@ -56,7 +64,7 @@ pub fn load_or_create_key(dir: &Path) -> Option<[u8; 32]> {
         let _ = std::fs::create_dir_all(parent);
     }
     if let Err(e) = std::fs::write(&path, k) {
-        tracing::error!("could not write backup key {}: {e}", path.display());
+        tracing::error!("could not write {file} at {}: {e}", path.display());
         return None;
     }
     #[cfg(unix)]
@@ -64,7 +72,7 @@ pub fn load_or_create_key(dir: &Path) -> Option<[u8; 32]> {
         use std::os::unix::fs::PermissionsExt;
         let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
     }
-    tracing::info!("backup encryption key created at {}", path.display());
+    tracing::info!("{file} created at {}", path.display());
     Some(k)
 }
 

@@ -192,6 +192,7 @@ impl GuiState {
         self.chat_banned_users.clear();
         self.chat_muted_users.clear();
         self.server_settings = None;
+        self.server_settings_requested = false;
         self.server_settings_draft = None;
         self.chat_typing_users.clear();
         self.history_rx = None;
@@ -292,6 +293,19 @@ impl GuiState {
     pub fn forget_account_erased(&mut self, url: &str) {
         let entry = erased_entry(&self.profile_public_key, url);
         self.account_erased_on.remove(&entry);
+    }
+
+    /// The Chat page's Connect, pressed for `url`: whether this connection's identify says
+    /// `sign_up_again` (true when this identity's account there was erased, so the note above
+    /// the button said Connect signs up again), and the person's choice is then made: the
+    /// erase is forgotten here, so it is said once, by this one connection. The relay keeps
+    /// its own memory of the erase for a limited time and signs nothing up again without the
+    /// field (relay handlers/sign_ups.rs); an automatic reconnect never carries it, and a later
+    /// press finds nothing to forget. Returns false on a server never erased here.
+    pub fn take_sign_up_again(&mut self, url: &str) -> bool {
+        let chosen = self.account_erased_here(url);
+        self.forget_account_erased(url);
+        chosen
     }
 }
 
@@ -503,6 +517,69 @@ mod erased_account_tests {
         state.account_erased_on_active(EraseOutcome::from_receipt(&whole));
         assert_eq!(state.erase_note("https://a.example"), Some(ERASED_CONNECT_NOTE));
         assert_eq!(state.erase_note("https://b.example"), None, "no note where nothing was erased");
+    }
+
+    /// BUG-135, the operator's option 2 (2026-10-04): the relay remembers an erase for a while
+    /// and signs nothing up again unless the identify says `sign_up_again`. Only the Chat page's
+    /// Connect, pressed under the erase note, says it, and only for that one connection: the
+    /// choice is taken once, so a reconnect after it (or a second press) does not repeat it,
+    /// and a server never erased here never gets it.
+    ///
+    /// Seen red 2026-10-04 with `take_sign_up_again` returning the erase without forgetting it:
+    /// "the choice is made: the note is gone".
+    #[test]
+    fn the_connect_after_an_erase_says_sign_up_again_once() {
+        let mut state = on("https://a.example");
+        state.account_erased_on_active(EraseOutcome::Erased);
+        assert!(!state.take_sign_up_again("https://b.example"), "a server never erased here got sign_up_again");
+        assert!(state.take_sign_up_again("https://a.example/"), "the Connect under the erase note did not say sign_up_again");
+        assert!(!state.account_erased_here("https://a.example"), "the choice is made: the note is gone");
+        assert!(!state.take_sign_up_again("https://a.example"), "a second press after coming back said sign_up_again again");
+        // An unfinished erase: its note also sits above Connect, and pressing it signs in to
+        // finish the erase, which the relay allows only with the field.
+        let mut state = on("https://a.example");
+        state.account_erased_on_active(EraseOutcome::Unfinished);
+        assert!(state.take_sign_up_again("https://a.example"));
+    }
+
+    /// The wiring of the above, read from the source the way `both_sockets_hand_the_erase_receipt_here`
+    /// reads it (a click cannot be driven in a unit test): the Chat page's Connect takes the
+    /// choice and picks the signing-up-again connect from it, and nothing else in the app
+    /// dials with it. An automatic reconnect never reaches either line.
+    ///
+    /// Seen red 2026-10-04 with the Connect button's choice line replaced by `if false {`: "the
+    /// Connect button does not take the sign-up-again choice".
+    #[test]
+    fn only_the_chat_pages_connect_signs_up_again() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let read = |rel: &str| std::fs::read_to_string(root.join(rel)).unwrap_or_else(|e| panic!("read {rel}: {e}"));
+        let panel = read("src/gui/pages/chat/left_panel.rs");
+        assert!(panel.contains("let connect = if state.take_sign_up_again(&url) {"), "the Connect button does not take the sign-up-again choice");
+        assert!(panel.contains("WsClient::connect_signing_up_again"), "the Connect button never signs up again");
+        let mut callers = Vec::new();
+        for dir in ["src/gui", "src/engine", "src/net", "src/lib.rs"] {
+            let path = root.join(dir);
+            let files: Vec<std::path::PathBuf> = if path.is_file() {
+                vec![path]
+            } else {
+                let mut v = Vec::new();
+                let mut stack = vec![path];
+                while let Some(d) = stack.pop() {
+                    for e in std::fs::read_dir(&d).into_iter().flatten().flatten() {
+                        let p = e.path();
+                        if p.is_dir() { stack.push(p) } else if p.extension().is_some_and(|x| x == "rs") { v.push(p) }
+                    }
+                }
+                v
+            };
+            for f in files {
+                let src = std::fs::read_to_string(&f).unwrap_or_default();
+                if src.contains("connect_signing_up_again") && !f.ends_with("ws_client.rs") && !f.ends_with("connections.rs") {
+                    callers.push(f.display().to_string());
+                }
+            }
+        }
+        assert_eq!(callers.len(), 1, "only the Chat page's Connect may sign up again: {callers:?}");
     }
 
     /// The boot, unlock and server-switch auto-connect (lib.rs) never dials a server this

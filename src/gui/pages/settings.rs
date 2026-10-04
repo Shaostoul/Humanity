@@ -460,6 +460,17 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
              people already downloaded are theirs. Everything in this paragraph is in \
              your export, so you can read it before you choose.",
         );
+        // What the server keeps AFTER the erase, with its real number of days (BUG-135, the
+        // operator's option 2): asked of the server once when not yet known, since the settings
+        // it sends at connect can be missing after a server switch.
+        if connected && state.server_settings.is_none() && !state.server_settings_requested {
+            if let Some(ref client) = state.ws_client {
+                client.send(&serde_json::json!({ "type": "server_settings_request" }).to_string());
+            }
+            state.server_settings_requested = true;
+        }
+        let days = state.server_settings.as_ref().map(|s| s.erased_accounts_ttl_days);
+        widgets::body_hint(ui, theme, &crate::relay::storage::erased_accounts::erase_memory_sentence(days));
         ui.horizontal(|ui| {
             ui.add(
                 egui::TextEdit::singleline(&mut state.account_delete_confirm_input)

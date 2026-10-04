@@ -2450,6 +2450,10 @@ pub struct GuiState {
     /// haven't received the state yet (during initial connect, before
     /// any modify happens). UI uses defaults until populated.
     pub server_settings: Option<crate::relay::storage::ServerSettings>,
+    /// True once Settings > Account asked this server for its settings (it needs the real
+    /// number of days an erase is remembered, BUG-135), so it asks once, not every frame.
+    /// Reset with `server_settings` on a server switch (gui/connections.rs).
+    pub server_settings_requested: bool,
     /// All role definitions, from the relay's `role_list` WS broadcast
     /// (sent on connect + after any role change). Drives the user-modal
     /// role dropdown + badge colors. Empty until the first broadcast.
@@ -3850,6 +3854,7 @@ impl Default for GuiState {
             dm_store: None,
             dm_fetch_sent: false,
             server_settings: None,
+            server_settings_requested: false,
             chat_roles: Vec::new(),
             service_state: Vec::new(),
             roles_drafts: std::collections::HashMap::new(),

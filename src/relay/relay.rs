@@ -726,6 +726,10 @@ pub enum RelayMessage {
         /// recipient key senders encapsulate DM secrets to.
         #[serde(skip_serializing_if = "Option::is_none", default)]
         kyber_public: Option<String>,
+        /// The person pressed Connect (native) or Enter (web) after an erase here: sign up again
+        /// and forget the erase (handlers/sign_ups.rs). Never set by an automatic reconnect.
+        #[serde(default)]
+        sign_up_again: bool,
     },
 
     /// Server-issued challenge after `identify`. The client must sign
@@ -1066,6 +1070,11 @@ pub enum RelayMessage {
         /// maximization, 2026-08-24.
         #[serde(default)]
         message_retention_days: Option<i64>,
+        /// Days an erase is remembered, and the most remembered at once (BUG-135, 2026-10-04).
+        #[serde(default)]
+        erased_accounts_ttl_days: Option<i64>,
+        #[serde(default)]
+        erased_accounts_cap: Option<i64>,
     },
 
     /// Typing indicator — broadcast to show who is composing a message.
@@ -1805,9 +1814,10 @@ pub enum RelayMessage {
     },
     /// Server to the erasing client, after the erase's receipt (BUG-135): disconnect from this
     /// server and never redial it by itself. `partial`: part of the erase failed, so the client
-    /// says to erase again instead of that Connect signs up again.
+    /// says to erase again instead of that Connect signs up again. `earlier`: the answer to an
+    /// identify from a key erased here before, which signed nothing up (handlers/sign_ups.rs).
     #[serde(rename = "account_erased")]
-    AccountErased { to: String, partial: bool },
+    AccountErased { to: String, partial: bool, #[serde(default)] earlier: bool },
 
     /// Client updates presence privacy (privacy tiers, 2026-08-23).
     /// `hide_presence: true` = never appear online, no last_seen stored,
@@ -2542,6 +2552,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
         invite_code: Option<String>,
         kyber_public: Option<String>,
         nonce: String, // hex; empty for bot fast-path (no challenge issued)
+        sign_up_again: bool,
     }
     let mut pending_identify: Option<PendingIdentify> = None;
 
@@ -2585,7 +2596,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     ).await;
                     return;
                 }
-                Ok(RelayMessage::Identify { public_key, display_name, link_code, invite_code, bot_secret, kyber_public }) => {
+                Ok(RelayMessage::Identify { public_key, display_name, link_code, invite_code, bot_secret, kyber_public, sign_up_again }) => {
                     // v0.279.0: per-source-IP identify rate limit. Sliding
                     // 60-second window, max 10 attempts per minute. Covers
                     // both bot and human identify paths — every fresh
@@ -2669,6 +2680,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             invite_code: invite_code.clone(),
                             kyber_public: kyber_public.clone(),
                             nonce: nonce.clone(),
+                            sign_up_again,
                         });
                         let challenge = RelayMessage::IdentifyChallenge { nonce };
                         let _ = ws_tx.send(Message::Text(serde_json::to_string(&challenge).unwrap().into())).await;
@@ -2709,52 +2721,19 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                         continue;
                     }
 
-                    // v0.280.0 anti-spam: per-IP cap on DISTINCT NEW
-                    // identities created in the last hour. "New" =
-                    // no prior `registered_names` row for this pubkey.
-                    // Returning identities (already registered) are
-                    // exempt — this only deters scripted onboarding
-                    // floods from a single IP. Default cap of 5/hr
-                    // covers legitimate family/household onboarding
-                    // with headroom. Tune via the constants below if
-                    // real traffic warrants.
-                    let is_new = !state.db.pubkey_is_registered(&pending.public_key).unwrap_or(false);
-                    if is_new {
-                        const NEW_ID_WINDOW_SECS: u64 = 3600;
-                        const NEW_ID_MAX_PER_IP: usize = 5;
-                        // All map mutation under the lock; produce a
-                        // simple bool to drive the .await response,
-                        // dropping the guard before the await.
-                        let blocked = {
-                            let mut map = state.new_identity_per_ip.lock().unwrap();
-                            let entry = map.entry(client_ip.clone()).or_default();
-                            let now = Instant::now();
-                            entry.retain(|(_, when)| now.duration_since(*when).as_secs() < NEW_ID_WINDOW_SECS);
-                            let already_seen = entry.iter().any(|(pk, _)| pk == &pending.public_key);
-                            let distinct: std::collections::HashSet<&str> =
-                                entry.iter().map(|(pk, _)| pk.as_str()).collect();
-                            if already_seen {
-                                false
-                            } else if distinct.len() >= NEW_ID_MAX_PER_IP {
-                                true
-                            } else {
-                                entry.push((pending.public_key.clone(), now));
-                                false
-                            }
-                        };
-                        if blocked {
-                            tracing::warn!(
-                                "New-identity-per-IP cap hit for ip={}, new pubkey prefix={}",
-                                client_ip,
-                                &pending.public_key[..pending.public_key.len().min(16)],
-                            );
-                            let err = RelayMessage::System {
-                                message: "Too many new accounts from this connection in the last hour. Try again later, or contact the relay operator if this looks wrong.".to_string(),
-                            };
-                            let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
-                            let _ = ws_tx.close().await;
-                            return;
-                        }
+                    // Who becomes a new account here (handlers/sign_ups.rs). A key this relay
+                    // remembers erasing its account is told so and bound to nothing, unless the
+                    // person pressed Connect or Enter (BUG-135). Then the per-IP cap on NEW
+                    // identities (v0.280.0 anti-spam), which a key told it was erased never uses.
+                    if crate::relay::handlers::sign_ups::erased_at_identify(&state, &pending.public_key, pending.sign_up_again) {
+                        let _ = ws_tx.send(Message::Text(crate::relay::handlers::sign_ups::erased_here_frame(&pending.public_key).into())).await;
+                        continue;
+                    }
+                    if crate::relay::handlers::sign_ups::new_identity_capped(&state, &client_ip, &pending.public_key) {
+                        let err = RelayMessage::System { message: crate::relay::handlers::sign_ups::NEW_IDENTITY_CAP_SENTENCE.to_string() };
+                        let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                        let _ = ws_tx.close().await;
+                        return;
                     }
                     // Verified — proceed to bind with the stashed fields.
                     (pending.public_key, pending.display_name, pending.link_code, pending.invite_code, pending.kyber_public)
@@ -5742,6 +5721,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 local_channel_enabled,
                                 dm_mailbox_ttl_days,
                                 message_retention_days,
+                                erased_accounts_ttl_days, erased_accounts_cap,
                             } => {
                                 let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
                                 if role != "admin" && role != "owner" {
@@ -5849,6 +5829,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     if let Some(v) = message_retention_days {
                                         current.message_retention_days = if v <= 0 { 0 } else { v.min(3650) };
                                     }
+                                    // Erased accounts remembered (BUG-135): held to the ranges the page offers.
+                                    use crate::relay::storage::{ERASED_ACCOUNTS_CAP_RANGE as CAP, ERASED_ACCOUNTS_TTL_DAYS_RANGE as TTL};
+                                    if let Some(v) = erased_accounts_ttl_days { current.erased_accounts_ttl_days = v.clamp(TTL.0, TTL.1); }
+                                    if let Some(v) = erased_accounts_cap { current.erased_accounts_cap = v.clamp(CAP.0, CAP.1); }
                                     match state_clone.db.set_server_settings(&current, &my_key_for_recv) {
                                         Ok(true) => {
                                             // Broadcast new state to everyone.

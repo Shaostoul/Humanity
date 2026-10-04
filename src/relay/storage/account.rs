@@ -33,6 +33,9 @@ impl Storage {
         // The plot their home stands on, on each ship of this server: held under their DID,
         // not their key (storage/plots.rs `plot_owner_id`).
         let plot_owner = super::plot_owner_id(key);
+        // The fingerprint an earlier erase of this key is remembered under, if one is
+        // (storage/erased_accounts.rs, BUG-135).
+        let erased_fingerprint = self.erased_account_fingerprint(key);
 
         self.with_read_conn(|conn| {
             let mut grab = |label: &str, sql: &str, binds: &[&dyn rusqlite::types::ToSql]| {
@@ -98,6 +101,14 @@ impl Storage {
             // reputation there), kept so a returning player resumes (ship homes 1b, round 4 of
             // the review: it was neither exported nor erased).
             grab("game_progress", "SELECT current_quest, completed_quests, xp, reputation, updated_at FROM player_progress WHERE public_key = ?1", &[&key]);
+            // That this key erased its account here earlier, while this server still
+            // remembers it (BUG-135, 2026-10-04): only the day, kept under a one-way
+            // fingerprint of the key. It is listed because it is held about this key. The
+            // erase below never deletes it, because the erase is what writes it
+            // (handlers/sign_ups.rs `remember_erase`); it goes when the person signs up here
+            // again, or when the server's window or cap culls it. So the lint's "everything
+            // erased is exported" rule is met in the direction it checks: export is wider.
+            grab("erased_here", "SELECT erased_day FROM erased_accounts WHERE fingerprint = ?1", &[&erased_fingerprint]);
 
             // ── Things erase deletes but export never offered ──
             // These six were in delete_account() with no matching grab here.
@@ -406,6 +417,28 @@ mod tests {
         assert_eq!(db.plot_holder("mothership-1", "p2").unwrap(), Some(plot_owner_id(dev)), "the other player keeps theirs");
         // The next player gets the freed plot.
         assert_eq!(db.claim_plot("mothership-1", &plot_owner_id("c0ffee03"), &plots).unwrap().as_deref(), Some("p1"));
+    }
+
+    /// BUG-135, 2026-10-04: a key whose erase this server remembers sees that in its export
+    /// (only the day; the row is held under a one-way fingerprint, never the key), and
+    /// another key sees nothing of it. Neither an erase nor an export deletes it.
+    ///
+    /// Seen red 2026-10-04 with the `erased_here` grab taken out: "the export lists the
+    /// remembered erase: []".
+    #[test]
+    fn the_export_lists_a_remembered_erase_to_its_own_key_only() {
+        let db = test_storage();
+        db.register_name("Fay", "fa11").unwrap();
+        db.remember_erased_account("fa11").unwrap();
+        let export = db.export_account("fa11", "Fay");
+        let listed = export["erased_here"].as_array().cloned().unwrap_or_default();
+        assert!(
+            listed.len() == 1 && listed[0]["erased_day"].as_i64().is_some() && listed[0].as_object().map_or(0, |o| o.len()) == 1,
+            "the export lists the remembered erase: {listed:?}"
+        );
+        assert!(db.export_account("0ther", "Other")["erased_here"].as_array().unwrap().is_empty(), "another key sees nothing");
+        db.delete_account("fa11", "Fay");
+        assert!(db.erased_account_remembered("fa11"), "the erase does not delete what records it");
     }
 
     /// Ship homes 1b, round 4 of the review (finding 11): the player's progress in the shared

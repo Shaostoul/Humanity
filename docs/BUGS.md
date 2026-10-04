@@ -2943,7 +2943,7 @@ plainly that data/library/ may be half-written and must not be committed until
 a rerun finishes. Checked with a simulated two-time lock (recovers) and a
 permanent one (fails loudly, exit 1); then 30 real runs, 0 failures.
 
-## BUG-135: after erasing your account, the app reconnects and recreates it without being asked (OPEN, found 2026-10-03)
+## BUG-135: after erasing your account, the app reconnects and recreates it without being asked (FIXED v0.1449.0, found 2026-10-03)
 
 **Symptom (found by the final review of ship-homes increment 1b, read from the
 code, not yet seen in a running game):** erasing your account (Settings, the
@@ -2967,6 +2967,42 @@ shows the plain way back (a Connect button with a sentence saying it signs you
 up again). Consider also refusing a game join on the relay for a non-bot key
 with no registered name, after confirming no other path leaves an identified key
 without one. Web mirror: the same after an erase in the browser.
+
+**Fixed (v0.1449.0):** the relay sends the erasing account's own clients
+`account_erased` (with `partial` when any part of the erase failed). The
+native app disconnects that server through the shared Disconnect path and
+records the erase per identity and server in its config (`account_erased_on`),
+so neither the backoff, the boot or unlock auto-connect nor the background links
+dial it again; the Chat page's Connect box says connecting signs you up again (an
+unfinished erase says to erase again instead); the game's sentence names Chat
+and Connect. Web: it stops reconnecting, ends a call in progress, forgets the
+saved name (never the key) and shows the note. Not added: refusing a game join
+for a key with no registered name, because placeholder names (DesktopUser_NNNN)
+are never registered and real players would be refused.
+
+**Known limit, closed by the operator's option 2 (2026-10-04):** only clients
+online at the moment of the erase found out, so a second device with the app
+closed, a web tab mid-reconnect, or a socket that dropped between the erase and
+its receipt signed up again on its next connection. The operator chose, verbatim:
+"Let's go with option 2 that way we have a way to cull the list over a period of
+time. That way we don't end up with a massive log of all the accounts that erased
+themselves after many years or a malicious attack." Now the relay remembers an
+erase for a limited time (storage/erased_accounts.rs: a one-way keyed fingerprint
+of the key and the day only, kept for `erased_accounts_ttl_days`, default 30, and
+never more than `erased_accounts_cap` rows, default 100,000, oldest first; both
+editable in Server Settings > ADMIN > Server policy > Erased accounts). A key with
+an entry that connects is answered with `account_erased` (`earlier: true`) and is
+not signed in at all; a game join from a device still connected from before the
+erase is refused with reason `account_erased`; only the person's Connect (native)
+or Enter (web) under the erase note sends `sign_up_again`, which forgets the entry
+and signs them up again (handlers/sign_ups.rs). The person reads the real number
+of days before erasing. What remains: a device that stays offline for longer than
+the window signs up again when it next connects, as before (that is the cull the
+operator chose); the entry rides into backups until they age out; if the relay's
+`data/erased-accounts.key` is lost, old entries stop matching (and are culled on
+schedule); and a device still connected from before the erase that ignores
+`account_erased` can still write chat-side data (a message, a profile) under the
+erased key until it disconnects: only its sign-up and its game join are refused.
 
 ## BUG-136: the carry limit is shown as a fixed 50 kg, and being overloaded does nothing (OPEN, found 2026-10-04)
 
