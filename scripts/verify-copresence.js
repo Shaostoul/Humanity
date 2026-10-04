@@ -80,8 +80,12 @@
 // Usage:
 //   node scripts/verify-copresence.js [--exe PATH] [--pose x,y,z,yaw,pitch]
 //        [--distance M] [--radius M] [--speed M/S] [--timeout-min N] [--keep-open]
+//        [--allow-other-build "<reason>"]   run a build that is NOT this tree, on
+//        purpose (a red check); passed to scripts/check-fresh-exe.js and recorded
+//        in the manifest as other_build
 //   node scripts/verify-copresence.js --plots [--order walker-first|game-first|both]
 //        [--exe PATH] [--radius M] [--speed M/S] [--timeout-min N]
+//        [--allow-other-build "<reason>"]
 //   node scripts/verify-copresence.js --dry-verdict <manifest.json>
 // Exit 0 = every check passed. Exit 1 = refused to run. Exit 2 = failed.
 
@@ -95,6 +99,9 @@ const DXC = require("./lib/dxc-dlls.js");
 const TR = require("./lib/throwaway-relay.js");
 const { judgeCopresence, LIMITS, figurePixels, FIGURE_MIN_PX, approachClear, judgePlots, forwardLegStart, readShipPlots, judgeRejoin, respawnRoute } = require("./lib/copresence-judge.js");
 const png = require("./lib/png.js");
+// The freshness gate, run through its one runner so --allow-other-build reaches
+// it and comes back as the manifest's other_build record (BUG-133).
+const { runFreshGate, otherBuildNotice } = require("./lib/src-fingerprint.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -256,6 +263,7 @@ function printVerdict(prefix, m, dir) {
         `${(stats.frame_dt.min * 1000).toFixed(1)} to ${(stats.frame_dt.max * 1000).toFixed(1)} ms`,
     );
   }
+  if (m.other_build) console.log(otherBuildNotice(m.other_build));
   if (pass) console.log(`${prefix}PASS  ${checks.length}/${checks.length} co-presence checks passed`);
   else {
     const failed = checks.filter((c) => !c.ok).map((c) => c.id);
@@ -309,11 +317,14 @@ if (instances.length) {
   ]);
 }
 
-const fresh = spawnSync(process.execPath, [path.join(__dirname, "check-fresh-exe.js"), "--exe", EXE], { cwd: REPO, stdio: "inherit" });
+// This tree's build (or another, on purpose, with --allow-other-build
+// "<reason>", recorded in the manifest as other_build; BUG-133).
+const fresh = runFreshGate(EXE, args, { cwd: REPO });
 if (fresh.status !== 0) {
   console.error("verify-copresence: REFUSED - see the freshness failure above. Nothing was booted.");
   process.exit(1);
 }
+const OTHER_BUILD = fresh.other_build;
 
 // ── Rig setup (the verify-live-screen pattern) ──────────────────────────────
 function ensureJunction(link, target) {
@@ -455,6 +466,7 @@ async function main() {
     kind: "verify-copresence",
     stamp,
     exe: EXE,
+    ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
     rig: RIG,
     pose: POSE,
     distance_m: DISTANCE,
@@ -943,6 +955,7 @@ function printPlotsVerdict(prefix, m, dir) {
         `(median ${stats.speed.median.toFixed(3)}) for a ${stats.speed.walker} m/s walk`,
     );
   }
+  if (m.other_build) console.log(otherBuildNotice(m.other_build));
   if (pass) console.log(`${prefix}PASS  ${checks.length}/${checks.length} plot checks passed (${m.order})`);
   else {
     const failed = checks.filter((c) => !c.ok).map((c) => c.id);
@@ -964,6 +977,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     order,
     stamp: runStamp,
     exe: EXE,
+    ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
     rig: RIG,
     speed: SPEED,
     radius: RADIUS,

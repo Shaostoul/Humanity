@@ -2678,7 +2678,7 @@ the head and turns with the player's facing, and the crew are built by
 `crew_figure_parts` from the same constants as players. Tests seen red; the
 rig's screenshots show the face and the crew standing on the floor.
 
-## BUG-128: the engine's sphere mesh is inside out (OPEN, found 2026-10-03)
+## BUG-128: the engine's sphere mesh is inside out (FIXED v0.1445.0, found 2026-10-03)
 
 `Mesh::sphere` (`src/renderer/mesh.rs:436`) emits triangles as
 `[a, b, a+1]`, which face inward; the opaque pipeline culls back faces, so
@@ -2689,6 +2689,22 @@ out: `src/engine/home_meshes.rs:306` and `:1952`, `src/engine/world_load.rs:60`
 8245 and 8978. The right fix is the one-line index swap in `Mesh::sphere`,
 then a look at each caller (some may have been tuned to the inside view),
 proven on the rig.
+
+**Fixed (v0.1445.0):** the sphere's rows run DOWN from the north pole, and
+its index pattern had been copied from the open cylinder, whose rings run UP,
+so every triangle faced in (352 of 352 at 12 x 16). `Mesh::sphere` now emits
+`[a, a+1, b, a+1, b+1, b]`. No caller had compensated (no negative scale, no
+reversed culling), so nothing double-flips. The same mistake was found and
+fixed in six more shapes: `hologram::sphere_mesh` (the orrery planets and the
+HOME blip, now just `Mesh::sphere`), the pin marker's head and cone stem, the
+orbit-ring tube, the pyramid's base, and the plant fruit sphere and cone (which
+`tri` also LIT from inside, since it takes each face's normal from its
+winding). The BUG-127 duplicate head mesh in `net_route.rs` now calls
+`Mesh::sphere_data`. Every generator in `mesh.rs` is covered by
+`every_generator_here_is_wound_to_face_its_normals`, the fruit by
+`fruit_spheres_and_cones_face_out`, each seen red on the old orders. The
+operator's v0.622 "inverted normals" report about the pipe flow beads was very
+likely this bug.
 
 ## BUG-129: the player's game save had no backups, and a crash mid-save could destroy it (FIXED v0.1442.0)
 
@@ -2736,3 +2752,75 @@ time limit and fails with a message pointing at the "running for over 60
 seconds" lines, so a hang costs at most 40 minutes. The orchestrator's own
 lesson: give every long background step a time limit and check it, rather
 than waiting on a notification that may never come.
+
+## BUG-132: probe-sweep's station vantages park the camera in space (FIXED v0.1444.0, found 2026-10-03)
+
+**Symptom:** `home-overview-noon` (and every vantage using the camera
+request's `{"station":"home","pose":...}`) captured empty space on
+v0.1441.0 and v0.1442.0 alike; the same vantage had captured the home at
+04:13 and 12:32 the same day.
+
+**What the log shows:** probe-sweep's warm-up flies the camera to Earth
+(lat 23, lon 13, 50 m) and sets the clock; the station request then sets
+`ship_world_pos = station_world_pos` and `station_ride = true` but computes
+`position = pose + state.station_off` from the PREVIOUS frame's offset,
+taken while the camera was still at Earth ("parked aboard the home station
+at pose Vec3(32629394.0, -2489632.5, -26913838.0)"). The request's own time
+jump also moves the station between frames (the second pass landed at
+(270, 26, -1230) m, not the pose). Whether a run lands is timing, which is
+why the earlier runs looked fine.
+
+**Fix to make:** in the station verb, compute the pose in the home frame
+with the offset of the frame it is riding from (zero once `station_ride` is
+set) and apply the clock jump before placing the camera; and make
+probe-sweep CHECK that `camera_done.position` equals the requested pose
+inside the home, failing the vantage when it does not (today the capture is
+"ok" whatever it shows).
+
+**Fixed (v0.1444.0):** `src/engine/ipc.rs` places the camera with the
+offset of the station frame it now rides (`station_park_render_pos`), and
+`advance_station_park` writes `camera_done` a frame or two later, once the
+camera has ridden through the requested clock change, with the MEASURED
+home-frame position, `error_m`, `yaw_pitch`, `station_ride` and
+`clock_settled`. probe-sweep judges every station park
+(`scripts/lib/station-park-check.js`) and fails the vantage when the camera
+is not on its pose, not riding, or facing the wrong way; a park without a
+pose (the default view, or a screen) is judged against the look the engine
+reported choosing. `screenshot_done` carries `camera_home` too. The vantage
+order in `tests/visual/vantages.json` now puts a station view straight after
+a planet view, the order that exposed the bug, and a rig test pins that.
+
+## BUG-133: the freshness gate passes a binary built from a different tree (FIXED v0.1446.0, found 2026-10-03)
+
+**Symptom:** `scripts/check-fresh-exe.js`, which every rig runs before it
+boots ("is this binary actually the build I am about to make claims about?"),
+judges by file dates only: the exe must be newer than every compiled-in source
+file. A binary built from a DIFFERENT tree after those files were last edited
+passes. Shown 2026-10-03: the v0.1444.0 archive (main, increment 1a code)
+passed the ship-homes-1b worktree's check with "PASS: the binary under test is
+the current build", although it contains none of 1b. That was used on purpose
+for a red run (the 1b rig against a 1a build, which failed `camera_in_p2` as it
+should), but the same path lets a wrong binary pass a green one: a build from
+main tested in a worktree, or the reverse, whenever its date happens to be
+newer.
+
+**Fix to make:** stamp a fingerprint of the compiled-in sources into the exe at
+build time and have the gate compare it with the tree it is run from, refusing
+on a mismatch; keep an explicit flag for a deliberate other-build run (a red
+check), recorded in the rig's manifest.
+
+**Fixed (v0.1446.0):** build.rs hashes every compiled-in source
+(FINGERPRINT_INPUTS: src, assets/shaders, Cargo.toml, Cargo.lock, build.rs;
+CRLF folded to LF, so line endings do not matter) into a stamp the exe
+carries (src/main.rs, include_str! from OUT_DIR); check-fresh-exe.js rehashes
+the tree and refuses on no stamp or any mismatch, naming the differing files.
+File dates no longer decide anything. --allow-other-build "<reason>" runs a
+deliberate other build and the rigs record it as other_build in their
+manifests. 24 gate tests, red on the old gate (the BUG-133 case itself:
+"PASS: the binary under test is the current build" for another tree's exe).
+Side effect: build.rs now declares rerun-if-changed, so a docs or web edit no
+longer recompiles the whole crate. Still open: probe-sweep has no gate; the
+rigs copy the exe after checking it; about 30 data files are compiled in but
+not fingerprinted (embedded fallbacks). v0.1446.1: `just check-delivery` (and the DELIVERY row of
+`just brief`) answers "does the taskbar exe hold this tree's code" from the
+same fingerprint, still ignoring the live PBR shaders and the version files.

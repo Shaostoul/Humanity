@@ -1734,11 +1734,20 @@ fn hitch_probe_pass(frame_ms: f32, pass_ms: f32, busy: bool, machines: usize, ve
 
 /// The material a hero crop stage model draws with (v0.992): its textured
 /// type-19 material, or a plain green one when the model carries no texture.
+/// `CROP_LEAF_LIGHT` in params.w (2026-09-29) turns on the type-19 foliage
+/// transmission, the sunlight a leaf lets through when the sun is behind it
+/// (shadow-gated, the same term the near trees' leaves use), and, being
+/// negative, leaves the wind off: crops indoors stand in still air. It does
+/// not light leaf backs: opaque draws cull back faces, so a leaf's back is
+/// never drawn. (The black tower sprouts this was first blamed on were the
+/// palettes' colour space, fixed in the models on 2026-10-03.)
 /// Made once per model, when the worker first sends it (2026-09-27; the
 /// model's geometry used to load right here, on the frame).
+const CROP_LEAF_LIGHT: f32 = -2.0;
+
 fn stage_model_material(state: &mut EngineState, texture: Option<(Vec<u8>, u32, u32)>) -> usize {
     match texture {
-        Some((rgba, w, h)) => state.renderer.add_textured_material([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 19.0, 0.0, &rgba, w, h),
+        Some((rgba, w, h)) => state.renderer.add_textured_material([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 19.0, CROP_LEAF_LIGHT, &rgba, w, h),
         None => state.renderer.add_material_full([0.35, 0.5, 0.3, 1.0], 0.0, 0.9, 0.0, 0.0),
     }
 }
@@ -1891,6 +1900,9 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
     // Moderate emissive (1.4) + some roughness so the little beads still READ AS SPHERES (a
     // gradient across the curve) instead of flat-bright discs -- the v0.622 markers were emissive
     // 3.0, which washed out the shading and looked inside-out ("inverted normals", operator).
+    // They also WERE inside out, then and until 2026-10-03: `Mesh::sphere` was wound so the
+    // opaque pipeline drew each bead's far inside (BUG-128). The emissive change stays (it is a
+    // brightness choice, not a flip); the winding is fixed in the mesh itself.
     if state.flow_rgb_mats.is_empty() {
         for k in 0..16u32 {
             let h = k as f32 / 16.0;

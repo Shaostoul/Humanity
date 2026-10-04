@@ -986,12 +986,25 @@ fn fs_surface(in: VertexOutput) -> @location(0) vec4<f32> {
         // Gated on params.w because type 19 is SHARED with furniture,
         // machines and world decorations, which must not transmit light.
         // params.w is the wind class and is set to 1.0 only for near-tree
-        // foliage (src/lib.rs near-tree material registration).
+        // foliage (src/lib.rs near-tree material registration). A NEGATIVE
+        // params.w (2026-09-29, the crop stage models,
+        // home_meshes::stage_model_material) keeps this transmission and
+        // turns the wind off, because the vertex wind reads
+        // clamp(params.w, 0, 2): crops indoors stand in still air, but a
+        // leaf with the sun behind it still glows through like any other.
+        //
+        // (A normal flip for crop "leaf backs" sat above this from
+        // 2026-09-29 to 2026-10-03 and is gone. Opaque pipelines cull back
+        // faces, so a leaf back is never shaded at all; the black sprouts
+        // were the palettes' colour space, fixed in the models. The only
+        // faces the flip could reach were 68 pumpkin and watermelon
+        // triangles wound against their own normals, and those were
+        // re-triangulated in the model files instead.)
         //
         // Same lobe, coefficients and shadow gate as the type-20 leaf branch
         // below - see the BUG-060 note there for why the coefficients are
         // what they are and why NO sun-derived term may skip the shadow map.
-        if (material.params.w > 0.5) {
+        if (abs(material.params.w) > 0.5) {
             let t19_sun = normalize(camera.sun_direction.xyz);
             let t19_lt = normalize(t19_sun + normal * 0.4);
             let t19_trans = pow(max(dot(view_dir, -t19_lt), 0.0), 1.6);

@@ -64,9 +64,8 @@ every load-bearing claim checked by an adversarial verifier
   smelting (a new `Make(item_id, quantity)` objective counts units of an item
   from any recipe), and the homepage game panel plays a real clip (the home
   flyover, 1.2 MB, on screen only, still for reduced motion or data saver).
-  STILL OPEN: the black plant models in tower net cups, so branch
-  `wip-tower-hero-models` can land (the palette files are clean, see Tier C:
-  it is the engine side, and it needs the rig).
+  The black plant models in the tower net cups: FIXED v0.1443.0 (the crop
+  palettes' colour space, not the engine).
 - **Day 3:** DONE v0.1440.0. `scripts/second-player.js` signs in as a real
   identity, joins the shared world and walks a path (`just verify-second-player`
   runs it against a throwaway relay); other players move by snapshot
@@ -92,7 +91,14 @@ every load-bearing claim checked by an adversarial verifier
   list of home kinds as data, Homestead the default start, food physically real
   for every home, 14 increments). Increment 1a SHIPPED v0.1442.0 (the ship and
   the home are separate files, the home assembled at its plot, a Dev Plots and
-  Districts panel). THIS WEEK, next: increment 1b. Follow-ups 1a found: put
+  Districts panel). Increment 1b is BUILT on branch `ship-homes-1b`
+  (worktree `.claude/worktrees/wf_fa54eb42-811-1`), not merged: two review
+  rounds found 5 then 7 real problems (the second round: a step-out of the
+  shared world, a long outage or a relay restart can still freeze a player
+  under the 100 m rule; built pieces and vehicles are not carried to the new
+  plot; plots are never given back); a second fix round is in progress. Its
+  red check is done (the 1b rig against the 1a build: `camera_in_p2` fails
+  at (53.50, 1.70, 40.50)). Then increment 2. Follow-ups 1a found: put
   the Commons machines on the ship's own power instead of the household
   battery; `just verify-screens` fails 2 of 12 because the starter kit's
   17-item backpack pushes the inventory's "Home" row off the screen (the rig
@@ -131,8 +137,9 @@ half-hourly on the VPS, 5 six-hourly in the relay, 60 pulled to the PC, 10
 "Back up now" copies, 10 snapshots per game save);
 the shared-world clock
 speed (1x makes a lettuce take 45 days; 72x proposed as the server default);
-who and when for the Day 5 session; the names and contents of the start tiers (a proposal is in the design); whether
-multiplayer goes ahead of arc A. (The old plain backups, 15 on the VPS and 60
+who and when for the Day 5 session; whether multiplayer goes ahead of arc A.
+(The start tiers were answered 2026-10-03: the full list of home kinds,
+Homestead the default start.) (The old plain backups, 15 on the VPS and 60
 stale local copies, were deleted 2026-10-02 at the operator's word; the VPS
 ones were shredded.)
 
@@ -739,31 +746,17 @@ between the simulation and the person. Its tier ladder is the build order.
   and they are a
   third shape beside the home editor's `InteriorWall` and the ship structure
   pieces.
-- **Tier C (make the world look right).** Un-gate hero plant models for towers
-  (TRIED 2026-09-29, NOT on main; the working code is on the pushed branch
-  `wip-tower-hero-models`, one commit over v0.1434.2: stage models baked
-  into net cups, scaled uniformly to the 0.6 m dwarf height and the
-  species' spread, within `plot_vertex_budget` per tower, root crops left
-  procedural (a model reaching more than a tenth of its height under its
-  origin, so no carrot dangles its root), and the crop material flagged
-  with a NEGATIVE `params.w` that turns on the type-19 foliage transmission
-  and two-sided leaves while leaving the wind off (type 19's wind reads
-  `clamp(params.w, 0, 2)`). Tests pass. THE BLOCKER, found by a red positive
-  control on that flagged material: some stage models (the two-leaf seedling
-  shape among them) sample BLACK from their tiny palette texture, so
-  it is the albedo, not the lighting; with the albedo forced red they lit
-  fully. Find which sets, and fix their palette UVs or textures, then the
-  branch can land. **Checked offline 2026-10-02, and it is NOT the palette
-  files:** all 102 palette models are one shape (POSITION, NORMAL,
-  TEXCOORD_0, one textured material, RGBA8 PNG, nearest and clamp), every
-  vertex's UV lands inside its palette, and no palette has a black or clear
-  texel except `apple_crop` (16 near-black, which its own UVs do not hit).
-  The white-key step in `assets::white_key_alpha_if_cutout` rewrites the
-  alpha of 12 of the 8x8 palettes (the stage-4 fruit sets), but no vertex
-  samples a keyed texel and no `_1` seedling palette is among them. So the
-  black albedo comes from the engine side: which texture the tower's draw
-  binds, or how it is sampled. Start there, on the rig. Tilting each plant outward like a real net cup would
-  read better too);
+- **Tier C (make the world look right).** Hero plant models in tower net cups: DONE v0.1443.0
+  (merged branch fix-tower-hero-models). The black sprouts were the crop
+  palettes' COLOUR SPACE: linear MTL colours written byte for byte and decoded
+  as sRGB, so lettuce reached the shader at 1.5% brightness and beet at 0.3%
+  (the 2026-10-02 offline check looked for black texels, found none, and
+  wrongly concluded "engine side": the bytes were never black, only in the
+  wrong space). Palettes re-encoded (--kd linear, stamped), 68 mis-wound
+  faces re-cut, the white key only for textures with no alpha channel, plants
+  tip 15 degrees out of their cups. Leftover: home-racks-noon and
+  home-racks-night still land in open space, so no rig vantage shows a tower;
+  the 15 degree tip is a taste call for the operator;
   the conduit render pass; models for the machines a player stands in front of
   daily; read `mesh_kind` in `zone_filler.ron` (DONE v0.1434.0:
   `structure::filler_parts` builds market stalls, ship cradles and machine

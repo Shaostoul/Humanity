@@ -18,6 +18,10 @@
 // Usage:
 //   node scripts/verify-runtime.js [--exe PATH] [--timeout-min N] [--keep-open]
 //                                  [--operator-config [--operator-config-path F]]
+//                                  [--allow-other-build "<reason>"]
+//   (--allow-other-build runs a build that is NOT this tree, on purpose, e.g. a
+//   red check against an old build: passed to scripts/check-fresh-exe.js and
+//   recorded in the sweep manifest as other_build)
 //   node scripts/verify-runtime.js --dry-verdict <manifest.json> [--log <run.log>]
 // Exit 0 = every vantage reached the world and captured, zero panics.
 // Exit 1 = refused to run (stale binary, missing vantage, rig already busy).
@@ -40,6 +44,9 @@ const { spawn, spawnSync, execSync } = require("child_process");
 // gating on the GAME only (listInstances); the sweep it spawns applies the
 // wider build-aware guard to its own capture windows.
 const MG = require("./lib/machine-guard.js");
+// The freshness gate, run through its one runner so --allow-other-build reaches
+// it and comes back as the other_build record for the manifest (BUG-133).
+const { runFreshGate, otherBuildNotice } = require("./lib/src-fingerprint.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -121,6 +128,10 @@ console.log("");
 const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..+/, "").replace("T", "-");
 let OUT = path.join(RIG, "sweeps", stamp);
 let LOG = path.join(RIG, "logs", "run.log");
+// Set by the freshness gate in step 3 when --allow-other-build let a different
+// build through; null otherwise (and always null in --dry-verdict mode, which
+// reads the record back out of the manifest instead).
+let OTHER_BUILD = null;
 
 // ── 1b. --dry-verdict: verdict logic only, nothing boots ─────────────────────
 if (DRY) {
@@ -157,15 +168,16 @@ if (others.length) {
   console.log("[note] this gate reads panics and captures, not fps, so the verdict still holds.");
 }
 
-// ── 3. The binary must be the current build ──────────────────────────────────
-const fresh = spawnSync(process.execPath, [path.join(__dirname, "check-fresh-exe.js"), "--exe", EXE], {
-  cwd: REPO,
-  stdio: "inherit",
-});
+// ── 3. The binary must be this tree's build ──────────────────────────────────
+// Or another build ON PURPOSE (--allow-other-build "<reason>", a red check
+// against an old build): the gate says so loudly and report() writes the
+// record into the sweep's manifest as other_build (BUG-133).
+const fresh = runFreshGate(EXE, args, { cwd: REPO });
 if (fresh.status !== 0) {
   console.error("verify-runtime: REFUSED - see the freshness failure above. Nothing was booted.");
   process.exit(1);
 }
+OTHER_BUILD = fresh.other_build;
 
 // ── 4. Boot it ───────────────────────────────────────────────────────────────
 const sweepArgs = [
@@ -238,6 +250,12 @@ function report(sweepExit) {
     // probe-sweep throws (and writes no manifest) when boot or world entry
     // dies, which is precisely the failure this gate was built for. Say so
     // with the panic in hand, not just an exit code.
+    if (OTHER_BUILD) {
+      // No manifest to carry the record, so it goes beside where one would be.
+      fs.mkdirSync(OUT, { recursive: true });
+      fs.writeFileSync(path.join(OUT, "other_build.json"), JSON.stringify({ other_build: OTHER_BUILD }, null, 2));
+      console.log(otherBuildNotice(OTHER_BUILD));
+    }
     console.log(`${VERDICT}FAIL  the probe never got far enough to write a manifest (probe exit ${sweepExit}).`);
     console.log("");
     if (timedOut) {
@@ -265,6 +283,14 @@ function report(sweepExit) {
   const m = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   const byId = Object.fromEntries(m.vantages.map((v) => [v.id, v]));
   let failed = 0;
+
+  // WHICH BUILD this verdict is about. probe-sweep wrote the manifest and knows
+  // nothing of the gate, so a deliberate other-build run is recorded here.
+  if (OTHER_BUILD) {
+    m.other_build = OTHER_BUILD;
+    fs.writeFileSync(manifestPath, JSON.stringify(m, null, 2));
+  }
+  if (m.other_build) console.log(otherBuildNotice(m.other_build));
 
   // WHICH SETTINGS this verdict is about. A PASS at rig defaults is not a PASS
   // at the operator's settings: their render_distance is 4x and their

@@ -660,6 +660,37 @@
           ]
         },
         {
+          "title": "Estimating",
+          "file": "estimating.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "beginner"
+          ]
+        },
+        {
+          "title": "Square, Level and Plumb",
+          "file": "square_level_and_plumb.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "shelter",
+            "safety"
+          ]
+        },
+        {
+          "title": "Keeping Records",
+          "file": "keeping_records.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "beginner"
+          ]
+        },
+        {
           "title": "Sharpening",
           "file": "sharpening.md",
           "tags": [
@@ -676,6 +707,26 @@
             "guide",
             "real",
             "technical"
+          ]
+        },
+        {
+          "title": "Keeping Things Working",
+          "file": "keeping_things_working.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "safety"
+          ]
+        },
+        {
+          "title": "Working Out Why Something Broke",
+          "file": "working_out_why_something_broke.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "safety"
           ]
         },
         {
@@ -738,6 +789,15 @@
             "making",
             "materials",
             "safety"
+          ]
+        },
+        {
+          "title": "Trading Fairly",
+          "file": "trading_fairly.md",
+          "tags": [
+            "guide",
+            "real",
+            "beginner"
           ]
         }
       ],

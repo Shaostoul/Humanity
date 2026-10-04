@@ -653,16 +653,26 @@ expanded to 200 to 300 MB in RAM.
 
 ## The GLTF tier: a stated boundary, not a fork
 
-`home_meshes.rs:843-852` routes any bed or field crop with `assets/models/plants/<id>_<1..4>/`
-to a real GLTF at the growth quartile. That covers apple, tomato, corn, wheat, lettuce, pumpkin,
-watermelon, rice, carrot, beet, orange and more: precisely the crops a player stands in front of.
-Procedural leaf cards will not beat a purpose-modelled crop at 2 m.
+`plant_pass.rs` `stage_model` routes any living crop with `assets/models/plants/<id>_<1..4>/`
+(or a `stage_models` entry in `data/plants_visual.ron`) to a real GLTF at the growth quartile.
+That covers apple, tomato, corn, wheat, lettuce, pumpkin, watermelon, rice, carrot, beet, orange
+and more: precisely the crops a player stands in front of. Procedural leaf cards will not beat a
+purpose-modelled crop at 2 m.
 
 The rule, stated as architecture rather than left implicit:
 
-- **Hero GLTF** for near-field bed and field crops that have a model.
-- **Procedural** for tower net cups, for the ~115 species with no model, and for the mid and far
-  LOD of *all* species, including baking impostors from the hero models via the same baker.
+- **Hero GLTF** for near-field crops that have a model: in beds and fields, and since 2026-10-03
+  in aeroponic tower net cups too. A tower's model is scaled uniformly to the 0.6 m dwarf height
+  and the species' spread, turned to face out from the column and tipped 15 degrees out of its
+  cup (`net_cup_turn`, a game choice for how it reads), and a tower is budgeted like one plot
+  (`plot_vertex_budget`). The towers were procedural until then because their crops (lettuce,
+  beet, pumpkin, watermelon) drew black: the converter had written the pack's linear colours
+  into the palettes byte for byte, and the GPU decodes them as sRGB
+  (`scripts/obj-to-plant-gltf.js --kd`).
+- **Procedural** for the ~115 species with no model, for dead crops (the wilt), for a root crop
+  in a tower (its modelled root would hang out of the cup), for tower cups past the tower's vertex
+  budget, and for the mid and far LOD of *all* species, including baking impostors from the hero
+  models via the same baker.
 - The procedural mid-tier must blend into the hero model at the handoff distance using the
   existing `RenderObject.fade` Bayer crossfade so there is no pop.
 

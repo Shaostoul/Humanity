@@ -2009,6 +2009,7 @@ mod native_app {
                 dev_travel_stepped_out: false,
                 frame_lock_body: None,
                 probe_hold: None,
+                station_park: None,
                 probe_descend_mps: 0.0,
                 cloud_ref_frame: None,
                 cloud_map_anchor: None,
@@ -3559,6 +3560,11 @@ mod native_app {
                             ));
                         }
                     }
+
+                    // A station camera park reports only now, after the block above
+                    // has ridden the camera through the clock change it asked for
+                    // (BUG-132): its camera_done is a reading, not an echo.
+                    crate::engine::ipc::advance_station_park(state);
 
                     // Hot-reload: poll the watcher and apply every data-file
                     // regeneration gate (planets, plants, hull, game.csv).
@@ -9100,8 +9106,8 @@ mod native_app {
                             // Sized by the constants remote_figure_parts places the parts by
                             // (2026-10-02): the box's base at its origin, the sphere centred on
                             // it, so a change to either size moves the parts with it. The head
-                            // (and the hair, the same mesh stretched) is figure_head_mesh_data,
-                            // wound to face out: Mesh::sphere drew its inside (2026-10-03).
+                            // (and the hair, the same mesh stretched) is figure_head_mesh_data:
+                            // the engine's sphere at the finer 16 x 24 the hair needs.
                             use crate::engine::net_route::{FIGURE_BODY_MESH_H_M, FIGURE_HEAD_MESH_R_M};
                             let body = state.renderer.add_mesh(
                                 Mesh::box_xyz(&state.renderer.device, 0.42, FIGURE_BODY_MESH_H_M, 0.26));

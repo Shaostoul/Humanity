@@ -544,6 +544,37 @@
           ]
         },
         {
+          "title": "Estimating",
+          "src": "docs/user/skills/estimating.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "beginner"
+          ]
+        },
+        {
+          "title": "Square, Level and Plumb",
+          "src": "docs/user/skills/square_level_and_plumb.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "shelter",
+            "safety"
+          ]
+        },
+        {
+          "title": "Keeping Records",
+          "src": "docs/user/skills/keeping_records.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "beginner"
+          ]
+        },
+        {
           "title": "Sharpening",
           "src": "docs/user/making/sharpening.md",
           "tags": [
@@ -560,6 +591,26 @@
             "guide",
             "real",
             "technical"
+          ]
+        },
+        {
+          "title": "Keeping Things Working",
+          "src": "docs/user/skills/keeping_things_working.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "safety"
+          ]
+        },
+        {
+          "title": "Working Out Why Something Broke",
+          "src": "docs/user/skills/working_out_why_something_broke.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "safety"
           ]
         },
         {
@@ -622,6 +673,15 @@
             "making",
             "materials",
             "safety"
+          ]
+        },
+        {
+          "title": "Trading Fairly",
+          "src": "docs/user/skills/trading_fairly.md",
+          "tags": [
+            "guide",
+            "real",
+            "beginner"
           ]
         }
       ],

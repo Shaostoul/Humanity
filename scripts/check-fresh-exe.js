@@ -10,161 +10,166 @@
 // is the same failure class as v0.782-784 and v0.1029-1038, where releases
 // shipped broken because the verification never exercised the real binary.
 //
-// Checks, in order:
-//   1. the exe exists at all
-//   2. it is not OLDER than the newest v*_HumanityOS.exe archive in the repo
-//      root (equal mtime + identical bytes counts as "it IS that build")
-//   3. nothing under src/, assets/shaders/, Cargo.toml or build.rs is newer
-//      than the exe (that means somebody edited source after this build; the
-//      binary does not contain the change you are about to test)
+// HOW IT ANSWERS (since BUG-133, 2026-10-03): by CONTENT, not by date.
+// build.rs hashes every compiled-in source into the binary (the source stamp;
+// the list is FINGERPRINT_INPUTS in build.rs, the definition is at the top of
+// scripts/lib/src-fingerprint.js). This gate hashes the same files in the tree
+// it is run from and compares:
+//   1. the exe exists
+//   2. it carries exactly one well-formed stamp
+//   3. the stamp's fingerprint equals this tree's
+// Anything else refuses, naming both fingerprints and which files differ.
+//
+// The DATE checks it used to make are gone, on purpose, because the content
+// check answers both of their questions exactly and they only ever answered
+// them approximately:
+//   - "no compiled-in source is newer than the exe": a source EDITED after the
+//     build now changes the tree's fingerprint, so it is caught by content; one
+//     only TOUCHED (a git checkout, an editor re-save) no longer refuses a build
+//     that does contain it. And the date check could not see what BUG-133 was:
+//     a build of ANOTHER tree that happened to be newer passed as current.
+//   - "not older than the newest v*_HumanityOS.exe archive": an older binary
+//     whose stamp matches this tree IS this tree's build; an archive built from
+//     the same sources has the same fingerprint, and one built from different
+//     sources is a different tree, which (3) refuses whatever the dates say.
 //
 // Usage:
-//   node scripts/check-fresh-exe.js [--exe PATH] [--quiet]
-// Exit 0 = safe to boot. Exit 1 = refuse, with the exact rebuild command.
+//   node scripts/check-fresh-exe.js [--exe PATH] [--tree DIR] [--quiet]
+//        [--allow-other-build "<reason>"] [--json-out FILE]
+//   node scripts/check-fresh-exe.js --print-manifest tree|exe [--exe PATH] [--tree DIR]
+//
+//   --tree DIR     compare against another checkout (default: the one this script is in),
+//                  e.g. a worktree's build against the main checkout: --tree C:\Humanity
+//   --allow-other-build "<reason>"
+//                  run a DIFFERENT build on purpose (a red check against an old build).
+//                  Passes, but prints loudly that the binary is not this tree; the rigs
+//                  pass it through and record other_build in their manifest. Needs a reason.
+//   --json-out F   write the verdict as JSON (what the rigs read; see runFreshGate)
+//   --print-manifest tree|exe
+//                  print the per-file manifest (sha256 + path), to diff two trees or a
+//                  tree against a build by hand
+// Exit 0 = safe to boot (this tree's build, or another build allowed on purpose).
+// Exit 1 = refuse, with the exact rebuild command.
 
 const fs = require("fs");
 const path = require("path");
-const crypto = require("crypto");
+const FP = require("./lib/src-fingerprint.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
 const opt = (name, def) => {
   const i = args.indexOf(name);
-  return i >= 0 && args[i + 1] ? args[i + 1] : def;
+  return i >= 0 && args[i + 1] !== undefined && !args[i + 1].startsWith("--") ? args[i + 1] : def;
 };
 const QUIET = args.includes("--quiet");
 const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
-
-const ARCHIVE_PATTERN = /^v(\d+)\.(\d+)\.(\d+)_HumanityOS\.exe$/;
-// Source that must be COMPILED IN to take effect. data/ is deliberately absent:
-// the probe rig junctions data/ live, so a data edit needs no rebuild. Shaders
-// are here because the first pipeline compile uses the include_str! embedded
-// copies, so a shader edit before launch is invisible without a rebuild.
-const SOURCE_ROOTS = ["src", path.join("assets", "shaders")];
-const SOURCE_FILES = ["Cargo.toml", "build.rs"];
-
-const REBUILD_HINT = [
-  "Fix (pick one):",
-  "  cargo build --features native --release    # rebuild target/release in place",
-  "  just build-game                            # rebuild + bump version + archive",
-].join("\n");
+const TREE = path.resolve(opt("--tree", REPO));
+const JSON_OUT = opt("--json-out", null);
+const PRINT = opt("--print-manifest", null);
+const allowRaw = FP.allowOtherFrom(args);
+const ALLOW = allowRaw === undefined ? null : allowRaw.trim();
 
 function say(msg) {
   if (!QUIET) console.log(`[fresh] ${msg}`);
 }
-function refuse(lines) {
-  console.error("");
-  for (const l of lines) console.error(l);
-  console.error("");
-  process.exit(1);
+function rel(p) {
+  const r = path.relative(REPO, p);
+  return !r || r.startsWith("..") ? p : r;
 }
 function stamp(ms) {
   const d = new Date(ms);
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
-function sha256(file) {
-  return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+function writeJson(obj) {
+  if (!JSON_OUT) return;
+  fs.writeFileSync(JSON_OUT, JSON.stringify({ exe: EXE, tree_root: TREE, ...obj }, null, 2));
 }
-function newestUnder(dir, acc) {
-  let entries;
-  try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return acc;
-  }
-  for (const e of entries) {
-    const full = path.join(dir, e.name);
-    if (e.isDirectory()) {
-      acc = newestUnder(full, acc);
-    } else {
-      let m;
-      try {
-        m = fs.statSync(full).mtimeMs;
-      } catch {
-        continue;
-      }
-      if (m > acc.mtime) acc = { mtime: m, file: full };
-    }
-  }
-  return acc;
+function refuse(lines, extra = {}) {
+  writeJson({ ok: false, verdict: "refused", exe_fingerprint: null, tree_fingerprint: null, other_build: null, ...extra });
+  console.error("");
+  for (const l of lines) console.error(l);
+  console.error("");
+  process.exit(1);
+}
+
+if (args.includes("--print-manifest") && PRINT !== "tree" && PRINT !== "exe") {
+  refuse(["USAGE: --print-manifest tree   (this tree's per-file manifest)  or  --print-manifest exe   (the build's)"]);
+}
+if (ALLOW === "") {
+  refuse([
+    "USAGE: --allow-other-build needs a reason, in quotes, saying why this run is about another build:",
+    '  --allow-other-build "red check: the 1b rig against the v0.1444.0 build"',
+    "The reason goes into the rig's manifest, so whoever reads the result later knows the binary",
+    "was not this tree's code and why that was the point.",
+  ]);
+}
+
+// ── The tree's fingerprint ───────────────────────────────────────────────────
+let tree;
+try {
+  tree = FP.fingerprintTree(TREE);
+} catch (e) {
+  refuse([`CANNOT FINGERPRINT THE TREE: ${e.message}`, "Nothing can be judged without it."]);
+}
+
+if (PRINT === "tree") {
+  process.stdout.write(tree.text);
+  process.exit(0);
 }
 
 // ── 1. exists ────────────────────────────────────────────────────────────────
 if (!fs.existsSync(EXE)) {
-  refuse([
-    `NO BINARY: ${EXE} does not exist.`,
-    "Nothing can be runtime-verified until there is a release build to boot.",
-    REBUILD_HINT,
-  ]);
+  refuse(
+    [
+      `NO BINARY: ${EXE} does not exist.`,
+      "Nothing can be runtime-verified until there is a release build to boot.",
+      "Fix (pick one):",
+      "  cargo build --features native --release    # rebuild target/release from this tree",
+      "  just build-game                            # rebuild + bump version + archive",
+    ],
+    { tree_fingerprint: tree.fingerprint }
+  );
 }
 const exeStat = fs.statSync(EXE);
-say(`exe            ${path.relative(REPO, EXE)}  (${(exeStat.size / 1048576).toFixed(1)} MB, built ${stamp(exeStat.mtimeMs)})`);
+const exeInfo = FP.readExeStamp(EXE);
 
-// ── 2. not older than the newest archived build ──────────────────────────────
-const archives = fs
-  .readdirSync(REPO)
-  .filter((f) => ARCHIVE_PATTERN.test(f))
-  .map((f) => ({ name: f, mtime: fs.statSync(path.join(REPO, f)).mtimeMs, size: fs.statSync(path.join(REPO, f)).size }))
-  .sort((a, b) => b.mtime - a.mtime);
-
-if (!archives.length) {
-  say("newest archive none in the repo root - skipping the stale-vs-archive check");
-} else {
-  const newest = archives[0];
-  const newestPath = path.join(REPO, newest.name);
-  say(`newest archive ${newest.name}  (built ${stamp(newest.mtime)})`);
-  if (path.resolve(newestPath) === EXE) {
-    say("ok: the exe under test IS the newest archived build");
-  } else if (exeStat.mtimeMs > newest.mtime) {
-    say("ok: the exe is newer than the newest archive (a fresh local build)");
-  } else if (exeStat.size === newest.size && sha256(EXE) === sha256(newestPath)) {
-    // `just build-game` copies target/release -> the archive, and Windows
-    // CopyFileEx preserves the source mtime, so the current build normally
-    // lands here: same timestamp, same bytes, same build.
-    say("ok: byte-identical to the newest archive (same build, just archived)");
-  } else {
-    refuse([
-      `STALE BINARY: ${path.relative(REPO, EXE)} is older than the newest archived build and is not the same file.`,
-      `  exe under test   ${stamp(exeStat.mtimeMs)}   ${(exeStat.size / 1048576).toFixed(1)} MB`,
-      `  newest archive   ${stamp(newest.mtime)}   ${newest.name}`,
-      "",
-      "Booting this would verify a build that predates the newest one in the tree, which is",
-      "exactly how ten releases shipped panicking on world entry while the checks stayed green",
-      "(CLAUDE.md, v0.1029-1038). Refusing instead of reporting a meaningless pass.",
-      REBUILD_HINT,
-    ]);
-  }
+if (PRINT === "exe") {
+  if (exeInfo.stamps.length !== 1) refuse([`--print-manifest exe: ${EXE} carries ${exeInfo.stamps.length} valid stamps, not 1.`]);
+  const s = exeInfo.stamps[0];
+  process.stdout.write(FP.MANIFEST_HEADER + [...s.files].map(([p, h]) => `${h} ${p}\n`).join(""));
+  process.exit(0);
 }
 
-// ── 3. no compiled-in source newer than the exe ──────────────────────────────
-let newestSrc = { mtime: 0, file: null };
-for (const root of SOURCE_ROOTS) newestSrc = newestUnder(path.join(REPO, root), newestSrc);
-for (const f of SOURCE_FILES) {
-  const full = path.join(REPO, f);
-  if (!fs.existsSync(full)) continue;
-  const m = fs.statSync(full).mtimeMs;
-  if (m > newestSrc.mtime) newestSrc = { mtime: m, file: full };
+const s0 = exeInfo.stamps[0];
+say(
+  `exe            ${rel(EXE)}  (${(exeStat.size / 1048576).toFixed(1)} MB, written ${stamp(exeStat.mtimeMs)}` +
+    (s0 ? `, ${s0.profile}, features ${s0.features})` : ")")
+);
+say(`tree           ${TREE}  (${tree.files.size} compiled-in files under ${tree.inputs.join(", ")})`);
+
+// ── 2 + 3. the stamp, and whether it is this tree ────────────────────────────
+const v = FP.decide({ exeLabel: rel(EXE), exeInfo, tree, allowOther: ALLOW });
+const record = {
+  ok: v.ok,
+  verdict: v.verdict,
+  exe_fingerprint: v.exe_fingerprint,
+  tree_fingerprint: v.tree_fingerprint,
+  other_build: v.other_build,
+};
+
+if (v.verdict === "refused") {
+  refuse([v.headline, ...v.lines], record);
 }
-if (newestSrc.file && newestSrc.mtime > exeStat.mtimeMs) {
-  refuse([
-    `SOURCE NEWER THAN BINARY: ${path.relative(REPO, newestSrc.file)} was edited after this build.`,
-    `  source edited    ${stamp(newestSrc.mtime)}   ${path.relative(REPO, newestSrc.file)}`,
-    `  exe built        ${stamp(exeStat.mtimeMs)}   ${path.relative(REPO, EXE)}`,
-    "",
-    "The binary does not contain that change, so any result from booting it is about",
-    "different code than the tree you are looking at. (Several Claude sessions share this",
-    "checkout - if that file is not yours, another session is mid-edit; rebuild anyway or",
-    "wait for them, but do not report a runtime pass from this binary.)",
-    "",
-    "A file can also be TOUCHED without its content changing (a git checkout, an editor",
-    "re-save). Cargo treats that as dirty too and will relink, so the rebuild below is",
-    "still the honest answer, and it is cheap when nothing really changed.",
-    REBUILD_HINT,
-  ]);
+writeJson(record);
+if (v.verdict === "other-build") {
+  // Never --quiet: this is the line that must not be missed.
+  console.error("");
+  for (const l of v.lines) console.error(l);
+  console.error("");
+  process.exit(0);
 }
-if (newestSrc.file) {
-  say(`ok: no compiled-in source newer than the exe (newest ${path.relative(REPO, newestSrc.file)} ${stamp(newestSrc.mtime)})`);
-}
-say("PASS: the binary under test is the current build");
+say(`fingerprint    ${v.tree_fingerprint}  (the exe and the tree agree)`);
+for (const l of v.lines) say(l);
+say(v.headline);
 process.exit(0);

@@ -11,6 +11,43 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1446.3: three more Library guides.** Keeping Things Working (looking
+  after tools, machines and a house, and making them safe before you start),
+  Square, Level and Plumb (laying out a shed or a path, and calling 811 before
+  you dig), and Trading Fairly (honest weights, recalls, contracts and scams).
+  Each one was checked against its sources before it shipped.
+
+- **v0.1446.2: three new Library guides.** Estimating (pacing out a
+  distance, counting seconds to thunder, how much a drum of water weighs),
+  Keeping Records (what a useful garden, rain, maintenance or money record
+  holds, and how long to keep it), and Working Out Why Something Broke (a
+  step-by-step way to find a fault, and where to stop and call someone). Each
+  claim is backed by a public source such as the NWS, NIST, OSHA or the EPA,
+  and an independent check read every source before they shipped.
+
+- **v0.1446.0: the test tools know exactly which build they are testing
+  (behind the scenes).** Every build now carries a fingerprint of the code it
+  was made from, and the automatic checks refuse to test a build whose
+  fingerprint does not match, so an old build can never pass for a new one.
+
+- **v0.1445.0: round things are the right way out.** Every ball the game drew
+  (light bulbs, the build-mode pipe beads, the planets in the hologram room,
+  your avatar's head on its stand) was built inside out, so you saw its far
+  inside instead of its outside. Fruit on plants was also lit from the inside.
+  All fixed, with a test for every shape the game builds.
+
+- **v0.1444.0: the test camera lands where it is told (behind the scenes).**
+  The automatic picture-taking that checks the game after each change had been
+  photographing empty space instead of the home, depending on what it looked
+  at just before. It now lands on the spot it was asked for, and fails loudly
+  when it does not, so a broken picture can no longer pass as a good one.
+
+- **v0.1443.0: the greenhouse towers grow real plants.** The plants in the
+  vertical towers used to show as black sprouts; they now show their real
+  colours, lean out of their cups like real net-cup plants, and the beds and
+  fields got brighter too. The cause was the plant colours being stored the
+  wrong way, a mistake made when the models were converted.
+
 - **v0.1442.0: your save keeps backups.** The game now keeps the last ten
   versions of your home's save, and Settings > Data can put any of them back.
   Other players' faces show properly (their hair used to cover them), and the

@@ -5,7 +5,10 @@
 //
 //   inventory   collapse the sections above it (Status, Equipment) by
 //               clicking their titles until "Home" is drawn (a 1280 x 720
-//               wall shows the Status cards first), then
+//               wall shows the Status cards first), then scroll until the
+//               "Home" header sits in the upper half (the carried list can
+//               push it to the bottom edge, its open body below the fold),
+//               then
 //   inventory   find the "Home" container header on wall_screen_1 by its
 //               drawn text, HOVER it, find the child row "Garage" (drawn
 //               only while Home is open), snapshot, click the header, find
@@ -46,6 +49,9 @@
 //
 // Usage:
 //   node scripts/verify-screens.js [--exe PATH] [--timeout-min N] [--keep-open]
+//        [--allow-other-build "<reason>"]   run a build that is NOT this tree, on
+//        purpose (a red check); passed to scripts/check-fresh-exe.js and recorded
+//        in the manifest as other_build
 //   node scripts/verify-screens.js --dry-verdict <manifest.json>
 //   node scripts/verify-screens.js --self-test
 // Exit 0 = every check passed. Exit 1 = refused to run (an instance already
@@ -74,6 +80,9 @@ const G = require("./rig-graphics.js");
 // but cannot change its verdict.
 const MG = require("./lib/machine-guard.js");
 const DXC = require("./lib/dxc-dlls.js");
+// The freshness gate, run through its one runner so --allow-other-build reaches
+// it and comes back as the manifest's other_build record (BUG-133).
+const { runFreshGate, otherBuildNotice } = require("./lib/src-fingerprint.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -305,6 +314,7 @@ function printVerdict(verdictPrefix, m, dir) {
   console.log("-".repeat(72));
   for (const c of checks) console.log(`${c.ok ? "PASS" : "FAIL"}  ${pad(c.id, 20)} ${c.detail}`);
   console.log("-".repeat(72));
+  if (m.other_build) console.log(otherBuildNotice(m.other_build));
   if (pass) {
     console.log(`${verdictPrefix}PASS  ${checks.length}/${checks.length} screen checks passed`);
   } else {
@@ -403,12 +413,14 @@ if (instances.length) {
   ]);
 }
 
-// 2. The binary must be the current build.
-const fresh = spawnSync(process.execPath, [path.join(__dirname, "check-fresh-exe.js"), "--exe", EXE], { cwd: REPO, stdio: "inherit" });
+// 2. The binary must be this tree's build (or another, on purpose, with
+//    --allow-other-build "<reason>", recorded in the manifest as other_build).
+const fresh = runFreshGate(EXE, args, { cwd: REPO });
 if (fresh.status !== 0) {
   console.error("verify-screens: REFUSED - see the freshness failure above. Nothing was booted.");
   process.exit(1);
 }
+const OTHER_BUILD = fresh.other_build;
 
 // ── Rig setup (the probe-sweep recipe, in this rig's own folder) ─────────────
 function ensureJunction(link, target) {
@@ -551,6 +563,7 @@ async function main() {
     kind: "verify-screens",
     stamp,
     exe: EXE,
+    ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
     rig: RIG,
     config: cfgPath,
     log: path.relative(OUT, LOG),
@@ -673,6 +686,31 @@ async function main() {
       }
       manifest.inventory.reveal.push(rec);
       log(`reveal: "${section}" ${sec.ok && sec.found ? `collapsed at uv ${JSON.stringify(sec.uv)}` : "not drawn"}`);
+    }
+    // (a0b) Collapsing is not always enough. Since the starter kit's backpack
+    // grew to 17 items (2026-10-02) the carried list pushes "Home" to the very
+    // bottom edge (the 2026-10-03 run found it at uv y 0.987), so its child
+    // row "Garage" sat below the fold on BOTH sides of the click and the
+    // toggle could not be seen. Scroll the page down (a negative wheel delta,
+    // egui's "content moves up") until the Home header sits in the upper half
+    // of the screen, leaving room for its open body below it. Stops when the
+    // header stops moving (the end of the page) or after a bounded number of
+    // steps, and records every step in the manifest.
+    for (let i = 0; i < 12; i++) {
+      const at = await screen({ screen: SCREENS.inventory, find: { text: INVENTORY_TARGET } });
+      if (!(at.ok && at.found && Array.isArray(at.uv))) {
+        // Not drawn at all yet: scroll and look again.
+      } else if (at.uv[1] <= 0.5) {
+        break;
+      }
+      const sc = await screen({ screen: SCREENS.inventory, action: "scroll", uv: [0.5, 0.5], dy: -3 });
+      await sleep(300);
+      const after = await screen({ screen: SCREENS.inventory, find: { text: INVENTORY_TARGET } });
+      const rec = { scroll: sc, before_uv: at.found ? at.uv : null, after_uv: after.found ? after.uv : null };
+      manifest.inventory.reveal.push(rec);
+      log(`reveal: scrolled, "${INVENTORY_TARGET}" ${JSON.stringify(rec.before_uv)} -> ${JSON.stringify(rec.after_uv)}`);
+      const moved = !(at.found && after.found && Math.abs(after.uv[1] - at.uv[1]) < 1e-4);
+      if (!moved) break;
     }
     const find = step("inv_find", await screen({ screen: SCREENS.inventory, find: { text: INVENTORY_TARGET } }));
     manifest.inventory.find = find;

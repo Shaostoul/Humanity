@@ -169,6 +169,16 @@ impl Mesh {
 
     /// Unit cube centered at origin (side length 1).
     pub fn cube(device: &wgpu::Device) -> Self {
+        let (v, idx) = Self::cube_data();
+        Self::from_vertices(device, &v, &idx)
+    }
+
+    /// The vertices and indices `cube` uploads. Every generator in this file
+    /// keeps its geometry in a `*_data` function like this one, with no GPU
+    /// in it, so the tests at the bottom can check the winding of all of them
+    /// (BUG-128: the sphere's was inside out from June to October 2026 and
+    /// nothing checked it).
+    pub(crate) fn cube_data() -> (Vec<Vertex>, Vec<u32>) {
         // 24 vertices (4 per face, unique normals)
         #[rustfmt::skip]
         let vertices: &[Vertex] = &[
@@ -214,7 +224,7 @@ impl Mesh {
             20, 21, 22,  22, 23, 20, // -Y
         ];
 
-        Self::from_vertices(device, vertices, indices)
+        (vertices.to_vec(), indices.to_vec())
     }
 
     /// Build a mesh from an icosphere (for planet rendering).
@@ -307,6 +317,12 @@ impl Mesh {
 
     /// Ground plane on XZ axis (centered at origin, 10x10 units).
     pub fn plane(device: &wgpu::Device) -> Self {
+        let (v, idx) = Self::plane_data();
+        Self::from_vertices(device, &v, &idx)
+    }
+
+    /// The vertices and indices `plane` uploads.
+    pub(crate) fn plane_data() -> (Vec<Vertex>, Vec<u32>) {
         let s = 5.0;
         let vertices: &[Vertex] = &[
             Vertex { position: [-s, 0.0, -s], normal: [0.0, 1.0, 0.0], uv: [0.0, 0.0] },
@@ -315,14 +331,27 @@ impl Mesh {
             Vertex { position: [-s, 0.0,  s], normal: [0.0, 1.0, 0.0], uv: [0.0, 1.0] },
         ];
         let indices: &[u32] = &[0, 2, 1, 0, 3, 2];
-        Self::from_vertices(device, vertices, indices)
+        (vertices.to_vec(), indices.to_vec())
     }
 
     /// Open cylinder (solid wall, no caps) along +Y: base ring at y=0, top ring at
     /// y=height, outward normals. A placeholder aeroponic-tower column. The two
-    /// rings are laid out ROW-MAJOR so the index winding is identical to
-    /// `Mesh::sphere` (which renders correctly), avoiding the inverted-normal bug.
+    /// rings are laid out ROW-MAJOR, bottom ring first, and wound so each wall
+    /// triangle is counter-clockwise seen from outside (the side the opaque
+    /// pipeline draws; checked by the winding tests at the bottom of this file).
+    ///
+    /// (This comment used to say the winding was "identical to `Mesh::sphere`
+    /// (which renders correctly)". The index pattern was the same, but the
+    /// sphere's rows run top to bottom where these run bottom to top, so the
+    /// same pattern faced OUT here and IN on the sphere, which did not render
+    /// correctly: BUG-128.)
     pub fn cylinder(device: &wgpu::Device, radius: f32, height: f32, segments: u32) -> Self {
+        let (v, idx) = Self::cylinder_data(radius, height, segments);
+        Self::from_vertices(device, &v, &idx)
+    }
+
+    /// The vertices and indices `cylinder` uploads.
+    pub(crate) fn cylinder_data(radius: f32, height: f32, segments: u32) -> (Vec<Vertex>, Vec<u32>) {
         let seg = segments.max(3);
         let tau = std::f32::consts::TAU;
         let mut v: Vec<Vertex> = Vec::new();
@@ -345,10 +374,12 @@ impl Mesh {
         for i in 0..seg {
             let a = i;
             let b = a + stride;
-            // Same winding as Mesh::sphere (verified outward-facing).
+            // a on the bottom ring, b straight above it, a + 1 the next step
+            // round: (b - a) x (a+1 - a) points out of the wall, so this
+            // order is counter-clockwise from outside.
             idx.extend_from_slice(&[a, b, a + 1, a + 1, b, b + 1]);
         }
-        Self::from_vertices(device, &v, &idx)
+        (v, idx)
     }
 
     /// Closed cylinder along +Y (base at y=0, top at y=height) WITH end caps. Like
@@ -356,6 +387,12 @@ impl Mesh {
     /// pedestal/drum rather than an open tube. (v0.447: the showroom pedestal top was
     /// invisible because the open cylinder had no top face.)
     pub fn cylinder_capped(device: &wgpu::Device, radius: f32, height: f32, segments: u32) -> Self {
+        let (v, idx) = Self::cylinder_capped_data(radius, height, segments);
+        Self::from_vertices(device, &v, &idx)
+    }
+
+    /// The vertices and indices `cylinder_capped` uploads.
+    pub(crate) fn cylinder_capped_data(radius: f32, height: f32, segments: u32) -> (Vec<Vertex>, Vec<u32>) {
         let seg = segments.max(3);
         let tau = std::f32::consts::TAU;
         let mut v: Vec<Vertex> = Vec::new();
@@ -402,12 +439,25 @@ impl Mesh {
         for i in 0..seg {
             idx.extend_from_slice(&[tc, tc + 1 + i + 1, tc + 1 + i]);
         }
+        (v, idx)
+    }
+
+    /// UV sphere centered at origin (outward normals), seen from OUTSIDE: every
+    /// triangle is counter-clockwise from outside, the side the opaque
+    /// pipeline draws. Gizmos, bulbs, heads, the showroom planet and the
+    /// figures' heads all draw it. Nothing in the engine wants a sphere seen
+    /// from inside; if something ever does (a sky dome, a bubble the camera
+    /// sits in), give it its own constructor that reverses the order on
+    /// purpose rather than flipping this one.
+    pub fn sphere(device: &wgpu::Device, radius: f32, stacks: u32, slices: u32) -> Self {
+        let (v, idx) = Self::sphere_data(radius, stacks, slices);
         Self::from_vertices(device, &v, &idx)
     }
 
-    /// UV sphere centered at origin (outward normals). Used as a placeholder plant
-    /// marker.
-    pub fn sphere(device: &wgpu::Device, radius: f32, stacks: u32, slices: u32) -> Self {
+    /// The vertices and indices `sphere` uploads. Row `i` is the ring at
+    /// `phi = PI * i / stacks` down from the north pole (+Y), so ring `i + 1`
+    /// is BELOW ring `i`; column `j` runs round at `theta = TAU * j / slices`.
+    pub(crate) fn sphere_data(radius: f32, stacks: u32, slices: u32) -> (Vec<Vertex>, Vec<u32>) {
         let st = stacks.max(2);
         let sl = slices.max(3);
         let pi = std::f32::consts::PI;
@@ -433,10 +483,22 @@ impl Mesh {
             for j in 0..sl {
                 let a = i * row + j;
                 let b = a + row;
-                idx.extend_from_slice(&[a, b, a + 1, a + 1, b, b + 1]);
+                // a is on ring i, b straight BELOW it on ring i + 1, a + 1
+                // the next step round. Going down then round, (b - a) x
+                // (a+1 - a) points into the sphere, so each triangle lists
+                // the step round FIRST: (a+1 - a) x (b - a) points out, which
+                // is counter-clockwise from outside, the side the opaque
+                // pipeline draws (FrontFace::Ccw, back faces culled).
+                //
+                // BUG-128: this was [a, b, a + 1, a + 1, b, b + 1] from June
+                // to October 2026, every triangle facing in, so every sphere
+                // drawn opaque showed its far inside. The open `cylinder`
+                // above uses that same pattern correctly, because its rings
+                // run UP where these run down.
+                idx.extend_from_slice(&[a, a + 1, b, a + 1, b + 1, b]);
             }
         }
-        Self::from_vertices(device, &v, &idx)
+        (v, idx)
     }
 
     /// Axis-aligned box of size (w, h, d) meters, centered in x/z with its BASE at
@@ -444,6 +506,12 @@ impl Mesh {
     /// same winding as `cube`. A rudimentary machine stand-in (audit/First-Playable
     /// home population, 2026-06-13).
     pub fn box_xyz(device: &wgpu::Device, w: f32, h: f32, d: f32) -> Self {
+        let (v, idx) = Self::box_xyz_data(w, h, d);
+        Self::from_vertices(device, &v, &idx)
+    }
+
+    /// The vertices and indices `box_xyz` uploads.
+    pub(crate) fn box_xyz_data(w: f32, h: f32, d: f32) -> (Vec<Vertex>, Vec<u32>) {
         let (x, z) = (w * 0.5, d * 0.5);
         let (y0, y1) = (0.0, h);
         #[rustfmt::skip]
@@ -484,12 +552,18 @@ impl Mesh {
             0,1,2, 2,3,0,    4,5,6, 6,7,4,      8,9,10, 10,11,8,
             12,13,14, 14,15,12,  16,17,18, 18,19,16,  20,21,22, 22,23,20,
         ];
-        Self::from_vertices(device, vertices, indices)
+        (vertices.to_vec(), indices.to_vec())
     }
 
     /// A flat thin RING (annulus) in the XZ plane at y=0, outer radius 1.0, facing +Y. Scaled by the
     /// radius for the editor's door interaction-distance ground ring. (v0.547)
     pub fn flat_ring(device: &wgpu::Device, segments: u32) -> Self {
+        let (v, idx) = Self::flat_ring_data(segments);
+        Self::from_vertices(device, &v, &idx)
+    }
+
+    /// The vertices and indices `flat_ring` uploads.
+    pub(crate) fn flat_ring_data(segments: u32) -> (Vec<Vertex>, Vec<u32>) {
         let (inner, outer) = (0.93_f32, 1.0_f32);
         let mut v: Vec<Vertex> = Vec::new();
         let mut idx: Vec<u32> = Vec::new();
@@ -504,7 +578,7 @@ impl Mesh {
             let o = i * 2;
             idx.extend([o, o + 1, o + 2, o + 1, o + 3, o + 2]);
         }
-        Self::from_vertices(device, &v, &idx)
+        (v, idx)
     }
 
     /// Square-base pyramid: base side `base` centered in x/z at y=0, apex at
@@ -512,6 +586,12 @@ impl Mesh {
     /// normal points OUTWARD (away from the y-axis), so back-face culling shows the
     /// outside without needing a visual check. A rudimentary stand-in.
     pub fn pyramid(device: &wgpu::Device, base: f32, height: f32) -> Self {
+        let (v, idx) = Self::pyramid_data(base, height);
+        Self::from_vertices(device, &v, &idx)
+    }
+
+    /// The vertices and indices `pyramid` uploads.
+    pub(crate) fn pyramid_data(base: f32, height: f32) -> (Vec<Vertex>, Vec<u32>) {
         let h = base * 0.5;
         let c = [[-h, 0.0, -h], [h, 0.0, -h], [h, 0.0, h], [-h, 0.0, h]];
         let apex = [0.0, height, 0.0];
@@ -546,20 +626,32 @@ impl Mesh {
             v.push(Vertex { position: apex, normal: n, uv: [0.5, 0.0] });
             idx.extend_from_slice(&[bi, bi + 1, bi + 2]);
         }
-        // Base (downward normal). Wind so the front faces -Y (viewed from below).
+        // Base (downward normal). Wind so the front faces -Y (viewed from below):
+        // the corners c0 -> c1 -> c2 -> c3 run clockwise seen from above, so
+        // counter-clockwise seen from BELOW, and the base lists them in that
+        // order ((c1 - c0) x (c2 - c0) is straight down). BUG-128 audit,
+        // 2026-10-03: this was [bi, bi+2, bi+1, bi, bi+3, bi+2], which faced
+        // +Y, up into the pyramid, despite the comment; the winding test
+        // below caught it.
         let bn = [0.0, -1.0, 0.0];
         let bi = v.len() as u32;
         for &p in &c {
             v.push(Vertex { position: p, normal: bn, uv: [0.0, 0.0] });
         }
-        idx.extend_from_slice(&[bi, bi + 2, bi + 1, bi, bi + 3, bi + 2]);
-        Self::from_vertices(device, &v, &idx)
+        idx.extend_from_slice(&[bi, bi + 1, bi + 2, bi, bi + 2, bi + 3]);
+        (v, idx)
     }
 
     /// A DIAMOND (octahedron) of half-extent `r`, centred at the origin (v0.572). Six apexes on the
     /// axes, eight triangular faces, outward-wound with centroid normals. Used as a distinct centre
     /// marker for placed LIGHTS (vs the sphere orb for wall corners).
     pub fn octahedron(device: &wgpu::Device, r: f32) -> Self {
+        let (v, idx) = Self::octahedron_data(r);
+        Self::from_vertices(device, &v, &idx)
+    }
+
+    /// The vertices and indices `octahedron` uploads.
+    pub(crate) fn octahedron_data(r: f32) -> (Vec<Vertex>, Vec<u32>) {
         let top = [0.0, r, 0.0];
         let bot = [0.0, -r, 0.0];
         let eq = [[r, 0.0, 0.0], [0.0, 0.0, r], [-r, 0.0, 0.0], [0.0, 0.0, -r]];
@@ -582,7 +674,7 @@ impl Mesh {
             face(top, e1, e0); // top half (outward winding)
             face(bot, e0, e1); // bottom half
         }
-        Self::from_vertices(device, &v, &idx)
+        (v, idx)
     }
 
     /// A straight ROUND tube (pipe / cable) from world point `a` to `b` with the given
@@ -591,6 +683,12 @@ impl Mesh {
     /// the realistic-pipe successor to `segment`: round section reads as plumbing/conduit
     /// rather than ducting. Used for pipe bodies, collars (fat + short), and valve bodies.
     pub fn tube(device: &wgpu::Device, a: glam::Vec3, b: glam::Vec3, radius: f32, sides: u32) -> Self {
+        let (v, idx) = Self::tube_data(a, b, radius, sides);
+        Self::from_vertices(device, &v, &idx)
+    }
+
+    /// The vertices and indices `tube` uploads.
+    pub(crate) fn tube_data(a: glam::Vec3, b: glam::Vec3, radius: f32, sides: u32) -> (Vec<Vertex>, Vec<u32>) {
         let n = sides.max(3);
         let tau = std::f32::consts::TAU;
         let dir = (b - a).normalize_or_zero();
@@ -620,10 +718,11 @@ impl Mesh {
             let a1 = i + 1;
             let b0 = i + stride;
             let b1 = i + 1 + stride;
-            // Same winding convention as `segment` (verified outward-facing).
+            // Same winding convention as `segment` (outward-facing; the
+            // winding tests at the bottom of this file check it).
             idx.extend_from_slice(&[a0, b0, a1, a1, b0, b1]);
         }
-        Self::from_vertices(device, &v, &idx)
+        (v, idx)
     }
 
     /// A round tube CHAINED through a polyline of world points, as one mesh
@@ -634,6 +733,12 @@ impl Mesh {
     /// world space, placed at the origin. Degenerate input (<2 points) yields a
     /// tiny stub so callers never hold an empty buffer.
     pub fn polytube(device: &wgpu::Device, points: &[glam::Vec3], radius: f32, sides: u32) -> Self {
+        let (v, idx) = Self::polytube_data(points, radius, sides);
+        Self::from_vertices(device, &v, &idx)
+    }
+
+    /// The vertices and indices `polytube` uploads.
+    pub(crate) fn polytube_data(points: &[glam::Vec3], radius: f32, sides: u32) -> (Vec<Vertex>, Vec<u32>) {
         let n = sides.max(3);
         let tau = std::f32::consts::TAU;
         let mut v: Vec<Vertex> = Vec::new();
@@ -675,7 +780,7 @@ impl Mesh {
                 idx.extend_from_slice(&[a0, b0, a1, a1, b0, b1]);
             }
         }
-        Self::from_vertices(device, &v, &idx)
+        (v, idx)
     }
 
     /// A straight square-section tube (pipe / cable / connection) from world point
@@ -683,6 +788,12 @@ impl Mesh {
     /// and placed at the origin, since the placeholder render path is translation-only
     /// (no per-object rotation). Used to draw connections between machines.
     pub fn segment(device: &wgpu::Device, a: glam::Vec3, b: glam::Vec3, radius: f32) -> Self {
+        let (v, idx) = Self::segment_data(a, b, radius);
+        Self::from_vertices(device, &v, &idx)
+    }
+
+    /// The vertices and indices `segment` uploads.
+    pub(crate) fn segment_data(a: glam::Vec3, b: glam::Vec3, radius: f32) -> (Vec<Vertex>, Vec<u32>) {
         let dir = (b - a).normalize_or_zero();
         let dir = if dir.length_squared() < 1e-6 { glam::Vec3::Y } else { dir };
         // A frame perpendicular to dir.
@@ -713,8 +824,40 @@ impl Mesh {
             let b1 = (i + 1) % 4 + 4;
             idx.extend_from_slice(&[a0, b0, a1, a1, b0, b1]);
         }
-        Self::from_vertices(device, &v, &idx)
+        (v, idx)
     }
+}
+
+/// Winding check shared by the mesh tests here and in other renderer files
+/// (BUG-128). For each triangle, the normal its winding gives (`(b - a) x
+/// (c - a)`, the side `wgpu::FrontFace::Ccw` in renderer/pipeline.rs treats
+/// as the front, in this engine's right-handed world) is compared with the
+/// normals written on its three corners. Returns how many triangles were
+/// checked and the numbers of those whose winding faces the other way, so a
+/// caller can assert both that nothing faces in AND that the check was not
+/// vacuous. Triangles with no area (a UV sphere's pole slivers, whose corners
+/// sit on the pole, or within an f32 rounding of it) have no facing at all
+/// and are skipped: one is "degenerate" when the sine of its corner angle at
+/// `a` is under 1e-5, a test that does not depend on the mesh's size.
+#[cfg(test)]
+pub(crate) fn triangles_facing_against_their_normals(vertices: &[Vertex], indices: &[u32]) -> (usize, Vec<usize>) {
+    let mut checked = 0;
+    let mut wrong = Vec::new();
+    for (k, t) in indices.chunks(3).enumerate() {
+        let p = |i: u32| glam::Vec3::from(vertices[i as usize].position);
+        let (a, b, c) = (p(t[0]), p(t[1]), p(t[2]));
+        let (e1, e2) = (b - a, c - a);
+        let face = e1.cross(e2);
+        if face.length() <= 1.0e-5 * e1.length() * e2.length() {
+            continue;
+        }
+        let said: glam::Vec3 = t.iter().map(|&i| glam::Vec3::from(vertices[i as usize].normal)).sum();
+        checked += 1;
+        if face.dot(said) <= 0.0 {
+            wrong.push(k);
+        }
+    }
+    (checked, wrong)
 }
 
 #[cfg(test)]
@@ -837,5 +980,144 @@ mod tests {
             "vs_main calls obj_normal_matrix() somewhere other than the water branch \
              (which has no instanced form) - grass needs vs_rot()"
         );
+    }
+
+    /// THE SPHERE FACES OUT (BUG-128, 2026-10-03). The opaque pipeline
+    /// (renderer/pipeline.rs) draws counter-clockwise triangles
+    /// (`FrontFace::Ccw`) and culls the rest (`Face::Back`); in this
+    /// right-handed world (camera.rs: `look_at_rh`, `perspective_rh`) a
+    /// triangle a, b, c is counter-clockwise on screen exactly when
+    /// `(b - a) x (c - a)` points at the camera. So every triangle of a
+    /// sphere seen from outside has that normal pointing AWAY from the
+    /// sphere's centre, which here is the origin: it has to agree with the
+    /// triangle's centroid, `(a + b + c) / 3`, taken as a direction.
+    ///
+    /// Red check, run 2026-10-03: with the order `sphere_data` shipped with,
+    /// `[a, b, a + 1, a + 1, b, b + 1]`, this FAILS on the first size with
+    /// every checked triangle facing in (the assert's message lists them). With
+    /// the order swapped, `[a, a + 1, b, a + 1, b + 1, b]`, it passes.
+    ///
+    /// The sizes are the ones the engine draws: the build-mode gizmos and
+    /// bulbs (unit, 12 x 16 and 10 x 14), the port nodes and flow beads, the
+    /// avatar's head, the showroom planet (30 m, 24 x 32), the figures' heads
+    /// (16 x 24), and the smallest the constructor allows (2 x 3).
+    #[test]
+    fn sphere_triangles_face_away_from_its_centre() {
+        use glam::Vec3;
+        for (radius, stacks, slices) in [
+            (1.0f32, 12u32, 16u32),
+            (1.0, 10, 14),
+            (0.05, 10, 12),
+            (0.10, 10, 10),
+            (0.14, 12, 14),
+            (30.0, 24, 32),
+            (0.17, 16, 24),
+            (1.0, 2, 3),
+        ] {
+            let (v, idx) = Mesh::sphere_data(radius, stacks, slices);
+            let mut faced_out = 0usize;
+            let mut faced_in = Vec::new();
+            for (k, t) in idx.chunks(3).enumerate() {
+                let p = |i: u32| Vec3::from(v[i as usize].position);
+                let (a, b, c) = (p(t[0]), p(t[1]), p(t[2]));
+                // The normal the winding gives, by the CCW-front rule.
+                let n = (b - a).cross(c - a);
+                // A triangle with two corners on a pole has no area and no
+                // facing (f32's sin(PI) is -8.7e-8, so the south pole's
+                // corners are a hair apart and the sign there is noise).
+                if n.length() <= 1.0e-5 * (b - a).length() * (c - a).length() {
+                    continue;
+                }
+                if n.dot(a + b + c) > 0.0 {
+                    faced_out += 1;
+                } else {
+                    faced_in.push(k);
+                }
+            }
+            assert!(
+                faced_in.is_empty(),
+                "sphere r {radius}, {stacks} x {slices}: {} of {} triangles face IN \
+                 (toward the centre), so the opaque pipeline culls the near side and \
+                 draws the far inside: {faced_in:?}",
+                faced_in.len(),
+                faced_in.len() + faced_out
+            );
+            // And the check saw the whole sphere: every triangle but the one
+            // pole sliver per slice at each pole.
+            assert_eq!(
+                faced_out,
+                (2 * stacks * slices - 2 * slices) as usize,
+                "sphere r {radius}, {stacks} x {slices}: not every triangle off the poles was checked"
+            );
+        }
+    }
+
+    /// EVERY GENERATOR IN THIS FILE IS WOUND TO FACE THE WAY ITS NORMALS SAY
+    /// (BUG-128, 2026-10-03). The sphere was not the only place a winding
+    /// could go wrong unseen: a back face is simply not drawn, so a
+    /// generator wound inside out still shows SOMETHING (its far inside) and
+    /// passes a glance. This runs the shared check over every closed or
+    /// one-sided shape here, at the sizes and directions the engine uses them
+    /// (tubes along each axis, since their frame changes near vertical).
+    ///
+    /// Red check, run 2026-10-03: with the pyramid's base as it shipped,
+    /// `[bi, bi + 2, bi + 1, bi, bi + 3, bi + 2]` (its comment said "front
+    /// faces -Y"; the winding faced +Y, into the pyramid), this FAILS with
+    /// "pyramid: triangles [4, 5] ...". The sphere's old order fails it too.
+    ///
+    /// Not here: `placeholder` (one triangle of no area, never drawn) and the
+    /// two data-driven builders. `from_icosphere`'s faces come from
+    /// terrain::icosphere and are checked by the next test; the planet
+    /// surface's are built and tested in terrain/.
+    #[test]
+    fn every_generator_here_is_wound_to_face_its_normals() {
+        use glam::Vec3;
+        let (o, x, y, z) = (Vec3::ZERO, Vec3::X, Vec3::Y, Vec3::Z);
+        let path = [Vec3::new(0.0, 2.4, 0.0), Vec3::new(1.5, 2.4, 0.0), Vec3::new(1.5, 2.4, 2.0), Vec3::new(1.5, 0.3, 2.0)];
+        let cases: Vec<(&str, (Vec<Vertex>, Vec<u32>))> = vec![
+            ("cube", Mesh::cube_data()),
+            ("plane", Mesh::plane_data()),
+            ("cylinder", Mesh::cylinder_data(9.0, 0.06, 32)),
+            ("cylinder_capped", Mesh::cylinder_capped_data(0.5, 0.15, 24)),
+            ("sphere", Mesh::sphere_data(1.0, 12, 16)),
+            ("box_xyz", Mesh::box_xyz_data(0.5, 1.55, 0.3)),
+            ("flat_ring", Mesh::flat_ring_data(48)),
+            ("pyramid", Mesh::pyramid_data(1.0, 1.0)),
+            ("octahedron", Mesh::octahedron_data(1.0)),
+            ("tube along x", Mesh::tube_data(o - x * 0.5, o + x * 0.5, 1.0, 12)),
+            ("tube up", Mesh::tube_data(o, y * 2.0, 0.05, 8)),
+            ("tube along z", Mesh::tube_data(z, o, 0.05, 8)),
+            ("polytube", Mesh::polytube_data(&path, 0.02, 8)),
+            ("segment along x", Mesh::segment_data(o, x * 3.0, 0.05)),
+            ("segment up", Mesh::segment_data(o, y * 3.0, 0.05)),
+        ];
+        for (name, (v, idx)) in &cases {
+            let (checked, wrong) = triangles_facing_against_their_normals(v, idx);
+            assert!(checked > 0, "{name}: no triangle was checked");
+            assert!(
+                wrong.is_empty(),
+                "{name}: triangles {wrong:?} are wound against their normals (of {checked}), \
+                 so the opaque pipeline culls them from the side they are meant to be seen from"
+            );
+        }
+    }
+
+    /// `from_icosphere` passes terrain::icosphere's faces straight through, and
+    /// the planet shells' fragment entries (`fs_shell`, `fs_cloud`) read the
+    /// rasterizer's `front_facing` to tell the shell's near side from its far
+    /// side, so they depend on those faces being wound outward. They are; this
+    /// pins it, through two subdivisions (each splits a face into four and
+    /// must keep its orientation).
+    #[test]
+    fn icosphere_faces_wind_outward() {
+        use glam::Vec3;
+        let mut ico = crate::terrain::icosphere::Icosphere::new();
+        ico.subdivide_n(2);
+        assert_eq!(ico.faces.len(), 320);
+        for (k, f) in ico.faces.iter().enumerate() {
+            let p = |i: u32| ico.vertices[i as usize];
+            let (a, b, c): (Vec3, Vec3, Vec3) = (p(f.v0), p(f.v1), p(f.v2));
+            assert!((b - a).cross(c - a).dot(a + b + c) > 0.0, "icosphere face {k} faces in");
+        }
     }
 }

@@ -576,6 +576,31 @@
       "date": "2026-10-03",
       "decision": "Overnight combined release v0.1442.0: ship-homes increment 1a (ship_structure.ron + data/homes/homestead.ron + data/machines/ship.ron, assemble at plot, Dev Plots/Districts panel in construction/ship_tools.rs, E-key footprint bound, ship machines read-only outside Dev); save snapshots + Restore (BUG-129); Back up now keeps 10 (BUG-130); figures (BUG-127; BUG-128 inside-out Mesh::sphere open); shared DXC lookup scripts/lib/dxc-dlls.js.",
       "why": "Operator asked for overnight development with more parallel lanes (usage reset). Each lane builder + critic, fix rounds; shipped together after one combined verify because 1a and the lanes shared lib.rs, photograph-home.js and in-app-ops.md."
+    },
+    {
+      "date": "2026-10-03",
+      "decision": "Merged fix-tower-hero-models (v0.1443.0): crop palettes re-encoded linear-to-sRGB with a kd_space stamp, converter requires --kd, 68 faces re-cut, white key only for alpha-less textures, 15 degree net-cup tip, leaf-back normal flip removed.",
+      "why": "The black tower sprouts were the palette colour space, not the engine; my 2026-10-02 offline conclusion (engine side) was wrong."
+    },
+    {
+      "date": "2026-10-03",
+      "decision": "Merged fix-station-vantage (v0.1444.0, BUG-132): the station camera verb places the camera with the offset of the frame it now rides, and camera_done is written a frame or two later with the MEASURED home-frame position, error, look, station_ride and clock_settled. probe-sweep judges every station park. Critic gaps closed on main: a park without a pose (default view, screen) is judged against the look the engine reported (requested_yaw_pitch), and vantages.json puts a station view straight after a planet view (the order that exposed it), pinned by a rig test.",
+      "why": "Station vantages had captured empty space since at least v0.1441.0 while probe-sweep reported ok. Both new tests were red-checked; the first draft of the look test could not fail (it fed the checker a field it does not read), caught by reverting the change and seeing it still pass."
+    },
+    {
+      "date": "2026-10-03",
+      "decision": "Merged BUG-128 (v0.1445.0): Mesh::sphere faced in on every triangle (rows run down from the pole; the index pattern was copied from the open cylinder, whose rings run up). Fixed there and in six copies or relatives (hologram sphere, pin head and stem, orbit ring, pyramid base, fruit sphere and cone). Winding tests for every mesh.rs generator, seen red. Rig: 7 home rooms before/after, 0 panics, no visible regression; the visible gain was not photographed (no standard view frames a large opaque sphere).",
+      "why": "Opaque spheres showed their far inside; the fruit was also lit from inside. Kept the scope beyond the sphere because each extra shape was proven wrong by a failing test."
+    },
+    {
+      "date": "2026-10-03",
+      "decision": "Increment 1b red check done by pointing the 1b rig at the v0.1444.0 (1a) archive instead of reverting source (the builder was refused a revert): five plot checks failed, camera_in_p2 at (53.50, 1.70, 40.50) as predicted; the other 15 passed. Logged BUG-133 (check-fresh-exe judges by dates, so a build from another tree passes) and dispatched a fingerprint fix to a worktree.",
+      "why": "The 1b proof needed its red; using an older build is non-destructive. The same path showed the freshness gate cannot tell which tree a binary came from."
+    },
+    {
+      "date": "2026-10-03",
+      "decision": "Merged BUG-133 (v0.1446.0): the rigs freshness gate compares a SHA-256 fingerprint of the compiled-in sources, stamped into the exe by build.rs, with the tree; dates no longer decide. --allow-other-build \"<reason>\" for deliberate red runs, recorded in rig manifests. Every exe built before this is unstamped and refused by the rigs and launch-bg (not by the operator's just launch).",
+      "why": "A 1a build passed the 1b worktree's gate as \"the current build\" because it was newer by date. Residuals logged in BUGS: probe-sweep has no gate, rigs copy after checking, ~30 compiled-in data files are not fingerprinted."
     }
   ],
   "active_scopes_to_avoid": [

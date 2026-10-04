@@ -449,44 +449,24 @@ pub(crate) fn remote_figure_top(eye: glam::Vec3, look: Option<&crate::player_loo
 /// The head mesh every figure's head and hair are drawn with (2026-10-03): a
 /// UV sphere of `radius` centred on its origin, wound counter-clockwise seen
 /// from outside, which is the side the opaque pipeline draws
-/// (renderer/pipeline.rs: `FrontFace::Ccw`, back faces culled).
+/// (renderer/pipeline.rs: `FrontFace::Ccw`, back faces culled). It is the
+/// engine's own sphere (`Mesh::sphere_data`) at 16 x 24, fine enough that
+/// the hair (only 4 to 8% bigger than the head) does not let the head's flat
+/// facets poke through it at the sides.
 ///
-/// Why not `Mesh::sphere`: its triangles are wound the other way, all of them
-/// (0 of 308 at 12 x 14 face out), so the pipeline culls the near half and
-/// draws the far half from inside. A lone sphere still looks round that way,
-/// but put the hair over the head and, wherever the hair runs inside the
-/// head, its far inside is nearer than the head's: that was the dark band
-/// across another player's face (2026-10-03 co-presence screenshot), and the
-/// hair's crown, the part meant to show, was hidden behind the head's far
-/// inside. 16 x 24 so the hair (only 4 to 8% bigger) does not let the head's
-/// flat facets poke through it at the sides.
+/// For a few hours this was its own copy of the sphere loop, because
+/// `Mesh::sphere` was wound the other way, every triangle of it (BUG-127):
+/// the pipeline culled each sphere's near half and drew its far half from
+/// inside. A lone sphere still looks round that way, but put the hair over
+/// the head and, wherever the hair runs inside the head, its far inside is
+/// nearer than the head's: the dark band across another player's face (the
+/// 2026-10-03 co-presence screenshot), with the hair's crown hidden behind
+/// the head's far inside. BUG-128 turned `Mesh::sphere` itself the right way
+/// out, so the copy went; the test below still checks every triangle.
 pub(crate) fn figure_head_mesh_data(radius: f32) -> (Vec<crate::renderer::mesh::Vertex>, Vec<u32>) {
     const STACKS: u32 = 16;
     const SLICES: u32 = 24;
-    let mut v = Vec::new();
-    for i in 0..=STACKS {
-        let phi = std::f32::consts::PI * i as f32 / STACKS as f32;
-        for j in 0..=SLICES {
-            let theta = std::f32::consts::TAU * j as f32 / SLICES as f32;
-            let n = [phi.sin() * theta.cos(), phi.cos(), phi.sin() * theta.sin()];
-            v.push(crate::renderer::mesh::Vertex {
-                position: [radius * n[0], radius * n[1], radius * n[2]],
-                normal: n,
-                uv: [j as f32 / SLICES as f32, i as f32 / STACKS as f32],
-            });
-        }
-    }
-    let row = SLICES + 1;
-    let mut idx = Vec::new();
-    for i in 0..STACKS {
-        for j in 0..SLICES {
-            // a is this ring, b the ring below; a + 1 is the next step round.
-            let a = i * row + j;
-            let b = a + row;
-            idx.extend_from_slice(&[a, a + 1, b, a + 1, b + 1, b]);
-        }
-    }
-    (v, idx)
+    crate::renderer::mesh::Mesh::sphere_data(radius, STACKS, SLICES)
 }
 
 /// The material cache key for a look's colours: each channel in 64 steps, so
