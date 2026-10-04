@@ -45,6 +45,24 @@ impacts are possible; a Warning means impacts are expected or
 happening." A watch means get ready and know what you will do; a warning
 means do it now.
 
+**Tornadoes.** The same NOAA page spells out both words for tornadoes: "A
+Tornado Watch means a tornado is possible: know your safe place and be
+ready to act quickly if a Warning is issued. A Tornado Warning means a
+tornado is happening or about to happen - immediately seek shelter in
+your safe place!" The National Weather Service says where that safe
+place is:
+
+- At home: your basement, a safe room, or an interior room away from
+  windows.
+- Outside: get inside a sturdy building at once. Sheds and storage
+  buildings are not safe, and neither is a mobile home or a tent.
+- In a vehicle: it is not safe. Drive to the closest shelter; if you
+  cannot reach one, either get down in the car and cover your head, or
+  leave the car for a low spot such as a ditch or ravine.
+
+Choose your safe place, and show everyone in the house, before the
+season's storms begin (general practice).
+
 **Have a way to hear warnings.** NOAA advises turning on Wireless
 Emergency Alerts on your phone to receive warnings. NOAA Weather Radio
 broadcasts the warnings, watches and forecasts of your nearest National
@@ -55,10 +73,12 @@ reminds us that detailed forecasts are accurate only out to seven days
 at best, so check again before you set out.
 
 **Lightning.** JetStream's lightning safety page is blunt: "If you hear
-thunder, then lightning is near." Lightning can reach far from the
-storm itself: "Lightning can strike more than 10 miles away from the
-location of rainfall." Most people struck are struck before or after the
-storm's peak, often where no rain is falling. So:
+thunder, then lightning is near." It adds that most people struck are
+struck not at the height of a storm but before or after its peak, and
+that lightning reaches far from the storm itself: "Lightning can strike
+more than 10 miles away from the location of rainfall." So do not wait
+for the rain to start before you go in, and do not come out just because
+it has stopped. And:
 
 - At the first thunder, go to safe shelter: a substantial building with
   electricity or plumbing, or an enclosed, metal-topped vehicle with the
@@ -88,9 +108,10 @@ JetStream's slogan is Turn Around Don't Drown.
 
 **Cold and heat.** [Cold and Hypothermia](cold_and_hypothermia.md)
 explains why wind and wet are what turn a cold day dangerous, and what to
-do about it. On heat, the National Weather Service says it is
-never safe to leave a child, a disabled person or a pet locked in a car,
-even in winter.
+do about it. [Heat and How It Moves](heat_and_how_it_moves.md) gives
+the signs of heat exhaustion and heat stroke and what to do for each. On
+heat, the National Weather Service also says it is never safe to leave a
+child, a disabled person or a pet locked in a car, even in winter.
 
 **Reading is not chasing.** Watching a storm build from a safe place is
 the skill. Driving towards one is a different activity with different
@@ -310,12 +331,22 @@ stages:
 
 So a sudden cool, gusty wind on a warm, humid afternoon, with dark cloud
 nearby, means the storm is close; by then you should already be
-indoors (our reading of the handbook). Storms often come in clusters or
-lines that last for hours, with new cells forming as old ones die, the
-handbook adds, so one storm passing is no promise that the next will
-not follow. JetStream gives two signs of a severe storm: hail an inch
-across or larger, and a squall, a sudden rise in wind of at least 18 mph
-that holds at 25 mph or more for at least a minute.
+indoors (our reading of the handbook). The handbook's chapter on
+turbulence adds that a gust front can run as far as 15 miles ahead of
+the storm's rain, often marked by a low shelf or roll cloud along the
+storm's leading edge, or by a line of blowing dust. Storms often come in
+clusters or lines that last for hours, with new cells forming as old
+ones die, the handbook adds, so one storm passing is no promise that the
+next will not follow.
+
+What makes a storm severe is set by the National Weather Service: a
+thunderstorm counts as severe when it brings at least one of "Hail that
+is one (1) inch in diameter or larger" or "Winds of 58 miles per hour
+(mph) or greater". JetStream gives the same hail figure. A tornado has
+warnings of its own (above). JetStream also defines a squall, a word you
+will hear with storms, as a sudden rise in wind of at least 18 mph that
+holds at 25 mph or more for at least a minute, and notes that the word
+refers only to that rise in wind, not to any other weather with it.
 
 ## The sayings, tested
 
@@ -459,6 +490,8 @@ from the real sky.
 - You know the difference between a watch and a warning, have Wireless
   Emergency Alerts or a NOAA Weather Radio, and check the forecast before
   you go out.
+- You know your tornado safe place, and go to it at once when a Tornado
+  Warning is issued.
 - At the first thunder you go to a building or a hard-topped vehicle, and
   you stay there 30 minutes after the last.
 - You never drive or walk into flood water.
@@ -509,7 +542,8 @@ were read on 4 October 2026.
   minutes after the last thunder; corded phones, plumbing, windows;
   rules for when caught outside; rubber soles no protection; most
   people struck before and after the peak; "Lightning can strike more
-  than 10 miles away from the location of rainfall."; detailed forecasts
+  than 10 miles away from the location of rainfall."; not waiting for the
+  rain to start or leaving shelter because it has ended; detailed forecasts
   accurate only out to seven days at best).
   https://www.noaa.gov/jetstream/lightning/lightning-safety
 - JetStream. Flood, last updated 2 June 2023 (floods the deadliest weather
@@ -524,12 +558,14 @@ were read on 4 October 2026.
   https://www.noaa.gov/jetstream/nws_intro/noaa-weather-radio-all-hazards
 - JetStream. Types of Weather Phenomena, last updated 20 September 2023
   (mist and haze by the temperature-dew point spread; hail of 1 inch or
-  more indicating a severe thunderstorm; the definition of a squall).
+  more indicating a severe thunderstorm; the definition of a squall, a
+  word that refers only to the rise in wind).
   https://www.noaa.gov/jetstream/synoptic/types-of-weather-phenomena
 - National Oceanic and Atmospheric Administration. Understand Forecast
   Information, last updated 30 April 2026 ("In general, a Watch means
   impacts are possible; a Warning means impacts are expected or
-  happening."; Wireless Emergency Alerts; trusted official sources).
+  happening."; the Tornado Watch and Tornado Warning quoted; Wireless
+  Emergency Alerts; trusted official sources).
   https://www.noaa.gov/understand-forecast-information
 - NOAA Global Monitoring Laboratory. Red sky at night, sailor's delight,
   undated (high pressure, aerosols and red skies; west-to-east movement
@@ -545,6 +581,17 @@ were read on 4 October 2026.
 - National Weather Service. Heat Safety Tips and Resources, undated (never
   safe to leave a child, a disabled person or a pet locked in a car,
   even in winter). https://www.weather.gov/safety/heat
+- National Weather Service. What to do During a Tornado, undated (at
+  home a basement, safe room or interior room away from windows; outside,
+  a sturdy building, with sheds, storage buildings, mobile homes and
+  tents not safe; in a vehicle, drive to the closest shelter, or get down
+  and cover your head, or leave it for a ditch or ravine).
+  https://www.weather.gov/safety/tornado-during
+- National Weather Service, Birmingham, Alabama office. What Constitutes
+  a Severe Thunderstorm?, undated (severe means at least one of "Hail
+  that is one (1) inch in diameter or larger" or "Winds of 58 miles per
+  hour (mph) or greater").
+  https://www.weather.gov/bmx/outreach_svr
 - Federal Aviation Administration, Flight Standards Service. *Aviation
   Weather Handbook*, FAA-H-8083-28B, signed and published 2 April 2026
   (chapter 6, the temperature-dew point spread and relative humidity;
@@ -554,7 +601,9 @@ were read on 4 October 2026.
   25 mph with its clouds, winds and pressure, the cold front at 25 to 30
   mph with its showers, wind shift and clearing; chapter 18, fog seldom
   forming when the spread exceeds 2 C, radiation, valley and advection
-  fog; chapter 22, the three ingredients of a thunderstorm, the towering
+  fog; chapter 19, section 19.2.1.1, gust fronts often running far ahead
+  of the rain, up to 15 miles, and marked by a shelf or roll cloud or a
+  line of dust; chapter 22, the three ingredients of a thunderstorm, the towering
   cumulus, mature and dissipating stages over about 30 minutes, the gust
   front, multicell clusters and lines; chapter 24, the pressure rising
   or falling rapidly remark at 0.06 inch an hour). The handbook was
@@ -588,11 +637,14 @@ were read on 4 October 2026.
   Way Is North](knowing_which_way_is_north.md), [The Sky as an
   Instrument](the_sky_as_an_instrument.md), [Sound and
   Hearing](sound_and_hearing.md), [Cold and
-  Hypothermia](cold_and_hypothermia.md) and [Keeping
+  Hypothermia](cold_and_hypothermia.md), [Heat and How It
+  Moves](heat_and_how_it_moves.md) and [Keeping
   Records](keeping_records.md).
 
 ### Labelled in the text as general practice, arithmetic or our reading, not sourced
 
+- Choosing a tornado safe place, and showing it to everyone in the house,
+  before the storm season.
 - That a warning wins over your own reading of the sky, and that official
   forecasts draw on satellites, radar and computer models and beat
   doorstep reading beyond a few hours (general knowledge).

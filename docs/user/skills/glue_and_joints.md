@@ -71,15 +71,29 @@ are the reason to be careful with every solvent cement:
 
 The ban left the less flammable solvent cements on sale; the rule names
 them, with non-flammable and water-based cements, as the alternatives.
-The Wood Handbook notes that construction and contact adhesives contain
-solvents with low flash points whose vapour can build up and explode in
-a small space without ventilation. So: follow the label's directions on
-flames and ventilation; put out flames and pilot lights and turn off
-heaters and anything with a motor or a switch in the house while the
-vapour is about; keep the work ventilated to the outdoors; and keep
-everyone else away (general practice, drawn from the CPSC's findings).
-Or choose a water-based contact cement; the CPSC rule notes that these
-dry more slowly in humid weather.
+The non-flammable ones are not harmless. They are made with chlorinated
+solvents, and the Wood Handbook says: "Solvents in these adhesives are
+generally toxic, but harmful effects can be avoided by providing
+adequate ventilation and following the manufacturer's safety
+instructions." The handbook also notes that construction and contact
+adhesives contain solvents with low flash points whose vapour can build
+up and explode in a small space without ventilation.
+
+So, as general practice drawn from the CPSC's findings:
+
+- Follow the label's directions on flames and ventilation.
+- Before you open the can, put out every flame, turn off heaters, and
+  unplug anything with a motor, the refrigerator included, because its
+  motor starts by itself.
+- Once vapour is in the air, do not work any switch and do not plug in or
+  unplug anything: the CPSC counted sparks from a wall outlet among the
+  things that lit it.
+- Keep the work ventilated to the outdoors, and keep everyone else away.
+- If your home has gas pilot lights, use a water-based contact cement
+  instead; the CPSC rule notes that these dry more slowly in humid
+  weather. If a pilot light has gone out or been put out, air the house
+  out fully before it is relit, and relight it only as the appliance's
+  own instructions say.
 
 ### Fumes
 
@@ -103,7 +117,9 @@ strong skin sensitizers, and that chemical sensitivity can come from
 repeated exposure to uncured adhesives. It calls the isocyanates in
 polyurethane and
 similar glues sensitizers capable of causing occupational asthma, and
-says chronic contact with the uncured glue should be avoided. Wear
+says chronic contact with the uncured glue should be avoided. It adds
+that the formaldehyde hardener used with resorcinol glues "is a severe
+irritant." Wear
 disposable gloves to mix and spread these glues, keep them off your
 skin, wash any that gets on it, and work with air moving. If a rash or
 any trouble breathing appears after using them, stop and see a doctor
@@ -111,13 +127,16 @@ any trouble breathing appears after using them, stop and see a doctor
 
 ### Super glue
 
-Super glue is a cyanoacrylate. NIOSH notes that contact with moisture
-makes it set rapidly (which is why it grabs damp skin so fast, our
+Super glue is a cyanoacrylate. NIOSH's entry for one cyanoacrylate,
+methyl-2-cyanoacrylate, notes that contact with moisture makes it set
+rapidly (which is why super glue grabs damp skin so fast, our
 explanation), and that it irritates the eyes, skin and nose, with
-blurred vision and watering eyes. Its first aid for the eyes is to irrigate them immediately. So:
-keep it below eye level and away from your face; if it gets in an eye,
-flush the eye with water at once and get medical care that day; do not
-pull glued skin apart (general practice). For a swallowed glue or any
+blurred vision and watering eyes. Its first aid for the eyes is to
+irrigate them immediately. So: keep it below eye level and away from
+your face; if it gets in an eye, flush the eye with water at once and
+get medical care that day; if eyelids are stuck together, do not force
+them open, get medical care; and do not pull glued skin apart (general
+practice). For a swallowed glue or any
 poisoning question, the Poison Help line, 1-800-222-1222, connects you
 to your local poison centre from anywhere in the United States, at any
 time.
@@ -139,7 +158,7 @@ The Wood Handbook describes a glued joint as a chain of links: the wood,
 the zone where the glue has soaked into the wood, the boundary between
 glue and wood, and the glue itself. The joint is only as strong as the
 weakest link. For the glue to grip, it has to wet the wood, meaning
-cover it completely at the microscopic scale, and soak into sound wood,
+cover it completely at the molecular scale, and soak into sound wood,
 typically two to six cells deep, so that it locks around the fibres.
 The handbook's standard for an excellent bond is that the wood breaks
 well away from the glue line, and that the bond is as strong as solid
@@ -180,10 +199,11 @@ better than to their ends. The Wood Handbook puts numbers on it:
   gives dowels, mortise and tenons, and rabbets as examples of strong
   ones.
 
-The carpentry manual agrees from the building side. A butt joint, the end
-of one board against another, is the weakest type of joint because end
-grain is the weakest part of the wood. A miter joint is very weak and
-should not be used where strength matters. The lap joint is the
+The carpentry manual agrees from the building side, though it is rating
+framing joints held with nails or screws, not glued ones. A butt joint,
+the end of one board against another, is the weakest type of joint
+because end grain is the weakest part of the wood. A miter joint is very
+weak and should not be used where strength matters. The lap joint is the
 strongest, and the half-lap, where half the thickness is cut from each
 piece so they overlap flush, is relatively strong and easy to make.
 
@@ -199,14 +219,14 @@ more across the grain than along it, joints that meet end grain to
 edge grain suffer large stresses when the moisture changes, and should
 be protected from changes in moisture once in use.
 
-| Joint | Strength glued | What to know |
+| Joint | Strength | What to know |
 |---|---|---|
-| Edge to edge (long grain) | Can equal the wood | The best joint for glue alone (Wood Handbook) |
-| Butt (end to face) | The weakest | Needs fasteners, blocks or a better joint (FM 5-426) |
-| Miter | Very weak | Not where strength matters (FM 5-426) |
-| Half-lap | Relatively strong | Easy to cut (FM 5-426) |
-| Dowel, mortise and tenon, rabbet | Strong | Interlocking shapes give long-grain glue area (Wood Handbook) |
-| Scarf or finger, 1 in 12 | Up to 90 percent of clear wood | End to end (Wood Handbook) |
+| Edge to edge (long grain) | Can equal the wood, glued | The best joint for glue alone (Wood Handbook) |
+| Butt (end to face) | The weakest | Needs fasteners, blocks or a better joint (FM 5-426, rated as nailed or screwed framing) |
+| Miter | Very weak | Not where strength matters (FM 5-426, rated as nailed or screwed framing) |
+| Half-lap | Relatively strong | Easy to cut (FM 5-426, rated as nailed or screwed framing) |
+| Dowel, mortise and tenon, rabbet | Strong, glued | Interlocking shapes give long-grain glue area (Wood Handbook) |
+| Scarf or finger, 1 in 12 | Up to 90 percent of clear wood, glued | End to end (Wood Handbook) |
 
 ## Choosing a glue
 
@@ -219,7 +239,7 @@ find in a hardware shop. In short:
 | Cross-linkable PVA (some water-resistant wood glues are this type: general practice) | Like PVA, with better resistance to moisture and heat | Still not for constant wetting (general practice) |
 | Polyurethane | Strong dry and wet; fills gaps; needs moisture to cure, so it is spread on one surface, best lightly misted with water | Repeated wetting and drying; isocyanate hazard (above) |
 | Epoxy | Two parts mixed; fills gaps; needs only low clamping pressure; bonds wood, metal, glass and plastic | Wood formulations resist water but can come apart under repeated wetting and drying; skin sensitizer |
-| Resorcinol | Very resistant to moisture and heat; for laminated timbers and joints in severe service; dark red glue line | Two parts; made mostly for industry |
+| Resorcinol | Very resistant to moisture and heat; for laminated timbers and joints in severe service; dark red glue line | Two parts; made mostly for industry; its formaldehyde hardener is a severe irritant (above) |
 | Contact cement | Instant bond when the two dry faces meet; plastic laminate on counters | Low strength, creeps under steady load, weak against water; solvent hazard |
 | Construction adhesive (caulking-gun tubes) | Fills gaps up to 1/4 inch; tolerates wet or frozen lumber; floors and walls | Needs nails or screws to hold the parts while it sets; strength builds over weeks |
 | Hot melt | Gains strength quickly as it cools; fills gaps | Lower strength than wood glues |
@@ -404,7 +424,8 @@ shape matters more than the glue.
 
 - You read a glue's label before opening it, and work with solvent glues
   only with the air moving to the outdoors and no flame, pilot light or
-  sparking motor in the house.
+  sparking motor in the house, and you touch no switch or plug once the
+  vapour is about.
 - You wear gloves for epoxy and polyurethane glue, keep super glue away
   from your face, and know to flush an eye at once and get it seen.
 - You know the Poison Help number, 1-800-222-1222.
@@ -449,16 +470,18 @@ updated in place. Web pages and documents were read on 4 October 2026.
   interlocking shapes and protection from moisture changes; construction
   adhesive with nails or screws, not counted in design; health and
   safety: uncured adhesives, epoxy amine hardeners as skin sensitizers,
-  isocyanates and occupational asthma, solvents with low flash points,
-  fine dust). Read from the Forest Service Treesearch copy because the
+  formaldehyde hardener for resorcinol "a severe irritant", isocyanates
+  and occupational asthma, solvents with low flash points, less
+  flammable chlorinated-solvent formulations "generally toxic", fine
+  dust; wetting "at the molecular scale"). Read from the Forest Service Treesearch copy because the
   Forest Products Laboratory site was unavailable on the day.
   https://research.fs.usda.gov/treesearch/62250
 - Headquarters, Department of the Army. *Carpentry*, FM 5-426, 3 October
   1995, approved for public release, chapter 6, Rough Framing,
-  Connections (weak points at connections and poor workmanship; the
-  butt joint as the weakest, end grain the weakest part; the miter joint
-  very weak; the lap joint the strongest; the half-lap relatively strong
-  and easy).
+  Connections (weak points at connections and poor workmanship; joints
+  rated as framing fastened with nails or screws: the butt joint as the
+  weakest, end grain the weakest part; the miter joint very weak; the
+  lap joint the strongest; the half-lap relatively strong and easy).
   https://archive.org/download/MManuals/UsArmyEngineerCarpentry1995.pdf
 - Departments of the Army, Navy, Air Force and Marine Corps. *Use and
   Care of Hand Tools and Measuring Tools*, TM 9-243, dated 12 December
@@ -476,8 +499,9 @@ updated in place. Web pages and documents were read on 4 October 2026.
   1302.5 on ignition by pilot lights, space heaters, refrigerator motor
   and wall outlet sparks and friction, often in other parts of the
   house; a pint as a substantial explosion hazard; labelling found
-  inadequate; flammable and water-based contact adhesives as
-  alternatives, water-based ones drying slowly in humid weather).
+  inadequate; flammable, non-flammable (chlorinated) and water-based
+  contact adhesives as alternatives, water-based ones drying slowly in
+  humid weather).
   https://www.ecfr.gov/current/title-16/chapter-II/subchapter-B/part-1302
 - National Institute for Occupational Safety and Health. *NIOSH Pocket
   Guide to Chemical Hazards*, Methyl-2-cyanoacrylate, page last reviewed
@@ -518,12 +542,16 @@ updated in place. Web pages and documents were read on 4 October 2026.
 ### Labelled in the text as general practice, arithmetic or our reading, not sourced
 
 - Reading the label before opening the tube.
-- Which flames, heaters and motors to turn off for solvent cement, and
-  keeping others away, drawn from the CPSC's findings and the label.
+- Which flames, heaters and motors to turn off for solvent cement before
+  the can is opened, working no switch or plug once vapour is about,
+  keeping others away, choosing a water-based cement in a home with gas
+  pilot lights, and airing the house before a pilot is relit by the
+  appliance's instructions, drawn from the CPSC's findings and the label.
 - Gloves, washing skin and moving air for epoxy and polyurethane, and
   seeing a doctor for a rash or breathing trouble.
 - Keeping super glue away from the face, getting an eye seen the same
-  day, and not pulling glued skin apart; the use and gap-filling of
+  day, not forcing stuck eyelids open, and not pulling glued skin apart;
+  the use and gap-filling of
   cyanoacrylate; and the explanation that its quick set on moisture is
   why it grabs damp skin.
 - Hot glue gun habits.

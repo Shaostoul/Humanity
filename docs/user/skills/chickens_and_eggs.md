@@ -121,10 +121,12 @@ In May 2021 Clark County, Washington, and its fire marshal warned that
 heat lamps used to keep animals warm on cold spring nights had caused
 multiple fires in the county, and passed on these tips from the National
 Fire Protection Association: secure the lamp properly, because its
-spring clamp alone will not stop it falling; keep lamps and heaters away
-from anything that can burn; brush dust and cobwebs off fixtures and
-outlets; use electrical equipment made for farm or commercial use; and
-do not run extension cords into a coop.
+spring clamp alone will not stop it falling; stand a space heater on a
+firm, steady surface where it cannot be knocked over; keep lamps and
+heaters away from anything that can burn; brush dust and cobwebs off
+fixtures and outlets; fit bulbs with covers that keep dirt off them; use
+electrical equipment made for farm or commercial use; and do not run
+extension cords into a coop.
 
 North Dakota State University's extension service, writing about lamps
 for young livestock in March 2023, adds detail: hang the lamp from
@@ -134,7 +136,8 @@ lamps with thick glass bulbs; clean off dust, cobwebs and dead insects
 and look for bare wires, loose sockets or broken bulbs before each use;
 plug the lamp straight into an outlet, not an extension cord, on a
 circuit protected against both ground faults (a GFCI) and arc faults (an
-AFCI); keep a 10-pound ABC fire extinguisher by the door; and check the
+AFCI), without putting more on that circuit than it can carry; keep a
+10-pound ABC fire extinguisher by the door; and check the
 lamp several times a day, because an animal knocking it or chewing its
 cord can start a fire in minutes.
 
@@ -157,8 +160,13 @@ wash their hands; keep run soil out of the house by cleaning tools and
 changing shoes; and cover the run with clean soil, mulch or other clean
 material. Where the soil is high in lead or its level is not well known,
 it says to give feed, grit and calcium in feeders rather than scattering
-feed or scraps on bare ground. Have the soil tested before the
-birds go in; [Testing and Correcting
+feed or scraps on bare ground. For gardens whose eggs carried more lead,
+it adds more: keep the hens away from buildings painted with lead paint
+and off the soil with more lead in it, do not feed them unwashed scraps
+from that ground, brush dust and soil off the eggshells before using the
+eggs, and, because lead can collect more in the yolk than in the white,
+think about giving young children fewer yolks. Have the soil tested
+before the birds go in (general practice); [Testing and Correcting
 Soil](testing_and_correcting_soil.md) explains where lead is likely and
 how to sample for it.
 
@@ -205,7 +213,10 @@ weeks, and a layer feed of 14 to 16 percent protein, with about 3.5 to
 4 percent calcium, from eighteen weeks on. The order matters. The same
 guide says chicks given layer feed develop kidney problems and rickets,
 because they cannot use the extra calcium, and layers given starter or
-grower feed do not get enough calcium to make eggs. Some starter feed is medicated against
+grower feed do not get enough calcium to make eggs. The Pacific Northwest
+publication gives one more reason to keep starter feed away from laying
+hens: the drugs in medicated starter can leave residues in their eggs.
+Some starter feed is medicated against
 coccidiosis, an intestinal parasite; Florida notes that medicated feed
 works against the live coccidiosis vaccine, so ask the hatchery whether
 the chicks were vaccinated before you choose.
@@ -230,7 +241,10 @@ pullets are 18 to 20 weeks old.
 
 **Litter and cleaning.** Georgia recommends an absorbent litter such as
 pine shavings, rice hulls or peanut shells, with soiled litter replaced
-as it gets dirty. Florida suggests cleaning the nest boxes weekly and
+as it gets dirty. Georgia advises against hardwood shavings: mould sometimes
+grows in hardwood shavings that have begun to compost in storage, and
+breathing it in can cause a serious brain infection, in chicks and in
+the people who look after them. Florida suggests cleaning the nest boxes weekly and
 cleaning and disinfecting the whole coop at least once a year, following
 the disinfectant's label. The CDC's method for any cleaning: scrub off
 droppings and dirt with soap and warm water first, because most
@@ -396,6 +410,7 @@ useful benchmark for a home garden (our suggestion). It allows raw
 manure on land for food crops only if it is worked into the soil at
 least 120 days before harvesting a crop whose edible part touches the
 soil, or 90 days before one whose edible part does not. Composted manure
+must start with a carbon to nitrogen ratio between 25:1 and 40:1, and
 must have held 131 to 170 F (55 to 77 C) for 3 days in an enclosed vessel
 or a static aerated pile, or for 15 days in a windrow turned at least
 five times in that period. Florida's advice for a
@@ -420,7 +435,8 @@ hot.
   Decide now whether you will light the coop through the winter.
 - **Winter.** The CDC describes keeping poultry warm outdoors with a
   draft-free shelter or a safe heat source; the fire warnings above
-  apply to any heater. Water freezes, so check it morning and evening,
+  apply to any heater, including a space heater on a steady surface
+  where it cannot be knocked over and a circuit not overloaded. Water freezes, so check it morning and evening,
   or use a heated drinker made for poultry (general practice).
 - **Every day, all year.** Feed, water, eggs collected, the door shut at
   dusk and opened in the morning, a look at every bird.
@@ -518,7 +534,7 @@ nearly all of this guide is the work the game leaves out.
   plugged straight into a protected outlet, and check it several times a
   day.
 - You have tested the run's soil for lead if you live where it is
-  likely.
+  likely, and you keep the hens away from buildings with lead paint.
 - You buy from an NPIP hatchery and keep new birds apart for 30 days.
 - You can set up a brooder at the right temperature, feed starter,
   grower and layer feed at the right ages, and read chicks by where they
@@ -579,9 +595,9 @@ updated in place. Web pages and documents were read on 4 October 2026.
   egg cleaning operations in grading and packing plants (wash water at
   90 F or higher and at least 20 F warmer than the inside of the eggs;
   eggs not to stand or soak in water). The regulation prints the 20 F
-  difference as 6.7 C, which converts 20 F as a temperature rather than
-  as a difference; a difference of 20 F is about 11 C, the figure used
-  here.
+  difference as 6.7 C. That is the size of 20 F read as a temperature
+  (-6.7 C), not as a difference; a difference of 20 F is about 11.1 C,
+  and 11 C is the figure used here.
   https://www.ecfr.gov/current/title-7/subtitle-B/chapter-I/subchapter-C/part-56/subpart-A/section-56.76
 - Food and Drug Administration. 21 CFR 118.1, persons covered by the egg
   safety rule (shell egg producers with 3,000 or more laying hens at a
@@ -589,7 +605,8 @@ updated in place. Web pages and documents were read on 4 October 2026.
   https://www.ecfr.gov/current/title-21/chapter-I/subchapter-B/part-118/section-118.1
 - Agricultural Marketing Service, National Organic Program. 7 CFR
   205.203(c)(1) and (2) (raw manure incorporated 120 or 90 days before
-  harvest; compost held at 131 to 170 F for 3 days in an in-vessel or
+  harvest; compost started at a C:N ratio of 25:1 to 40:1 and held at
+  131 to 170 F for 3 days in an in-vessel or
   static aerated pile, or 15 days in a windrow turned at least five
   times).
   https://www.ecfr.gov/current/title-7/subtitle-B/chapter-I/subchapter-M/part-205/subpart-C/section-205.203
@@ -614,8 +631,9 @@ updated in place. Web pages and documents were read on 4 October 2026.
   https://ask.ifas.ufl.edu/publication/AN239
 - University of Georgia Cooperative Extension. Dunkley, C. *Management
   Guide for the Backyard Flock*, Circular 969, published with minor
-  revisions 16 September 2026 (3 to 3.5 square feet a bird; litter;
-  brooding at 90 F, lowered 5 F a week, with a cardboard ring; layer
+  revisions 16 September 2026 (3 to 3.5 square feet a bird; litter, and
+  hardwood shavings advised against because of mould that can cause a
+  serious brain infection in chicks and caretakers; brooding at 90 F, lowered 5 F a week, with a cardboard ring; layer
   ration from 18 weeks; breeds; feed as the greatest cost; treats
   limited to 10 to 20 minutes; 20 hens drinking about a gallon a day in
   cool weather; scrubbing drinkers daily; hens laying without roosters;
@@ -629,7 +647,9 @@ updated in place. Web pages and documents were read on 4 October 2026.
   commercial Leghorn, fewer from backyard breeds; day length, 14 to 16
   hours of light bright enough to read by, kept up without a lapse; the
   moult and the six-week winter rest; broodiness; age and prolapse; layer
-  ration with oyster shell, treats to 15 minutes; stresses including
+  ration with oyster shell, treats to 15 minutes; no starter or grower
+  feed for layers, partly because medicated starter can leave residues
+  in eggs; stresses including
   overheating, poor ventilation and missing feed or water).
   https://extension.oregonstate.edu/catalog/pnw-565-why-did-my-chickens-stop-laying
 - University of Maryland Extension. *Identifying and Preventing Poultry
@@ -648,22 +668,27 @@ updated in place. Web pages and documents were read on 4 October 2026.
   heat lamps for newborn livestock, news release, 2 March 2023 (heat
   lamps hung from chain with a locking connector, not twine or rope;
   heavy-duty lamps and bulbs; cleaning and inspection; plugged directly
-  into a GFCI- and AFCI-protected outlet, not an extension cord; a
-  10-pound ABC extinguisher; checks several times a day).
+  into a GFCI- and AFCI-protected outlet, not an extension cord, without
+  overloading the circuit; a 10-pound ABC extinguisher; checks several
+  times a day).
   https://www.ag.ndsu.edu/news/newsreleases/2023/march/take-precautions-when-using-heat-lamps-for-newborn-livestock
 - Clark County, Washington, Fire Marshal. Safety tips to prevent a
   chicken coop fire, news release, 6 May 2021 (fires in the county caused
   by heat lamps; tips it attributes to the National Fire Protection
-  Association: a spring clamp alone is not enough, lamps and heaters away
-  from anything that can burn, dust and cobwebs cleaned off, farm or
-  commercial grade equipment, no extension cords in coops).
+  Association: a spring clamp alone is not enough, space heaters on a
+  sturdy surface, lamps and heaters away from anything that can burn,
+  dust and cobwebs cleaned off, covered bulbs, farm or commercial grade
+  equipment, no extension cords in coops).
   https://clark.wa.gov/community-development/safety-tips-prevent-chicken-coop-fire
 - Cornell Waste Management Institute, Healthy Soils, Healthy Communities
   project. *Understanding Your Test Results: Lead in Soil and Chicken
   Eggs*, October 2012 (no US health-based standard for lead in eggs; clean
   cover material for runs; feed, grit and calcium in feeders, not on bare
   ground; supervising and washing children; shoes changed before going
-  indoors).
+  indoors; where eggs carried more lead, hens kept away from lead-painted
+  structures and higher-lead soil, no unwashed scraps from that ground,
+  dust and soil removed from eggshells, and fewer yolks for young
+  children).
   https://cwmi.css.cornell.edu/UnderstandingTestResultsLeadSoilsEggs.pdf
 
 ### Inside this project
@@ -694,7 +719,8 @@ updated in place. Web pages and documents were read on 4 October 2026.
 - Writing the USDA number inside the coop door; asking the state
   department of agriculture about egg sales; an electrician for coop
   wiring; brooders often sitting near the house; buying pullets sorted as
-  female where roosters are not allowed.
+  female where roosters are not allowed; having the run's soil tested
+  before the birds go in.
 - Treating the National Organic Program's manure and compost rule as a
   benchmark for a home garden, which is our suggestion.
 - A rinse in the kitchen sink as the example of cleaning equipment
