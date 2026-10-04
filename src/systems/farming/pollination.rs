@@ -222,12 +222,17 @@ impl PollinationData {
     /// a test pins it.
     pub fn load() -> Self {
         let path = crate::data_dir().join("garden").join("pollination.ron");
-        if let Ok(text) = std::fs::read_to_string(&path) {
-            match Self::parse(&text) {
+        // Disk first; the shipped copy only when the file is missing or does not
+        // parse, and then the log says so (embedded_data::note_builtin_copy: a rig
+        // refuses a run that served a built-in copy, BUG-133).
+        let why = match std::fs::read_to_string(&path) {
+            Ok(text) => match Self::parse(&text) {
                 Ok(d) => return d,
-                Err(e) => log::warn!("[Farming] {} does not parse ({e}); using the shipped copy", path.display()),
-            }
-        }
+                Err(e) => format!("{} does not parse ({e})", path.display()),
+            },
+            Err(e) => format!("{} could not be read ({e})", path.display()),
+        };
+        crate::embedded_data::note_builtin_copy("garden/pollination.ron", why);
         Self::parse(POLLINATION_RON).expect("the shipped data/garden/pollination.ron parses")
     }
 

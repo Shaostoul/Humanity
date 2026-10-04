@@ -135,18 +135,29 @@ pub const OCEAN_LAYER: u32 = 8;
 const SIZE: u32 = 2048;
 
 pub fn material_table() -> GroundMaterialTable {
-    let disk = find_data_ground_dir()
-        .map(|d| d.join("materials.ron"))
-        .and_then(|p| std::fs::read_to_string(p).ok());
-    let text = disk.as_deref().unwrap_or(EMBEDDED_TABLE);
+    // Disk first. Every fallback to the built-in table says so in the log
+    // (embedded_data::note_builtin_copy): a rig refuses a run that served one,
+    // because the next build embeds the disk file and would behave differently
+    // (a broken table would panic at the expect below), BUG-133.
+    let disk = match find_data_ground_dir().map(|d| d.join("materials.ron")) {
+        Some(p) => std::fs::read_to_string(&p).map_err(|e| format!("{} could not be read ({e})", p.display())),
+        None => Err("no data/ground folder was found".to_string()),
+    };
+    let text = match &disk {
+        Ok(t) => t.as_str(),
+        Err(why) => {
+            crate::embedded_data::note_builtin_copy("ground/materials.ron", why);
+            EMBEDDED_TABLE
+        }
+    };
     match ron::from_str::<GroundMaterialTable>(text) {
         Ok(t) if !t.materials.is_empty() => t,
         Ok(_) => {
-            log::warn!("[GroundTex] materials.ron has no materials; using the embedded table");
+            crate::embedded_data::note_builtin_copy("ground/materials.ron", "it lists no materials");
             ron::from_str(EMBEDDED_TABLE).expect("embedded ground material table must parse")
         }
         Err(e) => {
-            log::warn!("[GroundTex] materials.ron failed to parse ({e}); using the embedded table");
+            crate::embedded_data::note_builtin_copy("ground/materials.ron", format_args!("it does not parse ({e})"));
             ron::from_str(EMBEDDED_TABLE).expect("embedded ground material table must parse")
         }
     }

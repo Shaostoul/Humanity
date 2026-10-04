@@ -1346,13 +1346,18 @@ pub mod leaf_colour {
     fn registry() -> &'static Vec<VarRow> {
         static REG: std::sync::OnceLock<Vec<VarRow>> = std::sync::OnceLock::new();
         REG.get_or_init(|| {
-            let parse = |t: &str| ron::from_str::<VarRegistry>(t).ok().map(|r| r.trees);
-            std::fs::read_to_string("data/vegetation/trees.ron")
-                .ok()
-                .and_then(|t| parse(&t))
-                .filter(|v| !v.is_empty())
-                .or_else(|| parse(super::leaf_shape::EMBEDDED_TREES))
-                .unwrap_or_default()
+            let parse = |t: &str| ron::from_str::<VarRegistry>(t).ok().map(|r| r.trees).filter(|v| !v.is_empty());
+            // Disk first; the built-in copy says so in the log (a rig refuses a
+            // run that served one, BUG-133).
+            let why = match std::fs::read_to_string("data/vegetation/trees.ron") {
+                Ok(t) => match parse(&t) {
+                    Some(v) => return v,
+                    None => "data/vegetation/trees.ron does not parse, or lists no trees".to_string(),
+                },
+                Err(e) => format!("data/vegetation/trees.ron could not be read ({e})"),
+            };
+            crate::embedded_data::note_builtin_copy("vegetation/trees.ron", why);
+            parse(super::leaf_shape::EMBEDDED_TREES).unwrap_or_default()
         })
     }
 
@@ -1893,13 +1898,18 @@ pub mod leaf_shape {
     pub fn registry() -> &'static Vec<LeafSilhouette> {
         static REG: std::sync::OnceLock<Vec<LeafSilhouette>> = std::sync::OnceLock::new();
         REG.get_or_init(|| {
-            let parse = |t: &str| ron::from_str::<SilhouetteRegistry>(t).ok().map(|r| r.trees);
-            std::fs::read_to_string("data/vegetation/trees.ron")
-                .ok()
-                .and_then(|t| parse(&t))
-                .filter(|v| !v.is_empty())
-                .or_else(|| parse(EMBEDDED_TREES))
-                .unwrap_or_default()
+            let parse = |t: &str| ron::from_str::<SilhouetteRegistry>(t).ok().map(|r| r.trees).filter(|v| !v.is_empty());
+            // Disk first; the built-in copy says so in the log (a rig refuses a
+            // run that served one, BUG-133).
+            let why = match std::fs::read_to_string("data/vegetation/trees.ron") {
+                Ok(t) => match parse(&t) {
+                    Some(v) => return v,
+                    None => "data/vegetation/trees.ron does not parse, or lists no trees".to_string(),
+                },
+                Err(e) => format!("data/vegetation/trees.ron could not be read ({e})"),
+            };
+            crate::embedded_data::note_builtin_copy("vegetation/trees.ron", why);
+            parse(EMBEDDED_TREES).unwrap_or_default()
         })
     }
 

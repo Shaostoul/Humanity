@@ -247,6 +247,49 @@ pub fn verify_release_artifact(
     Ok(VerifyOutcome::Verified)
 }
 
+// ── When a launch must NOT hand off to a newer local build (BUG-133) ─────────
+//
+// main.rs `find_newer_exe` hands a desktop launch over to a newer signed
+// `v*_HumanityOS.exe` in C:\Humanity. That is right for a person double-
+// clicking an old exe and wrong for a boot that is VERIFYING a binary: the
+// rigs check one exe (scripts/check-fresh-exe.js, then a byte check of the
+// copy they boot) and must run exactly that one. A hand-off would run another
+// build while the rig reported on the one it checked; and since the newer exe
+// sits outside the rig's folder, it would also leave the rig's portable
+// sandbox for the operator's real installed profile.
+
+/// Set to anything but "" or "0" and this launch stays on its own exe. Every
+/// rig sets it, and so does `just launch-bg`.
+pub const NO_HANDOFF_ENV: &str = "HUMANITY_NO_HANDOFF";
+
+/// Why a launch must stay on its own exe, or None when it may hand off.
+///
+/// `no_handoff_env`: the value of `NO_HANDOFF_ENV`, if set.
+/// `portable_marker`: a `portable.txt` sits beside the exe. A portable
+/// instance keeps everything in its own folder, and handing it to an exe
+/// somewhere else would quietly move it onto that exe's storage; and every rig
+/// writes the marker, so a hand-rolled copy of a rig that forgot the env var
+/// is covered too (the no_focus.txt lesson: an env var alone gets forgotten).
+pub fn handoff_block_reason(no_handoff_env: Option<&str>, portable_marker: bool) -> Option<&'static str> {
+    if portable_marker {
+        return Some("portable.txt sits beside this exe (a portable instance keeps to its own folder)");
+    }
+    match no_handoff_env {
+        Some(v) if !v.is_empty() && v != "0" => Some("HUMANITY_NO_HANDOFF is set (a rig or launch-bg boot runs exactly the exe it checked)"),
+        _ => None,
+    }
+}
+
+/// `handoff_block_reason` for this process: its environment, and its exe's folder.
+pub fn handoff_blocked_now() -> Option<&'static str> {
+    let env = std::env::var(NO_HANDOFF_ENV).ok();
+    let marker = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.join(crate::storage::PORTABLE_MARKER).exists()))
+        .unwrap_or(false);
+    handoff_block_reason(env.as_deref(), marker)
+}
+
 /// Verify a standalone file (e.g. a locally-archived `vX_HumanityOS.exe`)
 /// against its detached sidecar `<path>.sig.json`. The signature is over the
 /// file's SHA-256 hex. Returns `Verified` only if signing is provisioned AND
@@ -501,6 +544,21 @@ pub fn sign_file(path: &str, vault_path: &str) -> Result<(), String> {
 mod tests {
     use super::*;
     use base64::Engine;
+
+    /// A rig boot must run the exe it checked: the env var or a portable
+    /// marker keeps find_newer_exe from handing the launch to another build
+    /// (BUG-133). Red first (2026-10-03, with the fn returning None): it
+    /// panicked with "the env var must block the hand-off".
+    #[test]
+    fn handoff_is_blocked_by_the_env_var_or_a_portable_marker() {
+        assert_eq!(handoff_block_reason(None, false), None, "a plain launch may hand off");
+        assert_eq!(handoff_block_reason(Some(""), false), None, "an empty value is unset");
+        assert_eq!(handoff_block_reason(Some("0"), false), None, "\"0\" is off");
+        assert!(handoff_block_reason(Some("1"), false).is_some(), "the env var must block the hand-off");
+        assert!(handoff_block_reason(Some("yes"), false).is_some(), "any other value blocks it too");
+        assert!(handoff_block_reason(None, true).is_some(), "a portable instance never hands off");
+        assert!(handoff_block_reason(Some("0"), true).is_some(), "\"0\" does not override the marker");
+    }
 
     /// Build a throwaway keypair set + sign some bytes, returning (pubs, sig).
     fn make_signed(bytes: &[u8]) -> (SigningPubkeys, ManifestSignature) {

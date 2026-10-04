@@ -21,6 +21,7 @@
 //   node scripts/boot-timing.js [--runs N] [--exe PATH] [--rig DIR]
 //                               [--label NAME] [--out FILE]
 //                               [--cold] [--keep-cache] [--timeout-min N]
+//                               [--allow-other-build "<reason>"]
 //
 //   --runs N        how many boots to average (default 3).
 //   --label NAME    a name for this arm, written into the JSON (e.g. "cold").
@@ -35,8 +36,22 @@
 //                   these runs are reported as a median with the spread.
 //   --keep-cache    leave the caches alone (the default).
 //   --out FILE      where to write the collected JSON (default: under the rig).
+//   --allow-other-build "<reason>"
+//                   time a build that is NOT this tree's on purpose (an archive
+//                   as the A arm of an A/B). Without it the freshness gate
+//                   (scripts/check-fresh-exe.js) refuses anything but this
+//                   tree's build; with it the JSON records other_build. Either
+//                   way the rig copy must be byte-identical to what the gate
+//                   judged (checked again right before every spawn, by
+//                   lib/game-launch.js spawnGame), and every boot runs with
+//                   HUMANITY_NO_HANDOFF=1, so a timing is always of the binary
+//                   named (BUG-133). A boot that exits early is reported as one,
+//                   naming (and stopping) a hand-off if an older build made one.
 //
-// Exit 0 = every run produced a boot_timing.json with zero panics.
+// Exit 0 = every run produced a boot_timing.json with zero panics and served no
+//          data file from the copy built into the exe (BUILT-IN DATA).
+// Exit 1 = refused before any boot (no exe, no shader-compiler dll pair, the
+//          freshness gate, or a rig copy that is not the judged exe).
 // Exit 2 = a run failed to boot, timed out, or panicked.
 
 const fs = require("fs");
@@ -45,6 +60,10 @@ const { spawn, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
 // The one shared lookup for the DXC shader compiler dlls (see setupRig).
 const DXC = require("./lib/dxc-dlls.js");
+// The freshness gate and the boot-copy check (BUG-133).
+const { runFreshGate, requireBootCopy, bootRecord, otherBuildNotice } = require("./lib/src-fingerprint.js");
+// Starting the game, and what a run.log must not say (BUG-133).
+const GL = require("./lib/game-launch.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -67,6 +86,10 @@ const OUT = path.resolve(opt("--out", path.join(RIG, `boot-timing-${LABEL}.json`
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (m) => console.log(`[boot-timing] ${m}`);
+// The freshness gate's result (set before the rig is touched) and the record of
+// a deliberate other-build run.
+let FRESH = null;
+let OTHER_BUILD = null;
 
 // ── Rig setup ─────────────────────────────────────────────────────────────
 // Same shape as probe-sweep's rig, deliberately: a portable sandbox whose
@@ -118,6 +141,8 @@ function setupRig() {
   ensureJunction(path.join(RIG, "assets"), path.join(REPO, "assets"));
   killRigProcesses();
   fs.copyFileSync(EXE_SRC, path.join(RIG, "HumanityOS.exe"));
+  // Every run boots this copy, so it must be what the gate judged.
+  requireBootCopy(path.join(RIG, "HumanityOS.exe"), FRESH, "boot-timing");
   // DXC beside the exe: without it the DX12 backend falls back to FXC and
   // every shader compile takes four times as long, which looks exactly like a
   // regression. Copying it is not optional for a boot measurement.
@@ -170,19 +195,33 @@ async function oneRun(n) {
   }
 
   const t0 = Date.now();
-  const child = spawn(path.join(RIG, "HumanityOS.exe"), [], {
+  // spawnGame: the copy is checked against the judged bytes right before the
+  // spawn, and HUMANITY_NO_HANDOFF=1 times this copy, never a newer
+  // v*_HumanityOS.exe; an exit we did not ask for is watched for.
+  const game = GL.spawnGame(path.join(RIG, "HumanityOS.exe"), [], {
+    fresh: FRESH,
+    rigName: "boot-timing",
+    log,
     cwd: RIG,
     detached: true,
     stdio: "ignore",
     env: { ...process.env, HUMANITY_NO_FOCUS: "1" },
   });
+  const child = game.child;
   // The autopilot request is consumed on the first frame that finds it, so it
   // can be dropped immediately: the engine polls until it appears.
   fs.writeFileSync(path.join(DEBUG, "autopilot_request.json"), JSON.stringify({ server_url: "" }));
 
   let timing = null;
+  let earlyExit = null;
   while (Date.now() - t0 < TIMEOUT_MS) {
     if (fs.existsSync(LOG) && /PANIC/.test(fs.readFileSync(LOG, "utf8"))) {
+      break;
+    }
+    // An exit before it is playable, said as one (a hand-off is named) rather
+    // than as a timeout.
+    if (game.exited()) {
+      earlyExit = game.describe();
       break;
     }
     const p = path.join(DEBUG, "boot_timing.json");
@@ -206,6 +245,7 @@ async function oneRun(n) {
   } catch {
     /* no log at all */
   }
+  game.expectExit(); // our own stop: not a hand-off to look for
   try {
     process.kill(-child.pid);
   } catch {
@@ -218,6 +258,10 @@ async function oneRun(n) {
     run: n,
     wall_ms: wallMs,
     panics,
+    // BUILT-IN DATA (BUG-133): run.log lines where a loader served the exe's
+    // own copy of a data file instead of the tree's; any at all fails the run.
+    builtin_data: GL.builtinDataLines(logText),
+    early_exit: earlyExit,
     timing,
     // Sub-spans the renderer logs but the BootTimer does not carry.
     phases: parseBootPhases(logText),
@@ -315,6 +359,13 @@ function report(runs) {
 
 // ── Main ──────────────────────────────────────────────────────────────────
 (async () => {
+  // This tree's build, or another on purpose (--allow-other-build "<why>").
+  FRESH = runFreshGate(EXE_SRC, args, { cwd: REPO });
+  if (FRESH.status !== 0) {
+    console.error("boot-timing: REFUSED - see the freshness failure above. Nothing was booted.");
+    process.exit(1);
+  }
+  OTHER_BUILD = FRESH.other_build;
   setupRig();
   log(`rig ${RIG}`);
   log(`exe ${EXE_SRC}`);
@@ -323,13 +374,31 @@ function report(runs) {
   for (let i = 1; i <= RUNS; i++) {
     log(`run ${i}/${RUNS} ...`);
     const r = await oneRun(i);
-    if (!r.timing) log(`  run ${i} FAILED (no boot_timing.json, panics=${r.panics})`);
+    if (!r.timing) log(`  run ${i} FAILED (no boot_timing.json, panics=${r.panics}${r.early_exit ? `; ${r.early_exit}` : ""})`);
     else log(`  run ${i}: ${r.timing.total_ms.toFixed(0)} ms to playable, panics=${r.panics}`);
+    if (r.builtin_data.length) log(GL.builtinDataRefusal(r.builtin_data));
     runs.push(r);
   }
-  fs.writeFileSync(OUT, JSON.stringify({ label: LABEL, cold: COLD, exe: EXE_SRC, runs }, null, 2));
+  fs.writeFileSync(
+    OUT,
+    JSON.stringify(
+      {
+        label: LABEL,
+        cold: COLD,
+        exe: EXE_SRC,
+        // Which binary was timed (BUG-133), and the record of a deliberate
+        // other-build arm.
+        binary: bootRecord(FRESH, path.join(RIG, "HumanityOS.exe")),
+        ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
+        runs,
+      },
+      null,
+      2
+    )
+  );
   report(runs);
+  if (OTHER_BUILD) log(otherBuildNotice(OTHER_BUILD));
   log(`wrote ${OUT}`);
-  const bad = runs.filter((r) => !r.timing || r.panics > 0).length;
+  const bad = runs.filter((r) => !r.timing || r.panics > 0 || r.builtin_data.length > 0).length;
   process.exit(bad ? 2 : 0);
 })();

@@ -206,6 +206,13 @@ pub fn extract_data_if_needed() {
         }
     }
     log::info!("Data extraction complete");
+    // This run (and every later one, until the files are edited) runs on the
+    // copies compiled into this exe, written out: say so once (BUG-133). A rig
+    // never gets here: its data dir always exists (a junction to the tree's).
+    crate::embedded_data::note_builtin_copy(
+        "*",
+        format_args!("first run: every data file was written out to {} from the copies compiled into this exe", data_dir.display()),
+    );
 }
 
 // ── Storage-mode MIGRATION (v0.742, the "move my files" Settings tool) ──

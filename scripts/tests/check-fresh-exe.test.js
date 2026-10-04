@@ -69,16 +69,16 @@ function specLf(buf) {
   }
   return Buffer.from(out);
 }
-function specManifest(map) {
+function specManifest(map, inputs = INPUTS) {
   const paths = Object.keys(map)
-    .filter((p) => INPUTS.some((i) => p === i || p.startsWith(i + "/")))
+    .filter((p) => inputs.some((i) => p === i || p.startsWith(i + "/")))
     .sort((a, b) => Buffer.compare(Buffer.from(a, "utf8"), Buffer.from(b, "utf8")));
   let text = "hos-src-manifest v1\n";
   for (const p of paths) text += `${sha256(specLf(Buffer.from(map[p])))} ${p}\n`;
   return { text, fingerprint: sha256(Buffer.from(text, "utf8")), files: paths.length };
 }
-function specStamp(map, { profile = "release", features = "native,relay" } = {}) {
-  const m = specManifest(map);
+function specStamp(map, { profile = "release", features = "native,relay", inputs = INPUTS } = {}) {
+  const m = specManifest(map, inputs);
   return (
     `HOS-SRC-STAMP v1\nfingerprint ${m.fingerprint}\nfiles ${m.files}\nprofile ${profile}\n` +
     `features ${features}\n${m.text}HOS-SRC-STAMP END\n`
@@ -391,5 +391,10 @@ test("the compiled build.rs stamps the fixture exactly as the spec says (skips w
   });
   const stampFile = path.join(outDir, "hos_src_stamp.txt");
   if (!fs.existsSync(stampFile)) return t.skip(`the newest build script (${builds[0].exe}) predates the source stamp`);
-  assert.strictEqual(fs.readFileSync(stampFile, "utf8"), specStamp(FIXTURE));
+  // The compiled script carries the REAL build.rs's FINGERPRINT_INPUTS (it is a
+  // Rust const), not the fixture's: since BUG-133's third gap that list names
+  // single files too (assets/icon.ico is one, and the fixture has it), so the
+  // spec is computed over the real list. (Until then the two lists were equal
+  // and this held by accident.)
+  assert.strictEqual(fs.readFileSync(stampFile, "utf8"), specStamp(FIXTURE, { inputs: lib().readInputs(REPO) }));
 });

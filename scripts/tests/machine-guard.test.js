@@ -63,7 +63,12 @@ test("the watch list covers the game and the build tools, and nothing idle", () 
   assert.ok(!MG.WATCHED.some((n) => /rust-analyzer|mspdbsrv/i.test(n)));
   // The query the guard runs must actually ask for every watched name.
   const q = MG.psQuery();
-  for (const n of MG.WATCHED) assert.ok(q.includes(`Name='${n}'`), `query omits ${n}`);
+  // The game by suffix (LIKE), so the operator's v<version>_HumanityOS.exe
+  // archive is listed too (2026-10-04); the build tools by exact name.
+  for (const n of MG.WATCHED) {
+    const want = n === MG.GAME ? `Name LIKE '%${n}'` : `Name='${n}'`;
+    assert.ok(q.includes(want), `query omits ${want}`);
+  }
 });
 
 test("our own rig instance is NOT a contender (by pid and by exe path)", () => {
@@ -182,4 +187,34 @@ test("RED: waitForFree blocks, logs and reports the blocker - for a build as wel
     assert.ok(lines.some((l) => l.includes("rustc.exe")), "the blocker must be named, not counted");
     assert.ok(lines.some((l) => l.includes("GAVE UP")), "giving up must be logged");
   });
+});
+
+// The operator starts his own game with `just launch` / `just play`, which boot
+// the newest ARCHIVE: the process is named v<version>_HumanityOS.exe, not
+// HumanityOS.exe (found 2026-10-04). It must count as the game everywhere the
+// exact name does: in the one-GPU wait, in contamination, and as a renderer
+// rather than a build.
+// Red check, run 2026-10-04 with isGameName replaced by an exact-name match:
+// "the operator's just-launch archive is a game" failed (false), and the
+// contamination test named it a build ("a second renderer" missing).
+test("RED: the operator's just-launch archive (v<version>_HumanityOS.exe) is the game", () => {
+  assert.strictEqual(MG.isGameName("v0.1448.0_HumanityOS.exe"), true, "the operator's just-launch archive is a game");
+  assert.strictEqual(MG.isGameName("HumanityOS.exe"), true);
+  assert.strictEqual(MG.isGameName("humanityos.exe"), true, "Windows names are case-insensitive");
+  assert.strictEqual(MG.isGameName("rustc.exe"), false);
+  assert.strictEqual(MG.isGameName("HumanityOSxexe"), false, "the dot is a dot");
+  const ARCHIVE = "C:\Humanity\v0.1448.0_HumanityOS.exe";
+  const rec = { id: "home-overview-noon", fps: 30, frame_ms: 33, ok: true };
+  const lines = [];
+  const before = foreignIn(CLEAN);
+  const after = foreignIn(`${CLEAN}\n8888|v0.1448.0_HumanityOS.exe|${ARCHIVE}`);
+  assert.deepStrictEqual(after.map((p) => p.pid), [8888], "the archive is a contender, not ignored");
+  assert.strictEqual(MG.markCapture(rec, before, after, (m) => lines.push(m)), true);
+  assert.ok(lines.some((l) => l.includes("second renderer")), "the archive is named as a second renderer, not a build");
+});
+
+test("the live query matches the game by suffix, so an archive is listed at all", () => {
+  // The WMI filter must not be an exact Name= match for the game.
+  const src = require("node:fs").readFileSync(require.resolve("../lib/machine-guard.js"), "utf8");
+  assert.ok(/Name LIKE '%\$\{n\}'/.test(src), "the game is matched with LIKE '%HumanityOS.exe'");
 });

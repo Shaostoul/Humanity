@@ -2819,11 +2819,107 @@ deliberate other build and the rigs record it as other_build in their
 manifests. 24 gate tests, red on the old gate (the BUG-133 case itself:
 "PASS: the binary under test is the current build" for another tree's exe).
 Side effect: build.rs now declares rerun-if-changed, so a docs or web edit no
-longer recompiles the whole crate. Still open: probe-sweep has no gate; the
-rigs copy the exe after checking it; about 30 data files are compiled in but
-not fingerprinted (embedded fallbacks). v0.1446.1: `just check-delivery` (and the DELIVERY row of
+longer recompiles the whole crate. v0.1446.1: `just check-delivery` (and the DELIVERY row of
 `just brief`) answers "does the taskbar exe hold this tree's code" from the
 same fingerprint, still ignoring the live PBR shaders and the version files.
+
+**The three gaps left open, closed (2026-10-03, follow-up):**
+1. *Every script that boots the game gates it.* probe-sweep (and so
+   verify-runtime's sweep, which now forwards --allow-other-build), photograph-home,
+   make-clips and boot-timing run runFreshGate before they touch their rig, and
+   record `binary` (and `other_build` for a deliberate other-build run) in
+   their manifests, like the verify-* rigs. An archive or another worktree's
+   exe needs --allow-other-build "<why>". `just probe-sweep` and `just clips`
+   pass their arguments with positional-arguments so a quoted reason arrives
+   whole. `just launch`/`just play` (scripts/archive-build.js) stay ungated on
+   purpose: they boot an archive for the operator to play and verify nothing.
+2. *The binary that boots is the one checked.* The gate records the SHA-256 of
+   the bytes it judged; after copying the exe into its rig every rig calls
+   requireBootCopy, which refuses (nothing booted) unless the copy is
+   byte-identical, and the throwaway relay does the same with expectSha256.
+   find_newer_exe had no switch; it now returns at once when
+   HUMANITY_NO_HANDOFF is set (every rig and `just launch-bg` set it) or a
+   portable.txt sits beside the exe (every rig writes one, and a portable
+   instance handed to an exe elsewhere would also leave its own storage):
+   release_update::handoff_block_reason, unit-tested. probe-sweep also reports
+   a game that exits before boot finishes as such (code 0 that early is a
+   hand-off by a build from before the switch) instead of a 3-minute timeout.
+3. *Compiled-in files.* scripts/lib/compiled-in.js finds every
+   include_str!/include_bytes! in src/, follows the bytes to every reader, and
+   classifies each target: fingerprinted, the stamp, test-only, data read
+   disk-first (every read sits in a fn that reads the disk first, or is a
+   reviewed fallback on FALLBACK_SITES), or allowlisted with a reason;
+   scripts/tests/compiled-in.test.js fails on anything else (red first on 26
+   files). The 18 compiled-in-only files that change behaviour (the nine
+   ship-structure registries in data/blueprints, light types, LOD categories,
+   conduits, reactions, the performance budget, the UI font, the release
+   signing keys, the Accord text, the window icon) and assets/icon.ico went
+   into FINGERPRINT_INPUTS: 580 files, 19.0 MB, build script about 0.95 s
+   before; 599 files after (the timing is in the commit). Seven embedded-only
+   reads of data that is otherwise disk-first were made disk-first instead,
+   so editing items.csv, item_profiles.ron, food_system.ron, the star
+   catalogs or harvest_windows.ron still needs no rebuild: the inventory's
+   item details, its Eat and Drink buttons, the Maps page's stars, and the
+   self-sufficiency figure had each been ignoring the data folder.
+
+**What a review of that follow-up found, and fixed (2026-10-03):**
+1. *A vendored crate was compiled in but not fingerprinted.* Cargo.toml's
+   `[patch.crates-io] rav1d = { path = "vendor/rav1d" }` (the BUG-093 decoder)
+   compiles 73 files from vendor/, and Cargo.lock holds no hash for a path
+   dependency, so an edit there left the stamp saying "current". `vendor` is
+   now in FINGERPRINT_INPUTS, and compiled-in.js reads Cargo.toml: every
+   `path = ".."` / `build = ".."` there, and every `#[path]` module in src/,
+   must sit under an input.
+2. *A data file that fails to parse was masked by the old built-in copy.*
+   Disk-first loaders fall back to the copy built into the exe when the disk
+   file is missing or does not parse (ground/materials.ron, the garden tables,
+   the AssetManager helpers...). The gate passed (data/ is not stamped), the
+   rig was green, and the next build would embed the broken file and behave
+   differently (materials.ron panics at its expect). Every fallback now logs
+   one marker line, `embedded_data::note_builtin_copy` ("[built-in data
+   copy]"), and compiled-in.js only counts a read as disk-first when its fn
+   reads the disk BEFORE it and calls the note naming that same file, so a new
+   silent fallback fails the test (that also closes the review's third point:
+   an unrelated `.exists()` in the same fn no longer counts, and a grouped,
+   aliased or glob import of a const, or a qualified read through an inline
+   module, is followed; a `pub use` re-export is refused). Every rig fails a
+   run whose run.log (and relay log) holds the marker: BUILT-IN DATA
+   (scripts/lib/game-launch.js builtinDataLines; the marker is pinned to the
+   Rust const by a test). Seen on a real boot: with a line of junk appended
+   to materials.ron, the gate still passed and the sweep captured 1/1 with no
+   panic, and it now exits 2 with "BUILT-IN DATA ... data/ground/materials.ron:
+   it does not parse (186:1: Non-whitespace trailing characters)"; with the
+   file intact the same exe captures 1/1 with built-in data=0.
+3. *Throwaway relays never saw the tree's data/.* The relay reads data/
+   relative to its working folder, and the throwaway's folder held only
+   server-config.json, so crew.ron and room_equipment.ron came from the
+   built-in copies and chores.ron and market/categories.json (no built-in
+   copy) were simply absent. `mirrorData` now puts the tree's data/ in the
+   relay's folder (files up to 1 MiB copied, larger ones hard-linked, never
+   the relay's own names or the tree's server-config.json); verify-live-screen's
+   relay folder gets the same.
+4. *An older build could still hand off.* Only builds with this fix honour
+   HUMANITY_NO_HANDOFF, and only probe-sweep noticed an early exit. Every rig
+   now starts the game through `spawnGame` (scripts/lib/game-launch.js), which
+   checks the copy against the judged bytes immediately before it spawns, sets
+   HUMANITY_NO_HANDOFF, and, on an exit the rig did not ask for, finds any
+   HumanityOS process the game started (by parent process id, which Windows
+   keeps after the parent exits), stops it and names it in the failure.
+5. *probe-sweep gated, then waited for the machine, then copied:* a sweep that
+   waited for a cargo build of the same exe always ended in "BOOT COPY
+   CHANGED". After a real wait it now gates again.
+6. *A relay with no judged hash skipped the copy check silently;*
+   startRelay now requires expectSha256.
+7. *The documented manual boot skipped the gate and the hand-off switch:*
+   CLAUDE.md and the runtime-verifier agent now say `just launch-bg`.
+8. *Weak test:* rig-boot.test.js only checked that the right words appeared in
+   each rig. The order now lives in spawnGame (tested by running it), each rig
+   may start the game only through it, and every rig is run on an unstamped
+   file to show it refuses on the gate before it copies anything.
+Not changed, on purpose: an installed copy reads its extracted data/, which is
+never refreshed after an update; the seven reads made disk-first above now
+agree with the rest of their files' readers, which already did that. Nobody
+has an installed copy yet; refreshing extracted data is its own job.
 
 ## BUG-134: a Library rebuild that dies part-way leaves data/library half-written (FIXED v0.1447.1, found 2026-10-03)
 

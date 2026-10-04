@@ -179,9 +179,18 @@ fn map_stars() -> &'static [MapStar] {
 }
 static CONSTELLATIONS: OnceLock<Vec<Constellation>> = OnceLock::new();
 
+/// A star or constellation table from the data folder, or the copy built into
+/// the exe when the folder has none. (2026-10-03: these three read the built-in
+/// copy only, so a data edit changed nothing on this page until a rebuild, and
+/// the source stamp, BUG-133, could not see that the binary was behind.)
+fn catalog_text(rel: &str) -> String {
+    crate::embedded_data::read_data_or_embedded(&crate::data_dir(), rel).unwrap_or_default()
+}
+
 fn nearby_stars() -> &'static [NearbyStar] {
     NEARBY_STARS.get_or_init(|| {
-        let json = crate::embedded_data::STARS_NEARBY_JSON;
+        let text = catalog_text("stars-nearby.json");
+        let json = text.as_str();
         // Schema per data/stars-nearby.json:
         //   [name, x_ly, y_ly, z_ly, spectral, apparent_mag, distance_ly, alt_name]
         let parsed: serde_json::Value = serde_json::from_str(json).unwrap_or(serde_json::Value::Null);
@@ -215,7 +224,8 @@ fn nearby_stars() -> &'static [NearbyStar] {
 
 fn bright_stars() -> &'static [BrightStar] {
     BRIGHT_STARS.get_or_init(|| {
-        let json = crate::embedded_data::STARS_CATALOG_JSON;
+        let text = catalog_text("stars-catalog.json");
+        let json = text.as_str();
         // Schema per data/stars-catalog.json:
         //   [name, ra_hours, dec_deg, magnitude, spectral]
         let parsed: serde_json::Value = serde_json::from_str(json).unwrap_or(serde_json::Value::Null);
@@ -240,7 +250,8 @@ fn bright_stars() -> &'static [BrightStar] {
 
 fn constellations() -> &'static [Constellation] {
     CONSTELLATIONS.get_or_init(|| {
-        let json = crate::embedded_data::CONSTELLATIONS_JSON;
+        let text = catalog_text("constellations.json");
+        let json = text.as_str();
         let parsed: serde_json::Value = serde_json::from_str(json).unwrap_or(serde_json::Value::Null);
         let mut out = Vec::new();
         if let Some(arr) = parsed.as_array() {

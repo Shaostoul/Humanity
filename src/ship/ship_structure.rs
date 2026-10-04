@@ -332,8 +332,11 @@ impl HomeDesign {
         let path = data_dir.join(&rel);
         let (text, on_disk) = match std::fs::read_to_string(&path) {
             Ok(t) => (t, true),
-            Err(_) => match crate::embedded_data::get_embedded(&rel) {
-                Some(t) => (t.to_string(), false),
+            Err(e) => match crate::embedded_data::get_embedded(&rel) {
+                Some(t) => {
+                    crate::embedded_data::note_builtin_copy(&rel, format_args!("{} could not be read ({e})", path.display()));
+                    (t.to_string(), false)
+                }
                 None => return Err(format!("no home design {} on disk or built in", path.display())),
             },
         };
@@ -578,6 +581,7 @@ impl ShipPlots {
             Ok(ship) => Ok(Self::of_ship(&ship)),
             Err(e) => {
                 let ship = ShipStructure::built_in_ship_file().map_err(|b| format!("{e}; {b}"))?;
+                crate::embedded_data::note_builtin_copy(SHIP_FILE, format_args!("ship plots: {e}"));
                 log::error!("ship plots: {e}; using the ship built into the exe ({})", ship.id);
                 Ok(Self::of_ship(&ship))
             }
@@ -1461,10 +1465,14 @@ impl ShipStructure {
                 )
             });
         }
+        crate::embedded_data::note_builtin_copy(SHIP_FILE, format_args!("{} is absent", path.display()));
         Self::built_in_ship_file().map_err(|e| format!("no {} on disk, and {e}", path.display()))
     }
 
     /// The ship file built into the exe (data/blueprints/ship_structure.ron as shipped).
+    /// Both callers use it as a FALLBACK (the disk file is absent, or it did not load) and
+    /// each says so with `embedded_data::note_builtin_copy`, so a rig run on the built-in
+    /// copy fails instead of passing on data it was not given (BUG-133 follow-up).
     pub fn built_in_ship_file() -> Result<ShipStructure, String> {
         let text = crate::embedded_data::get_embedded(SHIP_FILE).ok_or("no ship file is built in")?;
         let ship: ShipStructure = ron::from_str(text).map_err(|e| format!("the built-in ship file does not parse: {e}"))?;

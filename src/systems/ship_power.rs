@@ -61,12 +61,17 @@ impl ShipPowerData {
     /// The data directory's copy, or the shipped one.
     pub fn load() -> Self {
         let path = crate::data_dir().join("ship_power.ron");
-        if let Ok(text) = std::fs::read_to_string(&path) {
-            match Self::parse(&text) {
+        // Disk first; the shipped copy only when the file is missing or does not
+        // parse, and then the log says so (embedded_data::note_builtin_copy: a rig
+        // refuses a run that served a built-in copy, BUG-133).
+        let why = match std::fs::read_to_string(&path) {
+            Ok(text) => match Self::parse(&text) {
                 Ok(d) => return d,
-                Err(e) => log::warn!("[ShipPower] {} does not parse ({e}); using the shipped copy", path.display()),
-            }
-        }
+                Err(e) => format!("{} does not parse ({e})", path.display()),
+            },
+            Err(e) => format!("{} could not be read ({e})", path.display()),
+        };
+        crate::embedded_data::note_builtin_copy("ship_power.ron", why);
         Self::parse(SHIP_POWER_RON).expect("the shipped data/ship_power.ron parses")
     }
 }

@@ -45,14 +45,17 @@ precisely the gap that hid the v0.1029 panic for ten releases.
 If you must boot manually instead of via the rig:
 
 ```bash
-HUMANITY_NO_FOCUS=1 target/release/HumanityOS.exe &
+just launch-bg &      # the freshness gate, then the exe with no focus and no hand-off
 # wait ~10s, then:
 grep -i panic "$APPDATA/HumanityOS/logs/run.log"
 taskkill //PID <pid>
 ```
 
-`HUMANITY_NO_FOCUS=1` is mandatory. Without it the window steals foreground focus and
-kills the operator's raw-input mouse-look mid-game (root-caused 2026-07-27).
+Use `just launch-bg`, not a hand-typed `target/release/HumanityOS.exe`: it refuses a
+binary that is not this tree's build (the source stamp, BUG-133), and it starts the exe
+with `HUMANITY_NO_FOCUS=1` (without it the window steals foreground focus and kills the
+operator's raw-input mouse-look mid-game, root-caused 2026-07-27) and
+`HUMANITY_NO_HANDOFF=1` (so it cannot hand itself off to a newer archive in C:Humanity).
 
 ## Rules
 

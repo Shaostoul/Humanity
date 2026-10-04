@@ -171,13 +171,17 @@ function parseStamp(text) {
   return { ok: true, fingerprint, files, count: files.size, profile, features };
 }
 
-/** Every stamp in the exe's bytes: { stamps: [parsed...], malformed: [problems] }. */
+/** Every stamp in the exe's bytes: { stamps: [parsed...], malformed: [problems],
+ *  sha256 } where sha256 is the hash of the very bytes the stamps were read
+ *  from (the gate records it, so a rig can prove the file it boots is the one
+ *  that was judged: checkBootCopy below). */
 function readExeStamp(exePath) {
   const buf = fs.readFileSync(exePath);
   const begin = Buffer.from(STAMP_BEGIN);
   const end = Buffer.from(STAMP_END);
   const stamps = [];
   const malformed = [];
+  const fileSha256 = sha256(buf);
   let at = buf.indexOf(begin);
   while (at >= 0) {
     const stop = buf.indexOf(end, at);
@@ -196,7 +200,7 @@ function readExeStamp(exePath) {
       at = buf.indexOf(begin, at + begin.length);
     }
   }
-  return { stamps, malformed };
+  return { stamps, malformed, sha256: fileSha256 };
 }
 
 /** Which files differ between the build's manifest and the tree's. */
@@ -394,6 +398,90 @@ function runFreshGate(exe, rigArgv = [], opts = {}) {
   };
 }
 
+/**
+ * Is `copy`, the file a rig is about to boot, the very binary the gate judged?
+ *
+ * Every rig copies the exe into its own folder AFTER runFreshGate checked the
+ * original, so something writing the original in between (a cargo build
+ * finishing, another session's deliver) would put a binary nobody judged into
+ * the rig (BUG-133, the second gap). The gate records the SHA-256 of the bytes
+ * it judged (result.exe_sha256); the copy must hash the same. Bytes, not the
+ * stamp: two builds of one tree carry the same stamp, and "the same source" is
+ * not the claim a rig makes; "this binary" is.
+ *   copy    the path the rig will spawn
+ *   fresh   runFreshGate()'s return value
+ * Returns { ok, sha256, lines } (lines say what differs when !ok).
+ */
+function checkBootCopy(copy, fresh) {
+  const judged = fresh && fresh.result ? fresh.result : null;
+  const want = judged ? judged.exe_sha256 : null;
+  if (!want) {
+    return {
+      ok: false,
+      sha256: null,
+      lines: [
+        `BOOT COPY UNCHECKED: the freshness gate recorded no hash of the exe it judged, so ${copy}`,
+        "cannot be shown to be that exe. (A gate from before the boot-copy check, or one that refused.)",
+      ],
+    };
+  }
+  let buf;
+  try {
+    buf = fs.readFileSync(copy);
+  } catch (e) {
+    return { ok: false, sha256: null, lines: [`BOOT COPY MISSING: ${copy} cannot be read (${e.message}).`] };
+  }
+  const got = sha256(buf);
+  if (got === want) return { ok: true, sha256: got, lines: [] };
+  const info = readExeStamp(copy);
+  const fp = info.stamps.length === 1 ? info.stamps[0].fingerprint : null;
+  const whose = !fp
+    ? "none readable"
+    : fp === judged.exe_fingerprint
+      ? `${fp} (the same sources as the judged exe: a rebuild of it, but not the bytes that were judged)`
+      : `${fp} (DIFFERENT sources from the judged exe)`;
+  return {
+    ok: false,
+    sha256: got,
+    lines: [
+      `BOOT COPY CHANGED: ${copy} is not the binary the freshness gate judged.`,
+      `  judged             ${judged.exe}  sha256 ${want}`,
+      `  about to boot      ${copy}  sha256 ${got}`,
+      `  its source stamp   ${whose}`,
+      "The exe changed between the check and the copy (most likely a build finished in between), or",
+      "the rig is booting a copy it did not make. Booting it would verify a binary nobody checked.",
+      "Run the rig again once nothing is writing the exe.",
+    ],
+  };
+}
+
+/** checkBootCopy, the way a rig uses it: prints one line and returns on a
+ *  match, prints why and exits 1 (nothing booted) on anything else. */
+function requireBootCopy(copy, fresh, rigName) {
+  const r = checkBootCopy(copy, fresh);
+  if (r.ok) {
+    console.log(`[fresh] boot copy    ${copy} is byte-identical to the judged exe (sha256 ${r.sha256.slice(0, 16)})`);
+    return r;
+  }
+  console.error("");
+  for (const l of r.lines) console.error(l);
+  console.error("");
+  console.error(`${rigName}: REFUSED - nothing was booted.`);
+  process.exit(1);
+}
+
+/** What a rig's manifest records about the binary it booted. */
+function bootRecord(fresh, copy) {
+  const r = fresh && fresh.result ? fresh.result : {};
+  return {
+    judged_exe: r.exe || null,
+    booted_copy: copy,
+    sha256: r.exe_sha256 || null,
+    source_fingerprint: r.exe_fingerprint || null,
+    verdict: r.verdict || null,
+  };
+}
+
 /** One line for a rig's verdict block when its manifest records another build. */
 function otherBuildNotice(ob) {
   if (!ob) return null;
@@ -417,5 +505,8 @@ module.exports = {
   decide,
   allowOtherFrom,
   runFreshGate,
+  checkBootCopy,
+  requireBootCopy,
+  bootRecord,
   otherBuildNotice,
 };

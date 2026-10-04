@@ -96,8 +96,10 @@ pub struct CrewDef {
 fn crew_defs() -> &'static [CrewDef] {
     static REG: std::sync::OnceLock<Vec<CrewDef>> = std::sync::OnceLock::new();
     REG.get_or_init(|| {
-        let text = std::fs::read_to_string("data/npc/crew.ron")
-            .unwrap_or_else(|_| include_str!("../../../data/npc/crew.ron").to_string());
+        let text = std::fs::read_to_string("data/npc/crew.ron").unwrap_or_else(|e| {
+            crate::embedded_data::note_builtin_copy("npc/crew.ron", format_args!("data/npc/crew.ron could not be read ({e})"));
+            include_str!("../../../data/npc/crew.ron").to_string()
+        });
         match ron::from_str(&text) {
             Ok(v) => v,
             Err(e) => {
@@ -273,8 +275,13 @@ pub struct RoomEquipmentDef {
 fn room_equipment_defs() -> &'static [RoomEquipmentDef] {
     static REG: std::sync::OnceLock<Vec<RoomEquipmentDef>> = std::sync::OnceLock::new();
     REG.get_or_init(|| {
-        let text = std::fs::read_to_string("data/ships/room_equipment.ron")
-            .unwrap_or_else(|_| include_str!("../../../data/ships/room_equipment.ron").to_string());
+        let text = std::fs::read_to_string("data/ships/room_equipment.ron").unwrap_or_else(|e| {
+            crate::embedded_data::note_builtin_copy(
+                "ships/room_equipment.ron",
+                format_args!("data/ships/room_equipment.ron could not be read ({e})"),
+            );
+            include_str!("../../../data/ships/room_equipment.ron").to_string()
+        });
         match ron::from_str(&text) {
             Ok(v) => v,
             Err(e) => {

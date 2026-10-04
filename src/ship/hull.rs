@@ -158,13 +158,16 @@ impl HullProfile {
     /// whole hull silently vanish. None only if both copies fail (should be impossible -- the
     /// embedded copy is test-locked).
     pub fn load(data_dir: &Path) -> Option<HullProfile> {
-        if let Ok(text) = std::fs::read_to_string(data_dir.join(HULL_PROFILE_REL)) {
-            match Self::parse(&text) {
+        let why = match std::fs::read_to_string(data_dir.join(HULL_PROFILE_REL)) {
+            Ok(text) => match Self::parse(&text) {
                 Ok(p) => return Some(p),
-                Err(e) => log::warn!("hull_profile: disk file invalid ({e}); using the embedded default"),
-            }
-        }
+                Err(e) => format!("the file on disk is invalid ({e})"),
+            },
+            Err(e) => format!("the file on disk could not be read ({e})"),
+        };
         let text = crate::embedded_data::get_embedded(HULL_PROFILE_REL)?;
+        // Says so in the log: a rig refuses a run that served a built-in copy (BUG-133).
+        crate::embedded_data::note_builtin_copy(HULL_PROFILE_REL, why);
         match Self::parse(text) {
             Ok(p) => Some(p),
             Err(e) => {
