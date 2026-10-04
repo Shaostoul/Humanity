@@ -17,7 +17,7 @@ of every source below.
 
 This guide's advice comes from the Centers for Disease Control and
 Prevention (CDC), the Environmental Protection Agency (EPA), the Health
-Resources and Services Administration (HRSA), which runs the national
+Resources and Services Administration (HRSA), which funds the national
 Poison Help line, and a Department of Defense technical guide on flies
 from the Armed Forces Pest Management Board, cleared for open publication.
 All are United States government works, in the public domain. Where
@@ -73,7 +73,8 @@ stores, not about clearing every rodent from your land.
 
 ### Signs that they are there
 
-The CDC says the first signs usually come before you see an animal:
+The CDC says the first signs of rodents usually appear before you see a
+rat or a mouse, and names two:
 
 - **Droppings**, pointed at one end and often containing hair, in
   cupboards, drawers and other places out of sight.
@@ -98,6 +99,12 @@ quarter of an inch (6 millimetres). Look inside and out:
   around windows and doors, especially those without weather stripping;
   between the foundation and the ground; around attic and crawl space
   vents; and around the holes where cables and pipes come in.
+
+Checking the roof line means a ladder, and a fall from one is a far bigger
+danger than any mouse. Look from the ground first, set the ladder up as
+[Keeping Things Working](/library#keeping-things-working) describes (its foot
+out a quarter of its working length, on firm level ground), and have
+someone with you while you climb (general practice).
 
 Then close them, as the CDC describes: fill small holes with steel wool,
 held in place with caulk or spray foam around it; fix larger ones with
@@ -160,10 +167,14 @@ persists, and to use EPA-registered products. If you do:
 
 - **Rat and mouse poison for households comes only as a bait station.**
   The EPA says the products sold in ordinary shops are ready-to-use bait
-  stations with the bait, a block or a paste, secured inside, and that the
-  kinds of rodent poison most likely to kill after a single feeding, which
-  also stay longer in the bodies of animals that eat poisoned rodents, are
-  no longer sold for household use.
+  stations that hold the bait, a block or a paste, or come packed with it.
+  It also says the second-generation anticoagulants, which are more likely
+  than the older kinds to kill after a single feeding and stay longer in
+  the bodies of animals that eat poisoned rodents, are no longer registered
+  for household products. That does not make household bait harmless: the
+  stations sold to households hold bromethalin, chlorophacinone or
+  diphacinone, and the EPA says the poisons that are not anticoagulants,
+  bromethalin among them, are each "toxic in other ways".
 - **Follow the label, and place stations only where children and pets
   cannot reach them.** The EPA also says to store pesticides out of reach
   of children and pets, in a locked cabinet or shed, never next to food,
@@ -216,10 +227,16 @@ while you do this. Bedding, clothing and soft toys go through a hot wash
 and a hot dryer or a line in the sun.
 
 **A vehicle that has stood unused:** the CDC says to open the bonnet, the
-doors and the boot and let it air for 20 minutes, disconnect the battery
-before inspecting the engine compartment, and use no vacuum or pressure
-washer on droppings until they have been disinfected. Check the air intake
-and filter before starting the engine; a nest there means a new filter.
+doors and the boot and let it air for 20 minutes, to wear plastic gloves
+and a long-sleeved shirt, to take the cables off the battery to avoid a
+shock before inspecting the engine compartment, and to use no vacuum or
+pressure washer on droppings until they have been disinfected. Take the
+negative (black, minus) cable off first and put it back last, so a
+spanner touching the metal body cannot make a spark (general practice);
+the CDC says to reconnect the battery only once the area is dry. Check the
+air intake and filter before starting the engine; a nest there means a
+new filter. If you are not sure of any of this, the CDC's advice is to
+consult a qualified mechanic.
 
 ### What they can give you
 
@@ -290,8 +307,8 @@ kept out ([Your First Compost](/library#your-first-compost)).
 
 ### Keep them off food and out of the house
 
-- **Screens on windows and doors**, kept in repair, are the CDC's first
-  defence against mosquitoes, and they keep flies out too (general
+- **Screens on windows and doors**, kept in repair, are one of the CDC's
+  defences against mosquitoes, and they keep flies out too (general
   practice for flies).
 - **Cover food**, especially outdoors (general practice).
 - **Traps and swatters.** The fly guide recommends light traps with glue
@@ -476,17 +493,17 @@ yours. Hand over:
   the heating or cooling ducts.** The CDC says special precautions apply
   to these: coveralls, boots, gloves, goggles and a respirator with HEPA
   filters, worn only after the fit testing local and state rules require.
-  That is a trained worker's kit, not a household's. It also says rodents
-  in ventilation systems are a job for a professional exterminating
-  service. It also
-  suggests a pest control specialist when rodents are in places you cannot
-  reach to clean.
+  That is a trained worker's kit, not a household's. The CDC also says
+  rodents in ventilation systems are a job for a professional
+  exterminating service, and suggests a pest control specialist when
+  rodents are in places you cannot reach to clean.
 - **Choosing a professional.** The EPA's advice: choose carefully, ask to
   see the company's licence, and call your state pesticide regulatory
   agency if you have concerns.
-- **Professional-grade poisons.** The EPA says the stronger rodent baits
-  are registered only for professional and agricultural use and are not
-  to be sold in ordinary shops.
+- **Professional-grade poisons.** The EPA says the second-generation
+  anticoagulants are registered only for commercial and structural pest
+  control, and that baits made for professional and agricultural users
+  are not to be sold in consumer stores.
 - **Illness.** Anyone who falls ill after cleaning up rodent waste, or
   with a rash or fever after a tick bite, needs a health care provider,
   told about the exposure.
@@ -580,8 +597,9 @@ Grouped by what kind of authority each one is. Web pages were read on
 - Centers for Disease Control and Prevention. Controlling Wild Rodent
   Infestations, 8 April 2024 (how rodents spread disease directly and
   indirectly; no apparent illness in many carriers; infestation in and
-  around the home as the main reason; remove food, water and shelter;
-  droppings and gnaw marks as signs; checking for activity by cleaning).
+  around the home as the main reason; remove food, water and shelter; the
+  first signs usually appearing before you see a rat or mouse; droppings
+  and gnaw marks as signs; checking for activity by cleaning).
   https://www.cdc.gov/healthy-pets/rodent-control/index.html
 - Centers for Disease Control and Prevention. How to Seal Up to Prevent
   Rodents, 8 April 2024 (a hole the width of a pencil, 1/4 inch or 6 mm;
@@ -602,9 +620,11 @@ Grouped by what kind of authority each one is. Web pages were read on
   Rodents, 8 April 2024 (no sweeping or vacuuming, and why; the
   disinfectant or 1.5 cups of bleach per gallon; gloves; the 5-minute soak;
   the seven steps; dead rodents and nests, double-bagged; repellent against
-  fleas; 30 minutes' airing; laundry; vehicles; heavy infestations, the
-  respirator and professional duct cleaning; tell a provider about rodent
-  exposure).
+  fleas; 30 minutes' airing; laundry; vehicles, with plastic gloves and a
+  long-sleeved shirt, battery cables off before the engine compartment and
+  back on when dry, and a qualified mechanic for help; heavy infestations,
+  the respirator and professional duct cleaning; tell a provider about
+  rodent exposure).
   https://www.cdc.gov/healthy-pets/rodent-control/clean-up.html
 - Centers for Disease Control and Prevention. About Hantavirus and
   Hantavirus Prevention, both 13 May 2024 (spread mainly from rodents,
@@ -664,8 +684,13 @@ Grouped by what kind of authority each one is. Web pages were read on
   https://www.epa.gov/rodenticides/about-rats-and-mice
 - US Environmental Protection Agency. Restrictions on Rodenticide Products,
   last updated 8 September 2026 (consumer products only as ready-to-use
-  bait stations; second-generation anticoagulants registered only for
-  professional and agricultural markets, not sold in consumer stores). And
+  bait stations, holding bromethalin, chlorophacinone or diphacinone;
+  second-generation anticoagulants more likely to kill after a single
+  night's feeding and longer-lasting in animal tissues, so no longer
+  registered for consumer products, only for commercial and structural
+  pest control; bromethalin and the other non-anticoagulants "toxic in
+  other ways"; professional and agricultural products not to be sold in
+  consumer stores). And
   Safely Use Rodent Bait Products, last updated 29 September 2026
   (storage out of reach, never next to food; placement; promptly removing
   dead rodents).
@@ -694,7 +719,10 @@ Grouped by what kind of authority each one is. Web pages were read on
   https://www.acq.osd.mil/eie/afpmb/docs/techguides/tg30.pdf
 - Health Resources and Services Administration. Poison Help, Prevention
   Tips, undated (bleach not to be mixed with anything other than water).
+  And About Us, undated (HRSA funds the Poison Help line, which connects
+  you to your local poison center).
   https://poisonhelp.hrsa.gov/what-you-can-do/prevention-tips
+  https://poisonhelp.hrsa.gov/about-us
 
 ### Inside this project
 
@@ -713,7 +741,8 @@ Grouped by what kind of authority each one is. Web pages were read on
   Safely](/library#storing-water-safely), [Keeping Animals](/library#keeping-animals),
   [Chickens and Eggs](/library#chickens-and-eggs), [Handwashing and
   Hygiene](/library#handwashing-and-hygiene), [Keeping
-  Records](/library#keeping-records), [Invasive Species](/library#invasive-species) and
+  Records](/library#keeping-records), [Keeping Things
+  Working](/library#keeping-things-working), [Invasive Species](/library#invasive-species) and
   [Pests and Disease](/library#pests-and-disease).
 
 ### Labelled in the text as general practice or our reading, not sourced
@@ -722,6 +751,9 @@ Grouped by what kind of authority each one is. Web pages were read on
   small lot.
 - Keeping fingers clear when setting a snap trap; calling a vet when a pet
   eats bait.
+- Ladder care when checking the roof line (with the rules in Keeping
+  Things Working); taking the negative battery cable off first and putting
+  it back last.
 - The household version of the fly guide's sanitation rules: lidded bins
   emptied at least weekly in warm weather, wrapped scraps, manure handled,
   compost that finishes.

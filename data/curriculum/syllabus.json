@@ -2771,7 +2771,8 @@
         "medicine"
       ],
       "data": [
-        "data/status_effects.csv"
+        "data/status_effects.csv",
+        "data/ship/flight.ron"
       ],
       "sources": [
         "nih",

@@ -206,9 +206,11 @@ ground rooted up in patches, muddy wallows, rubbed tree trunks, trails
 through thick cover, hoof prints near water, and droppings like a dog's
 with bits of acorn, grain, hair or feathers in them.
 
-When you find something you think is invasive, FWS's advice applies to
-any species: note exactly where it is and take a photograph if you can.
-Then report it, and do not move it.
+When you find something you think is invasive, FWS's advice to boaters
+and anglers works for any species (our reading): note its exact location,
+take a photograph if you can, and report it. Then leave it where it is
+(general practice): carrying it home or to an office to be identified is
+one more way to spread it.
 
 ## What to do
 
@@ -219,12 +221,20 @@ reach, so the first rule is to be a dead end, not a carrier.
 
 - **Firewood.** APHIS's advice: buy only local firewood or certified
   heat-treated firewood. In practice that means not bringing firewood
-  home from a trip or taking your own on one (general practice). (APHIS
-  removed its federal emerald ash borer
-  quarantine in a rule that took effect on 14 January 2021, so there is
-  no federal rule on moving ash firewood; some states and counties have
-  their own, which is worth checking before you haul wood, as general
-  practice.)
+  home from a trip or taking your own on one (general practice).
+- **The law on moving firewood depends on where you are.** APHIS removed
+  its federal emerald ash borer quarantine in a rule that took effect on
+  14 January 2021, but other federal quarantines still cover firewood. The
+  Asian longhorned beetle's list of regulated articles begins with
+  "Firewood (all hardwood species)", and APHIS's page on that beetle says
+  "please don't move firewood out of quarantined areas" and asks people
+  in them to follow state and federal laws. The spongy moth quarantine
+  (the regulation, 7 CFR 301.45, still calls it the gypsy moth) counts
+  firewood among the "outdoor household articles" that may not be taken
+  across a state line from a quarantined area into one that is not
+  without a certificate or a signed self-inspection checklist. States and
+  counties can add rules of
+  their own, so check before you haul wood (general practice).
 - **Vehicles, trailers and outdoor things.** In a spotted lanternfly area,
   APHIS asks you to keep car windows closed when parked, to park about 15
   feet from trees in a quarantine zone if you can, to check doors, sides,
@@ -339,7 +349,9 @@ zebra mussel problem. FWS's instructions, in order:
    clean water, treat the tank water with bleach at the same strength for
    10 minutes before pouring it down a household drain, and clean the tank
    and its gravel, decorations and filter by one of FWS's methods: hot
-   water at 120 F for at least two minutes; a 24-hour soak in half a cup of
+   water at 120 F for at least two minutes, kept off your skin (FWS's
+   boat-cleaning advice warns to avoid skin contact with water that hot);
+   a 24-hour soak in half a cup of
    salt per gallon; or a 10-minute soak in the same bleach solution, after
    which FWS says to replace the filter media and use a dechlorinating
    product before the fish go back.
@@ -563,6 +575,14 @@ read in the Electronic Code of Federal Regulations, current to 1 October
   signs; buy local or certified heat-treated firewood; 1-866-322-4512; the
   domestic quarantine removed, effective 14 January 2021).
   https://www.aphis.usda.gov/plant-pests-diseases/eab
+- USDA Animal and Plant Health Inspection Service. Asian Longhorned Beetle,
+  last modified 17 September 2026 ("please don't move firewood out of
+  quarantined areas"; follow state and federal laws, which limit moving
+  tree material and untreated firewood). And Asian Longhorned Beetle
+  Regulated Articles, 7 CFR 301.51-2, last update 16 June 2016 (the list
+  the regulation points to, beginning "Firewood (all hardwood species)").
+  https://www.aphis.usda.gov/plant-pests-diseases/alb
+  https://www.aphis.usda.gov/sites/default/files/asian-longhorned-beetle-regulated-articles_1.pdf
 - USDA Animal and Plant Health Inspection Service. How USDA Fights Invasive
   Pests, last modified 1 October 2026 (report what you see; the State Plant
   Health Directors).
@@ -582,6 +602,14 @@ read in the Electronic Code of Federal Regulations, current to 1 October
   360.300, Notice of restrictions on movement of noxious weeds (no movement
   into or through the United States or interstate without a permit).
   https://www.ecfr.gov/current/title-7/subtitle-B/chapter-III/part-360
+- Animal and Plant Health Inspection Service. 7 CFR 301.45-1, Definitions
+  (outdoor household articles, firewood among them; the OHA document, a
+  signed self-inspection checklist), and 7 CFR 301.45-4, Conditions
+  governing the interstate movement of regulated articles and outdoor
+  household articles from quarantined areas (no such movement into or
+  through an area that is not quarantined without a certificate or an
+  OHA document). The regulation still names the insect the gypsy moth.
+  https://www.ecfr.gov/current/title-7/subtitle-B/chapter-III/part-301/subpart-E
 - US Fish and Wildlife Service. Clean, Drain, Dry, published 7 October
   2021, modified 17 September 2024 (the steps; hot water of at least 120 F,
   avoiding skin contact; bleach and other chemicals not recommended for
@@ -653,6 +681,9 @@ read in the Electronic Code of Federal Regulations, current to 1 October
 ### Labelled in the text as general practice or our reading, not sourced
 
 - Reading the federal definition as three tests.
+- Applying FWS's advice on reporting a sighting to species on land, and
+  leaving a suspected invasive where it is rather than carrying it to be
+  identified.
 - Not carrying firewood to or from a trip; checking state and county
   rules on moving firewood, and on hunting feral swine, before you act.
 - Reporting giant hogweed to a county or state weed board.

@@ -50,7 +50,7 @@ before you need them:
 
 - **911** for an emergency: someone who has collapsed, cannot breathe, has
   the signs of a heart attack or a stroke, or is getting worse fast.
-- **1-800-222-1222**, the Poison Help line. HRSA, which runs it, says it
+- **1-800-222-1222**, the Poison Help line. HRSA, which funds it, says it
   connects you to your local poison center and that you can call it
   anytime, anywhere in the United States.
 - **988**, the Suicide and Crisis Lifeline. SAMHSA describes it as "24/7
@@ -274,7 +274,7 @@ to the skin. MedlinePlus describes the two easiest places:
   first, and never press on both sides of the neck at once.** MedlinePlus
   warns that the neck arteries in some people are sensitive to pressure,
   so pressing can cause fainting or slow the heart, and pressing both
-  sides can cut the blood flow to the head.
+  sides at once can slow the blood flow to the head and cause fainting.
 
 Count the beats for a full minute, or for 30 seconds and double it; a
 15-second count times four is usually accurate too. For your resting
@@ -370,9 +370,12 @@ person may be in cardiac arrest if they collapse suddenly and lose
 consciousness, are not breathing or are only gasping, do not respond to
 shouting or shaking, and have no pulse. Its instruction: call 911 right
 away, look for an automated external defibrillator (AED), and give CPR
-until medical professionals arrive. The CDC puts out-of-hospital cardiac
-arrests in the United States at more than 356,000 a year, with about 60
-to 80 percent of those people dying before they reach the hospital. That
+until medical professionals arrive. Do not delay CPR to hunt for a pulse:
+someone who has collapsed and is not breathing normally needs it now, and
+the 911 call-taker can talk you through it (general practice). The CDC
+puts out-of-hospital cardiac arrests in the United States at more than
+356,000 a year, with about 60 to 80 percent of those people dying before
+they reach the hospital. That
 is why the class matters: a trained person on the spot is often the only
 help in time.
 
@@ -449,6 +452,27 @@ temperatures above 40 F if someone is wet from rain, sweat or cold water.
 [Cold and Hypothermia](/library#cold-and-hypothermia) covers how to recognise it
 and how to rewarm someone without hurting them.
 
+**An infection that is getting worse: sepsis.** The CDC calls sepsis the
+body's extreme response to an infection and "a life-threatening medical
+emergency". It says almost any infection can lead to it, most often
+infections that start in the gut, the lungs, the skin or the urinary
+tract, and that without fast treatment it can quickly lead to tissue
+damage, organ failure and death. Its signs:
+
+- clammy or sweaty skin;
+- confusion or disorientation;
+- extreme pain or discomfort;
+- fever, shivering or feeling very cold;
+- a high heart rate or a weak pulse;
+- shortness of breath.
+
+The CDC says a person with sepsis "might have one or more" of these signs,
+so do not wait for several. Its patient sheet says that if you or someone
+you care for has an infection that is not getting better or is getting
+worse, act right away: ask a doctor "Could I have sepsis?" and whether you
+should go to the emergency room, and if the signs are severe, call 911
+immediately.
+
 **Carbon monoxide.** The CDC calls carbon monoxide an odorless, colorless
 gas that "kills without warning", made whenever fuel burns: in furnaces,
 generators, stoves, grills, fireplaces, engines and charcoal. Its most
@@ -480,26 +504,6 @@ your hand. (Using the pesticide advice for every household product is our
 extension of it.)
 
 ### Hours: get medical care today
-
-**An infection that is getting worse: sepsis.** The CDC calls sepsis the
-body's extreme response to an infection and "a life-threatening medical
-emergency". It says almost any infection can lead to it, most often
-infections that start in the gut, the lungs, the skin or the urinary
-tract, and that without fast treatment it can quickly lead to tissue
-damage, organ failure and death. Its signs include:
-
-- clammy or sweaty skin;
-- confusion or disorientation;
-- extreme pain or discomfort;
-- fever, shivering or feeling very cold;
-- a high heart rate or a weak pulse;
-- shortness of breath.
-
-There is no single sign; it is the combination, in someone who has an
-infection. The CDC's patient sheet says that if you or someone you care
-for has an infection that is not getting better or is getting worse, act
-right away and ask a doctor "Could I have sepsis?" and whether you should
-go to the emergency room; if the signs are severe, call 911.
 
 **Heat exhaustion.** The CDC sheet lists heavy sweating; cold, pale,
 clammy skin; a fast, weak pulse; nausea or vomiting; muscle cramps;
@@ -549,9 +553,17 @@ blurry vision, and frequent urinary tract or yeast infections, and, more
 often in type 2 diabetes, cuts and sores that heal very slowly, dark
 patches of skin around the neck, armpits or groin, and numbness or
 tingling in the hands or feet. It warns that type 2 symptoms often take
-several years to develop and that some people notice none at all, which
-is why testing matters. Type 1 can come on over weeks or months, and in
-children, unexplained bed-wetting can be a sign.
+several years to develop and that some people notice none at all, so it
+says to know the risk factors (a test is how you find out; that part is
+general practice).
+
+**Type 1 can be faster.** The CDC says that as type 1 diabetes progresses,
+its symptoms can appear suddenly, in a few weeks or months, and can be
+severe, and it adds nausea, vomiting, stomach pains and diabetic
+ketoacidosis (DKA). In children, unexplained bed-wetting or more accidents
+can be a sign. With nausea, vomiting or stomach pains in someone who has
+those other signs, get medical care the same day, not an appointment in a
+few weeks (general practice).
 
 **Blood pressure.** No symptoms, as above, so measure it.
 
@@ -591,8 +603,8 @@ fast to get help. Everything after that is a professional's:
 ## Traps
 
 - **Telling yourself it is probably nothing.** For the sudden signs,
-  minutes count and a false alarm costs little. A stroke that clears in minutes still needs a
-  doctor the same day.
+  minutes count and a false alarm costs little. A stroke that clears in
+  minutes still needs a doctor the same day.
 - **Waiting for pain.** The NCI says cancer often does not cause pain, and
   high blood pressure causes nothing at all you can feel.
 - **Driving yourself in.** The CDC says not to drive to the hospital with
@@ -613,10 +625,12 @@ timescales, and leaves out nearly everything that can go wrong inside one.
 - **Health and the vitals.** You have Health out of 100, and on the
   Inventory page six more readings: Satiation (how fed you are), Hydration,
   Energy, Oxygen, Waste and Body temp. Settings > Gameplay > "Survival bars
-  on the HUD" decides how many show under the health bar: the default,
-  "When low", shows a need only once it needs attention, and air and body
-  temperature whenever they are outside the safe range; "Always" shows
-  them all and "Off (health only)" shows only health.
+  on the HUD" decides how many show under the health bar. The default,
+  "When low", shows food, water and energy once they fall below half,
+  Waste once it is more than half full, air whenever you are out of
+  breathable air or it is not full, and body temperature whenever it is
+  outside the safe range; "Always" shows them all and "Off (health only)"
+  shows only health.
 - **Thirst and hunger run on real time.** With the default Vitals drain
   of 1.0 (Settings > Gameplay), Hydration empties in about two days and
   Satiation in about a week, and below a quarter you become Thirsty or
@@ -641,6 +655,10 @@ timescales, and leaves out nearly everything that can go wrong inside one.
 - **Food poisoning.** Spoiled food always gives you food poisoning, and
   several raw foods carry a chance of it (`data/food_system.ron`); it
   drains your health for a while.
+- **Acceleration.** Aboard a ship under a hard burn, you feel extra
+  weight. Above 1.5 g you get High Gravity, which halves your speed, and
+  your health drains, faster the harder the burn: at 4 g, about 50 seconds
+  takes you from full health to none (`data/ship/flight.ron`).
 
 **What changes with the settings.** The default Dev play mode (Settings >
 Gameplay > Play mode) makes materials free, but it does not pause your
@@ -650,10 +668,9 @@ tiredness (0 pauses them), and the Dev page's fly mode, a developer tool,
 suspends the danger of airless space and the weather while it is on.
 Your health and vitals are not saved at all, so every launch starts you
 at the starting levels, fed, watered and rested, whatever the save; and
-while "Start every
-session from the default home" is on, which it is by default during
-development, only your character's name, look and clothes carry over, so
-the food and water in your pack go too.
+while "Start every session from the default home" is on, which it is by
+default during development, only your character's name, look and clothes
+carry over, so the food and water in your pack go too.
 
 What the game leaves out, so you do not learn it from the game: there are
 no heart attacks, strokes, allergies, infections, sepsis, diabetes or
@@ -661,9 +678,10 @@ carbon monoxide, and nothing about you has a pulse, a breathing rate or a
 blood pressure to measure. The game's data includes a catalogue of
 injuries and illnesses (`data/medical.ron`) and disease effects such as
 flu and infection in `data/status_effects.csv`, but nothing in the game
-gives them to you yet. In the game, a body fails in five clear ways and
-tells you on a bar. A real one fails in hundreds, and tells you only if
-you know how to listen.
+gives them to you yet. In the game, a body fails in a handful of clear
+ways (hunger, thirst, air, heat and cold, food poisoning and hard
+acceleration), and each one warns you with a bar or a named condition. A
+real one fails in hundreds, and tells you only if you know how to listen.
 
 ## You own this when
 
@@ -741,14 +759,17 @@ Grouped by what kind of authority each one is. Web pages were read on
   is the only way to know).
   https://www.cdc.gov/high-blood-pressure/about/index.html
 - Centers for Disease Control and Prevention. Symptoms of Diabetes,
-  15 May 2024 (the shared symptoms; type 1 and type 2 differences; type 2
-  taking years and sometimes unnoticed; bed-wetting in children).
+  15 May 2024 (the shared symptoms; type 1 symptoms that can appear
+  suddenly and be severe, with nausea, vomiting, stomach pains and DKA;
+  bed-wetting in children; type 2 taking years and sometimes unnoticed, so
+  know the risk factors).
   https://www.cdc.gov/diabetes/signs-symptoms/index.html
 - Centers for Disease Control and Prevention. About Sepsis, 17 August
   2026 (the definition; infections most often starting in the gut, lungs,
-  skin or urinary tract; the signs). And the patient fact sheet Sepsis Is
-  an Emergency, undated ("Could I have sepsis?"; call 911 for severe
-  signs).
+  skin or urinary tract; the signs, any "one or more" of them). And the
+  patient fact sheet Sepsis Is an Emergency, undated (act right away on an
+  infection that is not getting better; "Could I have sepsis?"; call 911
+  immediately for severe signs).
   https://www.cdc.gov/sepsis/about/index.html
   https://www.cdc.gov/sepsis/media/pdfs/Simplified-Sepsis-FS-Patient-508.pdf
 - Centers for Disease Control and Prevention. Heat-Related Illnesses,
@@ -778,8 +799,11 @@ Grouped by what kind of authority each one is. Web pages were read on
   https://www.epa.gov/rodenticides/case-pesticide-emergency
 - Health Resources and Services Administration. Poison Help, undated (the
   toll-free line connects you to your local poison center, anytime,
-  anywhere in the United States).
+  anywhere in the United States). And About Us, undated (HRSA "funds the
+  Poison Help line (1-800-222-1222), which connects you to your local
+  poison center").
   https://poisonhelp.hrsa.gov/
+  https://poisonhelp.hrsa.gov/about-us
 - Substance Abuse and Mental Health Services Administration. 988 Suicide
   and Crisis Lifeline, last updated 26 September 2025 ("24/7 judgment-free
   support for mental health, substance use, and more"; call, text or
@@ -815,7 +839,12 @@ Grouped by what kind of authority each one is. Web pages were read on
   `data/food_system.ron`.
 - The Inventory readings (`src/gui/pages/inventory.rs`) and the Settings >
   Gameplay controls: Vitals drain, Body heat, and "Survival bars on the
-  HUD" (`src/gui/pages/settings.rs`, `HudVitals` in `src/config.rs`).
+  HUD" (`src/gui/pages/settings.rs`, `HudVitals` in `src/config.rs`; which
+  rows "When low" shows: `vital_rows` in `src/gui/pages/hud.rs`).
+- Acceleration: the crew tolerance row (1.5 g safe, 2 health a second at
+  4 g) in `data/ship/flight.ron`, `harm_per_sec` in `src/systems/flight.rs`,
+  the harm in `src/systems/food.rs`, and the High Gravity row in
+  `data/status_effects.csv`.
 - Vitals and health not saved: `src/save_load.rs`. The Play mode and the
   "Start every session from the default home" setting: `src/config.rs`.
 - The medical catalogue and disease rows that nothing applies yet:
@@ -834,6 +863,10 @@ Grouped by what kind of authority each one is. Web pages were read on
 
 - Taking a first-aid and CPR class, and finding your own country's
   emergency numbers.
+- Not delaying CPR to search for a pulse, and letting the 911 call-taker
+  talk you through it.
+- A test as the way to find diabetes; getting medical care the same day,
+  not weeks later, for the type 1 signs.
 - Babies and older people deserving the closest watching and an earlier
   call, our reading of the SEER course and of the at-risk groups the CDC
   and MedlinePlus name.
