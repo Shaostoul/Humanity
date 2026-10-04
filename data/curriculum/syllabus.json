@@ -2063,9 +2063,25 @@
       "subject": "measurement",
       "title": "Reading numbers honestly",
       "summary": "Tell a real signal from noise, and spot a misleading claim.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "reading-numbers-honestly"
+      ],
       "skills": [
         "trading"
+      ],
+      "data": [
+        "data/plants.csv",
+        "data/garden/yields.ron"
+      ],
+      "sources": [
+        "nist-sematech-ehandbook",
+        "nist",
+        "cdc",
+        "census",
+        "ecfr",
+        "ftc",
+        "sec"
       ],
       "locale_dependent": false,
       "hazard": "caution"
@@ -2650,12 +2666,23 @@
       "subject": "navigation",
       "title": "Reading a map",
       "summary": "Read contours, scale and symbols, and relate them to what you see.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "reading-a-map"
+      ],
       "skills": [
         "navigation"
       ],
+      "data": [
+        "data/maps/regions/seattle-center.bin",
+        "data/maps/regions/silverdale.bin"
+      ],
       "sources": [
-        "usgs"
+        "dod-technical-manuals",
+        "usgs",
+        "noaa-ncei",
+        "nps",
+        "phmsa"
       ],
       "locale_dependent": false,
       "hazard": "serious"
@@ -2790,9 +2817,27 @@
       "subject": "tools",
       "title": "Fasteners",
       "summary": "Choose the right screw, nail, bolt or rivet for a load.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "nails-screws-and-bolts"
+      ],
       "skills": [
         "engineering"
+      ],
+      "data": [
+        "data/items.csv",
+        "data/recipes.csv",
+        "data/crafting/tools.ron"
+      ],
+      "sources": [
+        "fpl-wood-handbook",
+        "dod-technical-manuals",
+        "nasa-ntrs",
+        "niosh",
+        "osha",
+        "ecfr",
+        "cpsc",
+        "fema"
       ],
       "locale_dependent": false,
       "hazard": "serious"

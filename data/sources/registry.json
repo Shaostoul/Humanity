@@ -10,7 +10,8 @@
       "kind": "authority",
       "licence": "public-domain-us-gov",
       "use": "verbatim",
-      "bundle": true
+      "bundle": true,
+      "note": "Principles of Epidemiology in Public Health Practice, Third Edition (archive.cdc.gov; lesson 1 section 7 last reviewed 18 May 2012; read 2026-10-03): the comparison group as the key feature of analytic epidemiology; experimental and observational studies; association, and the remark that epidemiology by itself can never prove a cause; ratios, proportions and rates; the risk ratio. www.cdc.gov refuses scripted downloads; archive.cdc.gov does not."
     },
     {
       "id": "atsdr",
@@ -43,7 +44,7 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "29 CFR 1910.106 defines the flammable-liquid categories by flash point. Federal regulation text, so quotable, unlike the NFPA standard that parallels it."
+      "note": "29 CFR 1910.106 defines the flammable-liquid categories by flash point. Federal regulation text, so quotable, unlike the NFPA standard that parallels it. Co-publisher, with NIOSH, of Nail Gun Safety: A Guide for Construction Contractors (September 2011, OSHA 3459-8-11); see niosh."
     },
     {
       "id": "nfpa",
@@ -73,7 +74,7 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "Elevation, hydrography, geology and streamflow. The terrain under the canonical world comes from here."
+      "note": "Elevation, hydrography, geology and streamflow. The terrain under the canonical world comes from here. Topographic maps (read 2026-10-03): the FAQs What is a topographic map?, How current are US Topo maps? (a three-year production cycle) and How do I find, download, or order topographic maps? (free downloads through topoView, The National Map Download Client and the Map Locator), all undated; and the US Topo Map Symbol Guide (1:24,000, one inch represents 2,000 feet; perennial and intermittent stream symbols; contour interval always noted below the bar scale)."
     },
     {
       "id": "noaa",
@@ -105,7 +106,7 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "Climate normals and the GHCN station record. The authority for frost dates and precipitation."
+      "note": "Climate normals and the GHCN station record. The authority for frost dates and precipitation. Geomagnetism Frequently Asked Questions (undated, read 2026-10-03; parts of it describe the 2020 to 2025 model epoch and are out of date, so cite only its general statements): a compass points along the local horizontal field, not at a single point; declination may be considerably different a mile or two away; rare local anomalies of more than 10 degrees; models revised at least every five years."
     },
     {
       "id": "cameo-chemicals",
@@ -239,7 +240,7 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "Species-by-species strength, stiffness, shrinkage and decay resistance. The authority for anything made of wood."
+      "note": "Species-by-species strength, stiffness, shrinkage and decay resistance. The authority for anything made of wood. FPL-GTR-282 is dated March 2021. Chapter 8, Fastenings, by Douglas R. Rammer, read 2026-10-03 from the chapter PDF (https://www.fpl.fs.usda.gov/documnts/fplgtr/fplgtr282/chapter_08_fpl_gtr282.pdf) because the whole-book URL returned a service-unavailable page that day: withdrawal and lateral loads; withdrawal as low as 25 percent after moisture cycling; penny sizes obsolete in favour of length and diameter; end grain withdrawal 50 to 75 percent of side grain; lead holes; toenailing; screw and lag screw lead holes; screws and lag screws turned, never hammered; bolt hole fit and spacing; retightening bolts in green timber during the first year."
     },
     {
       "id": "fws",
@@ -280,7 +281,8 @@
       "kind": "authority",
       "licence": "public-domain-us-gov",
       "use": "verbatim",
-      "bundle": true
+      "bundle": true,
+      "note": "Corrosion Protection for Metal Connectors and Fasteners in Coastal Areas, NFIP Technical Bulletin 8 (June 2019, read 2026-10-03): structural failures frequently at connections rather than framing members; CCA removed in 2004 and some replacement preservatives more corrosive; stainless or hot-dip galvanised fasteners for treated wood; higher retention corroding faster; fasteners and connectors of similar metals; corrosion dramatically higher near the coast; G185 or heavier galvanising; routine inspection. The bulletin also carries ASCE and ICC material used with permission: rely only on FEMA's own text."
     },
     {
       "id": "usfa",
@@ -302,7 +304,7 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "NIST Handbook 133-2026 (December 2025): net weight is the commodity exclusive of wrapping materials. Weighing and Scales FAQs (updated 6 March 2026): commercial scales must meet state law, all 50 states have adopted Handbook 44, and a scale must be inspected and approved by the state before commercial use. The FAQ names \"an active NTEP Certificate of Conformance as proof that it is compliant with NIST Handbook 44\" as the most important aspect for a commercial scale."
+      "note": "NIST Handbook 133-2026 (December 2025): net weight is the commodity exclusive of wrapping materials. Weighing and Scales FAQs (updated 6 March 2026): commercial scales must meet state law, all 50 states have adopted Handbook 44, and a scale must be inspected and approved by the state before commercial use. The FAQ names \"an active NTEP Certificate of Conformance as proof that it is compliant with NIST Handbook 44\" as the most important aspect for a commercial scale. Technical Note 1297 (Taylor and Kuyatt, 1994), appendix D: random and systematic error. Its definitions reproduce the international vocabulary of metrology (VIM), so restate them rather than quoting."
     },
     {
       "id": "nchfp",
@@ -477,7 +479,7 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "NASA-authored publications such as Reference Publication 1228 (Fastener Design Manual) are federal works and quotable. CONTRACTOR reports hosted on NTRS are not: the Materials Data Handbooks (CR-123772 for 6061, CR-123773 for 7075) carry NTRS metadata belongsToUsGov false, so they are cited under nasa-contractor-reports as facts only. Check the stiType before quoting anything from NTRS."
+      "note": "NASA-authored publications such as Reference Publication 1228 (Fastener Design Manual) are federal works and quotable. CONTRACTOR reports hosted on NTRS are not: the Materials Data Handbooks (CR-123772 for 6061, CR-123773 for 7075) carry NTRS metadata belongsToUsGov false, so they are cited under nasa-contractor-reports as facts only. Check the stiType before quoting anything from NTRS. RP-1228 (Barrett, March 1990, with an erratum of 17 June 2008) read 2026-10-03: thread friction coefficients from 0.04 to 1.10 and torque tables adjusted for them; not torquing close to yield; the helical spring lock washer flat and without locking ability once tightened; galvanic corrosion and which metal should be the larger; rivets weak in tension and not watertight without seals. Its tool-accuracy tables and Appendix A (bolthead markings) are credited to outside sources: restate those, do not quote them."
     },
     {
       "id": "usfs",
@@ -561,7 +563,7 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "16 CFR 460, the R-value Rule, is why an insulation label may not advertise R-value per inch. Consumer advice pages (read 2026-10-03): How To Avoid a Home Improvement Scam (July 2022), How To Spot, Avoid, and Report Fake Check Scams (June 2025), Mobile Payment Apps (May 2022), and Auto Warranties and Auto Service Contracts (April 2024; a dealer may not deny warranty coverage because maintenance was done by someone else). Auto warranties exception, verbatim: \"But if the warranty says that the work will be done for free, the dealer or manufacturer can make you use repair facilities it chooses\"; without maintenance records \"your claim might be denied\". Home improvement page: \"Consider only contractors who are licensed and insured\", the licence number in the contract, and the three-business-day right to cancel a contract signed at home."
+      "note": "16 CFR 460, the R-value Rule, is why an insulation label may not advertise R-value per inch. Consumer advice pages (read 2026-10-03): How To Avoid a Home Improvement Scam (July 2022), How To Spot, Avoid, and Report Fake Check Scams (June 2025), Mobile Payment Apps (May 2022), and Auto Warranties and Auto Service Contracts (April 2024; a dealer may not deny warranty coverage because maintenance was done by someone else). Auto warranties exception, verbatim: \"But if the warranty says that the work will be done for free, the dealer or manufacturer can make you use repair facilities it chooses\"; without maintenance records \"your claim might be denied\". Home improvement page: \"Consider only contractors who are licensed and insured\", the licence number in the contract, and the three-business-day right to cancel a contract signed at home. Guides Concerning the Use of Endorsements and Testimonials in Advertising, 16 CFR 255.2 (read 2026-10-03 in the eCFR): \"Consumer endorsements themselves are not competent and reliable scientific evidence\"; testimonials read as typical; disclaimers such as Results not typical do not cure them; disclose the generally expected result; reviews not to be distorted."
     },
     {
       "id": "cpsc",
@@ -571,7 +573,7 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "Injury data by product, and the safety standards themselves. Cite a proposed rule for its data, never as if it were in force. Also cited: Publication 5123 Portable Generator Hazards (102021), Publication 5126 Walk-Behind Power Mower Fact Sheet (052016), and Publication 254 Guide for Resale Stores and Product Resellers (012013 RV 052014: selling recalled products is unlawful, including at yard sales). Publication 254 also lists children's metal jewellery over 100 ppm lead, and children's products and painted furniture over the lead limits, as not to be sold; resellers need not test but cannot knowingly sell them."
+      "note": "Injury data by product, and the safety standards themselves. Cite a proposed rule for its data, never as if it were in force. Also cited: Publication 5123 Portable Generator Hazards (102021), Publication 5126 Walk-Behind Power Mower Fact Sheet (052016), and Publication 254 Guide for Resale Stores and Product Resellers (012013 RV 052014: selling recalled products is unlawful, including at yard sales). Publication 254 also lists children's metal jewellery over 100 ppm lead, and children's products and painted furniture over the lead limits, as not to be sold; resellers need not test but cannot knowingly sell them. Staff report CPSC/EXHR/TR--15/001, Preliminary Evaluation of Anchoring Furniture and Televisions Without Tools (May 2015; produced by staff and not reviewed or approved by the Commission), read 2026-10-03: drywall anchors strongest in shear and weakest pulled straight out; drywall typically unable to take the 50 lb pull of the voluntary standard, so kits supply a wood screw for a stud; the 50 lb based on a 95th percentile five-year-old; no strength requirement for the wall anchor. News release 25-409 (29 July 2025): anchor TVs and furniture such as bookcases and dressers securely to the wall; the mandatory clothing storage unit stability standard in effect from September 2023. cpsc.gov refuses scripted downloads; both were read through the web reader."
     },
     {
       "id": "hud",
@@ -696,7 +698,7 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "Visitor safety guidance written for people who are actually outside in the conditions described, which makes it unusually practical on cold, heat, water and wildlife. Park-specific pages are often better than the general ones."
+      "note": "Visitor safety guidance written for people who are actually outside in the conditions described, which makes it unusually practical on cold, heat, water and wildlife. Park-specific pages are often better than the general ones. Ten Essentials (https://www.nps.gov/articles/10essentials.htm, last updated 28 May 2026, read 2026-10-03): navigation as a map, compass and GPS; know how to use them before going out; bring a physical map as a back-up and an extra phone battery; tell someone where you are going and when to expect you back."
     },
     {
       "id": "ashrae",
@@ -745,7 +747,7 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "Works of the US government, so public domain under 17 USC 105 and quotable in the bundle. The hand-tool and shop manuals (TM 9-243 Use and Care of Hand Tools and Measuring Tools, TC 9-524 Fundamentals of Machine Tools) are the most thoroughly illustrated free instruction on these subjects that exists, written to teach a skill to somebody with no background, which is our reader exactly. Treat the equipment-specific volumes with more care: a manual written for one machine in one decade is not general guidance. FM 5-426 Carpentry (3 October 1995, approved for public release, distribution unlimited; copy at archive.org) is the source for building layout: batter boards, the 6-8-10 and diagonal methods, plumbing posts, stairs as a right triangle and the rafter table. TM 9-243 is a joint Army, Navy, Air Force and Marine Corps manual (also Navy M6290-AJ-MAN-010, Air Force TO 32-1-101, Marine Corps TM 10209-10/1) dated 12 December 1984; the archive.org copy (use-and-care-of-hand-tools-and-measuring-tools-1983) is the Navy June 1992 reissue, NAVEDTRA 12085, with Change 1. Its chapter 20 also says to make certain no one is under a vehicle being raised, and to be aware of the capabilities of the jack, especially its load capacity."
+      "note": "Works of the US government, so public domain under 17 USC 105 and quotable in the bundle. The hand-tool and shop manuals (TM 9-243 Use and Care of Hand Tools and Measuring Tools, TC 9-524 Fundamentals of Machine Tools) are the most thoroughly illustrated free instruction on these subjects that exists, written to teach a skill to somebody with no background, which is our reader exactly. Treat the equipment-specific volumes with more care: a manual written for one machine in one decade is not general guidance. FM 5-426 Carpentry (3 October 1995, approved for public release, distribution unlimited; copy at archive.org) is the source for building layout: batter boards, the 6-8-10 and diagonal methods, plumbing posts, stairs as a right triangle and the rafter table. TM 9-243 is a joint Army, Navy, Air Force and Marine Corps manual (also Navy M6290-AJ-MAN-010, Air Force TO 32-1-101, Marine Corps TM 10209-10/1) dated 12 December 1984; the archive.org copy (use-and-care-of-hand-tools-and-measuring-tools-1983) is the Navy June 1992 reissue, NAVEDTRA 12085, with Change 1. Its chapter 20 also says to make certain no one is under a vehicle being raised, and to be aware of the capabilities of the jack, especially its load capacity. FM 3-25.26 Map Reading and Land Navigation (20 July 2001, approved for public release, distribution unlimited; archive.org MManuals copy, read 2026-10-03) is the source for map reading: marginal information, scale and bar scales, map colours, contour lines and terrain features, azimuths and the declination diagram, compass separation distances, orienting a map, terrain association, handrails, catching features and attack points. Its later editions (FM 3-25.26 of 2005, TC 3-25.26 of 15 November 2013) are not public release. Also read 2026-10-03: FM 5-426 chapter 2, Hardware (nails, screws, lag screws, bolts; the three-times nail length rule) and TM 9-243 chapters 21, 22 and 25 (hammer, screwdriver and wrench safety; torque wrenches as calibrated precision instruments for final tightening)."
     },
     {
       "id": "state-health-wastewater",
@@ -2760,7 +2762,7 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "Federal regulation text, quotable. 10 CFR 430.32(d) sets the minimum uniform energy factor for residential water heaters, with a stricter table for heaters made on or after 6 May 2029. Also cited (read 2026-10-03): 29 CFR 1910.147 and 1910.333(b)(2)(iv), lockout and verifying that a circuit is de-energised with test equipment; 21 CFR 112.161-112.165, what a farm record must contain and how long it is kept; 14 CFR 43.9, maintenance record entries; 7 CFR 205.103, organic recordkeeping. Cite the section and the date it was read, because the eCFR is updated in place. Also cited (read 2026-10-03): 29 CFR 1910.212 (machine guarding), 1910.242(b) (compressed air for cleaning under 30 psi), 1910.244(a) (jacks: block a raised load at once; tag a jack that is out of order), 1926.651 and 1926.652 (locating utilities before digging; cave-in protection below 5 feet; spoil 2 feet from the edge), 1926.1053(b) (ladder use, the one-quarter rule); 24 CFR 3285.203 (manufactured home site drainage, one half inch per foot for the first ten feet). Added after the fact check (read 2026-10-03): 1910.147(e)(2)(i) and (ii) (everyone safely positioned or removed, and affected employees told, before a machine is restarted); 1910.244(a)(1)(i) and (a)(2)(i) (a jack rated to lift and sustain the load; its base blocked without a firm foundation); 1926.650(b) (competent person defined); 1926.651(b)(3) (the exact location of underground installations found by safe and acceptable means as digging approaches the estimate) and (j)(2) (spoil 2 feet back, or retaining devices); 1926.1053(b)(3), (10), (11) and (13) (rated capacity, both rails supported equally, not moved while occupied, the top or top step of a stepladder not a step); 1926.252(e) (oily rags in fire resistant covered containers); 1910.266(d)(1)(iv) to (vii) and (e)(2)(i) (chainsaw leg, foot, head and eye protection; chain brake, kickback devices never disabled)."
+      "note": "Federal regulation text, quotable. 10 CFR 430.32(d) sets the minimum uniform energy factor for residential water heaters, with a stricter table for heaters made on or after 6 May 2029. Also cited (read 2026-10-03): 29 CFR 1910.147 and 1910.333(b)(2)(iv), lockout and verifying that a circuit is de-energised with test equipment; 21 CFR 112.161-112.165, what a farm record must contain and how long it is kept; 14 CFR 43.9, maintenance record entries; 7 CFR 205.103, organic recordkeeping. Cite the section and the date it was read, because the eCFR is updated in place. Also cited (read 2026-10-03): 29 CFR 1910.212 (machine guarding), 1910.242(b) (compressed air for cleaning under 30 psi), 1910.244(a) (jacks: block a raised load at once; tag a jack that is out of order), 1926.651 and 1926.652 (locating utilities before digging; cave-in protection below 5 feet; spoil 2 feet from the edge), 1926.1053(b) (ladder use, the one-quarter rule); 24 CFR 3285.203 (manufactured home site drainage, one half inch per foot for the first ten feet). Added after the fact check (read 2026-10-03): 1910.147(e)(2)(i) and (ii) (everyone safely positioned or removed, and affected employees told, before a machine is restarted); 1910.244(a)(1)(i) and (a)(2)(i) (a jack rated to lift and sustain the load; its base blocked without a firm foundation); 1926.650(b) (competent person defined); 1926.651(b)(3) (the exact location of underground installations found by safe and acceptable means as digging approaches the estimate) and (j)(2) (spoil 2 feet back, or retaining devices); 1926.1053(b)(3), (10), (11) and (13) (rated capacity, both rails supported equally, not moved while occupied, the top or top step of a stepladder not a step); 1926.252(e) (oily rags in fire resistant covered containers); 1910.266(d)(1)(iv) to (vii) and (e)(2)(i) (chainsaw leg, foot, head and eye protection; chain brake, kickback devices never disabled). Also cited (read 2026-10-03): 16 CFR 255.2 (FTC Endorsement Guides, consumer endorsements: a testimonial on a key attribute is read as the typical result; the heat pump example) and 29 CFR 1926.302(e)(1) (powder-actuated tools operated only by people trained on the particular tool)."
     },
     {
       "id": "doe-building-science-education",
@@ -2990,6 +2992,50 @@
       "use": "verbatim",
       "bundle": true,
       "note": "Holds the founding documents; its transcriptions of the Constitution, the Bill of Rights and amendments 11 to 27 are the source of the Library's Constitution page (docs/reference/us-constitution.md). Article I, Section 8 gives Congress the power to fix the Standard of Weights and Measures."
+    },
+    {
+      "id": "nist-sematech-ehandbook",
+      "name": "NIST/SEMATECH e-Handbook of Statistical Methods",
+      "publisher": "National Institute of Standards and Technology",
+      "url": "https://www.itl.nist.gov/div898/handbook/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "DOI 10.18434/M32189; created 1 June 2003, significant update April 2012, last updated 27 April 2022 (read 2026-10-03). Chapter 1, Exploratory Data Analysis, edited by James J. Filliben of NIST, is the part cited: what EDA is, the underlying assumptions and response = deterministic component + random component, the run-sequence plot, measures of location and scale, and detecting outliers. Some other chapters were edited by SEMATECH and Advanced Micro Devices staff rather than federal employees: restate those, do not quote them."
+    },
+    {
+      "id": "census",
+      "name": "United States Census Bureau",
+      "publisher": "US Department of Commerce",
+      "url": "https://www.census.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Understanding and Using American Community Survey Data: What All Data Users Need to Know (issued September 2020, read 2026-10-03): sampling error; margins of error at 90 percent and confidence intervals; standard error as the margin divided by 1.645; the significance test and the warning not to rely on overlapping intervals; inflation adjustment of dollar figures. It was drafted by the Population Reference Bureau, a private nonprofit, in partnership with the Census Bureau: restate it, do not quote it. Data Visualization Standards (beta, undated, https://xdgov.github.io/data-design-standards/, feedback to a census.gov address, read 2026-10-03): bar charts should always start at zero; consistent axes for charts meant to be compared; no 3D graphics."
+    },
+    {
+      "id": "sec",
+      "name": "US Securities and Exchange Commission",
+      "publisher": "Office of Investor Education and Advocacy (Investor.gov)",
+      "url": "https://www.investor.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Ponzi Scheme page (https://www.investor.gov/protect-your-investments/fraud/types-fraud/ponzi-scheme, undated, read 2026-10-03): red flags including high returns with little or no risk, guaranteed opportunities, overly consistent returns regardless of overall market conditions, and unregistered investments and unlicensed sellers. Cite for warning signs only; neither it nor the Library is investment advice."
+    },
+    {
+      "id": "niosh",
+      "name": "National Institute for Occupational Safety and Health",
+      "publisher": "Centers for Disease Control and Prevention",
+      "url": "https://www.cdc.gov/niosh/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Nail Gun Safety: A Guide for Construction Contractors, with OSHA, DHHS (NIOSH) Publication No. 2011-202, OSHA Publication 3459-8-11, September 2011, which states it is in the public domain (read 2026-10-03 from https://stacks.cdc.gov/view/cdc/209984/cdc_209984_DS1.pdf; catalogue record https://stacks.cdc.gov/view/cdc/6013): about 37,000 emergency room visits a year; full sequential triggers safest and contact triggers twice the injury risk; hands at least 12 inches from the nailing point; disconnect the air to clear jams; never bypass safety features; ANSI Z87.1 eye protection and hearing protection; seek medical care at once. cdc.gov and stacks.cdc.gov refuse scripted downloads; the PDF was fetched through the web reader. The niosh-pocket-guide entry covers only the chemical hazards pocket guide."
     }
   ]
 }
