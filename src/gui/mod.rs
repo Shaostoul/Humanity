@@ -2719,8 +2719,7 @@ pub struct GuiState {
     pub game_admin_target_key: String,
     /// The reason typed into the Game Admin ban form.
     pub game_admin_ban_reason: String,
-    /// The public key typed into the "Homes on the ship" form: whose plot to release
-    /// (ship homes increment 1b, `game_release_plot`).
+    /// The plot id or public key typed into "Homes on the ship" (ship homes 1b, `game_release_plot`).
     pub game_admin_plot_key: String,
     /// Last status / error line shown on the Game Admin page.
     pub game_admin_status: String,

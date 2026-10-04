@@ -116,6 +116,14 @@ const { spawn, spawnSync, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
 const DXC = require("./lib/dxc-dlls.js");
 const TR = require("./lib/throwaway-relay.js");
+/** The relay's loopback self-check for the rig's output: what the operating
+ *  system showed it listening on (startRelay refuses, and stops the relay, when
+ *  any of it is not loopback, so a relay that got here listens on loopback only
+ *  and never raises a Windows Firewall prompt). */
+const loopbackNote = (relay) =>
+  relay.listening && relay.listening.length
+    ? `listening only on ${relay.listening.map((x) => `${x.host}:${x.port}`).join(", ")} (loopback, by the operating system's own list)`
+    : "its listening addresses were not checked";
 const { judgeCopresence, LIMITS, figurePixels, FIGURE_MIN_PX, approachClear, judgePlots, forwardLegStart, readShipPlots, judgeRejoin, judgeEditorClose, judgeEntry, respawnRoute } = require("./lib/copresence-judge.js");
 const png = require("./lib/png.js");
 // The freshness gate, run through its one runner so --allow-other-build reaches
@@ -575,7 +583,7 @@ async function main() {
     // anything but loopback, so this rig never raises a firewall prompt).
     manifest.relay = { url: relay.httpUrl, pid: relay.pid, dir: relay.dir, health: relay.health, listening: relay.listening.map((r) => r.line) };
     manifest.steps_ok.relay = relay.health
-      ? { ok: true, detail: `${relay.httpUrl} answered /health (pid ${relay.pid}, a copy in ${relay.dir})` }
+      ? { ok: true, detail: `${relay.httpUrl} answered /health (pid ${relay.pid}, a copy in ${relay.dir}); ${loopbackNote(relay)}` }
       : { ok: false, detail: `${relay.httpUrl} never answered /health: ${relay.logText().slice(-400)}` };
     step("relay", manifest.steps_ok.relay.ok, manifest.steps_ok.relay.detail);
     if (!relay.health) throw new Error("the throwaway relay did not come up");
@@ -1138,9 +1146,9 @@ async function runPlotsOnce(order, runStamp, cleanups) {
 
   try {
     relay = await TR.startRelay({ sourceExe: EXE, prefix: "verify-copresence-relay-", config: { server_name: "verify-copresence plots relay" } });
-    manifest.relay = { url: relay.httpUrl, pid: relay.pid, dir: relay.dir, health: relay.health };
+    manifest.relay = { url: relay.httpUrl, pid: relay.pid, dir: relay.dir, health: relay.health, listening: relay.listening.map((x) => x.line) };
     manifest.steps_ok.relay = relay.health
-      ? { ok: true, detail: `${relay.httpUrl} answered /health (pid ${relay.pid})` }
+      ? { ok: true, detail: `${relay.httpUrl} answered /health (pid ${relay.pid}); ${loopbackNote(relay)}` }
       : { ok: false, detail: `${relay.httpUrl} never answered /health: ${relay.logText().slice(-400)}` };
     step("relay", manifest.steps_ok.relay.ok, manifest.steps_ok.relay.detail);
     if (!relay.health) throw new Error("the throwaway relay did not come up");
