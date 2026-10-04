@@ -11,6 +11,14 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1457.2: three Library guides on your body and on pests.** How Your
+  Body Works (vital signs, and the emergencies where minutes count: heart
+  attack, cardiac arrest, stroke, sepsis, heatstroke, carbon monoxide),
+  Invasive Species (what makes a species invasive, giant hogweed, cleaning
+  boots and boats, and why firewood should not travel), and Rats, Flies,
+  Mosquitoes and Ticks (cleaning up after rodents safely, traps and bait
+  stations, and removing a tick). The Library now has 86 sourced guides.
+
 - **v0.1457.1: six more Library guides, on animals and on making things.**
   How Animals Work, Keeping Animals (water, feed, fencing, hay fires, keeping
   new animals apart), and Animal Health and Disease (taking a temperature,

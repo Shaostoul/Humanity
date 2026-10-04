@@ -218,6 +218,14 @@ bandages yield 8 against 5 plain, several item weights differ between
 items.csv and trade_goods.ron, and herbal_tea_0 and brass_key_0 are named
 by data but are not items.
 
+**Game gaps the Library fact checks found (2026-10-04),** each verified in
+the code by the guide writers under the default settings: health and vitals
+are never saved; `data/medical.ron` is never applied (its system is not
+registered with the game); `data/species.json` and `data/geology.ron` are not
+read by anything; farm animals have no illness, feed or water needs and do not
+breed; nothing in the game makes Scrap Metal unless the Dev page spawns its
+robots; the water pump card said 12 L/min (fixed v0.1452.1).
+
 ### 1. Environment regions: the rest of the arc BUG-080 opened
 
 Weather has been a place since v0.1330.0 (BUG-080,
