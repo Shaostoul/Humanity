@@ -11,6 +11,12 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1446.3: three more Library guides.** Keeping Things Working (looking
+  after tools, machines and a house, and making them safe before you start),
+  Square, Level and Plumb (laying out a shed or a path, and calling 811 before
+  you dig), and Trading Fairly (honest weights, recalls, contracts and scams).
+  Each one was checked against its sources before it shipped.
+
 - **v0.1446.2: three new Library guides.** Estimating (pacing out a
   distance, counting seconds to thunder, how much a drum of water weighs),
   Keeping Records (what a useful garden, rain, maintenance or money record
