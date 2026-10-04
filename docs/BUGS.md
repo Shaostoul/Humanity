@@ -3303,3 +3303,37 @@ Also found by the same checks, smaller: the water pump's card said 12 L/min
 while its own water port and the self-sufficiency data say 2 L/min (fixed
 2026-10-04 in `home.ron` and `home_solo.ron`; `home_outline.json` had listed
 it as a contradiction to fix since September).
+
+## BUG-144: the Library quotation gate blamed quotes on the wrong source, and read prose between quotes as a quote (FIXED v0.1452.2, found 2026-10-04)
+
+**Seen:** `scripts/check-library-quotes.js` reported 6 problems after two
+Library batches merged, which made `just preflight` fail. None was a real
+restate-only quotation:
+
+- Two were public-domain quotations ("The CDC's wording: ...", "the USDA
+  guide adds: ...") blamed on NCHFP and Penn State, named a sentence or two
+  earlier.
+- Two were the prose BETWEEN two short quotes, e.g. Gildan's "Heavy Cotton"
+  T-shirt ... its "safety" colours, and the cell text after "vegan
+  leather" in a table.
+- Two named a claim in order to correct it or to say which claim a source
+  is cited for.
+
+**Why:** the pairing was a regex, `/"([^"]{20,})"/g`, which after failing
+on a short quote restarts one character later and takes the closing mark as
+an opening one. The attribution took the first restate-only source named
+ANYWHERE in the 220-character lookback (longest name first) and did not know
+the quotable sources at all, although its own comment said "the nearest
+recognisable source name".
+
+**Fix:** marks are paired in order within a paragraph; the source is the
+NEAREST name before the quotation among every registry source, with short
+deliberate aliases for the quotable publishers (CDC, USDA, EPA, OSHA, NIOSH,
+FEMA, USGS) matched as whole words; only a nearest `use: facts` source is
+flagged. The logic is exported and `scripts/tests/check-library-quotes.test.js`
+(8 tests, in `just preflight` and `just check-library-quotes`) holds the
+cases; three of them were seen failing against a copy carrying the old
+pairing and attribution. With the fix the real Library had 2 reports, one
+new (a guide quoting its own former wording, hidden before by the
+desynchronised pairing); those two and the 95-percent source-list line got
+`quote-ok` markers with their reasons. 0 problems.

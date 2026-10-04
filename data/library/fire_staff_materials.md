@@ -1540,5 +1540,6 @@ nobody re-adds them.
 - **The blanket burn first aid of "cool running water first"** for every
   burn. MedlinePlus gives that for minor burns only, and says a severe
   burn should not go into cold water.
+<!-- quote-ok: quoting this guide's own earlier wording in its list of corrections, not a source -->
 - **"Every fuel used on props is a flammable liquid"**, which the guide's
   own Ultra-Pure lamp oil figure contradicted.

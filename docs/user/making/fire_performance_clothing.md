@@ -107,6 +107,7 @@ supplementing it.
 The standard is paywalled, so this guide quotes the city rules rather
 than the standard itself.
 
+<!-- quote-ok: naming a claim seen online in order to correct it, not quoting a source -->
 None of these sets a percentage. You will see "at least 95 percent
 natural" quoted online as a rule; it comes from performer blogs, not
 from any code or standard found for this guide. It is a **community
@@ -1006,6 +1007,7 @@ words.
 - Flow Arts Institute. Fire safety clothing (the see-light-through-it
   check). A teacher's guide, not an authority.
   https://flowartsinstitute.com/fire-safety-clothing/
+<!-- quote-ok: naming the rule of thumb this source is cited for, not quoting its text -->
 - Fire In Your Face. What to wear for fire performance (the "95 percent
   natural" rule of thumb, cited only to identify where it comes from).
   https://fireinyourface.com/what-to-wear-for-fire-performance/

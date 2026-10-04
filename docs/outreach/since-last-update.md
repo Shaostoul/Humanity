@@ -11,6 +11,14 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1452.2: three more Library guides about the ground.** Life in Soil
+  (earthworms and what counting them tells you, tetanus and when a wound
+  needs a doctor, manure and how long before harvest), Soil Chemistry (pH,
+  lime and why it burns, reading a fertilizer bag, nitrate in well water and
+  why boiling does not remove it), and The Ground Under You (rock and soil
+  types, radon, sinkholes, calling 811 before you dig, and staying out of old
+  mines). The Library now has 71 sourced guides.
+
 - **v0.1452.1: three more Library guides, and the water pump tells the
   truth.** Moving Water Without Power (siphons, gravity lines, hand pumps,
   rain tanks and their weight, keeping children safe around water), Stone,
