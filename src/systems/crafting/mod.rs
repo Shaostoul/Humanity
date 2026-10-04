@@ -633,6 +633,53 @@ impl CraftingSystem {
         })
     }
 
+    /// Litres of a recipe's outputs that would go in a backpack: everything
+    /// but the vehicles the game rolls out as world vehicles.
+    fn carried_output_volume(
+        recipe: &Recipe,
+        item_registry: Option<&crate::systems::inventory::ItemRegistry>,
+        vehicle_kits: Option<&crate::systems::vehicles::VehicleKitRegistry>,
+    ) -> f32 {
+        recipe
+            .outputs
+            .iter()
+            .filter(|(id, _)| !vehicle_kits.is_some_and(|k| k.get_vehicle(id).is_some()))
+            .map(|(id, qty)| item_registry.map(|r| r.volume_for(id)).unwrap_or(0.0) * *qty as f32)
+            .sum()
+    }
+
+    /// The recipe's outputs are bigger than the whole backpack, so making
+    /// room in it can never help (a boat, a spacecraft pod): only home
+    /// storage can take them. Returns the litres when so.
+    fn too_big_for_backpack(
+        inventory: &Inventory,
+        recipe: &Recipe,
+        item_registry: Option<&crate::systems::inventory::ItemRegistry>,
+        vehicle_kits: Option<&crate::systems::vehicles::VehicleKitRegistry>,
+    ) -> Option<f32> {
+        let litres = Self::carried_output_volume(recipe, item_registry, vehicle_kits);
+        (litres > inventory.volume_capacity_l && inventory.volume_capacity_l > 0.0).then_some(litres)
+    }
+
+    /// The one notice a finished hand craft posts while it waits because the
+    /// backpack cannot take it and home storage is not where the player is
+    /// (they walked off the ship, or became a guest whose home is put away).
+    /// It says what will actually deliver it: room in the backpack only when
+    /// room could ever be enough, and otherwise home storage, once the player
+    /// is back at their home, with why it does not count here.
+    fn waiting_notice(name: &str, too_big: Option<(f32, f32)>, not_here: Option<&str>) -> String {
+        let why = not_here.map(|r| format!(" ({r})")).unwrap_or_default();
+        match (too_big, not_here) {
+            (Some((litres, holds)), _) => format!(
+                "{name} is finished, but it is too big for your backpack ({litres:.0} L; it holds {holds:.0} L): it goes to your home storage once you are back at your home{why}."
+            ),
+            (None, Some(_)) => format!(
+                "{name} is finished, but your backpack is full: make room and it will be added, or it goes to your home storage once you are back at your home{why}."
+            ),
+            (None, None) => format!("{name} is finished, but your backpack is full: make room and it will be added."),
+        }
+    }
+
     /// Would the recipe's outputs land WITHOUT overflow-loss? Conservative slot
     /// math (existing same-item stack headroom first, then free slots). Used by
     /// the AutoRefine arm so automation never grinds inputs into discarded
@@ -651,14 +698,7 @@ impl CraftingSystem {
         // becomes a grinder that consumes inputs and volume-overflows every
         // output. Inputs are consumed at start (freeing volume), but checking
         // outputs against CURRENT volume is the conservative, simple bound.
-        let out_volume: f32 = recipe
-            .outputs
-            .iter()
-            .filter(|(id, _)| !vehicle_kits.is_some_and(|k| k.get_vehicle(id).is_some()))
-            .map(|(id, qty)| {
-                item_registry.map(|r| r.volume_for(id)).unwrap_or(0.0) * *qty as f32
-            })
-            .sum();
+        let out_volume = Self::carried_output_volume(recipe, item_registry, vehicle_kits);
         if out_volume > 0.0
             && inventory.volume_current_l + out_volume > inventory.volume_capacity_l
         {
@@ -1336,14 +1376,31 @@ impl System for CraftingSystem {
                 // (A backpack that fills DURING a timed craft is covered at
                 // completion: the finished craft waits for room, or goes to
                 // storage.)
-                let fits = world
+                let (fits, too_big) = world
                     .get::<&Inventory>(request.crafter)
-                    .map(|inv| Self::outputs_fit(&inv, &recipe, item_registry, vehicle_kits))
-                    .unwrap_or(true);
+                    .map(|inv| {
+                        let big = Self::too_big_for_backpack(&inv, &recipe, item_registry, vehicle_kits);
+                        (Self::outputs_fit(&inv, &recipe, item_registry, vehicle_kits), big.map(|l| (l, inv.volume_capacity_l)))
+                    })
+                    .unwrap_or((true, None));
                 let to_home = store.takes_goods(data);
                 if !fits && !to_home {
-                    let why = store.not_here.map(|r| format!(" (Home storage takes what does not fit only at your home: {r}.)")).unwrap_or_default();
-                    notice(format!("No room in your backpack for {}: make room and craft again.{why}", recipe.name));
+                    // Bigger than the whole backpack, making room is no help:
+                    // say where it can be made instead (the review of BUG-147).
+                    let msg = match too_big {
+                        Some((litres, holds)) => {
+                            let why = store.not_here.map(|r| format!(" ({r})")).unwrap_or_default();
+                            format!(
+                                "{} makes something too big for your backpack ({litres:.0} L; it holds {holds:.0} L): craft it at your home, where home storage takes it{why}.",
+                                recipe.name
+                            )
+                        }
+                        None => {
+                            let why = store.not_here.map(|r| format!(" (Home storage takes what does not fit only at your home: {r}.)")).unwrap_or_default();
+                            format!("No room in your backpack for {}: make room and craft again.{why}", recipe.name)
+                        }
+                    };
+                    notice(msg);
                     continue;
                 }
 
@@ -1493,7 +1550,8 @@ impl System for CraftingSystem {
                     // A hand craft finished where the home's storage is sends
                     // there what the backpack cannot take (BUG-147); away from
                     // it (a planet, or a guest on a shared ship) it waits.
-                    let hand_to_home = !craft.auto && home_store::HomeStore::here(data).takes_goods(data);
+                    let store = home_store::HomeStore::here(data);
+                    let hand_to_home = !craft.auto && store.takes_goods(data);
                     let target_fits = (craft.auto && to_storage) || hand_to_home || {
                         let t = if craft.auto { player } else { Some(craft.crafter) };
                         t.and_then(|t| world.get::<&Inventory>(t).ok().map(|inv| {
@@ -1508,12 +1566,22 @@ impl System for CraftingSystem {
                     if !target_fits && !has_vessel {
                         if !craft.waiting_notified {
                             craft.waiting_notified = true;
+                            // A hand craft says what will deliver it (the
+                            // review of BUG-147): a pod never fits a backpack,
+                            // so it waits for home storage, not for room. An
+                            // automated machine's goods wait for room.
+                            let msg = if craft.auto {
+                                Self::waiting_notice(&recipe.name, None, None)
+                            } else {
+                                let too_big = world.get::<&Inventory>(craft.crafter).ok().and_then(|inv| {
+                                    Self::too_big_for_backpack(&inv, recipe, item_registry, vehicle_kits)
+                                        .map(|l| (l, inv.volume_capacity_l))
+                                });
+                                Self::waiting_notice(&recipe.name, too_big, store.not_here)
+                            };
                             if let Some(slot) = data.get::<std::sync::Mutex<Vec<String>>>("player_notices") {
                                 if let Ok(mut n) = slot.lock() {
-                                    n.push(format!(
-                                        "{} is finished, but your backpack is full: make room and it will be added.",
-                                        recipe.name
-                                    ));
+                                    n.push(msg);
                                 }
                             }
                         }

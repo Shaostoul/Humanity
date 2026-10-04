@@ -250,3 +250,91 @@ fn a_rover_from_home_storage_still_rolls_out() {
         assert_eq!((carried(&world, player, &id), stored(&data, &id)), (0, 0), "{id}: all of it used");
     }
 }
+
+/// Every pod part in the backpack, the craft started aboard (home storage
+/// takes the finished pod there). The craft runs on while the player walks.
+fn a_pod_started_aboard() -> (DataStore, hecs::World, hecs::Entity, CraftingSystem) {
+    let (data, mut world, player) = real_home(&[]);
+    for (id, need) in parts(&data, "build_spacecraft_pod") {
+        world.get::<&mut Inventory>(player).unwrap().add_item(&id, need, 999);
+    }
+    let mut sys = CraftingSystem::new();
+    craft(&mut sys, &mut world, &data, "build_spacecraft_pod");
+    assert_eq!(sys.active_crafts.len(), 1, "the craft started aboard: {:?}", notices(&data));
+    (data, world, player, sys)
+}
+
+/// A pod (1778 L) started aboard and finished where home storage does not
+/// count (on a planet's ground, or a guest whose home is put away) waits, and
+/// its one notice says what will actually deliver it: home storage, once the
+/// player is back at their home, and why it does not count here. Emptying a
+/// 65 L backpack can never make room for it, so the notice must not say to.
+/// Back aboard their own home, the pod is filed in home storage. Seen red
+/// before the fix: "on a planet: the notice says what delivers the pod:
+/// [\"Build Spacecraft Pod is finished, but your backpack is full: make room
+/// and it will be added.\"]".
+#[test]
+fn a_too_big_craft_finished_away_from_home_waits_for_home_storage_and_says_so() {
+    let planet = StationsWhere::Site(crate::systems::construction::PlanetSite {
+        body: "earth".into(),
+        origin: glam::DVec3::new(6.371e6, 0.0, 0.0),
+    });
+    let away = [
+        ("on a planet", planet, true, "in orbit"),
+        ("a guest on a shared ship", StationsWhere::Home, false, "not on this ship"),
+    ];
+    for (case, place, home_on_ship, why) in away {
+        let (mut data, mut world, player, mut sys) = a_pod_started_aboard();
+        data.insert("stations_where", Mutex::new(place));
+        data.insert(HOME_STORAGE_HERE, Mutex::new(home_on_ship));
+        for _ in 0..10 {
+            sys.tick(&mut world, 100.0, &data); // a 900 s craft
+        }
+        assert_eq!(sys.active_crafts.len(), 1, "{case}: the finished pod waits");
+        assert!(hand_made(&data).is_empty(), "{case}: nothing filed while away");
+        let told = notices(&data);
+        assert!(
+            told.iter().any(|n| n.contains("too big for your backpack") && n.contains("home storage") && n.contains(why)),
+            "{case}: the notice says what delivers the pod: {told:?}"
+        );
+        assert!(!told.iter().any(|n| n.contains("make room")), "{case}: making room can never help: {told:?}");
+
+        // Back aboard their own home: the pod goes to home storage.
+        data.insert("stations_where", Mutex::new(StationsWhere::Home));
+        data.insert(HOME_STORAGE_HERE, Mutex::new(true));
+        sys.tick(&mut world, 0.016, &data);
+        assert!(sys.active_crafts.is_empty(), "{case}: delivered once back home");
+        let made = hand_made(&data);
+        assert_eq!(made.iter().map(|(id, q, _)| (id.as_str(), *q)).collect::<Vec<_>>(), vec![("spacecraft_pod_0", 1)], "{case}");
+        assert_eq!(carried(&world, player, "spacecraft_pod_0"), 0, "{case}");
+    }
+}
+
+/// A craft whose result is bigger than the whole backpack, asked for where
+/// home storage does not count, is refused before anything is spent with
+/// advice that can work: craft it at the home, where home storage takes it.
+/// Seen red before the fix: "the refusal says where it can be made: [\"No
+/// room in your backpack for Build Spacecraft Pod: make room and craft again.
+/// (Home storage takes what does not fit only at your home: away from your
+/// home you craft from what you carry.)\"]".
+#[test]
+fn a_result_bigger_than_the_backpack_is_refused_away_with_advice_that_works() {
+    let (mut data, mut world, player) = real_home(&[]);
+    data.insert("stations_where", Mutex::new(StationsWhere::Nowhere));
+    let bill = parts(&data, "build_spacecraft_pod");
+    for (id, need) in &bill {
+        world.get::<&mut Inventory>(player).unwrap().add_item(id, *need, 999);
+    }
+    let mut sys = CraftingSystem::new();
+    craft(&mut sys, &mut world, &data, "build_spacecraft_pod");
+    assert!(sys.active_crafts.is_empty(), "refused");
+    for (id, need) in &bill {
+        assert_eq!(carried(&world, player, id), *need, "{id}: nothing spent");
+    }
+    let told = notices(&data);
+    assert!(
+        told.iter().any(|n| n.contains("too big for your backpack") && n.contains("at your home") && n.contains("away from your home")),
+        "the refusal says where it can be made: {told:?}"
+    );
+    assert!(!told.iter().any(|n| n.contains("make room")), "making room can never help: {told:?}");
+}
