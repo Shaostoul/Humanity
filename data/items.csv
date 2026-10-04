@@ -1148,3 +1148,44 @@ garden_sulfur_0,Garden Sulfur,material,agricultural,hdpe,2.0,10,0,2 kg of 90% el
 # of water" (MilStop, as sold). The jar size and its 0.4 L volume (about 1.1 kg per litre of powder) are game
 # estimates. Sealed in HDPE, the base material of the pack as for urine_stored_0.
 potassium_bicarbonate_0,Potassium Bicarbonate,material,agricultural,hdpe,0.454,10,0,454 g of potassium bicarbonate: a tablespoon to a gallon of water kills powdery mildew and guards leaves against gray mold,dry_goods,0.4
+#
+# Trade goods made into items (2026-10-04, BUG-143). data/trade_goods.ron listed these but they were not
+# items, and the vendor offers only goods that are both, so it never sold them. Each mass is the trade row's
+# own figure and the same order as a comparable row above (the ores beside iron_ore_0 and bauxite_0, the
+# ingots beside copper_ingot_0, the cloth beside cloth_bolt_0, the medkit beside medkit_0): game estimates,
+# as are the stack sizes and the lockpick's and sextant's durability. The ores take their metal as
+# base_material as the ores above do, except uranium_ore_0, which is mostly rock. volume_l follows
+# scripts/gen-item-volumes.js, except where data/materials.csv has no density for the base material and
+# data/chemistry does: sulfur_0 (elements.csv, S 2.067 g/cm3), saltpeter_0 (compounds.csv, 2.109) and
+# ruby_raw_0 and sapphire_raw_0 (compounds.csv alumina, the corundum they are, 3.95) use the script's
+# formula with that density. gunpowder_0 and emerald_raw_0 have no density in either, so the script's
+# 1000 kg/m3 fallback sizes them.
+# Minerals and ores
+sulfur_0,Sulfur,material,mineral,sulfur,0.5,20,0,Lumps of yellow elemental sulfur: an ingredient of gunpowder and the agent that cures latex into rubber,solid,0.40
+saltpeter_0,Saltpeter,material,mineral,saltpeter,0.5,20,0,Potassium nitrate crystals: a fertilizer and a meat cure and the oxidizer in gunpowder,dry_goods,0.40
+tin_ore_0,Tin Ore,material,ore,tin,3.0,20,0,Cassiterite: the tin oxide mineral and the main ore of tin,solid,0.69
+lead_ore_0,Lead Ore,material,ore,lead,5.0,20,0,Galena: the heavy grey lead sulfide mineral and the main ore of lead,solid,0.73
+zinc_ore_0,Zinc Ore,material,ore,zinc,3.0,20,0,Sphalerite: the zinc sulfide mineral and the main ore of zinc,solid,0.70
+uranium_ore_0,Uranium Ore,material,ore,stone,6.0,10,0,Rock carrying uraninite: weakly radioactive and the raw source of uranium fuel,hazmat,3.85
+crystal_quartz_0,Quartz Crystal,material,mineral,quartz,0.5,20,0,Clear silica crystal for optics and electronics,solid,0.31
+obsidian_0,Obsidian,material,raw_stone,obsidian,2.5,10,0,Volcanic glass that breaks to a razor edge when knapped,solid,1.60
+marble_0,Marble,material,raw_stone,marble,3.0,10,0,Metamorphosed limestone for building and carving,solid,1.85
+diamond_raw_0,Raw Diamond,material,gem,carbon,0.02,20,0,Uncut diamond: the hardest natural material and the cutting edge of the toughest tools,solid,0.02
+ruby_raw_0,Raw Ruby,material,gem,corundum,0.02,20,0,Uncut ruby: red corundum and the hardest mineral after diamond,solid,0.01
+sapphire_raw_0,Raw Sapphire,material,gem,corundum,0.02,20,0,Uncut sapphire: blue corundum and the hardest mineral after diamond,solid,0.01
+emerald_raw_0,Raw Emerald,material,gem,beryl,0.02,20,0,Uncut emerald: green beryl coloured by traces of chromium or vanadium,solid,0.03
+# Organic and processed materials
+resin_0,Resin,material,raw,resin,0.5,20,0,Hardened tree sap: melted with charcoal into pitch glue and used to seal seams,solid,0.76
+plywood_0,Plywood,material,processed_wood,plywood,3.5,10,0,A panel of thin wood veneers glued crosswise under pressure for sheathing and furniture,solid,9.72
+tin_ingot_0,Tin Ingot,material,ingot,tin,2.0,20,0,Smelted tin bar for bronze and solder and plating,solid,0.46
+bronze_ingot_0,Bronze Ingot,material,ingot,bronze,2.5,20,0,Copper-tin alloy bar: hard and slow to corrode,solid,0.47
+steel_plate_0,Steel Plate,material,processed,steel,5.0,10,0,Flat rolled steel sheet for hulls and armor and construction,solid,1.06
+ceramic_plate_0,Ceramic Plate,material,processed,ceramic,1.5,10,0,Fired ceramic tile that resists heat: for heat shields and insulation and armor,solid,1.04
+linen_cloth_0,Linen Cloth,material,processed,linen,0.3,10,0,A length of fabric woven from flax fiber: cool and strong,solid,0.33
+silk_cloth_0,Silk Cloth,material,processed,silk,0.2,10,0,A length of fabric woven from silk thread: light and smooth and strong,solid,0.25
+gunpowder_0,Gunpowder,material,chemical,black_powder,0.3,20,0,Black powder of saltpeter and charcoal and sulfur: the propellant of early firearms,hazmat,0.50
+# Named by the game's own data: data/medical.ron, data/blueprints/lock_types.ron, data/astronomy_tools.ron
+poultice_0,Poultice,medical,medical,plant_fiber,0.1,20,0,Herbal compress wrapped in cloth and laid on a wound or swelling,solid,0.28
+med_kit_advanced_0,Advanced Medkit,medical,medical,abs_plastic,1.0,5,0,Sutures and sterile instruments and dressings for procedures beyond first aid,solid,3.17
+lockpick_0,Lockpick,tool,security,steel,0.02,1,100,Thin steel pick and tension wrench for opening a pin-tumbler lock without its key,solid,0.01
+sextant_0,Sextant,tool,navigation,brass,0.5,1,200,Mirror instrument that measures the height of the sun or a star above the horizon to find latitude,solid,0.17
