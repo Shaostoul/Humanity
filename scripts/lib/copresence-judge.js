@@ -646,6 +646,58 @@ function judgeRejoin({ far, relaySpawn, camera, nudged, seen }, { prefix = "rejo
   return { pass: checks.every((c) => c.ok), checks };
 }
 
+/**
+ * Judge shutting the build editor far from the build spot (verify-copresence
+ * --plots, round 5 of the 1b review, finding 1). The game walked, in steps the
+ * relay accepted, more than 100 m from its build spot, opened the build editor
+ * (the showcase `build_editor` verb, the B key's own function) and shut it.
+ * Shutting it stands the player at the build spot when nothing holds them; in
+ * the shared world that was a jump the relay refuses, and the others saw the
+ * figure frozen where it last stood.
+ *   buildSpot  [x,y,z] where shutting the editor stands the game when the spot
+ *              is near (the rig opens and shuts it once at the door first, which
+ *              puts the build-mode avatar there), or null.
+ *   held       [x,y,z] where the relay held the game when it opened the editor:
+ *              the last of its moves the walker saw the relay pass on, or null.
+ *   camera     [x,y,z] the game's camera after the editor shut, or null.
+ *   nudged, seen   as for judgeRejoin: the next move, and what the walker saw.
+ * Checks: the experiment means something (the build spot is past the 100 m
+ * rule from where the relay holds the game); the game still stands where the
+ * relay holds it; and its next move reached the others.
+ * Returns { pass, checks }.
+ */
+function judgeEditorClose({ buildSpot, held, camera, nudged, seen }) {
+  const checks = [];
+  const add = (id, ok, detail) => checks.push({ id: `editor_${id}`, ok: !!ok, detail });
+  const d = (a, b) => (Array.isArray(a) && Array.isArray(b) ? Math.hypot(...[0, 1, 2].map((k) => Number(a[k]) - Number(b[k]))) : Infinity);
+  const fmt3 = (p) => (Array.isArray(p) ? `(${p.map((v) => Number(v).toFixed(2)).join(", ")})` : "(never)");
+  const gap = d(buildSpot, held);
+  add(
+    "far_from_build_spot",
+    Number.isFinite(gap) && gap > REJOIN_FAR_M,
+    buildSpot && held
+      ? `the build spot ${fmt3(buildSpot)} is ${gap.toFixed(1)} m from where the relay held the game when it opened the editor ${fmt3(held)}` +
+          (gap > REJOIN_FAR_M ? "" : ` (needs more than ${REJOIN_FAR_M} m to mean anything)`)
+      : `the build spot ${fmt3(buildSpot)} or where the relay held the game ${fmt3(held)} is unknown`,
+  );
+  const off = d(camera, held);
+  add(
+    "stands_where_held",
+    off <= REJOIN_STAND_TOL_M,
+    `after the editor shut, the game's camera at ${fmt3(camera)} is ${Number.isFinite(off) ? off.toFixed(2) : "?"} m from where the relay holds it ${fmt3(held)}` +
+      (off <= REJOIN_STAND_TOL_M ? "" : ` (at most ${REJOIN_STAND_TOL_M} m; a game put farther than 100 m away is frozen for everyone else)`),
+  );
+  const hit = (seen || []).find((p) => d(p, nudged) <= REJOIN_NUDGE_TOL_M);
+  add(
+    "moves_reach_others",
+    !!hit,
+    hit
+      ? `its next move to ${fmt3(nudged)} reached the walker through the relay, at ${fmt3(hit)}`
+      : `its next move to ${fmt3(nudged)} never reached the walker (${(seen || []).length} update(s) seen after it): the relay refused it`,
+  );
+  return { pass: checks.every((c) => c.ok), checks };
+}
+
 /** The walk from a home's door to `to` (one of FAR_POINTS) along the ship's
  *  floor, in steps of at most `maxStep` metres, each one the relay accepts
  *  under its 100 m rule: out through the door's corridor (into the Commons for
@@ -730,6 +782,7 @@ module.exports = {
   nearestPlot,
   judgePlots,
   judgeRejoin,
+  judgeEditorClose,
   judgeEntry,
   respawnRoute,
   REJOIN_FAR_M,

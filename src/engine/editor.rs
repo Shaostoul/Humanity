@@ -1868,3 +1868,94 @@ pub(crate) fn apply_gizmo_drag(state: &mut EngineState) {
         state.gui_state.construction_dirty = true;
     }
 }
+
+/// Open or shut the construction editor: the B key (lib.rs) and the showcase request's
+/// `build_editor` verb (engine/ipc.rs, verify-copresence --plots) run this same function. On
+/// open it mirrors the live layout into the editable GuiState; the camera follows on the next
+/// reconcile (lib.rs: the orbit camera on open; on close the player stands at the build spot,
+/// or where they stood, home_plot.rs `editor_close_spot`). Moved here from the B handler
+/// (round 5 of the ship homes 1b review) so a rig opens it the way a player does.
+pub(crate) fn toggle_build_editor(state: &mut EngineState) {
+    state.gui_state.construction_active = !state.gui_state.construction_active;
+    // Clear any held placement item on entering/leaving build mode, so a
+    // stale held type can't make the next viewport click drop a machine in
+    // the wrong context. (v0.531)
+    state.gui_state.construction_place_type = None;
+    state.gui_state.construction_place_light = None; // v0.784
+    state.gui_state.construction_place_conduit_node = false; // v0.629
+    state.construction_ghost = None;
+    state.construction_port_drag = None; // drop any in-flight wire drag (v0.625)
+    if state.gui_state.construction_active {
+        // Force a structure rebuild on ENTRY so the machine PICK VOLUMES
+        // (`machine_pick`) are rebuilt in the editor's coordinate space. Without
+        // this they held stale data from `load_world` (built before
+        // `home_structure` existed -> a different placement space), so you could
+        // NOT click a machine until some OTHER edit (e.g. nudging a light)
+        // triggered a rebuild -- the operator's "I have to drag a light first"
+        // repro. `construction_structure_dirty` routes through the exact same
+        // rebuild_homestead -> rebuild_machine_objects path that workaround hit. (v0.624)
+        state.gui_state.construction_structure_dirty = true;
+        // The rooms.ron registry for the ZONE detail panel (console-room
+        // increment): a zone's room_type picker lists these keys and the
+        // panel shows the purpose + actions the pick resolves to. Loaded here,
+        // on editor entry, for the box home too (the legacy-layout branch
+        // below only fills the Add-Room picker's id list).
+        let reg = crate::ship::room_types::RoomTypeRegistry::load(&state.data_dir);
+        let mut keys: Vec<String> = reg.types.keys().cloned().collect();
+        keys.sort();
+        state.gui_state.construction_room_types = keys;
+        state.gui_state.room_type_registry = reg;
+        if let Some(layout) = &state.homestead_layout {
+            // PIN EVERY room to its current resolved position on open, so
+            // editing one room no longer reshuffles the auto-laid-out
+            // others (the operator's "I felt lost as the rooms rearranged
+            // themselves"). The whole home becomes an explicit floor plan.
+            let resolved = crate::ship::fibonacci::resolve_positions(layout);
+            state.gui_state.construction_rooms = layout.rooms.iter()
+                .enumerate()
+                .map(|(i, rc)| {
+                    let w = &rc.walls;
+                    let pos = rc.position.unwrap_or_else(|| {
+                        let r = resolved[i];
+                        [r.x, r.y, r.z]
+                    });
+                    crate::gui::ConstructionRoom {
+                        id: rc.id.clone(),
+                        walls: [w.north, w.south, w.west, w.east],
+                        wall_offsets: w.offsets,
+                        openings: rc.openings.iter().map(|o| {
+                            use crate::ship::fibonacci::OpeningKind as OK;
+                            crate::gui::EditorOpening {
+                                kind: match o.kind {
+                                    OK::Door => crate::gui::EditorOpeningKind::Door,
+                                    OK::Airlock => crate::gui::EditorOpeningKind::Airlock,
+                                    // Window + Hatch both edit as Window in the mirror.
+                                    _ => crate::gui::EditorOpeningKind::Window,
+                                },
+                                wall: (o.wall as usize).min(3),
+                                u: o.u, v: o.v, w: o.w, h: o.h,
+                            }
+                        }).collect(),
+                        level: rc.level,
+                        position: Some(pos),
+                        dimensions: rc.dimensions,
+                        material_type: rc.material_type,
+                        color: rc.color,
+                    }
+                })
+                .collect();
+            state.gui_state.construction_height = if layout.default_wall_height > 0.0 {
+                layout.default_wall_height
+            } else {
+                3.0
+            };
+        }
+        // Add-Room picker default: the first registry key. The sorted key
+        // list itself was filled above, before this legacy-layout branch,
+        // so it is not loaded twice.
+        if state.gui_state.construction_add_type.is_empty() {
+            state.gui_state.construction_add_type =
+                state.gui_state.construction_room_types.first().cloned().unwrap_or_default();
+        }
+    }
+}

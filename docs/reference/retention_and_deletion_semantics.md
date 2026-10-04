@@ -172,7 +172,10 @@ The stored-data classes removed or bounded after the sealed-sender cutover:
     home's plot on the ship (it goes to the next player; if you come back you
     get a free plot or a guest place). If you are in the shared world when you
     erase, you leave it in the same step the plot is freed, so nobody is handed
-    a plot you still stand on.
+    a plot you still stand on; the server's stored copy of the world loses your
+    figure in that step too, so a crash straight after cannot bring your
+    progress back; and your game is told you left, with one sentence saying how
+    to come back (reconnect), and does not join again on its own.
     Admins must hand off the admin role first so a server is never orphaned.
     secure_delete zeroes the freed pages and the WAL is truncated; rotating
     backups hold prior snapshots until they age out, as everywhere else here.

@@ -2100,6 +2100,73 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// ROUND 5 of the 1b review (findings 2 and 4): an account erased while its figure stands
+    /// in the world. The relay took the figure out and told everyone with a game_player_left,
+    /// which the erasing game reads as somebody else leaving, so it went on showing the shared
+    /// world: every update it sent was dropped (the relay has no figure for it), it never
+    /// joined again (it thought it was in), and Respawn joined it again, claiming a new plot
+    /// for the account just erased. Now the erasing game is told privately, with one sentence
+    /// that says how to come back (engine/home_plot.rs `join_denied_sentence`), and nobody
+    /// else is.
+    ///
+    /// Seen red 2026-10-04 on c8b3a8d54: "the erasing game was never told it left the shared
+    /// world".
+    #[tokio::test]
+    async fn erasing_in_the_world_tells_the_erasing_game_it_left() {
+        let path = plots_db("erase_tells");
+        let (state, port, server) = relay_on(&path).await;
+        let (mut holder, _) = bind_socket(&state, port, [124u8; 32], Some("PlotErasedTold"), 1).await;
+        let (mut other, _) = bind_socket(&state, port, [125u8; 32], Some("PlotStaysOn"), 1).await;
+        welcome_after_join(&mut holder, "PlotErasedTold").await;
+        welcome_after_join(&mut other, "PlotStaysOn").await;
+        send_json(&mut holder, serde_json::json!({ "type": "account_delete", "confirm_name": "PlotErasedTold" })).await;
+        let told = next_game_of(&mut holder, &["game_join_denied"]).await;
+        let told = told.unwrap_or_else(|| panic!("the erasing game was never told it left the shared world"));
+        assert_eq!(told["reason"], "account_erased");
+        assert_eq!(told["message"], crate::ship::ship_structure::ERASED_SENTENCE);
+        let heard = game_messages_for(&mut other, 800).await;
+        assert!(
+            heard.iter().all(|g| g["type"] != "game_join_denied"),
+            "another player was told someone else's account was erased: {heard:?}"
+        );
+        holder.close(None).await.ok();
+        other.close(None).await.ok();
+        server.abort();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// ROUND 5 of the 1b review (finding 3): an erase and then a crash before the next world
+    /// save. The erase deleted the account's progress, but the stored world (written every
+    /// 30 s, `GameWorld::save_to_db`) still held its figure, so the restore at the next start
+    /// reaped it as a ghost and wrote its progress back, under the key just erased, for good.
+    /// Now the stored world loses the figure in the same step that takes it out.
+    ///
+    /// Seen red 2026-10-04 on c8b3a8d54: "the restore after a crash wrote the erased account's
+    /// progress back".
+    #[tokio::test]
+    async fn an_erase_then_a_crash_does_not_bring_back_the_erased_progress() {
+        let path = plots_db("erase_crash");
+        let (state, port, server) = relay_on(&path).await;
+        let (mut holder, holder_key) = bind_socket(&state, port, [126u8; 32], Some("PlotErasedCrash"), 1).await;
+        welcome_after_join(&mut holder, "PlotErasedCrash").await;
+        // The periodic world save ran while they stood in the world.
+        state.game_world.read().await.save_to_db(&state.db).expect("the world saves");
+        send_json(&mut holder, serde_json::json!({ "type": "account_delete", "confirm_name": "PlotErasedCrash" })).await;
+        let erased = wait_until(|| async { state.db.name_for_key(&holder_key).ok().flatten().is_none() }).await;
+        assert!(erased, "the erase ran");
+        assert!(state.db.load_player_progress(&holder_key).unwrap().is_none(), "the erase deleted their progress");
+        // The relay crashes here, before its next world save; the next start restores the world.
+        let mut restored = crate::relay::handlers::game_state::GameWorld::new();
+        assert!(restored.restore_from_db(&state.db), "a stored world to restore");
+        assert!(
+            state.db.load_player_progress(&holder_key).unwrap().is_none(),
+            "the restore after a crash wrote the erased account's progress back"
+        );
+        holder.close(None).await.ok();
+        server.abort();
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// A game whose home cannot stand on the plot it was given leaves with
     /// `give_up_plot` (engine/home_plot.rs, "does not fit"), and that plot goes
     /// back for the next player; a plain leave keeps the plot.

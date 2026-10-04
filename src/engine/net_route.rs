@@ -190,16 +190,11 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
             let reason = v.get("reason").and_then(|x| x.as_str()).unwrap_or("");
             // The relay's ship is not ours, it has none, or our join named none (increment 1b,
             // round 4): it refused the join before spawning anything, so there is nothing to
-            // leave. One plain sentence per cause, kept under the HUD, and no retry on this
-            // server until a fresh connection to it, a switch away and back, or a fresh world
-            // load (engine/home_plot.rs).
-            let ship_refusal = match reason {
-                "other_ship" => Some(crate::engine::home_plot::SHIP_MISMATCH),
-                "no_ship" => Some(crate::engine::home_plot::NO_SHIP),
-                "no_ship_named" => Some(crate::engine::home_plot::OWN_SHIP),
-                _ => None,
-            };
-            if let Some(sentence) = ship_refusal {
+            // leave. Or our account on it was erased and it took our figure out (round 5), so
+            // there is nothing to leave either. One plain sentence per cause, kept under the
+            // HUD, and no retry on this server until a fresh connection to it, a switch away
+            // and back, or a fresh world load (engine/home_plot.rs `join_denied_sentence`).
+            if let Some(sentence) = crate::engine::home_plot::join_denied_sentence(reason) {
                 crate::engine::home_plot::refuse_shared_world(state, sentence.to_string(), None);
                 return;
             }

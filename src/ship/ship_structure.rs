@@ -534,6 +534,14 @@ pub const NO_SHIP_SENTENCE: &str =
 pub const OWN_SHIP_SENTENCE: &str =
     "Not joining the shared world: your own ship did not load, so there is nowhere aboard for you to stand; restart the app, and if it happens again the reason is in logs/run.log.";
 
+/// The sentence a player reads when their account on the server was erased while they stood
+/// in its shared world (`game_join_denied`, reason "account_erased", sent privately by the
+/// relay's erase, relay/handlers/home_plots.rs `leave_world_for_erase`). Round 5 of the 1b
+/// review: the erase took the figure out, and nothing told the erasing game, which went on
+/// showing the shared world while the relay dropped every update it sent.
+pub const ERASED_SENTENCE: &str =
+    "Out of the shared world: your account on this server was erased, so your figure and your plot there are gone; reconnect to come back, with a free plot, or a guest place when the ship is full.";
+
 /// One plot as a relay hands it out (increment 1b): the record's id, kind and box. Where its
 /// holder arrives depends on their own home's door, which their game names in `game_join`
 /// (`arrival`).

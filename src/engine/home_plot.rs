@@ -76,6 +76,28 @@ pub(crate) const NO_SHIP: &str = crate::ship::ship_structure::NO_SHIP_SENTENCE;
 /// case used to read "this server has a different ship from yours".
 pub(crate) const OWN_SHIP: &str = crate::ship::ship_structure::OWN_SHIP_SENTENCE;
 
+/// The sentence a player reads when their account on the server was erased while their figure
+/// stood in its shared world (relay reason "account_erased"). One copy, shared with the relay.
+pub(crate) const ERASED: &str = crate::ship::ship_structure::ERASED_SENTENCE;
+
+/// What a `game_join_denied` from the relay means for the shared world (net_route.rs), by its
+/// `reason`: the sentence to refuse it with, kept under the HUD, with no retry on that server
+/// until a fresh connection to it, a switch away and back, or a fresh world load
+/// (`refuse_shared_world`). None for a reason that is not ours to act on (a game ban, shown
+/// under the admin controls). The ship reasons come before anything was spawned, so there is
+/// nothing to leave; "account_erased" comes after the relay took the figure out (round 5 of
+/// the 1b review: the erasing game went on showing the shared world, its updates dropped, and
+/// Respawn joined it again, claiming a new plot for the account just erased). Pure.
+pub(crate) fn join_denied_sentence(reason: &str) -> Option<&'static str> {
+    match reason {
+        "other_ship" => Some(SHIP_MISMATCH),
+        "no_ship" => Some(NO_SHIP),
+        "no_ship_named" => Some(OWN_SHIP),
+        "account_erased" => Some(ERASED),
+        _ => None,
+    }
+}
+
 /// The sentence for a welcome that gives a plot with no id, which only a server of another
 /// version sends. Round 4 of the 1b review: it used to read as another ship.
 pub(crate) const WELCOME_WITHOUT_PLOT_ID: &str = "Not joining the shared world: this server's welcome gave a plot with no id, as a server of another version can, so update whichever of the app and the server is older and reconnect.";
@@ -519,6 +541,8 @@ pub(crate) fn apply_welcome_home(state: &mut EngineState, welcome: &serde_json::
             }
         }
     }
+    // Where the home belongs is settled: what stands in it now is the home's.
+    welcome_settles_the_home(&mut state.game_world.world);
     state.game_welcomed = true;
     state.home_arrived_on = Some(server);
     true
@@ -665,18 +689,51 @@ pub(crate) fn clear_not_the_homes(world: &mut hecs::World) {
     }
 }
 
+/// A welcome was applied (`apply_welcome_home`): it settled where the home belongs, whichever
+/// it was (a move, a stay on the plot the home already stands on, a guest's), so whatever
+/// stands in the home now is the home's, and every `NotTheHomes` mark goes. Round 5 of the 1b
+/// review: only a move cleared them, so a truck marked at boot and then standing in the home
+/// a server let it keep stayed marked, and since round 4 the mark is saved, so it outlived
+/// every launch and the truck was left behind by the next move of the home.
+pub(crate) fn welcome_settles_the_home(world: &mut hecs::World) {
+    clear_not_the_homes(world);
+}
+
 /// A save was loaded into the running world (lib.rs, the launcher's character pick and a
 /// restored snapshot): carry its home's pieces and vehicles to the plot the home stands on. A
 /// save that records no box is read as standing on the live ship's default plot
 /// (`saved_or_default_box`).
 pub(crate) fn carry_saved_pieces_home(state: &mut EngineState, saved: Option<[[f32; 3]; 2]>) {
     let ship = state.gui_state.ship_structure.as_ref();
-    let home = ship.and_then(home_box);
-    let saved = saved_or_default_box(saved, ship);
-    let (pieces, vehicles, marked) = carry_saved_pieces(&mut state.game_world.world, saved, home);
+    let (pieces, vehicles, marked) = carry_loaded_save(&mut state.game_world.world, &mut state.data_store, saved, ship);
     if pieces + vehicles + marked > 0 {
         log::info!("Loaded save: carried {pieces} built pieces and {vehicles} vehicles to the home's plot ({marked} left where they stood)");
     }
+}
+
+/// `carry_saved_pieces_home` on its own parts: carry a save just loaded into the running world
+/// (`saved`, its `WorldSave::home_plot_box`) into the home of `ship`. With no home to carry to
+/// (the legacy layout, the ship did not assemble) the pieces stay where the save put them, so
+/// the box a save of this session records becomes this save's
+/// (`save_load::LOADED_HOME_BOX_KEY`, read by `save_load::frame_for_save`), or none for a save
+/// that records none. Round 5 of the 1b review: the box the startup save left waiting stayed,
+/// so after a snapshot restored on the legacy layout every save recorded the startup save's
+/// box while the restored pieces stood in their own. Returns (pieces, vehicles, marked). Pure
+/// on the world and the DataStore.
+pub(crate) fn carry_loaded_save(
+    world: &mut hecs::World,
+    data: &mut crate::hot_reload::data_store::DataStore,
+    saved: Option<[[f32; 3]; 2]>,
+    ship: Option<&ShipStructure>,
+) -> (usize, usize, usize) {
+    let Some(home) = ship.and_then(home_box) else {
+        match saved {
+            Some(b) => data.insert(crate::save_load::LOADED_HOME_BOX_KEY, crate::save_load::LoadedHomeBox(b)),
+            None => data.remove(crate::save_load::LOADED_HOME_BOX_KEY),
+        }
+        return (0, 0, 0);
+    };
+    carry_saved_pieces(world, saved_or_default_box(saved, ship), Some(home))
 }
 
 /// The box a loaded save's home stood on: the one it records, else, for a save that records
@@ -887,19 +944,63 @@ fn put_player_at(state: &mut EngineState, at: Vec3) {
         camera: &mut state.camera.position,
         showroom_open: state.gui_state.showroom_active,
         showroom_return: &mut state.showroom_return_pos,
+        // The editor's camera, not its panel flag: the close that puts the player back
+        // (lib.rs) runs while this is still set, also on the frame the panel was shut.
+        editor_open: state.construction_cam_active,
+        editor_return: &mut state.construction_return_pos,
         driving: &mut state.driving_vehicle,
         following: &mut state.follow_vehicle,
     };
     stand_player_at(&mut state.game_world.world, standing, at);
 }
 
+/// The notice when closing the build editor leaves the player where they stood
+/// (`editor_close_spot`), so the build-mode avatar's spot not being used is explained.
+pub(crate) const EDITOR_HELD_BACK: &str = "You are back where you stood before building: the shared world does not let you jump that far, so walk to your build spot.";
+
+/// Where closing the build editor stands the player (lib.rs, the editor's close), and whether
+/// it held them back from the editor's own pick.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct EditorClose {
+    pub at: Vec3,
+    /// True when the editor's pick was too far from where the relay holds the player, so they
+    /// stay where they stood instead (the caller says so on screen).
+    pub held_back: bool,
+}
+
+/// Where closing the build editor stands the player. `chosen`: the editor's own pick, the
+/// build-mode avatar's spot, else the home's spawn (v0.557: "where I'm at" when I leave build
+/// mode); None when it has neither. `back`: where they stood when the editor opened, moved to
+/// wherever a welcome stood them while it was open (`stand_player_at`). `joined`: in the shared
+/// world, where the relay holds them at `back` (no update goes out while the editor is open,
+/// net_route.rs `drive_position_send`) and refuses any update more than 100 m from there.
+///
+/// Round 5 of the 1b review: B is allowed anywhere aboard, so a player at the far end of First
+/// Street who pressed B twice was put at their build spot in the home, about 150 m away, and
+/// every update after that was refused: everyone else saw them frozen on the street. So in
+/// the shared world a pick more than `FAR_FROM_HELD_M` from `back` leaves them at `back`.
+/// Stepping out and joining again (what Respawn does) would not land them on the pick either:
+/// a fresh join puts them at their door, which is neither where they stood nor where the
+/// avatar stands, and the others would see the figure leave and arrive. Pure.
+pub(crate) fn editor_close_spot(chosen: Option<Vec3>, back: Vec3, joined: bool) -> EditorClose {
+    match chosen {
+        Some(c) if !joined || c.distance(back) <= FAR_FROM_HELD_M => EditorClose { at: c, held_back: false },
+        Some(_) => EditorClose { at: back, held_back: true },
+        None => EditorClose { at: back, held_back: false },
+    }
+}
+
 /// What standing the player somewhere changes besides the body (`stand_player_at`): the
-/// camera, the point the showroom closes onto, and the vehicle they drive or the follow cam
-/// chases.
+/// camera, the points the showroom and the build editor close onto, and the vehicle they
+/// drive or the follow cam chases.
 pub(crate) struct Standing<'a> {
     pub camera: &'a mut Vec3,
     pub showroom_open: bool,
     pub showroom_return: &'a mut Vec3,
+    /// The build editor's orbit camera is up (`EngineState::construction_cam_active`).
+    pub editor_open: bool,
+    /// Where it opened from (`EngineState::construction_return_pos`).
+    pub editor_return: &'a mut Vec3,
     pub driving: &'a mut Option<hecs::Entity>,
     pub following: &'a mut Option<hecs::Entity>,
 }
@@ -923,7 +1024,9 @@ pub(crate) fn step_out_of_vehicles(world: &mut hecs::World, driving: &mut Option
 /// the drive and the follow cam put the camera back on their vehicle the next frame, and the
 /// relay refuses every update from there (round 4 of the 1b review, finding 2). With the
 /// character showroom open, its camera is left alone and the point it closes onto moves
-/// instead, or closing it would undo the welcome (finding 8). Pure on the world.
+/// instead, or closing it would undo the welcome (finding 8). The build editor the same way
+/// (round 5, finding 1): its orbit camera is left alone, and the point it closes onto, which
+/// `editor_close_spot` judges the build spot against, moves. Pure on the world.
 pub(crate) fn stand_player_at(world: &mut hecs::World, s: Standing, at: Vec3) {
     step_out_of_vehicles(world, s.driving, s.following);
     for (_e, (t, _c)) in world.query_mut::<(&mut Transform, &crate::ecs::components::Controllable)>() {
@@ -931,7 +1034,11 @@ pub(crate) fn stand_player_at(world: &mut hecs::World, s: Standing, at: Vec3) {
     }
     if s.showroom_open {
         *s.showroom_return = at;
-    } else {
+    }
+    if s.editor_open {
+        *s.editor_return = at;
+    }
+    if !s.showroom_open && !s.editor_open {
         *s.camera = at;
     }
 }
@@ -1694,6 +1801,7 @@ mod tests {
             ("a welcome with no plot id", no_id),
             ("a plot our ship does not have", unknown),
             ("a plot our home does not fit", no_fit),
+            ("our account erased while we stood in the world", ERASED.to_string()),
         ];
         for (cause, s) in &causes {
             assert_eq!(s.matches(". ").count(), 0, "{cause}: one sentence: {s}");
@@ -1778,7 +1886,8 @@ mod tests {
         let (mut w, truck, bus) = rider_world();
         let (mut camera, mut back) = (Vec3::new(30.0, 3.0, 30.0), Vec3::ZERO);
         let (mut driving, mut following) = (Some(truck), Some(bus));
-        let standing = Standing { camera: &mut camera, showroom_open: false, showroom_return: &mut back, driving: &mut driving, following: &mut following };
+        let mut ed = Vec3::ZERO;
+        let standing = Standing { camera: &mut camera, showroom_open: false, showroom_return: &mut back, editor_open: false, editor_return: &mut ed, driving: &mut driving, following: &mut following };
         stand_player_at(&mut w, standing, P2_DOOR);
         assert_eq!(driving, None, "the player still drives {driving:?}: the next frame puts the camera back in the cab");
         assert_eq!(following, None, "the follow cam still chases {following:?}: the next frame puts the camera back behind it");
@@ -1803,7 +1912,8 @@ mod tests {
         let (mut w, _, _) = rider_world();
         let showroom_camera = Vec3::new(5.0, 2.0, 5.0);
         let (mut camera, mut back) = (showroom_camera, P1_DOOR);
-        let standing = Standing { camera: &mut camera, showroom_open: true, showroom_return: &mut back, driving: &mut None, following: &mut None };
+        let mut ed = Vec3::ZERO;
+        let standing = Standing { camera: &mut camera, showroom_open: true, showroom_return: &mut back, editor_open: false, editor_return: &mut ed, driving: &mut None, following: &mut None };
         stand_player_at(&mut w, standing, P2_DOOR);
         assert_eq!(back, P2_DOOR, "closing the showroom puts the player back at {back:?}, where they stood before the welcome");
         assert_eq!(camera, showroom_camera, "the showroom's own camera is left alone");
@@ -1943,5 +2053,180 @@ mod tests {
         // Once the home has moved, the mark has done its work: the next save carries none.
         let third = crate::save_load::extract_world_save(&again);
         assert!(third.deployed_vehicles.iter().all(|v| !v.outside_home), "a mark outlived the move");
+    }
+    /// ROUND 5, finding 1: closing the build editor far from where the relay holds the player.
+    /// B works anywhere aboard; a joined player at the far end of First Street, (70, 1.7, 190),
+    /// pressed B twice, and the close put them at their build spot in the home, the home spawn
+    /// (53.5, 1.7, 40.5), about 150 m from where the relay last held them: every update after
+    /// that was refused, and everyone else saw them frozen on the street. In the shared world
+    /// the close now leaves them where they stood; out of it, or near enough, the pick stands.
+    ///
+    /// Seen red 2026-10-04 with `editor_close_spot` carrying the c8b3a8d54 rule (the pick,
+    /// wherever it is): "closing the editor at the far end of First Street put the player
+    /// at Vec3(53.5, 1.7, 40.5), 150 m from where the relay holds them".
+    #[test]
+    fn closing_the_build_editor_far_from_where_the_relay_holds_us_leaves_us_there() {
+        let street_end = Vec3::new(70.0, 1.7, 190.0);
+        let c = editor_close_spot(Some(P1_DOOR), street_end, true);
+        assert_eq!(
+            c.at,
+            street_end,
+            "closing the editor at the far end of First Street put the player at {:?}, {:.0} m from where the relay holds them",
+            c.at,
+            c.at.distance(street_end)
+        );
+        assert!(c.held_back, "the player is told why the build spot was not used");
+        // Near where the relay holds them, the build spot is used, as before.
+        let near = Vec3::new(60.0, 1.7, 70.0);
+        assert_eq!(editor_close_spot(Some(P1_DOOR), near, true), EditorClose { at: P1_DOOR, held_back: false });
+        // Out of the shared world nothing holds them: the build spot, wherever it is.
+        assert_eq!(editor_close_spot(Some(P1_DOOR), street_end, false), EditorClose { at: P1_DOOR, held_back: false });
+        // No build spot and no home spawn: where they stood.
+        assert_eq!(editor_close_spot(None, street_end, true), EditorClose { at: street_end, held_back: false });
+        // The margin is the welcome's own (`FAR_FROM_HELD_M`): at it, the pick; past it, held.
+        let at_edge = street_end + Vec3::new(0.0, 0.0, -FAR_FROM_HELD_M);
+        assert_eq!(editor_close_spot(Some(at_edge), street_end, true).at, at_edge);
+        let past = street_end + Vec3::new(0.0, 0.0, -FAR_FROM_HELD_M - 0.5);
+        assert_eq!(editor_close_spot(Some(past), street_end, true).at, street_end);
+    }
+
+    /// ROUND 5, finding 1, the other half: a welcome lands while the build editor is open (a
+    /// reconnect, or the first welcome after the editor was opened on joining). It wrote the
+    /// camera, which is the editor's orbit camera then, and the close then put the player at
+    /// their build spot or the point the editor opened from, undoing the welcome without the
+    /// relay knowing. Now, as for the showroom, the welcome moves the point the editor closes
+    /// onto and leaves the editor's camera alone, and the close judges the build spot against
+    /// that point.
+    ///
+    /// Seen red 2026-10-04 with `stand_player_at` handling only the showroom (the c8b3a8d54
+    /// rule): "closing the editor puts the player back at Vec3(53.5,
+    /// 1.7, 40.5), where they stood before the welcome".
+    #[test]
+    fn a_welcome_while_the_build_editor_is_open_lands_where_it_closes() {
+        let (mut w, _, _) = rider_world();
+        let orbit = Vec3::new(40.0, 14.0, 52.0);
+        let (mut camera, mut back, mut ed) = (orbit, Vec3::ZERO, P1_DOOR);
+        let standing = Standing {
+            camera: &mut camera,
+            showroom_open: false,
+            showroom_return: &mut back,
+            editor_open: true,
+            editor_return: &mut ed,
+            driving: &mut None,
+            following: &mut None,
+        };
+        stand_player_at(&mut w, standing, P2_DOOR);
+        assert_eq!(ed, P2_DOOR, "closing the editor puts the player back at {ed:?}, where they stood before the welcome");
+        assert_eq!(camera, orbit, "the editor's orbit camera is left alone");
+        assert_eq!(back, Vec3::ZERO, "the showroom is shut: its return point is not touched");
+        assert_eq!(body_at(&w), P2_DOOR);
+        // A build spot left in the home on p1, 99 m from p2's door, where the welcome stood
+        // them: the close leaves them at the door.
+        assert_eq!(editor_close_spot(Some(P1_DOOR), ed, true).at, P2_DOOR);
+    }
+
+    /// The game's side of an erase in the shared world (ROUND 5, findings 2 and 4): the relay
+    /// takes the figure out and tells the erasing game (`game_join_denied`, reason
+    /// "account_erased"), and the game leaves the shared world on its side with one sentence
+    /// that says how to come back, and does not join again on that server by itself (which
+    /// would claim a new plot for the account just erased). The relay's half is the relay test
+    /// `erasing_in_the_world_tells_the_erasing_game_it_left`.
+    ///
+    /// Seen red 2026-10-04 with `join_denied_sentence` carrying only the ship reasons (the
+    /// c8b3a8d54 net_route.rs): "an erase that took our figure out is not acted on" (left: None).
+    #[test]
+    fn an_erased_account_leaves_the_shared_world_with_one_sentence() {
+        assert_eq!(
+            join_denied_sentence("account_erased"),
+            Some(ERASED),
+            "an erase that took our figure out is not acted on"
+        );
+        for reason in ["other_ship", "no_ship", "no_ship_named"] {
+            assert!(join_denied_sentence(reason).is_some(), "{reason}");
+        }
+        assert_eq!(join_denied_sentence("spamming the commons"), None, "a game ban's reason is shown under the admin controls");
+        assert_eq!(join_denied_sentence(""), None);
+    }
+
+    /// ROUND 5, finding 5: a welcome that keeps the home where it is settles what stands in it.
+    /// On server X the player held p2 and left a truck on p1. The next launch built the home on
+    /// p1, carried the save there and marked the truck (it stands in the home but was not the
+    /// home's). Then they joined server Y, which gives them p1: the home stays, and the truck
+    /// now stands in the home they hold there. Only a move cleared the mark, and since round 4
+    /// it is saved, so it lasted every launch: two launches later a server that gives p2 moved
+    /// the home and left the truck behind on p1, someone else's plot there.
+    ///
+    /// Seen red 2026-10-04 with `welcome_settles_the_home` doing nothing (the c8b3a8d54 rule,
+    /// only a move cleared marks): "a truck standing in the home a server let it keep was
+    /// left behind by the next move: [Vec3(14.0, 0.0, 85.0)]".
+    #[test]
+    fn a_welcome_that_keeps_the_home_where_it_is_settles_what_stands_in_it() {
+        let on_p2 = ShipStructure::load_and_assemble(&data_dir(), Some("p2")).unwrap();
+        let (p1, p2) = (home_box(&booted()).unwrap(), home_box(&on_p2).unwrap());
+        let tf = |x: f32, z: f32| Transform { position: Vec3::new(x, 0.0, z), rotation: glam::Quat::IDENTITY, scale: Vec3::ONE };
+        // Server X: the home on p2, a truck parked on p1, outside it.
+        let mut live = hecs::World::new();
+        live.spawn((tf(14.0, 85.0), crate::ecs::components::Vehicle { item_id: "truck_pickup_0".into() }));
+        let mut first = crate::save_load::extract_world_save(&live);
+        crate::save_load::record_home_frame(&mut first, home_frame(&on_p2).as_ref());
+        // The next launch: the home on p1, the save carried there, the truck marked.
+        let mut boot = hecs::World::new();
+        crate::save_load::apply_save_to_world(&mut boot, &first);
+        assert_eq!(carry_saved_pieces(&mut boot, first.home_plot_box, Some(p1)).2, 1, "the truck on p1 is marked");
+        // Server Y gives p1: the welcome keeps the home where it is.
+        welcome_settles_the_home(&mut boot);
+        // A save, and the launch after.
+        let mut second = crate::save_load::extract_world_save(&boot);
+        crate::save_load::record_home_frame(&mut second, home_frame(&booted()).as_ref());
+        let mut again = hecs::World::new();
+        crate::save_load::apply_save_to_world(&mut again, &second);
+        carry_saved_pieces(&mut again, second.home_plot_box, Some(p1));
+        // A server that gives p2: the home moves, and what stands in it goes along.
+        carry_built_pieces(&mut again, p1, p2.0 - p1.0);
+        let trucks: Vec<Vec3> =
+            again.query::<(&Transform, &crate::ecs::components::Vehicle)>().iter().map(|(_, (t, _))| t.position).collect();
+        assert_eq!(
+            trucks,
+            vec![Vec3::new(14.0, 0.0, 184.0)],
+            "a truck standing in the home a server let it keep was left behind by the next move: {trucks:?}"
+        );
+    }
+
+    /// ROUND 5, finding 6: a snapshot restored on the legacy layout. The ship did not assemble,
+    /// so the box the startup save left waiting (p2's here) stays for the session (round 4,
+    /// finding 5). Then a snapshot from when the home stood on p1 is restored: its pieces stand
+    /// in p1's box, and nothing carried them (there is no home), but every later save of that
+    /// session still recorded p2's box, so the next launch with a working ship did not carry
+    /// them into the home. The box a save records is now the loaded save's.
+    ///
+    /// Seen red 2026-10-04 with `carry_loaded_save` leaving the waiting box alone (the
+    /// c8b3a8d54 rule): "a save after restoring a snapshot on the legacy
+    /// layout records Some([[0.0, 0.0, 99.0], [55.0, 3.0, 188.0]]), the startup save's box,
+    /// while the restored pieces stand in p1's".
+    #[test]
+    fn a_snapshot_restored_on_the_legacy_layout_is_the_box_later_saves_record() {
+        let on_p2 = ShipStructure::load_and_assemble(&data_dir(), Some("p2")).unwrap();
+        let (p1, p2) = (home_box(&booted()).unwrap(), home_box(&on_p2).unwrap());
+        let mut data = crate::hot_reload::data_store::DataStore::new();
+        data.insert(crate::save_load::LOADED_HOME_BOX_KEY, crate::save_load::LoadedHomeBox(box_of(p2)));
+        let mut w = chest_world(Vec3::new(20.0, 0.0, 30.0));
+        assert_eq!(carry_loaded_save(&mut w, &mut data, Some(box_of(p1)), None), (0, 0, 0), "no home to carry to");
+        let recorded = crate::save_load::frame_for_save(&data).map(|f| box_of(f.home));
+        assert_eq!(
+            recorded,
+            Some(box_of(p1)),
+            "a save after restoring a snapshot on the legacy layout records {recorded:?}, the startup save's box, while the restored pieces stand in p1's"
+        );
+        // The next launch, with a working ship and the home on p2, carries them into it.
+        let mut save = crate::save_load::extract_world_save(&w);
+        crate::save_load::record_home_frame(&mut save, crate::save_load::frame_for_save(&data).as_ref());
+        let mut next = hecs::World::new();
+        crate::save_load::apply_save_to_world(&mut next, &save);
+        carry_saved_pieces(&mut next, save.home_plot_box, Some(p2));
+        let chest = built_positions(&next).0[0];
+        assert!(over_plot(chest, p2), "the restored chest stands at {chest:?}, outside the home on p2");
+        // A restored save that records no box: the saves after it record none either.
+        carry_loaded_save(&mut w, &mut data, None, None);
+        assert_eq!(crate::save_load::frame_for_save(&data), None);
     }
 }

@@ -7,8 +7,8 @@
 //!     (`give_up_plot_if_asked`);
 //!   - an admin gives back a plot from Server Settings, naming the player's public key or the
 //!     plot's id (`handle_game_release_plot`, the in-app control the GUI-first rule asks for);
-//!   - an account being erased leaves the world and frees its plot in one step
-//!     (`leave_world_for_erase`);
+//!   - an account being erased leaves the world and frees its plot in one step, the stored
+//!     world forgets its figure, and its own game is told it left (`leave_world_for_erase`);
 //!   - the one dispatch relay.rs makes for every game-admin message (`handle_game_admin`).
 //!
 //! Its own file because msg_handlers.rs is held to a line budget (tests/file_size_ratchet.rs).
@@ -67,6 +67,17 @@ pub async fn refused_join(state: &Arc<RelayState>, my_key: &str, join: &JoinHome
 /// still drew its home there, so the next joiner was handed a plot someone visibly lived on.
 /// Their progress is NOT saved on the way out (`despawn_player_now` would write a fresh
 /// `player_progress` row for an account being erased; the erase deletes any row they had).
+///
+/// Round 5 of the review:
+///   - the stored world (`GameWorld::save_to_db`, written every 30 s) is written again in the
+///     same step, so it no longer holds the figure (nor one that left in the last 30 s): a
+///     crash before the next save restored it,
+///     and the restore's ghost reap wrote the erased account's progress back, for good;
+///   - the erasing game is told privately that it left (`game_join_denied`, reason
+///     "account_erased", `ERASED_SENTENCE`): the game_player_left everyone gets reads, to it,
+///     as somebody else leaving, so it went on showing the shared world with every update
+///     dropped, and Respawn joined it again, claiming a new plot for the erased account.
+///
 /// True when a plot was freed here.
 pub async fn leave_world_for_erase(state: &Arc<RelayState>, key: &str) -> bool {
     state.link_dead.write().await.remove(key);
@@ -74,12 +85,26 @@ pub async fn leave_world_for_erase(state: &Arc<RelayState>, key: &str) -> bool {
     let (left, freed) = {
         let mut world = state.game_world.write().await;
         let left = world.despawn_player(key);
+        // Also when no figure was taken out: one that left within the last 30 s can still
+        // stand in the stored world. Cheap, and an erase is rare.
+        if state.features.enabled(crate::relay::features::Feature::Game) {
+            if let Err(e) = world.save_to_db(&state.db) {
+                tracing::warn!("Game: could not store the world without an erased account's figure: {e}");
+            }
+        }
         (left, world.release_home(&state.db, key))
     };
     if let Some(entity_id) = left {
         let gone = serde_json::json!({ "type": "game_player_left", "player_id": entity_id });
         let _ = state.broadcast_tx.send(crate::relay::relay::RelayMessage::System { message: format!("__game__:{gone}") });
         tracing::info!("Game: player {} left (entity {}): their account is being erased", key, entity_id);
+        let told = serde_json::json!({
+            "type": "game_join_denied",
+            "reason": "account_erased",
+            "message": crate::ship::ship_structure::ERASED_SENTENCE,
+            "chat_unaffected": true,
+        });
+        send_game_private(state, key, &told).await;
     }
     match freed {
         Ok(freed) => freed.is_some(),

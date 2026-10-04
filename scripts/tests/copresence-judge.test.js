@@ -644,3 +644,42 @@ test("entry: a menu entry passes only when the socket identified before the worl
   assert.ok(judgeEntry({ kind: "autopilot" }).pass, "the autopilot path is recorded, not failed");
   assert.equal(judgeEntry(null).pass, false, "an entry nobody recorded fails");
 });
+
+// Shutting the build editor far from the build spot (round 5 of the 1b review,
+// finding 1): the relay holds the game at the far end of street-1, its build
+// spot is at its door, 154 m away. Shutting the editor must leave it where the
+// relay holds it, and its next move must reach the others.
+const { judgeEditorClose } = require("../lib/copresence-judge.js");
+const EDITOR_OK = {
+  buildSpot: P1_SPAWN,
+  held: [70, 1.7, 194],
+  camera: [70, 1.7, 194],
+  nudged: [70, 1.7, 195],
+  seen: [[70, 1.7, 195]],
+};
+
+test("editor: shut far from the build spot, standing where the relay holds it, with the next move relayed, passes", () => {
+  const r = judgeEditorClose(EDITOR_OK);
+  assert.ok(r.pass, explain(r));
+  assert.deepEqual(r.checks.map((c) => c.id), ["editor_far_from_build_spot", "editor_stands_where_held", "editor_moves_reach_others"]);
+});
+
+// The c8b3a8d54 game: shutting the editor put it at its build spot, 154 m from
+// where the relay holds it, and every update it sent was refused. Seen red
+// 2026-10-04 with judgeEditorClose passing anything: "a game put at its build
+// spot 154 m from where the relay holds it should fail" (no check failed), and
+// "a build spot 74 m away proves nothing".
+test("editor: a game put back at its build spot, its moves refused, FAILS", () => {
+  const r = judgeEditorClose({ ...EDITOR_OK, camera: P1_SPAWN, nudged: [53.5, 1.7, 41.5], seen: [] });
+  const failed = r.checks.filter((c) => !c.ok).map((c) => c.id);
+  assert.deepEqual(failed, ["editor_stands_where_held", "editor_moves_reach_others"], "a game put at its build spot 154 m from where the relay holds it should fail");
+  assert.match(r.checks[1].detail, /154\.\d+ m from where the relay holds it/);
+});
+
+test("editor: a build spot inside the 100 m rule's reach proves nothing, and a check without its evidence FAILS", () => {
+  assert.equal(judgeEditorClose({ ...EDITOR_OK, buildSpot: [60, 1.7, 120] }).checks[0].ok, false, "a build spot 74 m away proves nothing");
+  assert.equal(judgeEditorClose({ ...EDITOR_OK, held: null }).pass, false, "never seen held: unknown, not a pass");
+  assert.equal(judgeEditorClose({ ...EDITOR_OK, buildSpot: null }).pass, false, "no build spot measured: unknown, not a pass");
+  assert.equal(judgeEditorClose({ ...EDITOR_OK, camera: [71.5, 1.7, 194] }).checks[1].ok, false, "a camera 1.5 m off where the relay holds it");
+  assert.equal(judgeEditorClose({ ...EDITOR_OK, seen: [[70, 1.7, 194]] }).checks[2].ok, false, "only an update at the nudge itself counts");
+});

@@ -375,6 +375,27 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.gui_state.pending_respawn = true;
         log::info!("Showcase: respawn -> the Respawn button");
     }
+    // {"build_editor":"1"} / {"build_editor":"0"} (2026-10-04, ship homes 1b, round 5): open or
+    // shut the construction editor the way the B key does (engine/editor.rs
+    // `toggle_build_editor`, under the B key's own conditions: the world view, no showroom).
+    // verify-copresence --plots walks the game more than 100 m from its build spot, opens and
+    // shuts the editor, and judges it still stands where the relay holds it
+    // (engine/home_plot.rs `editor_close_spot`).
+    if let Some(want) = grab("build_editor").as_deref().and_then(|v| match v {
+        "1" => Some(true),
+        "0" => Some(false),
+        _ => None,
+    }) {
+        let free = state.gui_state.active_page == crate::gui::GuiPage::None && !state.gui_state.showroom_active;
+        if want != state.gui_state.construction_active && free {
+            crate::engine::editor::toggle_build_editor(state);
+        }
+        log::info!(
+            "Showcase: build_editor {} -> the editor is {}",
+            if want { "open" } else { "shut" },
+            if state.gui_state.construction_active { "open" } else { "shut" }
+        );
+    }
     // Optional "time":"9.5" sets the game clock to that hour of the
     // current day (dev/screenshot control: dawn shots without waiting
     // out the night). Routed through the TimeSystem's request channel -
@@ -3360,6 +3381,9 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         // The sentence the HUD shows while it holds (home_plot.rs `refuse_shared_world`), so a
         // rig can name the refusal it hit.
         "copresence_refused_note": state.gui_state.copresence_refused_note,
+        // The construction editor's camera is up (the showcase `build_editor` verb opens it;
+        // verify-copresence --plots waits for it to open and shut).
+        "build_editor": state.construction_cam_active,
         "camera_start": rec.camera_start,
         "camera_end": camera_json(state),
         "frames": rec.frames,

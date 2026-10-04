@@ -75,6 +75,12 @@
 // presses Respawn (the showcase `respawn` verb, the death screen's button): the
 // relay must stand it at its door too, judged the same way under respawn_* ids
 // (the third review found Respawn left it frozen at the far end for everyone).
+// Then, from its door, the game opens and shuts the build editor (the showcase
+// `build_editor` verb, the B key's own function), which makes the door its build
+// spot, walks to the far place again, and opens and shuts the editor there:
+// shutting it must leave the game where the relay holds it, judged under editor_*
+// ids (round 5 of the review found it put the game back at its build spot, more
+// than 100 m away, frozen for everyone).
 // Evidence in runs/<stamp>-plots-<order>/.
 //
 // HOW THE GAME COMES IN (--entry, round 4 of the 1b review): a returning
@@ -110,7 +116,7 @@ const { spawn, spawnSync, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
 const DXC = require("./lib/dxc-dlls.js");
 const TR = require("./lib/throwaway-relay.js");
-const { judgeCopresence, LIMITS, figurePixels, FIGURE_MIN_PX, approachClear, judgePlots, forwardLegStart, readShipPlots, judgeRejoin, judgeEntry, respawnRoute } = require("./lib/copresence-judge.js");
+const { judgeCopresence, LIMITS, figurePixels, FIGURE_MIN_PX, approachClear, judgePlots, forwardLegStart, readShipPlots, judgeRejoin, judgeEditorClose, judgeEntry, respawnRoute } = require("./lib/copresence-judge.js");
 const png = require("./lib/png.js");
 // The freshness gate, run through its one runner so --allow-other-build reaches
 // it and comes back as the manifest's other_build record (BUG-133).
@@ -944,6 +950,12 @@ function plotsVerdict(m, dir) {
   } else {
     add("respawn_ran", false, (s.respawn && s.respawn.detail) || "the walk away and Respawn never ran");
   }
+  // Shutting the build editor far from the build spot (round 5 of the 1b review).
+  if (m.editor) {
+    for (const c of judgeEditorClose(m.editor).checks) checks.push(c);
+  } else {
+    add("editor_ran", false, (s.editor && s.editor.detail) || "the walk away and the build editor's open and shut never ran");
+  }
   const panics = Number(m.panics || 0);
   add("no_panics", panics === 0, `${panics} PANIC line(s) in run.log`);
   return { checks, pass: checks.every((c) => c.ok), stats };
@@ -1376,6 +1388,73 @@ async function runPlotsOnce(order, runStamp, cleanups) {
       detail: relayRespawn ? `respawned as entity ${respawnEntity}, the relay spawned it at ${fmt(relayRespawn)}` : "the walker never saw the game join again after Respawn",
     };
     step("respawn", true, `${manifest.steps_ok.respawn.detail}; its camera at ${camera2 ? fmt(camera2) : "(none)"}; ${seen2.length} relayed move(s) seen after the nudge`);
+
+    // ── Shutting the build editor far from the build spot (round 5 of the 1b
+    // review). At its door after Respawn, the game opens the build editor and
+    // shuts it (the showcase `build_editor` verb, the B key's own function):
+    // that puts the build-mode avatar where it stands and stands it there, its
+    // build spot. Then it walks, in steps the relay accepts, to the same far
+    // place, more than 100 m from that spot, and opens and shuts the editor
+    // again. Shutting it used to stand the game at the build spot, a jump the
+    // relay refuses: frozen at the far place for everyone else.
+    const editorTo = async (open) => {
+      await showcase({ build_editor: open ? "1" : "0" });
+      return until((p) => p.build_editor === open, 10000);
+    };
+    const opened1 = await editorTo(true);
+    await sleep(1000);
+    const shut1 = await editorTo(false);
+    await sleep(1500);
+    const atSpot = await probe();
+    const buildSpot = atSpot && atSpot.camera_end ? atSpot.camera_end.pos : null;
+    const toggled = !!(opened1 && opened1.build_editor === true && shut1 && shut1.build_editor === false);
+    step(
+      "editor_spot",
+      toggled && !!buildSpot,
+      toggled
+        ? `opened and shut the build editor at the door; the build spot is ${buildSpot ? fmt(buildSpot) : "(unknown)"}`
+        : `the build editor did not open and shut (build_editor ${opened1 && opened1.build_editor}, then ${shut1 && shut1.build_editor}); a build without the verb?`,
+    );
+    if (toggled && buildSpot) {
+      const route3 = respawnRoute(buildSpot, farTarget);
+      const markWalk3 = walkerOut.length;
+      for (const p of route3) {
+        await showcase({ cam: `${p.join(",")},${yaw},${pitch}` });
+        await sleep(1500);
+      }
+      const walked3 = walkerOut
+        .slice(markWalk3)
+        .map((o) => o.line.match(sawRe))
+        .filter((x) => x && Number(x[1]) === respawnEntity)
+        .map((x) => [Number(x[2]), Number(x[3]), Number(x[4])]);
+      const held3 = walked3.length ? walked3[walked3.length - 1] : null;
+      step(
+        "walk_away2",
+        !!held3 && Math.hypot(held3[0] - farTarget[0], held3[2] - farTarget[2]) < 3,
+        `walked ${route3.length} steps to ${fmt(farTarget)}; the relay last passed on the game at ${held3 ? fmt(held3) : "(never)"} (${walked3.length} relayed move(s))`,
+      );
+      const opened2 = await editorTo(true);
+      await sleep(1000);
+      const shut2 = await editorTo(false);
+      await sleep(1500);
+      const afterShut = await probe();
+      const camera3 = afterShut && afterShut.camera_end ? afterShut.camera_end.pos : null;
+      const nudged3 = camera3 ? [camera3[0], camera3[1], camera3[2] + 1] : null;
+      const markNudge3 = walkerOut.length;
+      if (nudged3) await showcase({ cam: `${nudged3.join(",")},${yaw},${pitch}` });
+      await sleep(2500);
+      const seen3 = walkerOut
+        .slice(markNudge3)
+        .map((o) => o.line.match(sawRe))
+        .filter((x) => x && Number(x[1]) === respawnEntity)
+        .map((x) => [Number(x[2]), Number(x[3]), Number(x[4])]);
+      manifest.editor = { buildSpot, held: held3, camera: camera3, nudged: nudged3, seen: seen3, route: route3 };
+      const shutOk = !!(opened2 && opened2.build_editor === true && shut2 && shut2.build_editor === false);
+      manifest.steps_ok.editor = { ok: shutOk, detail: shutOk ? "opened and shut the build editor at the far place" : "the build editor did not open and shut at the far place" };
+      step("editor", shutOk, `${manifest.steps_ok.editor.detail}; its camera at ${camera3 ? fmt(camera3) : "(none)"}; ${seen3.length} relayed move(s) seen after the nudge`);
+    } else {
+      manifest.steps_ok.editor = { ok: false, detail: "the build editor never opened and shut at the door" };
+    }
   } catch (e) {
     manifest.steps.push({ id: "abort", ok: false, detail: String(e.message || e) });
     log(`ABORT ${e.message || e}`);

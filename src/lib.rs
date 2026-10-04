@@ -2883,88 +2883,7 @@ mod native_app {
                             && state.gui_state.active_page == GuiPage::None
                             && !state.gui_state.showroom_active
                         {
-                            state.gui_state.construction_active = !state.gui_state.construction_active;
-                            // Clear any held placement item on entering/leaving build mode, so a
-                            // stale held type can't make the next viewport click drop a machine in
-                            // the wrong context. (v0.531)
-                            state.gui_state.construction_place_type = None;
-                            state.gui_state.construction_place_light = None; // v0.784
-                            state.gui_state.construction_place_conduit_node = false; // v0.629
-                            state.construction_ghost = None;
-                            state.construction_port_drag = None; // drop any in-flight wire drag (v0.625)
-                            if state.gui_state.construction_active {
-                                // Force a structure rebuild on ENTRY so the machine PICK VOLUMES
-                                // (`machine_pick`) are rebuilt in the editor's coordinate space. Without
-                                // this they held stale data from `load_world` (built before
-                                // `home_structure` existed -> a different placement space), so you could
-                                // NOT click a machine until some OTHER edit (e.g. nudging a light)
-                                // triggered a rebuild -- the operator's "I have to drag a light first"
-                                // repro. `construction_structure_dirty` routes through the exact same
-                                // rebuild_homestead -> rebuild_machine_objects path that workaround hit. (v0.624)
-                                state.gui_state.construction_structure_dirty = true;
-                                // The rooms.ron registry for the ZONE detail panel (console-room
-                                // increment): a zone's room_type picker lists these keys and the
-                                // panel shows the purpose + actions the pick resolves to. Loaded here,
-                                // on editor entry, for the box home too (the legacy-layout branch
-                                // below only fills the Add-Room picker's id list).
-                                let reg = crate::ship::room_types::RoomTypeRegistry::load(&state.data_dir);
-                                let mut keys: Vec<String> = reg.types.keys().cloned().collect();
-                                keys.sort();
-                                state.gui_state.construction_room_types = keys;
-                                state.gui_state.room_type_registry = reg;
-                                if let Some(layout) = &state.homestead_layout {
-                                    // PIN EVERY room to its current resolved position on open, so
-                                    // editing one room no longer reshuffles the auto-laid-out
-                                    // others (the operator's "I felt lost as the rooms rearranged
-                                    // themselves"). The whole home becomes an explicit floor plan.
-                                    let resolved = crate::ship::fibonacci::resolve_positions(layout);
-                                    state.gui_state.construction_rooms = layout.rooms.iter()
-                                        .enumerate()
-                                        .map(|(i, rc)| {
-                                            let w = &rc.walls;
-                                            let pos = rc.position.unwrap_or_else(|| {
-                                                let r = resolved[i];
-                                                [r.x, r.y, r.z]
-                                            });
-                                            crate::gui::ConstructionRoom {
-                                                id: rc.id.clone(),
-                                                walls: [w.north, w.south, w.west, w.east],
-                                                wall_offsets: w.offsets,
-                                                openings: rc.openings.iter().map(|o| {
-                                                    use crate::ship::fibonacci::OpeningKind as OK;
-                                                    crate::gui::EditorOpening {
-                                                        kind: match o.kind {
-                                                            OK::Door => crate::gui::EditorOpeningKind::Door,
-                                                            OK::Airlock => crate::gui::EditorOpeningKind::Airlock,
-                                                            // Window + Hatch both edit as Window in the mirror.
-                                                            _ => crate::gui::EditorOpeningKind::Window,
-                                                        },
-                                                        wall: (o.wall as usize).min(3),
-                                                        u: o.u, v: o.v, w: o.w, h: o.h,
-                                                    }
-                                                }).collect(),
-                                                level: rc.level,
-                                                position: Some(pos),
-                                                dimensions: rc.dimensions,
-                                                material_type: rc.material_type,
-                                                color: rc.color,
-                                            }
-                                        })
-                                        .collect();
-                                    state.gui_state.construction_height = if layout.default_wall_height > 0.0 {
-                                        layout.default_wall_height
-                                    } else {
-                                        3.0
-                                    };
-                                }
-                                // Add-Room picker default: the first registry key. The sorted key
-                                // list itself was filled above, before this legacy-layout branch,
-                                // so it is not loaded twice.
-                                if state.gui_state.construction_add_type.is_empty() {
-                                    state.gui_state.construction_add_type =
-                                        state.gui_state.construction_room_types.first().cloned().unwrap_or_default();
-                                }
-                            }
+                            crate::engine::editor::toggle_build_editor(state);
                             return;
                         }
 
@@ -7079,22 +6998,32 @@ mod native_app {
                         // Spawn at the build-mode avatar (v0.557) -- "where I'm at" when I leave build
                         // mode, in the EDITED zone (its origin shifts the avatar to world, v0.754).
                         // Fall back to the home zone's saved spawn, then the pre-build position.
+                        // In the shared world, a pick more than 90 m from where the relay holds the
+                        // player (the pre-build position, or where a welcome stood them while the
+                        // editor was open) leaves them there instead: the relay refuses any update
+                        // more than 100 m from it (home_plot.rs `editor_close_spot`, ship homes 1b).
                         let zo = active_zone_origin(state);
-                        state.camera.position = match state.gui_state.build_char_pos {
-                            Some((x, z)) => Vec3::new(x + zo.x, zo.y + 1.7, z + zo.z),
-                            None => state
-                                .gui_state
-                                .ship_structure
-                                .as_ref()
-                                .and_then(|s| {
-                                    let home = &s.zones[s.home_zone_index()];
-                                    home.body.spawn.map(|(x, z)| {
-                                        let o = home.origin_vec();
-                                        Vec3::new(x + o.x, o.y + 1.7, z + o.z)
-                                    })
+                        let chosen = match state.gui_state.build_char_pos {
+                            Some((x, z)) => Some(Vec3::new(x + zo.x, zo.y + 1.7, z + zo.z)),
+                            None => state.gui_state.ship_structure.as_ref().and_then(|s| {
+                                let home = &s.zones[s.home_zone_index()];
+                                home.body.spawn.map(|(x, z)| {
+                                    let o = home.origin_vec();
+                                    Vec3::new(x + o.x, o.y + 1.7, z + o.z)
                                 })
-                                .unwrap_or(state.construction_return_pos),
+                            }),
                         };
+                        let close = crate::engine::home_plot::editor_close_spot(
+                            chosen,
+                            state.construction_return_pos,
+                            state.game_joined,
+                        );
+                        state.camera.position = close.at;
+                        if close.held_back {
+                            state.gui_state.pending_notices.push(
+                                crate::engine::home_plot::EDITOR_HELD_BACK.to_string(),
+                            );
+                        }
                         state.gui_state.construction_selected_room = None;
                         state.construction_grab = None;
                         state.construction_gizmo_grab = None;
