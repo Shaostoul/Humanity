@@ -330,6 +330,51 @@ mod tests {
         assert_eq!(m["drawn_wh"].as_f64(), Some(50.0));
     }
 
+    /// THE GAME READS WHAT THE RELAY REALLY SENDS (not JSON typed for the test): a relay world
+    /// and database in this process, a meal taken and a give made through the relay's own
+    /// functions, the relay's welcome snapshot, its give answer and its ledger message handed
+    /// to the game's readers. The stores are found, the give's loaves leave the backpack once,
+    /// and the ledger reads as the relay wrote it.
+    ///
+    /// Seen red 2026-10-04 with the game reading the ledger's totals under "used" and
+    /// "contributed" (the relay writes "used_value" and "contributed_value"): "the game reads
+    /// the relay's totals / left: (0.0, 0.0) / right: (10.0, 6.0)".
+    #[test]
+    fn the_game_reads_what_the_relay_really_sends() {
+        use crate::relay::handlers::{fleet_ledger as relay_fleet, game_state::GameWorld};
+        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+        let path = std::env::temp_dir().join(format!("hum_fleet_native_{}_{nanos}.db", std::process::id()));
+        let db = crate::relay::storage::Storage::open(&path).unwrap();
+        let mut rw = GameWorld::new();
+        let snapshot: Vec<serde_json::Value> = rw.snapshot().iter().map(|e| serde_json::to_value(e).unwrap()).collect();
+        let stores = stores_in(&serde_json::json!({ "world_snapshot": snapshot }));
+        assert_eq!(stores.len(), 1, "the game finds the relay's store in its welcome: {stores:?}");
+        let store = stores[0].clone();
+        rw.spawn_player("e11e00c0", [store.position[0] + 1.0, 1.7, store.position[2]]);
+        let meal = relay_fleet::take_meal_and_record(&mut rw, &db, "e11e00c0", store.entity_id);
+        assert_eq!(meal_sentence(&meal), "You took a meal from the ship's stores.");
+
+        // The give, as the panel sends it, answered by the relay, settled by the game.
+        let (mut world, p) = world_with_bread(6);
+        let mut gs = GuiState::default();
+        gs.fleet.in_flight.push(FleetGive { give_id: "give-real".into(), store: store.entity_id, item_id: "bread_0".into(), name: "Bread".into(), qty: 2, wear: 0, quality: 0 });
+        let msg = crate::gui::pages::fleet_ledger::give_message(&gs.fleet.in_flight[0]);
+        let answer = relay_fleet::give(&rw, &db, "e11e00c0", &msg);
+        on_give_result(&mut gs, &mut world, &answer);
+        let again = relay_fleet::give(&rw, &db, "e11e00c0", &msg);
+        on_give_result(&mut gs, &mut world, &again);
+        settle_confirmed(&gs, &mut world);
+        assert_eq!(bread(&world, p), 4, "two loaves left the backpack, once: {answer}");
+
+        let l = FleetLedger::from_json(&relay_fleet::ledger_json(&rw, &db, "e11e00c0")).expect("the ledger reads");
+        assert_eq!((l.used, l.contributed), (10.0, 6.0), "the game reads the relay's totals / left: {:?} / right: (10.0, 6.0)", (l.used, l.contributed));
+        assert_eq!((l.standing.as_str(), l.supply.as_str()), ("red", "unlimited"));
+        assert_eq!(l.recent.len(), 2);
+        assert_eq!(l.recent[0].item_name.as_deref(), Some("Bread"));
+        drop(db);
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// The welcome's snapshot names the fleet's stores, and a take_meal answer reads in words.
     ///
     /// Seen red 2026-10-04 with `stores_in` looking for an entity type the relay does not send
