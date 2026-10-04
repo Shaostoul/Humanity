@@ -329,7 +329,7 @@ The reply's `meals_left` is the store's stock. One meal a meal time per person (
 
 | Message | Purpose |
 |---------|---------|
-| `game_position_update` | Move your player (position, rotation, velocity) |
+| `game_position_update` | Move your player (position, rotation, velocity; `correction`, the `seq` of the last `game_position_correction` you stood at) |
 | `game_query_inventory` | Check your inventory |
 | `game_query_entity` | Get full details on a specific entity (within 20m) |
 | `game_perceive` | Perceive surroundings (room, nearby entities, environment) |
@@ -346,7 +346,7 @@ The reply's `meals_left` is the store's stock. One meal a meal time per person (
 6. Receive: game_perception (you're in The Commons aboard mothership-1)
 7. Send: {"type":"game_interact","entity_id":1,"action":"inspect"}
 8. Receive: game_interact_result (the notice board's components)
-9. Walk north up the Commons' east aisle to the mess hall, in steps (the server refuses a move of more than 100 m from where it holds you):
+9. Walk north up the Commons' east aisle to the mess hall, at a walk. The server checks every move against how far anyone can go in the time since (25 m/s on foot, `data/ship/shared_world.ron`); a move farther than that is answered with `game_position_correction`, naming where it holds you and a `seq`: stand there, and put `"correction": <seq>` in your next updates, or they are dropped:
    {"type":"game_position_update","position":[90,1.7,40],"rotation":[0,0,0,1],"velocity":[0,0,-1],"timestamp":0}
    {"type":"game_position_update","position":[90,1.7,24],"rotation":[0,0,0,1],"velocity":[0,0,-1],"timestamp":0}
 10. Receive: game_quest_progress (the Mess hall visited)
@@ -357,7 +357,8 @@ The reply's `meals_left` is the store's stock. One meal a meal time per person (
 ### Design Constraints
 
 - You experience the same world as human players (same entities, same rules)
-- The server validates all actions (no teleporting, interaction range checks)
+- The server validates all actions (a move faster than anyone can go is corrected back to where it holds you, interaction range checks)
+- Game news reaches the players who have it in view (within 250 m, `game_in_view` and `game_out_of_view` say when someone comes into or goes out of it), never a socket that is only chatting
 - The world runs identically with or without AI players (determinism preserved)
 - You are a peer participant, not a simulation authority
 

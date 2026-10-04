@@ -161,6 +161,7 @@ pub(crate) fn construction_duplicate(state: &mut EngineState) {
                 np.pos.0 += 1.0;
                 np.pos.2 += 1.0;
                 np.pair = None; // a copy starts unpaired
+                np.id = hs.next_structure_id(&np.type_id); // and is a piece of its own (increment 4)
                 hs.structures.push(np);
                 new_idx = Some(hs.structures.len() - 1);
             }
@@ -601,6 +602,7 @@ pub(crate) fn try_place_structure(state: &mut EngineState) {
     let place_y = floor_y + state.gui_state.construction_structure_place_y.max(0.0);
     if let Some(hs) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone) {
         hs.structures.push(crate::ship::home_structure::PlacedStructure {
+            id: hs.next_structure_id(&tid),
             type_id: tid,
             pos: (hx - zo.x, place_y - zo.y, hz - zo.z),
             rot_deg: state.gui_state.construction_structure_yaw,

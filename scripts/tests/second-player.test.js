@@ -10,9 +10,11 @@
 //
 // What this proves, in plain terms:
 //  1. Its paths and its facing use the desktop app's own conventions.
-//  2. No single step is ever longer than 90 m, even after a long pause, so the
-//     relay (which drops any update that moves more than 100 m) never drops
-//     one.
+//  2. No single step is ever longer than MAX_STEP_M, even after a long pause,
+//     and no walk faster than MAX_SPEED_MPS, so the relay's speed check (ship
+//     homes increment 4: at most 46.9 m banked, 25 m/s on foot) never corrects
+//     one; and a correction, should one come, stands the walker where the relay
+//     holds it and every later update says so.
 //  3. The timestamp follows THE TIMESTAMP RULE (top of second-player.js): the
 //     sender's own clock in SECONDS, moving on by exactly the time step the
 //     walk used, so velocity = distance moved / stamp difference.
@@ -24,6 +26,12 @@ const { test } = require("node:test");
 const assert = require("node:assert");
 
 const sp = require("../second-player.js");
+const { bankedAllowanceM } = require("../lib/copresence-judge.js");
+const fs = require("fs");
+const path = require("path");
+// The relay's own rules for moving aboard (data/ship/shared_world.ron, src/ship/moves.rs).
+const RULES = fs.readFileSync(path.join(__dirname, "..", "..", "data", "ship", "shared_world.ron"), "utf8");
+const ON_FOOT_MPS = Number(RULES.match(/on_foot_mps:\s*([0-9.]+)/)[1]);
 
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
@@ -70,8 +78,8 @@ test("paths and facing use the desktop app's conventions", () => {
 // round a 100 m circle covers 168 m of path in 120 s, and the straight line
 // between those two points is 148.9 m: the relay would drop that update and,
 // measuring every later one from the old place, all the ones after it.
-test("no step is longer than 90 m, even after a long pause", () => {
-  assert.ok(sp.MAX_STEP_M < 100, "the cap sits under the relay's 100 m limit");
+test("no step is longer than MAX_STEP_M, even after a long pause", () => {
+  assert.ok(sp.MAX_STEP_M < bankedAllowanceM(RULES), `the cap (${sp.MAX_STEP_M} m) sits under what the relay lets anyone bank (${bankedAllowanceM(RULES)} m)`);
   const plan = { path: "circle", center: [0, 1.7, 0], radius: 100, speed: 1.4 };
 
   // On the path from the start.
@@ -338,10 +346,55 @@ test("a route is walked point by point, at its own pace, then the path", () => {
   const a = walk.next(now + 1 / 15).msg.position;
   const b = walk.next(now + 2 / 15).msg.position;
   assert.ok(Math.abs(dist(a, b) - 1.4 / 15) < 1e-9, "the path is walked at the walking speed");
-  // And a route after a long pause still never steps 90 m.
+  // And a route after a long pause still never steps more than MAX_STEP_M.
   const paused = sp.makeWalk({ ...plan, routeSpeed: 50 }, door, 0);
   const s1 = paused.next(60).msg.position;
   assert.ok(dist(s1, door) <= sp.MAX_STEP_M + 1e-9, `after a pause the step along the route is ${dist(s1, door).toFixed(1)} m`);
+});
+
+// Increment 4: the relay corrects a walk faster than anyone can go (25 m/s on foot), so the
+// walker's approach, which used to cover any distance in 4 s, keeps under MAX_SPEED_MPS: from 1 km
+// away every step is at most MAX_SPEED_MPS / 15. Red check run 2026-10-04: the cap taken out of
+// `approachSpeed` (the 1b code, `Math.max(plan.speed, gap / APPROACH_SECONDS)`): FAILED at "a step
+// of the approach went 251.0 m/s, over the walker's 20 m/s".
+test("no walk outruns the relay's speed check", () => {
+  assert.ok(sp.MAX_SPEED_MPS < ON_FOOT_MPS, `the walker's ${sp.MAX_SPEED_MPS} m/s is under the relay's ${ON_FOOT_MPS} m/s on foot`);
+  const plan = { path: "line", axis: "x", center: [0, 1.7, 0], radius: 4, speed: 1.4 };
+  const far = sp.makeWalk(plan, [1000, 1.7, 0], 0);
+  let prev = far.position();
+  for (let i = 1; i <= 300 && !far.onPath(); i++) {
+    const { msg } = far.next(i / 15);
+    const mps = dist(msg.position, prev) * 15;
+    assert.ok(mps <= sp.MAX_SPEED_MPS + 1e-6, `a step of the approach went ${mps.toFixed(1)} m/s, over the walker's ${sp.MAX_SPEED_MPS} m/s`);
+    prev = msg.position;
+  }
+});
+
+// Increment 4: a correction from the relay (game_position_correction) stands the walker where the
+// relay holds it; every update after it carries the correction's number (`correction`), so the
+// relay takes them; and the walk goes on, back to the path, from there. An older correction than
+// the last one taken is ignored. Red check run 2026-10-04: `update` without its `correction`
+// field: FAILED at its first check, "no correction yet" (the field was undefined, not 0).
+test("a correction stands the walker where the relay holds it", () => {
+  const plan = { path: "line", axis: "x", center: [76, 1.7, 70], radius: 4, speed: 1.4 };
+  const walk = sp.makeWalk(plan, sp.pathPoint(plan, 0), 0);
+  for (let i = 1; i <= 30; i++) walk.next(i / 15);
+  assert.equal(walk.next(31 / 15).msg.correction, 0, "no correction yet");
+  const held = [70, 1.7, 60];
+  assert.ok(walk.corrected(1, held), "a correction is taken");
+  assert.deepEqual(walk.position(), held, "the walker stands where the relay holds it");
+  const after = walk.next(32 / 15).msg;
+  assert.equal(after.correction, 1, `the update after the correction says it stood there (${after.correction})`);
+  assert.ok(dist(after.position, held) <= sp.MAX_SPEED_MPS / 15 + 1e-9, "and walks on from there");
+  assert.equal(walk.corrected(1, [0, 0, 0]), false, "the same correction twice is taken once");
+  // Back to the path, never faster than the walker goes.
+  let prev = after.position;
+  for (let i = 33; i < 400 && !walk.onPath(); i++) {
+    const p = walk.next(i / 15).msg.position;
+    assert.ok(dist(p, prev) * 15 <= sp.MAX_SPEED_MPS + 1e-6);
+    prev = p;
+  }
+  assert.ok(walk.onPath(), "it reaches the path again");
 });
 
 // The walker names its door like a desktop player with that home, so the relay

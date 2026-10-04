@@ -1179,6 +1179,27 @@ impl System for NetSyncSystem {
                     log::debug!("Time sync: game_time={}", game_time);
                 }
 
+                // Another player or a crew member went out of our view (ship homes increment 4,
+                // the relay's game_interest.rs `game_out_of_view`): nothing more about them comes
+                // until they are in view again, so they are taken off the screen rather than left
+                // standing where they were last seen. A player's id is their entity id.
+                NetMessage::EntityDespawn { entity_id } => {
+                    let mut gone = Vec::new();
+                    for (e, r) in world.query_mut::<&RemotePlayer>() {
+                        if u64::from(r.player_id) == entity_id {
+                            gone.push(e);
+                        }
+                    }
+                    for (e, n) in world.query_mut::<&RemoteNpc>() {
+                        if n.entity_id == entity_id {
+                            gone.push(e);
+                        }
+                    }
+                    for e in gone {
+                        let _ = world.despawn(e);
+                    }
+                }
+
                 _ => {}
             }
         }

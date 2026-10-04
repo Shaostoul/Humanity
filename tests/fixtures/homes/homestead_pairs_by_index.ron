@@ -1,3 +1,14 @@
+// THE SHIPPED DEFAULT of the homestead (ship homes increment 2 review, finding 5). Compiled
+// into the exe (src/embedded_data.rs `shipped_home_design`) and never written by the game: a
+// neighbour's plot is drawn as it (src/ship/neighbours.rs), and a game with no
+// data/homes/homestead.ron of its own starts its home from it. YOUR home is
+// data/homes/homestead.ron, which every editor Save rewrites; it starts as a copy of this file
+// WITHOUT this paragraph (src/embedded_data.rs `own_home_text` drops everything from the first
+// line down to the bare // below, so a player's own home never says it is the default).
+// To change the default every newcomer gets, edit this file (or copy a saved home over it,
+// keeping this paragraph on top) and rebuild: it is in build.rs FINGERPRINT_INPUTS, so a rig
+// refuses an exe built before the edit.
+//
 // HumanityOS home design: the HOMESTEAD (55 x 89 m, 1.21 acres), the default start.
 // A home design is a body (the same model every ship zone uses: a fixed outer box plus
 // freely placed interior walls, openings, lights, structures and room zones) plus the point
@@ -1414,53 +1425,46 @@
         spawn: Some((53.5, 40.5)),
         structures: [
             (
-                id: "stairs-1",
                 type_id: "stairs",
                 pos: (34.0, 0.0, 4.0),
                 rot_deg: 0.0,
                 pair: None,
             ),
             (
-                id: "ramp-1",
                 type_id: "ramp",
                 pos: (38.0, 0.0, 4.0),
                 rot_deg: 0.0,
                 pair: None,
             ),
             (
-                id: "train-1",
                 type_id: "train",
                 pos: (48.0, 0.0, 10.0),
                 rot_deg: 0.0,
                 pair: None,
             ),
             (
-                id: "teleporter-1",
                 type_id: "teleporter",
                 pos: (22.5, 0.0, 20.0),
                 rot_deg: 0.0,
-                pair: Some("teleporter-2"),
+                pair: Some(5),
             ),
             (
-                id: "elevator-1",
                 type_id: "elevator",
                 pos: (31.0, 0.0, 26.0),
                 rot_deg: 0.0,
                 pair: None,
             ),
             (
-                id: "ladder-1",
                 type_id: "ladder",
                 pos: (11.0, 0.0, 32.0),
                 rot_deg: 0.0,
                 pair: None,
             ),
             (
-                id: "teleporter-2",
                 type_id: "teleporter",
                 pos: (31.0, 0.0, 80.0),
                 rot_deg: 0.0,
-                pair: Some("teleporter-1"),
+                pair: Some(3),
             ),
         ],
         road_nodes: [],

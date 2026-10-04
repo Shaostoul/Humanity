@@ -260,7 +260,10 @@ pub struct HomeStructure {
     /// PLACED STRUCTURAL PIECES (v0.583): stairs, ramps, ladders, elevators, teleporters, train
     /// platforms, roads -- each a `structure_types.ron` type at a home-local pose. Empty by default
     /// (every existing home + test is unchanged). The mesh + (v0.584) function resolve from the type.
-    #[serde(default)]
+    /// Every piece has a stable id and pairs name ids (increment 4 of
+    /// docs/design/ship-homes-and-logistics.md), settled as the list is read
+    /// (`settle_structures`), so a home saved when pairs were list indexes still loads.
+    #[serde(default, deserialize_with = "structures_settled")]
     pub structures: Vec<PlacedStructure>,
     /// ROAD GRAPH (v0.586): roads as a NODE + EDGE graph (the operator's "laying the road out being
     /// simple graph like nodes with splines"). Each edge is a ribbon between two nodes, carrying a
@@ -360,6 +363,15 @@ fn default_road_width() -> f32 {
 /// reads its `kind` for behaviour (ascend / climb / ride / teleport).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlacedStructure {
+    /// Its stable id in this home or zone body (increment 4 of
+    /// docs/design/ship-homes-and-logistics.md): what a partner's `pair` names and what a transit
+    /// link (src/ship/transit.rs) is told apart by, on the relay as in the game. Never a list
+    /// position: a removed piece used to shift every pair after it, and a list index is how the
+    /// shipped homestead's west teleporter came to be paired with its LADDER (index 5, where the
+    /// east teleporter is index 6). New pieces get "<type_id>-<n>" (`next_structure_id`); a piece
+    /// read without one (a home saved before increment 4) gets the same on load.
+    #[serde(default)]
+    pub id: String,
     /// -> `structure_types.ron` id (e.g. "stairs", "elevator").
     pub type_id: String,
     /// Home-local position (x, y, z); y > 0 places it on an upper level.
@@ -367,10 +379,101 @@ pub struct PlacedStructure {
     /// Yaw orientation in degrees (0 = footprint axis-aligned, +Z is "up the stairs").
     #[serde(default)]
     pub rot_deg: f32,
-    /// Teleporter pairing (v0.584): the index of the partner piece this one jumps you to. None until
-    /// the operator links a pair in the detail panel. Ignored for non-teleporter kinds.
-    #[serde(default)]
-    pub pair: Option<usize>,
+    /// The partner piece's id (v0.584 teleporter pairing, v0.592 rail lines): a teleporter jumps
+    /// you to its partner, a train platform's rail runs to its. None until the player links a
+    /// pair in the detail panel; only a partner of the same type counts (`settle_structures`).
+    /// A home saved before increment 4 names the partner by its index in the list
+    /// (`pair: Some(5)`): that is read as "#5" and turned into that piece's id as the list loads.
+    #[serde(default, deserialize_with = "pair_id_or_index")]
+    pub pair: Option<String>,
+}
+
+/// A pair as a home saved it: the partner's id (increment 4), or its index in the list (before).
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum PairAsSaved {
+    Id(String),
+    Index(usize),
+}
+
+/// Read `pair`: an id stays an id, an index becomes "#<index>", which no id can be (an id is
+/// "<type_id>-<n>" or a name an author gave, never starting with '#'), for `settle_structures`
+/// to turn into the id of the piece at that index once the whole list is read.
+fn pair_id_or_index<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+    Ok(Option::<PairAsSaved>::deserialize(d)?.map(|p| match p {
+        PairAsSaved::Id(id) => id,
+        PairAsSaved::Index(i) => format!("#{i}"),
+    }))
+}
+
+/// Read a body's `structures` and settle them (`settle_structures`).
+fn structures_settled<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<PlacedStructure>, D::Error> {
+    let mut list = Vec::<PlacedStructure>::deserialize(d)?;
+    settle_structures(&mut list);
+    Ok(list)
+}
+
+/// The kinds whose `pair` means something: a teleporter jumps to its partner, a train platform's
+/// rail runs to its.
+fn pairable(type_id: &str) -> bool {
+    use crate::ship::structure::{structure_type, StructureKind};
+    structure_type(type_id).is_some_and(|t| matches!(t.kind, StructureKind::Teleporter | StructureKind::Train))
+}
+
+/// Make a list of placed pieces whole (increment 4), however it was saved:
+///   1. every piece has an id, and no two share one: a missing or repeated id becomes
+///      "<type_id>-<n>", the lowest n not taken, in list order (the ids the editor would give);
+///   2. a pair saved as a list index ("#5") becomes the id of the piece at that index;
+///   3. a pair that names no piece, the piece itself, a piece of another type, or is set on a
+///      piece that does not pair (a ladder) is dropped, with a warning;
+///   4. a pairable piece left with no partner takes the one piece of its type that names it, if
+///      exactly one does.
+/// Steps 3 and 4 are what repair a home saved with the shipped homestead's index mispairing (its
+/// west teleporter paired with index 5, the ladder; the east teleporter with index 3, the west
+/// one): the ladder pair is dropped, and the west teleporter takes the east one, which names it.
+pub fn settle_structures(list: &mut [PlacedStructure]) {
+    let mut taken: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut needs_id = Vec::new();
+    for (i, s) in list.iter().enumerate() {
+        if s.id.is_empty() || s.id.starts_with('#') || !taken.insert(s.id.clone()) {
+            needs_id.push(i);
+        }
+    }
+    for i in needs_id {
+        let id = free_structure_id(&taken, &list[i].type_id);
+        taken.insert(id.clone());
+        list[i].id = id;
+    }
+    let ids: Vec<String> = list.iter().map(|s| s.id.clone()).collect();
+    for s in list.iter_mut() {
+        if let Some(k) = s.pair.as_deref().and_then(|p| p.strip_prefix('#')).map(|k| k.parse::<usize>().ok()) {
+            s.pair = k.and_then(|k| ids.get(k).cloned());
+        }
+    }
+    let types: std::collections::HashMap<String, String> = list.iter().map(|s| (s.id.clone(), s.type_id.clone())).collect();
+    for s in list.iter_mut() {
+        let Some(p) = s.pair.clone() else { continue };
+        let ok = pairable(&s.type_id) && p != s.id && types.get(&p) == Some(&s.type_id);
+        if !ok {
+            log::warn!("structure {} ({}) was paired with {p:?}, which is not another {}; the pair is dropped", s.id, s.type_id, s.type_id);
+            s.pair = None;
+        }
+    }
+    for i in 0..list.len() {
+        if list[i].pair.is_some() || !pairable(&list[i].type_id) {
+            continue;
+        }
+        let me = list[i].id.clone();
+        let naming: Vec<String> = list.iter().filter(|o| o.type_id == list[i].type_id && o.pair.as_deref() == Some(me.as_str())).map(|o| o.id.clone()).collect();
+        if let [only] = naming.as_slice() {
+            list[i].pair = Some(only.clone());
+        }
+    }
+}
+
+/// "<type_id>-<n>" for the lowest n from 1 that `taken` does not hold.
+fn free_structure_id(taken: &std::collections::HashSet<String>, type_id: &str) -> String {
+    (1..).map(|n| format!("{type_id}-{n}")).find(|id| !taken.contains(id)).expect("an unbounded range always has a free id")
 }
 
 /// A light placed in a home (v0.571): a `light_types.ron` type at a world/home-local position, with
@@ -462,6 +565,36 @@ pub fn wall_material(id: u32) -> Option<&'static WallMaterial> {
 }
 
 impl HomeStructure {
+    /// The id the next placed piece of `type_id` gets: "<type_id>-<n>", the lowest n no piece of
+    /// this body holds (increment 4, `PlacedStructure::id`).
+    pub fn next_structure_id(&self, type_id: &str) -> String {
+        let taken = self.structures.iter().map(|s| s.id.clone()).collect();
+        free_structure_id(&taken, type_id)
+    }
+
+    /// Where in the list the partner of piece `i` stands (its `pair` id), if it has one that is
+    /// in this body.
+    pub fn pair_index(&self, i: usize) -> Option<usize> {
+        let pair = self.structures.get(i)?.pair.as_deref()?;
+        self.structures.iter().position(|s| s.id == pair)
+    }
+
+    /// Take piece `i` out, and with it every pair naming it (the partner is left unpaired).
+    /// Pairs name ids, so no other piece's pair changes (increment 4: with list indexes, every
+    /// remover had to shift every pair after the hole, and four copies of that did).
+    pub fn remove_structure(&mut self, i: usize) -> Option<PlacedStructure> {
+        if i >= self.structures.len() {
+            return None;
+        }
+        let gone = self.structures.remove(i);
+        for s in &mut self.structures {
+            if s.pair.as_deref() == Some(gone.id.as_str()) {
+                s.pair = None;
+            }
+        }
+        Some(gone)
+    }
+
     /// Mint a unique zone id (v0.631), e.g. "zone_3".
     pub fn unique_zone_id(&self) -> String {
         let mut n = self.zones.len();
@@ -863,8 +996,8 @@ impl HomeStructure {
             if ty.kind != RailKind::Train {
                 continue;
             }
-            let Some(j) = ps.pair else { continue };
-            if j == i || j >= self.structures.len() {
+            let Some(j) = self.pair_index(i) else { continue };
+            if j == i {
                 continue;
             }
             if !seen_rails.insert((i.min(j), i.max(j))) {
@@ -2146,14 +2279,14 @@ mod tests {
         };
         let base = wall_vcount(&h.generate_meshes());
         // Two train platforms; unpaired -> no track yet.
-        h.structures.push(PlacedStructure { type_id: "train".into(), pos: (5.0, 0.0, 5.0), rot_deg: 0.0, pair: None });
-        h.structures.push(PlacedStructure { type_id: "train".into(), pos: (25.0, 0.0, 5.0), rot_deg: 0.0, pair: None });
+        h.structures.push(PlacedStructure { id: "train-1".into(), type_id: "train".into(), pos: (5.0, 0.0, 5.0), rot_deg: 0.0, pair: None });
+        h.structures.push(PlacedStructure { id: "train-2".into(), type_id: "train".into(), pos: (25.0, 0.0, 5.0), rot_deg: 0.0, pair: None });
         let unpaired = wall_vcount(&h.generate_meshes());
         // Pair them BOTH ways -> a rail track appears, and it is drawn only ONCE (dedup).
-        h.structures[0].pair = Some(1);
+        h.structures[0].pair = Some("train-2".into());
         let one_way = wall_vcount(&h.generate_meshes());
         assert!(one_way > unpaired, "pairing two platforms renders a rail track");
-        h.structures[1].pair = Some(0);
+        h.structures[1].pair = Some("train-1".into());
         let both_ways = wall_vcount(&h.generate_meshes());
         assert_eq!(both_ways, one_way, "a mutual pair draws the track once (deduped)");
         let _ = base;

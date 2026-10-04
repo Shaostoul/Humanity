@@ -753,8 +753,9 @@ function stepsAlong(from, points, maxStep) {
  *   waypoints  the steps of each door crossed, in order, then `to` (the
  *              coarse route a scripted player walks: second-player.js --route)
  *   points     the same walk in steps of at most `maxStep` metres across the
- *              floor (each one the relay accepts under its 100 m rule, for
- *              moving the game with the showcase `cam` verb)
+ *              floor, the points the game walks through (the showcase `walk_to`
+ *              verb; until increment 4 it was moved there with `cam` teleports
+ *              the relay's old 100 m rule let through)
  *   doors      "from->to" for each door crossed
  *   error      why there is no route (an unknown place, no doors between)
  * Inside a place each leg is a straight line. When the report carries its
@@ -1494,7 +1495,141 @@ function judgeCrew({ recordings, plots, commons, walls, expectCrew, look }) {
 
 const fmtP = (p) => `(${p.map((v) => Number(v).toFixed(1)).join(", ")})`;
 
+// ── Increment 4: the relay's speed check (src/relay/handlers/move_check.rs) ──────
+
+/** The most a player can bank and move in one update under the relay's rules, metres across
+ *  the floor: on foot at `on_foot_mps`, with the jitter margin, kept for `banked_s`, plus the
+ *  slack. Read from the text of data/ship/shared_world.ron (the numbers the relay runs on).
+ *  Pure on the text; null when a number is missing. */
+function bankedAllowanceM(ronText) {
+  const num = (k) => {
+    const m = String(ronText || "").match(new RegExp(`\\b${k}:\\s*([-0-9.eE+]+)`));
+    return m ? Number(m[1]) : NaN;
+  };
+  const [v, j, b, s] = ["on_foot_mps", "jitter_margin", "banked_s", "slack_m"].map(num);
+  const a = v * (1 + j) * b + s;
+  return Number.isFinite(a) ? a : null;
+}
+
+/** How near where the relay holds the game it must stand after a correction, metres. */
+const JUMP_STAND_TOL_M = 0.5;
+/** How near the jump's target a relayed position must be to count as the jump leaking out. */
+const JUMP_LEAK_M = 5;
+
+/**
+ * Judge THE OVERSIZED JUMP (verify-copresence --plots, increment 4). The game stood still where
+ * the relay held it, then jumped (the showcase `cam` verb) farther than anyone can go in one
+ * update; the relay must answer with a correction, the game stand back where the relay holds it,
+ * nothing of the jump reach the other player, and the game's next move reach them (corrected,
+ * not frozen: the old 100 m rule refused such a move without a word and every one after it).
+ * `jump`:
+ *   from         [x,y,z] the game's camera before the jump
+ *   held         [x,y,z] where the relay held the game before the jump (the last of its moves the
+ *                walker saw), or null
+ *   target       [x,y,z] where the jump put the camera
+ *   allowance_m  the most the relay lets anyone move in one update (`bankedAllowanceM`)
+ *   before, after  the probe's `moves` before and after ({count, applied, last})
+ *   camera       [x,y,z] the game's camera after the correction
+ *   relayedAfterJump  every position the walker saw the relay pass on for the game after the
+ *                jump and before the nudge
+ *   nudged, seen the next move and the positions the walker saw after it
+ * Returns { pass, checks }.
+ */
+function judgeJump(jump) {
+  const checks = [];
+  const add = (id, ok, detail) => checks.push({ id: `jump_${id}`, ok: !!ok, detail });
+  const j = jump || {};
+  const d = (a, b) => (Array.isArray(a) && Array.isArray(b) ? Math.hypot(...[0, 1, 2].map((k) => Number(a[k]) - Number(b[k]))) : Infinity);
+  const dxz = (a, b) => (Array.isArray(a) && Array.isArray(b) ? Math.hypot(Number(a[0]) - Number(b[0]), Number(a[2]) - Number(b[2])) : Infinity);
+  const fmt3 = (p) => (Array.isArray(p) ? `(${p.map((v) => Number(v).toFixed(2)).join(", ")})` : "(never)");
+  const gap = dxz(j.from, j.target);
+  add(
+    "far_enough",
+    Number.isFinite(gap) && Number.isFinite(j.allowance_m) && gap > j.allowance_m,
+    Number.isFinite(j.allowance_m)
+      ? `the jump from ${fmt3(j.from)} to ${fmt3(j.target)} is ${gap.toFixed(1)} m across the floor; the relay lets anyone move at most ${Number(j.allowance_m).toFixed(1)} m in one update` +
+          (gap > j.allowance_m ? "" : " (needs more than that to mean anything)")
+      : "the relay's allowance was not recorded (data/ship/shared_world.ron)",
+  );
+  const before = (j.before && Number(j.before.count)) || 0;
+  const after = j.after || {};
+  const last = after.last || null;
+  const corrected = Number(after.count) > before && !!last;
+  const toHeld = last ? d(last.at, j.held) : Infinity;
+  add(
+    "corrected",
+    corrected && last.reason === "too_fast" && toHeld <= JUMP_STAND_TOL_M,
+    !j.after
+      ? "the game's corrections were not recorded (the probe's moves)"
+      : !corrected
+        ? `no correction reached the game (${before} before the jump, ${Number(after.count) || 0} after): the relay refused it without a word, or the game ignored it`
+        : `correction ${last.seq} (${last.reason}) stood the game at ${fmt3(last.at)}, ${Number.isFinite(toHeld) ? toHeld.toFixed(2) : "?"} m from where the relay held it ${fmt3(j.held)}`,
+  );
+  const off = d(j.camera, j.held);
+  add(
+    "stands_where_held",
+    off <= JUMP_STAND_TOL_M,
+    `after the correction the game's camera at ${fmt3(j.camera)} is ${Number.isFinite(off) ? off.toFixed(2) : "?"} m from where the relay holds it ${fmt3(j.held)}` +
+      (off <= JUMP_STAND_TOL_M ? "" : ` (at most ${JUMP_STAND_TOL_M} m)`),
+  );
+  const leaked = (j.relayedAfterJump || []).filter((p) => dxz(p, j.target) <= JUMP_LEAK_M);
+  add(
+    "never_relayed",
+    Array.isArray(j.relayedAfterJump) && leaked.length === 0,
+    !Array.isArray(j.relayedAfterJump)
+      ? "what the relay passed on after the jump was not recorded"
+      : leaked.length
+        ? `the relay passed the jump on to the walker: ${fmt3(leaked[0])}`
+        : `nothing near the jump's target reached the walker (${j.relayedAfterJump.length} position(s) passed on in between)`,
+  );
+  const hit = (j.seen || []).find((p) => d(p, j.nudged) <= REJOIN_NUDGE_TOL_M);
+  add(
+    "moves_reach_others",
+    !!hit,
+    hit
+      ? `its next move to ${fmt3(j.nudged)} reached the walker through the relay, at ${fmt3(hit)}`
+      : `its next move to ${fmt3(j.nudged)} never reached the walker (${(j.seen || []).length} update(s) seen after it): frozen`,
+  );
+  return { pass: checks.every((c) => c.ok), checks };
+}
+
+/**
+ * EVERY HONEST MOVE WAS TAKEN (increment 4): across the whole run, the relay corrected the game
+ * only for the one oversized jump, and never a scripted walker. Walking through the doors,
+ * shutting the build editor, Respawn, stepping out and back in, a reconnect: the relay must tell
+ * each of them from a move nobody could make. `honest`:
+ *   gameTotal     the game's corrections over the run, before its second boot (the probe's count)
+ *   fromJump      how many of those the jump drew (after - before)
+ *   walkerLines   every "corrected to" line a walker logged
+ * Returns { pass, checks }.
+ */
+function judgeHonestMoves(honest) {
+  const checks = [];
+  const h = honest || {};
+  const others = Number(h.gameTotal) - Number(h.fromJump || 0);
+  checks.push({
+    id: "moves_game_honest_never_corrected",
+    ok: Number.isFinite(others) && others === 0,
+    detail: !Number.isFinite(Number(h.gameTotal))
+      ? "the game's corrections over the run were not recorded"
+      : others === 0
+        ? `the relay corrected the game ${h.gameTotal} time(s) over the run, every one for the oversized jump`
+        : `the relay corrected the game ${others} time(s) for moves that were not the jump (${h.gameTotal} in all): an honest move was taken for one nobody could make`,
+  });
+  const lines = Array.isArray(h.walkerLines) ? h.walkerLines : null;
+  checks.push({
+    id: "moves_walkers_never_corrected",
+    ok: !!lines && lines.length === 0,
+    detail: !lines ? "the walkers' corrections were not recorded" : lines.length ? `a walker was corrected: ${lines[0]}` : "no scripted walker was ever corrected",
+  });
+  return { pass: checks.every((c) => c.ok), checks };
+}
+
 module.exports = {
+  bankedAllowanceM,
+  judgeJump,
+  judgeHonestMoves,
+  JUMP_STAND_TOL_M,
   LIMITS,
   judgeCopresence,
   judgeCrew,

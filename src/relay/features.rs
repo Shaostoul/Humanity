@@ -1806,6 +1806,19 @@ mod tests {
 
     // ── Increment 3: the relay's world is the ship ────────────────────────────
 
+    /// Walk from `from` to `to` the way the relay's speed check takes (increment 4): legs of at
+    /// most 15 m, half a second apart, ending at `to`.
+    async fn walk_steps(sock: &mut TestSocket, from: [f32; 3], to: [f32; 3]) {
+        let n = (dist(from, to) / 15.0).ceil().max(1.0) as usize;
+        for k in 1..=n {
+            let t = k as f32 / n as f32;
+            step_to(sock, [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t, from[2] + (to[2] - from[2]) * t]).await;
+            if k < n {
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            }
+        }
+    }
+
     /// A game's step to `p`, as the game sends it.
     async fn step_to(sock: &mut TestSocket, p: [f32; 3]) {
         send_json(sock, serde_json::json!({ "type": "game_position_update", "position": p, "rotation": [0.0, 0.0, 0.0, 1.0], "velocity": [0.0, 0.0, 0.0], "timestamp": 1.0 })).await;
@@ -1866,8 +1879,12 @@ mod tests {
             ([70.0, 1.7, 100.0], "street-1", false),
             (door, "home", true),
         ];
+        // Walked, not jumped (increment 4: the relay corrects a move faster than anyone can go):
+        // legs of at most 15 m half a second apart, 30 m/s, under the 31.25 m/s the relay allows.
+        let mut at = door;
         for (p, step, last) in walk {
-            step_to(&mut sock, p).await;
+            walk_steps(&mut sock, at, p).await;
+            at = p;
             let got = next_game_of(&mut sock, &["game_quest_progress", "game_quest_completed"]).await;
             let got = got.unwrap_or_else(|| panic!("no quest progress for the step into {step} at {p:?}"));
             assert_eq!(got["step_id"], step, "{got}");
@@ -1877,7 +1894,7 @@ mod tests {
         // A meal from the mess hall's stores.
         let (store_id, at) = store.expect("the welcome carries the ship's food stores");
         let before = state.game_world.read().await.entities[&store_id].components["meals"].as_f64().unwrap();
-        step_to(&mut sock, [at[0] + 1.0, 1.7, at[2] + 1.0]).await;
+        walk_steps(&mut sock, door, [at[0] + 1.0, 1.7, at[2] + 1.0]).await;
         tokio::time::sleep(std::time::Duration::from_millis(300)).await;
         send_json(&mut sock, serde_json::json!({ "type": "game_interact", "entity_id": store_id, "action": "take_meal" })).await;
         let r = next_game_of(&mut sock, &["game_interact_result"]).await.expect("an answer to take_meal");
@@ -1910,6 +1927,112 @@ mod tests {
         .await
         .ok()
         .flatten()
+    }
+
+    // ── Increment 4: getting around at ship scale ─────────────────────────────
+
+    /// A game's position update to `p` as a game of increment 4 sends it: with the newest
+    /// correction it applied (`correction`).
+    async fn step_applied(sock: &mut TestSocket, p: [f32; 3], applied: u64) {
+        send_json(sock, serde_json::json!({ "type": "game_position_update", "position": p, "rotation": [0.0, 0.0, 0.0, 1.0], "velocity": [0.0, 0.0, 0.0], "timestamp": 1.0, "correction": applied })).await;
+    }
+
+    /// AN OVERSIZED JUMP IS CORRECTED, AND THE NEXT MOVE REACHES THE OTHERS, on a real relay: a
+    /// step from the door is passed on to the other player; a 60 m jump (more than anyone can go
+    /// in one update) is answered to the jumper with `game_position_correction` naming where the
+    /// relay holds them, nothing of it reaches the other player, and the relay still holds the
+    /// jumper at their step; their next update, which says it applied the correction, is passed
+    /// on: corrected, never frozen.
+    ///
+    /// Seen red 2026-10-04 on the increment 3 relay (the 100 m rule): "no correction for a 60.0 m
+    /// jump; game messages the jumper saw: []" (the rule let the 60 m through, and the other
+    /// player saw it).
+    #[tokio::test]
+    async fn an_oversized_jump_is_corrected_and_the_next_move_reaches_the_others() {
+        let path = plots_db("speed_check");
+        let (state, port, server) = relay_on(&path).await;
+        let (mut a, a_key) = bind_socket(&state, port, [101u8; 32], Some("JumpA"), 1).await;
+        let (mut b, _) = bind_socket(&state, port, [102u8; 32], Some("WatchB"), 1).await;
+        welcome_after_join(&mut a, "JumpA").await;
+        welcome_after_join(&mut b, "WatchB").await;
+        let door = relay_position(&state, &a_key).await;
+        let step = [door[0], door[1], door[2] + 0.5];
+        step_applied(&mut a, step, 0).await;
+        let seen = next_game_of(&mut b, &["game_position_update"]).await.expect("the other player sees the step");
+        assert_eq!(seen["position"], serde_json::json!(step));
+
+        let far = [step[0], step[1], step[2] + 60.0];
+        step_applied(&mut a, far, 0).await;
+        let c = next_game_of(&mut a, &["game_position_correction"]).await;
+        let held_now = relay_position(&state, &a_key).await;
+        let c = c.unwrap_or_else(|| panic!("no correction for a 60.0 m jump; the relay holds them at {held_now:?}"));
+        assert_eq!(c["position"], serde_json::json!(step), "the correction names where the relay holds them: {c}");
+        assert_eq!(c["seq"], 1);
+        assert_eq!(c["reason"], "too_fast");
+        let leaked: Vec<Value> = game_messages_for(&mut b, 400).await.into_iter().filter(|g| g["type"] == "game_position_update" && dist_v(&g["position"], far) < 1.0).collect();
+        assert!(leaked.is_empty(), "the jump reached the other player: {leaked:?}");
+        assert!(dist(relay_position(&state, &a_key).await, step) < 1e-3, "the relay holds the jumper where they stepped");
+
+        // The game stood back at its step, and says so: its next move is passed on.
+        let next = [step[0] + 0.5, step[1], step[2]];
+        step_applied(&mut a, next, 1).await;
+        let seen = next_game_of(&mut b, &["game_position_update"]).await.expect("the move after the correction reaches the other player");
+        assert_eq!(seen["position"], serde_json::json!(next));
+
+        a.close(None).await.ok();
+        b.close(None).await.ok();
+        server.abort();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    fn dist_v(v: &Value, p: [f32; 3]) -> f32 {
+        let a: Vec<f32> = v.as_array().map(|a| a.iter().filter_map(|x| x.as_f64()).map(|x| x as f32).collect()).unwrap_or_default();
+        if a.len() != 3 {
+            return f32::INFINITY;
+        }
+        dist([a[0], a[1], a[2]], p)
+    }
+
+    /// GAME MESSAGES GO ONLY TO THE PLAYERS WHO HAVE THE MOVER IN VIEW, never to a socket that
+    /// is only chatting: with a 50 m view, the players at the two front doors (99 m apart) are
+    /// sent nothing of each other's steps, and the chatting socket nothing at all; once the view
+    /// is the shipped 250 m, the next step brings the mover into the other's view (sent whole,
+    /// `game_in_view`) and its moves follow, while the chatting socket still gets none.
+    ///
+    /// Seen red 2026-10-04 on the increment 3 relay (every game message to every socket): "a
+    /// player 99 m away, out of view, was sent the step".
+    #[tokio::test]
+    async fn game_moves_go_only_to_the_players_who_have_them_in_view() {
+        let path = plots_db("in_view");
+        let (state, port, server) = relay_on(&path).await;
+        state.game_world.write().await.rules.delivery = crate::ship::moves::DeliveryRules { in_view_m: 50.0, out_of_view_m: 60.0 };
+        let (mut a, _) = bind_socket(&state, port, [103u8; 32], Some("ViewA"), 1).await;
+        let (mut b, b_key) = bind_socket(&state, port, [104u8; 32], Some("ViewB"), 1).await;
+        let (mut chat, _) = bind_socket(&state, port, [105u8; 32], Some("OnlyChat"), 1).await;
+        welcome_after_join(&mut a, "ViewA").await;
+        welcome_after_join(&mut b, "ViewB").await;
+        let door_b = relay_position(&state, &b_key).await;
+        step_applied(&mut b, [door_b[0], door_b[1], door_b[2] + 0.5], 0).await;
+        let to_a: Vec<Value> = game_messages_for(&mut a, 600).await.into_iter().filter(|g| g["type"] == "game_position_update").collect();
+        assert!(to_a.is_empty(), "a player 99 m away, out of view, was sent the step: {to_a:?}");
+        let to_chat: Vec<Value> = game_messages_for(&mut chat, 300).await.into_iter().filter(|g| g["type"] == "game_position_update" || g["type"] == "game_npc_update").collect();
+        assert!(to_chat.is_empty(), "a socket that is only chatting was sent game moves: {to_chat:?}");
+
+        state.game_world.write().await.rules.delivery = crate::ship::moves::DeliveryRules { in_view_m: 250.0, out_of_view_m: 300.0 };
+        let next = [door_b[0], door_b[1], door_b[2] + 1.0];
+        step_applied(&mut b, next, 0).await;
+        let came = next_game_of(&mut a, &["game_in_view"]).await.expect("the mover came into view");
+        assert_eq!(came["entity"]["components"]["name"], "ViewB", "sent whole, with its name: {came}");
+        let moved = next_game_of(&mut a, &["game_position_update"]).await.expect("and its move followed");
+        assert_eq!(moved["position"], serde_json::json!(next));
+        let to_chat: Vec<Value> = game_messages_for(&mut chat, 300).await.into_iter().filter(|g| g["type"] == "game_position_update").collect();
+        assert!(to_chat.is_empty(), "the chatting socket still gets no moves: {to_chat:?}");
+
+        for mut s in [a, b, chat] {
+            s.close(None).await.ok();
+        }
+        server.abort();
+        let _ = std::fs::remove_file(&path);
     }
 
     /// Every game message a socket receives in the next `ms` milliseconds.

@@ -826,6 +826,15 @@ pub enum RelayMessage {
         message: String,
     },
 
+    /// A game message for some players only, by key (ship homes increment 4: delivery to the
+    /// players who have a mover in view, handlers/game_interest.rs). Made by the relay, never read
+    /// from a client or written as is: the send loop turns it into a system message.
+    #[serde(skip)]
+    GameTo {
+        to: std::sync::Arc<std::collections::HashSet<String>>,
+        message: String,
+    },
+
     /// Server sends the list of available channels.
     #[serde(rename = "channel_list")]
     ChannelList {
@@ -3395,9 +3404,15 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 }
             }
 
-            // Private messages: only deliver to the targeted peer.
-            if let RelayMessage::Private { ref to, ref message } = msg {
-                if to != &my_key_for_broadcast {
+            // Private messages, and game messages for some players (GameTo): only deliver to the
+            // targeted peers.
+            let targeted = match &msg {
+                RelayMessage::Private { to, message } => Some((to == &my_key_for_broadcast, message)),
+                RelayMessage::GameTo { to, message } => Some((to.contains(&my_key_for_broadcast), message)),
+                _ => None,
+            };
+            if let Some((for_us, message)) = targeted {
+                if !for_us {
                     continue; // Not for us
                 }
                 // Convert to a regular system message before sending.

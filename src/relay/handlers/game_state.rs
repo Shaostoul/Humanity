@@ -372,6 +372,20 @@ pub struct GameWorld {
     /// ("no_ship", home_plots.rs `refused_join`), and a join naming no ship (a scripted
     /// player) spawns where `default_spawn_position` says, with no plot.
     pub ship_plots: crate::ship::ship_structure::ShipPlots,
+    /// How fast a person may move aboard and who is in view of whom (increment 4,
+    /// data/ship/shared_world.ron; src/ship/moves.rs).
+    pub rules: crate::ship::moves::SharedWorldRules,
+    /// Each player's allowance and corrections, by entity id (move_check.rs). Never saved.
+    pub moves: HashMap<u64, super::move_check::MoveState>,
+    /// The ship file's transit links in its shared zones (src/ship/transit.rs), what a declared
+    /// jump there is checked against. Empty on today's ship, which has no teleporter aboard.
+    pub transit: Vec<crate::ship::transit::TransitLink>,
+    /// Each vehicle's own speed, metres a second, by its item id (data/vehicles/kits.ron): what a
+    /// move declared as driving may go at, when faster than on foot.
+    pub vehicle_speeds: HashMap<String, f32>,
+    /// Who is in view of whom (game_interest.rs): a player's moves go to the players in view of
+    /// them, not to every socket. Never saved.
+    pub interest: super::game_interest::Interest,
 }
 
 /// Where a joining player lives and arrives (increment 1b): their plot (None for a guest,
@@ -492,6 +506,11 @@ impl GameWorld {
             player_next_meal: HashMap::new(),
             npc_broadcast_accum: 0.0,
             ship_plots: Default::default(),
+            rules: crate::ship::moves::SharedWorldRules::load(std::path::Path::new("data")),
+            moves: HashMap::new(),
+            transit: Vec::new(),
+            vehicle_speeds: super::move_check::vehicle_speeds(std::path::Path::new("data")),
+            interest: Default::default(),
         };
         world.load_ship();
         world.load_chores();
@@ -552,6 +571,8 @@ impl GameWorld {
                 tracing::info!("Game: ship {} ({}) has {} plot(s)", p.ship_id, p.ship_hash, p.plots.len());
                 self.ship_plots = p;
                 self.load_ship_rooms(&ship);
+                // Its transit links, by id (increment 4): a declared jump in a shared zone must be one.
+                self.transit = ship.transit_links();
             }
             Err(e) => tracing::error!("Game: the ship did not load ({e}); nobody gets a plot, and the world has no rooms"),
         }
@@ -1098,6 +1119,9 @@ impl GameWorld {
             .map(|(id, _)| *id);
         if let Some(id) = id {
             self.entities.remove(&id);
+            // Their allowance and who saw them go with them (increment 4).
+            self.moves.remove(&id);
+            self.interest.forget(id);
         }
         id
     }

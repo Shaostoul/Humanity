@@ -180,7 +180,8 @@ pub(crate) fn publish(state: &mut EngineState) {
         // sightseeing during a 5 g evasion does not quietly kill the operator.
         EnvironmentContext::default()
     } else {
-        match whereabouts(state.homestead_bounds, state.aboard_station, pos) {
+        let air = air_spaces_of(state);
+        match whereabouts(air.as_ref(), state.aboard_station, pos) {
             Whereabouts::InsideHome => {
                 // Inside the homestead: sealed, still air at the home's own
                 // temperature and humidity, and OXYGENATED only while the
@@ -207,6 +208,12 @@ pub(crate) fn publish(state: &mut EngineState) {
                     ..base
                 }
             }
+            // The ship's shared spaces (the Commons, First Street, the corridors, a neighbour's
+            // plot): the ship's own air, kept by its life support at the standard a home starts at
+            // (ship homes increment 4: this was the player's home air everywhere in the box
+            // around every room). The ship's air has no model of its own yet, so it is always
+            // breathable here.
+            Whereabouts::InShip => EnvironmentContext { activity_met: activity, g_load: felt_g_now, ..EnvironmentContext::default() },
             Whereabouts::Outside => {
                 // Outside the hull, under whatever the player has built over
                 // themselves (2026-09-27: a roof on three walls keeps the wind
@@ -259,25 +266,52 @@ pub(crate) fn publish(state: &mut EngineState) {
 /// Where the player is for the survival context.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Whereabouts {
-    /// In the homestead's sealed air.
+    /// In their own home's sealed air.
     InsideHome,
+    /// In the ship's shared air (its zones, corridors and the other plots, increment 4).
+    InShip,
     /// Out in the weather (or in space), under whatever they built.
     Outside,
     /// The homestead is not generated yet: assume safe.
     NoHome,
 }
 
-/// Inside the home only while ABOARD, in the home frame, with the camera in
-/// the home's box (`bounds`). On a planet the parked camera's local position
-/// can sit inside the home's box by coincidence, because the camera stays
-/// put while the ship frame moves under it (the same frame confusion as
-/// BUG-102), and that must never read as the home's still, warm air.
-pub(crate) fn whereabouts(bounds: Option<(glam::Vec3, glam::Vec3)>, aboard: bool, pos: glam::Vec3) -> Whereabouts {
-    match bounds {
+/// Whose air the player breathes (src/ship/ship_space.rs), only while ABOARD, in the home frame.
+/// On a planet the parked camera's local position can sit inside the home's box by coincidence,
+/// because the camera stays put while the ship frame moves under it (the same frame confusion as
+/// BUG-102), and that must never read as the home's still, warm air. `air` None: nothing has
+/// generated yet.
+pub(crate) fn whereabouts(air: Option<&crate::ship::ship_space::AirSpaces>, aboard: bool, pos: glam::Vec3) -> Whereabouts {
+    use crate::ship::ship_space::AirAt;
+    match air {
         None => Whereabouts::NoHome,
-        Some((mn, mx)) if aboard && pos.cmpge(mn).all() && pos.cmple(mx).all() => Whereabouts::InsideHome,
-        Some(_) => Whereabouts::Outside,
+        Some(_) if !aboard => Whereabouts::Outside,
+        Some(a) => match a.at(pos) {
+            AirAt::OwnHome => Whereabouts::InsideHome,
+            AirAt::Ship => Whereabouts::InShip,
+            AirAt::Outside => Whereabouts::Outside,
+        },
     }
+}
+
+/// The air spaces the survival context reads: the ship's (`EngineState::ship_air`) once a ship
+/// has assembled; on the legacy layout (no ship) the box around every room is the home, as it
+/// was before increment 4; None before anything has generated.
+fn air_spaces_of(state: &EngineState) -> Option<crate::ship::ship_space::AirSpaces> {
+    match (&state.gui_state.ship_structure, state.homestead_bounds) {
+        (Some(_), _) => Some(state.ship_air.clone()),
+        (None, Some(b)) => Some(crate::ship::ship_space::AirSpaces { home: Some(b), shared: Vec::new() }),
+        (None, None) => None,
+    }
+}
+
+/// Refresh whose air each place breathes and where aboard ends from the ship as it stands now
+/// (ship homes increment 4): called wherever the room boxes are (world_load.rs, home_meshes.rs),
+/// so a home moved by a welcome, put away or edited is breathed in where it stands.
+pub(crate) fn refresh_ship_spaces(state: &mut EngineState) {
+    let ship = state.gui_state.ship_structure.as_ref();
+    state.ship_air = ship.map(|s| s.air_spaces()).unwrap_or_default();
+    state.aboard_bounds = ship.and_then(|s| s.aboard_bounds());
 }
 
 /// THE home's air: temperature (C), relative humidity (0 to 1) and pressure
@@ -309,13 +343,31 @@ mod tests {
     #[test]
     fn inside_the_home_requires_being_aboard() {
         use glam::Vec3;
-        let home = Some((Vec3::new(-10.0, 0.0, -10.0), Vec3::new(10.0, 20.0, 10.0)));
+        let air = crate::ship::ship_space::AirSpaces { home: Some((Vec3::new(-10.0, 0.0, -10.0), Vec3::new(10.0, 20.0, 10.0))), shared: Vec::new() };
+        let home = Some(&air);
         let parked = Vec3::new(0.0, 5.0, 0.0);
         assert_eq!(whereabouts(home, true, parked), Whereabouts::InsideHome);
         assert_eq!(whereabouts(home, false, parked), Whereabouts::Outside, "on a planet the parked camera is not in the home");
         assert_eq!(whereabouts(home, true, Vec3::new(0.0, 50.0, 0.0)), Whereabouts::Outside, "on the hull, outside the box");
         assert_eq!(whereabouts(home, true, Vec3::new(10.0, 20.0, 10.0)), Whereabouts::InsideHome, "the box's own corner is inside");
         assert_eq!(whereabouts(None, false, parked), Whereabouts::NoHome);
+    }
+
+    /// INCREMENT 4: on the shipped ship the player breathes their own home's air only in their
+    /// own home; the Commons is the ship's air (sealed and breathable whatever the home's air
+    /// does), and over the roof is outside. Seen red 2026-10-04 with `whereabouts` fed the box
+    /// around every room as the home, as before increment 4: "the Commons is the ship's air, not
+    /// InsideHome".
+    #[test]
+    fn the_commons_breathes_the_ships_air_not_the_homes() {
+        use glam::Vec3;
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship");
+        let air = ship.air_spaces();
+        let w = whereabouts(Some(&air), true, Vec3::new(80.0, 1.7, 60.0));
+        assert_eq!(w, Whereabouts::InShip, "the Commons is the ship's air, not {w:?}");
+        assert_eq!(whereabouts(Some(&air), true, Vec3::new(26.0, 1.7, 40.0)), Whereabouts::InsideHome);
+        assert_eq!(whereabouts(Some(&air), true, Vec3::new(26.0, 30.0, 40.0)), Whereabouts::Outside);
     }
 
     /// The body heat INPUT at the player changes with altitude: at the same

@@ -425,6 +425,23 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.gui_state.pending_respawn = true;
         log::info!("Showcase: respawn -> the Respawn button");
     }
+    // {"walk_to":"x,y,z,yaw,pitch,speed"} (2026-10-04, ship homes increment 4): walk the camera
+    // there in a straight line at that many metres a second, facing yaw and pitch, the way a
+    // person walks it; the probe's `moves.walking` stays true until it arrives. The relay's speed
+    // check corrects a jump nobody could make, which the `cam` verb's teleport is past a few
+    // metres, so verify-copresence walks the game through the ship with this instead (it moved it
+    // in 40 m teleports while the relay's rule was 100 m per update). It advances only while the
+    // game is in the shared world (engine/move_check.rs `walk_tick`). Permanent dev tooling.
+    if let Some(spec) = grab("walk_to") {
+        match crate::engine::move_check::parse_walk(&spec) {
+            Some(w) => {
+                state.moves.walk = Some(w);
+                state.gui_state.active_page = crate::gui::GuiPage::None;
+                log::info!("Showcase: walk_to -> walking to {:?} at {} m/s", w.to, w.speed);
+            }
+            None => log::warn!("Showcase: walk_to wants \"x,y,z,yaw,pitch,speed\" with a speed above 0, not {spec:?}"),
+        }
+    }
     // {"build_editor":"1"} / {"build_editor":"0"} (2026-10-04, ship homes 1b, round 5): open or
     // shut the construction editor the way the B key does (engine/editor.rs
     // `toggle_build_editor`, under the B key's own conditions: the world view, no showroom).
@@ -3567,6 +3584,10 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         // The construction editor's camera is up (the showcase `build_editor` verb opens it;
         // verify-copresence --plots waits for it to open and shut).
         "build_editor": state.construction_cam_active,
+        // Increment 4: the corrections the relay sent and this game applied, and the rig's walk in
+        // progress (engine/move_check.rs); whether the camera stands inside the ship's bounds.
+        "moves": crate::engine::move_check::probe_json(state),
+        "aboard_ship": state.aboard_bounds.is_some_and(|b| crate::ship::ship_space::in_box(&b, state.camera.position)),
         "camera_start": rec.camera_start,
         "camera_end": camera_json(state),
         "frames": rec.frames,

@@ -1185,3 +1185,104 @@ test("crew: amber is the crew's body as drawn, not their activity text, oak, tea
   assert.equal(crewPixels(img, [200, 90]).count, 200 * 40);
   assert.equal(crewPixels(img, [380, 450]).count, 0, "nothing under a name drawn elsewhere");
 });
+
+// ── Increment 4: the relay's speed check ────────────────────────────────────────────────────
+
+const { judgeJump, judgeHonestMoves, bankedAllowanceM } = require("../lib/copresence-judge.js");
+
+// The relay's allowance, read from its own rules file: 25 m/s x 1.25 x 1.5 s + 1 m.
+test("jump: the allowance is read from the relay's rules file", () => {
+  const ron = require("fs").readFileSync(require("path").join(__dirname, "..", "..", "data", "ship", "shared_world.ron"), "utf8");
+  assert.ok(Math.abs(bankedAllowanceM(ron) - (25 * 1.25 * 1.5 + 1)) < 1e-9, `the shipped rules allow ${bankedAllowanceM(ron)} m`);
+  assert.equal(bankedAllowanceM("( moving: ( on_foot_mps: 25.0 ) )"), null, "a number missing reads as unknown");
+});
+
+// What a good run of the jump leg records: the game stood at the crew look, jumped 138 m to the
+// far end of First Street, was corrected back, and its nudge reached the walker.
+const goodJump = () => ({
+  from: [91, 1.7, 58],
+  held: [91, 1.7, 58],
+  target: [66, 1.7, 194],
+  allowance_m: 47.875,
+  before: { count: 0, applied: 0, last: null, walking: false },
+  after: { count: 1, applied: 1, last: { seq: 1, at: [91, 1.7, 58], from: [66, 1.7, 194], reason: "too_fast" }, walking: false },
+  camera: [91, 1.7, 58],
+  relayedAfterJump: [[91, 1.7, 58]],
+  nudged: [90, 1.7, 58],
+  seen: [[90.4, 1.7, 58], [90, 1.7, 58]],
+});
+const jumpCheck = (j, id) => judgeJump(j).checks.find((c) => c.id === id);
+
+test("jump: a good run passes every check", () => {
+  const r = judgeJump(goodJump());
+  assert.ok(r.pass, r.checks.filter((c) => !c.ok).map((c) => `${c.id}: ${c.detail}`).join("\n"));
+  assert.deepEqual(r.checks.map((c) => c.id), ["jump_far_enough", "jump_corrected", "jump_stands_where_held", "jump_never_relayed", "jump_moves_reach_others"]);
+});
+
+// Each way a broken build shows, failing its own check and no other where the record allows.
+test("jump: the old relay's silent refusal FAILS: no correction, and frozen", () => {
+  const j = goodJump();
+  // The 100 m rule refused the 138 m jump without a word: no correction, the game left standing
+  // at the jump's target, and every update after it refused.
+  j.after = { count: 0, applied: 0, last: null, walking: false };
+  j.camera = j.target.slice();
+  j.seen = [];
+  const r = judgeJump(j);
+  assert.equal(jumpCheck(j, "jump_corrected").ok, false, jumpCheck(j, "jump_corrected").detail);
+  assert.equal(jumpCheck(j, "jump_stands_where_held").ok, false);
+  assert.equal(jumpCheck(j, "jump_moves_reach_others").ok, false);
+  assert.equal(jumpCheck(j, "jump_never_relayed").ok, true, "nothing leaked: the relay refused it");
+  assert.equal(r.pass, false);
+});
+
+test("jump: a game that ignores the correction FAILS where it stands and frozen", () => {
+  const j = goodJump();
+  j.after = { count: 0, applied: 0, last: null, walking: false };
+  j.camera = [66, 1.7, 194];
+  j.seen = [];
+  assert.equal(jumpCheck(j, "jump_corrected").ok, false);
+  assert.equal(jumpCheck(j, "jump_stands_where_held").ok, false);
+  assert.equal(jumpCheck(j, "jump_moves_reach_others").ok, false);
+});
+
+test("jump: a relay that passes the jump on FAILS never_relayed", () => {
+  const j = goodJump();
+  j.relayedAfterJump = [[91, 1.7, 58], [66.2, 1.7, 193.8]];
+  assert.equal(jumpCheck(j, "jump_never_relayed").ok, false, jumpCheck(j, "jump_never_relayed").detail);
+  assert.equal(judgeJump(j).checks.filter((c) => !c.ok).length, 1, "and nothing else");
+});
+
+test("jump: a correction to the wrong place, or for another reason, FAILS corrected", () => {
+  const wrong = goodJump();
+  wrong.after.last.at = [70, 1.7, 100];
+  assert.equal(jumpCheck(wrong, "jump_corrected").ok, false);
+  const reason = goodJump();
+  reason.after.last.reason = "link_unknown";
+  assert.equal(jumpCheck(reason, "jump_corrected").ok, false);
+});
+
+test("jump: a jump the relay would have taken anyway means nothing: FAILS far_enough", () => {
+  const j = goodJump();
+  j.target = [91, 1.7, 98]; // 40 m: inside the 47.9 m a player can bank
+  assert.equal(jumpCheck(j, "jump_far_enough").ok, false, jumpCheck(j, "jump_far_enough").detail);
+  const unknown = goodJump();
+  unknown.allowance_m = null;
+  assert.equal(jumpCheck(unknown, "jump_far_enough").ok, false, "an allowance not recorded fails");
+});
+
+test("jump: nothing recorded fails", () => {
+  const r = judgeJump({});
+  assert.equal(r.pass, false);
+  assert.ok(r.checks.every((c) => c.ok === false), r.checks.map((c) => `${c.id} ${c.ok}`).join(", "));
+});
+
+test("honest moves: only the jump's correction, and no walker's, passes", () => {
+  assert.ok(judgeHonestMoves({ gameTotal: 1, fromJump: 1, walkerLines: [] }).pass);
+  const extra = judgeHonestMoves({ gameTotal: 2, fromJump: 1, walkerLines: [] });
+  assert.equal(extra.pass, false, "a correction of an honest move of the game");
+  assert.match(extra.checks[0].detail, /1 time\(s\) for moves that were not the jump/);
+  const walker = judgeHonestMoves({ gameTotal: 1, fromJump: 1, walkerLines: ["[TestBotPlots] second-player: corrected to (70.00, 1.70, 60.00) (too_fast, correction 1)"] });
+  assert.equal(walker.checks[1].ok, false, "a walker corrected");
+  assert.equal(judgeHonestMoves({}).pass, false, "nothing recorded fails");
+  assert.ok(judgeHonestMoves({ gameTotal: 0, fromJump: 0, walkerLines: [] }).pass, "the guest order: no jump, no correction");
+});

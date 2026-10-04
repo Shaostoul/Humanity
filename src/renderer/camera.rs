@@ -22,6 +22,13 @@ use super::light::RoomLight;
 /// (v^2 / 2g with jump_speed 5.0), which reads as slightly floatier.
 const GRAVITY_FALLBACK: f32 = 9.81;
 
+/// The walking speed on foot, metres a second (the controller's `speed`, lib.rs). The relay's
+/// on-foot limit (data/ship/shared_world.ron) is checked against it and the sprint below by a
+/// test (ship/moves.rs), so a faster walk cannot leave the shared world correcting honest players.
+pub const WALK_SPEED_MPS: f32 = 5.0;
+/// How much faster Shift runs than walking (`update_first_person`).
+pub const SPRINT_FACTOR: f32 = 1.9;
+
 /// Flight roll rate (rad/s) for the Q/E bank keys in dev fly mode (v0.890).
 /// ~80 deg/s: a full barrel roll in ~4.5 s, fast enough to frame a shot,
 /// slow enough to stop level by eye.
@@ -1198,7 +1205,7 @@ impl CameraController {
         // Shift = SPRINT (hold to move faster). `speed_multiplier` carries status-effect
         // modifiers (well_nourished speeds up, thirsty/flu slow down), and
         // `carry_speed_factor` the carried load's (BUG-136, walking only).
-        let sprint = if self.descend { 1.9 } else { 1.0 };
+        let sprint = if self.descend { SPRINT_FACTOR } else { 1.0 };
         let move_speed = self.speed * sprint * self.speed_multiplier * self.carry_speed_factor;
 
         if velocity.length_squared() > 0.0 {

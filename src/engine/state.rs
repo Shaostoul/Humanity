@@ -826,6 +826,15 @@ pub(crate) struct EngineState {
     /// survival environment context: inside = oxygenated/heated, outside =
     /// vacuum/cold. None until the homestead generates.
     pub(crate) homestead_bounds: Option<(Vec3, Vec3)>,
+    /// Whose air each place breathes (ship homes increment 4, src/ship/ship_space.rs): this
+    /// player's own home box and the ship's shared spaces, refreshed with the meshes. The survival
+    /// context reads it; `homestead_bounds` stays the box around every room (the hull top).
+    pub(crate) ship_air: crate::ship::ship_space::AirSpaces,
+    /// The ship's box, where "aboard" ends (increment 4, `ShipStructure::aboard_bounds`),
+    /// refreshed with the meshes. None until the ship assembles.
+    pub(crate) aboard_bounds: Option<crate::ship::ship_space::Aabb>,
+    /// The game's half of the relay's speed check (engine/move_check.rs).
+    pub(crate) moves: crate::engine::move_check::ClientMoves,
     /// Live screenshot command counter (v0.639): monotonic per session, names
     /// `debug/screenshot_N.png` so repeated requests never collide.
     pub(crate) screenshot_counter: u32,
