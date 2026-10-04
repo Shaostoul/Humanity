@@ -641,6 +641,11 @@
       "date": "2026-10-04",
       "decision": "Released v0.1450.0: the erase marker (the operator's option 2: keyed fingerprint plus day, 30 days and 100000 entries by default, in-app settings, explicit Connect/Enter to sign up again) and BUG-137 (desktop Server Settings could write defaults over the live settings). Three review rounds (17, 11, 3 findings). Increment 2 (meet in the Commons) is ready on ship-homes-2 and merges next.",
       "why": "Closes BUG-135's known limit the way the operator chose, and a live-server data risk found by its review."
+    },
+    {
+      "date": "2026-10-04",
+      "decision": "Released v0.1451.0: ship homes increment 2 (meet in the Commons; neighbours as shells with others-only doors; remembered plot per identity and server; guests put away and never on a plot). Day 5 is unblocked in code. The five lanes from the operator's answers (72x clock, BUG-136 carry, donations, pipe standards findings, sunrise hero shot with a corrected star sky) are merging main into their branches before they merge into main as v0.1452.0. Next arc item: increment 3 (the relay's world becomes this ship).",
+      "why": "Two review rounds and all rigs green on main, including the guest leg and the connect-first entry."
     }
   ],
   "active_scopes_to_avoid": [
