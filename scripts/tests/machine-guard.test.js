@@ -169,7 +169,7 @@ test("mergeForeign de-duplicates by pid across the two samples", () => {
 test("waitForFree returns immediately on a clean machine and reports zero wait", () => {
   withFake(CLEAN, () => {
     const r = MG.waitForFree({ own: OWN, timeoutMs: 1, pollMs: 1, log: () => {} });
-    assert.deepStrictEqual(r, { free: true, waited_s: 0, blockers: [] });
+    assert.deepStrictEqual(r, { free: true, waited: false, waited_s: 0, blockers: [] });
   });
 });
 
@@ -182,6 +182,13 @@ test("RED: waitForFree blocks, logs and reports the blocker - for a build as wel
     const r = MG.waitForFree({ own: OWN, timeoutMs: 120, pollMs: 40, log: (m) => lines.push(m), label: "pre-boot" });
     assert.strictEqual(r.free, false);
     assert.ok(Date.now() - t0 >= 100, "it must actually have waited, not fallen through");
+    // A 120 ms wait rounds to 0 s, and still WAS a wait: a caller deciding
+    // "did we wait?" from waited_s > 0 got it wrong (2026-10-04, probe-sweep
+    // skipped its re-check of the exe). Red check, run 2026-10-04 with the
+    // `waited` field removed from waitForFree: "a sub-second wait is still a
+    // wait" failed (undefined !== true).
+    assert.strictEqual(r.waited_s, 0, "precondition: this wait rounds to 0 s");
+    assert.strictEqual(r.waited, true, "a sub-second wait is still a wait");
     assert.deepStrictEqual(r.blockers.map((p) => p.pid), [5151]);
     assert.ok(lines.some((l) => l.includes("WAITING")), "entering the wait must be logged");
     assert.ok(lines.some((l) => l.includes("rustc.exe")), "the blocker must be named, not counted");

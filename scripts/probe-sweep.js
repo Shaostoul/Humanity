@@ -620,7 +620,9 @@ async function main() {
   // exe as it is NOW boots the new build when it is this tree's, and refuses
   // as usual when it is not. The first gate stays: a refusal before the wait
   // costs nothing.
-  if (preBoot.waited_s > 0) {
+  // `waited`, not waited_s > 0: waited_s is rounded, and a wait under half a
+  // second reads 0 (2026-10-04, the rig-boot test caught it on a fast run).
+  if (preBoot.waited) {
     log(`re-checking the binary after the ${preBoot.waited_s} s machine wait`);
     FRESH = runFreshGate(EXE_SRC, args, { cwd: REPO });
     if (FRESH.status !== 0) {

@@ -177,7 +177,10 @@ const describe = (p) => `${p.name || "HumanityOS.exe"} pid ${p.pid}${p.exe ? ` (
 
 /// Wait, bounded, for the machine to be free of contenders.
 ///
-/// Returns { free, waited_s, blockers } and NEVER throws: the caller decides
+/// Returns { free, waited, waited_s, blockers } and NEVER throws. `waited` says whether it
+/// had to wait at all: waited_s is ROUNDED, so a wait under half a second reads 0 and must not
+/// be taken for "no wait" (2026-10-04: probe-sweep skipped its re-check after such a wait).
+/// the caller decides
 /// whether a timeout is fatal (verify-screens refuses, probe-sweep proceeds but
 /// records the wait). Logs on entry and on exit when it actually waited,
 /// because "how long did this sweep sit waiting" is evidence about the machine,
@@ -193,7 +196,7 @@ function waitForFree(opt = {}) {
   const label = opt.label || "boot";
   const t0 = Date.now();
   let blockers = foreignProcs(own);
-  if (!blockers.length) return { free: true, waited_s: 0, blockers: [] };
+  if (!blockers.length) return { free: true, waited: false, waited_s: 0, blockers: [] };
   log(`[machine-guard] ${label}: WAITING - ${blockers.length} process(es) competing for this machine:`);
   for (const p of blockers) log(`[machine-guard]   ${describe(p)}`);
   log(`[machine-guard] one machine, one measurement. Polling every ${Math.round(pollMs / 1000)} s.`);
@@ -203,13 +206,13 @@ function waitForFree(opt = {}) {
     const waited = Math.round((Date.now() - t0) / 1000);
     if (!blockers.length) {
       log(`[machine-guard] ${label}: clear after ${waited} s.`);
-      return { free: true, waited_s: waited, blockers: [] };
+      return { free: true, waited: true, waited_s: waited, blockers: [] };
     }
     log(`[machine-guard] ${label}: still waiting (${waited} s) on ${blockers.map(describe).join("; ")}`);
   }
   const waited = Math.round((Date.now() - t0) / 1000);
   log(`[machine-guard] ${label}: GAVE UP after ${waited} s; still up: ${blockers.map(describe).join("; ")}`);
-  return { free: false, waited_s: waited, blockers };
+  return { free: false, waited: true, waited_s: waited, blockers };
 }
 
 // Blocking sleep. The guard runs in the middle of an async sweep but must not
