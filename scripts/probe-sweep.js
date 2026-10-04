@@ -96,6 +96,7 @@ const G = require("./rig-graphics.js");
 const MG = require("./lib/machine-guard.js");
 // The one shared lookup for the DXC shader compiler dlls (see setupRig).
 const DXC = require("./lib/dxc-dlls.js");
+const { copyExeIntoRig } = require("./lib/rig-exe-copy.js");
 // Did a {"station":"home",...} park land where it asked, in the home's own
 // coordinates (BUG-132)? Before this check a station vantage was "ok"
 // whatever it captured, including empty space.
@@ -312,15 +313,9 @@ function setupRig() {
     // A stale rig instance from a crashed prior sweep holds the exe locked
     // (EBUSY at this exact copy). Anything running FROM the rig copy is a
     // leftover of ours, never the operator's game: clear it, then copy.
-    killRigProcesses();
-    try {
-      fs.copyFileSync(EXE_SRC, path.join(RIG, "HumanityOS.exe"));
-    } catch (e) {
-      if (e.code !== "EBUSY") throw e;
-      // The file lock can outlive the kill by a moment; one retry.
-      execSync("ping -n 3 127.0.0.1 >nul", { shell: "cmd.exe" });
-      fs.copyFileSync(EXE_SRC, path.join(RIG, "HumanityOS.exe"));
-    }
+    // The file lock can outlive the kill by several seconds; the shared copy
+    // (scripts/lib/rig-exe-copy.js) waits it out for up to a minute.
+    copyExeIntoRig(EXE_SRC, path.join(RIG, "HumanityOS.exe"), { stop: killRigProcesses, log });
     // The DXC shader compiler dlls drop boot from ~25 s (FXC) to ~5 s. They
     // come from beside the exe or else the repo root (target/release, the
     // default exe's folder, holds none), through the one shared lookup,
@@ -867,7 +862,7 @@ async function main() {
       log(`discarded first pass: ${v0.id}`);
       try {
         if (v0.showcase) {
-          req("showcase_request.json", Object.assign({ map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto", aurora: "1", room_gi: "1", present_dither: "1", sun_shadows: "auto", near_levels: "auto" },v0.showcase)); // diag channels + the determinism pins are sticky across cells: reset unless the cell pins one
+          req("showcase_request.json", Object.assign({ map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto", aurora: "1", room_gi: "1", present_dither: "1", sun_shadows: "auto", near_levels: "auto", fov: "auto" },v0.showcase)); // diag channels + the determinism pins are sticky across cells: reset unless the cell pins one
           await sleep(3500);
         }
         clearDone("camera_done.json");
@@ -908,21 +903,21 @@ async function main() {
       const stationMisses = [];
       try {
         if (v.showcase) {
-          req("showcase_request.json", Object.assign({ map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto", aurora: "1", room_gi: "1", present_dither: "1", sun_shadows: "auto", near_levels: "auto" },v.showcase)); // diag channels + the determinism pins are sticky across cells: reset unless the cell pins one
+          req("showcase_request.json", Object.assign({ map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto", aurora: "1", room_gi: "1", present_dither: "1", sun_shadows: "auto", near_levels: "auto", fov: "auto" },v.showcase)); // diag channels + the determinism pins are sticky across cells: reset unless the cell pins one
           await sleep(3500);
           // The aurora switch is a pin too: an aurora-OFF twin must never leave
           // the next vantage dark (2026-09-27, scripts/aurora-gate.js).
-          pinsActive = "wind" in v.showcase || "anim_clock" in v.showcase || v.showcase.aurora === "0" || v.showcase.room_gi === "0" || v.showcase.present_dither === "0" || "sun_shadows" in v.showcase || "near_levels" in v.showcase;
+          pinsActive = "wind" in v.showcase || "anim_clock" in v.showcase || v.showcase.aurora === "0" || v.showcase.room_gi === "0" || v.showcase.present_dither === "0" || "sun_shadows" in v.showcase || "near_levels" in v.showcase || "fov" in v.showcase;
         } else if (pinsActive) {
           // The 8 vantages with NO showcase block would otherwise INHERIT a
           // previous cell's wind / anim_clock pin, which is how a frozen
           // canopy or a frozen sky ends up in a frame nobody asked to freeze.
           // Only sent when a pin is actually live, so an ordinary sweep pays
           // nothing for it.
-          req("showcase_request.json", { wind: "auto", anim_clock: "auto", aurora: "1", room_gi: "1", present_dither: "1", sun_shadows: "auto", near_levels: "auto" });
+          req("showcase_request.json", { wind: "auto", anim_clock: "auto", aurora: "1", room_gi: "1", present_dither: "1", sun_shadows: "auto", near_levels: "auto", fov: "auto" });
           await sleep(1500);
           pinsActive = false;
-          log(`  released the previous vantage's wind / anim_clock / aurora pin`);
+          log(`  released the previous vantage's wind / anim_clock / aurora / fov pin`);
         }
         clearDone("camera_done.json");
         req("camera_request.json", v.camera);

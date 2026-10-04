@@ -1773,4 +1773,41 @@ mod tests {
              was not among the ones checked: {checked:?}"
         );
     }
+
+    /// BUG-136, THE TILE ITSELF: the Inventory page's Weight tile draws the
+    /// inventory system's limit (`GuiState::carry`), with the worn pack's
+    /// bonus and the gravity where the player stands, and the line under the
+    /// tiles says where the limit comes from. The original bug lived in
+    /// exactly this wiring: the page kept its own fixed 50 kg while the
+    /// system knew better. Seen red with the tile put back on a fixed 50 kg:
+    /// "assertion `left == right` failed: the tile shows the pack's limit;
+    /// left: None, right: Some(\"62.0 / 75.0 kg\")" (it drew 62.0 / 50.0 kg).
+    #[test]
+    fn the_weight_tile_draws_the_systems_limit_and_why() {
+        use crate::systems::encumbrance::{evaluate, CarryInput, CarryMode, ONE_G_M_S2};
+        let mut theme = load_theme();
+        let mut state = inventory_state();
+        let mut core = ScreenCore::new("test_screen", "inventory", 1280, 1700, &theme);
+        crate::gui::pages::inventory::test_clear_recorded_rects();
+        let pack = CarryInput { carried_kg: 62.0, capacity_kg: 50.0, bonus_kg: 25.0, ..CarryInput::default() };
+        let mut find = |state: &mut GuiState, text: &str| {
+            core.run(&mut theme, state);
+            core.find_text(text);
+            core.run(&mut theme, state);
+            core.take_found_text().flatten().map(|f| f.text)
+        };
+        // 1 g with a large backpack: 50 + 25 kg.
+        state.carry = evaluate(pack, ONE_G_M_S2, CarryMode::Forgiving);
+        assert_eq!(find(&mut state, "62.0 / 75.0 kg").as_deref(), Some("62.0 / 75.0 kg"), "the tile shows the pack's limit");
+        let note = find(&mut state, "plus 25 kg from what you wear").expect("the note says where the limit comes from");
+        assert!(note.contains("You can carry 75 kg comfortably at 1 g"), "{note}");
+        // The Moon: the same pack carries 9.81 / 1.62 times as much.
+        state.carry = evaluate(pack, 1.62, CarryMode::Forgiving);
+        assert_eq!(find(&mut state, "62.0 / 454.2 kg").as_deref(), Some("62.0 / 454.2 kg"), "the limit follows gravity");
+        // Realistic and over the limit at 1 g: the note says why you are slow.
+        state.carry = evaluate(CarryInput { carried_kg: 90.0, ..pack }, ONE_G_M_S2, CarryMode::Realistic);
+        let why = find(&mut state, "Overloaded by 15.0 kg").expect("the note says the player is overloaded");
+        assert!(why.contains("walk at 80% speed and cannot jump"), "{why}");
+        crate::gui::pages::inventory::test_clear_recorded_rects();
+    }
 }

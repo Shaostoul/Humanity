@@ -562,10 +562,16 @@ Detect and display NFTs with Metaplex metadata.
 - Web: `web/shared/wallet.js`
 
 ### Donation Page
-Funding tracker with progress bar, dynamic multi-crypto address support (unlimited networks).
+Leads with the two ways to give (2026-10-04): the maintainer on Patreon (he
+receives it, not tax-deductible), then the nonprofit Sponsor-a-Can
+(tax-deductible, the money goes to Sponsor-a-Can), each card saying so in one
+sentence with a badge. Then more direct links, the server's funding goal (no "raised so far": nothing
+tracks it) and any addresses it lists, endorsed charities, and the FAQ. Entries with
+no link or address are not shown. Native and web read the same four data files.
 - Web: `web/pages/donate.html`, `web/pages/donate-app.js`
 - Native: `src/gui/pages/donate.rs`
-- Data: `data/server-config.json` (funding.addresses array)
+- Data: `data/donate/routes.json`, `methods.json`, `charities.json`, `faq.json`; `data/server-config.json` (funding goal + addresses array)
+- Tests: `tests/page_parity_lint.rs` (both sides read all four files: it matches the read calls, the native loader, the startup line and the web fetch, not just a mention of the path), `src/gui/pages/donate.rs` tests (each route's sentence agrees with its tax flag, no route listed twice, never the viewer's own wallet, and, drawn headlessly, no card for a route with no link and no FAQ heading over an empty FAQ)
 
 ### Wallet Guide
 Step-by-step beginner guide for all wallet operations (receive, send, buy, sell, swap, backup, glossary).
@@ -1289,7 +1295,10 @@ changes (money-routing data: server A's addresses must never display as server B
 -- `GuiState::apply_server_funding` + tests), and the old hardcoded fake
 "$350 / $1000" progress bar is replaced by a card showing the server's REAL goal
 only when one exists. Preference order on the page: server list > local Settings
-list > legacy fallback.
+list > the two legacy single-address Settings fields. Since 2026-10-04 the page
+leads with the giving routes (`data/donate/routes.json`, see "Donation Page"
+above), and the old fallback that offered an address derived from the VIEWER'S
+OWN key as the place to send money is gone.
 - Native: `src/gui/pages/donate.rs` (`build_donation_sources`), `src/gui/mod.rs` (`ServerInfo.funding`, `DonateAddress::from_funding_json`, `GuiState::apply_server_funding`), `src/lib.rs` (connect-time fetch in the `peer_list` handler + per-frame drain)
 
 ---
@@ -2057,6 +2066,35 @@ and measured human trials (Helland et al. 2025; Thompson and Hayward 1996).
   pass), `src/engine/survival_env.rs` (inputs), `src/gui/pages/settings.rs` (mode)
 - Data: `data/equipment.csv` (`clo`), `data/status_effects.csv` (the four conditions)
 - Design: `docs/design/body-heat.md`
+
+### Carrying weight (2026-10-04, BUG-136)
+What the player carries has a limit and, in the Realistic mode, consequences. The limit is the inventory's own 50 kg
+plus what worn gear adds (`carry_capacity` in `data/equipment.csv`: a large backpack adds 25 kg), comfortable at 1 g
+(9.81 m/s^2, the homestead's gravity and Earth's), and it FOLLOWS GRAVITY: the legs hold up weight, mass times local
+gravity, so the same legs carry 9.81 / g times the mass (about 2.6 times on Mars, 6 times on the Moon, no limit when
+weightless). The gravity is the one the walk applies: the planet's at the player's altitude while a surface is engaged,
+otherwise the homestead's `gravity_m_s2`. Operator decision 2026-10-04: "slower walking in realistic mode and no
+jumping in nonzero G based on weight/mass. We can obviously carry heavier in low-g to zero-g but, mass still applies."
+- **Two modes** (Settings > Gameplay > Carrying weight): **Forgiving** (the default: the same limit, a warning only,
+  movement unchanged) and **Realistic**: over the limit, walking slows by how far over (10% over walks at 90%, half
+  again over at half speed, never below a 15% crawl) and there is no jumping; and any load is extra mass to launch,
+  so a jump leaves the ground at sqrt(70 / (70 + load)) of its speed (30 kg: 84%; a 150 kg load on the Moon, well
+  under the limit there, still 56%). The slowdown is WALKING only, kept in its own controller field
+  (`carry_speed_factor`) apart from the status-effect and gear multiplier: dev flight, the planet's flight band
+  (10-100 km), swimming and ladders move at their usual speed whatever is carried. On a planet Space is a held climb
+  at walking speed rather than a one-shot jump, so the jump scale gates climbing in mid-air too.
+- Shown: the Inventory page's Weight tile (the real limit where you stand, and a line saying where it comes from and
+  why you are slow or cannot jump) and a HUD line under the survival bars while overloaded.
+- Not modelled, because the movement model has no momentum there: starting and stopping are instant in both walks
+  (no horizontal inertia), and there is no zero-g pushing (the homestead always has its gravity; dev flight is a
+  noclip camera). The jump is the one place carried mass acts. Ladders climb at the same rate whatever is carried.
+- The mode is each player's own setting, also in the shared world: a server cannot yet require Realistic carrying
+  (tracked in `docs/design/in-app-ops.md`).
+- Native: `src/systems/encumbrance.rs` (the rules, standalone tests), `src/engine/carry_load.rs` (applies them each
+  frame), `src/renderer/camera.rs` (`carry_speed_factor` and `jump_scale`, the homestead walk and jump),
+  `src/surface_move.rs` (`carry_walk_factor` and `carry_gated_radial`, the planet walk and jump), `src/systems/inventory/mod.rs` (`carry_bonus_kg`, the gravity-aware `encumbered` flag),
+  `src/gui/pages/inventory.rs` (tile), `src/gui/pages/hud.rs` (HUD line), `src/gui/pages/settings.rs` (mode).
+  Web: none; movement and the in-game Status tiles exist only in the desktop app.
 
 ### Skills/Progression
 20 skills across 5 categories, XP curves, level-up notifications. **Registered, ticks live** (`SkillSystem` is NOT in `DEFERRED_SYSTEMS` -- this "NOT registered" note was stale, corrected 2026-07-01). Note: `src/systems/skills/learning.rs`'s `Skill`/`add_practice` is a SEPARATE, unused struct with its own unresolved TODO (learning-curve level thresholds) -- it has zero callers anywhere in the tree and is not what the live, registered `SkillSystem` actually uses; treat it as dead/superseded code, not a gap in the live skill system.
@@ -3017,7 +3055,14 @@ hidden behind walls like the crew's; the relay always sent the name, nothing dre
 clock wins (v0.1424.0, operator decision): the relay's `game_time_sync` sets the game clock, its speed and its calendar
 (24-hour days, v0.1427.0) while the
 player is joined, crops keep their age across the jump (`time::REBASE_SLOT`), and the bed says the night can't be
-slept away there. Each other player looks like themselves (v0.1430.0 and v0.1431.0, `src/player_look.rs`): their
+slept away there. The shared world's clock runs at 72x by default (2026-10-04, operator: "let's do 72x but, make sure
+there's admin tools for me to adjust it from inside the app"): the server setting `world_time_scale`
+(`server_settings`, 1 to 1,000), changed in Server Settings > ADMIN > Shared world clock (native
+`src/gui/pages/world_clock_admin.rs`, web: the chat's Game Admin window), which says in words what the picked speed
+means from the data (a day in 20 minutes, a lettuce in about 15 hours). The relay applies it to the running world at
+once and sends a `game_time_sync` carrying `time_scale` to every game (`handlers/server_settings_update.rs`
+`set_world_clock`); a game runs at the host's speed between words (`time::HostClock`). Only the clock is scaled: the
+crew walk and do their chores in real seconds. Each other player looks like themselves (v0.1430.0 and v0.1431.0, `src/player_look.rs`): their
 skin tone, hair colour and height travel in `game_join` (clamped by the relay and the client), and their figure's head
 and a cap of hair wear them, sized by their height (`net_route::remote_figure_parts`); the body stays teal.
 - Native: `src/lib.rs` (multiplayer block, roster mirror), `src/gui/pages/hud.rs`

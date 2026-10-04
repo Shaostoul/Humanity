@@ -129,7 +129,9 @@ fn fs_main(input: HaloOutput) -> @location(0) vec4<f32> {
     let sy = exp(-c.x * c.x * 60.0) * exp(-c.y * c.y * 2.5);
     let w = clamp(1.0 - r2, 0.0, 1.0);
     let shape = (g + 0.15 * (sx + sy) * w) / 1.3;
-    let intensity = input.amplitude * shape;
+    // camera.sun_color.y: what twilight leaves of the brightest stars
+    // (sky_frame::twilight_fades; they outlast the rest of the field).
+    let intensity = input.amplitude * shape * camera.sun_color.y;
     // Additive blend (ONE, ONE): output = halo + whatever is behind.
     return vec4<f32>(input.color * intensity, 1.0);
 }

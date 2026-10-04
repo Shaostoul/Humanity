@@ -163,3 +163,19 @@ what we will say about it.
   rail and logistics speed in `data/transportation.ron` (the posted road
   limits were not researched): the space elevator climb and the
   slurry pipe are above the sources; the AGV and tube rows are not.
+- [`2026-10-04-pipe-marking-standards.md`](2026-10-04-pipe-marking-standards.md),
+  whether real standards exist for marking pipes (colours, bands, labels,
+  arrows) or the game must invent its own: ASME A13.1, ISO 14726 (ships),
+  ISO 20560-1, BS 1710, DIN 2403, MIL-STD-101C and MIL-STD-1247D, and NASA
+  and ISS practice. They exist; all of them mark the content, none the pipe's
+  material; the same colour means different things in different schemes, so
+  most of them also ask for the content's name in words (BS 1710 allows
+  colour alone; ISO 14726's layout clause was not read). Recommends ISO 14726
+  colours aboard the ship with ISO 20560-1's labels, and real material shown
+  between the markers.
+- [`2026-10-04-sponsor-a-can-tax-status.md`](2026-10-04-sponsor-a-can-tax-status.md),
+  whether the Donate page can say a donation to Sponsor-a-Can is tax-deductible:
+  the IRS exempt-organization extract lists EIN 93-1624890 as a 501(c)(3) with
+  "Contributions are deductible" (ruling April 2026), matching its own site;
+  deducting still depends on the donor (Publication 526). A gift to the
+  maintainer directly is not deductible.

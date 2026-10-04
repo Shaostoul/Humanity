@@ -74,8 +74,10 @@ fn vs_main(input: StarInput) -> StarOutput {
 
 @fragment
 fn fs_main(input: StarOutput) -> @location(0) vec4<f32> {
-    // Brightness modulates alpha and intensity.
-    let intensity = input.brightness;
+    // Brightness modulates alpha and intensity. camera.sun_color.x is what
+    // twilight leaves of the star field (sky_frame::twilight_fades; 1 at
+    // night and in space); the constellation figures share this entry.
+    let intensity = input.brightness * camera.sun_color.x;
     let color = input.color * intensity;
     return vec4<f32>(color, intensity);
 }

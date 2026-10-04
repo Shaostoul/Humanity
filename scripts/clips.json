@@ -3,6 +3,8 @@
     "The clip maker's shot list (scripts/make-clips.js, 2026-09-30). One entry per shot; adding a shot is an edit here.",
     "camera: a camera_request, exactly as tests/visual/vantages.json writes one ({body, lat, lon, altitude_km, look_offset_deg, time} for a planet, {station:'home'} for the home).",
     "showcase: sent before the park (weather, sea state, cloud_cover). during: sent just before the recording starts, so the sun does not move while the ground streams in. time_scale there is GAME SECONDS PER REAL SECOND (a new game runs at 1, a real 24-hour day; the Simplified preset is 72, a 20-minute day): 600 turns a 12 s clip into two hours of light, 900 turns Earth an eighth of the way round.",
+    "final_showcase: sent after the re-park, which would undo it. The \"stand\" verb ({\"stand\":\"dx,h,dz,heading,pitch\",\"stand_at\":\"lat,lon\"}) puts the eye h metres over the ground at a lat/lon looking along a compass heading (degrees from north) and pitch; the camera park cannot aim anywhere but toward north. final_settle_s (default 6) is the wait after it, for the ground to stream in at the new height.",
+    "fov in showcase: the lens, vertical degrees (10..120), released to the Settings value at the start of every shot. The play default is 90, which turns a far mountain into a few pixels.",
     "record: the movie-mode request (src/engine/movie.rs): seconds, fps, warmup_s, anim_speed (cloud and water time-lapse), pan_yaw_deg / pan_pitch_deg, path [[t, x, y, z, yaw, pitch], ...] in the home frame, descend_half_life_s / descend_floor_m.",
     "settle_s: seconds after the park for terrain and clouds to stream in before recording (the heavy forest vantages need over a minute).",
     "caption: a suggested first line for the post. Every claim in it must be true of the game as it is."
@@ -226,6 +228,40 @@
             0
           ]
         ]
+      }
+    },
+    {
+      "id": "silverdale-dawn",
+      "title": "Night to sunrise over Silverdale, Washington",
+      "caption": "Night to sunrise over Silverdale, Washington: the winter Milky Way stands over Mount Rainier, fades as dawn comes, and the sun rises over Dyes Inlet. The stars are where they really stood that morning. About two hours in twelve seconds, recorded in the game.",
+      "camera": {
+        "body": "earth",
+        "lat": 47.645,
+        "lon": -122.695,
+        "altitude_km": 0.3,
+        "look_offset_deg": 80,
+        "time": 3.8
+      },
+      "showcase": {
+        "sea": "0.3",
+        "weather": "clear",
+        "cloud_cover": "0",
+        "fov": "60"
+      },
+      "final_showcase": {
+        "stand": "0,300,0,148,24",
+        "stand_at": "47.645,-122.695"
+      },
+      "settle_s": 14,
+      "final_settle_s": 8,
+      "during": {
+        "time_scale": "650"
+      },
+      "record": {
+        "seconds": 12,
+        "warmup_s": 2,
+        "pan_yaw_deg": -40,
+        "pan_pitch_deg": -14
       }
     }
   ]

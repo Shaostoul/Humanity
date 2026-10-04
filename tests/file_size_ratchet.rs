@@ -35,6 +35,11 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - 2026-10-04: `relay/relay.rs` 6_500 -> 6_400. It stood at 6_498 when the
+///   shared-world clock needed one more server setting, so the whole
+///   `server_settings_update` arm (151 lines) moved, unchanged, into
+///   `relay/handlers/server_settings_update.rs`; relay.rs keeps a three-line
+///   dispatch. That file is where the next server setting goes.
 /// - 2026-09-19: THE TWO GUI FILES. `gui/pages/chat.rs` 8_000 -> 4_750 and
 ///   `gui/mod.rs` 7_050 -> 4_800, together the largest click this list has
 ///   taken. Both were red (9_053, +1_053; 7_915, +865) and, for the third
@@ -383,7 +388,7 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/gui/mod.rs", 4_800),
     ("src/gui/state_types.rs", 1_850),
     ("src/gui/loaders.rs", 1_650),
-    ("src/relay/relay.rs", 6_500),
+    ("src/relay/relay.rs", 6_400),
     ("src/relay/handlers/msg_handlers.rs", 4_660),
     ("src/relay/handlers/stream.rs", 550),
     ("src/terrain/planet_chunks.rs", 4_740),

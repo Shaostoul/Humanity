@@ -158,6 +158,7 @@ const path = require("path");
 const { spawn, spawnSync, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
 const DXC = require("./lib/dxc-dlls.js");
+const { copyExeIntoRig } = require("./lib/rig-exe-copy.js");
 const TR = require("./lib/throwaway-relay.js");
 /** The relay's loopback self-check for the rig's output: what the operating
  *  system showed it listening on (startRelay refuses, and stops the relay, when
@@ -473,14 +474,9 @@ function setupRig() {
   ensureJunction(path.join(RIG, "data"), path.join(REPO, "data"));
   ensureJunction(path.join(RIG, "assets"), path.join(REPO, "assets"));
   if (!fs.existsSync(EXE)) refuse([`ERROR: exe not found: ${EXE}`, "  build one first: cargo build --features native --release"]);
-  killRigProcesses();
-  try {
-    fs.copyFileSync(EXE, RIG_EXE);
-  } catch (e) {
-    if (e.code !== "EBUSY") throw e;
-    execSync("ping -n 3 127.0.0.1 >nul", { shell: "cmd.exe" });
-    fs.copyFileSync(EXE, RIG_EXE);
-  }
+  // Stop anything left running from the rig copy, then wait out the lock it
+  // leaves on the file (the 2026-10-04 --plots EBUSY between join orders).
+  copyExeIntoRig(EXE, RIG_EXE, { stop: killRigProcesses, log });
   // What boots is the copy, so the copy must be what the gate judged (BUG-133).
   requireBootCopy(RIG_EXE, fresh, "verify-copresence");
   // The DXC shader compiler dlls, from beside the exe or else the repo root

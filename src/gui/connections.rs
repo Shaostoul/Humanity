@@ -400,7 +400,10 @@ impl GuiState {
 /// (another admin saved, or they changed while this app was offline); still true while those
 /// edits are kept, once said (`already`). Save sends the whole copy, so without the note it
 /// would quietly put the old values back over the other change. False for a copy with no
-/// edits, which follows the new settings, and for none. Pure.
+/// edits, which follows the new settings, and for none. Not said for a change only to the
+/// shared world's clock speed (`world_time_scale`, set from its own Apply in Shared world
+/// clock and never sent by this page's Save, so nothing of it could be put back) with the
+/// save stamp that change carries (`same_for_the_page`). Pure.
 pub(crate) fn changed_under_edits(
     draft: Option<&crate::relay::storage::ServerSettings>,
     before: Option<&crate::relay::storage::ServerSettings>,
@@ -408,9 +411,21 @@ pub(crate) fn changed_under_edits(
     already: bool,
 ) -> bool {
     match (draft, before) {
-        (Some(d), Some(b)) if d != b => already || b != now,
+        (Some(d), Some(b)) if d != b => already || !same_for_the_page(b, now),
         _ => false,
     }
+}
+
+/// Whether two sets of server settings hold the same values for everything the Server
+/// Settings page's Save sends: all of them except the world clock's speed, which has its own
+/// control and Apply (pages/world_clock_admin.rs), and the save stamp (`updated_at`,
+/// `updated_by`), which every save changes, the clock's Apply included. Pure.
+fn same_for_the_page(a: &crate::relay::storage::ServerSettings, b: &crate::relay::storage::ServerSettings) -> bool {
+    let mut a = a.clone();
+    a.world_time_scale = b.world_time_scale;
+    a.updated_at = b.updated_at;
+    a.updated_by = b.updated_by.clone();
+    a == *b
 }
 
 /// The Server Settings page's working copy this frame (`server_settings_draft`): the copy it
@@ -909,5 +924,30 @@ mod settings_draft_tests {
         assert!(state.server_settings_changed_underneath, "the page did not say the server's settings changed under unsaved edits");
         state.discard_server_settings_draft();
         assert!(!state.server_settings_changed_underneath, "the note outlived the copy it was about");
+    }
+
+    /// The shared world's clock has its own Apply (Shared world clock), which sends only the
+    /// speed; the relay saves it with a new stamp and sends the settings to everyone. An admin
+    /// with unsaved edits on the Server Settings page is not told the settings changed under
+    /// them: the page's Save never sends the speed, so nothing of that change could be put
+    /// back. Any other change under the edits still is (merge of the world clock and BUG-137,
+    /// 2026-10-04: the two met here).
+    ///
+    /// Seen red 2026-10-04 with `changed_under_edits` comparing the whole settings: "the
+    /// page said a clock change was a change under its edits".
+    #[test]
+    fn a_clock_change_is_not_a_change_under_the_pages_edits() {
+        use super::changed_under_edits as said;
+        let older = real();
+        let mut edited = older.clone();
+        edited.server_name = "Mine".into();
+        let mut clock = older.clone();
+        clock.world_time_scale = 24.0;
+        clock.updated_at = older.updated_at + 1;
+        clock.updated_by = "another_admin".into();
+        assert!(!said(Some(&edited), Some(&older), &clock, false), "the page said a clock change was a change under its edits");
+        let mut other = clock.clone();
+        other.message_retention_days = 7;
+        assert!(said(Some(&edited), Some(&older), &other, false), "a real change under the edits came with a clock change and went unsaid");
     }
 }

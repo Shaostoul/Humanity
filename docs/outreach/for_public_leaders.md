@@ -126,10 +126,14 @@ The software costs nothing, and there is no catch waiting behind that
 sentence. There is no company and no nonprofit. There is no equity, no
 investor, and nothing for sale. The project is maintained by its lead and
 by volunteers, human and AI, and released into the public domain as it is
-built. People who choose to support the work do so as a personal gift to
-the maintainer at https://united-humanity.us/donate. That gift is not
-tax-deductible and buys no influence. A government that adopts HumanityOS
-owes nothing to anyone, ever.
+built. People who choose to support the work give to the maintainer directly,
+on Patreon at https://www.patreon.com/Shaostoul: he receives it
+personally, so it is not tax-deductible, and it buys no influence.
+Anyone who needs a tax-deductible route can donate instead to the
+nonprofit Sponsor-a-Can, a separate 501(c)(3), at
+https://www.sponsor-a-can.org/donate/; that money goes to Sponsor-a-Can.
+Both are listed at https://united-humanity.us/donate. A government that
+adopts HumanityOS owes nothing to anyone, ever.
 
 ## What we ask of you
 

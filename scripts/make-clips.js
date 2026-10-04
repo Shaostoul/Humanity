@@ -517,8 +517,9 @@ async function main() {
       const t0 = Date.now();
       try {
         // Release anything a previous shot, or the rig's own defaults, pinned:
-        // the recording's clock must drive the clouds, the water and the wind.
-        req("showcase_request.json", { wind: "auto", anim_clock: "auto", time_scale: "1" });
+        // the recording's clock must drive the clouds, the water and the wind,
+        // and a lens one shot asked for ("fov") must not carry into the next.
+        req("showcase_request.json", { wind: "auto", anim_clock: "auto", time_scale: "1", fov: "auto" });
         await sleep(400);
         if (c.showcase) {
           req("showcase_request.json", c.showcase);
@@ -533,6 +534,14 @@ async function main() {
         if (!c.camera.station) {
           await park(c.camera, `${c.id} re-park`);
           await sleep(4000);
+        }
+        // final_showcase: a request that must land after the re-park, which
+        // would undo it, the way probe-sweep.js sends one. The "stand" verb
+        // puts the eye at a height over a lat/lon looking along a compass
+        // heading, which the park cannot do: it only tilts toward north.
+        if (c.final_showcase) {
+          req("showcase_request.json", c.final_showcase);
+          await sleep((c.final_settle_s ?? 6) * 1000);
         }
         if (c.during) req("showcase_request.json", c.during);
         else req("showcase_request.json", { time_scale: "1" });

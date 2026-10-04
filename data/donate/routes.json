@@ -1,0 +1,29 @@
+{
+  "_comment": "The two ways to give, shown first on the Donate page (web/pages/donate-app.js and native src/gui/pages/donate.rs both read this file; tests/page_parity_lint.rs fails if either stops). Set by the operator on 2026-10-04: a gift to the maintainer himself goes to Patreon 'for the time being' and is not tax-deductible; a tax-deductible donation goes to the nonprofit Sponsor-a-Can. Order in this file is the display order. Patreon is first because it is the one that funds HumanityOS: the page is titled Support HumanityOS, and the Humanity page's Fund the work buttons open it, so the first card has to be a gift to the work (review, 2026-10-04). `about` (optional) is one line on who they are, kept from the copy the page already carried. `goes_to` is the ONE plain sentence each card shows: where the money goes and whether it is tax-deductible. It must agree with `tax_deductible` (a unit test in src/gui/pages/donate.rs checks this file). Never add amounts or promises of what a gift pays for here. Sponsor-a-Can's 501(c)(3) status is checked against IRS data in docs/reference/findings/2026-10-04-sponsor-a-can-tax-status.md.",
+  "routes": [
+    {
+      "name": "Shaostoul on Patreon",
+      "kind": "The maintainer, directly",
+      "about": "",
+      "url": "https://www.patreon.com/Shaostoul",
+      "button": "Support on Patreon",
+      "goes_to": "Your gift goes to Shaostoul, the maintainer, who receives it personally, so it is not tax-deductible.",
+      "tax_deductible": false,
+      "note": "",
+      "abbrev": "PAT",
+      "color": "#f96854"
+    },
+    {
+      "name": "Sponsor-a-Can",
+      "kind": "Nonprofit",
+      "about": "Fights poverty through sanitation, recycling, and community clean-up for homeless and disadvantaged communities.",
+      "url": "https://www.sponsor-a-can.org/donate/",
+      "button": "Donate to Sponsor-a-Can",
+      "goes_to": "Your donation goes to Sponsor-a-Can, a 501(c)(3) nonprofit, so it is tax-deductible as the law allows.",
+      "tax_deductible": true,
+      "note": "The HumanityOS maintainer serves as Sponsor-a-Can's Vice President.",
+      "abbrev": "SAC",
+      "color": "#3fae49"
+    }
+  ]
+}

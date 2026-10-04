@@ -685,6 +685,12 @@
 }
 .gameadmin-unban-btn:hover { color: var(--text); border-color: var(--text-muted); }
 .gameadmin-status { color: var(--accent); font-size: var(--text-sm); margin-top: var(--space-md); min-height: 1.2em; }
+/* Shared world clock (2026-10-04): a preset row like the native radios, the chosen one lit. */
+.gameadmin-clock-presets { flex-wrap: wrap; gap: var(--space-sm); }
+.gameadmin-refresh-btn.active { color: var(--text); border-color: var(--accent); }
+.gameadmin-clock-if { color: var(--accent); font-size: var(--text-sm); margin: var(--space-xs) 0 var(--space-sm); min-height: 1.2em; }
+.profile-modal #gameadmin-clock-speed { width: 7em; margin-right: var(--space-sm); }
+.gameadmin-refresh-btn:disabled { opacity: 0.5; cursor: default; }
 
 /* ---- Per-user voice control modal (v0.484) ----
    Three role-tiered sections, colored by tier: standard red, mod green, admin

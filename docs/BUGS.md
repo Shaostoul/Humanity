@@ -3063,7 +3063,7 @@ those builds yet, and the project adds no compatibility code before launch (the
 no-backwards-compatibility rule in CLAUDE.md), so this is written down instead of
 handled: if it is ever seen, the fix is to update the app.
 
-## BUG-136: the carry limit is shown as a fixed 50 kg, and being overloaded does nothing (OPEN, found 2026-10-04)
+## BUG-136: the carry limit is shown as a fixed 50 kg, and being overloaded does nothing (FIXED v0.1452.0, found 2026-10-04)
 
 **Found by** the Library writer checking the "Force, Levers and Mechanical
 Advantage" guide's game tie-in against the code. The inventory system computes
@@ -3082,7 +3082,41 @@ design (the dual-modes rule: a realistic mode and a softened one): slower
 walking is the usual answer. Until then, say on the tile that the limit is
 advisory.
 
-## BUG-137: the desktop Server Settings page can show defaults, and Save writes them over the real settings (FIXED, found 2026-10-04)
+**Decided (operator, 2026-10-04):** "slower walking in realistic mode and no
+jumping in nonzero G based on weight/mass. We can obviously carry heavier in
+low-g to zero-g but, mass still applies."
+
+**Fixed (2026-10-04):** the rules live in `src/systems/encumbrance.rs` and
+`src/engine/carry_load.rs` applies them each frame.
+- The Weight tile reads the inventory system's own numbers (`GuiState::carry`):
+  the pack's 50 kg plus the worn gear's `carry_capacity` (the system now records
+  it as `Inventory::carry_bonus_kg`), scaled by the gravity the walk applies
+  (9.81 / g: about 2.6 times on Mars, no limit when weightless). A line under
+  the tiles says where the limit comes from and why the player is slow. The
+  page's own fixed 50 kg, and its weight and volume sums made once on the first
+  draw, are gone. `encumbered` uses the same gravity-aware limit.
+- Settings > Gameplay > Carrying weight. **Forgiving** (default): a warning on
+  the tile and the HUD, no change to movement. **Realistic**: over the limit,
+  walking slows by how far over (10% over walks at 90%, never below a 15%
+  crawl) and Space does not leave the ground (`CameraController::jump_scale`
+  for the homestead, `surface_move::carry_gated_radial` on a planet); and any
+  load weighs on the jump's launch speed, sqrt(70 / (70 + load)).
+- The slowdown is WALKING only (`CameraController::carry_speed_factor`, and
+  `surface_move::carry_walk_factor` on a planet). The first version multiplied
+  it into the controller-wide `speed_multiplier`, which on a planet also drives
+  dev flight, the flight band and swimming, so an overloaded player in dev
+  flight crawled while the HUD said "walking" (caught in review, same day).
+- Tests besides the rules: the Weight tile and its note are drawn from
+  `GuiState::carry` (`screen_surface` tests), the HUD draws the overload line,
+  `carry_load::steer` sets the walk and the jump without touching the effects
+  multiplier, and the setting survives a save and a load.
+- Left: starting and stopping are instant in both walks (no horizontal
+  inertia), and there is no zero-g pushing model, so the jump is the only place
+  carried mass acts. Ladders climb at the same rate whatever is carried. The
+  mode is each player's own choice, also in the shared world; a server-side
+  rule is tracked in `docs/design/in-app-ops.md`.
+
+## BUG-137: the desktop Server Settings page can show defaults, and Save writes them over the real settings (FIXED v0.1450.0, found 2026-10-04)
 
 **Found by** the review of the erase-marker fix round, read from the code. The
 desktop app asks for the server's settings in the same moment it identifies
@@ -3119,3 +3153,131 @@ and the page says in one line that the server's settings changed while you
 were editing, because Save sends the whole copy (`changed_under_edits`). The
 relay sends its answer to `server_settings_request` only to the one who asked
 (the connections of that key); an admin's saved change still goes to everyone.
+
+## BUG-138: the night sky over Silverdale was black, with a dozen stars and no Milky Way (FIXED v0.1452.0, found 2026-10-04)
+
+**Symptom (found filming the landing page's night-to-sunrise shot):** at 04:00
+local over Silverdale, Washington, the sky showed about fifteen points and no
+Milky Way. The star pass was being skipped as though it were day.
+
+**Cause:** the daylight gate that skips the star pass when the sun is up
+(`engine::ipc::sky_daylight`, v0.1059) compared the frame lock's anchor with the
+sun. The anchor is kept in the planet's UNTURNED frame and the sun is in the
+world frame, so the gate judged the sun over the wrong longitude by the planet's
+whole turn, and the same longitude at every hour: whether it called it day did
+not depend on the time at all. At Silverdale on 2026-10-04 it said "day" all
+night. Any place could be hit, depending on the date and longitude.
+
+**Fix:** the anchor is turned by the spin the frame lock rides before the sun is
+compared with it (`ipc::sun_over_anchor`, shared by the gate and the twilight
+fades). Tests: `daylight_gate_tests` (seen red with the unturned anchor) and the
+call-site check in `tests/engine_wiring_lint.rs` that both readers pass the live
+spin. Vantage `silverdale-night-sky` asks for a full star field at night.
+
+## BUG-139: every night sky was the wrong one: the star catalogue was drawn in its raw axes (FIXED v0.1452.0, found 2026-10-04)
+
+**Symptom (found by the review of the Silverdale clip):** the star points, the
+Milky Way glow, the halos and the constellation figures were drawn in the
+catalogue's own equatorial axes (north celestial pole along +z), while the
+engine's Earth spins about world +Y. So the sky's pole sat on the sky's equator:
+Polaris rose and set, and from Silverdale before dawn the south-east showed the
+southern Milky Way around Crux and Carina, which never rises at 47.6 degrees
+north. The clip's headline, "The real sky over a real place", was false.
+
+**Fix:** a new `renderer/sky_frame.rs` turns the catalogue into the world: the
+pole to world +Y, then a turn about the pole that puts the real sun's right
+ascension for the date (the Astronomical Almanac's solar formula) on the world
+sun. Because the game clock is defined by the sun, that sets the sidereal time
+at every place and hour, and the stars stand where they really stand. Both star
+pass call sites use it through `ipc::sky_rotation`. Tests: `sky_frame` (Polaris
+due north at the latitude at every hour; Sirius, Procyon, Orion, Capella,
+Regulus and Deneb within 0.1 degree of the IAU sidereal-time sky over Silverdale
+on 2026-10-04; Acrux and Canopus below the horizon; the turn proper, never a
+mirror), each seen red against the old identity turn.
+
+**Same change, the stars in daylight:** the renderer has no eye adaptation, so
+the star layers kept their night brightness under a dawn sky (the Milky Way
+stood in a gold sky with the sun's disc up). `sky_frame::twilight_fades` now
+fades the Milky Way first, then the star field, then the brightest stars, as
+the DRAWN sky brightens over them, through the star camera's spare `sun_color`
+slot in all three sky shaders. The ramps are matched to the drawn sky, not to
+the naked-eye limits (`sky_frame::NAKED_EYE`), because the drawn sky is black
+through nautical twilight (BUG-141) and the real limits left the frame empty.
+
+**Same change, the pink dome before sunrise:** the sun's corona, a sprite three
+times the disc's width, stood up over the horizon before every sunrise and
+after every sunset while the ground hid the disc. Glare comes from the disc, so
+the disc and the corona are now scaled by how much of the disc is clear of the
+planet (`frame_lock::sun_disc_clear`, `sun_disc_tests`, seen red).
+
+**Still not right:** the game has no axial tilt, so the sun sits on the sky's
+equator (on 2026-10-04 the real sun is 4.5 degrees south of it), and the planets
+and the Moon have the problem in BUG-140.
+
+## BUG-140: the orbit model maps the ecliptic into the world with a reflection (OPEN, found 2026-10-04)
+
+**Found by reading the code while fixing BUG-139, not yet seen in a picture.**
+`cosmos.rs` (`body_position_relative_au`, ~398) maps the ecliptic's x, y, z to
+world x, z, y. Swapping two axes is a mirror, not a rotation. Planets therefore
+go round the sun from +X toward +Z, which is clockwise seen from world +Y, while
+Earth spins counter-clockwise about +Y (`DQuat::from_rotation_y`, east is the
+direction of the turn). Real orbits and the real spin turn the same way. The
+cosmos page's sub-point maths (`subpoint_lat_lon_deg`, which takes the
+equatorial y axis as `P x X`, a proper frame) inherits the same sign problem in
+longitude; its tests only check latitude.
+
+**What it would show:** the sun is unaffected on the ground (the spin is defined
+from the sun, and BUG-139's sky turn is set from the sun each day). The Moon and
+the planets are placed mirror-wise about the sun: by the reasoning above a waxing
+Moon would be drawn where a waning one stands, at the matching time of day, and a
+planet's place among the stars is off by twice its angle from the sun. Confirm in
+a running game against a real ephemeris before fixing.
+
+**Fix to make:** map the ecliptic with a proper rotation (ecliptic y to world -Z),
+then follow every reader of the world-frame sun and planets (the spin's sun
+azimuth, the home station's phase, BUG-090's `over_its_longitude`, the travel
+tool, the hologram, the cosmos page).
+
+## BUG-141: the drawn sky stays black through nautical twilight (OPEN, found 2026-10-04)
+
+**Seen filming the Silverdale clip** (the probe rig, operator graphics, stills
+looking east at 04:45 to 06:06 local): with the sun 10 degrees below the horizon
+the frame over Silverdale is black, sky and ground alike, and still black at
+7.6 degrees down; the first orange band shows at about 5 degrees down, and the
+sky is lit only in the last 2 or 3. A real sky at 10 degrees down is a deep blue
+with an orange band where the sun will rise and a horizon you can see.
+
+**Why, as far as it is known:** the drawn atmosphere is single scattering with a
+flat multiple-scatter stand-in (`renderer/atmosphere.rs` says so: "twilight is a
+little darker than reality"), and the frame has one fixed exposure, with no eye
+adaptation, so a sky ten thousand times dimmer than day draws as black. The
+multiple-scattering LUT in `renderer/atmo_luts.rs` is the physics that is
+missing, and eye adaptation in the HDR present pass is the other half.
+
+**What depends on it:** the star layers' twilight fades are matched to the
+drawn sky (`sky_frame::DRAWN_SKY`) so the stars carry the frame through the
+black stretch. When this is fixed, switch them to `sky_frame::NAKED_EYE`, the
+real limits (the Milky Way gone 12 degrees down).
+
+## BUG-142: a rig loses a run to EBUSY when its last game is slow to let go of the exe (FIXED v0.1452.0, found 2026-10-04)
+
+**Seen:** `verify-copresence --plots` passed its first join order (60/60) and
+then died before the second: `EBUSY: resource busy or locked, copyfile
+target\release\HumanityOS.exe -> .probe-rig\copresence\HumanityOS.exe`. The
+first order had stopped its game, but Windows keeps the image file locked for
+a while after the process is gone, and longer when the game is still letting
+go of its GPU resources. The same run had failed this way once before (the
+`--entry menu` game-first order, the same day).
+
+**Why:** every rig copied the exe, and on EBUSY waited two seconds
+(`ping -n 3`) and tried exactly once more. Four rigs carried the same copy:
+probe-sweep, verify-copresence, verify-screens and verify-live-screen.
+
+**Fix:** one shared copy, `scripts/lib/rig-exe-copy.js` `copyExeIntoRig`, used
+by all four. It stops anything running from the rig copy, then retries every
+500 ms for up to a minute on EBUSY, EPERM or EACCES, stops the rig game again
+every ten failed tries (a game that was still starting the first time), says
+when it had to wait and how long, and on giving up names the folder that
+stayed locked. Any other error is thrown at once. Tests:
+`scripts/tests/rig-exe-copy.test.js` (in `just rig-tests`), including a lock
+that lasts 4 s, which the old single retry after 2 s could not survive.

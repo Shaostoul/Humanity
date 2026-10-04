@@ -7,10 +7,10 @@
 //!     storage/channels.rs);
 //!   - erased accounts past their window or over the cap (storage/erased_accounts.rs).
 //!
-//! Callers (relay/mod.rs, relay.rs): relay start, the six-hour maintenance pass (before its
-//! backup, so nothing expired rides into the backup), and every successful
-//! `server_settings_update`, so a lowered window or cap holds at once on disk too, which is
-//! what the Server Settings page tells the admin.
+//! Callers (relay/mod.rs, handlers/server_settings_update.rs): relay start, the six-hour
+//! maintenance pass (before its backup, so nothing expired rides into the backup), and every
+//! successful `server_settings_update`, so a lowered window or cap holds at once on disk too,
+//! which is what the Server Settings page tells the admin.
 
 use super::Storage;
 
@@ -86,11 +86,14 @@ mod tests {
     }
 
     /// The pass is what every caller runs: relay start and the six-hour pass in relay/mod.rs,
-    /// and the settings update in relay.rs, after it saved. (The storage test above shows the
-    /// pass culls; this shows the relay runs it.)
+    /// and the settings update (handlers/server_settings_update.rs, which relay.rs hands every
+    /// `server_settings_update` to), after it saved. (The storage test above shows the pass
+    /// culls; this shows the relay runs it.)
     ///
     /// Seen red 2026-10-04 with the call taken out of the settings update: "relay.rs: a saved
-    /// settings change does not run the expiry pass".
+    /// settings change does not run the expiry pass". The update moved into its own handler
+    /// file in the world-clock merge (2026-10-04); the test follows it there and also checks
+    /// relay.rs still hands the message to that handler.
     #[test]
     fn the_relay_runs_the_pass_at_start_on_its_timer_and_after_a_settings_change() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -100,9 +103,17 @@ mod tests {
         assert!(body.matches("run_expiry_sweeps()").count() >= 2, "relay/mod.rs: the start or the six-hour pass does not run the expiry pass");
         assert!(!mod_rs.contains("mailbox_expire("), "relay/mod.rs expires the mailbox by hand instead of through the pass");
         let relay_rs = std::fs::read_to_string(root.join("src/relay/relay.rs")).unwrap();
-        let upd = relay_rs.find("RelayMessage::ServerSettingsUpdate {").expect("the settings update handler");
-        let saved = upd + relay_rs[upd..].find("Ok(true) =>").expect("its saved branch");
-        let next_arm = saved + relay_rs[saved..].find("Ok(false) =>").expect("its next branch");
-        assert!(relay_rs[saved..next_arm].contains("run_expiry_sweeps()"), "relay.rs: a saved settings change does not run the expiry pass");
+        let arm = relay_rs.find("RelayMessage::ServerSettingsUpdate { .. } =>").expect("relay.rs: the settings update arm");
+        // The arm's body is one call; it sits within a few lines of the pattern.
+        let call = relay_rs[arm..].find("server_settings_update::handle(");
+        assert!(
+            call.is_some_and(|at| at < 400),
+            "relay.rs: the settings update arm no longer hands the message to handlers/server_settings_update.rs"
+        );
+        let handler = std::fs::read_to_string(root.join("src/relay/handlers/server_settings_update.rs")).unwrap();
+        let upd = handler.find("RelayMessage::ServerSettingsUpdate {").expect("the settings update handler");
+        let saved = upd + handler[upd..].find("Ok(true) =>").expect("its saved branch");
+        let next_arm = saved + handler[saved..].find("Ok(false) =>").expect("its next branch");
+        assert!(handler[saved..next_arm].contains("run_expiry_sweeps()"), "server_settings_update.rs: a saved settings change does not run the expiry pass");
     }
 }

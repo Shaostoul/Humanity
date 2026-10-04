@@ -248,3 +248,121 @@ fn core_runtime_data_stays_wired() {
         missing.join("\n  ")
     );
 }
+
+/// The source of `src/<rel>`, for the call-site checks below.
+fn src_file(rel: &str) -> String {
+    fs::read_to_string(manifest_dir().join("src").join(rel)).unwrap_or_default()
+}
+
+/// The text of one function, from `fn <name>(` to the first line that is
+/// just `}` (the end of a top-level function).
+fn fn_body<'a>(src: &'a str, name: &str) -> &'a str {
+    let start = src.find(&format!("fn {name}(")).unwrap_or(src.len());
+    let rest = &src[start..];
+    let end = rest.find("\n}").map(|e| e + 2).unwrap_or(rest.len());
+    &rest[..end]
+}
+
+/// CALL SITES THAT MUST GO THROUGH ONE SHARED RULE (2026-10-04, the review of
+/// the Silverdale hero clip). The unit tests check the helpers themselves
+/// (`ipc::effective_fov`, `hud::crosshair_visible`, `ipc::sun_over_anchor`,
+/// `renderer::sky_frame`); nothing checked that the frame actually CALLS them,
+/// so a call site put back to its old inline form would have left every test
+/// green while the bug came back. These are the four that bit:
+///
+/// 1. The star camera's turn and fades: both star-pass call sites (the live
+///    frame in lib.rs, the off-screen views in ipc.rs) pass the date's sky
+///    turn (`sky_rotation`) and the twilight fades, never the bare
+///    `render_to_world_rot`, which drew the catalogue in raw axes with the
+///    celestial pole on the sky's equator (BUG-139).
+/// 2. The player camera's lens: every write of `state.camera.fov_degrees`
+///    goes through `effective_fov`, or a Settings apply drops a showcase lens
+///    mid-shot (one take came out at 90 degrees).
+/// 3. The crosshair dot is drawn only under `hud::crosshair_visible`, or the
+///    recorder's hide-HUD leaves a dot in the middle of every clip.
+/// 4. The daylight gate and the fades read the sun over the TURNED ground:
+///    both pass `state.current_spin` (BUG-138, the starless night).
+/// 5. The sun's disc and corona are dimmed by `frame_lock::sun_disc_clear`,
+///    or the corona stands over the horizon as a pink dome before sunrise.
+///
+/// Red checks, run 2026-10-04, one at a time against a reverted call site:
+/// the lib.rs star call with `render_to_world_rot(...)` in place of
+/// `sky_rot` failed "a star pass call in lib.rs does not pass the sky turn";
+/// lib.rs's Settings apply with `settings.fov.clamp(60.0, 120.0)` failed "a
+/// write of state.camera.fov_degrees in lib.rs skips effective_fov"; the
+/// crosshair under `active_page == GuiPage::None` failed "the crosshair is
+/// not drawn under hud::crosshair_visible"; `sky_daylight` with `0.0` for
+/// the spin failed "sky_daylight does not read the sun over the turned
+/// ground"; and the sun block without `sun_disc_clear` failed "lib.rs's sun
+/// disc and corona ignore the horizon".
+#[test]
+fn sky_and_lens_call_sites_use_their_shared_rules() {
+    let lib = src_file("lib.rs");
+    let ipc = src_file("engine/ipc.rs");
+
+    // 1. Star camera.
+    let mut star_calls = 0;
+    for (name, src) in [("lib.rs", &lib), ("engine/ipc.rs", &ipc)] {
+        for (i, _) in src.match_indices("star_r.update_camera(") {
+            let call = &src[i..];
+            let call = &call[..call.find(");").unwrap_or(call.len())];
+            star_calls += 1;
+            assert!(
+                call.contains("sky_rot") && !call.contains("render_to_world_rot"),
+                "a star pass call in {name} does not pass the sky turn (ipc::sky_rotation): {call}"
+            );
+            assert!(call.contains("fades"), "a star pass call in {name} does not pass the twilight fades: {call}");
+        }
+    }
+    assert!(star_calls >= 2, "expected the live and the off-screen star pass calls, found {star_calls}");
+    assert!(
+        lib.contains("crate::engine::ipc::sky_rotation(state)") && lib.contains("crate::engine::ipc::star_fades(state)"),
+        "lib.rs's star pass does not build its turn and fades with ipc::sky_rotation / ipc::star_fades"
+    );
+
+    // 2. The player camera's lens.
+    for (name, src) in [("lib.rs", &lib), ("engine/ipc.rs", &ipc)] {
+        for (i, _) in src.match_indices("state.camera.fov_degrees =") {
+            let stmt = &src[i..];
+            let stmt = &stmt[..stmt.find(';').unwrap_or(stmt.len())];
+            if stmt.starts_with("state.camera.fov_degrees ==") {
+                continue;
+            }
+            assert!(
+                stmt.contains("effective_fov("),
+                "a write of state.camera.fov_degrees in {name} skips effective_fov: {stmt}"
+            );
+        }
+    }
+
+    // 3. The crosshair.
+    let dot = lib.find("egui::Id::new(\"crosshair\")").expect("the crosshair painter is gone from lib.rs");
+    let before = &lib[..dot];
+    let gate = before.rfind("if ").map(|i| &before[i..]).unwrap_or("");
+    assert!(
+        gate.starts_with("if hud::crosshair_visible("),
+        "the crosshair is not drawn under hud::crosshair_visible: {}",
+        gate.lines().next().unwrap_or("")
+    );
+
+    // 4. The sun over the turned ground.
+    for f in ["sky_daylight", "star_fades"] {
+        assert!(
+            fn_body(&ipc, f).contains("state.current_spin"),
+            "{f} does not read the sun over the turned ground (state.current_spin)"
+        );
+    }
+
+    // 5. The sun's glare follows its disc over the horizon.
+    // The halo's per-frame material write (not its draw, which names the
+    // material too).
+    let sun_block = lib
+        .match_indices("state.sun_halo_material,")
+        .map(|(i, _)| &lib[i.saturating_sub(1200)..i])
+        .find(|before| before.trim_end().ends_with("update_material_full("))
+        .unwrap_or("");
+    assert!(
+        sun_block.contains("frame_lock::sun_disc_clear(state)") && sun_block.contains("* clear"),
+        "lib.rs's sun disc and corona ignore the horizon (frame_lock::sun_disc_clear)"
+    );
+}

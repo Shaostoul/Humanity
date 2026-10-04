@@ -21,12 +21,8 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
         // The relay sends this every 5 s to EVERY socket, chat-only ones
         // included, so it counts only while this player is in the shared world.
         Some("game_time_sync") => {
-            if let Some(t) = host_clock_from(&v, state.gui_state.copresence_active && !state.gui_state.copresence_solo) {
-                if let Some(slot) = state.data_store.get::<std::sync::Mutex<Option<f64>>>(crate::systems::time::HOST_CLOCK_SLOT) {
-                    if let Ok(mut s) = slot.lock() {
-                        *s = Some(t);
-                    }
-                }
+            if let Some(word) = host_clock_from(&v, state.gui_state.copresence_active && !state.gui_state.copresence_solo) {
+                crate::systems::time::hear_host_clock(&state.data_store, word);
             }
         }
         Some("game_welcome") => {
@@ -223,13 +219,20 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
     }
 }
 
-/// The host's game clock from a `game_time_sync` message, when this player
-/// is in the shared world; None otherwise, or when the message has no clock.
-pub(crate) fn host_clock_from(v: &serde_json::Value, joined: bool) -> Option<f64> {
+/// The host's game clock and its speed from a `game_time_sync` message, when
+/// this player is in the shared world; None otherwise, or when the message has
+/// no clock. The speed is the server's Shared world clock setting (72x by
+/// default, 2026-10-04); a word without one is a host that runs at 1x
+/// (`HOST_TIME_SPEED`), and a speed out of range is held to the Time
+/// setting's (`clamp_time_speed`).
+pub(crate) fn host_clock_from(v: &serde_json::Value, joined: bool) -> Option<crate::systems::time::HostClock> {
+    use crate::systems::time;
     if !joined {
         return None;
     }
-    v.get("game_time").and_then(|x| x.as_f64()).filter(|t| t.is_finite() && *t >= 0.0)
+    let game_time = v.get("game_time").and_then(|x| x.as_f64()).filter(|t| t.is_finite() && *t >= 0.0)?;
+    let time_scale = v.get("time_scale").and_then(|x| x.as_f64()).map_or(time::HOST_TIME_SPEED, |s| time::clamp_time_speed(s as f32));
+    Some(time::HostClock { game_time, time_scale })
 }
 
 /// Another player's position from a `game_position_update` message, ready
@@ -1168,10 +1171,28 @@ mod tests {
     /// take it. Red check, run: ignoring `joined` fails the second assertion.
     #[test]
     fn the_host_clock_counts_only_when_joined() {
+        use crate::systems::time::{HostClock, HOST_TIME_SPEED};
         let v = serde_json::json!({"type": "game_time_sync", "game_time": 259200.0, "server_time": 1.0});
-        assert_eq!(host_clock_from(&v, true), Some(259200.0));
+        assert_eq!(host_clock_from(&v, true), Some(HostClock { game_time: 259200.0, time_scale: HOST_TIME_SPEED }));
         assert_eq!(host_clock_from(&v, false), None, "chat only: not in the shared world");
         assert_eq!(host_clock_from(&serde_json::json!({"type": "game_time_sync"}), true), None);
+    }
+
+    /// THE HOST'S WORD CARRIES ITS SPEED (2026-10-04, the shared world at
+    /// 72x). The relay's `game_time_sync` says how fast its clock runs, and
+    /// the game takes it with the clock; a speed outside the Time setting's
+    /// range is held to it.
+    ///
+    /// Seen red 2026-10-04 with `time_scale` left unread: "assertion `left
+    /// == right` failed: the host's 72x, left: 1.0, right: 72.0".
+    #[test]
+    fn the_host_word_carries_its_speed() {
+        let v = serde_json::json!({"type": "game_time_sync", "game_time": 600.0, "time_scale": 72.0, "server_time": 1.0});
+        let word = host_clock_from(&v, true).expect("a joined player takes the host's word");
+        assert_eq!(word.game_time, 600.0);
+        assert_eq!(word.time_scale, 72.0, "the host's 72x");
+        let fast = serde_json::json!({"type": "game_time_sync", "game_time": 600.0, "time_scale": 1.0e9});
+        assert_eq!(host_clock_from(&fast, true).unwrap().time_scale, crate::systems::time::MAX_TIME_SPEED);
     }
 
     /// OUR POSITION UPDATE CARRIES OUR CLOCK, AND ANOTHER PLAYER'S IS TAKEN

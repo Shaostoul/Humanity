@@ -278,7 +278,7 @@ Anything less is a path toward pain, suffering, despair, and eventually extincti
 | 💜 **Discord** | [discord.gg/9XxmmeQnWC](https://discord.gg/9XxmmeQnWC) |
 | 🐛 **Report bugs** | [united-humanity.us/bugs](https://united-humanity.us/bugs) or open a GitHub issue |
 | 📖 **Contributing** | [CONTRIBUTING.md](CONTRIBUTING.md) - start here if you want to write code |
-| 💸 **Donate** | [GitHub Sponsors](https://github.com/sponsors/Shaostoul) - every dollar goes to development & hosting |
+| 💸 **Donate** | To the nonprofit [Sponsor-a-Can](https://www.sponsor-a-can.org/donate/): your donation goes to Sponsor-a-Can, a 501(c)(3), so it is tax-deductible as the law allows. Or to the maintainer directly on [Patreon](https://www.patreon.com/Shaostoul): he receives it personally, so it is not tax-deductible. More ways: [united-humanity.us/donate](https://united-humanity.us/donate) |
 
 **We need writers, designers, developers, educators, translators, testers - and just anyone who cares.** Show up in chat and ask what needs doing.
 

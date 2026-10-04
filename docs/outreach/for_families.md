@@ -76,9 +76,13 @@ means it belongs to everyone, forever, and can never be sold back to you.
 
 There is no company behind it and no nonprofit. It is built by a
 maintainer and volunteers, and it runs on personal gifts. If your family
-ever chooses to support it, that support is a gift to a person, not a
-purchase and not a tax-deductible donation. We will not dress that up as
-something it is not: https://united-humanity.us/donate
+ever chooses to support it, there are two ways, and we will not dress
+either up as something it is not. A gift to the maintainer, on Patreon at
+https://www.patreon.com/Shaostoul, goes to him personally: it is not a
+purchase and not a tax-deductible donation. A donation to the nonprofit
+Sponsor-a-Can, at https://www.sponsor-a-can.org/donate/, goes to
+Sponsor-a-Can, a 501(c)(3), so it is tax-deductible as the law allows.
+Both are on https://united-humanity.us/donate
 
 ## Passing something down
 

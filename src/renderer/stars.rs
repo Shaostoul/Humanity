@@ -701,22 +701,35 @@ impl StarRenderer {
 
     /// Update the star camera uniform with a rotation-only view-projection.
     /// This strips translation so stars don't shift when the camera moves.
-    /// `sky_rot` takes a RENDER-frame direction into world axes. It is the
-    /// identity everywhere except aboard the orbital homestead, where the
-    /// render frame IS the hull frame (see `station::hull_frame_rot`).
+    /// `sky_rot` takes a RENDER-frame direction into the CATALOGUE's axes
+    /// (equatorial J2000, the frame every star, the glow and the figures are
+    /// stored in). Build it with `engine::ipc::sky_rotation`, which is two
+    /// turns in a row:
     ///
-    /// Without it the sky is drawn in hull coordinates and therefore glued to
-    /// the deck: under nadir-pointing attitude the station turns a full
-    /// revolution per orbit, the sun and Earth sweep past correctly (they are
-    /// counter-rotated into the hull frame), and the constellations sit
-    /// frozen in the same window forever. That shipped in v0.1225, where the
-    /// frame conversion covered the sun, the celestial bodies and local up
-    /// and MISSED this one - the exact failure its own comment warned about.
+    /// 1. render frame to world: the identity everywhere except aboard the
+    ///    orbital homestead, where the render frame IS the hull frame (see
+    ///    `station::hull_frame_rot`). Without it the sky is drawn in hull
+    ///    coordinates and therefore glued to the deck: under nadir-pointing
+    ///    attitude the station turns a full revolution per orbit, the sun and
+    ///    Earth sweep past correctly (they are counter-rotated into the hull
+    ///    frame), and the constellations sit frozen in the same window
+    ///    forever. That shipped in v0.1225, where the frame conversion covered
+    ///    the sun, the celestial bodies and local up and MISSED this one - the
+    ///    exact failure its own comment warned about.
+    /// 2. world to the catalogue's equatorial axes (`sky_frame`, BUG-139):
+    ///    until 2026-10-04 the star pass skipped this, so the north celestial
+    ///    pole sat at world +Z while Earth spins about +Y, and every night sky
+    ///    was the wrong one (Polaris rose and set).
+    ///
+    /// `fades` is what twilight leaves of each layer
+    /// (`sky_frame::twilight_fades`); it rides in the uniform's otherwise
+    /// unused `sun_color` slot, which every sky shader reads.
     pub fn update_camera(
         &self,
         queue: &wgpu::Queue,
         camera: &super::camera::Camera,
         sky_rot: glam::Quat,
+        fades: super::sky_frame::SkyFades,
     ) {
         // Build the sky rotation DIRECTLY from the camera's forward/up (which
         // come from yaw/pitch and do NOT depend on position), NOT by extracting
@@ -754,7 +767,8 @@ impl StarRenderer {
             light_cone_inner: [[0.0; 4]; 8],
             light_count: [0.0; 4],
             sun_direction: [0.0; 4],
-            sun_color: [0.0; 4],
+            // The sky's fade slot: x = points and figures, y = halos, w = glow.
+            sun_color: fades.as_uniform(),
             fill_direction: [0.0; 4],
             fill_color: [0.0; 4],
             ocean_event: [[0.0; 4]; 14],
@@ -1228,7 +1242,8 @@ fn fs_main(input: GlowOutput) -> @location(0) vec4<f32> {
     // Linearize display-referred texels before the sRGB target re-encodes
     // (v0.802.2) - keep in sync with assets/shaders/galaxy_glow.wgsl.
     let lin = pow(c, vec3<f32>(2.2, 2.2, 2.2));
-    return vec4<f32>(lin * glow_params.x, 1.0);
+    // camera.sun_color.w: what twilight leaves of the Milky Way.
+    return vec4<f32>(lin * glow_params.x * camera.sun_color.w, 1.0);
 }
 "#;
 
@@ -1496,7 +1511,8 @@ fn fs_main(input: HaloOutput) -> @location(0) vec4<f32> {
     let sy = exp(-c.x * c.x * 60.0) * exp(-c.y * c.y * 2.5);
     let w = clamp(1.0 - r2, 0.0, 1.0);
     let shape = (g + 0.15 * (sx + sy) * w) / 1.3;
-    let intensity = input.amplitude * shape;
+    // camera.sun_color.y: what twilight leaves of the brightest stars.
+    let intensity = input.amplitude * shape * camera.sun_color.y;
     return vec4<f32>(input.color * intensity, 1.0);
 }
 "#;
@@ -2381,7 +2397,8 @@ fn vs_main(input: StarInput) -> StarOutput {
 
 @fragment
 fn fs_main(input: StarOutput) -> @location(0) vec4<f32> {
-    let intensity = input.brightness;
+    // camera.sun_color.x: what twilight leaves of the star field.
+    let intensity = input.brightness * camera.sun_color.x;
     let color = input.color * intensity;
     return vec4<f32>(color, intensity);
 }
@@ -3046,6 +3063,33 @@ id,proper,mag,ci,x,y,z,bayer,con
             validator
                 .validate(&module)
                 .unwrap_or_else(|e| panic!("{label} star shader failed naga validation: {e:?}"));
+        }
+    }
+
+    /// The Milky Way glow shader, on disk and the embedded fallback, parses
+    /// and validates (2026-10-04: both gained the twilight fade read from
+    /// `camera.sun_color.w`, and nothing checked the glow pair before; the
+    /// rig only ever loads the disk copy).
+    ///
+    /// Red check, run 2026-10-04 with the fallback reading
+    /// `camera.sun_colour.w`: "embedded glow shader failed to parse: invalid
+    /// field accessor `sun_colour`".
+    #[test]
+    fn galaxy_glow_shader_wgsl_parses_and_validates() {
+        let disk_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("assets/shaders/galaxy_glow.wgsl");
+        let disk_src = std::fs::read_to_string(&disk_path).expect("galaxy_glow.wgsl exists");
+        for (label, src) in [("embedded", FALLBACK_GLOW_SHADER), ("assets/shaders/galaxy_glow.wgsl", disk_src.as_str())] {
+            let module = wgpu::naga::front::wgsl::parse_str(src)
+                .unwrap_or_else(|e| panic!("{label} glow shader failed to parse: {e}"));
+            let mut validator = wgpu::naga::valid::Validator::new(
+                wgpu::naga::valid::ValidationFlags::all(),
+                wgpu::naga::valid::Capabilities::all(),
+            );
+            validator
+                .validate(&module)
+                .unwrap_or_else(|e| panic!("{label} glow shader failed naga validation: {e:?}"));
+            assert!(src.contains("camera.sun_color.w"), "{label} glow shader does not read the twilight fade");
         }
     }
 

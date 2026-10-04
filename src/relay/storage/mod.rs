@@ -1104,6 +1104,7 @@ impl Storage {
                 message_retention_days    INTEGER NOT NULL DEFAULT 0,
                 erased_accounts_ttl_days  INTEGER NOT NULL DEFAULT 30,
                 erased_accounts_cap       INTEGER NOT NULL DEFAULT 100000,
+                world_time_scale          REAL    NOT NULL DEFAULT 72,
                 updated_at                INTEGER NOT NULL DEFAULT 0,
                 updated_by                TEXT
             );
@@ -1224,6 +1225,15 @@ impl Storage {
             ) WITHOUT ROWID;
             CREATE INDEX IF NOT EXISTS idx_erased_accounts_day ON erased_accounts(erased_day);"
         )?;
+
+        // Guarded ALTER (the shared world's clock speed, 2026-10-04): 72x,
+        // the Simplified speed, until an admin sets another in Server Settings.
+        if conn.prepare("SELECT world_time_scale FROM server_settings LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE server_settings ADD COLUMN world_time_scale REAL NOT NULL DEFAULT 72;"
+            )?;
+            info!("Migration: added world_time_scale (server_settings)");
+        }
 
 
         // ── v0.1132 — guaranteed local-only room toggle. Default ON: every
@@ -2361,7 +2371,10 @@ mod uploads;
 mod reviews;
 mod members;
 mod server_settings;
-pub use server_settings::{ServerSettings, ERASED_ACCOUNTS_CAP_RANGE, ERASED_ACCOUNTS_TTL_DAYS_RANGE};
+pub use server_settings::{
+    clamp_world_time_scale, default_world_time_scale, ServerSettings,
+    ERASED_ACCOUNTS_CAP_RANGE, ERASED_ACCOUNTS_TTL_DAYS_RANGE,
+};
 mod roles;
 pub use roles::RoleDef;
 pub use channels::BannedUser;
