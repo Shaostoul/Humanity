@@ -412,6 +412,49 @@ mod tests {
         assert_eq!(reg.vendor_sell_price("nope"), None);
     }
 
+    /// BUG-143 (2026-10-04): every trade good is an item. The vendor's catalog
+    /// (built in src/lib.rs) keeps only goods whose id is ALSO an items.csv id,
+    /// so a trade good that is not an item is dropped without a word and the
+    /// shop never offers it. 140 of the 300 were, clay_0 among them while
+    /// items.csv calls it clay_raw_0. Items are read through ItemRegistry, the
+    /// runtime's own loader, so a malformed new items.csv row (which the loader
+    /// skips) fails here too. Also fails on an id listed twice, since the
+    /// registry keeps only the last row. Seen red on the original files:
+    ///   140 trade goods in data/trade_goods.ron are not items in
+    ///   data/items.csv, so the vendor never offers them: ["clay_0", "dirt_0",
+    ///   "bamboo_0", "sulfur_0", "saltpeter_0", "tin_ore_0", ... "oil_fish_0"]
+    #[test]
+    fn every_shipped_trade_good_is_an_item() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let items = crate::systems::inventory::ItemRegistry::from_csv(
+            &std::fs::read(root.join("data/items.csv")).unwrap(),
+        )
+        .unwrap();
+        let text = std::fs::read_to_string(root.join("data/trade_goods.ron")).unwrap();
+        let rows: Vec<TradeGood> = ron::from_str(&text).unwrap();
+        assert!(rows.len() >= 200, "expected the full catalog, got {}", rows.len());
+
+        let mut seen = std::collections::HashSet::new();
+        let twice: Vec<&str> =
+            rows.iter().map(|g| g.id.as_str()).filter(|id| !seen.insert(*id)).collect();
+        assert!(
+            twice.is_empty(),
+            "trade goods listed twice in data/trade_goods.ron (the registry keeps only the last): {twice:?}"
+        );
+
+        let missing: Vec<&str> = rows
+            .iter()
+            .map(|g| g.id.as_str())
+            .filter(|id| !items.items.contains_key(*id))
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "{} trade goods in data/trade_goods.ron are not items in data/items.csv, so the vendor \
+             never offers them: {missing:?}",
+            missing.len()
+        );
+    }
+
     /// A sale is priced by grade (2026-09-26): a good hammer fetches more than
     /// an ungraded one, a defective one nothing.
     #[test]
