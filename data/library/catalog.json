@@ -835,6 +835,36 @@
             "real",
             "beginner"
           ]
+        },
+        {
+          "title": "Making an Agreement That Holds",
+          "src": "docs/user/skills/making_an_agreement_that_holds.md",
+          "tags": [
+            "guide",
+            "real",
+            "governance",
+            "beginner"
+          ]
+        },
+        {
+          "title": "Organising Shared Work",
+          "src": "docs/user/skills/organising_shared_work.md",
+          "tags": [
+            "guide",
+            "real",
+            "governance",
+            "safety"
+          ]
+        },
+        {
+          "title": "Teaching What You Know",
+          "src": "docs/user/skills/teaching_what_you_know.md",
+          "tags": [
+            "guide",
+            "real",
+            "beginner",
+            "safety"
+          ]
         }
       ],
       "section": "Learn"

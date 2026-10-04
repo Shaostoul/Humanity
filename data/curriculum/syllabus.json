@@ -3244,15 +3244,26 @@
       "subject": "community",
       "title": "Making an agreement that holds",
       "summary": "State terms clearly enough that disagreement is resolvable.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "making-an-agreement-that-holds",
+        "rights-and-responsibilities"
+      ],
       "skills": [
         "trading",
         "leadership"
       ],
-      "reading": [
-        "rights-and-responsibilities"
+      "sources": [
+        "ftc",
+        "ecfr",
+        "us-code",
+        "nasa-seh",
+        "digital-gov",
+        "usagov",
+        "usda-rd",
+        "training-within-industry"
       ],
-      "locale_dependent": false,
+      "locale_dependent": true,
       "hazard": "caution"
     },
     {
@@ -3260,12 +3271,23 @@
       "subject": "community",
       "title": "Organising shared work",
       "summary": "Coordinate a group on a job nobody can do alone.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "organising-shared-work"
+      ],
       "skills": [
         "leadership"
       ],
+      "sources": [
+        "fema",
+        "osha",
+        "usfs",
+        "dod-technical-manuals",
+        "training-within-industry",
+        "nwcg"
+      ],
       "locale_dependent": false,
-      "hazard": "none"
+      "hazard": "serious"
     },
     {
       "id": "community_conflict",
@@ -3305,15 +3327,25 @@
       "subject": "community",
       "title": "Teaching what you know",
       "summary": "Pass a skill on so it survives you.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "teaching-what-you-know",
+        "curriculum"
+      ],
       "skills": [
         "leadership"
       ],
-      "reading": [
-        "curriculum"
+      "sources": [
+        "training-within-industry",
+        "osha",
+        "ecfr",
+        "dol-whd",
+        "ies",
+        "ahrq",
+        "usfs"
       ],
       "locale_dependent": false,
-      "hazard": "none"
+      "hazard": "serious"
     },
     {
       "id": "community_emergency",
