@@ -3256,13 +3256,14 @@
       "sources": [
         "ftc",
         "ecfr",
+        "us-code",
         "nasa-seh",
         "digital-gov",
         "usagov",
         "usda-rd",
         "training-within-industry"
       ],
-      "locale_dependent": false,
+      "locale_dependent": true,
       "hazard": "caution"
     },
     {
@@ -3286,7 +3287,7 @@
         "nwcg"
       ],
       "locale_dependent": false,
-      "hazard": "none"
+      "hazard": "serious"
     },
     {
       "id": "community_conflict",
@@ -3344,7 +3345,7 @@
         "usfs"
       ],
       "locale_dependent": false,
-      "hazard": "none"
+      "hazard": "serious"
     },
     {
       "id": "community_emergency",

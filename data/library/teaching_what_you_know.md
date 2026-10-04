@@ -14,13 +14,15 @@ bulletin quoted below says much the same). The good news is that the
 United States worked out a plain method for teaching practical work
 when it needed millions of beginners to learn new jobs fast.
 
-In August 1940 the US government set up the Training Within Industry
-programme to help war production plants train their supervisors, and
-through them their workers; by 1944, it said, there were "over twenty
-million workers on important jobs which are relatively new to them".
-Its method for teaching a job was called Job Instruction, and the line
-its trainers stressed throughout is the best summary of this guide: "If
-the worker hasn't learned, the instructor hasn't taught". The other
+In August 1940, before the United States was at war, the National
+Defense Advisory Commission set up the Training Within Industry
+programme to help defence production plants train their supervisors,
+and through them their workers; by 1944, with the country at war, the
+programme said there were "over twenty million workers on important
+jobs which are relatively new to them". Its method for teaching a job
+was called Job Instruction, and the line its trainers stressed
+throughout is the best summary of this guide: "If the worker hasn't
+learned, the instructor hasn't taught". The other
 sources are the Occupational Safety and Health Administration
 (OSHA), which has rules and guidance on how workers are trained, the
 US Department of Education's Institute of Education Sciences, which
@@ -45,7 +47,7 @@ alive. When you teach one, you are responsible for a beginner who does
 not yet know what can go wrong. The published rules for teaching
 dangerous work agree on a few things.
 
-### Practise where a mistake is cheap, with you right there
+### Practise where a mistake is cheap, under your eye
 
 OSHA's rule for training forklift drivers (29 CFR 1910.178(l)) is one
 of the clearest statements anywhere of how to let a beginner practise
@@ -59,10 +61,24 @@ trainer and practical exercises performed by the trainee") and an
 evaluation of how the person actually performs.
 
 The household version (our reading): the learner's first tries happen
-with you standing beside them, in a place where a mistake hurts
-nothing: the axe on a clear patch of ground with nobody near, the
-tractor in an empty field at walking pace, the knife on a carrot, not
-on a chicken.
+with you close enough to stop them with a word, but outside the tool's
+reach on every side, and never riding on, or walking beside, a moving
+machine; and in a place where a mistake hurts nothing: the axe on a
+clear patch of ground with nobody near, the knife on a carrot, not on
+a chicken.
+
+Keeping out of reach is the Forest Service's rule for anyone chopping:
+"Chop only when you are clear of other workers." For a tractor, the
+federal operating instructions for farm tractors (29 CFR 1928,
+Subpart C, Appendix A) include: "Do not permit others to ride.";
+"Where possible, avoid operating the tractor near ditches, embankments,
+and holes."; "Stay off slopes too steep for safe operation."; and
+"Securely fasten your seat belt if the tractor has a ROPS" (a rollover
+protective structure, the frame that protects the driver if the
+tractor turns over). So a first tractor lesson is in an empty, flat
+field, away from ditches and banks, at walking pace, with the learner
+alone on the tractor and you standing clear of its path (the field,
+the pace and where you stand are general practice).
 
 ### Step in before harm, not after
 
@@ -70,8 +86,9 @@ The Training Within Industry programme's 1940 bulletin on breaking in
 a new worker says, of watching a beginner try: "If a mistake is being
 made which can result in injury to the worker or damage to equipment,
 you must interfere before harm is done." Agree before the lesson how
-you will stop them (a word, a hand on the shoulder) and that they will
-stop at once when you do (general practice).
+you will stop them (a word such as "stop", loud enough to hear over
+the work, so you never have to reach in towards a moving tool) and
+that they will stop at once when you do (general practice).
 
 The same bulletin is equally firm about the opposite mistake: "If you
 take over the job too soon or too often, the new man is bound to
@@ -128,8 +145,8 @@ employment of children below the age of 16", includes:
 The rule does not apply to a child working for their parent on a farm
 the parent owns or operates (29 CFR 570.70(b)), and the Department of
 Labor's fact sheet notes exemptions for some 14 and 15 year olds in
-vocational agriculture programmes or with 4-H or vocational training
-certificates. It also says that where state law is stricter, the
+vocational agriculture programmes or with 4-H or vocational
+agriculture training certificates. It also says that where state law is stricter, the
 stricter standard must be observed. The law is about employment, but
 the list is a careful federal judgement of which farm jobs are too
 dangerous for children, and it is a sensible guide for what not to
@@ -308,9 +325,12 @@ it to people you will never meet. Do both (general practice).
   later.
 - **Teach more than one person,** so no skill on the homestead lives in
   only one pair of hands (general practice).
-- **Have the learner teach it back to someone new.** The Training
-  Within Industry programme told the people running a training plan to
-  "Train those who do the training." A skill that has been taught twice
+- **Teach your learner to teach.** When a learner is ready to pass the
+  skill on, teach them how to teach it first. The Training Within
+  Industry programme's method for putting a training plan into action
+  included "Train those who do the training." So before your learner
+  teaches the next one, teach them the four steps, and watch their
+  first lesson (our application). A skill that has been taught twice
   is much harder to lose (our reasoning).
 - **Have someone check what you wrote.** A procedure written by the
   only person who knows the job will have gaps that person cannot see
@@ -352,12 +372,16 @@ later (our reading). Then get ready:
      ([Sharpening](/library#sharpening)).
 - **The lesson:** show her the whole job at normal speed, twice. Then
   slowly, one step at a time, stressing each key point. Then she sets up
-  the area and the round while you swing; then she swings on easy
-  rounds, telling you each key point as she goes; you stop her at once
-  if anyone comes within reach or her footing slips.
+  the area and places each round, then steps back out of reach before
+  you lift the maul, and nobody reaches toward the block while the maul
+  is raised (general practice). Then she swings on easy rounds, telling
+  you each key point as she goes, while you stand outside her reach; you
+  stop her at once, with the word you agreed, if anyone comes within
+  reach or her footing slips.
 - **Follow-up:** she splits on her own with you nearby for a week, then
-  on her own, with a check every few days. In a month, ask her to teach
-  it to the next learner, with you watching both.
+  on her own, with a check every few days. In a month, teach her the
+  four steps, then have her teach the next learner, with you watching
+  both.
 
 ### Teaching a neighbour to test a GFCI outlet
 
@@ -387,7 +411,10 @@ needs a skill gives experience in that skill, 10 points plus 5 for each
 level of the recipe (15 for a level-1 recipe, 35 for a level-5 one);
 recipes that need no skill train nothing. Finishing a structure from a
 blueprint trains Shelter Building, harvesting trains Farming, mining
-trains Mining, and quests can award experience too. Nothing in the game
+trains Mining, and quests can award experience too. Combat and
+abilities train their skills as well: your killing blow trains Melee
+Combat or Ranged Combat (10 points), and using an ability that needs a
+skill gives that skill 5 points. Nothing in the game
 lets one player teach another, or be taught by a character, and the
 Leadership skill, which this topic belongs to, appears in the skill
 list but nothing levels it yet.
@@ -411,8 +438,10 @@ there.
 
 ## You own this when
 
-- Beginners practise dangerous work only with you beside them, in a
-  place where a mistake hurts nothing, wearing the gear you wear too.
+- Beginners practise dangerous work only under your eye, with you
+  close enough to stop them with a word but outside the tool's reach,
+  never riding on or walking beside a moving machine, in a place where
+  a mistake hurts nothing, wearing the gear you wear too.
 - You step in before a mistake that could injure someone, and let
   small mistakes happen and explain them afterwards.
 - You teach again after a near-miss, a new tool or a new place.
@@ -430,8 +459,8 @@ there.
   and quiz kindly.
 - You keep the talking short and the doing long, and never talk down to
   an adult learner.
-- You write down what you teach, teach more than one person, and have
-  your learners teach the next one.
+- You write down what you teach, teach more than one person, and teach
+  your learners how to teach before they teach the next one.
 
 ## Sources
 
@@ -441,11 +470,17 @@ web pages and documents on 4 October 2026.
 
 ### United States government (public domain)
 
-- Office of Production Management, Labor Division, Training Within
-  Industry. *How to Train Production Operators: Helping the Experienced
-  Worker to Break In a Man on a New Job*, Bulletin No. 2-C, November
-  1940, as digitised on GovInfo (the four aims of breaking in a new
-  worker, including avoiding accidents that injure them; key points
+- Training Within Industry. *How to Train Production Operators: Helping
+  the Experienced Worker to Break In a Man on a New Job*, Bulletin No.
+  2-C, dated November 1940, as digitised on GovInfo, which titles it
+  *More Production Through Training: How to Train Production
+  Operators*. The digitised copy is headed Office of Production
+  Management, Labor Division, an office created in January 1941
+  (general knowledge), and the 1944 booklet below says the programme
+  "was continued under the Office of Production Management", so this is
+  probably a later printing of the 1940 bulletin (the four aims of
+  breaking in a new worker, including avoiding accidents that injure
+  them; key points
   defined and quoted; showing at full speed, then slowly, then again;
   simple parts first; interfering before harm is done; not taking over
   too soon or too often; minor mistakes caught and explained; "Pretty
@@ -454,10 +489,11 @@ web pages and documents on 4 October 2026.
 - War Manpower Commission, Bureau of Training, Training Within
   Industry Service. *Management and Skilled Supervision*, June 1944, US
   Government Printing Office, as digitised on GovInfo (the programme
-  established in August 1940; over twenty million workers on jobs
-  relatively new to them; the get-ready points; the four steps of Job
-  Instruction; "If the worker hasn't learned, the instructor hasn't
-  taught"; "Train those who do the training").
+  established in August 1940 by the National Defense Advisory
+  Commission; over twenty million workers on jobs relatively new to
+  them; the get-ready points; the four steps of Job Instruction; "If the
+  worker hasn't learned, the instructor hasn't taught"; "Train those who
+  do the training", a step in getting a training plan into action).
   https://www.govinfo.gov/content/pkg/GOVPUB-PR32_5200-762c0ca1c57da3ab3eb402f71f0684fa/html/GOVPUB-PR32_5200-762c0ca1c57da3ab3eb402f71f0684fa.htm
 - Occupational Safety and Health Administration. 29 CFR 1910.178(l),
   Powered industrial trucks, operator training ((2)(i) trainees operate
@@ -466,6 +502,13 @@ web pages and documents on 4 October 2026.
   demonstrations and exercises, and evaluation; (4)(ii) when refresher
   training is required).
   https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1910/subpart-N/section-1910.178
+- Occupational Safety and Health Administration. 29 CFR 1928, Subpart
+  C, Appendix A, Employee Operating Instructions for agricultural
+  tractors (do not permit others to ride; avoid ditches, embankments
+  and holes where possible; stay off slopes too steep for safe
+  operation; fasten the seat belt if the tractor has a rollover
+  protective structure), read in the eCFR at its 1 October 2026 issue.
+  https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1928/subpart-C
 - Occupational Safety and Health Administration. *Resource for
   Development and Delivery of Training to Workers*, OSHA 3824-05R 2021
   (activity-based learning at least two-thirds of training hours;
@@ -524,7 +567,11 @@ web pages and documents on 4 October 2026.
 - Skill experience: `src/systems/crafting/mod.rs` (`credit_craft`, 10
   plus 5 per recipe level), `src/systems/construction/mod.rs`
   (Shelter Building for a finished structure), `src/systems/farming/mod.rs`,
-  `src/systems/mining.rs` and `src/systems/quests/mod.rs`; the skill
+  `src/systems/mining.rs`, `src/systems/quests/mod.rs`,
+  `src/systems/combat/mod.rs` (the player's killing blow, 10 points to
+  Melee Combat for kinetic damage or Ranged Combat for any other) and
+  `src/systems/abilities.rs` (5 points to the skill an ability needs);
+  the skill
   list in `data/skills/skills.csv`, where Leadership is defined but
   nothing in `src/` awards it experience.
 - The "Start every session from the default home" setting:
@@ -566,6 +613,18 @@ web pages and documents on 4 October 2026.
   knows a job cannot see the gaps in their own procedure are general
   practice or our reasoning.
 - Keeping a power splitter for later, and keeping everyone out of
-  reach of the swing on every side, are our reading; aiming along a
-  crack already in the round is general practice; the other details of
-  the worked lessons are illustrations.
+  reach of the swing on every side, are our reading; the teacher
+  standing close enough to stop a learner with a word but outside the
+  tool's reach, never riding on or walking beside a moving machine, is
+  our reading of the forklift rule, the Forest Service's chopping rule
+  and the tractor instructions together; a first tractor lesson in a
+  flat, empty field at walking pace with the teacher clear of its path,
+  the learner stepping back before the maul is lifted, and nobody
+  reaching toward the block while it is raised are general practice;
+  aiming along a crack already in the round is general practice; the
+  other details of the worked lessons are illustrations.
+- That the Office of Production Management was created in January 1941
+  is general knowledge.
+- Teaching a learner the four steps before they teach the next person,
+  and watching their first lesson, is our application of "Train those
+  who do the training."

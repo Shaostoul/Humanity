@@ -97,8 +97,11 @@ to a yard full of volunteers:
 - Carry tools at your side, with blades forward and the handles
   behind, and if you slip, drop the tool to the side so you do not
   fall on the blade.
-- Designate a central drop point for tools near the work, so tools are
-  not left lying where people walk.
+- "Pass tools so others avoid grasping a cutting edge. Never throw a
+  tool."
+- Designate a central drop point for tools near the work, which the
+  guide says makes tools less likely to be lost. In our view it also
+  keeps them from lying where people walk.
 - Inspect each tool before use: handles sound, heads tight, edges
   sharp.
 - Wear protective gear suited to the job: the guide names hard hats,
@@ -160,11 +163,27 @@ workers translate directly:
 - Let anyone with symptoms stop working, start first aid, and never
   leave someone with symptoms alone.
 
-OSHA's rule for building heat tolerance is the "Rule of 20 percent": a
-new worker works only 20 percent of the normal duration on the first
-day in the heat and adds 20 percent each day after. A one-day volunteer
-never gets past the first day, which is why they need the shorter
-stints and the extra breaks (our application).
+**The first day in the heat is short.** OSHA's rule for building heat
+tolerance is the "Rule of 20 percent": a new worker works only 20
+percent of the normal duration on the first day in the heat and adds
+20 percent each day after. Its own example: "if the normal workday
+lasts 8 hours, then new workers should work no more than 1 hour and 40
+minutes (20 percent of 8 hours) on their first day in the heat. They
+can spend the rest of the work day without heat stress." OSHA makes
+an exception only for people who have already been working in hot
+conditions. Any other one-day volunteer is always on that first day.
+So, by OSHA's rule, give them no more than about a fifth of a normal
+day's hot work, in short stints with breaks between, and the rest of
+their day in the shade or at jobs out of the heat: the water station,
+the tool drop point, the food (the example jobs are ours).
+
+The same caution covers your regulars at the start of the season. OSHA
+says workers can lose their tolerance for heat over the winter or
+during an absence of a week or more, and are at increased risk when
+temperatures first rise in spring or early summer, or "Whenever the
+weather is significantly warmer than on previous days". It adds that
+someone who feels fine on their first warm day may still fall ill on a
+later one.
 
 For everyone: provide cool water near the work and encourage people to
 drink often, since OSHA says workers should drink "not just if they are
@@ -172,12 +191,27 @@ thirsty"; for work lasting more than two hours, provide drinks with
 electrolytes as well; and give breaks in shade or a cool place. OSHA
 is blunt that in hot conditions "skipping breaks is not safe".
 
-If someone shows signs of heat illness, OSHA's first aid is to move
-them somewhere cooler and cool them immediately, with cold water or
-ice if you have it, and: "When in doubt, cool the worker and call
-911." "Confusion, slurred speech, or unconsciousness are signs of heat
-stroke": call 911 at once and keep cooling them until help arrives.
-"Never leave a worker with heat-related illness alone."
+**Know the early signs, not just the late ones.** OSHA lists the signs
+of heat exhaustion as fatigue, irritability, thirst, nausea or
+vomiting, dizziness or lightheadedness, heavy sweating, and a raised
+body temperature or fast heart rate. Its signs of heat stroke are
+confusion, slurred speech, unconsciousness, seizures, heavy sweating or
+hot, dry skin, a very high body temperature and a rapid heart rate. It
+warns that during physical work in a warm place "any unusual symptom
+can be a sign of overheating", and says: "Do not try to diagnose which
+illness is occurring." If any of these signs appears, start first aid
+at once.
+
+OSHA's first aid is to move the person somewhere cooler and cool them
+immediately. Putting them in cold water or an ice bath, it says, "is
+the best method to cool workers rapidly in an emergency". The other
+ways it lists are taking off outer layers of clothing, putting ice or
+cold wet towels on the head, neck, trunk, armpits and groin, and
+fanning them. "When in doubt,
+cool the worker and call 911." "Confusion, slurred speech, or
+unconsciousness are signs of heat stroke": call 911 at once and keep
+cooling them until help arrives. "Never leave a worker with
+heat-related illness alone."
 
 ### Emergencies
 
@@ -221,11 +255,14 @@ times, and the emergency plan. [Estimating](estimating.md) helps with
 how long each task takes.
 
 Have everything ready before people arrive (general practice). The
-wartime Training Within Industry programme taught supervisors to
-"Pre-position materials, tools and equipment at the best places in
-the proper work area." Ten people standing around while someone fetches
-a saw is ten people's time wasted, and bored people start improvising
-(our reasoning).
+wartime Training Within Industry programme put the same step before
+any teaching began: have everything ready, the right equipment,
+materials and supplies, and the workplace arranged as the worker will
+be expected to keep it. Its method for improving a job adds where
+things should go: "Pre-position materials, tools and equipment at the
+best places in the proper work area." Ten people standing around while
+someone fetches a saw is ten people's time wasted, and bored people
+start improvising (our reasoning).
 
 ### Each person answers to one person
 
@@ -278,7 +315,8 @@ Before the first tool is picked up, gather everyone for a few minutes
 3. **The hazards** of today's job and what is being done about each.
 4. **The rules:** spacing with tools, the tool drop point, team lift
    calls, the stop word.
-5. **Water, breaks and shade,** and the buddy system for newcomers.
+5. **Water, breaks and shade,** the buddy system for newcomers, and
+   their shorter time in the heat.
 6. **The emergency plan:** first aid kit, who is trained, how to call
    for help.
 7. **Questions.** Ask for them, and wait for them.
@@ -438,9 +476,12 @@ day, keep the plan on paper as well.
   drop point, and machines have one trained operator.
 - Loads over about 50 pounds get two or more people or a machine, and
   every team lift has one caller.
-- Newcomers in the heat get shorter stints, more breaks and a buddy;
-  everyone drinks before they are thirsty; and you know the signs of
-  heat stroke and call 911 when in doubt.
+- Newcomers in the heat do no more than about a fifth of a normal
+  day's hot work, in short stints with more breaks and a buddy, and
+  spend the rest of the day out of the heat; regulars build up again
+  early in the season; everyone drinks before they are thirsty; and
+  you know the early signs of heat illness as well as the signs of heat
+  stroke, start cooling at once, and call 911 when in doubt.
 - The goal can be checked, the plan fits on a page, and the materials
   are ready before people arrive.
 - Each person answers to one crew lead, and crews are small.
@@ -497,7 +538,11 @@ were read on 4 October 2026.
   or the first day back; new workers' pressures; shorter work in the
   heat, more breaks, training, close monitoring, a buddy system and no
   working alone; letting workers with symptoms stop; the Rule of 20
-  percent).
+  percent and its example of no more than 1 hour and 40 minutes in the
+  heat on the first day of an 8-hour schedule, the rest of the day
+  without heat stress; existing workers losing heat tolerance over an
+  absence or the winter, and their risk when temperatures first rise or
+  on a day much warmer than the days before).
   https://www.osha.gov/heat-exposure/protecting-new-workers
 - Occupational Safety and Health Administration. Heat: Water. Rest.
   Shade., undated (cool water, drinking frequently and not just when
@@ -505,14 +550,19 @@ were read on 4 October 2026.
   cool location; skipping breaks is not safe).
   https://www.osha.gov/heat-exposure/water-rest-shade
 - Occupational Safety and Health Administration. Heat: Heat-Related
-  Illnesses and First Aid, undated (cool the worker and call 911 when in
-  doubt; move to a cooler area and cool immediately; never leave the
-  person alone; confusion, slurred speech or unconsciousness as signs of
-  heat stroke).
+  Illnesses and First Aid, undated (the signs of heat stroke and heat
+  exhaustion; any unusual symptom can be a sign of overheating; do not
+  try to diagnose which illness it is; cool the worker and call 911
+  when in doubt; move to a cooler area and cool immediately, with
+  cold-water or ice-bath immersion the best method in an emergency,
+  and removing outer layers, ice or cold wet towels and fans; never
+  leave the person alone; confusion, slurred speech or unconsciousness
+  as signs of heat stroke).
   https://www.osha.gov/heat-exposure/illness-first-aid
 - USDA Forest Service, Missoula Technology and Development Center.
   *Handtools for Trail Work, 2005 Edition*, 0523-2810-MTDC (be aware of
-  nearby workers; carrying tools; a central drop point for tools;
+  nearby workers; carrying tools; passing tools and never throwing
+  one; a central drop point so tools are less likely to be lost;
   protective devices such as hard hats, gloves and safety glasses;
   inspecting tools; training for crosscut saws and certification before
   cutting trees; chop only when clear of other workers; safe distances
@@ -527,8 +577,10 @@ were read on 4 October 2026.
 - War Manpower Commission, Bureau of Training, Training Within
   Industry Service. *Management and Skilled Supervision*, June 1944, US
   Government Printing Office, as digitised on GovInfo (the Job Relations
-  foundations, quoted; the Job Methods steps, including pre-positioning
-  materials and tools and working out ideas with others).
+  foundations, quoted; the Job Instruction get-ready points, including
+  having everything ready; the Job Methods steps, including
+  pre-positioning materials and tools at the best places, as a way to
+  simplify the work, and working out ideas with others).
   https://www.govinfo.gov/content/pkg/GOVPUB-PR32_5200-762c0ca1c57da3ab3eb402f71f0684fa/html/GOVPUB-PR32_5200-762c0ca1c57da3ab3eb402f71f0684fa.htm
 
 ### Interagency, restated rather than quoted
@@ -571,8 +623,12 @@ were read on 4 October 2026.
   are general practice.
 - The team lift procedure (one caller, an agreed route and set-down
   point) is general practice beside OSHA's guidance.
-- Applying OSHA's new-worker heat protections to one-day volunteers is
-  our application.
+- Applying OSHA's new-worker heat protections, and its first-day limit
+  of about a fifth of a normal day in the heat, to one-day volunteers is
+  our application; the example jobs out of the heat are ours.
+- That a central tool drop point also keeps tools out of walkways is
+  our view; the Forest Service's reason is that tools are less likely to
+  be lost.
 - Knowing the first aid kit, the trained people, the phone signal and
   the address; keeping children and visitors clear; and asking an
   insurer about helpers are general practice.

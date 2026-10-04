@@ -25,8 +25,8 @@ The ideas about writing terms that cannot be misread come from NASA's
 guidance on how to write a requirement, and from the federal
 government's plain language guidance, which is published by the
 General Services Administration on Digital.gov. The warnings come from
-the Federal Trade Commission (FTC) and the federal rule on co-signing
-a loan. The rest comes from USAGov, the US Department of Agriculture
+the Federal Trade Commission (FTC), the federal rule on co-signing a
+loan and the law that sets which lenders that rule reaches. The rest comes from USAGov, the US Department of Agriculture
 (USDA) and the Training Within Industry programme that the US
 government ran during the Second World War. All are United States
 government publications, in the public domain. Where something is
@@ -59,18 +59,26 @@ lender may ask for a co-signer. The FTC puts what that means plainly:
 "When you cosign a loan, you agree to be responsible for someone else's
 debt." If the borrower misses payments or stops paying, you must pay.
 
-The federal Credit Practices Rule (16 CFR 444.3) requires a lender to
-give a co-signer a separate Notice to Cosigner before the co-signer is
-bound, and it fixes the wording. It begins: "You are being asked to
+The federal Credit Practices Rule (16 CFR 444.3) requires lenders and
+retail installment sellers "within the jurisdiction of the Federal
+Trade Commission" (16 CFR 444.1) to give a co-signer a separate Notice
+to Cosigner before the co-signer is bound, and it fixes the wording.
+The Federal Trade Commission Act leaves banks, savings and loan
+institutions and federal credit unions outside that jurisdiction (15
+U.S.C. 45(a)(2)), so a loan from one of them is not covered by this
+rule. **Do not count on receiving the notice**: weigh the risk the
+same way whether it arrives or not.
+
+Where it is given, the notice begins: "You are being asked to
 guarantee this debt. Think carefully before you do. If the borrower
 doesn't pay the debt, you will have to. Be sure you can afford to pay
 if you have to, and that you want to accept this responsibility." It
-goes on to say that you may have to pay the full amount plus late fees
-or collection costs, that "The creditor can collect this debt from you
-without first trying to collect from the borrower", that the creditor
-can use the same collection methods against you, such as suing you or
-garnishing your wages, and that a default may become part of your
-credit record.
+goes on to say that you may have to pay up to the full amount of the
+debt, plus late fees or collection costs, that "The creditor can
+collect this debt from you without first trying to collect from the
+borrower", that the creditor can use the same collection methods
+against you, such as suing you or garnishing your wages, and that a
+default may become part of your credit record.
 
 The FTC's page on co-signing adds what people often do not expect:
 
@@ -95,9 +103,13 @@ The FTC's page on co-signing adds what people often do not expect:
 The rule of thumb that follows (our reading of the notice): **co-sign
 only for an amount you could afford to pay in full yourself, and that
 you would be willing to pay.** If you do co-sign, the FTC suggests
-asking the lender for the total you might owe, asking to receive the
-monthly statements or to be told in writing of a missed payment,
-getting copies of the loan papers, and checking your credit reports.
+asking the lender for the total you might owe, adding: "The lender
+doesn't have to do this, but might, if you ask." It also suggests
+asking the lender to send you the monthly statements, or to agree in
+writing to tell you of a missed payment; getting copies of the loan
+papers ("The lender doesn't have to give you these papers, so you
+might have to get copies from the borrower."); and checking your
+credit reports.
 
 ### Your land, your deed and your water
 
@@ -157,9 +169,9 @@ together, a large sum, or anything you would lose your home over, pay
 for an hour with a lawyer before you sign (general practice). If
 money is the obstacle, USAGov lists programmes that give free legal
 advice and may help you find a free or low-cost lawyer, including the
-Legal Services Corporation, which funds legal aid in your community for
-people with low incomes. Some of these programmes, it notes, limit
-their services to people with low incomes.
+Legal Services Corporation, through which you can find legal aid in
+your community for people with low incomes. Some of these programmes,
+it notes, limit their services to people with low incomes.
 
 ## What an agreement needs
 
@@ -404,8 +416,9 @@ it (a cracked light lens, a soft tyre). Then, on one page:
 
 1. Pat lends Sam the 6 by 10 foot utility trailer from Friday 6 pm to
    Sunday 6 pm.
-2. Sam uses it to move firewood only, and never loads it beyond what
-   the trailer is rated to carry.
+2. Sam uses it to move firewood only, never loads it beyond what the
+   trailer is rated to carry, and tows it only with a vehicle and hitch
+   rated for the loaded weight.
 3. Sam returns it with the bed swept and both tyres holding air.
 4. Sam pays for any damage beyond the cracked left light lens already
    noted.
@@ -413,7 +426,9 @@ it (a cracked light lens, a soft tyre). Then, on one page:
 
 Signed by both, dated, one copy each. Five lines, ten minutes, and
 the most likely arguments (the tyre, the light, the load, the time)
-are already settled.
+are already settled. The load limits in term 2 are general practice:
+the trailer, the hitch and the towing vehicle each have a rated
+capacity, and the lowest of them is the limit.
 
 ### Two houses, one well
 
@@ -503,7 +518,8 @@ list, but nothing in the game levels either of them yet.
 ## You own this when
 
 - You never co-sign for more than you could afford to pay yourself,
-  and you know that co-signing gives you the debt but not the thing.
+  and you know that co-signing gives you the debt but not the thing,
+  whether or not anyone hands you the federal notice.
 - You never transfer a deed, or make an agreement about land or water,
   without a lawyer, and you record land agreements with the county.
 - You never sign anything unread, blank, in a language you do not
@@ -543,14 +559,30 @@ and documents were read on 4 October 2026.
   protections; no Notice required for some real estate
   purchases; no title or ownership in what the loan buys; property
   offered as security can be lost; the loan counts as the cosigner's
-  obligation; what a cosigner can do to protect themselves; release
-  requires the lender and the borrower to agree, and is unlikely).
+  obligation; what a cosigner can do to protect themselves, and that
+  the lender does not have to tell you the total you might owe or give
+  you the loan papers; release requires the lender and the borrower to
+  agree, and is unlikely).
   https://consumer.ftc.gov/articles/cosigning-loan-faqs
 - Federal Trade Commission. 16 CFR 444.3, Unfair or deceptive cosigner
   practices (the Credit Practices Rule: the Notice to Cosigner, given
   as a separate document before the cosigner is obligated, and its
-  wording, quoted in part).
+  wording, quoted in part), and 16 CFR 444.1, Definitions (a lender
+  and a retail installment seller are those "within the jurisdiction
+  of the Federal Trade Commission"), both read in the eCFR at its 1
+  October 2026 issue.
   https://www.ecfr.gov/current/title-16/chapter-I/subchapter-D/part-444/section-444.3
+  and
+  https://www.ecfr.gov/current/title-16/chapter-I/subchapter-D/part-444/section-444.1
+- Office of the Law Revision Counsel, US House of Representatives. 15
+  U.S.C. 45(a)(2), Federal Trade Commission Act (the Commission's power
+  over unfair or deceptive acts excludes banks, savings and loan
+  institutions and federal credit unions, among others). The official
+  site was down for maintenance on 4 October 2026, so the text was read
+  in the Legal Information Institute's copy of the Code
+  (https://www.law.cornell.edu/uscode/text/15/45) and is restated, not
+  quoted.
+  https://uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title15-section45&num=0&edition=prelim
 - Federal Trade Commission. How To Avoid a Home Improvement Scam, July
   2022 (get a written agreement even where the state does not require
   one; name, address, phone and licence number, start and completion
@@ -582,8 +614,8 @@ and documents were read on 4 October 2026.
 - USAGov. Find a lawyer and affordable legal aid, last updated 17
   November 2025 (programmes that give free legal advice and may help
   find a free or low-cost lawyer; some limit services to people with
-  low incomes; the Legal Services Corporation for legal aid for people
-  with low incomes).
+  low incomes; the Legal Services Corporation, listed as the way to
+  find legal aid in your community for people with low incomes).
   https://www.usa.gov/legal-aid
 - USDA Rural Development. Site Standards: Well and Septic, Single
   Family Housing Guaranteed Loan Program, training slides, undated
@@ -633,7 +665,9 @@ and documents were read on 4 October 2026.
   is mostly state law is general knowledge; that NASA's requirement
   checklist suits promises between neighbours is our reading.
 - Co-signing only for what you could afford and would be willing to
-  pay is our reading of the federal Notice to Cosigner.
+  pay is our reading of the federal Notice to Cosigner; weighing the
+  risk the same way whether or not the notice is given is our reasoning
+  from the rule's limited reach.
 - Having a lawyer write and record agreements about land, and that a
   handshake may not bind the next owner, are general practice.
 - Filling or striking through blanks and initialling each page,
@@ -659,4 +693,6 @@ and documents were read on 4 October 2026.
   group agreements are general practice.
 - A trusted third person, community mediation and small claims courts
   as outside help between neighbours are general practice.
+- Towing only with a vehicle and hitch rated for the loaded weight,
+  and the lowest rating being the limit, are general practice.
 - The names, figures and terms in the worked examples are illustrations.
