@@ -188,6 +188,16 @@
           ]
         },
         {
+          "title": "Knowing Which Way Is North",
+          "file": "knowing_which_way_is_north.md",
+          "tags": [
+            "guide",
+            "real",
+            "beginner",
+            "safety"
+          ]
+        },
+        {
           "title": "The Sky as an Instrument",
           "file": "the_sky_as_an_instrument.md",
           "tags": [
@@ -199,6 +209,15 @@
         {
           "title": "Reading a Map",
           "file": "reading_a_map.md",
+          "tags": [
+            "guide",
+            "real",
+            "safety"
+          ]
+        },
+        {
+          "title": "Coordinates",
+          "file": "coordinates.md",
           "tags": [
             "guide",
             "real",
@@ -706,6 +725,16 @@
             "guide",
             "real",
             "beginner"
+          ]
+        },
+        {
+          "title": "Light, Lenses and Mirrors",
+          "file": "light_lenses_and_mirrors.md",
+          "tags": [
+            "guide",
+            "real",
+            "technical",
+            "safety"
           ]
         },
         {

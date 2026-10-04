@@ -2140,9 +2140,28 @@
       "subject": "physics",
       "title": "Light and optics",
       "summary": "Use lenses, mirrors and the behaviour of light.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "light-lenses-and-mirrors"
+      ],
       "skills": [
         "engineering"
+      ],
+      "data": [
+        "data/garden/lighting.ron",
+        "data/planets/earth.ron",
+        "data/items.csv",
+        "data/recipes.csv"
+      ],
+      "sources": [
+        "dod-technical-manuals",
+        "nasa-science",
+        "fda",
+        "cpsc",
+        "ecfr",
+        "nws",
+        "nist",
+        "nei"
       ],
       "locale_dependent": false,
       "hazard": "caution"
@@ -2654,9 +2673,26 @@
       "subject": "navigation",
       "title": "Knowing which way is north",
       "summary": "Orient yourself with sun, stars, terrain and a compass.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "knowing-which-way-is-north"
+      ],
       "skills": [
         "navigation"
+      ],
+      "data": [
+        "data/items.csv",
+        "data/recipes.csv",
+        "data/stars.csv",
+        "data/constellations.json"
+      ],
+      "sources": [
+        "dod-technical-manuals",
+        "usgs",
+        "noaa-ncei",
+        "nasa-science",
+        "usfs",
+        "nws"
       ],
       "locale_dependent": false,
       "hazard": "serious"
@@ -2693,9 +2729,26 @@
       "subject": "navigation",
       "title": "Coordinates",
       "summary": "Give and follow a position that another person can actually find.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "coordinates"
+      ],
       "skills": [
         "navigation"
+      ],
+      "data": [
+        "data/places/seed.json",
+        "data/maps/regions/silverdale.bin",
+        "data/maps/regions/seattle-center.bin"
+      ],
+      "sources": [
+        "noaa",
+        "usgs",
+        "dod-technical-manuals",
+        "fgdc",
+        "gps-gov",
+        "usfs",
+        "phmsa"
       ],
       "locale_dependent": false,
       "hazard": "serious"
