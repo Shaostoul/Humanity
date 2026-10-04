@@ -103,9 +103,17 @@ every load-bearing claim checked by an adversarial verifier
   with doors that open for others; the plot is remembered per identity and
   server; a guest's home is put away and a guest never stands on a plot. Two
   review rounds. DAY 5 IS UNBLOCKED in code: the operator finds a partner
-  (Discord or a brother) when ready. NEXT: increment 3 (the relay's world
-  becomes this ship: rooms from the shared zones, crew chores in the Commons
-  and mess hall). Left for later (design doc section 7): a Dev move of the plot
+  (Discord or a brother) when ready. Increment 3 MERGED 2026-10-04
+  (v0.1456.0): the relay's world is the mothership (the Commons, its mess
+  hall, First Street), the crew work and eat there from the same food stores
+  as players on one game clock, the explore quest ends with "find your home",
+  a stored Pioneer world upgrades with progress kept. 16 review findings fixed;
+  on main, all rigs green (67/67 per --plots order, the crew judged where they
+  are drawn). Open for the operator: how much NPC homesteads contribute
+  (`npc_homestead_fleet_meals_per_day`, 0.0 for now). NEXT: increment 4,
+  getting around at ship scale (the relay's speed check with a correction
+  instead of a freeze, transit links with stable ids, "aboard" as inside the
+  ship's bounds, game delivery by zone, an air volume per home). Left for later (design doc section 7): a Dev move of the plot
   does not carry animals and decoration plants; idle plots are never given
   back automatically (open question 19); a vehicle-driving rig leg needs an
   IPC verb. The rig follow-up about the previous order's game still holding the exe is done (BUG-142, v0.1452.0: all four rigs share a copy that waits out the lock). Follow-ups 1a found: put

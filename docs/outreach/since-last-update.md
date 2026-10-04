@@ -11,6 +11,14 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1456.0: the shared world is the mothership, and its crew live
+  aboard.** When you join a server, the world you share with everyone is now
+  the mothership itself: the Commons, its mess hall and First Street. The
+  ship's crew go about their work in the Commons and eat in the mess hall,
+  from the same food stores players eat from, so a store that runs out means
+  someone misses a meal. The first quest now ends with finding your own home
+  on the ship.
+
 - **v0.1455.1: three more Library guides on looking after a building.**
   Roofs and Keeping Water Out (shingles and flashing, finding a leak, snow
   loads, working safely at height and away from power lines), Repairing a
