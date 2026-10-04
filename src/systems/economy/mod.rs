@@ -455,6 +455,134 @@ mod tests {
         );
     }
 
+    /// BUG-145 (2026-10-04): no recipe turns goods the vendor sells into goods
+    /// it buys back for more, which would be an endless money loop at any
+    /// trading post. The vendor charges `vendor_sell_price` (1.25x base,
+    /// rounded up) and pays `vendor_buy_price` (0.5x base, rounded down), the
+    /// same two functions `vendor_buy` and `vendor_sell` settle with, and it
+    /// stocks the goods src/lib.rs puts in its catalog: trade goods that are
+    /// also items.csv items. Recipes are read by RecipeRegistry::from_csv,
+    /// the runtime's own loader.
+    ///
+    /// An input counts as obtainable when the vendor sells it OR a recipe
+    /// makes it from obtainable inputs, at the cheaper of the two: a loop
+    /// does not need the vendor to sell every input, since buying logs,
+    /// sawing planks and building a bow from the planks loops just as well
+    /// as buying the planks. A crafting step that also yields byproducts is
+    /// credited with what the vendor pays for them. A recipe with no inputs
+    /// is gathering, not buying, and is left out. Prices are for ungraded and
+    /// standard goods; a better grade earns more (QualityLevels), which is
+    /// a separate question.
+    ///
+    /// Seen red on the data before the fix, 24 recipes, 18 of them looping
+    /// through a crafted input ("n/a": an input the vendor does not sell):
+    ///   24 recipes make goods the vendor buys back for more than their inputs
+    ///   cost, an endless money loop (BUG-145):
+    ///   assemble_computer: inputs cost 50.88 at the cheapest (buying them all: 100), the outputs sell for 100
+    ///   build_mech_heavy: inputs cost 2365.83 at the cheapest (buying them all: n/a), the outputs sell for 10000
+    ///   build_spacecraft_pod: inputs cost 814.58 at the cheapest (buying them all: 876), the outputs sell for 2500
+    ///   craft_bow_recurve: inputs cost 7.50 at the cheapest (buying them all: 19), the outputs sell for 12
+    ///   craft_stim_pack: inputs cost 13.00 at the cheapest (buying them all: 13), the outputs sell for 85
+    ///   make_wire: inputs cost 12.25 at the cheapest (buying them all: 13), the outputs sell for 15
+    ///   ... (and 18 more)
+    #[test]
+    fn no_recipe_resells_for_more_than_its_inputs_cost() {
+        use crate::systems::crafting::{Recipe, RecipeRegistry};
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let items = crate::systems::inventory::ItemRegistry::from_csv(
+            &std::fs::read(root.join("data/items.csv")).unwrap(),
+        )
+        .unwrap();
+        let goods = shipped_goods();
+        let recipes =
+            RecipeRegistry::from_csv(&std::fs::read(root.join("data/recipes.csv")).unwrap()).unwrap();
+        assert!(recipes.recipes.len() >= 300, "expected the full recipe book, got {}", recipes.recipes.len());
+
+        // What the vendor charges for an item it stocks (the lib.rs catalog
+        // filter), and what it pays for any trade good.
+        let charge = |id: &str| -> Option<f64> {
+            if items.items.contains_key(id) {
+                goods.vendor_sell_price(id).map(|p| p as f64)
+            } else {
+                None
+            }
+        };
+        let pays = |id: &str| -> f64 { goods.vendor_buy_price(id).unwrap_or(0) as f64 };
+
+        // Sorted so the walk and the message are the same on every run.
+        let mut book: Vec<&Recipe> = recipes.recipes.values().filter(|r| !r.inputs.is_empty()).collect();
+        book.sort_by(|a, b| a.id.cmp(&b.id));
+
+        // Cheapest credits-to-item cost: buy it, or craft it from cheaper
+        // inputs, selling the byproducts. Settles in a few rounds; a cost
+        // that keeps falling means a cycle of recipes makes goods from
+        // nothing, itself a loop.
+        let mut cheapest: HashMap<String, f64> = goods
+            .goods
+            .keys()
+            .filter_map(|id| charge(id.as_str()).map(|c| (id.clone(), c)))
+            .collect();
+        let inputs_cost = |r: &Recipe, cheapest: &HashMap<String, f64>| -> Option<f64> {
+            r.inputs.iter().map(|(id, q)| cheapest.get(id).map(|c| c * *q as f64)).sum()
+        };
+        let mut rounds = 0;
+        loop {
+            let mut changed = false;
+            for r in &book {
+                let Some(cost) = inputs_cost(r, &cheapest) else { continue };
+                for (i, (out, q)) in r.outputs.iter().enumerate() {
+                    if *q == 0 {
+                        continue;
+                    }
+                    let byproducts: f64 = r
+                        .outputs
+                        .iter()
+                        .enumerate()
+                        .filter(|(j, _)| *j != i)
+                        .map(|(_, (id, qq))| pays(id.as_str()) * *qq as f64)
+                        .sum();
+                    let unit = (cost - byproducts) / *q as f64;
+                    if cheapest.get(out).map_or(true, |c| unit < c - 1e-9) {
+                        cheapest.insert(out.clone(), unit);
+                        changed = true;
+                    }
+                }
+            }
+            if !changed {
+                break;
+            }
+            rounds += 1;
+            assert!(rounds < 100, "item costs never settle: a cycle of recipes makes goods from nothing");
+        }
+
+        let mut checked = 0;
+        let mut loops = Vec::new();
+        for r in &book {
+            let Some(cost) = inputs_cost(r, &cheapest) else { continue };
+            checked += 1;
+            let sells: f64 = r.outputs.iter().map(|(id, q)| pays(id.as_str()) * *q as f64).sum();
+            if sells > cost + 1e-9 {
+                let bought: Option<f64> =
+                    r.inputs.iter().map(|(id, q)| charge(id.as_str()).map(|c| c * *q as f64)).sum();
+                let bought = bought.map_or("n/a".to_string(), |b| format!("{b}"));
+                loops.push(format!(
+                    "{}: inputs cost {cost:.2} at the cheapest (buying them all: {bought}), the outputs sell for {sells}",
+                    r.id
+                ));
+            }
+        }
+        // Proof the walk reached the recipe book, so a green run is not an
+        // empty one (a renamed column would leave nothing to check).
+        assert!(checked >= 300, "only {checked} recipes have inputs the vendor sells or can be crafted from them");
+        assert!(
+            loops.is_empty(),
+            "{} recipes make goods the vendor buys back for more than their inputs cost, an endless \
+             money loop (BUG-145):\n  {}",
+            loops.len(),
+            loops.join("\n  ")
+        );
+    }
+
     /// A sale is priced by grade (2026-09-26): a good hammer fetches more than
     /// an ungraded one, a defective one nothing.
     #[test]
