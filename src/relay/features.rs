@@ -1732,6 +1732,91 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    // ── Increment 3: the relay's world is the ship ────────────────────────────
+
+    /// A game's step to `p`, as the game sends it.
+    async fn step_to(sock: &mut TestSocket, p: [f32; 3]) {
+        send_json(sock, serde_json::json!({ "type": "game_position_update", "position": p, "rotation": [0.0, 0.0, 0.0, 1.0], "velocity": [0.0, 0.0, 0.0], "timestamp": 1.0 })).await;
+    }
+
+    /// THE SHARED WORLD IS THE SHIP, end to end on a real relay (increment 3): the welcome
+    /// names the ship's rooms (the Commons, its mess hall, First Street) and every crew member
+    /// in it stands in the Commons, on no plot; the player's explore quest has its "find your
+    /// home" step on the plot they hold; walking from their door through the three rooms and
+    /// back home finishes it (a step in each, every one under the 100 m rule); and a meal taken
+    /// at the mess hall's stores comes off the stock the crew eat from.
+    ///
+    /// Seen red 2026-10-04 with the relay's rooms read from data/ships/starter_fleet.ron again
+    /// (and the previous chores and crew put through this code): "the welcome's rooms are not
+    /// the ship's: [\"bridge\", \"cargo\", \"engineering\", \"hydroponics\", \"medbay\",
+    /// \"quarters\"]".
+    #[tokio::test]
+    async fn the_shared_world_is_the_ship_and_its_quest_ends_at_home() {
+        let path = plots_db("ship_world");
+        let (state, port, server) = relay_on(&path).await;
+        let (mut sock, _) = bind_socket(&state, port, [93u8; 32], Some("ShipWalker"), 1).await;
+        let w = welcome_after_join(&mut sock, "ShipWalker").await;
+        assert_eq!(welcome_plot(&w).as_deref(), Some("p1"), "the first joiner holds p1");
+
+        let mut rooms: Vec<String> = w["rooms"].as_array().unwrap().iter().map(|r| r["id"].as_str().unwrap().to_string()).collect();
+        rooms.sort();
+        assert_eq!(rooms, ["commons", "mess-hall", "street-1"], "the welcome's rooms are not the ship's: {rooms:?}");
+        let q = &w["current_quest"];
+        assert_eq!(q["home_plot"], "p1", "their quest names their plot: {q}");
+        assert_eq!(q["total_rooms"], 4, "three rooms and home: {q}");
+
+        let plots = crate::ship::ship_structure::ShipPlots::load(std::path::Path::new("data")).unwrap().plots;
+        let commons = (65.0, 20.0, 99.0, 75.0);
+        let crew: Vec<&Value> = w["world_snapshot"].as_array().unwrap().iter().filter(|e| e["components"].get("dialog").is_some()).collect();
+        assert!(crew.len() >= 5, "the welcome carries the crew: {}", crew.len());
+        let mut store = None;
+        for e in w["world_snapshot"].as_array().unwrap() {
+            let p: Vec<f32> = e["position"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap() as f32).collect();
+            if e["entity_type"] == "food_store" {
+                store = Some((e["entity_id"].as_u64().unwrap(), [p[0], p[1], p[2]]));
+            }
+            if e["entity_type"] == "player" {
+                continue;
+            }
+            assert!(crate::relay::handlers::ship_world::plot_at(&plots, [p[0], p[1], p[2]]).is_none(), "{} stands on a plot at {p:?}", e["entity_type"]);
+        }
+        for c in &crew {
+            let p: Vec<f64> = c["position"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+            let name = c["components"]["name"].as_str().unwrap_or("?");
+            assert!(p[0] >= commons.0 && p[0] <= commons.2 && p[2] >= commons.1 && p[2] <= commons.3, "{name} is not in the Commons: {p:?}");
+        }
+
+        // From their door, through the Commons, its mess hall and First Street, and home.
+        let door = game_spawn_on("p1");
+        let walk = [
+            ([66.0, 1.7, 40.0], "commons", false),
+            ([75.0, 1.7, 24.0], "mess-hall", false),
+            ([70.0, 1.7, 100.0], "street-1", false),
+            (door, "home", true),
+        ];
+        for (p, step, last) in walk {
+            step_to(&mut sock, p).await;
+            let got = next_game_of(&mut sock, &["game_quest_progress", "game_quest_completed"]).await;
+            let got = got.unwrap_or_else(|| panic!("no quest progress for the step into {step} at {p:?}"));
+            assert_eq!(got["step_id"], step, "{got}");
+            assert_eq!(got["complete"], last, "{got}");
+        }
+
+        // A meal from the mess hall's stores.
+        let (store_id, at) = store.expect("the welcome carries the ship's food stores");
+        let before = state.game_world.read().await.entities[&store_id].components["meals"].as_f64().unwrap();
+        step_to(&mut sock, [at[0] + 1.0, 1.7, at[2] + 1.0]).await;
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        send_json(&mut sock, serde_json::json!({ "type": "game_interact", "entity_id": store_id, "action": "take_meal" })).await;
+        let r = next_game_of(&mut sock, &["game_interact_result"]).await.expect("an answer to take_meal");
+        assert_eq!(r["success"], true, "{r}");
+        assert_eq!(r["meals_left"].as_f64(), Some(before - 1.0), "{r}");
+
+        sock.close(None).await.ok();
+        server.abort();
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// Wait up to 5 s for the next game message (the JSON after "__game__:")
     /// whose type is one of `types`. None when none came.
     async fn next_game_of(sock: &mut TestSocket, types: &[&str]) -> Option<Value> {

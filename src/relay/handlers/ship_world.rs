@@ -409,7 +409,11 @@ mod tests {
     /// label, its purpose) and one for every labelled volume in a zone's body, and no other.
     /// No room stands on a plot, and the world is named by the ship file's id.
     ///
-    /// Seen red 2026-10-04: SEE_RED_ROOMS
+    /// Seen red 2026-10-04 with the Pioneer put back through this code (the rooms read from
+    /// data/ships/starter_fleet.ron, the previous chores each at its room's centre, the previous
+    /// crew posted to the rooms of their old types): "the world's rooms are not the ship file's
+    /// places / left: [\"bridge\", \"cargo\", \"engineering\", \"hydroponics\", \"medbay\",
+    /// \"quarters\"] / right: [\"commons\", \"mess-hall\", \"street-1\"]".
     #[test]
     fn the_world_is_built_from_the_ship_file() {
         let ship = ship();
@@ -452,7 +456,10 @@ mod tests {
     /// A point is in the SMALLEST room holding it: the mess hall inside the Commons wins, the
     /// rest of the Commons is the Commons, and a home's floor is in no room.
     ///
-    /// Seen red 2026-10-04: SEE_RED_SMALLEST
+    /// Seen red 2026-10-04 with the comparison reversed (the LARGEST room holding a point): "left:
+    /// Some(\"commons\") / right: Some(\"mess-hall\")"; with the Pioneer put back through this code
+    /// (the rooms read from data/ships/starter_fleet.ron, the previous chores each at its room's
+    /// centre, the previous crew posted to the rooms of their old types): "left: None".
     #[test]
     fn a_point_is_in_the_smallest_room_holding_it() {
         let world = GameWorld::new();
@@ -468,7 +475,10 @@ mod tests {
     /// place and on no plot, and every chore loaded. The crew's starting spots and the food
     /// stores, and everything else the world stands up, too.
     ///
-    /// Seen red 2026-10-04: SEE_RED_CHORES
+    /// Seen red 2026-10-04 with the Pioneer put back through this code (the rooms read from
+    /// data/ships/starter_fleet.ron, the previous chores each at its room's centre, the previous
+    /// crew posted to the rooms of their old types): "chore helm_diagnostics's site (3.0, 5.0, 2.5)
+    /// is on plot p1".
     #[test]
     fn no_chore_target_lies_inside_a_plot_box() {
         let world = GameWorld::new();
@@ -497,12 +507,17 @@ mod tests {
     /// back several times), every crew position after every second and every position the
     /// relay sends the games (`game_npc_update`), on no plot and inside the Commons' box.
     ///
-    /// Seen red 2026-10-04: SEE_RED_CREW
+    /// Seen red 2026-10-04 with the Pioneer put back through this code (the rooms read from
+    /// data/ships/starter_fleet.ron, the previous chores each at its room's centre, the previous
+    /// crew posted to the rooms of their old types): "crew Chief Tan at (3.9, 1.0, 17.0) is on plot
+    /// p1 (t 0.2 s)".
     #[test]
     fn no_crew_figure_is_ever_on_a_plot() {
         let mut world = GameWorld::new();
         super::super::ship_stores::meals_every(&mut world, 0.25);
-        let commons = world.rooms.iter().find(|r| r.id == "commons").cloned().expect("a Commons");
+        // The Commons' box from the ship file itself, not from the world's rooms, so a world built
+        // from anything else is judged against the ship the games draw.
+        let commons = shared_rooms(&ship()).into_iter().find(|r| r.id == "commons").expect("the ship file has a Commons");
         let plots = world.ship_plots.plots.clone();
         let crew: Vec<u64> = world.entities.iter().filter(|(_, e)| e.components.get("chore_agent").is_some()).map(|(id, _)| *id).collect();
         assert!(crew.len() >= 5, "the shipped crew stand in the world: {}", crew.len());
@@ -556,7 +571,10 @@ mod tests {
     /// chores, and its meal when it eats) must have no wall across it, with a body's width
     /// (0.3 m) of room either side. Walls are everyone's (the rig's list).
     ///
-    /// Seen red 2026-10-04: SEE_RED_WALLS
+    /// Seen red 2026-10-04 with Chief Tan's air-handler readings moved to the Commons' middle (17,
+    /// 27.5), where the Pioneer-era rule (a room's centre) would stand them: "Chief Tan walks from
+    /// air_handler_readings (82.0, 1.0, 47.5) to kitchen_vent_service (89.0, 1.0, 26.0) through the
+    /// wall (83.9, 41.0)-(85.0, 41.0)".
     #[test]
     fn every_crew_walk_between_its_sites_is_clear_of_walls() {
         let world = GameWorld::new();
@@ -605,7 +623,11 @@ mod tests {
     /// "e11e0001" spawned in the Crew Quarters and moved to (4, 5, 12), a visit to the bridge,
     /// 30 s of ticks, then `save_to_db`, and the stored blob copied out.
     ///
-    /// Seen red 2026-10-04: SEE_RED_UPGRADE
+    /// Seen red 2026-10-04 with restore_from_db returning false when no world of this version is
+    /// stored (no upgrade): "the previous world's player kept no progress"; with the Pioneer put
+    /// back through this code (the rooms read from data/ships/starter_fleet.ron, the previous
+    /// chores each at its room's centre, the previous crew posted to the rooms of their old types):
+    /// "entity 3 (engineer) still names the Pioneer's engineering".
     #[test]
     fn an_old_stored_world_upgrades_to_the_ship() {
         let (db, path) = temp_db("upgrade");
@@ -648,6 +670,9 @@ mod tests {
 
     /// A stored world of the previous version that is not JSON at all upgrades too: only its
     /// clock and id mark (its row's own columns) carry over, and the relay starts.
+    ///
+    /// Seen red 2026-10-04 with restore_from_db returning false when no world of this version
+    /// is stored: "assertion failed: world.restore_from_db(&db)".
     #[test]
     fn an_unreadable_old_world_still_upgrades() {
         let (db, path) = temp_db("upgrade_bad");
@@ -677,7 +702,10 @@ mod tests {
     /// player's own plot, and only then. A player who arrives at their own door does not finish
     /// it on the spot; someone else's plot does not count; a guest's quest has no home step.
     ///
-    /// Seen red 2026-10-04: SEE_RED_HOME
+    /// Seen red 2026-10-04 with the all-rooms check taken out of record_home_found: "standing on
+    /// their own plot before visiting the ship counted: Some(QuestProgress { quest_id:
+    /// \"explore_ship\", step_id: \"home\", room_id: \"plot:p2\", visited_count: 1, total: 4,
+    /// complete: false })".
     #[test]
     fn the_explore_quest_ends_by_finding_your_home() {
         let mut world = GameWorld::new();
@@ -732,7 +760,10 @@ mod tests {
     /// A player with no place named arrives in the Commons (the guest spot), which counts as
     /// visited; one who arrives at their own door is in no room.
     ///
-    /// Seen red 2026-10-04: SEE_RED_SPAWN
+    /// Seen red 2026-10-04 with the Pioneer put back through this code (the rooms read from
+    /// data/ships/starter_fleet.ron, the previous chores each at its room's centre, the previous
+    /// crew posted to the rooms of their old types): "left: None / right: Some(\"commons\")" (the
+    /// guest spot, in the Commons, is in no room of the Pioneer).
     #[test]
     fn a_player_with_no_place_named_arrives_in_the_commons() {
         let mut world = GameWorld::new();

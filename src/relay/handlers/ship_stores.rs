@@ -383,7 +383,9 @@ mod tests {
     /// store holds at the end is what it started with, plus what the ship's farms put in,
     /// minus the crew's meals, minus the player's.
     ///
-    /// Seen red 2026-10-04: SEE_RED_SAME_STORE
+    /// Seen red 2026-10-04 with a crew member's meal counted without being taken from the store
+    /// (finish_meal not calling draw_meal): "the crew's meals came off the store / left: 90.0 /
+    /// right: 71.0".
     #[test]
     fn the_crew_and_the_players_eat_from_the_same_store() {
         let mut world = GameWorld::new();
@@ -412,7 +414,8 @@ mod tests {
     /// An empty store is a missed meal, tried again sooner, and the store is not driven below
     /// zero; a player finds it empty too.
     ///
-    /// Seen red 2026-10-04: SEE_RED_EMPTY
+    /// Seen red 2026-10-04 with the same break: "two meals in the store, two eaten / left: 19 /
+    /// right: 2".
     #[test]
     fn an_empty_store_is_a_missed_meal_for_everyone() {
         let mut world = GameWorld::new();
@@ -451,7 +454,8 @@ mod tests {
     /// question; set here to a test value). The shipped crew are the ship's company (every
     /// meal from the stores) and no homestead NPC ships yet, so this makes one.
     ///
-    /// Seen red 2026-10-04: SEE_RED_HOMESTEAD
+    /// Seen red 2026-10-04 with the homestead branch of meal_due taken out: "four in five at
+    /// home (0.8): 0 at home, 10 from the stores / left: 10 / right: 2".
     #[test]
     fn an_npc_homestead_mostly_feeds_itself_and_gives_what_it_is_set_to() {
         let mut world = GameWorld::new();
