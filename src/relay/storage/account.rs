@@ -102,13 +102,14 @@ impl Storage {
             // the review: it was neither exported nor erased).
             grab("game_progress", "SELECT current_quest, completed_quests, xp, reputation, updated_at FROM player_progress WHERE public_key = ?1", &[&key]);
             // That this key erased its account here earlier, while this server still
-            // remembers it (BUG-135, 2026-10-04): only the day, kept under a one-way
-            // fingerprint of the key. It is listed because it is held about this key. The
+            // remembers it (BUG-135, 2026-10-04): only the day and the window it is kept for,
+            // under a one-way fingerprint of the key. It is listed because it is held about
+            // this key. The
             // erase below never deletes it, because the erase is what writes it
             // (handlers/sign_ups.rs `remember_erase`); it goes when the person signs up here
             // again, or when the server's window or cap culls it. So the lint's "everything
             // erased is exported" rule is met in the direction it checks: export is wider.
-            grab("erased_here", "SELECT erased_day FROM erased_accounts WHERE fingerprint = ?1", &[&erased_fingerprint]);
+            grab("erased_here", "SELECT erased_day, ttl_days FROM erased_accounts WHERE fingerprint = ?1", &[&erased_fingerprint]);
 
             // ── Things erase deletes but export never offered ──
             // These six were in delete_account() with no matching grab here.
@@ -240,6 +241,45 @@ impl Storage {
             let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
         });
         receipt
+    }
+
+    /// Whether rows that `delete_account` erases by `key` are still here: true after an erase
+    /// that did not finish (a `<table>_FAILED` in its receipt), or when anything wrote for the
+    /// key since. A device of the account that was offline during the erase is told what it
+    /// would have been told then (handlers/sign_ups.rs `erased_here_frame`, review of BUG-135
+    /// option 2, finding 16): finished, so Connect signs up afresh, or not, so erase again;
+    /// the erased-accounts entry keeps only the day, so this is read from what is left.
+    ///
+    /// Every table `delete_account` erases BY KEY, each once (pinned by
+    /// `the_left_rows_check_covers_every_table_the_erase_deletes_by_key`), except
+    /// `dm_mailbox`: sealed mail from other people keeps arriving for a key after its erase,
+    /// and is no part of the account left behind. The tables erased by NAME are not read: the
+    /// name is gone with the registration, and the registration is read here.
+    pub fn erase_left_rows(&self, key: &str) -> bool {
+        let plot_owner = super::plot_owner_id(key);
+        let q = "SELECT EXISTS(SELECT 1 FROM messages WHERE from_key = ?1)
+            OR EXISTS(SELECT 1 FROM reactions WHERE reactor_key = ?1)
+            OR EXISTS(SELECT 1 FROM user_uploads WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM notification_prefs WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM vault_blobs WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM push_subscriptions WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM signed_profiles WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM friend_codes WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM listing_reviews WHERE reviewer_key = ?1)
+            OR EXISTS(SELECT 1 FROM marketplace_listings WHERE seller_key = ?1)
+            OR EXISTS(SELECT 1 FROM project_tasks WHERE created_by = ?1)
+            OR EXISTS(SELECT 1 FROM user_roles WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM server_members WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM registered_names WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM game_plots WHERE owner_did = ?2)
+            OR EXISTS(SELECT 1 FROM player_progress WHERE public_key = ?1)";
+        self.with_read_conn(|conn| conn.query_row(q, params![key, plot_owner], |r| r.get::<_, bool>(0)))
+            .unwrap_or_else(|e| {
+                // Unknown is said as "not finished": that note only asks the person to erase
+                // again, never promises a fresh start that may not be true.
+                tracing::error!("account: could not check what an erase left: {e}");
+                true
+            })
     }
 }
 
@@ -433,7 +473,10 @@ mod tests {
         let export = db.export_account("fa11", "Fay");
         let listed = export["erased_here"].as_array().cloned().unwrap_or_default();
         assert!(
-            listed.len() == 1 && listed[0]["erased_day"].as_i64().is_some() && listed[0].as_object().map_or(0, |o| o.len()) == 1,
+            listed.len() == 1
+                && listed[0]["erased_day"].as_i64().is_some()
+                && listed[0]["ttl_days"] == 30
+                && listed[0].as_object().map_or(0, |o| o.len()) == 2,
             "the export lists the remembered erase: {listed:?}"
         );
         assert!(db.export_account("0ther", "Other")["erased_here"].as_array().unwrap().is_empty(), "another key sees nothing");
@@ -464,5 +507,70 @@ mod tests {
         assert!(receipt.iter().any(|(l, n)| l == "game_progress" && *n == 1), "the erase deletes it: {receipt:?}");
         assert!(db.load_player_progress("e11e").unwrap().is_none(), "nothing of it is left");
         assert!(db.load_player_progress("f00d").unwrap().is_some(), "another player keeps theirs");
+    }
+
+    /// Review of BUG-135 option 2, finding 16: a device that was offline during an erase is
+    /// told whether it finished, read from what is left. A finished erase leaves nothing the
+    /// check reads; mail other people send the key afterwards does not count; a row the
+    /// erase failed to delete (here a message, put back by hand) does.
+    ///
+    /// Seen red 2026-10-04 with `erase_left_rows` answering false whatever was left: "an
+    /// account that was never erased has rows" (its first assertion).
+    #[test]
+    fn what_an_erase_left_is_read_from_the_tables_it_erases() {
+        let db = test_storage();
+        db.register_name("Gil", "9111").unwrap();
+        db.join_server("9111", "Gil").unwrap();
+        db.save_player_progress("9111", None, &[], 10, 0).unwrap();
+        assert!(db.erase_left_rows("9111"), "an account that was never erased has rows");
+        let receipt = db.delete_account("9111", "Gil");
+        assert!(!receipt.iter().any(|(l, _)| l.ends_with("_FAILED")), "{receipt:?}");
+        assert!(!db.erase_left_rows("9111"), "a finished erase was read as unfinished");
+        db.mailbox_put("9111", "sealed mail from someone else, after the erase").unwrap();
+        assert!(!db.erase_left_rows("9111"), "mail that arrived after the erase counted as left over");
+        db.with_conn(|c| {
+            c.execute(
+                "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, raw_json) VALUES ('chat', '9111', 'Gil', 'hi', 1, '{}')",
+                [],
+            )
+        })
+        .unwrap();
+        assert!(db.erase_left_rows("9111"), "a row the erase left was not seen");
+    }
+
+    /// `erase_left_rows` reads every table `delete_account` erases by key, with the same
+    /// column, except the mailbox (mail keeps arriving after an erase). Read from the source,
+    /// so a table added to the erase and not to the check fails here.
+    ///
+    /// Seen red 2026-10-04 with the `player_progress` line taken out of `erase_left_rows`:
+    /// "erase_left_rows does not read what delete_account erases: [\"FROM player_progress
+    /// WHERE public_key = ?1\"]".
+    #[test]
+    fn the_left_rows_check_covers_every_table_the_erase_deletes_by_key() {
+        let src = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/relay/storage/account.rs")).unwrap();
+        let src = src.replace("
+", "
+"); // a Windows checkout
+        let del_start = src.find("pub fn delete_account").unwrap();
+        let check_start = src.find("pub fn erase_left_rows").unwrap();
+        let erase = &src[del_start..check_start];
+        let check = &src[check_start..src[check_start..].find("\n    }\n").map(|i| check_start + i).unwrap()];
+        let mut wanted = Vec::new();
+        for line in erase.lines().filter(|l| l.trim_start().starts_with("del(")) {
+            let Some(at) = line.find("\"DELETE FROM ") else { continue };
+            let stmt = &line[at + "\"DELETE FROM ".len()..];
+            let stmt = &stmt[..stmt.find('"').unwrap()];
+            // By key (?1 bound to &key) or by the plot owner (bound to &plot_owner, ?2 in the
+            // check); not by name, not through a subquery.
+            let by_key = line.contains("&[&key]") && !stmt.contains("SELECT");
+            let by_owner = line.contains("&[&plot_owner]");
+            if (by_key || by_owner) && !stmt.starts_with("dm_mailbox ") {
+                let expect = if by_owner { stmt.replace("?1", "?2") } else { stmt.to_string() };
+                wanted.push(format!("FROM {expect}"));
+            }
+        }
+        assert!(wanted.len() >= 15, "the scan found only {} statements: {wanted:?}", wanted.len());
+        let missing: Vec<&String> = wanted.iter().filter(|w| !check.contains(w.as_str())).collect();
+        assert!(missing.is_empty(), "erase_left_rows does not read what delete_account erases: {missing:?}");
     }
 }

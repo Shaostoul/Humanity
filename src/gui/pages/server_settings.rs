@@ -2203,10 +2203,12 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         widgets::body_hint(
             ui, theme,
             "When someone erases their account here, the server remembers that it was erased, \
-             as a one-way fingerprint of the key and the day, nothing else, so their other \
-             devices do not sign them up again by themselves. After this many days the entry \
-             is deleted, and the list never holds more than the number below: when full, the \
-             oldest go first. People read the number of days before they erase.",
+             as a one-way fingerprint of the key, the day and this number of days, nothing \
+             else, so their other devices do not sign them up again by themselves. People read \
+             the number before they erase, so a longer number applies only to erases made after \
+             you change it, while a shorter one applies to every entry at once. Entries past \
+             their days are deleted, and the list never holds more than the number below (when \
+             full, the oldest go first); saving here applies both straight away.",
         );
         let (ttl_min, ttl_max) = crate::relay::storage::ERASED_ACCOUNTS_TTL_DAYS_RANGE;
         let (cap_min, cap_max) = crate::relay::storage::ERASED_ACCOUNTS_CAP_RANGE;

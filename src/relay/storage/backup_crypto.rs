@@ -38,21 +38,55 @@ pub fn load_or_create_key(dir: &Path) -> Option<[u8; 32]> {
 /// The same for any 32-byte machine-local secret kept beside the live database under the
 /// file name `file`: the backup key above, and the erased-accounts fingerprint secret
 /// (storage/erased_accounts.rs, 2026-10-04). One implementation, so both are created, kept
-/// private (0600 on unix) and refused when damaged the same way.
+/// private (0600 on unix) and refused when damaged the same way. None when the file is
+/// unusable; `load_named_key` says which case it was.
 pub fn load_or_create_named_key(dir: &Path, file: &str) -> Option<[u8; 32]> {
+    load_named_key(dir, file).0
+}
+
+/// What `load_named_key` found in the key file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeyFile {
+    /// Read from the file.
+    Loaded,
+    /// There was none: one was made now.
+    Created,
+    /// There is one but it is not a usable key (the wrong length, as a crash in the middle of
+    /// a non-atomic write could leave it), or it could not be read, or a new one could not be
+    /// written. A file that is there is NEVER overwritten: for the backup key that would make
+    /// every backup sealed with the old key unreadable, so the operator decides. The caller
+    /// reports this (the erased-accounts secret: /health and `just brief`), so it is not
+    /// only a line in a log that every restart repeats.
+    Unusable,
+}
+
+/// Load the key in `dir/file`, or create it when there is none. Created atomically (review
+/// of BUG-135 option 2, 2026-10-04): written whole to `<file>.tmp`, flushed, then renamed into
+/// place, so a crash or a full disk mid-write leaves no key file at all (the next start makes
+/// one) rather than a short one that every later start refuses.
+pub fn load_named_key(dir: &Path, file: &str) -> (Option<[u8; 32]>, KeyFile) {
     let path = dir.join(file);
-    if let Ok(bytes) = std::fs::read(&path) {
-        if bytes.len() == 32 {
+    match std::fs::read(&path) {
+        Ok(bytes) if bytes.len() == 32 => {
             let mut k = [0u8; 32];
             k.copy_from_slice(&bytes);
-            return Some(k);
+            return (Some(k), KeyFile::Loaded);
         }
-        tracing::error!(
-            "{file} at {} has wrong length ({}); refusing to overwrite it: fix or remove it manually",
-            path.display(),
-            bytes.len()
-        );
-        return None;
+        Ok(bytes) => {
+            tracing::error!(
+                "{file} at {} has wrong length ({}); refusing to overwrite it: fix or remove it manually",
+                path.display(),
+                bytes.len()
+            );
+            return (None, KeyFile::Unusable);
+        }
+        // Only a file that is not there is made. Any other read error (a permission, a lock)
+        // must not lead to a new key written over a good one.
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+            tracing::error!("could not read {file} at {}: {e}; leaving it as it is", path.display());
+            return (None, KeyFile::Unusable);
+        }
+        Err(_) => {}
     }
     // Generate. AeadCore::generate_nonce is the vetted entropy path this
     // crate already links; two nonces + a bit of key stretching would be
@@ -63,17 +97,40 @@ pub fn load_or_create_named_key(dir: &Path, file: &str) -> Option<[u8; 32]> {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    if let Err(e) = std::fs::write(&path, k) {
+    if let Err(e) = write_key_atomically(&path, &k) {
         tracing::error!("could not write {file} at {}: {e}", path.display());
-        return None;
+        return (None, KeyFile::Unusable);
     }
+    tracing::info!("{file} created at {}", path.display());
+    (Some(k), KeyFile::Created)
+}
+
+/// Write `k` to `<path>.tmp` (private from the start on unix), flush it to the disk, and
+/// rename it to `path`. The rename is the only step that makes the key file exist, so it is
+/// either all 32 bytes or not there.
+fn write_key_atomically(path: &Path, k: &[u8; 32]) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut tmp = path.as_os_str().to_owned();
+    tmp.push(".tmp");
+    let tmp = PathBuf::from(tmp);
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let mut f = opts.open(&tmp)?;
+    f.write_all(k)?;
+    f.sync_all()?;
+    drop(f);
+    std::fs::rename(&tmp, path)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
     }
-    tracing::info!("{file} created at {}", path.display());
-    Some(k)
+    Ok(())
 }
 
 /// Encrypt `plain_path` into `enc_path` (nonce ‖ ciphertext).
@@ -150,6 +207,41 @@ mod tests {
         let out = dir.join("restored.db");
         decrypt_file(&k1, &enc, &out).unwrap();
         assert_eq!(std::fs::read(&out).unwrap(), b"pretend sqlite bytes with PII inside");
+    }
+
+    /// Review of BUG-135 option 2, finding 7: a key file left short (a crash or a full disk in
+    /// the middle of a plain write) made every later start log one line and carry on with a
+    /// throwaway secret, so each restart forgot every remembered erase and nothing said so
+    /// anywhere a person would look. Now: such a file is reported as Unusable on every start,
+    /// and never overwritten (for the backup key that would strand every backup sealed with
+    /// it); and a new key is written whole or not at all, with no `.tmp` left behind.
+    ///
+    /// Seen red 2026-10-04 with a wrong-length file returned as Loaded with zero bytes padded
+    /// in: "assertion `left == right` failed: a damaged key file was not reported / left:
+    /// Loaded / right: Unusable".
+    #[test]
+    fn a_short_key_file_is_reported_not_silently_replaced_each_start() {
+        let dir = tmp_dir("shortkey");
+        std::fs::write(dir.join("erased-accounts.key"), b"short").unwrap();
+        for start in 0..2 {
+            let (key, state) = load_named_key(&dir, "erased-accounts.key");
+            assert_eq!(state, KeyFile::Unusable, "a damaged key file was not reported");
+            assert!(key.is_none(), "start {start} used a key from a damaged file");
+            assert_eq!(std::fs::read(dir.join("erased-accounts.key")).unwrap(), b"short", "the damaged file was overwritten");
+        }
+        // A missing one is created whole, atomically, and then loaded as it is.
+        let fresh = tmp_dir("freshkey");
+        let (made, state) = load_named_key(&fresh, "erased-accounts.key");
+        assert_eq!(state, KeyFile::Created);
+        assert_eq!(std::fs::read(fresh.join("erased-accounts.key")).unwrap().len(), 32);
+        assert!(!fresh.join("erased-accounts.key.tmp").exists(), "the temporary file was left behind");
+        let (again, state) = load_named_key(&fresh, "erased-accounts.key");
+        assert_eq!((again, state), (made, KeyFile::Loaded), "the key was not kept");
+        // A temporary file left by a crash mid-write does not stop the next start.
+        let crashed = tmp_dir("crashedkey");
+        std::fs::write(crashed.join("erased-accounts.key.tmp"), b"half").unwrap();
+        let (k, state) = load_named_key(&crashed, "erased-accounts.key");
+        assert!(k.is_some() && state == KeyFile::Created, "a leftover .tmp blocked creating the key");
     }
 
     #[test]

@@ -44,6 +44,8 @@ use crate::gui::GuiPage;
 /// panels, and starting the reconnect countdown. The countdown itself still
 /// ticks in the frame loop (it needs `dt`).
 pub(crate) fn poll_relay_messages(state: &mut EngineState) {
+    // The server's settings, asked for once the sign-in has completed (gui/connections.rs).
+    state.gui_state.ask_server_settings_once();
     // ── Poll WebSocket messages from relay server ──
     let mut ws_dropped = false;
     if let Some(ref mut ws) = state.gui_state.ws_client {
@@ -433,28 +435,10 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                             }
                         }
                     }
-                    Some("server_settings_state") => {
-                        // v0.200.0: relay broadcasts current server-wide
-                        // settings (per-role char limits, sharing toggles,
-                        // etc.). Cache them so the admin UI can show
-                        // current values + non-admin clients know what
-                        // limits apply to their messages.
-                        if let Some(s) = val.get("settings") {
-                            match serde_json::from_value::<crate::relay::storage::ServerSettings>(s.clone()) {
-                                Ok(settings) => {
-                                    log::info!(
-                                        "Server settings updated (max_chars: u={} v={} m={} a={})",
-                                        settings.max_chars_unverified, settings.max_chars_verified,
-                                        settings.max_chars_mod, settings.max_chars_admin
-                                    );
-                                    state.gui_state.server_settings = Some(settings);
-                                }
-                                Err(e) => {
-                                    log::warn!("Failed to parse server_settings_state: {e}");
-                                }
-                            }
-                        }
-                    }
+                    // v0.200.0: the server-wide settings (per-role char limits, sharing
+                    // toggles, the erase window, ...), cached for the admin UI and the limits
+                    // that apply to our messages (gui/connections.rs).
+                    Some("server_settings_state") => state.gui_state.on_server_settings_state(&val),
                     Some("role_list") => {
                         // v0.241 (roles Phase R2): relay sends the full
                         // role list on connect + after any role change.
@@ -1646,6 +1630,8 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
         state.gui_state.game_bans_requested = false;
         // And the Backups panel (v0.938).
         state.gui_state.backup_list_requested = false;
+        // And the server's settings, if the answer to the last request never arrived.
+        state.gui_state.server_settings_requested = false;
         if !state.gui_state.ws_manually_disconnected {
             log::info!("WebSocket disconnected, will reconnect in {}s (attempt {})",
                 state.gui_state.ws_reconnect_delay as u32,

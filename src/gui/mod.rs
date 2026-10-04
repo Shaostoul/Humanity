@@ -2450,10 +2450,15 @@ pub struct GuiState {
     /// haven't received the state yet (during initial connect, before
     /// any modify happens). UI uses defaults until populated.
     pub server_settings: Option<crate::relay::storage::ServerSettings>,
-    /// True once Settings > Account asked this server for its settings (it needs the real
-    /// number of days an erase is remembered, BUG-135), so it asks once, not every frame.
-    /// Reset with `server_settings` on a server switch (gui/connections.rs).
+    /// True once this connection asked the server for its settings (gui/connections.rs
+    /// `ask_server_settings_once`, after the sign-in completes), so it asks once, not every
+    /// frame. Reset with `server_settings` on a server switch, and when the socket drops.
     pub server_settings_requested: bool,
+    /// How many days the active server remembers an erased account (BUG-135), exactly as the
+    /// server sent it in `server_settings_state`; None when it has not, which includes a relay
+    /// too old to have the setting. Settings > Account says the sentence only when this is
+    /// known (review finding 6): a client must not promise what a server may not do.
+    pub erase_memory_days: Option<i64>,
     /// All role definitions, from the relay's `role_list` WS broadcast
     /// (sent on connect + after any role change). Drives the user-modal
     /// role dropdown + badge colors. Empty until the first broadcast.
@@ -3855,6 +3860,7 @@ impl Default for GuiState {
             dm_fetch_sent: false,
             server_settings: None,
             server_settings_requested: false,
+            erase_memory_days: None,
             chat_roles: Vec::new(),
             service_state: Vec::new(),
             roles_drafts: std::collections::HashMap::new(),

@@ -193,6 +193,7 @@ impl GuiState {
         self.chat_muted_users.clear();
         self.server_settings = None;
         self.server_settings_requested = false;
+        self.erase_memory_days = None;
         self.server_settings_draft = None;
         self.chat_typing_users.clear();
         self.history_rx = None;
@@ -307,6 +308,48 @@ impl GuiState {
         self.forget_account_erased(url);
         chosen
     }
+
+    /// The relay's `server_settings_state` (sent after `server_settings_request`, and to
+    /// everyone after an admin's change): cached for the admin page and the message limits.
+    /// The erase window is read from the RAW frame, never from the parsed settings, whose
+    /// missing fields are filled with defaults: an older relay that has no such setting would
+    /// otherwise be shown promising "30 days" it does not keep (review finding 6).
+    pub fn on_server_settings_state(&mut self, frame: &serde_json::Value) {
+        let Some(s) = frame.get("settings") else { return };
+        self.erase_memory_days = s.get("erased_accounts_ttl_days").and_then(|v| v.as_i64()).filter(|d| *d > 0);
+        match serde_json::from_value::<crate::relay::storage::ServerSettings>(s.clone()) {
+            Ok(settings) => {
+                log::info!(
+                    "Server settings updated (max_chars: u={} v={} m={} a={})",
+                    settings.max_chars_unverified, settings.max_chars_verified,
+                    settings.max_chars_mod, settings.max_chars_admin
+                );
+                self.server_settings = Some(settings);
+            }
+            Err(e) => log::warn!("Failed to parse server_settings_state: {e}"),
+        }
+    }
+
+    /// Ask the active server for its settings once this connection has signed in, while they
+    /// are not known (engine/frame_ws_poll.rs calls it every frame). Asking at connect, before
+    /// the identify handshake finished, never worked: the relay drops every message other than
+    /// the identify until it has bound the socket (review finding 14), so Settings > Account
+    /// and the Server Settings page went without the settings for the whole session.
+    pub fn ask_server_settings_once(&mut self) {
+        if !should_ask_server_settings(self.ws_identified, self.server_settings.is_some(), self.server_settings_requested) {
+            return;
+        }
+        if let Some(ref client) = self.ws_client {
+            client.send(&serde_json::json!({ "type": "server_settings_request" }).to_string());
+            self.server_settings_requested = true;
+        }
+    }
+}
+
+/// `ask_server_settings_once`'s decision: only on a signed-in connection, only while the
+/// settings are unknown, and once. Pure.
+pub(crate) fn should_ask_server_settings(identified: bool, known: bool, asked: bool) -> bool {
+    identified && !known && !asked
 }
 
 #[cfg(all(test, feature = "native"))]

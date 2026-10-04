@@ -436,13 +436,19 @@ pub(crate) struct ServerFollow {
 
 /// `prev`: the server the last frame talked to (empty on the first frame); `now`: this
 /// frame's; `joined`: we are in the shared world (on `prev`); `identified`: this frame's
-/// connection has finished its handshake. Pure; the third review of 1b found a click on a
+/// connection has finished its handshake; `erased_here`: this identity's account on `now` was
+/// erased (gui/connections.rs `account_erased_here`), so there is no connection being made
+/// afresh, only one that will not be made until the person presses Connect. Review of BUG-135
+/// option 2, finding 13: a device that was offline during the erase is told so when it next
+/// connects, and its socket is never signed in, so `identified` stays false; taking that for a
+/// fresh connection cleared the in-world sentence that says how to come back one frame after it
+/// was set. Pure; the third review of 1b found a click on a
 /// saved server swapped in its live background connection in one frame, so the game never
 /// left the first server and never joined the second, while its updates went to a relay that
 /// held nothing for it.
-pub(crate) fn server_follow(prev: &str, now: &str, joined: bool, identified: bool) -> ServerFollow {
+pub(crate) fn server_follow(prev: &str, now: &str, joined: bool, identified: bool, erased_here: bool) -> ServerFollow {
     let switched = !prev.is_empty() && prev != now;
-    ServerFollow { leave_on: (switched && joined).then(|| prev.to_string()), clear_refusal: switched || !identified }
+    ServerFollow { leave_on: (switched && joined).then(|| prev.to_string()), clear_refusal: switched || (!identified && !erased_here) }
 }
 
 /// Every frame, before the co-presence block (lib.rs): follow the server the game talks to.
@@ -452,7 +458,8 @@ pub(crate) fn server_follow(prev: &str, now: &str, joined: bool, identified: boo
 /// server and its welcome is an arrival.
 pub(crate) fn follow_server(state: &mut EngineState) {
     let now = active_server_key(&state.gui_state);
-    let f = server_follow(&state.copresence_server, &now, state.game_joined, state.gui_state.ws_identified);
+    let erased_here = state.gui_state.account_erased_here(&state.gui_state.server_url);
+    let f = server_follow(&state.copresence_server, &now, state.game_joined, state.gui_state.ws_identified, erased_here);
     if let Some(old) = &f.leave_on {
         let parked = state.gui_state.connections.iter().find(|c| &c.url == old).and_then(|c| c.ws.as_ref());
         if let Some(ws) = parked.filter(|w| w.is_connected()) {
@@ -1748,12 +1755,29 @@ mod tests {
     #[test]
     fn switching_servers_leaves_the_one_we_joined_and_a_fresh_connection_tries_again() {
         let (a, b) = ("https://a.example", "https://b.example");
-        let f = server_follow(a, b, true, true);
+        let f = server_follow(a, b, true, true, false);
         assert_eq!(f, ServerFollow { leave_on: Some(a.into()), clear_refusal: true }, "a switch while joined leaves the server we joined on: {f:?}");
-        assert_eq!(server_follow(a, b, false, true), ServerFollow { leave_on: None, clear_refusal: true }, "a switch tries the new server again");
-        assert_eq!(server_follow(a, a, true, true), ServerFollow { leave_on: None, clear_refusal: false }, "the same server, connected: nothing");
-        assert_eq!(server_follow(a, a, false, false), ServerFollow { leave_on: None, clear_refusal: true }, "a connection made afresh tries again");
-        assert_eq!(server_follow("", a, false, true), ServerFollow { leave_on: None, clear_refusal: false }, "the first frame is no switch");
+        assert_eq!(server_follow(a, b, false, true, false), ServerFollow { leave_on: None, clear_refusal: true }, "a switch tries the new server again");
+        assert_eq!(server_follow(a, a, true, true, false), ServerFollow { leave_on: None, clear_refusal: false }, "the same server, connected: nothing");
+        assert_eq!(server_follow(a, a, false, false, false), ServerFollow { leave_on: None, clear_refusal: true }, "a connection made afresh tries again");
+        assert_eq!(server_follow("", a, false, true, false), ServerFollow { leave_on: None, clear_refusal: false }, "the first frame is no switch");
+    }
+
+    /// Review of BUG-135 option 2, finding 13: a device that was offline during the erase is
+    /// told so when it next connects (the relay's `account_erased` with `earlier`), its socket
+    /// is never signed in, and the game shows the sentence saying how to come back. That
+    /// server is erased here, not being connected afresh, so the sentence stays; a switch
+    /// away from it still clears it, and once the person pressed Connect (the erase is
+    /// forgotten here) a fresh connection tries again.
+    ///
+    /// Seen red 2026-10-04 with `erased_here` ignored (the old rule): "the erased-earlier
+    /// sentence was cleared one frame after it was set".
+    #[test]
+    fn an_erased_server_keeps_its_sentence_until_the_person_comes_back() {
+        let (a, b) = ("https://a.example", "https://b.example");
+        assert!(!server_follow(a, a, false, false, true).clear_refusal, "the erased-earlier sentence was cleared one frame after it was set");
+        assert!(server_follow(a, b, false, false, true).clear_refusal, "a switch away still clears it");
+        assert!(server_follow(a, a, false, false, false).clear_refusal, "after Connect, a fresh connection tries again");
     }
 
     /// FINDINGS 7 and 14 of the third review: each refusal is one plain sentence (the design's

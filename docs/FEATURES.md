@@ -370,11 +370,14 @@ off the admin role first. Works regardless of server feature toggles.
 - Native: Settings -> Account -> "Your data"; export lands in `%APPDATA%/HumanityOS/exports/`
 - Web: identity block buttons (`web/chat/chat-privacy.js`)
 - Server: `src/relay/storage/account.rs`
-- After an erase (BUG-135, 2026-10-04): the server remembers for a limited time that the
-  account was erased (a one-way keyed fingerprint of the key and the day; default 30 days,
-  at most 100,000 entries, both in Server Settings), so the account's other devices are told
+- After an erase (BUG-135, 2026-10-04): the server remembers for up to a set number of days
+  that the account was erased (a one-way keyed fingerprint of the key, the day, and the
+  window promised then; default 30 days, at most 100,000 entries, both in Server Settings,
+  a longer window never stretching earlier entries), so the account's other devices are told
   and not signed up again by themselves; Connect (native) or Enter (web) under the erase
-  note signs up again. `src/relay/storage/erased_accounts.rs`, `src/relay/handlers/sign_ups.rs`
+  note signs up again. One expiry pass culls it with the DM mailbox and message retention
+  (start, every 6 h, after a settings change). `src/relay/storage/erased_accounts.rs`,
+  `src/relay/storage/expiry.rs`, `src/relay/handlers/sign_ups.rs`
 
 ### Upload Metadata Stripping (server, 2026-08-23)
 Every uploaded JPEG/PNG/WebP is stripped of EXIF/XMP/IPTC/text metadata before

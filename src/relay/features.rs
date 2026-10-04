@@ -2224,6 +2224,21 @@ mod tests {
         (sock, pubkey)
     }
 
+    /// True when the relay closed `sock` within `ms` (a close frame, an error, or the end of
+    /// the stream); false when it was still open at the deadline.
+    async fn closed_within(sock: &mut TestSocket, ms: u64) -> bool {
+        use futures::StreamExt;
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_millis(ms);
+        loop {
+            match tokio::time::timeout_at(deadline, sock.next()).await {
+                Err(_) => return false,
+                Ok(None) | Ok(Some(Err(_))) => return true,
+                Ok(Some(Ok(tokio_tungstenite::tungstenite::Message::Close(_)))) => return true,
+                Ok(Some(Ok(_))) => continue,
+            }
+        }
+    }
+
     /// Erase `name`'s account from its socket and wait until the relay has erased it.
     async fn erase_and_wait(state: &std::sync::Arc<crate::relay::relay::RelayState>, sock: &mut TestSocket, key: &str, name: &str) {
         send_json(sock, serde_json::json!({ "type": "account_delete", "confirm_name": name })).await;
@@ -2240,7 +2255,9 @@ mod tests {
     /// Seen red 2026-10-04 with the identify gate taken out of relay.rs (`if false && ...`):
     /// "the reconnecting device was never told the account was erased here: [Object
     /// {\"peers\": ..." (the frames were the signed-in welcome: peer_list, full_user_list,
-    /// channel_list, ..., and a member_joined for the erased name: signed up again).
+    /// channel_list, ..., and a member_joined for the erased name: signed up again). And
+    /// with the relay answering but leaving the socket open (`continue`, as on c0c04fc39;
+    /// review finding 10): "the relay left the refused socket open".
     #[tokio::test]
     async fn an_erased_account_reconnecting_from_another_device_is_not_signed_up_again() {
         let path = plots_db("erased_reconnect");
@@ -2266,9 +2283,10 @@ mod tests {
         assert_eq!(state.db.name_for_key(&key).unwrap(), None, "the name was registered again");
         assert!(!state.db.is_member(&key), "a member row was made again");
         assert_eq!(live_count(&state, &key).await, 0, "the socket signed in");
-        // A game join on that socket claims nothing (it is not signed in, so it is not heard).
-        send_json(&mut later, serde_json::json!({ "type": "game_join", "player_name": "GoneFromHere", "character_mode": "local" })).await;
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        // Told, then closed at once (review finding 10): left open, the socket sat until the
+        // 30-second identify timeout, and a page that did not know the message retried. So no
+        // game join can even be sent on it.
+        assert!(closed_within(&mut later, 3000).await, "the relay left the refused socket open");
         assert!(state.game_world.read().await.find_player_entity(&key).is_none(), "the erased key was spawned");
         assert_eq!(state.db.plot_holder(&ship, &ids[0]).unwrap(), None, "a plot was claimed for the erased key");
         assert!(state.db.erased_account_remembered(&key), "an automatic reconnect never forgets the erase");

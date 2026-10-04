@@ -210,6 +210,10 @@ pub struct Storage {
     /// key, never the key), read from or created beside this database at open. See
     /// [`erased_accounts`] (BUG-135, 2026-10-04).
     pub(crate) erase_secret: [u8; 32],
+    /// False when that secret could not be read or kept (a damaged or unwritable
+    /// `erased-accounts.key`): this run uses a secret of its own, so the erases remembered now
+    /// are forgotten at the next start. Reported by /health (`erase_memory`) and `just brief`.
+    pub(crate) erase_secret_kept: bool,
 }
 
 /// Shared timestamp helper used by multiple submodules.
@@ -1207,13 +1211,16 @@ impl Storage {
         // ── Erased accounts, remembered for a while (2026-10-04, BUG-135) ──
         // Its own batch with every column in the CREATE (the BUG-046 rule: nothing here
         // depends on an ALTER-added column). One row per key that erased its account here:
-        // a one-way keyed fingerprint of the key and the DAY of the erase, nothing else.
-        // WITHOUT ROWID, so not even the order of erases within one day is kept. Culled by
-        // age and by a cap (storage/erased_accounts.rs).
+        // a one-way keyed fingerprint of the key, the DAY of the erase, and the window in days
+        // in force then (the number the person read before deciding: a longer window set
+        // later never extends it). Nothing else. WITHOUT ROWID, so not even the order of
+        // erases within one day is kept. Culled by age and by a cap
+        // (storage/erased_accounts.rs).
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS erased_accounts (
                 fingerprint TEXT PRIMARY KEY,
-                erased_day  INTEGER NOT NULL
+                erased_day  INTEGER NOT NULL,
+                ttl_days    INTEGER NOT NULL
             ) WITHOUT ROWID;
             CREATE INDEX IF NOT EXISTS idx_erased_accounts_day ON erased_accounts(erased_day);"
         )?;
@@ -2314,8 +2321,8 @@ impl Storage {
         let read_pool = pool::build_read_pool(path)?;
 
         info!("Database opened: {}", path.display());
-        let erase_secret = erased_accounts::load_secret(path);
-        Ok(Self { conn: Mutex::new(conn), read_pool, erase_secret })
+        let (erase_secret, erase_secret_kept) = erased_accounts::load_secret(path);
+        Ok(Self { conn: Mutex::new(conn), read_pool, erase_secret, erase_secret_kept })
     }
 }
 
@@ -2330,6 +2337,7 @@ pub mod account;
 pub mod backup_crypto;
 pub mod backups;
 pub mod erased_accounts;
+mod expiry;
 mod board;
 mod channels;
 mod dms;

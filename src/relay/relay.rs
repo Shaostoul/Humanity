@@ -2726,8 +2726,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     // person pressed Connect or Enter (BUG-135). Then the per-IP cap on NEW
                     // identities (v0.280.0 anti-spam), which a key told it was erased never uses.
                     if crate::relay::handlers::sign_ups::erased_at_identify(&state, &pending.public_key, pending.sign_up_again) {
-                        let _ = ws_tx.send(Message::Text(crate::relay::handlers::sign_ups::erased_here_frame(&pending.public_key).into())).await;
-                        continue;
+                        crate::relay::handlers::sign_ups::tell_erased_and_close(&mut ws_tx, &state, &pending.public_key).await;
+                        return;
                     }
                     if crate::relay::handlers::sign_ups::new_identity_capped(&state, &client_ip, &pending.public_key) {
                         let err = RelayMessage::System { message: crate::relay::handlers::sign_ups::NEW_IDENTITY_CAP_SENTENCE.to_string() };
@@ -2825,10 +2825,13 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         continue;
                                     }
                                 }
-                                if let Err(e) = state.db.register_name(name, &public_key) {
-                                    tracing::error!("Failed to register name: {e}");
+                                // Checked and written in one step: an erase that landed after the
+                                // identify's check still wins (handlers/sign_ups.rs, BUG-135).
+                                match state.db.register_name_unless_erased(name, &public_key) {
+                                    Ok(true) => info!("Name '{name}' registered to {public_key}"),
+                                    Ok(false) => { crate::relay::handlers::sign_ups::tell_erased_and_close(&mut ws_tx, &state, &public_key).await; return; }
+                                    Err(e) => tracing::error!("Failed to register name: {e}"),
                                 }
-                                info!("Name '{name}' registered to {public_key}");
                             }
                             Ok(Some(true)) => {
                                 // Key is authorized for this name — all good.
@@ -2940,7 +2943,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                         let _ = state.db.update_member_name(&public_key, member_name);
                     } else {
                         // New member — auto-join and broadcast.
-                        if let Ok(true) = state.db.join_server(&public_key, member_name) {
+                        if let Ok(true) = state.db.join_server_unless_erased(&public_key, member_name) {
                             info!("Auto-joined member: {public_key} as '{member_name}'");
                             let _ = state.broadcast_tx.send(RelayMessage::MemberJoined {
                                 public_key: public_key.clone(),
@@ -5835,6 +5838,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     if let Some(v) = erased_accounts_cap { current.erased_accounts_cap = v.clamp(CAP.0, CAP.1); }
                                     match state_clone.db.set_server_settings(&current, &my_key_for_recv) {
                                         Ok(true) => {
+                                            state_clone.db.run_expiry_sweeps(); // a lowered window or cap holds at once (storage/expiry.rs)
                                             // Broadcast new state to everyone.
                                             let _ = state_clone.broadcast_tx.send(
                                                 RelayMessage::ServerSettingsState { settings: current }

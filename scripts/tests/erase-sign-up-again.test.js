@@ -80,7 +80,9 @@ function fakeSocket() {
 }
 
 function loadChat(storage) {
+  const timers = [];
   const ctx = {
+    __timers: timers,
     console: { log() {}, warn() {}, error() {}, info() {}, debug() {} },
     document: fakeDocument(),
     navigator: anything(),
@@ -88,7 +90,9 @@ function loadChat(storage) {
     localStorage: storage || fakeStorage(),
     sessionStorage: fakeStorage(),
     fetch: () => Promise.reject(new Error("no network in tests")),
-    setTimeout: () => 0,
+    // Timers are kept, not run, so a test can run the one it means (the load-time
+    // auto-connect, scheduleReconnect's redial) exactly when it chooses.
+    setTimeout: (fn) => { timers.push(fn); return timers.length; },
     clearTimeout: () => {},
     setInterval: () => 0,
     clearInterval: () => {},
@@ -192,16 +196,132 @@ test("an earlier erase told by the server brings the note back, and Enter then s
 
 // The sentence before the erase: the real number of days, the same words as native
 // (src/relay/storage/erased_accounts.rs `erase_memory_sentence`, whose test pins this text).
+// It names the backups (review finding 2: "after that nothing of it is left" was not true of
+// them), and says nothing at all when the server's number is unknown (finding 6: a promise
+// about a server that may not keep it is worse than none).
 //
-// Seen red 2026-10-04 with the days replaced by 'for a while': "Expected values to be
-// strictly equal".
-test("the erase sentence names the server's days in the native words", () => {
+// Seen red 2026-10-04 on c0c04fc39 (the old sentence): "Expected values to be strictly
+// equal" ('... after that nothing of it is left.' against the new words).
+test("the erase sentence names the server's days in the native words, and the backups", () => {
   const ctx = loadChat();
   const say = vm.runInContext("eraseMemorySentence", ctx);
   assert.strictEqual(
     say(30),
-    "After the erase this server remembers for 30 days that this account was erased, as a one-way fingerprint that is not your name or your data, so your other devices do not sign you up again by themselves; after that nothing of it is left."
+    "After the erase this server remembers for up to 30 days that this account was erased, as a one-way fingerprint that is not your name or your data, so your other devices do not sign you up again by themselves; then the entry is deleted here, and a copy of it in this server's backups lasts until that backup is deleted."
   );
-  assert.match(say(1), /for 1 day that/);
-  assert.match(say(null), /30 unless its admin changed it/);
+  assert.match(say(1), /for up to 1 day that/);
+  assert.strictEqual(say(null), "", "a sentence was promised with no number from the server");
+  assert.strictEqual(say(0), "");
+});
+
+// Review finding 17: drive the page's own automatic paths, not openSocket() by hand. The
+// redial scheduleReconnect sets after a drop, and the auto-connect a reload makes when a name
+// is saved, never say sign_up_again, even right after the person's Enter said it, or with the
+// erase note's flag still set.
+//
+// Seen red 2026-10-04 with scheduleReconnect's redial changed to openSocket({ signUpAgain:
+// true }): "the redial after a drop said sign_up_again".
+test("the automatic redial and the reload's auto-connect never say sign_up_again", async () => {
+  const storage = fakeStorage();
+  storage.setItem(ERASED_FLAG, "erased");
+  const ctx = loadChat(storage);
+  const identify = await connectAndIdentify(ctx, "enter");
+  assert.strictEqual(identify.sign_up_again, true);
+
+  // The network drops: the page's own onclose schedules the redial; run it.
+  const first = vm.runInContext("ws", ctx);
+  first.readyState = 3;
+  const before = ctx.__timers.length;
+  first.onclose();
+  assert.ok(ctx.__timers.length > before, "a drop scheduled no redial");
+  ctx.__timers[ctx.__timers.length - 1]();
+  const redial = vm.runInContext("ws", ctx);
+  assert.notStrictEqual(redial, first, "the redial opened a new socket");
+  redial.onopen();
+  const again = redial.sent.find((m) => m.type === "identify");
+  assert.ok(again, "the redial identified");
+  assert.ok(!("sign_up_again" in again), "the redial after a drop said sign_up_again");
+
+  // A reload with a saved name connects by itself (app.js, at load): never the choice.
+  const reloaded = fakeStorage();
+  reloaded.setItem("humanity_name", "Ada");
+  reloaded.setItem(ERASED_FLAG, "erased");
+  const page = loadChat(reloaded);
+  assert.ok(page.__timers.length > 0, "a saved name scheduled no auto-connect");
+  await page.__timers[0]();
+  const sock = vm.runInContext("ws", page);
+  assert.ok(sock, "the auto-connect opened a socket");
+  sock.onopen();
+  const auto = sock.sent.find((m) => m.type === "identify");
+  assert.ok(auto, "the auto-connect identified");
+  assert.ok(!("sign_up_again" in auto), "a reload's auto-connect said sign_up_again");
+});
+
+// Review finding 17: the number of days is read from the server's real answer. The field
+// name is the one the relay serializes (src/relay/api.rs ServerInfoResponse), so a rename on
+// either side fails here instead of silently falling back.
+//
+// Seen red 2026-10-04 with eraseMemoryDays reading `info.erase_days`: "Expected values to be
+// strictly equal" (null, not 12).
+test("the erase dialog reads the days from /api/server-info's real field", async () => {
+  const api = fs.readFileSync(path.join(__dirname, "..", "..", "src", "relay", "api.rs"), "utf8");
+  const struct = api.slice(api.indexOf("pub struct ServerInfoResponse"));
+  assert.match(struct.slice(0, struct.indexOf("\n}")), /pub erased_accounts_ttl_days: i64,/, "the relay no longer sends erased_accounts_ttl_days");
+  const ctx = loadChat();
+  let asked = null;
+  ctx.fetch = async (url) => { asked = url; return { ok: true, json: async () => ({ name: "x", erased_accounts_ttl_days: 12 }) }; };
+  const days = await vm.runInContext("eraseMemoryDays", ctx)();
+  assert.strictEqual(asked, "/api/server-info");
+  assert.strictEqual(days, 12);
+  ctx.fetch = async () => ({ ok: true, json: async () => ({ name: "an older relay" }) });
+  assert.strictEqual(await vm.runInContext("eraseMemoryDays", ctx)(), null, "a relay without the field gave a number");
+});
+
+// The Tasks board signs in on its own socket. Review finding 10: it did not know
+// `account_erased`, so it kept retrying (5 s doubling to a minute) and told the person to
+// "check the connection". It is a refusal: the page says why and waits for the next click.
+//
+// Seen red 2026-10-04 on c0c04fc39: "the Tasks page did not take account_erased as a
+// refusal".
+test("the Tasks page takes account_erased as a refusal and stops retrying", async () => {
+  const timers = [];
+  const sockets = [];
+  const ctx = {
+    console: { log() {}, warn() {}, error() {}, info() {}, debug() {} },
+    document: fakeDocument(),
+    navigator: anything(),
+    location: { hash: "", host: "localhost", protocol: "https:", pathname: "/tasks", search: "" },
+    localStorage: fakeStorage(),
+    fetch: () => Promise.reject(new Error("no network in tests")),
+    setTimeout: (fn) => { timers.push(fn); return timers.length; },
+    clearTimeout: () => {},
+    WebSocket: Object.assign(function () {
+      const handlers = {};
+      const s = {
+        readyState: 1, sent: [],
+        addEventListener(t, fn) { (handlers[t] = handlers[t] || []).push(fn); },
+        send(m) { this.sent.push(JSON.parse(m)); },
+        close() { this.readyState = 3; (handlers.close || []).forEach((f) => f()); },
+        fire(t, ev) { (handlers[t] || []).forEach((f) => f(ev)); },
+      };
+      sockets.push(s);
+      return s;
+    }, { OPEN: 1, CONNECTING: 0, CLOSED: 3 }),
+    TextEncoder,
+    btoa: (s) => Buffer.from(s, "binary").toString("base64"),
+  };
+  ctx.window = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(path.join(WEB, "pages", "tasks-app.js"), "utf8"), ctx, { filename: "tasks-app.js" });
+  vm.runInContext("loadTaskIdentity = async () => ({ dilithiumPublicHex: 'ab12cd34' })", ctx);
+  assert.strictEqual(await vm.runInContext("ensureTaskWs", ctx)(), true);
+  const sock = sockets[sockets.length - 1];
+  sock.fire("open");
+  assert.ok(sock.sent.find((m) => m.type === "identify"), "the page identified");
+  const before = timers.length;
+  sock.fire("message", { data: JSON.stringify({ type: "account_erased", to: "ab12cd34", partial: false, earlier: true }) });
+  assert.match(vm.runInContext("taskWsRefusal", ctx), /erased/, "the Tasks page did not take account_erased as a refusal");
+  assert.strictEqual(sock.readyState, 3, "the refused socket was left open");
+  assert.strictEqual(timers.length, before, "the page scheduled another sign-in after the refusal");
+  assert.match(vm.runInContext("taskSignInHelp()", ctx), /erased/, "the person is not told why");
 });

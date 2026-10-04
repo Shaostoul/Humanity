@@ -154,17 +154,7 @@ impl Storage {
 
     /// Register a name for a public key.
     pub fn register_name(&self, name: &str, public_key: &str) -> Result<(), rusqlite::Error> {
-        self.with_conn(|conn| {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis() as i64;
-            conn.execute(
-                "INSERT OR IGNORE INTO registered_names (name, public_key, registered_at) VALUES (?1, ?2, ?3)",
-                params![name, public_key, now],
-            )?;
-            Ok(())
-        })
+        self.with_conn(|conn| register_name_on(conn, name, public_key))
     }
 
     /// Get the EARLIEST `registered_at` timestamp (epoch ms) for a public
@@ -327,6 +317,20 @@ impl Storage {
             Ok(())
         })
     }
+}
+
+/// The write behind `register_name`, on a connection the caller already holds, so
+/// storage/erased_accounts.rs `register_name_unless_erased` can check and write in one step.
+pub(super) fn register_name_on(conn: &rusqlite::Connection, name: &str, public_key: &str) -> Result<(), rusqlite::Error> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64;
+    conn.execute(
+        "INSERT OR IGNORE INTO registered_names (name, public_key, registered_at) VALUES (?1, ?2, ?3)",
+        params![name, public_key, now],
+    )?;
+    Ok(())
 }
 
 #[cfg(test)]

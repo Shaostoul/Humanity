@@ -265,7 +265,7 @@
     },
     {
       "name": "How long erased accounts are remembered, and how many",
-      "what": "When someone erases their account here, the server remembers that it was erased (a one-way fingerprint of their key and the day, nothing else) so their other devices do not sign them up again by themselves. Set how many days that is kept (default 30, 1 to 365) and the most entries kept at once (default 100,000; when full, the oldest go first). People read the number of days before they erase. Older entries are deleted at relay start and every six hours.",
+      "what": "When someone erases their account here, the server remembers that it was erased (a one-way fingerprint of their key, the day, and the number of days promised then, nothing else) so their other devices do not sign them up again by themselves. Set how many days that is kept (default 30, 1 to 365) and the most entries kept at once (default 100,000; when full, the oldest go first). People read the number of days before they erase, so a longer number applies only to erases made after the change, while a shorter one applies to every entry at once. Older entries are deleted at relay start, every six hours, and as soon as this is saved.",
       "where": "native-app",
       "audience": "any-admin",
       "how": "Server Settings > ADMIN > Server policy > Erased accounts: 'Remember an erase for (days)' and 'Most erased accounts remembered', then Save Changes (server_settings_update fields erased_accounts_ttl_days and erased_accounts_cap; src/gui/pages/server_settings.rs, relay src/relay/storage/erased_accounts.rs, src/relay/handlers/sign_ups.rs)."

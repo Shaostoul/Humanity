@@ -1865,7 +1865,7 @@ pub async fn handle_account_delete(state: &Arc<RelayState>, my_key: &str, confir
         .filter(|(_, n)| *n > 0)
         .map(|(label, n)| format!("{label}: {n}"))
         .collect();
-    tracing::warn!("Account erased for {}… ({})", &my_key[..12.min(my_key.len())], summary.join(", "));
+    tracing::warn!("An account was erased ({})", summary.join(", ")); // no key: the log outlives what the person was promised (sign_ups.rs)
     let _ = state.broadcast_tx.send(RelayMessage::Private {
         to: my_key.to_string(),
         message: format!(
@@ -2980,6 +2980,8 @@ pub async fn handle_game_join(
         return;
     }
     let mut world = state.game_world.write().await;
+    // Again under the lock (BUG-135): an erase records before it takes this lock, so a join whose first check raced it is refused here (sign_ups.rs).
+    if !my_key.starts_with("bot_") && state.db.erased_account_remembered(my_key) { drop(world); crate::relay::handlers::sign_ups::refused_erased_join(state, my_key).await; return; }
     // Their home on the ship (increment 1b): for a join naming this ship, the plot they hold,
     // else the first free one; else a guest spot in the Commons; at their own door
     // (game_state.rs JoinHome). Asked on a rejoin too, so every welcome names it.

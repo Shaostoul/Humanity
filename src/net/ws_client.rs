@@ -212,15 +212,9 @@ fn run_connection(
         return;
     }
 
-    // v0.200.0: ask for current server settings right after identifying
-    // so the cached state is populated before the user opens the admin
-    // page or sends a message that might exceed length limits. Anyone
-    // can request — the relay broadcasts the response publicly.
-    let req = serde_json::json!({ "type": "server_settings_request" }).to_string();
-    crate::debug::push_debug(format!("WS >>> {}", req));
-    if let Err(e) = socket.send(tungstenite::Message::Text(req)) {
-        log::warn!("WsClient: failed to request server_settings: {} (will retry on next interaction)", e);
-    }
+    // The server's settings are asked for once the identify handshake has completed
+    // (gui/connections.rs `ask_server_settings_once`). Asking here, before the challenge was
+    // answered, never worked: the relay drops everything but the identify until it binds.
 
     // Set the underlying TCP stream to non-blocking for the read/write loop
     set_nonblocking(&mut socket);

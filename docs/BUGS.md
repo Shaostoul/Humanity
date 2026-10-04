@@ -2996,13 +2996,40 @@ not signed in at all; a game join from a device still connected from before the
 erase is refused with reason `account_erased`; only the person's Connect (native)
 or Enter (web) under the erase note sends `sign_up_again`, which forgets the entry
 and signs them up again (handlers/sign_ups.rs). The person reads the real number
-of days before erasing. What remains: a device that stays offline for longer than
-the window signs up again when it next connects, as before (that is the cull the
-operator chose); the entry rides into backups until they age out; if the relay's
-`data/erased-accounts.key` is lost, old entries stop matching (and are culled on
-schedule); and a device still connected from before the erase that ignores
-`account_erased` can still write chat-side data (a message, a profile) under the
-erased key until it disconnects: only its sign-up and its game join are refused.
+of days before erasing.
+
+**Review of option 2 (2026-10-04, seventeen findings, two skeptics each).**
+Fixed: each entry keeps the window in force when it was made, so raising the
+setting later never stretches what a person was told, while lowering it shortens
+every entry at once; "for N days" became "for up to N days" and the match is
+strict, so N is never exceeded; a row dated in the future (a clock jump) is culled;
+the sentence says the backups keep a copy until each is deleted, and the log lines
+about erased accounts (including the erase's own) name no key; one expiry pass
+(`run_expiry_sweeps`, storage/expiry.rs) runs at start, every six hours and after
+every saved settings change; the relay closes a refused identify at once, and the
+Tasks page takes `account_erased` as a refusal instead of retrying; a game join
+checks the erase again under the world lock, and the name and member row are
+written only through a check made in the same step, so an erase landing between
+the identify and those writes still wins; a device that was offline is told
+whether the erase finished, read from what it left (`erase_left_rows`); the
+native in-world sentence for an earlier erase no longer clears itself a frame
+later; native asks the server for its settings once the sign-in completes (the
+request sent at connect had always been dropped), and says the sentence only when
+the server sent its number of days; the fingerprint secret is written atomically,
+and a damaged one is reported by `/health` (`erase_memory`) and `just brief`.
+
+What remains: a device that stays offline for longer than the window signs up
+again when it next connects, as before (that is the cull the operator chose); the
+entry rides into backups until each is deleted, and a "Back up now" copy has no
+age limit; if the relay's `data/erased-accounts.key` is lost, old entries stop
+matching (and are culled on schedule); a device still connected from before the
+erase that ignores `account_erased` can still write chat-side data (a message, a
+profile) under the erased key until it disconnects: only its sign-up and its game
+join are refused; and desktop apps from v0.1449.0 and older never send
+`sign_up_again`, so on a relay with this change an account erased from such an
+app can come back from it only after the window (the web is served by the relay
+and always matches it). Ship the relay and the desktop app in the same release,
+and say this in its notes.
 
 ## BUG-136: the carry limit is shown as a fixed 50 kg, and being overloaded does nothing (OPEN, found 2026-10-04)
 
