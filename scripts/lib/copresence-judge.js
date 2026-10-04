@@ -1239,9 +1239,196 @@ function figurePixels(img, nameplate = null, after = null) {
   return { count, box, centroid: count ? [sx / count, sy / count] : null };
 }
 
+// ── The crew (ship homes increment 3) ──────────────────────────────────────
+//
+// The relay's world is the ship now: its crew work the Commons and its mess hall, in the same
+// frame the game draws, and the game draws each crew member where net::sync puts them (the
+// recorder's `crew` rows: the DRAWN position, on screen or off). Until increment 3 the relay
+// simulated the Pioneer, whose rooms lie inside plot p1, and every crew figure was drawn inside
+// the home on p1.
+
+/// Is this pixel a crew member's amber body? The crew's material is (0.92, 0.62, 0.18),
+/// slightly emissive (lib.rs, "Crew NPCs"): red high, green about two thirds of it, blue low.
+/// Oak, the warm wood of the Commons' partitions ((0.55, 0.40, 0.24), data/blueprints/
+/// wall_materials.ron), has much more blue for its red, so it does not pass; nor does the
+/// players' teal.
+function isFigureAmber(r, g, b) {
+  return r > 110 && b < 0.38 * r && g > 0.45 * r && g < 0.85 * r;
+}
+
+/// Fewest amber pixels under a crew member's nameplate that count as the figure seen. Set
+/// from the first crew.png of increment 3 (see judgeCrew's `crew_seen`).
+const CREW_MIN_PX = 150;
+
+/// Count crew-amber pixels in `img` in the box under a crew member's nameplate at `nameplate`
+/// ([x, y], window pixels): 120 px either side and 400 px down (a crew figure stands up to 40 m
+/// away, where it is small). Returns { count, box }.
+function crewPixels(img, nameplate) {
+  const box = [
+    Math.max(0, Math.round(nameplate[0] - 120)),
+    Math.max(0, Math.round(nameplate[1])),
+    Math.min(img.width, Math.round(nameplate[0] + 120)),
+    Math.min(img.height, Math.round(nameplate[1] + 400)),
+  ];
+  let count = 0;
+  for (let y = box[1]; y < box[3]; y++) {
+    for (let x = box[0]; x < box[2]; x++) {
+      const i = (y * img.width + x) * 4;
+      if (isFigureAmber(img.rgba[i], img.rgba[i + 1], img.rgba[i + 2])) count++;
+    }
+  }
+  return { count, box };
+}
+
+/** Is `p` inside a box { min, max } across the floor (x and z), a centimetre of slack? */
+function inBoxXZ(p, box, tol = 0.01) {
+  return p[0] >= box.min[0] - tol && p[0] <= box.max[0] + tol && p[2] >= box.min[2] - tol && p[2] <= box.max[2] + tol;
+}
+
+/** Is `p` on a plot's floor plan (x and z; a figure over a plot at any height is on it)? */
+function onPlotXZ(p, plot, tol = 0.01) {
+  return p[0] >= plot.origin[0] - tol && p[0] <= plot.origin[0] + plot.size[0] + tol && p[2] >= plot.origin[2] - tol && p[2] <= plot.origin[2] + plot.size[2] + tol;
+}
+
+/**
+ * Judge the crew, as the game drew them (ship homes increment 3).
+ *   recordings  [{ name, frames }]: the run's recordings (the walk at home, the meeting, the
+ *               crew look). Each frame's `crew`: [{ id, name, pos }], every crew member drawn.
+ *   plots       the ship's plots ({ id, origin, size }).
+ *   commons     the Commons' box from the door points ({ min, max }).
+ *   expectCrew  how many crew the tree's data/npc/crew.ron has (the relay stands every one).
+ *   look        the crew look: the game in the Commons, facing up its east aisle toward the
+ *               mess hall. { cam: [x, y, z, yaw, pitch] (where it stood), frames (its own
+ *               recording), seen: [{ name, pos, found, pos_px, amber }] (where each crew member
+ *               was drawn when the rig looked, else the recording's first frame; the ui `find` of each drawn
+ *               crew member's nameplate, the game's own word that the name is on screen, which
+ *               the HUD hides past 40 m and behind a wall, and the amber pixels counted under
+ *               it in crew.png) }.
+ * Checks:
+ *   crew_recorded        every recording's frames carry a `crew` list: a recorder from before
+ *                        increment 3 records none, and nothing would be judged
+ *   crew_drawn           the game drew every crew member (distinct ids) at some point
+ *   crew_never_on_a_plot no crew figure in any frame of any recording stands on a plot
+ *   crew_in_the_commons  in the look's recording every crew figure stands in the Commons
+ *   crew_seen            during the look, a crew member's nameplate is on screen, its figure is
+ *                        drawn in the Commons in front of the camera, and its amber body is in
+ *                        the picture under the name (CREW_MIN_PX)
+ * Returns { pass, checks }.
+ */
+function judgeCrew({ recordings, plots, commons, expectCrew, look }) {
+  const checks = [];
+  const add = (id, ok, detail) => checks.push({ id, ok: !!ok, detail });
+  const recs = (recordings || []).filter((r) => r && Array.isArray(r.frames) && r.frames.length);
+  const missing = recs.filter((r) => !r.frames.every((f) => Array.isArray(f.crew)));
+  add(
+    "crew_recorded",
+    recs.length > 0 && missing.length === 0,
+    !recs.length
+      ? "no recording to judge"
+      : missing.length
+        ? `${missing.map((r) => r.name).join(", ")}: frames with no crew list (a recorder from before increment 3)`
+        : `${recs.length} recordings (${recs.map((r) => `${r.name} ${r.frames.length} frames`).join(", ")}), every frame with its crew`,
+  );
+  const ids = new Map();
+  let rows = 0;
+  const onPlot = [];
+  for (const r of recs) {
+    for (const f of r.frames) {
+      for (const c of f.crew || []) {
+        rows++;
+        ids.set(c.id, c.name);
+        const pos = c.pos.map(Number);
+        const pl = (plots || []).find((p) => onPlotXZ(pos, p));
+        if (pl && onPlot.length < 5) onPlot.push({ rec: r.name, t: Number(f.t), name: c.name, pos, plot: pl.id });
+        else if (pl) onPlot.push(null);
+      }
+    }
+  }
+  add(
+    "crew_drawn",
+    Number.isFinite(expectCrew) && expectCrew > 0 && ids.size >= expectCrew,
+    `the game drew ${ids.size} crew member(s) (${[...ids.values()].join(", ") || "none"}); the tree's crew.ron has ${expectCrew}`,
+  );
+  add(
+    "crew_never_on_a_plot",
+    rows > 0 && onPlot.length === 0 && Array.isArray(plots) && plots.length > 0,
+    !rows
+      ? "no crew figure was drawn, so none was judged"
+      : !Array.isArray(plots) || !plots.length
+        ? "the ship's plots are unknown"
+        : onPlot.length
+          ? `${onPlot.length} drawn crew position(s) ON A PLOT; first: ${onPlot
+              .filter(Boolean)
+              .slice(0, 3)
+              .map((o) => `${o.name} at ${fmtP(o.pos)} on ${o.plot} (${o.rec}, t ${f(o.t)} s)`)
+              .join("; ")}`
+          : `all ${rows} drawn crew positions (${ids.size} crew, ${recs.length} recordings) on no plot`,
+  );
+  const lk = look || null;
+  const lookRows = [];
+  for (const fr of (lk && lk.frames) || []) for (const c of fr.crew || []) lookRows.push({ t: Number(fr.t), name: c.name, pos: c.pos.map(Number) });
+  const outside = commons ? lookRows.filter((c) => !inBoxXZ(c.pos, commons)) : lookRows;
+  add(
+    "crew_in_the_commons",
+    !!commons && lookRows.length > 0 && outside.length === 0,
+    !lk
+      ? "the crew look never ran"
+      : !commons
+        ? "the Commons' box is unknown"
+        : !lookRows.length
+          ? "no crew figure was drawn during the look"
+          : outside.length
+            ? `${outside.length} of ${lookRows.length} drawn positions OUTSIDE the Commons; first: ${outside[0].name} at ${fmtP(outside[0].pos)}`
+            : `all ${lookRows.length} drawn positions during the look (${new Set(lookRows.map((c) => c.name)).size} crew) inside the Commons (x ${commons.min[0]}..${commons.max[0]}, z ${commons.min[2]}..${commons.max[2]})`,
+  );
+  const cam = lk && Array.isArray(lk.cam) ? lk.cam.map(Number) : null;
+  const firstFrame = lk && lk.frames && lk.frames.length ? lk.frames[0] : null;
+  const drawnAt = (name) => {
+    const row = firstFrame && (firstFrame.crew || []).find((c) => c.name === name);
+    return row ? row.pos.map(Number) : null;
+  };
+  const seen = ((lk && lk.seen) || []).map((s) => {
+    // Where it was drawn when its name was looked for (the rig's one-frame probe then), else the
+    // look recording's first frame.
+    const pos = Array.isArray(s.pos) ? s.pos.map(Number) : drawnAt(s.name);
+    const v = cam && pos ? viewAngle(cam, pos) : null;
+    const inFront = !!(v && v.ahead > 0 && v.deg < 50);
+    const inC = !!(pos && commons && inBoxXZ(pos, commons));
+    const amberOk = Number.isFinite(s.amber) && s.amber >= CREW_MIN_PX;
+    return { ...s, pos, deg: v ? v.deg : null, ok: !!s.found && inFront && inC && amberOk, inFront, inC, amberOk };
+  });
+  const good = seen.filter((s) => s.ok);
+  add(
+    "crew_seen",
+    !!cam && good.length > 0,
+    !lk
+      ? "the crew look never ran"
+      : !cam
+        ? "the look recorded no camera"
+        : !seen.length
+          ? "no crew member was drawn to look for"
+          : `${good.length} of ${seen.length} crew seen from ${fmtP(cam)} facing ${f(cam[3])} rad: ` +
+            seen
+              .map(
+                (s) =>
+                  `${s.name} ${s.found ? `named on screen at x ${Number(s.pos_px[0]).toFixed(0)}` : "NOT named on screen"}, ` +
+                  `drawn ${s.pos ? fmtP(s.pos) : "nowhere"}${s.inC ? "" : " (NOT in the Commons)"}${s.deg !== null ? ` ${s.deg.toFixed(0)} deg off the view${s.inFront ? "" : " (NOT in front)"}` : ""}, ` +
+                  `${Number.isFinite(s.amber) ? `${s.amber} amber px` : "no picture"}${s.amberOk ? "" : ` (fewer than ${CREW_MIN_PX})`}`,
+              )
+              .join("; "),
+  );
+  return { pass: checks.every((c) => c.ok), checks };
+}
+
+const fmtP = (p) => `(${p.map((v) => Number(v).toFixed(1)).join(", ")})`;
+
 module.exports = {
   LIMITS,
   judgeCopresence,
+  judgeCrew,
+  isFigureAmber,
+  crewPixels,
+  CREW_MIN_PX,
   lineCoords,
   viewAngle,
   isFigureTeal,

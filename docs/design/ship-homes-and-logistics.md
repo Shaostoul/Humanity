@@ -1040,12 +1040,12 @@ Each question has a recommendation.
 11. **The clock, and free meals.**
     - Recommend that people and goods move in real seconds whatever the world clock speed, while growing runs on the game clock. This joins the open 1x versus 72x question: at 72x a 20-minute rail trip spans a game day.
     - Recommend a free, metered basic crew meal for everyone, matching the reactor decision.
-12. **Do NPC residents eat from the same stores?** This is his open taste call. Recommend yes, as aggregate flows per zone, which is what makes the mess halls' supply lines matter.
+12. **Do NPC residents eat from the same stores?** DECIDED 2026-10-04 (the operator): yes, NPCs eat from the same food stores as players, and NPC homesteads should mostly provide for themselves. Built in increment 3 (the ship's food stores, data/food/ship_stores.ron; "mostly" is `npc_homestead_self_provided: 0.8`). Still open: how to balance NPC homesteads' contribution to the fleet against human players'. It is the named placeholder `npc_homestead_fleet_meals_per_day: 0.0` in that file, and no NPC lives on a homestead yet, so it changes nothing until he sets it.
 13. **Two civic tiers.** Recommend yes: a neighbourhood node with a common house or mess hall, and the district Concourse.
 14. **The planning numbers.** Recommend 5 minutes' walk from every home to a mess hall, 15 minutes to every daily need, and a minimum distance from homes to industry. That distance is his number to set; this document has no source for one.
 15. **Hangar or home bay.** Recommend the home bay keeps ground vehicles and drones, and spacecraft live in the shared hangar.
 16. **Goods between relays.** Recommend off by default, switched on per pinned peer by the server admin.
-17. **Retire the Pioneer** from the relay and move the crew into the shared places (increment 3). Recommend yes.
+17. **Retire the Pioneer** from the relay and move the crew into the shared places (increment 3). Recommend yes. Built in increment 3 (2026-10-04): the relay no longer reads data/ships/starter_fleet.ron.
 18. **Children.** Recommend offering "Cabin + simplified mode" as a suggested pair at the picker, while keeping them two separate settings.
 19. **When does an idle plot go back?** Today a plot is kept until an admin releases it (Server Settings > ADMIN > Homes on the ship) or the player's home does not fit it; nothing releases one by time, so on a busy relay the ship fills with the plots of people who left. This is a policy only the operator can set, and it meets question 5 (absent owners): recommend releasing only after a Server Settings period of absence, only when someone is waiting for a plot, and telling the returning player plainly that their plot went back (their home itself lives in their own save, not on the relay, so nothing of it is lost).
 

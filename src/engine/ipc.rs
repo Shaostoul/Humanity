@@ -3313,6 +3313,29 @@ pub(crate) fn remote_players_json(world: &hecs::World) -> Vec<serde_json::Value>
     out
 }
 
+/// Every crew member as drawn right now (ship homes increment 3): id, name, the DRAWN position
+/// (the Transform net::sync wrote this frame, which the render pass builds the amber figure
+/// from, lib.rs "Crew"), their chore label and whether they are at work. The --plots rig judges
+/// that no crew figure is ever drawn on a plot and that the crew are seen in the Commons
+/// (scripts/lib/copresence-judge.js `judgeCrew`).
+pub(crate) fn remote_crew_json(world: &hecs::World) -> Vec<serde_json::Value> {
+    let mut out: Vec<serde_json::Value> = world
+        .query::<(&crate::ecs::components::Transform, &crate::net::sync::RemoteNpc)>()
+        .iter()
+        .map(|(_e, (t, n))| {
+            serde_json::json!({
+                "id": n.entity_id,
+                "name": n.name,
+                "pos": [t.position.x, t.position.y, t.position.z],
+                "activity": n.activity,
+                "working": n.working,
+            })
+        })
+        .collect();
+    out.sort_by_key(|c| c.get("id").and_then(|i| i.as_u64()).unwrap_or(0));
+    out
+}
+
 fn camera_json(state: &EngineState) -> serde_json::Value {
     let c = &state.camera;
     serde_json::json!({
@@ -3363,7 +3386,8 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
     if rec.frames.len() < REMOTE_RECORD_MAX_FRAMES && rec.rows < REMOTE_RECORD_MAX_ROWS {
         let c = &state.camera;
         let players = remote_players_json(&state.game_world.world);
-        rec.rows += players.len();
+        let crew = remote_crew_json(&state.game_world.world);
+        rec.rows += players.len() + crew.len();
         // The computer's own clock, ms since 1970: a rig compares it with
         // when its walker did things, independent of the frame clock above.
         let epoch_ms = std::time::SystemTime::now()
@@ -3378,6 +3402,8 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
             "joined": state.game_joined,
             "cam": [c.position.x, c.position.y, c.position.z, c.yaw, c.pitch],
             "players": players,
+            // The crew as drawn this frame (increment 3).
+            "crew": crew,
         }));
     } else {
         rec.truncated = true;
@@ -3607,6 +3633,51 @@ mod remote_player_recorder_tests {
             "drawn position {pos:?}, want {want:?} (the target is {target:?})"
         );
         assert_eq!(p["phase"], "Waiting");
+    }
+
+    /// The crew too (increment 3): each crew member where it is DRAWN (its Transform), with its
+    /// chore label, and not where it walks to. The --plots rig judges every crew figure the
+    /// game drew against the plots, so a recorder that read the target would miss a figure
+    /// drawn on a plot while it walked there.
+    ///
+    /// Seen red 2026-10-04 with `remote_crew_json` reading `target_position`: "drawn position
+    /// [70.0, 1.0, 24.0], want [66.0, 1.0, 24.0] (the target is Vec3(70.0, 1.0, 24.0))".
+    #[test]
+    fn it_reports_each_crew_member_where_drawn() {
+        let mut world = hecs::World::new();
+        let drawn = Vec3::new(66.0, 1.0, 24.0);
+        let target = Vec3::new(70.0, 1.0, 24.0);
+        world.spawn((
+            Transform { position: drawn, rotation: Quat::IDENTITY, scale: Vec3::ONE },
+            crate::net::sync::RemoteNpc {
+                entity_id: 12,
+                name: "CB-7".to_string(),
+                activity: "Wiping down the tables".to_string(),
+                working: false,
+                role: String::new(),
+                dialog: Vec::new(),
+                greetings: Vec::new(),
+                last_position: drawn,
+                target_position: target,
+                last_rotation: Quat::IDENTITY,
+                target_rotation: Quat::IDENTITY,
+                interpolation_t: 0.5,
+            },
+        ));
+        let crew = remote_crew_json(&world);
+        assert_eq!(crew.len(), 1);
+        let c = &crew[0];
+        assert_eq!(c["id"], 12);
+        assert_eq!(c["name"], "CB-7");
+        assert_eq!(c["activity"], "Wiping down the tables");
+        let pos: Vec<f64> = c["pos"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+        let want = [drawn.x as f64, drawn.y as f64, drawn.z as f64];
+        assert!(
+            pos.iter().zip(want).all(|(a, b)| (a - b).abs() < 1e-6),
+            "drawn position {pos:?}, want {want:?} (the target is {target:?})"
+        );
+        // A world with no crew records an empty list, not a missing one.
+        assert_eq!(remote_crew_json(&hecs::World::new()), Vec::<serde_json::Value>::new());
     }
 }
 

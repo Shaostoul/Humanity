@@ -29,17 +29,17 @@ That is all. The game reads its content from plain files, on purpose, so anyone 
 5. **Change the id first.** The id is the first field. It must be unique: no two lines in the file may share one. Use lowercase words joined by underscores, ending in `_0` (the `_0` means "default style"; other numbers are reserved for future style variants). For example: `reading_chair_0`.
 6. **Change the rest, one field at a time.** Work left to right: name, then subcategory (use `seating`, `table`, `sleeping`, or `storage`), then material, weight, and so on. The "Field reference" section at the bottom of this page explains each one. Change one thing, save, and keep the commas exactly where they are: the game counts them to know which value is which.
 7. **Save the file.** That is it. Your furniture now exists as an item.
-8. **(Optional) Make it appear in starter-ship rooms.** Open `data/ships/room_equipment.ron`. A RON file is another kind of plain text data file that the game reads (RON stands for "Rusty Object Notation"). It holds a list of entries like this:
+8. **(Optional) Make it appear in the ship's shared rooms.** Open `data/ships/room_equipment.ron`. A RON file is another kind of plain text data file that the game reads (RON stands for "Rusty Object Notation"). It holds a list of entries like this:
 
    ```
    // data/ships/room_equipment.ron
    (
-       room_type: "quarters",
-       items: ["bunk_bed", "locker", "desk_fold", "curtain_divider"],
+       room_type: "mess_hall",
+       items: ["dining_table", "bench_seating", "notice_board", "locker"],
    ),
    ```
 
-   Each entry names a room type and the furniture that spawns in it. Add your item's id to the list for the room you want, in quotes, separated by commas. Notice the list says `"bunk_bed"`, not `"bunk_bed_0"`: this file uses the base id without the `_0` ending. (The file `data/rooms.ron` carries a parallel per-room equipment list; the same idea applies there.)
+   Each entry names a room type and the furniture that spawns in it. The room types are those of the shared world's rooms: `commons` (the Commons), `mess_hall` (its mess hall) and `street` (First Street). Add your item's id to the list for the room you want, in quotes, separated by commas. Notice the list says `"locker"`, not `"locker_0"`: this file uses the base id without the `_0` ending. (The file `data/rooms.ron` carries a parallel per-room equipment list; the same idea applies there.)
 9. **(Optional) If your furniture stores things.** A cabinet, a crate, or any furniture that other items go inside is called a storage vessel. Its storage behavior is defined by one row in `data/containers/types.csv`, the same copy-a-line-and-edit approach as step 4. No code involved.
 
 One path to leave alone for now: `data/entities/decorations.ron` exists, but it is a different system that scatters decorative models around anchor points in the world. It is currently empty and reserved for future ground structures. It is not how furniture works.
@@ -64,7 +64,7 @@ So, in practice:
    faster than restarting.
 3. Or close the game and start it again. A fresh start always picks up the file.
 
-Changes to `data/ships/room_equipment.ron` affect what spawns when a room is set up, so to see furniture appear in rooms, restart and load into the ship.
+Changes to `data/ships/room_equipment.ron` affect what the SERVER puts in the shared world's rooms when it builds the world, which it does once: a server that restarts keeps the world it stored, furniture included, so a change shows on a new server or when the world's stored version moves on (`PERSIST_KEY` in `src/relay/handlers/game_state.rs`). That furniture is what AI agents see when they look around the shared world; the game does not draw it yet.
 
 ## If something goes wrong
 

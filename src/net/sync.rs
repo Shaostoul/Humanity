@@ -1064,8 +1064,11 @@ impl System for NetSyncSystem {
                     // layout, so upper-deck room sites carry high Y values -- but this
                     // client renders the flat homestead, so crew showed up floating
                     // mid-sky. Keep the relay X/Z walk, override Y with the local
-                    // standing height until relay/client layout alignment lands
-                    // (tracked in PRIORITIES).
+                    // standing height. Since ship homes increment 3 the relay's
+                    // world IS the ship the game draws (the crew work the Commons
+                    // and its mess hall, in the same frame, on its one deck at
+                    // y 0), so X/Z and this Y agree; the override stays until the
+                    // ship has a second deck.
                     let pos = Vec3::new(position[0], NPC_LOCAL_STANDING_Y, position[2]);
                     let mut found = false;
                     for (_e, (transform, npc)) in
