@@ -229,6 +229,10 @@ fn dial_missing_saved_servers(state: &mut EngineState) {
         if !seen.insert(n.clone()) {
             continue; // duplicate saved entry for the same server
         }
+        if let Some(closed) = erased_link(&state.gui_state, &url) {
+            state.gui_state.connections.push(closed);
+            continue;
+        }
         let ws_url = crate::gui::pages::chat::derive_ws_url(&url);
         log::info!("Background connect: dialing saved server {url}");
         state.gui_state.connections.push(crate::gui::ServerConnection {
@@ -243,6 +247,22 @@ fn dial_missing_saved_servers(state: &mut EngineState) {
             ..Default::default()
         });
     }
+}
+
+/// A saved server whose account this identity erased (BUG-135), as the closed link it is
+/// listed as instead of being dialed: clicking its row then opens the Chat page's Connect,
+/// which says first what connecting there does. Dialing it would sign up again by itself.
+/// None for every other server (it is dialed). Pure.
+pub(crate) fn erased_link(gui: &crate::gui::GuiState, url: &str) -> Option<crate::gui::ServerConnection> {
+    gui.account_erased_here(url).then(|| crate::gui::ServerConnection {
+        url: norm_server_url(url),
+        display_url: url.trim().to_string(),
+        status: "Disconnected".to_string(),
+        manually_disconnected: true,
+        reconnect_delay: 5.0,
+        active_channel: "general".to_string(),
+        ..Default::default()
+    })
 }
 
 /// Redial dropped background links whose backoff countdown expired.
@@ -653,6 +673,8 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
                 }
             }
         }
+        // BUG-135: an erase confirmed after the person switched away from that server.
+        Some("account_erased") => crate::engine::account_erase::on_parked_server(state, ci, &val),
         Some("name_taken") => {
             // Retrying with the same name would loop forever; stop redialing
             // and surface why. The user resolves it from the active side.
@@ -732,6 +754,26 @@ fn parse_users(
 
 #[cfg(test)]
 mod tests {
+    /// BUG-135: a saved server whose account this identity erased is listed as a closed link
+    /// that the background redial skips (it is marked manually disconnected), never dialed;
+    /// every other saved server is dialed as before.
+    ///
+    /// Seen red 2026-10-04 on 825aa0af4 with the skip left out (every saved server dialed):
+    /// "the erased server was dialed".
+    #[test]
+    fn a_saved_server_with_an_erased_account_is_listed_closed_not_dialed() {
+        let mut gui = crate::gui::GuiState::default();
+        gui.profile_public_key = "ab12cd34".to_string();
+        gui.account_erased_on.insert(
+            crate::gui::erased_entry("ab12cd34", "https://a.example"),
+            crate::gui::EraseOutcome::Erased,
+        );
+        let closed = super::erased_link(&gui, "https://a.example/").expect("the erased server was dialed");
+        assert!(closed.ws.is_none() && closed.manually_disconnected, "listed but open to the redial");
+        assert_eq!(closed.url, "https://a.example");
+        assert!(super::erased_link(&gui, "https://b.example").is_none(), "another saved server is not dialed");
+    }
+
     #[test]
     fn merge_history_populates_the_carrier_buffer_from_the_real_api_shape() {
         let mut conn = crate::gui::ServerConnection {

@@ -1803,6 +1803,11 @@ pub enum RelayMessage {
     AccountDelete {
         confirm_name: String,
     },
+    /// Server to the erasing client, after the erase's receipt (BUG-135): disconnect from this
+    /// server and never redial it by itself. `partial`: part of the erase failed, so the client
+    /// says to erase again instead of that Connect signs up again.
+    #[serde(rename = "account_erased")]
+    AccountErased { to: String, partial: bool },
 
     /// Client updates presence privacy (privacy tiers, 2026-08-23).
     /// `hide_presence: true` = never appear online, no last_seen stored,
@@ -3321,6 +3326,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     None => continue,
                     _ => {}
                 }
+            }
+
+            // AccountErased: only to the clients of the erased account.
+            if let RelayMessage::AccountErased { ref to, .. } = msg {
+                if to != &my_key_for_broadcast { continue; }
             }
 
             // VoiceRoomSignal: only deliver to the target peer.

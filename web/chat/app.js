@@ -90,6 +90,39 @@ if (savedName && location.hash.indexOf('devicelink=') === -1) {
   setTimeout(() => connect(), 50);
 }
 
+// An account this identity erased on this server (BUG-135). The erase removes the saved
+// name, so a reload does not sign up again by itself, and this flag keeps the login screen
+// saying what pressing Enter does. connect() clears it. Mirrors the native Chat page's
+// connect box (src/gui/connections.rs ERASED_CONNECT_NOTE, which names its Connect button).
+// The flag holds 'erased', or 'unfinished' when part of the erase failed on the server (the
+// relay's `partial`): then the old account may still partly exist, so the note says to erase
+// again instead of promising a fresh sign-up (native: ERASE_UNFINISHED_NOTE).
+const ERASED_FLAG = 'humanity_account_erased';
+const ERASED_ENTER_NOTE = 'Your account on this server was erased, so pressing Enter signs you up again as a new account on this server.';
+const ERASE_UNFINISHED_NOTE = 'The erase of your account on this server did not finish, so press Enter and use Erase account again.';
+function showErasedNote(kind) {
+  const el = document.getElementById('login-note');
+  if (!el) return;
+  const text = kind === 'unfinished' ? ERASE_UNFINISHED_NOTE : kind === 'erased' ? ERASED_ENTER_NOTE : '';
+  el.textContent = text;
+  el.style.display = text ? 'block' : 'none';
+}
+try {
+  if (!savedName) showErasedNote(localStorage.getItem(ERASED_FLAG));
+} catch (e) { /* storage blocked: the note is a convenience, the erase already happened */ }
+
+// Closing the socket on purpose (ws.onclose = null) skips the call teardown that
+// chat-voice-calls.js hangs on onclose, so a call in progress would be left half open:
+// end it first. Used where the client leaves a server by itself (name_taken,
+// account_erased; review of BUG-135). callState and cleanupCall live in chat-voice-calls.js,
+// which loads after this file, hence the typeof guards.
+function endCallBeforeLeaving() {
+  if (typeof cleanupCall === 'function' && typeof callState !== 'undefined' && callState !== 'idle') {
+    addSystemMessage('Call ended (disconnected).');
+    cleanupCall();
+  }
+}
+
 let pendingLinkCode = null;
 let pendingInviteCode = null;
 let identityConfirmed = false;
@@ -282,6 +315,9 @@ async function connect() {
   }
 
   localStorage.setItem('humanity_name', myName);
+  // Entering after an erase is the person choosing to sign up again (BUG-135).
+  try { localStorage.removeItem(ERASED_FLAG); } catch (e) {}
+  showErasedNote(null);
 
   // Hide any previous error, show connecting status.
   document.getElementById('login-error').style.display = 'none';
@@ -1192,8 +1228,34 @@ async function handleMessage(msg) {
       errEl.style.display = 'block';
       document.getElementById('crypto-status').textContent = '';
       identityConfirmed = false;
+      endCallBeforeLeaving();
       if (ws) { ws.onclose = null; ws.close(); ws = null; }
       setStatus('disconnected', 'Choose a different name');
+      break;
+    }
+    case 'account_erased': {
+      // BUG-135: this server erased our account (the receipt just before this said what
+      // went). Leave it and never come back by ourselves: no reconnect timer, and no saved
+      // name, so a reload does not sign in. Every client of this identity gets this, so a
+      // second tab stops too. The login screen's Enter is the way back, and says first that
+      // it signs up again, or, when part of the erase failed (`partial`), to erase again
+      // (showErasedNote). Same steps as name_taken above.
+      const erasedKind = msg.partial === true ? 'unfinished' : 'erased';
+      clearTimeout(reconnectTimer);
+      reconnectDelay = 1000;
+      try {
+        localStorage.removeItem('humanity_name');
+        localStorage.setItem(ERASED_FLAG, erasedKind);
+      } catch (e) {}
+      identityConfirmed = false;
+      endCallBeforeLeaving();
+      if (ws) { ws.onclose = null; ws.close(); ws = null; }
+      setStatus('disconnected', erasedKind === 'unfinished' ? 'Erase not finished' : 'Account erased');
+      document.getElementById('login-screen').style.display = 'flex';
+      document.getElementById('chat-screen').style.display = 'none';
+      document.getElementById('login-error').style.display = 'none';
+      document.getElementById('crypto-status').textContent = '';
+      showErasedNote(erasedKind);
       break;
     }
   }

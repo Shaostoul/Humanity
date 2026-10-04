@@ -541,9 +541,11 @@ pub const OWN_SHIP_SENTENCE: &str =
 /// in its shared world (`game_join_denied`, reason "account_erased", sent privately by the
 /// relay's erase, relay/handlers/home_plots.rs `leave_world_for_erase`). Round 5 of the 1b
 /// review: the erase took the figure out, and nothing told the erasing game, which went on
-/// showing the shared world while the relay dropped every update it sent.
+/// showing the shared world while the relay dropped every update it sent. BUG-135: it named the
+/// way back "reconnect", which no control is called; the app now leaves that server on the
+/// erase, and the Chat page's Connect is how a person comes back, signing up again.
 pub const ERASED_SENTENCE: &str =
-    "Out of the shared world: your account on this server was erased, so your figure and your plot there are gone; reconnect to come back, with a free plot, or a guest place when the ship is full.";
+    "Out of the shared world: your account on this server was erased, so your figure and your plot there are gone; to come back, open Chat and press Connect, which signs you up again as a new account, with a free plot or a guest place when the ship is full.";
 
 /// One plot as a relay hands it out (increment 1b): the record's id, kind and box. Where its
 /// holder arrives depends on their own home's door, which their game names in `game_join`
