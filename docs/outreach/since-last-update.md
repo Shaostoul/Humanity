@@ -11,6 +11,14 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1454.1: three Library guides on building.** How a Building Stands Up
+  (how loads travel to the ground, snow on a roof, warning signs that mean get
+  out, and why connections fail first), Foundations and Ground (what soil can
+  carry, frost depth, keeping water away, and digging safely beside a
+  footing), and Framing a Building (studs, headers, bracing, nail gun safety,
+  and checking for lead and asbestos before opening a wall). The Library now
+  has 74 sourced guides.
+
 - **v0.1454.0: pipes show what they are made of, and what they carry.**
   Every pipe used to be painted end to end in a made-up colour. Now copper
   looks like copper and hoses like rubber, and what a pipe carries is shown by
