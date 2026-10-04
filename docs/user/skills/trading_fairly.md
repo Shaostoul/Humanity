@@ -23,10 +23,11 @@ and Technology (NIST), which looks after the weights and measures that
 trade depends on, the Federal Trade Commission (FTC), the Consumer
 Product Safety Commission (CPSC), the US Department of Agriculture
 (USDA), the Bureau of Labor Statistics (BLS), the Food and Drug
-Administration (FDA) and the Internal Revenue Service (IRS), with one
-line from the Constitution as the National Archives transcribes it.
-All are
-United States government publications, in the public domain. Laws on
+Administration (FDA), the Internal Revenue Service (IRS) and, for the
+one power tool in it, the Occupational Safety and Health Administration
+(OSHA), with one line from the Constitution as the National Archives
+transcribes it. All are United States government publications, in the
+public domain. Laws on
 trade, food and tax differ from country to country and from state to
 state: what follows is the United States picture, and the habits carry
 further than the laws do. Where something is general practice or our
@@ -70,9 +71,13 @@ Handbook 44, NIST's specifications and tolerances for weighing and
 measuring devices; and that before a scale can be used commercially,
 it must be inspected and approved by an authorised body of that state. NIST counts as
 commercial any scale used to establish the quantity of produce or other
-articles offered for sale. So if you weigh what you sell at a stand or
-a market, ask your state's weights and measures office what it
-requires before you start.
+articles offered for sale. The practical check NIST names is that the
+scale "has an active NTEP Certificate of Conformance as proof that it
+is compliant with NIST Handbook 44". A scale sold as "legal for trade"
+lists its certificate number, and an ordinary kitchen scale has none
+(general practice). So if you weigh what you sell at a stand or a market, ask
+your state's weights and measures office what it requires before you
+start.
 
 ### In what condition
 
@@ -116,14 +121,24 @@ Some goods cannot be sold or passed on, however willing both sides are.
   walkers, bath seats and toddler bed rails that are missing parts,
   wobbly or unstable as things not to sell. Its advice for a hazardous
   product is that it should be destroyed, not sold or given away.
+- **Children's products and painted furniture with too much lead.** The
+  same list includes children's metal jewellery over the federal limit
+  on lead of 100 parts per million, toys, children's articles and any
+  furniture with paint or other surface coatings containing lead over
+  the limit, and products for children aged 12 or younger with lead
+  content known to be over it. You are not required to test, the CPSC
+  says, but you cannot knowingly sell a children's product or painted
+  furniture that breaks the lead limits. Old painted cribs, high chairs,
+  toy boxes and toys are the things to be wary of (general practice).
 - **Food, without checking the rules.** Food you grow or make for your
-  own table is yours. Selling it is regulated, and mostly not
-  federally: the FDA publishes the Food Code as a model, and it says
-  local, state, tribal and federal regulators use it to write their own
-  food safety rules. So the rules for selling eggs, honey, jam or
-  canned goods depend on where you live. Ask your state's agriculture
-  or health department before you sell food you made (general
-  practice). The safety reasons behind the canning rules are in [Why
+  own table is yours. Selling it, or trading it, is regulated, and
+  mostly not federally: the FDA publishes the Food Code as a model, and
+  it says local, state, tribal and federal regulators use it to write
+  their own food safety rules. So the rules for selling eggs, honey, jam
+  or canned goods depend on where you live. Ask your state's
+  agriculture or health department before you sell or trade food you
+  made, and ask whether a swap counts as a sale where you live, because
+  the answer can differ by state (general practice). The safety reasons behind the canning rules are in [Why
   Canning Has Rules](why_canning_has_rules.md).
 
 ## 2. Agree what it is worth
@@ -150,11 +165,21 @@ When one side of a trade is labour, the question is what an hour of
 that work is worth. The Bureau of Labor Statistics' Occupational
 Employment and Wage Statistics programme publishes wage estimates for
 about 830 occupations, for the country as a whole, for each state and
-for metropolitan and nonmetropolitan areas. A day of fencing, a morning of
-electrical work and an afternoon of babysitting are different trades,
-and the published wage for each in your area is a fair place to start
-the conversation (our suggestion). Skill, tools brought and risk
+for metropolitan and nonmetropolitan areas. A day of fencing, a
+morning of carpentry and an afternoon of babysitting are different
+trades, and the published wage for each in your area is a fair place to
+start the conversation (our suggestion). Skill, tools brought and risk
 taken are fair reasons to adjust it.
+
+**Some work is not yours to trade, however fair the price.** Electrical
+wiring, gas lines and gas appliances, and plumbing connected to the
+water supply or the sewer may legally need a licensed tradesperson, a
+permit and an inspection where you live, and work done without them can
+start a fire, void insurance or have to be torn out. Ask your local
+building department before you swap for it (general practice). The FTC's
+advice for anyone you hire is to "Consider only contractors who are
+licensed and insured", and to check the licence with your state or
+county government.
 
 ### What it costs to replace
 
@@ -188,14 +213,22 @@ advice on hiring a contractor was written for paid home improvement,
 but it makes a good checklist for any trade of work, paid in money or
 in kind.
 
+- **Check who you are dealing with.** The FTC's first piece of advice
+  is to "Consider only contractors who are licensed and insured": check
+  the licence with your state or county government and ask for proof of
+  insurance. It also suggests recommendations from people you trust,
+  and checking for complaints.
 - **Get it in writing.** The FTC says that even if your state does not
   require a written agreement, you should ask for one. A written
   estimate should include a description of the work, the materials, the
   completion date and the price. Before signing, make sure the
-  agreement includes who is doing the work and how to reach them, an
-  estimated start and completion date, and any promises made in
-  conversation about the scope of the work and the cost of labour and
-  materials, and that all blank spaces are filled in.
+  agreement includes the contractor's name, address, phone number and
+  licence number; an estimated start and completion date; any promises
+  made in conversation about the scope of the work and the cost of
+  labour and materials; and a written statement of your right to cancel
+  within three business days, if you signed it in your home or anywhere
+  other than the seller's permanent place of business. And make sure
+  all blank spaces are filled in.
 - **Compare.** The FTC suggests getting more than one estimate, not
   automatically choosing the lowest, and asking for an explanation when
   estimates differ a lot.
@@ -325,23 +358,35 @@ The quantities and prices in this example are ours, for illustration.
 A neighbour will give you their old chainsaw for a day of help
 clearing their fence line.
 
-- **Condition.** Start it, cut with it, ask when it was last serviced,
+- **Safety first.** A chainsaw is not a tool to learn by trying it out
+  in a trade. Have the owner start it and make a cut while you watch,
+  and run it yourself only if you have been trained to use one (general
+  practice). OSHA's rule for logging work (29 CFR 1910.266) shows the
+  gear anyone cutting with a chainsaw needs: leg protection "constructed
+  with cut-resistant material, such as ballistic nylon" covering the
+  thigh to the top of the boot, cut-resistant boots, head protection
+  where things can fall, and eye protection; hearing protection and
+  gloves are general practice on top. The same rule requires a chainsaw
+  to have a chain brake, and says "No chain-saw kickback device shall be
+  removed or otherwise disabled." Look the saw's model up in the CPSC's
+  recall listings before you take it. A saw with a missing or broken
+  chain brake, chain catcher or guard is not a bargain.
+- **Condition.** Watch it start and cut, ask when it was last serviced,
   and ask for the manual. Ask what is wrong with it.
-- **Safety.** Look the saw's model up in the CPSC's recall listings
-  before you take it. A saw with a missing or broken chain brake or
-  guard is not a bargain.
 - **Value.** Compare what a similar used saw sells for locally with
   what a day of your labour is worth, using the local wage for similar
   outdoor work as a guide.
 - **Terms.** Which day, how many hours, who brings the tools and fuel,
-  and what happens if it rains.
+  who runs any saw on the day (if it is you, the training and gear above
+  apply), and what happens if it rains.
 
 ### Honey at the end of the drive
 
 You have more honey than the household needs and want to sell some.
 
 - **Before you start:** ask your state's agriculture or health
-  department what the rules are for selling honey you produced, and
+  department what the rules are for selling or trading honey you
+  produced, and
   ask the weights and measures office what scale you may use. Both
   differ by state.
 - **Measure:** sell by net weight, not including the jar.
@@ -411,7 +456,12 @@ The trading post's prices are in `src/systems/economy/mod.rs` and
 - You say what is wrong with what you are trading, and you inspect
   what you receive before you agree.
 - You check the recall list before you sell or give away a used
-  product, and you know the rules for selling food where you live.
+  product, you are wary of old painted children's things, and you know
+  the rules for selling or trading food where you live.
+- You leave wiring, gas and connected plumbing to licensed trades, and
+  you check a contractor's licence and insurance.
+- You do not run a chainsaw you got in a trade until you are trained and
+  wearing the gear.
 - You can find a reference price for goods and for work, and you can
   explain your price to the other person.
 - Trades of work are written down: who, what, by when, for what, and
@@ -445,9 +495,10 @@ public domain. Web pages were read on 3 October 2026.
 - National Institute of Standards and Technology, Office of Weights and
   Measures. Weighing and Scales FAQs, created 13 September 2023, updated
   6 March 2026 (commercial scales must comply with state law; all 50
-  states have adopted NIST Handbook 44; an active NTEP certificate as
-  proof of compliance; inspection and approval by the state before
-  commercial use; what counts as a commercial application).
+  states have adopted NIST Handbook 44; "an active NTEP Certificate of
+  Conformance as proof that it is compliant with NIST Handbook 44";
+  inspection and approval by the state before commercial use; what
+  counts as a commercial application).
   https://www.nist.gov/pml/owm/faqs/weighing-and-scales-faqs
 - USDA Agricultural Marketing Service. Market News, undated, read 3
   October 2026 (free, unbiased price and sales information; thousands of
@@ -459,16 +510,21 @@ public domain. Web pages were read on 3 October 2026.
   common language that makes business transactions easier).
   https://www.ams.usda.gov/grades-standards
 - Bureau of Labor Statistics, US Department of Labor. Occupational
-  Employment and Wage Statistics, home page, read 3 October 2026
-  through a page summary because the site refuses direct downloads; the
-  latest release shown was dated 15 May 2026, for May 2025 data (wage
-  estimates for about 830 occupations, for the nation, states, and
-  metropolitan and nonmetropolitan areas).
+  Employment and Wage Statistics, home page, read 3 October 2026. The
+  site refuses our scripted downloads, so it was read through a page
+  summary, and an independent fact check the same day confirmed the
+  wording in a browser; the latest release shown was dated 15 May 2026,
+  for May 2025 data (wage estimates for about 830 occupations, for the
+  nation as a whole, individual states, and metropolitan and
+  nonmetropolitan areas).
   https://www.bls.gov/oes/
 - Federal Trade Commission. How To Avoid a Home Improvement Scam, July
   2022 (signs of a scam, including pressure for an immediate decision
-  and paying everything up front or only in cash; get a written
-  agreement even where not required, and what it should contain; get
+  and paying everything up front or only in cash; consider only
+  licensed and insured contractors, and check the licence with the
+  state or county; get a written agreement even where not required, and
+  what it should contain, including the licence number and the
+  three-business-day right to cancel for a contract signed at home; get
   multiple estimates; do not pay the full amount up front; some states
   limit down payments; no final payment until the work is done and you
   are satisfied; resolving a problem, keeping notes and copies, and
@@ -493,9 +549,18 @@ public domain. Web pages were read on 3 October 2026.
   recall; those who give products away cannot knowingly pass on
   products that do not meet the law; most cribs made before June 2011
   may not be resold; damaged or unstable infant and toddler products;
+  children's metal jewellery over 100 ppm lead, and children's products
+  and painted furniture over the lead limits, not to be sold, and
+  resellers not required to test but unable to knowingly sell them;
   hazardous products destroyed, not sold or given away; recalls listed
   at SaferProducts.gov).
   https://www.cpsc.gov/s3fs-public/ResellersGuide_0.pdf
+- Occupational Safety and Health Administration. 29 CFR 1910.266,
+  Logging operations, read in the eCFR on 3 October 2026 ((d)(1)(iv) to
+  (vii) cut-resistant leg protection, cut-resistant foot protection,
+  head protection and eye protection for chainsaw work; (e)(2)(i) a
+  chain brake, and no kickback device removed or disabled).
+  https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1910/subpart-R/section-1910.266
 - US Food and Drug Administration. FDA Food Code, page content current
   as of 17 September 2026 (the Food Code is a model that local, state,
   tribal and federal regulators use to develop their own food safety
@@ -547,6 +612,18 @@ public domain. Web pages were read on 3 October 2026.
 - Applying the FTC's contractor checklist to trades of work between
   neighbours, and using published wages as a starting point for
   valuing labour, are our suggestions.
+- That wiring, gas and connected plumbing may need a licence, a permit
+  and an inspection, and asking the local building department, are
+  general practice; the FTC's advice to consider only licensed and
+  insured contractors is sourced.
+- Asking the state whether a food swap counts as a sale, a legal-for-trade
+  scale listing its certificate number, and being wary of old painted
+  children's things are general practice.
+- Watching the owner run a chainsaw rather than trying it yourself,
+  running one only when trained, hearing protection and gloves, and a
+  chain catcher as part of a sound saw are general practice, beside
+  OSHA's logging rule for the leg, foot, head and eye protection and the
+  chain brake.
 - Agreeing what quality words mean between neighbours is our extension
   of the USDA grading idea.
 - The quantities and prices in the worked examples are illustrations.

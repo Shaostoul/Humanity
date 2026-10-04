@@ -14,8 +14,8 @@ maintenance turns most breakdowns into chores you chose the time for.
 This guide takes its ideas about which maintenance is worth doing from
 NASA's guide to maintaining its buildings and equipment, its safety
 rules from the Occupational Safety and Health Administration (OSHA),
-the US Army's hand tool manual and the Consumer Product Safety
-Commission (CPSC), and its household examples from the Environmental
+the armed services' joint hand tool manual and the Consumer Product
+Safety Commission (CPSC), and its household examples from the Environmental
 Protection Agency (EPA), the ENERGY STAR programme, the US Fire
 Administration and the Federal Trade Commission (FTC). All are United
 States government publications, in the public domain. Where something
@@ -42,9 +42,13 @@ The full procedure for isolating a machine is in [Working Out Why
 Something Broke](/library#working-out-why-something-broke), and it applies
 here unchanged. In short: take away every source of energy at a real
 isolator (a breaker, a valve, an unplugged cord in your own hand), not
-at the machine's on/off switch; release the energy that stays behind
-after you switch off; and check that it is dead before you touch it.
-For wiring, that check means a voltage tester, not the switch.
+at the machine's on/off switch; **lock or label the isolator so nobody
+turns it back on while you work**, because a breaker someone else can
+switch on is not isolation; release the energy that stays behind after
+you switch off; and check that it is dead before you touch it. For
+wiring, that check means a voltage tester, not the switch. The
+diagnosis guide explains the lock and the label, and why a breaker
+lock-off beats a strip of tape.
 
 Five hazards come up again and again in maintenance work.
 
@@ -60,11 +64,18 @@ it pulls in whatever touches it, including a sleeve or a finger.
 
 The CPSC's advice for lawn mowers puts it in household terms: do not
 remove any safety devices, check safety features often, and repair or
-replace them if needed. Before you switch a machine back on after
-working on it, OSHA's lockout rule asks for a check that the work area
-is clear of anything that does not belong there and that the machine's
-components are operationally intact. In practice: every guard back on,
-every tool picked up, every bolt you took out put back.
+replace them if needed.
+
+Before you switch a machine back on after working on it, OSHA's
+lockout rule (29 CFR 1910.147(e)) asks for three things: that the work
+area is clear of anything that does not belong there and the machine's
+components are operationally intact; that "all employees have been
+safely positioned or removed"; and that the people affected are told
+before the machine is started. In practice: every guard back on, every
+tool picked up, every bolt you took out put back, **nobody near the
+machine, children included, and everyone in the household told before
+you start it.** (The household version is our reading of the rule,
+which is written for workplaces.)
 
 ### Stored energy
 
@@ -75,14 +86,25 @@ guide covers how to release it and when to stop instead. Two cases
 belong here because they are routine maintenance jobs.
 
 **Anything raised on a jack.** OSHA's rule for jacks (29 CFR 1910.244)
-says that after the load has been raised, it shall be cribbed, blocked,
-or otherwise secured at once. The Army's hand tool manual (TM 9-243)
-says the same thing in capital letters: never get under a load that is
+starts before the lift. The jack must have "a rating sufficient to lift
+and sustain the load", and where there is no firm foundation, "the base
+of the jack shall be blocked". Then, after the load has been raised, it
+shall be cribbed, blocked, or otherwise secured at once. The armed
+services' hand tool manual (TM 9-243) says the same things in its own
+words: be aware of the jack's capabilities, especially its load
+capacity; and, in capital letters, never get under a load that is
 supported only by a jack, because any jack can fail. When jacking a
-vehicle, it tells you to set the hand brake, block the wheels at the
-other end from the one you are lifting, and put supports under the
-vehicle once it is raised, so it cannot drop if the jack fails. A jack
-is for lifting; a stand or blocking is for holding.
+vehicle, it tells you to make certain nobody is under it, set the hand
+brake, block the wheels at the other end from the one you are lifting,
+and put supports under the vehicle once it is raised, so it cannot drop
+if the jack fails.
+
+So: check the jack's rated load against what you are lifting, put it on
+firm, level ground or a solid block, never on soft soil or a slope, and
+hold the load with stands or blocking rated for it, not with the jack.
+A jack is for lifting; a stand or blocking is for holding. (Level ground
+and stands rated for the load are general practice; the rest is the
+rule and the manual.)
 
 **Springs.** A garage door's counterbalance spring, a recoil starter,
 a spring-loaded clutch: these can release suddenly when a fastener is
@@ -108,7 +130,9 @@ Small engines bring fire and carbon monoxide into maintenance work.
   doors and windows open, because carbon monoxide can build up quickly
   and linger for hours after the engine stops, and you cannot see or
   smell it. Testing a mower or a chainsaw after a service is the same
-  hazard: do it outside, away from doors and windows.
+  hazard: do it outside, away from doors and windows. (Applying the
+  generator advice to other small engines is our extension of what the
+  CPSC says; the exhaust is the same.)
 - **Disable it before you touch the blade.** The CPSC's way to disable a
   mower is to remove the ignition wire from the spark plug, or the plug
   itself. On many mowers the blade turns the engine, and an engine
@@ -141,11 +165,20 @@ good checklist for home use:
   have something to hold as you step off and back on.
 - Only on stable, level ground, and never on a slippery surface unless
   it is secured.
-- Do not stand on the top step of a stepladder.
+- Rest the top with both side rails supported equally, against
+  something solid, not on one rail.
+- Never load a ladder beyond its rated capacity, which is on its label;
+  that load counts you, your tools and what you carry.
+- Never move, shift or extend a ladder while anyone is on it.
+- Do not use the top, or the top step, of a stepladder as a step.
 - Face the ladder going up and down, keep at least one hand on it, and
   do not carry anything that could make you lose your balance.
 - Near exposed electrical equipment, use a ladder with nonconductive
   side rails, which rules out aluminium.
+- **Look up before you raise a ladder.** Carry it and raise it well clear
+  of overhead power lines, including the line from the pole to the
+  house; a ladder that touches one, of any material, can kill the person
+  holding it (general practice).
 - Inspect it periodically and after anything that could have damaged
   it. A ladder with broken rungs, split rails, corroded parts or other
   defects is marked or tagged "Do Not Use" and taken out of service
@@ -272,17 +305,20 @@ before the label wears off or gets painted over.
 ### Records, and the warranty
 
 The FTC's advice on car warranties makes two points that hold well
-beyond cars. First, you do not have to use the dealer for maintenance
-or repairs to keep the warranty: the FTC says it is illegal for a
-dealer to deny warranty coverage because routine maintenance or repairs
-were done by someone else, and the warranty stays in effect if you use
-aftermarket or recycled parts (though if a defective or badly fitted
-part damages something the warranty covers, that damage can be
-refused, once the maker shows the part caused it). Second, the
-warranty company could ask for your maintenance records, so keep
-records of repairs and maintenance, such as oil changes, tyre
-rotations, belt replacements, new brake pads and inspections, because
-a claim can be denied without them.
+beyond cars. First, you usually do not have to use the dealer for
+maintenance or repairs to keep the warranty: the FTC says it is illegal
+for a dealer to deny warranty coverage because routine maintenance or
+repairs were done by someone else, and the warranty stays in effect if
+you use aftermarket or recycled parts (though if a defective or badly
+fitted part damages something the warranty covers, that damage can be
+refused, once the maker shows the part caused it). There is an
+exception, in the FTC's words: "But if the warranty says that the work
+will be done for free, the dealer or manufacturer can make you use
+repair facilities it chooses." Read your warranty for that clause.
+Second, the warranty company could ask for your maintenance records, so
+keep records of repairs and maintenance, such as oil changes, tyre
+rotations, belt replacements, new brake pads and inspections; without
+them, the FTC says, "your claim might be denied."
 
 The FTC page is written about cars, and about work done by someone
 other than the dealer. If you do the work yourself, keep the receipts
@@ -296,8 +332,8 @@ maintenance records.
 
 Condition monitoring sounds technical, and NASA's version uses
 vibration analysers and infrared cameras. Its core, though, is in the
-methods NASA lists for using the data: trend analysis, comparison
-against earlier data, and testing against limits. At home, you are the
+ways NASA lists for using the data, among them "Trend analysis", "Data
+comparison" and "Tests against limits and ranges". At home, you are the
 instrument, and your records are the trend.
 
 - **Listen** to each machine when it is running well, so you know what
@@ -429,8 +465,8 @@ and varies by engine; your manual wins.
 ## Worked example: a hand tool kit
 
 Hand tools are the easiest machines to keep and the easiest to ruin.
-The Army's hand tool manual, covered in depth in [Hand
-Tools](/library#hand-tools), sets out the habits: keep tools clean
+The armed services' hand tool manual (TM 9-243), covered in depth in
+[Hand Tools](/library#hand-tools), sets out the habits: keep tools clean
 and free of rust, nicks, burrs and breaks; give metal a light coat of
 oil; keep each tool in its proper place, with an inventory list in the
 box checked after each job; never use a damaged tool; and use each tool
@@ -440,6 +476,18 @@ flat, because storing one bent can bow it; never in a wet sheath; raw
 linseed oil on wooden handles) and the scheduling advice most worth
 copying: at the end of each day, pick out the tools that need
 maintenance and set a time to repair or replace them.
+
+**Rags with linseed oil on them can catch fire by themselves.** As the
+oil dries it gives off heat, and a crumpled rag or a pile of rags can
+hold that heat until it ignites, hours later, with nobody near it
+(general knowledge). OSHA's rule for construction sites (29 CFR
+1926.252(e)) requires that oily rags "be kept in fire resistant covered
+containers until removed from worksite". At home, do the same: spread
+used rags flat outdoors, away from the house, until they are dry and
+stiff, or put them in a metal can with a tight lid, filled with water,
+and never leave them in a heap, a bin or a pocket (general practice).
+The same goes for rags used with oil-based stains and varnishes. Ask
+your local waste service how to get rid of them.
 
 A broken tool should be marked so nobody picks it up by mistake. OSHA's
 rule for jacks says one that is out of order shall be tagged and not
@@ -521,12 +569,20 @@ one thing in the garden.
   monitoring of this guide in its simplest form: check it before a big
   job, not halfway through.
 
-**One setting changes this.** While Settings > Gameplay > "Start every
-session from the default home" is on, which is the default during
-development, only your character carries between launches, so a worn
-tool starts the next session as it was in the default home. Turn the
-setting off to keep your tools, and their wear, from one session to the
-next.
+**Two settings change this.**
+
+- **Play mode.** During development the game starts in the Dev play mode
+  (Settings > Gameplay > Play mode), and in Dev, as in Creative,
+  materials are free: crafting and hoeing need no tools and wear none,
+  and laying a row cover takes no pieces from your pack. Only the soap
+  bar wears in every mode. To see tools wear, switch Play mode to
+  Normal.
+- **Starting from the default home.** While Settings > Gameplay > "Start
+  every session from the default home" is on, which is also the default
+  during development, only your character carries between launches, so
+  a worn tool starts the next session as it was in the default home.
+  Turn the setting off to keep your tools, and their wear, from one
+  session to the next.
 
 What the game simplifies, so you do not learn it from the game: there
 is no way to oil, sharpen or repair a tool, so a game tool simply runs
@@ -538,12 +594,18 @@ keeping one running is the maintenance the game leaves out.
 ## You own this when
 
 - You make a machine safe before you service it, the same way you would
-  before a repair, and you put every guard back before it runs again.
-- You never get under anything held up only by a jack.
+  before a repair, with the isolator locked or labelled, and you put
+  every guard back, clear everyone away and tell the household before it
+  runs again.
+- You use a jack rated for the load, on firm ground, and you never get
+  under anything held up only by a jack.
 - You refuel engines cold, store fuel outside the house, and run
   engines only outdoors.
-- You set ladders at one in four, keep the top step clear, and tag a
-  damaged ladder out of use.
+- You dry oily rags flat outdoors or keep them in a closed metal can of
+  water, never in a heap.
+- You set ladders at one in four with both rails resting evenly, stay
+  off the top and the top step of a stepladder, look up for power lines,
+  and tag a damaged ladder out of use.
 - You can say, for each machine you depend on, whether you run it to
   failure, service it on a schedule, or watch its condition, and why.
 - You follow the manual's intervals for wearing parts, and you do not
@@ -575,14 +637,17 @@ were read on 3 October 2026.
   failures at 77 to 92 percent and age-related at 8 to 23 percent;
   simple items such as tyres and brake pads wearing with age; scheduled
   overhaul raising the failure rate through infant mortality; timed
-  maintenance as sometimes unnecessary or harmful; trend analysis among
-  the condition-monitoring methods).
+  maintenance as sometimes unnecessary or harmful; "Trend analysis",
+  "Data comparison" and "Tests against limits and ranges" among the
+  ways condition-monitoring data is used, section 5).
   https://www.nasa.gov/wp-content/uploads/2023/06/nasa-rcmguide.pdf
 - Occupational Safety and Health Administration. 29 CFR 1910.147, The
   control of hazardous energy (lockout/tagout) (servicing and
   maintenance defined to include lubrication, cleaning and unjamming;
-  before energy is restored, checking that nonessential items are
-  removed and components are operationally intact).
+  before energy is restored, (e)(1) checking that nonessential items are
+  removed and components are operationally intact, (e)(2)(i) that all
+  employees have been safely positioned or removed, and (e)(2)(ii) that
+  affected employees are notified before the machine is started).
   https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1910/subpart-J/section-1910.147
 - Occupational Safety and Health Administration. 29 CFR 1910.212,
   General requirements for all machines (guarding against point of
@@ -594,28 +659,42 @@ were read on 3 October 2026.
   chip guarding and personal protective equipment).
   https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1910/subpart-P/section-1910.242
 - Occupational Safety and Health Administration. 29 CFR 1910.244(a),
-  Jacks (a raised load cribbed, blocked or otherwise secured at once;
-  jacks lubricated at regular intervals; an out-of-order jack tagged and
-  not used until repaired).
+  Jacks ((1)(i) a rating sufficient to lift and sustain the load;
+  (2)(i) the base blocked in the absence of a firm foundation; (2)(iii)
+  a raised load cribbed, blocked or otherwise secured at once; jacks
+  lubricated at regular intervals; an out-of-order jack tagged and not
+  used until repaired).
   https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1910/subpart-P/section-1910.244
 - Occupational Safety and Health Administration. 29 CFR 1926.1053(b),
-  Ladders, use (the one-quarter rule; side rails 3 feet above an upper
-  landing; stable and level surfaces; not on slippery surfaces unless
-  secured; nonconductive side rails near exposed energised equipment;
-  the top step of a stepladder not used as a step; periodic inspection;
-  defective ladders marked or tagged "Do Not Use" and withdrawn; facing
-  the ladder, one hand on it, no load that could cost your balance).
+  Ladders, use ((5)(i) the one-quarter rule; (1) side rails 3 feet
+  above an upper landing; (3) not loaded beyond the maximum intended
+  load or the manufacturer's rated capacity; stable and level surfaces;
+  not on slippery surfaces unless secured; (10) the top of a
+  non-self-supporting ladder with the two rails supported equally; (11)
+  not moved, shifted or extended while occupied; (12) nonconductive
+  side rails near exposed energised equipment; (13) "The top or top
+  step of a stepladder shall not be used as a step"; periodic
+  inspection; (16) defective ladders marked or tagged "Do Not Use" and
+  withdrawn; facing the ladder, one hand on it, no load that could cost
+  your balance).
   https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1926/subpart-X/section-1926.1053
+- Occupational Safety and Health Administration. 29 CFR 1926.252(e),
+  Disposal of waste materials (oily rags kept in fire resistant covered
+  containers until removed from the worksite).
+  https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1926/subpart-H/section-1926.252
 - Departments of the Army, Navy, Air Force and Marine Corps. *Use and
-  Care of Hand Tools and Measuring Tools*, TM 9-243 (the Internet
-  Archive's record dates the scan 12 December 1984). Chapter 2, Safety
-  (tools kept in their proper place, with an inventory list checked
-  after each job; free of rust, nicks, burrs and breaks; never using
-  damaged tools; each tool only on the job it was designed for), the
-  light coat of oil in the care instructions throughout, and chapter
-  20, Jacks (never get under a load supported only by a jack; set the
-  brake, block the wheels and place supports under a raised vehicle).
-  Read as the full scanned text.
+  Care of Hand Tools and Measuring Tools*, TM 9-243 (also Navy
+  M6290-AJ-MAN-010, Air Force TO 32-1-101, Marine Corps TM 10209-10/1),
+  dated 12 December 1984. The copy read is the Navy's June 1992 reissue,
+  NAVEDTRA 12085, which includes Change 1. Chapter 2, Safety (tools
+  kept in their proper place, with an inventory list checked after each
+  job; free of rust, nicks, burrs and breaks; never using damaged tools;
+  each tool only on the job it was designed for), the light coat of oil
+  in the care instructions throughout, and chapter 20, Jacks (never get
+  under a load supported only by a jack; make certain no one is under
+  the vehicle; set the brake, block the wheels and place supports under
+  a raised vehicle; be aware of the jack's capabilities, especially its
+  load capacity). Read as the full scanned text.
   https://archive.org/details/use-and-care-of-hand-tools-and-measuring-tools-1983
 - USDA Forest Service, Missoula Technology and Development Center.
   *Handtools for Trail Work, 2005 Edition*, 0523-2810-MTDC (at day's
@@ -678,9 +757,10 @@ were read on 3 October 2026.
   https://www.epa.gov/watersense/fix-leak-week
 - Federal Trade Commission. Auto Warranties and Auto Service Contracts,
   April 2024 (illegal for a dealer to deny warranty coverage because
-  routine maintenance or repairs were done by someone else; aftermarket
-  and recycled parts; keep maintenance records, because a claim can be
-  denied without them).
+  routine maintenance or repairs were done by someone else, except that
+  a warranty promising free work can require the maker's chosen repair
+  facilities; aftermarket and recycled parts; keep maintenance records,
+  because otherwise a claim might be denied).
   https://consumer.ftc.gov/articles/auto-warranties-and-auto-service-contracts
 
 ### Inside this project
@@ -693,6 +773,11 @@ were read on 3 October 2026.
   and `data/garden/weeds.ron`. Soap wear when cleaning a container:
   `src/systems/inventory/containers.rs`. Row cover wear:
   `src/systems/farming/pests.rs` and `data/garden/pests.ron`.
+- The Play mode setting and which modes make materials free
+  (`PlayMode` and `play_mode_allows` in `src/config.rs`), and the
+  creative-mode checks around tool wear (`src/systems/crafting/mod.rs`),
+  hoe wear (`src/systems/farming/weeds.rs`) and row cover pieces
+  (`src/systems/farming/pests.rs`).
 - The "Start every session from the default home" setting
   (`src/config.rs`, `src/save_load.rs`).
 - [Working Out Why Something Broke](/library#working-out-why-something-broke),
@@ -731,3 +816,18 @@ were read on 3 October 2026.
   quarter).
 - Wearing eye protection and never pointing compressed air at a person
   are general practice, beside OSHA's pressure limit.
+- Clearing children away and telling the household before a machine is
+  restarted is our household reading of OSHA's lockout release rule.
+- Jacking on firm, level ground and holding the load on stands rated for
+  it are general practice, beside OSHA's rating and firm-foundation
+  rules.
+- Testing other small engines outdoors is our extension of the CPSC's
+  generator advice.
+- Resting the ladder's top against something solid, finding the rated
+  load on the ladder's label, and keeping a raised ladder clear of
+  overhead power lines are general practice, beside OSHA's ladder rule.
+- That rags with linseed oil, oil-based stain or varnish on them can
+  heat up and catch fire on their own is general knowledge; drying them
+  flat outdoors or keeping them in a closed metal can of water, and
+  asking the local waste service, are general practice, beside OSHA's
+  rule for oily rags on construction sites.

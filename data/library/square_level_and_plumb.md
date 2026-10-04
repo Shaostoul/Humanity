@@ -15,10 +15,11 @@ large at the far end. A wall one degree out of square at one corner is
 on top inherits it.
 
 The methods in this guide come from the US Army's carpentry manual (FM
-5-426) and its hand tool manual (TM 9-243), both approved for public
-release. The safety rules come from the Occupational Safety and Health
-Administration (OSHA) and the Pipeline and Hazardous Materials Safety
-Administration (PHMSA), and the drainage advice from the Environmental
+5-426) and the armed services' joint hand tool manual (TM 9-243), both
+approved for public release. The safety rules come from the
+Occupational Safety and Health Administration (OSHA) and the Pipeline
+and Hazardous Materials Safety Administration (PHMSA), and the drainage
+advice from the Environmental
 Protection Agency (EPA) and the federal rules for installing
 manufactured homes. All are United States government publications, in
 the public domain. Where something is arithmetic, general practice or
@@ -44,18 +45,38 @@ location of sewer, telephone, fuel, electric and water lines is to be
 determined before an excavation is opened. A gas line or a buried
 power cable is not something to find with a spade.
 
+**The marks are an estimate, and they do not show everything.** OSHA's
+word for what the locate gives is the "estimated location", and its
+rule goes on: when digging approaches it, "the exact location of the
+installations shall be determined by safe and acceptable means"
+(29 CFR 1926.651(b)(3)). At home that means digging by hand, gently,
+near the marks, not with a machine (general practice). And the utility
+companies mark only their own lines. Lines that you or an earlier
+owner put in, such as a cable to a shed or a pump, a pipe to a well, a
+septic line, or a gas line to a propane tank, are generally not marked;
+find them from your own records or with a private locating service
+before you dig (general practice).
+
 **Trenches collapse.** OSHA (29 CFR 1926.652) requires anyone working
 in an excavation to be protected from cave-ins by a designed
 protective system, such as shoring or sloped sides, unless the
 excavation is entirely in stable rock, or is less than 5 feet (1.52 m)
-deep and a competent person has examined the ground and found no sign
-of a possible cave-in. It also requires the dug soil, and materials
+deep and a "competent person" has examined the ground and found no
+sign of a possible cave-in. That is a defined term, not a compliment:
+OSHA means someone capable of identifying the hazards and with the
+authority to put them right at once (29 CFR 1926.650), in practice a
+person trained in excavation work. A homeowner reading this guide is
+not one, so the 5 foot exception is not yours to use. A separate
+section, 29 CFR 1926.651(j)(2), requires the dug soil, and materials
 and equipment, to be kept at least 2 feet (0.61 m) back from the edge,
-so they cannot fall or roll in. A footing trench for a shed is usually
-shallow; a trench for a water line below the frost depth may not be.
-If you would have to stand in a trench deeper than your waist, that is
-past this guide and a question for someone qualified (general
-practice).
+or held back by retaining devices, so they cannot fall or roll in.
+
+A footing trench for a shed is usually shallow; a trench for a water
+line below the frost depth may not be. **Do not get into any trench
+deeper than your waist.** A deeper one is past this guide: it needs a
+protective system and someone qualified to design it (the waist limit
+is general practice, set well below OSHA's 5 feet because you are not
+the competent person that rule depends on).
 
 **Ladders.** Set a straight or extension ladder so its foot is out
 from the wall by about one quarter of its working length, which is
@@ -343,16 +364,30 @@ You want a base 4 m by 4 m for a small shed.
 
 ### How long a ladder for a 3 metre gutter
 
-OSHA's one-quarter rule puts the foot of the ladder out from the wall
-by a quarter of its working length. That makes the ladder the long
-side of a right triangle whose base is a quarter of that side. By
-Pythagoras, the height it reaches is the square root of (1 - 1/16),
-about 0.968, times its working length (our arithmetic). To rest on a
-gutter 3 m up, the working length is 3 divided by 0.968, about 3.1 m,
+First, where the top goes. **Do not rest a ladder on the gutter
+itself:** a gutter can bend or pull away under the load (general
+practice), and OSHA's ladder rule (29 CFR 1926.1053(b)(10)) wants the
+top placed "with the two rails supported equally". Rest both rails on
+the wall, or fit a stand-off, a bracket that holds the top of the
+ladder clear of the gutter and bears on the wall or roof (general
+practice).
+
+Then, how long. OSHA's one-quarter rule puts the foot of the ladder out
+from the wall by a quarter of its working length. That makes the ladder
+the long side of a right triangle whose base is a quarter of that side.
+By Pythagoras, the height it reaches is the square root of (1 - 1/16),
+about 0.968, times its working length (our arithmetic). For the top to
+bear at 3 m up, the working length is 3 divided by 0.968, about 3.1 m,
 with the foot about 0.78 m out from the wall. The angle is about 75.5
 degrees. Climbing on to the roof from it needs the rails to reach at
-least 3 feet (0.9 m) higher, which OSHA also requires, so a ladder
-reaching about 4 m along its length.
+least 3 feet (0.9 m) above the roof edge, which OSHA also requires, so
+a ladder reaching about 4 m along its length.
+
+When you buy or borrow an extension ladder, note that the size it is
+sold as is the length of its sections added together, and because the
+sections overlap when it is extended, it works at less than that. Check
+the label for its maximum working length, and compare that with your
+answer (general practice).
 
 ### Concrete for a slab
 
@@ -379,38 +414,67 @@ this guide. Some things are not:
   that carries a load over people's heads.** Their sizes depend on the
   soil, the loads and the local rules, and are a question for your
   local building department or an engineer (general practice).
-- **Trenches deep enough to stand in.** See OSHA's rules above.
+- **Any trench deeper than your waist.** See OSHA's rules above.
 - **Anything near buried utilities that have not been marked.** Call
-  811 and wait.
+  811 and wait, and find your own private lines before you dig.
 - **Work on a roof** if you are not sure of your footing or the ladder
   (general practice).
 
 ## How the game models it
 
-When you build in the game, the geometry is done for you, which is
-worth noticing because real ground and real lumber do none of it.
+The game has two ways to build, and they handle geometry differently.
+Real ground and real lumber do none of it for you, so the difference is
+worth noticing.
 
-- **Everything is square by construction.** A piece you place snaps to
-  a 1 metre grid, and it turns only in quarter turns (R by default,
-  while placing). So every corner in a game building is exactly a right
+**Pieces you build from the Crafting page** (the blueprints in
+`data/blueprints/basic.ron`, such as a wall, a foundation or a roof)
+have the geometry done for you:
+
+- **Square by construction.** A piece you place snaps to a 1 metre
+  grid, and it turns only in quarter turns (R by default, while
+  placing). So every corner between these pieces is exactly a right
   angle, and you never need a 3-4-5 triangle. A wall is 4 m long and 3
   m high and a foundation 4 m by 4 m, so a 4 m room lines up. In real
   life, squaring the corners is the job.
-- **Everything is plumb by construction.** Pieces stand along the
-  vertical of the place you build: the ship's own up when aboard, and
-  the local up of a build site on a planet.
-- **Walls are levelled for you, within reason.** On uneven ground, a
-  wall standing on the ground that touches another wall of the same
-  kind is stretched or shortened so the two tops meet, as long as they
-  are within 0.3 m of each other; a wall or a machine built on a
-  foundation rests on its top. In real life that job is done by
-  getting the foundation level, which is why the batter boards are set
-  at its height.
-- **Building trains you.** Finishing a structure gives experience in
-  the Shelter Building skill.
+- **Plumb by construction.** Pieces stand along the vertical of the
+  place you build: the ship's own up when aboard, and the local up of a
+  build site on a planet.
+- **Levelled for you, within reason.** On uneven ground, a wall
+  standing on the ground that touches another wall of the same kind is
+  stretched or shortened so the two tops meet, as long as they are
+  within 0.3 m of each other; a wall or a machine built on a foundation
+  rests on its top. In real life that job is done by getting the
+  foundation level, which is why the batter boards are set at its
+  height.
+- **Building trains you.** Finishing one of these structures gives
+  experience in the Shelter Building skill.
 
-The rules are in `src/systems/construction/placement.rs`, and the
-sizes of every piece in `data/blueprints/basic.ron`.
+The rules for these pieces are in
+`src/systems/construction/placement.rs`.
+
+**The construction editor for your home** works differently, and is
+closer to real layout:
+
+- **Interior walls are drawn corner to corner.** Each click drops a
+  corner, and the editor snaps it to a 0.25 m grid, to an existing
+  corner or to the edge of the zone, and nothing more. So a wall can
+  run at any angle, and two walls can meet at an angle that is not a
+  right angle. The editor does not square a room for you.
+- **The editor measures for you.** Its dimension overlay, on by
+  default, shows each wall's length to the centimetre and the angle at
+  each corner, so the job a tape and a 3-4-5 triangle do outside is done
+  by reading a number. The angle is shown to the nearest whole degree,
+  so a corner almost half a degree out can still read 90; on a 4 m room
+  that is nearly the 5 cm of diagonal in the table above.
+- **Stairs, a ramp, a ladder and an elevator** are on the Structure tab
+  of the editor's palette, and while one is held for placing, [ and ]
+  turn it in 15 degree steps. The stairs and the ramp climb; the ladder
+  stands straight up.
+
+The editor's corner snapping is in `src/engine/geom.rs` and
+`src/engine/editor.rs`, its measurements in `src/gui/pages/hud.rs`
+(`draw_construction_overlay`), and its structural pieces in
+`data/blueprints/structure_types.ron`.
 
 **One setting changes what you keep.** While Settings > Gameplay >
 "Start every session from the default home" is on, which is the default
@@ -419,14 +483,20 @@ what you built and the experience it earned start over at the next
 launch. Turn the setting off to keep them.
 
 What the game leaves out: the roof is a flat slab, so there are no
-rafters or roof pitch; there are no stairs to lay out, no ladders, no
-digging and no buried utilities; and no piece is ever tilted, and no
-corner is ever anything but a right angle. Those you practise outside.
+rafters or roof pitch; a staircase is one ready-made piece, so there are
+no risers to work out; the ladder piece stands straight up, so there is
+no one-in-four angle to set; there is no digging and there are no buried
+utilities; and you never hold a tape, a square or a level, because the
+pieces are squared for you and the editor reads its own angles. Those
+you practise outside.
 
 ## You own this when
 
-- You call 811 before you dig, every time, and you never stand in a
-  deep trench that is not protected.
+- You call 811 before you dig, every time, find your own private lines,
+  dig by hand near the marks, and never get into a trench deeper than
+  your waist.
+- You rest a ladder on both rails against something solid, never on a
+  gutter.
 - You check a level by reversing it end for end before you trust it.
 - You can plumb a post with a plumb bob and a 2 inch offset, on two
   faces.
@@ -471,8 +541,10 @@ were read on 3 October 2026.
   run of 12 feet). Copy at the Internet Archive.
   https://archive.org/download/MManuals/UsArmyEngineerCarpentry1995.pdf
 - Departments of the Army, Navy, Air Force and Marine Corps. *Use and
-  Care of Hand Tools and Measuring Tools*, TM 9-243 (the Internet
-  Archive's record dates the scan 12 December 1984). Chapter 10, Levels
+  Care of Hand Tools and Measuring Tools*, TM 9-243 (also Navy
+  M6290-AJ-MAN-010, Air Force TO 32-1-101, Marine Corps TM 10209-10/1),
+  dated 12 December 1984. The copy read is the Navy's June 1992 reissue,
+  NAVEDTRA 12085, which includes Change 1. Chapter 10, Levels
   (levels prove true horizontal or vertical; the carpenter's level's
   three vials; the line level on a tightly stretched cord; checking a
   level by reversing it end for end on a level surface). Chapter 11,
@@ -487,18 +559,27 @@ were read on 3 October 2026.
   or paint; the call and the marking are free; call, wait, respect the
   marks, dig with care).
   https://primis.phmsa.dot.gov/stakeholder-comms/cbyd/
+- Occupational Safety and Health Administration. 29 CFR 1926.650,
+  Scope, application, and definitions (a competent person is one
+  capable of identifying existing and predictable hazards and with
+  authorization to take prompt corrective measures to eliminate them).
+  https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1926/subpart-P/section-1926.650
 - Occupational Safety and Health Administration. 29 CFR 1926.651,
-  Specific excavation requirements (utility locations determined before
-  opening an excavation; materials kept at least 2 feet from the edge).
+  Specific excavation requirements ((b)(1) the estimated location of
+  utility installations determined before opening an excavation; (b)(3)
+  the exact location determined by safe and acceptable means as digging
+  approaches it; (j)(2) materials and equipment kept at least 2 feet
+  from the edge, or held back by retaining devices).
   https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1926/subpart-P/section-1926.651
 - Occupational Safety and Health Administration. 29 CFR 1926.652,
-  Requirements for protective systems (protection from cave-ins unless
-  entirely in stable rock, or less than 5 feet deep with no indication
-  of a cave-in on examination by a competent person).
+  Requirements for protective systems ((a)(1) protection from cave-ins
+  unless entirely in stable rock, or less than 5 feet deep with no
+  indication of a cave-in on examination by a competent person).
   https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1926/subpart-P/section-1926.652
 - Occupational Safety and Health Administration. 29 CFR 1926.1053(b),
-  Ladders (the foot out by about one quarter of the working length;
-  side rails at least 3 feet above an upper landing).
+  Ladders ((5)(i) the foot out by about one quarter of the working
+  length; (1) side rails at least 3 feet above an upper landing; (10)
+  the top placed with the two rails supported equally).
   https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1926/subpart-X/section-1926.1053
 - US Department of Housing and Urban Development. 24 CFR 3285.203, Site
   drainage, in the Model Manufactured Home Installation Standards
@@ -518,8 +599,15 @@ were read on 3 October 2026.
   touching walls within 0.3 m), `src/engine/build_place.rs` (the
   placing keys), `src/systems/construction/mod.rs` (Shelter Building
   experience on completion) and `data/blueprints/basic.ron` (the sizes
-  of every piece). The "Start every session from the default home"
-  setting: `src/config.rs` and `src/save_load.rs`.
+  of every piece). The home construction editor: `src/engine/editor.rs`
+  (`try_place_wall_node`, corners on a 0.25 m snap),
+  `src/engine/geom.rs` (`snap_node_position`: an existing corner, the
+  grid or the zone edge), the 15 degree turns with [ and ] in
+  `src/lib.rs`, the dimension overlay in `src/gui/pages/hud.rs`, the
+  palette in `src/gui/pages/construction.rs`, and the stairs, ramp,
+  ladder and elevator in `data/blueprints/structure_types.ron`. The
+  "Start every session from the default home" setting: `src/config.rs`
+  and `src/save_load.rs`.
 - [Keeping Things Working](/library#keeping-things-working), [Hand
   Tools](/library#hand-tools), [Estimating](/library#estimating), [Units
   and Converting Them](/library#units-and-converting-them) and [Choosing
@@ -542,4 +630,12 @@ were read on 3 October 2026.
   frames for occupied buildings to the local building department or an
   engineer, are general practice; local rules may set their own
   drainage and stair limits.
+- Digging by hand near the locate marks, and finding your own private
+  lines (to a shed, well, septic tank or propane tank) from records or a
+  private locating service, are general practice, beside OSHA's rule
+  that the exact location be found by safe means.
+- Never resting a ladder on a gutter, using a stand-off, and the
+  difference between an extension ladder's sold size and its working
+  length are general practice, beside OSHA's rule that both rails be
+  supported equally.
 - Saying which slope notation you mean is our advice.
