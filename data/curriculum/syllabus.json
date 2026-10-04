@@ -1995,10 +1995,24 @@
       "subject": "measurement",
       "title": "Geometry for building",
       "summary": "Square, level, plumb, and the 3-4-5 triangle.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "square-level-and-plumb"
+      ],
       "skills": [
         "shelter_building",
         "woodworking"
+      ],
+      "data": [
+        "data/blueprints/basic.ron"
+      ],
+      "sources": [
+        "dod-technical-manuals",
+        "osha",
+        "ecfr",
+        "phmsa",
+        "hud",
+        "epa"
       ],
       "locale_dependent": false,
       "hazard": "caution"
@@ -2815,9 +2829,29 @@
       "subject": "tools",
       "title": "Maintenance",
       "summary": "Keep tools and machines working rather than replacing them.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "keeping-things-working"
+      ],
       "skills": [
         "engineering"
+      ],
+      "data": [
+        "data/crafting/tools.ron",
+        "data/items.csv",
+        "data/manufacturing.ron"
+      ],
+      "sources": [
+        "nasa-rcm-guide",
+        "osha",
+        "ecfr",
+        "dod-technical-manuals",
+        "usfs",
+        "cpsc",
+        "usfa",
+        "energy-star",
+        "epa",
+        "ftc"
       ],
       "locale_dependent": false,
       "hazard": "caution"
@@ -2949,15 +2983,29 @@
       "subject": "community",
       "title": "Trading fairly",
       "summary": "Exchange goods and work so both sides would do it again.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "trading-fairly"
+      ],
       "skills": [
         "trading"
       ],
-      "locale_dependent": false,
-      "hazard": "none",
       "data": [
-        "data/trade_goods.ron"
-      ]
+        "data/trade_goods.ron",
+        "data/manufacturing.ron"
+      ],
+      "sources": [
+        "nist",
+        "nara",
+        "ftc",
+        "cpsc",
+        "usda-ams",
+        "bls",
+        "fda",
+        "irs"
+      ],
+      "locale_dependent": false,
+      "hazard": "none"
     },
     {
       "id": "community_agreements",

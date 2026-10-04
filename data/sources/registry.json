@@ -290,7 +290,8 @@
       "kind": "authority",
       "licence": "public-domain-us-gov",
       "use": "verbatim",
-      "bundle": true
+      "bundle": true,
+      "note": "Smoke alarm care (page last reviewed 28 September 2026: test monthly, batteries yearly, replace the alarm every 10 years), heating fire safety (last reviewed 4 May 2023: chimneys and heating equipment cleaned and inspected each year by a professional) and the clothes dryer fire safety flyer (undated: clean the lint filter before and after each cycle)."
     },
     {
       "id": "nist",
@@ -300,7 +301,8 @@
       "kind": "authority",
       "licence": "public-domain-us-gov",
       "use": "verbatim",
-      "bundle": true
+      "bundle": true,
+      "note": "NIST Handbook 133-2026 (December 2025): net weight is the commodity exclusive of wrapping materials. Weighing and Scales FAQs (updated 6 March 2026): commercial scales must meet state law, all 50 states have adopted Handbook 44, and a scale must be inspected and approved by the state before commercial use. The FAQ names \"an active NTEP Certificate of Conformance as proof that it is compliant with NIST Handbook 44\" as the most important aspect for a commercial scale."
     },
     {
       "id": "nchfp",
@@ -528,7 +530,7 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "Recommended insulation R-values by climate zone, air sealing, and window performance. An EPA programme, so public domain, which matters now that DOE Energy Saver is gone."
+      "note": "Recommended insulation R-values by climate zone, air sealing, and window performance. An EPA programme, so public domain, which matters now that DOE Energy Saver is gone. Maintenance Checklist (undated, read 2026-10-03): annual pre-season contractor check-ups, and air filters inspected, cleaned or changed monthly by the owner."
     },
     {
       "id": "building-america",
@@ -559,7 +561,7 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "16 CFR 460, the R-value Rule, is why an insulation label may not advertise R-value per inch."
+      "note": "16 CFR 460, the R-value Rule, is why an insulation label may not advertise R-value per inch. Consumer advice pages (read 2026-10-03): How To Avoid a Home Improvement Scam (July 2022), How To Spot, Avoid, and Report Fake Check Scams (June 2025), Mobile Payment Apps (May 2022), and Auto Warranties and Auto Service Contracts (April 2024; a dealer may not deny warranty coverage because maintenance was done by someone else). Auto warranties exception, verbatim: \"But if the warranty says that the work will be done for free, the dealer or manufacturer can make you use repair facilities it chooses\"; without maintenance records \"your claim might be denied\". Home improvement page: \"Consider only contractors who are licensed and insured\", the licence number in the contract, and the three-business-day right to cancel a contract signed at home."
     },
     {
       "id": "cpsc",
@@ -569,7 +571,7 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "Injury data by product, and the safety standards themselves. Cite a proposed rule for its data, never as if it were in force."
+      "note": "Injury data by product, and the safety standards themselves. Cite a proposed rule for its data, never as if it were in force. Also cited: Publication 5123 Portable Generator Hazards (102021), Publication 5126 Walk-Behind Power Mower Fact Sheet (052016), and Publication 254 Guide for Resale Stores and Product Resellers (012013 RV 052014: selling recalled products is unlawful, including at yard sales). Publication 254 also lists children's metal jewellery over 100 ppm lead, and children's products and painted furniture over the lead limits, as not to be sold; resellers need not test but cannot knowingly sell them."
     },
     {
       "id": "hud",
@@ -579,7 +581,7 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "24 CFR 3280, the manufactured home construction standards, carries thermal numbers that are quotable because they are regulation."
+      "note": "24 CFR 3280, the manufactured home construction standards, carries thermal numbers that are quotable because they are regulation. 24 CFR 3285.203, in the Model Manufactured Home Installation Standards, requires drainage to slope at least one half inch per foot away from the foundation for the first ten feet (read in the eCFR 2026-10-03)."
     },
     {
       "id": "dod-jts",
@@ -683,7 +685,7 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "Regulates what may be sold as soap, as a drug and as a food, so it is the authority for what a label is allowed to claim as well as for what is in the bottle."
+      "note": "Regulates what may be sold as soap, as a drug and as a food, so it is the authority for what a label is allowed to claim as well as for what is in the bottle. The FDA Food Code page (content current as of 17 September 2026) describes the Code as a model that local, state, tribal and federal regulators use to write their own food safety rules."
     },
     {
       "id": "nps",
@@ -743,7 +745,7 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "Works of the US government, so public domain under 17 USC 105 and quotable in the bundle. The hand-tool and shop manuals (TM 9-243 Use and Care of Hand Tools and Measuring Tools, TC 9-524 Fundamentals of Machine Tools) are the most thoroughly illustrated free instruction on these subjects that exists, written to teach a skill to somebody with no background, which is our reader exactly. Treat the equipment-specific volumes with more care: a manual written for one machine in one decade is not general guidance."
+      "note": "Works of the US government, so public domain under 17 USC 105 and quotable in the bundle. The hand-tool and shop manuals (TM 9-243 Use and Care of Hand Tools and Measuring Tools, TC 9-524 Fundamentals of Machine Tools) are the most thoroughly illustrated free instruction on these subjects that exists, written to teach a skill to somebody with no background, which is our reader exactly. Treat the equipment-specific volumes with more care: a manual written for one machine in one decade is not general guidance. FM 5-426 Carpentry (3 October 1995, approved for public release, distribution unlimited; copy at archive.org) is the source for building layout: batter boards, the 6-8-10 and diagonal methods, plumbing posts, stairs as a right triangle and the rafter table. TM 9-243 is a joint Army, Navy, Air Force and Marine Corps manual (also Navy M6290-AJ-MAN-010, Air Force TO 32-1-101, Marine Corps TM 10209-10/1) dated 12 December 1984; the archive.org copy (use-and-care-of-hand-tools-and-measuring-tools-1983) is the Navy June 1992 reissue, NAVEDTRA 12085, with Change 1. Its chapter 20 also says to make certain no one is under a vehicle being raised, and to be aware of the capabilities of the jack, especially its load capacity."
     },
     {
       "id": "state-health-wastewater",
@@ -2758,7 +2760,7 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "Federal regulation text, quotable. 10 CFR 430.32(d) sets the minimum uniform energy factor for residential water heaters, with a stricter table for heaters made on or after 6 May 2029. Also cited (read 2026-10-03): 29 CFR 1910.147 and 1910.333(b)(2)(iv), lockout and verifying that a circuit is de-energised with test equipment; 21 CFR 112.161-112.165, what a farm record must contain and how long it is kept; 14 CFR 43.9, maintenance record entries; 7 CFR 205.103, organic recordkeeping. Cite the section and the date it was read, because the eCFR is updated in place."
+      "note": "Federal regulation text, quotable. 10 CFR 430.32(d) sets the minimum uniform energy factor for residential water heaters, with a stricter table for heaters made on or after 6 May 2029. Also cited (read 2026-10-03): 29 CFR 1910.147 and 1910.333(b)(2)(iv), lockout and verifying that a circuit is de-energised with test equipment; 21 CFR 112.161-112.165, what a farm record must contain and how long it is kept; 14 CFR 43.9, maintenance record entries; 7 CFR 205.103, organic recordkeeping. Cite the section and the date it was read, because the eCFR is updated in place. Also cited (read 2026-10-03): 29 CFR 1910.212 (machine guarding), 1910.242(b) (compressed air for cleaning under 30 psi), 1910.244(a) (jacks: block a raised load at once; tag a jack that is out of order), 1926.651 and 1926.652 (locating utilities before digging; cave-in protection below 5 feet; spoil 2 feet from the edge), 1926.1053(b) (ladder use, the one-quarter rule); 24 CFR 3285.203 (manufactured home site drainage, one half inch per foot for the first ten feet). Added after the fact check (read 2026-10-03): 1910.147(e)(2)(i) and (ii) (everyone safely positioned or removed, and affected employees told, before a machine is restarted); 1910.244(a)(1)(i) and (a)(2)(i) (a jack rated to lift and sustain the load; its base blocked without a firm foundation); 1926.650(b) (competent person defined); 1926.651(b)(3) (the exact location of underground installations found by safe and acceptable means as digging approaches the estimate) and (j)(2) (spoil 2 feet back, or retaining devices); 1926.1053(b)(3), (10), (11) and (13) (rated capacity, both rails supported equally, not moved while occupied, the top or top step of a stepladder not a step); 1926.252(e) (oily rags in fire resistant covered containers); 1910.266(d)(1)(iv) to (vii) and (e)(2)(i) (chainsaw leg, foot, head and eye protection; chain brake, kickback devices never disabled)."
     },
     {
       "id": "doe-building-science-education",
@@ -2933,7 +2935,7 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "How long should I keep records? (last reviewed or updated 30 June 2026, read 2026-10-03): records supporting a return are kept until the period of limitations runs out, generally 3 years, with 4, 6 and 7 year cases and indefinitely if no return was filed. US federal tax law only; other countries differ."
+      "note": "How long should I keep records? (last reviewed or updated 30 June 2026, read 2026-10-03): records supporting a return are kept until the period of limitations runs out, generally 3 years, with 4, 6 and 7 year cases and indefinitely if no return was filed. US federal tax law only; other countries differ. Topic no. 420, Bartering income (last reviewed or updated 24 September 2026, read 2026-10-03): bartering defined; the fair market value of goods or services received is included in gross income; barter exchanges file Form 1099-B, and the term excludes informal noncommercial swaps of similar services."
     },
     {
       "id": "usda-ams",
@@ -2944,7 +2946,50 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "Runs the National Organic Program. Its recordkeeping rule, 7 CFR 205.103 (read in the eCFR 2026-10-03), asks that records be adapted to the particular business, disclose all activities and transactions in enough detail to be readily understood and audited, and be kept not less than 5 years. Cite the regulation text through ecfr as well."
+      "note": "Runs the National Organic Program. Its recordkeeping rule, 7 CFR 205.103 (read in the eCFR 2026-10-03), asks that records be adapted to the particular business, disclose all activities and transactions in enough detail to be readily understood and audited, and be kept not less than 5 years. Cite the regulation text through ecfr as well. Market News (https://www.ams.usda.gov/market-news, read 2026-10-03): free, unbiased price and sales information, thousands of reports a year, including local and regional foods. Grades and Standards: large buyers use the quality grades as a common language."
+    },
+    {
+      "id": "nasa-rcm-guide",
+      "name": "NASA Reliability-Centered Maintenance Guide for Facilities and Collateral Equipment",
+      "publisher": "National Aeronautics and Space Administration",
+      "url": "https://www.nasa.gov/wp-content/uploads/2023/06/nasa-rcmguide.pdf",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "September 2008, read 2026-10-03 from the PDF on nasa.gov. Defines reactive (run-to-failure), preventive, predictive testing and inspection, and proactive maintenance; run-to-failure as a conscious decision; the six failure patterns and three studies (United Airlines 1968, Sweden 1973, US Navy 1982) with random failures at 77 to 92 percent and age-related at 8 to 23; scheduled overhaul raising failure rates through infant mortality. NASA-created, but some sections (the bearing-failure percentages, credited to a 2003 trade article; acknowledged General Motors material) reproduce outside work: restate those, do not quote them."
+    },
+    {
+      "id": "phmsa",
+      "name": "Pipeline and Hazardous Materials Safety Administration",
+      "publisher": "US Department of Transportation",
+      "url": "https://www.phmsa.dot.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Call Before You Dig! (https://primis.phmsa.dot.gov/stakeholder-comms/cbyd/, undated, read 2026-10-03): call 811 before every digging project, even planting trees or shrubs; all states require a call 48 to 72 hours before digging; operators mark lines with flags or paint; free. The www.phmsa.dot.gov pages refuse scripted downloads; the primis pages do not."
+    },
+    {
+      "id": "bls",
+      "name": "Bureau of Labor Statistics",
+      "publisher": "US Department of Labor",
+      "url": "https://www.bls.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Occupational Employment and Wage Statistics (https://www.bls.gov/oes/, read 2026-10-03; latest release shown 15 May 2026, for May 2025 data): wage estimates for about 830 occupations, for the nation as a whole, individual states, and metropolitan and nonmetropolitan areas. bls.gov refuses our scripted downloads (an Access Denied page), so the guide read it through a page summary; an independent fact check the same day loaded it in a browser and confirmed the wording. Restated in the guide, which is safe either way."
+    },
+    {
+      "id": "nara",
+      "name": "National Archives and Records Administration",
+      "url": "https://www.archives.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Holds the founding documents; its transcriptions of the Constitution, the Bill of Rights and amendments 11 to 27 are the source of the Library's Constitution page (docs/reference/us-constitution.md). Article I, Section 8 gives Congress the power to fix the Standard of Weights and Measures."
     }
   ]
 }
