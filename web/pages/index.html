@@ -489,7 +489,7 @@
       <p class="sub">One app for what you planted, what needs doing, and what you can trade with the people on your server. It also holds a space game built on the same rules, so playing it teaches the real thing.</p>
       <div class="cta-row">
         <a class="cta-big" href="/download">Download free</a>
-        <a class="cta-see" href="#s2">See what it looks like</a>
+        <a class="cta-see" href="#dawn">See what it looks like</a>
       </div>
       <!-- "Runs on old computers" was false and had to go: the renderer is
            DX12-only on Windows and Vulkan/Metal elsewhere, with
@@ -504,7 +504,7 @@
 
   <!-- ══ Screen 1b: the hero shot, the second screen down (2026-10-04) ══
        The operator's idea: start dark on the Milky Way, then the sun comes up
-       over a real place, from his own town, Silverdale, toward Mount Rainier.
+       over a real place, from Silverdale, Washington, toward Mount Rainier.
        Recorded by the game's own clip maker (scripts/clips.json, shot
        "silverdale-dawn"; scripts/make-clips.js), cut to 720p. Wired the way
        the game panel's clip is: muted, preload="none" so it costs nothing
@@ -513,20 +513,28 @@
        loop: it ends on the sunrise, and coming back to it plays it again. -->
   <section class="screen" id="dawn">
     <div class="inner">
-      <h2 class="u-purple">The real sky over a real place.</h2>
+      <h2 class="u-purple">Night to sunrise over a real place.</h2>
     </div>
     <video class="hero-clip auto-clip" id="dawn-clip" muted playsinline preload="none"
            width="1280" height="720"
            poster="/shared/landing/silverdale-dawn.jpg"
-           aria-label="A time-lapse recorded in the game: the Milky Way over Silverdale, Washington, fades as the sun rises over Dyes Inlet, with Mount Rainier on the horizon">
+           aria-label="A time-lapse recorded in the game: the winter Milky Way stands over Mount Rainier, seen from Silverdale, Washington, then fades as dawn comes and the sun rises over Dyes Inlet">
       <source src="/shared/landing/silverdale-dawn.mp4" type="video/mp4">
     </video>
-    <!-- Every claim here is checkable in the game: the stars are a real star
-         catalogue, the ground is real elevation and map data, and the Earth
-         is drawn at full size. Rainier is honestly a low shape on the
-         horizon: the elevation data that ships today is about 5 km to a
-         cell, so the mountain is rounded off. -->
-    <p class="shot-cap">Recorded in the game: night to sunrise over Silverdale, Washington, looking toward Mount Rainier. The stars are a real catalogue, the ground is real map data, and the Earth is full size.</p>
+    <!-- Every claim here is checkable in the game. The stars are a real star
+         catalogue placed for the date and hour (renderer/sky_frame.rs,
+         BUG-139; the sky_frame tests hold Sirius, Procyon, Orion and the rest
+         within 0.1 degree of the real sky over Silverdale that morning), and
+         this recording used the free 25-million-star catalogue from Settings,
+         which the caption says. The ground is real elevation and map data,
+         and the Earth is drawn at full size. What is NOT claimed, because it
+         is not true yet: the twilight colours (the drawn sky is black through
+         nautical twilight, BUG-141), the sun's own path (the game has no
+         axial tilt, so it rises due east), and Rainier's shape (the elevation
+         data that ships is about 5 km to a cell, so the mountain is a low
+         rounded dome). The old headline, "The real sky over a real place",
+         was false before BUG-139 and went with it. -->
+    <p class="shot-cap">Recorded in the game: night to sunrise over Silverdale, Washington, looking toward Mount Rainier. The stars stand where they really stood that morning (shown with the free 25-million-star catalogue from Settings), the ground is real map data, and the Earth is full size.</p>
     <div class="chev" aria-hidden="true">&#9660;</div>
   </section>
 

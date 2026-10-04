@@ -233,33 +233,35 @@
     {
       "id": "silverdale-dawn",
       "title": "Night to sunrise over Silverdale, Washington",
-      "caption": "From the Milky Way to sunrise over Dyes Inlet in Silverdale, Washington, with Mount Rainier on the horizon. An hour and forty minutes in ten seconds, recorded in the game.",
+      "caption": "Night to sunrise over Silverdale, Washington: the winter Milky Way stands over Mount Rainier, fades as dawn comes, and the sun rises over Dyes Inlet. The stars are where they really stood that morning. About two hours in twelve seconds, recorded in the game.",
       "camera": {
         "body": "earth",
         "lat": 47.645,
         "lon": -122.695,
         "altitude_km": 0.3,
         "look_offset_deg": 80,
-        "time": 4.3
+        "time": 3.8
       },
       "showcase": {
         "sea": "0.3",
         "weather": "clear",
         "cloud_cover": "0",
-        "fov": "45"
+        "fov": "60"
       },
       "final_showcase": {
-        "stand": "0,300,0,118,6",
+        "stand": "0,300,0,148,24",
         "stand_at": "47.645,-122.695"
       },
       "settle_s": 14,
       "final_settle_s": 8,
       "during": {
-        "time_scale": "600"
+        "time_scale": "650"
       },
       "record": {
-        "seconds": 10,
-        "warmup_s": 2
+        "seconds": 12,
+        "warmup_s": 2,
+        "pan_yaw_deg": -40,
+        "pan_pitch_deg": -14
       }
     }
   ]
