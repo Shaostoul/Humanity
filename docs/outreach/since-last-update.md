@@ -11,6 +11,15 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1455.1: three more Library guides on looking after a building.**
+  Roofs and Keeping Water Out (shingles and flashing, finding a leak, snow
+  loads, working safely at height and away from power lines), Repairing a
+  Building (rot, damp and mould, leaks you cannot see, lead paint and
+  asbestos before you start, and what to do if you smell gas), and Salvage
+  and Reuse (reclaimed lumber, pallets, old drums and tanks that must never
+  be cut or welded, treated wood, and old appliances). The Library now has
+  77 sourced guides.
+
 - **v0.1455.0: no more free money at the trading post, and vehicles built
   from real amounts of material.** 24 recipes let you buy the parts, craft
   something and sell it back for more, forever; none do now, and a test
