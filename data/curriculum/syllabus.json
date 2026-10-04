@@ -249,9 +249,29 @@
       "subject": "water",
       "title": "Moving water without power",
       "summary": "Use gravity, siphons and hand pumps to get water where it is needed.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "moving-water-without-power"
+      ],
       "skills": [
         "engineering"
+      ],
+      "data": [
+        "data/machines/home.ron",
+        "data/containers/fluids.ron",
+        "data/items.csv",
+        "data/recipes.csv"
+      ],
+      "sources": [
+        "epa",
+        "dod-technical-manuals",
+        "usda-nrcs",
+        "osha",
+        "ecfr",
+        "niosh",
+        "cpsc",
+        "cdc",
+        "poison-control"
       ],
       "locale_dependent": false,
       "hazard": "caution"
@@ -1665,30 +1685,64 @@
       "subject": "materials",
       "title": "Stone, clay and earth",
       "summary": "Work with the materials that are already under your feet.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "stone-clay-and-earth"
+      ],
       "skills": [
         "mining"
       ],
-      "locale_dependent": true,
-      "hazard": "caution",
       "data": [
-        "data/items.csv"
-      ]
+        "data/items.csv",
+        "data/recipes.csv",
+        "data/entities/wild_spawns.ron",
+        "data/blueprints/basic.ron"
+      ],
+      "sources": [
+        "dod-technical-manuals",
+        "nps",
+        "osha",
+        "ecfr",
+        "niosh-pocket-guide",
+        "fema",
+        "usgs",
+        "phmsa"
+      ],
+      "locale_dependent": true,
+      "hazard": "caution"
     },
     {
       "id": "materials_fiber",
       "subject": "materials",
       "title": "Fibre, cord and textiles",
       "summary": "Make and choose rope, thread and cloth, and know their strengths.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "fibre-cord-and-textiles"
+      ],
       "skills": [
         "tailoring"
       ],
-      "locale_dependent": false,
-      "hazard": "caution",
       "data": [
-        "data/items.csv"
-      ]
+        "data/items.csv",
+        "data/recipes.csv",
+        "data/plants.csv",
+        "data/entities/livestock.ron",
+        "data/equipment.csv"
+      ],
+      "sources": [
+        "dod-technical-manuals",
+        "osha",
+        "ecfr",
+        "usda",
+        "usda-ams",
+        "cpsc",
+        "nps",
+        "ftc",
+        "penn-state-extension"
+      ],
+      "locale_dependent": false,
+      "hazard": "caution"
     },
     {
       "id": "materials_adhesive",
