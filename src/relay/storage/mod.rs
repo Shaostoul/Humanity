@@ -705,6 +705,20 @@ impl Storage {
             );"
         )?;
 
+        // Who holds which plot of the ship (increment 1b, storage/plots.rs).
+        // Ownership only: plot geometry stays in the ship file. Its own batch,
+        // every column in the CREATE (no ALTER, so BUG-046 cannot apply).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS game_plots (
+                world_id    TEXT NOT NULL,
+                plot_id     TEXT NOT NULL,
+                owner_did   TEXT NOT NULL,
+                assigned_at INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (world_id, plot_id),
+                UNIQUE (world_id, owner_did)
+            );"
+        )?;
+
         // Federation: federated server registry.
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS federated_servers (
@@ -2327,6 +2341,8 @@ mod guilds;
 mod reputation;
 mod game_persistence;
 mod game_bans;
+mod plots;
+pub use plots::plot_owner_id;
 pub mod docs_accord;
 
 pub use civilization::CivilizationStats;

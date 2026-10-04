@@ -30,6 +30,11 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
             }
         }
         Some("game_welcome") => {
+            // Increment 1b: our home goes to the plot the relay gave us (or we refuse a ship
+            // that is not ours, and the welcome goes no further). engine/home_plot.rs.
+            if !crate::engine::home_plot::apply_welcome_home(state, &v) {
+                return;
+            }
             if let Some(id) = v.get("player_id").and_then(|x| x.as_u64()) {
                 let own_id = id as u32;
                 // Welcome first (sets our local_player_id so the self-filter +
@@ -183,6 +188,16 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
         // NOT touch chat (it stays connected by design).
         Some("game_join_denied") => {
             let reason = v.get("reason").and_then(|x| x.as_str()).unwrap_or("");
+            // The relay's ship is not ours, it has none, or our join named none (increment 1b,
+            // round 4): it refused the join before spawning anything, so there is nothing to
+            // leave. Or our account on it was erased and it took our figure out (round 5), so
+            // there is nothing to leave either. One plain sentence per cause, kept under the
+            // HUD, and no retry on this server until a fresh connection to it, a switch away
+            // and back, or a fresh world load (engine/home_plot.rs `join_denied_sentence`).
+            if let Some(sentence) = crate::engine::home_plot::join_denied_sentence(reason) {
+                crate::engine::home_plot::refuse_shared_world(state, sentence.to_string(), None);
+                return;
+            }
             let msg = v.get("message").and_then(|x| x.as_str())
                 .unwrap_or("You are banned from the game world. Chat is unaffected.");
             state.gui_state.game_admin_status = if reason.is_empty() {
@@ -192,7 +207,9 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
             };
             log::warn!("Game-join denied: {msg} (reason: {reason})");
         }
-        Some("game_admin_error") => {
+        // A refusal, or (game_admin_notice) a done-and-said, from a game-admin action such as
+        // releasing a player's plot: both are shown under the admin controls.
+        Some("game_admin_error") | Some("game_admin_notice") => {
             if let Some(m) = v.get("message").and_then(|x| x.as_str()) {
                 state.gui_state.game_admin_status = m.to_string();
             }
@@ -473,6 +490,11 @@ const PLAYER_NAMEPLATE_OVER_HEAD_M: f32 = 0.15;
 /// showroom (2026-10-02, round two: before that, our figure walked on
 /// 1.25 m on everyone else's screen and stood there until we came back).
 pub(crate) fn drive_position_send(state: &mut EngineState, in_world: bool, dt: f32, real_dt: f32) {
+    // Nothing goes out before the welcome has put our home on our plot (increment 1b): until
+    // then our camera stands at the default plot, which may be someone else's home.
+    if !state.game_welcomed {
+        return;
+    }
     let (position, yaw) = (state.camera.position, state.camera.yaw);
     let out = state.net_sync.position_to_send(dt, real_dt, in_world, position, yaw, &mut state.game_pos_timer);
     if let Some(out) = out {

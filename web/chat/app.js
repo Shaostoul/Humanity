@@ -1122,8 +1122,10 @@ async function handleMessage(msg) {
               if (typeof renderGameAdminList === 'function') renderGameAdminList();
               break;
             case 'game_admin_error':
+            // A done-and-said from a game-admin action (releasing a plot): the same status line.
+            case 'game_admin_notice':
               if (typeof showGameAdminError === 'function') showGameAdminError(game.message || 'Game admin error.');
-              else console.warn('game_admin_error:', game.message);
+              else console.warn(game.type + ':', game.message);
               break;
             default:
               break;

@@ -12,6 +12,9 @@ pub mod editor;
 pub mod frame_lock;
 pub mod geom;
 pub mod home_meshes;
+/// Your home on the shared ship: applying the relay's plot from `game_welcome`
+/// (increment 1b of docs/design/ship-homes-and-logistics.md).
+pub mod home_plot;
 pub mod home_spawn;
 /// The F10 sidebar's key rules (F10 toggle, Escape-closes-first), the
 /// cursor-free predicate and the flag-by-name lookup the dev IPC reports

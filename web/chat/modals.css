@@ -652,7 +652,8 @@
 .gameadmin-section { color: var(--text); font-size: var(--text-md); margin: var(--space-lg) 0 var(--space-xs); }
 .gameadmin-hint { color: var(--text-muted); font-size: var(--text-sm); margin: 0 0 var(--space-sm); line-height: 1.4; }
 .profile-modal #gameadmin-key,
-.profile-modal #gameadmin-reason { margin-bottom: var(--space-sm); }
+.profile-modal #gameadmin-reason,
+.profile-modal #gameadmin-plot-key { margin-bottom: var(--space-sm); }
 .gameadmin-danger-btn {
   background: var(--danger); color: #fff; border: none;
   padding: var(--space-sm) var(--space-xl); border-radius: var(--radius-sm);

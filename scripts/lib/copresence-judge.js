@@ -67,8 +67,8 @@ const LIMITS = {
   END_MARGIN_M: 0.5,
   /// How near the line a frame must be to START the pass, metres. Loose on
   /// purpose: only an approach frame within a few degrees of the line's own
-  /// direction could meet it, and the rig places the line so the approach
-  /// comes from behind its start.
+  /// direction could meet it, and the rig checks the walker's approach never
+  /// runs along the line (`approachClear`).
   WINDOW_TOL_M: 0.3,
   /// How far off the line any judged frame may be, metres. A figure walking a
   /// straight line between updates on a straight line never leaves it; this
@@ -148,9 +148,18 @@ function viewAngle(cam, p) {
  *           computer's clock (ms since 1970), as the rig read it off the
  *           walker's "on the path" line. Each frame's `epoch_ms` is the same
  *           clock, so the two give where the walker really was on that frame.
+ *           For a later forward leg of a walk that goes back and forth, the
+ *           start of THAT leg (`forwardLegStart`).
+ *   fromEpochMs  (optional) judge only frames from this moment on, by the
+ *           same clock: the start of the forward leg being judged, so the end
+ *           of the leg before it (walking back) is never mistaken for it.
+ *   checkView  (default true) whether to check the figure was in the
+ *           camera's view. The --plots run turns it off: the two players
+ *           stand in their own homes and cannot see each other until
+ *           increment 2.
  * Returns { pass, checks: [{ id, ok, detail }], stats }.
  */
-function judgeCopresence({ frames, walker, line, speed, onLineEpochMs }, limits = LIMITS) {
+function judgeCopresence({ frames, walker, line, speed, onLineEpochMs, fromEpochMs = null, checkView = true }, limits = LIMITS) {
   const L0 = { ...LIMITS, ...limits };
   const checks = [];
   const add = (id, ok, detail) => checks.push({ id, ok: !!ok, detail });
@@ -162,6 +171,7 @@ function judgeCopresence({ frames, walker, line, speed, onLineEpochMs }, limits 
   const track = [];
   const others = new Set();
   (frames || []).forEach((fr, i) => {
+    if (Number.isFinite(fromEpochMs) && Number(fr.epoch_ms) < fromEpochMs) return;
     for (const p of fr.players || []) {
       if (isWalker(p, walker))
         track.push({ i, t: Number(fr.t), epoch: fr.epoch_ms === undefined ? null : Number(fr.epoch_ms), pos: p.pos.map(Number), phase: p.phase || null, cam: fr.cam || null });
@@ -347,7 +357,7 @@ function judgeCopresence({ frames, walker, line, speed, onLineEpochMs }, limits 
         : "no time for when the walker reached the line, so where it really was cannot be told",
     );
   }
-  if (pass.some((s) => s.cam)) {
+  if (checkView && pass.some((s) => s.cam)) {
     stats.max_view_angle_deg = maxAngle;
     add(
       "in_view",
@@ -358,6 +368,352 @@ function judgeCopresence({ frames, walker, line, speed, onLineEpochMs }, limits 
     );
   }
   return done();
+}
+
+// ── Homes on plots (increment 1b, `verify-copresence --plots`) ──────────────
+//
+// The relay hands each player a plot of the ship; the game moves its home to
+// its own plot and its camera to that plot's spawn. The rig runs the two join
+// orders and these checks judge each run: the two players hold different
+// plots, by the order they joined; the game's camera is inside the plot the
+// game should hold; and every position the game DREW for the walker is inside
+// the walker's plot (the recorder records figures off screen too). Whether
+// they can see each other waits for increment 2.
+
+/** True when the walker's straight approach from `from` to the line's start
+ *  can never pass for the walk: no point of it is within WINDOW_TOL of the
+ *  line at least START_MARGIN along it, which is what opens the judged pass.
+ *  An approach from behind the start always is; since increment 1b the
+ *  walker joins on its own plot and may come at the line from anywhere, so
+ *  the rig checks the real path (second-player.js makeWalk walks it straight).
+ *  `line` is { start, end }. Pure. */
+function approachClear(from, line, limits = LIMITS) {
+  const A = line.start.map(Number);
+  const B = line.end.map(Number);
+  const L = len(sub(B, A));
+  const d = sub(B, A).map((x) => x / L);
+  for (let i = 0; i <= 2000; i++) {
+    const p = from.map((v, k) => v + ((A[k] - v) * i) / 2000);
+    const { u, perp } = lineCoords(p, A, d);
+    if (perp <= limits.WINDOW_TOL_M && u >= limits.START_MARGIN_M) return false;
+  }
+  return true;
+}
+
+/** The start, by the computer's clock (ms), of the walker's first FORWARD leg
+ *  at or after `atMs`. second-player.js walks a line back and forth for as
+ *  long as it runs: start to end in 2r/speed seconds and back in as many, so
+ *  a forward leg begins every 4r/speed seconds from when it reached the line. */
+function forwardLegStart(onLineEpochMs, speed, radius, atMs) {
+  const cycle = ((4 * radius) / speed) * 1000;
+  const k = Math.max(0, Math.ceil((atMs - onLineEpochMs) / cycle));
+  return onLineEpochMs + k * cycle;
+}
+
+/** The plots of the ship file's text (data/blueprints/ship_structure.ron), in
+ *  order: [{ id, kind, origin: [x,y,z], size: [w,h,d] }]. For a game too old
+ *  to report its plots (the 1a build the red run uses); a game that reports
+ *  them is believed instead. */
+function readShipPlots(text) {
+  const i = text.indexOf("plots: [");
+  if (i < 0) return [];
+  const j = text.indexOf("default_plot", i);
+  const block = text.slice(i, j > 0 ? j : undefined);
+  const nums = (s) => s.split(",").map((v) => Number(v.trim()));
+  const out = [];
+  const re = /id:\s*"([^"]+)",[\s\S]*?kind:\s*"([^"]+)",\s*origin:\s*\(([^)]*)\),\s*size:\s*\(([^)]*)\)/g;
+  for (let m; (m = re.exec(block)); ) out.push({ id: m[1], kind: m[2], origin: nums(m[3]), size: nums(m[4]) });
+  return out;
+}
+
+/** Is point `p` inside a plot's box (a centimetre of slack for rounding)? */
+function inPlot(p, plot, tol = 0.01) {
+  return [0, 1, 2].every((k) => p[k] >= plot.origin[k] - tol && p[k] <= plot.origin[k] + plot.size[k] + tol);
+}
+/** How far point `p` is from a plot's footprint, across the floor (x and z),
+ *  metres: 0 inside it. */
+function footprintGap(p, plot) {
+  const dx = Math.max(plot.origin[0] - p[0], 0, p[0] - (plot.origin[0] + plot.size[0]));
+  const dz = Math.max(plot.origin[2] - p[2], 0, p[2] - (plot.origin[2] + plot.size[2]));
+  return Math.hypot(dx, dz);
+}
+
+/** The plot whose footprint is nearest point `p` (the first on a tie). */
+function nearestPlot(p, plots) {
+  let best = null;
+  for (const pl of plots) if (!best || footprintGap(p, pl) < footprintGap(p, best)) best = pl;
+  return best;
+}
+
+const boxText = (pl) =>
+  `${pl.id} (x ${pl.origin[0]}..${pl.origin[0] + pl.size[0]}, y ${pl.origin[1]}..${pl.origin[1] + pl.size[1]}, z ${pl.origin[2]}..${pl.origin[2] + pl.size[2]})`;
+
+/**
+ * Judge one --plots run.
+ *   order       "walker-first" or "game-first": who claimed a plot first.
+ *   plots       the ship's plots in order (the game's report, else the file).
+ *   gamePlot    the plot id the game says its home stands on (null for none).
+ *   walkerPlot  the plot id the relay gave the walker (null for none).
+ *   camera      [x, y, z] of the game's camera after joining.
+ *   homeThings  where the game's home's own things stand after joining (the
+ *               recorder's `home_things`): { respawn, hologram, showroom,
+ *               animals: [[x,y,z]...], plants: [[x,y,z]...] }. Each must be
+ *               nearer the plot the game should hold than any other plot (the
+ *               hologram hangs half a metre outside the home's west wall, so
+ *               "inside" would be too strict). Things the world load placed
+ *               for the home and the rebuild does not redo used to stay on
+ *               the default plot when the home moved.
+ *   frames, walker  the recorder's frames and who the walker is (as above).
+ * The plots each SHOULD hold come from the join order alone: the first to
+ * join holds the first plot and the second the second (the relay's rule), so
+ * a build that hands out no plots fails here with where things really were.
+ * Returns { pass, checks }.
+ */
+function judgePlots({ order, plots, gamePlot, walkerPlot, camera, homeThings, frames, walker }) {
+  const checks = [];
+  const add = (id, ok, detail) => checks.push({ id, ok: !!ok, detail });
+  if (!Array.isArray(plots) || plots.length < 2) {
+    add("plots_known", false, `the ship's plots are unknown (${JSON.stringify(plots)}); two are needed`);
+    return { pass: false, checks };
+  }
+  const gameFirst = order === "game-first";
+  const expGame = gameFirst ? plots[0] : plots[1];
+  const expWalker = gameFirst ? plots[1] : plots[0];
+  add(
+    "plot_ids_differ",
+    gamePlot && walkerPlot && gamePlot !== walkerPlot,
+    `the game holds ${gamePlot || "no plot"}, the walker ${walkerPlot || "no plot"}`,
+  );
+  add(
+    "plots_by_join_order",
+    gamePlot === expGame.id && walkerPlot === expWalker.id,
+    `${order}: the game should hold ${expGame.id} and holds ${gamePlot || "none"}; the walker should hold ${expWalker.id} and holds ${walkerPlot || "none"}`,
+  );
+  const camOk = Array.isArray(camera) && inPlot(camera, expGame);
+  add(
+    `camera_in_${expGame.id}`,
+    camOk,
+    Array.isArray(camera)
+      ? `after joining, the game's camera at (${camera.map((v) => Number(v).toFixed(2)).join(", ")}) is ${camOk ? "inside" : "OUTSIDE"} ${boxText(expGame)}, the plot the game should hold`
+      : "the game never reported its camera after joining",
+  );
+  const h = homeThings || null;
+  const things = h
+    ? [
+        ["the Respawn point", h.respawn],
+        ["the hologram", h.hologram],
+        ["the showroom stage", h.showroom],
+        ...(h.animals || []).map((a, i) => [`animal ${i + 1}`, a]),
+        ...(h.plants || []).map((a, i) => [`plant ${i + 1}`, a]),
+        // What the player built aboard and parked (the second review of 1b): none in a
+        // fresh rig sandbox, so not required, but each one reported must be on the plot.
+        ...(h.structures || []).map((a, i) => [`built piece ${i + 1}`, a]),
+        ...(h.vehicles || []).map((a, i) => [`vehicle ${i + 1}`, a]),
+      ]
+    : [];
+  const strays = things.filter(([, p]) => !Array.isArray(p) || nearestPlot(p.map(Number), plots) !== expGame);
+  const nA = h ? (h.animals || []).length : 0;
+  const nP = h ? (h.plants || []).length : 0;
+  add(
+    "home_things_on_its_plot",
+    h && nA > 0 && nP > 0 && strays.length === 0,
+    !h
+      ? "the game reported none of its home's things (a build from before the fix)"
+      : !nA || !nP
+        ? `the game reported ${nA} animals and ${nP} plants; the shipped home has both, so nothing would be checked`
+        : strays.length
+          ? `${strays.length} of ${things.length} of the home's things are not on ${expGame.id}: ` +
+            strays
+              .slice(0, 4)
+              .map(([n, p]) => `${n} at (${Array.isArray(p) ? p.map((v) => Number(v).toFixed(1)).join(", ") : "nowhere"}) by ${Array.isArray(p) ? nearestPlot(p.map(Number), plots).id : "?"}`)
+              .join("; ")
+          : `the Respawn point, hologram, showroom stage, ${nA} animals, ${nP} plants, ` +
+            `${(h.structures || []).length} built pieces and ${(h.vehicles || []).length} vehicles are all on ${expGame.id}`,
+  );
+  const drawn = [];
+  for (const fr of frames || []) for (const p of fr.players || []) if (isWalker(p, walker)) drawn.push({ t: Number(fr.t), pos: p.pos.map(Number) });
+  const outside = drawn.filter((d) => !inPlot(d.pos, expWalker));
+  add(
+    "walker_drawn_in_its_plot",
+    drawn.length > 0 && outside.length === 0,
+    !drawn.length
+      ? `${walker.name || "the walker"} was never drawn`
+      : outside.length
+        ? `${outside.length} of ${drawn.length} drawn positions OUTSIDE ${boxText(expWalker)}; first at t ${f(outside[0].t)} s: (${outside[0].pos.map((v) => v.toFixed(2)).join(", ")})`
+        : `all ${drawn.length} drawn positions inside ${boxText(expWalker)}`,
+  );
+  return { pass: checks.every((c) => c.ok), checks };
+}
+
+/**
+ * Judge how the game came into the world (verify-copresence --plots, round 4
+ * of the 1b review). A returning player's game identifies on the main menu
+ * (its auto-connect) and only then is Enter World pressed: on that frame the
+ * join gate runs BEFORE the world has loaded, and the first build of 1b sent
+ * a join naming no ship there, which the relay refused as another ship. The
+ * autopilot creates the identity as it enters, so its socket identifies after
+ * the world loads and that race never runs. `entry`:
+ *   kind               "menu" (connected first, then Enter World pressed) or
+ *                      "autopilot" (the all-in-one entry)
+ *   identified         the probe before the press saw ws_identified
+ *   world_loaded       ... and saw world_loaded (must be false)
+ *   page_after_click   the page the press left (must be "None": in the world)
+ *   world_loaded_after_click  world_loaded right after the press (must be
+ *                      false: the join gate then runs before the world loads)
+ * A menu entry passes only when the race really ran; an autopilot entry is
+ * recorded as such and passes (it is the other path, judged by the rest).
+ * Returns { pass, checks }.
+ */
+function judgeEntry(entry) {
+  const checks = [];
+  const add = (id, ok, detail) => checks.push({ id, ok: !!ok, detail });
+  if (!entry || !entry.kind) {
+    add("entry_known", false, "the run never recorded how the game came into the world");
+  } else if (entry.kind === "autopilot") {
+    add("entry_known", true, "the autopilot entered the world as it created the identity (the identify-first race does not run on this path)");
+  } else {
+    const raced = entry.identified === true && entry.world_loaded === false && entry.page_after_click === "None" && entry.world_loaded_after_click === false;
+    add(
+      "entered_from_menu_after_identify",
+      raced,
+      `before Enter World: ws_identified=${entry.identified} world_loaded=${entry.world_loaded}; after the press: page ${entry.page_after_click} world_loaded=${entry.world_loaded_after_click}` +
+        (raced ? " (the join gate ran before the world loaded, the returning player's path)" : ": the identify-first race did NOT run, so this run proves nothing about it"),
+    );
+  }
+  return { pass: checks.every((c) => c.ok), checks };
+}
+
+/** How far the game must have stood from where the relay spawns it for the
+ *  step-out-and-back check to mean anything: past the relay's 100 m rule, so a
+ *  game that stayed where it stood would have every update refused. */
+const REJOIN_FAR_M = 100;
+/** How near where the relay holds it the game must stand after rejoining. */
+const REJOIN_STAND_TOL_M = 0.5;
+/** How near the nudged point the relayed update must be. */
+const REJOIN_NUDGE_TOL_M = 0.3;
+
+/**
+ * Judge the step out of the shared world and back (verify-copresence --plots,
+ * the second review of 1b): the game stepped out, its camera was moved far
+ * away, it stepped back in, and the relay spawned it afresh at its door.
+ *   far          [x,y,z] where the game stood when it stepped back in.
+ *   relaySpawn   [x,y,z] where the relay spawned it (the walker's log line
+ *                "player joined: ... at (x, y, z)"), or null when never seen.
+ *   camera       [x,y,z] the game's camera after the welcome, or null.
+ *   nudged       [x,y,z] where the rig then moved the camera, or null.
+ *   seen         the positions the walker saw the relay pass on for the game's
+ *                new entity after the nudge ([[x,y,z]...]).
+ * Checks: the experiment means something (far is past the 100 m rule from the
+ * spawn); the game stands where the relay holds it; and its next move reached
+ * the others (the relay accepted it, so the player is not frozen).
+ *
+ * The Respawn leg (the third review of 1b) is judged the same way, with
+ * `{ prefix: "respawn", when: "it pressed Respawn" }`: `far` is then where the
+ * relay held the game when it pressed Respawn (walked there in steps the relay
+ * accepted), `relaySpawn` where the relay spawned it after the button stepped
+ * it out and back in.
+ * Returns { pass, checks }.
+ */
+function judgeRejoin({ far, relaySpawn, camera, nudged, seen }, { prefix = "rejoin", when = "it stepped back in" } = {}) {
+  const checks = [];
+  const add = (id, ok, detail) => checks.push({ id: `${prefix}_${id}`, ok: !!ok, detail });
+  const d = (a, b) => (Array.isArray(a) && Array.isArray(b) ? Math.hypot(...[0, 1, 2].map((k) => Number(a[k]) - Number(b[k]))) : Infinity);
+  const fmt3 = (p) => (Array.isArray(p) ? `(${p.map((v) => Number(v).toFixed(2)).join(", ")})` : "(never)");
+  const gap = d(far, relaySpawn);
+  add(
+    "far_from_spawn",
+    Number.isFinite(gap) && gap > REJOIN_FAR_M,
+    relaySpawn
+      ? `the game stood at ${fmt3(far)} when ${when}, ${gap.toFixed(1)} m from where the relay spawned it ${fmt3(relaySpawn)}` +
+          (gap > REJOIN_FAR_M ? "" : ` (needs more than ${REJOIN_FAR_M} m to mean anything)`)
+      : "the walker never saw the game join again, so where the relay spawned it is unknown",
+  );
+  const off = d(camera, relaySpawn);
+  add(
+    "stands_where_held",
+    off <= REJOIN_STAND_TOL_M,
+    `after rejoining, the game's camera at ${fmt3(camera)} is ${Number.isFinite(off) ? off.toFixed(2) : "?"} m from where the relay holds it ${fmt3(relaySpawn)}` +
+      (off <= REJOIN_STAND_TOL_M ? "" : ` (at most ${REJOIN_STAND_TOL_M} m; a game left there is frozen for everyone else)`),
+  );
+  const hit = (seen || []).find((p) => d(p, nudged) <= REJOIN_NUDGE_TOL_M);
+  add(
+    "moves_reach_others",
+    !!hit,
+    hit
+      ? `its next move to ${fmt3(nudged)} reached the walker through the relay, at ${fmt3(hit)}`
+      : `its next move to ${fmt3(nudged)} never reached the walker (${(seen || []).length} update(s) seen after it): the relay refused it`,
+  );
+  return { pass: checks.every((c) => c.ok), checks };
+}
+
+/**
+ * Judge shutting the build editor far from the build spot (verify-copresence
+ * --plots, round 5 of the 1b review, finding 1). The game walked, in steps the
+ * relay accepted, more than 100 m from its build spot, opened the build editor
+ * (the showcase `build_editor` verb, the B key's own function) and shut it.
+ * Shutting it stands the player at the build spot when nothing holds them; in
+ * the shared world that was a jump the relay refuses, and the others saw the
+ * figure frozen where it last stood.
+ *   buildSpot  [x,y,z] where shutting the editor stands the game when the spot
+ *              is near (the rig opens and shuts it once at the door first, which
+ *              puts the build-mode avatar there), or null.
+ *   held       [x,y,z] where the relay held the game when it opened the editor:
+ *              the last of its moves the walker saw the relay pass on, or null.
+ *   camera     [x,y,z] the game's camera after the editor shut, or null.
+ *   nudged, seen   as for judgeRejoin: the next move, and what the walker saw.
+ * Checks: the experiment means something (the build spot is past the 100 m
+ * rule from where the relay holds the game); the game still stands where the
+ * relay holds it; and its next move reached the others.
+ * Returns { pass, checks }.
+ */
+function judgeEditorClose({ buildSpot, held, camera, nudged, seen }) {
+  const checks = [];
+  const add = (id, ok, detail) => checks.push({ id: `editor_${id}`, ok: !!ok, detail });
+  const d = (a, b) => (Array.isArray(a) && Array.isArray(b) ? Math.hypot(...[0, 1, 2].map((k) => Number(a[k]) - Number(b[k]))) : Infinity);
+  const fmt3 = (p) => (Array.isArray(p) ? `(${p.map((v) => Number(v).toFixed(2)).join(", ")})` : "(never)");
+  const gap = d(buildSpot, held);
+  add(
+    "far_from_build_spot",
+    Number.isFinite(gap) && gap > REJOIN_FAR_M,
+    buildSpot && held
+      ? `the build spot ${fmt3(buildSpot)} is ${gap.toFixed(1)} m from where the relay held the game when it opened the editor ${fmt3(held)}` +
+          (gap > REJOIN_FAR_M ? "" : ` (needs more than ${REJOIN_FAR_M} m to mean anything)`)
+      : `the build spot ${fmt3(buildSpot)} or where the relay held the game ${fmt3(held)} is unknown`,
+  );
+  const off = d(camera, held);
+  add(
+    "stands_where_held",
+    off <= REJOIN_STAND_TOL_M,
+    `after the editor shut, the game's camera at ${fmt3(camera)} is ${Number.isFinite(off) ? off.toFixed(2) : "?"} m from where the relay holds it ${fmt3(held)}` +
+      (off <= REJOIN_STAND_TOL_M ? "" : ` (at most ${REJOIN_STAND_TOL_M} m; a game put farther than 100 m away is frozen for everyone else)`),
+  );
+  const hit = (seen || []).find((p) => d(p, nudged) <= REJOIN_NUDGE_TOL_M);
+  add(
+    "moves_reach_others",
+    !!hit,
+    hit
+      ? `its next move to ${fmt3(nudged)} reached the walker through the relay, at ${fmt3(hit)}`
+      : `its next move to ${fmt3(nudged)} never reached the walker (${(seen || []).length} update(s) seen after it): the relay refused it`,
+  );
+  return { pass: checks.every((c) => c.ok), checks };
+}
+
+/** The walk from a home's door to `to` (one of FAR_POINTS) along the ship's
+ *  floor, in steps of at most `maxStep` metres, each one the relay accepts
+ *  under its 100 m rule: out through the door's corridor (into the Commons for
+ *  a door at z 20..75, else onto street-1 at x 70), through the junction
+ *  between the Commons and street-1 at (70, 80), to the target. Ship metres at
+ *  eye height (data/blueprints/ship_structure.ron). Pure. */
+function respawnRoute(from, to, maxStep = 40) {
+  const out = [from[2] >= 20 && from[2] <= 75 ? 66 : 70, 1.7, from[2]];
+  const legs = [from, out, [70, 1.7, 80], to];
+  const pts = [];
+  for (let i = 1; i < legs.length; i++) {
+    const [a, b] = [legs[i - 1], legs[i]];
+    const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[2] - a[2]) / maxStep));
+    for (let k = 1; k <= n; k++) pts.push([0, 1, 2].map((j) => a[j] + ((b[j] - a[j]) * k) / n));
+  }
+  return pts;
 }
 
 // ── Is the figure VISIBLE in a screenshot? ──────────────────────────────────
@@ -411,4 +767,23 @@ function figurePixels(img, nameplate = null) {
   return { count, box, centroid: count ? [sx / count, sy / count] : null };
 }
 
-module.exports = { LIMITS, judgeCopresence, lineCoords, viewAngle, isFigureTeal, figurePixels, FIGURE_MIN_PX };
+module.exports = {
+  LIMITS,
+  judgeCopresence,
+  lineCoords,
+  viewAngle,
+  isFigureTeal,
+  figurePixels,
+  FIGURE_MIN_PX,
+  approachClear,
+  forwardLegStart,
+  readShipPlots,
+  inPlot,
+  nearestPlot,
+  judgePlots,
+  judgeRejoin,
+  judgeEditorClose,
+  judgeEntry,
+  respawnRoute,
+  REJOIN_FAR_M,
+};

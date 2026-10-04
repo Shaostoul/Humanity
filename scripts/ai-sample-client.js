@@ -66,6 +66,25 @@ function decodeGameMsg(msg) {
   }
 }
 
+/**
+ * The ship the relay holds plots on, `{ id, hash }`, from its public
+ * /api/server-info (the same pair every game_welcome carries), or null when it
+ * names none or cannot be asked. `URL` is the socket address: ws://host/ws is
+ * asked at http://host/api/server-info.
+ */
+async function fetchShip() {
+  try {
+    const u = new globalThis.URL(URL);
+    u.protocol = u.protocol === 'wss:' ? 'https:' : 'http:';
+    const res = await fetch(`${u.origin}/api/server-info`, { signal: AbortSignal.timeout(5000) });
+    const ship = res.ok ? (await res.json()).ship : null;
+    return ship && ship.hash ? ship : null;
+  } catch (e) {
+    console.log(`(could not ask the relay which ship it has: ${e.message})`);
+    return null;
+  }
+}
+
 // ── State machine ──────────────────────────────────────────────────────────
 
 let state = 'awaiting_identify_ack';
@@ -98,8 +117,14 @@ ws.addEventListener('message', (ev) => {
   if (state === 'awaiting_identify_ack' && msg.type === 'peer_list') {
     log('Identify ack', `Server welcomed us (${msg.peers?.length || 0} peers online)`);
     state = 'awaiting_game_welcome';
-    console.log('→ Sending game_join');
-    send({ type: 'game_join', player_name: NAME });
+    // Name the relay's ship in the join, the way the desktop app does: only a
+    // join naming this relay's ship holds a plot of it (ship homes increment 1b,
+    // docs/design/ship-homes-and-logistics.md); one naming none is a guest in
+    // the Commons. The ship is public in /api/server-info.
+    fetchShip().then((ship) => {
+      console.log(ship ? `→ Sending game_join for ship ${ship.id} (${ship.hash})` : '→ Sending game_join as a guest (the relay names no ship)');
+      send(ship ? { type: 'game_join', player_name: NAME, ship_hash: ship.hash } : { type: 'game_join', player_name: NAME });
+    });
     return;
   }
 

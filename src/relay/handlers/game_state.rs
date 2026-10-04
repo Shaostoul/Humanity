@@ -308,7 +308,115 @@ pub struct GameWorld {
     pub chores: Vec<ChoreDef>,
     /// Accumulator throttling traveling-NPC position broadcasts (not persisted).
     npc_broadcast_accum: f64,
+    /// The mothership's plots (increment 1b of docs/design/ship-homes-and-logistics.md):
+    /// what `assign_home` hands out, from the same ship file and home designs the game
+    /// assembles from (a ship file on disk that does not load falls back to the copy built
+    /// into the exe, `ShipPlots::load`). Empty only when neither loads (logged at startup):
+    /// a game, which names its ship, is then refused at the join with its own reason
+    /// ("no_ship", home_plots.rs `refused_join`), and a join naming no ship (a scripted
+    /// player) gets the old Pioneer spawn and no plot.
+    pub ship_plots: crate::ship::ship_structure::ShipPlots,
 }
+
+/// Where a joining player lives and arrives (increment 1b): their plot (None for a guest,
+/// when every plot is held) and the spawn point, in ship metres at eye height.
+#[derive(Debug, Clone, PartialEq)]
+pub struct HomeAssignment {
+    pub plot: Option<crate::ship::ship_structure::PlotArrival>,
+    pub spawn: [f32; 3],
+}
+
+impl HomeAssignment {
+    /// The welcome's `home_plot`: {id, kind, origin, size}, or null for a guest.
+    pub fn home_plot_json(&self) -> serde_json::Value {
+        match &self.plot {
+            Some(p) => serde_json::json!({
+                "id": p.id,
+                "kind": p.kind,
+                "origin": [p.origin.0, p.origin.1, p.origin.2],
+                "size": [p.size.0, p.size.1, p.size.2],
+            }),
+            None => serde_json::Value::Null,
+        }
+    }
+}
+
+/// What a `game_join` says about the joiner's own home (increment 1b), both from the game
+/// (engine/home_plot.rs `add_join_fields`):
+///   `ship_hash`  the ship the joiner draws. Only a join naming THIS relay's ship claims a
+///                plot: a plot is where a home stands, and only a game drawing this ship
+///                has a home here. One naming another ship is refused at the join, before
+///                anything is spawned (home_plots.rs `refused_join`), and so is one naming
+///                an EMPTY ship (a game whose own ship did not load; round 4 of the 1b
+///                review: "" was refused as another ship, or, on a relay with no ship,
+///                taken as this one). One without the field (a scripted player or an AI
+///                agent that has not asked /api/server-info) is a guest in the Commons (the
+///                second review of 1b: such a join used to claim a plot for good, so two
+///                quick test bots filled the ship).
+///   `home_spawn` [x, z], the player's own home's door, plot-local metres: they arrive there
+///                on whichever plot they get, kept inside it (`PlotArrival::arrival`). None:
+///                the middle of the plot.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct JoinHome {
+    pub ship_hash: Option<String>,
+    pub door: Option<(f32, f32)>,
+}
+
+/// Why a `game_join` is refused before anything is spawned (home_plots.rs `refused_join`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JoinRefusal {
+    /// It names a ship that is not this relay's: its positions could never agree with ours.
+    OtherShip,
+    /// It names a ship, and this relay has none (its ship file and the built-in copy both
+    /// failed to load): the third review of 1b found such a relay told every game "a
+    /// different ship from yours", which was not true and sent players looking for an update.
+    NoShip,
+    /// Its `ship_hash` is empty: the joiner's own ship did not load, so it draws none (round
+    /// 4 of the 1b review: the first 1b game sent "" on the frame Enter World was pressed,
+    /// and it was refused as another ship; on a relay with no ship "" matched the relay's
+    /// empty hash and the join was taken as this ship's).
+    NoShipNamed,
+}
+
+impl crate::ship::ship_structure::ShipPlots {
+    /// Why a join is refused at the join, None when it is not: one naming an empty ship
+    /// (`NoShipNamed`, whatever this relay has), one naming a ship this relay does not have
+    /// (`OtherShip`), or one naming a ship when this relay has none (`NoShip`). A join without
+    /// a `ship_hash` at all (a scripted player) is never refused here.
+    pub fn join_refusal(&self, join: &JoinHome) -> Option<JoinRefusal> {
+        let theirs = join.ship_hash.as_deref()?;
+        if theirs.is_empty() {
+            Some(JoinRefusal::NoShipNamed)
+        } else if self.ship_hash.is_empty() {
+            Some(JoinRefusal::NoShip)
+        } else {
+            (theirs != self.ship_hash).then_some(JoinRefusal::OtherShip)
+        }
+    }
+
+    /// True when a join names this very ship: only such a join holds a plot. Never for an
+    /// empty hash, on either side.
+    pub fn is_this_ship(&self, join: &JoinHome) -> bool {
+        !self.ship_hash.is_empty() && join.ship_hash.as_deref() == Some(self.ship_hash.as_str())
+    }
+}
+
+impl JoinHome {
+    /// Read from the raw `game_join`. A field of the wrong shape counts as absent, except a
+    /// `ship_hash` that is not a string, which is read as empty and refused (`NoShipNamed`).
+    pub fn from_join(raw: &serde_json::Value) -> Self {
+        let ship_hash = raw.get("ship_hash").filter(|v| !v.is_null()).map(|v| v.as_str().unwrap_or("").to_string());
+        let door = raw.get("home_spawn").and_then(|v| v.as_array()).and_then(|a| match a.as_slice() {
+            [x, z] => Some((x.as_f64()? as f32, z.as_f64()? as f32)),
+            _ => None,
+        });
+        JoinHome { ship_hash, door }
+    }
+}
+
+/// The id a plot is held under (the player's `did:hum:`), defined beside the table
+/// (storage/plots.rs) because an account's erasure and export find its rows by it too.
+pub use crate::relay::storage::plot_owner_id;
 
 impl GameWorld {
     /// Initialize game world and load the starter ship layout.
@@ -322,7 +430,9 @@ impl GameWorld {
             ship_name: String::new(),
             chores: Vec::new(),
             npc_broadcast_accum: 0.0,
+            ship_plots: Default::default(),
         };
+        world.load_ship_plots();
         world.load_starter_ship();
         world.load_chores();
         world.populate_ship_entities();
@@ -889,6 +999,75 @@ impl GameWorld {
             xp_total,
             reputation_total,
         })
+    }
+
+    /// Load the mothership's plots from data/ (the copies built into the exe when the relay
+    /// runs in a folder with none, like the throwaway relay of the rigs, or when the file on
+    /// disk does not load). A failure of both is logged and leaves no plots: a game's join is
+    /// then refused with reason "no_ship" (home_plots.rs `refused_join`), and a join naming
+    /// no ship spawns as before 1b, with no plot.
+    fn load_ship_plots(&mut self) {
+        match crate::ship::ship_structure::ShipPlots::load(std::path::Path::new("data")) {
+            Ok(p) => {
+                tracing::info!("Game: ship {} ({}) has {} plot(s)", p.ship_id, p.ship_hash, p.plots.len());
+                self.ship_plots = p;
+            }
+            Err(e) => tracing::error!("Game: the ship's plots did not load ({e}); nobody gets a plot"),
+        }
+    }
+
+    /// Where a joining player lives and arrives (increment 1b): for a join naming this ship
+    /// (`JoinHome`), the plot they hold on it, else the first free one, claimed now
+    /// (`Storage::claim_plot`, one plot per player and one player per plot, enforced by the
+    /// table), arriving at their own home's door on it, else in its middle. With every plot
+    /// held, or for a join naming no ship, they are a guest in the Commons. A join naming
+    /// ANOTHER ship never gets here (refused at the join). A storage error makes them a guest
+    /// too (logged): a join is never refused over a plot.
+    pub fn assign_home(&self, db: &crate::relay::storage::Storage, owner_key: &str, join: &JoinHome) -> HomeAssignment {
+        let sp = &self.ship_plots;
+        let ids: Vec<&str> = sp.plots.iter().map(|p| p.id.as_str()).collect();
+        let held = if ids.is_empty() {
+            None
+        } else if !sp.is_this_ship(join) {
+            tracing::info!("Game: {owner_key} names no ship (or not ours, {}); a guest, no plot claimed", sp.ship_hash);
+            None
+        } else {
+            match db.claim_plot(&sp.ship_id, &plot_owner_id(owner_key), &ids) {
+                Ok(id) => id,
+                Err(e) => {
+                    tracing::warn!("Game: could not claim a plot for {owner_key}: {e}; joining as a guest");
+                    None
+                }
+            }
+        };
+        let plot = held.and_then(|id| sp.plot(&id).cloned());
+        let spawn = match (&plot, sp.guest_spawn) {
+            (Some(p), _) => p.arrival(join.door),
+            (None, Some(g)) => g,
+            (None, None) => {
+                let d = self.default_spawn_position();
+                glam::Vec3::new(d[0], d[1], d[2])
+            }
+        };
+        HomeAssignment { plot, spawn: [spawn.x, spawn.y, spawn.z] }
+    }
+
+    /// Give back the plot the player with `owner_key` holds on this ship (the record only;
+    /// geometry is in the ship file). Some(plot id) when they held one, None when they held
+    /// none. Two callers: a game that cannot stand its home on the plot it was given gives it
+    /// back as it leaves (`game_leave` with `give_up_plot`), and an admin releases a plot from
+    /// Server Settings (`game_release_plot`, home_plots.rs `handle_game_release_plot`).
+    pub fn release_home(&self, db: &crate::relay::storage::Storage, owner_key: &str) -> Result<Option<String>, rusqlite::Error> {
+        db.release_plot(&self.ship_plots.ship_id, &plot_owner_id(owner_key))
+    }
+
+    /// True when the player whose plot is held under `owner` (`plot_owner_id`) is in the
+    /// world now, whatever the case or spelling of the key that named them: the check the
+    /// admin's release makes, by the same id the release deletes by (the third review: the
+    /// check compared keys as text, the release decoded them as hex, so a key pasted in upper
+    /// case got past "refused while they are in the world").
+    pub fn plot_holder_in_world(&self, owner: &str) -> bool {
+        self.entities.values().any(|e| e.entity_type == "player" && e.owner.as_deref().is_some_and(|k| plot_owner_id(k) == owner))
     }
 
     /// Default spawn position: center of Crew Quarters, 1m above floor.
@@ -1528,6 +1707,24 @@ fn direction_to_str(d: &crate::ship::layout::Direction) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// What a `game_join` says about the joiner's home (increment 1b): a ship hash that is
+    /// not a string can never match (so it claims nothing), a missing or null one is absent
+    /// (a scripted player), and a door is exactly two numbers or nothing. Seen red 2026-10-03
+    /// with a non-string hash read as absent: "left: None, right: Some(\"\")" (such a join would
+    /// have claimed a plot).
+    #[test]
+    fn a_join_reads_its_ship_and_door_strictly() {
+        let j = |v: serde_json::Value| JoinHome::from_join(&v);
+        assert_eq!(j(serde_json::json!({})), JoinHome::default());
+        assert_eq!(j(serde_json::json!({ "ship_hash": null })).ship_hash, None);
+        assert_eq!(j(serde_json::json!({ "ship_hash": "ab" })).ship_hash.as_deref(), Some("ab"));
+        assert_eq!(j(serde_json::json!({ "ship_hash": 7 })).ship_hash.as_deref(), Some(""));
+        assert_eq!(j(serde_json::json!({ "home_spawn": [1.5, 2] })).door, Some((1.5, 2.0)));
+        for bad in [serde_json::json!([1.0]), serde_json::json!([1.0, 2.0, 3.0]), serde_json::json!(["x", 2.0]), serde_json::json!("1,2")] {
+            assert_eq!(j(serde_json::json!({ "home_spawn": bad })).door, None, "{bad}");
+        }
+    }
 
     /// GameWorld::new() should load data/ships/starter_fleet.ron and produce
     /// the Pioneer's 6 rooms. If RON parsing silently fails, rooms is empty.

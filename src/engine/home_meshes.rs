@@ -293,6 +293,10 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
     rebuild_machine_objects(state);
     // Door/window panels follow the structure too (a wall edit can add/move/remove openings).
     rebuild_door_panels(state);
+    // When the plot the home stands on changed (a relay's welcome, the Dev Plots panel, an
+    // undo of either), what the home holds goes with it and the save's frame follows
+    // (engine/home_plot.rs, ship homes 1b; a no-op otherwise).
+    crate::engine::home_plot::follow_home_box(state);
     log::info!("Homestead rebuilt: {} rooms", room_info.len());
 }
 

@@ -1688,6 +1688,11 @@ mod native_app {
                     );
                 } else {
                     crate::save_load::apply_save_to_world(&mut game_world.world, save);
+                    // Where its home stood: the world load carries its pieces to the plot the
+                    // home is built on (engine/home_plot.rs `carry_loaded_save_home`).
+                    if let Some(b) = save.home_plot_box {
+                        data_store.insert(crate::save_load::LOADED_HOME_BOX_KEY, crate::save_load::LoadedHomeBox(b));
+                    }
                     log::info!(
                         "Loaded offline home: {} item stacks, {} skills",
                         save.inventory.len(),
@@ -1985,6 +1990,10 @@ mod native_app {
                 construction_hilite: None,
                 net_sync: crate::net::sync::NetSyncSystem::new(),
                 game_joined: false,
+                game_welcomed: false,
+                copresence_refused: None,
+                home_arrived_on: None,
+                copresence_server: String::new(),
                 game_pos_timer: 0.0,
                 remote_avatar: None,
                 remote_look_materials: std::collections::HashMap::new(),
@@ -2876,88 +2885,7 @@ mod native_app {
                             && state.gui_state.active_page == GuiPage::None
                             && !state.gui_state.showroom_active
                         {
-                            state.gui_state.construction_active = !state.gui_state.construction_active;
-                            // Clear any held placement item on entering/leaving build mode, so a
-                            // stale held type can't make the next viewport click drop a machine in
-                            // the wrong context. (v0.531)
-                            state.gui_state.construction_place_type = None;
-                            state.gui_state.construction_place_light = None; // v0.784
-                            state.gui_state.construction_place_conduit_node = false; // v0.629
-                            state.construction_ghost = None;
-                            state.construction_port_drag = None; // drop any in-flight wire drag (v0.625)
-                            if state.gui_state.construction_active {
-                                // Force a structure rebuild on ENTRY so the machine PICK VOLUMES
-                                // (`machine_pick`) are rebuilt in the editor's coordinate space. Without
-                                // this they held stale data from `load_world` (built before
-                                // `home_structure` existed -> a different placement space), so you could
-                                // NOT click a machine until some OTHER edit (e.g. nudging a light)
-                                // triggered a rebuild -- the operator's "I have to drag a light first"
-                                // repro. `construction_structure_dirty` routes through the exact same
-                                // rebuild_homestead -> rebuild_machine_objects path that workaround hit. (v0.624)
-                                state.gui_state.construction_structure_dirty = true;
-                                // The rooms.ron registry for the ZONE detail panel (console-room
-                                // increment): a zone's room_type picker lists these keys and the
-                                // panel shows the purpose + actions the pick resolves to. Loaded here,
-                                // on editor entry, for the box home too (the legacy-layout branch
-                                // below only fills the Add-Room picker's id list).
-                                let reg = crate::ship::room_types::RoomTypeRegistry::load(&state.data_dir);
-                                let mut keys: Vec<String> = reg.types.keys().cloned().collect();
-                                keys.sort();
-                                state.gui_state.construction_room_types = keys;
-                                state.gui_state.room_type_registry = reg;
-                                if let Some(layout) = &state.homestead_layout {
-                                    // PIN EVERY room to its current resolved position on open, so
-                                    // editing one room no longer reshuffles the auto-laid-out
-                                    // others (the operator's "I felt lost as the rooms rearranged
-                                    // themselves"). The whole home becomes an explicit floor plan.
-                                    let resolved = crate::ship::fibonacci::resolve_positions(layout);
-                                    state.gui_state.construction_rooms = layout.rooms.iter()
-                                        .enumerate()
-                                        .map(|(i, rc)| {
-                                            let w = &rc.walls;
-                                            let pos = rc.position.unwrap_or_else(|| {
-                                                let r = resolved[i];
-                                                [r.x, r.y, r.z]
-                                            });
-                                            crate::gui::ConstructionRoom {
-                                                id: rc.id.clone(),
-                                                walls: [w.north, w.south, w.west, w.east],
-                                                wall_offsets: w.offsets,
-                                                openings: rc.openings.iter().map(|o| {
-                                                    use crate::ship::fibonacci::OpeningKind as OK;
-                                                    crate::gui::EditorOpening {
-                                                        kind: match o.kind {
-                                                            OK::Door => crate::gui::EditorOpeningKind::Door,
-                                                            OK::Airlock => crate::gui::EditorOpeningKind::Airlock,
-                                                            // Window + Hatch both edit as Window in the mirror.
-                                                            _ => crate::gui::EditorOpeningKind::Window,
-                                                        },
-                                                        wall: (o.wall as usize).min(3),
-                                                        u: o.u, v: o.v, w: o.w, h: o.h,
-                                                    }
-                                                }).collect(),
-                                                level: rc.level,
-                                                position: Some(pos),
-                                                dimensions: rc.dimensions,
-                                                material_type: rc.material_type,
-                                                color: rc.color,
-                                            }
-                                        })
-                                        .collect();
-                                    state.gui_state.construction_height = if layout.default_wall_height > 0.0 {
-                                        layout.default_wall_height
-                                    } else {
-                                        3.0
-                                    };
-                                }
-                                // Add-Room picker default: the first registry key. The sorted key
-                                // list itself was filled above, before this legacy-layout branch,
-                                // so it is not loaded twice.
-                                if state.gui_state.construction_add_type.is_empty() {
-                                    state.gui_state.construction_add_type =
-                                        state.gui_state.construction_room_types.first().cloned().unwrap_or_default();
-                                }
-                            }
+                            crate::engine::editor::toggle_build_editor(state);
                             return;
                         }
 
@@ -6798,6 +6726,10 @@ mod native_app {
                             .ws_client
                             .as_ref()
                             .map_or(false, |w| w.is_connected());
+                        // A switch to another server while joined leaves the one we joined
+                        // on, and a fresh connection tries a server that refused us again
+                        // (ship homes 1b, engine/home_plot.rs `follow_server`).
+                        crate::engine::home_plot::follow_server(state);
                         if connected {
                             // SOLO step-out (v0.801): joined but the player switched to
                             // solo (offline home entry, or Dev travel engaging) -- leave
@@ -6806,26 +6738,13 @@ mod native_app {
                             // honestly), the chat socket stays up. Rejoining is just the
                             // normal join below once solo clears: a fresh join, progress
                             // restored from storage (since 2026-10-03 a leave despawns
-                            // at once; it used to be held as a reconnect).
+                            // at once; it used to be held as a reconnect). The host's
+                            // clock and the other players go with it (forget_shared_world).
                             if state.game_joined && state.gui_state.copresence_solo {
                                 if let Some(ref ws) = state.gui_state.ws_client {
                                     ws.send(&serde_json::json!({"type": "game_leave"}).to_string());
                                 }
-                                state.game_joined = false;
-                                state.gui_state.copresence_active = false;
-                                // The host's clock no longer applies (2026-09-29).
-                                crate::systems::time::release_host_clock(&state.data_store);
-                                state.gui_state.copresence_names.clear();
-                                let remotes: Vec<hecs::Entity> = state
-                                    .game_world
-                                    .world
-                                    .query::<&crate::net::sync::RemotePlayer>()
-                                    .iter()
-                                    .map(|(e, _)| e)
-                                    .collect();
-                                for e in remotes {
-                                    let _ = state.game_world.world.despawn(e);
-                                }
+                                crate::engine::home_plot::forget_shared_world(state);
                                 log::info!("Co-presence: stepped out of the shared world (solo)");
                             }
                             // Join once, on first entering the world while connected --
@@ -6834,31 +6753,69 @@ mod native_app {
                             // every non-identify message, so a game_join racing the
                             // Dilithium challenge simply vanished (client showed
                             // "Shared world", server counted nobody -- caught by the
-                            // v0.793 autopilot two-instance test).
-                            if in_world
-                                && !state.game_joined
-                                && state.gui_state.ws_identified
-                                && !state.gui_state.copresence_solo
-                            {
-                                let name = if state.gui_state.character_name.trim().is_empty() {
-                                    "Wanderer".to_string()
-                                } else {
-                                    state.gui_state.character_name.clone()
-                                };
-                                if let Some(ref ws) = state.gui_state.ws_client {
+                            // v0.793 autopilot two-instance test). Only ABOARD (ship homes
+                            // 1b): from a planet or a Dev trip the camera is not in ship
+                            // metres, and a welcome there moved the player by ship
+                            // coordinates in the planet's frame (home_plot.rs `aboard`).
+                            // And only once the world has LOADED with its ship (1b, round 4):
+                            // this block runs before load_world in the frame Enter World or
+                            // Play is pressed, and a returning player's socket is identified
+                            // by then, so the join went out naming no ship and was refused
+                            // as another ship (home_plot.rs `join_step`).
+                            let gate = crate::engine::home_plot::JoinGate {
+                                in_world,
+                                joined: state.game_joined,
+                                identified: state.gui_state.ws_identified,
+                                solo: state.gui_state.copresence_solo,
+                                aboard: crate::engine::home_plot::aboard(state),
+                                refused_here: state.copresence_refused.as_deref()
+                                    == Some(crate::engine::home_plot::active_server_key(&state.gui_state).as_str()),
+                                world_loaded: state.world_loaded,
+                                has_ship: state.gui_state.ship_structure.is_some(),
+                            };
+                            match crate::engine::home_plot::join_step(&gate) {
+                                crate::engine::home_plot::JoinStep::Wait => {}
+                                crate::engine::home_plot::JoinStep::RefuseOwnShip => {
+                                    // The world loaded on the legacy layout: no ship to stand on
+                                    // or to name. Say so under the HUD instead of joining.
+                                    crate::engine::home_plot::refuse_shared_world(
+                                        state,
+                                        crate::engine::home_plot::OWN_SHIP.to_string(),
+                                        None,
+                                    );
+                                }
+                                crate::engine::home_plot::JoinStep::Join => {
+                                    let name = if state.gui_state.character_name.trim().is_empty() {
+                                        "Wanderer".to_string()
+                                    } else {
+                                        state.gui_state.character_name.clone()
+                                    };
                                     // character_mode is reserved for the open/closed-server model
                                     // (relay ignores extra fields today; envelope right from day one).
-                                    let join = serde_json::json!({
+                                    let mut join = serde_json::json!({
                                         "type": "game_join",
                                         "player_name": name,
                                         "character_mode": "local",
                                         // How this player looks to the others (2026-09-29).
                                         "appearance": crate::player_look::PlayerLook::from_appearance(&state.gui_state.appearance).to_json(),
                                     });
-                                    ws.send(&join.to_string());
+                                    // Our ship and our own door, for the plot (increment 1b).
+                                    // Never a join without a ship (round 4).
+                                    if crate::engine::home_plot::add_join_fields(&mut join, state.gui_state.ship_structure.as_ref()) {
+                                        if let Some(ref ws) = state.gui_state.ws_client {
+                                            ws.send(&join.to_string());
+                                        }
+                                        state.game_joined = true;
+                                        state.game_welcomed = false; // our plot is not known yet (1b)
+                                        state.game_pos_timer = 0.0;
+                                    } else {
+                                        crate::engine::home_plot::refuse_shared_world(
+                                            state,
+                                            crate::engine::home_plot::OWN_SHIP.to_string(),
+                                            None,
+                                        );
+                                    }
                                 }
-                                state.game_joined = true;
-                                state.game_pos_timer = 0.0;
                             }
                             // While joined, KEEP the session alive across menu
                             // round-trips (v0.779): the old code tore down every
@@ -6905,33 +6862,9 @@ mod native_app {
                             }
                         } else if state.game_joined {
                             // DISCONNECTED: allow a fresh join on reconnect + clear
-                            // remote avatars (they are stale without a live feed).
-                            state.game_joined = false;
-                            state.gui_state.copresence_active = false;
-                            crate::systems::time::release_host_clock(&state.data_store);
-                            state.gui_state.copresence_names.clear();
-                            let remotes: Vec<hecs::Entity> = state
-                                .game_world
-                                .world
-                                .query::<&crate::net::sync::RemotePlayer>()
-                                .iter()
-                                .map(|(e, _)| e)
-                                .collect();
-                            for e in remotes {
-                                let _ = state.game_world.world.despawn(e);
-                            }
-                            // Crew NPCs are relay-driven too; clear them alongside
-                            // remote players so a rejoin starts from fresh updates.
-                            let crew: Vec<hecs::Entity> = state
-                                .game_world
-                                .world
-                                .query::<&crate::net::sync::RemoteNpc>()
-                                .iter()
-                                .map(|(e, _)| e)
-                                .collect();
-                            for e in crew {
-                                let _ = state.game_world.world.despawn(e);
-                            }
+                            // remote avatars and the relay's crew (they are stale
+                            // without a live feed; a rejoin starts from fresh updates).
+                            crate::engine::home_plot::forget_shared_world(state);
                         }
                     }
 
@@ -7069,22 +7002,32 @@ mod native_app {
                         // Spawn at the build-mode avatar (v0.557) -- "where I'm at" when I leave build
                         // mode, in the EDITED zone (its origin shifts the avatar to world, v0.754).
                         // Fall back to the home zone's saved spawn, then the pre-build position.
+                        // In the shared world, a pick more than 90 m from where the relay holds the
+                        // player (the pre-build position, or where a welcome stood them while the
+                        // editor was open) leaves them there instead: the relay refuses any update
+                        // more than 100 m from it (home_plot.rs `editor_close_spot`, ship homes 1b).
                         let zo = active_zone_origin(state);
-                        state.camera.position = match state.gui_state.build_char_pos {
-                            Some((x, z)) => Vec3::new(x + zo.x, zo.y + 1.7, z + zo.z),
-                            None => state
-                                .gui_state
-                                .ship_structure
-                                .as_ref()
-                                .and_then(|s| {
-                                    let home = &s.zones[s.home_zone_index()];
-                                    home.body.spawn.map(|(x, z)| {
-                                        let o = home.origin_vec();
-                                        Vec3::new(x + o.x, o.y + 1.7, z + o.z)
-                                    })
+                        let chosen = match state.gui_state.build_char_pos {
+                            Some((x, z)) => Some(Vec3::new(x + zo.x, zo.y + 1.7, z + zo.z)),
+                            None => state.gui_state.ship_structure.as_ref().and_then(|s| {
+                                let home = &s.zones[s.home_zone_index()];
+                                home.body.spawn.map(|(x, z)| {
+                                    let o = home.origin_vec();
+                                    Vec3::new(x + o.x, o.y + 1.7, z + o.z)
                                 })
-                                .unwrap_or(state.construction_return_pos),
+                            }),
                         };
+                        let close = crate::engine::home_plot::editor_close_spot(
+                            chosen,
+                            state.construction_return_pos,
+                            state.game_joined,
+                        );
+                        state.camera.position = close.at;
+                        if close.held_back {
+                            state.gui_state.pending_notices.push(
+                                crate::engine::home_plot::EDITOR_HELD_BACK.to_string(),
+                            );
+                        }
                         state.gui_state.construction_selected_room = None;
                         state.construction_grab = None;
                         state.construction_gizmo_grab = None;
@@ -7736,7 +7679,7 @@ mod native_app {
                         push_grow_enclosures(state, &mut transparent_objects);
                         // Photoscanned decoration plants (v0.909): CC0 models
                         // scattered from data/entities/decorations.ron.
-                        for &(mesh_idx, mat_idx, pos, yaw, scl) in &state.decoration_objects {
+                        for &(mesh_idx, mat_idx, pos, yaw, scl, _anchor) in &state.decoration_objects {
                             all_objects.push(RenderObject { fade: 0.0,
                                 position: pos,
                                 rotation: Quat::from_rotation_y(yaw.to_radians()),
@@ -12492,8 +12435,18 @@ mod native_app {
                             }
                         }
                         state.camera.position = state.fps_spawn;
-                        state.driving_vehicle = None;
+                        // Out of the truck (its seat freed) and off the follow cam, either
+                        // of which would put the camera back on its vehicle next frame.
+                        crate::engine::home_plot::step_out_of_vehicles(
+                            &mut state.game_world.world,
+                            &mut state.driving_vehicle,
+                            &mut state.follow_vehicle,
+                        );
                         log::info!("[Vitals] player respawned at the spawn room");
+                        // In the shared world the relay still holds them where they died, up
+                        // to 154 m away: step out and join again, so it stands them at their
+                        // door too (ship homes 1b, engine/home_plot.rs).
+                        crate::engine::home_plot::respawn_through_relay(state);
                     }
                     // Bridge inventory from the player entity
                     let item_registry = state.data_store.get::<ItemRegistry>("item_registry");
@@ -14651,6 +14604,8 @@ mod native_app {
                                                     &mut state.game_world.world,
                                                     &save,
                                                 );
+                                                // From the plot its home stood on to the one it stands on now (1b).
+                                                crate::engine::home_plot::carry_saved_pieces_home(state, save.home_plot_box);
                                                 // The clock rewinds with the save, and
                                                 // the garden is caught up from its stamp.
                                                 let resumed = crate::save_load::resume_home(

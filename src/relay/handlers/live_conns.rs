@@ -462,7 +462,7 @@ mod tests {
         let state = fresh_state("seat_release");
         state.game_world.write().await.spawn_player("leaver", [0.0, 1.0, 0.0]);
         take_game_seat(&state, "leaver", 3).await;
-        handle_game_leave(&state, "leaver").await;
+        handle_game_leave(&state, "leaver", &serde_json::json!({})).await;
         assert!(state.live_conns.read().await.game_seat.get("leaver").is_none(), "game_leave frees the seat");
 
         state.game_world.write().await.spawn_player("despawned", [0.0, 1.0, 0.0]);

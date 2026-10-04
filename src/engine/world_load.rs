@@ -94,6 +94,10 @@ pub(crate) fn build_star_sky(state: &mut EngineState) {
 pub(crate) fn load_world(state: &mut EngineState) {
     log::info!("Loading 3D world...");
     let load_start = Instant::now();
+    // A ship loaded afresh may be the server's ship again: try joining it, and the next welcome
+    // is an arrival (the player stands where the relay holds them). engine/home_plot.rs.
+    crate::engine::home_plot::clear_refusal(state);
+    state.home_arrived_on = None;
 
     // ── Homestead meshes ── (v0.455: load the LAYOUT, keep it for the construction
     // editor, then generate + upload meshes through the shared path.)
@@ -136,6 +140,12 @@ pub(crate) fn load_world(state: &mut EngineState) {
             (meshes, info)
         }
     };
+    // Where the home stands, for the save's frame (engine/home_plot.rs `publish_home_frame`):
+    // on the default plot here, until a relay's welcome moves it. The save applied at startup
+    // (lib.rs, before there was a ship) is carried from the plot its home stood on to this one,
+    // its pieces and vehicles with it (`carry_loaded_save_home`, ship homes 1b).
+    crate::engine::home_plot::publish_home_frame(state);
+    crate::engine::home_plot::carry_loaded_save_home(state);
     // Wall collision segments so the player can't walk through walls from the first frame
     // (v0.556; per-zone origin offsets v0.754).
     state.wall_colliders = match &state.gui_state.ship_structure {
@@ -653,7 +663,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
                                                 / 100.0));
                                 state
                                     .decoration_objects
-                                    .push((mesh_idx, mat_idx, pos, yaw, scl));
+                                    .push((mesh_idx, mat_idx, pos, yaw, scl, anchor));
                                 placed += 1;
                             }
                         }

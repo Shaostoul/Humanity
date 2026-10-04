@@ -35,6 +35,57 @@ fn now_secs() -> u64 {
         .unwrap_or(0)
 }
 
+/// Where the player's home stands: the box (min, max) of the plot it stands on, in ship metres
+/// (increment 1b of docs/design/ship-homes-and-logistics.md). The engine keeps it in the
+/// DataStore under `HOME_FRAME_KEY`, current with the live ship (engine/home_plot.rs: the world
+/// load publishes it, and every rebuild of the home republishes it when the home's plot
+/// changed, carrying what the home holds along, `follow_home_box`), and every save records it
+/// beside the pieces and vehicles, which are saved where they stand (`record_home_frame`).
+///
+/// Why the save records it (the third review of 1b): the save used to write the home's pieces
+/// as if the home stood on the default plot, which only held while every world entry built the
+/// home there first and the default plot never changed. A Dev who made another plot the
+/// default stranded every piece 99 m from the home on the next launch, and increment 2, which
+/// builds the home on the player's remembered plot, would have stranded them all. A save that
+/// says where its home stood can be carried to wherever the home stands when it loads.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HomeFrame {
+    pub home: (glam::Vec3, glam::Vec3),
+}
+
+/// The DataStore key of the home's `HomeFrame`.
+pub const HOME_FRAME_KEY: &str = "home_frame";
+
+/// The DataStore key under which the save applied at startup leaves the box its home stood on
+/// (`LoadedHomeBox`), for the world load to carry its pieces to the plot the home is built on
+/// (engine/world_load.rs; the save is applied before the ship is assembled).
+pub const LOADED_HOME_BOX_KEY: &str = "loaded_home_box";
+
+/// The plot box a save's home stood on (`WorldSave::home_plot_box`), waiting in the DataStore
+/// under `LOADED_HOME_BOX_KEY` for the world load.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LoadedHomeBox(pub [[f32; 3]; 2]);
+
+/// The frame a save records (`record_home_frame`): the one the engine keeps with the live
+/// ship, else, before the world has loaded, the box of the save applied at startup, which its
+/// pieces still stand in (`LoadedHomeBox`; it also stays for a session on the legacy layout,
+/// engine/home_plot.rs `carry_loaded_box`). Round 4 of the 1b review: the save on quit and the
+/// periodic save run before the world loads too, and recorded NO box while the pieces stood in
+/// the saved plot's frame, so the next launch left them where they stood, outside the home.
+pub fn frame_for_save(data: &crate::hot_reload::data_store::DataStore) -> Option<HomeFrame> {
+    data.get::<HomeFrame>(HOME_FRAME_KEY).copied().or_else(|| {
+        data.get::<LoadedHomeBox>(LOADED_HOME_BOX_KEY)
+            .map(|b| HomeFrame { home: (glam::Vec3::from_array(b.0[0]), glam::Vec3::from_array(b.0[1])) })
+    })
+}
+
+/// Write where the home stands into a save (`WorldSave::home_plot_box`), from the frame the
+/// engine keeps (`HomeFrame`, `frame_for_save`); no frame (the legacy layout, with no save
+/// waiting) records none. The pieces and vehicles stay where they stand.
+pub fn record_home_frame(save: &mut WorldSave, frame: Option<&HomeFrame>) {
+    save.home_plot_box = frame.map(|f| [f.home.0.to_array(), f.home.1.to_array()]);
+}
+
 /// The active offline home's save file. Progressive disclosure: one home for now
 /// (the homes-as-profiles model). Multi-home selection comes with multiplayer.
 pub fn active_home_path() -> PathBuf {
@@ -99,17 +150,21 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
         break;
     }
     // Deployed vehicles (economy Phase 2 Stage 1, v0.677): every Vehicle entity's
-    // kind + pose, so a parked truck is still there after a restart.
+    // kind + pose, so a parked truck is still there after a restart. A truck a loaded save
+    // left on the home's plot that is not the home's keeps its mark (ship homes 1b, round 4).
+    use crate::engine::home_plot::{still_not_the_homes, NotTheHomes};
     save.deployed_vehicles = world
         .query::<(
             &crate::ecs::components::Vehicle,
             &crate::ecs::components::Transform,
+            Option<&NotTheHomes>,
         )>()
         .iter()
-        .map(|(_e, (v, t))| crate::persistence::VehicleSave {
+        .map(|(_e, (v, t, mark))| crate::persistence::VehicleSave {
             item_id: v.item_id.clone(),
             position: t.position.to_array(),
             yaw: t.rotation.to_euler(glam::EulerRot::YXZ).0,
+            outside_home: still_not_the_homes(mark, t.position),
         })
         .collect();
     // Wallet (v0.747, ladder rung 3): credits survive restarts.
@@ -164,8 +219,8 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     let pose = |t: &crate::ecs::components::Transform| {
         (t.position.to_array(), t.rotation.to_array(), t.scale.to_array())
     };
-    for (_e, (s, t, site, open)) in world
-        .query::<(&Structure, &crate::ecs::components::Transform, Option<&PlanetSite>, Option<&DoorOpen>)>()
+    for (_e, (s, t, site, open, mark)) in world
+        .query::<(&Structure, &crate::ecs::components::Transform, Option<&PlanetSite>, Option<&DoorOpen>, Option<&NotTheHomes>)>()
         .iter()
     {
         let (position, rotation, scale) = pose(t);
@@ -181,10 +236,11 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
             uid: s.uid,
             open: open.is_some(),
             site: site.cloned(),
+            outside_home: still_not_the_homes(mark, t.position),
         });
     }
-    for (_e, (c, t, site)) in world
-        .query::<(&Construction, &crate::ecs::components::Transform, Option<&PlanetSite>)>()
+    for (_e, (c, t, site, mark)) in world
+        .query::<(&Construction, &crate::ecs::components::Transform, Option<&PlanetSite>, Option<&NotTheHomes>)>()
         .iter()
     {
         let (position, rotation, scale) = pose(t);
@@ -200,6 +256,7 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
             uid: 0,
             open: false,
             site: site.cloned(),
+            outside_home: still_not_the_homes(mark, t.position),
         });
     }
     // The herd's yield timers, the asteroids as mined down, and the drone in
@@ -378,7 +435,7 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
         // Same tuple VehicleSystem::handle_deploy spawns, minus Name (the display
         // name lives in the kit registry, which this fn deliberately has no access
         // to; nothing reads a vehicle's Name yet — revisit when nameplates land).
-        world.spawn((
+        let vehicle = world.spawn((
             crate::ecs::components::Vehicle { item_id: vs.item_id.clone() },
             crate::ecs::components::Transform {
                 position: glam::Vec3::from_array(vs.position),
@@ -391,6 +448,11 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
                 seat_type: "pilot".to_string(),
             },
         ));
+        // Not the home's, though it stands where the home stood (ship homes 1b, round 4).
+        if vs.outside_home {
+            let at = glam::Vec3::from_array(vs.position);
+            let _ = world.insert_one(vehicle, crate::engine::home_plot::NotTheHomes { at });
+        }
     }
     // Crops (v0.863): save is AUTHORITATIVE, same clear-then-rebuild rule as
     // vehicles above (this fn re-applies on character select, not just boot).
@@ -470,6 +532,11 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
         // A door that was left open is open again.
         if b.open && b.building.is_none() {
             let _ = world.insert_one(piece, crate::systems::construction::DoorOpen);
+        }
+        // Not the home's, though it stands where the home stood (ship homes 1b, round 4).
+        if b.outside_home {
+            let at = glam::Vec3::from_array(b.position);
+            let _ = world.insert_one(piece, crate::engine::home_plot::NotTheHomes { at });
         }
     }
     // Asteroids (2026-09-27): authoritative once recorded, so what was mined
@@ -622,6 +689,8 @@ fn save_home_at(
         return;
     }
     let mut save = extract_world_save(world);
+    // Where the home stood, beside its pieces and vehicles where they stand (`HomeFrame`).
+    record_home_frame(&mut save, frame_for_save(data).as_ref());
     save.placed_items = Some(placed.to_vec());
     // The world clock, from the TimeSystem's DataStore export. Crop
     // planted_at values are only meaningful against it.
@@ -2024,6 +2093,7 @@ mod tests {
             uid: 0,
             open: false,
             site: None,
+            outside_home: false,
         }];
         let mut world = hecs::World::new();
         apply_save_to_world(&mut world, &save);
@@ -2092,6 +2162,39 @@ mod tests {
         hold_saves_for_restore();
         apply_save_to_world(&mut world, &server);
         assert!(!restored_save_waiting(), "an ignored save still releases the hold");
+    }
+
+    /// ROUND 4 of the 1b review, finding 4: a save written before the world loads (on quit
+    /// from the main menu, or the periodic save, neither of which waits for the world) records
+    /// the box of the save applied at startup, which its pieces still stand in (`frame_for_save`).
+    /// It recorded none, so the next launch left every piece where it stood, outside the home.
+    /// Once the world has loaded, the frame kept with the live ship is the one recorded.
+    ///
+    /// Seen red 2026-10-03 with `frame_for_save` reading only the published frame (the
+    /// db551f530 save): "a save written before the world loaded says its home stood nowhere:
+    /// None".
+    #[test]
+    fn a_save_before_the_world_loads_keeps_the_box_its_pieces_stand_in() {
+        let root = std::env::temp_dir().join(format!("hos_save_before_world_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let path = root.join("saves").join("offline_home.json");
+        let mut world = hecs::World::new();
+        world.spawn((
+            crate::ecs::components::Transform { position: glam::Vec3::new(20.0, 0.0, 129.0), rotation: glam::Quat::IDENTITY, scale: glam::Vec3::ONE },
+            crate::systems::construction::Structure { blueprint_id: "chest".into(), health: 1.0, max_health: 1.0, provides: None, uid: 9 },
+        ));
+        let mut data = crate::hot_reload::data_store::DataStore::new();
+        let p2 = [[0.0, 0.0, 99.0], [55.0, 12.0, 188.0]];
+        data.insert(LOADED_HOME_BOX_KEY, LoadedHomeBox(p2));
+        save_home_at(&path, &world, &[], &data, true);
+        let saved = persistence::load_world(&path).unwrap().home_plot_box;
+        assert_eq!(saved, Some(p2), "a save written before the world loaded says its home stood nowhere: {saved:?}");
+        // The world loaded: the frame kept with the live ship wins.
+        let p1 = (glam::Vec3::ZERO, glam::Vec3::new(55.0, 12.0, 89.0));
+        data.insert(HOME_FRAME_KEY, HomeFrame { home: p1 });
+        save_home_at(&path, &world, &[], &data, true);
+        assert_eq!(persistence::load_world(&path).unwrap().home_plot_box, Some([p1.0.to_array(), p1.1.to_array()]));
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// The hold itself: while a restored home waits to be loaded, neither

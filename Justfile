@@ -560,7 +560,9 @@ lints:
 # And the co-presence judge (scripts/lib/copresence-judge.js): smooth samples
 # pass, and round one's stop-go drawing, a figure that never appears, a step
 # back, a snap, a drift off the line, a walk out of view and a figure covered
-# by a window in the screenshot each FAIL.
+# by a window in the screenshot each FAIL; and its plot checks (increment 1b):
+# the 1a shape (no plots handed out, the game's camera still on p1), two
+# players on one plot, and a walker drawn outside its plot each FAIL.
 # And the station park check (scripts/lib/station-park-check.js, BUG-132): a
 # {"station":"home"} park on its pose passes, and the two misses BUG-132
 # wrote (the pose plus the Earth-to-home offset, and a kilometre out), a camera
@@ -609,6 +611,21 @@ verify-second-player:
 # counted under its nameplate). Refuses (exit 1) while ANY HumanityOS.exe runs (one
 # GPU) or when the exe is older than the source; exit 2 = a check failed. About a
 # minute. Evidence in .probe-rig/copresence/runs/<stamp>/.
+#   just verify-copresence --plots    homes on plots (increment 1b of
+#     docs/design/ship-homes-and-logistics.md): two runs, walker first then game
+#     first, each with its own relay and boot. Judges the two plot ids differ by
+#     the join order, the game's camera is inside the plot it should hold after
+#     joining, every position the game drew for the walker is inside the
+#     walker's plot, and one forward leg of the walk is smooth. No view or
+#     screenshot checks (two homes cannot see each other until increment 2).
+#     Then the game steps out of the shared world and back, moved over 100 m
+#     from its door while out: it must stand where the relay respawns it, and
+#     its next move must reach the walker. --order walker-first|game-first runs
+#     one. game-first comes into the world the way a returning player does:
+#     connected and identified on the main menu first, then the menu's Enter
+#     World pressed (the join gate then runs before the world has loaded);
+#     walker-first by the autopilot. --entry menu|autopilot picks one for both.
+#     About 6 minutes.
 #   just verify-copresence --dry-verdict <manifest.json>   re-judge without booting
 [positional-arguments]
 verify-copresence *ARGS:

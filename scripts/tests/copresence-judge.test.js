@@ -356,3 +356,330 @@ test("without the walker's timing, on_time fails rather than passing unchecked",
   const old = framesFrom(frameTimes(RECORD_S), smooth).map(({ epoch_ms, ...fr }) => fr);
   assert.equal(check(judge(old), "on_time").ok, false);
 });
+
+// ── Homes on plots (increment 1b, `verify-copresence --plots`) ─────────────
+//
+// The plot checks judge where things are, not how they move: the two players
+// hold different plots by the order they joined, the game's camera is inside
+// the plot the game should hold, and every position the game drew for the
+// walker is inside the walker's plot. The shapes below are the shipped
+// layout (docs/design/ship-homes-and-logistics.md section 2.4).
+
+const { judgePlots, forwardLegStart, readShipPlots, inPlot } = require("../lib/copresence-judge.js");
+const PLOTS = [
+  { id: "p1", kind: "homestead", origin: [0, 0, 0], size: [55, 3, 89] },
+  { id: "p2", kind: "homestead", origin: [0, 0, 99], size: [55, 3, 89] },
+];
+const P1_SPAWN = [53.5, 1.7, 40.5];
+const P2_SPAWN = [53.5, 1.7, 139.5];
+/** The walker walking its line in its own plot, from its spawn along +Z. */
+const walkInPlot = (spawn) => framesFrom(frameTimes(RECORD_S), (t) => (t < APPEAR_S ? null : [spawn[0], spawn[1], spawn[2] + Math.min(8, SPEED * (t - APPEAR_S))]));
+/** The home's own things as the recorder reports them, for a home on the
+ *  plot at z offset `dz`: the shipped home's numbers (the hologram hangs half
+ *  a metre outside the west wall; three animals by the grain field; plants by
+ *  the irrigation and the composter). */
+const thingsAt = (dz) => ({
+  respawn: [53.5, 1.7, 40.5 + dz],
+  hologram: [-0.5, 1, 2.5 + dz],
+  showroom: [20, 0, 30 + dz],
+  animals: [[9, 0, 78 + dz], [9, 0, 78 + dz], [15, 0, 78 + dz]],
+  plants: [[30, 0, 60 + dz], [12, 0, 20 + dz]],
+});
+const plotsRun = (extra = {}) =>
+  judgePlots({ order: "walker-first", plots: PLOTS, gamePlot: "p2", walkerPlot: "p1", camera: P2_SPAWN, homeThings: thingsAt(99), frames: walkInPlot(P1_SPAWN), walker: WALKER, ...extra });
+
+test("plots: each holds its own by the join order, the camera and the walker inside theirs, passes", () => {
+  const r = plotsRun();
+  assert.ok(r.pass, explain(r));
+  assert.deepEqual(r.checks.map((c) => c.id), ["plot_ids_differ", "plots_by_join_order", "camera_in_p2", "home_things_on_its_plot", "walker_drawn_in_its_plot"]);
+  // The other order swaps who should hold what.
+  const g = judgePlots({ order: "game-first", plots: PLOTS, gamePlot: "p1", walkerPlot: "p2", camera: P1_SPAWN, homeThings: thingsAt(0), frames: walkInPlot(P2_SPAWN), walker: WALKER });
+  assert.ok(g.pass, explain(g));
+  assert.equal(g.checks[2].id, "camera_in_p1");
+});
+
+// The red run the design asks for: a build without 1b hands out no plots, so
+// the game's home and camera stay on p1 while it should be on p2.
+test("plots: the 1a shape (no plots handed out, the game still at p1) FAILS camera_in_p2", () => {
+  const r = plotsRun({ gamePlot: "p1", walkerPlot: null, camera: P1_SPAWN });
+  const failed = r.checks.filter((c) => !c.ok).map((c) => c.id);
+  assert.ok(failed.includes("camera_in_p2"), explain(r));
+  assert.ok(failed.includes("plot_ids_differ") && failed.includes("plots_by_join_order"), explain(r));
+  assert.match(r.checks.find((c) => c.id === "camera_in_p2").detail, /OUTSIDE p2 \(x 0\.\.55, y 0\.\.3, z 99\.\.188\)/);
+});
+
+// The shape the first 1b build left (the critic's findings 1 and 3): the home
+// and the camera moved to p2, but the Respawn point, the farm animals, the
+// plants, the hologram and the showroom stage stayed on p1, somebody else's.
+// Seen red 2026-10-03: with the check made to pass anything, this test failed
+// "home_things_on_its_plot should fail".
+test("plots: the home's own things left on p1 while the home moved to p2 FAIL home_things_on_its_plot", () => {
+  const r = plotsRun({ homeThings: thingsAt(0) });
+  const c = r.checks.find((x) => x.id === "home_things_on_its_plot");
+  assert.equal(c.ok, false, "home_things_on_its_plot should fail");
+  assert.match(c.detail, /^8 of 8 of the home's things are not on p2: the Respawn point at \(53\.5, 1\.7, 40\.5\) by p1/);
+  // Only the Respawn point left behind is enough to fail.
+  const one = thingsAt(99);
+  one.respawn = P1_SPAWN;
+  assert.equal(plotsRun({ homeThings: one }).checks.find((x) => x.id === "home_things_on_its_plot").ok, false);
+  // A build that reports none, or reports no animals and no plants, checks nothing: no pass.
+  assert.equal(plotsRun({ homeThings: null }).pass, false);
+  assert.equal(plotsRun({ homeThings: { ...thingsAt(99), animals: [], plants: [] } }).pass, false);
+});
+
+test("plots: two players handed the same plot FAIL plot_ids_differ", () => {
+  const r = plotsRun({ gamePlot: "p1", walkerPlot: "p1" });
+  assert.equal(r.checks.find((c) => c.id === "plot_ids_differ").ok, false, explain(r));
+});
+
+test("plots: the walker drawn outside its plot, even for one frame, FAILS", () => {
+  const frames = walkInPlot(P1_SPAWN);
+  frames[Math.floor(frames.length / 2)].players = [{ ...WALKER, pos: [53.5, 1.7, 95], phase: "Extrapolating" }];
+  const r = plotsRun({ frames });
+  const c = r.checks.find((x) => x.id === "walker_drawn_in_its_plot");
+  assert.equal(c.ok, false, explain(r));
+  assert.match(c.detail, /^1 of \d+ drawn positions OUTSIDE p1/);
+  // ...and a walker never drawn at all is no pass either.
+  assert.equal(plotsRun({ frames: walkInPlot(P1_SPAWN).map((fr) => ({ ...fr, players: [] })) }).pass, false);
+});
+
+test("plots: unknown plots fail rather than pass unchecked", () => {
+  assert.equal(plotsRun({ plots: [] }).pass, false);
+});
+
+test("plots: the ship file's plots read the way the game has them", () => {
+  const fs = require("fs");
+  const path = require("path");
+  const text = fs.readFileSync(path.join(__dirname, "..", "..", "data", "blueprints", "ship_structure.ron"), "utf8");
+  assert.deepEqual(readShipPlots(text), PLOTS);
+  assert.ok(inPlot(P2_SPAWN, PLOTS[1]) && !inPlot(P2_SPAWN, PLOTS[0]));
+});
+
+// A walk that goes back and forth: the judged pass is one FORWARD leg,
+// picked by the clock. Without `fromEpochMs` the end of a leg walking back is
+// taken for the pass and fails never_backwards; with it, the next forward leg
+// passes. (The --plots rig records a walker that has been walking since
+// before the game joined.)
+test("a back-and-forth walk is judged on one forward leg, picked by the clock", () => {
+  const r = L / 2; // second-player.js --radius: the line is 2r long
+  // It reached the line 6 s before the recording began, so the recording opens
+  // on it walking back (a cycle is 4r / speed = 8.57 s, the forward half 4.29 s).
+  const onLine = EPOCH0 - 6000;
+  const at = (tau) => {
+    const s = SPEED * tau;
+    const w = ((s % (2 * L)) + 2 * L) % (2 * L);
+    const u = w <= L ? w : 2 * L - w;
+    return [A[0] + u, A[1], A[2]];
+  };
+  // Drawn 150 ms behind the real walker, from the first frame.
+  const frames = framesFrom(frameTimes(RECORD_S), (t) => at((EPOCH0 + t * 1000 - onLine) / 1000 - DELAY_S));
+  const leg = forwardLegStart(onLine, SPEED, r, EPOCH0 + 500);
+  assert.ok(leg > EPOCH0, "the next forward leg starts inside the recording");
+  assert.equal(Math.round(leg - onLine), Math.round(((4 * r) / SPEED) * 1000), "one full cycle after it reached the line");
+  const blind = judge(frames, { onLineEpochMs: onLine });
+  assert.equal(check(blind, "never_backwards").ok, false, explain(blind));
+  const picked = judge(frames, { onLineEpochMs: leg, fromEpochMs: leg });
+  assert.ok(picked.pass, explain(picked));
+});
+
+test("checkView false drops the in-view check and nothing else", () => {
+  const away = [30, 1.7, 20, Math.PI, -0.05]; // facing away from the walk
+  const r = judge(framesFrom(frameTimes(RECORD_S), smooth, { cam: away }), { checkView: false });
+  assert.ok(r.pass, explain(r));
+  assert.equal(r.checks.find((c) => c.id === "in_view"), undefined);
+  assert.equal(check(judge(framesFrom(frameTimes(RECORD_S), smooth, { cam: away })), "in_view").ok, false);
+});
+
+// Since increment 1b the walker joins on its own plot, p2 when the game holds
+// p1, and walks from there to the line in front of the camera. Its straight
+// approach must never pass for the walk: the rig checks the real path.
+test("an approach that crosses to the line is clear; one running back along it is not", () => {
+  const { approachClear } = require("../lib/copresence-judge.js");
+  const line = { start: A, end: B };
+  assert.equal(approachClear([53.5, 1.7, 139.5], line), true, "from p2 spawn, across to the start");
+  assert.equal(approachClear(SPAWN, line), true, "from behind the start");
+  assert.equal(approachClear([40, 1.7, 14], line), false, "from beyond the end, back along the line");
+  assert.equal(approachClear([30, 1.7, 14.2], line), false, "from the middle of the line, 0.2 m off it");
+});
+
+// The second review of 1b, finding 3: the pieces the player built aboard and
+// their parked vehicles go with the home too. A fresh rig sandbox has none, so
+// they are not required, but every one reported must be on the plot. Seen red
+// 2026-10-03 with judgePlots ignoring them (the 65b3e2c0c judge): a chest left
+// on p1 while the home moved to p2 passed, "a chest left on p1 should fail".
+test("plots: a built piece or a vehicle left on p1 while the home moved to p2 FAILS home_things_on_its_plot", () => {
+  const chest = { ...thingsAt(99), structures: [[20, 0, 30]], vehicles: [] };
+  const c = plotsRun({ homeThings: chest }).checks.find((x) => x.id === "home_things_on_its_plot");
+  assert.equal(c.ok, false, "a chest left on p1 should fail");
+  assert.match(c.detail, /built piece 1 at \(20\.0, 0\.0, 30\.0\) by p1/);
+  const truck = { ...thingsAt(99), structures: [], vehicles: [[40, 0, 70]] };
+  assert.equal(plotsRun({ homeThings: truck }).checks.find((x) => x.id === "home_things_on_its_plot").ok, false, "a truck left on p1 fails too");
+  const moved = { ...thingsAt(99), structures: [[20, 0, 129]], vehicles: [[40, 0, 169]] };
+  const ok = plotsRun({ homeThings: moved }).checks.find((x) => x.id === "home_things_on_its_plot");
+  assert.ok(ok.ok, ok.detail);
+  assert.match(ok.detail, /1 built pieces and 1 vehicles are all on p2/);
+});
+
+// Stepping out of the shared world and back (the second review's finding 1):
+// the relay spawns the returning game afresh at its door, wherever the game
+// stands; the game must stand there, and its next move must reach the others.
+const { judgeRejoin } = require("../lib/copresence-judge.js");
+const REJOIN_OK = {
+  far: [70, 1.7, 190], // the end of street-1, 150 m from p1's door
+  relaySpawn: P1_SPAWN,
+  camera: [53.5, 1.7, 40.5],
+  nudged: [53.5, 1.7, 41.5],
+  seen: [[53.5, 1.7, 41.5]],
+};
+
+test("rejoin: standing where the relay holds it, with the next move relayed, passes", () => {
+  const r = judgeRejoin(REJOIN_OK);
+  assert.ok(r.pass, explain(r));
+  assert.deepEqual(r.checks.map((c) => c.id), ["rejoin_far_from_spawn", "rejoin_stands_where_held", "rejoin_moves_reach_others"]);
+});
+
+// The 65b3e2c0c shape: the game kept standing where it was (150 m away) and
+// every update it sent was refused. Seen red 2026-10-03 with judgeRejoin
+// passing anything: "a game left 150 m from where the relay holds it should fail".
+test("rejoin: a game left where it stood, its moves refused, FAILS", () => {
+  const r = judgeRejoin({ ...REJOIN_OK, camera: [70, 1.7, 190], nudged: [70, 1.7, 191], seen: [] });
+  const failed = r.checks.filter((c) => !c.ok).map((c) => c.id);
+  assert.deepEqual(failed, ["rejoin_stands_where_held", "rejoin_moves_reach_others"], "a game left 150 m from where the relay holds it should fail");
+  assert.match(r.checks[1].detail, /150\.\d+ m from where the relay holds it/);
+});
+
+test("rejoin: an experiment that never left the 100 m rule's reach proves nothing, and FAILS", () => {
+  const r = judgeRejoin({ ...REJOIN_OK, far: [53.5, 1.7, 100] });
+  assert.equal(r.checks[0].ok, false, explain(r));
+  assert.equal(judgeRejoin({ ...REJOIN_OK, relaySpawn: null }).pass, false, "never seen joining again: unknown, not a pass");
+});
+
+// The third review's finding 16: the tolerances and the "it is the nudge" rule
+// were never pinned, so a judge loosened to 5 m, or one taking any relayed
+// update as the nudge, passed all 37 tests. Seen red 2026-10-03, each against
+// its own loosened judge (scratch copies of copresence-judge.js):
+//  - REJOIN_STAND_TOL_M 0.5 -> 5: "a camera 1 m from where the relay holds it
+//    passed rejoin_stands_where_held";
+//  - REJOIN_NUDGE_TOL_M 0.3 -> 5, and (separately) `hit = seen[0]`: "an update
+//    at [[53.5,1.7,40.5]], short of or past the nudge to [53.5,1.7,41.5], passed
+//    rejoin_moves_reach_others".
+test("rejoin: a camera a few metres off where the relay holds it FAILS", () => {
+  for (const off of [1, 2, 4]) {
+    const r = judgeRejoin({ ...REJOIN_OK, camera: [53.5 + off, 1.7, 40.5] });
+    assert.equal(r.checks.find((c) => c.id === "rejoin_stands_where_held").ok, false, `a camera ${off} m from where the relay holds it passed rejoin_stands_where_held`);
+  }
+});
+
+test("rejoin: only an update at the nudge itself counts, not one at the standing point before it", () => {
+  for (const seen of [[[53.5, 1.7, 40.5]], [[53.5, 1.7, 40.5], [53.5, 1.7, 40.9]], [[53.5, 1.7, 42.2]]]) {
+    const r = judgeRejoin({ ...REJOIN_OK, seen });
+    assert.equal(
+      r.checks.find((c) => c.id === "rejoin_moves_reach_others").ok,
+      false,
+      `an update at ${JSON.stringify(seen)}, short of or past the nudge to ${JSON.stringify(REJOIN_OK.nudged)}, passed rejoin_moves_reach_others`,
+    );
+  }
+  // The nudge among other updates still counts.
+  assert.ok(judgeRejoin({ ...REJOIN_OK, seen: [[53.5, 1.7, 40.5], [53.5, 1.7, 41.5]] }).pass);
+});
+
+// The Respawn leg (the third review's finding 10): the same three checks under
+// their own ids. Seen red 2026-10-03 on a judge without the prefix option
+// (every id read "rejoin_..."): "the respawn leg's checks are its own".
+test("respawn: judged like a rejoin, under its own check ids", () => {
+  const r = judgeRejoin({ ...REJOIN_OK, far: [70, 1.7, 194] }, { prefix: "respawn", when: "it pressed Respawn" });
+  assert.ok(r.pass, explain(r));
+  assert.deepEqual(r.checks.map((c) => c.id), ["respawn_far_from_spawn", "respawn_stands_where_held", "respawn_moves_reach_others"], "the respawn leg's checks are its own");
+  assert.match(r.checks[0].detail, /when it pressed Respawn/);
+  // The pre-fix game: Respawn put the camera at its door, but the relay still held it at
+  // the far end of street-1, so nothing new joined and every update was refused.
+  const frozen = judgeRejoin({ far: [70, 1.7, 194], relaySpawn: null, camera: P1_SPAWN, nudged: [53.5, 1.7, 41.5], seen: [] }, { prefix: "respawn" });
+  assert.equal(frozen.pass, false);
+});
+
+// The walk the respawn leg takes (verify-copresence --plots): from each plot's
+// door to the far place, in steps the relay accepts (under 100 m each; 40 m
+// here), ending at the target, and every step on the ship's floor outside the
+// homes (the Commons, the junction, street-1, or the door's own corridor).
+// Seen red 2026-10-03 with the route drawn straight from the door to the far
+// place (`legs = [from, to]`): "57.625,1.7,79.625 is not on the shared floor".
+const { respawnRoute } = require("../lib/copresence-judge.js");
+test("respawn: the walk to the far place keeps every step short and on the shared floor", () => {
+  const onFloor = (p) =>
+    (p[0] >= 65 && p[0] <= 99 && p[2] >= 20 && p[2] <= 75) || // the Commons
+    (p[0] >= 65 && p[0] <= 75 && p[2] >= 75 && p[2] <= 195) || // the junction and street-1
+    (p[0] >= 53 && p[0] <= 70 && [40.5, 41.5, 139.5, 140.5].some((z) => Math.abs(p[2] - z) < 1e-6)); // a door's corridor
+  for (const [door, far] of [[[53.5, 1.7, 41.5], [70, 1.7, 194]], [[53.5, 1.7, 140.5], [98, 1.7, 21]]]) {
+    const route = respawnRoute(door, far);
+    assert.deepEqual(route[route.length - 1], far, "it ends at the far place");
+    let at = door;
+    for (const p of route) {
+      assert.ok(Math.hypot(p[0] - at[0], p[2] - at[2]) <= 40 + 1e-9, `a step from ${at} to ${p} is longer than 40 m`);
+      assert.ok(onFloor(p), `${p} is not on the shared floor`);
+      at = p;
+    }
+  }
+});
+
+// How the game came into the world (round 4 of the 1b review, finding 1): a
+// returning player's game identifies on the main menu and only then is Enter
+// World pressed, so the join gate runs before the world loads. A menu-entry
+// run proves something only when that race really ran. Seen red 2026-10-03
+// with judgeEntry passing every menu entry (`raced = true`): "the socket had
+// not identified: expected false".
+const { judgeEntry } = require("../lib/copresence-judge.js");
+test("entry: a menu entry passes only when the socket identified before the world loaded", () => {
+  const RACED = { kind: "menu", identified: true, world_loaded: false, page_after_click: "None", world_loaded_after_click: false };
+  const ok = judgeEntry(RACED);
+  assert.ok(ok.pass, explain(ok));
+  assert.deepEqual(ok.checks.map((c) => c.id), ["entered_from_menu_after_identify"]);
+  for (const [what, bad] of [
+    ["the socket had not identified", { ...RACED, identified: false }],
+    ["a press after the world had loaded did not race", { ...RACED, world_loaded: true }],
+    ["a press that left the menu up did not enter", { ...RACED, page_after_click: "MainMenu" }],
+    ["the world loaded on the press's own frame", { ...RACED, world_loaded_after_click: true }],
+  ]) {
+    assert.equal(judgeEntry(bad).pass, false, `${what}: expected false`);
+  }
+  assert.ok(judgeEntry({ kind: "autopilot" }).pass, "the autopilot path is recorded, not failed");
+  assert.equal(judgeEntry(null).pass, false, "an entry nobody recorded fails");
+});
+
+// Shutting the build editor far from the build spot (round 5 of the 1b review,
+// finding 1): the relay holds the game at the far end of street-1, its build
+// spot is at its door, 154 m away. Shutting the editor must leave it where the
+// relay holds it, and its next move must reach the others.
+const { judgeEditorClose } = require("../lib/copresence-judge.js");
+const EDITOR_OK = {
+  buildSpot: P1_SPAWN,
+  held: [70, 1.7, 194],
+  camera: [70, 1.7, 194],
+  nudged: [70, 1.7, 195],
+  seen: [[70, 1.7, 195]],
+};
+
+test("editor: shut far from the build spot, standing where the relay holds it, with the next move relayed, passes", () => {
+  const r = judgeEditorClose(EDITOR_OK);
+  assert.ok(r.pass, explain(r));
+  assert.deepEqual(r.checks.map((c) => c.id), ["editor_far_from_build_spot", "editor_stands_where_held", "editor_moves_reach_others"]);
+});
+
+// The c8b3a8d54 game: shutting the editor put it at its build spot, 154 m from
+// where the relay holds it, and every update it sent was refused. Seen red
+// 2026-10-04 with judgeEditorClose passing anything: "a game put at its build
+// spot 154 m from where the relay holds it should fail" (no check failed), and
+// "a build spot 74 m away proves nothing".
+test("editor: a game put back at its build spot, its moves refused, FAILS", () => {
+  const r = judgeEditorClose({ ...EDITOR_OK, camera: P1_SPAWN, nudged: [53.5, 1.7, 41.5], seen: [] });
+  const failed = r.checks.filter((c) => !c.ok).map((c) => c.id);
+  assert.deepEqual(failed, ["editor_stands_where_held", "editor_moves_reach_others"], "a game put at its build spot 154 m from where the relay holds it should fail");
+  assert.match(r.checks[1].detail, /154\.\d+ m from where the relay holds it/);
+});
+
+test("editor: a build spot inside the 100 m rule's reach proves nothing, and a check without its evidence FAILS", () => {
+  assert.equal(judgeEditorClose({ ...EDITOR_OK, buildSpot: [60, 1.7, 120] }).checks[0].ok, false, "a build spot 74 m away proves nothing");
+  assert.equal(judgeEditorClose({ ...EDITOR_OK, held: null }).pass, false, "never seen held: unknown, not a pass");
+  assert.equal(judgeEditorClose({ ...EDITOR_OK, buildSpot: null }).pass, false, "no build spot measured: unknown, not a pass");
+  assert.equal(judgeEditorClose({ ...EDITOR_OK, camera: [71.5, 1.7, 194] }).checks[1].ok, false, "a camera 1.5 m off where the relay holds it");
+  assert.equal(judgeEditorClose({ ...EDITOR_OK, seen: [[70, 1.7, 194]] }).checks[2].ok, false, "only an update at the nudge itself counts");
+});

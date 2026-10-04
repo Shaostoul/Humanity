@@ -55,12 +55,56 @@
 // variable of this shell is left out of its environment, so no focus opt-in
 // can leak in from the shell either.
 //
+// HOMES ON PLOTS (--plots, increment 1b of docs/design/ship-homes-and-logistics.md):
+// the relay hands each player a plot of the ship, and the game moves its home
+// to its own plot. --plots runs the rig twice, once per join order (walker
+// first, then game first; --order picks one), each with its own relay and
+// boot, and judges where things are rather than whether they can be seen
+// (they stand in two homes and cannot see each other until increment 2): the
+// two plot ids differ, by the join order; after joining, the game's camera is
+// inside the plot the game should hold; and every position the game DREW for
+// the walker (the recorder records figures off screen too) is inside the
+// walker's plot, with the smoothness checks on one forward leg of its walk.
+// No camera pose, no screenshots. Then, in each order, the game STEPS OUT of
+// the shared world and back (the showcase `solo` verb, the switch the
+// launcher's offline home and Dev travel flip), having been moved more than
+// 100 m from its door while out: the relay spawns it afresh at its door, and
+// the judge checks the game then stands where the relay holds it and that its
+// next move reaches the walker (the second review of 1b found it frozen there).
+// Last, the game walks, in steps the relay accepts, to the same far place and
+// presses Respawn (the showcase `respawn` verb, the death screen's button): the
+// relay must stand it at its door too, judged the same way under respawn_* ids
+// (the third review found Respawn left it frozen at the far end for everyone).
+// Then, from its door, the game opens and shuts the build editor (the showcase
+// `build_editor` verb, the B key's own function), which makes the door its build
+// spot, walks to the far place again, and opens and shuts the editor there:
+// shutting it must leave the game where the relay holds it, judged under editor_*
+// ids (round 5 of the review found it put the game back at its build spot, more
+// than 100 m away, frozen for everyone).
+// Evidence in runs/<stamp>-plots-<order>/.
+//
+// HOW THE GAME COMES IN (--entry, round 4 of the 1b review): a returning
+// player's game identifies on the main menu (its auto-connect) and only then
+// is Enter World pressed, so the join gate runs on that frame, BEFORE the
+// world has loaded. The first 1b build sent a join naming no ship there and
+// the relay refused it as another ship. The autopilot creates the identity as
+// it enters, so its socket identifies after the world loads and that race
+// never runs. So --entry menu connects first (the autopilot's "enter": false),
+// waits for the handshake, answers the first-run privacy window, and presses
+// the menu's own Enter World button; --entry autopilot is the all-in-one entry.
+// By default game-first comes in from the menu and walker-first by autopilot,
+// so a --plots run covers both paths. The judge's entered_from_menu_after_identify
+// fails a menu entry on which the race did not really run.
+//
 // Usage:
 //   node scripts/verify-copresence.js [--exe PATH] [--pose x,y,z,yaw,pitch]
 //        [--distance M] [--radius M] [--speed M/S] [--timeout-min N] [--keep-open]
 //        [--allow-other-build "<reason>"]   run a build that is NOT this tree, on
 //        purpose (a red check); passed to scripts/check-fresh-exe.js and recorded
 //        in the manifest as other_build
+//   node scripts/verify-copresence.js --plots [--order walker-first|game-first|both]
+//        [--entry menu|autopilot] [--exe PATH] [--radius M] [--speed M/S] [--timeout-min N]
+//        [--allow-other-build "<reason>"]
 //   node scripts/verify-copresence.js --dry-verdict <manifest.json>
 // Exit 0 = every check passed. Exit 1 = refused to run. Exit 2 = failed.
 
@@ -72,7 +116,15 @@ const { spawn, spawnSync, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
 const DXC = require("./lib/dxc-dlls.js");
 const TR = require("./lib/throwaway-relay.js");
-const { judgeCopresence, LIMITS, figurePixels, FIGURE_MIN_PX } = require("./lib/copresence-judge.js");
+/** The relay's loopback self-check for the rig's output: what the operating
+ *  system showed it listening on (startRelay refuses, and stops the relay, when
+ *  any of it is not loopback, so a relay that got here listens on loopback only
+ *  and never raises a Windows Firewall prompt). */
+const loopbackNote = (relay) =>
+  relay.listening && relay.listening.length
+    ? `listening only on ${relay.listening.map((x) => `${x.host}:${x.port}`).join(", ")} (loopback, by the operating system's own list)`
+    : "its listening addresses were not checked";
+const { judgeCopresence, LIMITS, figurePixels, FIGURE_MIN_PX, approachClear, judgePlots, forwardLegStart, readShipPlots, judgeRejoin, judgeEditorClose, judgeEntry, respawnRoute } = require("./lib/copresence-judge.js");
 const png = require("./lib/png.js");
 // The freshness gate, run through its one runner so --allow-other-build reaches
 // it and comes back as the manifest's other_build record (BUG-133).
@@ -89,6 +141,13 @@ const KEEP_OPEN = flag("--keep-open");
 const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
 const TIMEOUT_MS = Number(opt("--timeout-min", "10")) * 60 * 1000;
 const DRY = opt("--dry-verdict", null);
+const PLOTS = flag("--plots");
+const ORDERS = { both: ["walker-first", "game-first"], "walker-first": ["walker-first"], "game-first": ["game-first"] }[opt("--order", "both")];
+// How the game comes into the world in a --plots run (see the header): menu or
+// autopilot for every order, or by default menu for game-first and autopilot
+// for walker-first.
+const ENTRY = opt("--entry", null);
+const entryFor = (order) => ENTRY || (order === "game-first" ? "menu" : "autopilot");
 
 // THE STAGE. The vehicle bay of the player's home (scripts/home-vantages.json
 // "21-vehicle-bay"), standing at eye height (1.7 m; the floor is y 0), facing
@@ -108,12 +167,16 @@ const DISTANCE = Number(opt("--distance", "6"));
 const RADIUS = Number(opt("--radius", "4"));
 // second-player.js's own walking pace.
 const SPEED = Number(opt("--speed", "1.4"));
-// Where the relay puts a brand-new player (src/relay/handlers/msg_handlers.rs
-// handle_game_join, spawn_player at [0, 1, 0]). The walker approaches the line
-// from there; the rig checks the line is placed so it comes from BEHIND the
-// line's start (see the judge's WINDOW note), and re-checks it against the
-// start the walker actually reports.
-const SPAWN = [0, 1, 0];
+// Where the relay puts the walker. Since increment 1b every player whose join
+// names the relay's ship gets a plot of it (src/relay/handlers/game_state.rs
+// assign_home); the walker asks /api/server-info for the ship and names it. The
+// game joins first, so the walker holds the second plot, p2, and, drawing no
+// home and so naming no door, arrives in its middle (origin (0, 0, 99), 55 x 89
+// m: (27.5, 1.7, 143.5)). It walks from there to the line in front of the
+// camera; the rig checks that straight approach can never pass for the walk
+// (the judge's approachClear), here before booting and again on the start the
+// walker actually reports.
+const SPAWN = [27.5, 1.7, 143.5];
 // second-player.js reaches the start of its path within 4 s however far it is
 // (APPROACH_SECONDS), so a walk of this long covers the approach, one full
 // pass and a margin.
@@ -166,9 +229,9 @@ function planLine(cam, yaw, distance, radius) {
   const end = center.map((v, i) => v + dir[i] * radius);
   return { center, axis, dir, start, end };
 }
-/** True when `from` lies behind the line's start (the approach can then never
- *  pass for the line in the judge). */
-const behindStart = (from, plan) => (from[0] - plan.start[0]) * plan.dir[0] + (from[2] - plan.start[2]) * plan.dir[2] < 0;
+/** True when the walker's straight approach from `from` can never pass for
+ *  the line in the judge (the judge's approachClear). */
+const clearApproach = (from, plan) => approachClear(from, { start: plan.start, end: plan.end });
 
 // ── The verdict: rig steps plus the judge, over a manifest ──────────────────
 function verdict(m, dir) {
@@ -179,7 +242,7 @@ function verdict(m, dir) {
   add("game_in_world", s.joined && s.joined.ok, s.joined ? s.joined.detail : "never joined");
   add("camera_parked", s.camera && s.camera.ok, s.camera ? s.camera.detail : "never parked");
   add("walker_ran", s.walker && s.walker.ok, s.walker ? s.walker.detail : "never ran");
-  add("approach_from_behind", s.approach && s.approach.ok, s.approach ? s.approach.detail : "the walker's start was never reported");
+  add("approach_clear", s.approach && s.approach.ok, s.approach ? s.approach.detail : "the walker's start was never reported");
   add("view_clear", s.view && s.view.ok, s.view ? s.view.detail : "never checked");
   add("screenshots", s.screenshots && s.screenshots.ok, s.screenshots ? s.screenshots.detail : "none taken");
   add("on_screen", s.on_screen && s.on_screen.ok, s.on_screen ? s.on_screen.detail : "the nameplate was never looked for");
@@ -249,7 +312,8 @@ if (DRY) {
   if (!fs.existsSync(manifest)) refuse([`--dry-verdict: no such manifest: ${manifest}`]);
   const m = JSON.parse(fs.readFileSync(manifest, "utf8"));
   console.log(`[dry] verdict only, nothing booted: ${rel(manifest)}`);
-  const pass = printVerdict("DRY VERDICT (nothing was booted): ", m, path.dirname(manifest));
+  const printer = m.kind === "verify-copresence-plots" ? printPlotsVerdict : printVerdict;
+  const pass = printer("DRY VERDICT (nothing was booted): ", m, path.dirname(manifest));
   process.exit(pass ? 0 : 2);
 }
 
@@ -261,15 +325,16 @@ console.log("");
 const poseNums = POSE.split(",").map(Number);
 if (poseNums.length !== 5 || !poseNums.every(Number.isFinite)) refuse([`--pose must be five numbers x,y,z,yaw,pitch, got "${POSE}"`]);
 if (!(DISTANCE > 0 && RADIUS > 0 && SPEED > 0)) refuse(["--distance, --radius and --speed must be above 0"]);
+if (PLOTS && !ORDERS) refuse(["--order must be walker-first, game-first or both"]);
+if (PLOTS && ENTRY && ENTRY !== "menu" && ENTRY !== "autopilot") refuse(["--entry must be menu or autopilot"]);
 // Refuse a stage the judge could not read before booting anything.
-{
+if (!PLOTS) {
   const p = planLine(poseNums.slice(0, 3), poseNums[3], DISTANCE, RADIUS);
   if (p.error) refuse([`REFUSED: ${p.error}.`]);
-  if (!behindStart(SPAWN, p)) {
+  if (!clearApproach(SPAWN, p)) {
     refuse([
-      `REFUSED: the line ${fmt(p.start)} -> ${fmt(p.end)} would be approached from its far side: the relay`,
-      `spawns players at ${fmt(SPAWN)}, which is not behind the line's start. The approach would then run`,
-      "back along the line and could be judged as the walk. Pick a pose whose line runs away from the spawn.",
+      `REFUSED: the walker's approach from ${fmt(SPAWN)} (where the relay spawns it) to the line ${fmt(p.start)} -> ${fmt(p.end)}`,
+      "would run along the line itself, so it could be judged as the walk. Pick a pose whose line lies across the approach.",
     ]);
   }
   if (2 * RADIUS <= LIMITS.START_MARGIN_M + LIMITS.END_MARGIN_M + 1) refuse([`--radius ${RADIUS} leaves too short a pass to judge`]);
@@ -518,7 +583,7 @@ async function main() {
     // anything but loopback, so this rig never raises a firewall prompt).
     manifest.relay = { url: relay.httpUrl, pid: relay.pid, dir: relay.dir, health: relay.health, listening: relay.listening.map((r) => r.line) };
     manifest.steps_ok.relay = relay.health
-      ? { ok: true, detail: `${relay.httpUrl} answered /health (pid ${relay.pid}, a copy in ${relay.dir})` }
+      ? { ok: true, detail: `${relay.httpUrl} answered /health (pid ${relay.pid}, a copy in ${relay.dir}); ${loopbackNote(relay)}` }
       : { ok: false, detail: `${relay.httpUrl} never answered /health: ${relay.logText().slice(-400)}` };
     step("relay", manifest.steps_ok.relay.ok, manifest.steps_ok.relay.detail);
     if (!relay.health) throw new Error("the throwaway relay did not come up");
@@ -545,18 +610,21 @@ async function main() {
     }
     step("autopilot", true, `entering the world as ${ap.character_name} on ${ap.server_url}`);
 
-    // ── 4. In the shared world?
+    // ── 4. In the shared world, with the welcome applied: on arriving, the
+    // welcome stands the player where the relay holds them (increment 1b,
+    // engine/home_plot.rs), so a pose set before it would be undone by it. A
+    // build from before 1b reports no `welcomed` and is read once joined.
     let pr = null;
     for (const t0 = Date.now(); Date.now() - t0 < 120000; ) {
       pr = await probe();
-      if (pr && pr.ok && pr.world_loaded && pr.game_joined && pr.copresence_active) break;
+      if (pr && pr.ok && pr.world_loaded && pr.game_joined && pr.copresence_active && pr.welcomed !== false) break;
       await sleep(1000);
     }
-    const joined = !!(pr && pr.ok && pr.world_loaded && pr.game_joined && pr.copresence_active);
+    const joined = !!(pr && pr.ok && pr.world_loaded && pr.game_joined && pr.copresence_active && pr.welcomed !== false);
     manifest.steps_ok.joined = {
       ok: joined,
       detail: pr
-        ? `world_loaded=${pr.world_loaded} ws_identified=${pr.ws_identified} game_joined=${pr.game_joined} copresence_active=${pr.copresence_active}`
+        ? `world_loaded=${pr.world_loaded} ws_identified=${pr.ws_identified} game_joined=${pr.game_joined} copresence_active=${pr.copresence_active} welcomed=${pr.welcomed}`
         : "the recorder never answered (is this build older than the recorder?)",
     };
     step("join", joined, manifest.steps_ok.joined.detail);
@@ -676,14 +744,14 @@ async function main() {
     if (!inWorld) throw new Error(`the walker never got into the world: ${walkerOut.map((o) => o.line).join(" | ")}`);
     manifest.walker.id = Number(inWorld.m[1]);
     manifest.walker.start = [Number(inWorld.m[2]), Number(inWorld.m[3]), Number(inWorld.m[4])];
-    // The judge's window is sound only if the approach comes from behind the
-    // line's start; checked on the start the relay really gave it.
-    const fromBehind = behindStart(manifest.walker.start, plan);
+    // The judge's window is sound only if the approach never runs along the
+    // line; checked on the start the relay really gave it.
+    const clear = clearApproach(manifest.walker.start, plan);
     manifest.steps_ok.approach = {
-      ok: fromBehind,
-      detail: fromBehind
-        ? `the walker started at ${fmt(manifest.walker.start)}, behind the line's start ${fmt(plan.start)}`
-        : `the walker started at ${fmt(manifest.walker.start)}, NOT behind the line's start ${fmt(plan.start)}: its approach could be judged as the walk; pick another --pose`,
+      ok: clear,
+      detail: clear
+        ? `the walker started at ${fmt(manifest.walker.start)}; its straight approach to the line's start ${fmt(plan.start)} never runs along the line`
+        : `the walker started at ${fmt(manifest.walker.start)}: its approach to ${fmt(plan.start)} runs along the line and could be judged as the walk; pick another --pose`,
     };
     step("walker", true, `${WALKER_NAME} in the world as entity ${manifest.walker.id}, starting at ${fmt(manifest.walker.start)}`);
 
@@ -805,7 +873,651 @@ async function main() {
   process.exit(pass ? 0 : 2);
 }
 
-main().catch((e) => {
+// ── --plots: homes on plots, in both join orders (increment 1b) ──────────────
+//
+// One run per join order, each with its own relay (so the plots start free)
+// and its own boot of the game (one GPU: the runs never overlap):
+//   walker-first  the walker joins before the game boots, so it claims the
+//                 first plot (p1) and the game the second (p2): the game must
+//                 move its home off the default plot it built at boot.
+//   game-first    the game joins first and keeps the default plot (p1); the
+//                 walker arrives second, on p2.
+// In both, the walker walks a line from its own spawn along +Z, back and forth
+// for as long as it runs (--center auto starts the path at its spawn when it
+// holds a plot), and the game records every frame where it drew it.
+
+const PLOTS_WALKER_NAME = "TestBotPlots"; // the TestBot prefix keeps it off the member list
+const PLOTS_WALKER_SEED = "verify-copresence-plots-walker";
+const SHIP_FILE = path.join(REPO, "data", "blueprints", "ship_structure.ron");
+/** One back-and-forth of the walker's line, seconds (second-player.js walks
+ *  2r out and 2r back). */
+const CYCLE_S = (4 * RADIUS) / SPEED;
+/** Long enough to hold one whole forward leg (2r / speed) wherever in the
+ *  cycle the recording happens to start, plus the drawing delay and margins. */
+const PLOTS_RECORD_S = Math.ceil(CYCLE_S + (2 * RADIUS) / SPEED + 4);
+
+/** The --plots verdict: rig steps, the plot checks, and the smoothness checks
+ *  on one forward leg of the walk (no view, no screenshots: the two players
+ *  cannot see each other until increment 2). Re-runs from the manifest. */
+function plotsVerdict(m, dir) {
+  const checks = [];
+  const add = (id, ok, detail) => checks.push({ id, ok: !!ok, detail });
+  const s = m.steps_ok || {};
+  add("relay_up", s.relay && s.relay.ok, s.relay ? s.relay.detail : "never started");
+  // How the game came into the world (a menu entry must have run the race). A
+  // manifest from before --entry existed entered by autopilot: every run did.
+  for (const c of judgeEntry(m.entry || { kind: "autopilot" }).checks) checks.push(c);
+  add("game_in_world", s.joined && s.joined.ok, s.joined ? s.joined.detail : "never joined");
+  add("walker_in_world", s.walker && s.walker.ok, s.walker ? s.walker.detail : "never ran");
+  const samplesPath = m.samples ? path.join(dir, m.samples) : null;
+  const frames = samplesPath && fs.existsSync(samplesPath) ? JSON.parse(fs.readFileSync(samplesPath, "utf8")).frames || [] : [];
+  if (!frames.length) add("recorded", false, samplesPath ? `no frames in ${rel(samplesPath)}` : "nothing was recorded");
+  // (Not PLOTS_WALKER_NAME: --dry-verdict runs this before that constant is set.)
+  const walker = { id: m.walker ? m.walker.id : null, name: (m.walker && m.walker.name) || "TestBotPlots" };
+  const plots = judgePlots({
+    order: m.order,
+    plots: m.plots,
+    gamePlot: m.game_plot,
+    walkerPlot: m.walker_plot,
+    camera: m.camera_after_join,
+    homeThings: m.home_things,
+    frames,
+    walker,
+  });
+  for (const c of plots.checks) checks.push(c);
+  let stats = null;
+  const onLine = m.walker ? m.walker.on_line_epoch_ms : null;
+  const epochs = frames.map((f) => Number(f.epoch_ms)).filter(Number.isFinite);
+  if (m.line && Number.isFinite(onLine) && epochs.length) {
+    const first = epochs[0];
+    const last = epochs[epochs.length - 1];
+    const legMs = ((2 * m.radius) / m.speed) * 1000;
+    const leg = forwardLegStart(onLine, m.speed, m.radius, first + 500);
+    const whole = leg + legMs + 500 <= last;
+    add(
+      "forward_leg_recorded",
+      whole,
+      `the recording ran ${((last - first) / 1000).toFixed(1)} s; the judged forward leg starts ${((leg - first) / 1000).toFixed(2)} s in and lasts ${(legMs / 1000).toFixed(2)} s` +
+        (whole ? "" : ": NOT all of it inside the recording"),
+    );
+    if (whole) {
+      const j = judgeCopresence({ frames, walker, line: m.line, speed: m.speed, onLineEpochMs: leg, fromEpochMs: leg, checkView: false });
+      for (const c of j.checks) checks.push(c);
+      stats = j.stats;
+    }
+  } else {
+    add("forward_leg_recorded", false, "no line, no time the walker reached it, or no frame times: the walk cannot be judged");
+  }
+  // Stepping out of the shared world and back (the second review of 1b).
+  if (m.rejoin) {
+    for (const c of judgeRejoin(m.rejoin).checks) checks.push(c);
+  } else {
+    add("rejoin_ran", false, (s.rejoin && s.rejoin.detail) || "the step out of the shared world and back never ran");
+  }
+  // Respawn far from the door (the third review of 1b).
+  if (m.respawn) {
+    for (const c of judgeRejoin(m.respawn, { prefix: "respawn", when: "it pressed Respawn" }).checks) checks.push(c);
+  } else {
+    add("respawn_ran", false, (s.respawn && s.respawn.detail) || "the walk away and Respawn never ran");
+  }
+  // Shutting the build editor far from the build spot (round 5 of the 1b review).
+  if (m.editor) {
+    for (const c of judgeEditorClose(m.editor).checks) checks.push(c);
+  } else {
+    add("editor_ran", false, (s.editor && s.editor.detail) || "the walk away and the build editor's open and shut never ran");
+  }
+  const panics = Number(m.panics || 0);
+  add("no_panics", panics === 0, `${panics} PANIC line(s) in run.log`);
+  return { checks, pass: checks.every((c) => c.ok), stats };
+}
+
+/** Places on the ship's floor outside every home, in ship metres at eye height
+ *  (data/blueprints/ship_structure.ron): the Commons' four corners, a metre in
+ *  (x 65..99, z 20..75), and both ends of street-1 (x 65..75, z 85..195). The
+ *  step-out check moves the game to the one farthest from its door, more than
+ *  100 m from it for either plot (154 m for p1's, 127 m for p2's). */
+const FAR_POINTS = [
+  [66, 1.7, 21],
+  [98, 1.7, 21],
+  [66, 1.7, 74],
+  [98, 1.7, 74],
+  [70, 1.7, 86],
+  [70, 1.7, 194],
+];
+
+
+function printPlotsVerdict(prefix, m, dir) {
+  const { checks, pass, stats } = plotsVerdict(m, dir);
+  console.log("");
+  console.log("-".repeat(72));
+  console.log(`--plots, ${m.order}`);
+  for (const c of checks) console.log(`${c.ok ? "PASS" : "FAIL"}  ${pad(c.id, 25)} ${c.detail}`);
+  console.log("-".repeat(72));
+  if (stats && stats.speed) {
+    console.log(
+      `measured: ${stats.pairs} frame pairs judged; drawn speed ${stats.speed.min.toFixed(3)} to ${stats.speed.max.toFixed(3)} m/s ` +
+        `(median ${stats.speed.median.toFixed(3)}) for a ${stats.speed.walker} m/s walk`,
+    );
+  }
+  if (m.other_build) console.log(otherBuildNotice(m.other_build));
+  if (pass) console.log(`${prefix}PASS  ${checks.length}/${checks.length} plot checks passed (${m.order})`);
+  else {
+    const failed = checks.filter((c) => !c.ok).map((c) => c.id);
+    console.log(`${prefix}FAIL  ${checks.length - failed.length}/${checks.length} passed (${m.order}); failed: ${failed.join(", ")}`);
+  }
+  console.log(`        evidence ${rel(dir)}`);
+  console.log("-".repeat(72));
+  console.log("");
+  return pass;
+}
+
+/** One --plots run in one join order. Returns true when every check passed. */
+async function runPlotsOnce(order, runStamp, cleanups) {
+  setupRig();
+  const out = path.join(RIG, "runs", `${runStamp}-plots-${order}`);
+  fs.mkdirSync(out, { recursive: true });
+  const manifest = {
+    kind: "verify-copresence-plots",
+    order,
+    entry: { kind: entryFor(order) },
+    stamp: runStamp,
+    exe: EXE,
+    ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
+    rig: RIG,
+    speed: SPEED,
+    radius: RADIUS,
+    relay: null,
+    plots: null,
+    plots_from: null,
+    game_plot: null,
+    walker_plot: null,
+    camera_after_join: null,
+    home_things: null,
+    walker: null,
+    line: null,
+    samples: null,
+    steps: [],
+    steps_ok: {},
+    panics: 0,
+  };
+  const save = () => fs.writeFileSync(path.join(out, "manifest.json"), JSON.stringify(manifest, null, 2));
+  const step = (id, ok, detail) => {
+    manifest.steps.push({ id, ok, detail });
+    save();
+    log(`${ok ? "ok  " : "FAIL"} ${pad(id, 10)} ${detail}`);
+    return ok;
+  };
+  let relay = null;
+  let gamePid = null;
+  let walker = null;
+  let killed = false;
+  const killAll = () => {
+    if (killed) return;
+    killed = true;
+    if (walker && walker.exitCode === null) {
+      try {
+        execSync(`taskkill /PID ${walker.pid} /T /F`, { stdio: "ignore" });
+      } catch {}
+    }
+    if (gamePid) {
+      try {
+        execSync(`taskkill /PID ${gamePid} /T /F`, { stdio: "ignore" });
+      } catch {}
+    }
+    killRigProcesses();
+    if (relay) {
+      relay.kill();
+      relay.removeDir();
+    }
+  };
+  cleanups.push(killAll);
+  const watchdog = setTimeout(() => {
+    log(`TIMEOUT after ${TIMEOUT_MS / 60000} min; killing everything`);
+    manifest.steps.push({ id: "timeout", ok: false, detail: `run exceeded ${TIMEOUT_MS / 60000} min` });
+    manifest.panics = panicCount();
+    save();
+    killAll();
+    printPlotsVerdict("RESULT: ", manifest, out);
+    process.exit(2);
+  }, TIMEOUT_MS);
+
+  const walkerOut = [];
+  let walkerStarted = 0;
+  let walkerExit = null;
+  const waitLine = async (re, timeoutMs) => {
+    let ended = false;
+    if (walkerExit) walkerExit.then(() => (ended = true));
+    for (const t0 = Date.now(); Date.now() - t0 < timeoutMs; ) {
+      const hit = walkerOut.find((o) => re.test(o.line));
+      if (hit) return { hit, m: hit.line.match(re) };
+      if (ended) return null;
+      await sleep(50);
+    }
+    return null;
+  };
+  /** Start the walker and wait until it is walking: its entity, the plot the
+   *  relay gave it, its line, and when it reached the line. */
+  const startWalker = async () => {
+    const args = [
+      path.join(__dirname, "second-player.js"),
+      "--server", relay.url,
+      "--name", PLOTS_WALKER_NAME,
+      "--seed", PLOTS_WALKER_SEED,
+      "--path", "line",
+      "--axis", "z",
+      "--radius", String(RADIUS),
+      "--speed", String(SPEED),
+      "--seconds", "0", // until this rig stops it
+    ];
+    walkerStarted = Date.now();
+    walker = spawn(process.execPath, args, { cwd: REPO, stdio: ["ignore", "pipe", "pipe"] });
+    const take = (b) => {
+      for (const line of String(b).split(/\r?\n/).filter(Boolean)) walkerOut.push({ at_s: (Date.now() - walkerStarted) / 1000, line });
+    };
+    walker.stdout.on("data", take);
+    walker.stderr.on("data", take);
+    walkerExit = new Promise((r) => walker.on("exit", (code) => r(code)));
+    manifest.walker = { name: PLOTS_WALKER_NAME, seed: PLOTS_WALKER_SEED, args: args.slice(1), id: null, start: null };
+    const inWorld = await waitLine(/in the world as entity (\d+), starting at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/, 40000);
+    const plotLine = await waitLine(/home_plot (null|missing|\{.*\})/, 5000);
+    const centred = await waitLine(/centred on \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/, 5000);
+    const onPath = await waitLine(/on the path at/, 15000);
+    if (!inWorld || !centred || !onPath) {
+      manifest.steps_ok.walker = { ok: false, detail: `the walker never got walking: ${walkerOut.map((o) => o.line).join(" | ")}` };
+      step("walker", false, manifest.steps_ok.walker.detail);
+      throw new Error("the walker never got walking");
+    }
+    manifest.walker.id = Number(inWorld.m[1]);
+    manifest.walker.start = [Number(inWorld.m[2]), Number(inWorld.m[3]), Number(inWorld.m[4])];
+    manifest.walker.home_plot_line = plotLine ? plotLine.hit.line : null;
+    const hp = plotLine && plotLine.m[1].startsWith("{") ? JSON.parse(plotLine.m[1]) : null;
+    manifest.walker_plot = hp ? hp.id : null;
+    manifest.walker.on_line_epoch_ms = walkerStarted + onPath.hit.at_s * 1000;
+    const c = [Number(centred.m[1]), Number(centred.m[2]), Number(centred.m[3])];
+    manifest.line = { start: [c[0], c[1], c[2] - RADIUS], end: [c[0], c[1], c[2] + RADIUS], axis: "z", radius: RADIUS };
+    // Walking; the end of the run says whether it still was when the recording ended.
+    manifest.steps_ok.walker = { ok: true, detail: `${PLOTS_WALKER_NAME} (entity ${manifest.walker.id}) joined and is walking` };
+    step(
+      "walker",
+      true,
+      `${PLOTS_WALKER_NAME} in the world as entity ${manifest.walker.id} at ${fmt(manifest.walker.start)}, ${plotLine ? plotLine.m[0] : "home_plot never logged"}; walking ${fmt(manifest.line.start)} -> ${fmt(manifest.line.end)} and back`,
+    );
+  };
+
+  try {
+    relay = await TR.startRelay({ sourceExe: EXE, prefix: "verify-copresence-relay-", config: { server_name: "verify-copresence plots relay" } });
+    manifest.relay = { url: relay.httpUrl, pid: relay.pid, dir: relay.dir, health: relay.health, listening: relay.listening.map((x) => x.line) };
+    manifest.steps_ok.relay = relay.health
+      ? { ok: true, detail: `${relay.httpUrl} answered /health (pid ${relay.pid}); ${loopbackNote(relay)}` }
+      : { ok: false, detail: `${relay.httpUrl} never answered /health: ${relay.logText().slice(-400)}` };
+    step("relay", manifest.steps_ok.relay.ok, manifest.steps_ok.relay.detail);
+    if (!relay.health) throw new Error("the throwaway relay did not come up");
+
+    if (order === "walker-first") await startWalker();
+
+    const child = spawn(RIG_EXE, [], { cwd: RIG, detached: true, stdio: "ignore", env: gameEnv() });
+    gamePid = child.pid;
+    fs.writeFileSync(path.join(RIG, "probe_pid.txt"), String(gamePid));
+    child.unref();
+    step("launch", true, `game pid ${gamePid} from ${rel(RIG_EXE)} (background, no focus)`);
+    await waitBoot(180000);
+    step("boot", true, "booted (run.log: cloud noise volumes generated, no PANIC)");
+    const fromMenu = manifest.entry.kind === "menu";
+    clearDone("autopilot_done.json");
+    req("autopilot_request.json", { server_url: relay.httpUrl, user_name: "CopresencePlots", character_name: "CopresencePlots", enter: !fromMenu });
+    const ap = await waitFile("autopilot_done.json", 300000);
+    if (!ap || ap.ok !== true) throw new Error(`the autopilot did not run: ${ap ? ap.error || JSON.stringify(ap) : "no answer in 300 s"}`);
+    if (fromMenu && ap.entered !== false) throw new Error(`the autopilot entered the world although asked not to (entered=${ap.entered}): this build predates "enter": false`);
+    step("autopilot", true, fromMenu ? `connecting from the main menu on ${ap.server_url}` : `entering the world on ${ap.server_url}`);
+    if (fromMenu) {
+      // The returning player's path: connected and identified on the main menu,
+      // then Enter World pressed. Wait for the handshake with the world unloaded.
+      let mp = null;
+      for (const t0 = Date.now(); Date.now() - t0 < 60000; ) {
+        mp = await probe();
+        if (mp && mp.ok && mp.ws_identified) break;
+        await sleep(500);
+      }
+      // The first-run privacy window opens over the middle of the menu once this
+      // identity connects; give it a moment, then answer it as a person would.
+      await sleep(1500);
+      const cleared = [];
+      for (const label of FIRST_RUN_BUTTONS) {
+        const f = await ui({ action: "find", text: label });
+        if (f && f.ok === true && f.found && f.text === label) {
+          await ui({ action: "click", pos: f.pos_px });
+          await sleep(800);
+          cleared.push(`clicked "${label}"`);
+        }
+      }
+      const before = await probe();
+      manifest.entry.identified = !!(before && before.ws_identified);
+      manifest.entry.world_loaded = !!(before && before.world_loaded);
+      const btn = await ui({ action: "find", text: "Enter World" });
+      if (!btn || btn.ok !== true || !btn.found || String(btn.text).trim() !== "Enter World") {
+        manifest.entry.error = `the main menu's Enter World button was not drawn: ${JSON.stringify(btn)}`;
+        step("enter", false, manifest.entry.error);
+        throw new Error(manifest.entry.error);
+      }
+      const click = await ui({ action: "click", pos: btn.pos_px });
+      manifest.entry.page_after_click = click ? click.active_page : null;
+      manifest.entry.world_loaded_after_click = click ? !!click.world_loaded : null;
+      step(
+        "enter",
+        true,
+        `identified=${manifest.entry.identified} world_loaded=${manifest.entry.world_loaded} on the menu${cleared.length ? ` (${cleared.join(", ")})` : ""}; ` +
+          `pressed Enter World at ${fmt(btn.pos_px)} px: page ${manifest.entry.page_after_click}, world_loaded=${manifest.entry.world_loaded_after_click}`,
+      );
+    }
+
+    // In the shared world, with the welcome applied (a build from before 1b
+    // reports no `welcomed`, and is read as soon as it has joined).
+    let pr = null;
+    for (const t0 = Date.now(); Date.now() - t0 < 120000; ) {
+      pr = await probe();
+      if (pr && pr.ok && pr.world_loaded && pr.game_joined && pr.copresence_active && pr.welcomed !== false) break;
+      if (pr && pr.copresence_refused) break;
+      await sleep(1000);
+    }
+    const joined = !!(pr && pr.ok && pr.game_joined && pr.copresence_active && pr.welcomed !== false);
+    manifest.steps_ok.joined = {
+      ok: joined,
+      detail: pr
+        ? `world_loaded=${pr.world_loaded} game_joined=${pr.game_joined} copresence_active=${pr.copresence_active} welcomed=${pr.welcomed} refused=${pr.copresence_refused}` +
+          (pr.copresence_refused_note ? ` ("${pr.copresence_refused_note}")` : "")
+        : "the recorder never answered",
+    };
+    step("join", joined, manifest.steps_ok.joined.detail);
+    if (!joined) throw new Error("the game never joined the shared world");
+    // Let the move settle (the rebuild runs on the welcome's frame), then read
+    // where the game put its home and its camera.
+    await sleep(2000);
+    const pj = await probe();
+    manifest.game_plot = pj && pj.home_plot ? pj.home_plot.id : null;
+    manifest.camera_after_join = pj && pj.camera_end ? pj.camera_end.pos : null;
+    // Where the home's own things stand (Respawn point, hologram, showroom
+    // stage, animals, plants): judged against the plot the game should hold.
+    manifest.home_things = pj && pj.home_things ? pj.home_things : null;
+    if (pj && Array.isArray(pj.ship_plots) && pj.ship_plots.length) {
+      manifest.plots = pj.ship_plots;
+      manifest.plots_from = "the game's report";
+    } else {
+      manifest.plots = readShipPlots(fs.readFileSync(SHIP_FILE, "utf8"));
+      manifest.plots_from = "the ship file (the game reported none)";
+    }
+    step(
+      "home",
+      true,
+      `the game's home stands on ${manifest.game_plot || "(no plot reported)"}; its camera at ${manifest.camera_after_join ? fmt(manifest.camera_after_join) : "(none)"}; plots from ${manifest.plots_from}`,
+    );
+
+    if (order === "game-first") await startWalker();
+
+    clearDone("remote_players_done.json");
+    req("remote_players_request.json", { seconds: PLOTS_RECORD_S });
+    step("record", true, `recording every frame for ${PLOTS_RECORD_S} s of the game's frame clock (one walk cycle is ${CYCLE_S.toFixed(2)} s)`);
+    const rec = await waitFile("remote_players_done.json", (PLOTS_RECORD_S + 60) * 1000);
+    if (!rec || rec.ok !== true) {
+      step("samples", false, `no recording came back: ${JSON.stringify(rec && rec.error)}`);
+    } else {
+      fs.copyFileSync(path.join(DEBUG, "remote_players_done.json"), path.join(out, "samples.json"));
+      manifest.samples = "samples.json";
+      step("samples", true, `${rec.frame_count} frames over ${rec.recorded_s.toFixed(2)} s of frame clock`);
+    }
+    const stillWalking = walker && walker.exitCode === null;
+    manifest.steps_ok.walker = {
+      ok: stillWalking,
+      detail: stillWalking
+        ? `${PLOTS_WALKER_NAME} (entity ${manifest.walker.id}) was still walking when the recording ended`
+        : `${PLOTS_WALKER_NAME} had stopped (exit ${walker ? walker.exitCode : "none"}) before the recording ended`,
+    };
+    step("walked", stillWalking, manifest.steps_ok.walker.detail);
+
+    // ── Step out of the shared world and back (the second review of 1b). The
+    // relay takes the game out at its game_leave and, when it joins again,
+    // spawns it AFRESH at its door, wherever the game stands. Out of the world,
+    // the game is moved to the place on the ship farthest from its door (more
+    // than 100 m), so a game that stayed where it stood would have every update
+    // refused by the relay's 100 m rule. The walker (still walking) logs where
+    // the relay spawned it and every move the relay passes on.
+    const before = await probe();
+    const door = before && before.home_things ? before.home_things.respawn : null;
+    const yaw = before && before.camera_end ? before.camera_end.yaw : 0;
+    const pitch = before && before.camera_end ? before.camera_end.pitch : 0;
+    const farTarget = door ? FAR_POINTS.reduce((a, b) => (Math.hypot(b[0] - door[0], b[2] - door[2]) > Math.hypot(a[0] - door[0], a[2] - door[2]) ? b : a)) : FAR_POINTS[0];
+    const mark = walkerOut.length;
+    const showcase = async (body) => {
+      req("showcase_request.json", body);
+      // The game deletes the request when it takes it (engine/ipc.rs poll_showcase_request).
+      for (const t0 = Date.now(); Date.now() - t0 < 10000 && fs.existsSync(path.join(DEBUG, "showcase_request.json")); ) await sleep(100);
+    };
+    const until = async (ok, ms) => {
+      let p = null;
+      for (const t0 = Date.now(); Date.now() - t0 < ms; ) {
+        p = await probe();
+        if (p && ok(p)) return p;
+        await sleep(500);
+      }
+      return p;
+    };
+    await showcase({ solo: "1" });
+    const outside = await until((p) => p.game_joined === false, 20000);
+    const stepped = !!(outside && outside.game_joined === false);
+    step("step_out", stepped, stepped ? "the game stepped out of the shared world (solo)" : `the game did not step out: game_joined=${outside && outside.game_joined}`);
+    if (!stepped) throw new Error("the game never stepped out of the shared world");
+    await showcase({ cam: `${farTarget.join(",")},${yaw},${pitch}` });
+    await sleep(2500);
+    const atFar = await probe();
+    const far = atFar && atFar.camera_end ? atFar.camera_end.pos : null;
+    step("far", !!far, `out of the world, moved to ${far ? fmt(far) : "(unknown)"} (asked ${fmt(farTarget)}), ${door && far ? Math.hypot(far[0] - door[0], far[2] - door[2]).toFixed(1) : "?"} m from the door at ${door ? fmt(door) : "?"}`);
+    await showcase({ solo: "0" });
+    const back = await until((p) => p.game_joined && p.welcomed, 30000);
+    const rejoined = !!(back && back.game_joined && back.welcomed);
+    step("step_back", rejoined, rejoined ? "the game joined the shared world again and its welcome was applied" : `no rejoin: game_joined=${back && back.game_joined} welcomed=${back && back.welcomed}`);
+    if (!rejoined) throw new Error("the game never rejoined the shared world");
+    // The game is the only other player, and the walker never logs itself; its name is the
+    // relay's (the game may join as "Player"), so it is not matched.
+    const nameRe = /player joined: entity (\d+) "[^"]*" at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/;
+    let joinedLine = null;
+    for (const t0 = Date.now(); Date.now() - t0 < 10000 && !joinedLine; ) {
+      joinedLine = walkerOut.slice(mark).map((o) => o.line.match(nameRe)).find(Boolean) || null;
+      if (!joinedLine) await sleep(200);
+    }
+    const entity = joinedLine ? Number(joinedLine[1]) : null;
+    const relaySpawn = joinedLine ? [Number(joinedLine[2]), Number(joinedLine[3]), Number(joinedLine[4])] : null;
+    await sleep(1500);
+    const settled = await probe();
+    const camera = settled && settled.camera_end ? settled.camera_end.pos : null;
+    // One small step, by the same verb a person's walk amounts to: the move the
+    // relay must pass on.
+    const nudged = camera ? [camera[0], camera[1], camera[2] + 1] : null;
+    const markNudge = walkerOut.length;
+    if (nudged) await showcase({ cam: `${nudged.join(",")},${yaw},${pitch}` });
+    await sleep(2500);
+    const sawRe = /saw entity (\d+) at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/;
+    const seen = walkerOut
+      .slice(markNudge)
+      .map((o) => o.line.match(sawRe))
+      .filter((m) => m && Number(m[1]) === entity)
+      .map((m) => [Number(m[2]), Number(m[3]), Number(m[4])]);
+    manifest.rejoin = { far, relaySpawn, camera, nudged, seen, entity, door, far_target: farTarget };
+    manifest.steps_ok.rejoin = { ok: true, detail: `rejoined as entity ${entity}, the relay spawned it at ${relaySpawn ? fmt(relaySpawn) : "(never seen)"}` };
+    step("rejoin", true, `${manifest.steps_ok.rejoin.detail}; its camera at ${camera ? fmt(camera) : "(none)"}; ${seen.length} relayed move(s) seen after the nudge to ${nudged ? fmt(nudged) : "(none)"}`);
+
+    // ── Respawn far from the door (the third review of 1b). In the world this
+    // time, the game walks to the same far place in steps the relay accepts, so
+    // the relay holds it there (the walker sees it arrive), and presses Respawn
+    // (the showcase `respawn` verb). Respawn puts the game at its door, more than
+    // 100 m from where the relay holds it: unless the relay stands it there too,
+    // every update is refused and the others see it frozen at the far end.
+    const seenSince = (from) =>
+      walkerOut
+        .slice(from)
+        .map((o) => o.line.match(sawRe))
+        .filter((x) => x && Number(x[1]) === entity)
+        .map((x) => [Number(x[2]), Number(x[3]), Number(x[4])]);
+    const route = respawnRoute(nudged || door || farTarget, farTarget);
+    const markWalk = walkerOut.length;
+    for (const p of route) {
+      await showcase({ cam: `${p.join(",")},${yaw},${pitch}` });
+      await sleep(1500);
+    }
+    const walked = seenSince(markWalk);
+    const heldFar = walked.length ? walked[walked.length - 1] : null;
+    const atFarEnd = !!heldFar && Math.hypot(heldFar[0] - farTarget[0], heldFar[2] - farTarget[2]) < 3;
+    step(
+      "walk_away",
+      atFarEnd,
+      `walked ${route.length} steps to ${fmt(farTarget)}; the relay last passed on the game at ${heldFar ? fmt(heldFar) : "(never)"} (${walked.length} relayed move(s))`,
+    );
+    const markRespawn = walkerOut.length;
+    await showcase({ respawn: "1" });
+    let respawnLine = null;
+    for (const t0 = Date.now(); Date.now() - t0 < 15000 && !respawnLine; ) {
+      respawnLine = walkerOut.slice(markRespawn).map((o) => o.line.match(nameRe)).find(Boolean) || null;
+      if (!respawnLine) await sleep(200);
+    }
+    const respawnEntity = respawnLine ? Number(respawnLine[1]) : entity;
+    const relayRespawn = respawnLine ? [Number(respawnLine[2]), Number(respawnLine[3]), Number(respawnLine[4])] : null;
+    await until((p) => p.game_joined && p.welcomed, 20000);
+    await sleep(1500);
+    const afterRespawn = await probe();
+    const camera2 = afterRespawn && afterRespawn.camera_end ? afterRespawn.camera_end.pos : null;
+    const nudged2 = camera2 ? [camera2[0], camera2[1], camera2[2] + 1] : null;
+    const markNudge2 = walkerOut.length;
+    if (nudged2) await showcase({ cam: `${nudged2.join(",")},${yaw},${pitch}` });
+    await sleep(2500);
+    const seen2 = walkerOut
+      .slice(markNudge2)
+      .map((o) => o.line.match(sawRe))
+      .filter((x) => x && Number(x[1]) === respawnEntity)
+      .map((x) => [Number(x[2]), Number(x[3]), Number(x[4])]);
+    manifest.respawn = { far: heldFar, relaySpawn: relayRespawn, camera: camera2, nudged: nudged2, seen: seen2, entity: respawnEntity, route };
+    manifest.steps_ok.respawn = {
+      ok: true,
+      detail: relayRespawn ? `respawned as entity ${respawnEntity}, the relay spawned it at ${fmt(relayRespawn)}` : "the walker never saw the game join again after Respawn",
+    };
+    step("respawn", true, `${manifest.steps_ok.respawn.detail}; its camera at ${camera2 ? fmt(camera2) : "(none)"}; ${seen2.length} relayed move(s) seen after the nudge`);
+
+    // ── Shutting the build editor far from the build spot (round 5 of the 1b
+    // review). At its door after Respawn, the game opens the build editor and
+    // shuts it (the showcase `build_editor` verb, the B key's own function):
+    // that puts the build-mode avatar where it stands and stands it there, its
+    // build spot. Then it walks, in steps the relay accepts, to the same far
+    // place, more than 100 m from that spot, and opens and shuts the editor
+    // again. Shutting it used to stand the game at the build spot, a jump the
+    // relay refuses: frozen at the far place for everyone else.
+    // A point 1 m from `at` toward `to`, across the floor (x and z).
+    const nudgeToward = (at, to) => {
+      const dx = to[0] - at[0];
+      const dz = to[2] - at[2];
+      const len = Math.hypot(dx, dz) || 1;
+      return [at[0] + dx / len, at[1], at[2] + dz / len];
+    };
+    const editorTo = async (open) => {
+      await showcase({ build_editor: open ? "1" : "0" });
+      return until((p) => p.build_editor === open, 10000);
+    };
+    const opened1 = await editorTo(true);
+    await sleep(1000);
+    const shut1 = await editorTo(false);
+    await sleep(1500);
+    const atSpot = await probe();
+    const buildSpot = atSpot && atSpot.camera_end ? atSpot.camera_end.pos : null;
+    const toggled = !!(opened1 && opened1.build_editor === true && shut1 && shut1.build_editor === false);
+    step(
+      "editor_spot",
+      toggled && !!buildSpot,
+      toggled
+        ? `opened and shut the build editor at the door; the build spot is ${buildSpot ? fmt(buildSpot) : "(unknown)"}`
+        : `the build editor did not open and shut (build_editor ${opened1 && opened1.build_editor}, then ${shut1 && shut1.build_editor}); a build without the verb?`,
+    );
+    if (toggled && buildSpot) {
+      const route3 = respawnRoute(buildSpot, farTarget);
+      const markWalk3 = walkerOut.length;
+      for (const p of route3) {
+        await showcase({ cam: `${p.join(",")},${yaw},${pitch}` });
+        await sleep(1500);
+      }
+      const walked3 = walkerOut
+        .slice(markWalk3)
+        .map((o) => o.line.match(sawRe))
+        .filter((x) => x && Number(x[1]) === respawnEntity)
+        .map((x) => [Number(x[2]), Number(x[3]), Number(x[4])]);
+      const held3 = walked3.length ? walked3[walked3.length - 1] : null;
+      step(
+        "walk_away2",
+        !!held3 && Math.hypot(held3[0] - farTarget[0], held3[2] - farTarget[2]) < 3,
+        `walked ${route3.length} steps to ${fmt(farTarget)}; the relay last passed on the game at ${held3 ? fmt(held3) : "(never)"} (${walked3.length} relayed move(s))`,
+      );
+      const opened2 = await editorTo(true);
+      await sleep(1000);
+      const shut2 = await editorTo(false);
+      await sleep(1500);
+      const afterShut = await probe();
+      const camera3 = afterShut && afterShut.camera_end ? afterShut.camera_end.pos : null;
+      // One metre back along the walk, not on along +Z: the far place can stand at the end of
+      // street-1, where +Z runs into its end wall and the step stops short (the first green run
+      // of this leg: the relay passed the move, at 194.67 for a nudge to 195).
+      const toward = route3.length > 1 ? route3[route3.length - 2] : buildSpot;
+      const nudged3 = camera3 ? nudgeToward(camera3, toward) : null;
+      const markNudge3 = walkerOut.length;
+      if (nudged3) await showcase({ cam: `${nudged3.join(",")},${yaw},${pitch}` });
+      await sleep(2500);
+      const seen3 = walkerOut
+        .slice(markNudge3)
+        .map((o) => o.line.match(sawRe))
+        .filter((x) => x && Number(x[1]) === respawnEntity)
+        .map((x) => [Number(x[2]), Number(x[3]), Number(x[4])]);
+      manifest.editor = { buildSpot, held: held3, camera: camera3, nudged: nudged3, seen: seen3, route: route3 };
+      const shutOk = !!(opened2 && opened2.build_editor === true && shut2 && shut2.build_editor === false);
+      manifest.steps_ok.editor = { ok: shutOk, detail: shutOk ? "opened and shut the build editor at the far place" : "the build editor did not open and shut at the far place" };
+      step("editor", shutOk, `${manifest.steps_ok.editor.detail}; its camera at ${camera3 ? fmt(camera3) : "(none)"}; ${seen3.length} relayed move(s) seen after the nudge`);
+    } else {
+      manifest.steps_ok.editor = { ok: false, detail: "the build editor never opened and shut at the door" };
+    }
+  } catch (e) {
+    manifest.steps.push({ id: "abort", ok: false, detail: String(e.message || e) });
+    log(`ABORT ${e.message || e}`);
+  }
+  clearTimeout(watchdog);
+  manifest.panics = panicCount();
+  fs.writeFileSync(path.join(out, "walker.log"), walkerOut.map((o) => `${o.at_s.toFixed(2)}s ${o.line}`).join("\n") + "\n");
+  try {
+    fs.copyFileSync(LOG, path.join(out, "run.log"));
+  } catch {}
+  if (relay) {
+    try {
+      fs.copyFileSync(relay.logPath, path.join(out, "relay.log"));
+    } catch {}
+  }
+  save();
+  killAll();
+  // The relay helper removes the folder; give the game a moment to be gone
+  // before the next run copies the exe over its file.
+  await sleep(2000);
+  return printPlotsVerdict("RESULT: ", manifest, out);
+}
+
+async function mainPlots() {
+  const cleanups = [];
+  process.on("exit", () => {
+    for (const k of cleanups) k();
+  });
+  for (const [sig, code] of [["SIGINT", 130], ["SIGTERM", 143], ["SIGBREAK", 149], ["SIGHUP", 129]]) {
+    process.on(sig, () => process.exit(code));
+  }
+  const results = [];
+  for (const order of ORDERS) {
+    log(`── --plots, ${order} ──`);
+    results.push([order, await runPlotsOnce(order, stamp, cleanups)]);
+  }
+  console.log("");
+  for (const [order, ok] of results) console.log(`${ok ? "PASS" : "FAIL"}  --plots ${order}`);
+  process.exit(results.every(([, ok]) => ok) ? 0 : 2);
+}
+
+(PLOTS ? mainPlots() : main()).catch((e) => {
   console.error(e);
   process.exit(2);
 });

@@ -349,6 +349,53 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.controller.fly_mode = false;
         log::info!("Showcase: walk -> fly mode off, on foot");
     }
+    // {"solo":"1"} / {"solo":"0"} (2026-10-03, ship homes 1b): step out of the shared world
+    // and back in, the switch the launcher's offline-home pick and Dev travel flip
+    // (`copresence_solo`; lib.rs sends game_leave, then joins again once it clears). The
+    // relay spawns the returning player afresh, at their door, wherever the game stands:
+    // verify-copresence --plots uses it to check the game then stands where the relay holds
+    // it (engine/home_plot.rs `stand_where_held`, the second review's freeze).
+    match grab("solo").as_deref() {
+        Some("1") => {
+            state.gui_state.copresence_solo = true;
+            log::info!("Showcase: solo -> stepping out of the shared world");
+        }
+        Some("0") => {
+            state.gui_state.copresence_solo = false;
+            log::info!("Showcase: solo off -> joining the shared world again");
+        }
+        _ => {}
+    }
+    // {"respawn":"1"} (2026-10-03, ship homes 1b, the third review): press the death screen's
+    // Respawn button (`pending_respawn`): the player goes to their Respawn point, and in the
+    // shared world steps out and joins again so the relay stands them there too
+    // (engine/home_plot.rs `respawn_through_relay`). verify-copresence --plots walks the game
+    // more than 100 m from its door first, then judges it stands where the relay respawned it.
+    if grab("respawn").as_deref() == Some("1") {
+        state.gui_state.pending_respawn = true;
+        log::info!("Showcase: respawn -> the Respawn button");
+    }
+    // {"build_editor":"1"} / {"build_editor":"0"} (2026-10-04, ship homes 1b, round 5): open or
+    // shut the construction editor the way the B key does (engine/editor.rs
+    // `toggle_build_editor`, under the B key's own conditions: the world view, no showroom).
+    // verify-copresence --plots walks the game more than 100 m from its build spot, opens and
+    // shuts the editor, and judges it still stands where the relay holds it
+    // (engine/home_plot.rs `editor_close_spot`).
+    if let Some(want) = grab("build_editor").as_deref().and_then(|v| match v {
+        "1" => Some(true),
+        "0" => Some(false),
+        _ => None,
+    }) {
+        let free = state.gui_state.active_page == crate::gui::GuiPage::None && !state.gui_state.showroom_active;
+        if want != state.gui_state.construction_active && free {
+            crate::engine::editor::toggle_build_editor(state);
+        }
+        log::info!(
+            "Showcase: build_editor {} -> the editor is {}",
+            if want { "open" } else { "shut" },
+            if state.gui_state.construction_active { "open" } else { "shut" }
+        );
+    }
     // Optional "time":"9.5" sets the game clock to that hour of the
     // current day (dev/screenshot control: dawn shots without waiting
     // out the night). Routed through the TimeSystem's request channel -
@@ -3016,6 +3063,13 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
 ///      auto-connect block opens the socket on its own;
 ///   4. active_page = None -> load_world fires -> the co-presence gate sends
 ///      game_join once the socket is up.
+/// `"enter": false` stops before step 4: the game stays on the main menu, connected, the
+/// way a returning player's game sits there after its auto-connect identified it. A rig
+/// then waits for the handshake (the recorder probe's `ws_identified`) and presses the
+/// menu's own Enter World button (the ui request), so the join gate runs on the frame the
+/// page changes, BEFORE the world has loaded: the path a real player takes, which the
+/// all-in-one autopilot never ran (ship homes 1b, round 4 review: the first join of that
+/// path named no ship and was refused). verify-copresence.js --plots, game-first.
 /// Writes `debug/autopilot_done.json` and deletes the request either way.
 /// Permanent dev tooling (forever-development norm), not a player feature:
 /// the ephemeral identity is throwaway by design and never touches a vault.
@@ -3108,11 +3162,13 @@ pub(crate) fn poll_autopilot_request(state: &mut EngineState) {
     state.gui_state.onboarding_complete = true;
     state.gui_state.showroom_active = false;
     state.gui_state.construction_active = false;
-    state.gui_state.active_page = GuiPage::None;
+    let enter = req.get("enter").and_then(|v| v.as_bool()).unwrap_or(true);
+    state.gui_state.active_page = if enter { GuiPage::None } else { GuiPage::MainMenu };
     let key_prefix: String =
         state.gui_state.profile_public_key.chars().take(12).collect();
     log::info!(
-        "Autopilot: entering world as '{}' (chat name '{}') on {} (identity {}...)",
+        "Autopilot: {} as '{}' (chat name '{}') on {} (identity {}...)",
+        if enter { "entering the world" } else { "connecting from the main menu" },
         state.gui_state.character_name,
         state.gui_state.user_name,
         state.gui_state.server_url,
@@ -3126,6 +3182,7 @@ pub(crate) fn poll_autopilot_request(state: &mut EngineState) {
             "user_name": state.gui_state.user_name,
             "character_name": state.gui_state.character_name,
             "public_key_prefix": key_prefix,
+            "entered": enter,
         })
         .to_string(),
     );
@@ -3299,6 +3356,10 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         return;
     }
     let Some(rec) = slot.take() else { return };
+    // Increment 1b: the plot the home stands on (null for none) and every plot of the ship,
+    // so a rig can check the camera and the other players against the plots
+    // (scripts/verify-copresence.js --plots).
+    let (home_plot, ship_plots) = crate::engine::home_plot::probe_json(state.gui_state.ship_structure.as_ref());
     let done = serde_json::json!({
         "ok": true,
         "seconds": rec.seconds,
@@ -3310,6 +3371,19 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         "ws_identified": state.gui_state.ws_identified,
         "game_joined": state.game_joined,
         "copresence_active": state.gui_state.copresence_active,
+        "home_plot": home_plot,
+        "ship_plots": ship_plots,
+        // Where the home's own things stand (Respawn point, hologram, showroom stage, animals,
+        // plants): the --plots judge checks each is on the game's plot (home_plot.rs).
+        "home_things": crate::engine::home_plot::home_things_json(state),
+        "welcomed": state.game_welcomed,
+        "copresence_refused": state.copresence_refused.is_some(),
+        // The sentence the HUD shows while it holds (home_plot.rs `refuse_shared_world`), so a
+        // rig can name the refusal it hit.
+        "copresence_refused_note": state.gui_state.copresence_refused_note,
+        // The construction editor's camera is up (the showcase `build_editor` verb opens it;
+        // verify-copresence --plots waits for it to open and shut).
+        "build_editor": state.construction_cam_active,
         "camera_start": rec.camera_start,
         "camera_end": camera_json(state),
         "frames": rec.frames,

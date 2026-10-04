@@ -175,6 +175,13 @@ pub fn draw(
                     (format!("{others} here: {names}"), theme.success())
                 };
                 text_shadowed(painter, Pos2::new(16.0, y + 16.0), Align2::LEFT_TOP, &roster, 11.0, col);
+            } else if let Some(note) = &state.copresence_refused_note {
+                // Not joining this server's shared world, and why, for as long as that holds
+                // (ship homes 1b, the third review: the only word of it was a 12 s notice).
+                text_shadowed(painter, Pos2::new(16.0, y), Align2::LEFT_TOP, "Not in the shared world", 12.0, theme.warning());
+                for (i, line) in wrap_words(note, 64).iter().enumerate() {
+                    text_shadowed(painter, Pos2::new(16.0, y + 16.0 + 14.0 * i as f32), Align2::LEFT_TOP, line, 11.0, theme.text_secondary());
+                }
             }
 
             // ── FPS counter (top-right) ──
@@ -1067,6 +1074,22 @@ fn truncate_chars(s: &str, max: usize) -> String {
     }
     let kept: String = s.chars().take(max.saturating_sub(3)).collect();
     format!("{}...", kept.trim_end())
+}
+
+/// Break `s` into lines of at most `max` characters at spaces (a word longer than `max` gets
+/// a line of its own), for a sentence the HUD paints line by line.
+fn wrap_words(s: &str, max: usize) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    for word in s.split_whitespace() {
+        match lines.last_mut() {
+            Some(line) if line.chars().count() + 1 + word.chars().count() <= max => {
+                line.push(' ');
+                line.push_str(word);
+            }
+            _ => lines.push(word.to_string()),
+        }
+    }
+    lines
 }
 
 /// Project a world point to screen pixels (wgpu NDC: x,y in [-1,1] y-up, z in [0,1]).

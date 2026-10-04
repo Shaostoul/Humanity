@@ -1570,6 +1570,13 @@ pub struct ServerInfoResponse {
     /// are what the relay ENFORCES, not a hint — a disabled feature's endpoints
     /// answer 403. Source: `src/relay/features.rs`.
     pub features: serde_json::Value,
+    /// The mothership this relay holds plots on (increment 1b of
+    /// docs/design/ship-homes-and-logistics.md): `{"id": ..., "hash": ...}`, the same pair
+    /// every `game_welcome` carries. A client that draws no ship of its own (the rigs'
+    /// scripted walker, an AI agent) reads it here and names it in its `game_join`
+    /// (`ship_hash`), because only a join naming this ship holds a plot; one naming none
+    /// is a guest in the Commons. Empty strings when the relay could not load its ship.
+    pub ship: serde_json::Value,
 }
 
 /// GET /api/server-info — public server metadata for federation discovery.
@@ -1583,7 +1590,11 @@ pub async fn get_server_info(
         .map(|(id, _, _, _)| id)
         .collect();
     let users_online = state.peers.read().await.len();
-    let game_players = state.game_world.read().await.player_count();
+    let (game_players, ship) = {
+        let world = state.game_world.read().await;
+        let ship = serde_json::json!({ "id": world.ship_plots.ship_id, "hash": world.ship_plots.ship_hash });
+        (world.player_count(), ship)
+    };
     let member_count = state.db.get_member_count(None).unwrap_or(0);
 
     // Pull server name/description from config, fall back to env then defaults.
@@ -1638,6 +1649,7 @@ pub async fn get_server_info(
         member_count,
         funding,
         features: state.features.as_json(),
+        ship,
     })
 }
 

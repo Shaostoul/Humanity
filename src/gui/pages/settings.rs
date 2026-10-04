@@ -438,8 +438,10 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         widgets::body_hint(
             ui, theme,
             "Erase removes your account from this server: your messages, uploads, \
-             profile, settings sync, mailbox, reactions, codes and membership. Type \
-             your display name exactly to arm the button.",
+             profile, settings sync, mailbox, reactions, codes and membership, your \
+             progress in the shared world, and your home's plot on the ship (it goes \
+             to the next player; if you come back you get a free plot or a guest \
+             place). Type your display name exactly to arm the button.",
         );
         ui.add_space(theme.spacing_sm);
         // Saying what SURVIVES is the part that was missing, and it is the part a
