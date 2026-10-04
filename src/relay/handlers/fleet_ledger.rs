@@ -23,22 +23,40 @@
 //! HOW A GIVE KEEPS ITEMS STRAIGHT. The relay holds no inventories yet (each player's backpack
 //! lives in their own game and their own save; holdings on the server are increment 8 of the
 //! design), exactly as for P2P trades (gui/pages/trade.rs). So a give is two halves:
-//!   1. the game asks with `game_fleet_give` {give_id, entity_id (the store), item_id,
-//!      quantity}, having checked that its backpack holds them;
-//!   2. this relay checks the player is in the world, at a fleet store within reach, and that
-//!      the fleet has a price for the item, then writes ONE line, keyed by the give's id. It
-//!      answers `game_fleet_give_result`; only a success makes the game take the items out of
-//!      its backpack, once, recorded by the give's id beside the backpack (the trade
-//!      settlements, saved with it). A give the game sends again (the answer was lost to a
-//!      reconnect) is the same line, answered `already: true`, so it is never counted twice.
-//!   A refused give writes nothing and the game takes nothing. What the relay cannot do yet is
-//!   see that the backpack really held the items: an altered game could give what it does not
-//!   have, which only moves its own gauge until the server holds inventories (increment 8).
+//!   1. the game takes the items OUT of its backpack and holds them with the give (saved with
+//!      the backpack, engine/fleet.rs), then asks with `game_fleet_give` {give_id, home,
+//!      entity_id (the store), item_id, quantity, creative};
+//!   2. this relay checks the player is in the world, at a fleet store within reach, that the
+//!      fleet has a price for the item, and that the player is under the day's cap of gives,
+//!      then writes ONE line, keyed by the give's id. It answers `game_fleet_give_result`: a
+//!      success lets the game forget the held items; a refusal gives them back to the backpack.
+//!      A give the game sends again (the answer was lost to a reconnect) is the same line,
+//!      answered `already: true`, so it is never counted twice. A give refused for coming too
+//!      soon after the last one is answered `rate_limited` (with its id), and the game sends it
+//!      again a moment later.
+//!   `home` is the id the game keeps with that backpack, so when a save that does not list a
+//!   give is loaded (the game closed before saving, or a snapshot from before it was put back)
+//!   the game asks `game_fleet_gives_request` {home} for that home's gives and takes the items
+//!   out again, the way the Trade page settles a completed trade again; when fewer were there
+//!   to take, it says so (`game_fleet_give_adjust`) and the give counts only those, once.
+//!
+//! WHAT THE LEDGER TAKES ON TRUST, said plainly: the relay cannot see the backpack, so it takes
+//! the game's word that the items were in it, and the game's word for its home's power (each
+//! report held to one home's electrical service, `home_service_watts`). An altered game can
+//! therefore write gifts it never had. So can an unaltered one in one way: with "Start every
+//! session from the default home" on (the default during development) every session starts
+//! with the starter kit, and giving the kit each session counts each time. Gifts made while
+//! the game is in Creative mode, which makes things from nothing, are recorded as such and
+//! never counted (`item_creative`, worth 0). All of this ends when the server holds the
+//! inventories (increment 8).
 //!
 //! SEEING IT. `game_fleet_ledger_request` answers `game_fleet_ledger` with the asker's OWN
-//! ledger: no message here names another player, so nobody can read someone else's. An admin
-//! may ask `game_fleet_totals_request` for the whole fleet's sums (`game_fleet_totals`), which
-//! names nobody. Erasing an account deletes its lines (storage/account.rs).
+//! ledger: no message here names another player, so nobody can read someone else's, and no
+//! answer carries a row number (shared by every player's lines, so its gaps would tell how
+//! much everyone else did). An admin may ask `game_fleet_totals_request` for the whole fleet's
+//! sums (`game_fleet_totals`), which names nobody and is held back while fewer than
+//! `totals_min_other_players` other players have a ledger. Erasing an account deletes its
+//! lines (storage/account.rs).
 //!
 //! THE SETTING. `set_fleet_supply` puts an admin's choice of supply mode (ship_stores.rs
 //! `FleetSupply`) into the running world. It never touches a ledger: unlimited or stocked,
@@ -51,15 +69,19 @@ use std::sync::Arc;
 use super::game_state::GameWorld;
 use super::ship_stores::{distance, FleetSupply, STORE_REACH_M};
 use crate::relay::relay::RelayState;
-use crate::relay::storage::{NewFleetEntry, Recorded, Storage};
+use crate::relay::storage::{Adjusted, NewFleetEntry, Recorded, Storage};
 
 /// The kind ids this code records (each must be a kind of data/ship/fleet_ledger.ron: a test
 /// checks the shipped file has every one).
 pub const MEAL: &str = "meal";
 pub const ITEM: &str = "item";
+pub const ITEM_CREATIVE: &str = "item_creative";
 pub const POWER_DRAWN: &str = "power_drawn";
 pub const POWER_RETURNED: &str = "power_returned";
-pub const RECORDED_KINDS: [&str; 4] = [MEAL, ITEM, POWER_DRAWN, POWER_RETURNED];
+pub const RECORDED_KINDS: [&str; 5] = [MEAL, ITEM, ITEM_CREATIVE, POWER_DRAWN, POWER_RETURNED];
+
+/// A game day in game seconds: lines keep the shared world's clock to the start of one.
+pub const GAME_DAY_S: f64 = 86_400.0;
 
 /// Which side of the balance a kind is on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -98,6 +120,9 @@ pub struct KindDef {
     pub price: Price,
     #[serde(default)]
     pub per_day: bool,
+    /// The most lines of this kind one player may write in one real day (None: no cap).
+    #[serde(default)]
+    pub max_lines_per_day: Option<u32>,
 }
 
 /// data/ship/fleet_ledger.ron.
@@ -108,12 +133,27 @@ pub struct LedgerFile {
     pub recent_entries: usize,
     pub power_report_min_interval_s: f64,
     pub power_report_window_s: f64,
+    /// The most power one home draws from the ship or sends back, watts.
+    pub home_service_watts: f64,
+    /// An admin sees the totals only when this many other players have a ledger.
+    pub totals_min_other_players: u32,
+    /// How many of a home's newest gives the relay hands back to its game.
+    pub gives_replayed: usize,
 }
 
 impl Default for LedgerFile {
     /// Neither the file nor the built-in copy: no kinds, so nothing is recorded.
     fn default() -> Self {
-        LedgerFile { kinds: Vec::new(), max_give_quantity: 0, recent_entries: 20, power_report_min_interval_s: 30.0, power_report_window_s: 120.0 }
+        LedgerFile {
+            kinds: Vec::new(),
+            max_give_quantity: 0,
+            recent_entries: 20,
+            power_report_min_interval_s: 30.0,
+            power_report_window_s: 120.0,
+            home_service_watts: 0.0,
+            totals_min_other_players: u32::MAX,
+            gives_replayed: 0,
+        }
     }
 }
 
@@ -127,6 +167,9 @@ impl LedgerFile {
         }
         if !(f.power_report_window_s.is_finite() && f.power_report_window_s >= f.power_report_min_interval_s) {
             return Err("power_report_window_s must be a number at least power_report_min_interval_s".into());
+        }
+        if !(f.home_service_watts.is_finite() && f.home_service_watts > 0.0) {
+            return Err("home_service_watts must be a number above 0".into());
         }
         for k in &f.kinds {
             if let Price::Fixed(v) = k.price {
@@ -146,22 +189,20 @@ pub struct Good {
     pub base_value: f64,
 }
 
-/// What the ledger records and what things are worth: the ledger file, the trade goods'
-/// values, and the reactor's output (data/ship_power.ron), read once when the world is made.
+/// What the ledger records and what things are worth: the ledger file and the trade goods'
+/// values, read once when the world is made.
 #[derive(Debug, Clone, Default)]
 pub struct LedgerData {
     pub file: LedgerFile,
     pub goods: HashMap<String, Good>,
-    /// The ship's reactor, watts: the most one power report can be counted at.
-    pub reactor_watts: f64,
 }
 
 impl LedgerData {
-    /// The three files from the relay's data folder, disk first; a missing or broken file is
+    /// The two files from the relay's data folder, disk first; a missing or broken file is
     /// replaced by the copy built into the exe and the log says so (the same rule as every
     /// relay data file; the rigs refuse a run that served one).
     pub fn load() -> LedgerData {
-        LedgerData { file: Self::load_file(std::path::Path::new("data/ship/fleet_ledger.ron")), goods: Self::load_goods(), reactor_watts: crate::systems::ship_power::ShipPowerData::load().electric_watts.max(0.0) }
+        LedgerData { file: Self::load_file(std::path::Path::new("data/ship/fleet_ledger.ron")), goods: Self::load_goods() }
     }
 
     /// data/ship/fleet_ledger.ron from `path` (the tests point it at a missing one and a broken
@@ -213,26 +254,39 @@ impl LedgerData {
         }
     }
 
-    /// A line of `kind_id`, `quantity` units of it, at the price of the moment; None when the
-    /// kind is not in the file or has no price.
-    pub fn line(&self, kind_id: &str, item_id: &str, quantity: f64, game_time: f64, give_id: Option<String>) -> Option<NewFleetEntry> {
+    /// A line of `kind_id`, `quantity` units of it, at the price of the moment, dated to the
+    /// START of the current game day (storage/fleet_ledger.rs says why); `give` is a give's
+    /// (id, home). None when the kind is not in the file or has no price.
+    pub fn line(&self, kind_id: &str, item_id: &str, quantity: f64, game_time: f64, give: Option<(String, String)>) -> Option<NewFleetEntry> {
         let kind = self.kind(kind_id)?;
         let price = self.unit_price(kind, item_id)?;
+        let (give_id, home) = give.map_or((None, String::new()), |(id, home)| (Some(id), home));
         Some(NewFleetEntry {
             kind: kind.id.clone(),
             direction: kind.direction.as_str().to_string(),
             item_id: item_id.to_string(),
             quantity,
             value: price * quantity,
-            game_time,
+            game_time: (game_time / GAME_DAY_S).floor() * GAME_DAY_S,
             real_day: crate::relay::storage::fleet_ledger::real_day_now(),
             give_id,
+            home,
             per_day: kind.per_day,
+            day_cap: kind.max_lines_per_day,
         })
     }
 
     fn item_name(&self, id: &str) -> Option<&str> {
         self.goods.get(id).map(|g| g.name.as_str())
+    }
+
+    /// The trade good a meal from the stores is (the meal kind's `OfGood`), so the game can
+    /// feed the player that good's nutrition; None when the file prices meals otherwise.
+    pub fn meal_item(&self) -> Option<&str> {
+        match &self.kind(MEAL)?.price {
+            Price::OfGood(id) => Some(id.as_str()),
+            _ => None,
+        }
     }
 }
 
@@ -242,18 +296,23 @@ fn is_fleet_store(e: &super::game_state::GameEntity) -> bool {
     e.entity_type == "food_store"
 }
 
-/// A give id the game chose: 1 to 64 letters, digits, '-' or '_'.
-fn valid_give_id(id: &str) -> bool {
+/// An id the game chose (a give's, or its home's): 1 to 64 letters, digits, '-' or '_'.
+fn valid_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= 64 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
 /// `take_meal` (ship_stores.rs) and, when a meal was taken, its line in the taker's ledger:
 /// one meal, used, at the meal's price. The reply carries `ledger` {kind, value} (or
-/// `ledger_error` when the line could not be written: the meal was still taken).
+/// `ledger_error` when the line could not be written: the meal was still taken) and
+/// `meal_item`, the good the meal is (a Basic Ration), so the game feeds the player its
+/// nutrition: a meal charged to the ledger is a meal eaten (finding 7 of the 2026-10-04 review).
 pub fn take_meal_and_record(world: &mut GameWorld, db: &Storage, key: &str, entity_id: u64) -> serde_json::Value {
     let mut reply = super::ship_stores::take_meal(world, key, entity_id);
     if reply["success"] != true {
         return reply;
+    }
+    if let Some(item) = world.fleet_ledger.meal_item() {
+        reply["meal_item"] = serde_json::json!(item);
     }
     let Some(line) = world.fleet_ledger.line(MEAL, "", 1.0, world.game_time, None) else {
         tracing::error!("Fleet ledger: no priced \"meal\" kind in data/ship/fleet_ledger.ron; a meal went unrecorded");
@@ -272,23 +331,27 @@ pub fn take_meal_and_record(world: &mut GameWorld, db: &Storage, key: &str, enti
 
 /// A player's give to the fleet (`game_fleet_give`): the reply, a `game_fleet_give_result`.
 /// Success writes exactly one line (or finds the one an earlier send of the same give wrote);
-/// every refusal writes nothing: `bad_give_id`, `not_in_game`, `entity_not_found`,
+/// every refusal writes nothing: `bad_give_id`, `bad_home`, `not_in_game`, `entity_not_found`,
 /// `not_a_store`, `too_far` (with `distance`), `bad_item`, `bad_quantity` (with `max`),
-/// `no_price` (the fleet has no price for it), `failed` (the database said no).
+/// `no_price` (the fleet has no price for it), `too_many` (the day's cap of gives is reached),
+/// `failed` (the database said no). A give from a game in Creative mode (`creative: true`) is
+/// written as `item_creative`, worth nothing.
 pub fn give(world: &GameWorld, db: &Storage, key: &str, raw: &serde_json::Value) -> serde_json::Value {
     let give_id = raw.get("give_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let home = raw.get("home").and_then(|v| v.as_str()).unwrap_or("").to_string();
     let item_id = raw.get("item_id").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
     let fail = |error: &str| {
         serde_json::json!({ "type": "game_fleet_give_result", "give_id": give_id, "item_id": item_id, "success": false, "error": error })
     };
+    // No row number in the answer: it counts every player's lines (finding 8).
     let done = |e: &crate::relay::storage::FleetEntry, already: bool| {
         serde_json::json!({
             "type": "game_fleet_give_result", "give_id": give_id, "success": true, "already": already,
-            "entry_id": e.id, "item_id": e.item_id, "item_name": world.fleet_ledger.item_name(&e.item_id),
+            "kind": e.kind, "item_id": e.item_id, "item_name": world.fleet_ledger.item_name(&e.item_id),
             "quantity": e.quantity, "value": e.value,
         })
     };
-    if !valid_give_id(&give_id) {
+    if !valid_id(&give_id) {
         return fail("bad_give_id");
     }
     // Sent again after a lost answer: the line it wrote then, whatever has changed since.
@@ -299,6 +362,9 @@ pub fn give(world: &GameWorld, db: &Storage, key: &str, raw: &serde_json::Value)
             tracing::error!("Fleet ledger: could not look up give {give_id}: {e}");
             return fail("failed");
         }
+    }
+    if !valid_id(&home) {
+        return fail("bad_home");
     }
     let Some(player) = world.find_player_entity(key) else { return fail("not_in_game") };
     let Some(store) = raw.get("entity_id").and_then(|v| v.as_u64()).and_then(|id| world.entities.get(&id)) else {
@@ -323,12 +389,20 @@ pub fn give(world: &GameWorld, db: &Storage, key: &str, raw: &serde_json::Value)
         r["max"] = serde_json::json!(max);
         return r;
     }
-    let Some(line) = world.fleet_ledger.line(ITEM, &item_id, quantity as f64, world.game_time, Some(give_id.clone())) else {
+    // The fleet takes only what it has a price for, Creative mode or not, so the two modes
+    // offer the same things to give.
+    if world.fleet_ledger.line(ITEM, &item_id, 1.0, 0.0, None).is_none() {
+        return fail("no_price");
+    }
+    let creative = raw.get("creative").and_then(|v| v.as_bool()).unwrap_or(false);
+    let kind = if creative { ITEM_CREATIVE } else { ITEM };
+    let Some(line) = world.fleet_ledger.line(kind, &item_id, quantity as f64, world.game_time, Some((give_id.clone(), home))) else {
         return fail("no_price");
     };
     match db.record_fleet_entry(key, &line) {
         Ok(Recorded::New(e)) => done(&e, false),
         Ok(Recorded::Already(e)) => done(&e, true),
+        Ok(Recorded::OverCap) => fail("too_many"),
         Err(e) => {
             tracing::error!("Fleet ledger: give {give_id} could not be recorded: {e}");
             fail("failed")
@@ -336,12 +410,70 @@ pub fn give(world: &GameWorld, db: &Storage, key: &str, raw: &serde_json::Value)
     }
 }
 
+/// The give a rate limit turned away, answered with its id so the game sends it again a moment
+/// later instead of waiting for an answer that never comes (findings 4 and 13).
+pub fn rate_limited(raw: &serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "type": "game_fleet_give_result", "give_id": raw.get("give_id").cloned().unwrap_or_default(),
+        "item_id": raw.get("item_id").cloned().unwrap_or_default(), "success": false, "error": "rate_limited",
+    })
+}
+
+/// `key`'s newest gives from the home `home` (`game_fleet_gives_request` {home}), the
+/// `game_fleet_gives` message: each give's id, item and how many the fleet counts, for the game
+/// to settle again any its loaded save does not list. Only the asker's, only that home's.
+pub fn gives_json(world: &GameWorld, db: &Storage, key: &str, raw: &serde_json::Value) -> serde_json::Value {
+    let home = raw.get("home").and_then(|v| v.as_str()).unwrap_or("");
+    if !valid_id(home) {
+        return serde_json::json!({ "type": "game_fleet_gives", "home": home, "error": "bad_home" });
+    }
+    match db.fleet_gives_for_home(key, home, world.fleet_ledger.file.gives_replayed) {
+        Ok(gives) => serde_json::json!({ "type": "game_fleet_gives", "home": home, "gives": gives }),
+        Err(e) => {
+            tracing::error!("Fleet ledger: could not read {key}'s gives: {e}");
+            serde_json::json!({ "type": "game_fleet_gives", "home": home, "error": "failed" })
+        }
+    }
+}
+
+/// The game found fewer of some gives' items to take than the gives said
+/// (`game_fleet_give_adjust` {adjustments: [{give_id, delivered}]}, one message for all of them
+/// so no rate limit can drop one): each give counts what was delivered, once. The answer,
+/// `game_fleet_give_adjusted`, lists each id and whether it changed.
+pub fn adjust(db: &Storage, key: &str, raw: &serde_json::Value) -> serde_json::Value {
+    let list = raw.get("adjustments").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let results: Vec<serde_json::Value> = list
+        .iter()
+        .take(64)
+        .map(|a| {
+            let id = a.get("give_id").and_then(|v| v.as_str()).unwrap_or("");
+            let delivered = a.get("delivered").and_then(|v| v.as_f64()).unwrap_or(f64::NAN);
+            let outcome = if !valid_id(id) || !delivered.is_finite() {
+                "bad"
+            } else {
+                match db.adjust_fleet_give(key, id, delivered) {
+                    Ok(Adjusted::Changed(_)) => "changed",
+                    Ok(Adjusted::Unchanged(_)) => "unchanged",
+                    Ok(Adjusted::NotFound) => "not_found",
+                    Err(e) => {
+                        tracing::error!("Fleet ledger: give {id} could not be corrected: {e}");
+                        "failed"
+                    }
+                }
+            };
+            serde_json::json!({ "give_id": id, "outcome": outcome })
+        })
+        .collect();
+    serde_json::json!({ "type": "game_fleet_give_adjusted", "results": results })
+}
+
 /// A game's report of its home's power (`game_fleet_power` {drawn_wh, returned_wh}, watt-hours
-/// since its last report): the reply, a `game_fleet_power_result`. Each is held to what the
-/// ship's reactor could deliver over the time since this player's last report, at most
-/// `power_report_window_s` real seconds of it (`clamped` says when that cut one down), and
-/// written to today's power lines in kWh. Refused: `not_in_game`, `bad_report` (not numbers,
-/// or below 0), `too_soon` (under `power_report_min_interval_s` real seconds since the last).
+/// since its last report): the reply, a `game_fleet_power_result`. Each is held to what one
+/// home's electrical service carries (`home_service_watts`) over the time since this player's
+/// last report, at most `power_report_window_s` real seconds of it (`clamped` says when that cut
+/// one down), and written to today's power lines in kWh. Refused: `not_in_game`, `bad_report`
+/// (not numbers, or below 0), `too_soon` (under `power_report_min_interval_s` real seconds since
+/// the last). The report itself is the game's word: the server does not meter homes yet.
 pub fn power_report(world: &mut GameWorld, db: &Storage, key: &str, raw: &serde_json::Value) -> serde_json::Value {
     let fail = |error: &str| serde_json::json!({ "type": "game_fleet_power_result", "success": false, "error": error });
     if world.find_player_entity(key).is_none() {
@@ -360,7 +492,7 @@ pub fn power_report(world: &mut GameWorld, db: &Storage, key: &str, raw: &serde_
         return fail("too_soon");
     }
     let window_s = since.unwrap_or(f64::INFINITY).min(file.power_report_window_s * scale);
-    let cap_wh = world.fleet_ledger.reactor_watts * window_s / 3600.0;
+    let cap_wh = file.home_service_watts * window_s / 3600.0;
     let clamped = drawn > cap_wh || returned > cap_wh;
     let (drawn, returned) = (drawn.min(cap_wh), returned.min(cap_wh));
     world.fleet_power_last.insert(key.to_string(), now);
@@ -378,7 +510,8 @@ pub fn power_report(world: &mut GameWorld, db: &Storage, key: &str, raw: &serde_
 }
 
 /// `key`'s own ledger, the `game_fleet_ledger` message: the supply mode, the totals and the
-/// balance (`standing` black, red or even), each kind's totals and the newest lines.
+/// balance (`standing` black, red or even), each kind's totals and the newest lines (no row
+/// numbers in them: finding 8).
 pub fn ledger_json(world: &GameWorld, db: &Storage, key: &str) -> serde_json::Value {
     let data = &world.fleet_ledger;
     let recent = data.file.recent_entries;
@@ -399,7 +532,7 @@ pub fn ledger_json(world: &GameWorld, db: &Storage, key: &str) -> serde_json::Va
                 "direction": k.direction, "quantity": k.quantity, "value": k.value,
             })).collect::<Vec<_>>(),
             "recent": lines.iter().map(|l| serde_json::json!({
-                "id": l.id, "kind": l.kind, "label": label(&l.kind), "unit": unit(&l.kind),
+                "kind": l.kind, "label": label(&l.kind), "unit": unit(&l.kind),
                 "direction": l.direction, "item_id": l.item_id, "item_name": data.item_name(&l.item_id),
                 "quantity": l.quantity, "value": l.value, "game_time": l.game_time, "real_day": l.real_day,
             })).collect::<Vec<_>>(),
@@ -411,13 +544,23 @@ pub fn ledger_json(world: &GameWorld, db: &Storage, key: &str) -> serde_json::Va
     }
 }
 
-/// The whole fleet's sums for an admin, the `game_fleet_totals` message (no names in it).
-pub fn totals_json(world: &GameWorld, db: &Storage) -> serde_json::Value {
-    match db.fleet_totals() {
+/// The whole fleet's sums for an admin (`asker`), the `game_fleet_totals` message (no names in
+/// it). Held back (`withheld: true`, with how many other players are needed) while fewer than
+/// `totals_min_other_players` players other than the asker have a ledger: with one other
+/// player, the totals minus the admin's own lines ARE that player's ledger (finding 9).
+pub fn totals_json(world: &GameWorld, db: &Storage, asker: &str) -> serde_json::Value {
+    match db.fleet_totals(asker) {
         Ok(t) => {
+            let need = world.fleet_ledger.file.totals_min_other_players;
+            if t.others < i64::from(need) {
+                return serde_json::json!({
+                    "type": "game_fleet_totals", "supply": world.fleet_supply.as_str(), "withheld": true,
+                    "players": t.players, "others_needed": need,
+                });
+            }
             let bal = crate::relay::storage::FleetBalance { used: t.used, contributed: t.contributed };
             serde_json::json!({
-                "type": "game_fleet_totals", "supply": world.fleet_supply.as_str(), "currency": "CR",
+                "type": "game_fleet_totals", "supply": world.fleet_supply.as_str(), "currency": "CR", "withheld": false,
                 "players": t.players, "used_value": t.used, "contributed_value": t.contributed,
                 "balance": bal.balance(), "standing": bal.standing(),
             })
@@ -440,19 +583,23 @@ pub async fn set_fleet_supply(state: &Arc<RelayState>, mode: &str) {
     }
 }
 
-/// The four ledger messages (relay.rs routes them here). Replies go to the sender alone.
+/// The ledger messages (relay.rs routes them here). Replies go to the sender alone.
 pub async fn handle(state: &Arc<RelayState>, my_key: &str, kind: &str, raw: &serde_json::Value) {
+    use super::msg_handlers::{check_perception_rate, perception_rate_allows};
     let send = |v: serde_json::Value| async move { super::msg_handlers::send_game_private(state, my_key, &v).await };
     match kind {
         "game_fleet_ledger_request" => {
-            if !super::msg_handlers::check_perception_rate(state, my_key, "fleet_ledger") {
+            if !check_perception_rate(state, my_key, "fleet_ledger") {
                 return;
             }
             let v = { ledger_json(&*state.game_world.read().await, &state.db, my_key) };
             send(v).await;
         }
         "game_fleet_give" => {
-            if !super::msg_handlers::check_perception_rate(state, my_key, "fleet_give") {
+            // Answered even when turned away, with the give's id, so the game knows to send it
+            // again rather than wait (a double click sends two gives within 200 ms).
+            if !perception_rate_allows(state, my_key, "fleet_give") {
+                send(rate_limited(raw)).await;
                 return;
             }
             let (reply, ledger) = {
@@ -467,13 +614,31 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, kind: &str, raw: &ser
                 send(l).await;
             }
         }
+        "game_fleet_gives_request" => {
+            if !check_perception_rate(state, my_key, "fleet_gives") {
+                return;
+            }
+            let v = { gives_json(&*state.game_world.read().await, &state.db, my_key, raw) };
+            send(v).await;
+        }
+        "game_fleet_give_adjust" => {
+            if !check_perception_rate(state, my_key, "fleet_adjust") {
+                return;
+            }
+            send(adjust(&state.db, my_key, raw)).await;
+            let v = { ledger_json(&*state.game_world.read().await, &state.db, my_key) };
+            send(v).await;
+        }
         "game_fleet_power" => {
             let v = { power_report(&mut *state.game_world.write().await, &state.db, my_key, raw) };
             send(v).await;
         }
         "game_fleet_totals_request" => {
             let v = if super::msg_handlers::is_game_admin(state, my_key) {
-                totals_json(&*state.game_world.read().await, &state.db)
+                if !check_perception_rate(state, my_key, "fleet_totals") {
+                    return;
+                }
+                totals_json(&*state.game_world.read().await, &state.db, my_key)
             } else {
                 serde_json::json!({ "type": "game_admin_error", "message": "Only admins can see the fleet's totals." })
             };

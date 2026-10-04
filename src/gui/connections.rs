@@ -204,6 +204,9 @@ impl GuiState {
         // Trades are per server (2026-10-02): a switch re-fetches its own.
         self.trades.clear();
         self.trades_synced = false;
+        // So is the fleet ledger (2026-10-04, finding 16): the old server's ledger, stores and
+        // totals go; gives held for it stay held, tagged with it, and are never sent here.
+        self.fleet.forget_server();
         // Sealed-sender DMs: the local history store and fetch high-water
         // are per (identity, server) — drop them so the next server loads
         // its own store from disk and re-fetches its own mailbox.

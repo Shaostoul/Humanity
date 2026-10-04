@@ -14,22 +14,24 @@
 //! the totals used and given, each kind's totals and the newest lines; and lets them take a meal
 //! or give items when they stand at a fleet store.
 //!
-//! A GIVE: the backpack lives in this game (the server holds no inventories yet), so the items
-//! leave it only once the server says it recorded the give. `start_give` sends it with an id of
-//! its own and keeps it "in flight"; engine/fleet.rs takes the answer, and on a success takes the
-//! items out of the backpack ONCE (recorded by the give's id with the backpack, so it is saved
-//! with it and never done twice); on a refusal nothing leaves.
+//! A GIVE: `start_give` only asks (`FleetView.outbox`); the next frame engine/fleet.rs takes the
+//! items out of the backpack and holds them with the give until the server answers (a yes keeps
+//! them given, a refusal puts them back). Held gives are listed here, so the player can see
+//! where those items are. Only one give at a time waits for the server.
 //!
-//! THE WEB does not mirror the player's ledger: the website has no game world and shows no
-//! player's game state (no inventory, no quest, no position), so there is nothing there to give
-//! from or to measure. The admin's Fleet supply control and the fleet's totals ARE mirrored, in
-//! the chat's Game Admin window (web/chat/chat-game-admin.js), because an admin may run a server
-//! from a browser.
+//! THE WEB mirrors the player's ledger read-only (web/chat/chat-fleet.js, the chat's command
+//! palette, "Your fleet ledger"): the ledger is the server's record, so a browser signed in as
+//! the player can show it with no game world. Taking a meal and giving stay in the game,
+//! because they happen at a store in the shared world. The admin's Fleet supply control and the
+//! fleet's totals are mirrored in the chat's Game Admin window (web/chat/chat-game-admin.js).
+//! (Until the review of 2026-10-04, finding 14, this said the web could show no ledger because
+//! it has no game world: viewing never needed one.)
 
 use egui::RichText;
 
 use crate::gui::theme::Theme;
 use crate::gui::{widgets, GuiState};
+use crate::systems::inventory::FleetHeld;
 
 /// How near a player stands to use a fleet store (the relay's ship_stores.rs `STORE_REACH_M`,
 /// the reach of every interaction; the relay checks it, this only says so first).
@@ -113,9 +115,22 @@ impl FleetLedger {
                 .collect(),
         })
     }
+
+    /// What the reactor's power came to on each side (used, given), CR: the "power" kinds.
+    pub fn power_values(&self) -> (f64, f64) {
+        let mut out = (0.0, 0.0);
+        for k in self.kinds.iter().filter(|k| k.kind.starts_with("power")) {
+            if k.direction == "used" {
+                out.0 += k.value;
+            } else {
+                out.1 += k.value;
+            }
+        }
+        out
+    }
 }
 
-/// A give sent to the server and not yet answered, or answered yes this session.
+/// A give the player asked for, not yet out of the backpack (engine/fleet.rs holds it next).
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct FleetGive {
     pub give_id: String,
@@ -133,12 +148,30 @@ pub struct FleetTotals {
     pub players: i64,
     pub used: f64,
     pub contributed: f64,
+    /// Held back: too few players other than the admin have a ledger to hide any one of them
+    /// in the sums (the review of 2026-10-04, finding 9).
+    pub withheld: bool,
+    /// How many other players the sums need before they are shown.
+    pub others_needed: i64,
+}
+
+impl FleetTotals {
+    pub fn from_json(v: &serde_json::Value) -> FleetTotals {
+        let f = |k: &str| v.get(k).and_then(|x| x.as_f64()).unwrap_or(0.0);
+        FleetTotals {
+            players: v.get("players").and_then(|x| x.as_i64()).unwrap_or(0),
+            used: f("used_value"),
+            contributed: f("contributed_value"),
+            withheld: v.get("withheld").and_then(|x| x.as_bool()).unwrap_or(false),
+            others_needed: v.get("others_needed").and_then(|x| x.as_i64()).unwrap_or(0),
+        }
+    }
 }
 
 /// Everything the fleet panel and the admin section hold (GuiState::fleet).
 #[derive(Debug, Clone, Default)]
 pub struct FleetView {
-    /// The player's ledger as last received.
+    /// The player's ledger as last received from the server they are connected to.
     pub ledger: Option<FleetLedger>,
     /// The fleet's stores in the shared world (engine/fleet.rs, from the welcome).
     pub stores: Vec<FleetStore>,
@@ -151,11 +184,17 @@ pub struct FleetView {
     /// The give form: the item picked, and how many.
     pub give_item: String,
     pub give_qty: u32,
-    /// Gives sent and not answered yet.
-    pub in_flight: Vec<FleetGive>,
-    /// Gives the server recorded this session: each one's items leave the backpack once
-    /// (engine/fleet.rs settles them, and settles again after a save load put them back).
-    pub confirmed: Vec<FleetGive>,
+    /// Gives asked for this frame; engine/fleet.rs takes their items out and holds them.
+    pub outbox: Vec<FleetGive>,
+    /// The gives whose items are held for a server's answer, as the backpack's record has them
+    /// (engine/fleet.rs mirrors it): for every server, each tagged with its own.
+    pub held: Vec<FleetHeld>,
+    /// Give ids sent on this connection and not answered yet.
+    pub sent: Vec<String>,
+    /// Real seconds until the next give may be sent (spacing, and a retry after "too soon").
+    pub next_send_in: f32,
+    /// The home whose recorded gives were asked for on this connection.
+    pub gives_asked_for: Option<String>,
     /// One plain sentence about the last action.
     pub status: String,
     /// The admin's unapplied choice of supply mode.
@@ -168,6 +207,21 @@ pub struct FleetView {
     pub power_timer: f32,
 }
 
+impl FleetView {
+    /// Forget what belongs to the server just left (gui/connections.rs, on a switch): its
+    /// ledger, its stores, its totals and what was sent to it. Gives held for it stay held, tagged
+    /// with that server, and are sent there again when the player goes back (finding 16).
+    pub fn forget_server(&mut self) {
+        self.ledger = None;
+        self.stores.clear();
+        self.totals = None;
+        self.sent.clear();
+        self.gives_asked_for = None;
+        self.status.clear();
+        self.admin_draft = None;
+    }
+}
+
 /// Credits as people write them: whole numbers bare, else one decimal.
 pub fn credits(v: f64) -> String {
     if (v - v.round()).abs() < 0.05 {
@@ -177,24 +231,38 @@ pub fn credits(v: f64) -> String {
     }
 }
 
-/// The headline: in the red or in the black, in plain words.
+/// The headline: in the red or in the black, in plain words. A difference that prints as 0 CR
+/// reads as even whatever the server's standing says (finding 17: "In the black: you have given
+/// the fleet 0 CR more").
 pub fn standing_sentence(l: &FleetLedger) -> String {
     let diff = (l.contributed - l.used).abs();
+    if l.used == 0.0 && l.contributed == 0.0 {
+        return "Nothing yet: you have not used anything from the fleet or given it anything.".to_string();
+    }
     match l.standing.as_str() {
+        _ if credits(diff) == "0 CR" => "Even: you have given the fleet as much as you have used from it.".to_string(),
         "black" => format!("In the black: you have given the fleet {} more than you have used from it.", credits(diff)),
         "red" => format!("In the red: you have used {} more from the fleet than you have given it.", credits(diff)),
-        _ if l.used == 0.0 && l.contributed == 0.0 => "Nothing yet: you have not used anything from the fleet or given it anything.".to_string(),
         _ => "Even: you have given the fleet as much as you have used from it.".to_string(),
     }
 }
 
-/// What the server's supply mode means, in a sentence.
+/// What the server's supply mode means, in a sentence. (It no longer says "nobody goes without":
+/// the ledger can say a meal was taken, but whether the player eats is the game's, finding 7.)
 pub fn supply_sentence(supply: &str) -> &'static str {
     match supply {
         "stocked" => "This server's fleet is stocked: its stores hold only what is in them, and an empty store means a missed meal.",
-        _ => "This server's fleet is unlimited: its stores never run out, so nobody goes without. This ledger is how you see what you take and what you give.",
+        _ => "This server's fleet is unlimited: its stores never run out. This ledger is how you see what you take from it and what you give it.",
     }
 }
+
+/// The intro, and how power is counted (finding 18 of the 2026-10-04 review: power is most of a
+/// ledger, and nothing said it is counted without the player doing anything).
+pub const INTRO: &str = "The ship's fleet supplies everyone aboard: meals from the mess hall's stores and power from \
+     the ship's reactor. Its ledger keeps what you used and what you gave back, so you can see whether \
+     you are in the red or in the black.";
+pub const POWER_NOTE: &str = "Power for your home is counted by itself every minute you are in the shared world, and \
+     power your home's own panels send back to the ship counts as given.";
 
 /// How many of a thing: "3 meals", "2.25 kWh", "2 Bread".
 pub fn amount_text(quantity: f64, unit: &str, item_name: Option<&str>) -> String {
@@ -210,12 +278,12 @@ pub fn amount_text(quantity: f64, unit: &str, item_name: Option<&str>) -> String
     }
 }
 
-/// When a line was written: the shared world's day and time, and the real date.
+/// When a line was written: the shared world's day, and the real date. The server keeps no
+/// finer time than the game day (finding 10), so neither does this.
 pub fn when_text(game_time: f64, real_day: i64) -> String {
     let day = (game_time / 86_400.0).floor() as i64 + 1;
-    let secs = game_time.rem_euclid(86_400.0) as i64;
     let date = super::game_admin::format_ban_date(real_day * 86_400_000);
-    format!("Day {day}, {:02}:{:02} ({})", secs / 3600, (secs % 3600) / 60, &date[..10.min(date.len())])
+    format!("Day {day} ({})", &date[..10.min(date.len())])
 }
 
 /// The fleet store nearest the player, and how far it is.
@@ -227,13 +295,25 @@ pub fn nearest_store(view: &FleetView) -> Option<(&FleetStore, f32)> {
         .min_by(|a, b| a.1.total_cmp(&b.1))
 }
 
-/// How many of `item_id` the backpack has that are not already on their way out (a give in
-/// flight, a move to storage this frame).
+/// How many of `item_id` the backpack has free to give: less what a give asked this frame
+/// takes, what is moving to storage, and what is promised to a trade the player confirmed
+/// (finding 1). Items held for a give are already out of the backpack.
 pub fn free_to_give(state: &GuiState, item_id: &str) -> u32 {
     let carried: u32 = state.inventory_items.iter().flatten().filter(|s| s.item_id == item_id).map(|s| s.quantity).sum();
-    let in_flight: u32 = state.fleet.in_flight.iter().filter(|g| g.item_id == item_id).map(|g| g.qty).sum();
+    let asked: u32 = state.fleet.outbox.iter().filter(|g| g.item_id == item_id).map(|g| g.qty).sum();
     let leaving: u32 = state.pending_inventory_transfers.iter().filter(|o| !o.add && o.item_id == item_id).map(|o| o.qty).sum();
-    carried.saturating_sub(in_flight + leaving)
+    let promised = super::trade::promised_to_trades(state, item_id);
+    carried.saturating_sub(asked + leaving + promised)
+}
+
+/// The give this server still has to answer, if any: one give waits at a time (findings 4 and
+/// 13: a double click sent two gives within the relay's 200 ms).
+pub fn waiting_give(state: &GuiState) -> Option<String> {
+    if let Some(g) = state.fleet.outbox.first() {
+        return Some(format!("{} {}", g.qty, g.name));
+    }
+    let server = &state.connected_server_url;
+    state.fleet.held.iter().find(|h| &h.server == server).map(|h| format!("{} {}", h.qty, h.name))
 }
 
 /// Send a message on the open connection; false when there is none.
@@ -253,8 +333,9 @@ pub fn request_ledger(state: &GuiState) -> bool {
 }
 
 /// Give `qty` of `item_id` from the backpack to the fleet at the nearest store: checked here
-/// first (in the world, at a store, carried), then sent with a new give id and kept in flight.
-/// Returns the sentence to show. Nothing leaves the backpack here.
+/// first (in the world, at a store, connected, no other give waiting, carried and free), then
+/// ASKED: engine/fleet.rs takes the items out and holds them on the next frame. Returns the
+/// sentence to show.
 pub fn start_give(state: &mut GuiState, item_id: &str, qty: u32) -> String {
     if !state.copresence_active {
         return "Join a server's shared world to give to its fleet.".into();
@@ -268,14 +349,20 @@ pub fn start_give(state: &mut GuiState, item_id: &str, qty: u32) -> String {
     if qty == 0 {
         return "Choose how many to give.".into();
     }
+    if let Some(w) = waiting_give(state) {
+        return format!("Waiting for the server to record {w}; one give at a time.");
+    }
     let free = free_to_give(state, item_id);
     if qty > free {
-        return format!("You carry only {free} of that to give.");
+        return format!("You carry only {free} of that free to give.");
     }
     let Some(slot) = state.inventory_items.iter().flatten().find(|s| s.item_id == item_id).cloned() else {
         return "That is no longer in your backpack.".into();
     };
-    let give = FleetGive {
+    if !state.ws_client.as_ref().is_some_and(|c| c.is_connected()) {
+        return "Not connected to the server.".into();
+    }
+    state.fleet.outbox.push(FleetGive {
         give_id: format!("give-{:016x}", rand::random::<u64>()),
         store: store.entity_id,
         item_id: item_id.to_string(),
@@ -283,32 +370,31 @@ pub fn start_give(state: &mut GuiState, item_id: &str, qty: u32) -> String {
         qty,
         wear: slot.wear,
         quality: slot.quality,
-    };
-    if !send(state, &give_message(&give)) {
-        return "Not connected to the server.".into();
-    }
-    let s = format!("Giving {qty} {} to the fleet...", give.name);
-    state.fleet.in_flight.push(give);
-    s
+    });
+    format!("Giving {qty} {} to the fleet...", slot.name)
 }
 
-/// The `game_fleet_give` message for a give (sent again with the same id after a reconnect).
-pub fn give_message(g: &FleetGive) -> serde_json::Value {
-    serde_json::json!({ "type": "game_fleet_give", "give_id": g.give_id, "entity_id": g.store, "item_id": g.item_id, "quantity": g.qty })
+/// The `game_fleet_give` message for a held give, from the home `home` (sent again with the
+/// same id after a reconnect; `creative` when it was given in Creative mode).
+pub fn give_message(h: &FleetHeld, home: &str) -> serde_json::Value {
+    serde_json::json!({
+        "type": "game_fleet_give", "give_id": h.give_id, "home": home, "entity_id": h.store,
+        "item_id": h.item_id, "quantity": h.qty, "creative": h.creative,
+    })
 }
 
 /// Inventory > The fleet: the player's own ledger, and taking a meal or giving at a store.
 pub fn draw_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    widgets::body_hint(
-        ui,
-        theme,
-        "The ship's fleet supplies everyone aboard: meals from the mess hall's stores and power \
-         from the ship's reactor. Its ledger keeps what you used and what you gave back, so you \
-         can see whether you are in the red or in the black.",
-    );
+    widgets::body_hint(ui, theme, INTRO);
+    widgets::body_hint(ui, theme, POWER_NOTE);
     ui.add_space(theme.spacing_xs);
     let joined = state.copresence_active;
     if let Some(l) = state.fleet.ledger.clone() {
+        if !joined {
+            // Kept from the last visit to this server's shared world (a switch to another
+            // server forgets it, finding 16): say so, so old numbers never read as current.
+            widgets::body_hint(ui, theme, "Your ledger on this server, as of your last visit to its shared world.");
+        }
         // The server's settings, when this game has them, say the mode as it is NOW (an admin's
         // change reaches every connected app as `server_settings_state`); the ledger says it as
         // it was when the ledger was sent.
@@ -319,6 +405,7 @@ pub fn draw_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     } else {
         widgets::body_hint(ui, theme, "The ledger is kept by the server whose shared world you play in. Join one to see yours.");
     }
+    draw_held(ui, theme, state);
     if !joined {
         return;
     }
@@ -330,9 +417,11 @@ pub fn draw_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
 }
 
-/// The ledger itself: the headline, the totals, the supply mode, each kind, the newest lines.
+/// The ledger itself: the headline, the totals, power's share, the supply mode, each kind, the
+/// newest lines.
 fn draw_ledger(ui: &mut egui::Ui, theme: &Theme, l: &FleetLedger, supply: &str) {
     let color = match l.standing.as_str() {
+        _ if standing_sentence(l).starts_with("Even") => theme.text_primary(),
         "black" => theme.success(),
         "red" => theme.danger(),
         _ => theme.text_primary(),
@@ -343,6 +432,14 @@ fn draw_ledger(ui: &mut egui::Ui, theme: &Theme, l: &FleetLedger, supply: &str) 
         ui.add_space(theme.spacing_md);
         ui.label(RichText::new(format!("Given to the fleet: {}", credits(l.contributed))).color(theme.text_primary()));
     });
+    let (power_used, power_given) = l.power_values();
+    if power_used > 0.0 || power_given > 0.0 {
+        ui.label(
+            RichText::new(format!("Of which power: {} used, {} given back.", credits(power_used), credits(power_given)))
+                .size(theme.font_size_small)
+                .color(theme.text_secondary()),
+        );
+    }
     widgets::body_hint(ui, theme, supply_sentence(supply));
     if !l.kinds.is_empty() {
         ui.add_space(theme.spacing_sm);
@@ -375,6 +472,26 @@ fn draw_ledger(ui: &mut egui::Ui, theme: &Theme, l: &FleetLedger, supply: &str) 
     }
 }
 
+/// The gives whose items are held for a server's answer: where those items are now.
+fn draw_held(ui: &mut egui::Ui, theme: &Theme, state: &GuiState) {
+    if state.fleet.held.is_empty() {
+        return;
+    }
+    ui.add_space(theme.spacing_xs);
+    let here = &state.connected_server_url;
+    for h in &state.fleet.held {
+        let text = if &h.server == here {
+            format!("Waiting for the server to record {} {}. They are out of your backpack; if the fleet refuses them, they come back.", h.qty, h.name)
+        } else {
+            format!(
+                "{} {} are held for the fleet of the server at {}. They are sent there when you next join its shared world, and come back to your backpack if it refuses them.",
+                h.qty, h.name, h.server
+            )
+        };
+        ui.label(RichText::new(text).size(theme.font_size_small).color(theme.text_muted()));
+    }
+}
+
 /// Taking a meal and giving, at the nearest fleet store.
 fn draw_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::subsection_label(ui, theme, "At a fleet store");
@@ -394,7 +511,7 @@ fn draw_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     };
     ui.horizontal_wrapped(|ui| {
-        if widgets::Button::primary("Take a meal").disabled(in_reach.is_none()).tooltip("One crew meal from the ship's stores, one a meal time.").show(ui, theme) {
+        if widgets::Button::primary("Take a meal").disabled(in_reach.is_none()).tooltip("Eat one crew meal from the ship's stores, one a meal time. It is a line in your ledger.").show(ui, theme) {
             if let Some(s) = &in_reach {
                 state.fleet.status = if send(state, &serde_json::json!({ "type": "game_interact", "entity_id": s.entity_id, "action": "take_meal" })) {
                     "Asking for a meal...".into()
@@ -439,12 +556,22 @@ fn draw_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.label(RichText::new(format!("of {free}")).color(theme.text_secondary()));
     });
     widgets::body_hint(ui, theme, &format!("The fleet values {} at {} each: {} for {}.", picked.1, credits(picked.2), credits(picked.2 * f64::from(state.fleet.give_qty)), state.fleet.give_qty));
-    if widgets::Button::primary("Give to the fleet").disabled(in_reach.is_none() || free == 0).tooltip("Hand these to the fleet's store. They leave your backpack once the server has recorded the give.").show(ui, theme) {
+    if state.creative_mode {
+        widgets::body_hint(
+            ui,
+            theme,
+            "Creative mode is on: the fleet records what you give but does not count it, because Creative mode makes things \
+             from nothing. Turn it off at the top of this page for your gifts to count.",
+        );
+    }
+    let waiting = waiting_give(state);
+    if widgets::Button::primary("Give to the fleet")
+        .disabled(in_reach.is_none() || free == 0 || waiting.is_some())
+        .tooltip("Hand these to the fleet's store. They leave your backpack at once and are given when the server records them; if it refuses, they come back.")
+        .show(ui, theme)
+    {
         let (item, qty) = (state.fleet.give_item.clone(), state.fleet.give_qty);
         state.fleet.status = start_give(state, &item, qty);
-    }
-    for g in &state.fleet.in_flight {
-        ui.label(RichText::new(format!("Waiting for the server to record {} {}...", g.qty, g.name)).size(theme.font_size_small).color(theme.text_muted()));
     }
 }
 
@@ -457,7 +584,7 @@ pub fn draw_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui,
         theme,
         "Whether the fleet's stores can run out in this server's shared world. Unlimited (the \
-         default during early development): they never run out, nobody misses a meal, and each \
+         default during early development): they never run out, no meal is ever refused, and each \
          player's ledger shows what they used and gave. Stocked (the realistic mode): the stores \
          hold only what the ship's farms put in, and an empty store means a missed meal, crew \
          included. A change applies at once and never touches anyone's ledger.",
@@ -492,6 +619,7 @@ pub fn draw_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     });
     ui.add_space(theme.spacing_sm);
+    widgets::body_hint(ui, theme, TOTALS_NOTE);
     ui.horizontal_wrapped(|ui| {
         if widgets::Button::secondary("Show the fleet's totals").tooltip("Everything every player has used from the fleet and given it, summed. Names no one.").show(ui, theme) {
             if !send(state, &serde_json::json!({ "type": "game_fleet_totals_request" })) {
@@ -504,6 +632,12 @@ pub fn draw_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 }
 
+/// What the admin's totals do and do not hide (finding 9 of the 2026-10-04 review).
+pub const TOTALS_NOTE: &str = "The fleet's totals are sums over every player with a ledger. They are shown only once at \
+     least three players other than you have one, because with fewer, the totals minus your own lines would \
+     be someone's own ledger. Even then, watching them change while you know who is online can hint at who did \
+     what.";
+
 /// "Unlimited" / "Stocked", as the control names them.
 pub fn mode_name(mode: &str) -> &'static str {
     match mode {
@@ -512,200 +646,15 @@ pub fn mode_name(mode: &str) -> &'static str {
     }
 }
 
-/// The fleet's totals in a sentence.
+/// The fleet's totals in a sentence (or why they are held back).
 pub fn totals_sentence(t: &FleetTotals) -> String {
     let who = if t.players == 1 { "1 player has".to_string() } else { format!("{} players have", t.players) };
+    if t.withheld {
+        return format!("{who} a ledger. The totals are shown once at least {} players other than you have one.", t.others_needed);
+    }
     format!("{who} a ledger: {} used from the fleet, {} given to it.", credits(t.used), credits(t.contributed))
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
-    use super::*;
-    use crate::gui::screen_surface::find_text_in_shapes;
-
-    fn ledger(standing: &str, used: f64, contributed: f64) -> FleetLedger {
-        FleetLedger { supply: "unlimited".into(), used, contributed, standing: standing.into(), ..Default::default() }
-    }
-
-    /// THE HEADLINE SAYS RED OR BLACK IN PLAIN WORDS, and by how much.
-    ///
-    /// Seen red 2026-10-04 with the difference not made positive (given minus used): "left:
-    /// \"In the red: you have used -18 CR more from the fleet than you have given it.\" / right:
-    /// \"In the red: you have used 18 CR more from the fleet than you have given it.\"".
-    #[test]
-    fn the_headline_says_red_or_black_in_plain_words() {
-        assert_eq!(standing_sentence(&ledger("black", 10.0, 22.0)), "In the black: you have given the fleet 12 CR more than you have used from it.");
-        assert_eq!(standing_sentence(&ledger("red", 30.0, 12.0)), "In the red: you have used 18 CR more from the fleet than you have given it.");
-        assert_eq!(standing_sentence(&ledger("even", 0.0, 0.0)), "Nothing yet: you have not used anything from the fleet or given it anything.");
-        assert_eq!(standing_sentence(&ledger("even", 5.0, 5.0)), "Even: you have given the fleet as much as you have used from it.");
-        assert_eq!(credits(4.5), "4.5 CR");
-        assert_eq!(amount_text(3.0, "meal", None), "3 meals");
-        assert_eq!(amount_text(1.0, "meal", None), "1 meal");
-        assert_eq!(amount_text(2.25, "kWh", None), "2.25 kWh");
-        assert_eq!(amount_text(2.0, "", Some("Bread")), "2 Bread");
-        assert_eq!(amount_text(2.0, "", None), "2 items");
-        assert_eq!(when_text(86_400.0 * 2.0 + 3600.0 * 14.0 + 60.0 * 20.0, 20_730), "Day 3, 14:20 (2026-10-04)");
-    }
-
-    /// The server's message reads into the ledger the panel draws.
-    ///
-    /// Seen red 2026-10-04 with the used total read from "used" (the message says
-    /// "used_value"): "left: (0.0, 6.0, \"red\") / right: (10.0, 6.0, \"red\")".
-    #[test]
-    fn a_ledger_message_reads() {
-        let v = serde_json::json!({
-            "type": "game_fleet_ledger", "supply": "unlimited", "used_value": 10.0, "contributed_value": 6.0,
-            "standing": "red", "kinds": [{"kind": "meal", "label": "Meal from the ship's stores", "unit": "meal", "direction": "used", "quantity": 1.0, "value": 10.0}],
-            "recent": [{"label": "Given to the fleet", "unit": "", "direction": "contributed", "item_name": "Bread", "quantity": 2.0, "value": 6.0, "game_time": 100.0, "real_day": 20730}],
-        });
-        let l = FleetLedger::from_json(&v).unwrap();
-        assert_eq!((l.used, l.contributed, l.standing.as_str()), (10.0, 6.0, "red"));
-        assert_eq!(l.kinds[0].label, "Meal from the ship's stores");
-        assert_eq!(l.recent[0].item_name.as_deref(), Some("Bread"));
-        assert!(FleetLedger::from_json(&serde_json::json!({"type": "game_fleet_ledger", "error": "failed"})).is_none());
-    }
-
-    /// A give is checked before it goes: not in the world, too far from a store, more than the
-    /// backpack holds (counting what is already on its way out), and no connection, all say why
-    /// and send nothing and keep nothing in flight.
-    ///
-    /// Seen red 2026-10-04 with `free_to_give` not counting gives in flight: "a second give of
-    /// the same 3 loaves was let through / left: \"Not connected to the server.\" / right: \"You
-    /// carry only 0 of that to give.\"".
-    #[test]
-    fn a_give_is_checked_before_it_goes() {
-        let mut gs = GuiState::default();
-        gs.fleet.stores = vec![FleetStore { entity_id: 12, name: "The mess hall's stores".into(), position: [67.0, 1.0, 22.0] }];
-        gs.inventory_items = vec![Some(crate::gui::GuiItemSlot { item_id: "bread_0".into(), name: "Bread".into(), quantity: 3, wear: 0, quality: 0 })];
-        assert_eq!(start_give(&mut gs, "bread_0", 1), "Join a server's shared world to give to its fleet.");
-        gs.copresence_active = true;
-        gs.fleet.my_position = Some([67.0, 1.7, 40.0]);
-        assert!(start_give(&mut gs, "bread_0", 1).starts_with("Walk within 5 m of The mess hall's stores"), "too far");
-        gs.fleet.my_position = Some([68.0, 1.7, 22.0]);
-        assert_eq!(start_give(&mut gs, "bread_0", 4), "You carry only 3 of that to give.");
-        assert_eq!(start_give(&mut gs, "bread_0", 3), "Not connected to the server.");
-        assert!(gs.fleet.in_flight.is_empty(), "nothing in flight without a connection");
-        // A give already on its way counts against the backpack.
-        gs.fleet.in_flight.push(FleetGive { give_id: "give-1".into(), store: 12, item_id: "bread_0".into(), name: "Bread".into(), qty: 3, wear: 0, quality: 0 });
-        let second = start_give(&mut gs, "bread_0", 3);
-        assert_eq!(second, "You carry only 0 of that to give.", "a second give of the same 3 loaves was let through / left: {second:?} / right: \"You carry only 0 of that to give.\"");
-    }
-
-    /// THE WEB'S GAME ADMIN WINDOW OFFERS THE SAME FLEET SUPPLY CONTROL: the same two modes under
-    /// the same names, the same message, and app.js keeps the mode and the totals it shows.
-    ///
-    /// Seen red 2026-10-04 with the web's stocked label written "Stocked (stores can run out)":
-    /// "the web window offers Stocked (realistic: stores can run empty) too: ['stocked',
-    /// 'Stocked (realistic: stores can run empty)'] in FLEET_MODES".
-    #[test]
-    fn the_web_window_offers_the_same_fleet_supply_control() {
-        let js = std::fs::read_to_string("web/chat/chat-game-admin.js").expect("web/chat/chat-game-admin.js");
-        for mode in ["unlimited", "stocked"] {
-            let entry = format!("['{mode}', '{}']", mode_name(mode));
-            assert!(js.contains(&entry), "the web window offers {} too: {entry} in FLEET_MODES", mode_name(mode));
-        }
-        assert!(js.contains("type: 'server_settings_update', fleet_supply_mode: chosen"), "the web sends the same update");
-        assert!(js.contains("type: 'game_fleet_totals_request'"), "and asks for the same totals");
-        let app = std::fs::read_to_string("web/chat/app.js").expect("web/chat/app.js");
-        assert!(app.contains("msg.settings.fleet_supply_mode") && app.contains("case 'game_fleet_totals':"), "app.js keeps the mode and the totals");
-    }
-
-    /// One headless frame of the fleet section in a plain panel.
-    fn frame(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) -> egui::FullOutput {
-        let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1000.0, 900.0))), ..Default::default() };
-        ctx.run(input, |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| draw_section(ui, theme, state));
-        })
-    }
-
-    /// THE PANEL SHOWS THE LEDGER IN WORDS: the headline, both totals, the supply mode, a line,
-    /// and, at a store, the Take a meal and Give buttons; out of the world it says to join one.
-    ///
-    /// Seen red 2026-10-04 with `draw_ledger` not called when a ledger is in hand: "the panel
-    /// shows the headline" (no shape with that text was drawn).
-    #[test]
-    fn the_panel_shows_the_ledger_in_words() {
-        let ctx = egui::Context::default();
-        crate::gui::fonts::install_font_fallbacks(&ctx);
-        let theme = crate::gui::theme::load_theme();
-        theme.apply_to_egui(&ctx);
-        let mut gs = GuiState::default();
-        let out = frame(&ctx, &theme, &mut gs);
-        assert!(find_text_in_shapes(&out.shapes, "Join one to see yours").is_some(), "out of the world it says to join one");
-        gs.copresence_active = true;
-        gs.fleet.ledger = Some(demo_ledger());
-        gs.fleet.stores = vec![FleetStore { entity_id: 12, name: "The mess hall's stores".into(), position: [67.0, 1.0, 22.0] }];
-        gs.fleet.my_position = Some([68.0, 1.7, 22.0]);
-        gs.fleet.prices.insert("bread_0".into(), 3.0);
-        gs.inventory_items = vec![Some(crate::gui::GuiItemSlot { item_id: "bread_0".into(), name: "Bread".into(), quantity: 3, wear: 0, quality: 0 })];
-        let out = frame(&ctx, &theme, &mut gs);
-        for text in ["In the red: you have used 4 CR more", "Used from the fleet: 10 CR", "Given to the fleet: 6 CR", "fleet is unlimited", "2 Bread", "Take a meal", "Give to the fleet"] {
-            assert!(find_text_in_shapes(&out.shapes, text).is_some(), "the panel shows {text:?}");
-        }
-        // An admin switched the server to stocked after the ledger came: the server's settings,
-        // which every connected app is sent, say so at once. Seen red 2026-10-04 with the
-        // sentence read from the ledger only: "after the switch the panel says the fleet is
-        // stocked".
-        let mut s = crate::relay::storage::ServerSettings::default();
-        s.fleet_supply_mode = "stocked".into();
-        gs.server_settings = Some(s);
-        let out = frame(&ctx, &theme, &mut gs);
-        assert!(find_text_in_shapes(&out.shapes, "fleet is stocked").is_some(), "after the switch the panel says the fleet is stocked");
-    }
-
-    /// One headless frame of the admin's Fleet supply section, with `events`.
-    fn admin_frame(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, events: Vec<egui::Event>) -> egui::FullOutput {
-        let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1000.0, 700.0))), events, ..Default::default() };
-        ctx.run(input, |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| draw_admin(ui, theme, state));
-        })
-    }
-
-    fn admin_click(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, text: &str) {
-        let out = admin_frame(ctx, theme, state, Vec::new());
-        let pos = find_text_in_shapes(&out.shapes, text).unwrap_or_else(|| panic!("{text} is drawn")).rect.center();
-        let m = egui::Modifiers::default();
-        admin_frame(ctx, theme, state, vec![egui::Event::PointerMoved(pos)]);
-        admin_frame(ctx, theme, state, vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: m }]);
-        admin_frame(ctx, theme, state, vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: m }]);
-    }
-
-    /// THE ADMIN PICKS A MODE AND APPLIES IT, the way Server Settings > ADMIN > Fleet supply is
-    /// used: the server says unlimited, the admin picks Stocked, Apply with the link down says
-    /// the server was NOT asked and keeps the pick.
-    ///
-    /// Seen red 2026-10-04 with the status set whether or not anything was sent: "with no
-    /// connection the section says: Asked the server to make the fleet stocked.".
-    #[test]
-    fn picking_a_fleet_mode_and_applying_with_no_connection_says_so() {
-        let ctx = egui::Context::default();
-        crate::gui::fonts::install_font_fallbacks(&ctx);
-        let theme = crate::gui::theme::load_theme();
-        theme.apply_to_egui(&ctx);
-        let mut state = GuiState::default();
-        state.server_settings = Some(crate::relay::storage::ServerSettings::default());
-        let out = admin_frame(&ctx, &theme, &mut state, Vec::new());
-        assert!(find_text_in_shapes(&out.shapes, "Now: Unlimited (never runs out)").is_some(), "the section says the server's mode");
-        admin_click(&ctx, &theme, &mut state, "Stocked (realistic: stores can run empty)");
-        assert_eq!(state.fleet.admin_draft.as_deref(), Some("stocked"), "the admin's pick");
-        admin_click(&ctx, &theme, &mut state, "Apply to the fleet");
-        assert_eq!(state.game_admin_status, "Not connected to the server.", "with no connection the section says: {}", state.game_admin_status);
-        assert_eq!(state.fleet.admin_draft.as_deref(), Some("stocked"), "and keeps the pick");
-    }
-
-    /// The ledger the snapshot and the panel test draw: a meal used, bread given.
-    pub(crate) fn demo_ledger() -> FleetLedger {
-        FleetLedger::from_json(&serde_json::json!({
-            "supply": "unlimited", "used_value": 10.0, "contributed_value": 6.0, "standing": "red",
-            "kinds": [
-                {"kind": "meal", "label": "Meal from the ship's stores", "unit": "meal", "direction": "used", "quantity": 1.0, "value": 10.0},
-                {"kind": "item", "label": "Given to the fleet", "unit": "", "direction": "contributed", "quantity": 2.0, "value": 6.0},
-            ],
-            "recent": [
-                {"label": "Given to the fleet", "unit": "", "direction": "contributed", "item_name": "Bread", "quantity": 2.0, "value": 6.0, "game_time": 216_600.0, "real_day": 20730},
-                {"label": "Meal from the ship's stores", "unit": "meal", "direction": "used", "quantity": 1.0, "value": 10.0, "game_time": 216_000.0, "real_day": 20730},
-            ],
-        }))
-        .unwrap()
-    }
-}
+#[path = "fleet_ledger_tests.rs"]
+pub(crate) mod tests;

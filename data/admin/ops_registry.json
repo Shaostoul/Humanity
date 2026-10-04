@@ -66,6 +66,26 @@
       ]
     },
     {
+      "name": "Set whether the fleet's stores can run out",
+      "what": "Unlimited (the default during early development): the fleet's stores never run out and never refuse a meal, crew included, and each player's fleet ledger shows what they used from the fleet and gave it. Stocked (the realistic mode): the stores hold only what the ship's farms put in, and an empty store means a missed meal. Takes effect at once for the running world, is kept across a restart, and never changes anyone's ledger.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Fleet supply: pick Unlimited or Stocked, then Apply to the fleet (src/gui/pages/fleet_ledger.rs draw_admin; server_settings_update with fleet_supply_mode, src/relay/handlers/fleet_ledger.rs set_fleet_supply; saved as server_settings.fleet_supply_mode).",
+      "also_available": [
+        "web-page: the chat's Game Admin window (command palette), Fleet supply"
+      ]
+    },
+    {
+      "name": "See the fleet's totals",
+      "what": "Everything every player has used from the fleet and given it, summed, naming no one. Held back until at least three players other than the admin asking have a ledger, because with fewer the totals minus the admin's own lines would be someone's own ledger. A player sees their own ledger in the game (Inventory > The fleet) or on the web (the chat's command palette, Your fleet ledger); no admin can see one player's.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Fleet supply: Show the fleet's totals (src/gui/pages/fleet_ledger.rs draw_admin; game_fleet_totals_request, src/relay/handlers/fleet_ledger.rs totals_json).",
+      "also_available": [
+        "web-page: the chat's Game Admin window (command palette), Fleet supply"
+      ]
+    },
+    {
       "name": "Promote or demote a moderator",
       "what": "Gives a user moderator powers, or takes them away.",
       "where": "native-app",

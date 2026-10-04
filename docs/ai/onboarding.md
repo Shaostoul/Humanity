@@ -327,15 +327,15 @@ The reply's `supply` says how the server runs its fleet's stores: `"unlimited"` 
 
 ### The fleet ledger
 
-Every meal you take is a line of your fleet ledger, and so is anything you give the fleet: the server keeps, for each player, what they used from the fleet and what they contributed, each line valued in credits (`data/ship/fleet_ledger.ron`), with a balance that is in the black above 0 and in the red below. Give items at a fleet store within 5 m (`give_id` is any id of yours, 1 to 64 letters, digits, `-` or `_`; sending the same give again is answered with the line already recorded, `"already": true`):
+Every meal you take is a line of your fleet ledger, and so is anything you give the fleet: the server keeps, for each player, what they used from the fleet and what they contributed, each line valued in credits (`data/ship/fleet_ledger.ron`), with a balance that is in the black above 0.05 CR and in the red below -0.05. A `take_meal` reply names the good the meal is (`meal_item`, a Basic Ration). Give items at a fleet store within 5 m (`give_id` and `home` are ids of yours, 1 to 64 letters, digits, `-` or `_`: `home` names the inventory the items come from, so you can later ask for that home's gives; `creative: true` when the items were made from nothing, which the fleet records without counting; sending the same give again is answered with the line already recorded, `"already": true`):
 ```json
-{"type": "game_fleet_give", "give_id": "my-give-1", "entity_id": 12, "item_id": "bread_0", "quantity": 2}
+{"type": "game_fleet_give", "give_id": "my-give-1", "home": "my-home", "entity_id": 12, "item_id": "bread_0", "quantity": 2}
 ```
-A refusal (`too_far`, `no_price`, `bad_quantity`, ...) records nothing. Read your own ledger (nobody can read another player's):
+A refusal (`too_far`, `no_price`, `bad_quantity`, `too_many` past 500 gives a day, ...) records nothing. Gives closer together than 200 ms are answered `"error": "rate_limited"` with their `give_id`: send that one again a moment later. `game_fleet_gives_request` with a `home` lists that home's recorded gives (`game_fleet_gives`), and `game_fleet_give_adjust` with `adjustments: [{give_id, delivered}]` lowers a give to what was really handed over, once. Read your own ledger (nobody can read another player's):
 ```json
 {"type": "game_fleet_ledger_request"}
 ```
-The `game_fleet_ledger` reply carries `used_value`, `contributed_value`, `balance`, `standing` (`black`, `red` or `even`), totals per kind and your newest lines. A game in the shared world also reports its home's reactor power with `game_fleet_power` (`drawn_wh`, `returned_wh` since its last report, at most one every 30 real seconds); a server admin can ask `game_fleet_totals_request` for the whole fleet's sums.
+The `game_fleet_ledger` reply carries `used_value`, `contributed_value`, `balance`, `standing` (`black`, `red` or `even`), totals per kind and your newest lines. A game in the shared world also reports its home's reactor power with `game_fleet_power` (`drawn_wh`, `returned_wh` since its last report, at most one every 30 real seconds, each held to one home's 48 kW service); a server admin can ask `game_fleet_totals_request` for the whole fleet's sums, which are held back (`withheld: true`) until at least three players other than the admin have a ledger.
 
 ### Other Game Queries
 

@@ -1934,7 +1934,7 @@ mod tests {
         assert_eq!(state.game_world.read().await.entities[&store_id].components["meals"].as_f64(), Some(stock), "an unlimited fleet's stock is not drawn on");
 
         // A give: two loaves of bread, a "contributed" line, and the ledger after it.
-        let give = serde_json::json!({ "type": "game_fleet_give", "give_id": "e2e-give-1", "entity_id": store_id, "item_id": "bread_0", "quantity": 2 });
+        let give = serde_json::json!({ "type": "game_fleet_give", "give_id": "e2e-give-1", "home": "e2e-home", "entity_id": store_id, "item_id": "bread_0", "quantity": 2 });
         send_json(&mut sock, give.clone()).await;
         let g = next_game_of(&mut sock, &["game_fleet_give_result"]).await.expect("no answer to game_fleet_give");
         assert_eq!((g["success"].as_bool(), g["already"].as_bool(), g["quantity"].as_f64()), (Some(true), Some(false), Some(2.0)), "{g}");
@@ -1944,16 +1944,34 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(250)).await;
         send_json(&mut sock, give).await;
         let again = next_game_of(&mut sock, &["game_fleet_give_result"]).await.expect("an answer to the repeated give");
-        assert_eq!((again["already"].as_bool(), &again["entry_id"]), (Some(true), &g["entry_id"]), "{again}");
+        assert_eq!((again["already"].as_bool(), &again["value"]), (Some(true), &g["value"]), "{again}");
+        assert!(again.get("entry_id").is_none(), "no shared row number in the answer: {again}");
 
-        // The ledger: one meal used, two loaves given, in the red by the difference.
+        // Two gives 0 ms apart (a double click): the second is turned away by the rate limit
+        // and ANSWERED, with its id, so the game sends it again (findings 4 and 13 of the
+        // 2026-10-04 review). Seen red 2026-10-04 with the fleet's give gate put back on
+        // check_perception_rate, which answers only with a game_error that names no give: "no
+        // answer to the second of two gives sent at once".
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        for id in ["e2e-fast-1", "e2e-fast-2"] {
+            send_json(&mut sock, serde_json::json!({ "type": "game_fleet_give", "give_id": id, "home": "e2e-home", "entity_id": store_id, "item_id": "bread_0", "quantity": 1 })).await;
+        }
+        let first = next_game_of(&mut sock, &["game_fleet_give_result"]).await.expect("an answer to the first of two gives sent at once");
+        let second = next_game_of(&mut sock, &["game_fleet_give_result"]).await.expect("no answer to the second of two gives sent at once");
+        let answers = [first, second];
+        let fast2 = answers.iter().find(|a| a["give_id"] == "e2e-fast-2").unwrap_or_else(|| panic!("the second is answered by its id: {answers:?}"));
+        assert_eq!((fast2["success"].as_bool(), fast2["error"].as_str()), (Some(false), Some("rate_limited")), "{fast2}");
+        assert!(state.db.fleet_give_of(&key, "e2e-fast-2").unwrap().is_none(), "a turned-away give writes nothing");
+
+        // The ledger: one meal used, two loaves and then one given, in the red by the difference.
         tokio::time::sleep(std::time::Duration::from_millis(250)).await; // past the 200 ms rate limit
         send_json(&mut sock, serde_json::json!({ "type": "game_fleet_ledger_request" })).await;
         let l = next_game_of(&mut sock, &["game_fleet_ledger"]).await.expect("a ledger");
-        assert_eq!((l["used_value"].as_f64(), l["contributed_value"].as_f64()), (Some(10.0), Some(bread)), "{l}");
-        assert_eq!(l["balance"].as_f64(), Some(bread - 10.0), "{l}");
-        assert_eq!(l["standing"], if bread > 10.0 { "black" } else { "red" }, "{l}");
-        assert_eq!(l["recent"].as_array().map(|a| a.len()), Some(2), "two lines: {l}");
+        let given = bread * 1.5;
+        assert_eq!((l["used_value"].as_f64(), l["contributed_value"].as_f64()), (Some(10.0), Some(given)), "{l}");
+        assert_eq!(l["balance"].as_f64(), Some(given - 10.0), "{l}");
+        assert_eq!(l["standing"], if given > 10.0 { "black" } else { "red" }, "{l}");
+        assert_eq!(l["recent"].as_array().map(|a| a.len()), Some(3), "three lines: {l}");
 
         // Someone else asking, naming the first player's key, gets their own empty ledger.
         send_json(&mut other, serde_json::json!({ "type": "game_fleet_ledger_request", "public_key": key })).await;
@@ -1965,7 +1983,10 @@ mod tests {
         assert_eq!(refused["type"], "game_admin_error", "{refused}");
         send_json(&mut admin, serde_json::json!({ "type": "game_fleet_totals_request" })).await;
         let t = next_game_of(&mut admin, &["game_fleet_totals", "game_admin_error"]).await.expect("the totals");
-        assert_eq!((t["type"].as_str(), t["players"].as_i64(), t["used_value"].as_f64()), (Some("game_fleet_totals"), Some(1), Some(10.0)), "{t}");
+        // One player has a ledger, under the three others a sum needs to hide anyone in it:
+        // the totals are held back, no sums.
+        assert_eq!((t["type"].as_str(), t["players"].as_i64(), t["withheld"].as_bool()), (Some("game_fleet_totals"), Some(1), Some(true)), "{t}");
+        assert!(t.get("used_value").is_none(), "{t}");
 
         // The admin switches to the stocked mode: the running world and the saved setting
         // change; the ledger does not.
@@ -1973,7 +1994,7 @@ mod tests {
         let switched = wait_until(|| async { state.game_world.read().await.fleet_supply == FleetSupply::Stocked }).await;
         assert!(switched, "the running world's stores switched to stocked");
         assert_eq!(state.db.get_server_settings().unwrap().fleet_supply_mode, "stocked", "and it is saved");
-        assert_eq!(state.db.fleet_ledger_of(&key, 50).unwrap().2.len(), 2, "the ledger is untouched");
+        assert_eq!(state.db.fleet_ledger_of(&key, 50).unwrap().2.len(), 3, "the ledger is untouched");
 
         use futures::SinkExt;
         sock.close(None).await.ok();

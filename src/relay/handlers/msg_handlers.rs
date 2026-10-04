@@ -3576,22 +3576,7 @@ const PERCEPTION_MIN_INTERVAL_MS: u64 = 200;
 /// false if they need to wait. On false, we send a Private rate-limit warning.
 /// `action` is "perceive" / "interact" / "query_inventory" / "query_entity".
 pub(crate) fn check_perception_rate(state: &Arc<RelayState>, my_key: &str, action: &str) -> bool {
-    let now = std::time::Instant::now();
-    let bucket = format!("{}|{}", my_key, action);
-    let allowed = {
-        let mut map = match state.last_perception_times.lock() {
-            Ok(m) => m,
-            Err(p) => p.into_inner(),
-        };
-        let allowed = match map.get(&bucket) {
-            Some(last) => now.duration_since(*last).as_millis() as u64 >= PERCEPTION_MIN_INTERVAL_MS,
-            None => true,
-        };
-        if allowed {
-            map.insert(bucket, now);
-        }
-        allowed
-    };
+    let allowed = perception_rate_allows(state, my_key, action);
     if !allowed {
         let private = RelayMessage::Private {
             to: my_key.to_string(),
@@ -3602,6 +3587,25 @@ pub(crate) fn check_perception_rate(state: &Arc<RelayState>, my_key: &str, actio
             ),
         };
         let _ = state.broadcast_tx.send(private);
+    }
+    allowed
+}
+
+/// `check_perception_rate` without the warning: for a caller that answers a refusal in its own
+/// words (a fleet give, whose answer must carry the give's id, handlers/fleet_ledger.rs).
+pub(crate) fn perception_rate_allows(state: &Arc<RelayState>, my_key: &str, action: &str) -> bool {
+    let now = std::time::Instant::now();
+    let bucket = format!("{}|{}", my_key, action);
+    let mut map = match state.last_perception_times.lock() {
+        Ok(m) => m,
+        Err(p) => p.into_inner(),
+    };
+    let allowed = match map.get(&bucket) {
+        Some(last) => now.duration_since(*last).as_millis() as u64 >= PERCEPTION_MIN_INTERVAL_MS,
+        None => true,
+    };
+    if allowed {
+        map.insert(bucket, now);
     }
     allowed
 }

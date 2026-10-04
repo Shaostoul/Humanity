@@ -3572,8 +3572,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 handle_game_admin(&state_clone, &my_key_for_recv, kind, &raw).await;
                                 continue;
                             }
-                            // The fleet ledger (2026-10-04): your own ledger, a give, power reports, admin totals.
-                            Some(kind @ ("game_fleet_ledger_request" | "game_fleet_give" | "game_fleet_power" | "game_fleet_totals_request")) => {
+                            // The fleet ledger (2026-10-04): your own ledger, gives and their corrections, power reports, admin totals.
+                            Some(kind @ ("game_fleet_ledger_request" | "game_fleet_give" | "game_fleet_gives_request" | "game_fleet_give_adjust" | "game_fleet_power" | "game_fleet_totals_request")) => {
                                 super::handlers::fleet_ledger::handle(&state_clone, &my_key_for_recv, kind, &raw).await;
                                 continue;
                             }

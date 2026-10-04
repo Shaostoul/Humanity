@@ -1260,7 +1260,9 @@ impl Storage {
                 value       REAL    NOT NULL,
                 game_time   REAL    NOT NULL,
                 real_day    INTEGER NOT NULL,
-                give_id     TEXT
+                give_id     TEXT,
+                home        TEXT    NOT NULL DEFAULT '',
+                adjusted    INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_fleet_ledger_key ON fleet_ledger(public_key, id);
             CREATE UNIQUE INDEX IF NOT EXISTS idx_fleet_ledger_give ON fleet_ledger(public_key, give_id) WHERE give_id IS NOT NULL;"
@@ -2435,7 +2437,7 @@ mod game_bans;
 mod plots;
 pub use plots::plot_owner_id;
 pub mod fleet_ledger;
-pub use fleet_ledger::{FleetBalance, FleetEntry, FleetKindTotal, FleetTotals, NewFleetEntry, Recorded};
+pub use fleet_ledger::{Adjusted, FleetBalance, FleetEntry, FleetGiveRecord, FleetKindTotal, FleetTotals, NewFleetEntry, Recorded};
 pub mod docs_accord;
 
 pub use civilization::CivilizationStats;

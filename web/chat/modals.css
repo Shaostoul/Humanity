@@ -691,6 +691,17 @@
 .gameadmin-clock-if { color: var(--accent); font-size: var(--text-sm); margin: var(--space-xs) 0 var(--space-sm); min-height: 1.2em; }
 .profile-modal #gameadmin-clock-speed { width: 7em; margin-right: var(--space-sm); }
 .gameadmin-refresh-btn:disabled { opacity: 0.5; cursor: default; }
+/* Your fleet ledger (2026-10-04, chat-fleet.js): the headline in the black or the red, and two
+   plain tables. Theme tokens only. */
+.fleet-headline { color: var(--text); font-size: var(--text-md); margin: var(--space-md) 0 var(--space-xs); }
+.fleet-headline.black { color: var(--success); }
+.fleet-headline.red { color: var(--danger); }
+.fleet-totals { color: var(--text); font-size: var(--text-sm); margin: 0 0 var(--space-xs); white-space: pre-wrap; }
+.fleet-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); margin-bottom: var(--space-sm); }
+.fleet-table td { padding: var(--space-xs) var(--space-sm); color: var(--text); border-bottom: 1px solid var(--border); }
+.fleet-table td.fleet-muted { color: var(--text-muted); }
+.fleet-table td.fleet-used { color: var(--danger); text-align: right; }
+.fleet-table td.fleet-given { color: var(--success); text-align: right; }
 
 /* ---- Per-user voice control modal (v0.484) ----
    Three role-tiered sections, colored by tier: standard red, mod green, admin

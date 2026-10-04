@@ -1188,9 +1188,15 @@ async function handleMessage(msg) {
               if (typeof renderGameAdminClock === 'function') renderGameAdminClock();
               break;
             case 'game_fleet_totals':
-              // The fleet's totals for an admin (2026-10-04): every player's ledger summed, no names.
+              // The fleet's totals for an admin (2026-10-04): every player's ledger summed, no names
+              // (held back, `withheld`, while too few players have one).
               window.fleetTotals = game;
               if (typeof renderGameAdminFleet === 'function') renderGameAdminFleet();
+              break;
+            case 'game_fleet_ledger':
+              // This player's own fleet ledger, for the read-only window (chat-fleet.js).
+              window.fleetLedger = game;
+              if (typeof renderFleetLedger === 'function') renderFleetLedger();
               break;
             case 'game_admin_error':
             // A done-and-said from a game-admin action (releasing a plot): the same status line.

@@ -1,22 +1,44 @@
 //! The fleet ledger's engine half (2026-10-04): the server's answers into the Inventory page's
-//! fleet panel, a give's items out of the backpack once the server recorded it, and the home's
-//! reactor power reported while the player is in the shared world. The panel and its words are
+//! fleet panel, a give's items out of the backpack, a meal eaten, and the home's reactor power
+//! reported while the player is in the shared world. The panel and its words are
 //! gui/pages/fleet_ledger.rs; the server's side is relay/handlers/fleet_ledger.rs.
 //!
-//! ITEMS LEAVE ONCE. The backpack lives in this game, so a give is settled here: when the
-//! server answers a give this game sent with success, its items are taken out of the backpack
-//! and the give's id (`fleet-give:<id>`) is written into the backpack's settled set
-//! (systems::inventory::TradeSettlements, saved with the backpack in the same WorldSave) IN THE
-//! SAME STEP. A second answer for the same give (the server answers a repeated give `already`)
-//! finds the id there and takes nothing. A refused give takes nothing. A save load that puts
-//! back a backpack from before a give is settled again by `tick` (the give stays in `confirmed`
-//! for the session), the way the Trade page settles a completed trade again (trade.rs `tick`).
+//! A GIVE'S ITEMS ARE IN ONE PLACE AT A TIME (reworked after the review of 2026-10-04,
+//! findings 1, 2, 3, 4, 12, 13 and 16). The backpack lives in this game, so a give is settled
+//! here, in three steps:
+//!   1. ASKED: the panel puts the give in `fleet.outbox`; nothing has moved yet.
+//!   2. HELD: the next frame (`process_outbox`) takes the items OUT of the backpack and keeps
+//!      them with the give in the player's `TradeSettlements.fleet_held`, saved with the
+//!      backpack. Held items are not in the backpack, so nothing else (a trade, a move to
+//!      storage, eating, another give) can take them as well; a give of items that are
+//!      promised to a confirmed trade or already on their way out is refused before they move.
+//!      The held give goes to the server it was given at, one give at a time, spaced past the
+//!      relay's 200 ms between gives (`send_due`).
+//!   3. ANSWERED: a yes drops the held items for good and records the give's id
+//!      (`fleet-give:<id>`) in the backpack's settled set in the same step; a refusal puts them
+//!      back in the backpack (queued like a trade's moves, so a full backpack sends the rest to
+//!      home storage); "too soon" (the relay's rate limit, answered with the give's id) leaves
+//!      it held and sends it again a moment later.
+//! A held give belongs to one server (`FleetHeld.server`) and is never sent to another.
 //!
-//! KNOWN GAPS: a give in flight when the game closes is not saved, so if the server recorded it
-//! but the answer never arrived, its items stay in the backpack (the fleet counts the gift, the
-//! player keeps the items: no one loses anything). And the server cannot see the backpack, so it
-//! takes the game's word for what was given, until it holds inventories itself (increment 8 of
-//! docs/design/ship-homes-and-logistics.md).
+//! SETTLED AGAIN AFTER A SAVE LOAD (`on_gives`). Every give carries the id of the home its
+//! backpack belongs to (`TradeSettlements.home_id`, saved with it). After each welcome, and
+//! whenever a save is put back over the backpack (`fleet_recheck`, set by save_load), the game
+//! asks the server for THIS home's recorded gives, and any the loaded backpack has not settled
+//! (the game closed before it saved, or a snapshot from before the give was restored) is
+//! taken out of the backpack again, once. When fewer were there to take, one
+//! `game_fleet_give_adjust` tells the server, which then counts only what was delivered. A
+//! different home (another character's save) has another id, so another home's gives are
+//! never taken from it.
+//!
+//! WHAT IS STILL TAKEN ON TRUST: the server cannot see the backpack, so it takes this game's
+//! word for what was given, until it holds inventories itself (increment 8 of
+//! docs/design/ship-homes-and-logistics.md). Gifts made in Creative mode are sent marked
+//! `creative`, and the server records them without counting them.
+//!
+//! A MEAL. The server's answer to `take_meal` names the good a meal is (`meal_item`, a Basic
+//! Ration); the game puts one in the backpack and eats it at once (the Eat button's path), so a
+//! meal charged to the ledger is a meal eaten.
 //!
 //! POWER. The ship's reactor meters every watt-hour a home draws from it and returns to it
 //! (systems::ship_power, `ShipSupplyLedger`). While the player is in a server's shared world,
@@ -25,16 +47,60 @@
 //! each welcome, so power used while playing alone is never charged to a server's fleet.
 
 use crate::engine::state::EngineState;
-use crate::gui::pages::fleet_ledger::{FleetGive, FleetLedger, FleetStore, FleetTotals};
+use crate::gui::pages::fleet_ledger::{FleetLedger, FleetStore, FleetTotals};
 use crate::gui::GuiState;
+use crate::systems::inventory::{FleetHeld, Inventory, TradeSettlements, TransferOp};
 
 /// Real seconds between power reports (the server refuses one under its own minimum, 30 s in
 /// data/ship/fleet_ledger.ron).
 pub const POWER_REPORT_INTERVAL_S: f32 = 60.0;
+/// Real seconds between two gives sent to the server: past the relay's 200 ms between two of
+/// one player's gives, so a backlog (several held gives after a reconnect) is not turned away.
+pub const GIVE_SPACING_S: f32 = 0.3;
+/// Real seconds before sending again a give the relay turned away for coming too soon.
+pub const GIVE_RETRY_S: f32 = 0.5;
 
 /// The settled-set id a give is recorded under beside the backpack.
 pub fn settled_id(give_id: &str) -> String {
     format!("fleet-give:{give_id}")
+}
+
+/// The settled-set id of a refused give's items going back into the backpack (queued like a
+/// trade's moves, systems::inventory::TradeSettlements).
+fn return_id(give_id: &str) -> String {
+    format!("fleet-return:{give_id}")
+}
+
+/// The player: the first entity with a backpack and player control (the one trades settle into).
+fn player(world: &hecs::World) -> Option<hecs::Entity> {
+    world.query::<(&Inventory, &crate::ecs::components::Controllable)>().iter().next().map(|(e, _)| e)
+}
+
+/// The player, with a TradeSettlements beside the backpack (made when missing).
+fn player_with_settlements(world: &mut hecs::World) -> Option<hecs::Entity> {
+    let p = player(world)?;
+    if world.get::<&TradeSettlements>(p).is_err() {
+        world.insert_one(p, TradeSettlements::default()).ok()?;
+    }
+    Some(p)
+}
+
+/// This home's id with the fleet, made the first time it is needed and saved with the backpack.
+pub fn home_id(world: &mut hecs::World) -> Option<String> {
+    let p = player_with_settlements(world)?;
+    let mut ts = world.get::<&mut TradeSettlements>(p).ok()?;
+    if ts.home_id.is_empty() {
+        ts.home_id = format!("home-{:016x}", rand::random::<u64>());
+    }
+    Some(ts.home_id.clone())
+}
+
+/// The held gives as they stand, mirrored into the panel's view.
+fn mirror_held(gs: &mut GuiState, world: &hecs::World) {
+    let held = player(world).and_then(|p| world.get::<&TradeSettlements>(p).ok().map(|ts| ts.fleet_held.clone())).unwrap_or_default();
+    if gs.fleet.held != held {
+        gs.fleet.held = held;
+    }
 }
 
 /// A server's `game_*` message about the fleet; true when it was one (net_route.rs hands each
@@ -51,16 +117,20 @@ pub(crate) fn on_game_message(state: &mut EngineState, v: &serde_json::Value) ->
             on_give_result(&mut state.gui_state, &mut state.game_world.world, v);
             true
         }
-        Some("game_fleet_totals") => {
-            let f = |k: &str| v.get(k).and_then(|x| x.as_f64()).unwrap_or(0.0);
-            state.gui_state.fleet.totals = Some(FleetTotals { players: v.get("players").and_then(|x| x.as_i64()).unwrap_or(0), used: f("used_value"), contributed: f("contributed_value") });
+        Some("game_fleet_gives") => {
+            on_gives(&mut state.gui_state, &mut state.game_world.world, v);
             true
         }
-        Some("game_fleet_power_result") => true,
-        // A meal the panel asked for (an AI agent's take_meal answers the same way): say what
-        // happened, and fetch the ledger with its new line.
+        Some("game_fleet_totals") => {
+            state.gui_state.fleet.totals = Some(FleetTotals::from_json(v));
+            true
+        }
+        // The answers that need no word of their own (the ledger follows an adjust).
+        Some("game_fleet_power_result" | "game_fleet_give_adjusted") => true,
+        // A meal the panel asked for (an AI agent's take_meal answers the same way): eat it, say
+        // what happened, and fetch the ledger with its new line.
         Some("game_interact_result") if v.get("action").and_then(|a| a.as_str()) == Some("take_meal") => {
-            state.gui_state.fleet.status = meal_sentence(v);
+            on_meal(state, v);
             crate::gui::pages::fleet_ledger::request_ledger(&state.gui_state);
             true
         }
@@ -68,10 +138,36 @@ pub(crate) fn on_game_message(state: &mut EngineState, v: &serde_json::Value) ->
     }
 }
 
-/// What a take_meal answer means, in a sentence.
-pub fn meal_sentence(v: &serde_json::Value) -> String {
+/// A take_meal answer: on success the meal (the good it names, a Basic Ration) goes into the
+/// backpack and is eaten at once through the Eat button's path (`pending_consume_item`), so a
+/// meal charged to the ledger feeds the player (finding 7 of the 2026-10-04 review).
+pub(crate) fn on_meal(state: &mut EngineState, v: &serde_json::Value) {
+    let item = v.get("meal_item").and_then(|x| x.as_str()).filter(|_| v.get("success").and_then(|s| s.as_bool()) == Some(true));
+    let eaten = item.is_some_and(|item| {
+        let max_stack = state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry").map_or(99, |r| r.max_stack_for(item));
+        feed(&mut state.game_world.world, &mut state.gui_state, item, max_stack)
+    });
+    state.gui_state.fleet.status = meal_sentence(v, eaten);
+}
+
+/// Put one `item` in the player's backpack (a slot is made for it, as a drink's empty vessel
+/// gets one) and ask for it to be eaten; false with no player.
+pub(crate) fn feed(world: &mut hecs::World, gs: &mut GuiState, item: &str, max_stack: u32) -> bool {
+    let Some(p) = player(world) else { return false };
+    let Ok(mut inv) = world.get::<&mut Inventory>(p) else { return false };
+    let occupied = inv.slots.iter().filter(|s| s.is_some()).count();
+    inv.ensure_slots(occupied + 1);
+    if inv.add_item(item, 1, max_stack.max(1)) > 0 {
+        return false;
+    }
+    gs.pending_consume_item = Some(item.to_string());
+    true
+}
+
+/// What a take_meal answer means, in a sentence (`eaten`: the game fed it to the player).
+pub fn meal_sentence(v: &serde_json::Value, eaten: bool) -> String {
     if v.get("success").and_then(|s| s.as_bool()) == Some(true) {
-        return "You took a meal from the ship's stores.".into();
+        return if eaten { "You ate a meal from the ship's stores.".into() } else { "The ship's stores gave you a meal.".into() };
     }
     match v.get("error").and_then(|e| e.as_str()).unwrap_or("") {
         "not_yet" => {
@@ -85,32 +181,46 @@ pub fn meal_sentence(v: &serde_json::Value) -> String {
     }
 }
 
-/// The server's answer to a give: on success its items leave the backpack once, and it is kept
-/// as confirmed for the session; on a refusal nothing leaves. Either way it is no longer in
-/// flight, and the panel says what happened.
+/// The server's answer to a give. A yes drops its held items for good and records the give
+/// beside the backpack; a refusal puts its held items back in the backpack; "too soon" (the
+/// rate limit) leaves it held and sends it again a moment later. A give not held here (another
+/// device's, or one a save load put back from before) changes nothing: the fleet's list of
+/// this home's gives settles that one (`on_gives`).
 pub(crate) fn on_give_result(gs: &mut GuiState, world: &mut hecs::World, v: &serde_json::Value) {
     let Some(give_id) = v.get("give_id").and_then(|x| x.as_str()) else { return };
+    gs.fleet.sent.retain(|id| id != give_id);
     let ok = v.get("success").and_then(|x| x.as_bool()) == Some(true);
-    let sent = gs.fleet.in_flight.iter().position(|g| g.give_id == give_id).map(|i| gs.fleet.in_flight.remove(i));
-    let give = sent.or_else(|| gs.fleet.confirmed.iter().find(|g| g.give_id == give_id).cloned());
-    let Some(give) = give else {
-        // Not a give this game sent this session (another device of the same player): nothing
-        // of this backpack is in it.
-        return;
-    };
-    if !ok {
-        let why = v.get("error").and_then(|x| x.as_str()).unwrap_or("refused");
-        gs.fleet.status = format!("The fleet did not take {} {}: {}. Nothing left your backpack.", give.qty, give.name, refusal_words(why));
+    let why = v.get("error").and_then(|x| x.as_str()).unwrap_or("refused");
+    if !ok && why == "rate_limited" {
+        gs.fleet.next_send_in = gs.fleet.next_send_in.max(GIVE_RETRY_S);
         return;
     }
-    if !gs.fleet.confirmed.iter().any(|g| g.give_id == give.give_id) {
-        gs.fleet.confirmed.push(give.clone());
-    }
-    gs.fleet.status = match settle_give(world, &give) {
-        Some(0) => format!("You gave the fleet {} {}.", give.qty, give.name),
-        Some(short) => format!("The fleet recorded {} {}; {short} of them had already left your backpack.", give.qty, give.name),
-        None => gs.fleet.status.clone(),
+    let Some(p) = player_with_settlements(world) else { return };
+    let held = {
+        let Ok(mut ts) = world.get::<&mut TradeSettlements>(p) else { return };
+        let held = ts.fleet_held.iter().position(|h| h.give_id == give_id).map(|i| ts.fleet_held.remove(i));
+        match &held {
+            Some(_) if ok => {
+                ts.settled.insert(settled_id(give_id));
+            }
+            Some(h) => {
+                let back = TransferOp { item_id: h.item_id.clone(), qty: h.qty, add: true, wear: h.wear, quality: h.quality };
+                ts.pending.push((return_id(give_id), vec![back]));
+            }
+            None => {}
+        }
+        held
     };
+    if let Some(h) = held {
+        gs.fleet.status = if !ok {
+            format!("The fleet did not take {} {}: {}. They are going back into your backpack.", h.qty, h.name, refusal_words(why))
+        } else if h.creative || v.get("kind").and_then(|k| k.as_str()) == Some("item_creative") {
+            format!("The fleet recorded {} {} from Creative mode. Gifts made in Creative mode are not counted, because it makes things from nothing.", h.qty, h.name)
+        } else {
+            format!("You gave the fleet {} {}.", h.qty, h.name)
+        };
+    }
+    mirror_held(gs, world);
 }
 
 /// Plain words for a refusal code.
@@ -121,32 +231,80 @@ fn refusal_words(code: &str) -> &'static str {
         "bad_quantity" => "that is more than one give can carry",
         "not_in_game" => "you are not in the shared world",
         "not_a_store" | "entity_not_found" => "that is not one of the fleet's stores",
+        "too_many" => "you have given as many times as the fleet takes in one day; try again tomorrow",
         _ => "the server could not record it",
     }
 }
 
-/// Take a give's items out of the player's backpack, once: None when this backpack already
-/// settled it (or there is no player), else how many were short (0 when all were there).
-pub(crate) fn settle_give(world: &mut hecs::World, give: &FleetGive) -> Option<u32> {
-    use crate::systems::inventory::{Inventory, TradeSettlements};
-    let player = world.query::<(&Inventory, &crate::ecs::components::Controllable)>().iter().next().map(|(e, _)| e)?;
-    if world.get::<&TradeSettlements>(player).is_err() {
-        world.insert_one(player, TradeSettlements::default()).ok()?;
+/// The server's list of this home's recorded gives (`game_fleet_gives`): any the backpack has
+/// not settled is settled now (`settle_listed`), and one correction goes back for those whose
+/// items were not all there.
+pub(crate) fn on_gives(gs: &mut GuiState, world: &mut hecs::World, v: &serde_json::Value) {
+    let home = v.get("home").and_then(|x| x.as_str()).unwrap_or("");
+    let gives = v.get("gives").and_then(|x| x.as_array()).cloned().unwrap_or_default();
+    let (taken, adjustments) = settle_listed(world, home, &gives);
+    if !adjustments.is_empty() {
+        if let Some(ws) = gs.ws_client.as_ref() {
+            ws.send(&serde_json::json!({ "type": "game_fleet_give_adjust", "adjustments": adjustments }).to_string());
+        }
     }
-    let id = settled_id(&give.give_id);
-    let mut q = world.query_one::<(&mut Inventory, &mut TradeSettlements)>(player).ok()?;
-    let (inv, ts) = q.get()?;
-    if ts.knows(&id) {
-        return None;
+    if taken > 0 {
+        gs.fleet.status = if adjustments.is_empty() {
+            format!("The fleet had recorded {taken} gift(s) from this home that your loaded save did not list, so those items left your backpack again.")
+        } else {
+            format!(
+                "The fleet had recorded {taken} gift(s) from this home that your loaded save did not list. Some of those items were no longer in your backpack, so the fleet now counts only what was there."
+            )
+        };
     }
-    let short = inv.remove_worn(&give.item_id, give.qty, give.wear, give.quality);
-    ts.settled.insert(id);
-    Some(short)
+    mirror_held(gs, world);
+}
+
+/// Settle into the backpack the listed gives of home `home` that it has not settled: a give
+/// still held here (its answer was lost) only drops its hold; any other takes its items out of
+/// the backpack once. Returns how many took items, and the corrections ({give_id, delivered})
+/// for those that found fewer than the fleet counts. Nothing at all when `home` is not this
+/// backpack's home: another home's gives are never taken from it.
+pub(crate) fn settle_listed(world: &mut hecs::World, home: &str, gives: &[serde_json::Value]) -> (usize, Vec<serde_json::Value>) {
+    let mut adjustments = Vec::new();
+    let mut taken = 0;
+    let Some(p) = player_with_settlements(world) else { return (0, adjustments) };
+    let Ok(mut q) = world.query_one::<(&mut Inventory, &mut TradeSettlements)>(p) else { return (0, adjustments) };
+    let Some((inv, ts)) = q.get() else { return (0, adjustments) };
+    if home.is_empty() || ts.home_id != home {
+        return (0, adjustments);
+    }
+    for g in gives {
+        let Some(id) = g.get("give_id").and_then(|x| x.as_str()) else { continue };
+        let sid = settled_id(id);
+        if ts.knows(&sid) {
+            continue;
+        }
+        if let Some(i) = ts.fleet_held.iter().position(|h| h.give_id == id) {
+            // Recorded while its answer was lost: its items left the backpack when it was held.
+            ts.fleet_held.remove(i);
+            ts.settled.insert(sid);
+            continue;
+        }
+        let item = g.get("item_id").and_then(|x| x.as_str()).unwrap_or("");
+        let qty = g.get("quantity").and_then(|x| x.as_f64()).unwrap_or(0.0).max(0.0).round() as u32;
+        ts.settled.insert(sid);
+        if item.is_empty() || qty == 0 {
+            continue;
+        }
+        let short = inv.remove_item(item, qty);
+        taken += 1;
+        if short > 0 {
+            adjustments.push(serde_json::json!({ "give_id": id, "delivered": qty - short }));
+        }
+    }
+    (taken, adjustments)
 }
 
 /// A welcome to a shared world: its fleet stores, a fresh power baseline (nothing used before
-/// this join is charged to this fleet), the ledger, and any give still waiting for an answer
-/// sent again (the server answers a repeat with the line it already has).
+/// this join is charged to this fleet), the ledger asked for, and every held give for this
+/// server to be sent again from the start, one at a time (`send_due`), and this home's recorded
+/// gives asked for again (`tick`).
 pub(crate) fn on_welcome(state: &mut EngineState, v: &serde_json::Value) {
     let fleet = &mut state.gui_state.fleet;
     fleet.stores = stores_in(v);
@@ -154,12 +312,11 @@ pub(crate) fn on_welcome(state: &mut EngineState, v: &serde_json::Value) {
     fleet.power_baseline = Some((t.drawn, t.returned));
     fleet.power_timer = 0.0;
     fleet.ledger = None;
-    let resend: Vec<serde_json::Value> = fleet.in_flight.iter().map(crate::gui::pages::fleet_ledger::give_message).collect();
+    fleet.sent.clear();
+    fleet.gives_asked_for = None;
+    fleet.next_send_in = GIVE_SPACING_S;
     if let Some(ws) = state.gui_state.ws_client.as_ref() {
         ws.send(&serde_json::json!({ "type": "game_fleet_ledger_request" }).to_string());
-        for m in resend {
-            ws.send(&m.to_string());
-        }
     }
 }
 
@@ -179,9 +336,73 @@ pub fn stores_in(v: &serde_json::Value) -> Vec<FleetStore> {
         .collect()
 }
 
+/// Take the asked gives' items out of the backpack and hold them (step 2 of the module doc).
+/// A give is refused, in words, when fewer of its items are free than it asks for: free means
+/// in the backpack, less what is promised to a confirmed trade and what is already on its way
+/// out (a trade's moves, a move to storage this frame).
+pub(crate) fn process_outbox(gs: &mut GuiState, world: &mut hecs::World) {
+    let outbox = std::mem::take(&mut gs.fleet.outbox);
+    if outbox.is_empty() {
+        return;
+    }
+    let Some(p) = player_with_settlements(world) else { return };
+    for give in outbox {
+        let promised = crate::gui::pages::trade::promised_to_trades(gs, &give.item_id);
+        let to_storage: u32 = gs.pending_inventory_transfers.iter().filter(|o| !o.add && o.item_id == give.item_id).map(|o| o.qty).sum();
+        let Ok(mut q) = world.query_one::<(&mut Inventory, &mut TradeSettlements)>(p) else { return };
+        let Some((inv, ts)) = q.get() else { return };
+        let queued: u32 = ts.pending.iter().flat_map(|(_, m)| m.iter()).filter(|o| !o.add && o.item_id == give.item_id).map(|o| o.qty).sum();
+        let free = inv.count_item(&give.item_id).saturating_sub(promised + to_storage + queued);
+        if free < give.qty {
+            gs.fleet.status = format!(
+                "Only {free} {} are free to give: the rest are promised to a trade you confirmed or already on their way out of your backpack.",
+                give.name
+            );
+            continue;
+        }
+        let taken = give.qty - inv.remove_worn(&give.item_id, give.qty, give.wear, give.quality);
+        if taken == 0 {
+            gs.fleet.status = "That is no longer in your backpack.".into();
+            continue;
+        }
+        ts.fleet_held.push(FleetHeld {
+            give_id: give.give_id.clone(),
+            server: gs.connected_server_url.clone(),
+            store: give.store,
+            item_id: give.item_id.clone(),
+            name: give.name.clone(),
+            qty: taken,
+            wear: give.wear,
+            quality: give.quality,
+            creative: gs.creative_mode,
+        });
+        gs.fleet.status = format!("Giving {taken} {} to the fleet...", give.name);
+    }
+    mirror_held(gs, world);
+}
+
+/// Send the next held give for this server, one at a time and spaced (`GIVE_SPACING_S`), never
+/// one held for another server. Returns the message sent (the tests read it).
+pub(crate) fn send_due(gs: &mut GuiState, world: &mut hecs::World, real_dt: f32) -> Option<serde_json::Value> {
+    gs.fleet.next_send_in -= real_dt;
+    if gs.fleet.next_send_in > 0.0 {
+        return None;
+    }
+    let server = gs.connected_server_url.clone();
+    let next = gs.fleet.held.iter().find(|h| h.server == server && !gs.fleet.sent.contains(&h.give_id)).cloned()?;
+    let home = home_id(world)?;
+    let msg = crate::gui::pages::fleet_ledger::give_message(&next, &home);
+    if let Some(ws) = gs.ws_client.as_ref() {
+        ws.send(&msg.to_string());
+    }
+    gs.fleet.sent.push(next.give_id);
+    gs.fleet.next_send_in = GIVE_SPACING_S;
+    Some(msg)
+}
+
 /// Each frame while joined (lib.rs, beside the position send): where the player stands, the
-/// fleet's prices once, gives the backpack must settle (again after a save load), and the power
-/// report once a minute.
+/// fleet's prices once, asked gives held, this home's recorded gives asked for (after a welcome
+/// and after a save is put back), held gives sent, and the power report once a minute.
 pub(crate) fn tick(state: &mut EngineState, real_dt: f32) {
     let p = state.camera.position;
     state.gui_state.fleet.my_position = Some([p.x, p.y, p.z]);
@@ -190,10 +411,13 @@ pub(crate) fn tick(state: &mut EngineState, real_dt: f32) {
             state.gui_state.fleet.prices = reg.goods.iter().map(|(id, g)| (id.clone(), f64::from(g.base_value))).collect();
         }
     }
-    settle_confirmed(&state.gui_state, &mut state.game_world.world);
+    process_outbox(&mut state.gui_state, &mut state.game_world.world);
+    mirror_held(&mut state.gui_state, &state.game_world.world);
     if !state.game_welcomed {
         return;
     }
+    ask_for_gives(&mut state.gui_state, &mut state.game_world.world);
+    send_due(&mut state.gui_state, &mut state.game_world.world, real_dt);
     let fleet = &mut state.gui_state.fleet;
     fleet.power_timer += real_dt;
     if fleet.power_timer < POWER_REPORT_INTERVAL_S {
@@ -207,12 +431,22 @@ pub(crate) fn tick(state: &mut EngineState, real_dt: f32) {
     }
 }
 
-/// Settle every give the server recorded this session into the backpack as it is now: a no-op
-/// for each the backpack has settled, and the items out again for one a save load undid.
-pub(crate) fn settle_confirmed(gs: &GuiState, world: &mut hecs::World) {
-    for give in &gs.fleet.confirmed {
-        settle_give(world, give);
+/// Ask the server for this home's recorded gives when it has not been asked on this connection
+/// for this home, or a save was just put back over the backpack. Returns the request (the tests
+/// read it).
+pub(crate) fn ask_for_gives(gs: &mut GuiState, world: &mut hecs::World) -> Option<serde_json::Value> {
+    let p = player_with_settlements(world)?;
+    let recheck = world.get::<&mut TradeSettlements>(p).map(|mut ts| std::mem::take(&mut ts.fleet_recheck)).unwrap_or(false);
+    let home = home_id(world)?;
+    if !recheck && gs.fleet.gives_asked_for.as_deref() == Some(home.as_str()) {
+        return None;
     }
+    let msg = serde_json::json!({ "type": "game_fleet_gives_request", "home": home });
+    if let Some(ws) = gs.ws_client.as_ref() {
+        ws.send(&msg.to_string());
+    }
+    gs.fleet.gives_asked_for = Some(home);
+    Some(msg)
 }
 
 /// The power report since `baseline` (drawn and returned watt-hours already reported), moving
@@ -229,165 +463,5 @@ pub fn power_report(baseline: &mut Option<(f64, f64)>, drawn: f64, returned: f64
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::systems::inventory::{Inventory, TradeSettlements};
-
-    fn world_with_bread(n: u32) -> (hecs::World, hecs::Entity) {
-        let mut world = hecs::World::new();
-        let mut inv = Inventory::new(20);
-        inv.add_item("bread_0", n, 50);
-        let p = world.spawn((inv, crate::ecs::components::Controllable));
-        (world, p)
-    }
-
-    fn bread(world: &hecs::World, p: hecs::Entity) -> u32 {
-        world.get::<&Inventory>(p).unwrap().count_item("bread_0")
-    }
-
-    fn in_flight(gs: &mut GuiState, id: &str, qty: u32) {
-        gs.fleet.in_flight.push(FleetGive { give_id: id.into(), store: 12, item_id: "bread_0".into(), name: "Bread".into(), qty, wear: 0, quality: 0 });
-    }
-
-    /// A GIVE'S ITEMS LEAVE THE BACKPACK EXACTLY ONCE: the server's yes takes them; the same
-    /// yes again (the server answers a repeated give `already`), and the settling every frame
-    /// does, take nothing more. A refusal takes nothing at all.
-    ///
-    /// Seen red 2026-10-04 with `settle_give` not checking the settled set: "the second answer
-    /// took nothing more / left: 0 / right: 3" (the repeat and the next frame each took three
-    /// more, down to none).
-    #[test]
-    fn a_gives_items_leave_the_backpack_exactly_once() {
-        let (mut world, p) = world_with_bread(6);
-        let mut gs = GuiState::default();
-        in_flight(&mut gs, "give-a", 3);
-        let yes = serde_json::json!({ "type": "game_fleet_give_result", "give_id": "give-a", "success": true, "already": false });
-        on_give_result(&mut gs, &mut world, &yes);
-        assert_eq!(bread(&world, p), 3, "the yes took three");
-        assert!(gs.fleet.in_flight.is_empty() && gs.fleet.confirmed.len() == 1);
-        let mut again = yes.clone();
-        again["already"] = serde_json::json!(true);
-        on_give_result(&mut gs, &mut world, &again);
-        settle_confirmed(&gs, &mut world); // what tick does every frame
-        assert_eq!(bread(&world, p), 3, "the second answer took nothing more / left: {} / right: 3", bread(&world, p));
-        assert!(world.get::<&TradeSettlements>(p).unwrap().settled.contains(&settled_id("give-a")), "recorded beside the backpack");
-
-        // A refusal takes nothing.
-        in_flight(&mut gs, "give-b", 2);
-        on_give_result(&mut gs, &mut world, &serde_json::json!({ "type": "game_fleet_give_result", "give_id": "give-b", "success": false, "error": "too_far" }));
-        assert_eq!(bread(&world, p), 3, "a refused give took nothing");
-        assert!(gs.fleet.in_flight.is_empty(), "and is no longer in flight");
-        assert!(gs.fleet.status.contains("Nothing left your backpack"), "{}", gs.fleet.status);
-        // An answer for a give this game never sent takes nothing either.
-        on_give_result(&mut gs, &mut world, &serde_json::json!({ "type": "game_fleet_give_result", "give_id": "give-z", "success": true }));
-        assert_eq!(bread(&world, p), 3);
-    }
-
-    /// A SAVE LOAD THAT PUTS THE GIVEN ITEMS BACK is settled again: the backpack and its
-    /// settled set from before the give come back, and the next settle takes the items once.
-    ///
-    /// Seen red 2026-10-04 with `settle_confirmed` (tick's settling every frame) emptied, so a
-    /// give was settled only on the server's answer: "the reloaded backpack keeps the loaves it
-    /// gave / left: 6 / right: 3".
-    #[test]
-    fn a_save_load_that_puts_given_items_back_settles_again() {
-        let (mut world, p) = world_with_bread(6);
-        let mut gs = GuiState::default();
-        in_flight(&mut gs, "give-c", 3);
-        on_give_result(&mut gs, &mut world, &serde_json::json!({ "type": "game_fleet_give_result", "give_id": "give-c", "success": true }));
-        assert_eq!(bread(&world, p), 3);
-        // The save from before: six loaves, nothing settled.
-        *world.get::<&mut Inventory>(p).unwrap() = {
-            let mut inv = Inventory::new(20);
-            inv.add_item("bread_0", 6, 50);
-            inv
-        };
-        world.get::<&mut TradeSettlements>(p).unwrap().settled.clear();
-        // Two frames.
-        settle_confirmed(&gs, &mut world);
-        settle_confirmed(&gs, &mut world);
-        assert_eq!(bread(&world, p), 3, "the reloaded backpack keeps the loaves it gave / left: {} / right: 3", bread(&world, p));
-    }
-
-    /// POWER IS REPORTED AS WHAT CHANGED SINCE THE LAST REPORT: nothing at the baseline, the
-    /// difference after, and a tally that went down (a save load put back an older one: here the
-    /// drawn side fell while the returned side rose) reports nothing and starts from it, never a
-    /// negative report.
-    ///
-    /// Seen red 2026-10-04 with the went-down check taken out: "a tally that went down reports
-    /// nothing: Some(Object {\"drawn_wh\": Number(-1400.0), \"returned_wh\": Number(40.0),
-    /// \"type\": String(\"game_fleet_power\")})".
-    #[test]
-    fn power_is_reported_since_the_last_report() {
-        let mut base = Some((1000.0, 200.0));
-        assert!(power_report(&mut base, 1000.0, 200.0).is_none(), "nothing new");
-        let m = power_report(&mut base, 1500.0, 260.0).expect("a report");
-        assert_eq!((m["drawn_wh"].as_f64(), m["returned_wh"].as_f64()), (Some(500.0), Some(60.0)));
-        let down = power_report(&mut base, 100.0, 300.0);
-        assert!(down.is_none(), "a tally that went down reports nothing: {down:?}");
-        assert_eq!(base, Some((100.0, 300.0)), "and starts again from it");
-        let m = power_report(&mut base, 150.0, 300.0).unwrap();
-        assert_eq!(m["drawn_wh"].as_f64(), Some(50.0));
-    }
-
-    /// THE GAME READS WHAT THE RELAY REALLY SENDS (not JSON typed for the test): a relay world
-    /// and database in this process, a meal taken and a give made through the relay's own
-    /// functions, the relay's welcome snapshot, its give answer and its ledger message handed
-    /// to the game's readers. The stores are found, the give's loaves leave the backpack once,
-    /// and the ledger reads as the relay wrote it.
-    ///
-    /// Seen red 2026-10-04 with the game reading the ledger's totals under "used" and
-    /// "contributed" (the relay writes "used_value" and "contributed_value"): "the game reads
-    /// the relay's totals / left: (0.0, 0.0) / right: (10.0, 6.0)".
-    #[test]
-    fn the_game_reads_what_the_relay_really_sends() {
-        use crate::relay::handlers::{fleet_ledger as relay_fleet, game_state::GameWorld};
-        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_fleet_native_{}_{nanos}.db", std::process::id()));
-        let db = crate::relay::storage::Storage::open(&path).unwrap();
-        let mut rw = GameWorld::new();
-        let snapshot: Vec<serde_json::Value> = rw.snapshot().iter().map(|e| serde_json::to_value(e).unwrap()).collect();
-        let stores = stores_in(&serde_json::json!({ "world_snapshot": snapshot }));
-        assert_eq!(stores.len(), 1, "the game finds the relay's store in its welcome: {stores:?}");
-        let store = stores[0].clone();
-        rw.spawn_player("e11e00c0", [store.position[0] + 1.0, 1.7, store.position[2]]);
-        let meal = relay_fleet::take_meal_and_record(&mut rw, &db, "e11e00c0", store.entity_id);
-        assert_eq!(meal_sentence(&meal), "You took a meal from the ship's stores.");
-
-        // The give, as the panel sends it, answered by the relay, settled by the game.
-        let (mut world, p) = world_with_bread(6);
-        let mut gs = GuiState::default();
-        gs.fleet.in_flight.push(FleetGive { give_id: "give-real".into(), store: store.entity_id, item_id: "bread_0".into(), name: "Bread".into(), qty: 2, wear: 0, quality: 0 });
-        let msg = crate::gui::pages::fleet_ledger::give_message(&gs.fleet.in_flight[0]);
-        let answer = relay_fleet::give(&rw, &db, "e11e00c0", &msg);
-        on_give_result(&mut gs, &mut world, &answer);
-        let again = relay_fleet::give(&rw, &db, "e11e00c0", &msg);
-        on_give_result(&mut gs, &mut world, &again);
-        settle_confirmed(&gs, &mut world);
-        assert_eq!(bread(&world, p), 4, "two loaves left the backpack, once: {answer}");
-
-        let l = FleetLedger::from_json(&relay_fleet::ledger_json(&rw, &db, "e11e00c0")).expect("the ledger reads");
-        assert_eq!((l.used, l.contributed), (10.0, 6.0), "the game reads the relay's totals / left: {:?} / right: (10.0, 6.0)", (l.used, l.contributed));
-        assert_eq!((l.standing.as_str(), l.supply.as_str()), ("red", "unlimited"));
-        assert_eq!(l.recent.len(), 2);
-        assert_eq!(l.recent[0].item_name.as_deref(), Some("Bread"));
-        drop(db);
-        let _ = std::fs::remove_file(&path);
-    }
-
-    /// The welcome's snapshot names the fleet's stores, and a take_meal answer reads in words.
-    ///
-    /// Seen red 2026-10-04 with `stores_in` looking for an entity type the relay does not send
-    /// ("fleet_store"): "left: [] / right: [FleetStore { entity_id: 12, ... }]".
-    #[test]
-    fn the_welcome_names_the_stores_and_a_meal_answer_reads() {
-        let w = serde_json::json!({ "world_snapshot": [
-            { "entity_id": 12, "entity_type": "food_store", "position": [67.0, 1.0, 22.0], "components": { "name": "The mess hall's stores" } },
-            { "entity_id": 13, "entity_type": "dining_table", "position": [70.0, 1.0, 22.0], "components": {} },
-        ]});
-        let s = stores_in(&w);
-        assert_eq!(s, vec![FleetStore { entity_id: 12, name: "The mess hall's stores".into(), position: [67.0, 1.0, 22.0] }]);
-        assert_eq!(meal_sentence(&serde_json::json!({ "success": true })), "You took a meal from the ship's stores.");
-        assert_eq!(meal_sentence(&serde_json::json!({ "success": false, "error": "not_yet", "next_meal_in_s": 7100.0 })), "Your next meal is in 119 game minutes.");
-    }
-}
+#[path = "fleet_tests.rs"]
+mod tests;

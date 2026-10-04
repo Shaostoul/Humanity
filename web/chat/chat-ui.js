@@ -2111,6 +2111,7 @@ const CMD_PALETTE_ACTIONS = {
   toggleSearch:          function() { toggleSearch(); },
   openServerStats:       function() { window.open('/info', '_blank'); },
   openGameAdmin:         function() { if (typeof openGameAdminModal === 'function') openGameAdminModal(); },
+  openFleetLedger:       function() { if (typeof openFleetLedger === 'function') openFleetLedger(); },
 };
 fetch('/data/commands.json', { cache: 'no-cache' })
   .then(function(r) { return r.ok ? r.json() : null; })

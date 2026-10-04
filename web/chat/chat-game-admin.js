@@ -82,12 +82,16 @@
       '  <button class="gameadmin-refresh-btn" id="gameadmin-clock-apply">Apply to the shared world</button>' +
       '  <h3 class="gameadmin-section">Fleet supply</h3>' +
       '  <p class="gameadmin-hint">Whether the fleet\'s stores can run out in this server\'s shared world. Unlimited (the ' +
-      '     default during early development): they never run out, nobody misses a meal, and each player\'s ledger shows ' +
+      '     default during early development): they never run out, no meal is ever refused, and each player\'s ledger shows ' +
       '     what they used and gave. Stocked (the realistic mode): the stores hold only what the ship\'s farms put in, and ' +
       '     an empty store means a missed meal, crew included. A change applies at once and never touches anyone\'s ledger.</p>' +
       '  <p class="gameadmin-hint" id="gameadmin-fleet-now"></p>' +
       '  <div class="gameadmin-toolbar" id="gameadmin-fleet-modes"></div>' +
       '  <button class="gameadmin-refresh-btn" id="gameadmin-fleet-apply">Apply to the fleet</button>' +
+      '  <p class="gameadmin-hint">The fleet\'s totals are sums over every player with a ledger. They are shown only once at ' +
+      '     least three players other than you have one, because with fewer, the totals minus your own lines would ' +
+      '     be someone\'s own ledger. Even then, watching them change while you know who is online can hint at who did ' +
+      '     what.</p>' +
       '  <div class="gameadmin-toolbar">' +
       '    <button class="gameadmin-refresh-btn" id="gameadmin-fleet-totals-btn">Show the fleet\'s totals</button>' +
       '    <span class="gameadmin-hint" id="gameadmin-fleet-totals"></span>' +
@@ -119,8 +123,8 @@
   // changes it here with server_settings_update, and the running world follows at once. The mode shown
   // comes from server_settings_state (app.js keeps it in window.fleetSupplyMode). The totals are the
   // relay's game_fleet_totals: every player's ledger summed, naming no one (app.js keeps them in
-  // window.fleetTotals). A player's own ledger is shown only in the game: the website has no game
-  // world, so it shows no player's game state.
+  // window.fleetTotals), held back while fewer than three other players have a ledger. A player's
+  // own ledger has its own read-only window (chat-fleet.js, "Your fleet ledger").
   var FLEET_MODES = [['unlimited', 'Unlimited (never runs out)'], ['stocked', 'Stocked (realistic: stores can run empty)']];
   var fleetDraft = null; // the admin's unapplied pick; null follows the server's mode
 
@@ -163,8 +167,11 @@
     var t = window.fleetTotals;
     var tot = document.getElementById('gameadmin-fleet-totals');
     if (t && typeof t.players === 'number') {
-      tot.textContent = (t.players === 1 ? '1 player has' : t.players + ' players have') + ' a ledger: ' +
-        creditsText(t.used_value || 0) + ' used from the fleet, ' + creditsText(t.contributed_value || 0) + ' given to it.';
+      var who = (t.players === 1 ? '1 player has' : t.players + ' players have') + ' a ledger';
+      // Held back while too few other players have a ledger (native totals_sentence).
+      tot.textContent = t.withheld
+        ? who + '. The totals are shown once at least ' + (t.others_needed || 3) + ' players other than you have one.'
+        : who + ': ' + creditsText(t.used_value || 0) + ' used from the fleet, ' + creditsText(t.contributed_value || 0) + ' given to it.';
     }
   }
 

@@ -11,16 +11,29 @@
 //
 // So the relay keeps, per player key, one line for each thing they used from the
 // fleet and each thing they gave it: what, how many, what it was worth then, and
-// when (the shared world's game clock, and the real day). The balance is everything
-// given minus everything used, in credits (CR): in the black when it is above 0, in
-// the red when it is below. A player sees only their own ledger; an admin sees the
-// totals. Erasing an account deletes its ledger.
+// when (the shared world's game day, and the real day; at the default 72x clock a
+// game day is 20 real minutes). The balance is everything given minus everything
+// used, in credits (CR): in the black when it is above 0, in the red when it is
+// below. A player sees only their own ledger; an admin sees the totals once enough
+// players have one. Erasing an account deletes its ledger.
+//
+// WHAT THE LEDGER TAKES ON TRUST (said plainly, the review of 2026-10-04): the
+// server holds no inventories yet (increment 8 of the design), so it takes the
+// game's word that a gift was in the backpack, and the game's word for its home's
+// power. An unaltered game can still give the same thing twice in one way: with
+// "Start every session from the default home" on (the default during development)
+// each session starts with the starter kit again, and giving the kit each session
+// counts each time. Gifts made in Creative mode are recorded but never counted.
 //
 //   kinds       one row per kind of line. The relay records exactly these ids (a test
 //               checks each one it records is here):
 //                 "meal"            a meal a player takes from the ship's food stores
 //                                   (the take_meal action, src/relay/handlers/ship_stores.rs);
 //                 "item"            items a player gives the fleet at one of its stores;
+//                 "item_creative"   items given while the giver's game was in Creative
+//                                   mode, which makes things from nothing: recorded so
+//                                   the player sees the gift, worth 0 so it never moves
+//                                   the balance (the review of 2026-10-04, finding 5);
 //                 "power_drawn"     electricity the ship's reactor supplied their home
 //                                   (src/systems/ship_power.rs meters it; the game reports
 //                                   it while the player is in the shared world);
@@ -39,6 +52,15 @@
 //                              Fixed(n)      n CR per unit;
 //                 per_day    true for a flow that never stops (power): one line per real
 //                            day, added to as the day goes, instead of one per report.
+//                 max_lines_per_day
+//                            the most lines of this kind one player may write in one
+//                            real day (None: no cap). Gives are capped at 500: a give
+//                            every three minutes for a whole day and night is 480, more
+//                            than anyone hands in by hand, while a game that sends one
+//                            every 200 ms could otherwise write 430,000 rows a day that
+//                            are kept until the account is erased (finding 11). Meals
+//                            need no cap (one a meal time) and power none (one line a
+//                            day).
 //
 // HOW THE PRICES WERE CHOSEN (game defaults for this increment):
 //   - A MEAL is priced as one Basic Ration ("Vacuum-packed survival meal",
@@ -63,15 +85,39 @@
 //               real seconds a game waits between power reports; the relay refuses one
 //               sooner than this (the game sends one a minute).
 //   power_report_window_s
-//               the longest stretch, in real seconds, one power report may cover: no
-//               report is counted as more than the reactor's whole output over this
-//               long (data/ship_power.ron electric_watts at the shared world's clock
-//               speed), so a broken or altered game cannot write a year of power in one
-//               message.
+//               the longest stretch, in real seconds, one power report may cover (at the
+//               shared world's clock speed), so a broken or altered game cannot write a
+//               year of power in one message.
+//   home_service_watts
+//               the most power one home can draw from the ship, or send back to it, at
+//               any moment: no report is counted as more than this over the time it
+//               covers. A GAME CHOICE, sized like a large house's electrical service:
+//               200 amperes at 240 volts, 48 kW. (Until the review of 2026-10-04 the cap
+//               was the reactor's whole 35 MW, which let one report a minute claim about
+//               63,000 CR; finding 6.) The family home's life support averages about 2.6
+//               kW (data/ship_power.ron), so an honest home sits far below it. The power
+//               a game reports is still taken on its word until the server meters homes
+//               itself: this only bounds how far a broken or altered game can move a
+//               ledger.
+//   totals_min_other_players
+//               an admin sees the fleet's totals only when at least this many players
+//               other than themselves have a ledger. With one other player, total minus
+//               the admin's own lines IS that player's ledger, and asking again each
+//               second shows each meal and gift as it happens (finding 9). Three keeps
+//               any one person's lines inside a sum of at least three; a watchful admin
+//               can still guess at who did what from who was online, which the admin
+//               panel says.
+//   gives_replayed
+//               how many of a player's newest gives from one home the relay hands back
+//               when that home's game asks (engine/fleet.rs settles again any its loaded
+//               save does not list: the game closed before it saved, or a snapshot from
+//               before the give was put back). A home's snapshots reach back at most a
+//               few hours, so 200 gives covers far more than a save can miss.
 (
     kinds: [
         (id: "meal", direction: Used, label: "Meal from the ship's stores", unit: "meal", price: OfGood("ration_basic_0"), per_day: false),
-        (id: "item", direction: Contributed, label: "Given to the fleet", unit: "", price: OfItem, per_day: false),
+        (id: "item", direction: Contributed, label: "Given to the fleet", unit: "", price: OfItem, per_day: false, max_lines_per_day: Some(500)),
+        (id: "item_creative", direction: Contributed, label: "Given in Creative mode (not counted)", unit: "", price: Fixed(0.0), per_day: false, max_lines_per_day: Some(500)),
         (id: "power_drawn", direction: Used, label: "Power from the ship's reactor", unit: "kWh", price: Fixed(1.5), per_day: true),
         (id: "power_returned", direction: Contributed, label: "Power returned to the ship", unit: "kWh", price: Fixed(1.5), per_day: true),
     ],
@@ -79,4 +125,7 @@
     recent_entries: 20,
     power_report_min_interval_s: 30.0,
     power_report_window_s: 120.0,
+    home_service_watts: 48000.0,
+    totals_min_other_players: 3,
+    gives_replayed: 200,
 )
