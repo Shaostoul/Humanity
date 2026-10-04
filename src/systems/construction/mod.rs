@@ -285,9 +285,21 @@ pub fn built_station_types(
     registry: &BlueprintRegistry,
     frame: Option<&PlanetSite>,
 ) -> std::collections::HashSet<String> {
+    built_station_types_where(world, registry, frame, |_| true)
+}
+
+/// `built_station_types` over the pieces `keep` accepts by where they stand
+/// (their pose; a piece with none is kept): aboard, a guest's put-away home
+/// is in the home frame but not on the ship (engine::built_uses).
+pub fn built_station_types_where(
+    world: &hecs::World,
+    registry: &BlueprintRegistry,
+    frame: Option<&PlanetSite>,
+    keep: impl Fn(Option<&Transform>) -> bool,
+) -> std::collections::HashSet<String> {
     let mut out = std::collections::HashSet::new();
-    for (_e, (s, site)) in world.query::<(&Structure, Option<&PlanetSite>)>().iter() {
-        if !site::in_frame(site, frame) {
+    for (_e, (s, site, pose)) in world.query::<(&Structure, Option<&PlanetSite>, Option<&Transform>)>().iter() {
+        if !site::in_frame(site, frame) || !keep(pose) {
             continue;
         }
         if let Some(bp) = registry.get(&s.blueprint_id) {
