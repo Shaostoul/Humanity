@@ -1,0 +1,14 @@
+{
+  "ship_hash": "PLACEHOLDER",
+  "places": [
+    { "id": "zone:commons", "kind": "zone", "purpose": "commons", "min": [65.0, 0.0, 20.0], "max": [99.0, 8.0, 75.0], "door": null, "door_local": null, "own": false },
+    { "id": "zone:street-1", "kind": "zone", "purpose": "street", "min": [65.0, 0.0, 85.0], "max": [75.0, 4.0, 195.0], "door": null, "door_local": null, "own": false },
+    { "id": "plot:p1", "kind": "plot", "purpose": "home", "min": [0.0, 0.0, 0.0], "max": [55.0, 3.0, 89.0], "door": [53.5, 1.7, 40.5], "door_local": [53.5, 40.5], "own": true },
+    { "id": "plot:p2", "kind": "plot", "purpose": "home", "min": [0.0, 0.0, 99.0], "max": [55.0, 3.0, 188.0], "door": [53.5, 1.7, 139.5], "door_local": [53.5, 40.5], "own": false }
+  ],
+  "doors": [
+    { "from": "zone:commons", "to": "zone:street-1", "axis": "z", "lat": 70.0, "mouths": [[70.0, 0.0, 75.0], [70.0, 0.0, 85.0]], "steps": [[70.0, 1.7, 74.0], [70.0, 1.7, 86.0]], "tube": [[68.5, 0.0, 75.0], [71.5, 4.0, 85.0]] },
+    { "from": "plot:p1", "to": "zone:commons", "axis": "x", "lat": 40.0, "mouths": [[55.0, 0.0, 40.0], [65.0, 0.0, 40.0]], "steps": [[54.0, 1.7, 40.0], [66.0, 1.7, 40.0]], "tube": [[55.0, 0.0, 38.5], [65.0, 3.0, 41.5]] },
+    { "from": "plot:p2", "to": "zone:street-1", "axis": "x", "lat": 139.0, "mouths": [[55.0, 0.0, 139.0], [65.0, 0.0, 139.0]], "steps": [[54.0, 1.7, 139.0], [66.0, 1.7, 139.0]], "tube": [[55.0, 0.0, 137.5], [65.0, 3.0, 140.5]] }
+  ]
+}

@@ -7,7 +7,6 @@ use crate::engine::net_route::reload_planet_defs;
 use crate::engine::registries::load_data_registries;
 use crate::engine::state::{EngineState, GrowSpot};
 use crate::renderer::mesh::Mesh;
-use crate::ship::ship_structure::ShipStructure;
 use crate::systems::inventory::ItemRegistry;
 use crate::terrain::planet::PlanetDef;
 
@@ -111,7 +110,11 @@ pub(crate) fn load_world(state: &mut EngineState) {
     // The home zone's authored spawn point in ship metres, if it declares one.
     // Used below to decide where the player stands on world entry.
     let mut authored_spawn: Option<Vec3> = None;
-    let (homestead, room_info) = match ShipStructure::load_and_assemble(&state.data_dir, None) {
+    // The home goes on the plot this player remembers for the server they are about to join
+    // (increment 2, engine/home_plot.rs `assemble_for_boot`), else on the ship's default plot.
+    let assembled = crate::engine::home_plot::assemble_for_boot(&state.data_dir, &state.gui_state);
+    state.boot_plot = assembled.as_ref().ok().and_then(|s| s.home_plot()).map(|p| p.id.clone());
+    let (homestead, room_info) = match assembled {
         Ok(ship) => {
             let meshes = ship.generate_meshes();
             let info = meshes.room_info.clone();

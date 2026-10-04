@@ -597,30 +597,144 @@ test("respawn: judged like a rejoin, under its own check ids", () => {
   assert.equal(frozen.pass, false);
 });
 
-// The walk the respawn leg takes (verify-copresence --plots): from each plot's
-// door to the far place, in steps the relay accepts (under 100 m each; 40 m
-// here), ending at the target, and every step on the ship's floor outside the
-// homes (the Commons, the junction, street-1, or the door's own corridor).
-// Seen red 2026-10-03 with the route drawn straight from the door to the far
-// place (`legs = [from, to]`): "57.625,1.7,79.625 is not on the shared floor".
-const { respawnRoute } = require("../lib/copresence-judge.js");
-test("respawn: the walk to the far place keeps every step short and on the shared floor", () => {
-  const onFloor = (p) =>
-    (p[0] >= 65 && p[0] <= 99 && p[2] >= 20 && p[2] <= 75) || // the Commons
-    (p[0] >= 65 && p[0] <= 75 && p[2] >= 75 && p[2] <= 195) || // the junction and street-1
-    (p[0] >= 53 && p[0] <= 70 && [40.5, 41.5, 139.5, 140.5].some((z) => Math.abs(p[2] - z) < 1e-6)); // a door's corridor
-  for (const [door, far] of [[[53.5, 1.7, 41.5], [70, 1.7, 194]], [[53.5, 1.7, 140.5], [98, 1.7, 21]]]) {
-    const route = respawnRoute(door, far);
-    assert.deepEqual(route[route.length - 1], far, "it ends at the far place");
+// ── Routes through the ship's doors (increment 2, "Meet in the Commons") ─────
+//
+// The rig walks the game and the walker on the door points the game reports
+// (src/ship/door_points.rs). These tests route on a copy of that report for the
+// shipped ship, seen from p1 (fixtures/door-points-p1.json); the Rust test
+// door_points::the_rigs_fixture_is_what_the_game_reports keeps the copy true.
+const { doorRoute, routeClear, farPlaces, farthestFrom, placeAt, judgeMeet, judgeReboot } = require("../lib/copresence-judge.js");
+const DOORS = require("./fixtures/door-points-p1.json");
+const P2_DOOR = [53.5, 1.7, 139.5];
+const MEET_CAM = [76, 1.7, 64];
+const MEET_LINE = { start: [72, 1.7, 70], end: [80, 1.7, 70] };
+/** On the ship's floor: inside a place, or inside a door's tube. */
+const onFloor = (p) =>
+  !!placeAt(DOORS, p) || DOORS.doors.some((d) => p[0] >= d.tube[0][0] - 1e-6 && p[0] <= d.tube[1][0] + 1e-6 && p[2] >= d.tube[0][2] - 1e-6 && p[2] <= d.tube[1][2] + 1e-6);
+/** Every point of the straight walk between two points, a centimetre apart. */
+const along = (a, b) => {
+  const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[2] - a[2]) * 100));
+  return Array.from({ length: n + 1 }, (_, k) => a.map((v, j) => v + ((b[j] - v) * k) / n));
+};
+
+// Seen red 2026-10-04 with doorRoute walking straight to its target
+// (`waypoints = [to]`, the shape of the walk before door points): "from p1's
+// door the walk leaves the ship's floor at (55.06, 1.70, 42.12)".
+test("routes: from each door into the Commons, through the doors, every step on the floor", () => {
+  for (const [door, doors] of [
+    [P1_SPAWN, ["plot:p1->zone:commons"]],
+    [P2_DOOR, ["plot:p2->zone:street-1", "zone:commons->zone:street-1"]],
+  ]) {
+    const r = doorRoute(DOORS, door, MEET_CAM, 40);
+    assert.equal(r.error, null);
+    assert.deepEqual(r.doors, doors, `from ${door} the walk goes through ${doors.join(", ")}`);
+    assert.deepEqual(r.points[r.points.length - 1], MEET_CAM, "it ends where it was asked to");
     let at = door;
-    for (const p of route) {
+    for (const p of r.points) {
       assert.ok(Math.hypot(p[0] - at[0], p[2] - at[2]) <= 40 + 1e-9, `a step from ${at} to ${p} is longer than 40 m`);
-      assert.ok(onFloor(p), `${p} is not on the shared floor`);
+      const off = along(at, p).find((q) => !onFloor(q));
+      assert.equal(off, undefined, `from ${door[2] > 90 ? "p2" : "p1"}'s door the walk leaves the ship's floor at (${off && off.map((v) => v.toFixed(2)).join(", ")})`);
       at = p;
     }
   }
+  // p2's way: out of its home at its door's step, along First Street, into the Commons.
+  assert.deepEqual(doorRoute(DOORS, P2_DOOR, MEET_CAM).waypoints, [[54, 1.7, 139], [66, 1.7, 139], [70, 1.7, 86], [70, 1.7, 74], MEET_CAM]);
+  // A point in no place (in a corridor) starts from the place nearest it.
+  assert.equal(doorRoute(DOORS, [60, 1.7, 40], MEET_CAM).error, null);
+  assert.match(doorRoute({ places: DOORS.places, doors: [] }, P2_DOOR, MEET_CAM).error, /no doors lead from plot:p2 to zone:commons/);
 });
 
+// The walker's route into the meeting must never pass for the walk: no leg of
+// it may run along the line. Both doors' routes to the meeting line are clear;
+// a route along the line is not.
+test("routes: the walker's way to the meeting line never runs along it", () => {
+  for (const door of [P1_SPAWN, P2_DOOR]) {
+    const r = doorRoute(DOORS, door, MEET_LINE.start);
+    assert.ok(routeClear([door, ...r.waypoints], MEET_LINE), `the route from ${door} is clear of the line`);
+  }
+  assert.equal(routeClear([[70, 1.7, 70], [75, 1.7, 70], MEET_LINE.start], MEET_LINE), false, "a leg back along the line is not clear");
+});
+
+// The far places, from the report: each shared zone's corners a metre in; the
+// one farthest from each door is more than 100 m away (what the step out and
+// back, Respawn and the build editor legs need).
+test("routes: the far places are the shared zones' corners, the farthest past the 100 m rule", () => {
+  const far = farPlaces(DOORS);
+  assert.equal(far.length, 8, "four corners of the Commons and of First Street");
+  assert.deepEqual(far[0], [66, 1.7, 21]);
+  assert.deepEqual(farthestFrom(far, P1_SPAWN), [74, 1.7, 194]);
+  assert.deepEqual(farthestFrom(far, P2_DOOR), [98, 1.7, 21]);
+  for (const door of [P1_SPAWN, P2_DOOR]) {
+    const f = farthestFrom(far, door);
+    assert.ok(Math.hypot(f[0] - door[0], f[2] - door[2]) > 100, `the farthest place from ${door} is past the relay's 100 m rule`);
+  }
+});
+
+// The meeting itself, beyond the walk (judgeCopresence and the pictures judge
+// that). A run that met: the game moved in short steps from p1's door into the
+// Commons, held there by the relay; the walker drawn out of p2's corridor, along
+// First Street and into the Commons; the walker saw the game where it stands.
+const COMMONS_BOX = DOORS.places[0];
+const P2_TUBE = { min: DOORS.doors[2].tube[0], max: DOORS.doors[2].tube[1] };
+const MEET_OK = {
+  commons: COMMONS_BOX,
+  gameFrom: P1_SPAWN,
+  gameSteps: [[54, 1.7, 40], [66, 1.7, 40], MEET_CAM, MEET_CAM],
+  gameCamera: MEET_CAM,
+  gameHeld: [76, 1.7, 64.02],
+  walkerTube: P2_TUBE,
+  walkerDrawn: [P2_DOOR, [54, 1.7, 139], [60, 1.7, 139], [66, 1.7, 139], [70, 1.7, 100], [70, 1.7, 80], [70, 1.7, 74], [72, 1.7, 70]],
+  walkerSawGame: [MEET_CAM],
+};
+test("meet: a meeting in the Commons passes", () => {
+  const r = judgeMeet(MEET_OK);
+  assert.ok(r.pass, explain(r));
+  assert.deepEqual(r.checks.map((c) => c.id), [
+    "meet_game_steps_the_relay_accepts",
+    "meet_game_in_commons",
+    "meet_relay_holds_game_there",
+    "meet_walker_through_its_corridor",
+    "meet_walker_into_commons",
+    "meet_walker_sees_game",
+  ]);
+});
+
+// What must fail, one broken thing at a time. Seen red 2026-10-04 with judgeMeet
+// passing anything: "one 130 m jump from the end of First Street should fail
+// meet_game_steps_the_relay_accepts; failed: nothing".
+test("meet: each broken meeting FAILS its own check", () => {
+  for (const [what, bad, id] of [
+    ["one 130 m jump from the end of First Street", { gameSteps: [MEET_CAM], gameFrom: [70, 1.7, 194] }, "meet_game_steps_the_relay_accepts"],
+    ["the game left in First Street", { gameCamera: [70, 1.7, 120], gameHeld: [70, 1.7, 120], walkerSawGame: [[70, 1.7, 120]] }, "meet_game_in_commons"],
+    ["the relay refused the last move", { gameHeld: [66, 1.7, 40] }, "meet_relay_holds_game_there"],
+    ["the walker drawn walking through the wall, never in its corridor", { walkerDrawn: [P2_DOOR, [60, 1.7, 120], [70, 1.7, 74], [72, 1.7, 70]] }, "meet_walker_through_its_corridor"],
+    ["the walker never drawn in the Commons", { walkerDrawn: MEET_OK.walkerDrawn.slice(0, 5) }, "meet_walker_into_commons"],
+    ["the walker never saw the game", { walkerSawGame: [] }, "meet_walker_sees_game"],
+    ["the walker saw the game somewhere else", { walkerSawGame: [P1_SPAWN] }, "meet_walker_sees_game"],
+  ]) {
+    const r = judgeMeet({ ...MEET_OK, ...bad });
+    const failed = r.checks.filter((c) => !c.ok).map((c) => c.id);
+    assert.ok(failed.includes(id), `${what} should fail ${id}; failed: ${failed.join(", ") || "nothing"}`);
+  }
+  assert.equal(judgeMeet(null).pass, false, "a meeting nobody recorded fails");
+});
+
+// The second boot against the same relay (the remembered plot): the home built
+// on the held plot before joining, the welcome a Stay. Seen red 2026-10-04 with
+// judgeReboot passing anything: the 1b game's case failed nothing (expected
+// reboot_built_on_its_plot and reboot_welcome_confirms).
+test("reboot: a home built on its remembered plot, confirmed by a Stay, passes; the default plot FAILS", () => {
+  const P2 = { id: "p2", origin: [0, 0, 99], size: [55, 3, 89] };
+  const ok = { heldPlot: "p2", defaultPlot: "p1", bootPlot: "p2", lastWelcome: "stay", camera: P2_DOOR, plot: P2 };
+  const r = judgeReboot(ok);
+  assert.ok(r.pass, explain(r));
+  // The 1b game: built on the default plot, moved by the welcome.
+  const old = judgeReboot({ ...ok, bootPlot: "p1", lastWelcome: "move" });
+  assert.deepEqual(old.checks.filter((c) => !c.ok).map((c) => c.id), ["reboot_built_on_its_plot", "reboot_welcome_confirms"]);
+  // Holding the default plot, the run cannot tell, and says so.
+  assert.match(judgeReboot({ ...ok, heldPlot: "p1", bootPlot: "p1", plot: { ...P2, id: "p1", origin: [0, 0, 0] }, camera: P1_SPAWN }).checks[0].detail, /cannot tell a remembered plot from the default/);
+  assert.equal(judgeReboot(null).pass, false, "a reboot nobody recorded fails");
+});
 // How the game came into the world (round 4 of the 1b review, finding 1): a
 // returning player's game identifies on the main menu and only then is Enter
 // World pressed, so the join gate runs before the world loads. A menu-entry

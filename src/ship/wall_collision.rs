@@ -146,6 +146,12 @@ fn ship_segments_impl(ship: &crate::ship::ship_structure::ShipStructure, sight: 
     use crate::ship::ship_structure::{CorridorAxis, CORRIDOR_WALL_THICKNESS};
     let mut segs = Vec::new();
     for (zi, zone) in ship.zones.iter().enumerate() {
+        // A home put away stops nobody (ship homes increment 2, `ShipStructure::put_home_away`):
+        // collision tests x and z only, so its walls would stand in the ship's own footprint.
+        // A neighbour's home is not a zone at all, so it never reaches here (render only).
+        if ship.is_away_home(zi) {
+            continue;
+        }
         let (ox, oz) = (zone.origin.0, zone.origin.2);
         let cuts = ship.shell_cuts_for_zone(zi);
         segs.extend(segments_impl(&zone.body, &cuts, sight).into_iter().map(|s| WallSegment {

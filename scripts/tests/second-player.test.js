@@ -218,7 +218,9 @@ test("with a plot of its own the walk starts at its own spawn; a guest walks rou
   // --center given: as asked.
   assert.deepEqual(sp.chooseCenter({ center: [1, 2, 3], path: "line", axis: "x", radius: 4 }, welcome(p2)).center, [1, 2, 3]);
 
-  // The one log line the rig reads.
+  // The log lines the rig reads: the plot, and who was already there (increment 2: a player
+  // standing still sends no updates, so this is how the walker sees them).
+  assert.deepEqual(sp.presentLines(welcome(p2)), ['player present: entity 4 "Other" at (53.50, 1.70, 40.50)']);
   assert.equal(sp.homePlotLine(welcome(p2)), `home_plot ${JSON.stringify(p2)}`);
   assert.match(sp.homePlotLine(welcome(null)), /^home_plot null /);
   assert.match(sp.homePlotLine({ type: "game_welcome" }), /^home_plot missing /);
@@ -287,4 +289,75 @@ test("other players' joins and moves are logged for the rig, never our own, neve
     "saw entity 4 at (53.50, 1.70, 41.50)",
     "player left: entity 4",
   ]);
+});
+
+// Ship homes increment 2, "Meet in the Commons": the walker walks from its own
+// door, through its corridor, into the Commons, along a route the rig reads off
+// the game's door points (`--route`), at a pace of its own (`--route-speed`),
+// and then its path. Seen red 2026-10-04 with makeWalk ignoring plan.route (the
+// 1b walker, which went straight to the path in about 4 s): "a step of the
+// route is the route's pace: 0.580 m in 1/15 s".
+test("a route is walked point by point, at its own pace, then the path", () => {
+  // p1's door, its corridor's two steps, the Commons; then a line along x.
+  const route = [[54, 1.7, 40], [66, 1.7, 40], [67, 1.7, 64]];
+  const plan = { path: "line", axis: "x", center: [76, 1.7, 70], radius: 4, speed: 1.4, route, routeSpeed: 3 };
+  const door = [53.5, 1.7, 40.5];
+  const walk = sp.makeWalk(plan, door, 0);
+  assert.equal(walk.onPath(), false, "a route is walked before the path, even from its first point");
+  const want = [...route, sp.pathPoint(plan, 0)];
+  const lenOf = (pts) => pts.slice(1).reduce((a, p, i) => a + dist(p, pts[i]), 0);
+  const track = [door];
+  let now = 0;
+  let reached = null;
+  for (let i = 0; i < 2000 && reached === null; i++) {
+    now += 1 / 15;
+    const { msg, reachedPath } = walk.next(now);
+    const step = dist(msg.position, track[track.length - 1]);
+    assert.ok(step <= 3 / 15 + 1e-9, `a step of the route is the route's pace: ${step.toFixed(3)} m in 1/15 s`);
+    track.push(msg.position);
+    if (reachedPath) reached = now;
+  }
+  assert.ok(reached !== null && walk.onPath(), "it reaches the path");
+  // Through every point of the route, in order: a step that reaches a point walks on past it,
+  // so the walk is drawn within one step (0.2 m at 3 m/s and 15 updates a second) of each.
+  let from = 0;
+  want.forEach((p, k) => {
+    let best = Infinity;
+    let at = -1;
+    for (let i = from; i < track.length; i++) {
+      const d = dist(track[i], p);
+      if (d < best) [best, at] = [d, i];
+    }
+    assert.ok(best <= 3 / 15 + 1e-9, `the walk passes through the route's point ${k + 1} of ${want.length} (${best.toFixed(2)} m away at the closest)`);
+    from = at;
+  });
+  assert.ok(Math.abs(walk.approachM - lenOf([door, ...want])) < 1e-9, `the approach is the route's length (${walk.approachM})`);
+  // At the route's pace: its length over 3 m/s, to a step.
+  assert.ok(Math.abs(reached - walk.approachM / 3) < 1 / 15 + 1e-9, `the route took ${reached.toFixed(2)} s for ${walk.approachM.toFixed(1)} m at 3 m/s`);
+  // Then the path, at the walking pace.
+  const a = walk.next(now + 1 / 15).msg.position;
+  const b = walk.next(now + 2 / 15).msg.position;
+  assert.ok(Math.abs(dist(a, b) - 1.4 / 15) < 1e-9, "the path is walked at the walking speed");
+  // And a route after a long pause still never steps 90 m.
+  const paused = sp.makeWalk({ ...plan, routeSpeed: 50 }, door, 0);
+  const s1 = paused.next(60).msg.position;
+  assert.ok(dist(s1, door) <= sp.MAX_STEP_M + 1e-9, `after a pause the step along the route is ${dist(s1, door).toFixed(1)} m`);
+});
+
+// The walker names its door like a desktop player with that home, so the relay
+// spawns it there (increment 2), and the new options read cleanly or refuse.
+test("--route, --route-speed and --home-spawn, and the door named in the join", () => {
+  const ship = { id: "mothership-1", hash: "0123456789abcdef" };
+  const join = sp.joinMessage("TestBotWalker", {}, ship, [53.5, 40.5]);
+  assert.deepEqual(join.home_spawn, [53.5, 40.5], "the join names our door");
+  assert.equal(sp.joinMessage("TestBotWalker", {}, null, [53.5, 40.5]).home_spawn, undefined, "a guest's join names no door");
+  const o = sp.parseOptions(["--route", "54,1.7,40; 66,1.7,40", "--route-speed", "3", "--home-spawn", "53.5,40.5"]);
+  assert.deepEqual(o.route, [[54, 1.7, 40], [66, 1.7, 40]]);
+  assert.equal(o.routeSpeed, 3);
+  assert.deepEqual(o.homeSpawn, [53.5, 40.5]);
+  const plain = sp.parseOptions([]);
+  assert.deepEqual([plain.route, plain.routeSpeed, plain.homeSpawn], [[], null, null], "none given: no route, no door");
+  assert.throws(() => sp.parseOptions(["--route", "1,2"]), /--route must be points/);
+  assert.throws(() => sp.parseOptions(["--home-spawn", "1"]), /--home-spawn must be two numbers/);
+  assert.throws(() => sp.parseOptions(["--route-speed", "0"]), /--route-speed must be/);
 });

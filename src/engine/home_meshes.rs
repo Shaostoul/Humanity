@@ -2117,12 +2117,15 @@ pub(crate) fn home_lights(
     gi_on: bool,
 ) -> Vec<crate::renderer::light::RoomLight> {
     use crate::renderer::light::{LightKind, RoomLight};
-    // v0.754: EVERY zone's placed lights, each offset by its zone's world origin.
+    // v0.754: EVERY zone's placed lights, each offset by its zone's world origin; none of a home
+    // put away (ship homes increment 2, `ShipStructure::put_home_away`): it lights nothing aboard.
     let placed: Vec<RoomLight> = ship
         .map(|s| {
             s.zones
                 .iter()
-                .flat_map(|z| {
+                .enumerate()
+                .filter(|(zi, _)| !s.is_away_home(*zi))
+                .flat_map(|(_, z)| {
                     let o = z.origin_vec();
                     z.body.lights.iter().filter(|l| l.on).filter_map(move |l| {
                         let t = crate::renderer::light::light_type(&l.type_id)?;

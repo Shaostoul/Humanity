@@ -914,14 +914,15 @@ impl HomeStructure {
         }
 
         // ZONE INTERIOR POPULATION (v0.638, superstructure M2c -- the operator's "so the mothership
-        // looks filled out"): tile cheap placeholder content across each zone's footprint. Residential
-        // zones get CLONES of the player's home shell (walls/structures only, never its zones/rail/
-        // road -- a clone-of-a-clone-of-a-mothership would be nonsense); every other zone type gets a
-        // generic box filler from `zone_filler.ron`, tinted by the zone type's own colour so each
-        // district reads as visually distinct. Both paths merge into `material_walls` (grouped by
-        // colour) so this scales the SAME way roads/rails/structures already do: one big CPU-merged
-        // vertex/index buffer per distinct colour, one draw call per group, however many instances tile
-        // in -- not one mesh per instance. See generate_zone_filler for the grouping.
+        // looks filled out"): every zone type but residential gets a generic box filler from
+        // `zone_filler.ron`, tinted by the zone type's own colour so each district reads as visually
+        // distinct, merged into `material_walls` (grouped by colour) so this scales the SAME way
+        // roads/rails/structures already do: one big CPU-merged vertex/index buffer per distinct
+        // colour, one draw call per group, however many instances tile in -- not one mesh per
+        // instance. A RESIDENTIAL zone draws nothing: the homes of a residential area are the ship's
+        // plots, each drawn as its holder's home or a neighbour's (increment 2 of
+        // docs/design/ship-homes-and-logistics.md, src/ship/neighbours.rs), which replaced the v0.638
+        // tiling of clones of the player's own home. See generate_zone_filler for the grouping.
         let mut zcolor: std::collections::HashMap<[i32; 3], (Vec<Vertex>, Vec<u32>, [f32; 3])> =
             std::collections::HashMap::new();
         for z in &self.zones {
@@ -947,21 +948,17 @@ impl HomeStructure {
     }
 
     /// Populate ONE zone's interior into `out` (keyed + merged by quantized rgb, same pattern as the
-    /// structures/roads groupings above) -- either home clones (residential) or the generic box filler
-    /// (every other type). Called once per zone from `generate_meshes`. (v0.638)
+    /// structures/roads groupings above): the generic box filler for every type but residential,
+    /// which draws nothing (its homes are the ship's plots). Called once per zone from
+    /// `generate_meshes`. (v0.638; residential since increment 2)
     fn generate_zone_filler(
         &self,
         z: &Zone,
         out: &mut std::collections::HashMap<[i32; 3], (Vec<Vertex>, Vec<u32>, [f32; 3])>,
     ) {
-        let (ox, oy, oz) = z.origin;
         let (zw, _zh, zd) = z.size;
-        if zw < 1.0 || zd < 1.0 {
-            return; // degenerate zone, nothing fits
-        }
-        if z.type_id == "residential" {
-            self.tile_home_clones(ox, oy, oz, zw, zd, out);
-            return;
+        if zw < 1.0 || zd < 1.0 || z.type_id == "residential" {
+            return; // degenerate zone, nothing fits; or homes, which are plots
         }
         box_filler_into(z, out);
     }
@@ -969,10 +966,10 @@ impl HomeStructure {
     /// The mothership's DISTRICTS, drawn at ship level (increment 1a of
     /// docs/design/ship-homes-and-logistics.md moved them out of the home body): each
     /// non-residential district's zone_filler.ron contents, grouped by colour exactly as a
-    /// body's room fillers are. RESIDENTIAL DISTRICTS DRAW NOTHING: tiling clones of the home
-    /// across res-1 put copies on top of the Commons, and increment 2 replaces the clones with
-    /// one default-design shell per real plot. (A residential zone inside a home BODY still
-    /// tiles clones through `generate_zone_filler`; none is authored.)
+    /// body's room fillers are. RESIDENTIAL DISTRICTS DRAW NOTHING: their homes are the ship's
+    /// plots, each drawn as its holder's home or a neighbour's (increment 2,
+    /// src/ship/neighbours.rs; the v0.638 clone tiling it replaced put copies on top of the
+    /// Commons).
     pub fn district_fillers(districts: &[Zone]) -> Vec<(Vec<Vertex>, Vec<u32>, [f32; 4])> {
         let mut groups: std::collections::HashMap<[i32; 3], (Vec<Vertex>, Vec<u32>, [f32; 3])> =
             std::collections::HashMap::new();
@@ -1031,209 +1028,64 @@ fn box_filler_into(
 }
 
 impl HomeStructure {
-    /// Tile CLONES of the player's home shell (walls + structures ONLY -- never its zones/rail/road
-    /// graphs, a clone-of-a-mothership would be nonsense) across a residential zone's footprint, as many
-    /// copies as fit given the home's own width/depth. This is explicitly PLACEHOLDER population (the
-    /// operator: "for now we could just clone the home we're building to all the other home slots...
-    /// eventually we'll have more home designs so they're not all one type") -- swap point is
-    /// `home_design_roster()` below; today it returns exactly one design (`self`'s own shell), so every
-    /// slot clones the same layout, but the tiling loop already picks a design PER SLOT from the roster
-    /// so adding more designs later is a one-line change here, no struct/shape change. (v0.638)
-    fn tile_home_clones(
-        &self,
-        ox: f32,
-        oy: f32,
-        oz: f32,
-        zw: f32,
-        zd: f32,
-        out: &mut std::collections::HashMap<[i32; 3], (Vec<Vertex>, Vec<u32>, [f32; 3])>,
-    ) {
-        let roster = self.home_design_roster();
-        if roster.is_empty() {
-            return;
-        }
-        const GAP: f32 = 2.0; // clearance between adjacent home footprints (a walking margin)
-        // Use the FIRST design's footprint to lay out the grid (a mixed-footprint roster is a later
-        // refinement; today there is exactly one design, so this is exact).
-        let (dw, dd) = (roster[0].width.max(1.0), roster[0].depth.max(1.0));
-        let step_x = dw + GAP;
-        let step_z = dd + GAP;
-        let nx = (zw / step_x).floor() as u32;
-        let nz = (zd / step_z).floor() as u32;
-        if nx == 0 || nz == 0 {
-            return; // the zone is smaller than one home footprint -- nothing fits
-        }
-        // Generate each design's LOCAL-SPACE geometry once (mitering/room-detection is real work; a
-        // mothership can tile hundreds of slots, so this must not re-run per slot) and cache it,
-        // grouped by colour, before stamping it into every slot below via cheap vertex translation.
-        let baked: Vec<Vec<(Vec<Vertex>, Vec<u32>, [f32; 3])>> =
-            roster.iter().map(|d| d.bake_local_groups()).collect();
-        let mut slot = 0usize;
-        for iz in 0..nz {
-            for ix in 0..nx {
-                let groups = &baked[slot % baked.len()];
-                slot += 1;
-                let (cx, cz) = (ox + ix as f32 * step_x, oz + iz as f32 * step_z);
-                for (verts, indices, color) in groups {
-                    let key = [(color[0] * 64.0) as i32, (color[1] * 64.0) as i32, (color[2] * 64.0) as i32];
-                    let g = out.entry(key).or_insert_with(|| (Vec::new(), Vec::new(), *color));
-                    let base = g.0.len() as u32;
-                    g.0.extend(verts.iter().map(|v| Vertex {
-                        position: [v.position[0] + cx, v.position[1] + oy, v.position[2] + cz],
-                        normal: v.normal,
-                        uv: v.uv,
-                    }));
-                    g.1.extend(indices.iter().map(|i| i + base));
-                }
-            }
-        }
-        // CONNECT the tiled slots (v0.639, the operator's "there's no real structure to it... we need
-        // some way of laying out multiple homesteads... adding the corridors, elevators, stairs, ramps
-        // between all of them"). Bake ONE connector segment ONCE (same discipline as the home clones
-        // above -- a mothership can tile hundreds of slot-pairs, so per-pair regeneration is a non-
-        // starter) then translate + (for the vertical direction) axis-swap it into the gap between
-        // every horizontally and vertically adjacent slot pair. Single-level today: `tile_home_clones`
-        // only ever lays slots out on ONE y-plane (`oy`), so every corridor is a flat, walkable
-        // ground-level link; stacking clones onto multiple Y-levels (and connecting those with
-        // elevators/stairs) is out of scope for this pass -- see the doc comment on
-        // `bake_corridor_segment` for why.
-        // Only bake + insert a colour bucket for the connectors when there is at LEAST one adjacent
-        // pair to bridge -- a 1x1 grid (one clone, no neighbour) must add NOTHING, not an empty bucket.
-        if nx > 1 || nz > 1 {
-            if let Some((cverts, cindices, ccolor)) = Self::bake_corridor_segment(GAP) {
-                let key = [(ccolor[0] * 64.0) as i32, (ccolor[1] * 64.0) as i32, (ccolor[2] * 64.0) as i32];
-                let mut local: (Vec<Vertex>, Vec<u32>) = (Vec::new(), Vec::new());
-                // Stamp the baked segment at `(cx, cz)`, running along `along` ((1,0) = +X, (0,1) =
-                // +Z); the bake is authored running along +X from local x=0..GAP, so a +Z run swaps
-                // x<->z. Accumulates into a LOCAL buffer first so a grid with no actual adjacent pair
-                // (shouldn't happen once nx>1||nz>1, but keeps the invariant honest) still adds nothing.
-                let mut stamp = |cx: f32, cz: f32, along_z: bool| {
-                    let base = local.0.len() as u32;
-                    local.0.extend(cverts.iter().map(|v| {
-                        let (lx, lz) = if along_z { (v.position[2], v.position[0]) } else { (v.position[0], v.position[2]) };
-                        let (nx_, nz_) = if along_z { (v.normal[2], v.normal[0]) } else { (v.normal[0], v.normal[2]) };
-                        Vertex { position: [lx + cx, v.position[1] + oy, lz + cz], normal: [nx_, v.normal[1], nz_], uv: v.uv }
-                    }));
-                    local.1.extend(cindices.iter().map(|i| i + base));
-                };
-                for iz in 0..nz {
-                    for ix in 0..nx {
-                        let (sx, sz) = (ox + ix as f32 * step_x, oz + iz as f32 * step_z);
-                        // Link to the NEXT slot to the east: the gap runs from this slot's east edge
-                        // (sx + dw) to the next slot's west edge (sx + step_x), centred in z on this row.
-                        if ix + 1 < nx {
-                            stamp(sx + dw, sz + dd * 0.5, false);
-                        }
-                        // Link to the NEXT slot to the south: the gap runs from this slot's south edge
-                        // (sz + dd) to the next slot's north edge (sz + step_z), centred in x on this
-                        // column.
-                        if iz + 1 < nz {
-                            stamp(sx + dw * 0.5, sz + dd, true);
-                        }
-                    }
-                }
-                if !local.0.is_empty() {
-                    let g = out.entry(key).or_insert_with(|| (Vec::new(), Vec::new(), ccolor));
-                    let base = g.0.len() as u32;
-                    g.0.extend(local.0);
-                    g.1.extend(local.1.into_iter().map(|i| i + base));
-                }
-            }
-        }
-    }
-
-    /// Bake ONE corridor connector's LOCAL-space geometry (v0.639): a floor ribbon (the corridor's
-    /// road-class top layer, reusing the SAME `wall_box` ribbon primitive the road graph renders with)
-    /// running along +X from local x=0 to x=`span`, centred on z=0 at its configured width, flanked by
-    /// two low kerb rails, capped at each end by a landing-pad deck the same width as the corridor. This
-    /// runs ONCE per `tile_home_clones` call (not once per slot-pair) -- `tile_home_clones` translates
-    /// + axis-swaps the single baked result into every gap, mirroring how it already bakes each home
-    /// design's mesh once. Returns None if `corridor_types.ron` has no entries (an honest no-op, not a
-    /// guessed default) or `span` is degenerate.
+    /// Bake this home's SHELL into local-space (min corner at the origin) per-colour groups: its
+    /// outer box and interior walls, its placed structures, its floors, its ceiling and its trim,
+    /// with `cuts` opened through the perimeter (a neighbour's door, increment 2). What a
+    /// NEIGHBOUR's home is drawn as (src/ship/neighbours.rs): render only, so the home's zones,
+    /// lights, road and rail graphs and spawn are left out, and so are its machines, which are not
+    /// part of the body at all. Glass is dropped (an opaque roof reads better from outside and
+    /// skips the transparent pass's sort), windows and mirrors with it.
     ///
-    /// SCOPE NOTE (single-level v1): `tile_home_clones` lays every slot on one Y-plane, so every
-    /// corridor here is a flat ground-level link -- there is no vertical connector (elevator/stairs)
-    /// between STOREYS of clones because the tiling grid itself does not yet stack slots on multiple
-    /// Y-levels. Extending the grid to tile upward (and bridging levels with the existing elevator/
-    /// stairs `structure_types.ron` pieces, the same reuse-first approach used here) is a clean follow-
-    /// up once the operator wants multi-storey residential districts; it is a bigger scope change to
-    /// the tiling grid itself, not a small addition to this bake, so it is deliberately deferred rather
-    /// than half-built here.
-    fn bake_corridor_segment(span: f32) -> Option<(Vec<Vertex>, Vec<u32>, [f32; 3])> {
-        let ct = crate::ship::structure::default_corridor_type()?;
-        if span < 0.2 {
-            return None; // no meaningful gap to bridge
-        }
-        let width = ct.width.max(0.5);
-        // NOTE: the whole segment (ribbon + rails + pads) bakes as ONE colour bucket, taken only from
-        // the road class's top layer, matching the single-colour-per-mesh-group pattern used elsewhere
-        // in this file. `ct.wall_material` (e.g. Aluminum kerb rails) is validated to exist by
-        // corridor_types_parse_and_resolve_their_references but is NOT applied to the rail geometry,
-        // a documented simplification (flagged in review, 2026-07-01), not a bug: a future per-part
-        // colour would need `merge` to carry a colour tag instead of always inheriting the caller's.
-        let (col, slab) = match crate::ship::structure::road_type(&ct.road_class) {
-            Some(rt) => {
-                let top = rt.layers.first().map(|l| l.material).unwrap_or(2);
-                let total: f32 = rt.layers.iter().map(|l| l.thickness_m.max(0.0)).sum();
-                (Self::material_color(top), total.clamp(0.04, 0.2))
-            }
-            None => ([0.25, 0.25, 0.27, 1.0], 0.1),
-        };
-        let mut acc: (Vec<Vertex>, Vec<u32>) = (Vec::new(), Vec::new());
-        // Floor ribbon: the same wall_box-as-ribbon primitive the road graph already renders with.
-        merge(&mut acc, wall_box(Vec3::new(0.0, 0.0, 0.0), Vec3::new(span, 0.0, 0.0), 0.0, slab, width));
-        // Two kerb rails along the ribbon's edges, clear of the walking surface.
-        let rail_t = 0.1_f32;
-        let half = width * 0.5;
-        for side in [1.0f32, -1.0] {
-            // `off` is a LATERAL (Z) offset, not vertical -- wall_box derives its run direction from
-            // the X/Z components of start/end and overwrites Y with its own `y_base` param, so putting
-            // `off` in the Y slot (as this originally shipped) silently discarded it: both rails baked
-            // onto the exact same Z band at the ribbon's centerline instead of flanking its edges
-            // (caught in review, 2026-07-01, verified empirically before this fix). Z is correct here.
-            let off = (half - rail_t * 0.5) * side;
-            merge(
-                &mut acc,
-                wall_box(Vec3::new(0.0, 0.0, off), Vec3::new(span, 0.0, off), slab, ct.wall_height.max(0.05), rail_t),
-            );
-        }
-        // A landing pad at each end, matching the corridor's width, so the ribbon reads as butting
-        // cleanly against each home's entrance rather than stopping mid-air at the gap's edge.
-        if let Some(deck) = crate::ship::structure::structure_type(&ct.deck_type) {
-            let pad_depth = width.min(deck.size.2.max(0.5));
-            for end_x in [0.0f32, span] {
-                let (mut v, i) = crate::ship::structure::structure_mesh(
-                    &crate::ship::structure::StructureType { size: (width, deck.size.1, pad_depth), ..deck.clone() },
-                    Vec3::new(end_x, 0.0, 0.0),
-                    0.0,
-                );
-                let base = acc.0.len() as u32;
-                acc.0.append(&mut v);
-                acc.1.extend(i.into_iter().map(|k| k + base));
-            }
-        }
-        if acc.0.is_empty() {
-            return None;
-        }
-        Some((acc.0, acc.1, [col[0], col[1], col[2]]))
-    }
-
-    /// The swappable roster of clonable home shells (v0.638). Every entry is the WALLS + STRUCTURES
-    /// subset of a `HomeStructure` (never its zones/rail/road graphs -- those are mothership-scale, not
-    /// per-home). Today this always returns exactly one design: a snapshot of `self` (the live home the
-    /// player is building), so every residential slot clones the SAME layout, per the operator's
-    /// "for now... clone the home we're building." When more designs exist (a future
-    /// `data/blueprints/home_designs/*.ron` catalog), extend this to load + return all of them; the
-    /// tiling loop in `tile_home_clones` already round-robins across whatever this returns.
-    fn home_design_roster(&self) -> Vec<ClonableHomeDesign> {
-        vec![ClonableHomeDesign {
+    /// It replaces the v0.638 home-clone tiling (`tile_home_clones`, which stamped the player's own
+    /// home into every slot of a residential district and laid walkway connectors between the
+    /// slots), and keeps that bake's BUG-045 fix: floors, the ceiling and the trim are part of the
+    /// shell, not only the walls (operator, 2026-07-01: "floors for the mirrored homes aren't
+    /// rendering").
+    pub fn bake_shell_groups(&self, cuts: &[ShellCut]) -> Vec<(Vec<Vertex>, Vec<u32>, [f32; 3])> {
+        let stub = HomeStructure {
             width: self.width,
             depth: self.depth,
             height: self.height,
             shell_material: self.shell_material,
+            roof_material: self.shell_material,
             walls: self.walls.clone(),
+            shell_thickness: self.shell_thickness,
+            lights: Vec::new(),
+            spawn: None,
             structures: self.structures.clone(),
-        }]
+            road_nodes: Vec::new(),
+            road_edges: Vec::new(),
+            zones: Vec::new(),
+            rail_nodes: Vec::new(),
+            rail_edges: Vec::new(),
+        };
+        let meshes = stub.generate_meshes_with_shell_cuts(cuts);
+        let mut groups: Vec<(Vec<Vertex>, Vec<u32>, [f32; 3])> = meshes
+            .material_walls
+            .into_iter()
+            .filter(|(_, _, color)| color[3] >= 0.999)
+            .map(|(v, i, c)| (v, i, [c[0], c[1], c[2]]))
+            .collect();
+        // Floors: per room (vertices, indices, rgba, material_type). The alpha and the material
+        // type are dropped: a shell is drawn as flat colour buckets with no per-group material slot.
+        groups.extend(
+            meshes
+                .floors
+                .into_iter()
+                .filter(|(_, _, color, _)| color[3] >= 0.999)
+                .map(|(v, i, c, _material_type)| (v, i, [c[0], c[1], c[2]])),
+        );
+        // The ceiling, always the OPAQUE roof colour (src/lib.rs's non-glass ceiling material).
+        if !meshes.ceilings.0.is_empty() {
+            const OPAQUE_CEILING_RGB: [f32; 3] = [0.60, 0.62, 0.68];
+            groups.push((meshes.ceilings.0, meshes.ceilings.1, OPAQUE_CEILING_RGB));
+        }
+        // Trim (baseboard, crown, frame): opaque wood brown, src/lib.rs's trim material.
+        if !meshes.trim.0.is_empty() {
+            const TRIM_RGB: [f32; 3] = [0.42, 0.30, 0.18];
+            groups.push((meshes.trim.0, meshes.trim.1, TRIM_RGB));
+        }
+        groups
     }
 
     /// A fresh road-node id (max existing + 1, or 1). (v0.586)
@@ -1655,97 +1507,6 @@ fn needs_underside(parts: &[[f32; 6]], i: usize) -> bool {
     })
 }
 
-/// The clonable subset of a `HomeStructure` (v0.638): just its shell box + interior walls + placed
-/// structures -- deliberately NOT its zones/rail/road graphs (those describe the MOTHERSHIP the home
-/// sits inside, cloning them into a residential slot would nest a mothership inside a mothership). One
-/// entry in the swappable `home_design_roster`; today the roster always holds exactly one (the live
-/// home), so `tile_home_clones` stamps the same design into every slot -- the operator's explicit
-/// placeholder ("clone the home we're building... eventually we'll have more home designs").
-struct ClonableHomeDesign {
-    width: f32,
-    depth: f32,
-    height: f32,
-    shell_material: u32,
-    walls: Vec<InteriorWall>,
-    structures: Vec<PlacedStructure>,
-}
-
-impl ClonableHomeDesign {
-    /// Bake this design's shell + interior walls + structures into LOCAL-SPACE (min corner at the
-    /// origin) per-colour groups, computed ONCE per design regardless of how many mothership slots clone
-    /// it (mitering + room-detection is real work; `tile_home_clones` calls this once then translates
-    /// the baked vertices per slot, so a hundred cloned homes cost ~one home's mesh-gen, not a hundred).
-    /// Builds a throwaway `HomeStructure` for just this design (no zones/rail/road -- a clone-of-a-
-    /// mothership would be nonsense) and reuses its own `generate_meshes` grouping. Glass/transparent
-    /// groups are dropped (an opaque roof reads better en masse + skips the transparent-pass sort cost
-    /// once tiled hundreds of times; the player's OWN home keeps its real glass roof, this only affects
-    /// the cloned filler copies).
-    ///
-    /// BUG FIX (2026-07-01, operator: "floors for the mirrored homes aren't rendering and some of the
-    /// other stuff"): this used to return ONLY `material_walls`, silently dropping floors, ceilings, and
-    /// trim for every cloned/tiled home -- despite this very doc comment already describing the intent
-    /// ("an opaque roof reads better en masse"), the ceiling (and floor, and trim) extraction was simply
-    /// never written. All cloned-home geometry already collapses into the mothership's shared
-    /// `material_walls` bucket regardless of category (see `generate_zone_filler`'s doc comment: "Both
-    /// paths merge into material_walls... so this scales the SAME way roads/rails/structures already
-    /// do"), so folding floors/ceilings/trim into this same flat colour-bucketed output is consistent
-    /// with how the rest of the zone-filler system already works, not a new pattern. Windows and mirrors
-    /// remain excluded: windows are semi-transparent (would need a colour bucket that preserves alpha,
-    /// which this flat-RGB scheme does not) and mirrors are a portal-like accent detail rather than
-    /// structural -- both are a reasonable follow-up if cloned homes need them, not required for "the
-    /// floor is visibly missing."
-    fn bake_local_groups(&self) -> Vec<(Vec<Vertex>, Vec<u32>, [f32; 3])> {
-        let stub = HomeStructure {
-            width: self.width,
-            depth: self.depth,
-            height: self.height,
-            shell_material: self.shell_material,
-            roof_material: self.shell_material,
-            walls: self.walls.clone(),
-            shell_thickness: None,
-            lights: Vec::new(),
-            spawn: None,
-            structures: self.structures.clone(),
-            road_nodes: Vec::new(),
-            road_edges: Vec::new(),
-            zones: Vec::new(),
-            rail_nodes: Vec::new(),
-            rail_edges: Vec::new(),
-        };
-        let meshes = stub.generate_meshes();
-        let mut groups: Vec<(Vec<Vertex>, Vec<u32>, [f32; 3])> = meshes
-            .material_walls
-            .into_iter()
-            .filter(|(_, _, color)| color[3] >= 0.999)
-            .map(|(v, i, c)| (v, i, [c[0], c[1], c[2]]))
-            .collect();
-        // Floors: per-room (vertices, indices, rgba, material_type) -- drop alpha (floors don't carry
-        // glass) and material_type (the cloned-home bucket has no per-group material slot, same
-        // simplification material_walls already accepts here).
-        groups.extend(
-            meshes
-                .floors
-                .into_iter()
-                .filter(|(_, _, color, _)| color[3] >= 0.999)
-                .map(|(v, i, c, _material_type)| (v, i, [c[0], c[1], c[2]])),
-        );
-        // Ceiling: always baked as the OPAQUE roof colour (matches this fn's own doc comment above and
-        // src/lib.rs's non-glass ceiling material) regardless of whether the player's own home currently
-        // has a glass roof -- that per-home glass toggle only makes sense for the one home you're really
-        // standing in, not a filler clone seen from a distance.
-        if !meshes.ceilings.0.is_empty() {
-            const OPAQUE_CEILING_RGB: [f32; 3] = [0.60, 0.62, 0.68];
-            groups.push((meshes.ceilings.0, meshes.ceilings.1, OPAQUE_CEILING_RGB));
-        }
-        // Trim (baseboard/crown/frame): always opaque wood-brown, matches src/lib.rs's trim material.
-        if !meshes.trim.0.is_empty() {
-            const TRIM_RGB: [f32; 3] = [0.42, 0.30, 0.18];
-            groups.push((meshes.trim.0, meshes.trim.1, TRIM_RGB));
-        }
-        groups
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Mitred corners (v0.558): two walls meeting at a shared corner get their END faces cut to the
 // angle bisector so they meet FLUSH (the CAD/architecture standard), instead of two square ends
@@ -2148,15 +1909,15 @@ mod tests {
         assert!(arena.purpose.to_lowercase().contains("pvp") || arena.purpose.to_lowercase().contains("spar"));
     }
 
-    /// v0.638 superstructure M2c: zone interior population. A RESIDENTIAL zone big enough for the home's
-    /// own footprint gets non-empty cloned-home geometry merged into `material_walls`; a zone smaller
-    /// than one home footprint stays empty (no divide-by-zero / no garbage geometry). Every OTHER zone
-    /// type (here: industrial) gets the generic box filler from zone_filler.ron, tinted by its zone
-    /// type's own colour.
+    /// v0.638 superstructure M2c: zone interior population. Every zone type but residential (here:
+    /// industrial) gets the generic box filler from zone_filler.ron, tinted by its zone type's own
+    /// colour. A RESIDENTIAL zone draws nothing since increment 2: the homes of a residential area
+    /// are the ship's plots (src/ship/neighbours.rs), which replaced the v0.638 tiling of clones of
+    /// the player's own home. Seen red 2026-10-04 with the old residential branch put back (it tiled
+    /// clones): "a residential zone draws no home clones: 4 groups (2196 vertices) became 6 (4980)".
     #[test]
     fn zone_filler_populates_interiors() {
-        // A tiny box home (12x12) so a residential zone with a modest size can fit multiple clones,
-        // keeping this test fast.
+        // A tiny box home (12x12): a residential zone of 30 x 30 m would have held four clones.
         let mut hs = HomeStructure {
             width: 12.0,
             depth: 12.0,
@@ -2177,11 +1938,22 @@ mod tests {
         // Baseline: no zones -> generate_meshes still works (existing behavior unchanged).
         let base = hs.generate_meshes();
         let base_material_group_count = base.material_walls.len();
+        let verts = |m: &HomesteadMeshes| m.material_walls.iter().map(|(v, _, _)| v.len()).sum::<usize>();
 
-        // A residential zone with room for a 2x2 grid of 12x12 homes (+2m gap each): needs >= 28x28.
+        // Residential zones, one with room for four 12 x 12 homes and one with room for none: both
+        // draw nothing.
         hs.add_zone("residential", (0.0, 0.0, 0.0), (30.0, 4.0, 30.0));
-        // Too small to fit even one home clone -- must stay a no-op, not panic/garbage.
         hs.add_zone("residential", (100.0, 0.0, 0.0), (5.0, 4.0, 5.0));
+        let homes = hs.generate_meshes();
+        assert_eq!(
+            (homes.material_walls.len(), verts(&homes)),
+            (base_material_group_count, verts(&base)),
+            "a residential zone draws no home clones: {} groups ({} vertices) became {} ({})",
+            base_material_group_count,
+            verts(&base),
+            homes.material_walls.len(),
+            verts(&homes)
+        );
         // An industrial zone big enough for the generic filler (industrial footprint 5x5 + 2m spacing +
         // 2m inset per zone_filler.ron).
         hs.add_zone("industrial", (200.0, 0.0, 0.0), (30.0, 8.0, 30.0));
@@ -2210,22 +1982,16 @@ mod tests {
     }
 
     /// BUG FIX regression (2026-07-01, operator: "floors for the mirrored homes aren't rendering and
-    /// some of the other stuff") -- `ClonableHomeDesign::bake_local_groups` used to return ONLY
-    /// `material_walls`, silently dropping the floor and ceiling for every cloned/tiled home in a
-    /// residential zone. This pins that a design with a floor (every home has one -- even zero interior
-    /// walls still yields one whole-box floor quad) and a ceiling (unconditional, per `generate_meshes`)
-    /// produces colour groups for BOTH, not just the walls.
+    /// some of the other stuff") -- the home-clone bake (`ClonableHomeDesign::bake_local_groups`,
+    /// since increment 2 the neighbour-shell bake `HomeStructure::bake_shell_groups`) used to return
+    /// ONLY `material_walls`, silently dropping the floor and ceiling of every copy. This pins that a
+    /// design with a floor (every home has one -- even zero interior walls still yields one whole-box
+    /// floor quad) and a ceiling (unconditional, per `generate_meshes`) produces colour groups for
+    /// BOTH, not just the walls.
     #[test]
-    fn cloned_home_design_includes_floor_and_ceiling_not_just_walls() {
-        let design = ClonableHomeDesign {
-            width: 12.0,
-            depth: 12.0,
-            height: 3.0,
-            shell_material: 1,
-            walls: Vec::new(),
-            structures: Vec::new(),
-        };
-        let groups = design.bake_local_groups();
+    fn a_neighbour_shell_includes_floor_and_ceiling_not_just_walls() {
+        let design = HomeStructure { width: 12.0, depth: 12.0, ..box_only() };
+        let groups = design.bake_shell_groups(&[]);
         assert!(!groups.is_empty(), "a box with a shell must bake at least the outer walls");
 
         let floor_rgb = {
@@ -2272,10 +2038,10 @@ mod tests {
             assert!(f.footprint.0 > 0.0 && f.footprint.1 > 0.0, "{} has a positive footprint", f.type_id);
             assert!(f.height > 0.0, "{} has a positive height", f.type_id);
         }
-        // residential is deliberately absent (it uses the home-cloning path instead).
+        // residential is deliberately absent: its homes are the ship's plots (increment 2).
         assert!(
             crate::ship::structure::zone_filler("residential").is_none(),
-            "residential must NOT have a generic filler entry -- it clones the home design instead"
+            "residential must NOT have a generic filler entry -- its homes are the ship's plots"
         );
     }
 
@@ -2885,149 +2651,19 @@ mod tests {
         assert!(h.width > 0.0 && h.depth > 0.0 && h.height > 0.0);
     }
 
-    /// v0.638: the REAL shipped home (with its actual interior walls, doors, structures -- not a
-    /// synthetic test fixture) successfully clones itself into a residential zone slot. Proves
-    /// `tile_home_clones` handles the live player home, not just simplified test boxes -- mitred
-    /// corners, openings, and placed structures all survive the bake-and-translate path.
+    /// Increment 2: the REAL shipped home (its interior walls, doors and structures, not a test box)
+    /// bakes into a neighbour's shell, and the door its corridor arrives at is cut through the shell:
+    /// the east wall at the design's door point (local z 40), 2 m wide, as a plot's corridor makes it.
+    /// The cut changes the shell's own wall geometry, and nothing else of the bake is lost.
     #[test]
-    fn the_real_shipped_home_clones_into_a_residential_zone() {
-        let mut h = shipped_home_body();
-        let before = h.generate_meshes().material_walls.len();
-        // A zone with room for a 2x2 grid of the real home's own footprint.
-        let (w, d) = (h.width, h.depth);
-        h.add_zone("residential", (500.0, 0.0, 500.0), (2.0 * w + 6.0, 4.0, 2.0 * d + 6.0));
-        let after = h.generate_meshes();
-        assert!(
-            after.material_walls.len() >= before,
-            "cloning the real home into a zone does not shrink the material groups"
-        );
-        let total_verts: usize = after.material_walls.iter().map(|(v, _, _)| v.len()).sum();
-        assert!(total_verts > 0, "the real home clones into real geometry");
-    }
-
-    /// v0.639: a bare corridor segment bakes non-empty geometry (floor ribbon + kerb rails + landing
-    /// pads) for a real gap span, and returns None for a degenerate (near-zero) span rather than
-    /// emitting garbage. Locks the standalone bake function the tiling loop stamps into every gap.
-    #[test]
-    fn corridor_segment_bakes_real_geometry_for_a_real_gap() {
-        let (verts, indices, color) = HomeStructure::bake_corridor_segment(2.0).expect("a 2m gap bakes");
-        assert!(!verts.is_empty(), "the corridor segment has real geometry");
-        assert!(!indices.is_empty());
-        assert_eq!(indices.len() % 3, 0, "triangulated");
-        assert!(color[0] >= 0.0 && color[0] <= 1.0, "a valid rgb color");
-        // The ribbon should span roughly [0, span] in local X (the floor ribbon + end pads).
-        let max_x = verts.iter().map(|v| v.position[0]).fold(f32::MIN, f32::max);
-        let min_x = verts.iter().map(|v| v.position[0]).fold(f32::MAX, f32::min);
-        assert!(max_x > 1.5 && min_x < 0.5, "the segment spans the gap in local X, got [{min_x}, {max_x}]");
-        // The two kerb rails must actually FLANK the walkway's edges (distinct, separated Z bands),
-        // not both collapse onto the ribbon's centerline (the exact bug caught in review, 2026-07-01:
-        // the lateral offset was originally written into wall_box's Y slot, which it silently discards,
-        // so both rails baked onto the same Z band). Rail geometry sits above the floor slab (y > the
-        // ribbon's own top), so filtering by height isolates rails+pads from the floor ribbon itself.
-        let slab_top = 0.2_f32; // generous upper bound on the road-class floor thickness clamp (0.04-0.2)
-        let elevated_z: Vec<f32> = verts.iter().filter(|v| v.position[1] > slab_top).map(|v| v.position[2]).collect();
-        assert!(!elevated_z.is_empty(), "there is elevated (rail/pad) geometry above the floor ribbon");
-        let max_z = elevated_z.iter().cloned().fold(f32::MIN, f32::max);
-        let min_z = elevated_z.iter().cloned().fold(f32::MAX, f32::min);
-        assert!(
-            max_z - min_z > 1.0,
-            "the two kerb rails must occupy separated Z bands flanking the walkway, not collapse onto \
-             one band at the centerline, got elevated-geometry Z range [{min_z}, {max_z}] (span {})",
-            max_z - min_z
-        );
-        assert!(max_z > 0.3, "one rail sits on the positive-Z side of the walkway, got max_z={max_z}");
-        assert!(min_z < -0.3, "one rail sits on the negative-Z side of the walkway, got min_z={min_z}");
-        // A degenerate (near-zero) span bakes nothing, rather than a zero-length garbage ribbon.
-        assert!(HomeStructure::bake_corridor_segment(0.0).is_none(), "a zero-length gap is a no-op");
-    }
-
-    /// v0.639: the operator's pushback on v0.638 -- "there's no real structure to it... we need some
-    /// way of laying out multiple homesteads... adding the corridors... between all of them." A
-    /// residential zone big enough for a 2x2 grid of home clones must render MORE geometry once
-    /// corridor connectors are added on top of the bare clones -- proving the connectors actually
-    /// generate real linking geometry between adjacent slots, not just floating boxes.
-    #[test]
-    fn adjacent_home_clones_are_bridged_by_corridor_geometry() {
-        let mut hs = HomeStructure {
-            width: 12.0,
-            depth: 12.0,
-            height: 3.0,
-            shell_material: 1,
-            roof_material: 4,
-            walls: Vec::new(),
-            shell_thickness: None,
-            lights: Vec::new(),
-            spawn: None,
-            structures: Vec::new(),
-            road_nodes: Vec::new(),
-            road_edges: Vec::new(),
-            zones: Vec::new(),
-            rail_nodes: Vec::new(),
-            rail_edges: Vec::new(),
-        };
-        // Room for a 2x2 grid of 12x12 homes (+2m gap each): needs >= 28x28, matching the
-        // zone_filler_populates_interiors test's sizing.
-        hs.add_zone("residential", (0.0, 0.0, 0.0), (30.0, 4.0, 30.0));
-        let m = hs.generate_meshes();
-
-        // Isolate JUST the corridor colour bucket (the road class's top-layer colour, from
-        // corridor_types.ron's default style) and confirm it carries real geometry distinct from the
-        // home-clone buckets -- i.e. the connectors rendered as their OWN group, not merged/dropped.
-        let ct = crate::ship::structure::default_corridor_type().expect("a corridor style is registered");
-        let rt = crate::ship::structure::road_type(&ct.road_class).expect("its road class resolves");
-        let top_mat = rt.layers.first().map(|l| l.material).unwrap_or(2);
-        let corridor_color = HomeStructure::material_color(top_mat);
-        let key = [(corridor_color[0] * 64.0) as i32, (corridor_color[1] * 64.0) as i32, (corridor_color[2] * 64.0) as i32];
-        let corridor_bucket = m.material_walls.iter().find(|(_, _, c)| {
-            [(c[0] * 64.0) as i32, (c[1] * 64.0) as i32, (c[2] * 64.0) as i32] == key
-        });
-        assert!(corridor_bucket.is_some(), "the corridor's road-class colour bucket exists in material_walls");
-        assert!(!corridor_bucket.unwrap().0.is_empty(), "the corridor bucket carries real vertex geometry");
-
-        // Sanity: removing the zone (no residential district at all) means NO corridor bucket appears,
-        // proving the corridor geometry is genuinely tied to the populated zone, not always-present.
-        let bare = box_only().generate_meshes();
-        let bare_has_corridor = bare.material_walls.iter().any(|(_, _, c)| {
-            [(c[0] * 64.0) as i32, (c[1] * 64.0) as i32, (c[2] * 64.0) as i32] == key
-        });
-        assert!(!bare_has_corridor, "a home with no residential zone has no corridor geometry");
-    }
-
-    /// v0.639: a residential zone that only fits a 1x1 grid (a single home clone, no neighbour in
-    /// either direction) must NOT emit any corridor geometry -- there is nothing to connect, and the
-    /// bake must not panic/underflow when `nx == 1 && nz == 1`.
-    #[test]
-    fn a_single_clone_slot_gets_no_dangling_corridor() {
-        let mut hs = HomeStructure {
-            width: 12.0,
-            depth: 12.0,
-            height: 3.0,
-            shell_material: 1,
-            roof_material: 4,
-            walls: Vec::new(),
-            shell_thickness: None,
-            lights: Vec::new(),
-            spawn: None,
-            structures: Vec::new(),
-            road_nodes: Vec::new(),
-            road_edges: Vec::new(),
-            zones: Vec::new(),
-            rail_nodes: Vec::new(),
-            rail_edges: Vec::new(),
-        };
-        // Room for exactly one 12x12 home (+2m gap) but not a second in either axis: 15x15 fits one
-        // slot (12 + 2 gap = 14 <= 15) but not two (26 > 15).
-        hs.add_zone("residential", (0.0, 0.0, 0.0), (15.0, 4.0, 15.0));
-        let m = hs.generate_meshes();
-
-        let ct = crate::ship::structure::default_corridor_type().expect("a corridor style is registered");
-        let rt = crate::ship::structure::road_type(&ct.road_class).expect("its road class resolves");
-        let top_mat = rt.layers.first().map(|l| l.material).unwrap_or(2);
-        let corridor_color = HomeStructure::material_color(top_mat);
-        let key = [(corridor_color[0] * 64.0) as i32, (corridor_color[1] * 64.0) as i32, (corridor_color[2] * 64.0) as i32];
-        let has_corridor = m.material_walls.iter().any(|(_, _, c)| {
-            [(c[0] * 64.0) as i32, (c[1] * 64.0) as i32, (c[2] * 64.0) as i32] == key
-        });
-        assert!(!has_corridor, "a single isolated clone slot has no neighbour to bridge, so no corridor geometry");
+    fn the_shipped_home_bakes_into_a_shell_with_its_door_cut() {
+        let h = shipped_home_body();
+        let door = ShellCut { edge: 1, at: 39.0, width: 2.0, height: 2.2 };
+        let shut = h.bake_shell_groups(&[]);
+        let open = h.bake_shell_groups(&[door]);
+        let verts = |g: &[(Vec<Vertex>, Vec<u32>, [f32; 3])]| g.iter().map(|(v, _, _)| v.len()).sum::<usize>();
+        assert!(verts(&shut) > 0 && shut.iter().all(|(v, i, _)| !v.is_empty() && i.len() % 3 == 0), "the real home bakes real, triangulated geometry");
+        assert_eq!(open.len(), shut.len(), "the door cut keeps every colour group");
+        assert_ne!(verts(&open), verts(&shut), "the door is cut through the shell ({} vertices shut, {} open)", verts(&shut), verts(&open));
     }
 }

@@ -32,8 +32,10 @@
 //!      must never put the home back on a plot that is someone else's), and moves the Respawn
 //!      point. A home that cannot stand on that plot refuses to join and gives the plot back;
 //!   3. as a guest (the ship is full, or the join named no ship), makes the Commons its
-//!      Respawn point, and puts its home back on the default plot if it stood on a plot it no
-//!      longer holds; on its own plot, its own door;
+//!      Respawn point and puts its home AWAY, off the ship with all it holds (increment 2,
+//!      `ShipStructure::put_home_away`): a guest has no plot, so it draws no home of its own and
+//!      every plot is a neighbour's; the home comes back when the game leaves the shared world
+//!      (`bring_home_back`) or a later welcome gives it a plot. On its own plot, its own door;
 //!   4. stands the player where the relay holds them (their own entry in the welcome's
 //!      `world_snapshot`) when `stand_where_held` says so: on an ARRIVAL (the first welcome
 //!      since the world loaded, or from another server), on any welcome that spawned them
@@ -49,6 +51,14 @@
 //! (`follow_server`), and a server that refused us is tried again after a fresh connection.
 //!
 //! `plan_welcome` decides, and is pure (tested below); `apply_welcome_home` does it.
+//!
+//! THE REMEMBERED PLOT (increment 2). Every applied welcome tells the game its plot on that
+//! server (`plot_memory_after`), which it keeps per server in its config (`remember_plot`, AppConfig
+//! `home_plots`, with the ship's hash). The next world load builds the home on that plot before it
+//! joins (`assemble_for_boot`, `boot_plot`), so a returning player's welcome only confirms it (a
+//! Stay). A server that forgot or released the plot corrects it (a Move, or a guest's put-away), a
+//! changed ship is not trusted (the hash), and "Start every session from the default home" does
+//! not touch it: that setting is about what the home holds, not where it stands.
 //!
 //! THE SAVE'S FRAME. Pieces built aboard and parked vehicles are saved where they stand, beside
 //! the box of the plot the home stood on (save_load.rs `HomeFrame`, `WorldSave::home_plot_box`).
@@ -125,13 +135,18 @@ pub(crate) enum WelcomeHome {
     /// arrives with this home (the Respawn button's point from now on), `stand_at` where the
     /// player goes now.
     Move { ship: ShipStructure, plot: String, door: Vec3, stand_at: Vec3 },
-    /// A guest (the ship is full). `door` is the Commons arrival (the Respawn point), None for a
-    /// ship with no Commons; `stand_at` where the player goes (None: they stay). `home_back`:
-    /// the ship re-assembled with the home on the default plot, when it stood on a plot the
-    /// player no longer holds (the third review of 1b: a released player who came back as a
-    /// guest went on drawing their home on the plot someone else now lives on).
-    Guest { door: Option<Vec3>, stand_at: Option<Vec3>, home_back: Option<ShipStructure> },
+    /// A guest (the ship is full, or the join named no ship). `door` is the Commons arrival (the
+    /// Respawn point), None for a ship with no Commons; `stand_at` where the player goes (None:
+    /// they stay). `away`: the ship with the home PUT AWAY (`ShipStructure::put_home_away`), when
+    /// it stood on a plot; None when it is away already. A guest has no plot of this ship, so it
+    /// draws no home of its own: every plot is a neighbour's (increment 2; 1b put the home back
+    /// on the default plot, which is someone else's, and drew it there with all it holds).
+    Guest { door: Option<Vec3>, stand_at: Option<Vec3>, away: Option<ShipStructure> },
 }
+
+/// The notice when a guest presses B (engine/editor.rs `toggle_build_editor`): its home is put
+/// away, so there is nothing aboard to edit.
+pub(crate) const GUEST_NO_EDITOR: &str = "You are a guest on this ship, with no plot of your own, so your home is not aboard to build on; it comes back when you step out of the shared world or the server gives you a plot.";
 
 /// What the game knows when a welcome arrives, besides the welcome: the server whose welcome
 /// last stood us where it holds us (`EngineState::home_arrived_on`), the server this welcome
@@ -259,7 +274,7 @@ pub(crate) fn plan_welcome(ship: Option<&ShipStructure>, welcome: &serde_json::V
     let stand_at = |door: Option<Vec3>| if stand { held.or(door) } else { None };
     let Some(hp) = welcome.get("home_plot").filter(|v| !v.is_null()) else {
         let door = ship.guest_spawn();
-        return WelcomeHome::Guest { door, stand_at: stand_at(door), home_back: home_on_default_plot(ship) };
+        return WelcomeHome::Guest { door, stand_at: stand_at(door), away: ship.put_home_away() };
     };
     let Some(id) = hp.get("id").and_then(|i| i.as_str()) else {
         return refuse(WELCOME_WITHOUT_PLOT_ID, false);
@@ -313,17 +328,6 @@ fn does_not_fit_sentence(id: &str) -> String {
         "Not joining the shared world: your home does not fit the plot this server gave you ({}), so the plot went back to the server; change your home's design to fit this ship's plots and reconnect, and logs/run.log says which part did not fit.",
         plain_plot_id(id)
     )
-}
-
-/// For a guest: the ship re-assembled with the home on the default plot, when it stands on
-/// another plot (one an earlier welcome moved it to, since given to someone else). None when
-/// it already stands on the default plot, or cannot be put back (the home then stays).
-fn home_on_default_plot(ship: &ShipStructure) -> Option<ShipStructure> {
-    let default = ship.default_plot_id()?;
-    if ship.home.as_ref()?.plot == default {
-        return None;
-    }
-    ship.ship_file().assemble(ship.home_design()?, &default).ok()
 }
 
 /// Where the holder of the plot this home stands on arrives with it: its door there, else the
@@ -380,7 +384,16 @@ fn send_game_leave(state: &EngineState, give_up_plot: bool) {
 /// Out of the shared world on our side: not joined, not welcomed, no host clock, and the other
 /// players and the relay's crew gone from our world (they are stale without the relay's feed;
 /// a join brings them back). The caller sends `game_leave` where there is a socket to send it on.
+/// A guest's home put away comes back onto the ship (`bring_home_back`): out of the shared
+/// world there is nobody whose plot it would stand on.
 pub(crate) fn forget_shared_world(state: &mut EngineState) {
+    forget_shared_world_keeping_home(state);
+    bring_home_back(state);
+}
+
+/// `forget_shared_world` with a home put away left away: Respawn steps out and joins again at
+/// once (`respawn_through_relay`), and the guest's next welcome would only put it away again.
+fn forget_shared_world_keeping_home(state: &mut EngineState) {
     state.game_joined = false;
     state.game_welcomed = false;
     state.gui_state.copresence_active = false;
@@ -479,8 +492,110 @@ pub(crate) fn respawn_through_relay(state: &mut EngineState) {
         return;
     }
     send_game_leave(state, false);
-    forget_shared_world(state);
+    forget_shared_world_keeping_home(state);
     log::info!("Co-presence: respawned; stepping out and joining again so the relay stands us at our door");
+}
+
+/// A guest's home comes back onto the ship (increment 2): onto the plot this player remembers
+/// for the server the game now talks to (`boot_plot`), else the ship's default plot, through
+/// the same move a welcome makes (`move_home`: what it holds goes with it), and Respawn is its
+/// door again. Called when the game leaves the shared world (`forget_shared_world`). Nothing
+/// when the home is not away, or cannot be placed (logged; it then stays away until the next
+/// world load or a welcome with a plot).
+fn bring_home_back(state: &mut EngineState) {
+    let Some(ship) = state.gui_state.ship_structure.as_ref() else { return };
+    let server = active_server_key(&state.gui_state);
+    match home_back_from_away(ship, state.gui_state.home_plots.get(&server)) {
+        None => {}
+        Some(Ok(back)) => {
+            log::info!("Co-presence: out of the shared world; our home comes back from where it was put away, onto plot {:?}", back.home_plot().map(|p| &p.id));
+            let door = own_door(&back);
+            move_home(state, back);
+            if let Some(d) = door {
+                state.fps_spawn = d;
+            }
+        }
+        Some(Err(e)) => log::warn!("Co-presence: our home could not come back from where it was put away ({e}); it stays put away"),
+    }
+}
+
+/// The ship with a home put away brought back (`bring_home_back`): on the plot `remembered` for
+/// the server the game talks to (`boot_plot`), else on the ship's default plot. None when the
+/// home is not away; Err when it cannot be placed there. Pure.
+pub(crate) fn home_back_from_away(ship: &ShipStructure, remembered: Option<&crate::config::RememberedPlot>) -> Option<Result<ShipStructure, String>> {
+    if !ship.home_is_away() {
+        return None;
+    }
+    let file = ship.ship_file();
+    let design = ship.home_design()?;
+    let plot = boot_plot(&file, remembered).or_else(|| file.default_plot_id())?;
+    Some(file.assemble(design, &plot))
+}
+
+/// The plot a world load builds the home on (increment 2): the plot this player remembers for
+/// the server they are about to join (`remembered`, `GuiState::home_plots`), when it is a plot of
+/// `ship_file` and was remembered on this same ship (the same hash: a plot id names a place only
+/// on the same ship; after a ship change it is not trusted). None otherwise: the ship's default
+/// plot, where 1b built every home. The welcome then confirms the plot (a Stay) or corrects it
+/// (a Move, a guest's put-away). Pure.
+pub(crate) fn boot_plot(ship_file: &ShipStructure, remembered: Option<&crate::config::RememberedPlot>) -> Option<String> {
+    let r = remembered?;
+    (r.ship_hash == ship_file.ship_hash() && ship_file.plots.iter().any(|p| p.id == r.plot)).then(|| r.plot.clone())
+}
+
+/// The ship a world load runs (engine/world_load.rs): the ship file with this player's home on
+/// the plot `boot_plot` picks for the server the game talks to, else on the default plot. A
+/// remembered plot the home cannot be put on (a design changed since) falls back to the default
+/// plot, with the reason in the log. Err only when there is no ship (the legacy layout shows).
+pub(crate) fn assemble_for_boot(data_dir: &std::path::Path, gui: &crate::gui::GuiState) -> Result<ShipStructure, String> {
+    let file = ShipStructure::load_ship_file(data_dir)?;
+    let server = active_server_key(gui);
+    if let Some(plot) = boot_plot(&file, gui.home_plots.get(&server)) {
+        match ShipStructure::assemble_from(file.clone(), data_dir, Some(&plot)) {
+            Ok(ship) => {
+                log::info!("load_world: building the home on plot {plot}, the plot remembered for {server}");
+                return Ok(ship);
+            }
+            Err(e) => log::warn!("load_world: the home does not go on plot {plot}, remembered for {server} ({e}); the default plot instead"),
+        }
+    }
+    ShipStructure::assemble_from(file, data_dir, None)
+}
+
+/// What an applied welcome's plan teaches about this server's plot (`GuiState::home_plots`):
+/// Some(Some(plot)) to remember it (a Move to it, or a Stay on the plot the home stands on),
+/// Some(None) to forget it (a guest has none; a plot our home does not fit went back), None to
+/// leave the memory as it is (a refusal over the ship: the hash check at the next boot already
+/// distrusts it). Pure.
+pub(crate) fn plot_memory_after(plan: &WelcomeHome, ship: Option<&ShipStructure>) -> Option<Option<String>> {
+    match plan {
+        WelcomeHome::Move { plot, .. } => Some(Some(plot.clone())),
+        WelcomeHome::Stay { .. } => Some(ship.and_then(|s| s.home_plot()).map(|p| p.id.clone())),
+        WelcomeHome::Guest { .. } => Some(None),
+        WelcomeHome::Refuse { give_up_plot: true, .. } => Some(None),
+        WelcomeHome::Refuse { .. } => None,
+    }
+}
+
+/// Remember (`Some(plot)`) or forget (`None`) this player's plot on `server`, of the ship the
+/// game runs, and save the config when that changed it (AppConfig `home_plots`), so the next
+/// world load builds the home there.
+pub(crate) fn remember_plot(state: &mut EngineState, server: &str, plot: Option<String>) {
+    let hash = state.gui_state.ship_structure.as_ref().map(|s| s.ship_hash()).unwrap_or_default();
+    let plots = &mut state.gui_state.home_plots;
+    let changed = match (plot, hash.is_empty()) {
+        (Some(plot), false) => {
+            let r = crate::config::RememberedPlot { ship_hash: hash, plot };
+            plots.insert(server.to_string(), r.clone()).as_ref() != Some(&r)
+        }
+        // No ship, no plot to remember (a welcome is never applied without one).
+        (Some(_), true) => false,
+        (None, _) => plots.remove(server).is_some(),
+    };
+    if changed {
+        log::info!("Co-presence: this server's plot is now {:?} (remembered for the next world load)", plots.get(server).map(|r| &r.plot));
+        crate::config::AppConfig::from_gui_state(&state.gui_state).save();
+    }
 }
 
 /// Act on a `game_welcome` (engine/net_route.rs, before the welcome reaches net_sync). Returns
@@ -500,6 +615,18 @@ pub(crate) fn apply_welcome_home(state: &mut EngineState, welcome: &serde_json::
     }
     let server = active_server_key(&state.gui_state);
     let plan = plan_welcome(state.gui_state.ship_structure.as_ref(), welcome, &WelcomeContext::of(state, &server));
+    // What this welcome teaches about our plot on this server, remembered so the next world load
+    // builds the home there (increment 2), and what it does with the home, for the rig's probe.
+    let memory = plot_memory_after(&plan, state.gui_state.ship_structure.as_ref());
+    state.last_welcome = Some(match &plan {
+        WelcomeHome::Refuse { .. } => "refused",
+        WelcomeHome::Stay { .. } => "stay",
+        WelcomeHome::Move { .. } => "move",
+        WelcomeHome::Guest { .. } => "guest",
+    });
+    if let Some(plot) = memory {
+        remember_plot(state, &server, plot);
+    }
     match plan {
         WelcomeHome::Refuse { sentence, give_up_plot } => {
             log::warn!("Co-presence: refusing the welcome (server ship {})", welcome["ship"]);
@@ -523,13 +650,13 @@ pub(crate) fn apply_welcome_home(state: &mut EngineState, welcome: &serde_json::
             state.fps_spawn = door;
             put_player_at(state, stand_at);
         }
-        WelcomeHome::Guest { door, stand_at, home_back } => {
+        WelcomeHome::Guest { door, stand_at, away } => {
             log::info!("Co-presence: no plot of our own here; joining as a guest in the Commons");
-            // A guest's home is drawn on the default plot (which is somebody else's: a guest
-            // has none of its own until increment 2's neighbours): put it back there when it
-            // stood on a plot since given to someone else.
-            if let Some(ship) = home_back {
-                log::info!("Co-presence: our home stood on a plot we no longer hold; back to the default plot");
+            // A guest has no plot of this ship, so it draws no home of its own: the home is put
+            // away, with all it holds, off the ship (increment 2; 1b drew it on the default
+            // plot, which is someone else's). Every plot is then drawn as a neighbour's.
+            if let Some(ship) = away {
+                log::info!("Co-presence: our home is put away while we are a guest");
                 move_home(state, ship);
             }
             // Respawn brings them back to the Commons, where the relay put them.
@@ -573,8 +700,16 @@ pub(crate) fn history_after_move(h: &mut ConstructionHistory, moved: EditorSnaps
     crate::engine::editor::history_start_from(h, moved);
 }
 
-/// The box of the plot the home stands on, (min, max) in ship metres.
+/// The box of the plot the home stands on, (min, max) in ship metres; while the home is put
+/// away (a guest, increment 2), the box of the home where it is kept, so the move that puts it
+/// away carries what it holds there, a save records that frame, and the move back carries it all
+/// onto the plot again (`follow_home_box`, `carry_saved_pieces`).
 pub(crate) fn home_box(ship: &ShipStructure) -> Option<PlotBox> {
+    if ship.home_is_away() {
+        let z = ship.zones.get(ship.home_zone_index())?;
+        let o = z.origin_vec();
+        return Some((o, o + Vec3::new(z.body.width, z.body.height, z.body.depth)));
+    }
     ship.home_plot().map(|p| p.aabb())
 }
 
@@ -1230,14 +1365,15 @@ mod tests {
 
     /// A full ship: home_plot null, and the player arrives in the Commons, at the point the
     /// relay put them (game_state.rs assign_home uses the same `guest_spawn`); the Commons is
-    /// their Respawn point.
+    /// their Respawn point, and their home is put away (increment 2).
     #[test]
     fn a_full_ship_makes_a_guest_in_the_commons() {
         let ship = booted();
         match plan_welcome(Some(&ship), &welcome_at(None, &ship.ship_hash(), Some(COMMONS.into())), &arriving(P1_DOOR)) {
-            WelcomeHome::Guest { door: Some(d), stand_at: Some(at), home_back: None } => {
+            WelcomeHome::Guest { door: Some(d), stand_at: Some(at), away: Some(away) } => {
                 assert!((d - COMMONS).length() < 1e-4, "{d:?}");
                 assert!((at - COMMONS).length() < 1e-4, "{at:?}");
+                assert!(away.home_is_away(), "the guest's home is put away");
             }
             other => panic!("a full ship should make a guest: {other:?}"),
         }
@@ -1693,31 +1829,151 @@ mod tests {
         assert!(h.undo.is_empty(), "nothing further back than the move");
     }
 
-    /// FINDING 8 of the third review: the player's home stood on p2 (an earlier welcome moved
-    /// it), an admin released p2 while they were out of the world, someone else claimed it, and
-    /// they come back as a guest. Their home goes back to the default plot: drawn on p2 it
-    /// stood where the new holder lives and walks. Respawn is the Commons. A guest whose home
-    /// already stands on the default plot moves nothing.
+    /// THE 1b LEFTOVER (increment 2): a guest draws no home of its own. Whichever plot the home
+    /// stood on, the default one (p1, someone else's: the game builds there at boot) or one a
+    /// released player's earlier welcome moved it to (finding 8 of 1b's third review), a guest
+    /// welcome puts it AWAY: off every plot, at `HOME_AWAY_ORIGIN`, so both plots are drawn as
+    /// neighbours'. Respawn is the Commons. A home already away moves nothing.
     ///
-    /// Seen red 2026-10-03 with `home_on_default_plot` always None (the a504c5cd9 guest, which
-    /// left the home where it stood): "a guest whose home stood on p2 keeps it there: None".
+    /// Seen red 2026-10-04 with the 1b guest arm (the home back on the default plot):
+    /// "a guest whose home stood on p1 still draws it on a plot: Some(\"p1\")".
     #[test]
-    fn a_released_player_back_as_a_guest_puts_their_home_back_on_the_default_plot() {
-        let on_p2 = ShipStructure::load_and_assemble(&data_dir(), Some("p2")).unwrap();
-        let w = welcome_full(None, &on_p2.ship_hash(), Some(COMMONS.into()), false);
-        match plan_welcome(Some(&on_p2), &w, &again(P2_DOOR)) {
-            WelcomeHome::Guest { door, stand_at, home_back } => {
-                let back = home_back.as_ref().and_then(|s| s.home.as_ref()).map(|a| a.plot.clone());
-                assert_eq!(back.as_deref(), Some("p1"), "a guest whose home stood on p2 keeps it there: {back:?}");
-                assert!(door.is_some_and(|d| (d - COMMONS).length() < 1e-4), "Respawn is the Commons: {door:?}");
-                assert!(stand_at.is_some_and(|a| (a - COMMONS).length() < 1e-4), "{stand_at:?}");
+    fn a_guest_puts_its_home_away_and_draws_none_of_its_own() {
+        for own in ["p1", "p2"] {
+            let ship = ShipStructure::load_and_assemble(&data_dir(), Some(own)).unwrap();
+            let w = welcome_full(None, &ship.ship_hash(), Some(COMMONS.into()), false);
+            match plan_welcome(Some(&ship), &w, &again(P1_DOOR)) {
+                WelcomeHome::Guest { door, stand_at, away } => {
+                    let plot = away.as_ref().map(|s| s.home_plot().map(|p| p.id.clone()));
+                    assert_eq!(plot, Some(None), "a guest whose home stood on {own} still draws it on a plot: {:?}", plot.clone().flatten());
+                    let away = away.unwrap();
+                    assert!(away.home_is_away());
+                    let home = &away.zones[away.home_zone_index()];
+                    assert_eq!(home.origin, crate::ship::ship_structure::HOME_AWAY_ORIGIN, "kept where homes are put away");
+                    assert_eq!(away.neighbour_plots().count(), 2, "both plots are drawn as neighbours'");
+                    assert_eq!(away.ship_hash(), ship.ship_hash(), "putting the home away is not a new ship");
+                    assert!(door.is_some_and(|d| (d - COMMONS).length() < 1e-4), "Respawn is the Commons: {door:?}");
+                    assert!(stand_at.is_some_and(|a| (a - COMMONS).length() < 1e-4), "{stand_at:?}");
+                }
+                other => panic!("{other:?}"),
             }
-            other => panic!("{other:?}"),
         }
-        match plan_welcome(Some(&booted()), &w, &again(P1_DOOR)) {
-            WelcomeHome::Guest { home_back: None, .. } => {}
-            other => panic!("a guest on the default plot moves nothing: {other:?}"),
+        let away = booted().put_home_away().unwrap();
+        let w = welcome_full(None, &away.ship_hash(), Some(COMMONS.into()), true);
+        match plan_welcome(Some(&away), &w, &again(COMMONS)) {
+            WelcomeHome::Guest { away: None, .. } => {}
+            other => panic!("a home already away moves nothing: {other:?}"),
         }
+    }
+
+    /// A guest whose home is put away, given a plot by a later welcome (one freed up), gets its
+    /// home back ON that plot: a Move from where it was kept, whose box is the home's own at
+    /// `HOME_AWAY_ORIGIN`, so everything it holds is carried by the same delta (`home_box`,
+    /// `home_box_change`). The box where a home is kept shares no footprint with any plot or zone
+    /// of the ship, since the carry tests x and z only. Seen red 2026-10-04 with `home_box` reading
+    /// only the plot (None while away): "putting the home away carries nothing: Republish".
+    #[test]
+    fn a_home_put_away_comes_back_onto_a_plot_with_everything_it_holds() {
+        let ship = booted();
+        let away = ship.put_home_away().unwrap();
+        let p1 = home_box(&ship).unwrap();
+        let kept = home_box(&away).expect("a home put away has a box: where it is kept");
+        let delta = Vec3::from(crate::ship::ship_structure::HOME_AWAY_ORIGIN);
+        assert_eq!(home_box_change(Some(p1), Some(kept)), HomeBoxChange::Carry { from: p1, delta }, "putting the home away carries nothing: Republish");
+        for p in &ship.plots {
+            let (lo, hi) = p.aabb();
+            assert!(kept.1.x < lo.x || kept.0.x > hi.x || kept.1.z < lo.z || kept.0.z > hi.z, "where a home is kept overlaps {} across the floor", p.id);
+        }
+        for z in ship.zones.iter().filter(|z| z.id != "home") {
+            let o = z.origin_vec();
+            assert!(kept.1.x < o.x || kept.0.x > o.x + z.body.width, "where a home is kept overlaps {} across the floor", z.id);
+        }
+        // A plot freed up: the next welcome moves the home from where it was kept onto p2.
+        let w = welcome_at(Some("p2"), &away.ship_hash(), Some(P2_DOOR.into()));
+        match plan_welcome(Some(&away), &w, &again(COMMONS)) {
+            WelcomeHome::Move { ship: back, plot, door, stand_at } => {
+                assert_eq!((plot.as_str(), back.home_is_away()), ("p2", false));
+                assert!((door - P2_DOOR).length() < 1e-4 && (stand_at - P2_DOOR).length() < 1e-4, "{door:?} {stand_at:?}");
+                assert_eq!(home_box_change(Some(kept), home_box(&back)), HomeBoxChange::Carry { from: kept, delta: home_box(&back).unwrap().0 - kept.0 });
+            }
+            other => panic!("a guest given a plot gets its home back on it: {other:?}"),
+        }
+        // A guest names its own door in the join all the same: the relay may give it a plot.
+        assert_eq!(away.home_arrival_local(), Some((53.5, 40.5)));
+    }
+
+    /// A guest who leaves the shared world (steps out to solo play, is refused, switches server,
+    /// loses the connection) gets its home back onto the ship: onto the plot it remembers for the
+    /// server it now talks to, else the default plot. A home that is not away stays where it is.
+    /// Seen red 2026-10-04 with `home_back_from_away` always None (a guest's home stayed away for
+    /// the rest of the session): "out of the shared world, the guest's home comes back: None".
+    #[test]
+    fn a_guest_out_of_the_shared_world_gets_its_home_back() {
+        let away = booted().put_home_away().unwrap();
+        let back = home_back_from_away(&away, None).map(|r| r.map(|s| s.home_plot().map(|p| p.id.clone())));
+        assert_eq!(back, Some(Ok(Some("p1".to_string()))), "out of the shared world, the guest's home comes back: {back:?}");
+        let mem = crate::config::RememberedPlot { ship_hash: away.ship_hash(), plot: "p2".into() };
+        let onto = home_back_from_away(&away, Some(&mem)).unwrap().unwrap();
+        assert_eq!(onto.home_plot().map(|p| p.id.as_str()), Some("p2"), "onto the plot remembered for the server it now talks to");
+        assert!(!onto.home_is_away());
+        assert!(home_back_from_away(&booted(), None).is_none(), "a home on a plot stays where it is");
+    }
+
+    /// THE REMEMBERED PLOT, at boot: the world load builds the home on the plot this player
+    /// remembers for the server, when it is a plot of the ship file and was remembered on that
+    /// same ship (its hash); otherwise the default plot. Seen red 2026-10-04 with `boot_plot`
+    /// always None (the 1b world load, which always built on the default plot): "the plot
+    /// remembered for this server: None".
+    #[test]
+    fn the_world_load_builds_on_the_plot_remembered_for_the_server() {
+        let file = crate::ship::ship_structure::ShipStructure::load_ship_file(&data_dir()).unwrap();
+        let hash = file.ship_hash();
+        let r = |plot: &str, ship_hash: &str| crate::config::RememberedPlot { ship_hash: ship_hash.into(), plot: plot.into() };
+        assert_eq!(boot_plot(&file, Some(&r("p2", &hash))).as_deref(), Some("p2"), "the plot remembered for this server: {:?}", boot_plot(&file, Some(&r("p2", &hash))));
+        assert_eq!(boot_plot(&file, None), None, "nothing remembered: the default plot");
+        assert_eq!(boot_plot(&file, Some(&r("p2", "0123456789abcdef"))), None, "remembered on another ship: not trusted");
+        assert_eq!(boot_plot(&file, Some(&r("p9", &hash))), None, "a plot this ship does not have: the default plot");
+        // And the assembled ship puts the home there.
+        let ship = crate::ship::ship_structure::ShipStructure::assemble_from(file.clone(), &data_dir(), boot_plot(&file, Some(&r("p2", &hash))).as_deref()).unwrap();
+        assert_eq!(ship.home_plot().map(|p| p.id.as_str()), Some("p2"));
+        // The returning player's welcome then only confirms it: a Stay, nothing moves.
+        let w = welcome_at(Some("p2"), &hash, Some(P2_DOOR.into()));
+        assert!(matches!(plan_welcome(Some(&ship), &w, &arriving(P2_DOOR)), WelcomeHome::Stay { .. }), "a returning player's welcome is a Stay");
+    }
+
+    /// What each welcome teaches the memory: a Move or a Stay remembers the plot, a guest and a
+    /// plot that went back forget it, and a refusal over the ship leaves it (the hash at the next
+    /// boot distrusts it). Seen red 2026-10-04 with `plot_memory_after` always None (the 1b game,
+    /// which remembered nothing): "a Move to p2 remembers p2: None".
+    #[test]
+    fn each_welcome_teaches_the_memory_its_plot() {
+        let ship = booted();
+        let hash = ship.ship_hash();
+        let mv = plan_welcome(Some(&ship), &welcome_at(Some("p2"), &hash, Some(P2_DOOR.into())), &arriving(P1_DOOR));
+        assert_eq!(plot_memory_after(&mv, Some(&ship)), Some(Some("p2".to_string())), "a Move to p2 remembers p2: {:?}", plot_memory_after(&mv, Some(&ship)));
+        let stay = plan_welcome(Some(&ship), &welcome_at(Some("p1"), &hash, Some(P1_DOOR.into())), &arriving(P1_DOOR));
+        assert_eq!(plot_memory_after(&stay, Some(&ship)), Some(Some("p1".to_string())), "a Stay remembers the plot the home stands on");
+        let guest = plan_welcome(Some(&ship), &welcome_at(None, &hash, Some(COMMONS.into())), &arriving(P1_DOOR));
+        assert_eq!(plot_memory_after(&guest, Some(&ship)), Some(None), "a guest forgets its plot here");
+        let gone = WelcomeHome::Refuse { sentence: String::new(), give_up_plot: true };
+        assert_eq!(plot_memory_after(&gone, Some(&ship)), Some(None), "a plot that went back is forgotten");
+        let other = plan_welcome(Some(&ship), &welcome(Some("p2"), "0123456789abcdef"), &arriving(P1_DOOR));
+        assert_eq!(plot_memory_after(&other, Some(&ship)), None, "another ship's refusal leaves the memory");
+    }
+
+    /// An old config.json, written before increment 2, has no `home_plots`: it loads, with none
+    /// remembered (so the first world entry builds on the default plot, as 1b did), and a config
+    /// with one round-trips it. Seen red 2026-10-04 with the field's `#[serde(default)]` removed:
+    /// "a config from before increment 2 does not load: missing field `home_plots`".
+    #[test]
+    fn an_old_config_loads_with_no_plot_remembered() {
+        let old: crate::config::AppConfig = serde_json::from_str("{\"server_url\": \"http://127.0.0.1:3210\"}")
+            .unwrap_or_else(|e| panic!("a config from before increment 2 does not load: {e}"));
+        assert!(old.home_plots.is_empty());
+        let mut cfg = old.clone();
+        cfg.home_plots.insert("http://127.0.0.1:3210".into(), crate::config::RememberedPlot { ship_hash: "abc".into(), plot: "p2".into() });
+        let back: crate::config::AppConfig = serde_json::from_str(&serde_json::to_string(&cfg).unwrap()).unwrap();
+        assert_eq!(back.home_plots, cfg.home_plots);
     }
 
     /// FINDINGS 12 and 13 of the third review: a welcome is applied only while the game is in

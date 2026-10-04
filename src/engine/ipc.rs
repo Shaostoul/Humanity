@@ -3377,6 +3377,12 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         // plants): the --plots judge checks each is on the game's plot (home_plot.rs).
         "home_things": crate::engine::home_plot::home_things_json(state),
         "welcomed": state.game_welcomed,
+        // Increment 2: the plot the world load built the home on (the remembered one, else the
+        // default), what the last welcome did with the home ("stay", "move", "guest",
+        // "refused"), and whether the home is put away (a guest) (engine/home_plot.rs).
+        "boot_plot": state.boot_plot,
+        "last_welcome": state.last_welcome,
+        "home_away": state.gui_state.ship_structure.as_ref().is_some_and(|s| s.home_is_away()),
         "copresence_refused": state.copresence_refused.is_some(),
         // The sentence the HUD shows while it holds (home_plot.rs `refuse_shared_world`), so a
         // rig can name the refusal it hit.
@@ -3394,6 +3400,41 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         rec.frames.len(),
         rec.clock
     );
+}
+
+// ── Door points (ship homes increment 2, "Meet in the Commons") ───────────────
+//
+// Drop `debug/door_points_request.json` (any content) while the game runs. The same frame
+// writes `debug/door_points_done.json`: `{"ok": true, "ship_hash", "places": [...], "doors":
+// [...]}` (src/ship/door_points.rs), the ship's places (each shared zone, each plot with its
+// door) and every corridor's door points, from the Rust corridor geometry. A rig
+// (scripts/verify-copresence.js, scripts/lib/copresence-judge.js `doorRoute`) walks the game and
+// its scripted player from a home's door into the Commons through them, so it never
+// re-implements the corridor maths. `{"ok": false, "error"}` while no ship has assembled (the
+// world has not loaded, or the legacy layout is showing). Permanent dev tooling.
+
+/// What the door-points request answers (see above). Pure.
+pub(crate) fn door_points_json(ship: Option<&crate::ship::ship_structure::ShipStructure>) -> serde_json::Value {
+    let Some(ship) = ship else {
+        return serde_json::json!({"ok": false, "error": "no ship has assembled (the world has not loaded, or the legacy layout is showing)"});
+    };
+    let mut v = serde_json::to_value(crate::ship::door_points::door_points(ship)).unwrap_or_else(|_| serde_json::json!({}));
+    if let Some(o) = v.as_object_mut() {
+        o.insert("ok".into(), serde_json::json!(true));
+    }
+    v
+}
+
+/// Called once a frame (lib.rs, beside the other dev polls).
+pub(crate) fn poll_door_points_request(state: &EngineState) {
+    const REQUEST_PATH: &str = "debug/door_points_request.json";
+    const DONE_PATH: &str = "debug/door_points_done.json";
+    if !std::path::Path::new(REQUEST_PATH).exists() {
+        return;
+    }
+    let _ = std::fs::remove_file(REQUEST_PATH);
+    write_done_atomically(DONE_PATH, &door_points_json(state.gui_state.ship_structure.as_ref()));
+    log::info!("Door points: wrote {DONE_PATH}");
 }
 
 /// Write a done file whole: to a temporary name, then renamed over the real

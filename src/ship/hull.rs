@@ -325,7 +325,28 @@ pub(crate) fn hull_geom(ship: &ShipStructure, profile: &HullProfile) -> Option<H
     if ship.zones.is_empty() {
         return None;
     }
-    let (mn, mx) = ship.world_bounds();
+    // The NEIGHBOURS' plots and corridors are part of the ship too (increment 2 of
+    // docs/design/ship-homes-and-logistics.md, src/ship/neighbours.rs): the hull wraps every plot,
+    // whoever holds it, so it is the same hull in every player's game, and no neighbour's home
+    // stands out through the plating. World (x0, z0, x1, z1, floor, top, glass lid) for each.
+    let mut extra: Vec<(f32, f32, f32, f32, f32, f32, bool)> = Vec::new();
+    for n in crate::ship::neighbours::neighbour_view(ship).neighbours {
+        let (lo, hi) = n.plot.aabb();
+        extra.push((lo.x, lo.z, hi.x, hi.z, lo.y, lo.y + n.design.body.height, false));
+        if let Some(g) = &n.tube {
+            let hwc = g.width * 0.5;
+            let (x0, z0, x1, z1) = match g.axis {
+                CorridorAxis::X => (g.start, g.lat - hwc, g.end, g.lat + hwc),
+                CorridorAxis::Z => (g.lat - hwc, g.start, g.lat + hwc, g.end),
+            };
+            extra.push((x0, z0, x1, z1, g.floor_y, g.floor_y + g.height, g.glass_top));
+        }
+    }
+    let (mut mn, mut mx) = ship.world_bounds();
+    for &(x0, z0, x1, z1, y0, top, _) in &extra {
+        mn = mn.min(Vec3::new(x0, y0, z0));
+        mx = mx.max(Vec3::new(x1, top, z1));
+    }
     // The LONGER horizontal extent is the longitudinal axis (ties go to X).
     let axis = if (mx.x - mn.x) >= (mx.z - mn.z) { HullAxis::X } else { HullAxis::Z };
     let (long_min, long_max, lat_min, lat_max) = match axis {
@@ -352,11 +373,22 @@ pub(crate) fn hull_geom(ship: &ShipStructure, profile: &HullProfile) -> Option<H
     // The clamp set (every pressurized box) + the cutout set (glass tops only).
     let mut boxes: Vec<PlanBox> = Vec::new();
     let mut holes: Vec<PlanRect> = Vec::new();
-    for z in &ship.zones {
+    for (zi, z) in ship.zones.iter().enumerate() {
+        // A home put away is no part of the ship (`ShipStructure::put_home_away`).
+        if ship.is_away_home(zi) {
+            continue;
+        }
         let o = z.origin_vec();
         let (l0, l1, t0, t1) = to_plan(o.x, o.z, o.x + z.body.width, o.z + z.body.depth);
         boxes.push(PlanBox { long0: l0, long1: l1, lat0: t0, lat1: t1, top: o.y + z.body.height });
         if z.body.roof_is_glass() {
+            holes.push(PlanRect { long0: l0, long1: l1, lat0: t0, lat1: t1 });
+        }
+    }
+    for &(x0, z0, x1, z1, _y0, top, glass) in &extra {
+        let (l0, l1, t0, t1) = to_plan(x0, z0, x1, z1);
+        boxes.push(PlanBox { long0: l0, long1: l1, lat0: t0, lat1: t1, top });
+        if glass {
             holes.push(PlanRect { long0: l0, long1: l1, lat0: t0, lat1: t1 });
         }
     }
@@ -1047,8 +1079,20 @@ mod tests {
         // street-1 running on to z = 195, against x 0..99.
         assert_eq!(geom.frame.axis, HullAxis::Z);
         // Every glass roof and glass corridor lid cuts a hole: the home, the Commons and the
-        // street roofs, the home's corridor and the Commons-to-street corridor.
-        assert_eq!(geom.holes.len(), 5, "home + commons + street roofs and both corridor lids are open");
+        // street roofs, the home's corridor and the Commons-to-street corridor, and since
+        // increment 2 the neighbour's (p2's) corridor lid; a neighbour's own roof is drawn opaque.
+        assert_eq!(geom.holes.len(), 6, "home + commons + street roofs and the three corridor lids are open");
+        // The neighbour's plot (p2, z 99..188) is inside the hull too (increment 2: the hull wraps
+        // every plot, whoever holds it). Seen red 2026-10-04 with the neighbours left out of
+        // `hull_geom`: "the neighbour's plot p2 is sliced by the hull at long 99".
+        for p in ship.neighbour_plots() {
+            let (lo, hi) = p.aabb();
+            let req_hw = (lo.x - geom.frame.lat_center).abs().max((hi.x - geom.frame.lat_center).abs()) + profile.margin;
+            for at in [lo.z, (lo.z + hi.z) * 0.5, hi.z] {
+                assert!(geom.hw_at(at) >= req_hw - 1e-3, "the neighbour's plot {} is sliced by the hull at long {at}", p.id);
+                assert!(geom.top_at(at) >= hi.y + profile.deck_clearance - 1e-3, "the neighbour's plot {} is scalped at long {at}", p.id);
+            }
+        }
         // Coverage: every zone stays margin-inside the hull at its own span, sampled along the
         // hull's long axis (Z now) with the half-width measured across it (X).
         let c = geom.frame.lat_center;

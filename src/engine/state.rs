@@ -788,6 +788,12 @@ pub(crate) struct EngineState {
     /// The server the co-presence block talked to last frame (`home_plot::follow_server`): a
     /// change while joined is a switch, and the game leaves the shared world on the old one.
     pub(crate) copresence_server: String,
+    /// The plot the last world load built the home on (ship homes increment 2: the plot this
+    /// player remembered for the server, `home_plot::boot_plot`, else the ship's default), and
+    /// what the last applied welcome did with the home ("stay", "move" or "guest"), for the rig's
+    /// probe (engine/ipc.rs): a returning player's welcome should only confirm the plot.
+    pub(crate) boot_plot: Option<String>,
+    pub(crate) last_welcome: Option<&'static str>,
     /// Throttle for outbound position updates (send ~15/sec).
     pub(crate) game_pos_timer: f32,
     /// Cached (body_mesh, head_mesh, material) for the remote-player avatar marker, built once.

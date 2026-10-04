@@ -153,7 +153,7 @@ pub(crate) fn frame(state: &mut EngineState) {
     };
     let keys = &state.gui_state.keybinds;
     let hint = match (&placed, &short) {
-        _ if off_plot => off_plot_hint(&name),
+        _ if off_plot => off_plot_hint(&name, state.gui_state.ship_structure.as_ref().is_some_and(|s| s.home_is_away())),
         (Ok(_), Some((item, more))) => short_hint(&name, item, *more),
         (Ok(g), None) => placing_hint(
             &name,
@@ -207,17 +207,24 @@ const PLOT_EDGE_EPS_M: f32 = 0.15;
 /// box. Height is not bounded, the same 2D rule collision uses. Testing the centre alone let a
 /// 4 x 4 m foundation centred 2 m inside the edge cover the home's door and a metre of the
 /// shared corridor (the critic's review of 1a). False without an assembled ship, where there is
-/// no plot to bound against (the legacy layout). The Dev-mode exemption is `refused_off_plot`'s.
+/// no plot to bound against (the legacy layout). TRUE everywhere aboard while the home is put
+/// away (a guest, ship homes increment 2): a guest has no plot of this ship to build on. The
+/// Dev-mode exemption is `refused_off_plot`'s.
 pub(crate) fn outside_own_plot(ship: Option<&crate::ship::ship_structure::ShipStructure>, pose: &Transform) -> bool {
-    let Some(plot) = ship.and_then(|s| s.home_plot()) else { return false };
+    let Some(plot) = ship.and_then(|s| s.home_plot()) else { return ship.is_some_and(|s| s.home_is_away()) };
     let (lo, hi) = plot.aabb();
     let (a, b) = placement::world_aabb(pose);
     a.x < lo.x - PLOT_EDGE_EPS_M || b.x > hi.x + PLOT_EDGE_EPS_M || a.z < lo.z - PLOT_EDGE_EPS_M || b.z > hi.z + PLOT_EDGE_EPS_M
 }
 
-/// The line under the crosshair when the piece in hand points outside your plot.
-pub(crate) fn off_plot_hint(name: &str) -> String {
-    format!("Placing {name}: you can build only inside your own plot (your home)   [Esc] done")
+/// The line under the crosshair when the piece in hand points outside your plot. `guest`: the
+/// player has no plot of this ship (ship homes increment 2, the home is put away).
+pub(crate) fn off_plot_hint(name: &str, guest: bool) -> String {
+    if guest {
+        format!("Placing {name}: you are a guest on this ship, with no plot of your own to build on   [Esc] done")
+    } else {
+        format!("Placing {name}: you can build only inside your own plot (your home)   [Esc] done")
+    }
 }
 
 /// What the player's pack is short of for `blueprint_id`: the item's name
@@ -477,7 +484,15 @@ mod tests {
         assert!(!out(&p2, "wood_foundation", 30.0, 140.0, 0), "assembled at p2, p2 is yours");
         assert!(out(&p2, "wood_foundation", 30.0, 20.0, 0), "and p1 is not");
         assert!(!outside_own_plot(None, &pose("wood_foundation", 1000.0, 1000.0, 0)), "no ship, no bound");
-        assert!(off_plot_hint("Wall").contains("only inside your own plot"));
+        assert!(off_plot_hint("Wall", false).contains("only inside your own plot"));
+        // A guest (ship homes increment 2, the home put away) has no plot of this ship: nothing
+        // aboard is theirs, not even the yard of the plot the home stood on. Seen red 2026-10-04
+        // before `outside_own_plot` knew an away home (no plot read as the legacy layout's "no
+        // bound"): "a guest builds in the default plot's yard".
+        let away = p1.put_home_away().expect("the home can be put away");
+        assert!(out(&away, "wood_foundation", 30.0, 20.0, 0), "a guest builds in the default plot's yard");
+        assert!(out(&away, "wood_foundation", 80.0, 40.0, 0), "or in the Commons");
+        assert!(off_plot_hint("Wall", true).contains("a guest on this ship"));
 
         // The whole decision.
         let ghost = |x: f32, z: f32, site: Option<PlanetSite>| -> Result<planet_build::Ghost, planet_build::CannotBuild> {

@@ -160,11 +160,22 @@ second-player: a scripted second player that walks around the shared world.
   --radius M        circle radius, or half the line's length (default ${DEFAULT_RADIUS}).
   --speed M/S       walking speed (default ${DEFAULT_SPEED}).
   --seconds N       stop after N seconds of walking (default: until Ctrl+C).
+  --route "X,Y,Z;X,Y,Z;..."  walk THROUGH these points, in order, before the
+                    path starts (a way out of your home, through its door and
+                    corridor, into the Commons). Without it the walk goes
+                    straight to the start of the path in about ${APPROACH_SECONDS} s.
+  --route-speed M/S how fast the route is walked (default: --speed).
+  --home-spawn X,Z  your home's door, in metres from your plot's corner (what
+                    the desktop app names in its join): the relay spawns you
+                    there on your plot instead of in its middle.
   --chat TEXT       say one line in #${CHAT_CHANNEL} after joining (signed like a
                     person's message). A brand-new name has to wait a minute
                     before posting in public; it waits and tries again.
   --allow-remote    allow a relay that is not on this computer. Do not point
                     this at united-humanity.us without the operator's say-so.
+
+A line "stop" on its input stops it the way Ctrl+C does (a rig's way to end it
+gracefully: Windows gives a child process no signal to catch).
 `;
 
 /** Read the command line into a plain options object. Throws an Error with a
@@ -172,7 +183,7 @@ second-player: a scripted second player that walks around the shared world.
 function parseOptions(argv) {
   const known = new Set([
     "--server", "--name", "--seed", "--path", "--axis", "--center", "--radius",
-    "--speed", "--seconds", "--chat",
+    "--speed", "--seconds", "--chat", "--route", "--route-speed", "--home-spawn",
   ]);
   const flags = new Set(["--allow-remote", "--help", "-h"]);
   const raw = {};
@@ -214,6 +225,22 @@ function parseOptions(argv) {
     center = parts;
   }
 
+  // The route: points walked through in order before the path (increment 2 of
+  // docs/design/ship-homes-and-logistics.md: from your door, through your
+  // corridor, into the Commons).
+  let route = [];
+  if (raw["--route"] !== undefined && String(raw["--route"]).trim() !== "") {
+    route = String(raw["--route"]).split(";").map((pt) => pt.split(",").map((s) => Number(s.trim())));
+    if (!route.every((p) => p.length === 3 && p.every(Number.isFinite))) {
+      throw new Error('--route must be points like "54,1.7,40;66,1.7,40" (three numbers each, ; between points)');
+    }
+  }
+  let homeSpawn = null;
+  if (raw["--home-spawn"] !== undefined) {
+    homeSpawn = String(raw["--home-spawn"]).split(",").map((s) => Number(s.trim()));
+    if (homeSpawn.length !== 2 || !homeSpawn.every(Number.isFinite)) throw new Error("--home-spawn must be two numbers like 53.5,40.5");
+  }
+
   return {
     help: false,
     server: normaliseServer(String(raw["--server"] ?? DEFAULT_SERVER)),
@@ -226,6 +253,9 @@ function parseOptions(argv) {
     radius: num("--radius", DEFAULT_RADIUS, (v) => v > 0 && v <= 10000, "a number of metres above 0"),
     speed: num("--speed", DEFAULT_SPEED, (v) => v > 0 && v <= 100, "a number of metres per second above 0 and at most 100"),
     seconds: num("--seconds", 0, (v) => v >= 0, "0 or more"),
+    route,
+    routeSpeed: num("--route-speed", null, (v) => v > 0 && v <= 100, "a number of metres per second above 0 and at most 100"),
+    homeSpawn,
     chat: raw["--chat"] === undefined ? null : String(raw["--chat"]),
     allowRemote: !!raw["--allow-remote"],
   };
@@ -484,18 +514,22 @@ function signIn(serverUrl, identity, name, { timeoutMs = 20000 } = {}) {
 
 /** The `game_join` this script sends: the desktop app's (src/lib.rs,
  *  "game_join"), naming the relay's ship when `ship` is given so the join holds
- *  a plot (engine/home_plot.rs `add_join_fields`; a scripted player draws no
- *  home, so it names no door and arrives in the middle of its plot). Pure. */
-function joinMessage(name, look, ship) {
+ *  a plot (engine/home_plot.rs `add_join_fields`). A scripted player draws no
+ *  home, so by default it names no door and arrives in the middle of its plot;
+ *  `homeSpawn` ([x, z], plot-local metres, `--home-spawn`) names one, as a
+ *  desktop player with that home does, and the relay spawns it at that door
+ *  (increment 2: the walker then walks out through its own corridor). Pure. */
+function joinMessage(name, look, ship, homeSpawn = null) {
   const msg = { type: "game_join", player_name: name, character_mode: "local", appearance: look };
   if (ship && ship.hash) msg.ship_hash = ship.hash;
+  if (ship && ship.hash && Array.isArray(homeSpawn)) msg.home_spawn = [homeSpawn[0], homeSpawn[1]];
   return msg;
 }
 
 /** Step into the shared world. Resolves with the relay's `game_welcome`
  *  (our entity id, and everyone already there). `ship`: the relay's ship
  *  (`fetchShip`), named in the join so it holds a plot. */
-function joinWorld(client, name, { look = LOOK, timeoutMs = 15000, ship = null } = {}) {
+function joinWorld(client, name, { look = LOOK, timeoutMs = 15000, ship = null, homeSpawn = null } = {}) {
   return new Promise((resolve, reject) => {
     let off = () => {};
     const timer = setTimeout(() => {
@@ -513,7 +547,7 @@ function joinWorld(client, name, { look = LOOK, timeoutMs = 15000, ship = null }
       else if (game && game.type === "game_join_denied") done(new Error(`the relay refused to let us into the world: ${game.message || game.reason}`));
       else if (msg.type === "system" && /has 'game' disabled/.test(msg.message || "")) done(new Error(msg.message));
     });
-    client.send(joinMessage(name, look, ship));
+    client.send(joinMessage(name, look, ship, homeSpawn));
   });
 }
 
@@ -616,6 +650,18 @@ function homePlotLine(welcome) {
   return `home_plot ${JSON.stringify(welcome.home_plot)}`;
 }
 
+/** The OTHER players already in the world when we joined, as the welcome's
+ *  snapshot gives them, one line each for a rig to read: "player present:
+ *  entity N "name" at (x, y, z)" (scripts/verify-copresence.js, the meeting in
+ *  the Commons: a player standing still sends no updates, so the relay's word in
+ *  the welcome is how the walker sees them). Pure. */
+function presentLines(welcome) {
+  const snap = Array.isArray(welcome && welcome.world_snapshot) ? welcome.world_snapshot : [];
+  return snap
+    .filter((e) => e.entity_type === "player" && e.entity_id !== welcome.player_id && Array.isArray(e.position))
+    .map((e) => `player present: entity ${e.entity_id} "${(e.components && e.components.name) || ""}" at ${fmt(e.position.map(Number))}`);
+}
+
 /** The sender's own steady clock, in seconds (THE TIMESTAMP RULE, top of
  *  this file). performance.now() counts from this process's start and never
  *  jumps when the wall clock is changed. Kept above zero, since a stamp of 0
@@ -641,8 +687,16 @@ function makeWalk(plan, start, startS) {
   let clockS = startS; // the timestamp of the last update handed out
   const target = pathPoint(plan, 0);
   const gap = Math.hypot(target[0] - pos[0], target[1] - pos[1], target[2] - pos[2]);
-  let onPath = gap < 0.01;
-  const approachSpeed = Math.max(plan.speed, gap / APPROACH_SECONDS);
+  // The approach: through the route's points, in order (`plan.route`, increment 2: out of our
+  // home through its door and corridor), then to the start of the path. With no route it is
+  // the one straight leg it always was, walked in about APPROACH_SECONDS; a route is walked at
+  // `plan.routeSpeed` (else the walking speed), a person's pace through doors and corridors.
+  const route = Array.isArray(plan.route) ? plan.route : [];
+  const legs = [...route.map((p) => p.slice()), target];
+  let leg = 0;
+  const approachM = legs.reduce((acc, p, i) => acc + Math.hypot(...p.map((v, k) => v - (i ? legs[i - 1] : start)[k])), 0);
+  let onPath = route.length === 0 && gap < 0.01;
+  const approachSpeed = route.length ? plan.routeSpeed || plan.speed : Math.max(plan.speed, gap / APPROACH_SECONDS);
 
   const update = (velocity) => ({
     type: "game_position_update",
@@ -654,6 +708,7 @@ function makeWalk(plan, start, startS) {
 
   return {
     gap,
+    approachM,
     target,
     onPath: () => onPath,
     position: () => pos.slice(),
@@ -667,14 +722,25 @@ function makeWalk(plan, start, startS) {
       let next;
       let reachedPath = false;
       if (!onPath) {
-        const d = Math.hypot(target[0] - pos[0], target[1] - pos[1], target[2] - pos[2]);
-        const step = Math.min(approachSpeed * dt, MAX_STEP_M);
-        if (d <= step) {
-          next = target.slice();
-          onPath = true;
-          reachedPath = true;
-        } else {
-          next = pos.map((v, i) => v + ((target[i] - v) * step) / d);
+        // This step's distance along the approach, through as many of its points as it reaches
+        // (never more than MAX_STEP_M, the relay's rule, even after a long pause).
+        let budget = Math.min(approachSpeed * dt, MAX_STEP_M);
+        next = pos.slice();
+        while (!onPath) {
+          const t = legs[leg];
+          const d = Math.hypot(t[0] - next[0], t[1] - next[1], t[2] - next[2]);
+          if (d > budget) {
+            next = next.map((v, i) => v + ((t[i] - v) * budget) / d);
+            break;
+          }
+          next = t.slice();
+          budget -= d;
+          leg += 1;
+          if (leg >= legs.length) {
+            // At the start of the path: the rest of this step is not walked (it never was).
+            onPath = true;
+            reachedPath = true;
+          }
         }
       } else {
         // At most MAX_STEP_M along the path per update. Along a circle or a
@@ -705,7 +771,11 @@ function makeWalk(plan, start, startS) {
 function startWalking(client, plan, start, log) {
   let sent = 0;
   const walk = makeWalk(plan, start, senderClockS());
-  if (!walk.onPath()) log(`walking ${walk.gap.toFixed(1)} m to the start of the path ${fmt(walk.target)}`);
+  const route = Array.isArray(plan.route) ? plan.route : [];
+  if (route.length) {
+    // One line the rig reads (scripts/verify-copresence.js, the meeting in the Commons).
+    log(`walking the route through ${route.length} points (${walk.approachM.toFixed(1)} m at ${(plan.routeSpeed || plan.speed).toFixed(2)} m/s) to the start of the path ${fmt(walk.target)}`);
+  } else if (!walk.onPath()) log(`walking ${walk.gap.toFixed(1)} m to the start of the path ${fmt(walk.target)}`);
   else log(`on the path at ${fmt(start)}`);
 
   const send = (msg) => {
@@ -826,7 +896,7 @@ async function main() {
 
   let welcome;
   try {
-    welcome = await joinWorld(client, opts.name, { ship });
+    welcome = await joinWorld(client, opts.name, { ship, homeSpawn: opts.homeSpawn });
   } catch (e) {
     client.close();
     return fail(2, e.message);
@@ -834,13 +904,14 @@ async function main() {
   const { center, start, why } = chooseCenter(opts, welcome);
   log(`in the world as entity ${welcome.player_id}, starting at ${fmt(start)}`);
   log(homePlotLine(welcome));
+  for (const line of presentLines(welcome)) log(line);
   const stopLogging = logOthers(client, welcome.player_id, log);
   const shape = opts.path === "line"
     ? `back and forth along a ${2 * opts.radius} m line (${opts.axis} axis)`
     : `a circle of radius ${opts.radius} m`;
   log(`walking ${shape} at ${opts.speed} m/s, centred on ${fmt(center)} ${why}`);
 
-  const plan = { path: opts.path, axis: opts.axis, center, radius: opts.radius, speed: opts.speed };
+  const plan = { path: opts.path, axis: opts.axis, center, radius: opts.radius, speed: opts.speed, route: opts.route, routeSpeed: opts.routeSpeed };
   const walker = startWalking(client, plan, start, log);
   const stopChat = opts.chat ? sayInChat(client, identity, opts.name, opts.chat, log) : () => {};
 
@@ -858,6 +929,8 @@ async function main() {
     client.send({ type: "game_leave" });
     await new Promise((r) => setTimeout(r, 300));
     client.close();
+    // Stop listening for "stop", so Node can exit by itself.
+    process.stdin.destroy();
     log(`${reason}: stood still and left the world after ${walker.sent()} updates`);
     process.exitCode = code;
     // Everything is closed, so Node exits by itself; this is only a backstop.
@@ -869,6 +942,21 @@ async function main() {
     if (stopping) process.exit(130); // a second Ctrl+C: stop at once
     finish("stopped (Ctrl+C)");
   });
+  // A line "stop" on our input does what Ctrl+C does. Windows gives a child process no signal
+  // it can catch (a "kill" ends it at once, with no game_leave, and the relay then keeps its
+  // figure for its 90 s grace), so this is how a rig ends a walker cleanly
+  // (scripts/verify-copresence.js). An input that is not a pipe or a console just ends.
+  process.stdin.setEncoding("utf8");
+  let typed = "";
+  process.stdin.on("data", (chunk) => {
+    typed += chunk;
+    for (let i; (i = typed.indexOf("\n")) >= 0; ) {
+      const line = typed.slice(0, i).trim();
+      typed = typed.slice(i + 1);
+      if (line === "stop") finish("stopped (asked on its input)");
+    }
+  });
+  process.stdin.on("error", () => {});
   client.ws.addEventListener("close", () => {
     if (stopping) return;
     stopping = true;
@@ -908,6 +996,7 @@ module.exports = {
   facingQuat,
   chooseCenter,
   homePlotLine,
+  presentLines,
 };
 
 if (require.main === module) main();
