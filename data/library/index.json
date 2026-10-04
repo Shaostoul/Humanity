@@ -643,6 +643,37 @@
           ]
         },
         {
+          "title": "How a Building Stands Up",
+          "file": "how_a_building_stands_up.md",
+          "tags": [
+            "guide",
+            "real",
+            "shelter",
+            "safety"
+          ]
+        },
+        {
+          "title": "Foundations and Ground",
+          "file": "foundations_and_ground.md",
+          "tags": [
+            "guide",
+            "real",
+            "shelter",
+            "safety"
+          ]
+        },
+        {
+          "title": "Framing a Building",
+          "file": "framing_a_building.md",
+          "tags": [
+            "guide",
+            "real",
+            "shelter",
+            "making",
+            "safety"
+          ]
+        },
+        {
           "title": "Your First Solar Power",
           "file": "first_solar_power.md",
           "tags": [
