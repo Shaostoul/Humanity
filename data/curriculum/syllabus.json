@@ -826,15 +826,35 @@
       "subject": "food_animals",
       "title": "Chickens and eggs",
       "summary": "Keep a small flock through a year.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "chickens-and-eggs"
+      ],
       "skills": [
         "farming"
       ],
-      "locale_dependent": true,
-      "hazard": "caution",
       "data": [
-        "data/creatures.csv"
-      ]
+        "data/creatures.csv",
+        "data/entities/livestock.ron",
+        "data/food_system.ron"
+      ],
+      "sources": [
+        "cdc",
+        "usda-aphis",
+        "fda",
+        "ecfr",
+        "usda-ams",
+        "uf-ifas-extension",
+        "uga-extension",
+        "oregon-state-extension",
+        "umd-extension",
+        "nebraska-extension",
+        "ndsu-extension",
+        "clark-county-wa",
+        "cornell-cwmi"
+      ],
+      "locale_dependent": true,
+      "hazard": "caution"
     },
     {
       "id": "animals_health",
@@ -1675,9 +1695,25 @@
       "subject": "materials",
       "title": "Glues, fasteners and joints",
       "summary": "Join two things so the joint is not the weak point.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "glue-and-joints"
+      ],
       "skills": [
         "woodworking"
+      ],
+      "data": [
+        "data/recipes.csv",
+        "data/items.csv"
+      ],
+      "sources": [
+        "fpl-wood-handbook",
+        "dod-technical-manuals",
+        "cpsc",
+        "ecfr",
+        "niosh-pocket-guide",
+        "epa",
+        "hrsa"
       ],
       "locale_dependent": false,
       "hazard": "caution"
@@ -2589,12 +2625,21 @@
       "subject": "earth",
       "title": "Reading weather",
       "summary": "Predict the next several hours from sky, wind and pressure.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "reading-the-weather"
+      ],
       "skills": [
         "navigation"
       ],
+      "data": [
+        "data/weather/events.ron",
+        "data/environment/climate.ron"
+      ],
       "sources": [
-        "noaa"
+        "nws",
+        "noaa",
+        "faa"
       ],
       "locale_dependent": true,
       "hazard": "serious"
