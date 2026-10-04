@@ -261,6 +261,49 @@ pub(crate) fn sun_occlusion_factor(state: &EngineState) -> f32 {
     vis
 }
 
+/// How much of the sun's disc stands clear of the body the camera is locked
+/// to, 0..1 (2026-10-04): 1 with the sun up, 0 with it below the horizon (or,
+/// from orbit, behind the planet), easing across the disc's own width as it
+/// rises or sets. The disc and its corona are bright sprites drawn in the
+/// celestial pass; the ground hides the disc by depth, but the corona is three
+/// times wider and stood up over the horizon as a pink dome before every
+/// sunrise and after every sunset (the Silverdale clip and its poster). Glare
+/// comes from the disc, so with the disc hidden there is none: lib.rs scales
+/// both by this, beside the cloud dimming. Away from any body, 1.
+pub(crate) fn sun_disc_clear(state: &EngineState) -> f32 {
+    state
+        .frame_lock_body
+        .as_deref()
+        .and_then(|b| state.planet_defs.get(b))
+        .map(|d| {
+            disc_clear_of_body(
+                glam::DQuat::from_rotation_y(state.current_spin) * state.frame_lock_anchor,
+                d.radius,
+                state.sun_world_pos - state.ship_world_pos,
+            )
+        })
+        .unwrap_or(1.0)
+}
+
+/// [`sun_disc_clear`]'s arithmetic, pure. `cam_from_centre` is the camera
+/// from the body's centre in the WORLD frame (the frame lock's anchor turned
+/// by the spin, as `ipc::sun_over_anchor` reads it); `to_sun` points from the
+/// camera to the sun. The body's limb stands `asin(radius / distance)` from
+/// its centre as seen from the camera (the horizon's dip, from the ground),
+/// and the disc clears it over its own angular diameter.
+pub(crate) fn disc_clear_of_body(cam_from_centre: glam::DVec3, radius: f64, to_sun: glam::DVec3) -> f32 {
+    // The sun's angular radius, 0.267 degrees.
+    const SUN_RADIUS_RAD: f64 = 0.004_65;
+    let r = cam_from_centre.length();
+    if r < 1.0 || to_sun.length_squared() < 1.0e-12 {
+        return 1.0;
+    }
+    let limb = (radius / r).min(1.0).asin();
+    let from_centre = (-cam_from_centre / r).dot(to_sun.normalize()).clamp(-1.0, 1.0).acos();
+    let t = ((from_centre - (limb - SUN_RADIUS_RAD)) / (2.0 * SUN_RADIUS_RAD)).clamp(0.0, 1.0);
+    (t * t * (3.0 - 2.0 * t)) as f32
+}
+
 /// Cloud alpha along the camera-to-sun ray, at the deck crossing: the max
 /// of the pinned procedural field (the CURRENT weather_pinned_field mirror)
 /// and the live MODIS grid cell there. 0.0 = clear path to the sun. Shared
@@ -752,4 +795,59 @@ pub(crate) fn restore_location_bookmark(state: &mut EngineState, v: &serde_json:
     );
     log::info!("Bookmark restore: {want} (body {body_id:?})");
     true
+}
+
+#[cfg(test)]
+mod sun_disc_tests {
+    use super::disc_clear_of_body;
+    use glam::DVec3;
+
+    const R: f64 = 6_371_000.0;
+
+    /// The sun's direction from a point on the equator at world +X, `elev`
+    /// degrees over the astronomical horizon (toward +Y), very far off.
+    fn sun_at(elev_deg: f64) -> DVec3 {
+        let e = elev_deg.to_radians();
+        DVec3::new(e.sin(), e.cos(), 0.0) * 1.5e11
+    }
+
+    /// THE PINK DOME BEFORE SUNRISE (2026-10-04, the Silverdale clip). From
+    /// 300 m up the horizon dips 0.56 degrees, so the sun's disc is clear a
+    /// little before it reaches the astronomical horizon and gone a little
+    /// after; the corona must follow the disc, not stand over the horizon
+    /// with the sun 5 degrees down.
+    ///
+    /// Red check, run 2026-10-04 with the function returning 1 (the corona
+    /// drawn whatever the sun did): "sun 5 degrees down: no disc, no glare"
+    /// failed (left 1.0, right 0.0).
+    #[test]
+    fn the_corona_follows_the_disc_over_the_horizon() {
+        let eye = DVec3::new(R + 300.0, 0.0, 0.0);
+        assert_eq!(disc_clear_of_body(eye, R, sun_at(-5.0)), 0.0, "sun 5 degrees down: no disc, no glare");
+        assert_eq!(disc_clear_of_body(eye, R, sun_at(-1.0)), 0.0, "sun a degree down");
+        assert_eq!(disc_clear_of_body(eye, R, sun_at(0.5)), 1.0, "sun up");
+        let dip = -(R / (R + 300.0)).acos().to_degrees();
+        let half = disc_clear_of_body(eye, R, sun_at(dip));
+        assert!((half - 0.5).abs() < 0.01, "half the disc over the dipped horizon: {half}");
+        // Rising, it only ever brightens.
+        let mut last = 0.0;
+        for i in 0..200 {
+            let f = disc_clear_of_body(eye, R, sun_at(-1.0 + i as f64 * 0.01));
+            assert!(f >= last);
+            last = f;
+        }
+    }
+
+    /// From orbit the limb is the planet's edge: a sun behind the planet has
+    /// no glare, a sun off to the side has all of it.
+    ///
+    /// Red check, run 2026-10-04 with the function returning 1: "behind the
+    /// planet" failed (left 1.0, right 0.0).
+    #[test]
+    fn from_orbit_the_planet_hides_the_sun_behind_it() {
+        let eye = DVec3::new(R + 400_000.0, 0.0, 0.0);
+        assert_eq!(disc_clear_of_body(eye, R, DVec3::new(-1.5e11, 0.0, 0.0)), 0.0, "behind the planet");
+        assert_eq!(disc_clear_of_body(eye, R, DVec3::new(0.0, 1.5e11, 0.0)), 1.0, "off to the side");
+        assert_eq!(disc_clear_of_body(eye, R, DVec3::new(1.5e11, 0.0, 0.0)), 1.0, "behind the camera");
+    }
 }

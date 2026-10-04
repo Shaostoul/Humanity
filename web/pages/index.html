@@ -216,6 +216,23 @@
       }
     }
 
+    /* ── Screen 1b: the hero shot, a clip from the game (2026-10-04). It
+       opens on the Milky Way, so it carries on from screen 1's starlight,
+       and ends in sunrise. Same frame as .shot; a video needs its own box
+       before it loads, hence the aspect ratio and the dark fill. ── */
+    .hero-clip {
+      width: 100%;
+      max-width: 960px;
+      height: auto;
+      aspect-ratio: 16 / 9;
+      background: var(--bg);
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      box-shadow: 0 10px 44px rgba(0,0,0,0.65);
+      margin: 22px auto 0;
+      display: block;
+    }
+
     /* ── Screens 2 + 5: one big image ── */
     .shot {
       width: 100%;
@@ -472,7 +489,7 @@
       <p class="sub">One app for what you planted, what needs doing, and what you can trade with the people on your server. It also holds a space game built on the same rules, so playing it teaches the real thing.</p>
       <div class="cta-row">
         <a class="cta-big" href="/download">Download free</a>
-        <a class="cta-see" href="#s2">See what it looks like</a>
+        <a class="cta-see" href="#dawn">See what it looks like</a>
       </div>
       <!-- "Runs on old computers" was false and had to go: the renderer is
            DX12-only on Windows and Vulkan/Metal elsewhere, with
@@ -482,6 +499,42 @@
            /download; the browser version is the genuine low-end answer. -->
       <p class="micro">Windows, Mac or Linux. No ads, no email, no password. Open source, and still being built in the open since 2019.</p>
     </div>
+    <div class="chev" aria-hidden="true">&#9660;</div>
+  </section>
+
+  <!-- ══ Screen 1b: the hero shot, the second screen down (2026-10-04) ══
+       The operator's idea: start dark on the Milky Way, then the sun comes up
+       over a real place, from Silverdale, Washington, toward Mount Rainier.
+       Recorded by the game's own clip maker (scripts/clips.json, shot
+       "silverdale-dawn"; scripts/make-clips.js), cut to 720p. Wired the way
+       the game panel's clip is: muted, preload="none" so it costs nothing
+       until it is near, played only while on screen, and never by itself for
+       reduced motion or data saver (they get the still and the controls). No
+       loop: it ends on the sunrise, and coming back to it plays it again. -->
+  <section class="screen" id="dawn">
+    <div class="inner">
+      <h2 class="u-purple">Night to sunrise over a real place.</h2>
+    </div>
+    <video class="hero-clip auto-clip" id="dawn-clip" muted playsinline preload="none"
+           width="1280" height="720"
+           poster="/shared/landing/silverdale-dawn.jpg"
+           aria-label="A time-lapse recorded in the game: the winter Milky Way stands over Mount Rainier, seen from Silverdale, Washington, then fades as dawn comes and the sun rises over Dyes Inlet">
+      <source src="/shared/landing/silverdale-dawn.mp4" type="video/mp4">
+    </video>
+    <!-- Every claim here is checkable in the game. The stars are a real star
+         catalogue placed for the date and hour (renderer/sky_frame.rs,
+         BUG-139; the sky_frame tests hold Sirius, Procyon, Orion and the rest
+         within 0.1 degree of the real sky over Silverdale that morning), and
+         this recording used the free 25-million-star catalogue from Settings,
+         which the caption says. The ground is real elevation and map data,
+         and the Earth is drawn at full size. What is NOT claimed, because it
+         is not true yet: the twilight colours (the drawn sky is black through
+         nautical twilight, BUG-141), the sun's own path (the game has no
+         axial tilt, so it rises due east), and Rainier's shape (the elevation
+         data that ships is about 5 km to a cell, so the mountain is a low
+         rounded dome). The old headline, "The real sky over a real place",
+         was false before BUG-139 and went with it. -->
+    <p class="shot-cap">Recorded in the game: night to sunrise over Silverdale, Washington, looking toward Mount Rainier. The stars stand where they really stood that morning (shown with the free 25-million-star catalogue from Settings), the ground is real map data, and the Earth is full size.</p>
     <div class="chev" aria-hidden="true">&#9660;</div>
   </section>
 
@@ -545,7 +598,7 @@
            and never by itself for someone who asked for reduced motion or to
            save data: they get the still and a play button. preload="none" so
            the 1.2 MB file costs nothing until it is wanted. -->
-      <video class="gp-clip" id="game-clip" muted loop playsinline preload="none"
+      <video class="gp-clip auto-clip" id="game-clip" muted loop playsinline preload="none"
              width="1280" height="720"
              poster="/shared/landing/game-home-flyover.jpg"
              aria-label="A flight over a one-acre home in orbit: house, greenhouse, work wing and yard, recorded in the game">
@@ -649,22 +702,30 @@
   </section>
 
   <script>
-  // The game clip plays while it is on screen and pauses when it is not, so it
-  // never runs (or downloads) unseen. Reduced motion or a data-saver setting
-  // leaves it still, with the browser's controls to play it by choice.
+  // The clips from the game (the hero shot and the game panel's flyover) play
+  // while they are on screen and pause when they are not, so they never run
+  // (or download) unseen. Reduced motion or a data-saver setting leaves them
+  // still, with the browser's controls to play them by choice. A clip without
+  // `loop` that has ended starts again from the top when play() is called, so
+  // scrolling back to the hero shot shows the sunrise again.
   (function () {
-    var v = document.getElementById('game-clip');
-    if (!v) return;
+    var clips = document.querySelectorAll('video.auto-clip');
+    if (!clips.length) return;
     var still = (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) ||
       (navigator.connection && navigator.connection.saveData) ||
       document.body.hasAttribute('data-reduced-motion');
-    if (still || !('IntersectionObserver' in window)) { v.controls = true; return; }
-    new IntersectionObserver(function (entries) {
+    if (still || !('IntersectionObserver' in window)) {
+      Array.prototype.forEach.call(clips, function (v) { v.controls = true; });
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (e) {
+        var v = e.target;
         if (e.isIntersecting) { var p = v.play(); if (p && p.catch) p.catch(function () { v.controls = true; }); }
         else v.pause();
       });
-    }, { threshold: 0.35 }).observe(v);
+    }, { threshold: 0.35 });
+    Array.prototype.forEach.call(clips, function (v) { io.observe(v); });
   })();
 
   // Years of work, counted from the first commit in 2019 so it never goes stale.

@@ -2029,6 +2029,7 @@ mod native_app {
                 // Rig determinism pins, both off by default (showcase_request
                 // {"wind":...} / {"anim_clock":...} turn them on).
                 foliage_wind_override: None,
+                fov_pin: None,
                 anim_clock_pin: None,
                 ocean_event_pin_request: None,
                 ocean_event_pin: None,
@@ -14736,6 +14737,10 @@ mod native_app {
                                 // the window shows none; the rule itself
                                 // is documented on `sky_daylight`.
                                 let daylight = crate::engine::ipc::sky_daylight(state);
+                                // The sky's turn and twilight fades: the same
+                                // rule as every off-screen view (ipc, BUG-139).
+                                let (sky_rot, sky_fades) =
+                                    (crate::engine::ipc::sky_rotation(state), crate::engine::ipc::star_fades(state));
                                 // Pass 1: Stars (clear to black + draw star points)
                                 if let Some(ref mut star_r) = state.star_renderer {
                                     // `cpu.stars`: the submission twin of the
@@ -14773,15 +14778,7 @@ mod native_app {
                                     // the halo vertex buffer at world load).
                                     star_r.show_star_halos =
                                         state.gui_state.settings.sky_star_halos;
-                                    star_r.update_camera(
-                                        &state.renderer.queue,
-                                        &state.camera,
-                                        crate::station::render_to_world_rot(
-                                            state.station_ride,
-                                            state.station_world_rot,
-                                        )
-                                        .as_quat(),
-                                    );
+                                    star_r.update_camera(&state.renderer.queue, &state.camera, sky_rot, sky_fades);
                                     let mut encoder = state.renderer.device.create_command_encoder(
                                         &wgpu::CommandEncoderDescriptor { label: Some("Star Encoder") },
                                     );
@@ -14965,7 +14962,10 @@ mod native_app {
                                 {
                                     let sca =
                                         crate::engine::frame_lock::sun_cloud_alpha(state);
-                                    let t_disc = (-4.0 * sca).exp();
+                                    // And no glare from a disc behind the planet
+                                    // (frame_lock::sun_disc_clear, 2026-10-04).
+                                    let clear = crate::engine::frame_lock::sun_disc_clear(state);
+                                    let t_disc = (-4.0 * sca).exp() * clear;
                                     state.renderer.update_material_full(
                                         state.sun_material,
                                         [1.0, 0.96, 0.88, 1.0],
@@ -14976,7 +14976,7 @@ mod native_app {
                                     );
                                     state.renderer.update_material_full(
                                         state.sun_halo_material,
-                                        [1.0, 0.82, 0.55, 0.85 * (0.15_f32).max(t_disc)],
+                                        [1.0, 0.82, 0.55, 0.85 * (0.15_f32).max(t_disc) * clear],
                                         0.0,
                                         1.0,
                                         17.0,
@@ -15512,8 +15512,9 @@ mod native_app {
                                         });
                                 }
 
-                                // Crosshair (small dot at screen center when in game)
-                                if state.gui_state.active_page == GuiPage::None {
+                                // Crosshair (small dot at screen center when in game,
+                                // hidden with the HUD: hud::crosshair_visible)
+                                if hud::crosshair_visible(&state.gui_state) {
                                     let screen = ctx.screen_rect();
                                     let center = screen.center();
                                     let painter = ctx.layer_painter(egui::LayerId::new(
@@ -16383,8 +16384,11 @@ mod native_app {
                                 // point and black out the entire 3D scene with no
                                 // in-app way to recover. 60..120 deg matches the
                                 // Settings slider bounds.
-                                state.camera.fov_degrees =
-                                    state.gui_state.settings.fov.clamp(60.0, 120.0);
+                                // (A showcase lens pin outranks it: ipc::effective_fov.)
+                                state.camera.fov_degrees = crate::engine::ipc::effective_fov(
+                                    state.fov_pin,
+                                    state.gui_state.settings.fov,
+                                );
 
                                 // Mouse sensitivity + invert Y (v0.909: the
                                 // invert toggle used to be decorative).

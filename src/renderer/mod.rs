@@ -114,6 +114,9 @@ pub mod shader_loader;
 /// Which material types can DISCARD in the sun shadow pass, and the test that
 /// keeps that answer equal to the shader's (v0.1108).
 pub mod shadow_cutout;
+/// Where the stars are (the catalogue's sky turned into the world by the
+/// date) and how much of them twilight leaves (2026-10-04, BUG-139).
+pub mod sky_frame;
 pub mod stars;
 /// Near sun cascades: the home and the planet build sites as sun casters
 /// (2026-09-27, docs/design/sun-cascades.md).
