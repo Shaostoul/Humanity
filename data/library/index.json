@@ -351,6 +351,16 @@
           ]
         },
         {
+          "title": "Cold Storage Without a Fridge",
+          "file": "cold_storage_without_a_fridge.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
           "title": "Your First Compost",
           "file": "your_first_compost.md",
           "tags": [
@@ -580,6 +590,16 @@
           ]
         },
         {
+          "title": "Wells and Groundwater",
+          "file": "wells_and_groundwater.md",
+          "tags": [
+            "guide",
+            "real",
+            "water",
+            "safety"
+          ]
+        },
+        {
           "title": "Testing Water",
           "file": "testing_water.md",
           "tags": [
@@ -741,6 +761,17 @@
             "guide",
             "real",
             "power",
+            "safety"
+          ]
+        },
+        {
+          "title": "Water and Wind Power",
+          "file": "water_and_wind_power.md",
+          "tags": [
+            "guide",
+            "real",
+            "power",
+            "water",
             "safety"
           ]
         },
