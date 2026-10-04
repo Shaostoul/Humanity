@@ -576,9 +576,30 @@ them up.
    `/library#fire-performance-clothing`) are at `sourced` for the same reason.
 7. **GitHub branch and tag protection on `main`: NOT for now (operator,
    2026-10-04):** immediate deploys to the live relay suit the dev cycle.
-8. **ANSWERED 2026-10-04: donations copy.** Tax-deductible, to the nonprofit:
-   https://www.sponsor-a-can.org/donate/ . To the operator directly (not
-   tax-deductible): https://www.patreon.com/Shaostoul "for the time being".
+8. **ANSWERED 2026-10-04: donations copy.** The operator: a tax-deductible
+   donation goes to the nonprofit at https://www.sponsor-a-can.org/donate/ ; a
+   gift to him directly (he receives it, not tax-deductible) goes to
+   https://www.patreon.com/Shaostoul "for the time being". Done the same day:
+   both are the two "ways to give" cards at the top of the Donate page on both
+   clients (`data/donate/routes.json`), each with one sentence saying where the
+   money goes and whether it is tax-deductible, and in the FAQ, README, website
+   docs and outreach guides. Sponsor-a-Can's 501(c)(3) status checked against
+   IRS data: `docs/reference/findings/2026-10-04-sponsor-a-can-tax-status.md`.
+   Patreon is the first card, because the page is "Support HumanityOS" and the
+   "Fund the work" buttons open it. Still the operator's calls: (a) whether the
+   PayPal, Cash App and GitHub Sponsors links he added on 2026-07-13 stay listed
+   as "more ways to give directly" now that he named Patreon as the direct link;
+   (b) the server's funding goal, "$100,000, Full-time development for 1 year"
+   in `data/server-config.json`, which both clients show under the direct-gifts
+   heading: it dates from v0.25.0 (2026-03-21) and nothing in the repo shows he
+   set or confirmed it (keep, change, or `goal_usd: 0` to hide it; there is no
+   in-app editor yet, see "Boot-default config editor" in
+   `data/admin/ops_registry.json` planned); (c) the funders guide names his Vice
+   President role at Sponsor-a-Can but lists that income in its books only as
+   "side-job", so whether to say the side-job is Sponsor-a-Can is his. Known
+   gap, not Donate's own: the desktop updater swaps only the exe, so an
+   auto-updated install keeps its old `data/` (old FAQ, no route cards) and
+   only a fresh download gets new data files.
 9. **Landing screen 2 hero shot: direction ANSWERED 2026-10-04.** No ship worth
    showing yet, so: start dark on the Milky Way, then a sunrise over a scenic
    place, e.g. from Silverdale, WA toward Mount Rainier. The rig can frame it.

@@ -1,5 +1,20 @@
 # Funding & Donation System
 
+> **What the Donate page does today (2026-10-04).** Much of this document is the
+> original plan and no longer matches the page. The page now leads with **two ways
+> to give**, from `data/donate/routes.json`, as the operator set them on
+> 2026-10-04: the nonprofit **Sponsor-a-Can** (https://www.sponsor-a-can.org/donate/,
+> a 501(c)(3), so tax-deductible as the law allows; the money goes to Sponsor-a-Can)
+> and the maintainer **on Patreon** (https://www.patreon.com/Shaostoul; he receives
+> it personally, so it is not tax-deductible). Each card carries one plain sentence
+> saying exactly that. Below them: more direct links (`data/donate/methods.json`),
+> the server's funding goal and any addresses from `/api/server-info`, endorsed
+> charities (`data/donate/charities.json`) and the FAQ (`data/donate/faq.json`).
+> Native and web read the same four files (`tests/page_parity_lint.rs`). There is
+> no progress bar and no "raised so far": nothing tracks it, so both clients show
+> the goal on its own. The 501(c)(3) status is checked against IRS data in
+> `docs/reference/findings/2026-10-04-sponsor-a-can-tax-status.md`.
+
 Aggregates multiple funding sources into a single donate page with live progress tracking. Server owner configures goals and addresses; clients query balances client-side.
 
 ## Funding Sources (priority order)
@@ -171,7 +186,7 @@ Reuse existing `qrcode.js` (already loaded for chat identity). Generate QR on pa
 
 ## Legal
 
-- **Not a 501(c)(3)**, donations are NOT tax-deductible (yet)
+- **HumanityOS is not a 501(c)(3)**: a gift to the maintainer is NOT tax-deductible. A donation to the nonprofit Sponsor-a-Can (a separate 501(c)(3)) is, as the law allows, and goes to Sponsor-a-Can (2026-10-04, see the note at the top)
 - Incorporate when revenue exceeds $50k/year
 - **No MSB classification**, non-custodial crypto (wallet addresses displayed, not exchanged or held on behalf of users)
 - No securities implications, donations, not investments; no tokens issued

@@ -2700,6 +2700,8 @@ pub struct GuiState {
     pub donate_methods: Vec<DonateMethod>,
     /// Endorsed charities (`data/donate/charities.json`).
     pub donate_charities: Vec<DonateCharity>,
+    /// The ways to give shown first on the Donate page (`data/donate/routes.json`).
+    pub donate_routes: Vec<DonateRoute>,
     /// QA test tasks (`data/testing/qa_tasks.json`) shown on the Testing page.
     pub qa_test_tasks: Vec<QaTestTask>,
     /// Per-task local status: id → "passed" / "issue" / "" (untouched).
@@ -4014,6 +4016,7 @@ impl Default for GuiState {
             donate_faq: Vec::new(),
             donate_methods: Vec::new(),
             donate_charities: Vec::new(),
+            donate_routes: Vec::new(),
             qa_test_tasks: Vec::new(),
             qa_test_status: std::collections::HashMap::new(),
             qa_test_note: std::collections::HashMap::new(),

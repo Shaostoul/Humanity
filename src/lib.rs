@@ -1633,6 +1633,7 @@ mod native_app {
             gui_state.donate_faq = crate::gui::load_donate_faq(&data_dir);
             gui_state.donate_methods = crate::gui::load_donate_methods(&data_dir);
             gui_state.donate_charities = crate::gui::load_donate_charities(&data_dir);
+            gui_state.donate_routes = crate::gui::load_donate_routes(&data_dir);
             gui_state.qa_test_tasks = crate::gui::load_qa_test_tasks(&data_dir);
             gui_state.web_sites = crate::gui::load_web_sites(&data_dir); // data/web/sites.json, both clients
             gui_state.web_view.rules = crate::gui::load_web_read_rules(&data_dir);

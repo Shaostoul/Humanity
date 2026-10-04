@@ -1418,8 +1418,9 @@ pub fn load_donate_faq(data_dir: &std::path::Path) -> Vec<DonateFaqEntry> {
         .unwrap_or_default()
 }
 
-/// One direct-support donation link (GitHub Sponsors, Patreon, PayPal, Cash
-/// App). These go to the maintainer, not the Sponsor-A-Can 501c3. Data-driven
+/// One more direct-support donation link (GitHub Sponsors, PayPal, Cash App;
+/// Patreon is a route, see `DonateRoute`). These go to the maintainer, not to
+/// the nonprofit Sponsor-a-Can, and are not tax-deductible. Data-driven
 /// from `data/donate/methods.json` so adding a method needs no code change; the
 /// same file is read by the web donate page.
 #[cfg(feature = "native")]
@@ -1468,6 +1469,37 @@ pub fn load_donate_charities(data_dir: &std::path::Path) -> Vec<DonateCharity> {
     struct File { charities: Vec<DonateCharity> }
     read_data_json::<File>(data_dir, "donate/charities.json")
         .map(|f| f.charities)
+        .unwrap_or_default()
+}
+
+/// One of the ways to give shown first on the Donate page: today the nonprofit
+/// Sponsor-a-Can (tax-deductible) and the maintainer on Patreon (not), as the
+/// operator set them on 2026-10-04. `goes_to` is the one plain sentence saying
+/// where the money goes and whether it is tax-deductible; it must agree with
+/// `tax_deductible` (checked by a test in pages/donate.rs). Shared with the web
+/// donate page through `data/donate/routes.json`.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct DonateRoute {
+    pub name: String,
+    #[serde(default)] pub kind: String,
+    #[serde(default)] pub about: String,
+    pub url: String,
+    #[serde(default)] pub button: String,
+    pub goes_to: String,
+    pub tax_deductible: bool,
+    #[serde(default)] pub note: String,
+    #[serde(default)] pub abbrev: String,
+    #[serde(default)] pub color: String,
+}
+
+/// Load the giving routes from `data/donate/routes.json`.
+#[cfg(feature = "native")]
+pub fn load_donate_routes(data_dir: &std::path::Path) -> Vec<DonateRoute> {
+    #[derive(serde::Deserialize)]
+    struct File { routes: Vec<DonateRoute> }
+    read_data_json::<File>(data_dir, "donate/routes.json")
+        .map(|f| f.routes)
         .unwrap_or_default()
 }
 

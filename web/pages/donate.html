@@ -8,7 +8,6 @@
   <style>
     body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
     a{color:var(--accent)} button{cursor:pointer;font-family:inherit}
-    .panel{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);margin-bottom:var(--space-2xl)}
 
     #page-app{flex:1;overflow-y:auto;padding:var(--space-xl) var(--space-2xl);max-width:900px;width:100%;margin:0 auto}
 
@@ -17,16 +16,27 @@
     .donate-hero h1{font-size:1.6rem;margin:0 0 var(--space-md)}
     .donate-hero p{color:var(--text-muted);font-size:0.95rem;max-width:560px;margin:0 auto;line-height:1.5}
 
-    /* Progress bar */
-    .progress-wrap{margin-bottom:var(--space-2xl)}
-    .progress-bar-outer{background:var(--bg-input);border:1px solid var(--border);border-radius:8px;height:28px;overflow:hidden;position:relative}
-    .progress-bar-fill{height:100%;border-radius:8px;background:linear-gradient(90deg,var(--accent),var(--success));transition:width 1s ease-out;min-width:0}
-    .progress-labels{display:flex;justify-content:space-between;align-items:center;margin-top:var(--space-sm);font-size:0.8rem;color:var(--text-muted)}
-    .progress-labels .amount{color:var(--text);font-weight:600}
-    .progress-goal-label{text-align:center;font-size:0.8rem;color:var(--text-muted);margin-top:var(--space-xs)}
+    /* Section headings + their one-line explanation */
+    .section-heading{font-size:0.85rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin:0 0 var(--space-lg);text-align:center}
+    .section-note{text-align:center;font-size:0.8rem;color:var(--text-muted);max-width:560px;margin:0 auto var(--space-lg);line-height:1.5}
+    .donate-section{margin-bottom:var(--space-2xl)}
 
-    /* Source cards */
-    .source-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--space-xl);margin-bottom:var(--space-2xl)}
+    /* Ways to give (data/donate/routes.json): the two routes, side by side */
+    .route-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:var(--space-xl)}
+    .route-card{background:var(--bg-card);border:1px solid var(--accent);border-radius:12px;padding:var(--space-xl);display:flex;flex-direction:column;gap:var(--space-md)}
+    .route-card h3{margin:0;font-size:1.1rem;display:flex;align-items:center;gap:var(--space-sm)}
+    .route-kind{font-size:0.75rem;color:var(--text-muted)}
+    .route-about{margin:0;font-size:0.8rem;color:var(--text-muted);line-height:1.4}
+    .route-goes{margin:0;font-size:0.9rem;color:var(--text);line-height:1.5}
+    .route-note{font-size:0.72rem;color:var(--text-muted)}
+    .route-action{display:flex;align-items:center;gap:var(--space-md);flex-wrap:wrap}
+    .route-url{font-family:monospace;font-size:0.72rem;color:var(--info);word-break:break-all}
+    /* Filled pill, as native's widgets::badge_sm: success colour when tax-deductible, muted when not */
+    .tax-badge{align-self:flex-start;font-size:0.7rem;font-weight:600;border-radius:var(--badge-radius);padding:1px var(--space-sm);background:var(--text-muted);color:var(--text-strong)}
+    .tax-badge.yes{background:var(--success)}
+
+    /* Source cards (more direct links, crypto, charities) */
+    .source-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--space-xl)}
     .source-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-xl);display:flex;flex-direction:column;gap:var(--space-md)}
     .source-card:hover{border-color:var(--accent)}
     .source-card h3{margin:0;font-size:1rem;display:flex;align-items:center;gap:var(--space-sm)}
@@ -34,7 +44,7 @@
     .source-card p{margin:0;font-size:0.8rem;color:var(--text-muted);line-height:1.4}
     .source-card .fee-tag{font-size:0.7rem;color:var(--success);font-weight:600}
 
-    .btn-sponsor{display:inline-flex;align-items:center;gap:var(--space-sm);background:var(--accent);color:#fff;border:none;border-radius:6px;padding:var(--space-md) var(--space-xl);font-size:0.85rem;font-weight:600;text-decoration:none;transition:background 0.2s}
+    .btn-sponsor{align-self:flex-start;display:inline-flex;align-items:center;gap:var(--space-sm);background:var(--accent);color:#fff;border:none;border-radius:6px;padding:var(--space-md) var(--space-xl);font-size:0.85rem;font-weight:600;text-decoration:none;transition:background 0.2s}
     .btn-sponsor:hover{background:var(--accent-hover);color:#fff}
 
     .addr-row{display:flex;align-items:center;gap:var(--space-sm);background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:var(--space-sm) var(--space-md);font-family:monospace;font-size:0.75rem;word-break:break-all}
@@ -46,18 +56,13 @@
     .qr-container{display:flex;justify-content:center;padding:var(--space-sm) 0}
     .qr-container svg,.qr-container img{border-radius:6px}
 
-    .coming-soon{color:var(--text-muted);font-style:italic;font-size:0.8rem}
-
-    /* Breakdown */
-    .breakdown{margin-bottom:var(--space-2xl)}
-    .breakdown h2{font-size:1.1rem;margin:0 0 var(--space-lg);color:var(--text)}
-    .breakdown-row{display:flex;justify-content:space-between;align-items:center;padding:var(--space-md) 0;border-bottom:1px solid var(--border);font-size:0.85rem}
-    .breakdown-row:last-child{border-bottom:none}
-    .breakdown-row .label{color:var(--text-muted)}
-    .breakdown-row .value{font-weight:600}
+    /* Funding goal: the server's goal and its label, no "raised so far" (nothing tracks it) */
+    .goal-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-lg) var(--space-xl);margin-bottom:var(--space-xl);display:flex;align-items:baseline;gap:var(--space-md);flex-wrap:wrap}
+    .goal-card .goal-title{font-size:0.8rem;color:var(--text-muted);width:100%}
+    .goal-card .goal-amount{font-size:1.4rem;font-weight:700;color:var(--accent)}
+    .goal-card .goal-label{font-size:0.85rem;color:var(--text-muted)}
 
     /* FAQ */
-    .faq{margin-bottom:var(--space-2xl)}
     .faq h2{font-size:1.1rem;margin:0 0 var(--space-lg);color:var(--text)}
     .faq-item{border-bottom:1px solid var(--border);padding:var(--space-lg) 0}
     .faq-item:last-child{border-bottom:none}
@@ -65,21 +70,10 @@
     .faq-q::before{content:'\25B6';font-size:0.6rem;transition:transform 0.2s;color:var(--text-muted)}
     .faq-item.open .faq-q::before{transform:rotate(90deg)}
     .faq-a{font-size:0.8rem;color:var(--text-muted);line-height:1.5;max-height:0;overflow:hidden;transition:max-height 0.3s ease,padding 0.3s ease;padding:0}
-    .faq-item.open .faq-a{max-height:200px;padding-top:var(--space-md)}
+    .faq-item.open .faq-a{max-height:400px;padding-top:var(--space-md)}
 
     /* Footer note */
     .transparency{text-align:center;font-size:0.75rem;color:var(--text-muted);padding:var(--space-xl) 0;border-top:1px solid var(--border)}
-
-    /* Primary route: Sponsor-A-Can (501c3) */
-    .sponsor-primary{background:var(--bg-card);border:1px solid var(--accent);border-radius:12px;padding:var(--space-2xl);margin-bottom:var(--space-2xl);text-align:center}
-    .sponsor-badge{display:inline-block;background:var(--accent);color:#fff;font-size:0.65rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;border-radius:999px;padding:var(--space-xs) var(--space-md);margin-bottom:var(--space-md)}
-    .sponsor-primary h2{font-size:1.25rem;margin:0 0 var(--space-md);color:var(--text)}
-    .sponsor-primary p{color:var(--text-muted);font-size:0.9rem;max-width:560px;margin:0 auto var(--space-xl);line-height:1.5}
-    .btn-sponsor-lg{font-size:0.95rem;padding:var(--space-lg) var(--space-2xl)}
-    .sponsor-note{font-size:0.72rem;color:var(--text-muted);margin-top:var(--space-md)}
-
-    /* Secondary section heading (crypto) */
-    .section-heading{font-size:0.85rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin:0 0 var(--space-lg);text-align:center}
   </style>
 </head>
 <body>
@@ -89,10 +83,10 @@
 <script src="/shared/settings.js"></script>
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
-  <div class="eli5-simple">Help fund the project that's building free tools for everyone on Earth.</div>
-  <div class="eli5-expert">Donation aggregation page. Pulls funding config from /api/server-info, queries blockchain balances client-side via public RPCs, caches totals in localStorage for 5 minutes.</div>
+  <div class="eli5-simple">Two ways to give: straight to the maintainer, which is not tax-deductible, or to the nonprofit Sponsor-a-Can, which is.</div>
+  <div class="eli5-expert">Donation page. Reads the giving routes from /data/donate/routes.json, the other direct links from /data/donate/methods.json, endorsed charities from /data/donate/charities.json and the FAQ from /data/donate/faq.json (the same four files the desktop app's Donate page reads), plus the connected server's funding block from /api/server-info.</div>
 </div>
-<p class="page-hint">Support HumanityOS development. Every dollar goes toward full-time open-source work, server infrastructure, and building tools for all of humanity.</p>
+<p class="page-hint">Give to the maintainer directly (not tax-deductible), or to the nonprofit Sponsor-a-Can (tax-deductible).</p>
 
 <div id="page-app">
   <!-- Hero -->
@@ -102,68 +96,49 @@
     <p>HumanityOS is free and public-domain (CC0), with no company or nonprofit behind it. It is built in the open by one person, so supporting the maintainer directly is what keeps the work going.</p>
   </div>
 
-  <!-- Progress bar -->
-  <div class="progress-wrap" id="progress-section" style="display:none;">
-    <div class="progress-bar-outer">
-      <div class="progress-bar-fill" id="progress-fill" style="width:0%"></div>
+  <!-- Ways to give: data/donate/routes.json (the maintainer on Patreon, then the nonprofit) -->
+  <div class="donate-section" id="routes-section" style="display:none;">
+    <h2 class="section-heading">Ways to give</h2>
+    <div class="route-grid" id="routes-grid">
+      <!-- Populated by donate-app.js from /data/donate/routes.json -->
     </div>
-    <div class="progress-labels">
-      <span><span class="amount" id="progress-raised">$0</span> raised</span>
-      <span>of <span class="amount" id="progress-goal">$0</span> goal</span>
-      <span id="progress-pct">0%</span>
+  </div>
+
+  <!-- More direct links (data/donate/methods.json) + the server's funding block -->
+  <div class="donate-section" id="direct-section" style="display:none;">
+    <h2 class="section-heading">More ways to give to the maintainer directly</h2>
+    <p class="section-note">These also go to the maintainer personally, and are not tax-deductible.</p>
+    <div class="goal-card" id="goal-section" style="display:none;">
+      <span class="goal-title">Funding goal</span>
+      <span class="goal-amount" id="goal-amount"></span>
+      <span class="goal-label" id="goal-label"></span>
     </div>
-    <div class="progress-goal-label" id="progress-goal-label"></div>
+    <div class="source-grid" id="source-grid">
+      <!-- Populated by donate-app.js -->
+    </div>
   </div>
 
-  <!-- Primary: direct support to the maintainer -->
-  <h2 class="section-heading">Support the maintainer</h2>
-  <p style="text-align:center;font-size:0.8rem;color:var(--text-muted);max-width:560px;margin:0 auto var(--space-lg);line-height:1.5">Gifts go directly to the maintainer (GitHub Sponsors, Patreon, PayPal, Cash App, and crypto). These are personal gifts, not charitable donations, and are not tax-deductible.</p>
-  <div class="source-grid" id="source-grid">
-    <!-- Populated by donate-app.js -->
+  <!-- Charities the maintainer personally supports (curated, data-driven; hidden while the list is empty) -->
+  <div class="donate-section" id="charities-section" style="display:none;">
+    <h2 class="section-heading">Charities I support</h2>
+    <p class="section-note">Independent nonprofits the maintainer personally stands behind. These are their own organizations, unaffiliated with HumanityOS; donate to them directly. Tax-deductibility depends on the charity and your situation.</p>
+    <div class="source-grid" id="charities-grid">
+      <!-- Populated by donate-app.js from /data/donate/charities.json -->
+    </div>
   </div>
 
-  <!-- Charities the maintainer personally supports (curated, data-driven) -->
-  <h2 class="section-heading" style="margin-top:var(--space-2xl)">Charities I support</h2>
-  <p style="text-align:center;font-size:0.8rem;color:var(--text-muted);max-width:560px;margin:0 auto var(--space-lg);line-height:1.5">Independent nonprofits the maintainer personally stands behind. These are their own organizations, unaffiliated with HumanityOS; donate to them directly. Tax-deductibility depends on the charity and your situation.</p>
-  <div class="source-grid" id="charities-grid">
-    <!-- Populated by donate-app.js from /data/donate/charities.json -->
-  </div>
-
-  <!-- Breakdown -->
-  <div class="breakdown" id="breakdown-section" style="display:none;">
-    <h2>Breakdown by Source</h2>
-    <div id="breakdown-rows"></div>
-  </div>
-
-  <!-- FAQ -->
-  <div class="faq">
+  <!-- FAQ: data/donate/faq.json, the same entries the desktop app shows -->
+  <div class="donate-section faq" id="faq-section" style="display:none;">
     <h2>Frequently Asked Questions</h2>
-
-    <div class="faq-item open">
-      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">What are funds used for?</div>
-      <div class="faq-a">Full-time development of HumanityOS, server and infrastructure costs, and building open-source tools that remain free for everyone. We publish the actual monthly income and cost figures, itemized, in <a href="/library#for-funders-and-sponsors">the funders brief in the Library</a>, so you can see exactly what your gift joins.</div>
-    </div>
-
-    <div class="faq-item">
-      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Is my donation tax-deductible?</div>
-      <div class="faq-a">Support for HumanityOS itself goes directly to the maintainer as a personal gift (GitHub Sponsors, Patreon, PayPal, Cash App, or crypto) and is not tax-deductible. HumanityOS is public-domain (CC0) with no company or nonprofit behind it. Separately, the "Charities I support" section lists independent nonprofits the maintainer personally endorses; a gift there is a donation to that organization, and whether it is tax-deductible depends on the charity and your situation, so check the charity's own site or ask a tax advisor.</div>
-    </div>
-
-    <div class="faq-item">
-      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Why crypto?</div>
-      <div class="faq-a">Zero fees, no intermediaries, and full transparency. Crypto aligns with HumanityOS's values of sovereignty and self-custody. Blockchain transactions are publicly verifiable, so anyone can audit where funds go. Your Solana wallet comes from the same 24-word recovery phrase as your HumanityOS identity, so there is no separate account to create.</div>
-    </div>
-
-    <div class="faq-item">
-      <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Is Coinbase or an exchange OK?</div>
-      <div class="faq-a">It works, but self-custody is better. When you send from an exchange, the exchange controls the keys and can freeze your account. A self-custody wallet (like Phantom for Solana or Sparrow for Bitcoin) means you control your funds directly. Either way, your donation reaches us the same.</div>
+    <div id="faq-list">
+      <!-- Populated by donate-app.js from /data/donate/faq.json -->
     </div>
   </div>
 
   <!-- Transparency footer -->
   <div class="transparency">
-    All blockchain balances are publicly verifiable. HumanityOS is fully open-source, <a href="https://github.com/Shaostoul/Humanity" target="_blank" rel="noopener">view the code</a>.<br>
-    No funds are held on behalf of donors. Crypto addresses shown are non-custodial wallets owned by the project maintainer.
+    HumanityOS is fully open source: <a href="https://github.com/Shaostoul/Humanity" target="_blank" rel="noopener">view the code</a>.<br>
+    No funds are held on behalf of donors.
   </div>
 </div>
 

@@ -262,7 +262,7 @@ Mostly **built and working**; the two voice-parity rows flagged ⚠️/❌ below
 | Token swaps | ✅ | Jupiter API integration, slippage settings, price impact warnings (v0.25.0) |
 | Staking | ✅ | Validator picker, stake/unstake flows (v0.25.0) |
 | NFT support | ✅ | Detection, Metaplex metadata, grid display with detail modals (v0.25.0) |
-| Donation page | ✅ | Progress bar, dynamic multi-crypto address cards, FAQ (v0.25.0, enhanced v0.73.0) |
+| Donation page | ✅ | The two ways to give (Sponsor-a-Can, tax-deductible; Patreon, not; 2026-10-04), direct links, dynamic multi-crypto address cards, funding goal (no progress bar: nothing tracks "raised"), FAQ; native and web read the same data files (v0.25.0, enhanced v0.73.0) |
 | Server funding config | ✅ | data/server-config.json with flexible addresses array supporting unlimited networks (v0.25.0, enhanced v0.73.0) |
 | Wallet settings | ✅ | Network selection, custom RPC URL, nav balance toggle (v0.25.0) |
 | Wallet on profile | ✅ | Solana address and balance shown on profile cards (v0.25.0) |

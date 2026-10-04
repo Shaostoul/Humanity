@@ -1,13 +1,4 @@
 {
-  "_comment": "Charities the HumanityOS maintainer personally endorses, shown in the 'Charities I support' section of the donate page. These are INDEPENDENT nonprofits, unaffiliated with HumanityOS; a gift goes to that organization directly (not to HumanityOS or its maintainer). Add an entry to feature a charity (infinite-of-X). Read by both the web donate page and native donate.rs. Fields: name, mission, url (their donate page), note (deductibility / relationship disclosure), abbrev, color.",
-  "charities": [
-    {
-      "name": "Sponsor-A-Can",
-      "mission": "A registered 501(c)(3) fighting poverty through sanitation, recycling, and community clean-up for homeless and disadvantaged communities.",
-      "url": "https://www.sponsor-a-can.org/donate/",
-      "note": "Independent 501(c)(3). The HumanityOS maintainer volunteers as its Vice-President. Tax-deductibility depends on your situation.",
-      "abbrev": "SAC",
-      "color": "#3fae49"
-    }
-  ]
+  "_comment": "Charities the HumanityOS maintainer personally endorses, shown in the 'Charities I support' section of the donate page (both clients hide the section while this list is empty). These are INDEPENDENT nonprofits, unaffiliated with HumanityOS; a gift goes to that organization directly (not to HumanityOS or its maintainer). Sponsor-a-Can was listed here until 2026-10-04 and is now one of the two giving routes at the top of the page (data/donate/routes.json), so it is not repeated here. Add an entry to feature a charity (infinite-of-X). Read by both the web donate page and native donate.rs. Fields: name, mission, url (their donate page), note (deductibility / relationship disclosure), abbrev, color.",
+  "charities": []
 }

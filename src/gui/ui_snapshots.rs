@@ -98,6 +98,10 @@ fn demo_state() -> GuiState {
     // The app loads the donate FAQ at startup (lib.rs); without it the Donate
     // snapshot ended on a "Frequently Asked Questions" heading over nothing.
     s.donate_faq = crate::gui::load_donate_faq(data);
+    // The rest of the Donate page's data, loaded at startup the same way.
+    s.donate_routes = crate::gui::load_donate_routes(data);
+    s.donate_methods = crate::gui::load_donate_methods(data);
+    s.donate_charities = crate::gui::load_donate_charities(data);
     s.creative_mode = true;
     // Returning-user state so the main menu shows the loaded hub, not first-run onboarding.
     s.onboarding_complete = true;
@@ -1577,28 +1581,17 @@ fn snapshot_relay_control_host_node_running() {
     crate::gui::pages::host_node::reset_for_snapshot();
 }
 
-/// Native donate page — the Sponsor-A-Can (501c3) primary card above the crypto
-/// section (mirrors web v0.845.1).
+/// Native donate page: the two ways to give (the nonprofit Sponsor-a-Can and the
+/// maintainer on Patreon, from the shipped data/donate/routes.json) above the
+/// other direct links and the crypto cards. The data files come from the base
+/// fixture, so the snapshot shows what ships; only the two example crypto
+/// addresses are made up, to show those cards.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_donate() {
-    render_page_png("donate", 1000, 1200, |ctx, theme, state| {
+    render_page_png("donate", 1000, 1600, |ctx, theme, state| {
         state.donate_solana_address = "So1anaExampleAddress1111111111111111111111".into();
         state.donate_btc_address = "bc1qexamplebitcoinaddress00000000000000".into();
-        state.donate_methods = vec![
-            crate::gui::DonateMethod { network: "Patreon".into(), label: "Monthly membership support.".into(), value: "https://www.patreon.com/c/Shaostoul".into(), kind: "url".into(), abbrev: "PAT".into(), color: "#f96854".into() },
-            crate::gui::DonateMethod { network: "PayPal".into(), label: "One-time or recurring via PayPal.".into(), value: "https://paypal.me/Shaostoul".into(), kind: "url".into(), abbrev: "PP".into(), color: "#0070ba".into() },
-        ];
-        state.donate_charities = vec![
-            crate::gui::DonateCharity {
-                name: "Sponsor-A-Can".into(),
-                mission: "A registered 501(c)(3) fighting poverty through sanitation, recycling, and community clean-up.".into(),
-                url: "https://www.sponsor-a-can.org/donate/".into(),
-                note: "Independent 501(c)(3). The maintainer volunteers as its VP. Deductibility depends on your situation.".into(),
-                abbrev: "SAC".into(),
-                color: "#3fae49".into(),
-            },
-        ];
         crate::gui::pages::donate::draw(ctx, theme, state);
     });
 }

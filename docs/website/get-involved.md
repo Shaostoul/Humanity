@@ -63,13 +63,11 @@ Humanity speaks many languages. The mission should too.
 
 ## Donate
 
-This project is built by volunteers, but infrastructure costs money.
+If you believe in the mission and want to help, there are two ways to give:
 
-If you believe in the mission and want to help keep it running:
-
-- **GitHub Sponsors:** [github.com/sponsors/Shaostoul](https://github.com/sponsors/Shaostoul)
-
-Every dollar goes toward development, hosting, and keeping the team fed while we build.
+- **To the nonprofit, tax-deductible:** [Sponsor-a-Can](https://www.sponsor-a-can.org/donate/). Your donation goes to Sponsor-a-Can, a 501(c)(3) nonprofit, so it is tax-deductible as the law allows.
+- **To the maintainer directly, not tax-deductible:** [Patreon](https://www.patreon.com/Shaostoul). Your gift goes to Shaostoul, who receives it personally, so it is not tax-deductible.
+- More ways to give to him directly (GitHub Sponsors, PayPal, Cash App): [united-humanity.us/donate](https://united-humanity.us/donate)
 
 ---
 

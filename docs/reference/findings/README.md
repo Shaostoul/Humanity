@@ -173,3 +173,9 @@ what we will say about it.
   colour alone; ISO 14726's layout clause was not read). Recommends ISO 14726
   colours aboard the ship with ISO 20560-1's labels, and real material shown
   between the markers.
+- [`2026-10-04-sponsor-a-can-tax-status.md`](2026-10-04-sponsor-a-can-tax-status.md),
+  whether the Donate page can say a donation to Sponsor-a-Can is tax-deductible:
+  the IRS exempt-organization extract lists EIN 93-1624890 as a 501(c)(3) with
+  "Contributions are deductible" (ruling April 2026), matching its own site;
+  deducting still depends on the donor (Publication 526). A gift to the
+  maintainer directly is not deductible.

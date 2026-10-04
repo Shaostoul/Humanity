@@ -562,10 +562,16 @@ Detect and display NFTs with Metaplex metadata.
 - Web: `web/shared/wallet.js`
 
 ### Donation Page
-Funding tracker with progress bar, dynamic multi-crypto address support (unlimited networks).
+Leads with the two ways to give (2026-10-04): the maintainer on Patreon (he
+receives it, not tax-deductible), then the nonprofit Sponsor-a-Can
+(tax-deductible, the money goes to Sponsor-a-Can), each card saying so in one
+sentence with a badge. Then more direct links, the server's funding goal (no "raised so far": nothing
+tracks it) and any addresses it lists, endorsed charities, and the FAQ. Entries with
+no link or address are not shown. Native and web read the same four data files.
 - Web: `web/pages/donate.html`, `web/pages/donate-app.js`
 - Native: `src/gui/pages/donate.rs`
-- Data: `data/server-config.json` (funding.addresses array)
+- Data: `data/donate/routes.json`, `methods.json`, `charities.json`, `faq.json`; `data/server-config.json` (funding goal + addresses array)
+- Tests: `tests/page_parity_lint.rs` (both sides read all four files: it matches the read calls, the native loader, the startup line and the web fetch, not just a mention of the path), `src/gui/pages/donate.rs` tests (each route's sentence agrees with its tax flag, no route listed twice, never the viewer's own wallet, and, drawn headlessly, no card for a route with no link and no FAQ heading over an empty FAQ)
 
 ### Wallet Guide
 Step-by-step beginner guide for all wallet operations (receive, send, buy, sell, swap, backup, glossary).
@@ -1285,7 +1291,10 @@ changes (money-routing data: server A's addresses must never display as server B
 -- `GuiState::apply_server_funding` + tests), and the old hardcoded fake
 "$350 / $1000" progress bar is replaced by a card showing the server's REAL goal
 only when one exists. Preference order on the page: server list > local Settings
-list > legacy fallback.
+list > the two legacy single-address Settings fields. Since 2026-10-04 the page
+leads with the giving routes (`data/donate/routes.json`, see "Donation Page"
+above), and the old fallback that offered an address derived from the VIEWER'S
+OWN key as the place to send money is gone.
 - Native: `src/gui/pages/donate.rs` (`build_donation_sources`), `src/gui/mod.rs` (`ServerInfo.funding`, `DonateAddress::from_funding_json`, `GuiState::apply_server_funding`), `src/lib.rs` (connect-time fetch in the `peer_list` handler + per-frame drain)
 
 ---
