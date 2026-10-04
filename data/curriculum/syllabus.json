@@ -1969,9 +1969,23 @@
       "subject": "measurement",
       "title": "Estimating",
       "summary": "Get within ten percent with no instrument.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "estimating"
+      ],
       "skills": [
         "engineering"
+      ],
+      "data": [
+        "data/machines/home.ron"
+      ],
+      "sources": [
+        "dod-technical-manuals",
+        "nist",
+        "nws",
+        "usgs",
+        "usda-canning-guide",
+        "epa"
       ],
       "locale_dependent": false,
       "hazard": "none"
@@ -2007,9 +2021,25 @@
       "subject": "measurement",
       "title": "Keeping records",
       "summary": "Write down what you did so next season is not guesswork.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "keeping-records"
+      ],
       "skills": [
         "farming"
+      ],
+      "sources": [
+        "fda",
+        "ecfr",
+        "usda-ams",
+        "faa",
+        "nih",
+        "nws",
+        "dod-technical-manuals",
+        "usda-canning-guide",
+        "epa",
+        "irs",
+        "fema"
       ],
       "locale_dependent": false,
       "hazard": "none"
@@ -2758,9 +2788,24 @@
       "subject": "tools",
       "title": "Working out why something broke",
       "summary": "Diagnose systematically instead of replacing parts at random.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "working-out-why-something-broke"
+      ],
       "skills": [
         "engineering"
+      ],
+      "data": [
+        "data/machines/home.ron",
+        "data/crafting/tools.ron"
+      ],
+      "sources": [
+        "dod-technical-manuals",
+        "osha",
+        "ecfr",
+        "nasa-nodis",
+        "cpsc",
+        "epa"
       ],
       "locale_dependent": false,
       "hazard": "caution"

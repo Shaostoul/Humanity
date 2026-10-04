@@ -660,6 +660,26 @@
           ]
         },
         {
+          "title": "Estimating",
+          "file": "estimating.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "beginner"
+          ]
+        },
+        {
+          "title": "Keeping Records",
+          "file": "keeping_records.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "beginner"
+          ]
+        },
+        {
           "title": "Sharpening",
           "file": "sharpening.md",
           "tags": [
@@ -676,6 +696,16 @@
             "guide",
             "real",
             "technical"
+          ]
+        },
+        {
+          "title": "Working Out Why Something Broke",
+          "file": "working_out_why_something_broke.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "safety"
           ]
         },
         {
