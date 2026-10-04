@@ -10,8 +10,9 @@ and then show up as a crack, a sag or a door that will not close.
 This guide is about how a frame goes together and why each piece is
 where it is. It follows the US Army's carpentry manual (FM 5-426, 1995)
 for the method, the Forest Products Laboratory's *Wood Handbook* for the
-lumber, the Department of Energy's Building America Solution Center for
-the connections that tie a frame together, the joint National Institute
+lumber, the Forest Service's 1955 handbook on wood-frame houses for two
+points the Army manual leaves out, the Department of Energy's Building
+America Solution Center for the connections that tie a frame together, the joint National Institute
 for Occupational Safety and Health (NIOSH) and Occupational Safety and
 Health Administration (OSHA) guide to nail guns and OSHA's rules for its
 safety, and a guide prepared for the Department of Housing and Urban
@@ -86,9 +87,11 @@ it to wall frames is our reading.)
 
 The circular saw and the other tools that cut framing lumber are covered
 in [Working with Wood](../making/working_with_wood.md), and hand tools in
-[Hand Tools](../making/hand_tools.md). Wear eye protection and hearing
-protection while framing (general practice; the nail gun guide asks for
-both).
+[Hand Tools](../making/hand_tools.md). For nail gun work, the NIOSH and
+OSHA guide lists hard hats, high impact eye protection ("safety glasses
+or goggles marked ANSI Z87.1") and hearing protection, "either earplugs
+or earmuffs". Wear the same eye and hearing protection for the rest of
+framing too (general practice).
 
 ### Cutting into a frame that is already there
 
@@ -222,7 +225,13 @@ on. From the manual:
   need to double the joist or place two joists together."
 - Where a joist is notched to sit on a sill or girder, it "should not be
   notched to the sill and girder over one-third of its depth to prevent
-  splitting".
+  splitting". That is the manual's limit for a seat at a support. For
+  notches cut for pipes, the Forest Service's 1955 handbook on wood-frame
+  houses is much tighter: notches in the top or bottom of joists "should
+  not be more than one-sixth of the joist depth and should be located
+  only in the end third of the span". The building code where you live
+  sets the limits that apply, and they may be tighter than the manual's;
+  ask before you cut (general practice).
 - The manual says joists tend to twist from side to side, especially
   over a long span, so they are bridged with short pieces between them. Bridging stiffens the floor and "enables an
   overloaded joist to receive some help from the joists on either side
@@ -348,11 +357,23 @@ against each other at the ridge pushes outward at the bottom, as a
 stepladder's legs do when it is not opened right, and something has to
 stop the walls being pushed apart (our explanation).
 
-The manual's answer for small roofs is the collar tie, a board fastened
-across a pair of rafters, of which it says: "This type of beam keeps the
-building from spreading." It also says ceiling joists are nailed to both
-the plates and the rafters where possible, which ties each pair of
-rafters together at the bottom. HUD's inspection guide (restated)
+For small roofs "where no ceiling joists are used", the manual's answer
+is the collar tie, a board fastened across a pair of rafters "between
+the plate and the ridge of the roof", of which it says: "This type of
+beam keeps the building from spreading." Where ceiling joists are used,
+it says they are nailed to both the plates and the rafters where
+possible, which ties each pair of rafters together at the bottom, and
+when it makes a pair of rafters into a small truss it nails a chord
+"across the rafters at the seat cut to tie them together." The Forest
+Service's 1955 handbook explains why the bottom tie matters: ceiling
+joists "also serve as tension members to resist the thrust of the
+rafters of pitched roofs", and rafters should not go up until the
+ceiling joists are fastened, "as the thrust of the rafters will
+otherwise tend to push out the exterior walls." A tie does the most
+against that thrust when it is low, at the plate, where the rafters
+push; a collar tie set high near the ridge resists it far less, and the
+building code sets which ties a roof needs, how high and how they are
+nailed (general practice). HUD's inspection guide (restated)
 describes what happens when that tying is missing: the roof spreads
 down and outward, an uncommon but potentially serious problem, and it
 lists missing collar beams, rafters and ceiling joists poorly tied
@@ -485,9 +506,10 @@ These are past this guide:
 - **Wet lumber.** It shrinks in place, and the frame moves with it.
 - **Crown down.** A joist set crown down starts with its sag built in.
 - **A cut brace.** Let-in bracing is the one piece you never cut.
-- **Rafters with nothing holding the walls together.** Collar ties and
-  ceiling joists tied to the rafters keep the walls from being pushed
-  apart.
+- **Rafters with nothing holding the walls together.** A tie low down,
+  at the plate, is what keeps the walls from being pushed apart: ceiling
+  joists nailed to the rafters, or a board across each pair of rafters
+  at the plate. A collar tie high in the roof does much less.
 - **A hole at the edge of a joist.** The edges do the work.
 - **The contact trigger.** Twice the injury risk of a full sequential
   trigger.
@@ -580,14 +602,17 @@ documents were read on 4 October 2026.
   counteracted; posts with bearing plates, on footings, fastened top and
   bottom; joists at 16 or 24 inches, crown up, doubled under partitions,
   notched no more than one third at supports; bridging and its lines;
-  floor openings; the subfloor before the walls; studs, plates, corner
+  floor openings; the subfloor before the walls; ceiling joists nailed to
+  both the plates and the rafters; studs, plates, corner
   posts, T-posts, spacing, double top plates, the sole plate; bearing
   and nonbearing partitions; trimmers and the jack stud on the sole
   plate; let-in, cut-in and diagonal sheathing bracing; wall bridging;
   plumbing and straightening walls; connections as weak points).
   Chapter 5 (the caution about raising form panels in wind). Chapter 7
-  (rafters resting on and nailed to the plate; the collar tie keeping
-  the building from spreading; long spans sagging; the truss definition
+  (rafters resting on and nailed to the plate; the collar tie between
+  the plate and the ridge keeping the building from spreading, used on
+  small roofs where no ceiling joists are used; a chord nailed across a
+  pair of rafters at the seat cut to make a truss; long spans sagging; the truss definition
   and its triangles). Chapter 8 (window openings: doubled studs as
   trimmers, the header, doubled and trussed for wide openings). Copy at
   the Internet Archive.
@@ -614,9 +639,21 @@ documents were read on 4 October 2026.
   and sheathing; framing nailers the most dangerous; the full
   sequential trigger the safest; twice the injury risk with contact
   triggers; full sequential triggers at a minimum for placement work
-  such as building walls and installing trusses). Read from the copy at
-  CDC.
+  such as building walls and installing trusses; hands at least 12 inches
+  from the nailing point; disconnecting the air in the five listed cases;
+  hard hats, ANSI Z87.1 safety glasses or goggles and hearing protection).
+  Read from the copy at CDC.
   https://www.cdc.gov/niosh/docs/2011-202/pdfs/2011-202.pdf
+- USDA Forest Service, Forest Products Laboratory. Anderson, L. O., and
+  Heyer, O. C. *Wood-Frame House Construction*, Agriculture Handbook No.
+  73, February 1955 (notches for pipes in the top or bottom of joists no
+  more than one-sixth of the depth and only in the end third of the span;
+  ceiling joists as tension members resisting the thrust of the rafters;
+  rafters not erected until the ceiling joists are fastened, or their
+  thrust tends to push out the walls). The handbook was later revised;
+  this is the 1955 text, cited for principles only. Copy at the Internet
+  Archive.
+  https://archive.org/details/WoodFrameHouseConstruction
 - Occupational Safety and Health Administration. 29 CFR 1926.501(b)(13),
   Duty to have fall protection, residential construction (protection at
   6 feet or more above lower levels).
@@ -663,12 +700,15 @@ documents were read on 4 October 2026.
   counts, stud length, the order, the load share at 24 versus 16 inch
   spacing, and the strength and stiffness ratios are arithmetic.
 - Covering floor openings, not walking wall tops, raising walls with
-  enough people and bracing them at once, eye and hearing protection,
+  enough people and bracing them at once,
   wet lumber twisting and gapping as it dries, what the crown is,
   sheathing panels as common bracing, looking for a dry stamp, platform
   framing as the usual method, stud spacing set by sheet sizes, the code as the source of anchor bolts,
   fire blocking, spans, header sizes, bracing, nailing and hole and
-  notch limits, the extra lumber to order, metal roof connectors in
+  notch limits (and that the code's may be tighter than the manual's), a tie low at the plate doing more against spreading
+  than a collar tie high in the roof, the code setting which roof ties
+  are needed, eye and hearing protection for framing beyond nail gun
+  work, the extra lumber to order, metal roof connectors in
   high-wind areas, never altering a truss, and the building department
   and permits are general practice.
 - Applying the manual's caution about form panels to wall frames, why

@@ -69,8 +69,8 @@ members." That is good advice for any hole in any wall.
 
 ### A building that is warning you
 
-Wood and steel often bend visibly before they break. FEMA's *Snow Load
-Safety Guide* (FEMA P-957, January 2013) says so directly: "Wood and
+Wood and steel can bend visibly before they break. FEMA's *Snow Load
+Safety Guide* (FEMA P-957, January 2013) says: "Wood and
 steel structures may show noticeable signs of excessive deflection
 before failure." Its list of warning signs during a snow event, for
 wood, metal and steel buildings, is a good list for any overloaded roof
@@ -112,9 +112,19 @@ removing snow from roofs." Its other rules:
   harnesses where they apply.
 - Someone stays below to keep people away from where snow and ice will
   fall, and icicles are dangerous even from a short height.
-- With a snow rake from the ground, roof snow can slide at any moment:
-  "Keep a safe distance away from the eave to remain outside of the
-  sliding range."
+- Raking from the ground is the safer way: FEMA notes that it removes
+  the risk to people on a hazardous roof. Use a non-metallic snow rake,
+  which FEMA prefers because metal rakes can damage the roofing, and
+  remember that "When using a non-metallic snow rake, be aware that roof
+  snow can slide at any moment. Keep a safe distance away from the eave
+  to remain outside of the sliding range."
+- Look up before you lift a rake or a ladder near the eaves. OSHA's
+  hazard alert on removing snow from roofs lists shock and electrocution
+  from power lines among the dangers, and says: "Always treat power
+  lines, wires and other conductors as energized, even if they are down
+  or appear to be insulated." It keeps workers "at least 10 feet from
+  any power line"; a long rake handle closes that gap quickly (our
+  reading).
 - Leave at least 2 inches (5 cm) of snow on the roof, use plastic rather
   than metal shovels, no sharp tools and no machines, and remove drifted
   snow first.
@@ -139,7 +149,8 @@ in [Framing a Building](/library#framing-a-building).
 
 ### Falls
 
-Most structural work is done above the ground. OSHA's construction rule
+Much structural work puts you above the ground, on a ladder, a floor
+edge or a roof (general practice). OSHA's construction rule
 (29 CFR 1926.501(b)(13)) requires each worker in residential
 construction "6 feet (1.8 m) or more above lower levels" to be protected
 by a guardrail, a safety net or a personal fall arrest system. That is
@@ -192,7 +203,8 @@ snow per inch of depth, which is one reason to keep ice from building up.
 It also warns that the snow on a roof is not the snow on the ground:
 wind piles drifts on a lower roof in the shelter of a higher one and
 against parapets, chimneys and dormers, snow sliding off a higher roof
-lands on the porch or lean-to below, and
+piles up on a lower one, such as a porch or sunroom roof or an entrance
+canopy, and
 "attempting to measure ground snow weight and assuming that it is the
 same as the roof snow load is incorrect."
 
@@ -450,8 +462,9 @@ On July 17, 1981, two suspended walkways in the atrium of the Hyatt
 Regency Hotel in Kansas City, Missouri, fell to the floor below. The
 National Bureau of Standards (now NIST) investigated, and its report
 (Building Science Series 143, May 1982) counted 113 people dead and 186
-injured and said that in those terms it was "the most devastating
-structural collapse ever to take place in the United States." It
+injured and said that in those terms it was, at the time it wrote in
+1982, "the most devastating structural collapse ever to take place in
+the United States." It
 concluded that "the most probable cause of failure was insufficient load
 capacity of the box beam-hanger rod connections."
 
@@ -534,10 +547,20 @@ not for doing it.
    in a pre-1978 home with lead-based paint "can easily create dangerous
    lead dust", and it recommends hiring a lead-safe certified
    contractor; the lead paint advice in [Rust, Rot and
-   Decay](/library#rust-rot-and-decay) applies before you cut. Switch off the
-   circuits (the procedure is in [Working Out Why Something
-   Broke](/library#working-out-why-something-broke)), then look for pipes,
-   wires, ducts and gas lines that will have to be moved.
+   Decay](/library#rust-rot-and-decay) applies before you cut. An older house
+   may also hold asbestos. The EPA's list of where it may be found
+   includes "Textured paint and patching compounds used on walls and
+   ceilings" and "Attic and wall insulation produced containing
+   vermiculite"; it says you generally cannot tell by looking, and "If
+   you suspect material contains asbestos, don't touch it." It does not
+   recommend taking samples yourself: a trained and accredited asbestos
+   professional should take them. So do not cut, sand or open the wall
+   until anything suspect has been tested. Then switch off the breakers for
+   every circuit in the wall, lock them off, and prove the wires dead
+   with a voltage tester at the point you will work: switching off alone
+   is not proof (the procedure, from OSHA's rules, is in [Working Out Why
+   Something Broke](/library#working-out-why-something-broke)). Only then look
+   for pipes, wires, ducts and gas lines that will have to be moved.
 5. **Decide.** If the wall is not bearing, removing it is still a
    permit question where you live (general practice). If it is bearing,
    removing it means replacing it with a beam sized for the load, posts
@@ -563,6 +586,10 @@ guide. These are past it:
   earthquakes; applying it to other damage is our reading.)
 - **Removing snow from a roof.** FEMA recommends a licensed, insured
   professional roofing contractor.
+- **Sampling or removing material that may contain asbestos.** The EPA
+  says samples should be taken by a trained and accredited asbestos
+  professional, and removal done by people trained and qualified in
+  handling asbestos.
 - **Anything in earthquake country that HUD's guide lists for an
   engineer**: unanchored houses, cripple walls, piers, unreinforced
   masonry.
@@ -592,11 +619,12 @@ teach the subject of this guide. Here is what it does and does not do.
 
 **What a building is for, it models.** A roof keeps the rain off you,
 and walls keep the wind off, but only on the side the wind comes from.
-Standing under a finished roof, the game checks which sides have a wall:
-with the open side turned away from the wind, nothing gets in, and with
-a roof over at least three walls the heads-up display says "Sheltered".
-Turn the open side into the wind and the display tells you what share of
-the wind gets in. The body heat model uses that, so a
+Standing under a finished roof, the game checks which sides have a wall.
+With a roof over at least three walls and the open side turned away from
+the wind, the heads-up display says "Sheltered". With fewer walls, but
+none of the open sides facing the wind, it says "Out of the rain and the
+wind". Turn an open side into the wind and the display tells you what
+share of the wind gets in. The body heat model uses that, so a
 shelter built with its back to the wind keeps you warmer than one built
 the other way round (`src/systems/construction/uses.rs`,
 `src/engine/survival_env.rs`).
@@ -721,10 +749,13 @@ documents were read on 4 October 2026.
   square foot per inch and about 57 per foot; roof snow not equal to
   ground snow; drifts in the wind shadow of higher roofs and against
   parapets and other obstructions, and snow sliding onto lower roofs such
-  as porches; wood and steel deflecting visibly before failure; the
-  warning signs; prompt evacuation and a qualified design professional;
-  removal by a licensed, insured roofing contractor; the safety and
-  method rules for removal). Read from the copy at GovInfo.
+  as porch and sunroom roofs and entrance canopies; wood and steel that
+  may deflect visibly before failure; the warning signs; prompt
+  evacuation and a qualified design professional; removal by a licensed,
+  insured roofing contractor; the safety and method rules for removal,
+  including raking from the ground, a non-metallic snow rake because
+  metal ones can damage the roofing, and roof snow that can slide at any
+  moment). Read from the copy at GovInfo.
   https://www.govinfo.gov/content/pkg/GOVPUB-HS5_100-PURL-gpo59955/pdf/GOVPUB-HS5_100-PURL-gpo59955.pdf
 - Federal Emergency Management Agency, Ready.gov. Earthquakes, last
   updated 9 September 2026 ("Do not enter damaged buildings").
@@ -755,6 +786,23 @@ documents were read on 4 October 2026.
   can easily create dangerous lead dust; EPA recommends hiring a lead-safe
   certified contractor).
   https://www.epa.gov/lead/renovation-repair-and-painting-program-do-it-yourselfers
+- US Environmental Protection Agency. Learn About Asbestos, last updated
+  13 July 2026 (where asbestos may be found, including textured paint and
+  patching compounds on walls and ceilings and vermiculite attic and wall
+  insulation; fibres released by maintenance, repair and remodelling).
+  And Protect Your Family from Exposures to Asbestos, last updated 25 June
+  2026 (you generally cannot tell by looking; "If you suspect material
+  contains asbestos, don't touch it"; samples taken by a trained and
+  accredited asbestos professional, not yourself; removal and major
+  repair by people trained and qualified in handling asbestos).
+  https://www.epa.gov/asbestos/learn-about-asbestos
+  https://www.epa.gov/asbestos/protect-your-family-exposures-asbestos
+- Occupational Safety and Health Administration. Hazard Alert: Falls and
+  Other Hazards to Workers Removing Snow from Rooftops and Other Elevated
+  Surfaces, HA-3513, December 2017 (shock and electrocution from power
+  lines among the hazards; power lines treated as energized even when
+  down or apparently insulated; at least 10 feet from any power line).
+  https://www.osha.gov/sites/default/files/publications/OSHA-3513ROOF-SNOW-HAZARD.pdf
 - Occupational Safety and Health Administration. 29 CFR 1926.706,
   Requirements for masonry construction ((a)(2) a limited access zone the
   height of the wall plus four feet, the whole length of the wall; (b)
@@ -801,8 +849,8 @@ documents were read on 4 October 2026.
   would fall, keeping flat roof drains clear, asking before adding a
   heavy load, using an accepted span table rather than the eye (and the
   description of what a span table lists), getting everyone out before
-  phoning, and asking the building department about permits are general
-  practice.
+  phoning, structural work putting you above the ground, and asking the
+  building department about permits are general practice.
 - The signs of a bearing wall (joists resting on it, support lined up
   under it, a wall down the middle of the house) beyond the Army
   manual's definition and HUD's advice to look in the basement and attic
@@ -812,5 +860,6 @@ documents were read on 4 October 2026.
   by step route of the load path through a house, the header as a short
   beam, a rafter that only rests on a wall being lifted by wind, bracing
   as a way of shortening the length that can bow, why notches and holes
-  at the edges of a joist do the most harm, and the lesson drawn from the
-  Kansas City walkways are our reading of the sources.
+  at the edges of a joist do the most harm, a long rake handle closing
+  the distance to a power line, and the lesson drawn from the Kansas City
+  walkways are our reading of the sources.

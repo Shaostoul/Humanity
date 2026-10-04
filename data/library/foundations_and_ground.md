@@ -68,8 +68,8 @@ OSHA's excavation rule (29 CFR 1926.652) requires every worker in an
 excavation to be protected from cave-ins by a designed protective
 system, such as shoring or sloped sides, unless the excavation is
 entirely in stable rock or is less than 5 feet (1.52 m) deep and a
-trained "competent person" has examined the ground and found no sign of
-a cave-in. A homeowner is not that person. **Do not get into any trench
+"competent person" has examined the ground and found no sign of a
+cave-in. A homeowner is not that person. **Do not get into any trench
 or hole deeper than your waist** (general practice, set well below
 OSHA's 5 feet for that reason). Keep the dug soil, and your tools and
 materials, at least 2 feet (0.61 m) back from the edge, as OSHA's rule
@@ -172,7 +172,7 @@ expert at all.
 
 The Army's soils manual (FM 5-410) describes peat and other highly
 organic soils as having "many undesirable engineering characteristics",
-and says they "can be easily identified in the field by their
+and says they "generally can be easily identified in the field by their
 distinctive color and odor, spongy feel, and frequently fibrous
 texture." It also warns that soils with a high clay content may swell a
 great deal if they are packed down dry and then get wet. The soil
@@ -210,13 +210,23 @@ The manufactured home rule's footing table (24 CFR 3285.312) does the
 same sum with the footing's own weight taken off, since the soil has to
 carry the concrete as well (its notes say the capacities "have been
 reduced by the dead load of the concrete footing"). Some of its figures
-for unreinforced poured footings under an 8 by 16 inch pier:
+for unreinforced poured footings under an 8 by 16 inch concrete block
+pier, each with the minimum thickness the table sets for it:
 
 | Soil (psf) | 16 x 16 in footing | 20 x 20 in footing | 24 x 24 in footing |
 |---|---|---|---|
-| 1,000 | 1,600 lb | 2,600 lb | 3,700 lb |
-| 1,500 | 2,500 lb | 4,000 lb | 5,600 lb |
-| 2,000 | 3,400 lb | 5,300 lb | 7,600 lb |
+| 1,000 | 1,600 lb, 6 in thick | 2,600 lb, 6 in thick | 3,700 lb, 6 in thick |
+| 1,500 | 2,500 lb, 6 in thick | 4,000 lb, 6 in thick | 5,600 lb, 8 in thick |
+| 2,000 | 3,400 lb, 6 in thick | 5,300 lb, 6 in thick | 7,600 lb, 8 in thick |
+
+A capacity holds only at its thickness. The 24 inch footings on 1,500
+and 2,000 psf soil must be 8 inches thick, not 6, and the larger
+footings further down the rule's table need thicker concrete still,
+because a wide, thin pad cracks under the pier instead of spreading the
+load (the rule's first note says the sizes are based on the area, "shear
+and bending required for the loads shown"; the cracking is our
+explanation). The table also assumes the concrete block pier it names:
+see the shed example below before you use it for anything else.
 
 Read across a row: a footing 1.25 times as wide carries a little over
 1.5 times as much, because its area grows with the square of its width
@@ -230,9 +240,10 @@ So the 2,000 pound post in the example above needs the 20 inch footing
 on the weaker soil and the 16 inch one on the better.
 
 The same rule sets minimums: poured concrete footings at least 6 inches
-thick with a 28-day compressive strength of at least 3,000 pounds per
-square inch, footings on undisturbed soil or properly compacted fill,
-and "A footing must support every pier." The 1955 handbook adds two
+thick, and thicker where its table says so, with a 28-day compressive
+strength of at least 3,000 pounds per square inch, footings on
+undisturbed soil or properly compacted fill, and "A footing must support
+every pier." The 1955 handbook adds two
 rules worth keeping: footings at least 6 inches thick, and if a footing
 trench is dug too deep, fill the extra depth with concrete, never with
 dirt put back. A footing that sits on loose soil it was meant to bear on
@@ -302,9 +313,9 @@ Its guidance, for slabs, crawl spaces and basements alike:
   6 inches over 10 feet, in the finished grade away from the foundation,
   or a stricter local code requirement, and says that applying the slope
   over the first 6 to 10 feet is generally acceptable. (The manufactured
-  home rule asks for at least half an inch per foot for the first ten
-  feet, about 4 percent; checking a fall is in [Square, Level and
-  Plumb](/library#square-level-and-plumb).)
+  home rule, 24 CFR 3285.203(c), asks for at least half an inch per foot
+  for the first ten feet, about 4 percent; checking a fall is in
+  [Square, Level and Plumb](/library#square-level-and-plumb).)
 - **Keep the foundation out of the ground.** "Design the foundation and
   surrounding grade so there is a minimum of 8 inches of exposed
   foundation after the final grading."
@@ -382,10 +393,17 @@ applications." It adds that the end tag on treated lumber should show
 the preservative, the retention (how much is in the wood) and the
 intended use category, and that items with a high replacement cost,
 house foundations among them, are required to be treated to higher
-retention levels. A post set in the ground needs lumber whose tag says
-ground contact; a board sold for above-ground use is not the same thing
-(our reading). [Rust, Rot and Decay](/library#rust-rot-and-decay) covers
-reading treated wood and why decay starts where wood stays wet.
+retention levels. Ground contact itself comes in grades: the handbook's
+summary table puts "Permanent wood foundations, building poles" in
+UC4B, for ground contact where the parts are critical or hard to
+replace. The manufactured home rule asks the same of wood footings,
+lumber treated "for Use Category 4B ground contact applications", and
+adds: "Cut ends of pressure treated lumber must be field-treated". So a
+post that carries a building wants UC4B on its tag, a board sold for
+above-ground use is not the same thing, and every end you cut gets a
+brush-on preservative before it goes in the ground (our reading of the
+two). [Rust, Rot and Decay](/library#rust-rot-and-decay) covers reading
+treated wood and why decay starts where wood stays wet.
 
 ### Holding the building down
 
@@ -451,17 +469,27 @@ for the arithmetic.
    square foot. A middle post then carries 24 x 80 = 1,920 pounds, a
    corner post 960 (our arithmetic). Your building department, or a span
    and load table it accepts, gives the real figure for your place.
-6. **Size the footings.** Using the HUD table as a guide to the
-   arithmetic: on soil allowed 1,500 pounds per square foot, its 16 inch
-   square footing carries 2,500 pounds, enough for every post. On soil allowed only 1,000, the 16 inch footing
-   carries 1,600: enough for the corners, not the middle posts, which
-   need the 20 inch footing at 2,600.
+6. **Size the footings.** The HUD table is for footings under a concrete
+   block pier at least 8 by 16 inches, and its sizes are worked out for
+   the shear and bending under that pier. Under a wood post it is a guide
+   to the arithmetic, not a design: a 4 by 4 post, 3 1/2 inches square,
+   presses on a much smaller patch of the pad and works it harder (our
+   reading). The Army manual says a column "must have a bearing plate at
+   the top and bottom"; stand each post on its plate, or on a pier set on
+   the footing, and use the footing detail your building department
+   accepts (general practice). As arithmetic only: on soil allowed 1,500
+   pounds per square foot, the table's 16 inch square footing carries
+   2,500 pounds, enough for every post. On soil allowed only 1,000, the 16 inch footing carries 1,600:
+   enough for the corners, not the middle posts, which need the 20 inch
+   footing at 2,600. All three of those footings are 6 inches thick in
+   the table.
 7. **Set them deep enough**, with their bottoms below the frost depth,
    on undisturbed ground, in a hole you never had to get into above
    your waist.
-8. **Use ground-contact lumber** for anything in or near the soil, keep
-   the wood off the ground, slope the ground away, and anchor the shed
-   to its posts, because wind lifts sheds.
+8. **Use UC4B ground-contact lumber** for the posts and anything else in
+   or near the soil, treat every end you cut, keep the rest of the wood
+   off the ground, slope the ground away, and anchor the shed to its
+   posts, because wind lifts sheds.
 
 ## Know where your own work stops
 
@@ -551,14 +579,15 @@ of the building you design first and can least afford to get wrong.
 - You can name the soils that carry the most and the least, and you
   know which ground needs a professional before anything is built on it.
 - You can size a footing from a load and a soil pressure, and you know
-  the footing's own weight counts.
+  the footing's own weight counts and that a wider footing needs a
+  thicker one.
 - You put footings below the frost depth you got from the building
   department, on undisturbed ground, and you fill an over-dug hole with
   concrete.
 - Water runs away from everything you build, with the foundation clear
   of the soil and a capillary break between concrete and wood.
-- You use ground-contact treated wood in the ground, and you read the
-  tag.
+- You use ground-contact treated wood in the ground, UC4B for posts that
+  carry a building, you treat every end you cut, and you read the tag.
 - You can read cracks, sloping floors and sticking doors in an old house
   as possible signs of settlement, and you know who to call.
 
@@ -579,14 +608,19 @@ documents were read on 4 October 2026.
   pressures; the 1,500 psf default; a registered professional for peat,
   organic clays, uncompacted fill or unusual conditions; values not
   adjusted for overburden, embedment, water table or settlement);
+  3285.203, Site drainage ((c) a slope of at least one-half inch per foot
+  away from the foundation for the first ten feet);
   3285.204, Ground moisture control (six mil polyethylene, joints
   overlapped 12 inches, except in arid regions); 3285.312, Footings
-  (materials; 6 inch poured concrete at 3,000 psi; a footing under every
-  pier; footings below the frost line, the local authority or a
+  (materials; 6 inch poured concrete at 3,000 psi; wood footings treated
+  for Use Category 4B ground contact, and cut ends field-treated; a
+  footing under every pier; footings below the frost line, the local authority or a
   registered professional for its depth; monolithic slabs and insulated
   foundations above the frost line designed by a registered engineer or
-  architect; the table of footing sizes and capacities, reduced by the
-  footing's own weight). All last amended 16 August 2016.
+  architect; the table of footing sizes, capacities and minimum
+  thicknesses for 8 by 16 and 16 by 16 inch block piers, its sizes based
+  on area, shear and bending, its capacities reduced by the footing's own
+  weight). All last amended 16 August 2016.
   https://www.ecfr.gov/current/title-24/subtitle-B/chapter-XX/part-3285/subpart-C
   and https://www.ecfr.gov/current/title-24/subtitle-B/chapter-XX/part-3285/subpart-D
 - Department of the Army. *Carpentry*, FM 5-426, 3 October 1995,
@@ -595,7 +629,8 @@ documents were read on 4 October 2026.
   wall foundations for heavy loads or low supporting strength; posts 6
   to 10 feet apart; braces for wood posts 3 feet or more above ground;
   steel reinforcement in concrete walls); Chapter 5 (the cautions for
-  form work); Chapter 6 (the sill anchored to the foundation; sill sealer
+  form work); Chapter 6 (a column with a bearing plate at the top and
+  bottom; the sill anchored to the foundation; sill sealer
   and termite shield; a concrete floor likely to be damp unless
   protected). Copy at the Internet Archive.
   https://archive.org/download/MManuals/UsArmyEngineerCarpentry1995.pdf
@@ -621,7 +656,9 @@ documents were read on 4 October 2026.
 - USDA Forest Service, Forest Products Laboratory. *Wood Handbook: Wood
   as an Engineering Material*, FPL-GTR-282, 2021. Chapter 15, Wood
   Preservatives, by Grant T. Kirker and Stan T. Lebow (the use category
-  system, UC3 above ground and UC4 ground contact; the end tag showing
+  system, UC3 above ground and UC4 ground contact; Table 15-6 placing
+  permanent wood foundations and building poles in UC4B, ground contact
+  for critical components or difficult replacement; the end tag showing
   preservative, retention and use category; higher retention for house
   foundations).
   https://www.fpl.fs.usda.gov/documnts/fplgtr/fplgtr282/chapter_15_fpl_gtr282.pdf
@@ -707,13 +744,16 @@ documents were read on 4 October 2026.
   ground that has been built on, the common kinds of foundation, the
   code setting anchor bolts, lifting a house as professional work,
   sending foundations for occupied buildings to the building department
-  or an engineer, and fill, peat and swelling clay looking firm in a dry
+  or an engineer, standing a post on its plate or a pier and using the
+  footing detail the building department accepts, and fill, peat and swelling clay looking firm in a dry
   summer are general practice.
 - Never digging below a footing beside your hole without an engineer is
   our reading of OSHA's rule; the soil beside a footing holding it in
   place, the paper towel comparison, why a footing on loose soil
   settles, how ice lenses lift the ground, the footing rule of thumb as a check rather
   than a design, the federal design requirement for slabs above the frost
-  line as a sign of risk, how much of HUD's settlement list is water, and
-  the need for ground-contact lumber in the ground are our reading or
+  line as a sign of risk, how much of HUD's settlement list is water, a
+  thin pad cracking under a pier, a narrow wood post working a footing
+  harder than the block pier the table assumes, and UC4B lumber with
+  treated cut ends for posts that carry a building are our reading or
   explanation of the sources.
