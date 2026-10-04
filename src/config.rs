@@ -298,6 +298,18 @@ pub struct SavedServer {
     pub url: String,
 }
 
+/// The plot a server's relay last gave this player (ship homes increment 2): `plot` is its id in
+/// the ship file, and `ship_hash` the hash of the ship it is a plot of
+/// (`ShipStructure::ship_hash`), because a plot id means a place only on the same ship. Kept per
+/// server in `AppConfig::home_plots`, so the next world load builds the home on that plot before
+/// joining (engine/home_plot.rs `boot_plot`), and the welcome confirms it (a Stay) or corrects it
+/// (a Move).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RememberedPlot {
+    pub ship_hash: String,
+    pub plot: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     #[serde(default)]
@@ -394,6 +406,17 @@ pub struct AppConfig {
     /// are runtime-only and rehydrate on connect; only identity persists.
     #[serde(default)]
     pub saved_servers: Vec<SavedServer>,
+    /// Each server's plot of its ship, remembered (ship homes increment 2, `RememberedPlot`),
+    /// keyed by this identity's public key and the server's normalised URL (engine/home_plot.rs
+    /// `plot_memory_key`, the key `gui::erased_entry` makes). A config written before increment 2
+    /// has no such field: serde reads it as empty, so it loads as it did, and its first world
+    /// entry builds the home on the ship's default plot, which the welcome then moves as before;
+    /// from that welcome on the plot is remembered. A config from the first increment 2 builds,
+    /// keyed by the URL alone, loads too: those entries are never read again (a key with no
+    /// public key matches nothing), so its next boot builds on the default plot and its next
+    /// welcome remembers the plot under the new key.
+    #[serde(default)]
+    pub home_plots: std::collections::BTreeMap<String, RememberedPlot>,
     /// Start the locally hosted relay node automatically at app launch,
     /// reproducing the port/db/name it last ran with. Set when the node is
     /// started, cleared by Stop; without it a self-hosted server silently
@@ -1341,6 +1364,7 @@ impl AppConfig {
                 .iter()
                 .map(|s| SavedServer { name: s.name.clone(), url: s.url.clone() })
                 .collect(),
+            home_plots: state.home_plots.clone(),
             host_node_autostart: state.host_node_autostart,
             host_node_port: state.host_node_port.clone(),
             host_node_db: state.host_node_db.clone(),
@@ -1508,6 +1532,8 @@ impl AppConfig {
         state.settings.font_size = self.font_size.clamp(10.0, 24.0);
         state.settings.dark_mode = self.dark_mode;
         state.settings.hint_display = self.hint_display;
+        // Each server's remembered plot (ship homes increment 2).
+        state.home_plots = self.home_plots.clone();
         // Rehydrate the saved-server list (identity only; channels and
         // connection state fill in when each server is actually connected).
         for s in &self.saved_servers {

@@ -102,7 +102,9 @@ zeroing the freed pages and a WAL truncate folding them out of the log.
 Retention:
 - Mailbox envelopes expire after `dm_mailbox_ttl_days` (server setting, default
   30, editable in Server Settings). The mailbox is a delivery window, not an
-  archive.
+  archive. Saving a LOWER number deletes every envelope older than it at the
+  moment of saving (the expiry pass runs after every saved settings change,
+  storage/expiry.rs), and the Server Settings hint says so.
 - A user can scrub their own queue immediately ("Delete my server mailbox" in
   both clients sends `dm_purge`).
 - Long-term DM history lives ONLY on the users' own devices (native: encrypted
@@ -175,10 +177,107 @@ The stored-data classes removed or bounded after the sealed-sender cutover:
     a plot you still stand on; the server's stored copy of the world loses your
     figure in that step too, so a crash straight after cannot bring your
     progress back; and your game is told you left, with one sentence saying how
-    to come back (reconnect), and does not join again on its own.
+    to come back (open Chat and press Connect), and does not join again on its
+    own. Every client of yours that is online at that moment leaves the server
+    and does not reconnect by itself (BUG-135).
     Admins must hand off the admin role first so a server is never orphaned.
     secure_delete zeroes the freed pages and the WAL is truncated; rotating
     backups hold prior snapshots until they age out, as everywhere else here.
+  - WHAT AN ERASE LEAVES BEHIND, FOR A WHILE (2026-10-04, BUG-135; the
+    operator's decision, verbatim: "Let's go with option 2 that way we have a
+    way to cull the list over a period of time. That way we don't end up with a
+    massive log of all the accounts that erased themselves after many years or a
+    malicious attack."). Before this, a device that was offline during the erase
+    (a second computer with the app closed, a web tab between reconnects) came
+    back later with the same key and was signed up again by itself. Now the
+    server remembers that the account was erased, and only that:
+    - as a ONE-WAY FINGERPRINT of the public key (BLAKE3 keyed with a 32-byte
+      secret the relay creates once and keeps beside the live database, like
+      `backup.key`, in `data/erased-accounts.key`), never the key itself, never
+      the name; with the secret kept outside the database, a copy of the
+      database alone cannot be checked against a list of known keys;
+    - with the DAY of the erase and the number of days in force that day, and
+      nothing else (table `erased_accounts (fingerprint, erased_day,
+      ttl_days)`, WITHOUT ROWID, so not even the order of the erases within a
+      day is kept);
+    - for UP TO that many days: an entry is matched while it is younger than
+      the smaller of its own number and the server's current
+      `erased_accounts_ttl_days` (default 30), counted in whole UTC days, so a
+      30-day entry is matched on the day of the erase and the 29 after it, and
+      the number a person reads is never exceeded. The window is stored with
+      the entry because it is what the person read before deciding: an admin
+      who later RAISES the setting does not stretch earlier entries, while one
+      who LOWERS it shortens every entry at once (review of 2026-10-04,
+      finding 1). An entry dated after tomorrow (a clock that jumped forward)
+      is not matched either;
+    - deleted by the expiry pass as soon as it stops matching: at relay
+      start, every six hours (before that pass's backup, beside the DM mailbox
+      expiry), and straight after every saved change to the server settings
+      (`run_expiry_sweeps`, storage/expiry.rs). So the row is on disk at most
+      about six hours past its last day;
+    - and never more than `erased_accounts_cap` rows (server setting, default
+      100,000): when full, the oldest go first, so a flood of erases cannot grow
+      it without bound.
+    Both settings are in Server Settings > ADMIN > Server policy > Erased
+    accounts. The person reads the real number of days before erasing (native
+    Settings > Account, web Erase account) and again in the receipt:
+    "After the erase this server remembers for up to 30 days that this account
+    was erased, as a one-way fingerprint that is not your name or your data,
+    so your other devices do not sign you up again by themselves; then the
+    entry is deleted here, and a copy of it in this server's backups lasts
+    until that backup is deleted."
+    An app that has not received the server's number (a relay too old to have
+    the setting) shows no such sentence at all rather than a promise the
+    server may not keep.
+    What it does: a device of the erased account that connects is told
+    `account_erased` (with `partial` read from what the erase left: if it did
+    not finish, the device is told to erase again, as the erasing device was)
+    and the relay closes that connection; nothing is signed in (no name
+    registered, no member row, no presence). The name registration, a link
+    code and the member row on that path check the erase again in the same
+    step as they write (a refusal there is told and closed before anything is
+    bound), and a game join checks it again while it holds the game world's
+    lock, so an erase that lands in the middle of either still wins. A game
+    join from a device still connected from before the erase is refused.
+    Pressing Connect (native) or Enter (web) under the erase note says
+    `sign_up_again` in that connection's identify, which forgets the entry
+    and signs the person up again as a new account; an automatic reconnect
+    never says it. Bots are never affected. The entry is in the person's own
+    export (`erased_here`: the day and the number of days); it is the one row
+    an erase writes instead of deleting.
+    Honest residuals, what outlives the entry:
+    - **Backups.** A copy of the row is in every backup of the database taken
+      while it existed, until that backup is deleted: the relay's own 6-hourly
+      `.db.enc` (5 kept, so about 30 hours), the VPS 30-minute `.db.aes` (15
+      kept, about 7.5 hours), the operator's off-box pull (60 kept), and the
+      admin's "Back up now" copies (`manual-*.db.enc`), which are kept by
+      count (`MANUAL_BACKUPS_KEPT`, 10) with NO age limit: one taken while the
+      entry existed keeps it until ten newer manual copies replace it or the
+      admin deletes it. Every one of them is sealed with `backup.key`, and
+      none holds the fingerprint secret, so a backup on its own cannot be
+      checked against a list of known keys.
+    - **Server logs.** The relay logs that an erase happened (with the count
+      of what went), that the account's figure left the shared world, that its
+      socket closed (named "an erased account"), that an erased account
+      reconnected, that one chose to sign up again, and that a game join from
+      one was refused, each with the time and with NO key or part of one (until
+      2026-10-04 these lines carried the first 12 hex characters of the key,
+      enough to pick it out of a list of known keys, and the figure's and the
+      socket's lines carried the whole key until the second review the same
+      day). journald on the VPS, or run.log on a Host Node, keeps them
+      on its own schedule, which has nothing to do with the window.
+    - **The secret file.** If `data/erased-accounts.key` is lost (a server
+      moved without it), the old fingerprints simply never match again and are
+      culled on schedule, at the cost of the old behaviour (another device may
+      sign up again). If it is there but damaged, it is never overwritten: the
+      relay runs with a secret for that run only, and `/health` says
+      `"erase_memory": "this_run_only"` (shown by `just brief`) until the
+      operator fixes or removes the file. Moving a server: carry
+      `data/relay.db`, `data/backup.key` AND `data/erased-accounts.key`.
+    - **Desktop apps from before this (v0.1449.0 and older)** never send
+      `sign_up_again`, so on a relay with this change an account erased from
+      such an app can only come back from it once the window has passed; the
+      web, served by the relay itself, always matches it.
 
   Two corrections to what this section said before 2026-09-06, both of which
   were live for months:
@@ -219,7 +318,10 @@ The remaining server-held data classes and length/transport leaks, closed:
 - **Message retention (server setting).** `message_retention_days` (default 0
   = keep forever) auto-expires public channel messages past the window;
   pinned messages are always kept. Bounds how long even public history
-  lingers, on the same maintenance sweep as the DM-mailbox TTL.
+  lingers, on the same maintenance sweep as the DM-mailbox TTL, which also
+  runs at relay start and after every saved settings change: saving a lower
+  number (or a number in place of 0) deletes older messages at once and for
+  good, as the Server Settings hint says.
 - **Federation gossip respects unlisted.** A user who opts out of the public
   directory (Private/Balanced tiers) no longer has their profile replicated
   across federated servers — the gossip + signed-profile cache are gated on

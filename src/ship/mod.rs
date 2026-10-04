@@ -6,11 +6,13 @@
 pub mod assembly;
 pub mod conduits;
 pub mod door_panels;
+pub mod door_points;
 pub mod fibonacci;
 pub mod home_structure;
 pub mod hull;
 pub mod layout;
 pub mod lock_types;
+pub mod neighbours;
 pub mod rooms;
 pub mod ship_structure;
 pub mod structure;

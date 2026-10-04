@@ -341,6 +341,14 @@ async function ensureTaskWs() {
           taskWsRetryMs = 5000;
           settleTaskWsWaiters(true);
           requestProjectList();
+        } else if (m.type === 'account_erased') {
+          // This identity's account was erased on this server (BUG-135): the relay remembers
+          // that for a while and signs nothing up for it, then closes. A refusal, so the page
+          // says why and waits for the next click instead of retrying every few seconds.
+          // Coming back is the person's choice, made on the Chat page.
+          refuseTaskWs(ws, m.partial === true
+            ? 'the erase of your account on this server did not finish, so open Chat, press Enter and use Erase account again.'
+            : 'your account on this server was erased, so open Chat and press Enter there to sign up again.');
         } else if (m.type === 'name_taken' || m.type === 'system') {
           const text = String(m.message || '');
           // The per-connection throttle: the relay closes the socket, and the close handler backs off.

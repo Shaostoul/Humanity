@@ -33,7 +33,15 @@ use std::sync::Arc;
 ///
 /// Nobody else hears of it. If an earlier join of theirs is still in the world (a reconnect
 /// after their ship changed), it leaves.
+///
+/// First of all, a join from a key whose account was erased here, while this relay remembers
+/// that (BUG-135; sign_ups.rs `refused_erased_join`): refused with reason "account_erased",
+/// the sentence the erase itself sends, so a device still connected from before the erase
+/// cannot claim a plot for the erased account.
 pub async fn refused_join(state: &Arc<RelayState>, my_key: &str, join: &JoinHome) -> bool {
+    if crate::relay::handlers::sign_ups::refused_erased_join(state, my_key).await {
+        return true;
+    }
     let (why, ship, present) = {
         let world = state.game_world.read().await;
         let Some(why) = world.ship_plots.join_refusal(join) else { return false };
@@ -97,7 +105,9 @@ pub async fn leave_world_for_erase(state: &Arc<RelayState>, key: &str) -> bool {
     if let Some(entity_id) = left {
         let gone = serde_json::json!({ "type": "game_player_left", "player_id": entity_id });
         let _ = state.broadcast_tx.send(crate::relay::relay::RelayMessage::System { message: format!("__game__:{gone}") });
-        tracing::info!("Game: player {} left (entity {}): their account is being erased", key, entity_id);
+        // No key (sign_ups.rs `sign_up_logs_never_name_the_key`): the log outlives the window
+        // the person was promised.
+        tracing::info!("Game: a player left (entity {entity_id}): their account is being erased");
         let told = serde_json::json!({
             "type": "game_join_denied",
             "reason": "account_erased",

@@ -40,7 +40,7 @@ use std::path::Path;
 ///   assets/icon.ico      the exe's own icon (winres, below)
 ///   assets/icon.png      the window icon (lib.rs)
 ///   data/blueprints/*    the ship-structure registries (structure, zone, zone
-///                        filler, extrusion, road, corridor and lock types, wall
+///                        filler, extrusion, road and lock types, wall
 ///                        materials, opening styles): parsed from the embedded
 ///                        copy only, and they shape the ship every rig photographs
 ///   data/lighting/light_types.ron, data/lod/categories.ron,
@@ -50,6 +50,13 @@ use std::path::Path;
 ///   data/release/signing_pubkeys.json     the keys updates and local hand-offs
 ///                                         are verified against
 ///   docs/accord/humanity_accord.md        the Accord the Humanity page shows
+///   data/homes/shipped   the shipped home designs: a neighbour's plot is drawn as its
+///                        kind's built-in design, never the disk copy, so that read is
+///                        embedded-only (ship homes increment 2, src/ship/neighbours.rs,
+///                        HomeDesign::built_in). Only this folder: data/homes/<kind>.ron
+///                        is the player's OWN home, which every editor Save rewrites, read
+///                        from disk first; stamping it made a Save in a repo checkout turn
+///                        every rig away as stale (the increment 2 review, finding 5)
 const FINGERPRINT_INPUTS: &[&str] = &[
     "src",
     "assets/shaders",
@@ -59,8 +66,8 @@ const FINGERPRINT_INPUTS: &[&str] = &[
     "vendor",
     "assets/icon.ico",
     "assets/icon.png",
-    "data/blueprints/corridor_types.ron",
     "data/blueprints/extrusion_profiles.ron",
+    "data/homes/shipped",
     "data/blueprints/lock_types.ron",
     "data/blueprints/opening_styles.ron",
     "data/blueprints/road_types.ron",

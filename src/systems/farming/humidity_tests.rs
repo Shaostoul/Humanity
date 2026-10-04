@@ -805,9 +805,10 @@ fn the_shipped_homes_keep_every_racks_tent_in_range() {
     let settle = |file: &str, powered: bool| -> (Vec<f64>, f64, f64, f64, usize, bool) {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
         let home = MachineHome::load(&root.join("data").join("machines").join(file)).expect("home parses");
-        // The home design (data/homes/homestead.ron since increment 1a): its rooms are home-local,
-        // the frame the home's machine offsets are in.
-        let blueprint = std::fs::read_to_string(root.join("data").join("homes").join("homestead.ron")).unwrap();
+        // The SHIPPED home design (data/homes/shipped/homestead.ron, never the checkout's
+        // data/homes/homestead.ron, the developer's own home): its rooms are home-local, the
+        // frame the home's machine offsets are in.
+        let blueprint = crate::embedded_data::shipped_home_design("homestead").expect("the homestead is built in");
         let block = &blueprint[blueprint.find("id: \"room-mushroom\"").expect("the home design has the mushroom room")..];
         let triple = |key: &str| -> [f32; 3] {
             let s = &block[block.find(key).unwrap() + key.len()..];

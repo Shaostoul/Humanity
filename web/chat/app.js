@@ -107,6 +107,17 @@ function showErasedNote(kind) {
   el.textContent = text;
   el.style.display = text ? 'block' : 'none';
 }
+
+// Whether this connect's identify says `sign_up_again` (BUG-135, the operator's option 2,
+// 2026-10-04). The server remembers an erase for a limited time and signs nothing up again
+// without it, so an automatic reconnect can never bring an erased account back. Only the
+// person pressing Enter (the button, or Enter in the name box: `how` is 'enter') under the
+// erase note says it; a reload's auto-connect, a restore or an import connects without it,
+// and if the server still remembers the erase it says so and the note comes back. Mirrors
+// native src/gui/connections.rs `take_sign_up_again`.
+function signUpAgainChoice(how, erasedFlag) {
+  return how === 'enter' && (erasedFlag === 'erased' || erasedFlag === 'unfinished');
+}
 try {
   if (!savedName) showErasedNote(localStorage.getItem(ERASED_FLAG));
 } catch (e) { /* storage blocked: the note is a convenience, the erase already happened */ }
@@ -301,7 +312,9 @@ document.getElementById('messages').addEventListener('click', function(e) {
 });
 
 // ── Connect ──
-async function connect() {
+// `how` is 'enter' only from the login screen's Enter (index.html, chat-ui.js); see
+// signUpAgainChoice.
+async function connect(how) {
   myName = document.getElementById('name-input').value.trim() || 'Anonymous';
   pendingLinkCode = document.getElementById('link-code-input').value.trim() || null;
   pendingInviteCode = document.getElementById('invite-code-input').value.trim() || null;
@@ -315,7 +328,11 @@ async function connect() {
   }
 
   localStorage.setItem('humanity_name', myName);
-  // Entering after an erase is the person choosing to sign up again (BUG-135).
+  // Entering after an erase is the person choosing to sign up again (BUG-135): only this
+  // connect's first socket tells the server so (openSocket's `signUpAgain`).
+  let erasedFlag = null;
+  try { erasedFlag = localStorage.getItem(ERASED_FLAG); } catch (e) {}
+  const signUpAgain = signUpAgainChoice(how, erasedFlag);
   try { localStorage.removeItem(ERASED_FLAG); } catch (e) {}
   showErasedNote(null);
 
@@ -342,7 +359,7 @@ async function connect() {
 
   // Stay on login screen, we switch to chat only after server confirms identity.
   identityConfirmed = false;
-  openSocket();
+  openSocket({ signUpAgain });
 }
 
 // ── User Data Sync ──
@@ -686,10 +703,14 @@ async function loadHistory() {
 }
 
 // ── WebSocket ──
-function openSocket() {
+// `opts.signUpAgain` rides this one socket's identify only (connect() after Enter under the
+// erase note, BUG-135). scheduleReconnect calls this with no options, so a reconnect never
+// carries it.
+function openSocket(opts) {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
     return;
   }
+  const signUpAgain = !!(opts && opts.signUpAgain);
 
   // Fresh socket: re-arm the one-time DM mailbox fetch (sealed-sender).
   dmFetchSent = false;
@@ -722,6 +743,9 @@ function openSocket() {
     if (pendingInviteCode) {
       identifyMsg.invite_code = pendingInviteCode;
       pendingInviteCode = null;
+    }
+    if (signUpAgain) {
+      identifyMsg.sign_up_again = true;
     }
     ws.send(JSON.stringify(identifyMsg));
 

@@ -154,17 +154,7 @@ impl Storage {
 
     /// Register a name for a public key.
     pub fn register_name(&self, name: &str, public_key: &str) -> Result<(), rusqlite::Error> {
-        self.with_conn(|conn| {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis() as i64;
-            conn.execute(
-                "INSERT OR IGNORE INTO registered_names (name, public_key, registered_at) VALUES (?1, ?2, ?3)",
-                params![name, public_key, now],
-            )?;
-            Ok(())
-        })
+        self.with_conn(|conn| register_name_on(conn, name, public_key))
     }
 
     /// Get the EARLIEST `registered_at` timestamp (epoch ms) for a public
@@ -239,62 +229,7 @@ impl Storage {
     /// Redeem a link code: if valid, register the new key under the name.
     /// Returns Ok(Some(name)) on success, Ok(None) if code is invalid/expired.
     pub fn redeem_link_code(&self, code: &str, public_key: &str) -> Result<Option<String>, rusqlite::Error> {
-        self.with_conn(|conn| {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis() as i64;
-
-            // Fetch the name AND who created the code, so the new device can
-            // inherit the creator's capabilities (see role inheritance below).
-            let result = conn.query_row(
-                "SELECT name, created_by FROM link_codes WHERE code = ?1 COLLATE NOCASE AND expires_at > ?2",
-                params![code, now],
-                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
-            );
-
-            match result {
-                Ok((name, created_by)) => {
-                    // Delete the used code (one-time).
-                    conn.execute("DELETE FROM link_codes WHERE code = ?1 COLLATE NOCASE", params![code])?;
-                    // Register the new key under the name.
-                    conn.execute(
-                        "INSERT OR IGNORE INTO registered_names (name, public_key, registered_at) VALUES (?1, ?2, ?3)",
-                        params![name, public_key, now],
-                    )?;
-                    // Role inheritance: a linked device keeps its OWN key, and every
-                    // capability gate (uploads, mod/admin actions) checks the KEY's
-                    // role via user_roles, NOT the name. Without this, a device you
-                    // linked to your own admin/verified account would show under your
-                    // name yet be silently unverified and unable to upload (the roster
-                    // even aggregates role by name, so it LOOKED verified while the gate
-                    // wasn't). Copy the creator's role to the new key. Safe: the link
-                    // code is one-time, 5-minute, private to the creator, and the
-                    // creator is identify-authenticated, so this is a deliberate "this
-                    // is also my device" grant. If the creator has no role, the linked
-                    // device stays at the default (unverified), which is correct.
-                    let creator_role = match conn.query_row(
-                        "SELECT role FROM user_roles WHERE public_key = ?1",
-                        params![created_by],
-                        |row| row.get::<_, String>(0),
-                    ) {
-                        Ok(r) => r,
-                        Err(rusqlite::Error::QueryReturnedNoRows) => String::new(),
-                        Err(e) => return Err(e),
-                    };
-                    if !creator_role.is_empty() {
-                        conn.execute(
-                            "INSERT INTO user_roles (public_key, role) VALUES (?1, ?2)
-                             ON CONFLICT(public_key) DO UPDATE SET role = ?2",
-                            params![public_key, creator_role],
-                        )?;
-                    }
-                    Ok(Some(name))
-                }
-                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-                Err(e) => Err(e),
-            }
-        })
+        self.with_conn(|conn| redeem_link_code_on(conn, code, public_key))
     }
 
     /// Store a federated chat message with origin server tag.
@@ -326,6 +261,81 @@ impl Storage {
             conn.execute_batch("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')")?;
             Ok(())
         })
+    }
+}
+
+/// The write behind `register_name`, on a connection the caller already holds, so
+/// storage/erased_accounts.rs `register_name_unless_erased` can check and write in one step.
+pub(super) fn register_name_on(conn: &rusqlite::Connection, name: &str, public_key: &str) -> Result<(), rusqlite::Error> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64;
+    conn.execute(
+        "INSERT OR IGNORE INTO registered_names (name, public_key, registered_at) VALUES (?1, ?2, ?3)",
+        params![name, public_key, now],
+    )?;
+    Ok(())
+}
+
+/// `redeem_link_code` on the given connection: used up, the key registered under the code's
+/// name, and the creator's role copied (see below). Also the second half of
+/// `redeem_link_code_unless_erased` (storage/erased_accounts.rs), which checks the erase first
+/// on the same writer connection.
+pub(super) fn redeem_link_code_on(conn: &rusqlite::Connection, code: &str, public_key: &str) -> Result<Option<String>, rusqlite::Error> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64;
+
+    // Fetch the name AND who created the code, so the new device can
+    // inherit the creator's capabilities (see role inheritance below).
+    let result = conn.query_row(
+        "SELECT name, created_by FROM link_codes WHERE code = ?1 COLLATE NOCASE AND expires_at > ?2",
+        params![code, now],
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+    );
+
+    match result {
+        Ok((name, created_by)) => {
+            // Delete the used code (one-time).
+            conn.execute("DELETE FROM link_codes WHERE code = ?1 COLLATE NOCASE", params![code])?;
+            // Register the new key under the name.
+            conn.execute(
+                "INSERT OR IGNORE INTO registered_names (name, public_key, registered_at) VALUES (?1, ?2, ?3)",
+                params![name, public_key, now],
+            )?;
+            // Role inheritance: a linked device keeps its OWN key, and every
+            // capability gate (uploads, mod/admin actions) checks the KEY's
+            // role via user_roles, NOT the name. Without this, a device you
+            // linked to your own admin/verified account would show under your
+            // name yet be silently unverified and unable to upload (the roster
+            // even aggregates role by name, so it LOOKED verified while the gate
+            // wasn't). Copy the creator's role to the new key. Safe: the link
+            // code is one-time, 5-minute, private to the creator, and the
+            // creator is identify-authenticated, so this is a deliberate "this
+            // is also my device" grant. If the creator has no role, the linked
+            // device stays at the default (unverified), which is correct.
+            let creator_role = match conn.query_row(
+                "SELECT role FROM user_roles WHERE public_key = ?1",
+                params![created_by],
+                |row| row.get::<_, String>(0),
+            ) {
+                Ok(r) => r,
+                Err(rusqlite::Error::QueryReturnedNoRows) => String::new(),
+                Err(e) => return Err(e),
+            };
+            if !creator_role.is_empty() {
+                conn.execute(
+                    "INSERT INTO user_roles (public_key, role) VALUES (?1, ?2)
+                     ON CONFLICT(public_key) DO UPDATE SET role = ?2",
+                    params![public_key, creator_role],
+                )?;
+            }
+            Ok(Some(name))
+        }
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(e),
     }
 }
 

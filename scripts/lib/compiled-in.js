@@ -86,8 +86,8 @@ const ALLOWLIST = {};
 // analysis refuses one that does not), so whichever caller reaches it, the run's log
 // says the built-in copy was served and a rig refuses the run.
 const FALLBACK_SITES = {
-  "src/storage.rs::extract_data_if_needed":
-    "first-run extraction: writes every built-in copy out to a data dir that does not exist yet, then notes it once; a rig's data dir always exists (a junction to the tree's data/), so a rig never reaches it",
+  "src/storage.rs::extract_embedded_to":
+    "first-run extraction (called by extract_data_if_needed, and by a test into a temp dir): writes every built-in copy out to a data dir that does not exist yet, then notes it once; a rig's data dir always exists (a junction to the tree's data/), so a rig never reaches it",
   "src/assets/mod.rs::parse_embedded_csv":
     "private; called only by AssetManager::load_csv_or_embedded, after the disk file is absent, unreadable or does not parse",
   "src/assets/mod.rs::parse_embedded_toml":

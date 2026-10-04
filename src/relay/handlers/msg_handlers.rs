@@ -1846,6 +1846,9 @@ pub async fn handle_account_delete(state: &Arc<RelayState>, my_key: &str, confir
         });
         return;
     }
+    // Remembered FIRST, for a limited time and as a one-way fingerprint, so this account's
+    // other devices are not signed up again by themselves (sign_ups.rs; BUG-135, 2026-10-04).
+    crate::relay::handlers::sign_ups::remember_erase(state, my_key);
     // Out of the shared world, with their plot freed in the same step (home_plots.rs; ship
     // homes 1b, round 4 of the review), before the rest is erased.
     let freed = crate::relay::handlers::home_plots::leave_world_for_erase(state, my_key).await;
@@ -1862,12 +1865,13 @@ pub async fn handle_account_delete(state: &Arc<RelayState>, my_key: &str, confir
         .filter(|(_, n)| *n > 0)
         .map(|(label, n)| format!("{label}: {n}"))
         .collect();
-    tracing::warn!("Account erased for {}… ({})", &my_key[..12.min(my_key.len())], summary.join(", "));
+    tracing::warn!("An account was erased ({})", summary.join(", ")); // no key: the log outlives what the person was promised (sign_ups.rs)
     let _ = state.broadcast_tx.send(RelayMessage::Private {
         to: my_key.to_string(),
         message: format!(
-            "Your account and its data were erased from this server ({}). Local data on your own devices is untouched. Goodbye; you are welcome back any time.",
-            if summary.is_empty() { "nothing was stored".to_string() } else { summary.join(", ") }
+            "Your account and its data were erased from this server ({}). Local data on your own devices is untouched. {} Goodbye; you are welcome back any time.",
+            if summary.is_empty() { "nothing was stored".to_string() } else { summary.join(", ") },
+            crate::relay::handlers::sign_ups::remembered_note(state)
         ),
     });
     broadcast_full_user_list(state).await;
@@ -1876,7 +1880,7 @@ pub async fn handle_account_delete(state: &Arc<RelayState>, my_key: &str, confir
     // `partial` when a part of the erase failed (`<table>_FAILED`): leaving is still right, but
     // the client must not say that Connect signs up again while the account partly exists.
     let partial = receipt.iter().any(|(label, _)| label.ends_with("_FAILED"));
-    let _ = state.broadcast_tx.send(RelayMessage::AccountErased { to: my_key.to_string(), partial });
+    let _ = state.broadcast_tx.send(RelayMessage::AccountErased { to: my_key.to_string(), partial, earlier: false });
 }
 
 // (Legacy group handlers removed 2026-08-23: plaintext group storage
@@ -2976,6 +2980,8 @@ pub async fn handle_game_join(
         return;
     }
     let mut world = state.game_world.write().await;
+    // Again under the lock (BUG-135): an erase records before it takes this lock, so a join whose first check raced it is refused here (sign_ups.rs).
+    if !my_key.starts_with("bot_") && state.db.erased_account_remembered(my_key) { drop(world); crate::relay::handlers::sign_ups::refused_erased_join(state, my_key).await; return; }
     // Their home on the ship (increment 1b): for a join naming this ship, the plot they hold,
     // else the first free one; else a guest spot in the Commons; at their own door
     // (game_state.rs JoinHome). Asked on a rejoin too, so every welcome names it.
