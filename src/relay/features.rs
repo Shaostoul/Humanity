@@ -1394,8 +1394,9 @@ mod tests {
     //
     // The relay hands every player a plot of the ship and spawns them on it.
     // These tests read the ship from data/ the way the game does (1a's
-    // `load_and_assemble`), never from the relay's own answer, so a relay that
-    // spawned at the wrong point would disagree with the game and fail here.
+    // assembly, with the SHIPPED home design: `load_and_assemble_shipped`, never
+    // the checkout's own home), never from the relay's own answer, so a relay
+    // that spawned at the wrong point would disagree with the game and fail here.
     //
     // Seen red 2026-10-03 on the 1a relay (the commit before 1b), every one of
     // them: the failure texts are in each test's comment.
@@ -1410,7 +1411,7 @@ mod tests {
     /// Where the game puts a player whose home stands on plot `id`: 1a's
     /// assembly at that plot, then its spawn (ship metres, eye height).
     fn game_spawn_on(id: &str) -> [f32; 3] {
-        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble(std::path::Path::new("data"), Some(id))
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(std::path::Path::new("data"), Some(id))
             .unwrap_or_else(|e| panic!("the home assembles on {id}: {e}"));
         let s = ship.home_spawn_world().expect("the home design has a spawn");
         [s.x, s.y, s.z]
@@ -1451,7 +1452,7 @@ mod tests {
     /// (engine/home_plot.rs `add_join_fields`): this ship's hash, and the
     /// shipped home design's door, plot-local.
     fn game_join_fields() -> Value {
-        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble(std::path::Path::new("data"), None)
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(std::path::Path::new("data"), None)
             .expect("the ship assembles");
         let (x, z) = ship.home_arrival_local().expect("the shipped home names its door");
         serde_json::json!({ "ship_hash": ship.ship_hash(), "home_spawn": [x, z] })

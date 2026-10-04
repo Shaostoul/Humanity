@@ -729,7 +729,7 @@ mod tests {
         ctx.style_mut(|s| s.animation_time = 0.0);
         let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
         let mut state = GuiState::default();
-        state.ship_structure = Some(crate::ship::ship_structure::ShipStructure::load_and_assemble(&data, None).expect("assembles"));
+        state.ship_structure = Some(crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, None).expect("assembles"));
 
         state.settings.play_mode = crate::config::PlayMode::Normal;
         let out = frame(&ctx, &theme, &mut state, Vec::new());

@@ -242,7 +242,11 @@ impl GuiState {
             self.connected_server_url.clone()
         };
         self.disconnect_active();
-        self.account_erased_on.insert(erased_entry(&self.profile_public_key, &dialed), outcome);
+        let entry = erased_entry(&self.profile_public_key, &dialed);
+        // The relay released this identity's plot on that server with the account (ship homes
+        // increment 2): the plot remembered there is forgotten, keyed the same way.
+        self.home_plots.remove(&entry);
+        self.account_erased_on.insert(entry, outcome);
     }
 
     /// The same for a PARKED server: the person switched servers between sending the erase and
@@ -258,6 +262,7 @@ impl GuiState {
         conn.manually_disconnected = true;
         conn.status = "Disconnected".to_string();
         let entry = erased_entry(&self.profile_public_key, &conn.url);
+        self.home_plots.remove(&entry);
         self.account_erased_on.insert(entry, outcome);
     }
 
@@ -615,6 +620,33 @@ mod erased_account_tests {
         assert!(state.account_erased_here("https://a.example"));
         assert!(!state.account_erased_here("https://b.example"), "the active server is untouched");
         assert!(!state.ws_manually_disconnected);
+    }
+
+    /// Ship homes increment 2 review, finding 3: the relay released the plot along with the
+    /// account, so the plot this identity remembered on that server is forgotten, for an erase
+    /// whose receipt came on the active link (made from the main menu, out of the world) and one
+    /// that came on a parked link. Otherwise the next world load built the home on a plot that
+    /// may be someone else's by then. Plots remembered on other servers, and by another identity,
+    /// stay. Seen red 2026-10-04 on c98c5465b (only an erase made in the world forgot the plot,
+    /// net_route.rs): "an erase on the active server left its plot remembered: Some(RememberedPlot
+    /// { ship_hash: \"h\", plot: \"p2\" })".
+    #[test]
+    fn an_erase_forgets_the_plot_remembered_on_that_server() {
+        let plot = crate::config::RememberedPlot { ship_hash: "h".into(), plot: "p2".into() };
+        let mut state = on("https://a.example");
+        for (key, url) in [(KEY, "https://a.example"), (KEY, "https://b.example"), ("ffee9988", "https://a.example")] {
+            state.home_plots.insert(erased_entry(key, url), plot.clone());
+        }
+        state.account_erased_on_active(EraseOutcome::Erased);
+        let left = state.home_plots.get(&erased_entry(KEY, "https://a.example"));
+        assert!(left.is_none(), "an erase on the active server left its plot remembered: {left:?}");
+        assert!(state.home_plots.contains_key(&erased_entry(KEY, "https://b.example")), "another server's plot stays");
+        assert!(state.home_plots.contains_key(&erased_entry("ffee9988", "https://a.example")), "another identity's plot stays");
+        // On a parked link.
+        state.connections.push(ServerConnection { url: crate::gui::pages::chat::norm_server_url("https://b.example"), ..Default::default() });
+        state.account_erased_on_parked(0, EraseOutcome::Erased);
+        let left = state.home_plots.get(&erased_entry(KEY, "https://b.example"));
+        assert!(left.is_none(), "an erase on a parked server left its plot remembered: {left:?}");
     }
 
     /// The Chat page's sentence: one sentence, naming the button it sits above, saying what
