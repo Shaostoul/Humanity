@@ -2682,6 +2682,7 @@
         "usgs",
         "noaa-ncei",
         "nps",
+        "usfs",
         "phmsa"
       ],
       "locale_dependent": false,

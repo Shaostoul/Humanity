@@ -18,7 +18,8 @@ Most of this guide comes from that manual (FM 3-25.26, *Map Reading and
 Land Navigation*), from the US Geological Survey (USGS), which makes the
 standard topographic maps of the United States, from NOAA's National
 Centers for Environmental Information on the magnetic field, and from
-the National Park Service on going outdoors with a map. All are United
+the National Park Service and the US Forest Service on going outdoors
+with a map. All are United
 States government publications, in the public domain. Where something is
 general practice or plain arithmetic rather than a published rule, the
 text says so.
@@ -43,13 +44,16 @@ search. A few habits matter more than any technique below.
   navigation (a map, a compass and GPS) among the ten essentials, says
   to know how to use a topographic map, compass or GPS before going out,
   and says: "Bring a physical map as a back up." It also says to pack an
-  extra battery for your phone.
+  extra battery for your phone. Navigation is only the first of its ten;
+  carry the other nine too: sun protection, extra clothing, a light,
+  first-aid supplies, a way to make fire, a repair kit and tools, food,
+  water and emergency shelter.
 - **Check the date on the map.** A map shows the ground as it was when
   the information was gathered, not as it is today. The Army manual
-  warns that roads, buildings and vegetation are the features "most
-  likely to have changed since the map was last revised". A trail, a
-  bridge or a fence on the map may be gone, and a new one may not be on
-  it.
+  warns against relying mainly on man-made features (its word is
+  "cultural") and vegetation, because they are "most likely to have
+  changed since the map was last revised". A trail, a bridge or a fence
+  on the map may be gone, and a new one may not be on it.
 - **Read the steepness before you go, not on the slope.** Contour lines
   that touch or nearly touch mean a cliff. A slope whose contour lines
   are far apart at the top and close together at the bottom gets steeper
@@ -69,8 +73,15 @@ search. A few habits matter more than any technique below.
   position against the map at every feature you pass. If you can no
   longer match the map to the ground, stop and work it out before going
   further; walking on in the hope that it will make sense later is how
-  people get badly lost (general practice). What to do once you are lost
-  is a topic of its own.
+  people get badly lost (general practice).
+- **If you think you are lost, stop.** The US Forest Service's advice is
+  "As soon as you realize you may be lost: stop, stay calm, stay put."
+  Then think back over how you got there, get out the map and compass to
+  work out directions, and make a plan before you move. It says that if
+  you are not very, very confident of the route, it is always better to
+  stay put, and to stay in place if night is falling, you are hurt or you
+  are near exhaustion. Staying put is also why telling someone your
+  route matters: it is where they will look (our reasoning).
 
 ## What a map shows, and what it leaves out
 
@@ -87,7 +98,7 @@ time:
 
 - **A planimetric map** shows only where things are, side to side. It
   leaves out the shape of the land. A road atlas, a street map and most
-  phone maps in their plain setting are planimetric.
+  phone maps in their plain setting are planimetric (our examples).
 - **A topographic map** shows where things are and also the shape of the
   land, usually with contour lines. It is the map for walking, building
   and judging where water goes.
@@ -120,8 +131,11 @@ and they are different on every map. The items a beginner most needs:
 - **The declination diagram.** The angle between true north, grid north
   and magnetic north for this map, covered in the direction section
   below.
-- **The vertical datum.** What the heights are measured from. In the
-  United States this is mean sea level.
+- **The vertical datum.** What the heights are measured from. The Army
+  manual says that in the United States, Canada and Europe it is mean
+  sea level, but that in parts of Asia and Africa it may be a local
+  assumed height with no connection to sea level, so check the note on
+  every map.
 
 ## Scale: turning map distance into ground distance
 
@@ -445,8 +459,8 @@ Two route-planning tips from the manual worth keeping:
 - **The best checkpoints are long features that cross your route**, such
   as streams, roads, ridges, valleys and power lines, and then features
   with a height change of at least two contour intervals, such as hills
-  and spurs. Be cautious of relying on buildings and vegetation, which
-  change.
+  and spurs. Do not rely mainly on other man-made features or on
+  vegetation, which are the most likely to have changed.
 - **Aim off on purpose.** If your goal is on a long feature that crosses
   your path, such as a road or a stream, the manual suggests aiming about
   10 degrees to one side. When you reach the feature, you know which way
@@ -479,7 +493,7 @@ a 1:24,000 USGS map with a 20 foot contour interval.
    upstream, toward the lake, so you walk upstream. Where the stream
    turns away, the trail crosses a draw: that is your cue to turn.
 6. **Attack point.** A saddle about 300 metres from the lake. From the
-   saddle, the lake is downhill to the north-east.
+   saddle, the lake is up the gentle slope to the north-east.
 7. **Back azimuth.** If the bearing from the saddle to the lake is 50
    degrees, the bearing back to the saddle is 230.
 8. **Tell someone** the route and when you will be back.
@@ -565,15 +579,17 @@ places on Earth.
 - **Where you are on the planet.** The line at the bottom gives the
   region's name and the latitude and longitude of the point the region
   is drawn around.
-- **Names.** Hold the pointer over a road to see its name, and street
-  and water names appear as you zoom in.
+- **Names.** Hold the pointer over a road to see its name. Names of
+  water show at the starting zoom, and street names appear as you zoom
+  in.
 - **The same places in the world.** The same two regions are also built
   into the game's 3D Earth, at their real latitude and longitude, once
   the camera comes within about 40 kilometres of them.
 
 What the game does not model, so you do not learn it from the game: the
 Planet view is a **planimetric** map in the Army manual's sense. It has
-no contour lines and no heights, no legend or margin, no declination
+no contour lines and no ground heights (only building outlines are
+shaded by height, taller ones lighter), no legend or margin, no declination
 diagram and no grid. The game has a Paper Map and a Compass in its item
 list, and a compass can be crafted at a workbench, but neither does
 anything yet: carrying them shows no map and no bearing. The bar at the
@@ -619,7 +635,9 @@ public domain. Web pages were read on 3 October 2026.
   the rule that the larger the number after 1: the smaller the scale;
   care of maps, waterproof case and light pencil marks; the marginal
   information, including bar scales in several units, the contour
-  interval note, the map information date below LEGEND, the warning that
+  interval note, the map information date below LEGEND, the vertical
+  datum note (mean sea level in the United States, Canada and Europe, a
+  local assumed datum in parts of Asia and Africa), the warning that
   the printing date does not date the information, and the legend
   varying between maps; colours used on a military map; the
   representative fraction, its worked examples and working out a
@@ -681,7 +699,17 @@ public domain. Web pages were read on 3 October 2026.
   (navigation as a map, compass and GPS; know how to use them before
   going out; "Bring a physical map as a back up"; an extra phone
   battery; tell someone where you are going and when to expect you
-  back). https://www.nps.gov/articles/10essentials.htm
+  back; the other nine essentials: sun protection, extra clothing,
+  illumination, first-aid supplies, fire, repair kit and tools,
+  nutrition, hydration and emergency shelter).
+  https://www.nps.gov/articles/10essentials.htm
+- USDA Forest Service. If You Get Lost, page last modified 4 December
+  2023, read 3 October 2026 ("As soon as you realize you may be lost:
+  stop, stay calm, stay put."; think back over how you got there; use
+  the compass to find directions and do not walk aimlessly; plan before
+  acting; stay put unless very, very confident of the route; stay in
+  place at nightfall, when injured or near exhaustion).
+  https://www.fs.usda.gov/visit/know-before-you-go/if-you-get-lost
 - Pipeline and Hazardous Materials Safety Administration. Call Before
   You Dig! (call 811 before digging), as cited in [Square, Level and
   Plumb](square_level_and_plumb.md).
@@ -692,7 +720,9 @@ public domain. Web pages were read on 3 October 2026.
 - The Maps page and its Planet view: `src/gui/pages/cosmos.rs`
   (`draw_planet_view`: north up, the round-number scale bar from 10 m to
   5 km, the footer with the region's origin latitude and longitude and
-  the OpenStreetMap notice, road names on hover). The Maps page opening
+  the OpenStreetMap notice, road names on hover, water names from zoom
+  0.7 and road names from zoom 1.6 against a starting zoom of 1.0, and
+  building outlines shaded by height). The Maps page opening
   on the Solar System view: `cosmos_view` in `src/gui/mod.rs`.
 - The two shipped regions, `data/maps/regions/seattle-center.bin` and
   `data/maps/regions/silverdale.bin`, made by
@@ -719,6 +749,9 @@ public domain. Web pages were read on 3 October 2026.
   as a safety reading of the manual's description.
 - Checking which way is north on a map before assuming it is the top;
   the household examples of things that disturb a compass.
+- The examples of planimetric maps (a road atlas, a street map, a
+  phone map in its plain setting).
+- That staying put is why telling someone your route matters.
 - The worked examples (the trailhead and lake, the slope, the planned
   walk) are arithmetic on made-up numbers.
 - Using the land manager's map for trails; national mapping agencies

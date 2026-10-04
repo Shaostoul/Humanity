@@ -2,9 +2,9 @@
 
 A shelf, a fence, a chicken house and a roof all come down to the same
 question: what holds this piece to that one, and will it still be
-holding in ten years, in the rain, with a load on it? The board rarely
-breaks. The joint does. FEMA, looking at wood-framed buildings after
-high winds, floods and earthquakes, reports that "structural failures
+holding in ten years, in the rain, with a load on it? Often it is the
+joint, not the board, that fails. FEMA, looking at wood-framed
+buildings after high winds, floods and earthquakes, reports that "structural failures
 frequently occur at connections rather than in framing members". The
 Forest Products Laboratory's Wood Handbook opens its chapter on
 fastenings the same way: the strength and stability of any structure
@@ -20,9 +20,11 @@ on wood as an engineering material), the Army's carpentry manual (FM
 5-426), the armed services' joint hand tool manual (TM 9-243), NASA's
 Fastener Design Manual, the joint NIOSH and OSHA guide to nail gun
 safety, the Consumer Product Safety Commission (CPSC) and FEMA. All are
-United States government publications, in the public domain. Where
-something is general practice rather than a published rule, the text
-says so.
+United States government publications. Their own text is in the public
+domain; the few parts they credit to someone else (a table in NASA's
+manual, material in FEMA's bulletin) are restated here, not quoted.
+Where something is general practice rather than a published rule, the
+text says so.
 
 Three guides sit beside this one. [Working with
 Wood](/library#working-with-wood) sets out the Wood Handbook's
@@ -34,8 +36,8 @@ place before you fasten them.
 
 ## First: the ways fastening work hurts people
 
-Most fastening injuries come from the tool, not the fastener. These are
-the ones to know before you start.
+Before the fasteners, the tools that drive them. These are the hazards
+to know before you start.
 
 ### Hammering
 
@@ -80,10 +82,10 @@ From TM 9-243's list of wrench safety rules:
 ### Nail guns
 
 A nail gun drives a nail in a fraction of a second with no chance to
-change your mind, and it is the most dangerous tool in this guide. The
-joint NIOSH and OSHA guide (2011) says nail guns are responsible for an
-estimated 37,000 emergency room visits each year, that more than half of
-reported injuries are to the hand and fingers, and that injuries have
+change your mind. The joint NIOSH and OSHA guide (2011) says nail guns
+are responsible for an estimated 37,000 emergency room visits each
+year, that more than half of reported injuries are to the hand and
+fingers, and that injuries have
 caused blindness, paralysis and death.
 
 What the guide says to do:
@@ -96,15 +98,33 @@ What the guide says to do:
 - **Keep the hand that holds the work at least 12 inches (30 cm) from
   the nailing point**, or use clamps instead of your hand. Nails can pass
   straight through the wood, or bounce off a knot or metal and fly.
+- **Shoot away from your body and away from other people.** In the
+  guide's words: "Always shoot nail guns away from your body and away
+  from co-workers."
 - **Look before you nail.** Check for knots, nails, straps and hangers
   that can deflect a nail, and use a hammer for metal hardware and
   awkward spots.
+- **Use your dominant hand only.** The guide says never to use the
+  nailer with the non-dominant hand, and to use a hammer if you cannot
+  reach the work while holding the nailer in your dominant hand.
 - **Disconnect the air** when you leave the gun, climb a ladder or
-  stairs, hand it to someone, clear a jam or do any maintenance.
+  stairs, hand it to someone, clear a jam or do any maintenance. A
+  cordless nailer has no air line: remove its battery, and its fuel cell
+  if it has one, at the same moments (general practice; the guide covers
+  only air nailers).
+- **Be careful on ladders.** The guide suggests a scaffold instead of a
+  ladder where possible. If the work must be done from a ladder, use a
+  full sequential trigger, so that bumping your leg on the way up or
+  down cannot fire a nail. Keep three points of contact with the ladder
+  at all times: holding the nailer in one hand and the work in the
+  other leaves only your feet, which is two, so clamp the work instead.
+  Place the ladder so you do not reach too far; the guide says your belt
+  buckle should stay between the side rails.
 - **Never bypass or disable a safety feature**, and keep your finger off
   the trigger while carrying the gun.
 - **Wear safety glasses or goggles marked ANSI Z87.1 and hearing
-  protection**, and a hard hat on a building site.
+  protection**, and a hard hat on a building site. The guide adds that
+  safety shoes help protect your toes.
 - **Get any nail gun injury seen by a doctor at once, even one that
   looks minor.** The guide says one in four hand injuries can involve
   damage such as a fracture, that glue, plastic or clothing carried in
@@ -120,11 +140,22 @@ leave them to someone trained.
 
 Before you drive a nail or a screw into a wall, floor or ceiling, think
 about what may be inside it: wiring, water pipes, gas pipes and drains
-all run there. If you do not know, find out before you drive anything
-long enough to reach them, and stop if you hit something that does not
-feel like wood (general practice). Before digging, including for a fence
-post, see the 811 call in [Square, Level and
-Plumb](/library#square-level-and-plumb).
+all run there. Ways to find out before you drive anything long enough
+to reach them (general practice):
+
+- Look at what is on the wall nearby. Cables and pipes often run
+  straight up, down or across from switches, sockets, taps and radiators,
+  so keep well clear of the line between them.
+- Use a detector that finds studs, pipes and live cables, but treat a
+  clear reading as a hint, not proof.
+- Where you can, switch off the circuits in that wall at the breaker
+  before you drill, and make sure nobody switches them back on while you
+  work. [Keeping Things Working](/library#keeping-things-working) explains how
+  to make sure a circuit stays off.
+- Stop at once if you hit something that does not feel like wood.
+
+Before digging, including for a fence post, see the 811 call in
+[Square, Level and Plumb](/library#square-level-and-plumb).
 
 ## Two ways a fastener is loaded
 
@@ -157,7 +188,8 @@ The same idea shows up in walls. A CPSC staff study of furniture
 anchors (May 2015) found that drywall anchors are strongest when pulled
 at an angle parallel to the wall (shear) and weakest when pulled
 straight out from it, and that drywall cannot typically withstand the 50
-lb pull the voluntary furniture standard requires. That is why, it says,
+lb pull the voluntary furniture standard required at the time. That is
+why, it says,
 furniture anchor kits usually come with a wood screw that must go into a
 stud rather than a drywall anchor.
 
@@ -217,7 +249,10 @@ The carpentry manual's rules:
 
 **Worked example.** You are nailing a 3/4 inch (19 mm) fence board to a
 post. Three times 3/4 inch is 2 1/4 inches, so a 2 1/2 inch nail (8d)
-is the shortest that meets the rule. (Arithmetic on the manual's rule.)
+is the shortest size in the table above that meets the rule.
+(Arithmetic on the manual's rule.) If the post is treated lumber, as
+fence posts often are, the nail should be hot-dip galvanised or
+stainless steel; see the section on rust below.
 
 From the Wood Handbook:
 
@@ -326,9 +361,11 @@ or when the work has to be taken apart often.
 
 ## How tight is tight
 
-For most household work, "firm, then a bit more" is the instruction,
-and it is fine (general practice). Where a manufacturer gives a
-tightening torque, as for vehicle wheels, engines and machinery, use a
+For most household work in solid wood or metal, "firm, then a bit
+more" is the instruction, and it is fine (general practice). The
+exception is particleboard, soft wood and drywall, where modest
+tightening is better, as the section on screws says. Where a
+manufacturer gives a tightening torque, as for vehicle wheels, engines and machinery, use a
 torque wrench and the manufacturer's number. TM 9-243 describes torque
 wrenches as precision instruments that must be calibrated at regular
 intervals, and says they are for the final tightening of nuts and bolts.
@@ -398,9 +435,15 @@ the Wood Handbook and NASA:
   and thick hot-dip galvanised (G185 or heavier) connectors and
   fasteners improve corrosion protection.
 
-The Wood Handbook adds that nails of copper, silicon bronze and 300
-series stainless steel have performed well in wood treated with several
-copper-based preservatives, and that stainless steel, aluminium or
+The Wood Handbook adds which nail metals have performed well in treated
+wood, and the list depends on the preservative. Nails of copper,
+silicon bronze and 300 series stainless steel have performed well in
+wood treated with ammoniacal copper arsenate (ACA) and chromated copper
+arsenate (CCA). In wood treated with copper azole or alkaline copper
+quaternary (ACQ), it names only 300 series
+stainless steel. So read the tag on the wood before you choose the
+metal. The handbook also says that a joist hanger and its fasteners
+should be the same metal, and that stainless steel, aluminium or
 hot-dipped galvanised nails avoid the black staining some woods give
 with plain steel. FEMA's last word on the subject applies to every
 outdoor joint: whatever metal you choose, inspect it regularly so you
@@ -412,16 +455,21 @@ Furniture and televisions that tip over are one of the household jobs
 where the fastener choice is a safety decision. The CPSC (release 25-409,
 29 July 2025) says to anchor TVs and furniture, such as bookcases and
 dressers, securely to the wall, and where anchoring is not possible, to
-put a TV on a sturdy, low base, pushed back as far as it will go. It
-also says a federal stability standard for dressers and other clothing
-storage units took effect in September 2023.
+put a TV on a sturdy, low base, pushed back as far as it will go, with
+the cable cords kept out of reach. It also says not to store things
+children want, such as toys and remotes, where they may climb to reach
+them, and to store heavier items on lower shelves. And it says a
+federal stability standard for dressers and other clothing storage units
+took effect in September 2023.
 
-How to make the anchor actually hold, from the CPSC staff study above:
+How to make the anchor actually hold, from the CPSC staff study above.
+The study dates from 2015 and describes the voluntary standards as they
+were then; the mandatory standard for clothing storage units came later.
 
-- The voluntary furniture standard sizes the restraint for a 50 lb pull,
-  which it bases on the weight of a large five-year-old child (the 95th
-  percentile).
-- That standard covers the strap, but the study points out it sets no
+- In 2015, the voluntary furniture standard sized the restraint for a
+  50 lb pull, which it based on the weight of a large five-year-old
+  child (the 95th percentile).
+- That standard covered the strap, but the study points out it set no
   strength requirement for the anchor that holds the strap to the wall.
 - A short strap pulls the anchor straight out of the wall, the direction
   drywall anchors resist worst, and drywall typically cannot take 50 lb
@@ -440,7 +488,7 @@ a building code or a plan says otherwise, follow it.
 
 | Job | Usual choice | Why |
 |---|---|---|
-| Framing, fences, crates | Common or box nails, galvanised outdoors | Cheap and fast; loaded sideways, nails hold well |
+| Framing, fences, crates | Common or box nails; hot-dip galvanised or stainless outdoors and in treated wood | Cheap and fast; loaded sideways, nails hold well |
 | Trim and finish work | Finishing or casing nails, or small screws | Small heads that can be set below the surface |
 | Plywood floors, panelling | Ring or spiral nails, or screws | Threads resist the loosening that moisture causes |
 | Anything you may take apart, or that must pull tight | Screws, in pilot holes | Can be tightened and removed |
@@ -483,11 +531,15 @@ The game has fasteners as materials you make and use up.
   four boxes of nails, and Forge Screws and Forge Bolts each turn one
   steel ingot into three boxes of screws or two boxes of bolts
   (`data/recipes.csv`). Making them trains Metalworking.
-- **Woodwork uses nails; machines use bolts.** Furniture, doors, crates
-  and other woodwork at the workbench take boxes of nails: a chair, for
-  example, takes four planks and one box of nails. Many machines
-  assembled at the workbench take bolts: the sawmill takes three boxes.
-  Recipes like the sawmill train the Engineering skill.
+- **Woodwork uses nails; some machines use bolts.** Furniture, doors,
+  crates and other woodwork at the workbench take boxes of nails: a
+  chair, for example, takes four planks and one box of nails. A few of
+  the machines you assemble take bolts: the sawmill takes three boxes,
+  and the workbench, anvil station, grain mill and grain silo take them
+  too. So do some metal goods, such as a vise, clamps and safes. The
+  sawmill recipe trains the Engineering skill.
+- **Screws are not used yet.** Boxes of screws can be forged, but no
+  recipe in the game uses them.
 - **The right tools.** Woodwork at the workbench needs a hammer and a
   hand saw in your backpack, and assembling machines there needs an
   adjustable wrench and a flat screwdriver, as set out in
@@ -498,10 +550,11 @@ The game has fasteners as materials you make and use up.
 **Two settings change this.**
 
 - **Play mode.** During development the game starts in the Dev play mode
-  (Settings > Gameplay > Play mode), and in Dev, as in Creative,
-  materials are free: crafting uses up no boxes of nails or bolts and
-  needs no tools or forge. To see fasteners used up, switch Play mode to
-  Normal.
+  (Settings > Gameplay > Play mode). In Dev, as in Creative, materials
+  are free while the Creative mode switch on the Inventory page is on,
+  which it is unless you turn it off: crafting then uses up no boxes of
+  nails or bolts and needs no tools or forge. To see fasteners used up,
+  turn that switch off, or switch Play mode to Normal.
 - **Starting from the default home.** While Settings > Gameplay > "Start
   every session from the default home" is on, which is also the default
   during development, only your character carries between launches, so
@@ -520,10 +573,12 @@ real world, all of the choices in this guide are the work.
   of the blow, and clamp work instead of holding it.
 - You pull wrenches rather than push them, use one that fits, and never
   lengthen the handle.
-- If you use a nail gun, it has a full sequential trigger, your other
-  hand is at least 12 inches from the nail, the air is off before you
-  clear a jam, and any injury goes to a doctor.
-- You think about what is inside a wall before you drive into it.
+- If you use a nail gun, it has a full sequential trigger, you hold it
+  in your dominant hand and point it away from yourself and others, your
+  other hand is at least 12 inches from the nail, the air (or battery)
+  is off before you clear a jam or climb a ladder, and any injury goes to
+  a doctor.
+- You find out what is inside a wall before you drive into it.
 - You can say whether a joint loads its fasteners sideways or pulls them
   out, and arrange it sideways when you can.
 - You pick a nail at least three times as long as the board is thick,
@@ -536,14 +591,20 @@ real world, all of the choices in this guide are the work.
   know a split lock washer does not lock.
 - You use hot-dip galvanised or stainless fasteners with treated wood
   and outdoors, matched to the connectors.
-- You anchor tall furniture and TVs to the wall with the screw in a stud.
+- You anchor tall furniture and TVs to the wall with the screw in a stud,
+  and keep heavy things on low shelves and toys and remotes where
+  children will not climb for them.
 - You know which joints are for a code, a permit or a professional.
 
 ## Sources
 
 Grouped by what kind of authority each one is. Every source here is a
-work of the United States federal government and is therefore in the
-public domain. Regulations were read in the Electronic Code of Federal
+United States federal government publication, and their own text is in
+the public domain. Two contain material from others: FEMA's bulletin
+includes material used with permission from the American Society of
+Civil Engineers and the International Code Council, and NASA credits its
+table of tightening methods to the Industrial Fasteners Institute. Those
+parts are restated here, not quoted. Regulations were read in the Electronic Code of Federal
 Regulations on 3 October 2026; the eCFR is updated in place. Web pages
 were read on 3 October 2026.
 
@@ -566,8 +627,10 @@ were read on 3 October 2026.
   particleboard; lag screw lead holes by wood density, turned with a
   wrench and kept out of end grain; bolt hole fit, smooth holes and
   four-diameter spacing along the grain; retightening bolts in green
-  timber during the first year; metals that perform well in treated wood
-  and that avoid staining; design values in the National Design
+  timber during the first year; copper, silicon bronze and 300 series
+  stainless nails in ACA and CCA treated wood, and only 300 series
+  stainless in copper azole and ACQ; a joist hanger and its fasteners of
+  the same metal; metals that avoid staining; design values in the National Design
   Specification).
   https://www.fpl.fs.usda.gov/documnts/fplgtr/fplgtr282/chapter_08_fpl_gtr282.pdf
 - Headquarters, Department of the Army. *Carpentry*, FM 5-426, 3 October
@@ -612,9 +675,12 @@ were read on 3 October 2026.
   triggers as the safest, with twice the injury risk for contact
   triggers; hands at least 12 inches from the nailing point; nails
   passing through wood and ricocheting; checking for knots and metal;
-  disconnecting the air; never bypassing safety features; ANSI Z87.1 eye
-  protection, hearing protection and hard hats; seeking medical attention
-  at once). Read from the copy at
+  shooting away from your body and co-workers; never using the nailer
+  with the non-dominant hand; disconnecting the compressed air; scaffolds
+  rather than ladders, sequential triggers on ladders, three points of
+  contact and the belt buckle between the rails; never bypassing safety
+  features; ANSI Z87.1 eye protection, hearing protection, hard hats and
+  safety shoes; seeking medical attention at once). Read from the copy at
   https://stacks.cdc.gov/view/cdc/209984/cdc_209984_DS1.pdf (catalogue
   record https://stacks.cdc.gov/view/cdc/6013).
 - Occupational Safety and Health Administration. 29 CFR 1926.302(e)(1),
@@ -633,8 +699,10 @@ were read on 3 October 2026.
 - US Consumer Product Safety Commission. CPSC Anchor It! Campaign Marks
   10 Years, news release 25-409, 29 July 2025 (anchor TVs and furniture
   such as bookcases and dressers securely to the wall; a low, sturdy base
-  when anchoring is not possible; the mandatory stability standard for
-  clothing storage units in effect from September 2023).
+  when anchoring is not possible, with cable cords out of reach; toys and
+  remotes not stored where children may climb for them, and heavier items
+  on lower shelves; the mandatory stability standard for clothing storage
+  units in effect from September 2023).
   https://www.cpsc.gov/Newsroom/News-Releases/2025/CPSC-AnchorIt-Campaign-Marks-10-Years-Fewer-Furniture-Tip-Overs-Lead-to-Safer-American-Households
 - Federal Emergency Management Agency. *Corrosion Protection for Metal
   Connectors and Fasteners in Coastal Areas*, NFIP Technical Bulletin 8,
@@ -655,13 +723,15 @@ were read on 3 October 2026.
 - The fastener items (`nail_box_0`, `screw_box_0`, `bolt_box_0` in
   `data/items.csv`) and their recipes (`craft_nails`, `craft_screws`,
   `craft_bolts`, and the recipes that use them, such as `build_chair` and
-  `build_sawmill`, in `data/recipes.csv`).
+  `build_sawmill`, in `data/recipes.csv`; no recipe uses `screw_box_0`).
 - Which tools each craft needs: `data/crafting/tools.ron` and
   `src/systems/crafting/tools.rs`; skill experience for a finished craft
   in `src/systems/crafting/mod.rs`.
 - The Play mode setting and free materials (`PlayMode` and
   `play_mode_allows` in `src/config.rs`, the creative checks in
-  `src/systems/crafting/mod.rs`); the "Start every session from the
+  `src/systems/crafting/mod.rs`, the Creative mode switch on the
+  Inventory page in `src/gui/pages/inventory.rs`, on by default in
+  `src/gui/mod.rs` and forced off in Normal in `src/lib.rs`); the "Start every session from the
   default home" setting (`src/config.rs`, `src/save_load.rs`).
 - A data file describing a 2x6 stud wall and its nailing schedule,
   `data/assemblies/stud_wall_2x6.ron`, exists, but nothing in the game
@@ -679,10 +749,15 @@ were read on 3 October 2026.
 - What the hammer warning guards against (a nail that flies, a chipped
   face), and why a pilot hole lets a screw draw the top piece down, are
   our explanations.
-- Thinking about wiring and pipes inside a wall before driving into it,
-  and stopping when you hit something that is not wood.
+- Finding out about wiring and pipes inside a wall before driving into
+  it: looking for switches, sockets and taps, using a detector, switching
+  off the circuit, and stopping when you hit something that is not wood.
+- Removing the battery or fuel cell of a cordless nailer where the guide
+  says to disconnect the air.
+- That fence posts are often treated lumber.
 - That over-tightening also strips soft wood and drywall.
-- "Firm, then a bit more" for household work; that a wrench measures
+- "Firm, then a bit more" for household work in solid wood or metal;
+  that a wrench measures
   turning effort rather than clamping, and that oiling a dry-rated
   thread makes the same torque clamp harder, are our reading of NASA's
   explanation; following the manufacturer on oiled threads.

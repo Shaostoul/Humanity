@@ -21,7 +21,10 @@ The methods come from the National Institute of Standards and Technology
 (NIST), the Centers for Disease Control and Prevention (CDC), the Census
 Bureau, the Federal Trade Commission (FTC) and the Securities and
 Exchange Commission (SEC). All are United States government
-publications, in the public domain. Where something is plain arithmetic,
+publications. Two were written with others: NIST's statistics handbook
+is a joint work with SEMATECH, and the Census Bureau's handbook was drafted with a
+private nonprofit, so the guide restates the Census handbook rather than
+quoting it. Where something is plain arithmetic,
 general practice or our own example, the text says so. The worked
 examples use made-up numbers unless a source is named.
 
@@ -50,19 +53,22 @@ out alone.
 - **Safety ratings.** A rated load on a ladder, a jack or a rope is not
   an average you can argue with: stay under it. [Estimating](estimating.md)
   explains why ratings are not for guessing.
-- **Test results.** A lab result that says "not detected" is a statement
-  about the test's limits as well as about the sample.
-  [Testing Water](testing_water.md) explains how to read one.
+- **Test results.** A lab result that says "not detected" does not mean
+  zero. It means below the lowest amount the test can tell apart from a
+  blank sample, its detection limit. [Testing Water](testing_water.md)
+  explains this from the federal definition of a detection limit, and
+  how to read a result against it.
 
 ## Every measurement is signal plus noise
 
-NIST's handbook of statistical methods describes the simplest model of
-any measurement as a fixed part plus a random part:
+NIST's handbook of statistical methods describes the general model of
+a measurement as a fixed part plus a random part:
 
     response = deterministic component + random component
 
-In plain words: what you measure is the thing you care about, plus
-scatter. The eggs collected on a day depend on how many hens are laying,
+In the simplest case, one steady quantity measured again and again, it
+says this becomes a constant plus error. In plain words: what you
+measure is the thing you care about, plus scatter. The eggs collected on a day depend on how many hens are laying,
 which is the signal, and on a dozen small things (heat, a hen that laid
 under the hedge, a day you collected late), which are the noise.
 
@@ -163,7 +169,7 @@ spread, among them:
 
 For most household decisions the range of a few past seasons, or a few
 past weeks, is enough to ask the right question: **is this difference
-bigger than the usual swing?** If your bed has given between 30 and 42
+bigger than the usual swing?** If your bed has given between 30 and 38
 kg of potatoes in five normal years, a 36 kg year is not news, and a 22
 kg year is (our example).
 
@@ -221,9 +227,10 @@ The same course makes three points worth knowing:
 - In an **experiment**, the investigator decides who is exposed, for
   example by random assignment, and follows both groups.
 - In an **observational study**, people are simply observed as they are.
-  When a characteristic is more common among people who got a disease,
-  the characteristic is said to be **associated** with it. Association
-  points toward a cause; it does not prove one.
+  When people with a particular characteristic are more likely than
+  those without it to get a disease, the characteristic is said to be
+  **associated** with the disease. (Our summary of what follows: an
+  association points toward a cause, but does not prove one.)
 - In the course's words, "It has been said that epidemiology by itself
   can never prove that a particular exposure caused a particular
   outcome." Often, it adds, it gives enough evidence to act.
@@ -395,9 +402,14 @@ kg, against 36 kg the year before. Is the compost working?
    (This is the experiment the CDC describes, scaled down to a garden;
    the coin and the swap are general practice.)
 5. **Decide in advance what would convince you.** For example: the
-   compost half wins in both years, by more than the 8 kg normal swing
-   scaled down to half a bed. Writing that down before the harvest stops
-   you moving the goalposts afterwards (general practice).
+   compost half wins in both years, by more than the two halves differ
+   in a year when neither gets compost. If you have no such year, grow
+   one first: a season with both halves untreated shows how much the two
+   ends of the bed differ on their own. The bed's 8 kg swing between
+   years is only a rough yardstick here, because it includes the
+   weather, which a same-season split cancels out. Writing the rule down
+   before the harvest stops you moving the goalposts afterwards (general
+   practice).
 
 ## Know where your own reading stops
 
@@ -478,8 +490,12 @@ the game levels it yet.
 ## Sources
 
 Grouped by what kind of authority each one is. Every source here is a
-work of the United States federal government and is therefore in the
-public domain. Regulations were read in the Electronic Code of Federal
+United States federal government publication. Two were written with
+others: the NIST/SEMATECH e-Handbook is a joint work, and only its
+chapter 1, edited at NIST, is cited; the Census Bureau's handbook was
+drafted with the Population Reference Bureau, a private nonprofit, so it
+is restated, not quoted. The rest are works of the federal government
+and in the public domain. Regulations were read in the Electronic Code of Federal
 Regulations on 3 October 2026; the eCFR is updated in place. Web pages
 were read on 3 October 2026.
 
@@ -491,8 +507,9 @@ were read on 3 October 2026.
   created 1 June 2003, last updated 27 April 2022. Sections read: 1.1.1
   What is EDA? (mostly graphical, letting the data reveal its structure);
   1.2.1 Underlying Assumptions (random drawings from a fixed distribution
-  with fixed location and variation; response = deterministic component +
-  random component); 1.3.3.25 Run-Sequence Plot (shifts in location and
+  with fixed location and variation; the general model, response =
+  deterministic component + random component, becoming constant + error
+  in the univariate case); 1.3.3.25 Run-Sequence Plot (shifts in location and
   scale typically evident, outliers easy to see); 1.3.5.1 Measures of
   Location (mean, median and mode; the mean pulled toward the longer
   tail; extreme values distorting the mean but not the median); 1.3.5.6
@@ -513,7 +530,9 @@ were read on 3 October 2026.
   Epidemiology in Public Health Practice*, Third Edition. Lesson 1,
   section 7, Analytic Epidemiology, page last reviewed 18 May 2012 (the
   comparison group as the key feature; the hepatitis A and salsa
-  investigation; experimental and observational studies; association;
+  investigation; experimental and observational studies; association,
+  as people with a characteristic being more likely than those without
+  it to get a disease;
   "It has been said that epidemiology by itself can never prove that a
   particular exposure caused a particular outcome").
   https://archive.cdc.gov/www_cdc_gov/csels/dsepd/ss1978/lesson1/section7.html
@@ -584,7 +603,10 @@ were read on 3 October 2026.
   the product.
 - The meaning we draw for a garden from the Census Bureau's test and the
   CDC's comparison group; the coin toss and the swap in the fair trial;
-  deciding in advance what would convince you.
+  deciding in advance what would convince you, and using an untreated
+  year of both halves as the yardstick.
+- That an association points toward a cause but does not prove one is
+  our summary of the CDC's points, not its words.
 - Extending the SEC's warning about overly consistent returns to records
   and tests outside investing.
 - That averaging shrinks random error but not systematic error is our
