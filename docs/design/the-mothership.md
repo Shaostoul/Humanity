@@ -144,11 +144,13 @@ reason the tool is upstream of everything here.
 **That redesign is done.** [player-home.md](player-home.md), 2026-09-19: the
 whole 55 by 89 m acre is partitioned into twenty-three rooms instead of one
 corner plus an open hall, every screen sits in the room where a person would use
-it, and the neighbours already inherit the shell because
-`HomeStructure::tile_home_clones` stamps the player's own walls into every
-residential slot. What that reference does NOT carry is the lights and the
-furniture, so a neighbour's quarters is still a correct empty floor plan; the
-note says what closing that would take.
+it. Since ship homes increment 2 (2026-10-04) every plot that is not the
+player's own is drawn as the SHIPPED homestead (`src/ship/neighbours.rs`, baked
+by `HomeStructure::bake_shell_groups`; the v0.638 `tile_home_clones`, which
+stamped the player's own walls into every residential slot, is gone, and a
+residential zone draws nothing: its homes are the plots). The drawing does NOT
+carry the lights and the furniture, so a neighbour's quarters is still a correct,
+dark, empty floor plan; the note says what closing that would take.
 
 ## Explicitly deferred
 
