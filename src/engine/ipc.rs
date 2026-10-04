@@ -79,6 +79,26 @@ pub(crate) fn parse_showcase_pin(raw: &str) -> Option<ShowcasePin> {
     t.parse::<f32>().ok().filter(|v| v.is_finite()).map(ShowcasePin::Value)
 }
 
+/// What a showcase `fov` pin holds: `auto` releases it (None), a number is
+/// the lens in vertical degrees, held between 10 (below that the frame is a
+/// telescope, and nothing in the world is built to be seen through one) and
+/// 120.
+pub(crate) fn fov_pin_from(pin: ShowcasePin) -> Option<f32> {
+    match pin {
+        ShowcasePin::Auto => None,
+        ShowcasePin::Value(v) => Some(v.clamp(10.0, 120.0)),
+    }
+}
+
+/// The camera's vertical fov: the showcase lens while one is pinned, else
+/// the Settings value under the 60..120 clamp (a corrupt `"fov": 0` in a
+/// config must never collapse the projection). The one rule for both
+/// writers, the showcase verb and lib.rs's settings_dirty block, so a
+/// Settings apply cannot drop a pinned lens mid-shot.
+pub(crate) fn effective_fov(fov_pin: Option<f32>, settings_fov: f32) -> f32 {
+    fov_pin.unwrap_or(settings_fov.clamp(60.0, 120.0))
+}
+
 /// THE ONE PLACE the foliage wind reaches the shader, in pure form.
 ///
 /// `renderer.foliage_wind` is poked into BOTH camera buffers (the colour pass
@@ -420,6 +440,26 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // (time::request_speed_hold); the TimeSystem's accumulator is authoritative.
     if let Some(sc) = grab("time_scale").and_then(|t| t.parse::<f32>().ok()) {
         crate::systems::time::request_speed_hold(&state.data_store, Some(sc.max(0.0)));
+    }
+    // Optional "fov":"40" sets the camera's vertical field of view in degrees;
+    // "fov":"auto" puts the Settings value back (2026-10-04, the clip maker's
+    // lens, scripts/make-clips.js). A far mountain needs a longer lens than
+    // the 90 degree play default: Mount Rainier seen from Silverdale, 113 km
+    // off, stands 1.7 degrees over the horizon, about 20 px of a 1080 px
+    // frame at 90 degrees. Held until "auto" (state.fov_pin): lib.rs's
+    // Settings apply goes through effective_fov too, so a config save in the
+    // middle of a shot keeps the lens. The terrain LOD reads the camera's fov
+    // (px_per_rad in lib.rs), so a long lens also asks for the finer far
+    // patches it needs.
+    if let Some(f) = grab("fov") {
+        match parse_showcase_pin(&f) {
+            Some(pin) => {
+                state.fov_pin = fov_pin_from(pin);
+                state.camera.fov_degrees = effective_fov(state.fov_pin, state.gui_state.settings.fov);
+                log::info!("Showcase: fov -> {} deg", state.camera.fov_degrees);
+            }
+            None => log::warn!("Showcase: fov \"{f}\" is not a number or \"auto\" - lens unchanged"),
+        }
     }
     // Optional "wind":"0" pins the wind speed the VEGETATION sees, in m/s;
     // "wind":"auto" hands it back to the weather. See published_foliage_wind
@@ -1388,13 +1428,31 @@ pub(crate) fn sky_daylight(state: &EngineState) -> bool {
         .as_deref()
         .and_then(|b| state.planet_defs.get(b))
         .map(|d| {
-            let alt = state.frame_lock_anchor.length() - d.radius;
-            let up = state.frame_lock_anchor.normalize_or_zero();
-            let to_sun = (state.sun_world_pos - state.ship_world_pos).normalize_or_zero();
-            let sun_up = up.dot(to_sun);
-            alt < 120_000.0 && sun_up > 0.10
+            daylight_over_anchor(
+                state.frame_lock_anchor,
+                state.current_spin,
+                d.radius,
+                state.sun_world_pos - state.ship_world_pos,
+            )
         })
         .unwrap_or(false)
+}
+
+/// The daylight gate's own arithmetic, in pure form. `anchor_local` is the
+/// frame lock's anchor, in the locked body's UNROTATED frame
+/// (`dev_travel::frame_lock_capture`); `spin` is the body's turn
+/// (`state.current_spin`, the same one the frame lock rides);
+/// `to_sun_world` points from the camera to the sun in the WORLD frame.
+pub(crate) fn daylight_over_anchor(anchor_local: glam::DVec3, spin: f64, radius: f64, to_sun_world: glam::DVec3) -> bool {
+    let alt = anchor_local.length() - radius;
+    // The ground's up in the WORLD frame, where the sun is: the anchor turned
+    // by the spin, exactly as frame_lock_ship_pos places the camera. Using
+    // the unturned anchor judged the sun over another longitude, the same
+    // one at every hour, so at Silverdale on 2026-10-04 the star pass was
+    // skipped all night (daylight_gate_tests).
+    let up = (glam::DQuat::from_rotation_y(spin) * anchor_local).normalize_or_zero();
+    let sun_up = up.dot(to_sun_world.normalize_or_zero());
+    alt < 120_000.0 && sun_up > 0.10
 }
 
 /// Render ONE view of the world from `camera` into `target` at `size`
@@ -3556,6 +3614,32 @@ mod showcase_pin_tests {
         Vec3::new(1.0, 0.0, 0.0)
     }
 
+    /// The clip maker's lens (2026-10-04). A number is the lens, held to
+    /// 10..120; `auto` is the Settings fov under lib.rs's own 60..120 clamp,
+    /// so a corrupt `"fov": 0` in a config cannot black the frame out
+    /// through this door either. The whole chain, from the dropped text.
+    ///
+    /// Red checks, run 2026-10-04: with the lens computed from the Settings
+    /// value whatever the pin said, "a 40 degree lens is 40 degrees" failed
+    /// (left 90, right 40); with `effective_fov` ignoring the pin (what
+    /// lib.rs's Settings apply did), it failed again (left 90, right 40),
+    /// which is the take that came out at 90 degrees when a config save
+    /// landed one frame after the pin.
+    #[test]
+    fn the_fov_pin_sets_the_lens_and_auto_gives_it_back() {
+        let lens = |body: &str, settings: f32| {
+            effective_fov(fov_pin_from(parse_showcase_pin(&showcase_value(body, "fov").unwrap()).unwrap()), settings)
+        };
+        assert_eq!(lens(r#"{"fov":"40"}"#, 90.0), 40.0, "a 40 degree lens is 40 degrees");
+        assert_eq!(lens(r#"{"fov":"2"}"#, 90.0), 10.0, "held at 10 at the long end");
+        assert_eq!(lens(r#"{"fov":"300"}"#, 90.0), 120.0, "held at 120 at the wide end");
+        assert_eq!(lens(r#"{"fov":"auto"}"#, 75.0), 75.0, "auto is the Settings fov");
+        assert_eq!(lens(r#"{"fov":"auto"}"#, 0.0), 60.0, "auto keeps lib.rs's clamp on a corrupt Settings fov");
+        // The Settings apply (lib.rs, settings_dirty) asks the same function:
+        // a pinned lens survives it, whatever the Settings fov is.
+        assert_eq!(effective_fov(Some(45.0), 90.0), 45.0, "a Settings apply keeps the pinned lens");
+    }
+
     #[test]
     fn showcase_pin_parses_numbers_and_auto_and_rejects_junk() {
         assert_eq!(parse_showcase_pin("auto"), Some(ShowcasePin::Auto));
@@ -3691,5 +3775,59 @@ mod showcase_pin_tests {
         // And the pin DOES remove the wind-driven part, which is why it is
         // still worth having: at 4 m/s the amplitude is measurably larger.
         assert!(amp(4.0) > amp(pinned));
+    }
+}
+
+#[cfg(test)]
+mod daylight_gate_tests {
+    use super::daylight_over_anchor;
+    use glam::{DQuat, DVec3};
+
+    const R: f64 = 6_371_000.0;
+    /// The sun, far off along the world -X axis, as seen from near the origin.
+    fn to_sun() -> DVec3 {
+        DVec3::new(-1.5e11, 0.0, 0.0)
+    }
+
+    /// THE STARLESS NIGHT AT SILVERDALE (2026-10-04, the landing hero shot).
+    /// The frame lock keeps its anchor in the body's UNROTATED frame and puts
+    /// the camera at `Ry(spin) * anchor` in the world, so the ground's real
+    /// "up" is the anchor turned by the spin. The gate compared the unturned
+    /// anchor with the world sun, so it judged the sun over the wrong
+    /// longitude, by an angle that is the planet's whole turn: whether it
+    /// called it day did not depend on the hour at all. At Silverdale it read
+    /// "day" at 04:00 and skipped the star pass, and the night sky showed a
+    /// dozen points and no Milky Way.
+    ///
+    /// Red check, run 2026-10-04 with the spin left out of `up` (the old
+    /// gate): "a point turned to face the sun is in daylight, whatever its
+    /// unturned direction says" failed.
+    #[test]
+    fn the_gate_reads_the_sun_over_the_turned_ground() {
+        // On the equator, facing world +X before the turn.
+        let anchor = DVec3::new(R + 2.0, 0.0, 0.0);
+        // Half a turn: the ground now faces world -X, toward the sun.
+        assert!(
+            daylight_over_anchor(anchor, std::f64::consts::PI, R, to_sun()),
+            "a point turned to face the sun is in daylight, whatever its unturned direction says"
+        );
+        // No turn: it faces away, which is night.
+        assert!(!daylight_over_anchor(anchor, 0.0, R, to_sun()), "a point facing away from the sun is at night");
+        // A quarter turn the other way round: the turn the frame lock applies
+        // (`DQuat::from_rotation_y(spin)`, dev_travel::frame_lock_ship_pos),
+        // not its inverse. Ry(+90 deg) takes +X to -Z, so a sun along -Z is up.
+        let quarter = std::f64::consts::FRAC_PI_2;
+        let turned = DQuat::from_rotation_y(quarter) * DVec3::X;
+        assert!((turned - DVec3::new(0.0, 0.0, -1.0)).length() < 1e-12, "Ry(+90 deg) * X = {turned:?}");
+        assert!(daylight_over_anchor(anchor, quarter, R, DVec3::new(0.0, 0.0, -1.5e11)));
+        assert!(!daylight_over_anchor(anchor, -quarter, R, DVec3::new(0.0, 0.0, -1.5e11)));
+    }
+
+    /// Above 120 km the gate never reads day: space has no sky to hide the
+    /// stars behind, whatever the sun does.
+    #[test]
+    fn the_gate_is_off_above_the_air() {
+        let anchor = DVec3::new(R + 200_000.0, 0.0, 0.0);
+        assert!(!daylight_over_anchor(anchor, std::f64::consts::PI, R, to_sun()));
     }
 }

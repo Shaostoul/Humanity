@@ -935,6 +935,13 @@ pub(crate) struct EngineState {
     /// are pinned by the same value. The ocean, clouds and HUD keep reading the
     /// simulated wind - this is the rig's sway input, not a weather override.
     pub(crate) foliage_wind_override: Option<f32>,
+    /// Dev/showcase lens, vertical degrees (None = the Settings fov). Set via
+    /// showcase_request {"fov":"45"|"auto"} (the clip maker's lens). Held
+    /// here, not just written to the camera, because applying the Settings
+    /// (lib.rs, settings_dirty) rewrites the camera's fov, and a config save
+    /// one frame after the pin reset a clip to 90 degrees (2026-10-04).
+    /// Both read it through `ipc::effective_fov`.
+    pub(crate) fov_pin: Option<f32>,
     /// Dev/showcase pin for the CELESTIAL-pass animation clock in seconds
     /// (None = live, app-start-relative). Set via showcase_request
     /// {"anim_clock":"300"|"auto"}; consumed at the single

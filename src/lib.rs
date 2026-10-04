@@ -2025,6 +2025,7 @@ mod native_app {
                 // Rig determinism pins, both off by default (showcase_request
                 // {"wind":...} / {"anim_clock":...} turn them on).
                 foliage_wind_override: None,
+                fov_pin: None,
                 anim_clock_pin: None,
                 ocean_event_pin_request: None,
                 ocean_event_pin: None,
@@ -15498,8 +15499,9 @@ mod native_app {
                                         });
                                 }
 
-                                // Crosshair (small dot at screen center when in game)
-                                if state.gui_state.active_page == GuiPage::None {
+                                // Crosshair (small dot at screen center when in game,
+                                // hidden with the HUD: hud::crosshair_visible)
+                                if hud::crosshair_visible(&state.gui_state) {
                                     let screen = ctx.screen_rect();
                                     let center = screen.center();
                                     let painter = ctx.layer_painter(egui::LayerId::new(
@@ -16369,8 +16371,11 @@ mod native_app {
                                 // point and black out the entire 3D scene with no
                                 // in-app way to recover. 60..120 deg matches the
                                 // Settings slider bounds.
-                                state.camera.fov_degrees =
-                                    state.gui_state.settings.fov.clamp(60.0, 120.0);
+                                // (A showcase lens pin outranks it: ipc::effective_fov.)
+                                state.camera.fov_degrees = crate::engine::ipc::effective_fov(
+                                    state.fov_pin,
+                                    state.gui_state.settings.fov,
+                                );
 
                                 // Mouse sensitivity + invert Y (v0.909: the
                                 // invert toggle used to be decorative).

@@ -949,6 +949,16 @@ pub fn draw(
         });
 }
 
+/// Whether the world view's crosshair dot is drawn (lib.rs, the in-game
+/// overlay pass). Only on the bare world view, and only while the HUD is
+/// shown: the movie mode's `hide_hud` (src/engine/movie.rs) turns the HUD
+/// off for a recording, and a dot left in the middle of every frame of a
+/// clip is HUD. (2026-10-04: it sat over the sky of the landing page's
+/// night-to-sunrise clip.)
+pub fn crosshair_visible(state: &GuiState) -> bool {
+    state.active_page == crate::gui::GuiPage::None && state.show_hud
+}
+
 fn normalize_angle(a: f32) -> f32 {
     let mut a = a % (2.0 * std::f32::consts::PI);
     if a > std::f32::consts::PI { a -= 2.0 * std::f32::consts::PI; }
@@ -1693,6 +1703,30 @@ fn paint_stat_icon(painter: &egui::Painter, rect: Rect, kind: &str, color: Color
         _ => {
             painter.circle_filled(rect.center(), rect.width() * 0.22, color);
         }
+    }
+}
+
+#[cfg(test)]
+mod crosshair_tests {
+    use super::crosshair_visible;
+    use crate::gui::{GuiPage, GuiState};
+
+    /// The dot follows the HUD switch, which is what movie mode turns off.
+    ///
+    /// Red check, run 2026-10-04 with the dot drawn on the world view
+    /// whatever the HUD switch said (the lib.rs condition before this):
+    /// "no crosshair while the HUD is hidden" failed.
+    #[test]
+    fn the_crosshair_hides_with_the_hud() {
+        let mut s = GuiState::default();
+        s.active_page = GuiPage::None;
+        s.show_hud = true;
+        assert!(crosshair_visible(&s), "the world view shows its crosshair");
+        s.show_hud = false;
+        assert!(!crosshair_visible(&s), "no crosshair while the HUD is hidden");
+        s.show_hud = true;
+        s.active_page = GuiPage::Settings;
+        assert!(!crosshair_visible(&s), "no crosshair over a page");
     }
 }
 
