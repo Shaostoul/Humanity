@@ -63,6 +63,17 @@
           ]
         },
         {
+          "title": "The Ground Under You",
+          "src": "docs/user/skills/the_ground_under_you.md",
+          "tags": [
+            "guide",
+            "real",
+            "shelter",
+            "water",
+            "safety"
+          ]
+        },
+        {
           "title": "The Hazards Where You Live",
           "src": "docs/user/skills/the_hazards_where_you_live.md",
           "tags": [
@@ -245,6 +256,16 @@
           ]
         },
         {
+          "title": "Life in Soil",
+          "src": "docs/user/skills/life_in_soil.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
           "title": "How Plants Work",
           "src": "docs/user/skills/how_plants_work.md",
           "tags": [
@@ -260,6 +281,17 @@
             "real",
             "food",
             "shelter"
+          ]
+        },
+        {
+          "title": "Soil Chemistry",
+          "src": "docs/user/skills/soil_chemistry.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "technical",
+            "safety"
           ]
         },
         {

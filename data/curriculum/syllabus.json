@@ -2324,13 +2324,24 @@
       "subject": "chemistry",
       "title": "Soil chemistry",
       "summary": "Understand pH, nutrients and cation exchange in terms of what plants get.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "soil-chemistry"
+      ],
       "skills": [
         "farming",
         "alchemy"
       ],
+      "data": [
+        "data/garden/soil_ph.ron",
+        "data/garden/nutrients.ron",
+        "data/plants.csv"
+      ],
       "sources": [
-        "usda-nrcs"
+        "usda-nrcs",
+        "niosh-pocket-guide",
+        "cameo-chemicals",
+        "epa"
       ],
       "locale_dependent": true,
       "hazard": "caution"
@@ -2438,12 +2449,24 @@
       "subject": "biology",
       "title": "Life in soil",
       "summary": "Understand the organisms that make soil fertile.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "life-in-soil"
+      ],
       "skills": [
         "farming"
       ],
+      "data": [
+        "data/plants.csv",
+        "data/garden/nutrients.ron",
+        "data/garden/weeds.ron"
+      ],
       "sources": [
-        "usda-nrcs"
+        "usda-nrcs",
+        "usfs",
+        "nisic",
+        "cdc",
+        "ecfr"
       ],
       "locale_dependent": false,
       "hazard": "none"
@@ -2780,12 +2803,26 @@
       "subject": "earth",
       "title": "The ground under you",
       "summary": "Understand the rock and landform history of your place.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "the-ground-under-you"
+      ],
       "skills": [
         "mining"
       ],
+      "data": [
+        "data/locales/<id>/terrain.json",
+        "data/locales/<id>/soil.json"
+      ],
       "sources": [
-        "usgs"
+        "usgs",
+        "epa",
+        "msha",
+        "osha",
+        "ecfr",
+        "phmsa",
+        "dod-technical-manuals",
+        "usda-nrcs"
       ],
       "locale_dependent": true,
       "hazard": "caution"
