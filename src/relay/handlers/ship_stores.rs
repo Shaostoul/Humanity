@@ -25,13 +25,24 @@
 //!     and comes again at its next meal time (it has its own food; it does not come back every
 //!     half hour, and a retry never credits the share twice). No shipped NPC lives on a
 //!     homestead yet (the crew are the ship's company, household "crew", all of whose meals
-//!     come from the stores), so these two values wait for the first NPC homesteads; how much
-//!     those give the fleet against what human players give is the operator's open question,
-//!     and its value is a placeholder named as one in the file.
+//!     come from the stores), so these two values wait for the first NPC homesteads. How much
+//!     those give the fleet was answered on 2026-10-04: nothing for now (0, "Once we get the
+//!     player stuff sorted we'll worry about NPCs for the market").
 //!
 //! What fills the stores today is `ship_farms_meals_per_day`, per GAME day (the same clock the
 //! meals run on): a stand-in for the ship's farms until goods are carried aboard for real
-//! (increment 9, shipments). Players put nothing in yet.
+//! (increment 9, shipments).
+//!
+//! THE FLEET'S SUPPLY (the operator, 2026-10-04: "For the sake of simplicity during early
+//! development we'll say the fleet has unlimited of everything and just track what they
+//! player uses and contributes."): the server setting `fleet_supply_mode` says which of two
+//! modes the stores run in (`FleetSupply`, held on the world):
+//!   - UNLIMITED, the default: a meal is always there. `draw_meal` answers `Draw::Unlimited`
+//!     and leaves the stock alone, so nobody, crew or player, ever misses a meal;
+//!   - STOCKED, the realistic mode, exactly as increment 3 built it: the stock above, eaten
+//!     down and filled by the farms, an empty store a missed meal.
+//! In both, a meal a player takes is a line of their fleet ledger (fleet_ledger.rs), and what
+//! they give the fleet is the other side of it.
 //!
 //! The stock lives on the store's entity (`food_store`, components `meals` and `capacity`),
 //! and the stored world carries it across restarts (ship_world.rs `carry_over_ship_state`),
@@ -145,10 +156,55 @@ impl Provisions {
 /// What a meal draw found.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Draw {
-    /// One meal taken; this many are left.
+    /// One meal taken; this many are left (the stocked mode).
     Taken(f64),
-    /// None left.
+    /// One meal taken from an unlimited fleet: the stock was not touched.
+    Unlimited,
+    /// None left (only ever in the stocked mode).
     Empty,
+}
+
+impl Draw {
+    /// Whoever drew got a meal.
+    pub fn fed(self) -> bool {
+        !matches!(self, Draw::Empty)
+    }
+}
+
+/// Which mode the fleet's stores run in (the server setting `fleet_supply_mode`; see the top
+/// of this file). Unlimited unless an admin picked the stocked mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FleetSupply {
+    #[default]
+    Unlimited,
+    Stocked,
+}
+
+impl FleetSupply {
+    /// The mode a stored setting names; anything that is no mode is the default.
+    pub fn from_setting(mode: &str) -> FleetSupply {
+        match crate::relay::storage::fleet_supply_mode_of(mode) {
+            Some("stocked") => FleetSupply::Stocked,
+            _ => FleetSupply::Unlimited,
+        }
+    }
+
+    /// As the setting and the messages spell it.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            FleetSupply::Unlimited => "unlimited",
+            FleetSupply::Stocked => "stocked",
+        }
+    }
+}
+
+/// How near a player stands to use a store (take a meal, give to the fleet): 5 m, the reach of
+/// every interaction with the world.
+pub const STORE_REACH_M: f32 = 5.0;
+
+/// Straight-line distance between two points of the ship, metres.
+pub fn distance(a: [f32; 3], b: [f32; 3]) -> f32 {
+    ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt()
 }
 
 const SECONDS_PER_DAY: f64 = 86_400.0;
@@ -211,9 +267,14 @@ impl GameWorld {
     }
 
     /// Take one meal from a store, for anyone: a crew member's meal and a player's `take_meal`
-    /// both come here, so they share one stock.
+    /// both come here, so they share one stock. With the fleet unlimited (the default) there
+    /// is always a meal and the stock is not touched (`Draw::Unlimited`).
     pub fn draw_meal(&mut self, store: u64) -> Option<Draw> {
+        let unlimited = self.fleet_supply == FleetSupply::Unlimited;
         let e = self.entities.get_mut(&store).filter(|e| e.entity_type == "food_store")?;
+        if unlimited {
+            return Some(Draw::Unlimited);
+        }
         let meals = e.components.get("meals").and_then(|v| v.as_f64()).unwrap_or(0.0);
         if meals < 1.0 {
             return Some(Draw::Empty);
@@ -340,7 +401,7 @@ impl GameWorld {
             c[k] = serde_json::json!(n + 1);
         };
         match drawn {
-            Some(Draw::Taken(_)) => {
+            Some(d) if d.fed() => {
                 bump(c, "meals_eaten");
                 c["next_meal_at"] = serde_json::json!(now + interval);
             }
@@ -357,18 +418,21 @@ impl GameWorld {
 /// A player's `take_meal` on a store (game_interact with that action, msg_handlers.rs
 /// `handle_game_interact`): one meal from it if they stand within 5 m, it holds one, and their
 /// meal time has come (one a meal interval per person, like the crew). The reply is a
-/// `game_interact_result` with `meals_left`; a refusal names why (`not_in_game`,
-/// `entity_not_found`, `not_a_store`, `too_far`, `not_yet` with `next_meal_in_s` game seconds,
-/// `empty`).
+/// `game_interact_result` with `meals_left` (null when the fleet is unlimited: the stock is not
+/// drawn on) and `supply`; a refusal names why (`not_in_game`, `entity_not_found`,
+/// `not_a_store`, `too_far`, `not_yet` with `next_meal_in_s` game seconds, `empty`). A meal
+/// taken is a "used" line of the player's fleet ledger (fleet_ledger.rs
+/// `take_meal_and_record`), and the reply carries the ledger's answer as `ledger`.
 pub async fn handle_take_meal(state: &Arc<RelayState>, my_key: &str, entity_id: u64) {
     let reply = {
         let mut world = state.game_world.write().await;
-        take_meal(&mut world, my_key, entity_id)
+        super::fleet_ledger::take_meal_and_record(&mut world, &state.db, my_key, entity_id)
     };
     super::msg_handlers::send_game_private(state, my_key, &reply).await;
 }
 
-/// The world side of `handle_take_meal`: the reply it sends.
+/// The world side of `handle_take_meal`: the reply it sends (the ledger line is written by the
+/// caller, `fleet_ledger::take_meal_and_record`).
 pub fn take_meal(world: &mut GameWorld, my_key: &str, entity_id: u64) -> serde_json::Value {
     let fail = |error: &str| serde_json::json!({ "type": "game_interact_result", "entity_id": entity_id, "action": "take_meal", "success": false, "error": error });
     let Some(player) = world.find_player_entity(my_key) else { return fail("not_in_game") };
@@ -376,9 +440,8 @@ pub fn take_meal(world: &mut GameWorld, my_key: &str, entity_id: u64) -> serde_j
     if store.entity_type != "food_store" {
         return fail("not_a_store");
     }
-    let (p, s) = (world.entities[&player].position, store.position);
-    let dist = ((p[0] - s[0]).powi(2) + (p[1] - s[1]).powi(2) + (p[2] - s[2]).powi(2)).sqrt();
-    if dist > 5.0 {
+    let dist = distance(world.entities[&player].position, store.position);
+    if dist > STORE_REACH_M {
         let mut r = fail("too_far");
         r["distance"] = serde_json::json!(dist);
         return r;
@@ -393,15 +456,21 @@ pub fn take_meal(world: &mut GameWorld, my_key: &str, entity_id: u64) -> serde_j
         r["next_meal_in_s"] = serde_json::json!(at - now);
         return r;
     }
+    let supply = world.fleet_supply.as_str();
     match world.draw_meal(entity_id) {
-        Some(Draw::Taken(left)) => {
+        Some(d) if d.fed() => {
             let interval = world.provisions.meal_interval_s();
             world.player_next_meal.insert(my_key.to_string(), now + interval);
             if let Some(e) = world.entities.get_mut(&player) {
                 let n = e.components.get("meals_taken").and_then(|v| v.as_u64()).unwrap_or(0);
                 e.components["meals_taken"] = serde_json::json!(n + 1);
             }
-            serde_json::json!({ "type": "game_interact_result", "entity_id": entity_id, "action": "take_meal", "success": true, "meals_left": left })
+            // An unlimited fleet has no stock to count: null, not a number that never moves.
+            let left = match d {
+                Draw::Taken(left) => serde_json::json!(left),
+                _ => serde_json::Value::Null,
+            };
+            serde_json::json!({ "type": "game_interact_result", "entity_id": entity_id, "action": "take_meal", "success": true, "meals_left": left, "supply": supply })
         }
         _ => {
             let mut r = fail("empty");
@@ -427,6 +496,22 @@ mod tests {
         let mut v: Vec<u64> = world.entities.iter().filter(|(_, e)| e.entity_type == "food_store").map(|(id, _)| *id).collect();
         v.sort();
         v
+    }
+
+    /// A new world whose stores run in the STOCKED mode. The tests below that eat a store
+    /// down are increment 3's, unchanged but for this: they prove the stocked mode still
+    /// behaves as increment 3 built it, now that a new world's fleet is unlimited (the
+    /// operator, 2026-10-04). Run on an unlimited world instead (this helper not setting the
+    /// mode), five of the six fail, which is how the mode is seen to matter (2026-10-04): "the
+    /// crew's meals came off the store / left: 90.0 / right: 69.0", "two meals in the store, two
+    /// eaten / left: 21 / right: 2", "only the stores' share came off the store / left: 90.0 /
+    /// right: 87.0", "the store is down by exactly one / left: 90.0 / right: 89.0", "its first
+    /// store meal was missed / left: 0 / right: 1". The sixth, the stores holding steady at the
+    /// clock's speed, holds in both modes.
+    fn stocked_world() -> GameWorld {
+        let mut world = GameWorld::new();
+        world.fleet_supply = FleetSupply::Stocked;
+        world
     }
 
     fn meals_in(world: &GameWorld, store: u64) -> f64 {
@@ -488,7 +573,7 @@ mod tests {
     /// game days, and the 90 meals ran out.
     #[test]
     fn the_crew_and_the_players_eat_from_the_same_store() {
-        let mut world = GameWorld::new();
+        let mut world = stocked_world();
         meals_every(&mut world, 4.0); // a meal every 4 game hours, to see several in a day
         world.provisions.ship_farms_meals_per_day = 0.0; // nothing in, so every meal shows
         let store = stores(&world)[0];
@@ -516,7 +601,7 @@ mod tests {
     /// right: 2".
     #[test]
     fn an_empty_store_is_a_missed_meal_for_everyone() {
-        let mut world = GameWorld::new();
+        let mut world = stocked_world();
         meals_every(&mut world, 4.0);
         world.provisions.ship_farms_meals_per_day = 0.0;
         let store = stores(&world)[0];
@@ -554,7 +639,7 @@ mod tests {
     /// home (0.8): 0 at home, 10 from the stores / left: 10 / right: 2".
     #[test]
     fn an_npc_homestead_mostly_feeds_itself_and_gives_what_it_is_set_to() {
-        let mut world = GameWorld::new();
+        let mut world = stocked_world();
         world.provisions.ship_farms_meals_per_day = 0.0;
         world.provisions.npc_homestead_self_provided = 0.8;
         world.provisions.npc_homestead_fleet_meals_per_day = 0.0;
@@ -629,7 +714,7 @@ mod tests {
     #[test]
     fn the_stores_hold_steady_at_the_shared_clocks_speed() {
         for scale in [72.0, 1.0, 500.0] {
-            let mut world = GameWorld::new();
+            let mut world = stocked_world();
             world.time_scale = scale;
             let store = stores(&world)[0];
             let start = meals_in(&world, store);
@@ -654,7 +739,7 @@ mod tests {
     /// \"success\":true,\"type\":\"game_interact_result\"}".
     #[test]
     fn a_player_takes_one_meal_per_meal_time() {
-        let mut world = GameWorld::new();
+        let mut world = stocked_world();
         let store = stores(&world)[0];
         let start = meals_in(&world, store);
         let at = world.entities[&store].position;
@@ -692,7 +777,7 @@ mod tests {
     /// second time).
     #[test]
     fn a_homestead_npc_finding_the_store_empty_gains_no_extra_home_meals() {
-        let mut world = GameWorld::new();
+        let mut world = stocked_world();
         world.provisions.ship_farms_meals_per_day = 0.0;
         world.provisions.npc_homestead_self_provided = 0.8;
         let homesteader = one_homesteader(&mut world);

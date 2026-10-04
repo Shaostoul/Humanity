@@ -4,7 +4,9 @@
 //! holds right away, storage/expiry.rs) and the new `server_settings_state` goes to
 //! every client.
 //! The shared world's clock speed (`world_time_scale`) also reaches the running
-//! world and every connected game from here, with no restart (`set_world_clock`).
+//! world and every connected game from here, with no restart (`set_world_clock`),
+//! and so does the fleet's supply (`fleet_supply_mode`, fleet_ledger.rs
+//! `set_fleet_supply`).
 //!
 //! Its own file because relay.rs is held to a line budget (tests/file_size_ratchet.rs).
 
@@ -53,6 +55,7 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, upd: RelayMessage) {
         message_retention_days,
         erased_accounts_ttl_days, erased_accounts_cap,
         world_time_scale,
+        fleet_supply_mode,
     } = upd else { return };
     let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
     if role != "admin" && role != "owner" {
@@ -169,11 +172,17 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, upd: RelayMessage) {
         if let Some(v) = world_time_scale.and_then(crate::relay::storage::clamp_world_time_scale) {
             current.world_time_scale = v;
         }
+        // The fleet's supply (2026-10-04): "unlimited" or "stocked"; anything else changes
+        // nothing. No ledger is touched by a change.
+        if let Some(v) = fleet_supply_mode.as_deref().and_then(crate::relay::storage::fleet_supply_mode_of) {
+            current.fleet_supply_mode = v.to_string();
+        }
         match state_clone.db.set_server_settings(&current, &my_key_for_recv) {
             Ok(true) => {
                 state_clone.db.run_expiry_sweeps(); // a lowered window or cap holds at once (storage/expiry.rs)
                 // Saved first, then the running world: a restart keeps it.
                 set_world_clock(state, current.world_time_scale).await;
+                super::fleet_ledger::set_fleet_supply(state, &current.fleet_supply_mode).await;
                 // Broadcast new state to everyone (no target: an admin's change).
                 let _ = state_clone.broadcast_tx.send(
                     RelayMessage::ServerSettingsState { settings: current, target: None }

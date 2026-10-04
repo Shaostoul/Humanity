@@ -3575,7 +3575,7 @@ const PERCEPTION_MIN_INTERVAL_MS: u64 = 200;
 /// Returns true if the caller is allowed to make this action right now,
 /// false if they need to wait. On false, we send a Private rate-limit warning.
 /// `action` is "perceive" / "interact" / "query_inventory" / "query_entity".
-fn check_perception_rate(state: &Arc<RelayState>, my_key: &str, action: &str) -> bool {
+pub(crate) fn check_perception_rate(state: &Arc<RelayState>, my_key: &str, action: &str) -> bool {
     let now = std::time::Instant::now();
     let bucket = format!("{}|{}", my_key, action);
     let allowed = {

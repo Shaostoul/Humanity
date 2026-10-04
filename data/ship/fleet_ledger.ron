@@ -1,0 +1,82 @@
+// THE FLEET LEDGER: what each player used from the fleet and what they gave it
+// (src/relay/handlers/fleet_ledger.rs, src/relay/storage/fleet_ledger.rs). Read by
+// the relay at startup, disk first, the copy built into the exe only when this file
+// is missing or does not parse.
+//
+// The operator decided on 2026-10-04 (question 12 of
+// docs/design/ship-homes-and-logistics.md), verbatim: "For the sake of simplicity
+// during early development we'll say the fleet has unlimited of everything and just
+// track what they player uses and contributes. That way they can be in the red or
+// black so they can gauge what they're actually using/contributing."
+//
+// So the relay keeps, per player key, one line for each thing they used from the
+// fleet and each thing they gave it: what, how many, what it was worth then, and
+// when (the shared world's game clock, and the real day). The balance is everything
+// given minus everything used, in credits (CR): in the black when it is above 0, in
+// the red when it is below. A player sees only their own ledger; an admin sees the
+// totals. Erasing an account deletes its ledger.
+//
+//   kinds       one row per kind of line. The relay records exactly these ids (a test
+//               checks each one it records is here):
+//                 "meal"            a meal a player takes from the ship's food stores
+//                                   (the take_meal action, src/relay/handlers/ship_stores.rs);
+//                 "item"            items a player gives the fleet at one of its stores;
+//                 "power_drawn"     electricity the ship's reactor supplied their home
+//                                   (src/systems/ship_power.rs meters it; the game reports
+//                                   it while the player is in the shared world);
+//                 "power_returned"  surplus electricity their home sent back to the ship.
+//               Each row says:
+//                 direction  Used or Contributed (which side of the balance);
+//                 label      the words the ledger shows;
+//                 unit       what `how many` counts ("" for an item: its name is shown);
+//                 price      what one unit is worth, in CR:
+//                              OfGood("id")  the base_value of that trade good in
+//                                            data/trade_goods.ron;
+//                              OfItem        the base_value of the item the line is about
+//                                            (an item with no trade good there has no price,
+//                                            and the fleet does not take it: the give is
+//                                            refused and nothing leaves the backpack);
+//                              Fixed(n)      n CR per unit;
+//                 per_day    true for a flow that never stops (power): one line per real
+//                            day, added to as the day goes, instead of one per report.
+//
+// HOW THE PRICES WERE CHOSEN (game defaults for this increment):
+//   - A MEAL is priced as one Basic Ration ("Vacuum-packed survival meal",
+//     ration_basic_0, 10 CR): the one complete meal data/trade_goods.ron prices. That
+//     file's own rule is 1 CR for about a minute of unskilled labour, so a crew meal is
+//     about ten minutes of work.
+//   - A KILOWATT-HOUR is 1.5 CR, by the same rule: the average US household price was
+//     18.31 cents a kWh in July 2026 (U.S. Energy Information Administration, Electric
+//     Power Monthly, Table 5.6.A, released 2026-09-24), and the federal minimum wage is
+//     $7.25 an hour (U.S. Department of Labor, dol.gov, read 2026-10-04), 12.1 cents a
+//     minute; 18.31 / 12.1 is 1.5 minutes of work. The same price both ways: power a
+//     home returns to the ship is worth what power it draws costs.
+//   - An ITEM given is worth its trade good's base_value, the number the vendor's
+//     prices are built from.
+//
+//   max_give_quantity
+//               the most of one item one give may carry: one full stack of the item
+//               that stacks highest in data/items.csv (200, on 2026-10-04).
+//   recent_entries
+//               how many of a player's latest lines the ledger shows them.
+//   power_report_min_interval_s
+//               real seconds a game waits between power reports; the relay refuses one
+//               sooner than this (the game sends one a minute).
+//   power_report_window_s
+//               the longest stretch, in real seconds, one power report may cover: no
+//               report is counted as more than the reactor's whole output over this
+//               long (data/ship_power.ron electric_watts at the shared world's clock
+//               speed), so a broken or altered game cannot write a year of power in one
+//               message.
+(
+    kinds: [
+        (id: "meal", direction: Used, label: "Meal from the ship's stores", unit: "meal", price: OfGood("ration_basic_0"), per_day: false),
+        (id: "item", direction: Contributed, label: "Given to the fleet", unit: "", price: OfItem, per_day: false),
+        (id: "power_drawn", direction: Used, label: "Power from the ship's reactor", unit: "kWh", price: Fixed(1.5), per_day: true),
+        (id: "power_returned", direction: Contributed, label: "Power returned to the ship", unit: "kWh", price: Fixed(1.5), per_day: true),
+    ],
+    max_give_quantity: 200,
+    recent_entries: 20,
+    power_report_min_interval_s: 30.0,
+    power_report_window_s: 120.0,
+)
