@@ -554,6 +554,17 @@
           ]
         },
         {
+          "title": "Square, Level and Plumb",
+          "src": "docs/user/skills/square_level_and_plumb.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "shelter",
+            "safety"
+          ]
+        },
+        {
           "title": "Keeping Records",
           "src": "docs/user/skills/keeping_records.md",
           "tags": [
@@ -580,6 +591,16 @@
             "guide",
             "real",
             "technical"
+          ]
+        },
+        {
+          "title": "Keeping Things Working",
+          "src": "docs/user/skills/keeping_things_working.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "safety"
           ]
         },
         {
@@ -652,6 +673,15 @@
             "making",
             "materials",
             "safety"
+          ]
+        },
+        {
+          "title": "Trading Fairly",
+          "src": "docs/user/skills/trading_fairly.md",
+          "tags": [
+            "guide",
+            "real",
+            "beginner"
           ]
         }
       ],
