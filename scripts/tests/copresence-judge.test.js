@@ -1008,13 +1008,21 @@ test("guest: each broken guest run FAILS its own check", () => {
 // game drew, every frame. Made-up recordings of the shipped crew where they work, and one
 // broken thing at a time.
 
-const { judgeCrew, isFigureAmber, crewPixels, CREW_MIN_PX } = require("../lib/copresence-judge.js");
+const { judgeCrew, isFigureAmber, crewPixels, CREW_MIN_PX, CREW_WALL_CLEAR_M, wallDistXZ } = require("../lib/copresence-judge.js");
 
 const CREW_PLOTS = [
   { id: "p1", origin: [0, 0, 0], size: [55, 3, 89] },
   { id: "p2", origin: [0, 0, 99], size: [55, 3, 89] },
 ];
 const CREW_COMMONS = { min: [65, 0, 20], max: [99, 8, 75] };
+// The walls of the Commons' room block (ship x 69..85, z 29..49), as the door points carry
+// walls: [ax, az, bx, bz] across the floor.
+const CREW_WALLS = [
+  [69, 29, 85, 29],
+  [85, 29, 85, 49],
+  [69, 49, 85, 49],
+  [69, 29, 69, 49],
+];
 // The shipped crew at their first sites (data/npc/chores.ron), standing 1 m up.
 const CREW_AT = [
   [1, "Helm Officer Vex", [90, 1, 33]],
@@ -1035,9 +1043,12 @@ const CREW_OK = {
     { name: "samples.json", frames: crewFrames(60) },
     { name: "meet_samples.json", frames: crewFrames(60) },
     { name: "crew_samples.json", frames: crewFrames(30) },
+    { name: "rejoin_crew_samples.json", frames: crewFrames(20), after: "the step back in" },
+    { name: "respawn_crew_samples.json", frames: crewFrames(20), after: "Respawn" },
   ],
   plots: CREW_PLOTS,
   commons: CREW_COMMONS,
+  walls: CREW_WALLS,
   expectCrew: 6,
   look: {
     cam: LOOK_CAM,
@@ -1052,7 +1063,7 @@ const CREW_OK = {
 test("crew: a run that went right passes, every check its own", () => {
   const r = judgeCrew(CREW_OK);
   assert.ok(r.pass, explain(r));
-  assert.deepEqual(r.checks.map((c) => c.id), ["crew_recorded", "crew_drawn", "crew_never_on_a_plot", "crew_in_the_commons", "crew_seen"]);
+  assert.deepEqual(r.checks.map((c) => c.id), ["crew_recorded", "crew_drawn", "crew_never_on_a_plot", "crew_clear_of_walls", "crew_back_after_rejoin", "crew_in_the_commons", "crew_seen"]);
 });
 
 // One broken thing at a time, each its own check and no other. Seen red 2026-10-04 with
@@ -1060,7 +1071,7 @@ test("crew: a run that went right passes, every check its own", () => {
 // crew_never_on_a_plot (only); failed: nothing".
 test("crew: each broken crew run FAILS its own check and no other", () => {
   const w = (o) => ({ ...CREW_OK, ...o });
-  const recs = (frames) => [{ ...CREW_OK.recordings[0], frames }, CREW_OK.recordings[1], CREW_OK.recordings[2]];
+  const recs = (frames) => [{ ...CREW_OK.recordings[0], frames }, ...CREW_OK.recordings.slice(1)];
   // The Pioneer's crew, as the previous relay put them: the bridge and the engine room, which
   // lie inside the home on p1 (one row of each frame of the walk at home).
   const pioneer = CREW_AT.map(([id, name, p], i) => [id, name, i < 2 ? [3, 5, 2.5] : p]);
@@ -1068,17 +1079,84 @@ test("crew: each broken crew run FAILS its own check and no other", () => {
     ["the Pioneer's crew drawn inside the home on p1", w({ recordings: recs(crewFrames(60, pioneer)) }), "crew_never_on_a_plot"],
     ["one crew figure drawn on p2 for one frame", w({ recordings: recs([...crewFrames(59), { t: 2, crew: [{ id: 1, name: "Helm Officer Vex", pos: [20, 1, 120] }] }]) }), "crew_never_on_a_plot"],
     ["a recorder from before increment 3 (no crew list)", w({ recordings: [{ name: "samples.json", frames: crewFrames(10).map(({ t }) => ({ t })) }, ...CREW_OK.recordings.slice(1)] }), "crew_recorded"],
-    ["one crew member never drawn", w({ expectCrew: 7 }), "crew_drawn"],
+    // Never drawn at all is never drawn after the step back in either: the two checks go together.
+    ["one crew member never drawn", w({ expectCrew: 7 }), ["crew_drawn", "crew_back_after_rejoin"]],
     ["a crew figure on First Street during the look", w({ look: { ...CREW_OK.look, frames: crewFrames(30, CREW_AT.map(([id, n, p], i) => [id, n, i === 3 ? [70, 1, 120] : p])) } }), "crew_in_the_commons"],
     ["no nameplate on screen during the look", w({ look: { ...CREW_OK.look, seen: CREW_OK.look.seen.map((s) => ({ ...s, found: false })) } }), "crew_seen"],
     ["the named crew member's figure not in the picture", w({ look: { ...CREW_OK.look, seen: [{ ...CREW_OK.look.seen[0], amber: CREW_MIN_PX - 1 }] } }), "crew_seen"],
     ["the camera facing away from the crew", w({ look: { ...CREW_OK.look, cam: [91, 1.7, 58, Math.PI, 0] } }), "crew_seen"],
+    // The review of increment 3, findings 13 to 16: guards no case above could fail.
+    // A crew member named and in front, with a crew figure under the name, but drawn NORTH of the
+    // Commons (outside its box): not seen in the Commons.
+    ["the named crew member drawn outside the Commons, in front of the camera", w({ look: { ...CREW_OK.look, seen: [{ ...CREW_OK.look.seen[0], pos: [91, 1, 15] }] } }), "crew_seen"],
+    // The ship's plots unknown: nothing can be judged against them.
+    ["the ship's plots unknown", w({ plots: [] }), "crew_never_on_a_plot"],
+    // One crew figure 1 m outside the Commons (x 100, its box ends at 99) for ONE frame in the
+    // middle of the look: judged over every frame, with a centimetre of slack, not the last frame.
+    [
+      "a crew figure 1 m outside the Commons for one middle frame of the look",
+      w({ look: { ...CREW_OK.look, frames: crewFrames(30).map((fr, k) => (k === 15 ? { ...fr, crew: fr.crew.map((c, i) => (i === 2 ? { ...c, pos: [100, 1, 50] } : c)) } : fr)) } }),
+      "crew_in_the_commons",
+    ],
+    // As few crew-amber pixels under the name as the red run's whole picture held off the crew
+    // (18 stray pixels): not a figure. Pinned as a number, not as CREW_MIN_PX - 1, so lowering
+    // the constant fails here.
+    ["20 crew-amber pixels under the name (stray pixels, no figure)", w({ look: { ...CREW_OK.look, seen: [{ ...CREW_OK.look.seen[0], amber: 20 }] } }), "crew_seen"],
+    // A crew figure drawn 0.1 m from the room block's east wall, in one frame of the walk at home:
+    // in the Commons, on no plot, and only this check sees it (finding 15).
+    [
+      "a crew figure drawn in the room block's wall",
+      w({ recordings: recs(crewFrames(60).map((fr, k) => (k === 30 ? { ...fr, crew: fr.crew.map((c, i) => (i === 4 ? { ...c, pos: [85.1, 1, 40] } : c)) } : fr))) }),
+      "crew_clear_of_walls",
+    ],
+    ["the ship's walls unknown", w({ walls: null }), "crew_clear_of_walls"],
+    // After the step back in, net::sync stood only five of the six crew again (finding 16).
+    [
+      "one crew member never drawn again after the step back in",
+      w({ recordings: CREW_OK.recordings.map((r) => (r.after === "the step back in" ? { ...r, frames: crewFrames(20, CREW_AT.slice(0, 5)) } : r)) }),
+      "crew_back_after_rejoin",
+    ],
+    ["nothing recorded after the step back in or Respawn", w({ recordings: CREW_OK.recordings.filter((r) => !r.after) }), "crew_back_after_rejoin"],
   ]) {
     const r = judgeCrew(bad);
     const failed = r.checks.filter((c) => !c.ok).map((c) => c.id);
-    assert.deepEqual(failed, [id], `${what} should fail ${id} (only); failed: ${failed.join(", ") || "nothing"}`);
+    const ids = Array.isArray(id) ? id : [id];
+    assert.deepEqual(failed, ids, `${what} should fail ${ids.join(" and ")} (only); failed: ${failed.join(", ") || "nothing"}`);
   }
   assert.equal(judgeCrew({ recordings: [], plots: CREW_PLOTS, commons: CREW_COMMONS, expectCrew: 6, look: null }).pass, false, "a run that recorded nothing fails");
+});
+
+// The review of increment 3, finding 13: guards of judgeCrew that survived every case above (a
+// scratch copy stayed green with each removed). Seen red 2026-10-04 by putting each mutation back
+// into a copy of the judge and running this file against it; every one now fails a case here or
+// in the table above, e.g. (a) crew_seen without its in-the-Commons term: "the named crew member
+// drawn outside the Commons, in front of the camera should fail crew_seen (only); failed:
+// nothing"; (e) CREW_MIN_PX = 1: "20 crew-amber pixels under the name (stray pixels, no figure)
+// should fail crew_seen (only); failed: nothing"; (f) no rows passing: "with no crew drawn,
+// crew_never_on_a_plot passed". The two new checks went red the same way with their guards out
+// ("a crew figure drawn in the room block's wall should fail crew_clear_of_walls (only); failed:
+// nothing", "nothing recorded after the step back in or Respawn should fail
+// crew_back_after_rejoin (only); failed: nothing").
+test("crew: no crew drawn at all still fails crew_never_on_a_plot on its own", () => {
+  const empty = CREW_OK.recordings.map((r) => ({ ...r, frames: r.frames.map((fr) => ({ ...fr, crew: [] })) }));
+  const r = judgeCrew({ ...CREW_OK, recordings: empty });
+  const failed = r.checks.filter((c) => !c.ok).map((c) => c.id);
+  assert.ok(failed.includes("crew_never_on_a_plot"), `with no crew drawn, crew_never_on_a_plot passed: failed ${failed.join(", ")}`);
+  assert.ok(failed.includes("crew_clear_of_walls"), `with no crew drawn, crew_clear_of_walls passed: failed ${failed.join(", ")}`);
+});
+
+test("crew: the picture's amber threshold is pinned (20 stray pixels fail, 150 pass)", () => {
+  const at = (amber) => judgeCrew({ ...CREW_OK, look: { ...CREW_OK.look, seen: [{ ...CREW_OK.look.seen[0], amber }] } }).checks.find((c) => c.id === "crew_seen").ok;
+  assert.equal(at(20), false, "20 crew-amber pixels counted as a crew figure seen");
+  assert.equal(at(150), true, "150 crew-amber pixels (a figure 35 m away is about 400) not counted as a crew figure seen");
+  assert.equal(CREW_MIN_PX, 150);
+});
+
+test("crew: a wall's distance is across the floor, to the nearest point of the segment", () => {
+  assert.equal(CREW_WALL_CLEAR_M, 0.3);
+  assert.ok(Math.abs(wallDistXZ([85.1, 1, 40], [85, 29, 85, 49]) - 0.1) < 1e-9);
+  assert.ok(Math.abs(wallDistXZ([85, 1, 52], [85, 29, 85, 49]) - 3) < 1e-9, "past the wall's end, the distance is to its end");
+  assert.ok(Math.abs(wallDistXZ([3, 7, 4], [0, 0, 0, 0]) - 5) < 1e-9, "a wall of no length is a point");
 });
 
 // The crew's amber body AS THE GAME DRAWS IT in the Commons counts; the HUD's orange activity
