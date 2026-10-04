@@ -11,6 +11,15 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1457.1: six more Library guides, on animals and on making things.**
+  How Animals Work, Keeping Animals (water, feed, fencing, hay fires, keeping
+  new animals apart), and Animal Health and Disease (taking a temperature,
+  bloat, which diseases you must report, why antibiotics now need a vet, and
+  staying safe at birthing time); Pottery and Firing (lead in glazes, kiln
+  safety, clay dust), Soap, Lye and Cleaning (handling lye safely, never
+  mixing cleaners) and Making a Tool (handles, axes, grinders and why a file
+  is too brittle for a pry bar). The Library now has 83 sourced guides.
+
 - **v0.1457.0: build big things from what is in your home.** Crafting at a
   station now takes parts from your backpack first and then from your home's
   storage, and anything too big for your backpack goes into home storage when
