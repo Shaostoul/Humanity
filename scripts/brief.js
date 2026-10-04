@@ -132,6 +132,24 @@ L.push('DELIVERY: ' + (sh('node "' + path.join(root, 'scripts', 'check-delivery.
   }
   L.push('MIRROR:   ' + row);
 }
+// The live relay's /health. Its `erase_memory` says whether the secret erased accounts are
+// remembered under (data/erased-accounts.key) is kept across restarts; "this_run_only" means
+// the file is damaged and every restart forgets every remembered erase (BUG-135 option 2,
+// review finding 7). A relay older than that field says nothing about it.
+{
+  const raw = sh('curl -s --max-time 6 https://united-humanity.us/health');
+  let row;
+  try {
+    const h = JSON.parse(raw);
+    const up = Math.round((h.uptime_seconds || 0) / 3600);
+    row = h.erase_memory === 'this_run_only'
+      ? `PROBLEM: up ${up} h, but data/erased-accounts.key on the VPS is damaged, so each restart forgets every remembered erase (fix or remove it, then restart: docs/admin/SELF-HOSTING.md)`
+      : `up ${up} h, ${h.connected_peers} connected` + (h.erase_memory === 'kept' ? '; erased accounts kept across restarts' : '');
+  } catch {
+    row = 'UNREACHABLE: united-humanity.us/health did not answer (offline here, or the relay is down: just status)';
+  }
+  L.push('RELAY:    ' + row);
+}
 // C: and the hourly build-output guard (scripts/pc-disk-guard.js, 2026-09-29).
 try {
   const s = fs.statfsSync(path.parse(root).root);

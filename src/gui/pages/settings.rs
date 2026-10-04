@@ -357,6 +357,65 @@ fn section_accent(cat: SettingsCategory, theme: &Theme) -> Color32 {
     }
 }
 
+/// The sentence Settings > Account shows before the erase button about what the server keeps
+/// after it (BUG-135; the relay's storage/erased_accounts.rs `erase_memory_sentence`, the same
+/// words the web and the erase receipt use), or None when the active server has not sent its
+/// number of days (`GuiState::erase_memory_days`): a relay too old to have the setting
+/// remembers nothing, and the page must not promise that it does (review finding 6).
+pub(crate) fn erase_memory_note(days: Option<i64>) -> Option<String> {
+    days.filter(|d| *d > 0).map(crate::relay::storage::erased_accounts::erase_memory_sentence)
+}
+
+#[cfg(test)]
+mod erase_memory_note_tests {
+    use super::erase_memory_note;
+    use crate::gui::GuiState;
+
+    /// Review finding 6: the days are read from the relay's own frame, never from the parsed
+    /// settings (which fill a missing field with 30). A relay that did not send the field gets
+    /// no sentence at all; one that did gets its own number.
+    ///
+    /// Seen red 2026-10-04 with the days taken from the parsed settings instead: "an older
+    /// relay was promised to remember: Some(\"After the erase this server remembers for up to
+    /// 30 days ...\")".
+    #[test]
+    fn a_server_that_did_not_send_the_days_gets_no_sentence() {
+        let mut full = serde_json::to_value(crate::relay::storage::ServerSettings::default()).unwrap();
+        let mut old = full.clone();
+        let o = old.as_object_mut().unwrap();
+        o.remove("erased_accounts_ttl_days");
+        o.remove("erased_accounts_cap");
+        let mut state = GuiState::default();
+        state.on_server_settings_state(&serde_json::json!({ "type": "server_settings_state", "settings": old }));
+        assert!(state.server_settings.is_some(), "the older relay's settings still parse");
+        let note = erase_memory_note(state.erase_memory_days);
+        assert!(note.is_none(), "an older relay was promised to remember: {note:?}");
+
+        full["erased_accounts_ttl_days"] = serde_json::json!(12);
+        state.on_server_settings_state(&serde_json::json!({ "type": "server_settings_state", "settings": full }));
+        let note = erase_memory_note(state.erase_memory_days).expect("a relay that sent its days gets the sentence");
+        assert!(note.contains("for up to 12 days"), "{note}");
+        assert!(erase_memory_note(Some(0)).is_none());
+    }
+
+    /// Review finding 14: the request for the settings goes out once the sign-in has completed,
+    /// never before (the relay drops it then), and once per signed-in socket, whether or not
+    /// they are already known (final review of 085441749, findings 1 and 2: asking only while
+    /// unknown left a lost answer unasked for the session, and missed changes made while this
+    /// app was offline; the `known` argument is gone).
+    ///
+    /// Seen red 2026-10-04 with the sign-in condition taken out: "asked before the sign-in
+    /// completed: the relay drops it"; and with the old "only while unknown" rule: "a new
+    /// sign-in did not ask because the settings were known".
+    #[test]
+    fn the_settings_are_asked_for_after_the_sign_in_and_once() {
+        use crate::gui::connections::should_ask_server_settings as ask;
+        assert!(!ask(false, false), "asked before the sign-in completed: the relay drops it");
+        assert!(ask(true, false), "a new sign-in did not ask");
+        assert!(!ask(true, true), "asked twice");
+    }
+}
+
 pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let accent = section_accent(SettingsCategory::Account, theme);
 
@@ -460,6 +519,11 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
              people already downloaded are theirs. Everything in this paragraph is in \
              your export, so you can read it before you choose.",
         );
+        // What the server keeps AFTER the erase, with its real number of days (BUG-135, the
+        // operator's option 2), said only when this server sent the number (`erase_memory_note`).
+        if let Some(note) = erase_memory_note(state.erase_memory_days) {
+            widgets::body_hint(ui, theme, &note);
+        }
         ui.horizontal(|ui| {
             ui.add(
                 egui::TextEdit::singleline(&mut state.account_delete_confirm_input)

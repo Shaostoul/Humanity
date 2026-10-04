@@ -729,6 +729,10 @@ pub enum RelayMessage {
         /// recipient key senders encapsulate DM secrets to.
         #[serde(skip_serializing_if = "Option::is_none", default)]
         kyber_public: Option<String>,
+        /// The person pressed Connect (native) or Enter (web) after an erase here: sign up again
+        /// and forget the erase (handlers/sign_ups.rs). Never set by an automatic reconnect.
+        #[serde(default)]
+        sign_up_again: bool,
     },
 
     /// Server-issued challenge after `identify`. The client must sign
@@ -862,6 +866,10 @@ pub enum RelayMessage {
     #[serde(rename = "server_settings_state")]
     ServerSettingsState {
         settings: crate::relay::storage::ServerSettings,
+        /// Some(key): the answer to that client's request, delivered to it alone. None: an
+        /// admin's saved change, to everyone.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        target: Option<String>,
     },
 
     // ── Data-driven roles (v0.239, docs/design/roles-system.md) ──
@@ -872,6 +880,10 @@ pub enum RelayMessage {
     #[serde(rename = "role_list")]
     RoleList {
         roles: Vec<crate::relay::storage::RoleDef>,
+        /// Some(key): piggybacked on that client's settings request, to it alone. None: a role
+        /// was changed, to everyone.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        target: Option<String>,
     },
 
     /// Admin → server. Create or edit a role. Built-in roles: only
@@ -1069,6 +1081,11 @@ pub enum RelayMessage {
         /// maximization, 2026-08-24.
         #[serde(default)]
         message_retention_days: Option<i64>,
+        /// Days an erase is remembered, and the most remembered at once (BUG-135, 2026-10-04).
+        #[serde(default)]
+        erased_accounts_ttl_days: Option<i64>,
+        #[serde(default)]
+        erased_accounts_cap: Option<i64>,
         /// The shared world's clock speed, game seconds per real second (2026-10-04).
         #[serde(default)]
         world_time_scale: Option<f64>,
@@ -1811,9 +1828,10 @@ pub enum RelayMessage {
     },
     /// Server to the erasing client, after the erase's receipt (BUG-135): disconnect from this
     /// server and never redial it by itself. `partial`: part of the erase failed, so the client
-    /// says to erase again instead of that Connect signs up again.
+    /// says to erase again instead of that Connect signs up again. `earlier`: the answer to an
+    /// identify from a key erased here before, which signed nothing up (handlers/sign_ups.rs).
     #[serde(rename = "account_erased")]
-    AccountErased { to: String, partial: bool },
+    AccountErased { to: String, partial: bool, #[serde(default)] earlier: bool },
 
     /// Client updates presence privacy (privacy tiers, 2026-08-23).
     /// `hide_presence: true` = never appear online, no last_seen stored,
@@ -2548,6 +2566,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
         invite_code: Option<String>,
         kyber_public: Option<String>,
         nonce: String, // hex; empty for bot fast-path (no challenge issued)
+        sign_up_again: bool,
     }
     let mut pending_identify: Option<PendingIdentify> = None;
 
@@ -2591,7 +2610,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     ).await;
                     return;
                 }
-                Ok(RelayMessage::Identify { public_key, display_name, link_code, invite_code, bot_secret, kyber_public }) => {
+                Ok(RelayMessage::Identify { public_key, display_name, link_code, invite_code, bot_secret, kyber_public, sign_up_again }) => {
                     // v0.279.0: per-source-IP identify rate limit. Sliding
                     // 60-second window, max 10 attempts per minute. Covers
                     // both bot and human identify paths — every fresh
@@ -2675,6 +2694,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             invite_code: invite_code.clone(),
                             kyber_public: kyber_public.clone(),
                             nonce: nonce.clone(),
+                            sign_up_again,
                         });
                         let challenge = RelayMessage::IdentifyChallenge { nonce };
                         let _ = ws_tx.send(Message::Text(serde_json::to_string(&challenge).unwrap().into())).await;
@@ -2715,52 +2735,19 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                         continue;
                     }
 
-                    // v0.280.0 anti-spam: per-IP cap on DISTINCT NEW
-                    // identities created in the last hour. "New" =
-                    // no prior `registered_names` row for this pubkey.
-                    // Returning identities (already registered) are
-                    // exempt — this only deters scripted onboarding
-                    // floods from a single IP. Default cap of 5/hr
-                    // covers legitimate family/household onboarding
-                    // with headroom. Tune via the constants below if
-                    // real traffic warrants.
-                    let is_new = !state.db.pubkey_is_registered(&pending.public_key).unwrap_or(false);
-                    if is_new {
-                        const NEW_ID_WINDOW_SECS: u64 = 3600;
-                        const NEW_ID_MAX_PER_IP: usize = 5;
-                        // All map mutation under the lock; produce a
-                        // simple bool to drive the .await response,
-                        // dropping the guard before the await.
-                        let blocked = {
-                            let mut map = state.new_identity_per_ip.lock().unwrap();
-                            let entry = map.entry(client_ip.clone()).or_default();
-                            let now = Instant::now();
-                            entry.retain(|(_, when)| now.duration_since(*when).as_secs() < NEW_ID_WINDOW_SECS);
-                            let already_seen = entry.iter().any(|(pk, _)| pk == &pending.public_key);
-                            let distinct: std::collections::HashSet<&str> =
-                                entry.iter().map(|(pk, _)| pk.as_str()).collect();
-                            if already_seen {
-                                false
-                            } else if distinct.len() >= NEW_ID_MAX_PER_IP {
-                                true
-                            } else {
-                                entry.push((pending.public_key.clone(), now));
-                                false
-                            }
-                        };
-                        if blocked {
-                            tracing::warn!(
-                                "New-identity-per-IP cap hit for ip={}, new pubkey prefix={}",
-                                client_ip,
-                                &pending.public_key[..pending.public_key.len().min(16)],
-                            );
-                            let err = RelayMessage::System {
-                                message: "Too many new accounts from this connection in the last hour. Try again later, or contact the relay operator if this looks wrong.".to_string(),
-                            };
-                            let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
-                            let _ = ws_tx.close().await;
-                            return;
-                        }
+                    // Who becomes a new account here (handlers/sign_ups.rs). A key this relay
+                    // remembers erasing its account is told so and bound to nothing, unless the
+                    // person pressed Connect or Enter (BUG-135). Then the per-IP cap on NEW
+                    // identities (v0.280.0 anti-spam), which a key told it was erased never uses.
+                    if crate::relay::handlers::sign_ups::erased_at_identify(&state, &pending.public_key, pending.sign_up_again) {
+                        crate::relay::handlers::sign_ups::tell_erased_and_close(&mut ws_tx, &state, &pending.public_key).await;
+                        return;
+                    }
+                    if crate::relay::handlers::sign_ups::new_identity_capped(&state, &client_ip, &pending.public_key) {
+                        let err = RelayMessage::System { message: crate::relay::handlers::sign_ups::NEW_IDENTITY_CAP_SENTENCE.to_string() };
+                        let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                        let _ = ws_tx.close().await;
+                        return;
                     }
                     // Verified — proceed to bind with the stashed fields.
                     (pending.public_key, pending.display_name, pending.link_code, pending.invite_code, pending.kyber_public)
@@ -2771,12 +2758,19 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
 
                 // Handle link code redemption.
                 if let Some(ref code) = link_code {
-                    match state.db.redeem_link_code(code, &public_key) {
-                        Ok(Some(linked_name)) => {
+                    // Checked and written in one step, like the name and the member row below:
+                    // an erase that landed after the identify's own check still wins (BUG-135).
+                    use crate::relay::storage::erased_accounts::LinkRedeemed;
+                    match state.db.redeem_link_code_unless_erased(code, &public_key) {
+                        Ok(LinkRedeemed::Linked(linked_name)) => {
                             info!("Link code redeemed: {public_key} linked to name '{linked_name}'");
                             final_name = Some(linked_name);
                         }
-                        Ok(None) => {
+                        Ok(LinkRedeemed::ErasedHere) => {
+                            crate::relay::handlers::sign_ups::tell_erased_and_close(&mut ws_tx, &state, &public_key).await;
+                            return;
+                        }
+                        Ok(LinkRedeemed::NoSuchCode) => {
                             let err = RelayMessage::System {
                                 message: "Invalid or expired link code.".to_string(),
                             };
@@ -2852,10 +2846,13 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         continue;
                                     }
                                 }
-                                if let Err(e) = state.db.register_name(name, &public_key) {
-                                    tracing::error!("Failed to register name: {e}");
+                                // Checked and written in one step: an erase that landed after the
+                                // identify's check still wins (handlers/sign_ups.rs, BUG-135).
+                                match state.db.register_name_unless_erased(name, &public_key) {
+                                    Ok(true) => info!("Name '{name}' registered to {public_key}"),
+                                    Ok(false) => { crate::relay::handlers::sign_ups::tell_erased_and_close(&mut ws_tx, &state, &public_key).await; return; }
+                                    Err(e) => tracing::error!("Failed to register name: {e}"),
                                 }
-                                info!("Name '{name}' registered to {public_key}");
                             }
                             Ok(Some(true)) => {
                                 // Key is authorized for this name — all good.
@@ -2909,6 +2906,15 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     conn_id: my_conn_id,
                 };
 
+                // The member row (handlers/sign_ups.rs `join_as_member`), BEFORE the socket is
+                // bound below: a key this relay remembers erasing is refused there, and told and
+                // closed like the identify gate with nothing bound (BUG-135; review of option 2,
+                // second round, finding 8: it came after the bind, silent, leaving it signed in).
+                if !crate::relay::handlers::sign_ups::join_as_member(&state, &public_key, &final_name) {
+                    crate::relay::handlers::sign_ups::tell_erased_and_close(&mut ws_tx, &state, &public_key).await;
+                    return;
+                }
+
                 // A second socket for someone already here is the same person,
                 // not a new arrival (no "came online" below). BUG-112.
                 let already_here = crate::relay::handlers::live_conns::note_signed_in(&state, &public_key, my_conn_id).await;
@@ -2937,47 +2943,6 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                         message: "This server has no admin yet. If this is YOUR server, read the claim code from the server console (or data/owner-claim-code.txt on the host) and type: /claim <code>".to_string(),
                     };
                     let _ = state.broadcast_tx.send(notice);
-                }
-
-                // Auto-join server membership: if user has a name and isn't a bot,
-                // auto-register them as a member (open server model).
-                // Skip auto-join for:
-                //   - bot_*       (test bots with bot_ key prefix)
-                //   - viewer_*    (anonymous-viewer key prefix)
-                //   - name "AISampleBot*"  (scripts/ai-sample-client.js test
-                //     clients — they generate RANDOM hex keys so the bot_
-                //     prefix check doesn't catch them, which caused them to
-                //     pollute server_members and "come back" after every
-                //     kick. Operator feedback 2026-05-12 - "I successfully
-                //     kicked the bots on the first try. However, once I
-                //     rebooted they were back".)
-                let nm = final_name.as_deref().unwrap_or("");
-                let is_test_bot_name = nm.starts_with("AISampleBot")
-                    || nm.starts_with("TestBot")
-                    || nm.starts_with("SampleBot");
-                if !public_key.starts_with("bot_")
-                    && !public_key.starts_with("viewer_")
-                    && !is_test_bot_name
-                    && !is_placeholder_name(nm)
-                {
-                    let member_name = nm; // non-placeholder means non-empty: a real chosen name
-                    if state.db.is_member(&public_key) {
-                        // Already a member — update last_seen and name.
-                        let _ = state.db.update_last_seen(&public_key);
-                        let _ = state.db.update_member_name(&public_key, member_name);
-                    } else {
-                        // New member — auto-join and broadcast.
-                        if let Ok(true) = state.db.join_server(&public_key, member_name) {
-                            info!("Auto-joined member: {public_key} as '{member_name}'");
-                            let _ = state.broadcast_tx.send(RelayMessage::MemberJoined {
-                                public_key: public_key.clone(),
-                                name: final_name.clone(),
-                                role: "member".to_string(),
-                            });
-                        }
-                    }
-                } else if is_test_bot_name {
-                    info!("Test-bot connection accepted (name='{nm}') — not auto-joining server_members.");
                 }
 
                 // Send current peer list to the new peer (with their upload_token).
@@ -3332,6 +3297,12 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     None => continue,
                     _ => {}
                 }
+            }
+
+            // Settings and role list: a targeted answer only to the client that asked; None
+            // (an admin's change) to everyone.
+            if let RelayMessage::ServerSettingsState { target: Some(ref t), .. } | RelayMessage::RoleList { target: Some(ref t), .. } = msg {
+                if t != &my_key_for_broadcast { continue; }
             }
 
             // AccountErased: only to the clients of the erased account.
@@ -5424,19 +5395,23 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 }
                             }
                             // Server settings — request current state (v0.200.0).
-                            // Anyone can request; the response is broadcast publicly
-                            // so non-admin clients can show what limits apply to them.
+                            // Anyone can request (non-admin clients show what limits apply
+                            // to them). The answer goes to the client that asked, never to
+                            // everyone: every native sign-in asks, so a broadcast answer made
+                            // a reconnect wave after a deploy grow with the square of the
+                            // clients (review of BUG-135 option 2, second round, finding 10).
+                            // An admin's SAVE is still broadcast: that is how others learn.
                             RelayMessage::ServerSettingsRequest {} => {
                                 let settings = state_clone.db.get_server_settings().unwrap_or_default();
                                 let _ = state_clone.broadcast_tx.send(
-                                    RelayMessage::ServerSettingsState { settings }
+                                    RelayMessage::ServerSettingsState { settings, target: Some(my_key_for_recv.clone()) }
                                 );
                                 // Piggyback the role list — clients request
                                 // server settings on connect, so this seeds
                                 // the badge palette + role dropdown too.
                                 if let Ok(roles) = state_clone.db.list_roles() {
                                     let _ = state_clone.broadcast_tx.send(
-                                        RelayMessage::RoleList { roles }
+                                        RelayMessage::RoleList { roles, target: Some(my_key_for_recv.clone()) }
                                     );
                                 }
                             }
@@ -5452,7 +5427,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     match state_clone.db.upsert_role(&role) {
                                         Ok(()) => {
                                             if let Ok(roles) = state_clone.db.list_roles() {
-                                                let _ = state_clone.broadcast_tx.send(RelayMessage::RoleList { roles });
+                                                let _ = state_clone.broadcast_tx.send(RelayMessage::RoleList { roles, target: None });
                                             }
                                             let _ = state_clone.broadcast_tx.send(RelayMessage::System {
                                                 message: format!("Role \"{}\" saved.", role.label),
@@ -5479,7 +5454,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     match state_clone.db.delete_role(&id) {
                                         Ok(true) => {
                                             if let Ok(roles) = state_clone.db.list_roles() {
-                                                let _ = state_clone.broadcast_tx.send(RelayMessage::RoleList { roles });
+                                                let _ = state_clone.broadcast_tx.send(RelayMessage::RoleList { roles, target: None });
                                             }
                                             let _ = state_clone.broadcast_tx.send(RelayMessage::System {
                                                 message: format!("Role \"{}\" deleted.", id),
@@ -6123,9 +6098,13 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
     // seats are the exception: they belong to the socket that took them, so
     // its close departs them even while another socket stays open (quitting
     // the game with a web tab open left the avatar and the voice seat behind).
+    // Who left, as the log lines below name them: the key, or "an erased account" for a key
+    // this relay remembers erasing (the erasing client closes its socket right after the
+    // erase, and the erase's own log line names no key: handlers/sign_ups.rs).
+    let who = crate::relay::handlers::sign_ups::log_name_for(&state, &my_key);
     let seats_left = crate::relay::handlers::live_conns::depart_owned_seats(&state, &my_key, my_conn_id).await;
     if let Some(other) = crate::relay::handlers::live_conns::release_closed(&state, &my_key, my_conn_id).await {
-        tracing::debug!("socket {my_conn_id} for {my_key} closed; socket {other} is still open");
+        tracing::debug!("socket {my_conn_id} for {who} closed; socket {other} is still open");
         return;
     }
 
@@ -6147,7 +6126,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
         .is_some_and(|p| p.conn_id != my_conn_id);
     if superseded {
         tracing::debug!(
-            "socket {my_conn_id} for {my_key} was superseded by a newer connection; \
+            "socket {my_conn_id} for {who} was superseded by a newer connection; \
              skipping teardown"
         );
         return;
@@ -6185,7 +6164,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
         }
     }
 
-    info!("Peer disconnected: {my_key}");
+    info!("Peer disconnected: {who}");
     // Presence-hidden members leave as silently as they arrived.
     if !state.db.presence_hidden(&my_key) {
         let _ = state.broadcast_tx.send(RelayMessage::PeerLeft {

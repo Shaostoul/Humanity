@@ -131,6 +131,16 @@ pub struct ServerSettings {
     /// preserving current behavior). Pinned messages are always kept.
     #[serde(default)]
     pub message_retention_days: i64,
+    /// Days this relay remembers that an account was erased here, as a one-way fingerprint
+    /// of its key and the day (storage/erased_accounts.rs, BUG-135, 2026-10-04), so the
+    /// account's other devices are not signed up again by themselves. Older entries are
+    /// deleted. Minimum 1, default 30.
+    #[serde(default = "default_erased_accounts_ttl_days")]
+    pub erased_accounts_ttl_days: i64,
+    /// The most erased accounts remembered at once; when full, the oldest go first, so a
+    /// flood of erases cannot grow the table without bound. Default 100,000.
+    #[serde(default = "default_erased_accounts_cap")]
+    pub erased_accounts_cap: i64,
     /// How fast the shared world's clock runs, game seconds per real second
     /// (operator, 2026-10-04: "let's do 72x but, make sure there's admin
     /// tools for me to adjust it from inside the app"). 72 by default, the
@@ -161,6 +171,14 @@ fn default_uploads_kept_mod() -> i64 { 100 }
 fn default_uploads_kept_admin() -> i64 { 500 }
 fn default_local_channel_enabled() -> bool { true }
 fn default_dm_mailbox_ttl_days() -> i64 { 30 }
+fn default_erased_accounts_ttl_days() -> i64 { 30 }
+fn default_erased_accounts_cap() -> i64 { 100_000 }
+
+/// The ranges the two erased-accounts settings are held to (the relay clamps an update to
+/// them, the Server Settings page offers exactly them): at least a day and one entry; at most
+/// a year, the mailbox's ceiling, and a million entries (about 100 MB of fingerprints).
+pub const ERASED_ACCOUNTS_TTL_DAYS_RANGE: (i64, i64) = (1, 365);
+pub const ERASED_ACCOUNTS_CAP_RANGE: (i64, i64) = (1, 1_000_000);
 
 /// The shared world's clock speed on a new server: the game's Simplified
 /// speed (`systems::time::SIMPLIFIED_TIME_SPEED`, 72), one number for both.
@@ -209,6 +227,8 @@ impl Default for ServerSettings {
             local_channel_enabled: default_local_channel_enabled(),
             dm_mailbox_ttl_days: default_dm_mailbox_ttl_days(),
             message_retention_days: 0,
+            erased_accounts_ttl_days: default_erased_accounts_ttl_days(),
+            erased_accounts_cap: default_erased_accounts_cap(),
             world_time_scale: default_world_time_scale(),
             updated_at: 0,
             updated_by: String::new(),
@@ -272,6 +292,8 @@ impl Storage {
                         COALESCE(local_channel_enabled, 1),
                         COALESCE(dm_mailbox_ttl_days, 30),
                         COALESCE(message_retention_days, 0),
+                        COALESCE(erased_accounts_ttl_days, 30),
+                        COALESCE(erased_accounts_cap, 100000),
                         world_time_scale
                  FROM server_settings WHERE id = 1",
                 [],
@@ -313,7 +335,9 @@ impl Storage {
                         local_channel_enabled: local_ch != 0,
                         dm_mailbox_ttl_days: row.get::<_, i64>(27)?.max(1),
                         message_retention_days: row.get::<_, i64>(28)?.max(0),
-                        world_time_scale: clamp_world_time_scale(row.get::<_, f64>(29)?)
+                        erased_accounts_ttl_days: row.get::<_, i64>(29)?.max(1),
+                        erased_accounts_cap: row.get::<_, i64>(30)?.max(1),
+                        world_time_scale: clamp_world_time_scale(row.get::<_, f64>(31)?)
                             .unwrap_or_else(default_world_time_scale),
                     })
                 },
@@ -369,7 +393,9 @@ impl Storage {
                     local_channel_enabled           = ?27,
                     dm_mailbox_ttl_days             = ?28,
                     message_retention_days          = ?29,
-                    world_time_scale                = ?30,
+                    erased_accounts_ttl_days        = ?30,
+                    erased_accounts_cap             = ?31,
+                    world_time_scale                = ?32,
                     updated_at               = ?15,
                     updated_by               = ?16
                  WHERE id = 1",
@@ -405,6 +431,8 @@ impl Storage {
                     s.local_channel_enabled as i32,
                     s.dm_mailbox_ttl_days.max(1),
                     s.message_retention_days.max(0),
+                    s.erased_accounts_ttl_days.max(1),
+                    s.erased_accounts_cap.max(1),
                     clamp_world_time_scale(s.world_time_scale).unwrap_or_else(default_world_time_scale),
                 ],
             )?;
@@ -530,11 +558,13 @@ mod tests {
 
         let mut updated = s.clone();
         updated.world_time_scale = 24.0;
-        updated.message_retention_days = 90; // the neighbouring column
+        updated.message_retention_days = 90; // a neighbouring column
+        updated.erased_accounts_cap = 4_321; // the column just before it (merged 2026-10-04)
         assert!(db.set_server_settings(&updated, "admin_key").expect("set"));
         let got = db.get_server_settings().expect("get2");
         assert_eq!(got.world_time_scale, 24.0, "the admin's speed persists");
         assert_eq!(got.message_retention_days, 90, "no positional-index bleed");
+        assert_eq!(got.erased_accounts_cap, 4_321, "no positional-index bleed");
 
         updated.world_time_scale = 5000.0;
         assert!(db.set_server_settings(&updated, "admin_key").expect("set3"));
@@ -577,6 +607,37 @@ mod tests {
         assert_eq!(got.dm_mailbox_ttl_days, 10);
         drop(db);
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// The two erased-accounts settings (BUG-135, 2026-10-04) default to 30 days and 100,000
+    /// entries and round-trip through the positional set/get SQL without bleeding into their
+    /// neighbours (a shifted ?N would silently swap them, or the retention day count).
+    ///
+    /// Seen red 2026-10-04 with ?30 and ?31 swapped in the UPDATE: "assertion `left == right`
+    /// failed: the window round-trips / left: 12345 / right: 12".
+    #[test]
+    fn erased_accounts_settings_default_and_roundtrip() {
+        let db = fresh_db();
+        let s = db.get_server_settings().expect("get");
+        assert_eq!(s.erased_accounts_ttl_days, 30, "the window defaults to 30 days");
+        assert_eq!(s.erased_accounts_cap, 100_000, "the cap defaults to 100,000");
+        assert_eq!(ServerSettings::default().erased_accounts_ttl_days, 30);
+        assert_eq!(ServerSettings::default().erased_accounts_cap, 100_000);
+        let mut updated = s.clone();
+        updated.erased_accounts_ttl_days = 12;
+        updated.erased_accounts_cap = 12_345;
+        updated.message_retention_days = 90; // the neighbour, to catch index bleed
+        assert!(db.set_server_settings(&updated, "admin_key").expect("set"));
+        let got = db.get_server_settings().expect("get2");
+        assert_eq!(got.erased_accounts_ttl_days, 12, "the window round-trips");
+        assert_eq!(got.erased_accounts_cap, 12_345, "the cap round-trips");
+        assert_eq!(got.message_retention_days, 90, "no positional-index bleed");
+        // An older client's settings JSON without the two fields still reads, with defaults.
+        let mut v = serde_json::to_value(&got).unwrap();
+        v.as_object_mut().unwrap().remove("erased_accounts_ttl_days");
+        v.as_object_mut().unwrap().remove("erased_accounts_cap");
+        let back: ServerSettings = serde_json::from_value(v).expect("reads without the two fields");
+        assert_eq!((back.erased_accounts_ttl_days, back.erased_accounts_cap), (30, 100_000));
     }
 
     /// Incident-class regression (2026-05-17 lesson): a relay whose DB

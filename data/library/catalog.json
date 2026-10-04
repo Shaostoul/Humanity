@@ -73,6 +73,15 @@
           ]
         },
         {
+          "title": "Reading the Weather",
+          "src": "docs/user/skills/reading_the_weather.md",
+          "tags": [
+            "guide",
+            "real",
+            "safety"
+          ]
+        },
+        {
           "title": "Knowing Which Way Is North",
           "src": "docs/user/skills/knowing_which_way_is_north.md",
           "tags": [
@@ -313,6 +322,17 @@
             "guide",
             "real",
             "food"
+          ]
+        },
+        {
+          "title": "Chickens and Eggs",
+          "src": "docs/user/skills/chickens_and_eggs.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "health",
+            "safety"
           ]
         }
       ]
@@ -754,6 +774,17 @@
           ]
         },
         {
+          "title": "Glue and Joints",
+          "src": "docs/user/skills/glue_and_joints.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "materials",
+            "safety"
+          ]
+        },
+        {
           "title": "Building a Fire Staff",
           "src": "docs/user/making/fire_staff_materials.md",
           "tags": [
@@ -803,6 +834,36 @@
             "guide",
             "real",
             "beginner"
+          ]
+        },
+        {
+          "title": "Making an Agreement That Holds",
+          "src": "docs/user/skills/making_an_agreement_that_holds.md",
+          "tags": [
+            "guide",
+            "real",
+            "governance",
+            "beginner"
+          ]
+        },
+        {
+          "title": "Organising Shared Work",
+          "src": "docs/user/skills/organising_shared_work.md",
+          "tags": [
+            "guide",
+            "real",
+            "governance",
+            "safety"
+          ]
+        },
+        {
+          "title": "Teaching What You Know",
+          "src": "docs/user/skills/teaching_what_you_know.md",
+          "tags": [
+            "guide",
+            "real",
+            "beginner",
+            "safety"
           ]
         }
       ],

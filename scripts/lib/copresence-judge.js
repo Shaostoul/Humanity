@@ -154,9 +154,9 @@ function viewAngle(cam, p) {
  *           same clock: the start of the forward leg being judged, so the end
  *           of the leg before it (walking back) is never mistaken for it.
  *   checkView  (default true) whether to check the figure was in the
- *           camera's view. The --plots run turns it off: the two players
- *           stand in their own homes and cannot see each other until
- *           increment 2.
+ *           camera's view. The --plots run turns it off for the walk at home
+ *           (the two players stand in their own homes and cannot see each
+ *           other), and on for the meeting in the Commons (increment 2).
  * Returns { pass, checks: [{ id, ok, detail }], stats }.
  */
 function judgeCopresence({ frames, walker, line, speed, onLineEpochMs, fromEpochMs = null, checkView = true }, limits = LIMITS) {
@@ -357,7 +357,12 @@ function judgeCopresence({ frames, walker, line, speed, onLineEpochMs, fromEpoch
         : "no time for when the walker reached the line, so where it really was cannot be told",
     );
   }
-  if (checkView && pass.some((s) => s.cam)) {
+  // Asked for, the view is always judged: a recording with no camera on any frame of the pass
+  // (a recorder that dropped or renamed `cam`) FAILS here instead of leaving the check out
+  // (increment 2 review, finding 11: the run passed with one check fewer).
+  if (checkView && !pass.some((s) => s.cam)) {
+    add("in_view", false, "the recording carries no camera, so the view cannot be judged");
+  } else if (checkView) {
     stats.max_view_angle_deg = maxAngle;
     add(
       "in_view",
@@ -378,7 +383,8 @@ function judgeCopresence({ frames, walker, line, speed, onLineEpochMs, fromEpoch
 // plots, by the order they joined; the game's camera is inside the plot the
 // game should hold; and every position the game DREW for the walker is inside
 // the walker's plot (the recorder records figures off screen too). Whether
-// they can see each other waits for increment 2.
+// they can see each other is the meeting in the Commons (increment 2, below:
+// door points and routes, `judgeMeet`).
 
 /** True when the walker's straight approach from `from` to the line's start
  *  can never pass for the walk: no point of it is within WINDOW_TOL of the
@@ -698,22 +704,482 @@ function judgeEditorClose({ buildSpot, held, camera, nudged, seen }) {
   return { pass: checks.every((c) => c.ok), checks };
 }
 
-/** The walk from a home's door to `to` (one of FAR_POINTS) along the ship's
- *  floor, in steps of at most `maxStep` metres, each one the relay accepts
- *  under its 100 m rule: out through the door's corridor (into the Commons for
- *  a door at z 20..75, else onto street-1 at x 70), through the junction
- *  between the Commons and street-1 at (70, 80), to the target. Ship metres at
- *  eye height (data/blueprints/ship_structure.ron). Pure. */
-function respawnRoute(from, to, maxStep = 40) {
-  const out = [from[2] >= 20 && from[2] <= 75 ? 66 : 70, 1.7, from[2]];
-  const legs = [from, out, [70, 1.7, 80], to];
-  const pts = [];
-  for (let i = 1; i < legs.length; i++) {
-    const [a, b] = [legs[i - 1], legs[i]];
-    const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[2] - a[2]) / maxStep));
-    for (let k = 1; k <= n; k++) pts.push([0, 1, 2].map((j) => a[j] + ((b[j] - a[j]) * k) / n));
+// ── Door points and routes (increment 2, "Meet in the Commons") ─────────────
+//
+// The game reports the ship's places and every corridor's door points, from its
+// own corridor geometry (debug/door_points_request.json, src/ship/door_points.rs):
+//   { ship_hash, places: [{ id, kind, purpose, min, max, door, door_local, own }],
+//     doors: [{ from, to, axis, lat, mouths: [a, b], steps: [inFrom, inTo], tube: [min, max] }] }
+// A route is planned on that and nothing else, so no corridor maths lives here:
+// from the place a walk starts in to the place it ends in, through the doors
+// between them (breadth first), each crossed from its step on one side to its
+// step on the other. (Until increment 2 the rig's walks used a hard-coded copy
+// of the ship's corridors, `respawnRoute`.)
+
+/** The place `p` stands in (its box across the floor, x and z, a few cm of
+ *  slack), or null. Pure. */
+function placeAt(report, p, tol = 0.05) {
+  return (report.places || []).find((pl) => p[0] >= pl.min[0] - tol && p[0] <= pl.max[0] + tol && p[2] >= pl.min[2] - tol && p[2] <= pl.max[2] + tol) || null;
+}
+
+/** The place nearest `p` across the floor (for a point in a corridor tube, say). */
+function nearestPlace(report, p) {
+  let best = null;
+  let bestGap = Infinity;
+  for (const pl of report.places || []) {
+    const dx = Math.max(pl.min[0] - p[0], 0, p[0] - pl.max[0]);
+    const dz = Math.max(pl.min[2] - p[2], 0, p[2] - pl.max[2]);
+    const gap = Math.hypot(dx, dz);
+    if (gap < bestGap) [best, bestGap] = [pl, gap];
   }
-  return pts;
+  return best;
+}
+
+/** Cut a walk through `points` (from `from`) into steps of at most `maxStep`
+ *  metres across the floor; the points after `from`. Pure. */
+function stepsAlong(from, points, maxStep) {
+  const out = [];
+  let a = from;
+  for (const b of points) {
+    const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[2] - a[2]) / maxStep));
+    for (let k = 1; k <= n; k++) out.push([0, 1, 2].map((j) => a[j] + ((b[j] - a[j]) * k) / n));
+    a = b;
+  }
+  return out;
+}
+
+/**
+ * The walk from `from` to `to` through the ship's doors (see above). Returns
+ *   waypoints  the steps of each door crossed, in order, then `to` (the
+ *              coarse route a scripted player walks: second-player.js --route)
+ *   points     the same walk in steps of at most `maxStep` metres across the
+ *              floor (each one the relay accepts under its 100 m rule, for
+ *              moving the game with the showcase `cam` verb)
+ *   doors      "from->to" for each door crossed
+ *   error      why there is no route (an unknown place, no doors between)
+ * Inside a place each leg is a straight line. When the report carries its
+ * walls (`walls`, every wall a person walks against) a leg that would cross one
+ * goes round by one corner instead, along x then z or along z then x, whichever
+ * is clear (`detourRound`): the game's way in from p1 went straight through the
+ * Commons' room block (increment 2 review, finding 14; found by `routeWalls`).
+ * A leg with no clear corner stays straight, and `routeWalls` then says so.
+ * Pure.
+ */
+function doorRoute(report, from, to, maxStep = 40) {
+  const a = placeAt(report, from) || nearestPlace(report, from);
+  const b = placeAt(report, to) || nearestPlace(report, to);
+  if (!a || !b) return { waypoints: [], points: [], doors: [], error: "the report has no places" };
+  // Breadth first over the places, doors both ways.
+  const prev = new Map([[a.id, null]]);
+  const queue = [a.id];
+  while (queue.length && !prev.has(b.id)) {
+    const at = queue.shift();
+    for (const d of report.doors || []) {
+      const [here, there, steps] = d.from === at ? [d.from, d.to, d.steps] : d.to === at ? [d.to, d.from, [d.steps[1], d.steps[0]]] : [null];
+      if (!here || prev.has(there)) continue;
+      prev.set(there, { from: here, door: d, steps });
+      queue.push(there);
+    }
+  }
+  if (!prev.has(b.id)) return { waypoints: [], points: [], doors: [], error: `no doors lead from ${a.id} to ${b.id}` };
+  const crossings = [];
+  for (let id = b.id; prev.get(id); id = prev.get(id).from) crossings.unshift(prev.get(id));
+  const straight = [...crossings.flatMap((c) => c.steps.map((s) => s.slice())), to.slice()];
+  const waypoints = [];
+  let at = from;
+  for (const p of straight) {
+    waypoints.push(...detourRound(at, p, report.walls));
+    at = p;
+  }
+  return { waypoints, points: stepsAlong(from, waypoints, maxStep), doors: crossings.map((c) => `${c.door.from}->${c.door.to}`), error: null };
+}
+
+/** The points to walk from `a` to `b` (b last): [b] when the straight leg crosses
+ *  none of `walls`, else round one corner, [corner, b], along x first or along z
+ *  first, whichever crosses none; [b] when neither does (`doorRoute`). Pure. */
+function detourRound(a, b, walls) {
+  if (!Array.isArray(walls) || !routeWalls([a, b], walls)) return [b];
+  for (const corner of [[b[0], a[1], a[2]], [a[0], a[1], b[2]]]) {
+    if (!routeWalls([a, corner, b], walls)) return [corner, b];
+  }
+  return [b];
+}
+
+/** True when no leg of the walk `points` (its start first, ending at the
+ *  line's start) can pass for the line in the judge: each leg is checked as
+ *  `approachClear` checks a straight approach. Pure. */
+function routeClear(points, line, limits = LIMITS) {
+  const A = line.start.map(Number);
+  const B = line.end.map(Number);
+  const L = len(sub(B, A));
+  const d = sub(B, A).map((x) => x / L);
+  for (let i = 1; i < points.length; i++) {
+    const [a, b] = [points[i - 1].map(Number), points[i].map(Number)];
+    for (let k = 0; k <= 400; k++) {
+      const { u, perp } = lineCoords(a.map((v, j) => v + ((b[j] - v) * k) / 400), A, d);
+      if (perp <= limits.WINDOW_TOL_M && u >= limits.START_MARGIN_M) return false;
+    }
+  }
+  return true;
+}
+
+/** The first wall of `walls` (the door points' `walls`: [ax, az, bx, bz] each, ship metres
+ *  across the floor) that the walk `points` crosses, as { leg, from, to, wall }, or null.
+ *  A proper crossing only: touching a wall's end, or running along one, does not count, which
+ *  errs toward passing a route that grazes a doorway's edge. Inside a place a route is a
+ *  straight line between its steps (doorRoute), so this is what says it does not walk through
+ *  an interior wall a Dev edit put across it (increment 2 review, finding 14). Pure. */
+function routeWalls(points, walls) {
+  const orient = (ax, az, bx, bz, cx, cz) => (bx - ax) * (cz - az) - (bz - az) * (cx - ax);
+  for (let i = 1; i < (points || []).length; i++) {
+    const [p, q] = [points[i - 1].map(Number), points[i].map(Number)];
+    for (const w of walls || []) {
+      const d1 = orient(p[0], p[2], q[0], q[2], w[0], w[1]);
+      const d2 = orient(p[0], p[2], q[0], q[2], w[2], w[3]);
+      const d3 = orient(w[0], w[1], w[2], w[3], p[0], p[2]);
+      const d4 = orient(w[0], w[1], w[2], w[3], q[0], q[2]);
+      if (d1 * d2 < 0 && d3 * d4 < 0) return { leg: i, from: p, to: q, wall: w };
+    }
+  }
+  return null;
+}
+
+/** Places on the floor of every shared zone of the report: each zone's four
+ *  corners, a metre in from both walls, at eye height. The rig moves the game
+ *  to the one farthest from its door (the step out and back, Respawn, the build
+ *  editor). Pure. */
+function farPlaces(report) {
+  const out = [];
+  for (const pl of (report.places || []).filter((p) => p.kind === "zone")) {
+    const y = pl.min[1] + 1.7;
+    for (const x of [pl.min[0] + 1, pl.max[0] - 1]) for (const z of [pl.min[2] + 1, pl.max[2] - 1]) out.push([x, y, z]);
+  }
+  return out;
+}
+
+/** The farthest of `places` from `from`, across the floor. */
+function farthestFrom(places, from) {
+  return places.reduce((a, b) => (Math.hypot(b[0] - from[0], b[2] - from[2]) > Math.hypot(a[0] - from[0], a[2] - from[2]) ? b : a));
+}
+
+/** The longest step the game is moved in on its way into the Commons, metres:
+ *  the relay refuses any update more than 100 m from where it holds a player
+ *  (the design's increment 2: "moved in steps of 90 m or less"). */
+const MEET_MAX_STEP_M = 90;
+
+/**
+ * Judge the meeting in the Commons (verify-copresence --plots, increment 2)
+ * beyond the walk itself (judgeCopresence, with the view, and the pictures, are
+ * judged beside it). `meet`:
+ *   commons      the Commons place from the door points ({ min, max })
+ *   gameFrom     where the game started (its door)
+ *   gameSteps    every point the game was moved to, in order, the meeting pose last
+ *   gameCamera   the game's camera, read back at the meeting pose
+ *   gameHeld     where the relay held the game when it got there: the last of
+ *                its moves the walker (the first, still in its home) saw
+ *   walkerTube   the walker's own door corridor ({ min, max }, from the door points)
+ *   walkerDrawn  every position the game drew for the walker, in order
+ *   walkerSawGame  where the walker (the one walking to the meeting) saw the
+ *                game: the relay's word on joining ("player present") and any
+ *                move after it
+ * Checks: each step of the game's way in is one the relay accepts and the
+ * relay holds it in the Commons; the walker came out through its own corridor
+ * and into the Commons, as the game drew it; and the walker saw the game there.
+ * Returns { pass, checks }.
+ */
+function judgeMeet(meet) {
+  const checks = [];
+  const add = (id, ok, detail) => checks.push({ id: `meet_${id}`, ok: !!ok, detail });
+  const m = meet || {};
+  const fmt3 = (p) => (Array.isArray(p) ? `(${p.map((v) => Number(v).toFixed(2)).join(", ")})` : "(never)");
+  const d3 = (a, b) => (Array.isArray(a) && Array.isArray(b) ? Math.hypot(...[0, 1, 2].map((k) => Number(a[k]) - Number(b[k]))) : Infinity);
+  const inBox = (p, box, tol = 0.05) => Array.isArray(p) && box && [0, 2].every((k) => p[k] >= box.min[k] - tol && p[k] <= box.max[k] + tol);
+  const steps = Array.isArray(m.gameSteps) ? m.gameSteps : [];
+  let longest = 0;
+  for (let i = 0; i < steps.length; i++) longest = Math.max(longest, d3(i ? steps[i - 1] : m.gameFrom, steps[i]));
+  // The PLAN: no step longer than the relay's rule allows (the 90 m the design names). What the
+  // relay did with each is the next check (increment 2 review, finding 12: this one alone, named
+  // as if the relay had accepted each step, read nothing the relay said).
+  add(
+    "game_steps_planned_short",
+    steps.length > 0 && longest <= MEET_MAX_STEP_M,
+    steps.length
+      ? `the game's way in was planned from its door ${fmt3(m.gameFrom)} in ${steps.length} steps, the longest ${longest.toFixed(1)} m (at most ${MEET_MAX_STEP_M} m)`
+      : "the game was never moved",
+  );
+  // Each planned step, in order, among the positions the relay passed on for the game (the
+  // first walker, at home, logs them): a step the relay turned down would leave the game
+  // stranded behind it, whatever the plan said.
+  const relayed = Array.isArray(m.gameRelayed) ? m.gameRelayed : null;
+  let from = 0;
+  const missed = [];
+  for (const s of steps) {
+    const at = relayed ? relayed.findIndex((r, i) => i >= from && d3(r, s) <= 0.5) : -1;
+    if (at < 0) missed.push(s);
+    else from = at;
+  }
+  add(
+    "game_steps_relayed",
+    !!relayed && steps.length > 0 && missed.length === 0,
+    !relayed
+      ? "what the relay passed on for the game was not recorded"
+      : missed.length
+        ? `${missed.length} of ${steps.length} planned steps never passed on by the relay in order (first ${fmt3(missed[0])}); it passed on ${relayed.length} position(s)`
+        : `the relay passed on every one of the ${steps.length} planned steps, in order (${relayed.length} position(s) logged)`,
+  );
+  add(
+    "game_in_commons",
+    inBox(m.gameCamera, m.commons),
+    `the game's camera at ${fmt3(m.gameCamera)} is ${inBox(m.gameCamera, m.commons) ? "inside" : "OUTSIDE"} the Commons` +
+      (m.commons ? ` (x ${m.commons.min[0]}..${m.commons.max[0]}, z ${m.commons.min[2]}..${m.commons.max[2]})` : ""),
+  );
+  const held = d3(m.gameHeld, m.gameCamera);
+  add(
+    "relay_holds_game_there",
+    held <= 0.5,
+    `the relay last passed the game on at ${fmt3(m.gameHeld)}, ${Number.isFinite(held) ? held.toFixed(2) : "?"} m from its camera (at most 0.5: a move refused leaves it behind)`,
+  );
+  // Nothing crosses a wall (finding 14): the game's way in, the walker's way out, and the camera's
+  // view of the line, against every wall a person walks against (the door points' `walls`).
+  const walls = Array.isArray(m.walls) ? m.walls : null;
+  const line = m.line || null;
+  const mid = line ? line.start.map((v, k) => (Number(v) + Number(line.end[k])) / 2) : null;
+  const crossings = walls
+    ? [
+        ["the game's way in", routeWalls([m.gameFrom, ...steps].filter(Array.isArray), walls)],
+        ["the walker's way out", routeWalls(Array.isArray(m.walker_route) ? m.walker_route : [], walls)],
+        ...(line && Array.isArray(m.gameCamera) ? [line.start, mid, line.end].map((p) => ["the camera's view of the line", routeWalls([m.gameCamera, p], walls)]) : []),
+      ].filter(([, hit]) => hit)
+    : [];
+  add(
+    "routes_clear_of_walls",
+    !!walls && !!line && Array.isArray(m.walker_route) && crossings.length === 0,
+    !walls
+      ? "the walls were not recorded (the door points carry them)"
+      : !line || !Array.isArray(m.walker_route)
+        ? "the line or the walker's route was not recorded"
+        : crossings.length
+          ? `${crossings[0][0]} crosses the wall (${crossings[0][1].wall.map((v) => Number(v).toFixed(2)).join(", ")}) between ${fmt3(crossings[0][1].from)} and ${fmt3(crossings[0][1].to)}`
+          : `the game's way in, the walker's way out and the camera's view of the line cross none of the ${walls.length} walls`,
+  );
+  // The walker came back into the world AT ITS DOOR (finding 13): its join named the door
+  // (--home-spawn), and the relay must have spawned it there, not in the middle of its plot.
+  const start = m.walker && m.walker.start;
+  const fromDoor = d3(start, m.walkerDoor);
+  add(
+    "walker_from_its_door",
+    fromDoor <= 0.5,
+    `the relay spawned the walker at ${fmt3(start)}, ${Number.isFinite(fromDoor) ? fromDoor.toFixed(2) : "?"} m from its door ${fmt3(m.walkerDoor)} (at most 0.5)`,
+  );
+  const drawn = Array.isArray(m.walkerDrawn) ? m.walkerDrawn : [];
+  const inTube = drawn.filter((p) => inBox(p, m.walkerTube, 0.05)).length;
+  add(
+    "walker_through_its_corridor",
+    inTube > 0,
+    m.walkerTube
+      ? `${inTube} of ${drawn.length} drawn positions of the walker inside its own corridor (x ${m.walkerTube.min[0]}..${m.walkerTube.max[0]}, z ${m.walkerTube.min[2]}..${m.walkerTube.max[2]})`
+      : "the walker's corridor is unknown",
+  );
+  const firstIn = drawn.findIndex((p) => inBox(p, m.commons));
+  const tubeAt = drawn.findIndex((p) => inBox(p, m.walkerTube, 0.05));
+  add(
+    "walker_into_commons",
+    firstIn >= 0 && tubeAt >= 0 && tubeAt < firstIn,
+    firstIn < 0 ? "the walker was never drawn in the Commons" : `the walker was drawn in the Commons from frame ${firstIn}${tubeAt >= 0 ? `, after its corridor (frame ${tubeAt})` : ", never in its corridor first"}`,
+  );
+  const saw = Array.isArray(m.walkerSawGame) ? m.walkerSawGame : [];
+  const last = saw.length ? saw[saw.length - 1] : null;
+  const seen = d3(last, m.gameCamera);
+  add(
+    "walker_sees_game",
+    !!last && seen <= 0.5 && inBox(last, m.commons),
+    last
+      ? `the walker last saw the game at ${fmt3(last)}, ${seen.toFixed(2)} m from where it stands, ${inBox(last, m.commons) ? "in" : "NOT in"} the Commons`
+      : "the walker never saw the game",
+  );
+  return { pass: checks.every((c) => c.ok), checks };
+}
+
+/**
+ * Judge the second boot against the same relay (verify-copresence --plots, the
+ * remembered plot of increment 2). `reboot`:
+ *   heldPlot     the plot the game held before it restarted
+ *   defaultPlot  the ship's default plot
+ *   bootPlot     the plot the world load built the home on (the probe's boot_plot)
+ *   lastWelcome  what the welcome then did with the home ("stay", "move", ...)
+ *   camera, plot the game's camera after the welcome, and the held plot's box
+ * Returns { pass, checks }.
+ */
+function judgeReboot(reboot) {
+  const checks = [];
+  const add = (id, ok, detail) => checks.push({ id: `reboot_${id}`, ok: !!ok, detail });
+  const r = reboot || {};
+  const tells = r.heldPlot && r.heldPlot !== r.defaultPlot;
+  add(
+    "built_on_its_plot",
+    !!r.heldPlot && r.bootPlot === r.heldPlot,
+    `the second boot built the home on ${r.bootPlot || "(none reported)"} before joining; it held ${r.heldPlot || "(unknown)"}` +
+      (tells ? "" : ` (the ship's default plot: this order cannot tell a remembered plot from the default)`),
+  );
+  add("welcome_confirms", r.lastWelcome === "stay", `its welcome ${r.lastWelcome === "stay" ? "only confirmed the plot (a Stay)" : `did "${r.lastWelcome}"`}`);
+  const inPlot = Array.isArray(r.camera) && r.plot && [0, 2].every((k) => r.camera[k] >= r.plot.origin[k] - 0.01 && r.camera[k] <= r.plot.origin[k] + r.plot.size[k] + 0.01);
+  add("stands_on_its_plot", inPlot, `after the welcome the camera is at ${Array.isArray(r.camera) ? `(${r.camera.map((v) => Number(v).toFixed(2)).join(", ")})` : "(never)"}, ${inPlot ? "on" : "NOT on"} ${r.heldPlot}`);
+  return { pass: checks.every((c) => c.ok), checks };
+}
+
+// ── The guest (verify-copresence --plots --order guest, the increment 2 review, finding 2) ──
+//
+// With the shipped ship's two plots held by two scripted players, the game comes
+// in third, a guest: its home is put away off the ship (ShipStructure::
+// put_home_away), every plot is drawn as a neighbour's, it stands in the Commons,
+// and it cannot build. Until this leg no rig had a guest in it: the put-away and
+// the bring-back (rebuild, hull, room GI, collision, machines, animals, plants,
+// vehicles and built pieces carried there and back) were proven only by pure
+// planners and unit tests, and the commonest guest case (the third person to join)
+// was the review's finding 1.
+
+/** The start of the sentence a guest reads when it presses B
+ *  (engine/home_plot.rs GUEST_NO_EDITOR; a Rust test keeps the two equal). */
+const GUEST_NO_EDITOR_START = "You are a guest on this ship, with no plot of your own";
+
+/** True when `p` stands on a plot's ground: over a plot's box across the floor
+ *  (x and z), or inside the door corridor of a plot (a door point whose `from` is
+ *  a plot), as engine/home_plot.rs `on_plot_ground` tests it. `plots` are the
+ *  probe's ({ id, origin, size }), `doors` the door points'. Pure. */
+function onPlotGround(p, plots, doors, tol = 0.01) {
+  if (!Array.isArray(p)) return false;
+  const inXZ = (lo, hi) => p[0] >= lo[0] - tol && p[0] <= hi[0] + tol && p[2] >= lo[2] - tol && p[2] <= hi[2] + tol;
+  const onPlot = (plots || []).some((pl) => inXZ(pl.origin, [0, 1, 2].map((k) => pl.origin[k] + pl.size[k])));
+  const inTube = (doors || []).filter((d) => String(d.from).startsWith("plot:")).some((d) => inXZ(d.tube[0], d.tube[1]));
+  return onPlot || inTube;
+}
+
+/** Every thing of the home in a probe's `home_things`, but the Respawn point:
+ *  [label, [x, y, z]] each. */
+function homeThingsOf(things) {
+  if (!things) return [];
+  const one = (label, p) => (Array.isArray(p) ? [[label, p]] : []);
+  const many = (label, list) => (Array.isArray(list) ? list.map((p, i) => [`${label} ${i + 1}`, p]) : []);
+  return [
+    ...one("the hologram", things.hologram),
+    ...one("the showroom stage", things.showroom),
+    ...many("animal", things.animals),
+    ...many("plant", things.plants),
+    ...many("built piece", things.structures),
+    ...many("vehicle", things.vehicles),
+  ];
+}
+
+/**
+ * Judge a guest run. `g` (the manifest's `guest`):
+ *   plots, doors   the ship's plots (probe) and door points' doors
+ *   commons        the Commons place ({ min, max })
+ *   defaultPlot    the ship's default plot id (a guest's home comes back there)
+ *   walkers        [{ name, id, plot }]: the two scripted players holding the plots
+ *   arrived        the probe after the guest's welcome: { lastWelcome, homePlot,
+ *                  homeAway, camera, homeThings }
+ *   editor         after B was pressed: { open, notices }
+ *   respawn        the Respawn leg, as judgeRejoin takes it (far: where the relay
+ *                  held the guest at the far end of First Street)
+ *   back           after stepping out of the shared world: { homeAway, homePlot,
+ *                  homeThings }
+ *   again          after stepping back in: { lastWelcome, homeAway, camera }
+ *   reconnect      the dropped connection: { held (where the relay held the guest),
+ *                  during: { joined, homeAway, homePlot } (the home came back),
+ *                  before (the camera, walked into the home that came back),
+ *                  after: { lastWelcome, rejoin, homeAway, camera }, nudged, seen }
+ * Returns { pass, checks }; every id starts guest_.
+ */
+function judgeGuest(guest) {
+  const checks = [];
+  const add = (id, ok, detail) => checks.push({ id: `guest_${id}`, ok: !!ok, detail });
+  const g = guest || {};
+  const fmt3 = (p) => (Array.isArray(p) ? `(${p.map((v) => Number(v).toFixed(2)).join(", ")})` : "(never)");
+  const d3 = (a, b) => (Array.isArray(a) && Array.isArray(b) ? Math.hypot(...[0, 1, 2].map((k) => Number(a[k]) - Number(b[k]))) : Infinity);
+  const inCommons = (p) => Array.isArray(p) && g.commons && [0, 2].every((k) => p[k] >= g.commons.min[k] - 0.05 && p[k] <= g.commons.max[k] + 0.05);
+  const onPlot = (p) => onPlotGround(p, g.plots, g.doors);
+  const plotIds = (g.plots || []).map((p) => p.id).sort();
+  const held = (g.walkers || []).map((w) => w.plot).filter(Boolean).sort();
+  add(
+    "plots_taken",
+    plotIds.length > 0 && JSON.stringify(held) === JSON.stringify(plotIds),
+    `the scripted players hold ${held.join(", ") || "nothing"}; the ship's plots are ${plotIds.join(", ") || "(unknown)"}` +
+      (JSON.stringify(held) === JSON.stringify(plotIds) ? ", so the game comes in third, with none left" : ": a plot is left, so the game is no guest"),
+  );
+  const a = g.arrived || {};
+  add(
+    "welcome",
+    a.lastWelcome === "guest" && a.homePlot === null && a.homeAway === true,
+    `its welcome did "${a.lastWelcome}", the home stands on ${a.homePlot ? a.homePlot.id || a.homePlot : "no plot"} and is ${a.homeAway ? "put away" : "NOT put away"}`,
+  );
+  add("in_commons", inCommons(a.camera), `the guest's camera at ${fmt3(a.camera)} is ${inCommons(a.camera) ? "in" : "NOT in"} the Commons`);
+  const respawnPoint = a.homeThings && a.homeThings.respawn;
+  add("respawn_point", inCommons(respawnPoint), `its Respawn point ${fmt3(respawnPoint)} is ${inCommons(respawnPoint) ? "in" : "NOT in"} the Commons`);
+  const things = homeThingsOf(a.homeThings);
+  const onAPlot = things.filter(([, p]) => onPlot(p));
+  add(
+    "nothing_on_plots",
+    !!a.homeThings && things.length > 0 && onAPlot.length === 0,
+    !a.homeThings
+      ? "where the home's things stand was not recorded"
+      : onAPlot.length
+        ? `${onAPlot.length} of the home's ${things.length} things stand on a plot, first ${onAPlot[0][0]} at ${fmt3(onAPlot[0][1])}`
+        : `none of the home's ${things.length} things (its hologram, showroom stage, animals, plants, built pieces and vehicles) stands on a plot`,
+  );
+  const e = g.editor || {};
+  const told = (e.notices || []).some((n) => String(n).startsWith(GUEST_NO_EDITOR_START));
+  add(
+    "no_editor",
+    e.open === false && told,
+    `after B the build editor is ${e.open === false ? "shut" : e.open === true ? "OPEN" : "unknown"}; ${told ? "the guest was told why" : `no notice says why (on screen: ${JSON.stringify(e.notices || [])})`}`,
+  );
+  for (const c of judgeRejoin(g.respawn || {}, { prefix: "guest_respawn", when: "it pressed Respawn as a guest" }).checks) checks.push(c);
+  const rs = g.respawn || {};
+  add("respawn_in_commons", inCommons(rs.relaySpawn) && inCommons(rs.camera), `after Respawn the relay spawned the guest at ${fmt3(rs.relaySpawn)} and its camera stands at ${fmt3(rs.camera)}, ${inCommons(rs.relaySpawn) && inCommons(rs.camera) ? "both in" : "NOT both in"} the Commons`);
+  const b = g.back || {};
+  const def = (g.plots || []).find((p) => p.id === g.defaultPlot);
+  const backThings = homeThingsOf(b.homeThings);
+  // Nearer the default plot than any other, as judgePlots judges a home's things, and within a
+  // metre of its box: the hologram hangs half a metre outside the home's west wall (the first
+  // guest run, 20261004-120512, failed on it with "inside"), and a thing left where the home was
+  // kept is a kilometre away.
+  const onDefault = (p) => !!def && Array.isArray(p) && nearestPlot(p.map(Number), g.plots) === def && footprintGap(p.map(Number), def) <= 1;
+  const strays = [...backThings, ["its Respawn point", b.homeThings && b.homeThings.respawn]].filter(([, p]) => !onDefault(p));
+  add(
+    "home_back",
+    b.homeAway === false && (b.homePlot ? b.homePlot.id || b.homePlot : null) === g.defaultPlot && backThings.length === things.length && strays.length === 0,
+    `out of the shared world the home is ${b.homeAway === false ? "back" : "STILL AWAY"} on ${b.homePlot ? b.homePlot.id || b.homePlot : "no plot"} (the default is ${g.defaultPlot}), with ${backThings.length} of its ${things.length} things` +
+      (strays.length ? `; ${strays[0][0]} stands off it at ${fmt3(strays[0][1])}` : ", every one on the default plot with the Respawn point"),
+  );
+  const ag = g.again || {};
+  add(
+    "away_again",
+    ag.lastWelcome === "guest" && ag.homeAway === true && inCommons(ag.camera),
+    `back in the shared world its welcome did "${ag.lastWelcome}", the home is ${ag.homeAway ? "put away" : "NOT put away"} again, the camera at ${fmt3(ag.camera)} ${inCommons(ag.camera) ? "in" : "NOT in"} the Commons`,
+  );
+  const r = g.reconnect || {};
+  const du = r.during || {};
+  const af = r.after || {};
+  const setup = du.joined === false && du.homeAway === false && du.homePlot === g.defaultPlot && onPlot(r.before) && af.rejoin === true;
+  add(
+    "reconnect_setup",
+    setup,
+    `when the connection dropped the game ${du.joined === false ? "left the shared world" : "did NOT leave the shared world"} and its home came ${du.homeAway === false ? "back" : "NOT back"} on ${du.homePlot || "no plot"}; the camera walked into it, to ${fmt3(r.before)} (${onPlot(r.before) ? "on" : "NOT on"} a plot); the welcome on reconnecting said rejoin ${af.rejoin}` +
+      (af.rejoin === true ? " (inside the relay's grace)" : ": NOT a reconnect inside the grace, so this leg proves nothing about it"),
+  );
+  const gap = d3(af.camera, r.held);
+  add(
+    "reconnect_off_plot",
+    af.lastWelcome === "guest" && af.homeAway === true && !onPlot(af.camera) && gap <= REJOIN_STAND_TOL_M,
+    `after the reconnect's welcome ("${af.lastWelcome}", the home ${af.homeAway ? "put away" : "NOT put away"}) the camera stands at ${fmt3(af.camera)}, ${onPlot(af.camera) ? "ON A PLOT (a neighbour's home, with no walls to stop it)" : "on no plot"}, ${Number.isFinite(gap) ? gap.toFixed(2) : "?"} m from where the relay holds the guest ${fmt3(r.held)} (at most ${REJOIN_STAND_TOL_M})`,
+  );
+  const hit = (r.seen || []).find((p) => d3(p, r.nudged) <= REJOIN_NUDGE_TOL_M);
+  add(
+    "reconnect_moves_reach_others",
+    !!hit,
+    hit ? `its next move to ${fmt3(r.nudged)} reached the others through the relay, at ${fmt3(hit)}` : `its next move to ${fmt3(r.nudged)} never reached the others (${(r.seen || []).length} update(s) seen after it)`,
+  );
+  return { pass: checks.every((c) => c.ok), checks };
 }
 
 // ── Is the figure VISIBLE in a screenshot? ──────────────────────────────────
@@ -745,11 +1211,17 @@ const FIGURE_MIN_PX = 1500;
 /// png.js decode). With `nameplate` ([x, y], window pixels, where the game
 /// drew the walker's name), only a box under it is counted: 150 px either
 /// side (the figure moves a little between asking and capturing) and 450 px
-/// down from the name. Without it, the whole picture. Returns { count, box,
-/// centroid } (centroid null when nothing counted).
-function figurePixels(img, nameplate = null) {
+/// down from the name. With `after` too (where the name was drawn when asked
+/// again right after the capture), the box spans both, 150 px either side: on
+/// a busy machine the capture can land a second or more after the first ask,
+/// and the figure walks 200 px in that time (2026-10-04, increment 2's
+/// meeting: the name asked at x 1505, the figure captured at x 1286). Without
+/// a nameplate, the whole picture. Returns { count, box, centroid } (centroid
+/// null when nothing counted).
+function figurePixels(img, nameplate = null, after = null) {
+  const xs = [nameplate, after].filter(Boolean).map((p) => p[0]);
   const box = nameplate
-    ? [Math.max(0, Math.round(nameplate[0] - 150)), Math.max(0, Math.round(nameplate[1])), Math.min(img.width, Math.round(nameplate[0] + 150)), Math.min(img.height, Math.round(nameplate[1] + 450))]
+    ? [Math.max(0, Math.round(Math.min(...xs) - 150)), Math.max(0, Math.round(nameplate[1])), Math.min(img.width, Math.round(Math.max(...xs) + 150)), Math.min(img.height, Math.round(nameplate[1] + 450))]
     : [0, 0, img.width, img.height];
   let count = 0;
   let sx = 0;
@@ -784,6 +1256,17 @@ module.exports = {
   judgeRejoin,
   judgeEditorClose,
   judgeEntry,
-  respawnRoute,
+  placeAt,
+  doorRoute,
+  routeClear,
+  routeWalls,
+  farPlaces,
+  farthestFrom,
+  judgeMeet,
+  judgeReboot,
+  judgeGuest,
+  onPlotGround,
+  GUEST_NO_EDITOR_START,
+  MEET_MAX_STEP_M,
   REJOIN_FAR_M,
 };

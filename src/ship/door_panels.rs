@@ -65,6 +65,11 @@ pub struct PanelPlacement {
     /// LOCKS on this door (v0.570), resolved to world mount positions + authored initial states. The
     /// door is passable only when every lock is open; the LIVE state is tracked in EngineState.
     pub locks: Vec<ResolvedLock>,
+    /// A NEIGHBOUR's corridor door (ship homes increment 2 review, finding 8,
+    /// `neighbour_panel_placements`): it opens for the other players, the neighbour walking home,
+    /// and never for this one, whose way into a neighbour's corridor the shared zone's wall keeps
+    /// shut (that hole is cut for the eye only). `door_actor_distance` picks who counts.
+    pub others_only: bool,
 }
 
 /// Compute a PanelPlacement for every opening in EVERY zone of the ship (v0.754, ship-superstructure
@@ -90,7 +95,38 @@ pub fn ship_panel_placements(ship: &crate::ship::ship_structure::ShipStructure) 
     // Corridor mouths get their own sliding door pair (v0.795). These are built in WORLD space
     // already (corridor geometry is world-resolved), so no zone-origin offset applies.
     out.extend(corridor_panel_placements(ship));
+    // The neighbours' corridor mouths last (ship homes increment 2 review, finding 8), so no
+    // index above moves when a plot changes hands.
+    out.extend(neighbour_panel_placements(ship));
     out
+}
+
+/// A sliding door pair at each NEIGHBOUR corridor mouth, both ends (src/ship/neighbours.rs
+/// `neighbour_mouths`): each a `corridor_panel_placements` pair that opens only for the other
+/// players (`others_only`). Increment 2 review, finding 8: First Street showed an open hole into
+/// a neighbour's corridor where this player's own corridor mouths have doors, a walk at it met an
+/// invisible wall, and a neighbour standing in their corridor had their nameplate hidden by that
+/// unseen wall. Now the hole has a door, shut to this player, which opens for the neighbour
+/// walking through it (in the neighbour's own game it is their corridor's door, and opens for
+/// them), and the HUD's sight check agrees with it (`wall_collision::ship_sight_segments`).
+pub fn neighbour_panel_placements(ship: &crate::ship::ship_structure::ShipStructure) -> Vec<PanelPlacement> {
+    let view = crate::ship::neighbours::neighbour_view(ship);
+    view.neighbour_mouths(ship).iter().flat_map(|m| mouth_pair(m, true)).collect()
+}
+
+/// How far door `p` is from the nearest actor that opens it, across the floor (eye height never
+/// counts, or a tall camera would never trigger a short door). An ordinary door opens for anyone
+/// near it: the local player (`camera`, None while away from the ship), the other players
+/// (`others`) and the animals; a neighbour's door (`others_only`) for the other players only.
+/// `f32::MAX` with nobody to count. Pure (engine/home_meshes.rs `render_door_panels` gathers the
+/// actors once per frame).
+pub fn door_actor_distance(p: &PanelPlacement, camera: Option<Vec3>, others: &[Vec3], animals: &[Vec3]) -> f32 {
+    let across = |a: &Vec3| ((a.x - p.center.x).powi(2) + (a.z - p.center.z).powi(2)).sqrt();
+    let nearest_other = others.iter().map(across).fold(f32::MAX, f32::min);
+    if p.others_only {
+        return nearest_other;
+    }
+    camera.iter().chain(animals.iter()).map(across).fold(nearest_other, f32::min)
 }
 
 /// Two pocket-door HALF-PANELS per corridor mouth (v0.795, the operator's corridor doors): each
@@ -106,13 +142,20 @@ pub fn ship_panel_placements(ship: &crate::ship::ship_structure::ShipStructure) 
 pub fn corridor_panel_placements(
     ship: &crate::ship::ship_structure::ShipStructure,
 ) -> Vec<PanelPlacement> {
+    ship.corridor_mouths().iter().flat_map(|m| mouth_pair(m, false)).collect()
+}
+
+/// The two pocket-door half panels of one corridor mouth (`corridor_panel_placements`), none for a
+/// degenerate aperture (clamped to nothing). `others_only`: a neighbour's corridor door
+/// (`neighbour_panel_placements`).
+fn mouth_pair(m: &crate::ship::ship_structure::CorridorMouth, others_only: bool) -> Vec<PanelPlacement> {
     use crate::ship::ship_structure::CorridorAxis;
     use std::f32::consts::{FRAC_PI_2, PI};
     let mut out = Vec::new();
-    for m in ship.corridor_mouths() {
+    {
         let (dw, dh) = m.door;
         if dw <= 0.01 || dh <= 0.01 {
-            continue; // a degenerate aperture (clamped to nothing) gets no panels
+            return out;
         }
         // side = -1 is the low-coordinate half, +1 the high half, along the axis ACROSS the run.
         for side in [-1.0f32, 1.0] {
@@ -154,6 +197,7 @@ pub fn corridor_panel_placements(
                 // future "add a panel to this door" toggle needs no re-derivation.
                 control_panel_pos: Vec3::new(center.x, m.floor_y + 1.2, center.z),
                 locks: Vec::new(),
+                others_only,
             });
         }
     }
@@ -234,6 +278,7 @@ pub fn panel_placements(home: &HomeStructure) -> Vec<PanelPlacement> {
                 control_panel: op.control_panel,
                 control_panel_pos,
                 locks,
+                others_only: false,
             });
         }
     }

@@ -1466,8 +1466,9 @@ mod tests {
     //
     // The relay hands every player a plot of the ship and spawns them on it.
     // These tests read the ship from data/ the way the game does (1a's
-    // `load_and_assemble`), never from the relay's own answer, so a relay that
-    // spawned at the wrong point would disagree with the game and fail here.
+    // assembly, with the SHIPPED home design: `load_and_assemble_shipped`, never
+    // the checkout's own home), never from the relay's own answer, so a relay
+    // that spawned at the wrong point would disagree with the game and fail here.
     //
     // Seen red 2026-10-03 on the 1a relay (the commit before 1b), every one of
     // them: the failure texts are in each test's comment.
@@ -1482,7 +1483,7 @@ mod tests {
     /// Where the game puts a player whose home stands on plot `id`: 1a's
     /// assembly at that plot, then its spawn (ship metres, eye height).
     fn game_spawn_on(id: &str) -> [f32; 3] {
-        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble(std::path::Path::new("data"), Some(id))
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(std::path::Path::new("data"), Some(id))
             .unwrap_or_else(|e| panic!("the home assembles on {id}: {e}"));
         let s = ship.home_spawn_world().expect("the home design has a spawn");
         [s.x, s.y, s.z]
@@ -1523,7 +1524,7 @@ mod tests {
     /// (engine/home_plot.rs `add_join_fields`): this ship's hash, and the
     /// shipped home design's door, plot-local.
     fn game_join_fields() -> Value {
-        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble(std::path::Path::new("data"), None)
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(std::path::Path::new("data"), None)
             .expect("the ship assembles");
         let (x, z) = ship.home_arrival_local().expect("the shipped home names its door");
         serde_json::json!({ "ship_hash": ship.ship_hash(), "home_spawn": [x, z] })
@@ -2274,6 +2275,215 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// Review of BUG-135 option 2, second round, finding 10: every native sign-in now asks for
+    /// the server's settings, so the answer goes to the client that asked, not to everyone (a
+    /// reconnect wave after a deploy grew with the square of the clients). An admin's saved
+    /// change still reaches every client, which is how the others learn of it.
+    ///
+    /// Seen red 2026-10-04 on 8695b08d4 (the answer was broadcast): "a client that did not ask
+    /// was sent the answer: [String(\"server_settings_state\"), String(\"role_list\")]".
+    #[tokio::test]
+    async fn a_settings_request_is_answered_to_the_asker_and_a_save_to_everyone() {
+        let (state, port, path) = spawn_relay("settings_unicast", Features::all_enabled()).await;
+        let (mut asker, _) = bind_socket(&state, port, [152u8; 32], Some("SettingsAsker"), 1).await;
+        let (mut other, other_key) = bind_socket(&state, port, [153u8; 32], Some("SettingsBystander"), 1).await;
+        frames_until_quiet(&mut asker, 300).await;
+        frames_until_quiet(&mut other, 300).await;
+        send_json(&mut asker, serde_json::json!({ "type": "server_settings_request" })).await;
+        let heard = frames_until_quiet(&mut asker, 800).await;
+        assert!(heard.iter().any(|f| f["type"] == "server_settings_state"), "the asker got no settings: {heard:?}");
+        assert!(heard.iter().any(|f| f["type"] == "role_list"), "the asker got no role list: {heard:?}");
+        let overheard: Vec<Value> = frames_until_quiet(&mut other, 500).await;
+        let types: Vec<&Value> = overheard.iter().map(|f| &f["type"]).collect();
+        assert!(
+            overheard.iter().all(|f| f["type"] != "server_settings_state" && f["type"] != "role_list"),
+            "a client that did not ask was sent the answer: {types:?}"
+        );
+        // An admin's save still reaches everyone.
+        state.db.set_role(&other_key, "admin").unwrap();
+        send_json(&mut other, serde_json::json!({ "type": "server_settings_update", "dm_mailbox_ttl_days": 40 })).await;
+        let after = frames_until_quiet(&mut asker, 800).await;
+        assert!(
+            after.iter().any(|f| f["type"] == "server_settings_state" && f["settings"]["dm_mailbox_ttl_days"] == 40),
+            "an admin's saved change did not reach another client: {after:?}"
+        );
+        asker.close(None).await.ok();
+        other.close(None).await.ok();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Connect to `/ws` and complete the Dilithium identify handshake with `extra` merged into
+    /// the identify (`{"sign_up_again": true}`, the field only the person's Connect or Enter
+    /// sets). Returns at once, without waiting to be signed in: a key whose erase this relay
+    /// remembers is never signed in (handlers/sign_ups.rs).
+    async fn identify_with(port: u16, seed: [u8; 32], name: &str, extra: Value) -> (TestSocket, String) {
+        use base64::{engine::general_purpose::STANDARD as B64, Engine};
+        use futures::StreamExt;
+        let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&crate::relay::core::pq_crypto::derive_dilithium_seed(&seed));
+        let pubkey = hex::encode(dil.public_key());
+        let (mut sock, _) = tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{port}/ws")).await.expect("client connects to /ws");
+        let mut identify = serde_json::json!({ "type": "identify", "public_key": pubkey, "display_name": name });
+        if let (Some(i), Some(e)) = (identify.as_object_mut(), extra.as_object()) {
+            i.extend(e.clone());
+        }
+        send_json(&mut sock, identify).await;
+        let challenge: Value = serde_json::from_str(&sock.next().await.unwrap().unwrap().into_text().unwrap()).unwrap();
+        let nonce = challenge["nonce"].as_str().expect("an identify challenge").to_string();
+        let sig = B64.encode(dil.sign(format!("hum/identify/v1\n{nonce}\n{pubkey}").as_bytes()));
+        send_json(&mut sock, serde_json::json!({ "type": "identify_response", "sig_b64": sig })).await;
+        (sock, pubkey)
+    }
+
+    /// True when the relay closed `sock` within `ms` (a close frame, an error, or the end of
+    /// the stream); false when it was still open at the deadline.
+    async fn closed_within(sock: &mut TestSocket, ms: u64) -> bool {
+        use futures::StreamExt;
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_millis(ms);
+        loop {
+            match tokio::time::timeout_at(deadline, sock.next()).await {
+                Err(_) => return false,
+                Ok(None) | Ok(Some(Err(_))) => return true,
+                Ok(Some(Ok(tokio_tungstenite::tungstenite::Message::Close(_)))) => return true,
+                Ok(Some(Ok(_))) => continue,
+            }
+        }
+    }
+
+    /// Erase `name`'s account from its socket and wait until the relay has erased it.
+    async fn erase_and_wait(state: &std::sync::Arc<crate::relay::relay::RelayState>, sock: &mut TestSocket, key: &str, name: &str) {
+        send_json(sock, serde_json::json!({ "type": "account_delete", "confirm_name": name })).await;
+        let erased = wait_until(|| async { state.db.name_for_key(key).ok().flatten().is_none() }).await;
+        assert!(erased, "the erase ran");
+    }
+
+    /// BUG-135, the operator's option 2 (2026-10-04): a device that was offline during the
+    /// erase comes back with the same key. The relay remembers the erase, so that identify is
+    /// answered with `account_erased` (`earlier`: true) and NOTHING is signed up: no name
+    /// registered, no member row, the socket never signed in, and a game join on it claims no
+    /// plot. Another key connecting at the same time signs up as usual.
+    ///
+    /// Seen red 2026-10-04 with the identify gate taken out of relay.rs (`if false && ...`):
+    /// "the reconnecting device was never told the account was erased here: [Object
+    /// {\"peers\": ..." (the frames were the signed-in welcome: peer_list, full_user_list,
+    /// channel_list, ..., and a member_joined for the erased name: signed up again). And
+    /// with the relay answering but leaving the socket open (`continue`, as on c0c04fc39;
+    /// review finding 10): "the relay left the refused socket open".
+    #[tokio::test]
+    async fn an_erased_account_reconnecting_from_another_device_is_not_signed_up_again() {
+        let path = plots_db("erased_reconnect");
+        let (state, port, server) = relay_on(&path).await;
+        let ids = ship_plot_ids();
+        let ship = state.game_world.read().await.ship_plots.ship_id.clone();
+        let seed = [140u8; 32];
+        let (mut first, key) = bind_socket(&state, port, seed, Some("GoneFromHere"), 1).await;
+        erase_and_wait(&state, &mut first, &key, "GoneFromHere").await;
+        assert!(state.db.erased_account_remembered(&key), "the erase is remembered");
+        first.close(None).await.ok();
+        assert!(wait_until(|| async { live_count(&state, &key).await == 0 }).await, "the erasing device left");
+
+        // The other device, offline during the erase, reconnects by itself (no field).
+        let (mut later, _) = identify_with(port, seed, "GoneFromHere", serde_json::json!({})).await;
+        let heard = frames_until_quiet(&mut later, 1200).await;
+        let told = heard.iter().find(|f| f["type"] == "account_erased");
+        let told = told.unwrap_or_else(|| panic!("the reconnecting device was never told the account was erased here: {heard:?}"));
+        assert_eq!(told["to"], key.as_str());
+        assert_eq!(told["earlier"], true, "it says the erase was earlier");
+        assert_eq!(told["partial"], false);
+        assert!(heard.iter().all(|f| f["type"] != "peer_list"), "the erased key was signed in: {heard:?}");
+        assert_eq!(state.db.name_for_key(&key).unwrap(), None, "the name was registered again");
+        assert!(!state.db.is_member(&key), "a member row was made again");
+        assert_eq!(live_count(&state, &key).await, 0, "the socket signed in");
+        // Told, then closed at once (review finding 10): left open, the socket sat until the
+        // 30-second identify timeout, and a page that did not know the message retried. So no
+        // game join can even be sent on it.
+        assert!(closed_within(&mut later, 3000).await, "the relay left the refused socket open");
+        assert!(state.game_world.read().await.find_player_entity(&key).is_none(), "the erased key was spawned");
+        assert_eq!(state.db.plot_holder(&ship, &ids[0]).unwrap(), None, "a plot was claimed for the erased key");
+        assert!(state.db.erased_account_remembered(&key), "an automatic reconnect never forgets the erase");
+
+        // A different key, at the same time, signs up as usual.
+        let (mut other, other_key) = bind_socket(&state, port, [141u8; 32], Some("NewcomerHere"), 1).await;
+        assert_eq!(state.db.name_for_key(&other_key).unwrap().as_deref(), Some("NewcomerHere"), "another key was not signed up");
+        let theirs = frames_until_quiet(&mut other, 500).await;
+        assert!(theirs.iter().all(|f| f["type"] != "account_erased"), "another key was told it was erased: {theirs:?}");
+
+        later.close(None).await.ok();
+        other.close(None).await.ok();
+        server.abort();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The person chooses to come back: the Connect (native) or Enter (web) after an erase
+    /// sends `sign_up_again`, so the relay forgets the erase and signs them up again as a new
+    /// account, name registered, and their game joins and gets a plot. A later automatic
+    /// reconnect is an ordinary sign-in.
+    ///
+    /// Seen red 2026-10-04 with `sign_up_again` ignored by the gate in relay.rs (`false &&
+    /// pending.sign_up_again`): "the socket never signed in (1 live expected)", the relay
+    /// having answered the person's Connect with `account_erased` again.
+    #[tokio::test]
+    async fn pressing_connect_after_an_erase_signs_up_again_and_forgets_it() {
+        let path = plots_db("erased_comes_back");
+        let (state, port, server) = relay_on(&path).await;
+        let seed = [142u8; 32];
+        let (mut first, key) = bind_socket(&state, port, seed, Some("BackAgain"), 1).await;
+        erase_and_wait(&state, &mut first, &key, "BackAgain").await;
+        first.close(None).await.ok();
+        assert!(wait_until(|| async { live_count(&state, &key).await == 0 }).await);
+
+        let (mut back, _) = identify_with(port, seed, "BackAgain", serde_json::json!({ "sign_up_again": true })).await;
+        assert!(wait_until(|| async { live_count(&state, &key).await == 1 }).await, "the socket never signed in (1 live expected)");
+        let heard = frames_until_quiet(&mut back, 800).await;
+        assert!(heard.iter().all(|f| f["type"] != "account_erased"), "the person's Connect was refused: {heard:?}");
+        assert_eq!(state.db.name_for_key(&key).unwrap().as_deref(), Some("BackAgain"), "signed up again under the name");
+        assert!(!state.db.erased_account_remembered(&key), "the erase is forgotten once they came back");
+        let w = welcome_after_join(&mut back, "BackAgain").await;
+        assert!(welcome_plot(&w).is_some(), "their game gets a plot again");
+
+        // Later, an automatic reconnect (no field) is an ordinary sign-in.
+        back.close(None).await.ok();
+        assert!(wait_until(|| async { live_count(&state, &key).await == 0 }).await);
+        let (mut again, _) = bind_socket(&state, port, seed, Some("BackAgain"), 1).await;
+        let heard = frames_until_quiet(&mut again, 500).await;
+        assert!(heard.iter().all(|f| f["type"] != "account_erased"), "a returned account was refused: {heard:?}");
+
+        again.close(None).await.ok();
+        server.abort();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A device of the account still connected from before the erase (it got
+    /// `account_erased`, but an older or misbehaving client may stay) cannot claim a plot for
+    /// the erased account: its game join is refused with the erase's own reason and sentence.
+    ///
+    /// Seen red 2026-10-04 with the `refused_erased_join` call taken out of `refused_join`:
+    /// "no game_join_denied for the erased account; game messages seen: [\"game_welcome\",
+    /// \"game_player_joined\"]".
+    #[tokio::test]
+    async fn a_game_join_from_a_device_still_connected_after_the_erase_is_refused() {
+        let path = plots_db("erased_still_connected");
+        let (state, port, server) = relay_on(&path).await;
+        let ids = ship_plot_ids();
+        let ship = state.game_world.read().await.ship_plots.ship_id.clone();
+        let seed = [143u8; 32];
+        let (mut erasing, key) = bind_socket(&state, port, seed, Some("TwoDevices"), 1).await;
+        let (mut stays, _) = bind_socket(&state, port, seed, Some("TwoDevices"), 2).await;
+        erase_and_wait(&state, &mut erasing, &key, "TwoDevices").await;
+        frames_until_quiet(&mut stays, 500).await; // the receipt and account_erased it ignores
+
+        let (denied, seen) = game_reply_after_join(&mut stays, "TwoDevices", serde_json::json!({}), "game_join_denied").await;
+        let denied = denied.unwrap_or_else(|| panic!("no game_join_denied for the erased account; game messages seen: {seen:?}"));
+        assert_eq!(denied["reason"], "account_erased");
+        assert_eq!(denied["message"], crate::ship::ship_structure::ERASED_SENTENCE);
+        assert!(state.game_world.read().await.find_player_entity(&key).is_none(), "nothing was spawned");
+        assert_eq!(state.db.plot_holder(&ship, &ids[0]).unwrap(), None, "no plot was claimed");
+
+        erasing.close(None).await.ok();
+        stays.close(None).await.ok();
+        server.abort();
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// ROUND 5 of the 1b review (finding 3): an erase and then a crash before the next world
     /// save. The erase deleted the account's progress, but the stored world (written every
     /// 30 s, `GameWorld::save_to_db`) still held its figure, so the restore at the next start
@@ -2509,12 +2719,11 @@ mod tests {
 
         assert!(
             unclassified.is_empty(),
-            "these inbound WS message types belong to no feature and are not in              WS_ALWAYS_ON, so they FAIL OPEN - they stay fully usable even when              the owner switches their feature off:
-  {}
-
-Classify each in              ws_message_feature, or add it to WS_ALWAYS_ON with a reason.",
-            unclassified.join("
-  ")
+            "these inbound WS message types belong to no feature and are not in \
+             WS_ALWAYS_ON, so they FAIL OPEN - they stay fully usable even when \
+             the owner switches their feature off:\n  {}\n\nClassify each in \
+             ws_message_feature, or add it to WS_ALWAYS_ON with a reason.",
+            unclassified.join("\n  ")
         );
     }
 

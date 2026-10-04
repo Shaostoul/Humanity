@@ -9,6 +9,7 @@ pub mod home_plots;
 pub mod live_conns;
 pub mod msg_handlers;
 pub mod server_settings_update;
+pub mod sign_ups;
 pub mod utils;
 
 pub use broadcast::*;

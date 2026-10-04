@@ -1,6 +1,8 @@
 //! Server settings, the admin update (v0.200.0): `server_settings_update` from Server
 //! Settings > ADMIN. Each field is optional; a missing field keeps its current value.
-//! Admin-only; on success the new `server_settings_state` goes to every client.
+//! Admin-only; on success the expiry pass runs at once (a lowered erase window or cap
+//! holds right away, storage/expiry.rs) and the new `server_settings_state` goes to
+//! every client.
 //! The shared world's clock speed (`world_time_scale`) also reaches the running
 //! world and every connected game from here, with no restart (`set_world_clock`).
 //!
@@ -49,6 +51,7 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, upd: RelayMessage) {
         local_channel_enabled,
         dm_mailbox_ttl_days,
         message_retention_days,
+        erased_accounts_ttl_days, erased_accounts_cap,
         world_time_scale,
     } = upd else { return };
     let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
@@ -157,6 +160,10 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, upd: RelayMessage) {
         if let Some(v) = message_retention_days {
             current.message_retention_days = if v <= 0 { 0 } else { v.min(3650) };
         }
+        // Erased accounts remembered (BUG-135): held to the ranges the page offers.
+        use crate::relay::storage::{ERASED_ACCOUNTS_CAP_RANGE as CAP, ERASED_ACCOUNTS_TTL_DAYS_RANGE as TTL};
+        if let Some(v) = erased_accounts_ttl_days { current.erased_accounts_ttl_days = v.clamp(TTL.0, TTL.1); }
+        if let Some(v) = erased_accounts_cap { current.erased_accounts_cap = v.clamp(CAP.0, CAP.1); }
         // The shared world's clock speed (2026-10-04), held to the player
         // Time setting's 1..=1000; a value that is not a number changes nothing.
         if let Some(v) = world_time_scale.and_then(crate::relay::storage::clamp_world_time_scale) {
@@ -164,11 +171,12 @@ pub async fn handle(state: &Arc<RelayState>, my_key: &str, upd: RelayMessage) {
         }
         match state_clone.db.set_server_settings(&current, &my_key_for_recv) {
             Ok(true) => {
+                state_clone.db.run_expiry_sweeps(); // a lowered window or cap holds at once (storage/expiry.rs)
                 // Saved first, then the running world: a restart keeps it.
                 set_world_clock(state, current.world_time_scale).await;
-                // Broadcast new state to everyone.
+                // Broadcast new state to everyone (no target: an admin's change).
                 let _ = state_clone.broadcast_tx.send(
-                    RelayMessage::ServerSettingsState { settings: current }
+                    RelayMessage::ServerSettingsState { settings: current, target: None }
                 );
                 let sys = RelayMessage::System {
                     message: format!("Server settings updated by admin."),

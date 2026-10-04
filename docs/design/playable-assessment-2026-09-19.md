@@ -371,6 +371,14 @@ player's house. Eleven other districts (hangar, mech bay, reactor, medical,
 armory, arena, mall, transit, industrial, storage, cargo, agri) get generic box
 fillers.
 
+> **Since 2026-10-04 (ship homes increment 2), this reading is out of date and
+> kept as written.** `tile_home_clones`, its corridor connectors and
+> `home_design_roster()` are gone. A residential zone draws nothing: its homes
+> are the ship's plots, and every plot but the player's own is drawn as the
+> shipped homestead (`src/ship/neighbours.rs`, the shell baked by
+> `HomeStructure::bake_shell_groups`), render only. See
+> [ship-homes-and-logistics.md](ship-homes-and-logistics.md), section 7.
+
 **What is missing.**
 - **The clones have no collision.** `ship_wall_segments`
   (`src/ship/wall_collision.rs:145-156`) builds colliders only from
@@ -566,7 +574,10 @@ Tier A is roughly one focused week and it converts a tech demo into a game.
    on the zone body so a floor exists above the ground plane. This is complaint 7
    answered and complaint 6 unblocked.
 8. **Collision for generated geometry.** Today you walk through every residential
-   clone. Feed `tile_home_clones` output into `ship_wall_segments`.
+   clone. Feed `tile_home_clones` output into `ship_wall_segments`. (Superseded
+   2026-10-04: there are no clones; a neighbour's plot is drawn render only, and
+   the shared zone's wall stays whole in collision across its corridor, with a
+   door that opens only for the other players.)
 9. **Then author the acre with the tool**, partitioning the 4,565 m² of open
    shell into real rooms and moving the seventeen-station demo grid into a
    workshop. This is complaint 1, and it should be done in the editor so it

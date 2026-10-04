@@ -171,10 +171,17 @@ pub(super) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
                             state.park_active_connection();
                             state.server_url = target;
                         }
+                        // Connecting after an erase is the person signing up there again
+                        // (BUG-135): only then does this identify say so, and the relay, which
+                        // remembers the erase for a while, signs nothing up without it.
+                        let url = state.server_url.clone();
+                        let connect = if state.take_sign_up_again(&url) {
+                            crate::net::ws_client::WsClient::connect_signing_up_again
+                        } else {
+                            crate::net::ws_client::WsClient::connect_with_kyber
+                        };
                         // Full-PQ: manual Connect must advertise the Kyber key too.
-                        state.ws_client = Some(crate::net::ws_client::WsClient::connect_with_kyber(
-                            &ws_url, &name, &pubkey, &state.kyber_public_b64,
-                        ));
+                        state.ws_client = Some(connect(&ws_url, &name, &pubkey, &state.kyber_public_b64));
                         state.connected_server_url = state.server_url.clone();
                         // Fresh socket: identify handshake not yet complete (v0.794).
                         state.ws_identified = false;
@@ -184,9 +191,6 @@ pub(super) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
                         state.ws_reconnect_timer = 0.0;
                         state.ws_reconnect_delay = 5.0;
                         state.ws_reconnect_attempts = 0;
-                        // Connecting after an erase is the person signing up there again.
-                        let url = state.server_url.clone();
-                        state.forget_account_erased(&url);
                         crate::config::AppConfig::from_gui_state(state).save();
                     }
                 }

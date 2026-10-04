@@ -798,7 +798,7 @@ mod shipped {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
         let data_dir = root.join("data");
         let home = crate::machines::MachineHome::load(&data_dir.join("machines").join(file)).expect("home parses");
-        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble(&data_dir, None).expect("the shipped ship assembles");
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data_dir, None).expect("the shipped ship assembles");
         let hz = &ship.zones[ship.home_zone_index()];
         let rooms: Vec<(String, [f32; 3], [f32; 3])> = hz
             .body

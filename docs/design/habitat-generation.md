@@ -87,11 +87,18 @@ never completed.
 
 ## Spine: close, and not a new subsystem
 
-**What already works.** `HomeStructure::tile_home_clones`
-(`src/ship/home_structure.rs:988`) already takes a zone volume and fills it with
-a grid of complete walled dwellings, with real walls, doors, detected rooms, and
-auto-generated corridors bridging adjacent slots. That is genuinely a
-volume-to-content generator and it is shipped.
+**What already works, and what changed (2026-10-04).** The v0.638
+`HomeStructure::tile_home_clones`, which filled a residential zone with a grid of
+copies of the player's own home and laid corridors between adjacent slots, is
+gone since ship homes increment 2
+([ship-homes-and-logistics.md](ship-homes-and-logistics.md), section 7). A
+residential zone draws nothing now: its homes are the ship's PLOTS. Every plot
+but the player's own is drawn as its kind's shipped design, with its door
+corridor (`src/ship/neighbours.rs`, the shell baked by
+`HomeStructure::bake_shell_groups`), render only, with no collision of its own.
+So the volume-to-content generator for homes is now a list in the ship file (the
+plots), not a fill computed from a zone's box; the spine below would generate
+that list.
 
 **The two gaps.**
 

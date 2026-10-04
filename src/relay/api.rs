@@ -1577,6 +1577,11 @@ pub struct ServerInfoResponse {
     /// (`ship_hash`), because only a join naming this ship holds a plot; one naming none
     /// is a guest in the Commons. Empty strings when the relay could not load its ship.
     pub ship: serde_json::Value,
+    /// How many days this server remembers that an account was erased here, as a one-way
+    /// fingerprint (storage/erased_accounts.rs; BUG-135). Public so the web's Erase account
+    /// can say the real number before the person decides, and anyone can read the policy
+    /// before signing up.
+    pub erased_accounts_ttl_days: i64,
 }
 
 /// GET /api/server-info — public server metadata for federation discovery.
@@ -1650,6 +1655,7 @@ pub async fn get_server_info(
         funding,
         features: state.features.as_json(),
         ship,
+        erased_accounts_ttl_days: state.db.get_server_settings().map(|s| s.erased_accounts_ttl_days).unwrap_or(30),
     })
 }
 

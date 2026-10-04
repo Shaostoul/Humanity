@@ -191,6 +191,11 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
             // HUD, and no retry on this server until a fresh connection to it, a switch away
             // and back, or a fresh world load (engine/home_plot.rs `join_denied_sentence`).
             if let Some(sentence) = crate::engine::home_plot::join_denied_sentence(reason) {
+                // An erased account's plot went back with it: forget it (increment 2).
+                if reason == "account_erased" {
+                    let server = crate::engine::home_plot::active_server_key(&state.gui_state);
+                    crate::engine::home_plot::remember_plot(state, &server, None);
+                }
                 crate::engine::home_plot::refuse_shared_world(state, sentence.to_string(), None);
                 return;
             }

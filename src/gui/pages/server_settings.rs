@@ -606,7 +606,9 @@ fn draw_federation_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
 
     // Guaranteed local-only room (v0.1132): visible right where operators
     // think about federation, because it is the counterweight to it.
-    if let Some(draft) = state.server_settings_draft.clone().as_mut() {
+    // Only on a working copy made from the server's real settings: the checkbox sends the
+    // whole copy (gui/connections.rs `page_draft`).
+    if let Some(draft) = crate::gui::connections::page_draft(state.server_settings_draft.as_ref(), state.server_settings.as_ref()).as_mut() {
         let mut on = draft.local_channel_enabled;
         if ui
             .checkbox(
@@ -2095,17 +2097,17 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
     // the live working copy; it's seeded from the cached relay-broadcast
     // state and only pushed to the relay when the operator clicks Save
     // Changes (server-wide settings must NOT broadcast on every keystroke).
-    let cached: crate::relay::storage::ServerSettings =
-        state.server_settings.clone().unwrap_or_default();
-    // Seed / re-seed the draft from cache when there's no draft yet, OR
-    // when it exactly equals the cache (i.e. no unsaved edits) so an
-    // external admin's broadcast update flows in. If the draft differs
-    // (operator has unsaved edits) we preserve it. Edge case — two
-    // admins editing simultaneously — the "Revert to server state"
-    // button is the escape hatch.
-    if state.server_settings_draft.is_none() {
-        state.server_settings_draft = Some(cached.clone());
-    }
+    // The draft is made from the server's REAL settings only, never from defaults: until they
+    // arrive there is no form and nothing to save (gui/connections.rs `page_draft`; review of
+    // BUG-135 option 2, second round, finding 3: Save wrote every default back). When new
+    // settings arrive, a draft with no unsaved edits follows them, and one with edits is kept
+    // (`draft_after_settings_arrive`). Two admins editing at once: "Revert to server state"
+    // is the escape hatch.
+    let Some(cached) = state.server_settings.clone() else {
+        widgets::body_hint(ui, theme, "Waiting for this server's settings. Nothing here can be changed until they arrive.");
+        return;
+    };
+    state.server_settings_draft = crate::gui::connections::page_draft(state.server_settings_draft.as_ref(), Some(&cached));
     let effective = state.server_settings_draft.clone().unwrap_or_else(|| cached.clone());
 
     // Last-updated badge (informational).
@@ -2182,7 +2184,9 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
              expire after this many days. The server stores no sender and cannot \
              read them; long-term history lives encrypted on each member's own \
              devices. Shorter = less ciphertext a subpoena or breach could ever \
-             collect; longer = more catch-up window for devices that were offline.",
+             collect; longer = more catch-up window for devices that were offline. \
+             Saving a lower number deletes every envelope older than it at once, \
+             and that cannot be undone.",
         );
         widgets::form_row(ui, theme, "Days before sealed DMs expire", |ui| {
             int_input(ui, &mut draft.dm_mailbox_ttl_days, 1, 365);
@@ -2194,10 +2198,35 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
             ui, theme,
             "Auto-delete public channel messages older than this many days (0 = keep \
              forever). Pinned messages are always kept. Shorter = less history a \
-             subpoena or breach of this server could ever reach.",
+             subpoena or breach of this server could ever reach. Saving a lower \
+             number (or a number in place of 0) deletes every message older than \
+             it at once, and that cannot be undone.",
         );
         widgets::form_row(ui, theme, "Keep messages for (days, 0 = forever)", |ui| {
             int_input(ui, &mut draft.message_retention_days, 0, 3650);
+        });
+
+        // Erased accounts remembered (BUG-135, the operator's option 2, 2026-10-04): the
+        // relay's storage/erased_accounts.rs, culled by these two numbers.
+        ui.add_space(theme.spacing_md);
+        widgets::subsection_label(ui, theme, "Erased accounts");
+        widgets::body_hint(
+            ui, theme,
+            "When someone erases their account here, the server remembers that it was erased, \
+             as a one-way fingerprint of the key, the day and this number of days, nothing \
+             else, so their other devices do not sign them up again by themselves. People read \
+             the number before they erase, so a longer number applies only to erases made after \
+             you change it, while a shorter one applies to every entry at once. Entries past \
+             their days are deleted, and the list never holds more than the number below (when \
+             full, the oldest go first); saving here applies both straight away.",
+        );
+        let (ttl_min, ttl_max) = crate::relay::storage::ERASED_ACCOUNTS_TTL_DAYS_RANGE;
+        let (cap_min, cap_max) = crate::relay::storage::ERASED_ACCOUNTS_CAP_RANGE;
+        widgets::form_row(ui, theme, "Remember an erase for (days)", |ui| {
+            int_input(ui, &mut draft.erased_accounts_ttl_days, ttl_min, ttl_max);
+        });
+        widgets::form_row(ui, theme, "Most erased accounts remembered", |ui| {
+            int_input(ui, &mut draft.erased_accounts_cap, cap_min, cap_max);
         });
 
         ui.add_space(theme.spacing_sm);
@@ -2228,6 +2257,7 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         } else {
             widgets::body_hint(ui, theme, "No unsaved changes. Edit any field above; it applies on Save.");
         }
+        draw_changed_underneath_note(ui, theme, state, dirty);
         ui.add_space(theme.spacing_xs);
         let mut save_clicked = false;
         let mut cancel_clicked = false;
@@ -2256,13 +2286,26 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
             // (the 4 master sharing/voice/streaming switches live there
             // now). ONE builder so the two entry points can never drift.
             send_server_settings_update(state, &draft);
-            state.server_settings_draft = None;
+            state.discard_server_settings_draft();
             let now = ui.ctx().input(|i| i.time);
             state.toast("Server settings sent to the relay", crate::gui::ToastKind::Success, now);
         }
         if cancel_clicked {
-            state.server_settings_draft = None;
+            state.discard_server_settings_draft();
         }
+    }
+}
+
+/// What the page says while its working copy holds unsaved edits and the server's settings
+/// changed under them (another admin saved, or they changed while this app was offline;
+/// gui/connections.rs `changed_under_edits`). One line, because Save sends the whole copy.
+const CHANGED_UNDERNEATH_NOTE: &str = "This server's settings changed while you were editing. \
+    Saving sends your whole copy and would undo that change; Revert to server state shows the new settings.";
+
+/// `CHANGED_UNDERNEATH_NOTE` above a section's Save button, while it has unsaved edits.
+fn draw_changed_underneath_note(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, dirty: bool) {
+    if dirty && state.server_settings_changed_underneath {
+        ui.label(RichText::new(CHANGED_UNDERNEATH_NOTE).size(theme.font_size_small).color(theme.warning()));
     }
 }
 
@@ -2351,11 +2394,20 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             // same `server_settings_update` payload the Server-policy Save
             // uses. `Upload` has no server-wide master (legacy general
             // can_upload is per-role only) so that cell is a dash.
-            {
-                let ss_cached = state.server_settings.clone().unwrap_or_default();
-                let mut ss_draft = state.server_settings_draft
-                    .clone()
-                    .unwrap_or_else(|| ss_cached.clone());
+            // Until the server's settings arrive the row shows dashes and no Save (gui/
+            // connections.rs `page_draft`): toggles edited over defaults would save them.
+            let known = state.server_settings.clone().zip(crate::gui::connections::page_draft(
+                state.server_settings_draft.as_ref(),
+                state.server_settings.as_ref(),
+            ));
+            if known.is_none() {
+                ui.label(RichText::new("Server master").size(theme.font_size_body).color(theme.accent()).strong());
+                for _ in 0..11 {
+                    ui.label(RichText::new(", ").size(theme.font_size_small).color(theme.text_muted()));
+                }
+                ui.end_row();
+            }
+            if let Some((ss_cached, mut ss_draft)) = known {
                 let dash = |ui: &mut egui::Ui| {
                     ui.label(
                         RichText::new(", ")
@@ -2525,7 +2577,7 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // Same payload + behavior as the Server-policy "Save Changes"
         // button (clear the draft so it re-seeds from the relay's echo).
         send_server_settings_update(state, &ss);
-        state.server_settings_draft = None;
+        state.discard_server_settings_draft();
     }
     if let Some(id) = pending_delete {
         if let Some(ref client) = state.ws_client {
@@ -2589,12 +2641,14 @@ fn draw_services_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     // Shared draft — identical source the Server-policy Save + the
     // Server-master row use, so soft toggles never drift.
-    let cached: crate::relay::storage::ServerSettings =
-        state.server_settings.clone().unwrap_or_default();
-    if state.server_settings_draft.is_none() {
-        state.server_settings_draft = Some(cached.clone());
+    // Made from the server's real settings only (gui/connections.rs `page_draft`): until they
+    // arrive the soft gates show dashes and cannot be saved, while the daemon controls,
+    // which do not use them, work as usual.
+    let cached = state.server_settings.clone();
+    let mut draft = crate::gui::connections::page_draft(state.server_settings_draft.as_ref(), cached.as_ref());
+    if draft.is_none() {
+        widgets::body_hint(ui, theme, "The feature switches appear once this server's settings arrive.");
     }
-    let mut draft = state.server_settings_draft.clone().unwrap_or_else(|| cached.clone());
 
     let services = state.service_state.clone();
     if services.is_empty() {
@@ -2635,9 +2689,9 @@ fn draw_services_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         .color(theme.text_primary()),
                 );
                 // Soft gate → the shared draft field for this service.
-                match svc.id.as_str() {
-                    "voice" => { ui.checkbox(&mut draft.voice_channels_enabled, ""); }
-                    "p2p" => { ui.checkbox(&mut draft.p2p_distribution_enabled, ""); }
+                match (svc.id.as_str(), draft.as_mut()) {
+                    ("voice", Some(draft)) => { ui.checkbox(&mut draft.voice_channels_enabled, ""); }
+                    ("p2p", Some(draft)) => { ui.checkbox(&mut draft.p2p_distribution_enabled, ""); }
                     _ => {
                         ui.label(
                             RichText::new(", ")
@@ -2672,10 +2726,13 @@ fn draw_services_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     // Persist the (possibly-edited) draft back to state so the soft
     // checkbox isn't reverted next frame.
-    state.server_settings_draft = Some(draft.clone());
+    if draft.is_some() {
+        state.server_settings_draft = draft.clone();
+    }
 
     ui.add_space(theme.spacing_sm);
-    let dirty = draft != cached;
+    let dirty = draft.is_some() && draft != cached;
+    draw_changed_underneath_note(ui, theme, state, dirty);
     ui.horizontal(|ui| {
         ui.add_enabled_ui(dirty, |ui| {
             if widgets::Button::primary("Save feature toggles")
@@ -2683,8 +2740,10 @@ fn draw_services_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                           the Server-policy Save). Broadcasts to all clients.")
                 .show(ui, theme)
             {
-                send_server_settings_update(state, &draft);
-                state.server_settings_draft = None;
+                if let Some(ref draft) = draft {
+                    send_server_settings_update(state, draft);
+                }
+                state.discard_server_settings_draft();
                 let now = ui.ctx().input(|i| i.time);
                 state.toast("Feature toggles sent to the relay", crate::gui::ToastKind::Success, now);
             }
@@ -2773,6 +2832,9 @@ fn send_server_settings_update(
                 "dm_mailbox_ttl_days":            draft.dm_mailbox_ttl_days,
                 // Public message retention (2026-08-24).
                 "message_retention_days":         draft.message_retention_days,
+                // Erased accounts remembered: days and cap (BUG-135, 2026-10-04).
+                "erased_accounts_ttl_days":       draft.erased_accounts_ttl_days,
+                "erased_accounts_cap":            draft.erased_accounts_cap,
                 // Guaranteed local-only room toggle (v0.1132).
                 "local_channel_enabled":           draft.local_channel_enabled,
             });
