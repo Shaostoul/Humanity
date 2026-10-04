@@ -11,6 +11,15 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1455.0: no more free money at the trading post, and vehicles built
+  from real amounts of material.** 24 recipes let you buy the parts, craft
+  something and sell it back for more, forever; none do now, and a test
+  checks every recipe for it. Fixing that showed the vehicle recipes were
+  toys (a 50-tonne freighter from 200 kg of parts), so every vehicle is now
+  built from about its own weight in steel, aluminium, glass, wiring and
+  parts, and priced to match: a motorcycle 2,500 credits, a sedan 14,500, a
+  light mech 120,000.
+
 - **v0.1454.1: three Library guides on building.** How a Building Stands Up
   (how loads travel to the ground, snow on a roof, warning signs that mean get
   out, and why connections fail first), Foundations and Ground (what soil can

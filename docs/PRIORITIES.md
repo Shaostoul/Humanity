@@ -195,6 +195,20 @@ stored levels (v0.1394.0), the 24-hour configurable day (v0.1395.0, Blocked
 first unticked item in its "Fenced arcs" list.
 Rendering items below still run beside it on files that do not overlap.
 
+**Economy and crafting follow-ups (2026-10-04, from BUG-143/145):** the
+trading post now sells only real items (v0.1453.0), no recipe resells for more
+than its inputs cost at standard grade, and vehicles carry real bills of
+materials (v0.1455.0). Two open, both in `docs/BUGS.md`: BUG-147, the big
+vehicles cannot be hand-crafted from the backpack (needs a build station that
+draws parts from home storage, the right station per vehicle class, and the
+`assemble_*` kit recipes given real bills of materials too); BUG-146, a
+better craft grade still loops at the vendor (the fix is a vendor price that
+responds to how much of a good it already holds, not lower prices). Smaller:
+`craft_optical_fiber` makes copper wire (no optical fibre item), sterile
+bandages yield 8 against 5 plain, several item weights differ between
+items.csv and trade_goods.ron, and herbal_tea_0 and brass_key_0 are named
+by data but are not items.
+
 ### 1. Environment regions: the rest of the arc BUG-080 opened
 
 Weather has been a place since v0.1330.0 (BUG-080,

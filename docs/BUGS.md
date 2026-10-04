@@ -3354,7 +3354,7 @@ new (a guide quoting its own former wording, hidden before by the
 desynchronised pairing); those two and the 95-percent source-list line got
 `quote-ok` markers with their reasons. 0 problems.
 
-## BUG-145: six recipes turn vendor-bought inputs into goods that sell back for more (OPEN, found 2026-10-04)
+## BUG-145: recipes turn vendor-bought inputs into goods that sell back for more (FIXED v0.1455.0, found 2026-10-04)
 
 **Seen:** while fixing BUG-143, a check over every recipe whose inputs the
 vendor sells found six where buying the inputs (at 1.25x base) and selling
@@ -3372,6 +3372,62 @@ the result (at 0.5x base) makes money, before BUG-143 and after it:
 **Why it matters:** an endless money loop at any trading post. In a shared
 world it inflates everyone's prices.
 
-**Fix (not started):** reprice the outputs in `data/trade_goods.ron` from what
-their inputs and labour cost, or change the recipes, and add a test that no
-recipe whose inputs the vendor sells can be resold for more than they cost.
+**There were 24, not 6.** Counting only recipes whose inputs the vendor sells
+misses most loops: an input it does not sell can usually be crafted from goods
+it does (buy logs, saw planks, build a bow; buy copper ore, smelt, make servo
+motors, build a light mech that sold for 4000 from 1317 of goods).
+
+**Fix:** test `no_recipe_resells_for_more_than_its_inputs_cost`
+(`src/systems/economy/mod.rs`) works out every item's cheapest cost, buying
+it or crafting it from cheaper inputs with byproducts credited, through the
+runtime's own loaders and the vendor's own price functions, and names every
+recipe whose outputs sell for more; it also fails on a cycle of recipes that
+makes goods from nothing and on fewer than 300 recipes checked. Seen red on
+24. Fixed by repricing 22 outputs.
+
+That first fix left vehicles absurd (a spacecraft pod cheaper than a sedan),
+because the vehicle recipes put 38 to 203 kg of parts into vehicles of 180 kg
+to 50 t. All 25 vehicle recipes now carry a bill of materials of 1.0 to 1.25
+times the vehicle's weight, and every vehicle sells for between its parts'
+cost and twice it (tests `vehicle_recipes_weigh_what_the_vehicle_weighs` and
+`no_vehicle_sells_for_less_than_its_parts`, each seen red). Vehicles now cost
+3 to 26 times their old prices (a motorcycle 2500, a light mech 120,000),
+still below real-world prices on the project's own wage scale.
+
+**Left:** quality grades still loop (BUG-146), and the big vehicles can no
+longer be hand-crafted from the backpack (BUG-147).
+
+## BUG-146: a better craft grade still makes a money loop at the vendor (OPEN, found 2026-10-04)
+
+**Seen:** while fixing BUG-145. The vendor pays 0.5x a good's price times its
+craft grade (`data/manufacturing.ron`: good 1.5, excellent 2.5, masterwork
+5.0), so a crafted good loops at good grade once its price is over 1.33x its
+parts, and at masterwork once it is over 0.4x. On the v0.1455.0 data, good
+grade loops in about 33 recipes, excellent 67, masterwork 115; every vehicle
+(priced at up to 2x its parts) loops at good grade and above. The BUG-145
+test checks standard grade only, on purpose.
+
+**Why it is not just a price:** a skilled crafter turning cheap inputs into
+valuable goods is real labour value and should pay. What makes it a loop is
+a vendor that buys any quantity at a fixed price. The fix belongs in how the
+vendor values grade and quantity (a price that responds to how much of a
+good it already holds, or grade paid on labour rather than on the whole
+price), not in lowering every price below 0.4x its parts.
+
+## BUG-147: the big vehicles cannot be hand-crafted from the backpack (OPEN, found 2026-10-04)
+
+**Seen:** after the vehicle bills of materials (BUG-145) became realistic. A
+manual craft draws only on the backpack (36 slots, about 65 L). Only the
+bicycles, hand cart, sled and e-scooter fit; a spacecraft pod needs about
+158 slots and 2200 L, a freighter about 2132 slots and 29,000 L. The boats
+were already over 65 L before. Every vehicle, spacecraft and the locomotive
+included, is built at `workbench_0`.
+
+**Not affected:** the default Dev play mode, where crafting takes no inputs;
+the automation path, which already counts home storage.
+
+**Fix (not started):** big builds need a station that draws parts from home
+storage (a shipyard or assembly bay) and the right station per vehicle class,
+which is also what a real build of a boat or an aircraft looks like. The
+`assemble_*` kit recipes have the same toy bills of materials (a 1497 kg car
+from 81 kg of parts) and are not yet covered by the weight test.
