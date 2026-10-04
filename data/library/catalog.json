@@ -528,6 +528,37 @@
           ]
         },
         {
+          "title": "How a Building Stands Up",
+          "src": "docs/user/skills/how_a_building_stands_up.md",
+          "tags": [
+            "guide",
+            "real",
+            "shelter",
+            "safety"
+          ]
+        },
+        {
+          "title": "Foundations and Ground",
+          "src": "docs/user/skills/foundations_and_ground.md",
+          "tags": [
+            "guide",
+            "real",
+            "shelter",
+            "safety"
+          ]
+        },
+        {
+          "title": "Framing a Building",
+          "src": "docs/user/skills/framing_a_building.md",
+          "tags": [
+            "guide",
+            "real",
+            "shelter",
+            "making",
+            "safety"
+          ]
+        },
+        {
           "title": "Your First Solar Power",
           "src": "docs/user/skills/first_solar_power.md",
           "tags": [

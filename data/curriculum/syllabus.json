@@ -1201,10 +1201,28 @@
       "subject": "shelter",
       "title": "How a building stands up",
       "summary": "Understand loads, spans and why structures fail.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "how-a-building-stands-up"
+      ],
       "skills": [
         "shelter_building",
         "woodworking"
+      ],
+      "data": [
+        "data/blueprints/basic.ron",
+        "data/blueprints/wall_materials.ron"
+      ],
+      "sources": [
+        "dod-technical-manuals",
+        "fpl-wood-handbook",
+        "building-america",
+        "fema",
+        "hud",
+        "nist",
+        "epa",
+        "osha",
+        "ecfr"
       ],
       "locale_dependent": false,
       "hazard": "serious"
@@ -1214,9 +1232,27 @@
       "subject": "shelter",
       "title": "Foundations and ground",
       "summary": "Put a building on ground that will hold it.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "foundations-and-ground"
+      ],
       "skills": [
         "shelter_building"
+      ],
+      "data": [
+        "data/blueprints/basic.ron"
+      ],
+      "sources": [
+        "hud",
+        "ecfr",
+        "dod-technical-manuals",
+        "usfs",
+        "fpl-wood-handbook",
+        "epa",
+        "osha",
+        "phmsa",
+        "building-america",
+        "usda-websoilsurvey"
       ],
       "locale_dependent": true,
       "hazard": "serious"
@@ -1226,10 +1262,28 @@
       "subject": "shelter",
       "title": "Framing",
       "summary": "Build a frame that is square, plumb and strong enough.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "framing-a-building"
+      ],
       "skills": [
         "shelter_building",
         "woodworking"
+      ],
+      "data": [
+        "data/blueprints/basic.ron",
+        "data/items.csv",
+        "data/recipes.csv"
+      ],
+      "sources": [
+        "dod-technical-manuals",
+        "fpl-wood-handbook",
+        "niosh",
+        "osha",
+        "ecfr",
+        "building-america",
+        "hud",
+        "usfs"
       ],
       "locale_dependent": false,
       "hazard": "serious"
