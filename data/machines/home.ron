@@ -2336,7 +2336,7 @@
                 ),
                 (
                     kind: "water",
-                    value: "12 L/min",
+                    value: "2 L/min",
                     status: "ok",
                 ),
             ],

@@ -3281,3 +3281,25 @@ when it had to wait and how long, and on giving up names the folder that
 stayed locked. Any other error is thrown at once. Tests:
 `scripts/tests/rig-exe-copy.test.js` (in `just rig-tests`), including a lock
 that lasts 4 s, which the old single retry after 2 s could not survive.
+
+## BUG-143: 140 of the vendor's 300 trade goods are not items, so the shop silently never offers them (OPEN, found 2026-10-04)
+
+**Seen:** the fact check of the Stone, Clay and Earth guide noticed `clay_0` in
+`data/trade_goods.ron` with no such item in `data/items.csv` (which calls it
+`clay_raw_0`). A count over both files: 140 of the 300 trade-good ids are not
+items, among them dirt, bamboo, sulfur, cotton, flax, hemp, lumber, brick, tin
+ingots, cotton cloth, nails and steel pipe.
+
+**Effect:** nothing breaks, which is why it went unseen. The vendor's catalog
+(`GuiState::vendor_goods`, built in `lib.rs`) keeps only goods present in BOTH
+files, so the 140 are dropped without a word, and a player can never buy or
+sell clay, fibre, lumber or brick at a trading post.
+
+**Fix in progress:** each missing id is renamed to the item it means, added
+to items.csv as a real material, or removed if nothing in the game uses it,
+and a test fails on any trade good that is not an item.
+
+Also found by the same checks, smaller: the water pump's card said 12 L/min
+while its own water port and the self-sufficiency data say 2 L/min (fixed
+2026-10-04 in `home.ron` and `home_solo.ron`; `home_outline.json` had listed
+it as a contradiction to fix since September).

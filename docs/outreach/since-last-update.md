@@ -11,6 +11,15 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1452.1: three more Library guides, and the water pump tells the
+  truth.** Moving Water Without Power (siphons, gravity lines, hand pumps,
+  rain tanks and their weight, keeping children safe around water), Stone,
+  Clay and Earth (dry stone walls, mud bricks, the right mortar for old and
+  earth walls, silica dust and digging safely), and Fibre, Cord and Textiles
+  (spinning and twisting cord, knots and how much they weaken a rope, moths,
+  and clothes near a flame). The Library now has 68 sourced guides. The water
+  pump's card said 12 litres a minute; it pumps 2, and now says so.
+
 - **v0.1452.0: a day passes in 20 minutes on a shared server, carrying
   weight matters, and the real night sky.** A shared world's clock now runs
   at 72 times real speed by default, so a day passes in 20 minutes; the
