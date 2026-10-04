@@ -94,6 +94,10 @@ impl Storage {
             // The plot their home stands on (ship homes 1b; the third review: it was neither
             // exported nor erased).
             grab("ship_plots", "SELECT world_id, plot_id, assigned_at FROM game_plots WHERE owner_did = ?1", &[&plot_owner]);
+            // Their progress in the shared world (their quest, completed quests, XP and
+            // reputation there), kept so a returning player resumes (ship homes 1b, round 4 of
+            // the review: it was neither exported nor erased).
+            grab("game_progress", "SELECT current_quest, completed_quests, xp, reputation, updated_at FROM player_progress WHERE public_key = ?1", &[&key]);
 
             // ── Things erase deletes but export never offered ──
             // These six were in delete_account() with no matching grab here.
@@ -219,6 +223,8 @@ impl Storage {
             // review: an erased account held its plot for good, and nothing in the app could
             // free it, because the key an admin would name was erased with everything else).
             del("ship_plots", "DELETE FROM game_plots WHERE owner_did = ?1", &[&plot_owner]);
+            // Their progress in the shared world (round 4 of the 1b review).
+            del("game_progress", "DELETE FROM player_progress WHERE public_key = ?1", &[&key]);
             // Fold the secure_delete-zeroed pages out of the WAL.
             let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
         });
@@ -400,5 +406,30 @@ mod tests {
         assert_eq!(db.plot_holder("mothership-1", "p2").unwrap(), Some(plot_owner_id(dev)), "the other player keeps theirs");
         // The next player gets the freed plot.
         assert_eq!(db.claim_plot("mothership-1", &plot_owner_id("c0ffee03"), &plots).unwrap().as_deref(), Some("p1"));
+    }
+
+    /// Ship homes 1b, round 4 of the review (finding 11): the player's progress in the shared
+    /// world (`player_progress`: their quest, completed quests, XP and reputation, kept by
+    /// public key so a returning player resumes) was neither exported nor erased. The export
+    /// lists it, the erase deletes it, and another player's row is untouched.
+    ///
+    /// Seen red 2026-10-03 on db551f530: "the export lists their progress in the shared world:
+    /// []".
+    #[test]
+    fn erasing_an_account_erases_its_progress_in_the_shared_world() {
+        let db = test_storage();
+        db.register_name("Eli", "e11e").unwrap();
+        db.save_player_progress("e11e", Some("survey_storage"), &["explore_ship".to_string()], 300, 15).unwrap();
+        db.save_player_progress("f00d", None, &[], 5, 0).unwrap();
+        let export = db.export_account("e11e", "Eli");
+        let listed = export["game_progress"].as_array().cloned().unwrap_or_default();
+        assert!(
+            listed.len() == 1 && listed[0]["xp"] == 300 && listed[0]["current_quest"] == "survey_storage",
+            "the export lists their progress in the shared world: {listed:?}"
+        );
+        let receipt = db.delete_account("e11e", "Eli");
+        assert!(receipt.iter().any(|(l, n)| l == "game_progress" && *n == 1), "the erase deletes it: {receipt:?}");
+        assert!(db.load_player_progress("e11e").unwrap().is_none(), "nothing of it is left");
+        assert!(db.load_player_progress("f00d").unwrap().is_some(), "another player keeps theirs");
     }
 }

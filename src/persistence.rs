@@ -170,6 +170,13 @@ pub struct VehicleSave {
     pub position: [f32; 3],
     /// Yaw around +Y in radians (deployed vehicles only ever yaw).
     pub yaw: f32,
+    /// It stood where the home stood when saved but was not the home's (engine/home_plot.rs
+    /// `NotTheHomes`: a truck left on the plot a boot built the home on, while the home's
+    /// own plot is another): the next move of the home leaves it where it is. Round 4 of the
+    /// 1b review: the mark lived only in memory, so a save before the welcome adopted the
+    /// truck into the home on the next launch. Absent from older saves: not marked.
+    #[serde(default)]
+    pub outside_home: bool,
 }
 
 fn default_kind() -> String {
@@ -266,6 +273,10 @@ pub struct ConstructionSave {
     /// written before sites existed) = the home frame, aboard.
     #[serde(default)]
     pub site: Option<crate::systems::construction::PlanetSite>,
+    /// Standing where the home stood when saved but not the home's (`VehicleSave::outside_home`,
+    /// engine/home_plot.rs `NotTheHomes`). Absent from older saves: not marked.
+    #[serde(default)]
+    pub outside_home: bool,
 }
 
 fn default_true_save() -> bool {
@@ -864,6 +875,7 @@ mod tests {
                     uid: 1,
                     open: false,
                     site: None,
+                    outside_home: false,
                 },
             ],
             crafts: Vec::new(),

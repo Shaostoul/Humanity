@@ -1846,7 +1846,17 @@ pub async fn handle_account_delete(state: &Arc<RelayState>, my_key: &str, confir
         });
         return;
     }
-    let receipt = state.db.delete_account(my_key, &name);
+    // Out of the shared world, with their plot freed in the same step (home_plots.rs; ship
+    // homes 1b, round 4 of the review), before the rest is erased.
+    let freed = crate::relay::handlers::home_plots::leave_world_for_erase(state, my_key).await;
+    let mut receipt = state.db.delete_account(my_key, &name);
+    if freed {
+        // The plot freed there counts in the receipt with any others the erase gave back.
+        match receipt.iter_mut().find(|(label, _)| label == "ship_plots") {
+            Some(entry) => entry.1 += 1,
+            None => receipt.push(("ship_plots".to_string(), 1)),
+        }
+    }
     let summary: Vec<String> = receipt
         .iter()
         .filter(|(_, n)| *n > 0)

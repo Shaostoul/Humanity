@@ -3042,6 +3042,13 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
 ///      auto-connect block opens the socket on its own;
 ///   4. active_page = None -> load_world fires -> the co-presence gate sends
 ///      game_join once the socket is up.
+/// `"enter": false` stops before step 4: the game stays on the main menu, connected, the
+/// way a returning player's game sits there after its auto-connect identified it. A rig
+/// then waits for the handshake (the recorder probe's `ws_identified`) and presses the
+/// menu's own Enter World button (the ui request), so the join gate runs on the frame the
+/// page changes, BEFORE the world has loaded: the path a real player takes, which the
+/// all-in-one autopilot never ran (ship homes 1b, round 4 review: the first join of that
+/// path named no ship and was refused). verify-copresence.js --plots, game-first.
 /// Writes `debug/autopilot_done.json` and deletes the request either way.
 /// Permanent dev tooling (forever-development norm), not a player feature:
 /// the ephemeral identity is throwaway by design and never touches a vault.
@@ -3134,11 +3141,13 @@ pub(crate) fn poll_autopilot_request(state: &mut EngineState) {
     state.gui_state.onboarding_complete = true;
     state.gui_state.showroom_active = false;
     state.gui_state.construction_active = false;
-    state.gui_state.active_page = GuiPage::None;
+    let enter = req.get("enter").and_then(|v| v.as_bool()).unwrap_or(true);
+    state.gui_state.active_page = if enter { GuiPage::None } else { GuiPage::MainMenu };
     let key_prefix: String =
         state.gui_state.profile_public_key.chars().take(12).collect();
     log::info!(
-        "Autopilot: entering world as '{}' (chat name '{}') on {} (identity {}...)",
+        "Autopilot: {} as '{}' (chat name '{}') on {} (identity {}...)",
+        if enter { "entering the world" } else { "connecting from the main menu" },
         state.gui_state.character_name,
         state.gui_state.user_name,
         state.gui_state.server_url,
@@ -3152,6 +3161,7 @@ pub(crate) fn poll_autopilot_request(state: &mut EngineState) {
             "user_name": state.gui_state.user_name,
             "character_name": state.gui_state.character_name,
             "public_key_prefix": key_prefix,
+            "entered": enter,
         })
         .to_string(),
     );
@@ -3347,6 +3357,9 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         "home_things": crate::engine::home_plot::home_things_json(state),
         "welcomed": state.game_welcomed,
         "copresence_refused": state.copresence_refused.is_some(),
+        // The sentence the HUD shows while it holds (home_plot.rs `refuse_shared_world`), so a
+        // rig can name the refusal it hit.
+        "copresence_refused_note": state.gui_state.copresence_refused_note,
         "camera_start": rec.camera_start,
         "camera_end": camera_json(state),
         "frames": rec.frames,

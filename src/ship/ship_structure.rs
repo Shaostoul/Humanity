@@ -526,6 +526,14 @@ pub const OTHER_SHIP_SENTENCE: &str =
 pub const NO_SHIP_SENTENCE: &str =
     "Not joining the shared world: this server's ship did not load, so there is nowhere aboard to stand; its operator can see why in the server's log, and reconnecting after a fix joins it.";
 
+/// The sentence a player reads when their OWN ship did not load: the game then draws the legacy
+/// layout, with nowhere aboard to stand and no ship to name in a join. The game shows it (it
+/// never joins without a ship, engine/home_plot.rs `join_step`), and a relay refuses a join
+/// naming an empty ship with it (`game_join_denied`, reason "no_ship_named"). Round 4 of the
+/// 1b review: both cases used to read "this server has a different ship from yours".
+pub const OWN_SHIP_SENTENCE: &str =
+    "Not joining the shared world: your own ship did not load, so there is nowhere aboard for you to stand; restart the app, and if it happens again the reason is in logs/run.log.";
+
 /// One plot as a relay hands it out (increment 1b): the record's id, kind and box. Where its
 /// holder arrives depends on their own home's door, which their game names in `game_join`
 /// (`arrival`).

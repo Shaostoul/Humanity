@@ -545,6 +545,44 @@ function judgePlots({ order, plots, gamePlot, walkerPlot, camera, homeThings, fr
   return { pass: checks.every((c) => c.ok), checks };
 }
 
+/**
+ * Judge how the game came into the world (verify-copresence --plots, round 4
+ * of the 1b review). A returning player's game identifies on the main menu
+ * (its auto-connect) and only then is Enter World pressed: on that frame the
+ * join gate runs BEFORE the world has loaded, and the first build of 1b sent
+ * a join naming no ship there, which the relay refused as another ship. The
+ * autopilot creates the identity as it enters, so its socket identifies after
+ * the world loads and that race never runs. `entry`:
+ *   kind               "menu" (connected first, then Enter World pressed) or
+ *                      "autopilot" (the all-in-one entry)
+ *   identified         the probe before the press saw ws_identified
+ *   world_loaded       ... and saw world_loaded (must be false)
+ *   page_after_click   the page the press left (must be "None": in the world)
+ *   world_loaded_after_click  world_loaded right after the press (must be
+ *                      false: the join gate then runs before the world loads)
+ * A menu entry passes only when the race really ran; an autopilot entry is
+ * recorded as such and passes (it is the other path, judged by the rest).
+ * Returns { pass, checks }.
+ */
+function judgeEntry(entry) {
+  const checks = [];
+  const add = (id, ok, detail) => checks.push({ id, ok: !!ok, detail });
+  if (!entry || !entry.kind) {
+    add("entry_known", false, "the run never recorded how the game came into the world");
+  } else if (entry.kind === "autopilot") {
+    add("entry_known", true, "the autopilot entered the world as it created the identity (the identify-first race does not run on this path)");
+  } else {
+    const raced = entry.identified === true && entry.world_loaded === false && entry.page_after_click === "None" && entry.world_loaded_after_click === false;
+    add(
+      "entered_from_menu_after_identify",
+      raced,
+      `before Enter World: ws_identified=${entry.identified} world_loaded=${entry.world_loaded}; after the press: page ${entry.page_after_click} world_loaded=${entry.world_loaded_after_click}` +
+        (raced ? " (the join gate ran before the world loaded, the returning player's path)" : ": the identify-first race did NOT run, so this run proves nothing about it"),
+    );
+  }
+  return { pass: checks.every((c) => c.ok), checks };
+}
+
 /** How far the game must have stood from where the relay spawns it for the
  *  step-out-and-back check to mean anything: past the relay's 100 m rule, so a
  *  game that stayed where it stood would have every update refused. */
@@ -692,6 +730,7 @@ module.exports = {
   nearestPlot,
   judgePlots,
   judgeRejoin,
+  judgeEntry,
   respawnRoute,
   REJOIN_FAR_M,
 };

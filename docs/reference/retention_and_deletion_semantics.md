@@ -167,7 +167,12 @@ The stored-data classes removed or bounded after the sealed-sender cutover:
     a 128 KB socket message ceiling.
   - ERASE is `account_delete` with typed-name confirmation: messages, uploads
     and their files on disk, profile, mailbox, vault, push subscriptions,
-    listings, reviews, tasks, reactions, codes, membership, registered name.
+    listings, reviews, tasks, reactions, codes, membership, registered name,
+    your progress in the shared world (quest, XP, reputation there), and your
+    home's plot on the ship (it goes to the next player; if you come back you
+    get a free plot or a guest place). If you are in the shared world when you
+    erase, you leave it in the same step the plot is freed, so nobody is handed
+    a plot you still stand on.
     Admins must hand off the admin role first so a server is never orphaned.
     secure_delete zeroes the freed pages and the WAL is truncated; rotating
     backups hold prior snapshots until they age out, as everywhere else here.

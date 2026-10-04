@@ -6834,20 +6834,39 @@ mod native_app {
                             // 1b): from a planet or a Dev trip the camera is not in ship
                             // metres, and a welcome there moved the player by ship
                             // coordinates in the planet's frame (home_plot.rs `aboard`).
-                            if in_world
-                                && !state.game_joined
-                                && state.gui_state.ws_identified
-                                && !state.gui_state.copresence_solo
-                                && crate::engine::home_plot::aboard(state)
-                                && state.copresence_refused.as_deref()
-                                    != Some(crate::engine::home_plot::active_server_key(&state.gui_state).as_str())
-                            {
-                                let name = if state.gui_state.character_name.trim().is_empty() {
-                                    "Wanderer".to_string()
-                                } else {
-                                    state.gui_state.character_name.clone()
-                                };
-                                if let Some(ref ws) = state.gui_state.ws_client {
+                            // And only once the world has LOADED with its ship (1b, round 4):
+                            // this block runs before load_world in the frame Enter World or
+                            // Play is pressed, and a returning player's socket is identified
+                            // by then, so the join went out naming no ship and was refused
+                            // as another ship (home_plot.rs `join_step`).
+                            let gate = crate::engine::home_plot::JoinGate {
+                                in_world,
+                                joined: state.game_joined,
+                                identified: state.gui_state.ws_identified,
+                                solo: state.gui_state.copresence_solo,
+                                aboard: crate::engine::home_plot::aboard(state),
+                                refused_here: state.copresence_refused.as_deref()
+                                    == Some(crate::engine::home_plot::active_server_key(&state.gui_state).as_str()),
+                                world_loaded: state.world_loaded,
+                                has_ship: state.gui_state.ship_structure.is_some(),
+                            };
+                            match crate::engine::home_plot::join_step(&gate) {
+                                crate::engine::home_plot::JoinStep::Wait => {}
+                                crate::engine::home_plot::JoinStep::RefuseOwnShip => {
+                                    // The world loaded on the legacy layout: no ship to stand on
+                                    // or to name. Say so under the HUD instead of joining.
+                                    crate::engine::home_plot::refuse_shared_world(
+                                        state,
+                                        crate::engine::home_plot::OWN_SHIP.to_string(),
+                                        None,
+                                    );
+                                }
+                                crate::engine::home_plot::JoinStep::Join => {
+                                    let name = if state.gui_state.character_name.trim().is_empty() {
+                                        "Wanderer".to_string()
+                                    } else {
+                                        state.gui_state.character_name.clone()
+                                    };
                                     // character_mode is reserved for the open/closed-server model
                                     // (relay ignores extra fields today; envelope right from day one).
                                     let mut join = serde_json::json!({
@@ -6858,12 +6877,22 @@ mod native_app {
                                         "appearance": crate::player_look::PlayerLook::from_appearance(&state.gui_state.appearance).to_json(),
                                     });
                                     // Our ship and our own door, for the plot (increment 1b).
-                                    crate::engine::home_plot::add_join_fields(&mut join, state.gui_state.ship_structure.as_ref());
-                                    ws.send(&join.to_string());
+                                    // Never a join without a ship (round 4).
+                                    if crate::engine::home_plot::add_join_fields(&mut join, state.gui_state.ship_structure.as_ref()) {
+                                        if let Some(ref ws) = state.gui_state.ws_client {
+                                            ws.send(&join.to_string());
+                                        }
+                                        state.game_joined = true;
+                                        state.game_welcomed = false; // our plot is not known yet (1b)
+                                        state.game_pos_timer = 0.0;
+                                    } else {
+                                        crate::engine::home_plot::refuse_shared_world(
+                                            state,
+                                            crate::engine::home_plot::OWN_SHIP.to_string(),
+                                            None,
+                                        );
+                                    }
                                 }
-                                state.game_joined = true;
-                                state.game_welcomed = false; // our plot is not known yet (1b)
-                                state.game_pos_timer = 0.0;
                             }
                             // While joined, KEEP the session alive across menu
                             // round-trips (v0.779): the old code tore down every
@@ -12473,7 +12502,13 @@ mod native_app {
                             }
                         }
                         state.camera.position = state.fps_spawn;
-                        state.driving_vehicle = None;
+                        // Out of the truck (its seat freed) and off the follow cam, either
+                        // of which would put the camera back on its vehicle next frame.
+                        crate::engine::home_plot::step_out_of_vehicles(
+                            &mut state.game_world.world,
+                            &mut state.driving_vehicle,
+                            &mut state.follow_vehicle,
+                        );
                         log::info!("[Vitals] player respawned at the spawn room");
                         // In the shared world the relay still holds them where they died, up
                         // to 154 m away: step out and join again, so it stands them at their

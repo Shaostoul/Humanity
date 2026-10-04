@@ -346,10 +346,13 @@ impl HomeAssignment {
 ///   `ship_hash`  the ship the joiner draws. Only a join naming THIS relay's ship claims a
 ///                plot: a plot is where a home stands, and only a game drawing this ship
 ///                has a home here. One naming another ship is refused at the join, before
-///                anything is spawned (home_plots.rs `refused_join`). One naming none
-///                (a scripted player or an AI agent that has not asked /api/server-info)
-///                is a guest in the Commons (the second review of 1b: such a join used to
-///                claim a plot for good, so two quick test bots filled the ship).
+///                anything is spawned (home_plots.rs `refused_join`), and so is one naming
+///                an EMPTY ship (a game whose own ship did not load; round 4 of the 1b
+///                review: "" was refused as another ship, or, on a relay with no ship,
+///                taken as this one). One without the field (a scripted player or an AI
+///                agent that has not asked /api/server-info) is a guest in the Commons (the
+///                second review of 1b: such a join used to claim a plot for good, so two
+///                quick test bots filled the ship).
 ///   `home_spawn` [x, z], the player's own home's door, plot-local metres: they arrive there
 ///                on whichever plot they get, kept inside it (`PlotArrival::arrival`). None:
 ///                the middle of the plot.
@@ -368,30 +371,39 @@ pub enum JoinRefusal {
     /// failed to load): the third review of 1b found such a relay told every game "a
     /// different ship from yours", which was not true and sent players looking for an update.
     NoShip,
+    /// Its `ship_hash` is empty: the joiner's own ship did not load, so it draws none (round
+    /// 4 of the 1b review: the first 1b game sent "" on the frame Enter World was pressed,
+    /// and it was refused as another ship; on a relay with no ship "" matched the relay's
+    /// empty hash and the join was taken as this ship's).
+    NoShipNamed,
 }
 
 impl crate::ship::ship_structure::ShipPlots {
-    /// Why a join is refused at the join, None when it is not: one naming a ship this relay
-    /// does not have (`OtherShip`), or one naming a ship when this relay has none (`NoShip`).
-    /// A join naming no ship at all (a scripted player) is never refused here.
+    /// Why a join is refused at the join, None when it is not: one naming an empty ship
+    /// (`NoShipNamed`, whatever this relay has), one naming a ship this relay does not have
+    /// (`OtherShip`), or one naming a ship when this relay has none (`NoShip`). A join without
+    /// a `ship_hash` at all (a scripted player) is never refused here.
     pub fn join_refusal(&self, join: &JoinHome) -> Option<JoinRefusal> {
         let theirs = join.ship_hash.as_deref()?;
-        if self.ship_hash.is_empty() {
-            (!theirs.is_empty()).then_some(JoinRefusal::NoShip)
+        if theirs.is_empty() {
+            Some(JoinRefusal::NoShipNamed)
+        } else if self.ship_hash.is_empty() {
+            Some(JoinRefusal::NoShip)
         } else {
             (theirs != self.ship_hash).then_some(JoinRefusal::OtherShip)
         }
     }
 
-    /// True when a join names this very ship: only such a join holds a plot.
+    /// True when a join names this very ship: only such a join holds a plot. Never for an
+    /// empty hash, on either side.
     pub fn is_this_ship(&self, join: &JoinHome) -> bool {
-        join.ship_hash.as_deref() == Some(self.ship_hash.as_str())
+        !self.ship_hash.is_empty() && join.ship_hash.as_deref() == Some(self.ship_hash.as_str())
     }
 }
 
 impl JoinHome {
     /// Read from the raw `game_join`. A field of the wrong shape counts as absent, except a
-    /// `ship_hash` that is not a string, which can never match and so claims nothing.
+    /// `ship_hash` that is not a string, which is read as empty and refused (`NoShipNamed`).
     pub fn from_join(raw: &serde_json::Value) -> Self {
         let ship_hash = raw.get("ship_hash").filter(|v| !v.is_null()).map(|v| v.as_str().unwrap_or("").to_string());
         let door = raw.get("home_spawn").and_then(|v| v.as_array()).and_then(|a| match a.as_slice() {

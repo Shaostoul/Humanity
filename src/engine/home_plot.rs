@@ -14,7 +14,9 @@
 //! they may have moved with the build-mode avatar, not at the default design's. A home with no
 //! authored door names none, and both sides take the middle of the plot handed out. The game
 //! joins only while aboard (`aboard`: never from a planet or Dev travel, where its camera is
-//! not in ship metres).
+//! not in ship metres), and only once the world has loaded with its ship (`join_step`: on the
+//! frame Enter World is pressed the join gate runs before the world loads, and a join from
+//! there named no ship). A join is never built without a ship (`add_join_fields`).
 //!
 //! A `game_welcome` is applied only while the game is still in the shared world and aboard
 //! (`accept_welcome`; one that lands after the game stepped out is dropped). Then the game:
@@ -66,6 +68,17 @@ pub(crate) const SHIP_MISMATCH: &str = crate::ship::ship_structure::OTHER_SHIP_S
 
 /// The sentence a player reads when the server has no ship at all (relay reason "no_ship").
 pub(crate) const NO_SHIP: &str = crate::ship::ship_structure::NO_SHIP_SENTENCE;
+
+/// The sentence a player reads when their OWN ship did not load (the ship file and the copy
+/// built into the app both failed, and the legacy layout is showing): there is nowhere aboard
+/// to stand and no ship to name in a join. One copy, shared with the relay, which refuses a
+/// join naming an empty ship with it (reason "no_ship_named"). Round 4 of the 1b review: this
+/// case used to read "this server has a different ship from yours".
+pub(crate) const OWN_SHIP: &str = crate::ship::ship_structure::OWN_SHIP_SENTENCE;
+
+/// The sentence for a welcome that gives a plot with no id, which only a server of another
+/// version sends. Round 4 of the 1b review: it used to read as another ship.
+pub(crate) const WELCOME_WITHOUT_PLOT_ID: &str = "Not joining the shared world: this server's welcome gave a plot with no id, as a server of another version can, so update whichever of the app and the server is older and reconnect.";
 
 /// How far the game may stand from where the relay holds the player before a welcome stands
 /// them back there, metres, whatever else it says. The relay refuses any update more than
@@ -133,6 +146,56 @@ pub(crate) fn accept_welcome(joined: bool, solo: bool, aboard: bool) -> bool {
     joined && !solo && aboard
 }
 
+/// What the join gate sees on a frame (lib.rs, the co-presence block).
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct JoinGate {
+    /// The world view: no page, showroom or editor open.
+    pub in_world: bool,
+    /// Already in the shared world on our side.
+    pub joined: bool,
+    /// The connection finished its identify handshake (the relay drops anything before it).
+    pub identified: bool,
+    /// Stepped out to solo play.
+    pub solo: bool,
+    /// Aboard the ship (`aboard`).
+    pub aboard: bool,
+    /// This server refused us, and the refusal still holds.
+    pub refused_here: bool,
+    /// The 3D world has loaded (`EngineState::world_loaded`).
+    pub world_loaded: bool,
+    /// The ship assembled (`GuiState::ship_structure`).
+    pub has_ship: bool,
+}
+
+/// What the join gate does this frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum JoinStep {
+    Wait,
+    Join,
+    /// The world loaded without a ship of its own (the legacy layout): say so under the HUD,
+    /// once per connection, instead of joining.
+    RefuseOwnShip,
+}
+
+/// The join gate. Pure. Round 4 of the 1b review: a returning player's game identifies on the
+/// main menu, so on the frame Enter World (or Play) is pressed the gate ran BEFORE the world
+/// loaded (lib.rs runs the co-presence block ahead of `load_world` in the same frame) and sent
+/// a join naming no ship, which the relay refused as another ship; the refusal landed after the
+/// world load had cleared refusals, and held until a reconnect. Now it waits for the world and
+/// its ship, and a world with no ship of its own says why instead of joining.
+pub(crate) fn join_step(g: &JoinGate) -> JoinStep {
+    if !g.in_world || g.joined || !g.identified || g.solo || !g.aboard || g.refused_here {
+        return JoinStep::Wait;
+    }
+    if !g.world_loaded {
+        return JoinStep::Wait;
+    }
+    if !g.has_ship {
+        return JoinStep::RefuseOwnShip;
+    }
+    JoinStep::Join
+}
+
 impl<'a> WelcomeContext<'a> {
     /// Read from the running game.
     fn of(state: &'a EngineState, server: &'a str) -> Self {
@@ -162,7 +225,7 @@ pub(crate) fn stand_where_held(arriving: bool, rejoin: bool, gap_m: Option<f32>)
 pub(crate) fn plan_welcome(ship: Option<&ShipStructure>, welcome: &serde_json::Value, ctx: &WelcomeContext) -> WelcomeHome {
     let refuse = |sentence: &str, give_up_plot: bool| WelcomeHome::Refuse { sentence: sentence.to_string(), give_up_plot };
     let theirs = welcome.get("ship").and_then(|s| s.get("hash")).and_then(|h| h.as_str());
-    let Some(ship) = ship else { return refuse(SHIP_MISMATCH, false) };
+    let Some(ship) = ship else { return refuse(OWN_SHIP, false) };
     if theirs != Some(ship.ship_hash().as_str()) {
         return refuse(SHIP_MISMATCH, false);
     }
@@ -177,14 +240,15 @@ pub(crate) fn plan_welcome(ship: Option<&ShipStructure>, welcome: &serde_json::V
         return WelcomeHome::Guest { door, stand_at: stand_at(door), home_back: home_on_default_plot(ship) };
     };
     let Some(id) = hp.get("id").and_then(|i| i.as_str()) else {
-        return refuse(SHIP_MISMATCH, false);
+        return refuse(WELCOME_WITHOUT_PLOT_ID, false);
     };
     if ship.home.as_ref().is_some_and(|a| a.plot == id) {
         let door = own_door(ship);
         return WelcomeHome::Stay { door, stand_at: stand_at(door) };
     }
     let (Some(design), Some(plot)) = (ship.home_design(), ship.plots.iter().find(|p| p.id == id)) else {
-        return refuse(&format!("Not joining the shared world: your home could not be placed on the plot this server gave you ({id})."), true);
+        log::warn!("Co-presence: the plot {id:?} this server gave us is not one our ship has, or our ship has no home design");
+        return refuse(&cannot_place_sentence(id), true);
     };
     let door = ShipStructure::plot_spawn(plot, &design);
     match ship.ship_file().assemble(design, id) {
@@ -192,9 +256,41 @@ pub(crate) fn plan_welcome(ship: Option<&ShipStructure>, welcome: &serde_json::V
         // relay holds them, or this home's door on the new plot.
         Ok(moved) => WelcomeHome::Move { ship: moved, plot: id.to_string(), door, stand_at: held.unwrap_or(door) },
         // The plot this server gave us cannot hold our home: give it back (`give_up_plot`) so
-        // it is not held for good by someone who never lives there.
-        Err(e) => refuse(&format!("Not joining the shared world: your home does not fit the plot this server gave you ({e})."), true),
+        // it is not held for good by someone who never lives there. What did not fit goes to
+        // the log: it can be a sentence of its own, and the refusal is one.
+        Err(e) => {
+            log::warn!("Co-presence: our home does not fit plot {id:?}: {e}");
+            refuse(&does_not_fit_sentence(id), true)
+        }
     }
+}
+
+/// A plot id as a refusal shows it: the id when it is a short plain name (the ship file's
+/// `p1`, `p2`), else "unnamed", so an id a server sends can never add a sentence of its own.
+fn plain_plot_id(id: &str) -> &str {
+    let plain = !id.is_empty() && id.len() <= 32 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    if plain {
+        id
+    } else {
+        "unnamed"
+    }
+}
+
+/// The refusal for a plot our home cannot be placed on: the plot is not one our ship has, or
+/// our ship has no home design. The plot goes back (`give_up_plot`).
+fn cannot_place_sentence(id: &str) -> String {
+    format!(
+        "Not joining the shared world: your home could not be placed on the plot this server gave you ({}), so the plot went back to the server; restart the app, and if it happens again the reason is in logs/run.log.",
+        plain_plot_id(id)
+    )
+}
+
+/// The refusal for a plot our home does not fit (the assembly refused it). The plot goes back.
+fn does_not_fit_sentence(id: &str) -> String {
+    format!(
+        "Not joining the shared world: your home does not fit the plot this server gave you ({}), so the plot went back to the server; change your home's design to fit this ship's plots and reconnect, and logs/run.log says which part did not fit.",
+        plain_plot_id(id)
+    )
 }
 
 /// For a guest: the ship re-assembled with the home on the default plot, when it stands on
@@ -232,15 +328,19 @@ fn relay_holds_us(welcome: &serde_json::Value) -> Option<Vec3> {
 }
 
 /// The two fields our `game_join` carries for the plot (lib.rs, the join): `ship_hash`, the
-/// ship we draw (empty when none assembled, which can never match, so the relay refuses the
-/// join and nothing is spawned), and `home_spawn`, our own home's door in plot-local metres
+/// ship we draw, and `home_spawn`, our own home's door in plot-local metres
 /// (`ShipStructure::home_arrival_local`), left out when the home has no authored door.
-pub(crate) fn add_join_fields(join: &mut serde_json::Value, ship: Option<&ShipStructure>) {
-    let Some(obj) = join.as_object_mut() else { return };
-    obj.insert("ship_hash".into(), serde_json::json!(ship.map(|s| s.ship_hash()).unwrap_or_default()));
-    if let Some((x, z)) = ship.and_then(|s| s.home_arrival_local()) {
+/// False, and nothing added, when there is no ship: a join must never go out naming none
+/// (round 4 of the 1b review: an empty hash went out on the frame Enter World was pressed,
+/// before the world loaded, and the relay refused it as another ship).
+#[must_use]
+pub(crate) fn add_join_fields(join: &mut serde_json::Value, ship: Option<&ShipStructure>) -> bool {
+    let (Some(obj), Some(ship)) = (join.as_object_mut(), ship) else { return false };
+    obj.insert("ship_hash".into(), serde_json::json!(ship.ship_hash()));
+    if let Some((x, z)) = ship.home_arrival_local() {
         obj.insert("home_spawn".into(), serde_json::json!([x, z]));
     }
+    true
 }
 
 /// Send `game_leave` on the active connection, with `give_up_plot` when asked.
@@ -512,8 +612,19 @@ pub(crate) fn follow_home_box(state: &mut EngineState) {
 /// was not in the home when the save was written (a truck left on the plot the boot builds the
 /// home on, while the home stood on another): the next move of the home leaves it where it is,
 /// while it still stands at `at` (`carry_built_pieces`). Every move of the home clears them.
+/// The mark is saved with what it marks (`VehicleSave::outside_home`, `ConstructionSave::
+/// outside_home`, while it still holds, `still_not_the_homes`) and put back when the save
+/// loads: round 4 of the 1b review found a save written before the welcome (on quit, or the
+/// periodic save) recorded the truck inside the box of the home it stood in, and the next
+/// launch's welcome then took it into the home.
 pub(crate) struct NotTheHomes {
     pub at: Vec3,
+}
+
+/// True while `mark` still holds for a piece or vehicle standing at `at`: it has not moved
+/// since it was marked. Pure.
+pub(crate) fn still_not_the_homes(mark: Option<&NotTheHomes>, at: Vec3) -> bool {
+    mark.is_some_and(|m| m.at.distance(at) < 0.01)
 }
 
 /// After a save was loaded into the world: carry the pieces and vehicles that stood in the
@@ -555,22 +666,60 @@ pub(crate) fn clear_not_the_homes(world: &mut hecs::World) {
 }
 
 /// A save was loaded into the running world (lib.rs, the launcher's character pick and a
-/// restored snapshot): carry its home's pieces and vehicles to the plot the home stands on.
+/// restored snapshot): carry its home's pieces and vehicles to the plot the home stands on. A
+/// save that records no box is read as standing on the live ship's default plot
+/// (`saved_or_default_box`).
 pub(crate) fn carry_saved_pieces_home(state: &mut EngineState, saved: Option<[[f32; 3]; 2]>) {
-    let home = state.gui_state.ship_structure.as_ref().and_then(home_box);
+    let ship = state.gui_state.ship_structure.as_ref();
+    let home = ship.and_then(home_box);
+    let saved = saved_or_default_box(saved, ship);
     let (pieces, vehicles, marked) = carry_saved_pieces(&mut state.game_world.world, saved, home);
     if pieces + vehicles + marked > 0 {
         log::info!("Loaded save: carried {pieces} built pieces and {vehicles} vehicles to the home's plot ({marked} left where they stood)");
     }
 }
 
+/// The box a loaded save's home stood on: the one it records, else, for a save that records
+/// none (one written before increment 1b, or a snapshot from then), the live ship's default
+/// plot, where every home stood until 1b (its pieces were saved in that frame). Round 4 of the
+/// 1b review: such a save loaded while the home stood on p2 was not carried at all, and later
+/// saves then pinned its pieces outside the home. The one line that reads old saves correctly
+/// (the pre-launch rule allows it). Pure.
+pub(crate) fn saved_or_default_box(saved: Option<[[f32; 3]; 2]>, ship: Option<&ShipStructure>) -> Option<[[f32; 3]; 2]> {
+    saved.or_else(|| {
+        let ship = ship?;
+        let id = ship.default_plot_id()?;
+        let (lo, hi) = ship.plots.iter().find(|p| p.id == id)?.aabb();
+        Some([lo.to_array(), hi.to_array()])
+    })
+}
+
 /// The world load, once the home is built (engine/world_load.rs): the save applied at startup
 /// (before there was a ship) left the box its home stood on in the DataStore
 /// (`save_load::LOADED_HOME_BOX_KEY`); carry its pieces to the plot the home is built on.
 pub(crate) fn carry_loaded_save_home(state: &mut EngineState) {
-    let Some(b) = state.data_store.get::<crate::save_load::LoadedHomeBox>(crate::save_load::LOADED_HOME_BOX_KEY).copied() else { return };
-    state.data_store.remove(crate::save_load::LOADED_HOME_BOX_KEY);
-    carry_saved_pieces_home(state, Some(b.0));
+    let home = state.gui_state.ship_structure.as_ref().and_then(home_box);
+    if let Some((pieces, vehicles, marked)) = carry_loaded_box(&mut state.game_world.world, &mut state.data_store, home) {
+        if pieces + vehicles + marked > 0 {
+            log::info!("Loaded save: carried {pieces} built pieces and {vehicles} vehicles to the home's plot ({marked} left where they stood)");
+        }
+    }
+}
+
+/// `carry_loaded_save_home` on its own parts: carry the waiting box's pieces into `home` and
+/// let the box go. With no home to carry to (the legacy layout showing because the ship did
+/// not assemble) the box STAYS, so every save of that session still records the frame its
+/// pieces stand in (`save_load::frame_for_save`; round 4 of the 1b review: it was dropped,
+/// and that session's saves recorded none). None when nothing was carried. Pure on the world.
+pub(crate) fn carry_loaded_box(
+    world: &mut hecs::World,
+    data: &mut crate::hot_reload::data_store::DataStore,
+    home: Option<PlotBox>,
+) -> Option<(usize, usize, usize)> {
+    let b = data.get::<crate::save_load::LoadedHomeBox>(crate::save_load::LOADED_HOME_BOX_KEY).copied()?;
+    let home = home?;
+    data.remove(crate::save_load::LOADED_HOME_BOX_KEY);
+    Some(carry_saved_pieces(world, Some(b.0), Some(home)))
 }
 
 /// One machine the move carried: where it stood (x, z) and how far it went.
@@ -625,7 +774,7 @@ pub(crate) fn carry_built_pieces(world: &mut hecs::World, from: PlotBox, delta: 
     if delta == Vec3::ZERO {
         return (0, 0);
     }
-    let stays = |t: &Transform, mark: Option<&NotTheHomes>| mark.is_some_and(|m| m.at.distance(t.position) < 0.01);
+    let stays = |t: &Transform, mark: Option<&NotTheHomes>| still_not_the_homes(mark, t.position);
     let mut pieces = 0;
     for (_e, (t, _built, site, mark)) in
         world.query_mut::<(&mut Transform, hecs::Or<&Structure, &Construction>, Option<&PlanetSite>, Option<&NotTheHomes>)>()
@@ -731,18 +880,60 @@ fn carry_with_home(state: &mut EngineState, old_home: PlotBox, delta: Vec3) {
     );
 }
 
-/// Stand the player at `at` (ship metres, eye height): the camera and the walking body, the
-/// way the showcase request's `cam` verb does it (engine/ipc.rs), since in first person the
-/// camera follows the body each frame.
+/// Stand the player at `at` (ship metres, eye height): the walking body and the camera
+/// (`stand_player_at`).
 fn put_player_at(state: &mut EngineState, at: Vec3) {
-    for (_e, (t, _c)) in state
-        .game_world
-        .world
-        .query_mut::<(&mut crate::ecs::components::Transform, &crate::ecs::components::Controllable)>()
-    {
+    let standing = Standing {
+        camera: &mut state.camera.position,
+        showroom_open: state.gui_state.showroom_active,
+        showroom_return: &mut state.showroom_return_pos,
+        driving: &mut state.driving_vehicle,
+        following: &mut state.follow_vehicle,
+    };
+    stand_player_at(&mut state.game_world.world, standing, at);
+}
+
+/// What standing the player somewhere changes besides the body (`stand_player_at`): the
+/// camera, the point the showroom closes onto, and the vehicle they drive or the follow cam
+/// chases.
+pub(crate) struct Standing<'a> {
+    pub camera: &'a mut Vec3,
+    pub showroom_open: bool,
+    pub showroom_return: &'a mut Vec3,
+    pub driving: &'a mut Option<hecs::Entity>,
+    pub following: &'a mut Option<hecs::Entity>,
+}
+
+/// Out of the vehicle the player drives (its seat freed) and off the one the follow cam
+/// chases: each puts the camera back on its vehicle every frame (lib.rs, the drive and the
+/// follow cam), which undoes any move of the player. Respawn and `stand_player_at`. Pure on
+/// the world.
+pub(crate) fn step_out_of_vehicles(world: &mut hecs::World, driving: &mut Option<hecs::Entity>, following: &mut Option<hecs::Entity>) {
+    if let Some(veh) = driving.take() {
+        if let Ok(mut seat) = world.get::<&mut crate::ecs::components::VehicleSeat>(veh) {
+            seat.occupant_key = None;
+        }
+    }
+    *following = None;
+}
+
+/// Stand the player at `at` (ship metres, eye height), the way the showcase request's `cam`
+/// verb does it (engine/ipc.rs): the walking body, and the camera, since in first person the
+/// camera follows the body each frame. Out of any vehicle first (`step_out_of_vehicles`):
+/// the drive and the follow cam put the camera back on their vehicle the next frame, and the
+/// relay refuses every update from there (round 4 of the 1b review, finding 2). With the
+/// character showroom open, its camera is left alone and the point it closes onto moves
+/// instead, or closing it would undo the welcome (finding 8). Pure on the world.
+pub(crate) fn stand_player_at(world: &mut hecs::World, s: Standing, at: Vec3) {
+    step_out_of_vehicles(world, s.driving, s.following);
+    for (_e, (t, _c)) in world.query_mut::<(&mut Transform, &crate::ecs::components::Controllable)>() {
         t.position = at;
     }
-    state.camera.position = at;
+    if s.showroom_open {
+        *s.showroom_return = at;
+    } else {
+        *s.camera = at;
+    }
 }
 
 /// For the recorder's probe (engine/ipc.rs): the plot the home stands on, every plot of the
@@ -1097,8 +1288,7 @@ mod tests {
     }
 
     /// What the game puts in its `game_join`: the ship it draws and its own home's door,
-    /// plot-local. No ship: an empty hash (never a match: the relay refuses the join) and no
-    /// door. A home with no authored door: no door (each side takes the plot's middle). Seen red
+    /// plot-local. No ship: no join at all (`add_join_fields` refuses to build one; round 4). A home with no authored door: no door (each side takes the plot's middle). Seen red
     /// 2026-10-03 with `add_join_fields` adding nothing (the first 1b join): "the join names no
     /// ship: null"; and with `home_arrival_local` sending the middle of the plot the home was
     /// built on (65b3e2c0c, the second review's finding 6): "a home with no door names none:
@@ -1109,16 +1299,19 @@ mod tests {
         let home = ship.home_zone_index();
         ship.zones[home].body.spawn = Some((12.5, 30.0));
         let mut join = serde_json::json!({ "type": "game_join" });
-        add_join_fields(&mut join, Some(&ship));
+        assert!(add_join_fields(&mut join, Some(&ship)), "a join with our ship is built");
         assert_eq!(join["ship_hash"], ship.ship_hash().as_str(), "the join names no ship: {}", join["ship_hash"]);
         assert_eq!(join["home_spawn"], serde_json::json!([12.5, 30.0]));
+        // No ship: no join (round 4 of the 1b review, finding 1). Seen red 2026-10-03 on
+        // db551f530, which sent "" (the relay refused it as another ship): "a join with no ship
+        // is built anyway, naming the ship Some(String(\"\"))".
         let mut bare = serde_json::json!({ "type": "game_join" });
-        add_join_fields(&mut bare, None);
-        assert_eq!(bare["ship_hash"], "");
+        let built = add_join_fields(&mut bare, None);
+        assert!(!built && bare.get("ship_hash").is_none(), "a join with no ship is built anyway, naming the ship {:?}", bare.get("ship_hash"));
         assert!(bare.get("home_spawn").is_none());
         ship.zones[home].body.spawn = None;
         let mut doorless = serde_json::json!({ "type": "game_join" });
-        add_join_fields(&mut doorless, Some(&ship));
+        assert!(add_join_fields(&mut doorless, Some(&ship)));
         assert!(doorless.get("home_spawn").is_none(), "a home with no door names none: {}", doorless["home_spawn"]);
     }
 
@@ -1463,13 +1656,292 @@ mod tests {
     /// Seen red 2026-10-03 on the a504c5cd9 sentence: "the other-ship sentence says what to
     /// do: Not joining the shared world: this server has a different ship from yours, and
     /// positions only agree when everyone has the same ship.".
+    ///
+    /// Round 4 (finding 9): every refusal the game can show, each from the path that gives it,
+    /// is one sentence with a next step, and no two causes share a sentence: our OWN ship not
+    /// loading read "this server has a different ship from yours", so did a welcome with no
+    /// plot id, and the two plot refusals named no next step (and put the assembly error, which
+    /// can be a sentence of its own, inside theirs). Seen red 2026-10-03 on db551f530: "a plot
+    /// our ship does not have: says what to do: Not joining the shared world: your home could
+    /// not be placed on the plot this server gave you (p9)."
     #[test]
     fn each_refusal_is_one_sentence_that_says_what_to_do() {
         assert!(SHIP_MISMATCH.contains("update"), "the other-ship sentence says what to do: {SHIP_MISMATCH}");
         assert!(NO_SHIP.contains("did not load") && !NO_SHIP.contains("different ship"), "{NO_SHIP}");
-        for s in [SHIP_MISMATCH, NO_SHIP] {
-            assert_eq!(s.matches(". ").count(), 0, "one sentence: {s}");
-            assert!(s.ends_with('.'), "{s}");
+        let ship = booted();
+        let hash = ship.ship_hash();
+        let refusal = |plan: WelcomeHome| match plan {
+            WelcomeHome::Refuse { sentence, .. } => sentence,
+            other => panic!("expected a refusal: {other:?}"),
+        };
+        let other_ship = refusal(plan_welcome(Some(&ship), &welcome(Some("p2"), "0123456789abcdef"), &arriving(P1_DOOR)));
+        let own_ship = refusal(plan_welcome(None, &welcome(Some("p1"), &hash), &arriving(P1_DOOR)));
+        let mut no_id = welcome(Some("p2"), &hash);
+        no_id["home_plot"].as_object_mut().unwrap().remove("id");
+        let no_id = refusal(plan_welcome(Some(&ship), &no_id, &arriving(P1_DOOR)));
+        let mut unknown = welcome(Some("p2"), &hash);
+        unknown["home_plot"]["id"] = serde_json::json!("p9");
+        let unknown = refusal(plan_welcome(Some(&ship), &unknown, &arriving(P1_DOOR)));
+        let mut file = ShipStructure::load_ship_file(&data_dir()).unwrap();
+        let p2 = file.plots.iter().position(|p| p.id == "p2").unwrap();
+        file.plots[p2].size.0 = 30.0;
+        let narrow = file.assemble(ship.home_design().unwrap(), "p1").expect("the home stands on p1");
+        let no_fit = refusal(plan_welcome(Some(&narrow), &welcome(Some("p2"), &narrow.ship_hash()), &arriving(P1_DOOR)));
+        let causes = [
+            ("another ship", other_ship),
+            ("a server with no ship", NO_SHIP.to_string()),
+            ("our own ship did not load", own_ship),
+            ("a welcome with no plot id", no_id),
+            ("a plot our ship does not have", unknown),
+            ("a plot our home does not fit", no_fit),
+        ];
+        for (cause, s) in &causes {
+            assert_eq!(s.matches(". ").count(), 0, "{cause}: one sentence: {s}");
+            assert!(s.ends_with('.'), "{cause}: {s}");
+            assert!(["update", "restart", "reconnect"].iter().any(|w| s.contains(w)), "{cause}: says what to do: {s}");
         }
+        for (i, (a, sa)) in causes.iter().enumerate() {
+            for (b, sb) in &causes[i + 1..] {
+                assert_ne!(sa, sb, "{a} and {b} read the same");
+            }
+        }
+    }
+
+    /// ROUND 4, finding 1: the join waits for the world and its ship. A returning player's game
+    /// identifies on the main menu; on the frame Enter World is pressed the co-presence block
+    /// runs before `load_world` (lib.rs), so the first build joined there with no ship, the
+    /// relay refused it as another ship, and the refusal held until a reconnect (the rig's menu
+    /// entry: "refused=true (\"Not joining the shared world: this server has a different ship
+    /// from yours, ...\")"). A world that loaded with no ship of its own says so instead.
+    ///
+    /// Seen red 2026-10-03 with `join_step` carrying db551f530's rule: "a join on the frame
+    /// Enter World was pressed, before the world loaded: left: Join, right: Wait".
+    #[test]
+    fn the_join_waits_for_the_world_and_its_ship() {
+        let ready = JoinGate {
+            in_world: true,
+            joined: false,
+            identified: true,
+            solo: false,
+            aboard: true,
+            refused_here: false,
+            world_loaded: true,
+            has_ship: true,
+        };
+        assert_eq!(join_step(&ready), JoinStep::Join);
+        let pressed = JoinGate { world_loaded: false, has_ship: false, ..ready };
+        assert_eq!(join_step(&pressed), JoinStep::Wait, "a join on the frame Enter World was pressed, before the world loaded");
+        assert_eq!(join_step(&JoinGate { has_ship: false, ..ready }), JoinStep::RefuseOwnShip, "a world with no ship of its own says so");
+        for (what, g) in [
+            ("not in the world view", JoinGate { in_world: false, ..ready }),
+            ("already joined", JoinGate { joined: true, ..ready }),
+            ("not identified yet", JoinGate { identified: false, ..ready }),
+            ("stepped out", JoinGate { solo: true, ..ready }),
+            ("away from the ship", JoinGate { aboard: false, ..ready }),
+            ("refused here", JoinGate { refused_here: true, ..ready }),
+            ("refused here, no ship", JoinGate { refused_here: true, has_ship: false, ..ready }),
+        ] {
+            assert_eq!(join_step(&g), JoinStep::Wait, "{what}");
+        }
+    }
+
+    /// A player on their own home, a parked truck they are driving, and a bus the follow cam
+    /// chases.
+    fn rider_world() -> (hecs::World, hecs::Entity, hecs::Entity) {
+        let tf = |p: Vec3| Transform { position: p, rotation: glam::Quat::IDENTITY, scale: Vec3::ONE };
+        let mut w = hecs::World::new();
+        w.spawn((tf(Vec3::new(30.0, 0.0, 30.0)), crate::ecs::components::Controllable));
+        let truck = w.spawn((
+            tf(Vec3::new(30.0, 0.0, 30.0)),
+            crate::ecs::components::Vehicle { item_id: "truck_pickup_0".into() },
+            crate::ecs::components::VehicleSeat { occupant_key: Some("player".into()), seat_type: "pilot".into() },
+        ));
+        let bus = w.spawn((tf(Vec3::new(80.0, 0.0, 40.0)), crate::ecs::components::Vehicle { item_id: "truck_pickup_0".into() }));
+        (w, truck, bus)
+    }
+
+    fn body_at(w: &hecs::World) -> Vec3 {
+        w.query::<(&Transform, &crate::ecs::components::Controllable)>().iter().map(|(_, (t, _))| t.position).next().unwrap()
+    }
+
+    /// ROUND 4, finding 2: a welcome stands the player where the relay holds them while they
+    /// drive a truck or watch one on the follow cam. Each puts the camera back on its vehicle
+    /// every frame (lib.rs), so the player stayed there, over 100 m from where the relay holds
+    /// them, every update refused. Standing them ends both, the way Respawn does, and frees the
+    /// seat.
+    ///
+    /// Seen red 2026-10-03 with `stand_player_at` moving only the body and the camera (the
+    /// db551f530 `put_player_at`): "the player still drives Some(1v1): the next frame puts the
+    /// camera back in the cab".
+    #[test]
+    fn standing_the_player_where_the_relay_holds_them_ends_a_drive_and_a_follow() {
+        let (mut w, truck, bus) = rider_world();
+        let (mut camera, mut back) = (Vec3::new(30.0, 3.0, 30.0), Vec3::ZERO);
+        let (mut driving, mut following) = (Some(truck), Some(bus));
+        let standing = Standing { camera: &mut camera, showroom_open: false, showroom_return: &mut back, driving: &mut driving, following: &mut following };
+        stand_player_at(&mut w, standing, P2_DOOR);
+        assert_eq!(driving, None, "the player still drives {driving:?}: the next frame puts the camera back in the cab");
+        assert_eq!(following, None, "the follow cam still chases {following:?}: the next frame puts the camera back behind it");
+        let seat = w.get::<&crate::ecs::components::VehicleSeat>(truck).unwrap().occupant_key.clone();
+        assert_eq!(seat, None, "the truck's seat is free again");
+        assert_eq!(body_at(&w), P2_DOOR);
+        assert_eq!(camera, P2_DOOR);
+        assert_eq!(back, Vec3::ZERO, "the showroom is shut: its return point is not touched");
+    }
+
+    /// ROUND 4, finding 8: a welcome lands while the character showroom is open (the join went
+    /// out, then the player opened ESC > Play before it came back). Closing the showroom puts
+    /// the camera at the point it opened from, which undid the welcome: the player went back
+    /// to their old spot, up to 99 m from where the relay holds them. The welcome now moves
+    /// that point, and leaves the showroom's own camera alone.
+    ///
+    /// Seen red 2026-10-03 with `stand_player_at` moving only the body and the camera (the
+    /// db551f530 `put_player_at`): "closing the showroom puts the player back at Vec3(53.5,
+    /// 1.7, 40.5), where they stood before the welcome".
+    #[test]
+    fn a_welcome_while_the_showroom_is_open_lands_where_it_closes() {
+        let (mut w, _, _) = rider_world();
+        let showroom_camera = Vec3::new(5.0, 2.0, 5.0);
+        let (mut camera, mut back) = (showroom_camera, P1_DOOR);
+        let standing = Standing { camera: &mut camera, showroom_open: true, showroom_return: &mut back, driving: &mut None, following: &mut None };
+        stand_player_at(&mut w, standing, P2_DOOR);
+        assert_eq!(back, P2_DOOR, "closing the showroom puts the player back at {back:?}, where they stood before the welcome");
+        assert_eq!(camera, showroom_camera, "the showroom's own camera is left alone");
+        assert_eq!(body_at(&w), P2_DOOR);
+    }
+
+    /// A world with one chest standing at `at`.
+    fn chest_world(at: Vec3) -> hecs::World {
+        let mut w = hecs::World::new();
+        w.spawn((
+            Transform { position: at, rotation: glam::Quat::IDENTITY, scale: Vec3::ONE },
+            crate::systems::construction::Structure { blueprint_id: "chest".into(), health: 1.0, max_health: 1.0, provides: None, uid: 5 },
+        ));
+        w
+    }
+
+    fn box_of(b: PlotBox) -> [[f32; 3]; 2] {
+        [b.0.to_array(), b.1.to_array()]
+    }
+
+    /// ROUND 4, finding 4, the carry: the home stood on p2; the next launch applied the save
+    /// and was closed before the world loaded, so the save on quit was written with no frame
+    /// published, its chest still at p2's (20, 129). It records the box the startup save left
+    /// waiting (`save_load::frame_for_save`), and the launch after carries the chest into the
+    /// home on p1. (save_load.rs `a_save_before_the_world_loads_keeps_the_box_its_pieces_stand_in`
+    /// checks the save path itself.)
+    ///
+    /// Seen red 2026-10-03 with `frame_for_save` reading only the published frame (the
+    /// db551f530 save): "the chest saved before the world loaded stands at Vec3(20.0, 0.0,
+    /// 129.0), outside the home on p1".
+    #[test]
+    fn a_save_before_the_world_loads_is_carried_into_the_home_at_the_next_launch() {
+        let on_p2 = ShipStructure::load_and_assemble(&data_dir(), Some("p2")).unwrap();
+        let (p1, p2) = (home_box(&booted()).unwrap(), home_box(&on_p2).unwrap());
+        let mut data = crate::hot_reload::data_store::DataStore::new();
+        data.insert(crate::save_load::LOADED_HOME_BOX_KEY, crate::save_load::LoadedHomeBox(box_of(p2)));
+        let w = chest_world(Vec3::new(20.0, 0.0, 129.0));
+        let mut save = crate::save_load::extract_world_save(&w);
+        crate::save_load::record_home_frame(&mut save, crate::save_load::frame_for_save(&data).as_ref());
+        let mut next = hecs::World::new();
+        crate::save_load::apply_save_to_world(&mut next, &save);
+        carry_saved_pieces(&mut next, save.home_plot_box, Some(p1));
+        let (pieces, _) = built_positions(&next);
+        let chest = pieces[0];
+        assert!(over_plot(chest, p1), "the chest saved before the world loaded stands at {chest:?}, outside the home on p1");
+    }
+
+    /// ROUND 4, finding 5: the ship did not assemble, so the legacy layout shows and there is
+    /// no home to carry the startup save's pieces to. They stay where they were saved, and the
+    /// box they stand in must stay too, or every save of that session records none.
+    ///
+    /// Seen red 2026-10-03 with `carry_loaded_box` letting the box go first (the db551f530
+    /// `carry_loaded_save_home`): "a session on the legacy layout forgot the box its pieces
+    /// stand in".
+    #[test]
+    fn a_session_on_the_legacy_layout_keeps_the_saved_box() {
+        let on_p2 = ShipStructure::load_and_assemble(&data_dir(), Some("p2")).unwrap();
+        let (p1, p2) = (home_box(&booted()).unwrap(), home_box(&on_p2).unwrap());
+        let mut data = crate::hot_reload::data_store::DataStore::new();
+        data.insert(crate::save_load::LOADED_HOME_BOX_KEY, crate::save_load::LoadedHomeBox(box_of(p2)));
+        let mut w = chest_world(Vec3::new(20.0, 0.0, 129.0));
+        assert_eq!(carry_loaded_box(&mut w, &mut data, None), None, "nothing to carry to");
+        assert!(
+            data.get::<crate::save_load::LoadedHomeBox>(crate::save_load::LOADED_HOME_BOX_KEY).is_some(),
+            "a session on the legacy layout forgot the box its pieces stand in"
+        );
+        let recorded = crate::save_load::frame_for_save(&data).map(|f| box_of(f.home));
+        assert_eq!(recorded, Some(box_of(p2)), "a save of that session records where its pieces stand");
+        // With a home to carry to, the box does its work and goes.
+        assert_eq!(carry_loaded_box(&mut w, &mut data, Some(p1)).map(|(n, _, _)| n), Some(1));
+        assert!(data.get::<crate::save_load::LoadedHomeBox>(crate::save_load::LOADED_HOME_BOX_KEY).is_none());
+        assert!(over_plot(built_positions(&w).0[0], p1));
+    }
+
+    /// ROUND 4, finding 6: a save that records no box (written before 1b, or a snapshot from
+    /// then) has its pieces in the default plot's frame, where every home stood. Loaded into a
+    /// running world whose home stands on p2 (the launcher's pick, a restored snapshot), they
+    /// go into the home on p2.
+    ///
+    /// Seen red 2026-10-03 with `saved_or_default_box` passing the missing box on (the
+    /// db551f530 load, which carried nothing): "a pre-1b save loaded while the home stands on
+    /// p2 leaves the chest at Vec3(20.0, 0.0, 30.0), outside the home".
+    #[test]
+    fn a_pre_1b_save_loaded_while_the_home_stands_on_p2_lands_in_the_home() {
+        let on_p2 = ShipStructure::load_and_assemble(&data_dir(), Some("p2")).unwrap();
+        let p2 = home_box(&on_p2).unwrap();
+        let save = crate::save_load::extract_world_save(&chest_world(Vec3::new(20.0, 0.0, 30.0)));
+        assert_eq!(save.home_plot_box, None, "a save of that time records no box");
+        let mut w = hecs::World::new();
+        crate::save_load::apply_save_to_world(&mut w, &save);
+        carry_saved_pieces(&mut w, saved_or_default_box(save.home_plot_box, Some(&on_p2)), Some(p2));
+        let chest = built_positions(&w).0[0];
+        assert!(over_plot(chest, p2), "a pre-1b save loaded while the home stands on p2 leaves the chest at {chest:?}, outside the home");
+        // A save that records its box keeps it, and no ship reads nothing in.
+        let b = [[1.0, 0.0, 2.0], [3.0, 4.0, 5.0]];
+        assert_eq!(saved_or_default_box(Some(b), Some(&on_p2)), Some(b));
+        assert_eq!(saved_or_default_box(None, None), None);
+    }
+
+    /// ROUND 4, finding 7: the `NotTheHomes` mark is saved with what it marks. The home stood
+    /// on p2 with a truck left standing on p1; the next launch built the home on p1, carried
+    /// the save there and marked the truck; a save was written before the welcome (on quit, or
+    /// the periodic one), in the frame of the home on p1, where the truck stands. The launch
+    /// after that, the welcome moves the home to p2 again: the truck stays on p1.
+    ///
+    /// Seen red 2026-10-03 with the mark not saved (`outside_home` written false, the
+    /// db551f530 save, which had no such field): "a truck left on p1 was adopted into the home
+    /// on the launch after a save before the welcome: [Vec3(40.0, 0.0, 169.0), Vec3(90.0, 0.0,
+    /// 50.0), Vec3(14.0, 0.0, 184.0)]".
+    #[test]
+    fn a_truck_left_behind_stays_behind_through_a_save_before_the_welcome() {
+        let on_p2 = ShipStructure::load_and_assemble(&data_dir(), Some("p2")).unwrap();
+        let (p1, p2) = (home_box(&booted()).unwrap(), home_box(&on_p2).unwrap());
+        let tf = |x: f32, z: f32| Transform { position: Vec3::new(x, 0.0, z), rotation: glam::Quat::IDENTITY, scale: Vec3::ONE };
+        let mut live = built_world();
+        carry_built_pieces(&mut live, p1, p2.0 - p1.0); // the home on p2 ...
+        live.spawn((tf(14.0, 85.0), crate::ecs::components::Vehicle { item_id: "truck_pickup_0".into() })); // ... a truck left on p1
+        let mut first = crate::save_load::extract_world_save(&live);
+        crate::save_load::record_home_frame(&mut first, home_frame(&on_p2).as_ref());
+        // The next launch: the home on p1, the save carried there, the truck marked.
+        let mut boot = hecs::World::new();
+        crate::save_load::apply_save_to_world(&mut boot, &first);
+        assert_eq!(carry_saved_pieces(&mut boot, first.home_plot_box, Some(p1)).2, 1, "the truck left on p1 is marked");
+        // Saved before the welcome, in the frame of the home on p1.
+        let mut second = crate::save_load::extract_world_save(&boot);
+        crate::save_load::record_home_frame(&mut second, home_frame(&booted()).as_ref());
+        // The launch after: the home on p1 again, then the welcome moves it to p2.
+        let mut again = hecs::World::new();
+        crate::save_load::apply_save_to_world(&mut again, &second);
+        carry_saved_pieces(&mut again, second.home_plot_box, Some(p1));
+        carry_built_pieces(&mut again, p1, p2.0 - p1.0);
+        clear_not_the_homes(&mut again);
+        let trucks: Vec<Vec3> =
+            again.query::<(&Transform, &crate::ecs::components::Vehicle)>().iter().map(|(_, (t, _))| t.position).collect();
+        assert!(trucks.contains(&Vec3::new(14.0, 0.0, 85.0)), "a truck left on p1 was adopted into the home on the launch after a save before the welcome: {trucks:?}");
+        assert!(trucks.contains(&Vec3::new(40.0, 0.0, 169.0)), "the truck parked in the home went with it: {trucks:?}");
+        // Once the home has moved, the mark has done its work: the next save carries none.
+        let third = crate::save_load::extract_world_save(&again);
+        assert!(third.deployed_vehicles.iter().all(|v| !v.outside_home), "a mark outlived the move");
     }
 }

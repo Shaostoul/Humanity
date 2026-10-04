@@ -77,6 +77,19 @@
 // (the third review found Respawn left it frozen at the far end for everyone).
 // Evidence in runs/<stamp>-plots-<order>/.
 //
+// HOW THE GAME COMES IN (--entry, round 4 of the 1b review): a returning
+// player's game identifies on the main menu (its auto-connect) and only then
+// is Enter World pressed, so the join gate runs on that frame, BEFORE the
+// world has loaded. The first 1b build sent a join naming no ship there and
+// the relay refused it as another ship. The autopilot creates the identity as
+// it enters, so its socket identifies after the world loads and that race
+// never runs. So --entry menu connects first (the autopilot's "enter": false),
+// waits for the handshake, answers the first-run privacy window, and presses
+// the menu's own Enter World button; --entry autopilot is the all-in-one entry.
+// By default game-first comes in from the menu and walker-first by autopilot,
+// so a --plots run covers both paths. The judge's entered_from_menu_after_identify
+// fails a menu entry on which the race did not really run.
+//
 // Usage:
 //   node scripts/verify-copresence.js [--exe PATH] [--pose x,y,z,yaw,pitch]
 //        [--distance M] [--radius M] [--speed M/S] [--timeout-min N] [--keep-open]
@@ -84,7 +97,7 @@
 //        purpose (a red check); passed to scripts/check-fresh-exe.js and recorded
 //        in the manifest as other_build
 //   node scripts/verify-copresence.js --plots [--order walker-first|game-first|both]
-//        [--exe PATH] [--radius M] [--speed M/S] [--timeout-min N]
+//        [--entry menu|autopilot] [--exe PATH] [--radius M] [--speed M/S] [--timeout-min N]
 //        [--allow-other-build "<reason>"]
 //   node scripts/verify-copresence.js --dry-verdict <manifest.json>
 // Exit 0 = every check passed. Exit 1 = refused to run. Exit 2 = failed.
@@ -97,7 +110,7 @@ const { spawn, spawnSync, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
 const DXC = require("./lib/dxc-dlls.js");
 const TR = require("./lib/throwaway-relay.js");
-const { judgeCopresence, LIMITS, figurePixels, FIGURE_MIN_PX, approachClear, judgePlots, forwardLegStart, readShipPlots, judgeRejoin, respawnRoute } = require("./lib/copresence-judge.js");
+const { judgeCopresence, LIMITS, figurePixels, FIGURE_MIN_PX, approachClear, judgePlots, forwardLegStart, readShipPlots, judgeRejoin, judgeEntry, respawnRoute } = require("./lib/copresence-judge.js");
 const png = require("./lib/png.js");
 // The freshness gate, run through its one runner so --allow-other-build reaches
 // it and comes back as the manifest's other_build record (BUG-133).
@@ -116,6 +129,11 @@ const TIMEOUT_MS = Number(opt("--timeout-min", "10")) * 60 * 1000;
 const DRY = opt("--dry-verdict", null);
 const PLOTS = flag("--plots");
 const ORDERS = { both: ["walker-first", "game-first"], "walker-first": ["walker-first"], "game-first": ["game-first"] }[opt("--order", "both")];
+// How the game comes into the world in a --plots run (see the header): menu or
+// autopilot for every order, or by default menu for game-first and autopilot
+// for walker-first.
+const ENTRY = opt("--entry", null);
+const entryFor = (order) => ENTRY || (order === "game-first" ? "menu" : "autopilot");
 
 // THE STAGE. The vehicle bay of the player's home (scripts/home-vantages.json
 // "21-vehicle-bay"), standing at eye height (1.7 m; the floor is y 0), facing
@@ -294,6 +312,7 @@ const poseNums = POSE.split(",").map(Number);
 if (poseNums.length !== 5 || !poseNums.every(Number.isFinite)) refuse([`--pose must be five numbers x,y,z,yaw,pitch, got "${POSE}"`]);
 if (!(DISTANCE > 0 && RADIUS > 0 && SPEED > 0)) refuse(["--distance, --radius and --speed must be above 0"]);
 if (PLOTS && !ORDERS) refuse(["--order must be walker-first, game-first or both"]);
+if (PLOTS && ENTRY && ENTRY !== "menu" && ENTRY !== "autopilot") refuse(["--entry must be menu or autopilot"]);
 // Refuse a stage the judge could not read before booting anything.
 if (!PLOTS) {
   const p = planLine(poseNums.slice(0, 3), poseNums[3], DISTANCE, RADIUS);
@@ -869,6 +888,9 @@ function plotsVerdict(m, dir) {
   const add = (id, ok, detail) => checks.push({ id, ok: !!ok, detail });
   const s = m.steps_ok || {};
   add("relay_up", s.relay && s.relay.ok, s.relay ? s.relay.detail : "never started");
+  // How the game came into the world (a menu entry must have run the race). A
+  // manifest from before --entry existed entered by autopilot: every run did.
+  for (const c of judgeEntry(m.entry || { kind: "autopilot" }).checks) checks.push(c);
   add("game_in_world", s.joined && s.joined.ok, s.joined ? s.joined.detail : "never joined");
   add("walker_in_world", s.walker && s.walker.ok, s.walker ? s.walker.detail : "never ran");
   const samplesPath = m.samples ? path.join(dir, m.samples) : null;
@@ -975,6 +997,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
   const manifest = {
     kind: "verify-copresence-plots",
     order,
+    entry: { kind: entryFor(order) },
     stamp: runStamp,
     exe: EXE,
     ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
@@ -1117,11 +1140,53 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     step("launch", true, `game pid ${gamePid} from ${rel(RIG_EXE)} (background, no focus)`);
     await waitBoot(180000);
     step("boot", true, "booted (run.log: cloud noise volumes generated, no PANIC)");
+    const fromMenu = manifest.entry.kind === "menu";
     clearDone("autopilot_done.json");
-    req("autopilot_request.json", { server_url: relay.httpUrl, user_name: "CopresencePlots", character_name: "CopresencePlots" });
+    req("autopilot_request.json", { server_url: relay.httpUrl, user_name: "CopresencePlots", character_name: "CopresencePlots", enter: !fromMenu });
     const ap = await waitFile("autopilot_done.json", 300000);
     if (!ap || ap.ok !== true) throw new Error(`the autopilot did not run: ${ap ? ap.error || JSON.stringify(ap) : "no answer in 300 s"}`);
-    step("autopilot", true, `entering the world on ${ap.server_url}`);
+    if (fromMenu && ap.entered !== false) throw new Error(`the autopilot entered the world although asked not to (entered=${ap.entered}): this build predates "enter": false`);
+    step("autopilot", true, fromMenu ? `connecting from the main menu on ${ap.server_url}` : `entering the world on ${ap.server_url}`);
+    if (fromMenu) {
+      // The returning player's path: connected and identified on the main menu,
+      // then Enter World pressed. Wait for the handshake with the world unloaded.
+      let mp = null;
+      for (const t0 = Date.now(); Date.now() - t0 < 60000; ) {
+        mp = await probe();
+        if (mp && mp.ok && mp.ws_identified) break;
+        await sleep(500);
+      }
+      // The first-run privacy window opens over the middle of the menu once this
+      // identity connects; give it a moment, then answer it as a person would.
+      await sleep(1500);
+      const cleared = [];
+      for (const label of FIRST_RUN_BUTTONS) {
+        const f = await ui({ action: "find", text: label });
+        if (f && f.ok === true && f.found && f.text === label) {
+          await ui({ action: "click", pos: f.pos_px });
+          await sleep(800);
+          cleared.push(`clicked "${label}"`);
+        }
+      }
+      const before = await probe();
+      manifest.entry.identified = !!(before && before.ws_identified);
+      manifest.entry.world_loaded = !!(before && before.world_loaded);
+      const btn = await ui({ action: "find", text: "Enter World" });
+      if (!btn || btn.ok !== true || !btn.found || String(btn.text).trim() !== "Enter World") {
+        manifest.entry.error = `the main menu's Enter World button was not drawn: ${JSON.stringify(btn)}`;
+        step("enter", false, manifest.entry.error);
+        throw new Error(manifest.entry.error);
+      }
+      const click = await ui({ action: "click", pos: btn.pos_px });
+      manifest.entry.page_after_click = click ? click.active_page : null;
+      manifest.entry.world_loaded_after_click = click ? !!click.world_loaded : null;
+      step(
+        "enter",
+        true,
+        `identified=${manifest.entry.identified} world_loaded=${manifest.entry.world_loaded} on the menu${cleared.length ? ` (${cleared.join(", ")})` : ""}; ` +
+          `pressed Enter World at ${fmt(btn.pos_px)} px: page ${manifest.entry.page_after_click}, world_loaded=${manifest.entry.world_loaded_after_click}`,
+      );
+    }
 
     // In the shared world, with the welcome applied (a build from before 1b
     // reports no `welcomed`, and is read as soon as it has joined).
@@ -1136,7 +1201,8 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     manifest.steps_ok.joined = {
       ok: joined,
       detail: pr
-        ? `world_loaded=${pr.world_loaded} game_joined=${pr.game_joined} copresence_active=${pr.copresence_active} welcomed=${pr.welcomed} refused=${pr.copresence_refused}`
+        ? `world_loaded=${pr.world_loaded} game_joined=${pr.game_joined} copresence_active=${pr.copresence_active} welcomed=${pr.welcomed} refused=${pr.copresence_refused}` +
+          (pr.copresence_refused_note ? ` ("${pr.copresence_refused_note}")` : "")
         : "the recorder never answered",
     };
     step("join", joined, manifest.steps_ok.joined.detail);

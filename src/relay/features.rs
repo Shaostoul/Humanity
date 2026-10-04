@@ -2026,6 +2026,80 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// ROUND 4 of the 1b review (finding 1): a join whose `ship_hash` is EMPTY names no ship
+    /// its game draws (the first 1b game sent "" when its own ship had not loaded, on the frame
+    /// Enter World was pressed, before the world loaded). It is refused with its own reason,
+    /// "no_ship_named", and the sentence that says the joiner's own ship did not load, on a
+    /// relay with a ship (it read "a different ship from yours") and on one with none (where
+    /// "" equalled the relay's empty hash and the join was taken as this ship's). Nothing is
+    /// spawned and no plot is claimed.
+    ///
+    /// Seen red 2026-10-03 on db551f530: "an empty ship hash is refused as no ship named (a
+    /// relay with no ship: false): String(\"other_ship\")".
+    #[tokio::test]
+    async fn a_join_naming_an_empty_ship_is_refused_on_any_relay() {
+        for no_ship in [false, true] {
+            let path = plots_db(if no_ship { "empty_hash_none" } else { "empty_hash" });
+            let (state, port, server) = relay_on(&path).await;
+            if no_ship {
+                state.game_world.write().await.ship_plots = Default::default();
+            }
+            let (mut game, key) = bind_socket(&state, port, [112u8 + no_ship as u8; 32], Some("PlotEmptyHash"), 1).await;
+            let (denied, seen) = game_reply_after_join(&mut game, "PlotEmptyHash", serde_json::json!({ "ship_hash": "" }), "game_join_denied").await;
+            let denied = denied.unwrap_or_else(|| panic!("no game_join_denied for an empty ship hash (a relay with no ship: {no_ship}); game messages seen: {seen:?}"));
+            assert_eq!(denied["reason"], "no_ship_named", "an empty ship hash is refused as no ship named (a relay with no ship: {no_ship}): {:?}", denied["reason"]);
+            assert_eq!(denied["message"], crate::ship::ship_structure::OWN_SHIP_SENTENCE);
+            assert!(state.game_world.read().await.find_player_entity(&key).is_none(), "nothing was spawned for it");
+            if !no_ship {
+                let ship = state.game_world.read().await.ship_plots.ship_id.clone();
+                for id in ship_plot_ids() {
+                    assert_eq!(state.db.plot_holder(&ship, &id).unwrap(), None, "no plot was claimed for it");
+                }
+            }
+            game.close(None).await.ok();
+            server.abort();
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+
+    /// ROUND 4 of the 1b review (finding 3): erasing an account while its figure stands in the
+    /// world. The erase gave its plot to the next joiner at once, while the holder's figure
+    /// still stood on it and their game still drew their home there: two homes on one plot.
+    /// Now the erase takes them out of the world and frees the plot in one step, under the
+    /// world's lock that every join holds while it claims a plot. And their progress in the
+    /// shared world goes with the account (finding 11): taking them out does not write it back.
+    ///
+    /// Seen red 2026-10-03 on db551f530: "the next player was given p1 while the erased
+    /// holder's figure still stands on it".
+    #[tokio::test]
+    async fn erasing_an_account_in_the_world_takes_its_figure_out_before_its_plot_goes_to_the_next_player() {
+        let path = plots_db("erase_in_world");
+        let (state, port, server) = relay_on(&path).await;
+        let ids = ship_plot_ids();
+        let ship = state.game_world.read().await.ship_plots.ship_id.clone();
+        let (mut holder, holder_key) = bind_socket(&state, port, [122u8; 32], Some("PlotEraser"), 1).await;
+        let w = welcome_after_join(&mut holder, "PlotEraser").await;
+        assert_eq!(welcome_plot(&w).as_deref(), Some(ids[0].as_str()), "the holder lives on the first plot");
+        send_json(&mut holder, serde_json::json!({ "type": "account_delete", "confirm_name": "PlotEraser" })).await;
+        let freed = wait_until(|| async { state.db.plot_holder(&ship, &ids[0]).ok().flatten().is_none() }).await;
+        assert!(freed, "the erase gave the plot back");
+        let (mut next, _) = bind_socket(&state, port, [123u8; 32], Some("PlotNextOne"), 1).await;
+        let wn = welcome_after_join(&mut next, "PlotNextOne").await;
+        let present = state.game_world.read().await.find_player_entity(&holder_key).is_some();
+        if welcome_plot(&wn).as_deref() == Some(ids[0].as_str()) {
+            assert!(!present, "the next player was given {} while the erased holder's figure still stands on it", ids[0]);
+        }
+        // Their game stepping out afterwards writes no progress back for the erased account
+        // (a game_leave of a figure still in the world saves its progress, despawn_player_now).
+        send_json(&mut holder, serde_json::json!({ "type": "game_leave" })).await;
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        assert!(state.db.load_player_progress(&holder_key).unwrap().is_none(), "the erased account's progress was written back");
+        holder.close(None).await.ok();
+        next.close(None).await.ok();
+        server.abort();
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// A game whose home cannot stand on the plot it was given leaves with
     /// `give_up_plot` (engine/home_plot.rs, "does not fit"), and that plot goes
     /// back for the next player; a plain leave keeps the plot.

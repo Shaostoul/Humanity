@@ -620,3 +620,27 @@ test("respawn: the walk to the far place keeps every step short and on the share
     }
   }
 });
+
+// How the game came into the world (round 4 of the 1b review, finding 1): a
+// returning player's game identifies on the main menu and only then is Enter
+// World pressed, so the join gate runs before the world loads. A menu-entry
+// run proves something only when that race really ran. Seen red 2026-10-03
+// with judgeEntry passing every menu entry (`raced = true`): "the socket had
+// not identified: expected false".
+const { judgeEntry } = require("../lib/copresence-judge.js");
+test("entry: a menu entry passes only when the socket identified before the world loaded", () => {
+  const RACED = { kind: "menu", identified: true, world_loaded: false, page_after_click: "None", world_loaded_after_click: false };
+  const ok = judgeEntry(RACED);
+  assert.ok(ok.pass, explain(ok));
+  assert.deepEqual(ok.checks.map((c) => c.id), ["entered_from_menu_after_identify"]);
+  for (const [what, bad] of [
+    ["the socket had not identified", { ...RACED, identified: false }],
+    ["a press after the world had loaded did not race", { ...RACED, world_loaded: true }],
+    ["a press that left the menu up did not enter", { ...RACED, page_after_click: "MainMenu" }],
+    ["the world loaded on the press's own frame", { ...RACED, world_loaded_after_click: true }],
+  ]) {
+    assert.equal(judgeEntry(bad).pass, false, `${what}: expected false`);
+  }
+  assert.ok(judgeEntry({ kind: "autopilot" }).pass, "the autopilot path is recorded, not failed");
+  assert.equal(judgeEntry(null).pass, false, "an entry nobody recorded fails");
+});

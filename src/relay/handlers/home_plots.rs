@@ -7,6 +7,8 @@
 //!     (`give_up_plot_if_asked`);
 //!   - an admin gives back a plot from Server Settings, naming the player's public key or the
 //!     plot's id (`handle_game_release_plot`, the in-app control the GUI-first rule asks for);
+//!   - an account being erased leaves the world and frees its plot in one step
+//!     (`leave_world_for_erase`);
 //!   - the one dispatch relay.rs makes for every game-admin message (`handle_game_admin`).
 //!
 //! Its own file because msg_handlers.rs is held to a line budget (tests/file_size_ratchet.rs).
@@ -24,7 +26,10 @@ use std::sync::Arc;
 ///     1b: the first build spawned it, welcomed it, and everyone saw a player join and leave
 ///     at once), its positions could never agree with ours;
 ///   - reason "no_ship": it names a ship and this relay has none (the third review: it was
-///     told "a different ship from yours", which was not true).
+///     told "a different ship from yours", which was not true);
+///   - reason "no_ship_named": it names an empty ship, its game's own ship did not load (round
+///     4 of the review: it was told "a different ship from yours", or, on a relay with no
+///     ship, taken as this ship's).
 ///
 /// Nobody else hears of it. If an earlier join of theirs is still in the world (a reconnect
 /// after their ship changed), it leaves.
@@ -38,6 +43,7 @@ pub async fn refused_join(state: &Arc<RelayState>, my_key: &str, join: &JoinHome
     let (reason, message) = match why {
         JoinRefusal::OtherShip => ("other_ship", crate::ship::ship_structure::OTHER_SHIP_SENTENCE),
         JoinRefusal::NoShip => ("no_ship", crate::ship::ship_structure::NO_SHIP_SENTENCE),
+        JoinRefusal::NoShipNamed => ("no_ship_named", crate::ship::ship_structure::OWN_SHIP_SENTENCE),
     };
     tracing::info!("Game: {} join refused ({reason}, theirs {:?}); nothing spawned", my_key, join.ship_hash);
     if present {
@@ -52,6 +58,36 @@ pub async fn refused_join(state: &Arc<RelayState>, my_key: &str, join: &JoinHome
     });
     send_game_private(state, my_key, &denied).await;
     true
+}
+
+/// An account is being erased (msg_handlers.rs `handle_account_delete`): take its figure out
+/// of the shared world and free its plot on this ship in ONE step, under the game world's write
+/// lock, which every join holds while it claims a plot (game_state.rs `assign_home`). Round 4
+/// of the 1b review: the erase freed the plot while the figure still stood on it and its game
+/// still drew its home there, so the next joiner was handed a plot someone visibly lived on.
+/// Their progress is NOT saved on the way out (`despawn_player_now` would write a fresh
+/// `player_progress` row for an account being erased; the erase deletes any row they had).
+/// True when a plot was freed here.
+pub async fn leave_world_for_erase(state: &Arc<RelayState>, key: &str) -> bool {
+    state.link_dead.write().await.remove(key);
+    crate::relay::handlers::live_conns::release_game_seat(state, key).await;
+    let (left, freed) = {
+        let mut world = state.game_world.write().await;
+        let left = world.despawn_player(key);
+        (left, world.release_home(&state.db, key))
+    };
+    if let Some(entity_id) = left {
+        let gone = serde_json::json!({ "type": "game_player_left", "player_id": entity_id });
+        let _ = state.broadcast_tx.send(crate::relay::relay::RelayMessage::System { message: format!("__game__:{gone}") });
+        tracing::info!("Game: player {} left (entity {}): their account is being erased", key, entity_id);
+    }
+    match freed {
+        Ok(freed) => freed.is_some(),
+        Err(e) => {
+            tracing::warn!("Game: could not give back the plot of an account being erased: {e}");
+            false
+        }
+    }
 }
 
 /// `game_leave` with `"give_up_plot": true`: the game is leaving because its home cannot stand

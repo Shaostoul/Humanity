@@ -614,7 +614,11 @@ verify-second-player:
 #     Then the game steps out of the shared world and back, moved over 100 m
 #     from its door while out: it must stand where the relay respawns it, and
 #     its next move must reach the walker. --order walker-first|game-first runs
-#     one. About 6 minutes.
+#     one. game-first comes into the world the way a returning player does:
+#     connected and identified on the main menu first, then the menu's Enter
+#     World pressed (the join gate then runs before the world has loaded);
+#     walker-first by the autopilot. --entry menu|autopilot picks one for both.
+#     About 6 minutes.
 #   just verify-copresence --dry-verdict <manifest.json>   re-judge without booting
 [positional-arguments]
 verify-copresence *ARGS:
