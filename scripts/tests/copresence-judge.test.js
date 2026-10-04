@@ -266,6 +266,17 @@ test("teal far from where the nameplate is does not count for it", () => {
   assert.equal(figurePixels(picture({ figureAt: 360 })).count, 40 * 150, "without a nameplate the whole picture is counted");
 });
 
+// The capture can land a second or more after the nameplate was asked for (a busy
+// machine, 2026-10-04: asked at x 1505, the figure captured at x 1286, so "0
+// teal px under its nameplate" with the figure in plain view). Asked again right
+// after the capture, the box spans both: the figure walked from one to the other.
+test("the figure between the nameplate before and after the capture counts; a window over it still fails", () => {
+  // The name asked at x 380, the body captured at 180..220, the name after the capture at 160.
+  assert.equal(figurePixels(picture(), [380, 90]).count, 0, "asked once, 160 px behind the figure: missed");
+  assert.equal(figurePixels(picture(), [380, 90], [160, 90]).count, 40 * 150, "asked before and after: the span holds it");
+  assert.equal(figurePixels(picture({ cover: true }), [380, 90], [160, 90]).count, 0, "a window over it still reads nothing");
+});
+
 test("the room itself is not teal", () => {
   assert.equal(isFigureTeal(181, 186, 192), false, "floor");
   assert.equal(isFigureTeal(61, 72, 87), false, "wall");

@@ -952,11 +952,17 @@ const FIGURE_MIN_PX = 1500;
 /// png.js decode). With `nameplate` ([x, y], window pixels, where the game
 /// drew the walker's name), only a box under it is counted: 150 px either
 /// side (the figure moves a little between asking and capturing) and 450 px
-/// down from the name. Without it, the whole picture. Returns { count, box,
-/// centroid } (centroid null when nothing counted).
-function figurePixels(img, nameplate = null) {
+/// down from the name. With `after` too (where the name was drawn when asked
+/// again right after the capture), the box spans both, 150 px either side: on
+/// a busy machine the capture can land a second or more after the first ask,
+/// and the figure walks 200 px in that time (2026-10-04, increment 2's
+/// meeting: the name asked at x 1505, the figure captured at x 1286). Without
+/// a nameplate, the whole picture. Returns { count, box, centroid } (centroid
+/// null when nothing counted).
+function figurePixels(img, nameplate = null, after = null) {
+  const xs = [nameplate, after].filter(Boolean).map((p) => p[0]);
   const box = nameplate
-    ? [Math.max(0, Math.round(nameplate[0] - 150)), Math.max(0, Math.round(nameplate[1])), Math.min(img.width, Math.round(nameplate[0] + 150)), Math.min(img.height, Math.round(nameplate[1] + 450))]
+    ? [Math.max(0, Math.round(Math.min(...xs) - 150)), Math.max(0, Math.round(nameplate[1])), Math.min(img.width, Math.round(Math.max(...xs) + 150)), Math.min(img.height, Math.round(nameplate[1] + 450))]
     : [0, 0, img.width, img.height];
   let count = 0;
   let sx = 0;

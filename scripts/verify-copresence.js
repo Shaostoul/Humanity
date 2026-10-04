@@ -949,13 +949,19 @@ async function takeShots(name, onLineAt, passS, out, prefix = "") {
     // on a busy machine) is the rig disturbing the drawing, so the meeting judges its walk on a
     // forward leg after the last of them (meetChecks).
     const taken = Date.now();
+    // Where the name is drawn right after the capture too: the figure in the picture stood
+    // between the two (figurePixels counts the span; on a busy machine the capture can land a
+    // second after the first ask).
+    const np2 = await ui({ action: "find", text: name });
     const nameplate = np && np.found && np.text === name ? { pos_px: np.pos_px, rect_px: np.rect_px } : null;
+    const nameplateAfter = np2 && np2.found && np2.text === name ? { pos_px: np2.pos_px, rect_px: np2.rect_px } : null;
     const npNote = np ? (np.found ? `found "${np.text}"` : "not drawn") : "no answer";
+    const rec = { nameplate, nameplate_after: nameplateAfter, nameplate_find: npNote, taken_epoch_ms: taken };
     if (s.ok) {
       fs.copyFileSync(s.src, path.join(out, `${prefix}${label}.png`));
-      shots.push({ file: `${prefix}${label}.png`, s_after_reaching_line: Number(requested.toFixed(2)), expected_along_m: Number((SPEED * requested).toFixed(2)), nameplate, nameplate_find: npNote, taken_epoch_ms: taken });
+      shots.push({ file: `${prefix}${label}.png`, s_after_reaching_line: Number(requested.toFixed(2)), expected_along_m: Number((SPEED * requested).toFixed(2)), ...rec });
     } else {
-      shots.push({ file: null, error: s.error, nameplate, nameplate_find: npNote, taken_epoch_ms: taken });
+      shots.push({ file: null, error: s.error, ...rec });
     }
   }
   return shots;
@@ -969,8 +975,10 @@ function figureVisible(shots, dir) {
   const seenIn = (shots || []).map((sh) => {
     if (!sh.file || !fs.existsSync(path.join(dir, sh.file))) return { file: sh.file, ok: false, note: "no picture" };
     const at = sh.nameplate && sh.nameplate.pos_px ? sh.nameplate.pos_px : null;
-    const f = figurePixels(png.decode(fs.readFileSync(path.join(dir, sh.file))), at);
-    return { file: sh.file, ok: f.count >= FIGURE_MIN_PX, note: `${f.count} teal px ${at ? "under its nameplate" : "in the whole picture"}${f.centroid ? ` (centre x ${f.centroid[0].toFixed(0)})` : ""}` };
+    const after = at && sh.nameplate_after && sh.nameplate_after.pos_px ? sh.nameplate_after.pos_px : null;
+    const f = figurePixels(png.decode(fs.readFileSync(path.join(dir, sh.file))), at, after);
+    const where = !at ? "in the whole picture" : after ? `under its nameplate (x ${at[0].toFixed(0)} before the capture, ${after[0].toFixed(0)} after)` : "under its nameplate";
+    return { file: sh.file, ok: f.count >= FIGURE_MIN_PX, note: `${f.count} teal px ${where}${f.centroid ? ` (centre x ${f.centroid[0].toFixed(0)})` : ""}` };
   });
   return {
     ok: seenIn.length === 2 && seenIn.every((x) => x.ok),
