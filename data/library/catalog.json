@@ -216,6 +216,17 @@
           ]
         },
         {
+          "title": "What Not to Compost, Burn or Pour Away",
+          "src": "docs/user/skills/what_not_to_compost_burn_or_pour_away.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "water",
+            "safety"
+          ]
+        },
+        {
           "title": "What Soil Is",
           "src": "docs/user/skills/what_soil_is.md",
           "tags": [
@@ -572,6 +583,17 @@
           ]
         },
         {
+          "title": "Ratios and Mixing",
+          "src": "docs/user/skills/ratios_and_mixing.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "food",
+            "safety"
+          ]
+        },
+        {
           "title": "Estimating",
           "src": "docs/user/skills/estimating.md",
           "tags": [
@@ -618,6 +640,16 @@
             "guide",
             "real",
             "technical",
+            "safety"
+          ]
+        },
+        {
+          "title": "Sound and Hearing",
+          "src": "docs/user/skills/sound_and_hearing.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
             "safety"
           ]
         },
