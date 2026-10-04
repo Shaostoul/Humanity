@@ -11,6 +11,12 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1449.1: three more Library guides.** Chickens and Eggs (keeping a
+  small flock, collecting and washing eggs safely, coop heat lamps), Glue and
+  Joints (which glue for which job, and joints that hold), and Reading the
+  Weather (clouds, pressure, watches and warnings, lightning, floods and
+  tornadoes). The Library now has 62 sourced guides.
+
 - **v0.1449.0: erasing your account sticks, and three more Library guides.**
   After you erase your account on a server, the app now disconnects from it and
   stays disconnected, instead of quietly signing you up again the next time it
