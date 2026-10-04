@@ -42,6 +42,7 @@
 // Originals are restored at the end (and on any error).
 const fs = require("fs");
 const path = require("path");
+const { STICKY_PIN_RESETS, DIAG_RESETS } = require("./lib/showcase-pins.js");
 
 const REPO = path.resolve(__dirname, "..");
 const RIG = path.join(REPO, ".probe-rig");
@@ -138,7 +139,11 @@ async function capture(v, arm, armShowcase) {
 
 async function park(v, armShowcase) {
   const sc = Object.assign(
-    { map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto", aurora: "1", present_dither: "1", sun_shadows: "auto", near_levels: "auto" },
+    // Every sticky pin released (scripts/lib/showcase-pins.js, the list probe-sweep.js sends),
+    // then the plan's, the vantage's and the arm's own pins over it.
+    {},
+    DIAG_RESETS,
+    STICKY_PIN_RESETS,
     plan.pins || {},
     v.showcase || {},
     armShowcase || {}

@@ -1913,6 +1913,7 @@ mod native_app {
                 flow_rgb_mats: Vec::new(),
                 connection_cyl: None,
                 connection_mats: std::collections::HashMap::new(),
+                pipe_markers: Default::default(),
                 door_panels: Vec::new(),
                 door_manual_open: Vec::new(),
                 door_locks: Vec::new(),
@@ -7221,6 +7222,8 @@ mod native_app {
                         state.gui_state.construction_machines_dirty = false;
                         rebuild_machine_objects(state);
                     }
+                    // Pipe markings (2026-10-04): Settings or a showcase pin changed the mode.
+                    crate::engine::pipe_markers::rebuild_if_mode_changed(state);
                     // Interior-wall edit (v0.534): the editor mutated gui_state.home_structure
                     // (added/removed a wall, moved a corner, changed an opening). Rebuild the home
                     // mesh live so the change shows immediately; persistence waits for Save.
@@ -7799,8 +7802,9 @@ mod native_app {
                                     let mat = match state.connection_mats.get(&key) {
                                         Some(&m) => m,
                                         None => {
-                                            let c = crate::machines::MachineHome::connection_color(&kind);
-                                            let m = state.renderer.add_material_full([c[0], c[1], c[2], 1.0], 0.0, 0.4, 0.0, 2.0);
+                                            // The pipes' band colour in linear light (2026-10-04 review).
+                                            let fill = crate::machines::MachineHome::gizmo_colours(&kind, [1.0; 4]).fill;
+                                            let m = state.renderer.add_material_full(fill, 0.0, 0.4, 0.0, 2.0);
                                             state.connection_mats.insert(key, m);
                                             m
                                         }
@@ -8808,10 +8812,18 @@ mod native_app {
                             }
 
                             // PORT gizmos + the DRAG-TO-CONNECT rubber band (v0.625). The SELECTED
-                            // machine's ports show as coloured handles above it (amber power, blue water,
-                            // violet data, ...); an OUT port gets an outer "target" ring. Drag a handle
-                            // and a line follows to the cursor / hovered machine -- utility-coloured when
-                            // it can wire, RED when the target has no matching port. Release to connect.
+                            // machine's ports show as coloured handles above it, in the pipes' marking
+                            // scheme (blue water, orange power, ...); an OUT port gets an outer "target"
+                            // ring. Drag a handle and a line follows to the cursor / hovered machine --
+                            // utility-coloured when it can wire, RED when the target has no matching
+                            // port. Release to connect. The lines take the gizmo OUTLINE colour (linear,
+                            // 2026-10-04 review): the band colour, or the theme's secondary text where the
+                            // band colour (ISO 14726's black for waste) is too dark to see.
+                            let gizmo_light = {
+                                let c = state.theme.text_secondary();
+                                let l = crate::ship::pipe_materials::srgb_to_linear;
+                                [l(c.r()), l(c.g()), l(c.b()), 1.0]
+                            };
                             {
                                 let sel = state.gui_state.construction_machine_selected.clone();
                                 if let Some(sel_id) = sel.as_deref() {
@@ -8819,8 +8831,7 @@ mod native_app {
                                         if mid != sel_id {
                                             continue;
                                         }
-                                        let c = crate::machines::MachineHome::connection_color(port.utility.id());
-                                        let col = [c[0], c[1], c[2], 1.0];
+                                        let col = crate::machines::MachineHome::gizmo_colours(port.utility.id(), gizmo_light).outline;
                                         // 4 CARDINAL ARROWS around the central node sphere (v0.627): arrows
                                         // pointing IN (heads near the sphere) = an INPUT/draw port; pointing
                                         // OUT = an OUTPUT/supply port; both heads = bidirectional. Far more
@@ -8851,7 +8862,7 @@ mod native_app {
                                     }
                                 }
                                 if let Some((src_id, util, _pdir, wp)) = state.construction_port_drag.clone() {
-                                    let c = crate::machines::MachineHome::connection_color(util.id());
+                                    let c = crate::machines::MachineHome::gizmo_colours(util.id(), gizmo_light).outline;
                                     // A conduit NODE under the cursor takes precedence (v0.629): dropping
                                     // there branches the machine onto the main line, always valid.
                                     let node_center = port_drop_node_target(state).and_then(|nid| {

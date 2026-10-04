@@ -125,6 +125,14 @@ pub struct MachineDef {
     /// (a cistern's level is a draining number, not a static "33 days" string).
     #[serde(default)]
     pub storage: Vec<MachineStorage>,
+    /// What a line LEAVING this machine carries, by connection kind, where that is more specific
+    /// than the kind's own group (2026-10-04, pipe marking review): water leaving the purifier is
+    /// `potable_water`, water leaving an air handler's coil `condensate`. Each value is a content
+    /// id the marking schemes mark (data/piping/marking_schemes.ron). A kind with no entry carries
+    /// its group alone (a `water` line is marked fresh water), so a line is never marked more
+    /// specifically than the machine it leaves says it is (`MachineHome::line_content`).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub outlet_media: BTreeMap<String, String>,
     /// Economy automation (v0.663): a recipe id from `data/recipes.csv` this machine runs
     /// CONTINUOUSLY against the home inventory whenever the inputs are in stock (the smelter
     /// auto-runs `smelt_iron`, the workbench `craft_hammer`). Spawns an `AutoRefine` ECS
@@ -607,7 +615,8 @@ pub struct MachineArray {
 pub struct MachineConnection {
     pub from: String,
     pub to: String,
-    /// "power" | "water" | "nutrient" | "fuel" (colors the tube).
+    /// "power" | "water" | "nutrient" | "fuel": what the line carries, which picks its conduit
+    /// (ship::conduits) and its marker bands (ship::pipe_marking).
     pub kind: String,
     /// The chosen conduit/cable type id (v0.605, e.g. "cu_awg12"), or None to auto-pick the cheapest
     /// copper that carries the load. `#[serde(default)]` so every existing connection parses unchanged.
@@ -964,6 +973,17 @@ pub fn zone_world_pos(zr: &ZoneRect, offset: (f32, f32, f32)) -> (f32, f32, f32)
     let x = offset.0.clamp(0.3, (w - 0.3).max(0.3));
     let z = offset.2.clamp(0.3, (d - 0.3).max(0.3));
     (ox + x, oy + offset.1, oz + z)
+}
+
+/// The colours the build editor's 3D port gizmos draw a connection kind in, LINEAR light
+/// (`MachineHome::gizmo_colours`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GizmoColours {
+    /// The port's node sphere: the pipes' band colour.
+    pub fill: [f32; 4],
+    /// The port's direction arrows and the drag-to-connect line: the band colour, or a light
+    /// outline when the band colour is too dark to see against a dark room.
+    pub outline: [f32; 4],
 }
 
 /// A placed machine resolved to its world draw position + appearance, ready for the renderer. The
@@ -2330,31 +2350,115 @@ impl MachineHome {
         by_cat.into_iter().collect()
     }
 
-    /// Color (rgba) for a connection kind.
-    /// The utility-colour LEGEND (v0.622): one distinct hue per conduit kind, chosen so they read apart
-    /// in the build editor's flow markers + pipes. Picked around real conventions (electricity = yellow,
-    /// water = blue, hot = red). There are many possible chemicals/utilities, so keep new kinds visually
-    /// distinct from these; a fully data-driven utility-colour registry is a future refinement.
+    /// Colour (sRGB 0..1, rgba) for a connection kind: the utility-colour LEGEND of the build
+    /// editor (port gizmos, the connection inspector, the meters).
+    ///
+    /// Since 2026-10-04 this is the ship's marking scheme (ISO 14726, data/piping/marking_schemes.ron):
+    /// the content's MAIN colour, the band Simplified pipe markings draw, so the legend says what
+    /// the pipes' marker bands say. The v0.622 legend it replaces was a hand-picked set (amber
+    /// power, violet data, red hot water) that clashed with every published scheme
+    /// (docs/reference/findings/2026-10-04-pipe-marking-standards.md). An unmarked kind is neutral
+    /// grey. These are sRGB values, and several (ISO 14726's black, brown, maroon) are too dark to
+    /// read on a dark background: the 3D port gizmos take them linearised and outlined
+    /// (`gizmo_colours`), and the editor panels show them as an outlined swatch beside theme text,
+    /// never as a text colour (2026-10-04 review).
     pub fn connection_color(kind: &str) -> [f32; 4] {
-        match kind {
-            "power" => [0.95, 0.75, 0.15, 1.0],      // amber/yellow (electricity)
-            "water" => [0.20, 0.45, 0.85, 1.0],      // blue (potable)
-            "hot_water" => [0.90, 0.35, 0.25, 1.0],  // warm red (hot)
-            "air" => [0.35, 0.80, 0.90, 1.0],        // cyan (compressed air / ventilation)
-            "gas" => [0.70, 0.85, 0.25, 1.0],        // yellow-green (gaseous fuel)
-            "fuel" => [0.55, 0.50, 0.18, 1.0],       // olive (liquid fuel / oil)
-            "data" => [0.70, 0.35, 0.95, 1.0],       // violet (telecom / internet)
-            "nutrient" => [0.55, 0.35, 0.18, 1.0],   // brown (compost / nutrients)
-            "waste" => [0.35, 0.40, 0.32, 1.0],      // dark grey-green (sewage / drain)
-            "greywater" => [0.55, 0.52, 0.40, 1.0],  // muddy tan (recycled greywater)
-            _ => [0.6, 0.6, 0.6, 1.0],               // unknown -> neutral grey
-        }
+        crate::ship::pipe_marking::marking().main_colour_srgb01(kind).unwrap_or([0.6, 0.6, 0.6, 1.0])
+    }
+
+    /// The build editor's 3D port gizmo colours for a connection kind, in LINEAR light, which is
+    /// what the renderer's material base colours and line colours are (2026-10-04 review: the
+    /// gizmos took `connection_color`'s sRGB as if it were linear, so they were paler than the
+    /// bands they stand for). `fill`, the node sphere, is the pipes' band colour. `outline`, the
+    /// port's arrows and the drag line, is that colour too when it stands out against black, the
+    /// darkest a room gets, at WCAG's 3:1 for graphics, else `light_outline` (a theme token,
+    /// linear), so ISO 14726's black for waste or brown for fuel still shows.
+    pub fn gizmo_colours(kind: &str, light_outline: [f32; 4]) -> GizmoColours {
+        use crate::ship::pipe_marking::contrast_ratio;
+        use crate::ship::pipe_materials::srgb_to_linear;
+        let c = Self::connection_color(kind);
+        let lin = |v: f32| srgb_to_linear((v * 255.0).round().clamp(0.0, 255.0) as u8);
+        let fill = [lin(c[0]), lin(c[1]), lin(c[2]), 1.0];
+        let outline = if contrast_ratio(fill, [0.0, 0.0, 0.0, 1.0]) >= 3.0 { fill } else { light_outline };
+        GizmoColours { fill, outline }
+    }
+
+    /// Every placed machine's id -> its machine type (arrays expanded), for `line_content`.
+    pub fn instance_types(&self) -> std::collections::HashMap<String, String> {
+        self.all_instances().into_iter().map(|i| (i.id, i.machine)).collect()
+    }
+
+    /// What a line of connection `kind` leaving the machine `from_id` CARRIES: the content its
+    /// marker bands name (2026-10-04, pipe marking review). The source machine type's
+    /// `outlet_media` entry for `kind` when it has one (water leaving the purifier is
+    /// `potable_water`, water leaving an air handler `condensate`), else `kind` itself, whose
+    /// scheme row marks only its group. `types` is `instance_types()`; a conduit-node end
+    /// ("node:...") or an unknown id carries its kind. Derived from the machine the line leaves,
+    /// never from anything typed on the line, so the markers stay honest by construction.
+    pub fn line_content<'a>(&'a self, types: &std::collections::HashMap<String, String>, from_id: &str, kind: &'a str) -> &'a str {
+        types
+            .get(from_id)
+            .and_then(|t| self.catalog.get(t))
+            .and_then(|d| d.outlet_media.get(kind))
+            .map(String::as_str)
+            .unwrap_or(kind)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The build editor's utility legend (`connection_color`: the port gizmos, the connection
+    /// inspector, the meters) is the ship's marking scheme, so it says what the pipes' marker
+    /// bands say (2026-10-04). Seen red with the v0.622 legend still in place: "power's legend is
+    /// the scheme's simplified band: [0.95, 0.75, 0.15, 1.0]".
+    #[test]
+    fn connection_colour_is_the_ship_schemes_main_colour() {
+        let reg = crate::ship::pipe_marking::marking();
+        let power = MachineHome::connection_color("power");
+        assert_eq!(power, reg.main_colour_srgb01("power").unwrap(), "power's legend is the scheme's simplified band: {power:?}");
+        for kind in ["water", "potable_water", "condensate", "hot_water", "air", "gas", "fuel", "data", "nutrient", "waste", "greywater"] {
+            assert_eq!(MachineHome::connection_color(kind), reg.main_colour_srgb01(kind).unwrap(), "{kind}");
+        }
+        assert_eq!(MachineHome::connection_color("no_such_utility"), [0.6, 0.6, 0.6, 1.0], "unknown stays neutral grey");
+        assert_eq!(MachineHome::connection_color("food"), [0.6, 0.6, 0.6, 1.0], "an unmarked content is neutral grey");
+    }
+
+    /// The 3D port gizmos draw the pipes' band colour in LINEAR light, as the bands do (the
+    /// renderer's material and line colours are linear), and their arrows stay visible however
+    /// dark that colour is: at least WCAG's 3:1 for graphics against black, the darkest a room
+    /// gets (2026-10-04 review: ISO 14726's black for waste, compost and grey water went in as
+    /// sRGB and drew a near-black node with near-black arrows).
+    ///
+    /// Seen red with the gizmos taking `connection_color` as it is: "`water`'s port node is its
+    /// band colour in linear light: [0.09411765, 0.34509805, 0.72156864, 1.0], the band is
+    /// [0.009134057, 0.09758736, 0.47932023, 1.0]".
+    #[test]
+    fn port_gizmos_draw_the_band_colour_in_linear_light_and_stay_visible() {
+        use crate::ship::pipe_marking::{contrast_ratio, marking};
+        let ship = marking().default_scheme().expect("the ship's scheme");
+        let light = [0.45, 0.45, 0.49, 1.0]; // the theme's secondary text, linearised
+        let black = [0.0, 0.0, 0.0, 1.0];
+        let mut dark = 0;
+        for row in ship.contents.iter().filter(|r| !r.unmarked) {
+            let g = MachineHome::gizmo_colours(&row.content, light);
+            let band = ship.colour(&row.main).expect("its main colour").linear_rgba();
+            assert_eq!(g.fill, band, "`{}`'s port node is its band colour in linear light: {:?}, the band is {:?}", row.content, g.fill, band);
+            let c = contrast_ratio(g.outline, black);
+            assert!(c >= 3.0, "`{}`'s port arrows show against a dark room: {c:.2}:1 ({:?})", row.content, g.outline);
+            if contrast_ratio(band, black) < 3.0 {
+                dark += 1;
+                assert_eq!(g.outline, light, "`{}`'s band is too dark to outline itself: the light outline", row.content);
+            } else {
+                assert_eq!(g.outline, band, "`{}` outlines in its own band colour", row.content);
+            }
+        }
+        assert!(dark >= 3, "sanity: ISO 14726's black and brown rows need the outline ({dark})");
+        // An unmarked or unknown content is neutral grey, linearised, and visible.
+        let food = MachineHome::gizmo_colours("food", light);
+        assert!(contrast_ratio(food.outline, black) >= 3.0 && food.fill == food.outline, "{food:?}");
+    }
 
     #[test]
     fn parses_the_shipped_home_layout() {
@@ -2538,6 +2642,7 @@ mod tests {
             power: None,
             ports: Vec::new(),
             storage: Vec::new(),
+            outlet_media: BTreeMap::new(),
             auto_recipe: None,
             irrigates: false,
             auto_keep: None,
@@ -3323,7 +3428,7 @@ mod tests {
                 .sum();
             println!("{file}: household {household:.1} L a day, {fixtures_hot:.1} of it hot ({:.0}%)", fixtures_hot / household * 100.0);
             assert!((household - PER_PERSON_L_DAY * people as f32).abs() < 0.5, "{file}: the household draws {household:.1} L a day, {people} x {PER_PERSON_L_DAY}");
-            let hose = home.connections.iter().any(|c| c.kind == "water" && all.iter().any(|i| i.id == c.from && i.machine == "water_heater") && all.iter().any(|i| i.id == c.to && i.machine == "washer"));
+            let hose = home.connections.iter().any(|c| c.kind == "hot_water" && all.iter().any(|i| i.id == c.from && i.machine == "water_heater") && all.iter().any(|i| i.id == c.to && i.machine == "washer"));
             assert!(hose, "{file}: a hot hose runs from the water heater to the washer");
         }
     }

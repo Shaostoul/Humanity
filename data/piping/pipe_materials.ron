@@ -1,0 +1,71 @@
+// What a pipe, hose or cable is MADE OF, as the renderer draws it (2026-10-04).
+// Read by src/ship/pipe_materials.rs (disk first, the copy built into the exe if
+// this file is missing or does not parse).
+//
+// The pipe body shows its real material everywhere between the marker bands; what
+// flows inside is said by the bands alone (data/piping/marking_schemes.ron). No
+// marking standard colours the wall material (findings F28,
+// docs/reference/findings/2026-10-04-pipe-marking-standards.md), and pipes that need
+// no warning colour "may be painted to match surroundings ... or remain unpainted"
+// (GSFC-STD-8006, F4; MIL-STD-101C says the same, F8).
+//
+// FIELD REFERENCE
+//   kinds[]       which material each conduit kind's body is drawn in. The kinds are
+//                 the closed set in src/ship/conduits.rs (ConduitKind::id): a kind
+//                 fixes how the run behaves (rigid with elbows, or flexible); WHICH
+//                 kind carries a given content is decided there, not here, and that
+//                 includes the potable-water rule recorded in that file.
+//   materials[]
+//     srgb        sRGB, 0-255; the renderer converts it to linear light. For a
+//                 dielectric, OUR rendition of its colour. For a bare metal it IS the
+//                 metal's reflectance (the shader takes a metal's F0 straight from it
+//                 and gives it no diffuse), so it must be the MEASURED value, never a
+//                 swatch: every channel at least 0.04 linear, the brightest at least 0.5
+//                 (the test a_metal_reflects_what_measured_metals_reflect)
+//     metallic    0 for a dielectric (rubber, PVC), 1 for a bare metal
+//     roughness   perceptual roughness, 0 mirror to 1 chalk
+//
+// Copper tube also carries its maker's type stripe and print line (Type L blue, Type
+// M red, F31); that thin marking is not drawn yet.
+(
+    kinds: [
+        (kind: "rigid_copper", material: "copper"),
+        (kind: "flexible_hose", material: "hose_rubber"),
+        (kind: "power_cord", material: "power_cord"),
+        (kind: "data_cable", material: "data_cable"),
+    ],
+    materials: [
+        (
+            id: "copper",
+            name: "Copper tube",
+            srgb: (250, 209, 194),
+            metallic: 1.0,
+            roughness: 0.4,
+            note: "Measured copper: a metal's colour here is its reflectance, F0 (0.955, 0.638, 0.538) in linear light, sRGB (250, 209, 194) (Real-Time Rendering, 4th ed., Table 9.2). Until 2026-10-04 this row held #B87333, the web 'copper' swatch ConduitKind::color() carried, which as a metal reflected 3% of blue light, less than any non-metal. Installed tube dulls over months as an oxide film grows: that is a darker, rougher FINISH over the metal (the finish layer the findings describe), not a lower reflectance, and it is not drawn yet. The roughness is a lightly worn tube's. Ours.",
+        ),
+        (
+            id: "hose_rubber",
+            name: "Rubber hose",
+            srgb: (51, 56, 61),
+            metallic: 0.0,
+            roughness: 0.75,
+            note: "Dark rubber, ConduitKind::color()'s flexible-hose colour since v0.535.",
+        ),
+        (
+            id: "power_cord",
+            name: "Power cord jacket",
+            srgb: (26, 26, 31),
+            metallic: 0.0,
+            roughness: 0.6,
+            note: "Black cord, ConduitKind::color()'s power-cord colour since v0.535.",
+        ),
+        (
+            id: "data_cable",
+            name: "Data cable jacket",
+            srgb: (168, 170, 172),
+            metallic: 0.0,
+            roughness: 0.55,
+            note: "A light grey PVC jacket. Ours: Cat6 jackets come in many colours, a seller's choice we found no standard for.",
+        ),
+    ],
+)

@@ -773,6 +773,12 @@ pub struct AppConfig {
     /// Held in GuiState as `settings.carry_realistic`.
     #[serde(default)]
     pub carry_realistic: bool,
+    /// Pipe markings (2026-10-04, engine::pipe_markers): false is Simplified (one band of the
+    /// content's main colour per marker), true is Full (the scheme's whole marker: main,
+    /// additional, main for ISO 14726). Simplified by default, the house rule for deep systems.
+    /// Held in GuiState as `settings.pipe_marking_full`.
+    #[serde(default)]
+    pub pipe_marking_full: bool,
     /// Play mode (task #50): Normal | Creative | Dev -- the ladder every
     /// cheat/scope gate hangs off (see the `PlayMode` docs above). Absent in
     /// old configs => Dev via `#[serde(default)]` (the pre-launch default;
@@ -1448,6 +1454,7 @@ impl AppConfig {
             vitals_drain: state.settings.vitals_drain,
             body_heat_realistic: state.settings.body_heat_realistic,
             carry_realistic: state.settings.carry_realistic,
+            pipe_marking_full: state.settings.pipe_marking_full,
             play_mode: state.settings.play_mode,
             hud_vitals: state.settings.hud_vitals,
             // v0.488 voice input prefs (top-level GuiState, not SettingsState).
@@ -1725,6 +1732,7 @@ impl AppConfig {
         state.settings.vitals_drain = self.vitals_drain.clamp(0.0, 5.0);
         state.settings.body_heat_realistic = self.body_heat_realistic;
         state.settings.carry_realistic = self.carry_realistic;
+        state.settings.pipe_marking_full = self.pipe_marking_full;
         // Play mode (task #50): restore the persisted mode, then PRESET the
         // creative (free resources) flag from it -- GuiState defaults that
         // flag to true (early-dev posture), so a Normal-mode player must get
@@ -2069,6 +2077,23 @@ mod play_mode_tests {
         assert!(fresh.settings.body_heat_realistic, "Realistic body heat stays chosen after a restart");
     }
 
+    /// The pipe-marking mode (2026-10-04) starts Simplified and a chosen Full survives a save
+    /// and a load, through the GUI state, the JSON and back.
+    /// Seen red with `from_gui_state` writing `pipe_marking_full: false`: "the pipe marking
+    /// mode is written" (the JSON held `"pipe_marking_full":false`).
+    #[test]
+    fn the_pipe_marking_mode_survives_a_save_and_a_load() {
+        let mut state = crate::gui::GuiState::default();
+        assert!(!state.settings.pipe_marking_full, "pipe markings start Simplified");
+        state.settings.pipe_marking_full = true;
+        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
+        assert!(json.contains("\"pipe_marking_full\":true"), "the pipe marking mode is written");
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        let mut fresh = crate::gui::GuiState::default();
+        back.apply_to_gui_state(&mut fresh);
+        assert!(fresh.settings.pipe_marking_full, "Full pipe markings stay chosen after a restart");
+    }
+
     /// The per-screen video choice and the ffmpeg path survive a save and a
     /// load, through JSON and through both GuiState legs; a config without
     /// them (every config before 2026-09-18) reads as "no choices, auto".
@@ -2248,6 +2273,8 @@ mod pbkdf2_migration_tests {
         assert!(!c.body_heat_realistic);
         // Carrying weight starts Forgiving too (BUG-136).
         assert!(!c.carry_realistic);
+        // Pipe markings start Simplified (2026-10-04).
+        assert!(!c.pipe_marking_full);
         assert_eq!(c.planet_max_subdiv, 6.0);
         // Fresh installs see the concept tour exactly once: the serde
         // default is true (pre-v0.198 configs skip it) but the no-config

@@ -2,9 +2,15 @@
 // realistic ORTHOGONAL runs with real fittings, the way a plumber and electrician would
 // actually install them on an exposed-services ship interior (submarine / ISS aesthetic).
 //
-// Grounded in real code: ASME A13.1 (pipe color), IPC 308.5 + NEC 358.30 (support
-// spacing), NEC 300.4 (power runs ABOVE wet lines). Data-driven (infinite-of-X): retune
-// here, no recompile. Loaded by src/systems/construction/routing.rs::RoutingRules::load.
+// Grounded in real code: IPC 308.5 + NEC 358.30 (support spacing), NEC 300.4 (power runs
+// ABOVE wet lines). Data-driven (infinite-of-X): retune here, no recompile. Loaded by
+// src/systems/construction/routing.rs::RoutingRules::load.
+//
+// Pipe COLOUR is not set here and never followed ASME A13.1, though this header said so
+// until 2026-10-04. A pipe's body draws its material (data/piping/pipe_materials.ron) and
+// what it carries is said by marker bands from the ship's scheme, ISO 14726
+// (data/piping/marking_schemes.ron). Why that scheme and not A13.1:
+// docs/reference/findings/2026-10-04-pipe-marking-standards.md.
 (
     // Overhead service-band height (m) above the room floor, BEFORE the per-kind lane
     // offset. Must clear the tallest machine (aeroponic towers are 2.4 m), so 3.0 m.

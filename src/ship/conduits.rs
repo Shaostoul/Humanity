@@ -15,7 +15,9 @@
 use crate::ship::home_structure::InteriorWall;
 use glam::Vec3;
 
-/// What a conduit physically is. The kind fixes the material + look + whether it may sag.
+/// What a conduit physically is. The kind fixes how the run behaves (rigid with elbows, or
+/// flexible) and its size; what it LOOKS like (its material's colour, metal, roughness) is data,
+/// `data/piping/pipe_materials.ron` keyed by `id()` (2026-10-04, `ship::pipe_materials`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConduitKind {
     /// Rigid copper tube. MANDATORY for all potable water (operator: "no PVC or other synthetics
@@ -25,17 +27,38 @@ pub enum ConduitKind {
     FlexibleHose,
     /// A flexible power extension cord -- sags between supports.
     PowerCord,
+    /// A data cable (ethernet and the like), thin and flexible (2026-10-04: it was drawn as a
+    /// 32 mm rubber hose before).
+    DataCable,
 }
 
 impl ConduitKind {
+    /// Every kind, for registries that must cover them all.
+    pub const ALL: [ConduitKind; 4] =
+        [ConduitKind::RigidCopper, ConduitKind::FlexibleHose, ConduitKind::PowerCord, ConduitKind::DataCable];
+
+    /// The id `data/piping/pipe_materials.ron` keys this kind's material by.
+    pub fn id(self) -> &'static str {
+        match self {
+            ConduitKind::RigidCopper => "rigid_copper",
+            ConduitKind::FlexibleHose => "flexible_hose",
+            ConduitKind::PowerCord => "power_cord",
+            ConduitKind::DataCable => "data_cable",
+        }
+    }
+
     /// Map a machine-connection resource to the correct conduit. Potable water is ALWAYS rigid
-    /// copper; power is a flexible cord; everything fluid-ish defaults to a flexible hose.
+    /// copper, and that includes the home's hot water (drinking water heated: the water heater
+    /// is fed from the purifier); power is a flexible cord; data a data cable; everything
+    /// fluid-ish defaults to a flexible hose.
     pub fn for_resource(resource: &str) -> ConduitKind {
         let r = resource.to_ascii_lowercase();
-        if r.contains("potable") || r == "water" || r.contains("drink") {
+        if r.contains("potable") || r == "water" || r == "hot_water" || r.contains("drink") {
             ConduitKind::RigidCopper
         } else if r.contains("power") || r.contains("electric") || r.contains("volt") {
             ConduitKind::PowerCord
+        } else if r == "data" || r.contains("ethernet") || r.contains("fibre") || r.contains("fiber") {
+            ConduitKind::DataCable
         } else {
             ConduitKind::FlexibleHose
         }
@@ -52,15 +75,8 @@ impl ConduitKind {
             ConduitKind::RigidCopper => 0.012,
             ConduitKind::FlexibleHose => 0.016,
             ConduitKind::PowerCord => 0.008,
-        }
-    }
-
-    /// Display colour (rgba) for the run.
-    pub fn color(self) -> [f32; 4] {
-        match self {
-            ConduitKind::RigidCopper => [0.72, 0.45, 0.20, 1.0], // copper
-            ConduitKind::FlexibleHose => [0.20, 0.22, 0.24, 1.0], // dark rubber
-            ConduitKind::PowerCord => [0.10, 0.10, 0.12, 1.0],   // black cord
+            // A Cat6 cable is about 6 mm across.
+            ConduitKind::DataCable => 0.004,
         }
     }
 }
@@ -190,6 +206,9 @@ mod tests {
         assert_eq!(ConduitKind::for_resource("potable_water"), ConduitKind::RigidCopper);
         assert_eq!(ConduitKind::for_resource("water"), ConduitKind::RigidCopper);
         assert_eq!(ConduitKind::for_resource("drinking water"), ConduitKind::RigidCopper);
+        // The home's hot water is drinking water heated (the heater is fed from the purifier),
+        // so the copper rule covers it once its lines carry their own kind (2026-10-04 review).
+        assert_eq!(ConduitKind::for_resource("hot_water"), ConduitKind::RigidCopper);
         assert!(ConduitKind::RigidCopper.is_rigid());
     }
 
@@ -199,6 +218,10 @@ mod tests {
         assert_eq!(ConduitKind::for_resource("electricity"), ConduitKind::PowerCord);
         assert_eq!(ConduitKind::for_resource("greywater"), ConduitKind::FlexibleHose);
         assert!(!ConduitKind::PowerCord.is_rigid());
+        // A data line is a thin cable, not a hose (2026-10-04).
+        assert_eq!(ConduitKind::for_resource("data"), ConduitKind::DataCable);
+        assert!(!ConduitKind::DataCable.is_rigid());
+        assert!(ConduitKind::DataCable.radius() < ConduitKind::PowerCord.radius());
     }
 
     #[test]

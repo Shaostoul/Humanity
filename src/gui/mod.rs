@@ -4438,6 +4438,10 @@ pub struct SettingsState {
     /// Realistic (an overload slows walking and stops jumps, and a load's
     /// mass weighs on every jump). Saved as AppConfig::carry_realistic.
     pub carry_realistic: bool,
+    /// Pipe markings (2026-10-04, engine::pipe_markers): false is Simplified (one band of the
+    /// content's main colour per marker, the default), true is Full (the scheme's whole marker,
+    /// main-additional-main). Saved as AppConfig::pipe_marking_full.
+    pub pipe_marking_full: bool,
     /// Which survival bars the HUD draws (2026-09-25). See HudVitals.
     pub hud_vitals: crate::config::HudVitals,
     /// Play mode (task #50): Normal | Creative | Dev -- one ladder for every
@@ -4551,6 +4555,7 @@ impl Default for SettingsState {
             vitals_drain: 1.0,
             body_heat_realistic: false,
             carry_realistic: false,
+            pipe_marking_full: false,
             hud_vitals: crate::config::HudVitals::default(),
             play_mode: crate::config::PlayMode::default(),
             profile_visible: true,

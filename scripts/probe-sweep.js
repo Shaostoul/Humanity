@@ -101,6 +101,8 @@ const { copyExeIntoRig } = require("./lib/rig-exe-copy.js");
 // coordinates (BUG-132)? Before this check a station vantage was "ok"
 // whatever it captured, including empty space.
 const SP = require("./lib/station-park-check.js");
+// The sticky showcase pins released before every vantage (shared with probe-hot-ab.js).
+const { STICKY_PIN_RESETS, DIAG_RESETS, holdsStickyPin } = require("./lib/showcase-pins.js");
 // The freshness gate and the boot-copy check (BUG-133), through their one
 // runner so --allow-other-build reaches the gate and comes back as a record.
 const { runFreshGate, requireBootCopy, bootRecord, otherBuildNotice } = require("./lib/src-fingerprint.js");
@@ -862,7 +864,7 @@ async function main() {
       log(`discarded first pass: ${v0.id}`);
       try {
         if (v0.showcase) {
-          req("showcase_request.json", Object.assign({ map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto", aurora: "1", room_gi: "1", present_dither: "1", sun_shadows: "auto", near_levels: "auto", fov: "auto" },v0.showcase)); // diag channels + the determinism pins are sticky across cells: reset unless the cell pins one
+          req("showcase_request.json", Object.assign({}, DIAG_RESETS, STICKY_PIN_RESETS, v0.showcase)); // diag channels + the determinism pins are sticky across cells: reset unless the cell pins one
           await sleep(3500);
         }
         clearDone("camera_done.json");
@@ -903,21 +905,21 @@ async function main() {
       const stationMisses = [];
       try {
         if (v.showcase) {
-          req("showcase_request.json", Object.assign({ map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto", aurora: "1", room_gi: "1", present_dither: "1", sun_shadows: "auto", near_levels: "auto", fov: "auto" },v.showcase)); // diag channels + the determinism pins are sticky across cells: reset unless the cell pins one
+          req("showcase_request.json", Object.assign({}, DIAG_RESETS, STICKY_PIN_RESETS, v.showcase)); // diag channels + the determinism pins are sticky across cells: reset unless the cell pins one
           await sleep(3500);
           // The aurora switch is a pin too: an aurora-OFF twin must never leave
           // the next vantage dark (2026-09-27, scripts/aurora-gate.js).
-          pinsActive = "wind" in v.showcase || "anim_clock" in v.showcase || v.showcase.aurora === "0" || v.showcase.room_gi === "0" || v.showcase.present_dither === "0" || "sun_shadows" in v.showcase || "near_levels" in v.showcase || "fov" in v.showcase;
+          pinsActive = holdsStickyPin(v.showcase);
         } else if (pinsActive) {
           // The 8 vantages with NO showcase block would otherwise INHERIT a
           // previous cell's wind / anim_clock pin, which is how a frozen
           // canopy or a frozen sky ends up in a frame nobody asked to freeze.
           // Only sent when a pin is actually live, so an ordinary sweep pays
           // nothing for it.
-          req("showcase_request.json", { wind: "auto", anim_clock: "auto", aurora: "1", room_gi: "1", present_dither: "1", sun_shadows: "auto", near_levels: "auto", fov: "auto" });
+          req("showcase_request.json", STICKY_PIN_RESETS);
           await sleep(1500);
           pinsActive = false;
-          log(`  released the previous vantage's wind / anim_clock / aurora / fov pin`);
+          log(`  released the previous vantage's sticky pins (wind, anim_clock, aurora, fov, pipe_marking, ...)`);
         }
         clearDone("camera_done.json");
         req("camera_request.json", v.camera);

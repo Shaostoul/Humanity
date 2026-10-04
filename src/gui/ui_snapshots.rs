@@ -1008,6 +1008,17 @@ fn settings_panel(
 
 #[test]
     #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_gameplay_settings() {
+    // Settings > Gameplay (2026-10-04): the realism switches, the home design
+    // and the Pipe markings row (Simplified / Full) at the end. Tall canvas so
+    // the whole section is one reviewable image.
+    render_page_png("gameplay_settings", 960, 2150, |ctx, theme, state| {
+        settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_gameplay_content);
+    });
+}
+
+#[test]
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
     fn snapshot_graphics_settings() {
     // Tall canvas (v0.1117): Graphics gained pronounced subsections (General /
     // Planets seen from space / Ground detail / Detail distances / Light and

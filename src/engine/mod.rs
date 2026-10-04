@@ -12,6 +12,9 @@ pub mod editor;
 pub mod frame_lock;
 pub mod geom;
 pub mod home_meshes;
+/// The pipes' marker bands in the 3D home: one merged mesh per band colour, and the
+/// Settings / showcase mode switch (2026-10-04; the placement and colours are ship::pipe_marking).
+pub mod pipe_markers;
 /// Your home on the shared ship: applying the relay's plot from `game_welcome`
 /// (increment 1b of docs/design/ship-homes-and-logistics.md).
 pub mod home_plot;
