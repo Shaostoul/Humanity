@@ -1002,3 +1002,186 @@ test("guest: each broken guest run FAILS its own check", () => {
   }
   assert.equal(judgeGuest(null).pass, false, "a guest run nobody recorded fails");
 });
+
+// ── The crew (ship homes increment 3) ──────────────────────────────────────
+// The relay's crew work the Commons and its mess hall; the recorder lists each crew figure the
+// game drew, every frame. Made-up recordings of the shipped crew where they work, and one
+// broken thing at a time.
+
+const { judgeCrew, isFigureAmber, crewPixels, CREW_MIN_PX, CREW_WALL_CLEAR_M, wallDistXZ } = require("../lib/copresence-judge.js");
+
+const CREW_PLOTS = [
+  { id: "p1", origin: [0, 0, 0], size: [55, 3, 89] },
+  { id: "p2", origin: [0, 0, 99], size: [55, 3, 89] },
+];
+const CREW_COMMONS = { min: [65, 0, 20], max: [99, 8, 75] };
+// The walls of the Commons' room block (ship x 69..85, z 29..49), as the door points carry
+// walls: [ax, az, bx, bz] across the floor.
+const CREW_WALLS = [
+  [69, 29, 85, 29],
+  [85, 29, 85, 49],
+  [69, 49, 85, 49],
+  [69, 29, 69, 49],
+];
+// The shipped crew at their first sites (data/npc/chores.ron), standing 1 m up.
+const CREW_AT = [
+  [1, "Helm Officer Vex", [90, 1, 33]],
+  [2, "Dr. Kel", [90, 1, 43]],
+  [3, "Chief Tan", [90, 1, 61]],
+  [4, "CB-7", [68, 1, 24]],
+  [5, "Botanist Yara", [88, 1, 45]],
+  [6, "Crewmate Nia", [92, 1, 56]],
+];
+const LOOK_CAM = [91, 1.7, 58, 0, 0]; // the rig's crew look: up the east aisle, north
+function crewFrames(n, at = CREW_AT) {
+  const out = [];
+  for (let k = 0; k < n; k++) out.push({ t: k / 30, crew: at.map(([id, name, p]) => ({ id, name, pos: [p[0], p[1], p[2] - k * 0.01] })) });
+  return out;
+}
+const CREW_OK = {
+  recordings: [
+    { name: "samples.json", frames: crewFrames(60) },
+    { name: "meet_samples.json", frames: crewFrames(60) },
+    { name: "crew_samples.json", frames: crewFrames(30) },
+    { name: "rejoin_crew_samples.json", frames: crewFrames(20), after: "the step back in" },
+    { name: "respawn_crew_samples.json", frames: crewFrames(20), after: "Respawn" },
+  ],
+  plots: CREW_PLOTS,
+  commons: CREW_COMMONS,
+  walls: CREW_WALLS,
+  expectCrew: 6,
+  look: {
+    cam: LOOK_CAM,
+    frames: crewFrames(30),
+    seen: [
+      { name: "Dr. Kel", found: true, pos_px: [1280, 600], amber: 900 },
+      { name: "Chief Tan", found: false, pos_px: null, amber: null },
+    ],
+  },
+};
+
+test("crew: a run that went right passes, every check its own", () => {
+  const r = judgeCrew(CREW_OK);
+  assert.ok(r.pass, explain(r));
+  assert.deepEqual(r.checks.map((c) => c.id), ["crew_recorded", "crew_drawn", "crew_never_on_a_plot", "crew_clear_of_walls", "crew_back_after_rejoin", "crew_in_the_commons", "crew_seen"]);
+});
+
+// One broken thing at a time, each its own check and no other. Seen red 2026-10-04 with
+// judgeCrew passing everything: "the Pioneer's crew drawn inside the home on p1 should fail
+// crew_never_on_a_plot (only); failed: nothing".
+test("crew: each broken crew run FAILS its own check and no other", () => {
+  const w = (o) => ({ ...CREW_OK, ...o });
+  const recs = (frames) => [{ ...CREW_OK.recordings[0], frames }, ...CREW_OK.recordings.slice(1)];
+  // The Pioneer's crew, as the previous relay put them: the bridge and the engine room, which
+  // lie inside the home on p1 (one row of each frame of the walk at home).
+  const pioneer = CREW_AT.map(([id, name, p], i) => [id, name, i < 2 ? [3, 5, 2.5] : p]);
+  for (const [what, bad, id] of [
+    ["the Pioneer's crew drawn inside the home on p1", w({ recordings: recs(crewFrames(60, pioneer)) }), "crew_never_on_a_plot"],
+    ["one crew figure drawn on p2 for one frame", w({ recordings: recs([...crewFrames(59), { t: 2, crew: [{ id: 1, name: "Helm Officer Vex", pos: [20, 1, 120] }] }]) }), "crew_never_on_a_plot"],
+    ["a recorder from before increment 3 (no crew list)", w({ recordings: [{ name: "samples.json", frames: crewFrames(10).map(({ t }) => ({ t })) }, ...CREW_OK.recordings.slice(1)] }), "crew_recorded"],
+    // Never drawn at all is never drawn after the step back in either: the two checks go together.
+    ["one crew member never drawn", w({ expectCrew: 7 }), ["crew_drawn", "crew_back_after_rejoin"]],
+    ["a crew figure on First Street during the look", w({ look: { ...CREW_OK.look, frames: crewFrames(30, CREW_AT.map(([id, n, p], i) => [id, n, i === 3 ? [70, 1, 120] : p])) } }), "crew_in_the_commons"],
+    ["no nameplate on screen during the look", w({ look: { ...CREW_OK.look, seen: CREW_OK.look.seen.map((s) => ({ ...s, found: false })) } }), "crew_seen"],
+    ["the named crew member's figure not in the picture", w({ look: { ...CREW_OK.look, seen: [{ ...CREW_OK.look.seen[0], amber: CREW_MIN_PX - 1 }] } }), "crew_seen"],
+    ["the camera facing away from the crew", w({ look: { ...CREW_OK.look, cam: [91, 1.7, 58, Math.PI, 0] } }), "crew_seen"],
+    // The review of increment 3, findings 13 to 16: guards no case above could fail.
+    // A crew member named and in front, with a crew figure under the name, but drawn NORTH of the
+    // Commons (outside its box): not seen in the Commons.
+    ["the named crew member drawn outside the Commons, in front of the camera", w({ look: { ...CREW_OK.look, seen: [{ ...CREW_OK.look.seen[0], pos: [91, 1, 15] }] } }), "crew_seen"],
+    // The ship's plots unknown: nothing can be judged against them.
+    ["the ship's plots unknown", w({ plots: [] }), "crew_never_on_a_plot"],
+    // One crew figure 1 m outside the Commons (x 100, its box ends at 99) for ONE frame in the
+    // middle of the look: judged over every frame, with a centimetre of slack, not the last frame.
+    [
+      "a crew figure 1 m outside the Commons for one middle frame of the look",
+      w({ look: { ...CREW_OK.look, frames: crewFrames(30).map((fr, k) => (k === 15 ? { ...fr, crew: fr.crew.map((c, i) => (i === 2 ? { ...c, pos: [100, 1, 50] } : c)) } : fr)) } }),
+      "crew_in_the_commons",
+    ],
+    // As few crew-amber pixels under the name as the red run's whole picture held off the crew
+    // (18 stray pixels): not a figure. Pinned as a number, not as CREW_MIN_PX - 1, so lowering
+    // the constant fails here.
+    ["20 crew-amber pixels under the name (stray pixels, no figure)", w({ look: { ...CREW_OK.look, seen: [{ ...CREW_OK.look.seen[0], amber: 20 }] } }), "crew_seen"],
+    // A crew figure drawn 0.1 m from the room block's east wall, in one frame of the walk at home:
+    // in the Commons, on no plot, and only this check sees it (finding 15).
+    [
+      "a crew figure drawn in the room block's wall",
+      w({ recordings: recs(crewFrames(60).map((fr, k) => (k === 30 ? { ...fr, crew: fr.crew.map((c, i) => (i === 4 ? { ...c, pos: [85.1, 1, 40] } : c)) } : fr))) }),
+      "crew_clear_of_walls",
+    ],
+    ["the ship's walls unknown", w({ walls: null }), "crew_clear_of_walls"],
+    // After the step back in, net::sync stood only five of the six crew again (finding 16).
+    [
+      "one crew member never drawn again after the step back in",
+      w({ recordings: CREW_OK.recordings.map((r) => (r.after === "the step back in" ? { ...r, frames: crewFrames(20, CREW_AT.slice(0, 5)) } : r)) }),
+      "crew_back_after_rejoin",
+    ],
+    ["nothing recorded after the step back in or Respawn", w({ recordings: CREW_OK.recordings.filter((r) => !r.after) }), "crew_back_after_rejoin"],
+  ]) {
+    const r = judgeCrew(bad);
+    const failed = r.checks.filter((c) => !c.ok).map((c) => c.id);
+    const ids = Array.isArray(id) ? id : [id];
+    assert.deepEqual(failed, ids, `${what} should fail ${ids.join(" and ")} (only); failed: ${failed.join(", ") || "nothing"}`);
+  }
+  assert.equal(judgeCrew({ recordings: [], plots: CREW_PLOTS, commons: CREW_COMMONS, expectCrew: 6, look: null }).pass, false, "a run that recorded nothing fails");
+});
+
+// The review of increment 3, finding 13: guards of judgeCrew that survived every case above (a
+// scratch copy stayed green with each removed). Seen red 2026-10-04 by putting each mutation back
+// into a copy of the judge and running this file against it; every one now fails a case here or
+// in the table above, e.g. (a) crew_seen without its in-the-Commons term: "the named crew member
+// drawn outside the Commons, in front of the camera should fail crew_seen (only); failed:
+// nothing"; (e) CREW_MIN_PX = 1: "20 crew-amber pixels under the name (stray pixels, no figure)
+// should fail crew_seen (only); failed: nothing"; (f) no rows passing: "with no crew drawn,
+// crew_never_on_a_plot passed". The two new checks went red the same way with their guards out
+// ("a crew figure drawn in the room block's wall should fail crew_clear_of_walls (only); failed:
+// nothing", "nothing recorded after the step back in or Respawn should fail
+// crew_back_after_rejoin (only); failed: nothing").
+test("crew: no crew drawn at all still fails crew_never_on_a_plot on its own", () => {
+  const empty = CREW_OK.recordings.map((r) => ({ ...r, frames: r.frames.map((fr) => ({ ...fr, crew: [] })) }));
+  const r = judgeCrew({ ...CREW_OK, recordings: empty });
+  const failed = r.checks.filter((c) => !c.ok).map((c) => c.id);
+  assert.ok(failed.includes("crew_never_on_a_plot"), `with no crew drawn, crew_never_on_a_plot passed: failed ${failed.join(", ")}`);
+  assert.ok(failed.includes("crew_clear_of_walls"), `with no crew drawn, crew_clear_of_walls passed: failed ${failed.join(", ")}`);
+});
+
+test("crew: the picture's amber threshold is pinned (20 stray pixels fail, 150 pass)", () => {
+  const at = (amber) => judgeCrew({ ...CREW_OK, look: { ...CREW_OK.look, seen: [{ ...CREW_OK.look.seen[0], amber }] } }).checks.find((c) => c.id === "crew_seen").ok;
+  assert.equal(at(20), false, "20 crew-amber pixels counted as a crew figure seen");
+  assert.equal(at(150), true, "150 crew-amber pixels (a figure 35 m away is about 400) not counted as a crew figure seen");
+  assert.equal(CREW_MIN_PX, 150);
+});
+
+test("crew: a wall's distance is across the floor, to the nearest point of the segment", () => {
+  assert.equal(CREW_WALL_CLEAR_M, 0.3);
+  assert.ok(Math.abs(wallDistXZ([85.1, 1, 40], [85, 29, 85, 49]) - 0.1) < 1e-9);
+  assert.ok(Math.abs(wallDistXZ([85, 1, 52], [85, 29, 85, 49]) - 3) < 1e-9, "past the wall's end, the distance is to its end");
+  assert.ok(Math.abs(wallDistXZ([3, 7, 4], [0, 0, 0, 0]) - 5) < 1e-9, "a wall of no length is a point");
+});
+
+// The crew's amber body AS THE GAME DRAWS IT in the Commons counts; the HUD's orange activity
+// line, the players' teal, oak partitions, steel and the dark do not. The colours are measured
+// off the first crew.png (2026-10-04, run 20261004-155649-plots-game-first).
+// Seen red 2026-10-04: with the first test, written from the material colour (green 0.45 to
+// 0.85 of red, blue under 0.38), "the crew's body as the game draws it in the Commons is not
+// counted" (it had passed that picture's run by counting the orange activity text instead);
+// with the green floor at 0.72 of red (the first calibration), "oak counted as a crew member's
+// body".
+test("crew: amber is the crew's body as drawn, not their activity text, oak, teal or steel", () => {
+  const px = (c) => c.map((v) => Math.round(v * 255));
+  assert.ok(isFigureAmber(176, 151, 71), "the crew's body as the game draws it in the Commons is not counted");
+  assert.ok(isFigureAmber(168, 142, 64), "the crew's body in its own shade is not counted");
+  assert.ok(isFigureAmber(120, 100, 46), "the crew's body in deep shade is not counted");
+  assert.ok(!isFigureAmber(223, 131, 33), "the orange activity line under a crew member's name counted as their body");
+  assert.ok(!isFigureAmber(68, 57, 40), "oak as the Commons draws it counted as a crew member's body");
+  assert.ok(!isFigureAmber(...px([0.55, 0.40, 0.24])), "oak counted as a crew member's body");
+  assert.ok(!isFigureAmber(...px([0.8, 0.67, 0.45])), "pine counted as a crew member's body");
+  assert.ok(!isFigureAmber(...px([0.2, 0.75, 0.75])), "teal counted as a crew member's body");
+  assert.ok(!isFigureAmber(...px([0.55, 0.57, 0.62])), "steel counted as a crew member's body");
+  assert.ok(!isFigureAmber(20, 12, 4), "the dark counted as a crew member's body");
+  // Counted in the box under the name only.
+  const img = { width: 400, height: 600, rgba: new Uint8Array(400 * 600 * 4) };
+  for (let y = 100; y < 300; y++) for (let x = 180; x < 220; x++) img.rgba.set([176, 151, 71, 255], (y * 400 + x) * 4);
+  assert.equal(crewPixels(img, [200, 90]).count, 200 * 40);
+  assert.equal(crewPixels(img, [380, 450]).count, 0, "nothing under a name drawn elsewhere");
+});

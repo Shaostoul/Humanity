@@ -75,7 +75,17 @@
 // it drew the walker and photographs it twice: the walk's smoothness, the view,
 // the walker's teal body counted in both pictures, its nameplate moving the way
 // it walks, the walker drawn coming out through its corridor, the relay holding
-// the game in the Commons, and the walker seeing the game there. Then, in each order, the game STEPS OUT of
+// the game in the Commons, and the walker seeing the game there.
+// THE CREW (increment 3: the relay's world is the ship, and its crew work the Commons and
+// its mess hall, where the Pioneer's crew stood inside the home on p1). Every recording
+// carries the crew figures the game drew, each frame (the recorder's `crew` rows), and after
+// the meeting the game walks to CREW_POSE, up the Commons' east aisle facing north toward
+// the mess hall, asks for each drawn crew member's nameplate (the ui `find` verb: the HUD
+// names a crew member only within 40 m and not behind a wall), photographs it (crew.png) and
+// records a few seconds. Judged under crew_* ids (copresence-judge.js judgeCrew): every crew
+// member drawn, no crew figure ever drawn on a plot, every one in the Commons during the look,
+// and at least one SEEN there: named on screen, drawn in front of the camera, and a crew
+// figure's amber body counted in the picture under the name. Then, in each order, the game STEPS OUT of
 // the shared world and back (the showcase `solo` verb, the switch the
 // launcher's offline home and Dev travel flip), having been moved more than
 // 100 m from its door while out: the relay spawns it afresh at its door, and
@@ -178,6 +188,8 @@ const {
   judgeMeet,
   judgeReboot,
   judgeGuest,
+  judgeCrew,
+  crewPixels,
 } = require("./lib/copresence-judge.js");
 const png = require("./lib/png.js");
 // The freshness gate, run through its one runner so --allow-other-build reaches
@@ -955,6 +967,17 @@ const MEET_POSE = opt("--meet-pose", "76,1.7,64,3.14159265,-0.05");
 /** The longest step the game is moved in on its way from its door into the
  *  Commons (the showcase `cam` verb), metres: well inside the relay's 100 m. */
 const MEET_STEP_M = 40;
+// Where the game looks at the crew (increment 3): in the Commons' east aisle, facing north (yaw
+// 0) up it toward the mess hall, where the crew's chore sites are (data/npc/chores.ron), every
+// one within the 40 m the HUD names a crew member at, with no wall between.
+const CREW_POSE = opt("--crew-pose", "91,1.7,58,0,-0.05");
+// How long the crew look records, seconds of the game's frame clock.
+const CREW_RECORD_S = 6;
+// How long the game's crew figures are recorded after the step back in and after Respawn.
+const CREW_AFTER_S = 4;
+// How long the look waits for a crew member's nameplate to come on screen (the crew walk between
+// the aisle and the mess hall; all of them can be past 40 m at once for a while).
+const CREW_LOOK_WAIT_S = 45;
 /** How fast the walker walks its route out of its home into the Commons, m/s:
  *  a brisk walk, so the route does not take a minute of the run. */
 const MEET_ROUTE_SPEED = 3;
@@ -1031,6 +1054,147 @@ async function takeShots(name, onLineAt, passS, out, prefix = "") {
     }
   }
   return shots;
+}
+
+/** THE CREW LOOK (ship homes increment 3). From `from` (where the meeting left the game, in the
+ *  Commons) the game walks, in steps the relay accepts, to CREW_POSE and stands facing north up
+ *  the Commons' east aisle toward the mess hall. Then, until a crew member's nameplate is on
+ *  screen (up to CREW_LOOK_WAIT_S: the crew walk between the aisle and the mess hall, and the
+ *  HUD names one only within 40 m), it takes one recorder frame (where each crew member is
+ *  drawn) and asks for each one's nameplate (the ui `find` verb). Once one is named it
+ *  photographs (crew.png) and then, straight after the picture, takes ONE recorder frame
+ *  (where each crew member is drawn) and asks for every nameplate again: the positions, names
+ *  and picture the judge reads are of that moment, not of the waiting loop (the review of
+ *  increment 3, finding 14: a crew member recorded 5 m from the camera had walked on toward
+ *  the mess hall by the time crew.png was taken). It records CREW_RECORD_S seconds
+ *  (crew_samples.json). Returns what judgeCrew's look needs (the amber pixels are counted from
+ *  crew.png by `crewChecks`, so --dry-verdict counts them again). */
+async function crewLook({ out, dp, from, showcase, step }) {
+  const [cx, cy, cz, cyaw, cpitch] = CREW_POSE.split(",").map(Number);
+  const to = [cx, cy, cz];
+  const route = doorRoute(dp, from, to, MEET_STEP_M);
+  if (route.error) {
+    step("crew_walk", false, `no route from ${fmt(from)} to the crew look ${fmt(to)}: ${route.error}`);
+    return { error: route.error, pose: CREW_POSE };
+  }
+  for (const p of route.points) {
+    await showcase({ cam: `${p.join(",")},${cyaw},${cpitch}` });
+    await sleep(1500);
+  }
+  await showcase({ cam: CREW_POSE });
+  await sleep(2500);
+  const t0 = Date.now();
+  let seen = [];
+  let cam = null;
+  let frames = 0;
+  while (Date.now() - t0 < CREW_LOOK_WAIT_S * 1000) {
+    const pr = await probe();
+    const fr = pr && pr.frames && pr.frames[0];
+    frames++;
+    if (pr && pr.camera_end) cam = [...pr.camera_end.pos, pr.camera_end.yaw, pr.camera_end.pitch];
+    seen = [];
+    for (const c of (fr && fr.crew) || []) {
+      const fd = await ui({ action: "find", text: c.name });
+      const found = !!(fd && fd.found && fd.text === c.name);
+      seen.push({ name: c.name, id: c.id, pos: c.pos, found, pos_px: found ? fd.pos_px : null });
+    }
+    if (seen.some((s) => s.found)) break;
+    await sleep(2000);
+  }
+  const waited = (Date.now() - t0) / 1000;
+  const shot = await screenshot("crew");
+  if (shot.ok) fs.copyFileSync(shot.src, path.join(out, "crew.png"));
+  // The moment of the picture: one recorder frame straight after it (where each crew member is
+  // drawn, and the camera), then each nameplate (a crew member walks 1.1 m/s, so these, not
+  // the waiting loop's, are what the picture shows). Where a name was on screen just BEFORE
+  // the picture is kept beside it (`pos_px_before`): the figure is under one of the two.
+  const before = new Map(seen.filter((x) => x.found).map((x) => [x.name, x.pos_px]));
+  const after = await probe();
+  const fa = after && after.frames && after.frames[0];
+  if (after && after.camera_end) cam = [...after.camera_end.pos, after.camera_end.yaw, after.camera_end.pitch];
+  if (fa && Array.isArray(fa.crew)) {
+    seen = [];
+    for (const c of fa.crew) {
+      const fd = await ui({ action: "find", text: c.name });
+      const found = !!(fd && fd.found && fd.text === c.name);
+      seen.push({ name: c.name, id: c.id, pos: c.pos, found, pos_px: found ? fd.pos_px : null, pos_px_before: before.get(c.name) || null });
+    }
+  }
+  const named = seen.filter((s) => s.found).map((s) => s.name);
+  step("crew_look", named.length > 0 && shot.ok, `from ${cam ? fmt(cam.slice(0, 3)) : "(no camera)"} after ${waited.toFixed(1)} s (${frames} looks): ${seen.length} crew drawn, named on screen: ${named.join(", ") || "none"}; ${shot.ok ? "crew.png" : `no picture: ${shot.error}`}`);
+  clearDone("remote_players_done.json");
+  req("remote_players_request.json", { seconds: CREW_RECORD_S });
+  const rec = await waitFile("remote_players_done.json", (CREW_RECORD_S + 60) * 1000);
+  const samples = rec && rec.ok === true ? "crew_samples.json" : null;
+  if (samples) fs.copyFileSync(path.join(DEBUG, "remote_players_done.json"), path.join(out, samples));
+  step("crew_samples", !!samples, samples ? `${rec.frame_count} frames over ${rec.recorded_s.toFixed(2)} s -> ${samples}` : `no recording came back: ${JSON.stringify(rec && rec.error)}`);
+  return { pose: CREW_POSE, route: route.points, cam, seen, shot: shot.ok ? "crew.png" : null, samples, waited_s: Number(waited.toFixed(1)) };
+}
+
+/** Record CREW_AFTER_S seconds of what the game draws (every frame's players and crew) into
+ *  `file` in the evidence folder, after the step back into the shared world or after Respawn:
+ *  net::sync drops every crew figure when the game leaves and stands them again from the
+ *  welcome, so a crew figure drawn wrong only then would otherwise not be seen (the review of
+ *  increment 3, finding 16). Returns the file name, or null when no recording came back. */
+async function recordCrewAfter(file, stepId, out, step) {
+  clearDone("remote_players_done.json");
+  req("remote_players_request.json", { seconds: CREW_AFTER_S });
+  const rec = await waitFile("remote_players_done.json", (CREW_AFTER_S + 60) * 1000);
+  const ok = !!(rec && rec.ok === true);
+  if (ok) fs.copyFileSync(path.join(DEBUG, "remote_players_done.json"), path.join(out, file));
+  step(stepId, ok, ok ? `${rec.frame_count} frames over ${rec.recorded_s.toFixed(2)} s -> ${file}` : `no recording came back: ${JSON.stringify(rec && rec.error)}`);
+  return ok ? file : null;
+}
+
+/** The crew checks of a --plots run (ship homes increment 3), from its manifest and evidence
+ *  folder: every recording's crew rows (the walk at home, the meeting, the crew look), the
+ *  ship's plots, the Commons from the door points, the number of crew the tree's crew.ron had
+ *  (recorded at the run), and the crew look with the amber pixels counted from crew.png under
+ *  each name found on screen. */
+function crewChecks(m, dir) {
+  const read = (name) => {
+    const p = name ? path.join(dir, name) : null;
+    return p && fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf8")).frames || [] : [];
+  };
+  const look = m.crew_look || null;
+  const recordings = [
+    { name: m.samples || "samples.json", frames: read(m.samples) },
+    { name: (m.meet && m.meet.samples) || "meet_samples.json", frames: read(m.meet && m.meet.samples) },
+    { name: (look && look.samples) || "crew_samples.json", frames: read(look && look.samples) },
+    // A few seconds after stepping back into the world and after Respawn, where net::sync drops
+    // and stands every crew figure again (the review of increment 3, finding 16): judged like
+    // the rest, and each must draw the whole crew again (`crew_back_after_rejoin`).
+    { name: (m.rejoin && m.rejoin.crew_samples) || "rejoin_crew_samples.json", frames: read(m.rejoin && m.rejoin.crew_samples), after: "the step back in" },
+    { name: (m.respawn && m.respawn.crew_samples) || "respawn_crew_samples.json", frames: read(m.respawn && m.respawn.crew_samples), after: "Respawn" },
+  ];
+  let seen = [];
+  if (look && Array.isArray(look.seen)) {
+    const pic = look.shot && fs.existsSync(path.join(dir, look.shot)) ? png.decode(fs.readFileSync(path.join(dir, look.shot))) : null;
+    seen = look.seen.map((s) => {
+      if (!s.found || !pic || !Array.isArray(s.pos_px)) return { ...s, amber: null };
+      // Under the name just before the capture and just after it: the more of the two (the
+      // figure walks). Runs before the review of increment 3 kept the after one as pos_px_after.
+      const counts = [s.pos_px, s.pos_px_after, s.pos_px_before].filter(Array.isArray).map((at) => crewPixels(pic, at).count);
+      return { ...s, amber: Math.max(...counts) };
+    });
+  }
+  const commons = m.meet && m.meet.commons ? m.meet.commons : null;
+  return judgeCrew({
+    recordings,
+    plots: m.plots,
+    commons,
+    // Every wall a person walks against, from the door points: no crew figure may be drawn in
+    // one (the review of increment 3, finding 15).
+    walls: m.door_points && Array.isArray(m.door_points.walls) ? m.door_points.walls : null,
+    expectCrew: m.expect_crew,
+    look: look && !look.error ? { cam: look.cam, frames: read(look.samples), seen } : null,
+  }).checks;
+}
+
+/** How many crew members the tree's data/npc/crew.ron stands (the relay stands every one). */
+function crewInTree() {
+  const text = fs.readFileSync(path.join(REPO, "data", "npc", "crew.ron"), "utf8");
+  return (text.match(/^\s*name:\s*"/gm) || []).length;
 }
 
 /** The figure is VISIBLE in both pictures, not just drawn: its teal body
@@ -1187,6 +1351,8 @@ function plotsVerdict(m, dir) {
   }
   // The meeting in the Commons (increment 2).
   for (const c of meetChecks(m, dir)) checks.push(c);
+  // The crew (increment 3): never drawn on a plot, seen in the Commons.
+  for (const c of crewChecks(m, dir)) checks.push(c);
   // Stepping out of the shared world and back (the second review of 1b).
   if (m.rejoin) {
     for (const c of judgeRejoin(m.rejoin).checks) checks.push(c);
@@ -1972,6 +2138,12 @@ async function runPlotsOnce(order, runStamp, cleanups) {
       // From here on the walker of the 1b legs is the one at the meeting (still walking its line).
       manifest.walker.meet_id = w2id;
 
+      // ── The crew in the Commons (increment 3): the game walks up the east aisle and looks
+      // at the crew at work there and in the mess hall (crewLook).
+      manifest.expect_crew = crewInTree();
+      manifest.crew_look = await crewLook({ out, dp, from: camB ? camB.pos : meetCam, showcase, step });
+      save();
+
       // ── Step out of the shared world and back (the second review of 1b). The
       // relay takes the game out at its game_leave and, when it joins again,
       // spawns it AFRESH at its door, wherever the game stands. Out of the world,
@@ -2041,6 +2213,8 @@ async function runPlotsOnce(order, runStamp, cleanups) {
       manifest.rejoin = { far, relaySpawn, camera, nudged, seen, entity, door, far_target: farTarget };
       manifest.steps_ok.rejoin = { ok: true, detail: `rejoined as entity ${entity}, the relay spawned it at ${relaySpawn ? fmt(relaySpawn) : "(never seen)"}` };
       step("rejoin", true, `${manifest.steps_ok.rejoin.detail}; its camera at ${camera ? fmt(camera) : "(none)"}; ${seen.length} relayed move(s) seen after the nudge to ${nudged ? fmt(nudged) : "(none)"}`);
+      manifest.rejoin.crew_samples = await recordCrewAfter("rejoin_crew_samples.json", "rejoin_crew", out, step);
+      save();
 
       // ── Respawn far from the door (the third review of 1b). In the world this
       // time, the game walks to the same far place in steps the relay accepts
@@ -2087,6 +2261,8 @@ async function runPlotsOnce(order, runStamp, cleanups) {
         detail: relayRespawn ? `respawned as entity ${respawnEntity}, the relay spawned it at ${fmt(relayRespawn)}` : "the walker never saw the game join again after Respawn",
       };
       step("respawn", true, `${manifest.steps_ok.respawn.detail}; its camera at ${camera2 ? fmt(camera2) : "(none)"}; ${seen2.length} relayed move(s) seen after the nudge`);
+      manifest.respawn.crew_samples = await recordCrewAfter("respawn_crew_samples.json", "respawn_crew", out, step);
+      save();
 
       // ── Shutting the build editor far from the build spot (round 5 of the 1b
       // review). At its door after Respawn, the game opens the build editor and

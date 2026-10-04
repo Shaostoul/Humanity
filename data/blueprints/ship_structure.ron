@@ -27,6 +27,13 @@
 // validate() refuses overlapping plots, zones and corridor tubes (touching is fine).
 // Districts are areas, not boxes, and are not checked.
 //
+// The relay's world is this file (increment 3, src/relay/handlers/ship_world.rs): every zone is
+// a room of it, and so is every labelled volume in a zone's body (the Commons' "mess-hall", the
+// north strip along its first wall, where the crew eat and the ship's food stores stand,
+// data/food/ship_stores.ron). The crew's chore spots (data/npc/chores.ron) are in those rooms'
+// own metres, so moving the mess hall or the Commons' room block means checking them (the relay
+// test `every_crew_walk_between_its_sites_is_clear_of_walls` says which one a wall now crosses).
+//
 // Materials: 0 = grid, 1 = steel/metal, 2 = concrete, 3 = wood, 4 = glass.
 //
 // Editor saves rewrite everything BELOW this header, and only in the Dev play mode: body
@@ -937,7 +944,16 @@
                 structures: [],
                 road_nodes: [],
                 road_edges: [],
-                zones: [],
+                zones: [
+                    (
+                        id: "mess-hall",
+                        type_id: "mess_hall",
+                        origin: (0.0, 0.0, 0.0),
+                        size: (30.0, 3.0, 8.0),
+                        label: "Mess hall",
+                        room_type: Some("commons"),
+                    ),
+                ],
                 rail_nodes: [],
                 rail_edges: [],
             ),

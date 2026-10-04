@@ -1,0 +1,64 @@
+// THE SHIP'S FOOD STORES (increment 3 of docs/design/ship-homes-and-logistics.md; the relay's
+// src/relay/handlers/ship_stores.rs). Read by the relay at startup, disk first, the copy built
+// into the exe only when this file is missing.
+//
+// The operator decided on 2026-10-04 (that design's open question 12): NPCs eat from the same
+// food stores as players, and NPC homesteads mostly provide for themselves. So each store here
+// is ONE stock of meals that everyone eats from: a crew member who eats takes one at the end of
+// its meal in the mess hall (data/npc/chores.ron, `meal: true`), and a player takes one with
+// the `take_meal` action on the store, one a meal interval per person like the crew (the game's
+// own hunger does not read it yet; serving meals into the food system is the design's
+// increment 6).
+//
+// Every time here is on the shared world's GAME clock, which runs at the server setting
+// `world_time_scale` (72x by default: a game day is 20 real minutes). Meals come on it and the
+// farms fill the stores on it, so the balance below holds at any speed an admin sets. Only the
+// crew's walking and their chores' lengths (data/npc/chores.ron, a meal's 40 s included) are
+// real seconds, so a figure never sprints; at 72x that makes a crew member's meal (8 game
+// hours apart = 400 real seconds) a walk to the mess hall and 40 s at the table about every
+// 7 real minutes.
+//
+// Every number below is a game default chosen for this increment, NOT a sourced figure.
+//
+//   stores        one row per store: id, label, the room it stands in (`place`, a room id of the
+//                 relay's world), where in that room (`spot`, room-local x and z metres, like a
+//                 chore's), the meals a new world starts with, and the most it holds.
+//   meal_interval_hours
+//                 game hours between one person's meals: 8 is three a day.
+//   empty_store_retry_minutes
+//                 game minutes until a crew member who found the store empty comes back to try
+//                 again (a homestead NPC, with food of its own, waits for its next meal time).
+//   ship_farms_meals_per_day
+//                 what fills the stores today: a stand-in for the ship's farms (the agricultural
+//                 bay, the Commons garden) until goods are really carried aboard (the design's
+//                 increment 9, shipments). Players put nothing in yet. Meals per GAME day: 18
+//                 feeds the five crew who eat (15 a day at three meals each) with a little over
+//                 for players.
+//   npc_homestead_self_provided
+//                 the operator's "NPC homesteads should mostly provide for themselves": the share
+//                 of an NPC homestead household's meals its own homestead grows (crew.ron
+//                 `household: "homestead"`); the rest come from these stores. 0.8 is "mostly".
+//                 No shipped NPC lives on a homestead yet, so this waits for the first ones.
+//   npc_homestead_fleet_meals_per_day
+//                 OPEN QUESTION FOR THE OPERATOR (not decided here): how much an NPC homestead
+//                 gives the fleet's stores, balanced against what human players give. Meals a
+//                 day that EACH NPC homestead household puts into these stores. 0.0 is a
+//                 placeholder that means "nothing until he decides"; like the share above it
+//                 changes nothing until an NPC lives on a homestead.
+(
+    stores: [
+        (
+            id: "mess-hall-stores",
+            label: "The mess hall's stores",
+            place: "mess-hall",
+            spot: (2.0, 2.0),
+            meals: 90.0,
+            capacity: 300.0,
+        ),
+    ],
+    meal_interval_hours: 8.0,
+    empty_store_retry_minutes: 30.0,
+    ship_farms_meals_per_day: 18.0,
+    npc_homestead_self_provided: 0.8,
+    npc_homestead_fleet_meals_per_day: 0.0,
+)

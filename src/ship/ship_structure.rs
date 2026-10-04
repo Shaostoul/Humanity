@@ -620,14 +620,7 @@ impl ShipPlots {
     /// used to keep NO ship, and every game's join was then refused as "a different ship").
     /// Err only when neither loads.
     pub fn load(data_dir: &Path) -> Result<ShipPlots, String> {
-        match ShipStructure::load_ship_file(data_dir) {
-            Ok(ship) => Ok(Self::of_ship(&ship)),
-            Err(e) => {
-                let ship = ShipStructure::built_in_ship_file(&format!("ship plots: {e}")).map_err(|b| format!("{e}; {b}"))?;
-                log::error!("ship plots: {e}; using the ship built into the exe ({})", ship.id);
-                Ok(Self::of_ship(&ship))
-            }
-        }
+        ShipStructure::ship_for_relay(data_dir).map(|ship| Self::of_ship(&ship))
     }
 
     /// The plots of a ship file already loaded (what `load` reads; a test builds one by hand).
@@ -1540,6 +1533,23 @@ impl ShipStructure {
         }
         Self::built_in_ship_file(&format!("{} is absent", path.display()))
             .map_err(|e| format!("no {} on disk, and {e}", path.display()))
+    }
+
+    /// The ship file a RELAY builds its world from (increment 3 of
+    /// docs/design/ship-homes-and-logistics.md: its plots, and since then its rooms, crew and
+    /// stores too): the file on disk, else the copy built into the exe. A file on disk that does
+    /// not load gives way to the built-in copy here, so a relay keeps the ship the same version
+    /// of the game draws (the third review of 1b: it used to keep NO ship, and every game's join
+    /// was then refused as "a different ship"). Err only when neither loads.
+    pub fn ship_for_relay(data_dir: &Path) -> Result<ShipStructure, String> {
+        match Self::load_ship_file(data_dir) {
+            Ok(ship) => Ok(ship),
+            Err(e) => {
+                let ship = Self::built_in_ship_file(&format!("ship plots: {e}")).map_err(|b| format!("{e}; {b}"))?;
+                log::error!("ship plots: {e}; using the ship built into the exe ({})", ship.id);
+                Ok(ship)
+            }
+        }
     }
 
     /// The ship file built into the exe (data/blueprints/ship_structure.ron as shipped).
