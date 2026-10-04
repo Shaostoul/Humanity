@@ -481,6 +481,37 @@
             "health",
             "safety"
           ]
+        },
+        {
+          "title": "How Animals Work",
+          "file": "how_animals_work.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
+          "title": "Keeping Animals",
+          "file": "keeping_animals.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
+          "title": "Animal Health and Disease",
+          "file": "animal_health_and_disease.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "health",
+            "safety"
+          ]
         }
       ],
       "section": "Learn"

@@ -831,15 +831,34 @@
       "subject": "food_animals",
       "title": "Keeping animals",
       "summary": "House, feed and water animals so they stay healthy.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "keeping-animals"
+      ],
       "skills": [
         "farming"
       ],
-      "locale_dependent": true,
-      "hazard": "caution",
       "data": [
-        "data/creatures.csv"
-      ]
+        "data/creatures.csv",
+        "data/entities/livestock.ron",
+        "data/food_system.ron"
+      ],
+      "sources": [
+        "usda-nrcs",
+        "usda-aphis",
+        "usda-ars",
+        "cdc",
+        "fda",
+        "ecfr",
+        "osha",
+        "epa",
+        "fema",
+        "okstate-extension",
+        "ndsu-extension",
+        "nebraska-extension"
+      ],
+      "locale_dependent": true,
+      "hazard": "caution"
     },
     {
       "id": "animals_chickens",
@@ -881,20 +900,30 @@
       "subject": "food_animals",
       "title": "Animal health and disease",
       "summary": "Spot illness early and know what is transmissible to people.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "animal-health-and-disease"
+      ],
       "skills": [
         "farming",
         "medicine"
       ],
+      "data": [
+        "data/creatures.csv",
+        "data/food_system.ron"
+      ],
       "sources": [
         "usda-aphis",
-        "cdc"
+        "cdc",
+        "fda",
+        "ecfr",
+        "osha",
+        "usda-nrcs",
+        "vt-extension",
+        "nebraska-extension"
       ],
       "locale_dependent": false,
-      "hazard": "serious",
-      "data": [
-        "data/creatures.csv"
-      ]
+      "hazard": "serious"
     },
     {
       "id": "fishing",
@@ -2662,13 +2691,28 @@
       "subject": "biology",
       "title": "How animals work",
       "summary": "Understand the basics of animal physiology and behaviour.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "how-animals-work"
+      ],
       "skills": [
         "farming",
         "foraging"
       ],
       "data": [
-        "data/creatures.csv"
+        "data/creatures.csv",
+        "data/entities/livestock.ron"
+      ],
+      "sources": [
+        "usda-nrcs",
+        "ecfr",
+        "usda-ars",
+        "cdc",
+        "nps",
+        "okstate-extension",
+        "vt-extension",
+        "nebraska-extension",
+        "uf-ifas-extension"
       ],
       "locale_dependent": false,
       "hazard": "caution"
