@@ -1996,6 +1996,7 @@ mod native_app {
                 copresence_server: String::new(),
                 boot_plot: None,
                 last_welcome: None,
+                last_welcome_rejoin: None,
                 game_pos_timer: 0.0,
                 remote_avatar: None,
                 remote_look_materials: std::collections::HashMap::new(),

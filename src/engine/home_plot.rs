@@ -689,6 +689,7 @@ pub(crate) fn apply_welcome_home(state: &mut EngineState, welcome: &serde_json::
         WelcomeHome::Move { .. } => "move",
         WelcomeHome::Guest { .. } => "guest",
     });
+    state.last_welcome_rejoin = welcome.get("rejoin").and_then(|r| r.as_bool());
     if let Some(plot) = memory {
         remember_plot(state, &server, plot);
     }
@@ -1566,6 +1567,22 @@ mod tests {
             let plan = plan_welcome(Some(&ship), &w, &again(held));
             assert!(matches!(plan, WelcomeHome::Guest { stand_at: None, join_afresh: false, .. }), "held at {held:?}: {plan:?}");
         }
+    }
+
+    /// The rig's guest leg (verify-copresence --plots --order guest) knows the build editor's
+    /// refusal by the start of this sentence (scripts/lib/copresence-judge.js
+    /// GUEST_NO_EDITOR_START): a rewording must change both, or the leg fails for the wrong
+    /// reason. Seen red 2026-10-04 with the judge's start changed to "You are a visitor": "the
+    /// rig looks for \"You are a visitor on this ship, with no plot of your own\"".
+    #[test]
+    fn the_rig_knows_the_guest_editor_sentence() {
+        let judge = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/lib/copresence-judge.js")).unwrap();
+        let start = judge
+            .split("const GUEST_NO_EDITOR_START = \"")
+            .nth(1)
+            .and_then(|s| s.split('"').next())
+            .expect("the judge names the sentence's start");
+        assert!(start.len() > 20 && GUEST_NO_EDITOR.starts_with(start), "the rig looks for {start:?}");
     }
 
     /// The build editor opened between a reconnect and its guest welcome (finding 1 of the

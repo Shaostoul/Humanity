@@ -618,7 +618,7 @@ verify-second-player:
 # GPU) or when the exe is older than the source; exit 2 = a check failed. About a
 # minute. Evidence in .probe-rig/copresence/runs/<stamp>/.
 #   just verify-copresence --plots    homes on plots (increments 1b and 2 of
-#     docs/design/ship-homes-and-logistics.md): two runs, walker first then game
+#     docs/design/ship-homes-and-logistics.md): runs, walker first then game
 #     first, each with its own relay and boot. At home: the two plot ids differ by
 #     the join order, the game's camera is inside the plot it should hold after
 #     joining, every position the game drew for the walker is inside the
@@ -632,11 +632,18 @@ verify-second-player:
 #     respawns it, and its next move must reach the walker; Respawn and the build
 #     editor the same way. Last the game boots a SECOND time against the same
 #     relay: it must build its home on the plot it held before joining (reboot_*).
-#     --order walker-first|game-first runs one. game-first comes into the world
+#     A third run, the GUEST (guest_*): two scripted players take both plots and the
+#     game comes in third; its home is put away with none of its things on a plot,
+#     it stands and respawns in the Commons, B opens no editor and says why,
+#     stepping out brings the home back on the default plot, and a dropped
+#     connection that comes back inside the relay's grace stands it off the plot
+#     its home came back on. --order walker-first|game-first|guest runs one, both
+#     the first two, all (the default) all three. game-first comes into the world
 #     the way a returning player does: connected and identified on the main menu
 #     first, then the menu's Enter World pressed (the join gate then runs before
 #     the world has loaded); walker-first by the autopilot. --entry
-#     menu|autopilot picks one for both. About 10 minutes per order.
+#     menu|autopilot picks one for every order. About 10 minutes per order (the
+#     guest about 4).
 #   just verify-copresence --dry-verdict <manifest.json>   re-judge without booting
 [positional-arguments]
 verify-copresence *ARGS:

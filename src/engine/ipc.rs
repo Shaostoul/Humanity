@@ -366,6 +366,20 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         }
         _ => {}
     }
+    // {"drop_link":"12"} (2026-10-04, ship homes 2 review, finding 2): drop the active server
+    // connection the way a network outage does, with no game_leave, and hold the reconnect for
+    // that many seconds (the backoff's own timer). The game leaves the shared world on its side at
+    // once (a guest's home comes back onto the ship, `home_plot::forget_shared_world`), the relay
+    // keeps the figure for its 90 s grace, and the reconnect's welcome says `rejoin`.
+    // verify-copresence's guest leg walks the game into the home that came back, then judges the
+    // welcome stands it off the plot again. Permanent dev tooling.
+    if let Some(hold) = grab("drop_link").and_then(|s| s.parse::<f32>().ok()).filter(|s| s.is_finite()) {
+        if let Some(ws) = state.gui_state.ws_client.as_mut() {
+            ws.disconnect();
+        }
+        state.gui_state.ws_reconnect_delay = hold.max(crate::net::ws_client::RECONNECT_DELAY_INITIAL_SECS);
+        log::info!("Showcase: drop_link -> the connection dropped (no game_leave); reconnecting in {hold} s");
+    }
     // {"respawn":"1"} (2026-10-03, ship homes 1b, the third review): press the death screen's
     // Respawn button (`pending_respawn`): the player goes to their Respawn point, and in the
     // shared world steps out and joins again so the relay stands them there too
@@ -3382,6 +3396,11 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         // "refused"), and whether the home is put away (a guest) (engine/home_plot.rs).
         "boot_plot": state.boot_plot,
         "last_welcome": state.last_welcome,
+        // The last welcome's `rejoin` (the relay found us still in the world: a reconnect inside
+        // its grace), and the notices on screen now (each toast's text): verify-copresence's
+        // guest leg judges its dropped connection and the build editor's refusal by them.
+        "last_welcome_rejoin": state.last_welcome_rejoin,
+        "notices": state.gui_state.toasts.iter().map(|t| t.text.as_str()).collect::<Vec<_>>(),
         "home_away": state.gui_state.ship_structure.as_ref().is_some_and(|s| s.home_is_away()),
         "copresence_refused": state.copresence_refused.is_some(),
         // The sentence the HUD shows while it holds (home_plot.rs `refuse_shared_world`), so a

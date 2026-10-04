@@ -3015,7 +3015,10 @@ mod tests {
             );
         }
         assert_eq!(ship_wall_segments(&before_shape).len(), WALL_SEGMENTS_BEFORE, "today's collision segments");
-        assert_eq!(ship_sight_segments(&before_shape).len(), SIGHT_SEGMENTS_BEFORE, "today's sight segments");
+        // Since the increment 2 review (finding 8) the sight lines also see the neighbours' homes
+        // (p2's here, drawn without its corridor: street-1, its door zone, is not in this shape).
+        let neighbours_sight = crate::ship::neighbours::neighbour_view(&before_shape).segments(true).len();
+        assert_eq!(ship_sight_segments(&before_shape).len(), SIGHT_SEGMENTS_BEFORE + neighbours_sight, "today's sight segments, and the neighbour's");
 
         let all = ship.generate_meshes().room_info;
         assert_eq!(all.len(), 36, "the whole ship: + street-1's room + its corridor's");

@@ -885,3 +885,111 @@ test("editor: a build spot inside the 100 m rule's reach proves nothing, and a c
   assert.equal(judgeEditorClose({ ...EDITOR_OK, camera: [71.5, 1.7, 194] }).checks[1].ok, false, "a camera 1.5 m off where the relay holds it");
   assert.equal(judgeEditorClose({ ...EDITOR_OK, seen: [[70, 1.7, 194]] }).checks[2].ok, false, "only an update at the nudge itself counts");
 });
+
+// ── The guest (the increment 2 review, finding 2) ────────────────────────────
+//
+// With both plots of the shipped ship held by two scripted players, the game
+// comes in third, a guest. A run that went right: the home put away with none of
+// its things on a plot, the guest in the Commons and refused the build editor,
+// Respawn standing it in the Commons, stepping out bringing the home back on the
+// default plot with all it holds, and a dropped connection, with the home back on
+// p1 and the camera walked into it, coming back inside the grace to stand the
+// guest off the plot where the relay holds it.
+const { judgeGuest, onPlotGround, GUEST_NO_EDITOR_START } = require("../lib/copresence-judge.js");
+const PLOTS2 = [
+  { id: "p1", origin: [0, 0, 0], size: [55, 3, 89] },
+  { id: "p2", origin: [0, 0, 99], size: [55, 3, 89] },
+];
+const GUEST_ARRIVAL = [82, 1.7, 47.5];
+const AWAY = [-1000, -200, 0];
+const THINGS_AWAY = { respawn: GUEST_ARRIVAL, hologram: [-990, -199, 10], showroom: [-980, -199, 20], animals: [[-970, -200, 30]], plants: [[-960, -199, 40]], structures: [], vehicles: [[-950, -200, 50]] };
+const THINGS_BACK = { respawn: P1_SPAWN, hologram: [10, 1, 10], showroom: [20, 1, 20], animals: [[30, 0, 30]], plants: [[40, 1, 40]], structures: [], vehicles: [[50, 0, 50]] };
+const GUEST_OK = {
+  plots: PLOTS2,
+  doors: DOORS.doors,
+  commons: COMMONS_BOX,
+  defaultPlot: "p1",
+  walkers: [{ name: "TestBotPlots", id: 1, plot: "p1" }, { name: "TestBotPlotsTwo", id: 2, plot: "p2" }],
+  arrived: { lastWelcome: "guest", homePlot: null, homeAway: true, camera: GUEST_ARRIVAL, homeThings: THINGS_AWAY },
+  editor: { open: false, notices: [`${GUEST_NO_EDITOR_START}, so your home is not aboard to build on.`] },
+  respawn: { far: [74, 1.7, 194], relaySpawn: GUEST_ARRIVAL, camera: GUEST_ARRIVAL, nudged: [82, 1.7, 48.5], seen: [[82, 1.7, 48.5]] },
+  back: { homeAway: false, homePlot: { id: "p1" }, homeThings: THINGS_BACK },
+  again: { lastWelcome: "guest", homeAway: true, camera: GUEST_ARRIVAL },
+  reconnect: {
+    held: [83, 1.7, 47.5],
+    during: { joined: false, homeAway: false, homePlot: "p1" },
+    before: P1_SPAWN,
+    after: { lastWelcome: "guest", rejoin: true, homeAway: true, camera: [83, 1.7, 47.5] },
+    nudged: [84, 1.7, 47.5],
+    seen: [[84, 1.7, 47.5]],
+  },
+};
+void AWAY;
+
+test("guest: a run that went right passes, every check its own", () => {
+  const r = judgeGuest(GUEST_OK);
+  assert.ok(r.pass, explain(r));
+  assert.deepEqual(r.checks.map((c) => c.id), [
+    "guest_plots_taken",
+    "guest_welcome",
+    "guest_in_commons",
+    "guest_respawn_point",
+    "guest_nothing_on_plots",
+    "guest_no_editor",
+    "guest_respawn_far_from_spawn",
+    "guest_respawn_stands_where_held",
+    "guest_respawn_moves_reach_others",
+    "guest_respawn_in_commons",
+    "guest_home_back",
+    "guest_away_again",
+    "guest_reconnect_setup",
+    "guest_reconnect_off_plot",
+    "guest_reconnect_moves_reach_others",
+  ]);
+});
+
+// Plot ground: a plot's box, or a plot's door corridor (from the door points);
+// the Commons and a ship corridor are not. Seen red 2026-10-04 with onPlotGround
+// reading the boxes only: "p1's door corridor is plot ground: false".
+test("guest: plot ground is a plot's box or its door corridor", () => {
+  assert.equal(onPlotGround(P1_SPAWN, PLOTS2, DOORS.doors), true);
+  assert.equal(onPlotGround([60, 1.7, 40], PLOTS2, DOORS.doors), true, "p1's door corridor is plot ground: false");
+  assert.equal(onPlotGround(GUEST_ARRIVAL, PLOTS2, DOORS.doors), false, "the Commons");
+  assert.equal(onPlotGround([70, 1.7, 80], PLOTS2, DOORS.doors), false, "the Commons-to-street corridor");
+  assert.equal(onPlotGround(null, PLOTS2, DOORS.doors), false);
+});
+
+// What must fail, one broken thing at a time, each its own check. Seen red
+// 2026-10-04 with judgeGuest passing everything: "the camera left in p1 after
+// the reconnect (finding 1) should fail guest_reconnect_off_plot; failed:
+// nothing".
+test("guest: each broken guest run FAILS its own check", () => {
+  const w = (o) => ({ ...GUEST_OK, ...o });
+  for (const [what, bad, id] of [
+    ["the camera left in p1 after the reconnect (finding 1)", w({ reconnect: { ...GUEST_OK.reconnect, after: { ...GUEST_OK.reconnect.after, camera: P1_SPAWN } } }), "guest_reconnect_off_plot"],
+    ["the camera left in p1's corridor after the reconnect", w({ reconnect: { ...GUEST_OK.reconnect, after: { ...GUEST_OK.reconnect.after, camera: [60, 1.7, 40] } } }), "guest_reconnect_off_plot"],
+    ["the reconnect's home left on p1", w({ reconnect: { ...GUEST_OK.reconnect, after: { ...GUEST_OK.reconnect.after, homeAway: false } } }), "guest_reconnect_off_plot"],
+    ["a reconnect after the grace ran out (a fresh spawn)", w({ reconnect: { ...GUEST_OK.reconnect, after: { ...GUEST_OK.reconnect.after, rejoin: false } } }), "guest_reconnect_setup"],
+    ["the home never came back when the connection dropped", w({ reconnect: { ...GUEST_OK.reconnect, during: { ...GUEST_OK.reconnect.during, homeAway: true } } }), "guest_reconnect_setup"],
+    ["the camera never walked into the home", w({ reconnect: { ...GUEST_OK.reconnect, before: GUEST_ARRIVAL } }), "guest_reconnect_setup"],
+    ["the reconnected guest's move refused", w({ reconnect: { ...GUEST_OK.reconnect, seen: [] } }), "guest_reconnect_moves_reach_others"],
+    ["a plot left free (the game held p2)", w({ walkers: [GUEST_OK.walkers[0]] }), "guest_plots_taken"],
+    ["the welcome moved the home onto a plot", w({ arrived: { ...GUEST_OK.arrived, lastWelcome: "move", homePlot: { id: "p2" }, homeAway: false } }), "guest_welcome"],
+    ["the guest left at its old door", w({ arrived: { ...GUEST_OK.arrived, camera: P1_SPAWN } }), "guest_in_commons"],
+    ["Respawn still the old door", w({ arrived: { ...GUEST_OK.arrived, homeThings: { ...THINGS_AWAY, respawn: P1_SPAWN } } }), "guest_respawn_point"],
+    ["an animal left on p1", w({ arrived: { ...GUEST_OK.arrived, homeThings: { ...THINGS_AWAY, animals: [[30, 0, 30]] } } }), "guest_nothing_on_plots"],
+    ["no record of the home's things", w({ arrived: { ...GUEST_OK.arrived, homeThings: null } }), "guest_nothing_on_plots"],
+    ["the build editor opened for a guest", w({ editor: { open: true, notices: [] } }), "guest_no_editor"],
+    ["the editor shut with nothing said", w({ editor: { open: false, notices: [] } }), "guest_no_editor"],
+    ["Respawn stood the guest at its old door", w({ respawn: { ...GUEST_OK.respawn, relaySpawn: P1_SPAWN, camera: P1_SPAWN } }), "guest_respawn_in_commons"],
+    ["stepping out left the home away", w({ back: { ...GUEST_OK.back, homeAway: true, homePlot: null } }), "guest_home_back"],
+    ["the home came back on p2, not the default", w({ back: { ...GUEST_OK.back, homePlot: { id: "p2" } } }), "guest_home_back"],
+    ["a vehicle left where the home was kept", w({ back: { ...GUEST_OK.back, homeThings: { ...THINGS_BACK, vehicles: [[-950, -200, 50]] } } }), "guest_home_back"],
+    ["back in, the home not put away again", w({ again: { ...GUEST_OK.again, homeAway: false } }), "guest_away_again"],
+  ]) {
+    const r = judgeGuest(bad);
+    const failed = r.checks.filter((c) => !c.ok).map((c) => c.id);
+    assert.ok(failed.includes(id), `${what} should fail ${id}; failed: ${failed.join(", ") || "nothing"}`);
+  }
+  assert.equal(judgeGuest(null).pass, false, "a guest run nobody recorded fails");
+});

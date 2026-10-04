@@ -1027,6 +1027,157 @@ function judgeReboot(reboot) {
   return { pass: checks.every((c) => c.ok), checks };
 }
 
+// ── The guest (verify-copresence --plots --order guest, the increment 2 review, finding 2) ──
+//
+// With the shipped ship's two plots held by two scripted players, the game comes
+// in third, a guest: its home is put away off the ship (ShipStructure::
+// put_home_away), every plot is drawn as a neighbour's, it stands in the Commons,
+// and it cannot build. Until this leg no rig had a guest in it: the put-away and
+// the bring-back (rebuild, hull, room GI, collision, machines, animals, plants,
+// vehicles and built pieces carried there and back) were proven only by pure
+// planners and unit tests, and the commonest guest case (the third person to join)
+// was the review's finding 1.
+
+/** The start of the sentence a guest reads when it presses B
+ *  (engine/home_plot.rs GUEST_NO_EDITOR; a Rust test keeps the two equal). */
+const GUEST_NO_EDITOR_START = "You are a guest on this ship, with no plot of your own";
+
+/** True when `p` stands on a plot's ground: over a plot's box across the floor
+ *  (x and z), or inside the door corridor of a plot (a door point whose `from` is
+ *  a plot), as engine/home_plot.rs `on_plot_ground` tests it. `plots` are the
+ *  probe's ({ id, origin, size }), `doors` the door points'. Pure. */
+function onPlotGround(p, plots, doors, tol = 0.01) {
+  if (!Array.isArray(p)) return false;
+  const inXZ = (lo, hi) => p[0] >= lo[0] - tol && p[0] <= hi[0] + tol && p[2] >= lo[2] - tol && p[2] <= hi[2] + tol;
+  const onPlot = (plots || []).some((pl) => inXZ(pl.origin, [0, 1, 2].map((k) => pl.origin[k] + pl.size[k])));
+  const inTube = (doors || []).filter((d) => String(d.from).startsWith("plot:")).some((d) => inXZ(d.tube[0], d.tube[1]));
+  return onPlot || inTube;
+}
+
+/** Every thing of the home in a probe's `home_things`, but the Respawn point:
+ *  [label, [x, y, z]] each. */
+function homeThingsOf(things) {
+  if (!things) return [];
+  const one = (label, p) => (Array.isArray(p) ? [[label, p]] : []);
+  const many = (label, list) => (Array.isArray(list) ? list.map((p, i) => [`${label} ${i + 1}`, p]) : []);
+  return [
+    ...one("the hologram", things.hologram),
+    ...one("the showroom stage", things.showroom),
+    ...many("animal", things.animals),
+    ...many("plant", things.plants),
+    ...many("built piece", things.structures),
+    ...many("vehicle", things.vehicles),
+  ];
+}
+
+/**
+ * Judge a guest run. `g` (the manifest's `guest`):
+ *   plots, doors   the ship's plots (probe) and door points' doors
+ *   commons        the Commons place ({ min, max })
+ *   defaultPlot    the ship's default plot id (a guest's home comes back there)
+ *   walkers        [{ name, id, plot }]: the two scripted players holding the plots
+ *   arrived        the probe after the guest's welcome: { lastWelcome, homePlot,
+ *                  homeAway, camera, homeThings }
+ *   editor         after B was pressed: { open, notices }
+ *   respawn        the Respawn leg, as judgeRejoin takes it (far: where the relay
+ *                  held the guest at the far end of First Street)
+ *   back           after stepping out of the shared world: { homeAway, homePlot,
+ *                  homeThings }
+ *   again          after stepping back in: { lastWelcome, homeAway, camera }
+ *   reconnect      the dropped connection: { held (where the relay held the guest),
+ *                  during: { joined, homeAway, homePlot } (the home came back),
+ *                  before (the camera, walked into the home that came back),
+ *                  after: { lastWelcome, rejoin, homeAway, camera }, nudged, seen }
+ * Returns { pass, checks }; every id starts guest_.
+ */
+function judgeGuest(guest) {
+  const checks = [];
+  const add = (id, ok, detail) => checks.push({ id: `guest_${id}`, ok: !!ok, detail });
+  const g = guest || {};
+  const fmt3 = (p) => (Array.isArray(p) ? `(${p.map((v) => Number(v).toFixed(2)).join(", ")})` : "(never)");
+  const d3 = (a, b) => (Array.isArray(a) && Array.isArray(b) ? Math.hypot(...[0, 1, 2].map((k) => Number(a[k]) - Number(b[k]))) : Infinity);
+  const inCommons = (p) => Array.isArray(p) && g.commons && [0, 2].every((k) => p[k] >= g.commons.min[k] - 0.05 && p[k] <= g.commons.max[k] + 0.05);
+  const onPlot = (p) => onPlotGround(p, g.plots, g.doors);
+  const plotIds = (g.plots || []).map((p) => p.id).sort();
+  const held = (g.walkers || []).map((w) => w.plot).filter(Boolean).sort();
+  add(
+    "plots_taken",
+    plotIds.length > 0 && JSON.stringify(held) === JSON.stringify(plotIds),
+    `the scripted players hold ${held.join(", ") || "nothing"}; the ship's plots are ${plotIds.join(", ") || "(unknown)"}` +
+      (JSON.stringify(held) === JSON.stringify(plotIds) ? ", so the game comes in third, with none left" : ": a plot is left, so the game is no guest"),
+  );
+  const a = g.arrived || {};
+  add(
+    "welcome",
+    a.lastWelcome === "guest" && a.homePlot === null && a.homeAway === true,
+    `its welcome did "${a.lastWelcome}", the home stands on ${a.homePlot ? a.homePlot.id || a.homePlot : "no plot"} and is ${a.homeAway ? "put away" : "NOT put away"}`,
+  );
+  add("in_commons", inCommons(a.camera), `the guest's camera at ${fmt3(a.camera)} is ${inCommons(a.camera) ? "in" : "NOT in"} the Commons`);
+  const respawnPoint = a.homeThings && a.homeThings.respawn;
+  add("respawn_point", inCommons(respawnPoint), `its Respawn point ${fmt3(respawnPoint)} is ${inCommons(respawnPoint) ? "in" : "NOT in"} the Commons`);
+  const things = homeThingsOf(a.homeThings);
+  const onAPlot = things.filter(([, p]) => onPlot(p));
+  add(
+    "nothing_on_plots",
+    !!a.homeThings && things.length > 0 && onAPlot.length === 0,
+    !a.homeThings
+      ? "where the home's things stand was not recorded"
+      : onAPlot.length
+        ? `${onAPlot.length} of the home's ${things.length} things stand on a plot, first ${onAPlot[0][0]} at ${fmt3(onAPlot[0][1])}`
+        : `none of the home's ${things.length} things (its hologram, showroom stage, animals, plants, built pieces and vehicles) stands on a plot`,
+  );
+  const e = g.editor || {};
+  const told = (e.notices || []).some((n) => String(n).startsWith(GUEST_NO_EDITOR_START));
+  add(
+    "no_editor",
+    e.open === false && told,
+    `after B the build editor is ${e.open === false ? "shut" : e.open === true ? "OPEN" : "unknown"}; ${told ? "the guest was told why" : `no notice says why (on screen: ${JSON.stringify(e.notices || [])})`}`,
+  );
+  for (const c of judgeRejoin(g.respawn || {}, { prefix: "guest_respawn", when: "it pressed Respawn as a guest" }).checks) checks.push(c);
+  const rs = g.respawn || {};
+  add("respawn_in_commons", inCommons(rs.relaySpawn) && inCommons(rs.camera), `after Respawn the relay spawned the guest at ${fmt3(rs.relaySpawn)} and its camera stands at ${fmt3(rs.camera)}, ${inCommons(rs.relaySpawn) && inCommons(rs.camera) ? "both in" : "NOT both in"} the Commons`);
+  const b = g.back || {};
+  const def = (g.plots || []).find((p) => p.id === g.defaultPlot);
+  const backThings = homeThingsOf(b.homeThings);
+  const onDefault = (p) => !!def && onPlotGround(p, [def], []);
+  const strays = [...backThings, ["its Respawn point", b.homeThings && b.homeThings.respawn]].filter(([, p]) => !onDefault(p));
+  add(
+    "home_back",
+    b.homeAway === false && (b.homePlot ? b.homePlot.id || b.homePlot : null) === g.defaultPlot && backThings.length === things.length && strays.length === 0,
+    `out of the shared world the home is ${b.homeAway === false ? "back" : "STILL AWAY"} on ${b.homePlot ? b.homePlot.id || b.homePlot : "no plot"} (the default is ${g.defaultPlot}), with ${backThings.length} of its ${things.length} things` +
+      (strays.length ? `; ${strays[0][0]} stands off it at ${fmt3(strays[0][1])}` : ", every one on the default plot with the Respawn point"),
+  );
+  const ag = g.again || {};
+  add(
+    "away_again",
+    ag.lastWelcome === "guest" && ag.homeAway === true && inCommons(ag.camera),
+    `back in the shared world its welcome did "${ag.lastWelcome}", the home is ${ag.homeAway ? "put away" : "NOT put away"} again, the camera at ${fmt3(ag.camera)} ${inCommons(ag.camera) ? "in" : "NOT in"} the Commons`,
+  );
+  const r = g.reconnect || {};
+  const du = r.during || {};
+  const af = r.after || {};
+  const setup = du.joined === false && du.homeAway === false && du.homePlot === g.defaultPlot && onPlot(r.before) && af.rejoin === true;
+  add(
+    "reconnect_setup",
+    setup,
+    `when the connection dropped the game ${du.joined === false ? "left the shared world" : "did NOT leave the shared world"} and its home came ${du.homeAway === false ? "back" : "NOT back"} on ${du.homePlot || "no plot"}; the camera walked into it, to ${fmt3(r.before)} (${onPlot(r.before) ? "on" : "NOT on"} a plot); the welcome on reconnecting said rejoin ${af.rejoin}` +
+      (af.rejoin === true ? " (inside the relay's grace)" : ": NOT a reconnect inside the grace, so this leg proves nothing about it"),
+  );
+  const gap = d3(af.camera, r.held);
+  add(
+    "reconnect_off_plot",
+    af.lastWelcome === "guest" && af.homeAway === true && !onPlot(af.camera) && gap <= REJOIN_STAND_TOL_M,
+    `after the reconnect's welcome ("${af.lastWelcome}", the home ${af.homeAway ? "put away" : "NOT put away"}) the camera stands at ${fmt3(af.camera)}, ${onPlot(af.camera) ? "ON A PLOT (a neighbour's home, with no walls to stop it)" : "on no plot"}, ${Number.isFinite(gap) ? gap.toFixed(2) : "?"} m from where the relay holds the guest ${fmt3(r.held)} (at most ${REJOIN_STAND_TOL_M})`,
+  );
+  const hit = (r.seen || []).find((p) => d3(p, r.nudged) <= REJOIN_NUDGE_TOL_M);
+  add(
+    "reconnect_moves_reach_others",
+    !!hit,
+    hit ? `its next move to ${fmt3(r.nudged)} reached the others through the relay, at ${fmt3(hit)}` : `its next move to ${fmt3(r.nudged)} never reached the others (${(r.seen || []).length} update(s) seen after it)`,
+  );
+  return { pass: checks.every((c) => c.ok), checks };
+}
+
 // ── Is the figure VISIBLE in a screenshot? ──────────────────────────────────
 //
 // The samples prove where the game drew the figure; a screenshot can still
@@ -1109,6 +1260,9 @@ module.exports = {
   farthestFrom,
   judgeMeet,
   judgeReboot,
+  judgeGuest,
+  onPlotGround,
+  GUEST_NO_EDITOR_START,
   MEET_MAX_STEP_M,
   REJOIN_FAR_M,
 };

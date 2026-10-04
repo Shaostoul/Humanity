@@ -794,6 +794,10 @@ pub(crate) struct EngineState {
     /// probe (engine/ipc.rs): a returning player's welcome should only confirm the plot.
     pub(crate) boot_plot: Option<String>,
     pub(crate) last_welcome: Option<&'static str>,
+    /// The last applied welcome's own word on whether the relay found the player still in the
+    /// world (`rejoin`: a reconnect inside its grace), for the probe: verify-copresence's guest
+    /// leg proves its dropped connection came back inside the grace (the increment 2 review).
+    pub(crate) last_welcome_rejoin: Option<bool>,
     /// Throttle for outbound position updates (send ~15/sec).
     pub(crate) game_pos_timer: f32,
     /// Cached (body_mesh, head_mesh, material) for the remote-player avatar marker, built once.
