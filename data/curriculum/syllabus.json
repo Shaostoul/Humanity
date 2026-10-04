@@ -2763,12 +2763,24 @@
       "subject": "biology",
       "title": "The human body",
       "summary": "Understand your own systems well enough to notice when one is failing.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "how-your-body-works"
+      ],
       "skills": [
         "medicine"
       ],
+      "data": [
+        "data/status_effects.csv"
+      ],
       "sources": [
-        "nih"
+        "nih",
+        "cdc",
+        "cpsc",
+        "epa",
+        "hrsa",
+        "samhsa",
+        "medlineplus"
       ],
       "locale_dependent": false,
       "hazard": "serious"
@@ -2851,13 +2863,28 @@
       "subject": "biology",
       "title": "Invasive species",
       "summary": "Recognise what does not belong and understand the damage it does.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "invasive-species"
+      ],
       "skills": [
         "foraging",
         "farming"
       ],
+      "data": [
+        "data/locales/<id>/species.json",
+        "data/garden/weeds.ron"
+      ],
       "sources": [
-        "usda",
+        "federal-register",
+        "nisic",
+        "usda-aphis",
+        "fws",
+        "nps",
+        "ecfr",
+        "epa",
+        "cdc",
+        "hrsa",
         "state-noxious-weeds"
       ],
       "locale_dependent": true,
@@ -3499,12 +3526,21 @@
       "subject": "sanitation",
       "title": "Rats, flies and vectors",
       "summary": "Deny disease vectors the food, water and shelter they need.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "rats-flies-mosquitoes-and-ticks"
+      ],
       "skills": [
         "shelter_building"
       ],
+      "data": [
+        "data/status_effects.csv"
+      ],
       "sources": [
-        "cdc"
+        "cdc",
+        "epa",
+        "afpmb",
+        "hrsa"
       ],
       "locale_dependent": true,
       "hazard": "serious"
