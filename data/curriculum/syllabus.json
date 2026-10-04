@@ -2022,10 +2022,26 @@
       "subject": "measurement",
       "title": "Ratios and mixing",
       "summary": "Scale a recipe, a concrete mix or a solution correctly.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "ratios-and-mixing"
+      ],
       "skills": [
         "cooking",
         "alchemy"
+      ],
+      "data": [
+        "data/recipes.csv"
+      ],
+      "sources": [
+        "dod-technical-manuals",
+        "osha",
+        "niosh-pocket-guide",
+        "nist",
+        "usda-canning-guide",
+        "fda",
+        "epa",
+        "cdc"
       ],
       "locale_dependent": false,
       "hazard": "serious"
@@ -2171,9 +2187,23 @@
       "subject": "physics",
       "title": "Sound",
       "summary": "Understand how sound travels, carries and damages hearing.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "sound-and-hearing"
+      ],
       "skills": [
         "engineering"
+      ],
+      "data": [
+        "data/sounds.toml"
+      ],
+      "sources": [
+        "dod-technical-manuals",
+        "nidcd",
+        "niosh",
+        "osha",
+        "ecfr",
+        "nws"
       ],
       "locale_dependent": false,
       "hazard": "caution"
@@ -3052,12 +3082,23 @@
       "subject": "sanitation",
       "title": "Rubbish and what cannot be composted",
       "summary": "Handle waste streams that must not go into soil or water.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "what-not-to-compost-burn-or-pour-away"
+      ],
       "skills": [
         "farming"
       ],
+      "data": [
+        "data/status_effects.csv",
+        "data/items.csv"
+      ],
       "sources": [
-        "epa"
+        "epa",
+        "fda",
+        "cpsc",
+        "usfa",
+        "cdc"
       ],
       "locale_dependent": true,
       "hazard": "serious"

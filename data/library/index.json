@@ -331,6 +331,17 @@
           ]
         },
         {
+          "title": "What Not to Compost, Burn or Pour Away",
+          "file": "what_not_to_compost_burn_or_pour_away.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "water",
+            "safety"
+          ]
+        },
+        {
           "title": "What Soil Is",
           "file": "what_soil_is.md",
           "tags": [
@@ -688,6 +699,17 @@
           ]
         },
         {
+          "title": "Ratios and Mixing",
+          "file": "ratios_and_mixing.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "food",
+            "safety"
+          ]
+        },
+        {
           "title": "Estimating",
           "file": "estimating.md",
           "tags": [
@@ -734,6 +756,16 @@
             "guide",
             "real",
             "technical",
+            "safety"
+          ]
+        },
+        {
+          "title": "Sound and Hearing",
+          "file": "sound_and_hearing.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
             "safety"
           ]
         },
