@@ -951,6 +951,36 @@
             "real",
             "beginner"
           ]
+        },
+        {
+          "title": "Making an Agreement That Holds",
+          "file": "making_an_agreement_that_holds.md",
+          "tags": [
+            "guide",
+            "real",
+            "governance",
+            "beginner"
+          ]
+        },
+        {
+          "title": "Organising Shared Work",
+          "file": "organising_shared_work.md",
+          "tags": [
+            "guide",
+            "real",
+            "governance",
+            "safety"
+          ]
+        },
+        {
+          "title": "Teaching What You Know",
+          "file": "teaching_what_you_know.md",
+          "tags": [
+            "guide",
+            "real",
+            "beginner",
+            "safety"
+          ]
         }
       ],
       "section": "Learn"
