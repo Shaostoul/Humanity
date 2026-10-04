@@ -17,7 +17,7 @@ fn category_matches(filter: &str, recipe_cat: &str) -> bool {
 }
 
 /// Prettify a raw item/station id like "iron_ore_0" into "Iron Ore" for display.
-fn pretty_id(id: &str) -> String {
+pub(crate) fn pretty_id(id: &str) -> String {
     id.trim_end_matches(|c: char| c == '_' || c.is_ascii_digit())
         .split('_')
         .filter(|s| !s.is_empty())
@@ -643,7 +643,7 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
             for tool in &recipe.tools {
                 let have = in_backpack(state, tool) > 0;
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(tool).size(theme.font_size_body).color(theme.text_primary()));
+                    ui.label(RichText::new(pretty_id(tool)).size(theme.font_size_body).color(theme.text_primary()));
                     ui.label(
                         RichText::new(if have { "in your backpack" } else { "not in your backpack" })
                             .size(theme.font_size_small)
@@ -790,7 +790,7 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
         } else if no_room {
             format!("No room for the result here: {}", not_here.unwrap_or("make room in your backpack"))
         } else if let Some(t) = &missing_tool {
-            format!("Needs a {t} in your backpack")
+            format!("Needs a {} in your backpack", pretty_id(t))
         } else if unpowered {
             let station = recipe.station_required.trim_end_matches("_0").replace('_', " ");
             match &state.stations_where {
