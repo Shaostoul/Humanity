@@ -33,10 +33,11 @@ heat has done its damage.
 ## First: where heat hurts people
 
 - **Hot water and steam.** The CPSC says most tap water scald injuries
-  and deaths are to the elderly and to children under five. Its figures
-  for how long hot water takes to give most adults a third-degree burn:
-  water at 150 F (66 C), two seconds; at 140 F (60 C), six seconds; at
-  130 F (54 C), thirty seconds; and even at 120 F (49 C), "a five minute
+  and deaths are to the elderly and to children under five. Its figures:
+  "Most adults will suffer third-degree burns if exposed to 150 degree
+  water for two seconds" (150 F is 66 C). Burns also occur in six
+  seconds at 140 F (60 C) and in thirty seconds at 130 F (54 C), and
+  "Even if the temperature is 120 degrees" (49 C), "a five minute
   exposure could result in third-degree burns." It says to hand-test
   water before bathing infants and young children, and never to leave a
   child alone in the bathroom. Setting the water heater is in [Heating
@@ -80,19 +81,28 @@ heat has done its damage.
   stove to heat your home." Anything that burns fuel indoors can make
   carbon monoxide; that hazard is in [Ventilation, Damp and
   Mould](/library#ventilation-damp-and-mould).
-- **Too much heat in the body.** OSHA lists the signs of heat stroke as
-  confusion, slurred speech, unconsciousness, seizures, heavy sweating or
-  hot dry skin, a very high body temperature and a rapid heart rate. Its
-  rule: "When in doubt, call 911!" Confusion, slurred speech or
-  unconsciousness mean calling 911 immediately and cooling the person
-  until help arrives. Its first aid: move them somewhere cooler; cool
-  them at once, and cold water or an ice bath is "the best method to cool
-  workers rapidly in an emergency"; otherwise ice or cold wet towels on
-  the head, neck, trunk, armpits and groin, outer clothing off, and fans
-  moving air over them; and "Never leave a worker with heat-related
-  illness alone." OSHA writes for workers; the body is the same at home.
-  Never try to give a drink to someone who is confused or not fully
-  awake; they can choke (general first aid practice).
+- **Too much heat in the body.** OSHA lists the signs of heat exhaustion
+  as fatigue, irritability, thirst, nausea or vomiting, dizziness or
+  lightheadedness, heavy sweating, and a raised body temperature or fast
+  heart rate. The signs of heat stroke are confusion, slurred speech,
+  unconsciousness, seizures, heavy sweating or hot dry skin, a very high
+  body temperature and a rapid heart rate. Its rule for any of them:
+  "When any of these symptoms is present, promptly provide first aid. Do
+  not try to diagnose which illness is occurring," because the illnesses
+  overlap and can worsen quickly; someone with symptoms should stop
+  working. Its first aid: move the person somewhere cooler, such as shade
+  or air conditioning, and cool them at once. Putting them in cold water
+  or an ice bath is "the best method to cool workers rapidly in an
+  emergency"; the other ways it lists are taking off outer clothing,
+  ice or cold wet towels on the head, neck, trunk, armpits and groin,
+  and fans moving air over them. "Never leave a worker with heat-related
+  illness alone." And: "When in doubt, call 911!" Confusion, slurred
+  speech or unconsciousness are heat stroke, and mean calling 911
+  immediately and cooling the person until help arrives. OSHA writes for
+  workers; the body is the same at home. Someone who is fully awake can
+  sip cool water, but never try to give a drink to someone who is
+  confused or not fully awake; they can choke (general first aid
+  practice).
 - **Cars in the sun.** The National Weather Service: "It is NEVER safe to
   leave a child, disabled person or pet locked in a car, even in the
   winter." It says children can die in 10 minutes, and that if you have
@@ -283,8 +293,10 @@ Three practical things follow:
 
 - **A boiling pot does not get hotter.** Once water is boiling, more heat
   goes into making steam, latent heat with "no temperature change." A
-  pot at a hard boil is no hotter than one at a gentle simmer; it just
+  pot at a hard boil is no hotter than one at a gentle boil; it just
   boils away faster and uses more fuel (our application of the handbook).
+  A simmer, with only a few small bubbles, is usually a little below
+  boiling, so it is cooler than either (general cooking knowledge).
 - **Water boils cooler up a mountain,** where the air pressure is lower
   (our application). That is why cooking takes longer at altitude, and
   why tested canning times change with altitude, as [Why Canning Has
@@ -301,9 +313,9 @@ figures). Heating 2 litres of water (2 kg) from 15 C to boiling takes 2 x
 litres away completely would take 2 x 2,260,000, about 4,520,000 joules,
 or 1.26 kilowatt hours: more than six times as much. So once a pot
 boils, nearly all the extra fuel goes into steam. A lid keeps much of
-that steam, and its heat, in the pot, and turning down to a simmer
-cooks at the same temperature for less fuel (general practice, from the
-physics).
+that steam, and its heat, in the pot, and turning a hard boil down to a
+gentle one cooks at the same temperature for less fuel (general
+practice, from the physics).
 
 **Why steam burns worse than boiling water** (arithmetic from the same
 figures). A gram of boiling water that lands on skin and cools to about
@@ -324,17 +336,20 @@ ground (conduction). That last list is our application of the physics.
 
 **A drink that stays hot** (our application of the handbook's
 definitions). A vacuum flask has a vacuum between two walls. Conduction
-needs a material and convection needs a fluid, so the vacuum stops both;
-only radiation can cross it, and silvered walls radiate very little. All
-three ways in this guide are blocked at once.
+needs a material and convection needs a fluid, so the vacuum stops both
+across the gap; radiation can still cross it, but silvered walls radiate
+very little. Some heat still leaks out through the neck, where the two
+walls join, and through the stopper. All three ways in this guide are
+cut at once, which is why the drink cools slowly rather than not at
+all.
 
 ## Using heat on purpose at home
 
 A short list of habits that follow from the four ways, all general
 practice from the physics above:
 
-- **Cook with lids, and simmer rather than boil hard.** It saves fuel
-  without cooking any cooler.
+- **Cook with lids, and keep a gentle boil rather than a hard one.** It
+  saves fuel without cooking any cooler.
 - **Dry things with air and sun.** Laundry and firewood dry fastest where
   air moves over them and the sun reaches them; the details for wood
   are in [Firewood](/library#firewood).
@@ -403,10 +418,10 @@ body.
   balance. In either, the Inventory page always shows your core
   temperature, the HUD shows it once it leaves the normal range, and the
   game gives you the conditions Shivering, Hypothermia (below 35 C,
-  which slows you), Heat Exhaustion (above 39 C) and Heatstroke (above
-  40 C, which does lasting harm). Body heat runs in every play mode,
-  including the default Dev mode; only the developer flying mode
-  switches it off.
+  which slows you), Heat Exhaustion (above 39 C, which also slows you)
+  and Heatstroke (above 40 C, which slows you more and does lasting
+  harm). Body heat runs in every play mode, including the default Dev
+  mode; only the developer flying mode switches it off.
 
 What the game leaves out, so you do not learn it from the game: nothing
 in the game conducts heat through a solid, so there are no hot handles
@@ -430,8 +445,9 @@ outside.
 - You keep everything that burns 3 feet from heaters, turn space heaters
   off when you leave or sleep, and never heat a home with an oven or a
   gas stove.
-- You know the signs of heat stroke, call 911 for confusion, slurred
-  speech or collapse, and start cooling at once.
+- You know the signs of heat exhaustion and heat stroke, give first aid
+  at the first of them without waiting to tell which it is, call 911
+  for confusion, slurred speech or collapse, and start cooling at once.
 - You never leave a child, a disabled person or a pet in a car.
 - You can explain why steam burns worse than boiling water, and why a
   boiling pot does not get hotter.
@@ -480,9 +496,11 @@ public domain. Web pages and documents were read on 3 and 4 October 2026.
   https://www.usgs.gov/water-science-school/science/sublimation-and-water-cycle
 - US Consumer Product Safety Commission. *Avoiding Tap Water Scalds*,
   Publication 5098, printed with the code 032012 (most tap water scald
-  injuries and deaths among the elderly and children under five; the
-  burn times at 150, 140, 130 and 120 F; hand-test bath water; never
-  leave a child alone in the bathroom).
+  injuries and deaths among the elderly and children under five;
+  third-degree burns for most adults in two seconds at 150 F, burns in
+  six seconds at 140 F and thirty at 130 F, and possible third-degree
+  burns in five minutes at 120 F; hand-test bath water; never leave a
+  child alone in the bathroom).
   https://www.cpsc.gov/s3fs-public/5098.pdf
 - US Consumer Product Safety Commission. Holiday cooking safety news
   release 26-093, 19 November 2025 (stand by your pan; smother a grease
@@ -515,10 +533,12 @@ public domain. Web pages and documents were read on 3 and 4 October 2026.
   https://www.fda.gov/radiation-emitting-products/resources-you-radiation-emitting-products/microwave-ovens
 - Occupational Safety and Health Administration. Heat-Related Illnesses
   and First Aid, undated (the signs of heat stroke and heat exhaustion;
-  "When in doubt, call 911!"; move to a cooler area, cool immediately,
-  cold water or an ice bath the best method, ice or cold wet towels on
-  the head, neck, trunk, armpits and groin, remove outer clothing, fans,
-  never leave the person alone).
+  first aid promptly at any symptom, without trying to diagnose which
+  illness it is; those with symptoms allowed to stop working; "When in
+  doubt, call 911!"; move to a cooler area, cool immediately, cold water
+  or an ice bath the best method, ice or cold wet towels on the head,
+  neck, trunk, armpits and groin, remove outer clothing, fans, never
+  leave the person alone).
   https://www.osha.gov/heat-exposure/illness-first-aid
 - National Weather Service. Heat Safety Tips and Resources, undated
   (never leave a child, disabled person or pet locked in a car, even in
@@ -559,7 +579,8 @@ public domain. Web pages and documents were read on 3 and 4 October 2026.
   vents.
 - Why water on a grease fire throws burning oil (general knowledge), and
   leaving a burning pan where it is rather than carrying it.
-- Not giving a drink to someone who is confused or not fully awake.
+- Sips of cool water for someone fully awake, and no drink for someone
+  who is confused or not fully awake.
 - The arithmetic comparisons: water against copper, the pot of water,
   steam against boiling water, and ice in the cooler.
 - Why metal feels colder than wood, dry pot holders, stirring, still air
@@ -567,8 +588,11 @@ public domain. Web pages and documents were read on 3 and 4 October 2026.
   line of sight and the 3-foot rule, and shade (our explanations and
   examples from the handbook's definitions).
 - That humid heat slows sweating (general physics).
+- That a simmer is usually a little below boiling (general cooking
+  knowledge).
 - That a boiling pot gets no hotter, that water boils cooler at
   altitude, and how a pressure canner works (our application of the
   handbook's latent heat and saturation pressure).
-- The vacuum flask and the cooler (our application of the three modes).
+- The vacuum flask, including the heat lost through its neck and
+  stopper, and the cooler (our application of the three modes).
 - The list of habits under "Using heat on purpose at home".

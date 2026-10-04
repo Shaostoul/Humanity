@@ -685,7 +685,7 @@ were read on 3 October 2026.
 - Departments of the Army, Navy, Air Force and Marine Corps. *Use and
   Care of Hand Tools and Measuring Tools*, TM 9-243 (also Navy
   M6290-AJ-MAN-010, Air Force TO 32-1-101, Marine Corps TM 10209-10/1),
-  dated 12 December 1984. The copy read is the Navy's June 1992 reissue,
+  dated 12 December 1983. The copy read is the Navy's June 1992 reissue,
   NAVEDTRA 12085, which includes Change 1. Chapter 2, Safety (tools
   kept in their proper place, with an inventory list checked after each
   job; free of rust, nicks, burrs and breaks; never using damaged tools;

@@ -92,8 +92,12 @@ Mould](ventilation_damp_and_mould.md) on damp inside a house.
   with chromated arsenicals and wash your hands after handling." It
   should not be reused as mulch either.
 - **Rust removers are acids.** The common ones are phosphoric acid and
-  oxalic acid. NIOSH lists both as causing eye and skin burns; for either
-  in the eyes, "Irrigate immediately"; and for oxalic acid swallowed,
+  oxalic acid. NIOSH lists phosphoric acid as causing eye and skin
+  burns, and oxalic acid as irritating the eyes and skin and burning the
+  eyes. Its first aid for both: in the eyes, "Irrigate immediately"; on
+  the skin, flush with water at once ("Water flush immediately" for
+  phosphoric acid, "Water flush promptly" for oxalic acid); clothing
+  that gets wet with either comes off; and if either is swallowed,
   "Medical attention immediately." Wear eye protection and gloves, and
   keep them where children cannot reach (general practice). Never mix
   cleaning chemicals: the CDC warns "Never mix bleach with ammonia or
@@ -113,8 +117,11 @@ Rust is iron combining with oxygen, with water as the go-between. The
 Department of Energy's handbook gives the two conditions for what it
 calls general corrosion: "1) metal and water in the same environment,
 and 2) a chemical reaction between the metal and water that forms an
-oxide." On iron the oxide builds up in layers, the outermost being
-ferric oxide, the red-brown rust everyone knows.
+oxide." The handbook's detailed account, written for the oxygen-free
+water inside plant systems, has the oxide building up on iron in layers
+with ferric oxide on the outside. The red-brown, flaky rust you see in
+the open air, with oxygen and rain, is a hydrated iron oxide, iron
+oxide holding water (general chemistry).
 
 The handbook explains why rust keeps going. An oxide layer can protect
 the metal under it, slowing further corrosion, but "If the film is
@@ -236,8 +243,10 @@ Wood](../making/working_with_wood.md) covers in more depth:
 - **Not too wet.** Wood soaked through has too little air for decay
   fungi, which is why foundation piles below the water table do not rot.
 - **Mild temperatures.** Most decay fungi grow best around 25 C (77 F),
-  slow down below 10 C (50 F) and above 30 C (95 F), and essentially stop
-  at 2 C (35 F) or 38 C (100 F).
+  slow down below 10 C (50 F) and above 30 C (86 F), and essentially stop
+  at 2 C (35 F) or 38 C (100 F). (The laboratory's own text pairs 30 C
+  with 95 F. The two do not match: 30 C is 86 F, and 95 F is 35 C. We
+  give the Celsius figure it states, with its correct conversion.)
 
 What it looks like, from the same chapter:
 
@@ -252,9 +261,15 @@ What it looks like, from the same chapter:
   incorrect because wood must have available moisture for decay." Some
   fungi grow strands that carry water from the soil into wood that
   would otherwise be dry, and are better called water-conducting fungi.
-- **Mould and stain** mostly spoil appearance and only slightly affect
-  strength, but they make wood soak up water more easily, which helps
-  real decay get started.
+- **Mould and stain** affect strength "only slightly"; the laboratory
+  says their greatest effect is "usually confined to appearance and to
+  strength properties that determine shock resistance or toughness."
+  Toughness is what lets a ladder rung, a tool handle or a step take a
+  sudden load, so do not trust stained wood there either (our
+  application).
+  Mould and stain also make wood soak up water more easily, which helps
+  real decay get started, and the laboratory warns that early decay
+  "may also be present, though inconspicuous, in the discolored areas."
 
 ### Insects that eat or hollow out wood
 
@@ -320,8 +335,12 @@ Cutting treated wood exposes untreated wood inside. The laboratory says
 the cut surfaces, the end grain in joints and the area around fasteners
 and drill holes "will require supplemental on-site treatment", and
 names copper naphthenate (1 to 2 percent copper) brushed onto the cut.
-Treated wood also needs the right fasteners, which are in [Nails, Screws
-and Bolts](nails_screws_and_bolts.md).
+It is a pesticide: the laboratory says copper naphthenate "is not a
+restricted-use pesticide but should be handled as an industrial
+pesticide." Follow the label, and wear chemical-resistant gloves and eye
+protection when you brush it on (general practice). Treated wood also
+needs the right fasteners, which are in [Nails, Screws and
+Bolts](nails_screws_and_bolts.md).
 
 ### Paint, sun and weathering
 
@@ -501,19 +520,21 @@ place.
 - You treat any wood with visible rot as having lost most of its strength,
   and you never stand on it, tie to it or hang from it.
 - You take rusted ladders, chains, hooks and slings out of use, and you
-  never paint a wooden ladder.
+  never coat a wooden ladder with anything opaque.
 - You assume old paint in a pre-1978 home contains lead, and you do not
   sand it, burn it or heat it.
 - You never burn treated wood, and you wear goggles and a mask to saw it.
-- You handle rust removers with eye protection and gloves, and never mix
-  cleaning chemicals.
+- You handle rust removers with eye protection and gloves, flush a
+  splash from eyes or skin with water at once, and never mix cleaning
+  chemicals.
 - You keep a film of oil on your tools, store rope and chain dry, and
   lubricate rather than paint a chain.
 - You can explain why salt, warmth and trapped water make rust worse.
 - You can tell brown rot from white rot, and know why "dry rot" needs
   water.
 - You can read a treated-wood tag and choose the right use category, and
-  you treat the cut ends.
+  you treat the cut ends, following the preservative's label, with
+  gloves and eye protection.
 - You know the signs of termites and carpenter ants, and what carpenter
   ants say about moisture.
 - You walk round your home once a year, probe the wood near the ground,
@@ -533,8 +554,8 @@ and documents were read on 3 and 4 October 2026.
   1 of 2, DOE-HDBK-1015/1-93, January 1993, Module 2, Corrosion
   (corrosion defined; "Even though corrosion cannot be eliminated, it can
   be controlled"; the two conditions for general corrosion; the oxide
-  layers on iron and when the film protects; oxygen, temperature and
-  dissolved salts raising the rate; chloride pitting; pits under mounds
+  layers on iron in deaerated water, and when the film protects; oxygen,
+  temperature and dissolved salts raising the rate; chloride pitting; pits under mounds
   of oxide; pitting and crevice corrosion as rapid penetration with
   little loss of mass). Distribution Statement A, approved for public
   release.
@@ -544,15 +565,18 @@ and documents were read on 3 and 4 October 2026.
   March 2021. Chapter 14, Biodeterioration of Wood, by Rachel Arango,
   Stan T. Lebow and Jessie A. Glaeser (fungi need mild temperatures,
   moisture and air; decay above fibre saturation, the 20 percent margin,
-  wood kept air dry does not decay; too wet to decay; temperature range;
-  brown, white and soft rot; "dry rot" a misnomer and water-conducting
-  fungi; strength losses over 50 percent at 10 percent weight loss and
+  wood kept air dry does not decay; too wet to decay; temperature range,
+  whose 30 C is printed with the mismatched conversion 95 F; mould and
+  stain affecting toughness and shock resistance, and early decay
+  hidden in stained areas; brown, white and soft rot; "dry rot" a
+  misnomer and water-conducting fungi; strength losses over 50 percent at 10 percent weight loss and
   visible decay; the building rules, clearances, crawl spaces, overhangs,
   plumbing leaks; repairs; the climate index for decay hazard; termites,
   carpenter ants, carpenter bees and marine borers; fumigation by
   licensed professionals). Chapter 15, Wood Preservatives, by Grant T.
   Kirker and Stan T. Lebow (use categories UC1 to UC5; the treatment tag;
-  field treatment of cuts with copper naphthenate; treated wood not
+  field treatment of cuts with copper naphthenate, to be handled as an
+  industrial pesticide; treated wood not
   burned in open fires, stoves, fireplaces or residential boilers).
   Chapter 16, Finishing Wood, by Christopher G. Hunt (weathering and
   ultraviolet light; about 6 mm of wood lost a century; the cedar
@@ -567,7 +591,7 @@ and documents were read on 3 and 4 October 2026.
   https://www.fpl.fs.usda.gov/documnts/fplgtr/fplgtr282/chapter_16_fpl_gtr282.pdf
 - Departments of the Army, Navy, Air Force and Marine Corps. *Use and
   Care of Hand Tools and Measuring Tools*, TM 9-243, dated 12 December
-  1984; the copy read is the Navy's June 1992 reissue, NAVEDTRA 12085,
+  1983; the copy read is the Navy's June 1992 reissue, NAVEDTRA 12085,
   with Change 1 (chapter 2, tools kept free of rust; chapter 25, page
   25-13, penetrating oil on rusted nuts; chapter 28, do not oil files;
   chapter 37, remove rust with fine aluminium oxide abrasive cloth and
@@ -603,10 +627,13 @@ and documents were read on 3 and 4 October 2026.
   https://www.epa.gov/ingredients-used-pesticide-products/chromated-arsenicals-cca
 - National Institute for Occupational Safety and Health. *NIOSH Pocket
   Guide to Chemical Hazards*, entries for phosphoric acid and oxalic
-  acid, both dated 30 October 2019 (eye and skin burns; irrigate the eyes
-  immediately; for oxalic acid swallowed, medical attention
-  immediately). Read through a page summary, because cdc.gov refuses
-  scripted downloads.
+  acid, both dated 30 October 2019 (phosphoric acid: eye and skin
+  burns; oxalic acid: irritation of the eyes and skin, and eye burns;
+  for both, irrigate the eyes immediately, flush the skin with water,
+  immediately for phosphoric and promptly for oxalic, remove clothing
+  when wet or contaminated, and medical attention immediately if
+  swallowed). Read through a page summary, because cdc.gov refuses
+  scripted downloads; re-read on 4 October 2026 after the fact check.
   https://www.cdc.gov/niosh/npg/npgd0506.html
   https://www.cdc.gov/niosh/npg/npgd0474.html
 - Centers for Disease Control and Prevention. About Tetanus, published 15
@@ -654,6 +681,12 @@ and documents were read on 3 and 4 October 2026.
   lead fume temperature together as no heat at all on old paint.
 - Eye protection and gloves with rust removers, wire brushes and sanding,
   a face shield with a wire wheel, and keeping chemicals from children.
+- Following the label and wearing chemical-resistant gloves and eye
+  protection when brushing copper naphthenate onto cut ends.
+- That everyday rust in open air is a hydrated iron oxide (general
+  chemistry).
+- That the toughness mould and stain take away matters in ladder rungs,
+  tool handles and steps.
 - That flaking rust keeps exposing fresh metal, that a rust blister can
   hide a pit, and that sea spray and road salt explain fast rust near
   coasts and on cars (our application of the DOE handbook).

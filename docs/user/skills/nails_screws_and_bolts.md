@@ -647,7 +647,7 @@ were read on 3 October 2026.
   https://archive.org/download/MManuals/UsArmyEngineerCarpentry1995.pdf
 - Departments of the Army, Navy, Air Force and Marine Corps. *Use and
   Care of Hand Tools and Measuring Tools*, TM 9-243, dated 12 December
-  1984; the copy read is the Navy's June 1992 reissue, NAVEDTRA 12085,
+  1983; the copy read is the Navy's June 1992 reissue, NAVEDTRA 12085,
   with Change 1 (chapter 21, using a carpenter's hammer: "WEAR EYE
   PROTECTION AND WATCH THE FINGERS.", no claw hammer on hardened or
   masonry nails, starting a nail; chapter 22, screwdriver safety and

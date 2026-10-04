@@ -50,15 +50,21 @@ ways moving heavy things injures people, and what the sources say to do.
   injury." It explains
   why bending is the problem in this guide's own terms: "Bending moves
   the load away from the body and allows leverage to significantly
-  increase the effective load on the back." Its advice: keep the load
-  as close to your body as possible; avoid twisting, and "Turn by moving
-  the feet rather than twisting the torso"; lift between mid-thigh and
-  shoulder height where you can; use two or more people for loads over
-  50 pounds (about 23 kg); and use hand trucks, pallet jacks, and "ramps
-  or lift gates to load machinery into trucks rather than lifting it."
-  It adds that cold muscles are less flexible and more easily pulled.
-  Wear gloves and sturdy boots for heavy work, and keep your feet out
-  from under anything that could drop (general practice).
+  increase the effective load on the back." Its advice starts with your
+  spine: "Maintain neutral and straight spine alignment whenever
+  possible. Usually, bending at the knees, not the waist, helps maintain
+  proper spine alignment." Move the item close and "use your legs when
+  lifting an item from a low location"; keep the load as close to your
+  body as possible; avoid twisting, and "Turn by moving the feet rather
+  than twisting the torso"; lift between mid-thigh and shoulder height
+  where you can; use two or more people for loads over 50 pounds (about
+  23 kg); and use hand trucks, pallet jacks, and "ramps or lift gates to
+  load machinery into trucks rather than lifting it." OSHA makes one
+  exception, for large, bulky loads, where it may be better to bend at
+  the waist "in order to keep the load closer to your body." It adds
+  that cold muscles are less flexible and more easily pulled. Wear
+  gloves and sturdy boots for heavy work, and keep your feet out from
+  under anything that could drop (general practice).
 - **A bar that slips.** The hand tool manual's safety rules for pry bars:
   bars are heavy, and "care must be taken to keep them from falling and
   striking someone"; "make sure the bar does not slip and cause personal
@@ -130,9 +136,10 @@ the national standards of measurement, says that in science and
 technology the weight of a body is a force, measured in newtons (N), and
 gives the example of a 10 kg copper ball, whose weight on the Earth's
 surface is about 98 N. But in everyday use, NIST notes, "weight is
-usually used as a synonym for mass," measured in kilograms, so that a
-sack that "weighs 25 kg" means a sack with a mass of 25 kg. Both uses
-are normal. When the difference matters, say which one you mean.
+usually used as a synonym for mass," measured in kilograms, so that in
+its own example, "the briefcase weighs 6 kg", the briefcase has a mass
+of 6 kg. Both uses are normal. NIST's advice is that whenever the word
+weight is used, it should be made clear which meaning is intended.
 
 The difference matters off the Earth. Mass is how much stuff there is;
 it is the same anywhere. Weight depends on the local gravity. NASA's
@@ -282,11 +289,12 @@ the load act a long way out in front of it, and the muscles that hold
 you up attach close to the spine, on a very short arm. Like the forearm
 above, that is a lever working against you: the muscle force on the back
 is many times the load in your hands (our explanation of OSHA's point,
-using the course's lever rule). Holding the load close to your body
-shortens its arm. That is why keeping the load close comes first,
-ahead of bending your knees (our reading of OSHA's list).
-OSHA even notes that with a large, bulky load, bending at the waist may
-be better than bending at the knees if it keeps the load closer.
+using the course's lever rule). OSHA's two main rules both shorten that
+lever. Keeping your back straight and bending at the knees, not the
+waist, keeps your upper body over your hips instead of out in front of
+them, and holding the load close to your body shortens the load's arm
+(our explanation). Only for large, bulky loads does OSHA say bending at
+the waist may be better, and then only to keep the load closer.
 
 ## Turning force: torque, wrenches and wheels
 
@@ -399,9 +407,11 @@ summary of the same rule).
 
 ## Ramps, wedges and screws
 
-The Navy course notes that physicists recognise only two basic machines,
-the lever and the inclined plane. Pulleys, wheels and gears are kinds of
-lever. Ramps, wedges and screws are kinds of inclined plane.
+The Navy course lists six simple machines, but notes that physicists
+"recognize only two basic principles in machines: those of the lever and
+the inclined plane." The wheel and axle, the block and tackle and gears
+"may be considered levers"; the wedge and the screw "use the principle
+of the inclined plane."
 
 ### The ramp
 
@@ -422,9 +432,12 @@ arithmetic). A 150 kg machine on wheels weighs about 1,470 N. The truck
 bed is 0.8 m up. A 2.4 m ramp gives an advantage of 3, so pushing it up
 takes about 490 N plus rolling friction: about what it takes to hold up
 a 50 kg mass. A 4.8 m ramp halves that. Even so, it is a two-person job.
-Use ramps rated for the load and hooked or strapped to the tailgate,
-chock the truck's wheels, keep everyone else to the side, and if it
-starts to roll back, step aside and let it go (all general practice).
+Before you move it, shut the generator off and let it cool, close its
+fuel valve if it has one, and keep it upright so fuel and oil cannot
+spill onto a hot engine or into the truck bed. Use ramps rated for the
+load and hooked or strapped to the tailgate, chock the truck's wheels,
+keep everyone else to the side, and if it starts to roll back, step
+aside and let it go (all general practice).
 OSHA's lifting guide recommends exactly this, ramps or lift gates
 instead of lifting.
 
@@ -536,11 +549,14 @@ The game models gravity and mass, and not much else in this guide.
   kilograms (the `weight_kg` column of `data/items.csv`), and the
   Inventory page's Weight tile adds them up against 50 kg. That is
   weight in NIST's everyday sense, which is mass. The game's carrying
-  limit is 50 kg, and a small or large backpack raises it by 10 or 25 kg
-  (`data/equipment.csv`). The limit is the same on every world: on the
+  limit is 50 kg. Wearing a small or large backpack raises that limit
+  inside the game by 10 or 25 kg (`data/equipment.csv`), but the Weight
+  tile does not know about it: it still shows your load out of 50 kg
+  with a backpack on. The limit is the same on every world: on the
   Moon you can carry 50 kg, as on Earth, though in reality that load
   would press on your shoulders with about a sixth of the force. Going
-  over the limit does not slow you down yet.
+  over the limit, with or without a backpack, does not slow you down
+  or do anything else yet.
 - **Levers and wheels are items, not machines.** You can forge a crowbar
   ("Leverage prying bar") and build a wheelbarrow, but nothing in the
   game uses either to multiply a force, and there are no pulleys, ramps
@@ -558,8 +574,9 @@ heavy. Do not carry that habit outside.
 
 ## You own this when
 
-- You keep a load close to your body, turn with your feet, and get help
-  or a machine for anything over about 50 pounds (23 kg).
+- You keep your back straight and bend at the knees, keep a load close
+  to your body, turn with your feet, and get help or a machine for
+  anything over about 50 pounds (23 kg).
 - You can name the fulcrum, the effort and the load on any lever, and
   work out its mechanical advantage from the two arms.
 - You know that every machine trades distance for force, and that no
@@ -595,8 +612,10 @@ pages and documents were read on 3 and 4 October 2026.
 - US Navy. *Basic Machines*, Nonresident Training Course, NAVEDTRA 14037,
   February 1994, Naval Education and Training Professional Development
   and Technology Center, Distribution Statement A, approved for public
-  release (chapter 1, levers: fulcrum, effort and resistance, the three
-  classes with the oar, crowbar, wheelbarrow and forearm, the 9-foot bar
+  release (chapter 1, levers: six simple machines and two basic
+  principles, the lever and the inclined plane; fulcrum, effort and
+  resistance, the three classes with the oar, crowbar, wheelbarrow and
+  forearm, the 9-foot bar
   and 300-pound crate, the paint tin lid, curved arms, mechanical
   advantage as resistance over effort for all machines, the wrecking
   bar; chapter 2, blocks and tackle: fixed and movable blocks, counting
@@ -621,7 +640,7 @@ pages and documents were read on 3 and 4 October 2026.
   https://archive.org/details/fm-5-125-rigging-techniques-procedures-and-applications-1995
 - Departments of the Army, Navy, Air Force and Marine Corps. *Use and
   Care of Hand Tools and Measuring Tools*, TM 9-243, dated 12 December
-  1984; the copy read is the Navy's June 1992 reissue, NAVEDTRA 12085,
+  1983; the copy read is the Navy's June 1992 reissue, NAVEDTRA 12085,
   with Change 1 (chapter 20, jacks; chapter 25, wrench safety, page
   25-13: do not extend a wrench handle, penetrating oil on rusted nuts;
   chapter 42, bars, page 42-2: the crowbar's uses, body weight on the
@@ -631,10 +650,13 @@ pages and documents were read on 3 and 4 October 2026.
 - Occupational Safety and Health Administration. Solutions for
   Electrical Contractors eTool, Materials Handling: Heavy Lifting,
   undated (lifting a leading cause of workplace injury; risk above about
-  50 pounds; bending lets leverage increase the effective load on the
-  back; keep the load close; turn with the feet; the power zone; two or
-  more people above 50 pounds; ramps or lift gates instead of lifting;
-  rolling spools hard to stop; cold muscles).
+  50 pounds; a neutral, straight spine, usually by bending at the knees,
+  not the waist; use your legs to lift from low down; bending lets
+  leverage increase the effective load on the back; keep the load
+  close; bending at the waist only for large, bulky loads, to keep them
+  closer; turn with the feet; the power zone; two or more people above
+  50 pounds; ramps or lift gates instead of lifting; rolling spools hard
+  to stop; cold muscles).
   https://www.osha.gov/etools/electrical-contractors/materials-handling/heavy
 - Occupational Safety and Health Administration. 29 CFR 1910.184,
   Slings ((c) safe operating practices: no damaged slings, no shortening
@@ -653,7 +675,8 @@ pages and documents were read on 3 and 4 October 2026.
   the International System of Units (SI)*, Special Publication 811,
   2008 edition, web version updated 18 August 2025: section 8.3,
   Weight (weight as a force in newtons; the 10 kg copper sphere of about
-  98 N; weight as a synonym for mass in everyday use), and Appendix B.9
+  98 N; weight as a synonym for mass in everyday use, with the 6 kg
+  briefcase; making clear which meaning is intended), and Appendix B.9
   (one pound-force is 4.448 222 newtons; one pound-force foot is 1.355
   818 newton metres).
   https://www.nist.gov/pml/special-publication-811/nist-guide-si-chapter-8
@@ -682,9 +705,12 @@ pages and documents were read on 3 and 4 October 2026.
 - Mass and the carrying limit: the `weight_kg` column of
   `data/items.csv`; the 50 kg `weight_capacity` and the backpack
   `carry_capacity` bonus in `src/systems/inventory/mod.rs` and
-  `data/equipment.csv`; the Weight tile, `src/gui/pages/inventory.rs`.
-  Movement speed comes from status effects and worn gear only (the speed
-  multiplier in `src/lib.rs`), so being over the limit does not slow you.
+  `data/equipment.csv`, which only set an `encumbered` flag that nothing
+  reads yet; the Weight tile, `src/gui/pages/inventory.rs`, whose
+  `max_carry_weight` is a fixed 50.0 that the backpack bonus never
+  changes. Movement speed comes from status effects and worn gear only
+  (the speed multiplier in `src/lib.rs`), so being over the limit does
+  not slow you.
 - The crowbar and wheelbarrow: `data/items.csv` and `data/recipes.csv`.
 - The unconnected structural prototype: `src/systems/construction/solver.rs`
   and `src/systems/construction/structural.rs`.
@@ -706,10 +732,11 @@ pages and documents were read on 3 and 4 October 2026.
 - Keeping people out from below a load on a ramp or slope, stepping
   aside rather than trying to stop a load that runs back; rated ramps
   fixed to the tailgate; chocking the truck; two people for the
-  generator.
-- Putting a held load down rather than standing holding it, and keeping
-  the load close coming ahead of bending the knees (our reading of
-  OSHA's list).
+  generator; shutting a generator off, letting it cool, closing its fuel
+  valve and keeping it upright before moving it.
+- Putting a held load down rather than standing holding it.
+- How a straight back, bent knees and a close load each shorten the
+  lever on your spine (our explanation of OSHA's rules).
 - Furniture tipping as a lever, and the back as a lever (our explanations
   of the CPSC's and OSHA's advice, using the Navy course's lever rule).
 - The metric conversions and every worked example marked as ours: the
