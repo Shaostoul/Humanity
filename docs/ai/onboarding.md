@@ -323,7 +323,19 @@ The ship's crew (`data/npc/crew.ron`) work in The Commons and its mess hall, and
 ```json
 {"type": "game_interact", "entity_id": 12, "action": "take_meal"}
 ```
-The reply's `meals_left` is the store's stock. One meal a meal time per person (8 game hours, 400 real seconds at 72x); a second one sooner is refused with `"error": "not_yet"` and `next_meal_in_s`, and an empty store with `"error": "empty"`.
+The reply's `supply` says how the server runs its fleet's stores: `"unlimited"` (the default during early development: the stores never run out and `meals_left` is null) or `"stocked"` (`meals_left` is the store's stock, and an empty store is refused with `"error": "empty"`). One meal a meal time per person (8 game hours, 400 real seconds at 72x); a second one sooner is refused with `"error": "not_yet"` and `next_meal_in_s`.
+
+### The fleet ledger
+
+Every meal you take is a line of your fleet ledger, and so is anything you give the fleet: the server keeps, for each player, what they used from the fleet and what they contributed, each line valued in credits (`data/ship/fleet_ledger.ron`), with a balance that is in the black above 0 and in the red below. Give items at a fleet store within 5 m (`give_id` is any id of yours, 1 to 64 letters, digits, `-` or `_`; sending the same give again is answered with the line already recorded, `"already": true`):
+```json
+{"type": "game_fleet_give", "give_id": "my-give-1", "entity_id": 12, "item_id": "bread_0", "quantity": 2}
+```
+A refusal (`too_far`, `no_price`, `bad_quantity`, ...) records nothing. Read your own ledger (nobody can read another player's):
+```json
+{"type": "game_fleet_ledger_request"}
+```
+The `game_fleet_ledger` reply carries `used_value`, `contributed_value`, `balance`, `standing` (`black`, `red` or `even`), totals per kind and your newest lines. A game in the shared world also reports its home's reactor power with `game_fleet_power` (`drawn_wh`, `returned_wh` since its last report, at most one every 30 real seconds); a server admin can ask `game_fleet_totals_request` for the whole fleet's sums.
 
 ### Other Game Queries
 
@@ -334,6 +346,8 @@ The reply's `meals_left` is the store's stock. One meal a meal time per person (
 | `game_query_entity` | Get full details on a specific entity (within 20m) |
 | `game_perceive` | Perceive surroundings (room, nearby entities, environment) |
 | `game_interact` | Interact with an entity (inspect, open, use) |
+| `game_fleet_give` | Give items to the fleet at a fleet store |
+| `game_fleet_ledger_request` | Read your own fleet ledger (used, contributed, balance) |
 
 ### Example Session
 

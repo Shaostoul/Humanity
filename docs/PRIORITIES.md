@@ -111,7 +111,7 @@ every load-bearing claim checked by an adversarial verifier
   on main, all rigs green (67/67 per --plots order, the crew judged where they
   are drawn). NPC homesteads ANSWERED 2026-10-04: their contribution stays 0, and during
   early development the fleet is UNLIMITED with a per-player ledger of what
-  each player used and contributed, in the red or the black (building now). NEXT: increment 4,
+  each player used and contributed, in the red or the black (built 2026-10-04 on branch fleet-ledger: the setting fleet_supply_mode, the ledger, Inventory > The fleet, Server Settings > ADMIN > Fleet supply; design doc, increment 3, "The fleet ledger, as built"). NEXT: increment 4,
   getting around at ship scale (the relay's speed check with a correction
   instead of a freeze, transit links with stable ids, "aboard" as inside the
   ship's bounds, game delivery by zone, an air volume per home). Left for later (design doc section 7): a Dev move of the plot
