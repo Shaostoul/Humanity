@@ -646,7 +646,9 @@ impl AssetManager {
 
     /// Get raw embedded text for a path (useful for non-deserialized access).
     pub fn get_embedded_str(relative_path: &str) -> Option<&'static str> {
-        embedded_data::get_embedded(relative_path)
+        let text = embedded_data::get_embedded(relative_path)?;
+        embedded_data::note_builtin_copy(relative_path, "AssetManager::get_embedded_str served the built-in copy");
+        Some(text)
     }
 
     // ── Private embedded parse helpers ──────────────────────────────
@@ -654,24 +656,36 @@ impl AssetManager {
     fn parse_embedded_csv<T: DeserializeOwned>(path: &str) -> Result<Vec<T>, String> {
         let text = embedded_data::get_embedded(path)
             .ok_or_else(|| format!("No embedded fallback for {path}"))?;
+        // The caller's disk copy was missing, unreadable or did not parse (it logged
+        // which): say that this run serves the built-in copy (BUG-133).
+        embedded_data::note_builtin_copy(path, "AssetManager fell back to the built-in copy (see the line above)");
         loader::parse_csv(text.as_bytes())
     }
 
     fn parse_embedded_toml<T: DeserializeOwned>(path: &str) -> Result<T, String> {
         let text = embedded_data::get_embedded(path)
             .ok_or_else(|| format!("No embedded fallback for {path}"))?;
+        // The caller's disk copy was missing, unreadable or did not parse (it logged
+        // which): say that this run serves the built-in copy (BUG-133).
+        embedded_data::note_builtin_copy(path, "AssetManager fell back to the built-in copy (see the line above)");
         loader::parse_toml(text.as_bytes())
     }
 
     fn parse_embedded_ron<T: DeserializeOwned>(path: &str) -> Result<T, String> {
         let text = embedded_data::get_embedded(path)
             .ok_or_else(|| format!("No embedded fallback for {path}"))?;
+        // The caller's disk copy was missing, unreadable or did not parse (it logged
+        // which): say that this run serves the built-in copy (BUG-133).
+        embedded_data::note_builtin_copy(path, "AssetManager fell back to the built-in copy (see the line above)");
         loader::parse_ron(text.as_bytes())
     }
 
     fn parse_embedded_json<T: DeserializeOwned>(path: &str) -> Result<T, String> {
         let text = embedded_data::get_embedded(path)
             .ok_or_else(|| format!("No embedded fallback for {path}"))?;
+        // The caller's disk copy was missing, unreadable or did not parse (it logged
+        // which): say that this run serves the built-in copy (BUG-133).
+        embedded_data::note_builtin_copy(path, "AssetManager fell back to the built-in copy (see the line above)");
         loader::parse_json(text.as_bytes())
     }
 

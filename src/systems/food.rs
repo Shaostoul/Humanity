@@ -76,21 +76,26 @@ impl ItemProfiles {
     }
 }
 
-/// Which items a person eats or drinks, from the copies of the same two
-/// files the food system reads (item_profiles.ron and food_system.ron,
-/// built into the exe): item id to true when it is drunk (a beverage
-/// profile), false when it is eaten. Anything absent is not food.
+/// Which items a person eats or drinks, from the same two files the food
+/// system reads (item_profiles.ron and food_system.ron): item id to true when
+/// it is drunk (a beverage profile), false when it is eaten. Anything absent
+/// is not food.
 /// 2026-09-26: the inventory's Eat and Drink buttons ask this instead of
 /// guessing from the item id, which offered Drink on the water pump, the
 /// water tester and empty bottles.
+/// 2026-10-03: read disk first like every other loader, the copy built into
+/// the exe only when the data folder has none. It read the built-in copy
+/// only, so an edit to either file changed nothing here until a rebuild, and
+/// the source stamp (BUG-133) could not see that the binary was behind.
 pub fn consume_kinds() -> &'static HashMap<String, bool> {
     static KINDS: std::sync::OnceLock<HashMap<String, bool>> = std::sync::OnceLock::new();
     KINDS.get_or_init(|| {
-        let list: ItemProfiles = crate::embedded_data::get_embedded(ItemProfiles::FILE)
-            .and_then(|t| ron::from_str(t).ok())
+        let dir = crate::data_dir();
+        let list: ItemProfiles = crate::embedded_data::read_data_or_embedded(&dir, ItemProfiles::FILE)
+            .and_then(|t| ron::from_str(&t).ok())
             .unwrap_or_default();
         let data: Option<FoodData> =
-            crate::embedded_data::get_embedded("food_system.ron").and_then(|t| ron::from_str(t).ok());
+            crate::embedded_data::read_data_or_embedded(&dir, "food_system.ron").and_then(|t| ron::from_str(&t).ok());
         let mut out = HashMap::new();
         if let Some(data) = data {
             for (item, profile) in &list.items {

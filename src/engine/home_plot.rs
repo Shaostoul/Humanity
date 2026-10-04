@@ -2029,6 +2029,12 @@ mod tests {
     /// can be a sentence of its own, inside theirs). Seen red 2026-10-03 on db551f530: "a plot
     /// our ship does not have: says what to do: Not joining the shared world: your home could
     /// not be placed on the plot this server gave you (p9)."
+    ///
+    /// BUG-135: the erased sentence named the way back "reconnect", which no control in the
+    /// app is called. Seen red 2026-10-04 on 1c41de3b9: "the erased sentence names the real
+    /// way back: Out of the shared world: your account on this server was erased, so your
+    /// figure and your plot there are gone; reconnect to come back, with a free plot, or a
+    /// guest place when the ship is full."
     #[test]
     fn each_refusal_is_one_sentence_that_says_what_to_do() {
         assert!(SHIP_MISMATCH.contains("update"), "the other-ship sentence says what to do: {SHIP_MISMATCH}");
@@ -2064,8 +2070,14 @@ mod tests {
         for (cause, s) in &causes {
             assert_eq!(s.matches(". ").count(), 0, "{cause}: one sentence: {s}");
             assert!(s.ends_with('.'), "{cause}: {s}");
-            assert!(["update", "restart", "reconnect"].iter().any(|w| s.contains(w)), "{cause}: says what to do: {s}");
+            assert!(["update", "restart", "reconnect", "Connect"].iter().any(|w| s.contains(w)), "{cause}: says what to do: {s}");
         }
+        // The erased account's way back is a control the app really has (BUG-135): the
+        // Chat page's Connect, which signs up again. No control is called "reconnect".
+        assert!(
+            ERASED.contains("Chat") && ERASED.contains("Connect") && ERASED.contains("signs you up again") && !ERASED.contains("reconnect"),
+            "the erased sentence names the real way back: {ERASED}"
+        );
         for (i, (a, sa)) in causes.iter().enumerate() {
             for (b, sb) in &causes[i + 1..] {
                 assert_ne!(sa, sb, "{a} and {b} read the same");

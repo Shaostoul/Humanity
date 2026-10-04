@@ -162,7 +162,10 @@ const {
 const png = require("./lib/png.js");
 // The freshness gate, run through its one runner so --allow-other-build reaches
 // it and comes back as the manifest's other_build record (BUG-133).
-const { runFreshGate, otherBuildNotice } = require("./lib/src-fingerprint.js");
+const { runFreshGate, otherBuildNotice, requireBootCopy, bootRecord } = require("./lib/src-fingerprint.js");
+// Starting the game (the copy checked again right before the spawn, no hand-off,
+// an early exit watched), and what a run.log must not say (BUG-133).
+const GL = require("./lib/game-launch.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -305,6 +308,16 @@ function verdict(m, dir) {
   }
   const panics = Number(m.panics || 0);
   add("no_panics", panics === 0, `${panics} PANIC line(s) in run.log`);
+  // BUG-133: a data file served from the copy built into the exe (the tree's
+  // was missing or did not parse) makes the run about other data than the tree's.
+  const builtin = m.builtin_data || [];
+  add(
+    "no_builtin_data",
+    builtin.length === 0,
+    builtin.length
+      ? `${builtin.length} line(s) in run.log/relay.log serving a built-in copy: ${builtin[0].replace(/^.*?\[built-in data copy\]\s*/, "")}`
+      : "every data file came from the tree's data/ (no built-in copy served)",
+  );
   return { checks, pass: checks.every((c) => c.ok), stats: judged ? judged.stats : null };
 }
 
@@ -426,6 +439,8 @@ function setupRig() {
     execSync("ping -n 3 127.0.0.1 >nul", { shell: "cmd.exe" });
     fs.copyFileSync(EXE, RIG_EXE);
   }
+  // What boots is the copy, so the copy must be what the gate judged (BUG-133).
+  requireBootCopy(RIG_EXE, fresh, "verify-copresence");
   // The DXC shader compiler dlls, from beside the exe or else the repo root
   // (target/release has none; the repo root does). Without them the game
   // falls back to FXC, and on 2026-10-03 this rig's first run sat in FXC's
@@ -464,7 +479,7 @@ async function waitFile(name, timeoutMs, pollMs = 250) {
 function req(name, body) {
   fs.writeFileSync(path.join(DEBUG, name), JSON.stringify(body));
 }
-async function waitBoot(timeoutMs) {
+async function waitBoot(timeoutMs, game = null) {
   const t0 = Date.now();
   while (Date.now() - t0 < timeoutMs) {
     if (fs.existsSync(LOG)) {
@@ -472,6 +487,8 @@ async function waitBoot(timeoutMs) {
       if (/PANIC/.test(txt)) throw new Error("PANIC during boot (see run.log)");
       if (/Cloud noise volumes generated/.test(txt)) return true;
     }
+    // An exit before boot finishes, said as one (naming a hand-off if the game made one).
+    if (game && game.exited()) throw new Error(`before it finished booting, ${game.describe()}`);
     await sleep(1000);
   }
   throw new Error("the exe did not finish booting in time");
@@ -511,6 +528,8 @@ function gameEnv() {
   const env = {};
   for (const [k, v] of Object.entries(process.env)) if (!k.toUpperCase().startsWith("HUMANITY_")) env[k] = v;
   env.HUMANITY_NO_FOCUS = "1";
+  // Run this copy, never a newer v*_HumanityOS.exe it could hand off to (BUG-133).
+  env.HUMANITY_NO_HANDOFF = "1";
   return env;
 }
 
@@ -525,6 +544,7 @@ async function main() {
     kind: "verify-copresence",
     stamp,
     exe: EXE,
+    binary: bootRecord(fresh, RIG_EXE),
     ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
     rig: RIG,
     pose: POSE,
@@ -558,6 +578,7 @@ async function main() {
   // the walker.
   let relay = null;
   let gamePid = null;
+  let game = null;
   let walker = null;
   let killed = false;
   const killAll = () => {
@@ -569,6 +590,7 @@ async function main() {
       } catch {}
     }
     if (gamePid) {
+      if (game) game.expectExit(); // our own stop: not a hand-off to look for
       try {
         execSync(`taskkill /PID ${gamePid} /T /F`, { stdio: "ignore" });
       } catch {}
@@ -602,6 +624,8 @@ async function main() {
     // ── 2. The throwaway relay.
     relay = await TR.startRelay({
       sourceExe: EXE,
+      // Its copy must be the bytes the gate judged, like the rig's (BUG-133).
+      expectSha256: fresh.result && fresh.result.exe_sha256,
       prefix: "verify-copresence-relay-",
       config: { server_name: "verify-copresence relay" },
     });
@@ -615,13 +639,14 @@ async function main() {
     if (!relay.health) throw new Error("the throwaway relay did not come up");
 
     // ── 3. The game, pointed at OUR relay.
-    const child = spawn(RIG_EXE, [], { cwd: RIG, detached: true, stdio: "ignore", env: gameEnv() });
+    game = GL.spawnGame(RIG_EXE, [], { fresh, rigName: "verify-copresence", log, cwd: RIG, detached: true, stdio: "ignore", env: gameEnv() });
+    const child = game.child;
     gamePid = child.pid;
     fs.writeFileSync(path.join(RIG, "probe_pid.txt"), String(gamePid));
     child.unref();
     manifest.foreign_before = MG.foreignProcs({ pids: [gamePid, relay.pid], exe: RIG_EXE, gameOnly: true }).map(MG.describe);
     step("launch", true, `game pid ${gamePid} from ${rel(RIG_EXE)} (background, no focus)`);
-    await waitBoot(180000);
+    await waitBoot(180000, game);
     step("boot", true, "booted (run.log: cloud noise volumes generated, no PANIC)");
     clearDone("autopilot_done.json");
     req("autopilot_request.json", { server_url: relay.httpUrl, user_name: "CopresenceRig", character_name: "CopresenceRig" });
@@ -822,6 +847,12 @@ async function main() {
   clearTimeout(watchdog);
   manifest.foreign_after = MG.foreignProcs({ pids: [gamePid, relay && relay.pid].filter(Boolean), exe: RIG_EXE, gameOnly: true }).map(MG.describe);
   manifest.panics = panicCount();
+  // BUILT-IN DATA (BUG-133): the game's run.log and the relay's log, each line
+  // where a loader served the exe's own copy of a data file instead of the tree's.
+  manifest.builtin_data = [
+    ...GL.builtinDataLines(fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8") : ""),
+    ...(relay ? GL.builtinDataLines(relay.logText()).map((l) => `relay: ${l}`) : []),
+  ];
   fs.writeFileSync(path.join(OUT, "walker.log"), walkerOut.map((o) => `${o.at_s.toFixed(2)}s ${o.line}`).join("\n") + "\n");
   try {
     fs.copyFileSync(LOG, path.join(OUT, "run.log"));
@@ -1143,6 +1174,18 @@ function plotsVerdict(m, dir) {
   }
   const panics = Number(m.panics || 0);
   add("no_panics", panics === 0, `${panics} PANIC line(s) in run.log`);
+  // BUG-133, as the default rig: a data file served from the copy built into the exe makes the
+  // run about other data than the tree's. Both boots' run.logs and the relay's log. (A manifest
+  // from before this has no record: not judged.)
+  if (Array.isArray(m.builtin_data)) {
+    add(
+      "no_builtin_data",
+      m.builtin_data.length === 0,
+      m.builtin_data.length
+        ? `${m.builtin_data.length} line(s) in run.log/relay.log serving a built-in copy: ${m.builtin_data[0].replace(/^.*?\[built-in data copy\]\s*/, "")}`
+        : "every data file came from the tree's data/ (no built-in copy served), in both boots and the relay",
+    );
+  }
   return { checks, pass: checks.every((c) => c.ok), stats };
 }
 
@@ -1201,6 +1244,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     entry: { kind: entryFor(order) },
     stamp: runStamp,
     exe: EXE,
+    binary: bootRecord(fresh, RIG_EXE),
     ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
     rig: RIG,
     speed: SPEED,
@@ -1231,12 +1275,17 @@ async function runPlotsOnce(order, runStamp, cleanups) {
   };
   let relay = null;
   let gamePid = null;
+  // The game as spawnGame started it (scripts/lib/game-launch.js): told before the rig stops
+  // it, so its exit is not read as a hand-off to another exe.
+  let plotsGame = null;
   let walker = null;
   let killed = false;
   // PANIC lines of a first session's run.log, kept when the second boot starts a fresh one.
   let earlierPanics = 0;
+  let earlierBuiltin = [];
   const killGame = () => {
     if (gamePid) {
+      if (plotsGame) plotsGame.expectExit(); // our own stop: not a hand-off to look for
       try {
         execSync(`taskkill /PID ${gamePid} /T /F`, { stdio: "ignore" });
       } catch {}
@@ -1383,14 +1432,19 @@ async function runPlotsOnce(order, runStamp, cleanups) {
   /** Boot the game and bring it into the shared world the way this order's
    *  entry does (the autopilot, or the returning player's menu: connect first,
    *  answer the privacy window, press Enter World). `entry` records it. Returns
-   *  the probe once joined and welcomed (or the last probe). */
+   *  the probe once joined and welcomed (or the last probe). Through spawnGame,
+   *  like every rig (BUG-133 follow-up): it checks the copy against the judged
+   *  bytes just before starting it and switches off the hand-off to another exe;
+   *  both boots of a --plots run (the second proves the remembered plot) go
+   *  through it. */
   const bootAndEnter = async (entry, label) => {
-    const child = spawn(RIG_EXE, [], { cwd: RIG, detached: true, stdio: "ignore", env: gameEnv() });
+    plotsGame = GL.spawnGame(RIG_EXE, [], { fresh, rigName: "verify-copresence", log, cwd: RIG, detached: true, stdio: "ignore", env: gameEnv() });
+    const child = plotsGame.child;
     gamePid = child.pid;
     fs.writeFileSync(path.join(RIG, "probe_pid.txt"), String(gamePid));
     child.unref();
     step(`${label}launch`, true, `game pid ${gamePid} from ${rel(RIG_EXE)} (background, no focus)`);
-    await waitBoot(180000);
+    await waitBoot(180000, plotsGame);
     step(`${label}boot`, true, "booted (run.log: cloud noise volumes generated, no PANIC)");
     const fromMenu = entry.kind === "menu";
     clearDone("autopilot_done.json");
@@ -1452,7 +1506,13 @@ async function runPlotsOnce(order, runStamp, cleanups) {
   };
 
   try {
-    relay = await TR.startRelay({ sourceExe: EXE, prefix: "verify-copresence-relay-", config: { server_name: "verify-copresence plots relay" } });
+    relay = await TR.startRelay({
+      sourceExe: EXE,
+      // Its copy must be the bytes the gate judged, like the rig's (BUG-133).
+      expectSha256: fresh.result && fresh.result.exe_sha256,
+      prefix: "verify-copresence-relay-",
+      config: { server_name: "verify-copresence plots relay" },
+    });
     manifest.relay = { url: relay.httpUrl, pid: relay.pid, dir: relay.dir, health: relay.health, listening: relay.listening.map((x) => x.line) };
     manifest.steps_ok.relay = relay.health
       ? { ok: true, detail: `${relay.httpUrl} answered /health (pid ${relay.pid}); ${loopbackNote(relay)}` }
@@ -1859,6 +1919,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     for (const t0 = Date.now(); Date.now() - t0 < 15000 && MG.listInstances().some((p) => p.pid === gamePid); ) await sleep(500);
     await sleep(1500);
     earlierPanics += panicCount();
+    earlierBuiltin = GL.builtinDataLines(fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8") : "");
     try {
       fs.copyFileSync(LOG, path.join(out, "run-first.log"));
       fs.truncateSync(LOG, 0);
@@ -1889,6 +1950,13 @@ async function runPlotsOnce(order, runStamp, cleanups) {
   }
   clearTimeout(watchdog);
   manifest.panics = earlierPanics + panicCount();
+  // BUILT-IN DATA (BUG-133): both boots' run.logs and the relay's log, each line where a
+  // loader served the exe's own copy of a data file instead of the tree's.
+  manifest.builtin_data = [
+    ...earlierBuiltin,
+    ...GL.builtinDataLines(fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8") : ""),
+    ...(relay ? GL.builtinDataLines(relay.logText()).map((l) => `relay: ${l}`) : []),
+  ];
   fs.writeFileSync(path.join(out, "walker.log"), walkerOut.map((o) => `${o.at_s.toFixed(2)}s ${o.line}`).join("\n") + "\n");
   try {
     fs.copyFileSync(LOG, path.join(out, "run.log"));

@@ -126,20 +126,29 @@ static SOL_BODIES: OnceLock<Vec<SolBody>> = OnceLock::new();
 /// cache bust; today the OnceLock in `sol_bodies()` means the file is read
 /// once per run, so an edit needs a restart (not a rebuild).
 fn load_sol_json(data_dir: &std::path::Path) -> String {
-    let embedded = crate::embedded_data::SOLAR_SYSTEM_JSON;
+    // Every return of the built-in catalog says so in the log
+    // (embedded_data::note_builtin_copy): a rig refuses a run that served one,
+    // since the tree's own sol.json is what a rebuild would carry (BUG-133).
     let disk_path = data_dir.join("star_systems").join("sol.json");
     let disk = match std::fs::read_to_string(&disk_path) {
         Ok(s) => s,
-        // Absent or unreadable file: the bare-portable-exe path, no log
-        // noise. (A permissions error lands here too; acceptable, since the
-        // embedded copy is always complete.)
-        Err(_) => return embedded.to_string(),
+        // Absent or unreadable file: the bare-portable-exe path. (A
+        // permissions error lands here too; acceptable, since the embedded
+        // copy is always complete.)
+        Err(e) => {
+            crate::embedded_data::note_builtin_copy(
+                "star_systems/sol.json",
+                format_args!("{} could not be read ({e})", disk_path.display()),
+            );
+            return crate::embedded_data::SOLAR_SYSTEM_JSON.to_string();
+        }
     };
+    let embedded = crate::embedded_data::SOLAR_SYSTEM_JSON;
     match sol_json_catalog_version(&disk) {
         Err(why) => {
-            log::warn!(
-                "Cosmos: on-disk {} is unusable ({why}); using the embedded catalog instead",
-                disk_path.display()
+            crate::embedded_data::note_builtin_copy(
+                "star_systems/sol.json",
+                format_args!("{} is unusable ({why})", disk_path.display()),
             );
             embedded.to_string()
         }
@@ -150,9 +159,12 @@ fn load_sol_json(data_dir: &std::path::Path) -> String {
             // disk copy win) than panic at startup.
             let embedded_version = sol_json_catalog_version(embedded).unwrap_or(0);
             if disk_version < embedded_version {
-                log::info!(
-                    "Cosmos: on-disk catalog at {} is version {disk_version}, older than the shipped version {embedded_version}; using the embedded catalog (delete the file to stop this message, or re-copy the shipped one to hand-tune it)",
-                    disk_path.display()
+                crate::embedded_data::note_builtin_copy(
+                    "star_systems/sol.json",
+                    format_args!(
+                        "the catalog at {} is version {disk_version}, older than the shipped version {embedded_version} (delete the file to stop this message, or re-copy the shipped one to hand-tune it)",
+                        disk_path.display()
+                    ),
                 );
                 embedded.to_string()
             } else {

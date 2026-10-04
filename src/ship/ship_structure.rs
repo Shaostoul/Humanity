@@ -332,8 +332,11 @@ impl HomeDesign {
         let path = data_dir.join(&rel);
         let (text, on_disk) = match std::fs::read_to_string(&path) {
             Ok(t) => (t, true),
-            Err(_) => match crate::embedded_data::get_embedded(&rel) {
-                Some(t) => (t.to_string(), false),
+            Err(e) => match crate::embedded_data::get_embedded(&rel) {
+                Some(t) => {
+                    crate::embedded_data::note_builtin_copy(&rel, format_args!("{} could not be read ({e})", path.display()));
+                    (t.to_string(), false)
+                }
                 None => return Err(format!("no home design {} on disk or built in", path.display())),
             },
         };
@@ -354,7 +357,7 @@ impl HomeDesign {
     /// as (increment 2, src/ship/neighbours.rs): every other player's home looks like the
     /// default until homes are shared. None when no design of that kind is built in.
     pub fn built_in(kind: &str) -> Option<HomeDesign> {
-        let text = crate::embedded_data::get_embedded(&format!("{HOME_DESIGNS_DIR}/{kind}.ron"))?;
+        let text = crate::embedded_data::shipped_home_design(kind)?;
         ron::from_str::<HomeDesign>(text).ok().filter(|d| d.kind == kind)
     }
 
@@ -563,9 +566,11 @@ pub const OWN_SHIP_SENTENCE: &str =
 /// in its shared world (`game_join_denied`, reason "account_erased", sent privately by the
 /// relay's erase, relay/handlers/home_plots.rs `leave_world_for_erase`). Round 5 of the 1b
 /// review: the erase took the figure out, and nothing told the erasing game, which went on
-/// showing the shared world while the relay dropped every update it sent.
+/// showing the shared world while the relay dropped every update it sent. BUG-135: it named the
+/// way back "reconnect", which no control is called; the app now leaves that server on the
+/// erase, and the Chat page's Connect is how a person comes back, signing up again.
 pub const ERASED_SENTENCE: &str =
-    "Out of the shared world: your account on this server was erased, so your figure and your plot there are gone; reconnect to come back, with a free plot, or a guest place when the ship is full.";
+    "Out of the shared world: your account on this server was erased, so your figure and your plot there are gone; to come back, open Chat and press Connect, which signs you up again as a new account, with a free plot or a guest place when the ship is full.";
 
 /// One plot as a relay hands it out (increment 1b): the record's id, kind and box. Where its
 /// holder arrives depends on their own home's door, which their game names in `game_join`
@@ -602,7 +607,7 @@ impl ShipPlots {
         match ShipStructure::load_ship_file(data_dir) {
             Ok(ship) => Ok(Self::of_ship(&ship)),
             Err(e) => {
-                let ship = ShipStructure::built_in_ship_file().map_err(|b| format!("{e}; {b}"))?;
+                let ship = ShipStructure::built_in_ship_file(&format!("ship plots: {e}")).map_err(|b| format!("{e}; {b}"))?;
                 log::error!("ship plots: {e}; using the ship built into the exe ({})", ship.id);
                 Ok(Self::of_ship(&ship))
             }
@@ -1492,12 +1497,18 @@ impl ShipStructure {
                 )
             });
         }
-        Self::built_in_ship_file().map_err(|e| format!("no {} on disk, and {e}", path.display()))
+        Self::built_in_ship_file(&format!("{} is absent", path.display()))
+            .map_err(|e| format!("no {} on disk, and {e}", path.display()))
     }
 
     /// The ship file built into the exe (data/blueprints/ship_structure.ron as shipped).
-    pub fn built_in_ship_file() -> Result<ShipStructure, String> {
+    /// Both callers use it as a FALLBACK (the disk file is absent, or it did not load), so it
+    /// says so itself with `embedded_data::note_builtin_copy` and `why`: a rig run on the
+    /// built-in copy then fails instead of passing on data it was not given (BUG-133
+    /// follow-up; it is on FALLBACK_SITES in scripts/lib/compiled-in.js).
+    pub fn built_in_ship_file(why: &str) -> Result<ShipStructure, String> {
         let text = crate::embedded_data::get_embedded(SHIP_FILE).ok_or("no ship file is built in")?;
+        crate::embedded_data::note_builtin_copy(SHIP_FILE, why);
         let ship: ShipStructure = ron::from_str(text).map_err(|e| format!("the built-in ship file does not parse: {e}"))?;
         ship.validate().map_err(|e| format!("the built-in ship file is invalid: {e}"))?;
         Ok(ship)
@@ -3412,7 +3423,7 @@ mod plot_handout_tests {
         std::fs::create_dir_all(file.parent().unwrap()).unwrap();
         std::fs::write(&file, "( this is not a ship").unwrap();
         let got = ShipPlots::load(&dir);
-        let built_in = ShipPlots::of_ship(&ShipStructure::built_in_ship_file().unwrap());
+        let built_in = ShipPlots::of_ship(&ShipStructure::built_in_ship_file("test: the built-in ship").unwrap());
         assert!(got.as_ref().is_ok_and(|p| *p == built_in), "a relay with a broken ship file keeps the built-in ship: {got:?}");
         assert!(!file.exists(), "the broken file was moved aside");
         let kept = std::fs::read_dir(file.parent().unwrap()).unwrap().filter_map(|e| e.ok()).any(|e| e.file_name().to_string_lossy().contains("invalid-"));

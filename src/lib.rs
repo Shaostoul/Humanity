@@ -14285,15 +14285,10 @@ mod native_app {
                         // Surface the actionable reason once.
                         state.gui_state.ws_status = "Identity locked — Settings → Security → Unlock (or Recover from seed) to connect".to_string();
                     }
-                    if !state.gui_state.server_url.is_empty()
-                        && state.gui_state.ws_client.is_none()
-                        && !state.gui_state.user_name.is_empty()
-                        && state.gui_state.onboarding_complete
-                        && !state.gui_state.ws_manually_disconnected
-                        && state.gui_state.ws_reconnect_timer <= 0.0
-                        && state.gui_state.ws_reconnect_attempts == 0
-                        && seed_unlocked
-                    {
+                    // The decision, tested, lives in gui/connections.rs `may_auto_connect`: an
+                    // unlocked identity, onboarding done, no Disconnect, no pending backoff, and
+                    // never a server this identity erased its account on (BUG-135).
+                    if state.gui_state.may_auto_connect() {
                         let ws_url = crate::gui::pages::chat::derive_ws_url(&state.gui_state.server_url);
                         let name = state.gui_state.user_name.clone();
                         let pubkey = if state.gui_state.profile_public_key.is_empty() {

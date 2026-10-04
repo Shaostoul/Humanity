@@ -463,12 +463,18 @@ verify-relay:
 # A red check against an old or other build on purpose:
 #   just verify-runtime --exe v0.1444.0_HumanityOS.exe --allow-other-build "red check: <why>"
 # passes the gate loudly and records other_build in the sweep manifest. The
-# same flag works on verify-screens, verify-live-screen and verify-copresence.
+# same flag works on every script that boots the game (BUG-133): probe-sweep,
+# verify-screens, verify-live-screen, verify-copresence, photograph-home,
+# make-clips (just clips) and boot-timing. Each also checks, after copying the
+# exe into its rig, that the copy is byte-identical to what the gate judged,
+# and starts the game with HUMANITY_NO_HANDOFF=1 so it cannot hand itself to a
+# newer v*_HumanityOS.exe (src/main.rs find_newer_exe).
 #
 # NOT in `just verify` and never will be: verify runs headless in CI with no
 # GPU. This needs the dev machine. Takes ~3 minutes. Run it before pushing
 # anything renderer, shader, world or asset shaped. Pass driver args through,
-# e.g. `just verify-runtime --exe v0.1069.1_HumanityOS.exe`.
+# e.g. `just verify-runtime --exe v0.1069.1_HumanityOS.exe --allow-other-build "<why>"`
+# (an archive is another tree's build, so it needs the reason).
 #
 # `just verify-runtime --operator-config` runs the gate at the operator's LIVE
 # graphics settings instead of the rig's (heavier on every axis: render_distance
@@ -582,7 +588,7 @@ lints:
 # prompt for every new temp path; see docs/INCIDENT-PLAYBOOK.md.
 # Add a file here whenever a rig script grows a judgement of its own.
 rig-tests:
-    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js
+    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js
 
 # The scripted second player (scripts/second-player.js) against a REAL relay.
 # NOT pure node, so NOT in rig-tests or `just verify` (rig-tests keeps the
@@ -859,13 +865,13 @@ launch:
 # enters the world, and sets HUMANITY_NO_FOCUS for you.
 #
 # The staleness guard is now mechanical (scripts/check-fresh-exe.js) instead of
-# a comment asking you to remember: it refuses when the exe is missing, older
-# than the newest archive, or older than the source it claims to contain.
+# a comment asking you to remember: it refuses when the exe is missing or was not
+# built from this tree's compiled-in sources (its source stamp, BUG-133).
 #
 # Launch the freshly built exe behind your work, no focus steal, menu only.
 launch-bg:
     @node scripts/check-fresh-exe.js --quiet
-    HUMANITY_NO_FOCUS=1 ./target/release/HumanityOS.exe
+    HUMANITY_NO_FOCUS=1 HUMANITY_NO_HANDOFF=1 ./target/release/HumanityOS.exe
 
 # Check game code for errors (fast, no binary)
 check-game:
@@ -1132,18 +1138,28 @@ snapshot-check:
 # the flag prints the gap against the operator up front. Never call a visual
 # effect absent, weak or fixed from a run that did not mirror.
 #
+# THE BINARY: the exe must be this tree's build (scripts/check-fresh-exe.js, run
+# first, before the rig is touched). An A/B against an archive or another
+# worktree's exe is a deliberate other-build run and says so:
+#   just probe-sweep --exe v0.1444.0_HumanityOS.exe --only blue-marble-12000km --allow-other-build "env control: same cap on the old build?"
+# (positional-arguments, so a quoted reason arrives as one argument).
+#
 # Tour every canonical 3D vantage and capture a screenshot + fps at each.
+[positional-arguments]
 probe-sweep *ARGS:
-    node scripts/probe-sweep.js {{ARGS}}
+    node scripts/probe-sweep.js "$@"
 
 # Film the game for social media: every shot in scripts/clips.json, recorded
 # frame-exact in the engine's movie mode (src/engine/movie.rs) and cut to
 # 1920x1080, 1080x1920 and a still, into Videos\HumanityOS clips\<date-time>
 # with a clips.md of suggested captions. Background and silent like every
 # rig, at the operator's graphics settings. Needs a release exe and ffmpeg.
+# Gated like every rig (BUG-133): another tree's build needs
+# --allow-other-build "<why>".
 #   just clips --only orbit-drop-fuji,open-sea
+[positional-arguments]
 clips *ARGS:
-    node scripts/make-clips.js {{ARGS}}
+    node scripts/make-clips.js "$@"
 
 # Score cloud GRAIN on captures of one vantage, band by band across the
 # terminator, with a measure a blur cannot win: noise over real cloud detail at

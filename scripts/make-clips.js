@@ -33,7 +33,16 @@
 // Usage:
 //   node scripts/make-clips.js [--only id,id] [--exe PATH] [--out DIR]
 //                              [--shots PATH] [--rig-defaults] [--keep-master-only]
-// Exit 0 = every clip made. 1 = refused. 2 = one or more clips failed.
+//                              [--allow-other-build "<reason>"]
+// THE BINARY (BUG-133): the exe must be this tree's build (the freshness gate,
+// scripts/check-fresh-exe.js), or another build on purpose with
+// --allow-other-build "<why>", recorded in the manifest as other_build; the rig
+// copy must be byte-identical to what the gate judged, and the game starts
+// through lib/game-launch.js spawnGame, which checks that copy again right before
+// it spawns, sets HUMANITY_NO_HANDOFF=1 so it never hands itself to a newer
+// v*_HumanityOS.exe, and reports (and stops) a hand-off an older build makes.
+// Exit 0 = every clip made. 1 = refused. 2 = one or more clips failed, a panic,
+//      or the run served a data file from the copy built into the exe.
 //      130 = stopped by Ctrl+C, Ctrl+Break or closing the console (the game
 //            and its recording are stopped with it, see launchGame).
 
@@ -45,6 +54,10 @@ const MG = require("./lib/machine-guard.js");
 // The one shared lookup for the DXC shader compiler dlls (see setupRig).
 const DXC = require("./lib/dxc-dlls.js");
 const G = require("./rig-graphics.js");
+// The freshness gate and the boot-copy check (BUG-133).
+const { runFreshGate, requireBootCopy, bootRecord, otherBuildNotice } = require("./lib/src-fingerprint.js");
+// Starting the game, and what a run.log must not say (BUG-133).
+const GL = require("./lib/game-launch.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -99,6 +112,9 @@ function findFfmpeg() {
 // Run from main() rather than at load, so a test harness can require this file
 // for launchGame and cutArgs without the refusals firing.
 let FFMPEG = null;
+// The freshness gate's result, and the record of a deliberate other-build run.
+let FRESH = null;
+let OTHER_BUILD = null;
 function preflight() {
   const running = MG.listInstances();
   if (running.length) {
@@ -108,6 +124,11 @@ function preflight() {
     ]);
   }
   if (!fs.existsSync(EXE)) refuse([`ERROR: exe not found: ${EXE}`, "  build one first: cargo build --features native --release"]);
+  // This tree's build, or another on purpose (--allow-other-build "<why>").
+  // Before the rig is touched, so a refusal changes nothing.
+  FRESH = runFreshGate(EXE, args, { cwd: REPO });
+  if (FRESH.status !== 0) refuse(["make-clips: REFUSED - see the freshness failure above. Nothing was booted."]);
+  OTHER_BUILD = FRESH.other_build;
   FFMPEG = findFfmpeg();
   if (!FFMPEG) refuse(["ERROR: ffmpeg not found (PATH, Settings > Media, or C:\\Apps\\ffmpeg\\bin)."]);
   let clips = JSON.parse(fs.readFileSync(SHOTS, "utf8")).clips;
@@ -150,6 +171,8 @@ function setupRig() {
   ensureJunction(path.join(RIG, "assets"), path.join(REPO, "assets"));
   killRigProcesses();
   fs.copyFileSync(EXE, path.join(RIG, "HumanityOS.exe"));
+  // What boots is the copy, so the copy must be what the gate judged.
+  requireBootCopy(path.join(RIG, "HumanityOS.exe"), FRESH, "make-clips");
   // The DXC shader compiler: without it the fallback compiler is so slow that
   // world entry outlasts every timeout (first run, 2026-09-30: four minutes of
   // silence after boot). It sits beside the exe or, for target/release, in the
@@ -196,7 +219,7 @@ const fatal = (m) => Object.assign(new Error(m), { fatal: true });
 let game = null;
 function checkGame() {
   if (panicCount()) throw fatal("the game panicked (see .probe-rig/clips/logs/run.log)");
-  if (game && game.exit) throw fatal(`the game ${game.exit} (see .probe-rig/clips/logs/run.log)`);
+  if (game && game.exit) throw fatal(`${game.describe()} (.probe-rig/clips/logs/run.log)`);
 }
 // Wait for `name` to appear and return its JSON; null on timeout. With
 // `refusedName`, that file appearing first is the answer instead (the engine's
@@ -417,18 +440,23 @@ function cut(master, id, seconds) {
 // process, and the parent is node with or without `detached`. Do NOT add
 // windowsHide: it starts a windowed program hidden.
 function launchGame(exe, argv, { cwd, env }) {
-  const child = spawn(exe, argv, { cwd, stdio: "ignore", env });
-  const g = { pid: child.pid, exit: null };
-  child.on("exit", (code, signal) => {
-    g.exit = signal ? `was ended (${signal})` : `exited (code ${code})`;
-  });
-  child.on("error", (e) => {
-    g.exit = `could not run (${e.message})`;
-  });
+  // spawnGame (lib/game-launch.js): the copy is checked against the judged
+  // bytes right before the spawn, HUMANITY_NO_HANDOFF=1 is always set, and an
+  // exit we did not ask for is watched (a hand-off an older build makes on the
+  // way out is stopped and named).
+  const w = GL.spawnGame(exe, argv, { fresh: FRESH, rigName: "make-clips", log, cwd, stdio: "ignore", env });
+  const g = {
+    pid: w.pid,
+    get exit() {
+      return w.exited();
+    },
+    describe: () => w.describe(),
+  };
   let killed = false;
   g.kill = () => {
     if (killed) return;
     killed = true;
+    w.expectExit(); // our own stop: not a hand-off to look for
     // /T takes ffmpeg with it. Skipped once the game has exited: its pid may
     // already belong to something else.
     if (!g.exit && g.pid) {
@@ -454,12 +482,23 @@ async function main() {
   const clips = preflight();
   setupRig();
   fs.mkdirSync(OUT, { recursive: true });
-  const manifest = { kind: "make-clips", stamp, exe: EXE, clips: [], panics: 0 };
+  const manifest = {
+    kind: "make-clips",
+    stamp,
+    exe: EXE,
+    // Which binary these clips are of (BUG-133), and the record of a
+    // deliberate other-build run.
+    binary: bootRecord(FRESH, path.join(RIG, "HumanityOS.exe")),
+    ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
+    clips: [],
+    panics: 0,
+  };
   const save = () => fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 2));
 
   log(`launching ${path.basename(EXE)} in the background rig`);
   game = launchGame(path.join(RIG, "HumanityOS.exe"), [], {
     cwd: RIG,
+    // (spawnGame adds HUMANITY_NO_HANDOFF: run this copy, never a newer v*_HumanityOS.exe.)
     env: { ...process.env, HUMANITY_NO_FOCUS: "1" },
   });
 
@@ -534,6 +573,9 @@ async function main() {
   }
 
   manifest.panics = panicCount();
+  // BUILT-IN DATA (BUG-133): a loader served the exe's own copy of a data file
+  // instead of the tree's (missing, or it does not parse): not this tree's run.
+  manifest.builtin_data = GL.builtinDataLines(fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8") : "");
   save();
   game.kill();
   // A plain index to post from: what each file is and a first line for it.
@@ -549,7 +591,9 @@ async function main() {
   fs.writeFileSync(path.join(OUT, "clips.md"), lines.join("\n"));
   log(`${manifest.clips.filter((c) => c.ok).length}/${clips.length} clips made, ${manifest.panics} panic(s)`);
   log(`folder: ${OUT}`);
-  process.exit(failed || manifest.panics ? 2 : 0);
+  if (OTHER_BUILD) log(otherBuildNotice(OTHER_BUILD));
+  if (manifest.builtin_data.length) log(GL.builtinDataRefusal(manifest.builtin_data));
+  process.exit(failed || manifest.panics || manifest.builtin_data.length ? 2 : 0);
 }
 
 if (require.main === module) main();

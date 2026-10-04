@@ -110,11 +110,14 @@ pub fn load_solar_system(data_dir: &Path) -> Option<SolarSystemData> {
             log::info!("Loaded solar_system.ron from disk: {}", path.display());
             t
         }
-        Err(_) => {
+        Err(e) => {
             // Fall back to embedded data
             match crate::embedded_data::get_embedded("world/solar_system.ron") {
                 Some(embedded) => {
-                    log::info!("Loaded solar_system.ron from embedded data");
+                    crate::embedded_data::note_builtin_copy(
+                        "world/solar_system.ron",
+                        format_args!("{} could not be read ({e})", path.display()),
+                    );
                     embedded.to_string()
                 }
                 None => {

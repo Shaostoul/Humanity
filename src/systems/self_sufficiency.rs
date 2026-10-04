@@ -173,7 +173,7 @@ pub fn food_supply_kcal_per_day(
             // AND its picking window, and gives one season's harvest in that
             // time (2026-09-26, farming::picking, data/garden/harvest_windows.ron):
             // a tower basil is one season per 30 + 266 days, not per 30.
-            let season_days = crate::systems::farming::picking::HarvestWindows::shipped()
+            let season_days = crate::systems::farming::picking::HarvestWindows::current()
                 .season_days(id, f64::from(def.growth_days));
             (kg * 10.0 * f64::from(n.calories_per_100g) / season_days) as f32 * count
         })

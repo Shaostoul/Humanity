@@ -63,10 +63,23 @@ and list the `regressions` the vantage guards against.
 regressions vary per scene. Windows throttles occluded/unfocused windows, and
 a busy compositor (browser pane, OBS) can halve presentation. Discriminate in
 one command: sweep the previous archived exe
-(`just probe-sweep --exe vX.Y.Z_HumanityOS.exe --only blue-marble-12000km`) -
+(`just probe-sweep --exe vX.Y.Z_HumanityOS.exe --only blue-marble-12000km
+--allow-other-build "env control: does the old build read the same cap?"`) -
 if it reads the same capped number, the environment is the cause and the new
 build is exonerated (proven 2026-07-24: v0.931.1 and v0.932.1 both read
-exactly 30 with the browser pane open, vs 74-120 on a free desktop).
+exactly 30 with the browser pane open, vs 74-120 on a free desktop). The
+flag is required since BUG-133: probe-sweep runs the freshness gate first, and
+an archive is another tree's build; the manifest records it as `other_build`.
+An archive from before HUMANITY_NO_HANDOFF can still hand itself off to a newer
+signed archive in C:\Humanity; the sweep then fails with "handed itself off to
+..." and stops the handed-off process (scripts/lib/game-launch.js), rather than
+measuring a binary it never checked.
+
+**BUILT-IN DATA** fails a sweep (and every other rig) whose run.log says a
+loader served the copy of a data file built into the exe, because the tree's
+file was missing or did not parse. The line names the file and why; fix the
+file (`just validate-data`) and run again. Such a run is not about this tree: a
+rebuild embeds the tree's file and behaves differently.
 
 ## Gotcha (rig)
 

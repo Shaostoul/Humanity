@@ -62,11 +62,19 @@ const WATCHED = ["HumanityOS.exe", "cargo.exe", "rustc.exe", "link.exe", "cl.exe
 /// build, and their refusal messages say exactly that.
 const GAME = "HumanityOS.exe";
 
+/// Is this process name the game? The exe is not always called HumanityOS.exe:
+/// `just launch` and `just play` boot the newest ARCHIVE, named
+/// v<version>_HumanityOS.exe, and that is how the operator usually starts his
+/// own game. An exact-name match missed it (found 2026-10-04), so the one-GPU
+/// wait could boot a rig beside his game. Any name ending in HumanityOS.exe,
+/// case-insensitive, counts.
+const isGameName = (name) => /humanityos\.exe$/i.test(String(name || ""));
+
 // Windows query. ExecutablePath matters as much as the pid for the game: it is
 // what separates our own rig copy (ours by construction - only sweeps launch
 // from a rig dir) from the operator's game or another agent's rig.
 function psQuery() {
-  const filter = WATCHED.map((n) => `Name='${n}'`).join(" or ");
+  const filter = WATCHED.map((n) => (n === GAME ? `Name LIKE '%${n}'` : `Name='${n}'`)).join(" or ");
   return (
     'powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter ' +
     `\\"${filter}\\"` +
@@ -128,7 +136,7 @@ function listProcs() {
 /// Only the game. verify-runtime and verify-screens gate on this: their rule is
 /// "no second renderer", which a compile does not violate.
 function listInstances() {
-  return listProcs().filter((p) => !p.name || sameName(p.name, GAME));
+  return listProcs().filter((p) => !p.name || isGameName(p.name));
 }
 
 const sameName = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
@@ -159,7 +167,7 @@ function foreignProcs(own = {}) {
   const exe = own.exe || "";
   return listProcs().filter((p) => {
     if (pids.has(p.pid)) return false;
-    if (sameName(p.name, GAME) || !p.name) return !sameExe(p.exe, exe);
+    if (isGameName(p.name) || !p.name) return !sameExe(p.exe, exe);
     return !own.gameOnly; // a build: a contender unless only games count
   });
 }
@@ -169,7 +177,10 @@ const describe = (p) => `${p.name || "HumanityOS.exe"} pid ${p.pid}${p.exe ? ` (
 
 /// Wait, bounded, for the machine to be free of contenders.
 ///
-/// Returns { free, waited_s, blockers } and NEVER throws: the caller decides
+/// Returns { free, waited, waited_s, blockers } and NEVER throws. `waited` says whether it
+/// had to wait at all: waited_s is ROUNDED, so a wait under half a second reads 0 and must not
+/// be taken for "no wait" (2026-10-04: probe-sweep skipped its re-check after such a wait).
+/// the caller decides
 /// whether a timeout is fatal (verify-screens refuses, probe-sweep proceeds but
 /// records the wait). Logs on entry and on exit when it actually waited,
 /// because "how long did this sweep sit waiting" is evidence about the machine,
@@ -177,12 +188,15 @@ const describe = (p) => `${p.name || "HumanityOS.exe"} pid ${p.pid}${p.exe ? ` (
 function waitForFree(opt = {}) {
   const own = opt.own || {};
   const timeoutMs = opt.timeoutMs != null ? opt.timeoutMs : 40 * 60 * 1000; // machine rule: up to 40 min
-  const pollMs = opt.pollMs != null ? opt.pollMs : 30 * 1000;
+  // HUMANITY_MACHINE_GUARD_POLL_MS: a test's shorter poll (with
+  // HUMANITY_MACHINE_GUARD_FAKE, so a wait can be exercised in a second).
+  const envPoll = Number(process.env.HUMANITY_MACHINE_GUARD_POLL_MS);
+  const pollMs = opt.pollMs != null ? opt.pollMs : envPoll > 0 ? envPoll : 30 * 1000;
   const log = opt.log || ((m) => console.log(m));
   const label = opt.label || "boot";
   const t0 = Date.now();
   let blockers = foreignProcs(own);
-  if (!blockers.length) return { free: true, waited_s: 0, blockers: [] };
+  if (!blockers.length) return { free: true, waited: false, waited_s: 0, blockers: [] };
   log(`[machine-guard] ${label}: WAITING - ${blockers.length} process(es) competing for this machine:`);
   for (const p of blockers) log(`[machine-guard]   ${describe(p)}`);
   log(`[machine-guard] one machine, one measurement. Polling every ${Math.round(pollMs / 1000)} s.`);
@@ -192,13 +206,13 @@ function waitForFree(opt = {}) {
     const waited = Math.round((Date.now() - t0) / 1000);
     if (!blockers.length) {
       log(`[machine-guard] ${label}: clear after ${waited} s.`);
-      return { free: true, waited_s: waited, blockers: [] };
+      return { free: true, waited: true, waited_s: waited, blockers: [] };
     }
     log(`[machine-guard] ${label}: still waiting (${waited} s) on ${blockers.map(describe).join("; ")}`);
   }
   const waited = Math.round((Date.now() - t0) / 1000);
   log(`[machine-guard] ${label}: GAVE UP after ${waited} s; still up: ${blockers.map(describe).join("; ")}`);
-  return { free: false, waited_s: waited, blockers };
+  return { free: false, waited: true, waited_s: waited, blockers };
 }
 
 // Blocking sleep. The guard runs in the middle of an async sweep but must not
@@ -242,8 +256,8 @@ function markCapture(rec, before, after, log = console.log) {
   // Name the KIND of contention, because the fix differs: a second renderer is
   // a GPU problem, a build is a CPU problem that inflates only the cpu.* stages
   // and can leave the GPU columns looking perfectly normal.
-  const games = seen.filter((p) => !p.name || sameName(p.name, GAME));
-  const builds = seen.filter((p) => p.name && !sameName(p.name, GAME));
+  const games = seen.filter((p) => !p.name || isGameName(p.name));
+  const builds = seen.filter((p) => p.name && !isGameName(p.name));
   log(`  !! CONTAMINATED: ${seen.length} process(es) shared this machine during the capture:`);
   for (const p of seen) log(`  !!   ${describe(p)}`);
   if (games.length) log(`  !! A second renderer means the gpu.* figures are not this build's.`);
@@ -258,6 +272,7 @@ function markCapture(rec, before, after, log = console.log) {
 module.exports = {
   WATCHED,
   GAME,
+  isGameName,
   parseProcs,
   listProcs,
   listInstances,

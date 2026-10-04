@@ -543,7 +543,7 @@ were read on 3 October 2026.
 - Departments of the Army, Navy, Air Force and Marine Corps. *Use and
   Care of Hand Tools and Measuring Tools*, TM 9-243 (also Navy
   M6290-AJ-MAN-010, Air Force TO 32-1-101, Marine Corps TM 10209-10/1),
-  dated 12 December 1984. The copy read is the Navy's June 1992 reissue,
+  dated 12 December 1983. The copy read is the Navy's June 1992 reissue,
   NAVEDTRA 12085, which includes Change 1. Chapter 10, Levels
   (levels prove true horizontal or vertical; the carpenter's level's
   three vials; the line level on a tightly stretched cord; checking a

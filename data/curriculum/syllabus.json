@@ -2107,9 +2107,25 @@
       "subject": "physics",
       "title": "Force, levers and mechanical advantage",
       "summary": "Move more than you can lift.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "force-levers-and-mechanical-advantage"
+      ],
       "skills": [
         "engineering"
+      ],
+      "data": [
+        "data/items.csv",
+        "data/equipment.csv",
+        "data/planets/earth.ron"
+      ],
+      "sources": [
+        "dod-technical-manuals",
+        "osha",
+        "ecfr",
+        "nist",
+        "nasa-nssdca",
+        "cpsc"
       ],
       "locale_dependent": false,
       "hazard": "serious"
@@ -2119,10 +2135,27 @@
       "subject": "physics",
       "title": "Heat and how it moves",
       "summary": "Use conduction, convection and radiation deliberately.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "heat-and-how-it-moves"
+      ],
       "skills": [
         "engineering",
         "fire_making"
+      ],
+      "data": [
+        "data/equipment.csv",
+        "data/status_effects.csv"
+      ],
+      "sources": [
+        "doe",
+        "usgs",
+        "cpsc",
+        "usfa",
+        "fda",
+        "osha",
+        "nws",
+        "epa"
       ],
       "locale_dependent": false,
       "hazard": "serious"
@@ -2338,17 +2371,31 @@
       "subject": "chemistry",
       "title": "Rust, rot and decay",
       "summary": "Understand what destroys materials over time and how to slow it.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "rust-rot-and-decay"
+      ],
       "skills": [
         "metalworking",
         "woodworking"
       ],
-      "locale_dependent": true,
-      "hazard": "caution",
       "data": [
         "data/chemistry/compounds.csv",
-        "data/chemistry/alloys.csv"
-      ]
+        "data/chemistry/alloys.csv",
+        "data/locales/<id>/climate.json"
+      ],
+      "sources": [
+        "doe",
+        "fpl-wood-handbook",
+        "dod-technical-manuals",
+        "ecfr",
+        "epa",
+        "niosh-pocket-guide",
+        "cdc",
+        "noaa-ncei"
+      ],
+      "locale_dependent": true,
+      "hazard": "caution"
     },
     {
       "id": "bio_soil_life",

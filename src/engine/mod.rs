@@ -58,6 +58,9 @@ pub mod room_gi;
 /// Background relay connections: dial + keep-alive + compact router for
 /// every saved server that is not the active one (multi-connection).
 pub mod bg_connections;
+/// A server confirmed it erased our account: leave it, keep it undialed, and
+/// take the game out of its shared world (BUG-135).
+pub mod account_erase;
 /// Built beds and chests in use: the crosshair prompt, the E press, and
 /// built chests as containers in the places tree (2026-09-27).
 pub mod built_uses;

@@ -122,10 +122,9 @@ pub fn install() -> &'static Glossary {
         let bytes = match std::fs::read(&path) {
             Ok(b) => b,
             Err(e) => {
-                log::warn!(
-                    "Glossary not on disk ({}): {} - using the embedded copy.",
-                    path.display(),
-                    e
+                crate::embedded_data::note_builtin_copy(
+                    "glossary.json",
+                    format_args!("{} could not be read ({e})", path.display()),
                 );
                 crate::embedded_data::GLOSSARY_JSON.as_bytes().to_vec()
             }
@@ -133,7 +132,7 @@ pub fn install() -> &'static Glossary {
         let parsed: GlossaryFile = match serde_json::from_slice(&bytes) {
             Ok(g) => g,
             Err(e) => {
-                log::warn!("Glossary parse failed: {} - trying the embedded copy.", e);
+                crate::embedded_data::note_builtin_copy("glossary.json", format_args!("{} does not parse ({e})", path.display()));
                 match serde_json::from_str(crate::embedded_data::GLOSSARY_JSON) {
                     Ok(g) => g,
                     Err(e2) => {

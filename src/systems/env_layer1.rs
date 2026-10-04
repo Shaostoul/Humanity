@@ -148,11 +148,16 @@ impl ClimateTable {
     pub fn shipped() -> Option<&'static ClimateTable> {
         static TABLE: std::sync::OnceLock<Option<ClimateTable>> = std::sync::OnceLock::new();
         TABLE
-            .get_or_init(|| match ClimateTable::from_ron(crate::embedded_data::CLIMATE_RON) {
-                Ok(t) => Some(t),
-                Err(e) => {
-                    log::error!("embedded {DATA_FILE} failed to load: {e}");
-                    None
+            .get_or_init(|| {
+                // Whoever asks gets the copy compiled into the exe: say so, once
+                // (BUG-133; a rig refuses a run that served a built-in copy).
+                crate::embedded_data::note_builtin_copy(DATA_FILE, "ClimateTable::shipped served the built-in table");
+                match ClimateTable::from_ron(crate::embedded_data::CLIMATE_RON) {
+                    Ok(t) => Some(t),
+                    Err(e) => {
+                        log::error!("embedded {DATA_FILE} failed to load: {e}");
+                        None
+                    }
                 }
             })
             .as_ref()

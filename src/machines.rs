@@ -1068,7 +1068,7 @@ impl MachineHome {
                     .unwrap_or_default();
                 match crate::embedded_data::get_embedded(&rel) {
                     Some(s) => {
-                        log::info!("{} absent on disk, using embedded {rel}", path.display());
+                        crate::embedded_data::note_builtin_copy(&rel, format_args!("{} is absent", path.display()));
                         s.to_string()
                     }
                     None => return None, // absent is fine, distributed builds may omit it
