@@ -53,12 +53,15 @@
 //! `plan_welcome` decides, and is pure (tested below); `apply_welcome_home` does it.
 //!
 //! THE REMEMBERED PLOT (increment 2). Every applied welcome tells the game its plot on that
-//! server (`plot_memory_after`), which it keeps per server in its config (`remember_plot`, AppConfig
-//! `home_plots`, with the ship's hash). The next world load builds the home on that plot before it
-//! joins (`assemble_for_boot`, `boot_plot`), so a returning player's welcome only confirms it (a
-//! Stay). A server that forgot or released the plot corrects it (a Move, or a guest's put-away), a
-//! changed ship is not trusted (the hash), and "Start every session from the default home" does
-//! not touch it: that setting is about what the home holds, not where it stands.
+//! server (`plot_memory_after`), which it keeps per identity and server in its config
+//! (`remember_plot`, `plot_memory_key`, AppConfig `home_plots`, with the ship's hash). The next
+//! world load builds the home on that plot before it joins (`assemble_for_boot`, `boot_plot`), so
+//! a returning player's welcome only confirms it (a Stay). Offline play builds on it too: the
+//! plot remembered for the configured server, else the default plot. A server that forgot or
+//! released the plot corrects it (a Move, or a guest's put-away), a changed ship is not trusted
+//! (the hash), an erased account forgets it (gui/connections.rs), and "Start every session from
+//! the default home" does not touch it: that setting is about what the home holds, not where it
+//! stands.
 //!
 //! THE SAVE'S FRAME. Pieces built aboard and parked vehicles are saved where they stand, beside
 //! the box of the plot the home stood on (save_load.rs `HomeFrame`, `WorldSave::home_plot_box`).
@@ -141,7 +144,10 @@ pub(crate) enum WelcomeHome {
     /// it stood on a plot; None when it is away already. A guest has no plot of this ship, so it
     /// draws no home of its own: every plot is a neighbour's (increment 2; 1b put the home back
     /// on the default plot, which is someone else's, and drew it there with all it holds).
-    Guest { door: Option<Vec3>, stand_at: Option<Vec3>, away: Option<ShipStructure> },
+    /// `join_afresh`: the relay holds the guest on a plot, farther from the Commons than it lets
+    /// anyone jump (`guest_stand`), so after standing them in the Commons the game steps out and
+    /// joins again, and the relay spawns them there afresh (what Respawn does).
+    Guest { door: Option<Vec3>, stand_at: Option<Vec3>, away: Option<ShipStructure>, join_afresh: bool },
 }
 
 /// The notice when a guest presses B (engine/editor.rs `toggle_build_editor`): its home is put
@@ -274,7 +280,8 @@ pub(crate) fn plan_welcome(ship: Option<&ShipStructure>, welcome: &serde_json::V
     let stand_at = |door: Option<Vec3>| if stand { held.or(door) } else { None };
     let Some(hp) = welcome.get("home_plot").filter(|v| !v.is_null()) else {
         let door = ship.guest_spawn();
-        return WelcomeHome::Guest { door, stand_at: stand_at(door), away: ship.put_home_away() };
+        let (stand_at, join_afresh) = guest_stand(ship, held, door, ctx.camera, stand);
+        return WelcomeHome::Guest { door, stand_at, away: ship.put_home_away(), join_afresh };
     };
     let Some(id) = hp.get("id").and_then(|i| i.as_str()) else {
         return refuse(WELCOME_WITHOUT_PLOT_ID, false);
@@ -300,6 +307,55 @@ pub(crate) fn plan_welcome(ship: Option<&ShipStructure>, welcome: &serde_json::V
             refuse(&does_not_fit_sentence(id), true)
         }
     }
+}
+
+/// Where a guest's welcome stands them (`plan_welcome`), and whether the game then steps out and
+/// joins again (`WelcomeHome::Guest::join_afresh`). `held`: where the relay holds them; `door`: the
+/// Commons arrival (None for a ship with no Commons); `camera`: where the game stands; `stand`:
+/// `stand_where_held`. Pure.
+///
+/// A guest has no plot, so it never stands on one: every plot is a neighbour's, drawn with no
+/// collision (src/ship/neighbours.rs), and a shared zone's wall is solid across a neighbour's
+/// corridor, so a guest left on a plot cannot walk back out (and has no Respawn button while
+/// alive). Increment 2 review, findings 1 and 9: a guest whose connection dropped got its home
+/// back on the default plot and walked into it, and its welcome inside the grace (`stand` false:
+/// not an arrival, a rejoin, under the backstop) left it there when the home was put away again.
+/// So wherever the welcome would leave a guest (where the relay holds it, or where it stands when
+/// nobody moves it) is on a plot (`on_plot_ground`), it goes where the relay holds it when that is
+/// off every plot, else to the Commons. When the relay holds it on a plot farther than
+/// `FAR_FROM_HELD_M` from the Commons, every update from there would be refused, so the game also
+/// steps out and joins again: the relay then spawns it in the Commons afresh.
+pub(crate) fn guest_stand(ship: &ShipStructure, held: Option<Vec3>, door: Option<Vec3>, camera: Vec3, stand: bool) -> (Option<Vec3>, bool) {
+    let wanted = if stand { held.or(door) } else { None };
+    if !on_plot_ground(ship, wanted.unwrap_or(camera)) {
+        return (wanted, false);
+    }
+    match held.filter(|h| !on_plot_ground(ship, *h)).or(door) {
+        Some(at) => (Some(at), held.is_some_and(|h| h.distance(at) > FAR_FROM_HELD_M)),
+        // No Commons, and the relay holds us on a plot: nowhere better to stand.
+        None => (wanted, false),
+    }
+}
+
+/// True when `p` stands on a plot's ground: over a plot's box across the floor (`over_plot`), or
+/// inside the door corridor a plot's home makes to its street (from the plot's own box,
+/// `ShipStructure::plot_door_tube`). Pure.
+pub(crate) fn on_plot_ground(ship: &ShipStructure, p: Vec3) -> bool {
+    ship.plots.iter().any(|plot| {
+        over_plot(p, plot.aabb()) || ship.plot_door_tube(plot, None).is_ok_and(|g| in_corridor(&g, p))
+    })
+}
+
+/// True when `p` stands inside corridor tube `g` across the floor (x and z), with a centimetre of
+/// slack, the way `over_plot` tests a plot. Pure.
+fn in_corridor(g: &crate::ship::ship_structure::CorridorGeom, p: Vec3) -> bool {
+    use crate::ship::ship_structure::CorridorAxis;
+    let (along, across) = match g.axis {
+        CorridorAxis::X => (p.x, p.z),
+        CorridorAxis::Z => (p.z, p.x),
+    };
+    let (lo, hi) = (g.start.min(g.end), g.start.max(g.end));
+    along >= lo - 0.01 && along <= hi + 0.01 && (across - g.lat).abs() <= g.width * 0.5 + 0.01
 }
 
 /// A plot id as a refusal shows it: the id when it is a short plain name (the ship file's
@@ -505,7 +561,7 @@ pub(crate) fn respawn_through_relay(state: &mut EngineState) {
 fn bring_home_back(state: &mut EngineState) {
     let Some(ship) = state.gui_state.ship_structure.as_ref() else { return };
     let server = active_server_key(&state.gui_state);
-    match home_back_from_away(ship, state.gui_state.home_plots.get(&server)) {
+    match home_back_from_away(ship, state.gui_state.home_plots.get(&plot_memory_key(&state.gui_state, &server))) {
         None => {}
         Some(Ok(back)) => {
             log::info!("Co-presence: out of the shared world; our home comes back from where it was put away, onto plot {:?}", back.home_plot().map(|p| &p.id));
@@ -550,7 +606,7 @@ pub(crate) fn boot_plot(ship_file: &ShipStructure, remembered: Option<&crate::co
 pub(crate) fn assemble_for_boot(data_dir: &std::path::Path, gui: &crate::gui::GuiState) -> Result<ShipStructure, String> {
     let file = ShipStructure::load_ship_file(data_dir)?;
     let server = active_server_key(gui);
-    if let Some(plot) = boot_plot(&file, gui.home_plots.get(&server)) {
+    if let Some(plot) = boot_plot(&file, gui.home_plots.get(&plot_memory_key(gui, &server))) {
         match ShipStructure::assemble_from(file.clone(), data_dir, Some(&plot)) {
             Ok(ship) => {
                 log::info!("load_world: building the home on plot {plot}, the plot remembered for {server}");
@@ -560,6 +616,14 @@ pub(crate) fn assemble_for_boot(data_dir: &std::path::Path, gui: &crate::gui::Gu
         }
     }
     ShipStructure::assemble_from(file, data_dir, None)
+}
+
+/// The key a plot is remembered under (`GuiState::home_plots`): this identity on `server`, the
+/// key the erased-server memory uses (`gui::erased_entry`), so a second identity on the same app
+/// does not build its home on the first one's plot, and an erase forgets exactly this entry
+/// (gui/connections.rs `account_erased_on_active`). Increment 2 review, finding 3. Pure.
+pub(crate) fn plot_memory_key(gui: &crate::gui::GuiState, server: &str) -> String {
+    crate::gui::erased_entry(&gui.profile_public_key, server)
 }
 
 /// What an applied welcome's plan teaches about this server's plot (`GuiState::home_plots`):
@@ -582,18 +646,19 @@ pub(crate) fn plot_memory_after(plan: &WelcomeHome, ship: Option<&ShipStructure>
 /// world load builds the home there.
 pub(crate) fn remember_plot(state: &mut EngineState, server: &str, plot: Option<String>) {
     let hash = state.gui_state.ship_structure.as_ref().map(|s| s.ship_hash()).unwrap_or_default();
+    let key = plot_memory_key(&state.gui_state, server);
     let plots = &mut state.gui_state.home_plots;
     let changed = match (plot, hash.is_empty()) {
         (Some(plot), false) => {
             let r = crate::config::RememberedPlot { ship_hash: hash, plot };
-            plots.insert(server.to_string(), r.clone()).as_ref() != Some(&r)
+            plots.insert(key.clone(), r.clone()).as_ref() != Some(&r)
         }
         // No ship, no plot to remember (a welcome is never applied without one).
         (Some(_), true) => false,
-        (None, _) => plots.remove(server).is_some(),
+        (None, _) => plots.remove(&key).is_some(),
     };
     if changed {
-        log::info!("Co-presence: this server's plot is now {:?} (remembered for the next world load)", plots.get(server).map(|r| &r.plot));
+        log::info!("Co-presence: this server's plot is now {:?} (remembered for the next world load)", plots.get(&key).map(|r| &r.plot));
         crate::config::AppConfig::from_gui_state(&state.gui_state).save();
     }
 }
@@ -650,7 +715,7 @@ pub(crate) fn apply_welcome_home(state: &mut EngineState, welcome: &serde_json::
             state.fps_spawn = door;
             put_player_at(state, stand_at);
         }
-        WelcomeHome::Guest { door, stand_at, away } => {
+        WelcomeHome::Guest { door, stand_at, away, join_afresh } => {
             log::info!("Co-presence: no plot of our own here; joining as a guest in the Commons");
             // A guest has no plot of this ship, so it draws no home of its own: the home is put
             // away, with all it holds, off the ship (increment 2; 1b drew it on the default
@@ -658,6 +723,13 @@ pub(crate) fn apply_welcome_home(state: &mut EngineState, welcome: &serde_json::
             if let Some(ship) = away {
                 log::info!("Co-presence: our home is put away while we are a guest");
                 move_home(state, ship);
+                // A guest cannot build aboard (`GUEST_NO_EDITOR`): an editor opened while the home
+                // was still on a plot (pressed between a reconnect and its welcome) shuts, and its
+                // close stands the player where this welcome does (lib.rs, `editor_close_spot`).
+                if state.gui_state.construction_active {
+                    state.gui_state.construction_active = false;
+                    state.gui_state.pending_notices.push(GUEST_NO_EDITOR.to_string());
+                }
             }
             // Respawn brings them back to the Commons, where the relay put them.
             if let Some(d) = door {
@@ -665,6 +737,14 @@ pub(crate) fn apply_welcome_home(state: &mut EngineState, welcome: &serde_json::
             }
             if let Some(at) = stand_at {
                 put_player_at(state, at);
+            }
+            if join_afresh {
+                // The relay holds us on a plot, too far from the Commons to walk on from (every
+                // update would be refused): step out and join again, so it spawns us there.
+                log::info!("Co-presence: the relay holds us on a plot as a guest, too far from the Commons; joining again so it spawns us there");
+                welcome_settles_the_home(&mut state.game_world.world);
+                respawn_through_relay(state);
+                return false;
             }
         }
     }
@@ -1116,8 +1196,14 @@ pub(crate) struct EditorClose {
 /// the shared world a pick more than `FAR_FROM_HELD_M` from `back` leaves them at `back`.
 /// Stepping out and joining again (what Respawn does) would not land them on the pick either:
 /// a fresh join puts them at their door, which is neither where they stood nor where the
-/// avatar stands, and the others would see the figure leave and arrive. Pure.
-pub(crate) fn editor_close_spot(chosen: Option<Vec3>, back: Vec3, joined: bool) -> EditorClose {
+/// avatar stands, and the others would see the figure leave and arrive.
+///
+/// `home_away`: the home is put away (a guest, increment 2), so a pick in it (the build-mode
+/// avatar's spot is in the home) is no place to stand, and they stay at `back` with nothing to
+/// explain: the welcome that put the home away shut the editor and said why (`GUEST_NO_EDITOR`).
+/// Increment 2 review, finding 1: an editor opened between a reconnect and its guest welcome. Pure.
+pub(crate) fn editor_close_spot(chosen: Option<Vec3>, back: Vec3, joined: bool, home_away: bool) -> EditorClose {
+    let chosen = chosen.filter(|_| !home_away);
     match chosen {
         Some(c) if !joined || c.distance(back) <= FAR_FROM_HELD_M => EditorClose { at: c, held_back: false },
         Some(_) => EditorClose { at: back, held_back: true },
@@ -1370,7 +1456,7 @@ mod tests {
     fn a_full_ship_makes_a_guest_in_the_commons() {
         let ship = booted();
         match plan_welcome(Some(&ship), &welcome_at(None, &ship.ship_hash(), Some(COMMONS.into())), &arriving(P1_DOOR)) {
-            WelcomeHome::Guest { door: Some(d), stand_at: Some(at), away: Some(away) } => {
+            WelcomeHome::Guest { door: Some(d), stand_at: Some(at), away: Some(away), join_afresh: false } => {
                 assert!((d - COMMONS).length() < 1e-4, "{d:?}");
                 assert!((at - COMMONS).length() < 1e-4, "{at:?}");
                 assert!(away.home_is_away(), "the guest's home is put away");
@@ -1403,6 +1489,98 @@ mod tests {
             WelcomeHome::Guest { stand_at: Some(at), .. } => assert!((at - street_end).length() < 1e-4, "{at:?}"),
             other => panic!("{other:?}"),
         }
+    }
+
+    /// FINDING 1 of the increment 2 review. A guest's connection drops: the game leaves the shared
+    /// world, so its home comes back onto the ship (`bring_home_back`), on the default plot p1,
+    /// which is someone else's. The guest walks into it, to p1's door, 29 m from where the relay
+    /// still holds them in the Commons, and reconnects inside the relay's 90 s grace (`rejoin`
+    /// true, not an arrival, under the 90 m backstop). The welcome puts the home away again; it
+    /// must also stand the guest back where the relay holds them, as any welcome that takes the
+    /// ground from under the player does (a Move always stands). Left where they were, they stand
+    /// in a neighbour's home drawn with no collision, the Commons wall at its corridor is solid
+    /// again, and everyone else sees them in someone's home. The same in the home's door corridor,
+    /// which goes away with the home. Seen red 2026-10-04 on c98c5465b (the guest arm stood the
+    /// player only when `stand_where_held` said so): "a guest back inside the grace is left on the
+    /// plot its home leaves: None".
+    #[test]
+    fn a_guest_back_inside_the_grace_is_stood_off_the_plot_its_home_leaves() {
+        let ship = booted();
+        let w = welcome_full(None, &ship.ship_hash(), Some(COMMONS.into()), true);
+        for (camera, where_) in [(P1_DOOR, "at p1's door"), (Vec3::new(60.0, 1.7, 40.0), "in p1's door corridor"), (Vec3::new(10.0, 1.7, 80.0), "deep in p1")] {
+            match plan_welcome(Some(&ship), &w, &again(camera)) {
+                WelcomeHome::Guest { stand_at, away, join_afresh, .. } => {
+                    assert!(away.is_some(), "the home is put away");
+                    assert!(!join_afresh, "29 m from where the relay holds them: a walk, not a fresh join");
+                    assert!(
+                        stand_at.is_some_and(|a| (a - COMMONS).length() < 1e-4),
+                        "a guest back inside the grace is left on the plot its home leaves ({where_}): {stand_at:?}"
+                    );
+                }
+                other => panic!("{other:?}"),
+            }
+        }
+    }
+
+    /// FINDING 9 of the increment 2 review: the relay holds the player inside the home they stood
+    /// in (p1), and their welcome inside the grace comes back as a guest's (their plot was lost:
+    /// a storage error makes a joiner a guest). The home is put away and p1 becomes a neighbour's,
+    /// drawn with no collision: left there, they walk through its walls into the gap between the
+    /// plots. They go to the Commons. Seen red 2026-10-04 on c98c5465b: "a guest held in the home
+    /// it loses keeps standing in it: None".
+    #[test]
+    fn a_guest_held_inside_the_home_it_loses_goes_to_the_commons() {
+        let ship = booted();
+        let w = welcome_full(None, &ship.ship_hash(), Some(P1_DOOR.into()), true);
+        match plan_welcome(Some(&ship), &w, &again(P1_DOOR)) {
+            WelcomeHome::Guest { stand_at, .. } => assert!(
+                stand_at.is_some_and(|a| (a - COMMONS).length() < 1e-4),
+                "a guest held in the home it loses keeps standing in it: {stand_at:?}"
+            ),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    /// The same as a guest held deep in p2, 133 m from the Commons: standing them in the Commons
+    /// would put them farther from where the relay holds them than it lets anyone jump, so every
+    /// update would be refused (the 1b freeze). They stand in the Commons and the game joins
+    /// again (`join_afresh`), so the relay spawns them there afresh, as Respawn does. Seen red
+    /// 2026-10-04 with `guest_stand` never asking for a fresh join: "a guest held 133 m from the
+    /// Commons walks on from there: false". Held off every plot (the Commons, the street), a
+    /// guest never joins afresh.
+    #[test]
+    fn a_guest_held_far_inside_a_plot_joins_again_to_reach_the_commons() {
+        let ship = booted();
+        let deep = Vec3::new(30.0, 1.7, 170.0);
+        let w = welcome_full(None, &ship.ship_hash(), Some(deep.into()), true);
+        match plan_welcome(Some(&ship), &w, &again(deep)) {
+            WelcomeHome::Guest { stand_at, join_afresh, .. } => {
+                assert!(stand_at.is_some_and(|a| (a - COMMONS).length() < 1e-4), "{stand_at:?}");
+                assert!(join_afresh, "a guest held {:.0} m from the Commons walks on from there: {join_afresh}", deep.distance(COMMONS));
+            }
+            other => panic!("{other:?}"),
+        }
+        let street_end = Vec3::new(70.0, 1.7, 195.0);
+        for held in [COMMONS, street_end] {
+            let w = welcome_full(None, &ship.ship_hash(), Some(held.into()), true);
+            let plan = plan_welcome(Some(&ship), &w, &again(held));
+            assert!(matches!(plan, WelcomeHome::Guest { stand_at: None, join_afresh: false, .. }), "held at {held:?}: {plan:?}");
+        }
+    }
+
+    /// The build editor opened between a reconnect and its guest welcome (finding 1 of the
+    /// increment 2 review, its third route): the welcome puts the home away and shuts the editor,
+    /// and the close must not stand the player at their build spot, which is in the home put away
+    /// (or, before the home went, on p1, someone else's plot). They stay where the welcome stood
+    /// them, with no "walk to your build spot" notice. Seen red 2026-10-04 with `home_away`
+    /// ignored: "a build spot in a home put away stood the player at Vec3(53.5, 1.7, 40.5)".
+    #[test]
+    fn closing_the_editor_with_the_home_put_away_stands_where_the_welcome_did() {
+        let c = editor_close_spot(Some(P1_DOOR), COMMONS, true, true);
+        assert_eq!(c.at, COMMONS, "a build spot in a home put away stood the player at {:?}", c.at);
+        assert!(!c.held_back, "nothing to explain: the welcome said why the editor shut");
+        let out = editor_close_spot(Some(P1_DOOR), COMMONS, false, true);
+        assert_eq!(out.at, COMMONS, "out of the shared world too");
     }
 
     /// THE SECOND REVIEW'S FREEZE: a guest at the end of street-1 steps out of the shared world
@@ -1844,7 +2022,7 @@ mod tests {
             let ship = ShipStructure::load_and_assemble(&data_dir(), Some(own)).unwrap();
             let w = welcome_full(None, &ship.ship_hash(), Some(COMMONS.into()), false);
             match plan_welcome(Some(&ship), &w, &again(P1_DOOR)) {
-                WelcomeHome::Guest { door, stand_at, away } => {
+                WelcomeHome::Guest { door, stand_at, away, join_afresh: false } => {
                     let plot = away.as_ref().map(|s| s.home_plot().map(|p| p.id.clone()));
                     assert_eq!(plot, Some(None), "a guest whose home stood on {own} still draws it on a plot: {:?}", plot.clone().flatten());
                     let away = away.unwrap();
@@ -1940,6 +2118,26 @@ mod tests {
         // The returning player's welcome then only confirms it: a Stay, nothing moves.
         let w = welcome_at(Some("p2"), &hash, Some(P2_DOOR.into()));
         assert!(matches!(plan_welcome(Some(&ship), &w, &arriving(P2_DOOR)), WelcomeHome::Stay { .. }), "a returning player's welcome is a Stay");
+    }
+
+    /// A plot is remembered for THIS IDENTITY on a server (the key `gui::erased_entry` makes, the
+    /// one the erased-server memory uses), so a second identity on the same app, or one restored
+    /// from another recovery phrase, does not build its home on the first one's plot at boot.
+    /// Increment 2 review, finding 3. Seen red 2026-10-04 on c98c5465b (keyed by the server
+    /// alone): "the plot remembered by this identity on this server: Some(\"p1\")".
+    #[test]
+    fn a_plot_is_remembered_for_one_identity_on_one_server() {
+        let hash = ShipStructure::load_ship_file(&data_dir()).unwrap().ship_hash();
+        let mut gui = crate::gui::GuiState::default();
+        gui.server_url = SERVER.to_string();
+        gui.connected_server_url = SERVER.to_string();
+        gui.profile_public_key = "aa11".to_string();
+        let server = active_server_key(&gui);
+        gui.home_plots.insert(crate::gui::erased_entry("aa11", &server), crate::config::RememberedPlot { ship_hash: hash, plot: "p2".into() });
+        let built = |gui: &crate::gui::GuiState| assemble_for_boot(&data_dir(), gui).unwrap().home_plot().map(|p| p.id.clone());
+        assert_eq!(built(&gui).as_deref(), Some("p2"), "the plot remembered by this identity on this server: {:?}", built(&gui));
+        gui.profile_public_key = "bb22".to_string();
+        assert_eq!(built(&gui).as_deref(), Some("p1"), "another identity on the same app builds on the default plot");
     }
 
     /// What each welcome teaches the memory: a Move or a Stay remembers the plot, a guest and a
@@ -2337,7 +2535,7 @@ mod tests {
     #[test]
     fn closing_the_build_editor_far_from_where_the_relay_holds_us_leaves_us_there() {
         let street_end = Vec3::new(70.0, 1.7, 190.0);
-        let c = editor_close_spot(Some(P1_DOOR), street_end, true);
+        let c = editor_close_spot(Some(P1_DOOR), street_end, true, false);
         assert_eq!(
             c.at,
             street_end,
@@ -2348,16 +2546,16 @@ mod tests {
         assert!(c.held_back, "the player is told why the build spot was not used");
         // Near where the relay holds them, the build spot is used, as before.
         let near = Vec3::new(60.0, 1.7, 70.0);
-        assert_eq!(editor_close_spot(Some(P1_DOOR), near, true), EditorClose { at: P1_DOOR, held_back: false });
+        assert_eq!(editor_close_spot(Some(P1_DOOR), near, true, false), EditorClose { at: P1_DOOR, held_back: false });
         // Out of the shared world nothing holds them: the build spot, wherever it is.
-        assert_eq!(editor_close_spot(Some(P1_DOOR), street_end, false), EditorClose { at: P1_DOOR, held_back: false });
+        assert_eq!(editor_close_spot(Some(P1_DOOR), street_end, false, false), EditorClose { at: P1_DOOR, held_back: false });
         // No build spot and no home spawn: where they stood.
-        assert_eq!(editor_close_spot(None, street_end, true), EditorClose { at: street_end, held_back: false });
+        assert_eq!(editor_close_spot(None, street_end, true, false), EditorClose { at: street_end, held_back: false });
         // The margin is the welcome's own (`FAR_FROM_HELD_M`): at it, the pick; past it, held.
         let at_edge = street_end + Vec3::new(0.0, 0.0, -FAR_FROM_HELD_M);
-        assert_eq!(editor_close_spot(Some(at_edge), street_end, true).at, at_edge);
+        assert_eq!(editor_close_spot(Some(at_edge), street_end, true, false).at, at_edge);
         let past = street_end + Vec3::new(0.0, 0.0, -FAR_FROM_HELD_M - 0.5);
-        assert_eq!(editor_close_spot(Some(past), street_end, true).at, street_end);
+        assert_eq!(editor_close_spot(Some(past), street_end, true, false).at, street_end);
     }
 
     /// ROUND 5, finding 1, the other half: a welcome lands while the build editor is open (a
@@ -2392,7 +2590,7 @@ mod tests {
         assert_eq!(body_at(&w), P2_DOOR);
         // A build spot left in the home on p1, 99 m from p2's door, where the welcome stood
         // them: the close leaves them at the door.
-        assert_eq!(editor_close_spot(Some(P1_DOOR), ed, true).at, P2_DOOR);
+        assert_eq!(editor_close_spot(Some(P1_DOOR), ed, true, false).at, P2_DOOR);
     }
 
     /// The game's side of an erase in the shared world (ROUND 5, findings 2 and 4): the relay

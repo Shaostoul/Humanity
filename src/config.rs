@@ -407,10 +407,14 @@ pub struct AppConfig {
     #[serde(default)]
     pub saved_servers: Vec<SavedServer>,
     /// Each server's plot of its ship, remembered (ship homes increment 2, `RememberedPlot`),
-    /// keyed by the server's normalised URL (engine/home_plot.rs `active_server_key`). A config
-    /// written before increment 2 has no such field: serde reads it as empty, so it loads as it
-    /// did, and its first world entry builds the home on the ship's default plot, which the
-    /// welcome then moves as before; from that welcome on the plot is remembered.
+    /// keyed by this identity's public key and the server's normalised URL (engine/home_plot.rs
+    /// `plot_memory_key`, the key `gui::erased_entry` makes). A config written before increment 2
+    /// has no such field: serde reads it as empty, so it loads as it did, and its first world
+    /// entry builds the home on the ship's default plot, which the welcome then moves as before;
+    /// from that welcome on the plot is remembered. A config from the first increment 2 builds,
+    /// keyed by the URL alone, loads too: those entries are never read again (a key with no
+    /// public key matches nothing), so its next boot builds on the default plot and its next
+    /// welcome remembers the plot under the new key.
     #[serde(default)]
     pub home_plots: std::collections::BTreeMap<String, RememberedPlot>,
     /// Start the locally hosted relay node automatically at app launch,

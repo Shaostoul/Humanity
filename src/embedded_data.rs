@@ -147,7 +147,13 @@ pub const MACHINES_SHIP_RON: &str = include_str!("../data/machines/ship.ron");
 /// The ship file and the default home design (increment 1a of docs/design/ship-homes-and-logistics.md):
 /// built in so a fresh install or a throwaway relay still has a ship with plots, and a home to put on one.
 pub const SHIP_STRUCTURE_RON: &str = include_str!("../data/blueprints/ship_structure.ron");
-pub const HOME_HOMESTEAD_RON: &str = include_str!("../data/homes/homestead.ron");
+/// The homestead's SHIPPED default (data/homes/shipped/, never written by the game): what a
+/// neighbour's plot is drawn as (`shipped_home_design`), and the fallback for a game with no
+/// data/homes/homestead.ron of its own (`get_embedded("homes/homestead.ron")`), which is that
+/// player's own home and every editor Save rewrites. Ship homes increment 2 review, finding 5:
+/// the embedded copy was the editable file itself, so a Save in a repo checkout changed what
+/// every neighbour looked like at the next build and made every rig refuse the exe as stale.
+pub const HOME_HOMESTEAD_RON: &str = include_str!("../data/homes/shipped/homestead.ron");
 pub const GROW_MEDIA_RON: &str = include_str!("../data/garden/grow_media.ron");
 pub const VEHICLE_KITS_RON: &str = include_str!("../data/vehicles/kits.ron");
 pub const AEROPONIC_CONFIGS_RON: &str = include_str!("../data/towers/aeroponic_configs.ron");
@@ -170,16 +176,22 @@ pub const PROPOSAL_TYPES_RON: &str = include_str!("../data/governance/proposal_t
 
 /// The SHIPPED design of a home kind (ship homes increment 2): what a neighbour's plot of that
 /// kind is drawn as (`HomeDesign::built_in`, src/ship/neighbours.rs). Never a fallback: the disk
-/// copy of a design is this player's own home, so this read never looks at the disk, and
-/// data/homes is in build.rs FINGERPRINT_INPUTS for that reason (BUG-133: a rig must not judge
-/// an exe whose built-in designs differ from the tree's). One line per shipped design kind, as
-/// each has its own include above.
+/// copy of a design is this player's own home, so this read never looks at the disk. The
+/// shipped designs live in their own folder, data/homes/shipped/, which the game never writes
+/// and build.rs FINGERPRINT_INPUTS stamps (BUG-133: a rig must not judge an exe whose built-in
+/// designs differ from the tree's), while data/homes/<kind>.ron, the player's own, stays out of
+/// the stamp. One row per shipped design kind in `SHIPPED_HOMES`, as each has its own include
+/// above.
 pub fn shipped_home_design(kind: &str) -> Option<&'static str> {
-    match kind {
-        "homestead" => Some(HOME_HOMESTEAD_RON),
-        _ => None,
-    }
+    SHIPPED_HOMES.iter().find(|(k, _)| *k == kind).map(|(_, text)| *text)
 }
+
+/// Every shipped home design: (kind, its RON). `HomeDesign::built_in_ref` parses each once.
+pub const SHIPPED_HOMES: &[(&str, &str)] = &[("homestead", HOME_HOMESTEAD_RON)];
+
+/// Where a home kind's shipped design lives under data/, for the test that the game never
+/// saves over it (src/ship/ship_structure.rs). The same file `shipped_home_design` embeds.
+pub const SHIPPED_HOMES_DIR: &str = "homes/shipped";
 
 /// Look up an embedded data string by its relative path (as used by AssetManager).
 /// Returns `None` if the path has no embedded fallback.

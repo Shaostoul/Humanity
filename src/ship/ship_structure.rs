@@ -357,8 +357,24 @@ impl HomeDesign {
     /// as (increment 2, src/ship/neighbours.rs): every other player's home looks like the
     /// default until homes are shared. None when no design of that kind is built in.
     pub fn built_in(kind: &str) -> Option<HomeDesign> {
-        let text = crate::embedded_data::shipped_home_design(kind)?;
-        ron::from_str::<HomeDesign>(text).ok().filter(|d| d.kind == kind)
+        Self::built_in_ref(kind).cloned()
+    }
+
+    /// `built_in` without the copy: every shipped design is parsed ONCE per process, the first
+    /// time any is asked for, and kept (the embedded text never changes while the game runs).
+    /// Increment 2 review, finding 6: the neighbours parsed about 1650 lines of RON twice on every
+    /// home rebuild, every frame of an editor drag. A design that does not parse, or names
+    /// another kind, is left out (None), as before.
+    pub fn built_in_ref(kind: &str) -> Option<&'static HomeDesign> {
+        static PARSED: std::sync::OnceLock<std::collections::HashMap<&'static str, HomeDesign>> = std::sync::OnceLock::new();
+        PARSED
+            .get_or_init(|| {
+                crate::embedded_data::SHIPPED_HOMES
+                    .iter()
+                    .filter_map(|(k, text)| ron::from_str::<HomeDesign>(text).ok().filter(|d| d.kind == *k).map(|d| (*k, d)))
+                    .collect()
+            })
+            .get(kind)
     }
 
     /// Write back to RON, keeping an existing file's leading comment header (the same
@@ -887,6 +903,21 @@ impl ShipStructure {
     }
 }
 
+/// Whether a home `design` fits `plot`'s box (its width, height and depth, each within the
+/// overlap tolerance), with the reason when not. One rule for the player's own home (`assemble`
+/// refuses such a pairing) and a neighbour's (src/ship/neighbours.rs leaves such a plot undrawn,
+/// increment 2 review, finding 7: it was drawn anyway, spilling into the next plot or zone).
+pub(crate) fn design_fits_plot(design: &HomeDesign, plot: &Plot) -> Result<(), String> {
+    let b = &design.body;
+    if b.width > plot.size.0 + OVERLAP_EPS || b.height > plot.size.1 + OVERLAP_EPS || b.depth > plot.size.2 + OVERLAP_EPS {
+        return Err(format!(
+            "the {} design ({} x {} x {} m) does not fit plot '{}' ({:?})",
+            design.kind, b.width, b.depth, b.height, plot.id, plot.size
+        ));
+    }
+    Ok(())
+}
+
 /// The door-sized APERTURE a corridor tube makes where one of its ends meets a box (min corner
 /// `o`, `w` x `d` footprint, `h` tall): `end` is the tube's mouth on that box, `other` the mouth
 /// at its far end. The tube leaves the box through the perimeter face in the run direction toward
@@ -1167,9 +1198,19 @@ impl ShipStructure {
             let Ok(g) = self.corridor_geometry(c) else {
                 continue; // a broken row gets no doors (mesh + collision skip it too)
             };
-            // Remember where THIS corridor's mouths start so the coincident-plane dedup below
-            // only looks at its own list (two separate corridors may legitimately share a plane
-            // at different lats).
+            out.extend(self.tube_mouths(&g));
+        }
+        out
+    }
+
+    /// One resolved tube's door mouths (`corridor_mouths`, for each of the ship's corridors; and
+    /// a neighbour's corridor, src/ship/neighbours.rs `neighbour_mouths`, whose doors open only
+    /// for the other players): its two end mouths and any intervening-zone crossings.
+    pub fn tube_mouths(&self, g: &CorridorGeom) -> Vec<CorridorMouth> {
+        let mut out = Vec::new();
+        {
+            // Where THIS corridor's mouths start, for the coincident-plane dedup below (two
+            // separate corridors may legitimately share a plane at different lats).
             let first = out.len();
             let (dw, dh) = g.door_from;
             // The two end mouths, on the zones' facing perimeter planes.
@@ -1538,13 +1579,8 @@ impl ShipStructure {
         if plot.kind != design.kind {
             return Err(format!("plot '{}' takes a {} home, not a {}", plot.id, plot.kind, design.kind));
         }
+        design_fits_plot(&design, &plot)?;
         let b = &design.body;
-        if b.width > plot.size.0 + OVERLAP_EPS || b.height > plot.size.1 + OVERLAP_EPS || b.depth > plot.size.2 + OVERLAP_EPS {
-            return Err(format!(
-                "the {} design ({} x {} x {} m) does not fit plot '{}' ({:?})",
-                design.kind, b.width, b.depth, b.height, plot.id, plot.size
-            ));
-        }
         let lat = design.door_lat(plot.origin)?;
         if (lat - plot.door.lat).abs() > OVERLAP_EPS {
             return Err(format!(
@@ -1628,10 +1664,16 @@ impl ShipStructure {
     }
 
     /// The plots this game draws as its NEIGHBOURS' (increment 2): every plot but the one its home
-    /// stands on (all of them while the home is away, or for a ship file on its own).
+    /// stands on (all of them while the home is away, or for a ship file on its own), and never a
+    /// plot that one sits inside (its block) or that sits inside it: a neighbour drawn there would
+    /// put a default shell over the home, or one inside it (increment 2 review, finding 7; plots
+    /// may nest, `Plot::parent`, which `validate` allows).
     pub fn neighbour_plots(&self) -> impl Iterator<Item = &Plot> {
         let own = self.home.as_ref().filter(|a| !a.away).map(|a| a.plot.clone());
-        self.plots.iter().filter(move |p| own.as_deref() != Some(p.id.as_str()))
+        self.plots.iter().filter(move |p| match own.as_deref() {
+            None => true,
+            Some(o) => !self.is_self_or_ancestor(&p.id, o) && !self.is_self_or_ancestor(o, &p.id),
+        })
     }
 
     /// The tube a plot's door corridor makes from a home of `design` standing on it (the home's
@@ -1653,8 +1695,10 @@ impl ShipStructure {
         tube_between(from, EndBox::of_zone(&self.zones[to_idx]), &plot.door.corridor_from(&plot.id), usize::MAX, to_idx)
     }
 
-    /// The ship the game runs: the ship file plus the home design of `plot`'s kind on `plot`
-    /// (the ship's default plot when None, which is what offline play uses).
+    /// The ship file plus the home design of `plot`'s kind on `plot` (the ship's default plot
+    /// when None). The world load does not call this: it builds on the plot remembered for the
+    /// server, offline play included (engine/home_plot.rs `assemble_for_boot`, which calls
+    /// `assemble_from`); tests and tools that want the shipped ship as a newcomer boots it do.
     pub fn load_and_assemble(data_dir: &Path, plot: Option<&str>) -> Result<ShipStructure, String> {
         Self::assemble_from(Self::load_ship_file(data_dir)?, data_dir, plot)
     }
@@ -3008,6 +3052,30 @@ mod tests {
         ShipStructure { zones, plots, ..Default::default() }
     }
 
+    /// NESTED PLOTS are never each other's neighbours (increment 2 review, finding 7). `validate`
+    /// lets a child plot sit inside its parent (a cabin in its block, "Cabins and Apartments,
+    /// later"): with the home on the child, the block drawn as a neighbour put its default shell
+    /// over the home; with the home on the block, every child was drawn inside it. A plot beside
+    /// them stays a neighbour either way, and while the home is put away every plot is one. Seen
+    /// red 2026-10-04 on c98c5465b (only the own plot left out): "on the cabin c1, its block is
+    /// drawn as a neighbour: [\"block\", \"g1\", \"p9\"]".
+    #[test]
+    fn a_child_plots_parent_is_not_drawn_over_the_home() {
+        let child = Plot { parent: Some("block".into()), ..plot("c1", 30.0, 5.0, 32.5) };
+        let grandchild = Plot { parent: Some("c1".into()), ..plot("g1", 31.0, 2.0, 32.0) };
+        let mut ship = overlap_fixture(vec![plot("block", 30.0, 20.0, 40.0), child, grandchild, plot("p9", 60.0, 10.0, 65.0)], vec![]);
+        let on = |ship: &mut ShipStructure, id: &str| {
+            ship.home = Some(HomeAssembly { plot: id.into(), kind: "test".into(), door: (10.0, 2.5), away: false });
+            ship.neighbour_plots().map(|p| p.id.clone()).collect::<Vec<_>>()
+        };
+        assert_eq!(on(&mut ship, "c1"), ["p9"], "on the cabin c1, its block is drawn as a neighbour: {:?}", on(&mut ship, "c1"));
+        assert_eq!(on(&mut ship, "block"), ["p9"], "on the block, its cabins are drawn inside it");
+        assert_eq!(on(&mut ship, "g1"), ["p9"], "every ancestor, not only the parent");
+        assert_eq!(on(&mut ship, "p9"), ["block", "c1", "g1"], "a plot beside them sees them all");
+        ship.home.as_mut().unwrap().away = true;
+        assert_eq!(ship.neighbour_plots().count(), 4, "a home put away: every plot is a neighbour's");
+    }
+
     /// validate() refuses overlapping plots, zones and corridor tubes, and lets touching ones,
     /// a child plot inside its parent, and districts through. Each row names what must be
     /// refused (a fragment of the error) or None for a ship that must validate.
@@ -3107,6 +3175,38 @@ mod tests {
             std::fs::copy(data_dir().join(rel), &to).unwrap();
         }
         dir
+    }
+
+    /// THE SHIPPED DEFAULT IS NEVER SAVED OVER (ship homes increment 2 review, finding 5). The
+    /// editor's Save writes this player's own home (data/homes/<kind>.ron); the shipped default a
+    /// neighbour is drawn as (`HomeDesign::built_in`) is a file of its own
+    /// (`embedded_data::SHIPPED_HOMES_DIR`), which a Save leaves byte for byte, and which is the
+    /// very file the exe embeds. Before, the two were one file: a Save in a repo checkout became
+    /// every neighbour's home at the next build, and every rig refused the exe as stale until
+    /// then. Seen red 2026-10-04 with the shipped default at data/homes/homestead.ron (the
+    /// c98c5465b layout): "the editor's Save wrote over the shipped default
+    /// homes/homestead.ron".
+    #[test]
+    fn save_assembled_never_writes_the_shipped_home_default() {
+        use crate::embedded_data::{shipped_home_design, SHIPPED_HOMES_DIR};
+        let dir = temp_data_dir("shipped_home_untouched");
+        let shipped_rel = format!("{SHIPPED_HOMES_DIR}/homestead.ron");
+        let shipped = dir.join(&shipped_rel);
+        std::fs::create_dir_all(shipped.parent().unwrap()).unwrap();
+        std::fs::copy(data_dir().join(&shipped_rel), &shipped).unwrap();
+        let before = std::fs::read(&shipped).unwrap();
+        let walls = HomeDesign::built_in("homestead").unwrap().body.walls.len();
+        let mut ship = ShipStructure::load_and_assemble(&dir, None).expect("assembles");
+        let hi = ship.home_zone_index();
+        ship.zones[hi].body.walls.push(ron::from_str("(a: (1.0, 1.0), b: (3.0, 1.0))").unwrap());
+        ship.save_assembled(&dir, false).expect("a Save writes the home");
+        assert!(std::fs::read(&shipped).unwrap() == before, "the editor's Save wrote over the shipped default {shipped_rel}");
+        let own = HomeDesign::load(&dir, "homestead").expect("the saved home loads");
+        assert_eq!(own.body.walls.len(), walls + 1, "the player's own home has the new wall");
+        assert_eq!(HomeDesign::built_in("homestead").unwrap().body.walls.len(), walls, "the neighbours' default does not");
+        // The file under data/ that a person edits to change the default is the one the exe embeds.
+        let repo = std::fs::read_to_string(data_dir().join(&shipped_rel)).unwrap().replace("\r\n", "\n");
+        assert_eq!(repo, shipped_home_design("homestead").unwrap().replace("\r\n", "\n"), "data/{shipped_rel} is not what the exe embeds");
     }
 
     /// Saving splits the ship again: the home design always, the ship file only with the Dev

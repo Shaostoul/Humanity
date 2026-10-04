@@ -104,7 +104,9 @@ pub(crate) fn load_world(state: &mut EngineState) {
     // interior walls). Since increment 1a (docs/design/ship-homes-and-logistics.md) that is
     // ASSEMBLED: the ship file (blueprints/ship_structure.ron), plus this player's home design
     // (homes/<kind>.ron) as zone "home" at their plot's origin, plus the plot's door corridor.
-    // Offline play uses the ship's default plot (p1). Fall back to the legacy AABB-room layout
+    // The plot is the one this identity remembers for the configured server, in offline play
+    // too (so stepping into the shared world later only confirms it), else the ship's default
+    // plot (p1); see `assemble_for_boot` below. Fall back to the legacy AABB-room layout
     // when the ship cannot be assembled. All paths produce HomesteadMeshes, so the render path
     // is identical.
     // The home zone's authored spawn point in ship metres, if it declares one.

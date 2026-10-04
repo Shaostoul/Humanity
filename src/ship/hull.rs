@@ -177,7 +177,7 @@ impl HullProfile {
         }
     }
 
-    fn parse(text: &str) -> Result<HullProfile, String> {
+    pub(crate) fn parse(text: &str) -> Result<HullProfile, String> {
         let p: HullProfile = ron::from_str(text).map_err(|e| e.to_string())?;
         p.validate()?;
         Ok(p)
@@ -333,7 +333,8 @@ pub(crate) fn hull_geom(ship: &ShipStructure, profile: &HullProfile) -> Option<H
     // whoever holds it, so it is the same hull in every player's game, and no neighbour's home
     // stands out through the plating. World (x0, z0, x1, z1, floor, top, glass lid) for each.
     let mut extra: Vec<(f32, f32, f32, f32, f32, f32, bool)> = Vec::new();
-    for n in crate::ship::neighbours::neighbour_view(ship).neighbours {
+    let view = crate::ship::neighbours::neighbour_view(ship);
+    for n in &view.neighbours {
         let (lo, hi) = n.plot.aabb();
         extra.push((lo.x, lo.z, hi.x, hi.z, lo.y, lo.y + n.design.body.height, false));
         if let Some(g) = &n.tube {

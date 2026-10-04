@@ -7023,6 +7023,7 @@ mod native_app {
                             chosen,
                             state.construction_return_pos,
                             state.game_joined,
+                            state.gui_state.ship_structure.as_ref().is_some_and(|s| s.home_is_away()),
                         );
                         state.camera.position = close.at;
                         if close.held_back {
