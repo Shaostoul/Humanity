@@ -546,6 +546,16 @@
           ]
         },
         {
+          "title": "Moving Water Without Power",
+          "file": "moving_water_without_power.md",
+          "tags": [
+            "guide",
+            "real",
+            "water",
+            "safety"
+          ]
+        },
+        {
           "title": "Making Water Safe to Drink",
           "file": "making_water_safe_to_drink.md",
           "tags": [
@@ -865,6 +875,29 @@
             "real",
             "making",
             "materials"
+          ]
+        },
+        {
+          "title": "Stone, Clay and Earth",
+          "file": "stone_clay_and_earth.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "materials",
+            "shelter",
+            "safety"
+          ]
+        },
+        {
+          "title": "Fibre, Cord and Textiles",
+          "file": "fibre_cord_and_textiles.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "materials",
+            "safety"
           ]
         },
         {
