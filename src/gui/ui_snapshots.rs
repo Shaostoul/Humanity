@@ -1102,6 +1102,26 @@ fn snapshot_cloud_dev_collapsed() {
     });
 }
 
+/// Inventory > The fleet (2026-10-04, pages/fleet_ledger.rs): a player in the shared world
+/// standing at the mess hall's stores, 4 CR in the red after one meal and two loaves given,
+/// with the give form showing the backpack's bread.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_fleet_ledger() {
+    use crate::gui::pages::fleet_ledger as fleet;
+    render_page_png("fleet_ledger", 1000, 900, |ctx, theme, state| {
+        state.copresence_active = true;
+        state.fleet.ledger = Some(fleet::tests::demo_ledger());
+        state.fleet.stores = vec![fleet::FleetStore { entity_id: 12, name: "The mess hall's stores".into(), position: [67.0, 1.0, 22.0] }];
+        state.fleet.my_position = Some([68.0, 1.7, 22.0]);
+        state.fleet.prices.insert("bread_0".into(), 3.0);
+        state.inventory_items = vec![Some(GuiItemSlot { item_id: "bread_0".into(), name: "Bread".into(), quantity: 3, wear: 0, quality: 0 })];
+        egui::CentralPanel::default()
+            .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
+            .show(ctx, |ui| fleet::draw_section(ui, theme, state));
+    });
+}
+
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_watch() {

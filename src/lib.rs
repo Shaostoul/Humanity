@@ -6845,6 +6845,7 @@ mod native_app {
                                 // (clock_dt), plus one standing-still update the frame we
                                 // leave it (engine::net_route, net::sync, 2026-10-03).
                                 drive_position_send(state, in_world, dt, clock_dt);
+                                crate::engine::fleet::tick(state, clock_dt); // the fleet ledger (2026-10-04)
                                 state.net_sync.set_clock_step(clock_dt);
                                 // `tick` is the System trait method; call it fully-qualified.
                                 crate::ecs::systems::System::tick(

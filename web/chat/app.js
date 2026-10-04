@@ -1187,6 +1187,11 @@ async function handleMessage(msg) {
               if (typeof game.time_scale === 'number') window.worldClockSpeed = game.time_scale;
               if (typeof renderGameAdminClock === 'function') renderGameAdminClock();
               break;
+            case 'game_fleet_totals':
+              // The fleet's totals for an admin (2026-10-04): every player's ledger summed, no names.
+              window.fleetTotals = game;
+              if (typeof renderGameAdminFleet === 'function') renderGameAdminFleet();
+              break;
             case 'game_admin_error':
             // A done-and-said from a game-admin action (releasing a plot): the same status line.
             case 'game_admin_notice':
@@ -1269,6 +1274,11 @@ async function handleMessage(msg) {
       if (msg.settings && typeof msg.settings.world_time_scale === 'number') {
         window.worldClockSpeed = msg.settings.world_time_scale;
         if (typeof renderGameAdminClock === 'function') renderGameAdminClock();
+      }
+      // And the fleet's supply mode (2026-10-04), for the window's Fleet supply section.
+      if (msg.settings && typeof msg.settings.fleet_supply_mode === 'string') {
+        window.fleetSupplyMode = msg.settings.fleet_supply_mode;
+        if (typeof renderGameAdminFleet === 'function') renderGameAdminFleet();
       }
       break;
     case 'account_erased': {

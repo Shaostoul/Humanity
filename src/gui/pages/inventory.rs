@@ -1572,6 +1572,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
             widgets::rgb_section_divider(ui, theme);
 
+            // ── The fleet (2026-10-04): what you used from the ship's fleet and gave it, in the
+            //    red or the black, and taking a meal or giving at a fleet store (fleet_ledger.rs).
+            if widgets::section_disclosure(ui, theme, ("inv_sec", "fleet"), "The fleet", tree_force) {
+                super::fleet_ledger::draw_section(ui, theme, state);
+            }
+
+            widgets::rgb_section_divider(ui, theme);
+
                 // ── Equipment (collapsible) — closes before the You & places divider ──
                 if widgets::section_disclosure(ui, theme, ("inv_sec", "equipment"), "Equipment", tree_force) {
                 ui.add_space(theme.spacing_xs);
