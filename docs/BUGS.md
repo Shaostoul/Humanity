@@ -2821,4 +2821,6 @@ manifests. 24 gate tests, red on the old gate (the BUG-133 case itself:
 Side effect: build.rs now declares rerun-if-changed, so a docs or web edit no
 longer recompiles the whole crate. Still open: probe-sweep has no gate; the
 rigs copy the exe after checking it; about 30 data files are compiled in but
-not fingerprinted (embedded fallbacks).
+not fingerprinted (embedded fallbacks). v0.1446.1: `just check-delivery` (and the DELIVERY row of
+`just brief`) answers "does the taskbar exe hold this tree's code" from the
+same fingerprint, still ignoring the live PBR shaders and the version files.
