@@ -646,6 +646,11 @@
       "date": "2026-10-04",
       "decision": "Released v0.1451.0: ship homes increment 2 (meet in the Commons; neighbours as shells with others-only doors; remembered plot per identity and server; guests put away and never on a plot). Day 5 is unblocked in code. The five lanes from the operator's answers (72x clock, BUG-136 carry, donations, pipe standards findings, sunrise hero shot with a corrected star sky) are merging main into their branches before they merge into main as v0.1452.0. Next arc item: increment 3 (the relay's world becomes this ship).",
       "why": "Two review rounds and all rigs green on main, including the guest leg and the connect-first entry."
+    },
+    {
+      "date": "2026-10-04",
+      "decision": "Released v0.1452.0: the five lanes from the operator's 2026-10-04 answers (72x shared clock with an in-app admin control; BUG-136 carry limit by gravity, Realistic slowdown and no jump; BUG-138/139 the real night sky and a dawn fade, plus the Silverdale sunrise hero clip; the two donation routes; pipe marking findings). Also BUG-142: the rigs' exe copy now waits out the lock a stopped game leaves (scripts/lib/rig-exe-copy.js, shared by probe-sweep, verify-copresence, verify-screens, verify-live-screen). Increment 3 (the relay's world becomes this ship) is building in its own workflow.",
+      "why": "Full check chain green on the merged main. --plots lost its game-first order to EBUSY on the first run; the same failure had been seen once earlier the same day and dismissed as timing, so it was fixed at the root (a fixed 2 s retry in four rigs) instead of rerun."
     }
   ],
   "active_scopes_to_avoid": [

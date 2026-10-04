@@ -80,6 +80,7 @@ const G = require("./rig-graphics.js");
 // but cannot change its verdict.
 const MG = require("./lib/machine-guard.js");
 const DXC = require("./lib/dxc-dlls.js");
+const { copyExeIntoRig } = require("./lib/rig-exe-copy.js");
 // The freshness gate, run through its one runner so --allow-other-build reaches
 // it and comes back as the manifest's other_build record (BUG-133).
 const { runFreshGate, otherBuildNotice, requireBootCopy, bootRecord } = require("./lib/src-fingerprint.js");
@@ -470,14 +471,9 @@ function setupRig() {
   ensureJunction(path.join(RIG, "data"), path.join(REPO, "data"));
   ensureJunction(path.join(RIG, "assets"), path.join(REPO, "assets"));
   if (!fs.existsSync(EXE)) refuse([`ERROR: exe not found: ${EXE}`, "  build one first: cargo build --features native --release"]);
-  killRigProcesses();
-  try {
-    fs.copyFileSync(EXE, path.join(RIG, "HumanityOS.exe"));
-  } catch (e) {
-    if (e.code !== "EBUSY") throw e;
-    execSync("ping -n 3 127.0.0.1 >nul", { shell: "cmd.exe" });
-    fs.copyFileSync(EXE, path.join(RIG, "HumanityOS.exe"));
-  }
+  // Stop anything left running from the rig copy, then wait out the lock it
+  // leaves on the file (scripts/lib/rig-exe-copy.js).
+  copyExeIntoRig(EXE, path.join(RIG, "HumanityOS.exe"), { stop: killRigProcesses, log });
   // What boots is the copy, so the copy must be what the gate judged (BUG-133).
   requireBootCopy(path.join(RIG, "HumanityOS.exe"), fresh, "verify-screens");
   // The DXC shader compiler dlls, from beside the exe or else the repo root

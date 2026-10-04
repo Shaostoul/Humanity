@@ -96,6 +96,7 @@ const G = require("./rig-graphics.js");
 const MG = require("./lib/machine-guard.js");
 // The one shared lookup for the DXC shader compiler dlls (see setupRig).
 const DXC = require("./lib/dxc-dlls.js");
+const { copyExeIntoRig } = require("./lib/rig-exe-copy.js");
 // Did a {"station":"home",...} park land where it asked, in the home's own
 // coordinates (BUG-132)? Before this check a station vantage was "ok"
 // whatever it captured, including empty space.
@@ -312,15 +313,9 @@ function setupRig() {
     // A stale rig instance from a crashed prior sweep holds the exe locked
     // (EBUSY at this exact copy). Anything running FROM the rig copy is a
     // leftover of ours, never the operator's game: clear it, then copy.
-    killRigProcesses();
-    try {
-      fs.copyFileSync(EXE_SRC, path.join(RIG, "HumanityOS.exe"));
-    } catch (e) {
-      if (e.code !== "EBUSY") throw e;
-      // The file lock can outlive the kill by a moment; one retry.
-      execSync("ping -n 3 127.0.0.1 >nul", { shell: "cmd.exe" });
-      fs.copyFileSync(EXE_SRC, path.join(RIG, "HumanityOS.exe"));
-    }
+    // The file lock can outlive the kill by several seconds; the shared copy
+    // (scripts/lib/rig-exe-copy.js) waits it out for up to a minute.
+    copyExeIntoRig(EXE_SRC, path.join(RIG, "HumanityOS.exe"), { stop: killRigProcesses, log });
     // The DXC shader compiler dlls drop boot from ~25 s (FXC) to ~5 s. They
     // come from beside the exe or else the repo root (target/release, the
     // default exe's folder, holds none), through the one shared lookup,

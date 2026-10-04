@@ -3063,7 +3063,7 @@ those builds yet, and the project adds no compatibility code before launch (the
 no-backwards-compatibility rule in CLAUDE.md), so this is written down instead of
 handled: if it is ever seen, the fix is to update the app.
 
-## BUG-136: the carry limit is shown as a fixed 50 kg, and being overloaded does nothing (FIXED 2026-10-04, found 2026-10-04)
+## BUG-136: the carry limit is shown as a fixed 50 kg, and being overloaded does nothing (FIXED v0.1452.0, found 2026-10-04)
 
 **Found by** the Library writer checking the "Force, Levers and Mechanical
 Advantage" guide's game tie-in against the code. The inventory system computes
@@ -3116,7 +3116,7 @@ low-g to zero-g but, mass still applies."
   mode is each player's own choice, also in the shared world; a server-side
   rule is tracked in `docs/design/in-app-ops.md`.
 
-## BUG-137: the desktop Server Settings page can show defaults, and Save writes them over the real settings (FIXED, found 2026-10-04)
+## BUG-137: the desktop Server Settings page can show defaults, and Save writes them over the real settings (FIXED v0.1450.0, found 2026-10-04)
 
 **Found by** the review of the erase-marker fix round, read from the code. The
 desktop app asks for the server's settings in the same moment it identifies
@@ -3154,7 +3154,7 @@ were editing, because Save sends the whole copy (`changed_under_edits`). The
 relay sends its answer to `server_settings_request` only to the one who asked
 (the connections of that key); an admin's saved change still goes to everyone.
 
-## BUG-138: the night sky over Silverdale was black, with a dozen stars and no Milky Way (FIXED, not yet released; found 2026-10-04)
+## BUG-138: the night sky over Silverdale was black, with a dozen stars and no Milky Way (FIXED v0.1452.0, found 2026-10-04)
 
 **Symptom (found filming the landing page's night-to-sunrise shot):** at 04:00
 local over Silverdale, Washington, the sky showed about fifteen points and no
@@ -3174,7 +3174,7 @@ fades). Tests: `daylight_gate_tests` (seen red with the unturned anchor) and the
 call-site check in `tests/engine_wiring_lint.rs` that both readers pass the live
 spin. Vantage `silverdale-night-sky` asks for a full star field at night.
 
-## BUG-139: every night sky was the wrong one: the star catalogue was drawn in its raw axes (FIXED, not yet released; found 2026-10-04)
+## BUG-139: every night sky was the wrong one: the star catalogue was drawn in its raw axes (FIXED v0.1452.0, found 2026-10-04)
 
 **Symptom (found by the review of the Silverdale clip):** the star points, the
 Milky Way glow, the halos and the constellation figures were drawn in the
@@ -3258,3 +3258,26 @@ missing, and eye adaptation in the HDR present pass is the other half.
 drawn sky (`sky_frame::DRAWN_SKY`) so the stars carry the frame through the
 black stretch. When this is fixed, switch them to `sky_frame::NAKED_EYE`, the
 real limits (the Milky Way gone 12 degrees down).
+
+## BUG-142: a rig loses a run to EBUSY when its last game is slow to let go of the exe (FIXED v0.1452.0, found 2026-10-04)
+
+**Seen:** `verify-copresence --plots` passed its first join order (60/60) and
+then died before the second: `EBUSY: resource busy or locked, copyfile
+target\release\HumanityOS.exe -> .probe-rig\copresence\HumanityOS.exe`. The
+first order had stopped its game, but Windows keeps the image file locked for
+a while after the process is gone, and longer when the game is still letting
+go of its GPU resources. The same run had failed this way once before (the
+`--entry menu` game-first order, the same day).
+
+**Why:** every rig copied the exe, and on EBUSY waited two seconds
+(`ping -n 3`) and tried exactly once more. Four rigs carried the same copy:
+probe-sweep, verify-copresence, verify-screens and verify-live-screen.
+
+**Fix:** one shared copy, `scripts/lib/rig-exe-copy.js` `copyExeIntoRig`, used
+by all four. It stops anything running from the rig copy, then retries every
+500 ms for up to a minute on EBUSY, EPERM or EACCES, stops the rig game again
+every ten failed tries (a game that was still starting the first time), says
+when it had to wait and how long, and on giving up names the folder that
+stayed locked. Any other error is thrown at once. Tests:
+`scripts/tests/rig-exe-copy.test.js` (in `just rig-tests`), including a lock
+that lasts 4 s, which the old single retry after 2 s could not survive.

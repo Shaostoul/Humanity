@@ -11,6 +11,20 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1452.0: a day passes in 20 minutes on a shared server, carrying
+  weight matters, and the real night sky.** A shared world's clock now runs
+  at 72 times real speed by default, so a day passes in 20 minutes; the
+  server's admin can change it from inside the app (Server Settings > Shared
+  world clock), and the page says what a choice means, like how long a
+  lettuce takes to grow. How much you can carry now follows gravity (about
+  132 kg on Mars, none weightless), and in Realistic mode being over the
+  limit slows your walk and stops you jumping. The stars are now where they
+  really are for your place and date (Polaris due north, no southern stars
+  from Washington), and they fade at dawn. The Donate page shows the two
+  ways to give: the Sponsor-a-Can nonprofit (tax-deductible) or Patreon
+  (direct to the maintainer, not tax-deductible). The homepage has a new
+  night-to-sunrise clip over Mount Rainier from Silverdale.
+
 - **v0.1451.0: walk out of your home and meet other players in the Commons.**
   In a shared world you can now walk from your own front door, down your
   corridor, into the ship's Commons, and see the other players there. Your

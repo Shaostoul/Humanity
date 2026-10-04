@@ -108,7 +108,7 @@ every load-bearing claim checked by an adversarial verifier
   and mess hall). Left for later (design doc section 7): a Dev move of the plot
   does not carry animals and decoration plants; idle plots are never given
   back automatically (open question 19); a vehicle-driving rig leg needs an
-  IPC verb. A rig follow-up (make after increment 2 merges, it edits the same file): verify-copresence.js gives the previous order's game a fixed 2 s to exit before copying the exe again, and a killed game that is slow to release its GPU resources made the next order fail in setupRig and left the game running (2026-10-04, --plots --entry menu game-first; reruns passed): wait for the rig's own game to exit instead. Follow-ups 1a found: put
+  IPC verb. The rig follow-up about the previous order's game still holding the exe is done (BUG-142, v0.1452.0: all four rigs share a copy that waits out the lock). Follow-ups 1a found: put
   the Commons machines on the ship's own power instead of the household
   battery; `just verify-screens` fails 2 of 12 because the starter kit's
   17-item backpack pushes the inventory's "Home" row off the screen (the rig

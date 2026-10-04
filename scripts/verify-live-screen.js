@@ -48,6 +48,7 @@ const png = require("./lib/png.js");
 const G = require("./rig-graphics.js");
 const MG = require("./lib/machine-guard.js");
 const DXC = require("./lib/dxc-dlls.js");
+const { copyExeIntoRig } = require("./lib/rig-exe-copy.js");
 // For its loopback-only check and address only; this rig runs its relay
 // from its own fixed rig folder, not as a throwaway copy.
 const TR = require("./lib/throwaway-relay.js");
@@ -332,14 +333,9 @@ function setupRig() {
   if (!fs.existsSync(EXE)) {
     refuse([`ERROR: exe not found: ${EXE}`, "  build one first: cargo build --features native --release"]);
   }
-  killRigProcesses();
-  try {
-    fs.copyFileSync(EXE, path.join(RIG, "HumanityOS.exe"));
-  } catch (e) {
-    if (e.code !== "EBUSY") throw e;
-    execSync("ping -n 3 127.0.0.1 >nul", { shell: "cmd.exe" });
-    fs.copyFileSync(EXE, path.join(RIG, "HumanityOS.exe"));
-  }
+  // Stop anything left running from the rig copy, then wait out the lock it
+  // leaves on the file (scripts/lib/rig-exe-copy.js).
+  copyExeIntoRig(EXE, path.join(RIG, "HumanityOS.exe"), { stop: killRigProcesses, log });
   // What boots is the copy, so the copy must be what the gate judged (BUG-133).
   requireBootCopy(path.join(RIG, "HumanityOS.exe"), fresh, "verify-live-screen");
   // The DXC shader compiler dlls, from beside the exe or else the repo root
