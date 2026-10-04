@@ -45,9 +45,12 @@ lesson about focused sunlight goes wrong.
   near the sun (general practice, from NASA's warning). To watch the
   sun, project it with a pinhole, below, or use eclipse glasses or a
   handheld solar viewer, which NASA says "ought to comply with the ISO
-  12312-2 international standard". Even with those on, never look at the
-  sun through binoculars, a telescope or a camera: NASA warns the
-  concentrated rays "will burn through the filter".
+  12312-2 international standard". NASA adds two rules for them:
+  "Always inspect your eclipse glasses or handheld viewer before use; if
+  torn, scratched, or otherwise damaged, discard the device", and
+  "Always supervise children using solar viewers." Even with those on,
+  never look at the sun through binoculars, a telescope or a camera:
+  NASA warns the concentrated rays "will burn through the filter".
 - **Lenses and glass in sunlight start fires.** The Army's survival
   manual teaches lighting tinder with a lens from binoculars, a camera,
   a telescopic sight or a magnifying glass, by angling it "to
@@ -62,13 +65,14 @@ lesson about focused sunlight goes wrong.
   anything that burns (general practice, from the same physics).
 - **Lasers.** The FDA says a laser beam shone into a person's eye "can
   instantly cause damage", that laser eye injuries "often do not cause
-  immediate pain", and that a beam bouncing off mirrors, shiny switch
-  plates or polished metal "will reflect off and still be hazardous to
-  anyone in the room." Its tips: never aim a laser at any person or
-  animal; never at a vehicle or an aircraft ("Pointing a laser at an
-  aircraft is a federal crime"); do not buy laser pointers for children
-  or let them use them as toys; do not buy or use a laser of more than 5
-  milliwatts, or one without its power printed on the label.
+  immediate pain", that "Vision can deteriorate slowly and, therefore,
+  may go unnoticed for days", and that a beam bouncing off mirrors,
+  shiny switch plates or polished metal "will reflect off and still be
+  hazardous to anyone in the room." Its tips: never aim a laser at any
+  person or animal; never at a vehicle or an aircraft ("Pointing a laser
+  at an aircraft is a federal crime"); do not buy laser pointers for
+  children or let them use them as toys; do not buy or use a laser of
+  more than 5 milliwatts, or one without its power printed on the label.
 - **Water is deeper than it looks.** Because light bends as it leaves
   the water, the Navy manual explains, a fish is not where it appears to
   be, but deeper. So is the bottom. Find out the depth by wading in
@@ -79,8 +83,10 @@ lesson about focused sunlight goes wrong.
   seconds, because it may blind the pilot.
 - **Any eye injury needs a professional.** The FDA's advice, for laser
   injuries, is to "Immediately consult a health care professional" if
-  you suspect one. The same goes for anything that has gone wrong with
-  an eye after looking at the sun (general practice).
+  you suspect one. Because a laser injury may not hurt and the sight may
+  fade only over days, go even when nothing hurts (our reading of the
+  FDA's two warnings). The same goes for anything that has gone wrong
+  with an eye after looking at the sun (general practice).
 
 ## Light travels in straight lines
 
@@ -190,10 +196,13 @@ room lit and the outside dark, it is all you see (our explanation).
 
 The Navy manual describes two kinds:
 
-- **A convex mirror** bulges outwards and spreads light. It shows a wide
-  view, which is why trucks and cars use them as rear-view mirrors, but
-  it makes everything look smaller and so farther away. Federal motor
-  vehicle safety standard 111 requires a convex mirror used as a car's
+- **A convex mirror** bulges outwards and spreads light. The manual
+  says it gives a wide view, which is why trucks and cars use them as
+  rear-view mirrors. The price, the manual's diagram of a convex mirror
+  shows, is that every image in it is smaller than the object, and can
+  never be as large. Smaller looks farther away, which is the trap
+  (general physics, not the manual's words). Federal motor vehicle
+  safety standard 111 requires a convex mirror used as a car's
   passenger-side mirror to carry the words "Objects in Mirror Are Closer
   Than They Appear." Judge a gap with the flat mirror or by turning your
   head, not by the convex one (general practice).
@@ -263,8 +272,12 @@ colours.
 raindrop, reflecting off the inside of the drop and bending again on the
 way out, concentrated along an angle of 42 degrees. To see one: "You
 need to be standing with the sun to your back and the rain in front of
-you", and the sun must be less than 42 degrees above the horizon, which
-is why rainbows are morning and evening sights. A fainter secondary bow,
+you", and the sun must be less than 42 degrees above the horizon. In
+summer the midday sun stands higher than that at most latitudes, which
+is why summer rainbows are morning and evening sights. In winter it may
+not: at Silverdale, 47.6 degrees north, the noon sun stays below 42
+degrees from about the September equinox to the March equinox, so a
+winter rainbow can come at midday (arithmetic). A fainter secondary bow,
 from two reflections inside the drops, sits at about 50 degrees with
 its colours reversed.
 
@@ -351,8 +364,7 @@ lenses. Eye doctors check for it as part of a comprehensive eye exam.
 
 - **Eye exams and prescriptions** are an eye doctor's work. Shop reading
   glasses help many people with close work, but they are not a
-  substitute for an exam (the National Eye Institute's advice on
-  presbyopia, and general practice).
+  substitute for an exam (general practice).
 - **Any eye injury, or any change in your sight after looking at the sun
   or a laser,** needs a health care professional straight away (FDA,
   and general practice).
@@ -373,12 +385,13 @@ and machines leave most of optics out.
   as strongly as red, and the code's notes compare those strengths with
   real air's. You can switch this off in Settings > Graphics ("Scattering
   atmosphere"); it is on by default.
-- **Water reflects more at a low angle.** The water shader uses water's
-  index of refraction, 1.33, the Navy manual's figure, to reflect about
-  2 percent of the sky when you look straight down and more and more
-  towards a low, grazing angle, the way the Navy manual says glass
-  reflects more of the light that strikes it at a glancing angle. Its
-  reflection is drawn from the game's own sky.
+- **Water reflects more at a low angle.** The water shader reflects 2
+  percent of the sky when you look straight down, a figure its code
+  comment derives from water's index of refraction, 1.33, the Navy
+  manual's figure; the shader stores the 2 percent, not the index. It
+  reflects more and more towards a low, grazing angle, the way the Navy
+  manual says glass reflects more of the light that strikes it at a
+  glancing angle. Its reflection is drawn from the game's own sky.
 - **Grow lights cover a fixed area.** A powered grow light lights an
   area of crop set by its watts: a 100 watt light covers about 0.58
   square metres of a crop that needs the game's reference amount of
@@ -414,7 +427,9 @@ habit outside.
 
 - You never look at the sun, least of all through binoculars, a
   telescope or a camera, and you can make a pinhole projector to watch
-  an eclipse.
+  an eclipse. You inspect eclipse glasses before use, throw away any
+  that are torn, scratched or damaged, and supervise children using
+  them.
 - You keep magnifiers, glass globes and concave mirrors out of the sun.
 - You never point a laser at a person, an animal, a vehicle or an
   aircraft, and you know the FDA's 5 milliwatt line.
@@ -462,8 +477,10 @@ pages were read on 3 October 2026.
   critical angle of water, 48 degrees 36 minutes, and total internal
   reflection; porro prisms in binoculars needing no silver coating
   because light meets them beyond the critical angle; convex rear-view
-  mirrors and the concave mirror that
-  behaves like a positive lens, used in flashlights and headlamps; the
+  mirrors giving drivers a wide view, and the images in a convex mirror
+  always reduced in size, never as large as the object; the concave
+  mirror that behaves like a positive lens, used in flashlights and
+  headlamps; the
   principal focus; real and virtual images; the magnifier and magnifying
   power as 10 inches over the focal length; the dioptre as one over the
   focal length in metres, with its +5 and -2 examples). Read as the
@@ -491,15 +508,19 @@ pages were read on 3 October 2026.
   without a solar filter it "will instantly cause severe eye injury";
   regular sunglasses "no matter how dark, are not safe for viewing the
   Sun"; safe solar viewers that "ought to comply with the ISO 12312-2
-  international standard"; through optics, even while wearing them, the
-  rays "will burn through the filter"; the pinhole projector and the
+  international standard"; "Always inspect your eclipse glasses or
+  handheld viewer before use; if torn, scratched, or otherwise damaged,
+  discard the device"; "Always supervise children using solar viewers.";
+  through optics, even while wearing them, the rays "will burn through
+  the filter"; the pinhole projector and the
   cardboard box projector, "Do NOT look at the Sun through the
   pinhole!").
   https://science.nasa.gov/eclipses/safety/
 - US Food and Drug Administration. Laser Toys: How to Keep Kids Safe,
   Consumer Update, content current as of 11 December 2023 (a beam in the
   eye "can instantly cause damage"; injuries that "often do not cause
-  immediate pain"; reflections off shiny surfaces still hazardous; never
+  immediate pain"; "Vision can deteriorate slowly and, therefore, may go
+  unnoticed for days"; reflections off shiny surfaces still hazardous; never
   aim at a person or animal, a vehicle or an aircraft, "Pointing a laser
   at an aircraft is a federal crime"; no laser pointers for children; no
   laser over 5 mW or without its power on the label; "Immediately consult
@@ -528,8 +549,8 @@ pages were read on 3 October 2026.
   (refraction, reflection inside the drop and refraction again; the 42
   degree rainbow ray; colours separated by wavelength; "You need to be
   standing with the sun to your back and the rain in front of you"; the
-  sun below 42 degrees; the secondary bow at about 50 degrees with
-  colours reversed).
+  sun below 42 degrees, and no rainbow when it is higher; the secondary
+  bow at about 50 degrees with colours reversed).
   https://www.weather.gov/fgz/Rainbow
 - National Institute of Standards and Technology. CODATA value: speed of
   light in vacuum, 299,792,458 metres per second, exact (2022 CODATA
@@ -550,8 +571,9 @@ pages were read on 3 October 2026.
   `data/planets/earth.ron`, and the "Scattering atmosphere" toggle
   (`planet_atmo_scatter`, on by default in `src/gui/mod.rs`, shown in
   the Graphics settings in `src/gui/pages/settings.rs`).
-- The water: `WATER_F0` (water's reflectance straight on, from an index
-  of 1.33) and `water_shade` in `assets/shaders/pbr/20-surface-detail.wgsl`.
+- The water: `WATER_F0 = 0.02` (water's reflectance straight on; its
+  comment gives the source as an index of 1.33) and `water_shade` in
+  `assets/shaders/pbr/20-surface-detail.wgsl`.
 - The grow lights: `data/garden/lighting.ron` (the 100 watt example and
   the 3 metre reach, marked as a game estimate) and
   `src/systems/farming/lighting.rs`.
@@ -578,14 +600,22 @@ pages were read on 3 October 2026.
 - Never pointing binoculars, a telescope or a camera viewfinder anywhere
   near the sun, as a reading of NASA's warning.
 - Checking water depth by wading or with a pole before jumping or
-  diving; seeing a professional after any change in sight from the sun.
+  diving; seeing a professional after any change in sight from the sun;
+  seeing one after a laser exposure even when nothing hurts, as a
+  reading of the FDA's warnings that injuries may not hurt and sight
+  may fade over days; that shop reading glasses are not a substitute
+  for an eye exam.
 - Why a pinhole image is upside down.
 - The reading lamp and grow light arithmetic; that the inverse-square
   rule is only approximate close to a large source.
 - The white wall and the mirror; seeing someone's eyes in a mirror;
   aiming an inspection mirror halfway between eye and target; why a
   window becomes a mirror at night.
-- Judging a gap with the flat mirror rather than the convex one.
+- That a smaller image in a convex mirror looks farther away; judging a
+  gap with the flat mirror rather than the convex one.
+- That summer rainbows are morning and evening sights, and the months
+  the noon sun at Silverdale stays below 42 degrees: arithmetic from
+  the weather service's 42 degree rule.
 - Aiming a plain signal mirror with your outstretched hand.
 - That water looks about three quarters of its depth from straight
   above: a standard physics result for nearly vertical viewing, worked

@@ -56,16 +56,18 @@ technique.
   the essentials, and warns that a GPS device sometimes does not get a
   signal or its battery fails, and that "Cell phones also likely will
   not work because of a lack of signal."
-- **Tell someone where you are going.** The Forest Service asks you to
-  give someone the exact details: where you are going, the trail, when
-  you will be back, your vehicle and where you will park, and how many
-  are going.
+- **Tell someone where you are going, and do not go alone.** The Forest
+  Service asks you to give someone the exact details: where you are
+  going, the trail, when you will be back, your vehicle and where you
+  will park, and how many are going, and it ends that list with "do not
+  go alone."
 - **If you think you are lost, stop.** The Forest Service's advice is
   "stop, stay calm, stay put." Think back over how you got there, get
   out the compass and work out the directions where you stand, and "Do
-  not walk aimlessly." It says that if you are not very, very confident
-  of the route, it is always better to stay put, and to stay in place if
-  night is falling, you are hurt or you are near exhaustion. Following a
+  not walk aimlessly." Its next words are "If you are on a trail, stay
+  on it." It says that if you are not very, very confident of the
+  route, it is always better to stay put, and to stay in place if night
+  is falling, you are hurt or you are near exhaustion. Following a
   stream downhill is its very last resort, and it warns that this
   "could be very dangerous."
 
@@ -252,11 +254,27 @@ the manual's warning to check that sum twice.
 ### A compass you can make
 
 The survival manual describes magnetising a sewing needle or a thin
-steel object by stroking it slowly in one direction on a piece of silk,
-or carefully through your hair, or by stroking one end repeatedly with
-a magnet, "Always rub in one direction only." Hung from a nonmetallic
-thread, or floated on a small piece of wood in water, it lines up north
-and south.
+steel object by stroking one end repeatedly with a magnet: "Always rub
+in one direction only." Hung from a nonmetallic thread, or floated on a
+small piece of wood in water, it lines up north and south.
+
+The same manual also says you can magnetise the needle by stroking it
+on a piece of silk or through your hair. Treat that as the manual's
+claim, and expect it to fail often: rubbing on silk or hair builds up a
+static charge, which is not the same thing as magnetism, and a needle
+treated that way may not be magnetised at all (our note, from basic
+physics).
+
+Whichever way you made it, test it before you trust it (our method):
+
+1. Let it settle, then nudge it round with a fingertip or a twig, and
+   let it settle again. Do this several times. A magnetised needle comes
+   back to the same line every time; one that stops wherever it was
+   pushed is not magnetised.
+2. Compare that line with a shadow-tip line (below). The two should
+   cross at close to a right angle, because the shadow-tip line runs
+   east-west. Where your declination is large, expect them to be out by
+   that much.
 
 It tells you the north-south line, not which end is north. Check that
 with the sun or a shadow before you rely on it (our note).
@@ -289,9 +307,13 @@ daylight saving shift it, sometimes by more than an hour; the sky guide
 explains why. Watch for the shortest shadow, not for noon on your
 watch.
 
-The manual adds one more useful fact: in the northern hemisphere
-shadows move clockwise through the day, and in the southern hemisphere
-counterclockwise.
+The survival manual adds that in the northern hemisphere shadows move
+clockwise through the day, and in the southern hemisphere
+counterclockwise. That holds outside the tropics. The map reading manual
+is more careful: "Depending on your location and the season, the shadow
+may move either clockwise or counterclockwise". Inside the tropics,
+where the sun can pass north of overhead, do not rely on the direction a
+shadow turns (our reading of the two).
 
 ### The shadow-tip method: quick
 
@@ -337,18 +359,25 @@ shows, because a leaning stick leans the answer (general practice).
 
 ### The watch method
 
-Both Army manuals describe it. In the northern hemisphere, hold an
-analogue watch flat and point the hour hand at the sun. Halfway between
-the hour hand and 12 o'clock is south (between the hour hand and 1
-o'clock if the watch is on daylight saving time). In the southern
-hemisphere, point 12 o'clock at the sun, and halfway between 12 and the
+Both Army manuals describe it, and the map reading manual says where it
+applies: "In the north temperate zone only", meaning north of the
+tropics. There, hold an analogue watch flat and point the hour hand at
+the sun. Halfway between the hour hand and 12 o'clock is south (between
+the hour hand and 1 o'clock if the watch is on daylight saving time).
+In the south temperate zone, south of the tropics, the method is
+different: point 12 o'clock at the sun, and halfway between 12 and the
 hour hand is north. If you are unsure which end of the line is which,
 the manuals remind you the sun is in the east before noon and in the
-west after.
+west after. Inside the tropics the manual gives no watch method, so do
+not use one there.
 
 To point the hour hand at the sun without looking at it, hold a small
-stick or a pencil upright at the edge of the watch and turn the watch
-until the stick's shadow falls along the hour hand (general practice).
+stick or a pencil upright on the rim of the watch, at the tip of the
+hour hand, and turn the watch until the stick's shadow runs back along
+the hand towards the centre (general practice). Where the stick goes
+matters: a stick at the centre, with its shadow along the hand, leaves
+the hand pointing away from the sun, and the answer comes out exactly
+backwards (our note, from the geometry).
 
 Know its limits. The survival manual says it is accurate only if you
 are using true local time, and better the farther you are from the
@@ -404,8 +433,8 @@ so you can use it again in daylight.
 A star near the horizon makes a good steering mark, but stars move. The
 map reading manual says a star near the north horizon serves for about
 half an hour, and that when travelling south you should check your
-bearing against it every 15 minutes. When a star climbs too high or
-sinks behind the western horizon, change to another.
+bearing every 15 minutes. When a star climbs too high or sinks behind
+the western horizon, change to another.
 
 ### The moon
 
@@ -434,10 +463,14 @@ What it does offer:
   beats any sign in the bark. [Reading a Map](/library#reading-a-map) shows
   how to match the land to a map.
 
-One sign from the weather service is exact: to see a rainbow, the
-National Weather Service says, "You need to be standing with the sun to
-your back and the rain in front of you." So a morning rainbow lies to
-the west of you and an evening one to the east (our reasoning from it).
+One sign from the weather service is a useful rough guide: to see a
+rainbow, the National Weather Service says, "You need to be standing
+with the sun to your back and the rain in front of you." So a rainbow
+always lies opposite the sun: roughly west of you in the morning and
+roughly east in the evening (our reasoning from it). Only roughly,
+because the sun does not rise due east. On a June morning at Silverdale
+it rises about 37 degrees north of east, so just after sunrise a
+rainbow lies about 37 degrees south of west (arithmetic).
 
 Any single natural sign can mislead. Use several, and check them
 against the sun or a compass (general practice).
@@ -523,13 +556,15 @@ compass.
   a needle along a magnetic field: a body's field strength is stored in
   the planet data, but no compass reads it, so there is no declination
   to practise.
-- **The Compass item does nothing yet.** There is a Compass in the item
-  list, described as a magnetic direction indicator, and a recipe that
-  makes one at a workbench from an iron ingot and a glass pane ("Magnetize
-  a needle in a glass housing"). Carrying one shows no bearing. Under the
-  default settings, two more things apply: the game starts in the Dev
-  play mode (Settings > Gameplay > Play mode), where materials are free,
-  so the recipe needs neither ingredient; and while "Start every session
+- **The Compass item shows no bearing yet.** There is a Compass in the
+  item list, described as a magnetic direction indicator, and a recipe
+  that makes one at a workbench from an iron ingot and a glass pane
+  ("Magnetize a needle in a glass housing"). Crafting one is the first
+  step of the "Initial Survey" quest, but carrying one shows no
+  bearing. Under the default settings, two more things apply: the game
+  starts in the Dev play mode (Settings > Gameplay > Play mode), where
+  materials are free, so the recipe needs neither ingredient; and while
+  "Start every session
   from the default home" is on, which it is by default, only your
   character carries between launches, so a compass you made is gone the
   next time you start the game.
@@ -583,7 +618,10 @@ the public domain. Web pages were read on 3 October 2026.
   bypassing an obstacle with right-angle legs; the deliberate offset, ten
   degrees adequate for most uses, each degree moving the course about 18
   metres per 1,000 metres; the shadow-tip method, called approximate,
-  and not intended for polar regions above 60 degrees; the watch method,
+  and not intended for polar regions above 60 degrees; the shadow that,
+  "Depending on your location and the season", may move "either
+  clockwise or counterclockwise"; the watch method, "In the north
+  temperate zone only", with its different south temperate zone form,
   which "can be in error, especially in the lower latitudes, and may
   cause circling", and its shadow-clock correction; the North Star less
   than 1 degree off true north, the pointers, five times their distance, not
@@ -609,9 +647,13 @@ the public domain. Web pages were read on 3 October 2026.
   only on true local time and better farther from the equator; the moon
   as a rough east-west reference; the Big Dipper pointers, Cassiopeia,
   and the Southern Cross with a landmark and stakes; improvised
-  compasses, "Always rub in one direction only"; moss "not accurate";
-  north- and south-facing slopes; prevailing wind). Read as the full
-  scanned text. Its 2002 replacement, FM 3-05.70, is not cited because
+  compasses magnetised with a magnet, "Always rub in one direction
+  only", and its claim, flagged in the text as unreliable, that silk or
+  hair will do; moss "not accurate"; north- and south-facing slopes;
+  prevailing wind). Read as the full scanned text of the Marine Corps
+  printing. That copy shows no date anywhere in its text; the date of
+  5 June 1992 comes from the publication record for FM 21-76, not from
+  the copy read. Its 2002 replacement, FM 3-05.70, is not cited because
   the copies available carry a restriction to US government agencies
   and their contractors (a determination dated 5 December 2003); the
   1992 edition carries none.
@@ -646,8 +688,9 @@ the public domain. Web pages were read on 3 October 2026.
 - USDA Forest Service. If You Get Lost, page last modified 4 December
   2023 ("A compass that you know how to use"; GPS devices that lose
   signal or battery, and "Cell phones also likely will not work because
-  of a lack of signal"; tell someone the exact details of your trip;
-  "stop, stay calm, stay put"; "Do not walk aimlessly"; stay put unless
+  of a lack of signal"; tell someone the exact details of your trip, "do
+  not go alone"; "stop, stay calm, stay put"; "Do not walk aimlessly";
+  "If you are on a trail, stay on it."; stay put unless
   very, very confident; stay in place at nightfall, when hurt or near
   exhaustion; following a drainage downhill as a very last resort that
   "could be very dangerous").
@@ -667,9 +710,11 @@ the public domain. Web pages were read on 3 October 2026.
   `magnetic_field_t` in `data/star_systems/sol.json`, read by
   `src/cosmos.rs`.
 - The Compass item and its recipe: `compass_0` in `data/items.csv` and
-  `craft_compass` in `data/recipes.csv`, which no game code uses yet; the
-  Navigation skill in `data/skills/skills.csv`, which nothing awards
-  experience to.
+  `craft_compass` in `data/recipes.csv`. Crafting it is step 1 of the
+  "Initial Survey" quest (`Craft(recipe_id: "craft_compass")` in
+  `data/quests/exploration.ron`); no game code gives the item a bearing
+  or any other use. The Navigation skill is in `data/skills/skills.csv`,
+  and nothing awards experience to it.
 - The Play mode setting and the modes that make materials free
   (`PlayMode` and `play_mode_allows` in `src/config.rs`); the "Start
   every session from the default home" setting (`src/config.rs`,
@@ -697,15 +742,21 @@ the public domain. Web pages were read on 3 October 2026.
   away; the slow-approach test for metal.
 - The steps for a baseplate compass (the principle is the Army
   manual's).
-- That an improvised needle shows the line but not which end is north.
+- That rubbing a needle on silk or hair builds static charge rather than
+  magnetism, so that method often fails; the nudge test and the check
+  against a shadow-tip line for an improvised needle; that the needle
+  shows the line but not which end is north.
 - Why the first shadow mark is west; that the shortest shadow falls on
   the north-south line; checking the stick with a plumb line; that the
-  noon-sun rule holds outside the tropics.
-- Using a stick's shadow to aim the watch's hour hand; treating the
-  watch method as "roughly south".
+  noon-sun rule, and the clockwise turn of shadows, hold outside the
+  tropics.
+- Putting the stick on the rim at the tip of the hour hand to aim the
+  watch, and the backwards answer from a stick at the centre; treating
+  the watch method as "roughly south".
 - Picking a landmark under Polaris.
-- That a morning rainbow lies to the west and an evening one to the
-  east, reasoned from the weather service's rule.
+- That a rainbow lies opposite the sun, so roughly west in the morning
+  and roughly east in the evening, reasoned from the weather service's
+  rule, and the June morning example worked from the sunrise figure.
 - Using several natural signs at once and checking them.
 - The limits: emergency services for a missing person, training for
   avalanche, glacier, water and air navigation, a surveyor for

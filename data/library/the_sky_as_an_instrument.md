@@ -326,9 +326,10 @@ about.
 ### The shadow at local noon
 
 At the moment the sun is highest, it is due south. Not roughly south:
-due south, from anywhere north of the Tropic of Cancer, which includes
-every part of the United States except Hawaii and the southern tip of
-Florida.
+due south, from anywhere north of the Tropic of Cancer, at about 23.4
+degrees north. That includes every one of the fifty states except
+Hawaii: even Key West, at the southern tip of Florida, is at about 24.5
+degrees north (general knowledge).
 
 The Naval Observatory's computed azimuth for the sun at its highest
 point at Silverdale is 180.18 degrees on the June solstice and 179.997

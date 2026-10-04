@@ -78,10 +78,13 @@ are the mistakes that matter most when someone is relying on you.
   good enough to find a buried pipe or cable. PHMSA says "Don't assume
   that you know what's below." Call 811 before every digging project,
   even small ones; the companies whose lines could be affected must mark
-  them with flags or paint, and there is no cost to you (PHMSA). They
-  mark only their own lines, not the ones you or an earlier owner laid
-  ([Square, Level and Plumb](square_level_and_plumb.md) covers finding
-  those).
+  them with flags or paint, and there is no cost to you (PHMSA). Then do
+  not dig straight away. PHMSA's steps are to call, "wait the required
+  time for facilities to be located and marked, respect the marks and dig
+  with care". State law sets the wait, and PHMSA says all states require
+  you to call 48 to 72 hours before digging. The companies mark only
+  their own lines, not the ones you or an earlier owner laid ([Square,
+  Level and Plumb](square_level_and_plumb.md) covers finding those).
 
 ## Latitude and longitude
 
@@ -141,11 +144,16 @@ NOAA's 111 kilometres a degree (arithmetic):
 | 5 | 47.64481 | about 1.1 m | about 75 cm |
 
 Read that table against GPS.gov's figure for a phone, about 5 metres
-under open sky. Four decimal places already match what a phone can do.
-A fifth or sixth decimal place copied from a phone describes the
-screen, not the ground. [Reading Numbers
+under open sky. A fifth decimal place, about a metre, is the finest step
+that still means something beside that; a sixth or seventh copied from a
+phone describes the screen, not the ground. [Reading Numbers
 Honestly](reading_numbers_honestly.md) calls this false precision; write
-the digits you can stand behind (our reading).
+the digits you can stand behind. But rounding costs accuracy too:
+rounding to four places can move a point by up to about 5.5 metres
+north-south, half a step, on top of the phone's own error. So keep five
+places in anything you write down, and round to four only when you read
+a position aloud and nobody needs it closer (our reading, and
+arithmetic).
 
 ### Three ways to write the same place
 
@@ -285,10 +293,11 @@ the family where it is.
 
 1. Stand at the spring under the most open sky you can find and let the
    phone settle. It reads 47.652131, -122.689044.
-2. Keep four decimal places, the phone's real accuracy: **47.6521 N,
-   122.6890 W**. That names a spot about 11 metres north-south by 7.5
-   metres east-west at this latitude, close to the phone's 5 metre
-   radius (arithmetic and GPS.gov).
+2. Keep five decimal places: **47.65213 N, 122.68904 W**. Rounding
+   there moves the point by half a metre at most, small beside the
+   phone's 5 metre radius. Rounding to four places, 47.6521 N, 122.6890
+   W, could move it by up to about 5.5 metres north-south, as much again
+   as the phone's own error (arithmetic and GPS.gov).
 3. Add the words: "Spring, 30 paces downhill from the old cedar, on the
    east side of the creek."
 4. Note how you got it and when: "Phone, open sky under the alders, 3
@@ -300,7 +309,8 @@ If one day you lay a pipe from that spring, record where it runs the
 same way, and also as tape measurements from two things that will not
 move, such as the corners of a building: a phone's 5 metres is too
 coarse to dig by, and 811 will not mark a line you laid yourself
-(general practice). Before any digging, call 811 first (PHMSA).
+(general practice). Before any digging, call 811 first, and wait until
+the lines are marked before you start (PHMSA).
 
 ## Know where coordinates stop
 
@@ -308,8 +318,9 @@ coarse to dig by, and 811 will not mark a line you laid yourself
   boundary. Where your land ends is a question for the deed and a
   licensed land surveyor (general practice, as in [Reading a
   Map](reading_a_map.md)).
-- **Buried lines.** Call 811 before digging; the marks on the ground are
-  what count (PHMSA).
+- **Buried lines.** Call 811 before digging, wait the time your state
+  requires for the lines to be marked, respect the marks and dig with
+  care; the marks on the ground are what count (PHMSA).
 - **Boats and aircraft.** Navigation on water and in the air uses its
   own charts, conventions and training (general practice).
 - **Emergencies.** If someone is hurt or missing, call the emergency
@@ -340,10 +351,12 @@ and in more that you cannot.
   40 kilometres of them.
 - **Time by longitude.** The game's clock is the time at longitude 0,
   like Greenwich. A place's local sun time is one hour later for every
-  15 degrees east of that, as NOAA describes, and solar panels, grow lights and
-  crops at the home follow the sun of the home's longitude. At
-  Silverdale, 122.7 degrees west, local noon falls at about 20:11 on that
-  clock (arithmetic).
+  15 degrees east of that, as NOAA describes, and the solar panels, grow
+  lights and crops at the home follow the sun at the home's longitude.
+  That longitude is the one the home station hangs over, 122.3 degrees
+  west, a little east of the Silverdale coordinate on the Home card, so
+  the home's local noon falls at about 20:09 on that clock (12 hours
+  plus 122.3 / 15 = 8.15 hours; arithmetic).
 
 What the game does not model, so you do not learn it from the game:
 there is no readout of your own position as you walk (the GPS Device in
@@ -372,7 +385,8 @@ one always is, a little.
 - You note the datum, especially from an old map.
 - You give a position with words as well as numbers, and have it read
   back.
-- You call 811 before digging, whatever your records say.
+- You call 811 before digging, whatever your records say, and you wait
+  for the marks before you start.
 
 ## Sources
 
@@ -448,8 +462,11 @@ the public domain. Web pages were read on 3 October 2026.
   https://www.fs.usda.gov/visit/know-before-you-go/if-you-get-lost
 - Pipeline and Hazardous Materials Safety Administration. Call Before
   You Dig!, undated (call 811 before every digging project, even
-  planting trees or shrubs; lines marked with flags or paint; no cost;
-  "Don't assume that you know what's below.").
+  planting trees or shrubs; all states require by law a call 48 to 72
+  hours before digging; lines marked with flags or paint; no cost;
+  "Don't assume that you know what's below."; call, "wait the required
+  time for facilities to be located and marked, respect the marks and dig
+  with care").
   https://primis.phmsa.dot.gov/stakeholder-comms/cbyd/
 
 ### Inside this project
@@ -462,9 +479,11 @@ the public domain. Web pages were read on 3 October 2026.
 - Metres per degree: `M_PER_DEG_LAT` and `M_PER_DEG_LON_EQUATOR` in
   `src/terrain/osm_region.rs`; the regions built into the 3D Earth
   within 40 kilometres (`BUILD_RANGE_M` in `src/engine/region_meshes.rs`).
-- Time by longitude: `local_hour` and `solar_hour_at` in
-  `src/systems/time.rs`, used by the solar panels
-  (`src/systems/solar.rs`), the grow lights and the crops.
+- Time by longitude: `local_hour`, `solar_hour_at` and
+  `home_longitude_deg` in `src/systems/time.rs`, used by the solar panels
+  (`src/systems/solar.rs`), the grow lights and the crops; the home's
+  longitude comes from the home station's orbit,
+  `mean_anomaly_at_epoch_deg: -122.3` in `data/stations/home.ron`.
 - The GPS Device item, `gps_device_0` in `data/items.csv`, which no game
   code uses yet.
 - [Reading a Map](reading_a_map.md), [Knowing Which Way Is
@@ -483,7 +502,9 @@ the public domain. Web pages were read on 3 October 2026.
   from the sources' figures.
 - That a latitude above 90 shows a swapped pair.
 - Keeping only the digits a source supports, as a reading of GPS.gov's
-  figure and of [Reading Numbers Honestly](reading_numbers_honestly.md).
+  figure and of [Reading Numbers Honestly](reading_numbers_honestly.md);
+  keeping five decimal places in written records because rounding to
+  four can add up to about 5.5 metres (arithmetic).
 - The difference in order between latitude and longitude and a grid
   reference, and writing the datum after every coordinate.
 - The steps for giving and following a position, and the worked example
