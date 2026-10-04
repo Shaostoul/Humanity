@@ -25,6 +25,25 @@
 // (data/blueprints/basic.ron); and machines, vehicles and gear with no item.
 // git history has their rows: restore one by adding its item first.
 //
+// No recipe may turn goods the vendor sells into goods it buys back for
+// more (BUG-145, 2026-10-04). The vendor charges 1.25x and pays 0.5x, so a
+// crafted good's base value must stay at or under about twice what its
+// inputs cost at the cheapest, counting inputs the player can craft from
+// vendor goods as well as buy (logs sawn into planks cost half what bought
+// planks do). The economy test no_recipe_resells_for_more_than_its_inputs_cost
+// names every recipe that breaks this. Repriced in that fix, old to new:
+// copper wire 6 to 5, bandage 2 to 1, painkillers 8 to 1, antibiotics 20 to
+// 5, stim pack 35 to 5, recurve bow 25 to 15, fishing rod 12 to 7, carbon
+// fiber sheet 20 to 15, sensor module 30 to 22, computer terminal 200 to 95,
+// electronics bench 120 to 50, 3D printer 300 to 220, chemistry set 100 to
+// 90, rowboat 80 to 70, sailboat 300 to 140, motorcycle 800 to 620, spacecraft
+// pod 5000 to 1550, shuttle 10000 to 2250, light mech 8000 to 2500, fighter
+// 15000 to 3350, heavy mech 20000 to 4500, freighter 25000 to 5200. The
+// vehicle recipes put 38 to 203 kg of parts into vehicles that weigh 180 kg
+// to 50 t in items.csv, which is why their prices fell so far: give a
+// vehicle a full bill of materials in data/recipes.csv and its price can
+// rise with it.
+//
 // Value rationale:
 //   1 CR ~ 1 minute of unskilled labor
 //   A day of basic farming yields ~16-80 CR (2-10/hr * 8 hrs)
@@ -113,12 +132,12 @@
     (id: "gunpowder_0",       name: "Gunpowder",         category: "processed",       base_value: 15,   weight_kg: 0.3,   description: "Explosive propellant compound"),
     (id: "cement_0",          name: "Cement",             category: "processed",       base_value: 5,    weight_kg: 5.0,   description: "Powdered calcium silicate binding agent"),
     (id: "fuel_refined_0",    name: "Refined Fuel",       category: "processed",       base_value: 10,   weight_kg: 0.8,   description: "Distilled petroleum for engines and generators"),
-    (id: "wire_0",            name: "Copper Wire",        category: "processed",       base_value: 6,    weight_kg: 0.2,   description: "Drawn copper wire for electrical connections"),
+    (id: "wire_0",            name: "Copper Wire",        category: "processed",       base_value: 5,    weight_kg: 0.2,   description: "Drawn copper wire for electrical connections"),
     (id: "nail_box_0",        name: "Nail Box",           category: "processed",       base_value: 2,    weight_kg: 0.5,   description: "Steel fasteners, box of 100"),
     (id: "bolt_box_0",        name: "Bolts",              category: "processed",       base_value: 3,    weight_kg: 0.3,   description: "Steel bolt and nut sets, box of 50"),
     (id: "pipe_metal_0",      name: "Metal Pipe",         category: "processed",       base_value: 10,   weight_kg: 3.0,   description: "Hollow steel tube for plumbing and structure"),
     (id: "steel_plate_0",     name: "Steel Plate",        category: "processed",       base_value: 18,   weight_kg: 5.0,   description: "Flat steel sheet for armor and construction"),
-    (id: "carbon_fiber_sheet_0",name: "Carbon Fiber Sheet", category: "processed",       base_value: 20,   weight_kg: 0.3,   description: "Ultra-strong lightweight composite material"),
+    (id: "carbon_fiber_sheet_0",name: "Carbon Fiber Sheet", category: "processed",       base_value: 15,   weight_kg: 0.3,   description: "Ultra-strong lightweight composite material"),
     (id: "ceramic_plate_0",   name: "Ceramic Plate",      category: "processed",       base_value: 12,   weight_kg: 1.5,   description: "Heat-resistant fired ceramic for armor and insulation"),
 
     // =========================================================================
@@ -172,7 +191,7 @@
     (id: "soldering_iron_0",  name: "Soldering Iron",     category: "tool",            base_value: 20,   weight_kg: 0.2,   description: "Heated tip for electronic joint assembly"),
     (id: "telescope_0",       name: "Telescope",          category: "tool",            base_value: 60,   weight_kg: 2.0,   description: "Optical magnification for long-range observation"),
     (id: "microscope_0",      name: "Microscope",         category: "tool",            base_value: 80,   weight_kg: 3.0,   description: "Optical magnification for tiny specimen analysis"),
-    (id: "fishing_rod_0",     name: "Fishing Rod",        category: "tool",            base_value: 12,   weight_kg: 0.8,   description: "Rod and reel for freshwater and saltwater fishing"),
+    (id: "fishing_rod_0",     name: "Fishing Rod",        category: "tool",            base_value: 7,    weight_kg: 0.8,   description: "Rod and reel for freshwater and saltwater fishing"),
     (id: "rope_0",            name: "Rope",               category: "tool",            base_value: 5,    weight_kg: 1.5,   description: "20m hemp rope for climbing and hauling"),
     (id: "torch_handheld_0",  name: "Handheld Torch",     category: "tool",            base_value: 2,    weight_kg: 0.6,   description: "Hand-held fire light source"),
     (id: "lantern_0",         name: "Lantern",            category: "tool",            base_value: 12,   weight_kg: 0.8,   description: "Oil-fueled enclosed light, wind-resistant"),
@@ -187,7 +206,7 @@
     (id: "spear_0",           name: "Spear",              category: "weapon",          base_value: 20,   weight_kg: 2.0,   description: "Long-reach thrusting polearm"),
     (id: "mace_0",            name: "Mace",               category: "weapon",          base_value: 30,   weight_kg: 2.5,   description: "Heavy blunt weapon effective against armor"),
     (id: "staff_0",           name: "Staff",              category: "weapon",          base_value: 8,    weight_kg: 1.5,   description: "Wooden pole weapon, versatile and light"),
-    (id: "bow_recurve_0",     name: "Recurve Bow",        category: "weapon",          base_value: 25,   weight_kg: 1.0,   description: "Curved bow for skilled archers"),
+    (id: "bow_recurve_0",     name: "Recurve Bow",        category: "weapon",          base_value: 15,   weight_kg: 1.0,   description: "Curved bow for skilled archers"),
     (id: "crossbow_0",        name: "Crossbow",           category: "weapon",          base_value: 45,   weight_kg: 3.0,   description: "Mechanical bolt launcher, easy to aim"),
     (id: "arrow_0",           name: "Arrow",              category: "weapon",          base_value: 1,    weight_kg: 0.05,  description: "Standard fletched arrow"),
     (id: "bolt_crossbow_0",   name: "Crossbow Bolt",      category: "weapon",          base_value: 1,    weight_kg: 0.04,  description: "Short heavy bolt for crossbows"),
@@ -211,37 +230,37 @@
 
     (id: "bicycle_0",         name: "Bicycle",            category: "vehicle",         base_value: 50,    weight_kg: 12.0,  description: "Human-powered two-wheel transport"),
     (id: "cart_hand_0",       name: "Hand Cart",          category: "vehicle",         base_value: 30,    weight_kg: 15.0,  description: "Wheeled cargo hauler, pulled by hand"),
-    (id: "motorcycle_0",      name: "Motorcycle",         category: "vehicle",         base_value: 800,   weight_kg: 180.0, description: "Two-wheel motorized transport"),
+    (id: "motorcycle_0",      name: "Motorcycle",         category: "vehicle",         base_value: 620,   weight_kg: 180.0, description: "Two-wheel motorized transport"),
     (id: "car_sedan_0",       name: "Sedan",              category: "vehicle",         base_value: 2000,  weight_kg: 1400.0,description: "Four-wheel enclosed motor vehicle"),
     (id: "truck_cargo_0",     name: "Cargo Truck",        category: "vehicle",         base_value: 3000,  weight_kg: 5000.0,description: "Heavy cargo hauling vehicle"),
-    (id: "boat_rowboat_0",    name: "Rowboat",            category: "vehicle",         base_value: 80,    weight_kg: 50.0,  description: "Small oar-powered watercraft"),
-    (id: "boat_sailboat_0",   name: "Sailboat",           category: "vehicle",         base_value: 300,   weight_kg: 200.0, description: "Wind-powered sailing vessel"),
+    (id: "boat_rowboat_0",    name: "Rowboat",            category: "vehicle",         base_value: 70,    weight_kg: 50.0,  description: "Small oar-powered watercraft"),
+    (id: "boat_sailboat_0",   name: "Sailboat",           category: "vehicle",         base_value: 140,   weight_kg: 200.0, description: "Wind-powered sailing vessel"),
     (id: "boat_motorboat_0",  name: "Motorboat",          category: "vehicle",         base_value: 1500,  weight_kg: 400.0, description: "Engine-powered speedboat"),
     (id: "helicopter_0",      name: "Helicopter",         category: "vehicle",         base_value: 8000,  weight_kg: 2000.0,description: "Rotary-wing aircraft for vertical flight"),
     (id: "airplane_small_0",  name: "Small Airplane",     category: "vehicle",         base_value: 6000,  weight_kg: 800.0, description: "Single-engine propeller aircraft"),
-    (id: "spacecraft_pod_0",  name: "Spacecraft Pod",     category: "vehicle",         base_value: 5000,  weight_kg: 800.0, description: "Minimal orbital shuttle for short trips"),
-    (id: "spacecraft_fighter_0",name: "Fighter Ship",       category: "vehicle",         base_value: 15000, weight_kg: 5000.0,description: "Armed combat spacecraft"),
-    (id: "spacecraft_shuttle_0",name: "Shuttle",            category: "vehicle",         base_value: 10000, weight_kg: 8000.0,description: "Medium transport spacecraft for crew and cargo"),
-    (id: "spacecraft_freighter_0",name: "Freighter",          category: "vehicle",         base_value: 25000, weight_kg: 50000.0,description: "Large cargo hauler for interplanetary trade"),
-    (id: "mech_light_0",      name: "Light Mech",         category: "vehicle",         base_value: 8000,  weight_kg: 5000.0,description: "Bipedal walker, fast scout class"),
-    (id: "mech_heavy_0",      name: "Heavy Mech",         category: "vehicle",         base_value: 20000, weight_kg: 15000.0,description: "Armored bipedal war machine"),
+    (id: "spacecraft_pod_0",  name: "Spacecraft Pod",     category: "vehicle",         base_value: 1550,  weight_kg: 800.0, description: "Minimal orbital shuttle for short trips"),
+    (id: "spacecraft_fighter_0",name: "Fighter Ship",       category: "vehicle",         base_value: 3350,  weight_kg: 5000.0,description: "Armed combat spacecraft"),
+    (id: "spacecraft_shuttle_0",name: "Shuttle",            category: "vehicle",         base_value: 2250,  weight_kg: 8000.0,description: "Medium transport spacecraft for crew and cargo"),
+    (id: "spacecraft_freighter_0",name: "Freighter",          category: "vehicle",         base_value: 5200,  weight_kg: 50000.0,description: "Large cargo hauler for interplanetary trade"),
+    (id: "mech_light_0",      name: "Light Mech",         category: "vehicle",         base_value: 2500,  weight_kg: 5000.0,description: "Bipedal walker, fast scout class"),
+    (id: "mech_heavy_0",      name: "Heavy Mech",         category: "vehicle",         base_value: 4500,  weight_kg: 15000.0,description: "Armored bipedal war machine"),
     (id: "submarine_0",       name: "Submarine",          category: "vehicle",         base_value: 12000, weight_kg: 8000.0,description: "Underwater vessel for deep-sea exploration"),
 
     // =========================================================================
     // MEDICAL, Health restoration and treatment
     // =========================================================================
 
-    (id: "bandage_0",         name: "Bandage",            category: "medical",         base_value: 2,    weight_kg: 0.05,  description: "Basic wound dressing, stops bleeding"),
+    (id: "bandage_0",         name: "Bandage",            category: "medical",         base_value: 1,    weight_kg: 0.05,  description: "Basic wound dressing, stops bleeding"),
     (id: "poultice_0",        name: "Poultice",           category: "medical",         base_value: 5,    weight_kg: 0.1,   description: "Herbal compress for pain and swelling"),
     (id: "medkit_0",          name: "Medkit",             category: "medical",         base_value: 15,   weight_kg: 1.0,   description: "Standard first aid supplies"),
     (id: "med_kit_advanced_0",name: "Advanced Medkit",     category: "medical",         base_value: 50,   weight_kg: 1.0,   description: "Surgical-grade medical supplies"),
     (id: "antidote_0",        name: "Antidote",           category: "medical",         base_value: 20,   weight_kg: 0.1,   description: "Neutralizes common poisons and venoms"),
-    (id: "antibiotics_0",     name: "Antibiotics",        category: "medical",         base_value: 20,   weight_kg: 0.1,   description: "Anti-bacterial medicine for infections"),
-    (id: "painkillers_0",     name: "Painkillers",        category: "medical",         base_value: 8,    weight_kg: 0.05,  description: "Analgesic tablets for pain management"),
+    (id: "antibiotics_0",     name: "Antibiotics",        category: "medical",         base_value: 5,    weight_kg: 0.1,   description: "Anti-bacterial medicine for infections"),
+    (id: "painkillers_0",     name: "Painkillers",        category: "medical",         base_value: 1,    weight_kg: 0.05,  description: "Analgesic tablets for pain management"),
     (id: "splint_0",          name: "Splint",             category: "medical",         base_value: 5,    weight_kg: 0.3,   description: "Rigid support for broken bones"),
     (id: "blood_pack_0",      name: "Blood Pack",         category: "medical",         base_value: 30,   weight_kg: 0.5,   description: "Synthetic blood for emergency transfusion"),
     (id: "surgical_kit_0",    name: "Surgical Kit",       category: "medical",         base_value: 100,  weight_kg: 2.0,   description: "Precision instruments for field surgery"),
-    (id: "stim_pack_0",       name: "Stim Pack",          category: "medical",         base_value: 35,   weight_kg: 0.1,   description: "Adrenaline injector for combat revival"),
+    (id: "stim_pack_0",       name: "Stim Pack",          category: "medical",         base_value: 5,    weight_kg: 0.1,   description: "Adrenaline injector for combat revival"),
 
     // =========================================================================
     // ELECTRONICS, Components and devices
@@ -252,12 +271,12 @@
     (id: "circuit_board_0",   name: "Circuit Board",      category: "electronics",     base_value: 15,   weight_kg: 0.1,   description: "Printed circuit board for electronics assembly"),
     (id: "cpu_0",             name: "CPU",                category: "electronics",     base_value: 50,   weight_kg: 0.05,  description: "Central processing unit, brain of computers"),
     (id: "data_chip_0",       name: "Data Chip",          category: "electronics",     base_value: 25,   weight_kg: 0.8,   description: "Data storage module"),
-    (id: "sensor_module_0",   name: "Sensor Module",      category: "electronics",     base_value: 30,   weight_kg: 0.3,   description: "Multi-spectrum detector for environmental data"),
+    (id: "sensor_module_0",   name: "Sensor Module",      category: "electronics",     base_value: 22,   weight_kg: 0.3,   description: "Multi-spectrum detector for environmental data"),
     (id: "lens_0",            name: "Optical Lens",       category: "electronics",     base_value: 20,   weight_kg: 0.1,   description: "Precision ground glass lens for optics"),
     (id: "antenna_0",         name: "Antenna",            category: "electronics",     base_value: 12,   weight_kg: 0.5,   description: "Radio frequency transmitter/receiver"),
     (id: "solar_panel_0",     name: "Solar Panel",        category: "electronics",     base_value: 60,   weight_kg: 5.0,   description: "Photovoltaic cell for electricity from sunlight"),
     (id: "generator_portable_0",name: "Portable Generator", category: "electronics",     base_value: 150,  weight_kg: 25.0,  description: "Fuel-powered portable electricity generator"),
-    (id: "computer_terminal_0",name: "Computer Terminal", category: "electronics",     base_value: 200,  weight_kg: 10.0,  description: "General-purpose computing workstation"),
+    (id: "computer_terminal_0",name: "Computer Terminal", category: "electronics",     base_value: 95,   weight_kg: 10.0,  description: "General-purpose computing workstation"),
     (id: "radio_0",           name: "Radio",              category: "electronics",     base_value: 40,   weight_kg: 1.5,   description: "Two-way voice radio transceiver"),
     (id: "camera_0",          name: "Camera",             category: "electronics",     base_value: 35,   weight_kg: 0.3,   description: "Digital imaging device"),
 
@@ -271,9 +290,9 @@
     (id: "anvil_0",           name: "Anvil",              category: "machine",         base_value: 50,   weight_kg: 80.0,  description: "Heavy iron block for hammering and shaping"),
     (id: "loom_0",            name: "Loom",               category: "machine",         base_value: 40,   weight_kg: 25.0,  description: "Weaving frame for cloth production"),
     (id: "stove_0",           name: "Stove",              category: "machine",         base_value: 60,   weight_kg: 20.0,  description: "Four-burner cooking range"),
-    (id: "chemistry_set_0",   name: "Chemistry Set",      category: "machine",         base_value: 100,  weight_kg: 5.0,   description: "Laboratory glassware for chemical processing"),
-    (id: "electronics_bench_0",name: "Electronics Bench", category: "machine",         base_value: 120,  weight_kg: 25.0,  description: "Precision workstation for circuit assembly"),
-    (id: "printer_3d_0",      name: "3D Printer",         category: "machine",         base_value: 300,  weight_kg: 15.0,  description: "Additive manufacturing for complex parts"),
+    (id: "chemistry_set_0",   name: "Chemistry Set",      category: "machine",         base_value: 90,   weight_kg: 5.0,   description: "Laboratory glassware for chemical processing"),
+    (id: "electronics_bench_0",name: "Electronics Bench", category: "machine",         base_value: 50,   weight_kg: 25.0,  description: "Precision workstation for circuit assembly"),
+    (id: "printer_3d_0",      name: "3D Printer",         category: "machine",         base_value: 220,  weight_kg: 15.0,  description: "Additive manufacturing for complex parts"),
     (id: "water_purifier_0",  name: "Water Purifier",     category: "machine",         base_value: 80,   weight_kg: 15.0,  description: "Filters and sterilizes water for safe drinking"),
 
     // =========================================================================
