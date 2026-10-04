@@ -2166,10 +2166,38 @@ mod tests {
             "a user list arrived after the signal and refills the roster the client cleared"
         );
         assert_eq!(heard[erased]["to"], holder_key);
+        assert_eq!(heard[erased]["partial"], false, "a whole erase was reported as unfinished");
         let others = frames_until_quiet(&mut other, 500).await;
         assert!(others.iter().all(|f| f["type"] != "account_erased"), "another account was told to disconnect: {others:?}");
         holder.close(None).await.ok();
         other.close(None).await.ok();
+        server.abort();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Review of BUG-135: an erase where one part fails on the relay (storage/account.rs
+    /// `delete_account` records `<table>_FAILED` and goes on with the rest) still ends with
+    /// `account_erased`, since leaving is still right, but says `"partial": true`, so the
+    /// client tells the person the erase did not finish instead of that Connect signs them up
+    /// again as a new account (the old one may still partly exist). Forced here by dropping a
+    /// table the erase deletes from.
+    ///
+    /// Seen red 2026-10-04 on 825aa0af4 with the handler always sending `partial: false`:
+    /// "assertion `left == right` failed: an erase with a failed part was reported as finished
+    /// / left: Bool(false)".
+    #[tokio::test]
+    async fn an_erase_with_a_failed_part_says_it_did_not_finish() {
+        let path = plots_db("erase_partial");
+        let (state, port, server) = relay_on(&path).await;
+        let (mut holder, holder_key) = bind_socket(&state, port, [131u8; 32], Some("EraseHalfway"), 1).await;
+        state.db.with_conn(|c| c.execute_batch("DROP TABLE friend_codes")).expect("the table drops");
+        send_json(&mut holder, serde_json::json!({ "type": "account_delete", "confirm_name": "EraseHalfway" })).await;
+        let heard = frames_until_quiet(&mut holder, 1500).await;
+        let erased = heard.iter().find(|f| f["type"] == "account_erased");
+        let erased = erased.unwrap_or_else(|| panic!("the erasing client was never told to disconnect: {heard:?}"));
+        assert_eq!(erased["to"], holder_key);
+        assert_eq!(erased["partial"], true, "an erase with a failed part was reported as finished");
+        holder.close(None).await.ok();
         server.abort();
         let _ = std::fs::remove_file(&path);
     }

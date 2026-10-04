@@ -1573,7 +1573,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         }
                     }
                     // BUG-135: our account here was erased; leave, and never redial it by ourselves.
-                    Some("account_erased") => crate::engine::account_erase::on_active_server(state),
+                    Some("account_erased") => crate::engine::account_erase::on_active_server(state, &val),
                     Some("private") => {
                         // Private server-to-user message (rate limit, errors, command responses)
                         if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {

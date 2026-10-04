@@ -29,6 +29,40 @@ use super::{pages, GuiState, ServerConnection};
 pub const ERASED_CONNECT_NOTE: &str =
     "Your account on this server was erased, so pressing Connect signs you up again as a new account on this server.";
 
+/// What the app says instead when the server's erase did not finish: part of it failed
+/// (`<table>_FAILED` in the relay's receipt, storage/account.rs `delete_account`), so the
+/// account may still partly exist there and "signs you up again" would not be true. One
+/// sentence with the next step; it is shown in the Chat page's connect box and kept under the
+/// game's HUD (engine/account_erase.rs). The web login screen has its own (web/chat/app.js
+/// `ERASE_UNFINISHED_NOTE`), naming its own button.
+pub const ERASE_UNFINISHED_NOTE: &str =
+    "The erase of your account on this server did not finish, so open Chat, press Connect and erase it again from Settings.";
+
+/// How an erase on a server ended, as the relay's `account_erased` said (`partial`). Either
+/// way the app leaves that server and never dials it by itself; the two only differ in what
+/// it tells the person.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EraseOutcome {
+    /// Everything this server kept about the account went.
+    Erased,
+    /// Part of the erase failed on the server, so the account may still partly exist there.
+    Unfinished,
+}
+
+impl EraseOutcome {
+    /// Read from the relay's `account_erased` frame: `"partial": true` when any part of the
+    /// erase failed (relay msg_handlers.rs `handle_account_delete`). Both sockets' handlers
+    /// read it here (engine/account_erase.rs).
+    pub fn from_receipt(frame: &serde_json::Value) -> Self {
+        if frame.get("partial").and_then(|v| v.as_bool()) == Some(true) {
+            EraseOutcome::Unfinished
+        } else {
+            EraseOutcome::Erased
+        }
+    }
+}
+
 /// How an erased server is remembered for an identity: its public key and the server's
 /// normalized URL (`pages::chat::norm_server_url`), so the address with or without a trailing
 /// slash is the same server, and restoring a different identity is not refused a server
@@ -192,22 +226,23 @@ impl GuiState {
 
     /// The ACTIVE server confirmed it erased our account (relay `account_erased`; BUG-135):
     /// close the connection as Disconnect does and remember the server it was DIALED for (never
-    /// the server field being edited), so nothing dials it again by itself. The caller saves
-    /// the config, and takes the game out of the shared world (engine/account_erase.rs).
-    pub fn account_erased_on_active(&mut self) {
+    /// the server field being edited), so nothing dials it again by itself. `outcome` says
+    /// whether the erase finished. The caller saves the config, and takes the game out of the
+    /// shared world (engine/account_erase.rs).
+    pub fn account_erased_on_active(&mut self, outcome: EraseOutcome) {
         let dialed = if self.connected_server_url.trim().is_empty() {
             self.server_url.clone()
         } else {
             self.connected_server_url.clone()
         };
         self.disconnect_active();
-        self.account_erased_on.insert(erased_entry(&self.profile_public_key, &dialed));
+        self.account_erased_on.insert(erased_entry(&self.profile_public_key, &dialed), outcome);
     }
 
     /// The same for a PARKED server: the person switched servers between sending the erase and
     /// its receipt, so it arrived on a background link (engine/bg_connections.rs). That link is
     /// closed and never redialed by itself.
-    pub fn account_erased_on_parked(&mut self, ci: usize) {
+    pub fn account_erased_on_parked(&mut self, ci: usize, outcome: EraseOutcome) {
         let Some(conn) = self.connections.get_mut(ci) else { return };
         if let Some(ref mut ws) = conn.ws {
             ws.disconnect();
@@ -217,13 +252,40 @@ impl GuiState {
         conn.manually_disconnected = true;
         conn.status = "Disconnected".to_string();
         let entry = erased_entry(&self.profile_public_key, &conn.url);
-        self.account_erased_on.insert(entry);
+        self.account_erased_on.insert(entry, outcome);
     }
 
-    /// True when this identity erased its account on the server at `url`: the app does not
-    /// dial it by itself, and the Chat page says what pressing Connect there does.
+    /// True when this identity erased its account on the server at `url`, finished or not:
+    /// the app does not dial it by itself, and the Chat page says what to do there.
     pub fn account_erased_here(&self, url: &str) -> bool {
-        self.account_erased_on.contains(&erased_entry(&self.profile_public_key, url))
+        self.account_erased_on.contains_key(&erased_entry(&self.profile_public_key, url))
+    }
+
+    /// The sentence the Chat page's connect box shows above Connect for the server at `url`:
+    /// that Connect signs up again, or, when the erase did not finish there, to erase again.
+    /// None for a server this identity never erased on.
+    pub fn erase_note(&self, url: &str) -> Option<&'static str> {
+        match self.account_erased_on.get(&erased_entry(&self.profile_public_key, url))? {
+            EraseOutcome::Erased => Some(ERASED_CONNECT_NOTE),
+            EraseOutcome::Unfinished => Some(ERASE_UNFINISHED_NOTE),
+        }
+    }
+
+    /// Whether the app may dial the active server by itself this frame: at boot, after an
+    /// unlock (which clears `ws_manually_disconnected`), or after a server switch (lib.rs, the
+    /// auto-connect). Never with no identity unlocked (a locked seed would register a keyless
+    /// name-squatter), never after a Disconnect, and never on a server this identity erased
+    /// its account on (BUG-135): that would sign up again without the person asking.
+    pub fn may_auto_connect(&self) -> bool {
+        !self.server_url.is_empty()
+            && self.ws_client.is_none()
+            && !self.user_name.is_empty()
+            && self.onboarding_complete
+            && !self.ws_manually_disconnected
+            && !self.account_erased_here(&self.server_url)
+            && self.ws_reconnect_timer <= 0.0
+            && self.ws_reconnect_attempts == 0
+            && self.private_key_bytes.is_some()
     }
 
     /// The person pressed Connect for `url`: they chose to sign up there again.
@@ -328,7 +390,7 @@ mod park_unpark_tests {
 /// opened here (the receipt's handling never needs one: it closes whatever is there).
 #[cfg(all(test, feature = "native"))]
 mod erased_account_tests {
-    use super::{erased_entry, ERASED_CONNECT_NOTE};
+    use super::{erased_entry, EraseOutcome, ERASED_CONNECT_NOTE, ERASE_UNFINISHED_NOTE};
     use crate::gui::{GuiState, ServerConnection};
 
     const KEY: &str = "ab12cd34";
@@ -351,7 +413,7 @@ mod erased_account_tests {
     fn an_erase_receipt_closes_the_server_and_nothing_dials_it_by_itself() {
         let mut state = on("https://a.example/");
         state.ws_status = "Connected".to_string();
-        state.account_erased_on_active();
+        state.account_erased_on_active(EraseOutcome::Erased);
         assert!(state.ws_manually_disconnected, "the server was left open to the automatic reconnect");
         assert!(state.ws_client.is_none());
         assert_eq!(state.ws_status, "Disconnected");
@@ -370,7 +432,7 @@ mod erased_account_tests {
     fn the_erased_server_is_the_dialed_one_and_only_for_that_identity() {
         let mut state = on("https://a.example");
         state.server_url = "https://typing-another.example".to_string();
-        state.account_erased_on_active();
+        state.account_erased_on_active(EraseOutcome::Erased);
         assert!(state.account_erased_here("https://a.example"));
         assert!(!state.account_erased_here("https://typing-another.example"));
         // Restoring a different identity does not inherit the refusal.
@@ -394,7 +456,7 @@ mod erased_account_tests {
             status: "Connected".to_string(),
             ..Default::default()
         });
-        state.account_erased_on_parked(0);
+        state.account_erased_on_parked(0, EraseOutcome::Erased);
         let conn = &state.connections[0];
         assert!(conn.manually_disconnected && conn.ws.is_none() && !conn.identified);
         assert!(state.account_erased_here("https://a.example"));
@@ -412,5 +474,58 @@ mod erased_account_tests {
         assert_eq!(ERASED_CONNECT_NOTE.matches(". ").count(), 0, "{ERASED_CONNECT_NOTE}");
         assert!(ERASED_CONNECT_NOTE.ends_with('.'));
         assert!(ERASED_CONNECT_NOTE.contains("Connect") && ERASED_CONNECT_NOTE.contains("signs you up again"));
+        // The unfinished erase's sentence: one sentence, a next step, and no promise of a
+        // fresh account (the old one may still partly exist).
+        assert_eq!(ERASE_UNFINISHED_NOTE.matches(". ").count(), 0, "{ERASE_UNFINISHED_NOTE}");
+        assert!(ERASE_UNFINISHED_NOTE.ends_with('.'));
+        assert!(ERASE_UNFINISHED_NOTE.contains("did not finish") && ERASE_UNFINISHED_NOTE.contains("erase it again"));
+        assert!(!ERASE_UNFINISHED_NOTE.contains("signs you up again"));
+    }
+
+    /// Review of BUG-135: an erase that partly failed on the relay (`<table>_FAILED` in its
+    /// receipt) still closes the server, but the app must not say that Connect signs you up
+    /// again as a new account, which is untrue while the old one partly exists; it says the
+    /// erase did not finish and to erase again. The decision comes from the receipt frame.
+    ///
+    /// Seen red 2026-10-04 on 825aa0af4 with the frame's `partial` ignored: "assertion `left ==
+    /// right` failed: an unfinished erase promised a fresh sign-up / left: Some(\"Your account on
+    /// this server was erased, so pressing Connect signs you up again as a new account on this
+    /// server.\")".
+    #[test]
+    fn an_unfinished_erase_says_to_erase_again_instead_of_signing_up() {
+        let partial = serde_json::json!({ "type": "account_erased", "to": KEY, "partial": true });
+        let whole = serde_json::json!({ "type": "account_erased", "to": KEY, "partial": false });
+        let mut state = on("https://a.example");
+        state.account_erased_on_active(EraseOutcome::from_receipt(&partial));
+        assert_eq!(state.erase_note("https://a.example"), Some(ERASE_UNFINISHED_NOTE), "an unfinished erase promised a fresh sign-up");
+        assert!(state.ws_manually_disconnected && state.account_erased_here("https://a.example"), "still left, still undialed");
+        let mut state = on("https://a.example");
+        state.account_erased_on_active(EraseOutcome::from_receipt(&whole));
+        assert_eq!(state.erase_note("https://a.example"), Some(ERASED_CONNECT_NOTE));
+        assert_eq!(state.erase_note("https://b.example"), None, "no note where nothing was erased");
+    }
+
+    /// The boot, unlock and server-switch auto-connect (lib.rs) never dials a server this
+    /// identity erased its account on, finished or not, and still dials every other one.
+    ///
+    /// Seen red 2026-10-04 on 825aa0af4 with the erased check left out of the decision:
+    /// "the auto-connect would sign up again on the erased server".
+    #[test]
+    fn the_auto_connect_never_dials_an_erased_server() {
+        let mut state = on("https://a.example");
+        state.user_name = "Ada".to_string();
+        state.onboarding_complete = true;
+        state.private_key_bytes = Some(vec![7u8; 32]);
+        state.ws_manually_disconnected = false;
+        state.ws_reconnect_timer = 0.0;
+        state.ws_reconnect_attempts = 0;
+        assert!(state.may_auto_connect(), "the setup itself must allow a connect");
+        state.account_erased_on.insert(erased_entry(KEY, "https://a.example/"), EraseOutcome::Unfinished);
+        assert!(!state.may_auto_connect(), "the auto-connect would sign up again on the erased server");
+        state.server_url = "https://b.example".to_string();
+        assert!(state.may_auto_connect(), "another server is still dialed");
+        // A locked identity never dials, erased or not.
+        state.private_key_bytes = None;
+        assert!(!state.may_auto_connect());
     }
 }

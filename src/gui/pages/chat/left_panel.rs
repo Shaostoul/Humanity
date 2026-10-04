@@ -120,10 +120,11 @@ pub(super) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
                 }
 
                 // This identity erased its account on the server in the field (BUG-135): the
-                // app no longer dials it by itself, so say what the button below does there.
-                if state.account_erased_here(&state.server_url) {
+                // app no longer dials it by itself, so say what the button below does there
+                // (signs up again), or, when the erase did not finish, to erase again.
+                if let Some(note) = state.erase_note(&state.server_url) {
                     ui.label(
-                        RichText::new(crate::gui::ERASED_CONNECT_NOTE)
+                        RichText::new(note)
                             .size(theme.font_size_small)
                             .color(theme.warning()),
                     );

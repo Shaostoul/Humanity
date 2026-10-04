@@ -416,11 +416,12 @@ pub struct AppConfig {
     /// URLs). Order itself persists via saved_servers.
     #[serde(default)]
     pub collapsed_servers: Vec<String>,
-    /// Servers whose account an identity erased, as "<public key> <normalized URL>"
-    /// (gui/connections.rs `erased_entry`, BUG-135). The app never dials one by itself, so a
-    /// restart does not sign up again there; the Chat page's Connect does, and forgets it.
+    /// Servers whose account an identity erased, keyed "<public key> <normalized URL>"
+    /// (gui/connections.rs `erased_entry`, BUG-135), with whether the erase finished. The app
+    /// never dials one by itself, so a restart does not sign up again there; the Chat page's
+    /// Connect does, and forgets it.
     #[serde(default)]
-    pub account_erased_on: Vec<String>,
+    pub account_erased_on: std::collections::BTreeMap<String, crate::gui::EraseOutcome>,
     /// Camera far plane in metres.
     #[serde(default = "default_render_distance")]
     pub render_distance: f32,
@@ -1346,7 +1347,7 @@ impl AppConfig {
             host_node_name: state.host_node_name.clone(),
             host_node_local_only: state.host_node_local_only,
             collapsed_servers: state.chat_server_sections_collapsed.iter().cloned().collect(),
-            account_erased_on: state.account_erased_on.iter().cloned().collect(),
+            account_erased_on: state.account_erased_on.clone(),
             render_distance: state.settings.render_distance,
             water_detail_depth: state.settings.water_detail_depth,
             lights_tiled: state.settings.lights_tiled,
@@ -1527,7 +1528,7 @@ impl AppConfig {
         state.host_node_name = self.host_node_name.clone();
         state.host_node_local_only = self.host_node_local_only;
         state.chat_server_sections_collapsed = self.collapsed_servers.iter().cloned().collect();
-        state.account_erased_on = self.account_erased_on.iter().cloned().collect();
+        state.account_erased_on = self.account_erased_on.clone();
         state.settings.render_distance = self.render_distance.clamp(50.0, 2000.0);
         state.settings.water_detail_depth = self.water_detail_depth.clamp(14.0, 20.0);
         state.settings.lights_tiled = self.lights_tiled;

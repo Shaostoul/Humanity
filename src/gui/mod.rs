@@ -47,7 +47,7 @@ mod organize;
 pub use organize::*;
 /// The active relay connection: park, unpark, Disconnect, an erased account. See `gui/connections.rs`.
 mod connections;
-pub use connections::ERASED_CONNECT_NOTE;
+pub use connections::{erased_entry, EraseOutcome, ERASED_CONNECT_NOTE, ERASE_UNFINISHED_NOTE};
 
 
 // Headless UI snapshot tests (v0.495): render egui pages to PNGs for review +
@@ -731,9 +731,10 @@ pub struct GuiState {
     pub webrtc_test_peer: Option<String>,
     /// Whether the user manually disconnected (suppresses auto-reconnect).
     pub ws_manually_disconnected: bool,
-    /// Servers whose account this identity erased (`connections::erased_entry`, BUG-135):
-    /// never dialed by themselves, only by the Chat page's Connect. Kept in the config.
-    pub account_erased_on: std::collections::BTreeSet<String>,
+    /// Servers whose account this identity erased (`connections::erased_entry`, BUG-135), and
+    /// whether the erase finished: never dialed by themselves, only by the Chat page's Connect.
+    /// Kept in the config.
+    pub account_erased_on: std::collections::BTreeMap<String, EraseOutcome>,
     /// Countdown to next reconnect attempt (seconds).
     pub ws_reconnect_timer: f32,
     /// Current reconnect delay with exponential backoff (seconds).
@@ -3171,7 +3172,7 @@ impl Default for GuiState {
             #[cfg(feature = "native")]
             webrtc_test_peer: None,
             ws_manually_disconnected: false,
-            account_erased_on: std::collections::BTreeSet::new(),
+            account_erased_on: std::collections::BTreeMap::new(),
             ws_reconnect_timer: 0.0,
             ws_reconnect_delay: crate::net::ws_client::RECONNECT_DELAY_INITIAL_SECS,
             ws_reconnect_attempts: 0,
