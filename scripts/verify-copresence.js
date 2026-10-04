@@ -1407,6 +1407,13 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     // place, more than 100 m from that spot, and opens and shuts the editor
     // again. Shutting it used to stand the game at the build spot, a jump the
     // relay refuses: frozen at the far place for everyone else.
+    // A point 1 m from `at` toward `to`, across the floor (x and z).
+    const nudgeToward = (at, to) => {
+      const dx = to[0] - at[0];
+      const dz = to[2] - at[2];
+      const len = Math.hypot(dx, dz) || 1;
+      return [at[0] + dx / len, at[1], at[2] + dz / len];
+    };
     const editorTo = async (open) => {
       await showcase({ build_editor: open ? "1" : "0" });
       return until((p) => p.build_editor === open, 10000);
@@ -1449,7 +1456,11 @@ async function runPlotsOnce(order, runStamp, cleanups) {
       await sleep(1500);
       const afterShut = await probe();
       const camera3 = afterShut && afterShut.camera_end ? afterShut.camera_end.pos : null;
-      const nudged3 = camera3 ? [camera3[0], camera3[1], camera3[2] + 1] : null;
+      // One metre back along the walk, not on along +Z: the far place can stand at the end of
+      // street-1, where +Z runs into its end wall and the step stops short (the first green run
+      // of this leg: the relay passed the move, at 194.67 for a nudge to 195).
+      const toward = route3.length > 1 ? route3[route3.length - 2] : buildSpot;
+      const nudged3 = camera3 ? nudgeToward(camera3, toward) : null;
       const markNudge3 = walkerOut.length;
       if (nudged3) await showcase({ cam: `${nudged3.join(",")},${yaw},${pitch}` });
       await sleep(2500);
