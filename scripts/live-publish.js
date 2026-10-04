@@ -159,7 +159,8 @@ if (!LOOPBACK && !ALLOW_REMOTE) {
     `live-publish: REFUSED to publish to ${HOST}.`,
     "This is a test publisher; it only talks to a relay on this machine by default.",
     "Start a local one:",
-    "  PORT=3399 DATABASE_PATH=<scratch>/relay.db target/release/HumanityOS.exe --headless",
+    "  BIND_ADDRESS=127.0.0.1 PORT=3399 DATABASE_PATH=<scratch>/relay.db target/release/HumanityOS.exe --headless",
+    "(BIND_ADDRESS=127.0.0.1: this computer only, so Windows raises no firewall prompt for it.)",
     "If you really mean a remote relay, pass --allow-remote (never united-humanity.us:",
     "that server is the operator's live service and its streaming switch is their call).",
   );

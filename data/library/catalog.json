@@ -73,12 +73,40 @@
           ]
         },
         {
+          "title": "Knowing Which Way Is North",
+          "src": "docs/user/skills/knowing_which_way_is_north.md",
+          "tags": [
+            "guide",
+            "real",
+            "beginner",
+            "safety"
+          ]
+        },
+        {
           "title": "The Sky as an Instrument",
           "src": "docs/user/skills/the_sky_as_an_instrument.md",
           "tags": [
             "guide",
             "real",
             "technical"
+          ]
+        },
+        {
+          "title": "Reading a Map",
+          "src": "docs/user/skills/reading_a_map.md",
+          "tags": [
+            "guide",
+            "real",
+            "safety"
+          ]
+        },
+        {
+          "title": "Coordinates",
+          "src": "docs/user/skills/coordinates.md",
+          "tags": [
+            "guide",
+            "real",
+            "safety"
           ]
         }
       ]
@@ -575,6 +603,25 @@
           ]
         },
         {
+          "title": "Reading Numbers Honestly",
+          "src": "docs/user/skills/reading_numbers_honestly.md",
+          "tags": [
+            "guide",
+            "real",
+            "beginner"
+          ]
+        },
+        {
+          "title": "Light, Lenses and Mirrors",
+          "src": "docs/user/skills/light_lenses_and_mirrors.md",
+          "tags": [
+            "guide",
+            "real",
+            "technical",
+            "safety"
+          ]
+        },
+        {
           "title": "Sharpening",
           "src": "docs/user/making/sharpening.md",
           "tags": [
@@ -630,6 +677,17 @@
             "real",
             "making",
             "materials"
+          ]
+        },
+        {
+          "title": "Nails, Screws and Bolts",
+          "src": "docs/user/skills/nails_screws_and_bolts.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "shelter",
+            "safety"
           ]
         },
         {

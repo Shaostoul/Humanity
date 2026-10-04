@@ -159,6 +159,9 @@ describe("a scripted second player on a throwaway relay", { skip: SKIP }, () => 
     dbPath = relay.dbPath;
     relayLog = relay.logPath;
     console.log(`second-player-relay.test: relay pid ${relay.pid}, running ${relay.exe}`);
+    // What the OS shows it listening on: startRelay has already refused
+    // anything but loopback (no Windows Firewall prompt for this temp copy).
+    for (const r of relay.listening) console.log(`second-player-relay.test: relay listens: ${r.line.replace(/\s+/g, " ")}`);
     const logText = () => fs.readFileSync(relayLog, "utf8");
     assert.ok(relay.health && relay.health.status === "ok", `the throwaway relay never answered /health; its log:\n${logText().slice(-2000)}`);
     // The relay prints its limits at start; make sure the grace really is on,

@@ -11,6 +11,26 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1447.1: three more Library guides.** Knowing Which Way Is North
+  (compasses, declination, the shadow-stick and the stars, and what to do if
+  lost), Coordinates (reading latitude, longitude and grid references, and how
+  far off a phone can be), and Light, Lenses and Mirrors (magnifiers, glasses,
+  mirrors, and keeping your eyes safe from the sun and lasers). The Library now
+  has 53 sourced guides.
+
+- **v0.1447.0: no more firewall pop-ups from development, and a choice of
+  who can reach your node.** The test tools used to make Windows ask about the
+  firewall many times a day; they now stay on the computer itself and never
+  ask. "Host a node on this PC" gains a "Who can connect" choice: devices on
+  your network (as before), or only this computer.
+
+- **v0.1446.4: three more Library guides.** Nails, Screws and Bolts (which
+  fastener for which job, and using a nail gun safely), Reading a Map
+  (contours, scale and what to do the moment you think you are lost), and
+  Reading Numbers Honestly (averages, ranges, and why one good year proves
+  little). Each was checked against its sources first; the Library now has
+  50 sourced guides.
+
 - **v0.1446.3: three more Library guides.** Keeping Things Working (looking
   after tools, machines and a house, and making them safe before you start),
   Square, Level and Plumb (laying out a shed or a path, and calling 811 before

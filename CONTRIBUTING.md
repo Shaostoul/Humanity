@@ -15,8 +15,12 @@ cd Humanity
 
 # 2. Build and run the relay (headless mode — backend only)
 cargo build --release --features relay --no-default-features
-./target/release/HumanityOS --headless
+BIND_ADDRESS=127.0.0.1 ./target/release/HumanityOS --headless
 # Relay starts at http://localhost:3210
+# BIND_ADDRESS=127.0.0.1: only this computer can connect, which is all local
+# development needs, and Windows then does not stop you with a firewall prompt
+# for every new build path. Leave it out when other devices should connect
+# (docs/admin/SELF-HOSTING.md, "Who can connect").
 
 # 3. Open the chat
 # The relay serves the API and the WebSocket, not the website. Serve the web/
@@ -176,8 +180,8 @@ cargo check --features relay --no-default-features
 # Build relay only (headless server, no GPU dependencies)
 cargo build --release --features relay --no-default-features
 
-# Run relay locally
-cargo run --features relay --no-default-features -- --headless
+# Run relay locally (on loopback only: see "Quick Start" above)
+BIND_ADDRESS=127.0.0.1 cargo run --features relay --no-default-features -- --headless
 ```
 
 For the full desktop client (renderer + relay + game) use `--features native`

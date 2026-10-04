@@ -33,8 +33,31 @@
 // the same way with the handlers in place: the relay gone, the folder gone,
 // and with process.emit("SIGINT") in place of the exit, exit code 130.
 //
-// NEVER PRODUCTION: the relay listens on 127.0.0.1 only as far as anyone here
-// uses it, and its database is brand new every time.
+// NEVER PRODUCTION: its database is brand new every time, and it LISTENS ON
+// 127.0.0.1 ONLY.
+//
+// LOOPBACK ONLY, AND CHECKED (2026-10-03). The relay listens on every network
+// interface unless told otherwise (its BIND_ADDRESS setting, default 0.0.0.0,
+// which self-hosted LAN nodes need). On Windows, a program that listens on
+// 0.0.0.0 makes Windows Defender Firewall stop whoever is at the keyboard with
+// "Windows Defender Firewall has blocked some features of this app", once for
+// every exe PATH, and this file runs the relay from a NEW temp folder every
+// time: 54 of the operator's firewall rules were for these copies, one prompt
+// each, several a day, interrupting whatever he was doing. Nothing here needs
+// the network (every client is on 127.0.0.1), so relayEnv() sets
+// BIND_ADDRESS=127.0.0.1, and once /health answers, startRelay() asks the
+// operating system which addresses the relay's PID is actually listening on
+// (netstat on Windows, ss on Linux, lsof on macOS) and refuses, killing the
+// relay, unless every one is loopback. That is what stops a quiet revert: an
+// exe built before BIND_ADDRESS existed, or a relayEnv() that lost the line,
+// fails loudly here. Not BEFORE any prompt, though: the check can only look
+// once the relay is listening, and Windows asks the moment a program listens
+// on the wildcard, so a revert still costs ONE prompt (for that run's temp
+// path) and then stops the run, and every run after it, until it is fixed.
+// The prevention is the BIND_ADDRESS line; this check is what makes a revert
+// cost one prompt instead of one per run, forever, unnoticed. Do not "fix"
+// that failure by removing the check; see docs/INCIDENT-PLAYBOOK.md.
+// scripts/tests/throwaway-relay.test.js proves startRelay() runs it.
 
 "use strict";
 
@@ -46,6 +69,9 @@ const http = require("node:http");
 const path = require("node:path");
 
 const EXE_NAME = process.platform === "win32" ? "HumanityOS.exe" : "HumanityOS";
+
+/** The address every throwaway relay listens on (its BIND_ADDRESS). */
+const LOOPBACK_BIND = "127.0.0.1";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -117,11 +143,11 @@ function getJson(url, timeoutMs = 2000) {
 
 /** This shell's environment, minus anything that would make the throwaway
  *  relay act as a real one: every HUMANITY_* setting (focus, owner keys, data
- *  folders), the bot password, admins, an outside webhook, and the port and
- *  database it is about to be given. */
+ *  folders), the bot password, admins, an outside webhook, and the port,
+ *  database and listen address it is about to be given. */
 function relayEnv(port, dbPath) {
   const env = {};
-  const drop = new Set(["API_SECRET", "ADMIN_KEYS", "WEBHOOK_URL", "WEBHOOK_TOKEN", "PORT", "DATABASE_PATH", "RUST_LOG"]);
+  const drop = new Set(["API_SECRET", "ADMIN_KEYS", "WEBHOOK_URL", "WEBHOOK_TOKEN", "PORT", "DATABASE_PATH", "RUST_LOG", "BIND_ADDRESS"]);
   for (const [k, v] of Object.entries(process.env)) {
     const K = k.toUpperCase();
     if (K.startsWith("HUMANITY_") || drop.has(K)) continue;
@@ -129,8 +155,138 @@ function relayEnv(port, dbPath) {
   }
   // HUMANITY_NO_FOCUS: never the operator's focus, even though a headless
   // relay opens no window (the whole rig asks the same way).
-  Object.assign(env, { PORT: String(port), DATABASE_PATH: dbPath, HUMANITY_NO_FOCUS: "1", RUST_LOG: "info" });
+  // BIND_ADDRESS: loopback only, so Windows never raises a firewall prompt
+  // for this temp copy (see the top of this file). startRelay() checks it.
+  Object.assign(env, {
+    PORT: String(port),
+    DATABASE_PATH: dbPath,
+    BIND_ADDRESS: LOOPBACK_BIND,
+    HUMANITY_NO_FOCUS: "1",
+    RUST_LOG: "info",
+  });
   return env;
+}
+
+// ── Which addresses a process is listening on, from the operating system ──
+
+/** Split "host:port" as the OS tools print it ("127.0.0.1:3210",
+ *  "[::1]:3210", "*:3210", Linux ss's "[::ffff:127.0.0.1]:3210") into
+ *  { host, port }; host loses its brackets. */
+function splitHostPort(s) {
+  const i = s.lastIndexOf(":");
+  if (i < 0) return null;
+  let host = s.slice(0, i);
+  const port = Number(s.slice(i + 1));
+  if (host.startsWith("[") && host.endsWith("]")) host = host.slice(1, -1);
+  // Linux prints an interface scope on link-local and some loopback rows.
+  host = host.replace(/%.*$/, "");
+  if (!Number.isInteger(port)) return null;
+  return { host, port };
+}
+
+/** True for an address only this computer can reach: 127.0.0.0/8, ::1, and
+ *  127.x written as an IPv4-mapped IPv6 address. Everything else, including
+ *  every wildcard spelling (0.0.0.0, ::, *), is reachable from the network. */
+function isLoopbackHost(host) {
+  const h = String(host).toLowerCase();
+  return /^127\.\d+\.\d+\.\d+$/.test(h) || h === "::1" || /^::ffff:127\.\d+\.\d+\.\d+$/.test(h);
+}
+
+/**
+ * The TCP listening sockets of process `pid` in the text a platform's tool
+ * printed. Pure, so the tests can feed it captured output.
+ *
+ *   win32   `netstat -ano`: "TCP  127.0.0.1:3210  0.0.0.0:0  LISTENING  1234".
+ *           A listening row is matched by its foreign address (0.0.0.0:0 or
+ *           [::]:0) as well as by the word LISTENING, which Windows
+ *           translates on non-English systems.
+ *   linux   `ss -Hltnp`: "LISTEN 0 1024 127.0.0.1:3210 0.0.0.0:* users:((...pid=1234...))".
+ *   darwin  `lsof -nP -a -p PID -iTCP -sTCP:LISTEN -Fn`: one "n127.0.0.1:3210"
+ *           line per socket (already filtered to the PID by lsof).
+ *
+ * Returns [{ host, port, line }].
+ */
+function parseListening(text, platform, pid) {
+  const rows = [];
+  for (const raw of String(text).split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    let local = null;
+    if (platform === "win32") {
+      const f = line.split(/\s+/);
+      if (f[0] !== "TCP" || f.length < 5) continue;
+      const listening = f[3] === "LISTENING" || f[2] === "0.0.0.0:0" || f[2] === "[::]:0";
+      if (!listening || Number(f[f.length - 1]) !== pid) continue;
+      local = f[1];
+    } else if (platform === "linux") {
+      const f = line.split(/\s+/);
+      if (f[0] !== "LISTEN" || f.length < 5) continue;
+      const m = line.match(/pid=(\d+)/g) || [];
+      if (!m.some((p) => Number(p.slice(4)) === pid)) continue;
+      local = f[3];
+    } else if (platform === "darwin") {
+      if (!line.startsWith("n")) continue;
+      local = line.slice(1);
+    } else {
+      continue;
+    }
+    const hp = splitHostPort(local);
+    if (hp) rows.push({ ...hp, line });
+  }
+  return rows;
+}
+
+/** Ask the operating system which TCP addresses `pid` is listening on. Throws
+ *  when the tool cannot be run: an unverifiable relay is not a verified one. */
+function listeningSockets(pid, platform = process.platform) {
+  let cmd;
+  if (platform === "win32") cmd = "netstat -ano";
+  else if (platform === "linux") cmd = "ss -Hltnp";
+  else if (platform === "darwin") cmd = `lsof -nP -a -p ${pid} -iTCP -sTCP:LISTEN -Fn`;
+  else throw new Error(`cannot list listening sockets on ${platform}`);
+  let text;
+  try {
+    text = execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true, timeout: 20000 });
+  } catch (e) {
+    // lsof exits 1 when it finds nothing; that is an answer, not a failure.
+    if (platform === "darwin" && e.status === 1) text = String(e.stdout || "");
+    else throw new Error(`could not run "${cmd}" to see what the relay listens on: ${e.message}`);
+  }
+  return parseListening(text, platform, pid);
+}
+
+/** Why `rows` (one process's listening sockets) are NOT a loopback-only
+ *  listener on `port`, or null when they are. Pure. Nothing found is a
+ *  failure too: a check that finds no sockets has verified nothing. */
+function loopbackOnlyProblem(rows, port) {
+  const fmt = (r) => (r.host.includes(":") ? `[${r.host}]` : r.host) + `:${r.port}`;
+  if (!rows.length) return "the operating system shows no listening socket for it at all, so nothing was verified";
+  if (!rows.some((r) => r.port === port)) {
+    return `it is not listening on its port ${port} (it listens on ${rows.map(fmt).join(", ")})`;
+  }
+  const open = rows.filter((r) => !isLoopbackHost(r.host));
+  if (open.length) return `it listens on ${open.map(fmt).join(", ")}, reachable from the network, not on loopback only`;
+  return null;
+}
+
+/**
+ * Throw unless process `pid` listens on loopback only (and on `port`).
+ * Returns the rows it found, so a caller can show them.
+ */
+function assertLoopbackOnly(pid, port, platform = process.platform) {
+  const rows = listeningSockets(pid, platform);
+  const problem = loopbackOnlyProblem(rows, port);
+  if (problem) {
+    throw new Error(
+      `the dev relay (pid ${pid}) is not a loopback-only listener: ${problem}.\n` +
+        (rows.length ? `  what the OS shows:\n${rows.map((r) => `    ${r.line}`).join("\n")}\n` : "") +
+        `  A dev relay must listen on 127.0.0.1 only (BIND_ADDRESS=${LOOPBACK_BIND}): on Windows a\n` +
+        `  wildcard listener raises a firewall prompt for every new exe path, and the operator\n` +
+        `  has to click it away. Check that relayEnv() still sets BIND_ADDRESS, and that the exe\n` +
+        `  is new enough to read it (built after 2026-10-03). docs/INCIDENT-PLAYBOOK.md explains.`,
+    );
+  }
+  return rows;
 }
 
 /**
@@ -140,16 +296,33 @@ function relayEnv(port, dbPath) {
  *   prefix     the temp folder's name prefix, e.g. "second-player-relay-test-".
  *   config     written as data/server-config.json in its folder (optional).
  *   healthTimeoutMs  how long to wait for /health (default 60 s).
+ *   checkListening   (pid, port) => rows, throwing to refuse the relay.
+ *                    Default assertLoopbackOnly; a test passes its own to
+ *                    prove startRelay() calls it and stops a refused relay.
+ *   spawnProcess     (exe, args, options) => ChildProcess. Default
+ *                    child_process.spawn; a test passes one that runs a tiny
+ *                    stand-in relay in node, so the check above can be seen
+ *                    working without a release build.
  *
  * Resolves with a handle whether or not /health answered: `health` is the
  * parsed /health body, or null, and the caller decides what that means
- * (logText() says why). Rejects only if the folder or the copy could not be
- * made.
+ * (logText() says why). Rejects if the folder or the copy could not be made,
+ * and, once /health has answered, if the relay is NOT listening on loopback
+ * only (the relay is stopped first; see "LOOPBACK ONLY" at the top).
  *
  * The handle: { dir, exe, port, url (ws://.../ws), httpUrl, dbPath, logPath,
- * pid, proc, health, exited(), logText(), kill(), removeDir(), stop() }.
+ * pid, proc, health, listening, exited(), logText(), kill(), removeDir(),
+ * stop() }. `listening` is what the OS showed the relay listening on (rows
+ * { host, port, line }), so a caller can print the evidence.
  */
-async function startRelay({ sourceExe, prefix = "throwaway-relay-", config = null, healthTimeoutMs = 60000 } = {}) {
+async function startRelay({
+  sourceExe,
+  prefix = "throwaway-relay-",
+  config = null,
+  healthTimeoutMs = 60000,
+  checkListening = assertLoopbackOnly,
+  spawnProcess = spawn,
+} = {}) {
   if (!sourceExe || !fs.existsSync(sourceExe)) throw new Error(`no relay exe to copy: ${sourceExe}`);
   hookProcessExit();
   let dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -166,6 +339,7 @@ async function startRelay({ sourceExe, prefix = "throwaway-relay-", config = nul
     pid: 0,
     proc: null,
     health: null,
+    listening: [],
     exited: () => exited,
     logText() {
       try {
@@ -214,7 +388,7 @@ async function startRelay({ sourceExe, prefix = "throwaway-relay-", config = nul
   h.url = `ws://127.0.0.1:${h.port}/ws`;
   h.httpUrl = `http://127.0.0.1:${h.port}`;
   const log = fs.openSync(h.logPath, "w");
-  proc = spawn(h.exe, ["--headless"], { cwd: dir, env: relayEnv(h.port, h.dbPath), stdio: ["ignore", log, log], windowsHide: true });
+  proc = spawnProcess(h.exe, ["--headless"], { cwd: dir, env: relayEnv(h.port, h.dbPath), stdio: ["ignore", log, log], windowsHide: true });
   fs.closeSync(log);
   h.proc = proc;
   h.pid = proc.pid;
@@ -228,7 +402,32 @@ async function startRelay({ sourceExe, prefix = "throwaway-relay-", config = nul
     }
     await sleep(300);
   }
+
+  // Serving, so listening: now make the OS prove it is on loopback only. A
+  // relay that is not gets killed and its folder removed BEFORE the error
+  // goes up, so a refused relay is never left running for a caller to forget.
+  // (A relay that never answered /health is the caller's to judge, as before.)
+  if (h.health) {
+    try {
+      h.listening = checkListening(h.pid, h.port);
+    } catch (e) {
+      await h.stop();
+      throw e;
+    }
+  }
   return h;
 }
 
-module.exports = { EXE_NAME, startRelay, freePort, getJson, relayEnv };
+module.exports = {
+  EXE_NAME,
+  LOOPBACK_BIND,
+  startRelay,
+  freePort,
+  getJson,
+  relayEnv,
+  parseListening,
+  isLoopbackHost,
+  listeningSockets,
+  loopbackOnlyProblem,
+  assertLoopbackOnly,
+};

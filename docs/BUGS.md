@@ -2824,3 +2824,25 @@ rigs copy the exe after checking it; about 30 data files are compiled in but
 not fingerprinted (embedded fallbacks). v0.1446.1: `just check-delivery` (and the DELIVERY row of
 `just brief`) answers "does the taskbar exe hold this tree's code" from the
 same fingerprint, still ignoring the live PBR shaders and the version files.
+
+## BUG-134: a Library rebuild that dies part-way leaves data/library half-written (FIXED v0.1447.1, found 2026-10-03)
+
+**Symptom:** twice in one evening, the first `node scripts/build-library.js`
+after a merge died with only "Node.js v24.13.1" visible, and git then showed 72
+shipped guides changed by 703 lines (ignoring line endings). A second run was
+clean. Committing after the first run would have shipped a mix of new and old
+copies with a stale search index.
+
+**Cause:** the script rewrites about 145 files in passes (copy each doc,
+rewrite its links, write the indexes) with plain synchronous writes, so any
+error in the middle leaves the passes before it applied and the ones after it
+not. Caught on a loop of runs: `Error: UNKNOWN: unknown error, open
+'C:\Humanity\data\library\search-index.json'` on 1 run in 4, a Windows sharing
+violation (Node reports some as UNKNOWN rather than EBUSY) while something held
+the 4 MB index a previous run had just written.
+
+**Fix:** every write retries a short lock (EBUSY, EPERM, EACCES, UNKNOWN; 8
+tries, 150 ms apart), and a run that still fails prints the error and says
+plainly that data/library/ may be half-written and must not be committed until
+a rerun finishes. Checked with a simulated two-time lock (recovers) and a
+permanent one (fails loudly, exit 1); then 30 real runs, 0 failures.

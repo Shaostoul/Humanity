@@ -96,9 +96,17 @@ every load-bearing claim checked by an adversarial verifier
   rounds found 5 then 7 real problems (the second round: a step-out of the
   shared world, a long outage or a relay restart can still freeze a player
   under the 100 m rule; built pieces and vehicles are not carried to the new
-  plot; plots are never given back); a second fix round is in progress. Its
-  red check is done (the 1b rig against the 1a build: `camera_in_p2` fails
-  at (53.50, 1.70, 40.50)). Then increment 2. Follow-ups 1a found: put
+  plot; plots are never given back). Rounds 2 and 3 fixed those and 16 more
+  (a three-lens review with two skeptics per finding), including an admin
+  "release plot" action, Respawn through the relay, the save recording its
+  plot box, and current main merged in: `--plots` 26/26 both orders, default
+  rig 21/21. A focused fourth review confirmed 11 more (one HIGH: a player
+  whose chat is already connected joins before the ship loads, is refused as
+  "a different ship" and stays out until a reconnect; the rigs could not see
+  it because the autopilot identifies after entering). Round 5 (fix with the
+  rig able to fail first, review, fix, merge main, all rigs) is running. Its red
+  check is done (the 1b rig against the 1a build: `camera_in_p2` fails at
+  (53.50, 1.70, 40.50)). Then increment 2. Follow-ups 1a found: put
   the Commons machines on the ship's own power instead of the household
   battery; `just verify-screens` fails 2 of 12 because the starter kit's
   17-item backpack pushes the inventory's "Home" row off the screen (the rig

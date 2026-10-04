@@ -188,12 +188,40 @@
           ]
         },
         {
+          "title": "Knowing Which Way Is North",
+          "file": "knowing_which_way_is_north.md",
+          "tags": [
+            "guide",
+            "real",
+            "beginner",
+            "safety"
+          ]
+        },
+        {
           "title": "The Sky as an Instrument",
           "file": "the_sky_as_an_instrument.md",
           "tags": [
             "guide",
             "real",
             "technical"
+          ]
+        },
+        {
+          "title": "Reading a Map",
+          "file": "reading_a_map.md",
+          "tags": [
+            "guide",
+            "real",
+            "safety"
+          ]
+        },
+        {
+          "title": "Coordinates",
+          "file": "coordinates.md",
+          "tags": [
+            "guide",
+            "real",
+            "safety"
           ]
         }
       ],
@@ -691,6 +719,25 @@
           ]
         },
         {
+          "title": "Reading Numbers Honestly",
+          "file": "reading_numbers_honestly.md",
+          "tags": [
+            "guide",
+            "real",
+            "beginner"
+          ]
+        },
+        {
+          "title": "Light, Lenses and Mirrors",
+          "file": "light_lenses_and_mirrors.md",
+          "tags": [
+            "guide",
+            "real",
+            "technical",
+            "safety"
+          ]
+        },
+        {
           "title": "Sharpening",
           "file": "sharpening.md",
           "tags": [
@@ -746,6 +793,17 @@
             "real",
             "making",
             "materials"
+          ]
+        },
+        {
+          "title": "Nails, Screws and Bolts",
+          "file": "nails_screws_and_bolts.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "shelter",
+            "safety"
           ]
         },
         {

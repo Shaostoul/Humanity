@@ -410,6 +410,13 @@
       "how": "DATABASE_PATH=/path/to/relay.db (or DB_PATH) in /opt/Humanity/.env, restart (src/relay/mod.rs:111-116,126-132)."
     },
     {
+      "name": "Choose who can connect (BIND_ADDRESS)",
+      "what": "Which network address the server listens on. 0.0.0.0, the default, is every interface: other devices on the network and a router port forward can reach it. 127.0.0.1 is this computer only: right for a server behind nginx on the same machine, and for local development, where Windows then never asks about its firewall. A value that is not an IP address stops the server instead of opening it to everyone.",
+      "where": "config-file",
+      "audience": "owner",
+      "how": "BIND_ADDRESS=127.0.0.1 (or 0.0.0.0, or one of the machine's own addresses) in /opt/Humanity/.env, restart (src/relay/mod.rs parse_bind_address; docs/admin/SELF-HOSTING.md, Who can connect). A node hosted from the desktop app sets it with Servers > Host a node on this PC > Who can connect, no file needed."
+    },
+    {
       "name": "Declare Accord compliance (ACCORD_COMPLIANT)",
       "what": "Announces that this server follows the Humanity Accord, which feeds the federation trust badges other servers show.",
       "where": "config-file",
@@ -697,7 +704,7 @@
       "reason": "Every in-app control depends on the relay answering; the shell is the only path when it is not, in-app-ops.md:104 codifies 'the CLI stays too' for exactly this."
     },
     {
-      "name": "Listen port and database location (PORT, DATABASE_PATH)",
+      "name": "Listen port, listen address and database location (PORT, BIND_ADDRESS, DATABASE_PATH)",
       "reason": "Host-topology choices tied to the nginx proxy and filesystem layout; changing them from inside the running process would sever its own connection mid-change."
     },
     {

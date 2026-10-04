@@ -48,6 +48,9 @@ const png = require("./lib/png.js");
 const G = require("./rig-graphics.js");
 const MG = require("./lib/machine-guard.js");
 const DXC = require("./lib/dxc-dlls.js");
+// For its loopback-only check and address only; this rig runs its relay
+// from its own fixed rig folder, not as a throwaway copy.
+const TR = require("./lib/throwaway-relay.js");
 // The freshness gate, run through its one runner so --allow-other-build reaches
 // it and comes back as the manifest's other_build record (BUG-133).
 const { runFreshGate, otherBuildNotice } = require("./lib/src-fingerprint.js");
@@ -522,6 +525,10 @@ async function main() {
         ...process.env,
         PORT: String(PORT),
         DATABASE_PATH: path.join(RELAY_DIR, "relay.db"),
+        // Loopback only: the game and the publisher are both on 127.0.0.1,
+        // and a relay on every interface makes Windows raise a firewall
+        // prompt for this exe path (scripts/lib/throwaway-relay.js, top).
+        BIND_ADDRESS: TR.LOOPBACK_BIND,
         // Never the operator's focus, even though a headless relay opens no
         // window: the marker files and this var are how the whole rig asks.
         HUMANITY_NO_FOCUS: "1",
@@ -538,6 +545,10 @@ async function main() {
       : { ok: false, detail: `${SERVER_URL} never answered /health; see ${rel(RELAY_LOG)}` };
     step("relay", manifest.relay);
     if (!health) throw new Error("the local relay did not come up");
+    // The OS, not the env we passed, says what it listens on: loopback only,
+    // or the run stops here (killAll takes the relay down on the way out).
+    const listening = TR.assertLoopbackOnly(relayProc.pid, PORT);
+    log(`relay listens on loopback only: ${listening.map((r) => r.line.replace(/\s+/g, " ")).join(" | ")}`);
 
     // ── 2. The test pattern. It claims the stream name first (the relay
     // resolves a stream id from the publisher's REGISTERED name), then
