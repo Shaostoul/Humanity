@@ -420,8 +420,9 @@ pub const WS_ALWAYS_ON: &[&str] = &[
     // own data must work regardless of which features the owner offers.
     // (account_export/account_export_data moved to POST /api/account/export on
     // 2026-09-06; that route is deliberately absent from ROUTE_FEATURES, so it
-    // cannot be switched off either.)
-    "account_delete",
+    // cannot be switched off either.) `account_erased` is the server's word to
+    // the erasing client that it is done (BUG-135).
+    "account_delete", "account_erased",
     // Outbound notifications (server -> client echoes of state changes).
     "message_deleted", "pin_added", "pin_removed", "pins_sync", "reactions_sync",
     "channel_list", "channel_update", "profile_data", "announcements",
@@ -2129,6 +2130,44 @@ mod tests {
             heard.iter().all(|g| g["type"] != "game_join_denied"),
             "another player was told someone else's account was erased: {heard:?}"
         );
+        holder.close(None).await.ok();
+        other.close(None).await.ok();
+        server.abort();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// BUG-135: after an erase the clients stayed connected, so the next automatic reconnect
+    /// (every deploy restarts the relay) identified again, registering the erased name again,
+    /// and the game joined and claimed a new plot. The erase now ends with `account_erased` to
+    /// the erasing account's clients, AFTER the receipt the person reads and after the user
+    /// list broadcast (whose arrival would otherwise refill what the client clears), on which
+    /// the clients disconnect and redial only when the person presses Connect. Nobody else
+    /// hears it, and an erase made outside the world (before Enter World) sends it too.
+    ///
+    /// Seen red 2026-10-04 on 1c41de3b9 with the message defined but not sent: "the erasing
+    /// client was never told to disconnect: [Object {\"peers\": Array [...".
+    #[tokio::test]
+    async fn an_erase_tells_only_the_erasing_account_to_disconnect() {
+        let path = plots_db("erase_disconnect");
+        let (state, port, server) = relay_on(&path).await;
+        let (mut holder, holder_key) = bind_socket(&state, port, [129u8; 32], Some("EraseLeaves"), 1).await;
+        let (mut other, _) = bind_socket(&state, port, [130u8; 32], Some("EraseStays"), 1).await;
+        send_json(&mut holder, serde_json::json!({ "type": "account_delete", "confirm_name": "EraseLeaves" })).await;
+        let heard = frames_until_quiet(&mut holder, 1500).await;
+        let is_receipt = |f: &Value| {
+            f["type"] == "system" && f["message"].as_str().is_some_and(|m| m.starts_with("Your account and its data were erased"))
+        };
+        let receipt = heard.iter().position(is_receipt).unwrap_or_else(|| panic!("no erase receipt: {heard:?}"));
+        let erased = heard.iter().position(|f| f["type"] == "account_erased");
+        let erased = erased.unwrap_or_else(|| panic!("the erasing client was never told to disconnect: {heard:?}"));
+        assert!(erased > receipt, "the signal came before the receipt the person reads");
+        assert!(
+            heard[erased..].iter().all(|f| f["type"] != "full_user_list"),
+            "a user list arrived after the signal and refills the roster the client cleared"
+        );
+        assert_eq!(heard[erased]["to"], holder_key);
+        let others = frames_until_quiet(&mut other, 500).await;
+        assert!(others.iter().all(|f| f["type"] != "account_erased"), "another account was told to disconnect: {others:?}");
         holder.close(None).await.ok();
         other.close(None).await.ok();
         server.abort();

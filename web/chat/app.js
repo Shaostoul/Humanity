@@ -90,6 +90,22 @@ if (savedName && location.hash.indexOf('devicelink=') === -1) {
   setTimeout(() => connect(), 50);
 }
 
+// An account this identity erased on this server (BUG-135). The erase removes the saved
+// name, so a reload does not sign up again by itself, and this flag keeps the login screen
+// saying what pressing Enter does. connect() clears it. Mirrors the native Chat page's
+// connect box (src/gui/connections.rs ERASED_CONNECT_NOTE, which names its Connect button).
+const ERASED_FLAG = 'humanity_account_erased';
+const ERASED_ENTER_NOTE = 'Your account on this server was erased, so pressing Enter signs you up again as a new account on this server.';
+function showErasedNote(on) {
+  const el = document.getElementById('login-note');
+  if (!el) return;
+  el.textContent = on ? ERASED_ENTER_NOTE : '';
+  el.style.display = on ? 'block' : 'none';
+}
+try {
+  if (!savedName && localStorage.getItem(ERASED_FLAG) === '1') showErasedNote(true);
+} catch (e) { /* storage blocked: the note is a convenience, the erase already happened */ }
+
 let pendingLinkCode = null;
 let pendingInviteCode = null;
 let identityConfirmed = false;
@@ -282,6 +298,9 @@ async function connect() {
   }
 
   localStorage.setItem('humanity_name', myName);
+  // Entering after an erase is the person choosing to sign up again (BUG-135).
+  try { localStorage.removeItem(ERASED_FLAG); } catch (e) {}
+  showErasedNote(false);
 
   // Hide any previous error, show connecting status.
   document.getElementById('login-error').style.display = 'none';
@@ -1194,6 +1213,28 @@ async function handleMessage(msg) {
       identityConfirmed = false;
       if (ws) { ws.onclose = null; ws.close(); ws = null; }
       setStatus('disconnected', 'Choose a different name');
+      break;
+    }
+    case 'account_erased': {
+      // BUG-135: this server erased our account (the receipt just before this said what
+      // went). Leave it and never come back by ourselves: no reconnect timer, and no saved
+      // name, so a reload does not sign in. Every client of this identity gets this, so a
+      // second tab stops too. The login screen's Enter is the way back, and says first that
+      // it signs up again (showErasedNote). Same steps as name_taken above.
+      clearTimeout(reconnectTimer);
+      reconnectDelay = 1000;
+      try {
+        localStorage.removeItem('humanity_name');
+        localStorage.setItem(ERASED_FLAG, '1');
+      } catch (e) {}
+      identityConfirmed = false;
+      if (ws) { ws.onclose = null; ws.close(); ws = null; }
+      setStatus('disconnected', 'Account erased');
+      document.getElementById('login-screen').style.display = 'flex';
+      document.getElementById('chat-screen').style.display = 'none';
+      document.getElementById('login-error').style.display = 'none';
+      document.getElementById('crypto-status').textContent = '';
+      showErasedNote(true);
       break;
     }
   }

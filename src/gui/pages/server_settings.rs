@@ -3150,12 +3150,8 @@ fn do_disconnect(state: &mut GuiState, group_id: Option<String>) {
             state.active_page = GuiPage::Chat;
         }
         None => {
-            if let Some(ref mut client) = state.ws_client {
-                client.disconnect();
-            }
-            state.ws_client = None;
-            state.ws_status = "Disconnected".to_string();
-            state.ws_manually_disconnected = true;
+            // The one Disconnect path (gui/connections.rs), shared with the Chat page.
+            state.disconnect_active();
             state.active_page = GuiPage::Chat;
         }
     }

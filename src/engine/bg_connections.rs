@@ -229,6 +229,21 @@ fn dial_missing_saved_servers(state: &mut EngineState) {
         if !seen.insert(n.clone()) {
             continue; // duplicate saved entry for the same server
         }
+        // A server whose account this identity erased (BUG-135) is listed as a closed link,
+        // never dialed: clicking its row opens the Chat page's Connect, which says first
+        // that it signs up again. Dialing it here would sign up again by itself.
+        if state.gui_state.account_erased_here(&url) {
+            state.gui_state.connections.push(crate::gui::ServerConnection {
+                url: n,
+                display_url: url.trim().to_string(),
+                status: "Disconnected".to_string(),
+                manually_disconnected: true,
+                reconnect_delay: 5.0,
+                active_channel: "general".to_string(),
+                ..Default::default()
+            });
+            continue;
+        }
         let ws_url = crate::gui::pages::chat::derive_ws_url(&url);
         log::info!("Background connect: dialing saved server {url}");
         state.gui_state.connections.push(crate::gui::ServerConnection {
@@ -653,6 +668,8 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
                 }
             }
         }
+        // BUG-135: an erase confirmed after the person switched away from that server.
+        Some("account_erased") => crate::engine::account_erase::on_parked_server(state, ci),
         Some("name_taken") => {
             // Retrying with the same name would loop forever; stop redialing
             // and surface why. The user resolves it from the active side.

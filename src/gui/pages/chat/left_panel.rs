@@ -119,6 +119,17 @@ pub(super) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
                     state.user_name = "DesktopUser".to_string();
                 }
 
+                // This identity erased its account on the server in the field (BUG-135): the
+                // app no longer dials it by itself, so say what the button below does there.
+                if state.account_erased_here(&state.server_url) {
+                    ui.label(
+                        RichText::new(crate::gui::ERASED_CONNECT_NOTE)
+                            .size(theme.font_size_small)
+                            .color(theme.warning()),
+                    );
+                    ui.add_space(4.0);
+                }
+
                 ui.label(RichText::new("Server:").size(theme.font_size_small).color(theme.text_muted()));
                 ui.add(
                     egui::TextEdit::singleline(&mut state.server_url)
@@ -172,6 +183,9 @@ pub(super) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
                         state.ws_reconnect_timer = 0.0;
                         state.ws_reconnect_delay = 5.0;
                         state.ws_reconnect_attempts = 0;
+                        // Connecting after an erase is the person signing up there again.
+                        let url = state.server_url.clone();
+                        state.forget_account_erased(&url);
                         crate::config::AppConfig::from_gui_state(state).save();
                     }
                 }
@@ -1691,13 +1705,9 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                     });
 
                     if svr_disconnect {
-                        if let Some(ref mut client) = state.ws_client {
-                            client.disconnect();
-                        }
-                        state.ws_client = None;
-                        state.ws_status = "Disconnected".to_string();
-                        state.ws_manually_disconnected = true;
-                        state.chat_users.clear();
+                        // The one Disconnect path (gui/connections.rs), shared with Server
+                        // Settings and an erased account (BUG-135).
+                        state.disconnect_active();
                     }
 
                     // Merged channels (only if not collapsed)

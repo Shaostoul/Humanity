@@ -14287,6 +14287,9 @@ mod native_app {
                         && !state.gui_state.user_name.is_empty()
                         && state.gui_state.onboarding_complete
                         && !state.gui_state.ws_manually_disconnected
+                        // Never a server this identity erased its account on (BUG-135): a boot
+                        // or an unlock would sign up again by itself. Its Connect does that.
+                        && !state.gui_state.account_erased_here(&state.gui_state.server_url)
                         && state.gui_state.ws_reconnect_timer <= 0.0
                         && state.gui_state.ws_reconnect_attempts == 0
                         && seed_unlocked

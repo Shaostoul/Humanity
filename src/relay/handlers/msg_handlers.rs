@@ -1871,6 +1871,9 @@ pub async fn handle_account_delete(state: &Arc<RelayState>, my_key: &str, confir
         ),
     });
     broadcast_full_user_list(state).await;
+    // Last, so nothing after it refills what the client clears (BUG-135): the account's
+    // clients disconnect from this server and redial it only when the person presses Connect.
+    let _ = state.broadcast_tx.send(RelayMessage::AccountErased { to: my_key.to_string() });
 }
 
 // (Legacy group handlers removed 2026-08-23: plaintext group storage
