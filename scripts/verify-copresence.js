@@ -84,8 +84,8 @@
 // names a crew member only within 40 m and not behind a wall), photographs it (crew.png) and
 // records a few seconds. Judged under crew_* ids (copresence-judge.js judgeCrew): every crew
 // member drawn, no crew figure ever drawn on a plot, every one in the Commons during the look,
-// and at least one SEEN there: named on screen, drawn in front of the camera, its amber body
-// counted in the picture under the name. Then, in each order, the game STEPS OUT of
+// and at least one SEEN there: named on screen, drawn in front of the camera, and a crew
+// figure's amber body counted in the picture under the name. Then, in each order, the game STEPS OUT of
 // the shared world and back (the showcase `solo` verb, the switch the
 // launcher's offline home and Dev travel flip), having been moved more than
 // 100 m from its door while out: the relay spawns it afresh at its door, and

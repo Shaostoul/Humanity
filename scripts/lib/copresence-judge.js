@@ -1247,17 +1247,23 @@ function figurePixels(img, nameplate = null, after = null) {
 // simulated the Pioneer, whose rooms lie inside plot p1, and every crew figure was drawn inside
 // the home on p1.
 
-/// Is this pixel a crew member's amber body? The crew's material is (0.92, 0.62, 0.18),
-/// slightly emissive (lib.rs, "Crew NPCs"): red high, green about two thirds of it, blue low.
-/// Oak, the warm wood of the Commons' partitions ((0.55, 0.40, 0.24), data/blueprints/
-/// wall_materials.ron), has much more blue for its red, so it does not pass; nor does the
-/// players' teal.
+/// Is this pixel a crew member's amber body AS THE GAME DRAWS IT? The crew's material is
+/// (0.92, 0.62, 0.18), slightly emissive (lib.rs, "Crew NPCs"), but lit and tone-mapped in the
+/// Commons it comes out about (176, 151, 71): measured on the first crew.png (2026-10-04, run
+/// 20261004-155649-plots-game-first, the body of Botanist Yara 5 m away), green about 0.86 of
+/// red and blue about 0.40. So: bright enough, green 0.78 to 0.95 of red, blue 0.25 to 0.52.
+/// Not counted: the HUD's orange activity line under a crew member's name (223, 131, 33: green
+/// 0.59 of red, which the first test, written from the material colour, counted instead of the
+/// body), oak as the Commons draws it (dark, and blue 0.6 of red), the floor and walls (grey,
+/// green above red), white lamps and the sun, and the players' teal. On that picture the test
+/// found 17,302 pixels, all but 19 of them on the crew's figures.
 function isFigureAmber(r, g, b) {
-  return r > 110 && b < 0.38 * r && g > 0.45 * r && g < 0.85 * r;
+  return r > 110 && g >= 0.78 * r && g <= 0.95 * r && b >= 0.25 * r && b <= 0.52 * r;
 }
 
-/// Fewest amber pixels under a crew member's nameplate that count as the figure seen. Set
-/// from the first crew.png of increment 3 (see judgeCrew's `crew_seen`).
+/// Fewest crew-amber pixels under a crew member's nameplate that count as a crew figure seen
+/// there. A crew member 35 m away in the first crew.png is about 10 x 40 px of body; 150 is
+/// well under that and far over the 19 stray pixels the whole rest of that picture held.
 const CREW_MIN_PX = 150;
 
 /// Count crew-amber pixels in `img` in the box under a crew member's nameplate at `nameplate`
@@ -1311,8 +1317,11 @@ function onPlotXZ(p, plot, tol = 0.01) {
  *   crew_never_on_a_plot no crew figure in any frame of any recording stands on a plot
  *   crew_in_the_commons  in the look's recording every crew figure stands in the Commons
  *   crew_seen            during the look, a crew member's nameplate is on screen, its figure is
- *                        drawn in the Commons in front of the camera, and its amber body is in
- *                        the picture under the name (CREW_MIN_PX)
+ *                        drawn in the Commons in front of the camera, and a crew figure's amber
+ *                        body is in the picture under the name (CREW_MIN_PX). Under the name, not
+ *                        necessarily that crew member's own body: crew standing in a line up the
+ *                        aisle share a column, and the nearest one's body fills every box
+ *                        (the first runs counted the same ~16,000 px under five names)
  * Returns { pass, checks }.
  */
 function judgeCrew({ recordings, plots, commons, expectCrew, look }) {
@@ -1413,7 +1422,7 @@ function judgeCrew({ recordings, plots, commons, expectCrew, look }) {
                 (s) =>
                   `${s.name} ${s.found ? `named on screen at x ${Number(s.pos_px[0]).toFixed(0)}` : "NOT named on screen"}, ` +
                   `drawn ${s.pos ? fmtP(s.pos) : "nowhere"}${s.inC ? "" : " (NOT in the Commons)"}${s.deg !== null ? ` ${s.deg.toFixed(0)} deg off the view${s.inFront ? "" : " (NOT in front)"}` : ""}, ` +
-                  `${Number.isFinite(s.amber) ? `${s.amber} amber px` : "no picture"}${s.amberOk ? "" : ` (fewer than ${CREW_MIN_PX})`}`,
+                  `${Number.isFinite(s.amber) ? `${s.amber} crew-amber px under the name` : "no picture"}${s.amberOk ? "" : ` (fewer than ${CREW_MIN_PX})`}`,
               )
               .join("; "),
   );
