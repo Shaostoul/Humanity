@@ -53,6 +53,15 @@
           ]
         },
         {
+          "title": "Invasive Species",
+          "src": "docs/user/skills/invasive_species.md",
+          "tags": [
+            "guide",
+            "real",
+            "safety"
+          ]
+        },
+        {
           "title": "Reading the Tide",
           "src": "docs/user/skills/reading_the_tide.md",
           "tags": [
@@ -668,12 +677,34 @@
       "section": "Learn",
       "docs": [
         {
+          "title": "How Your Body Works",
+          "src": "docs/user/skills/how_your_body_works.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "safety",
+            "beginner"
+          ]
+        },
+        {
           "title": "Handwashing and Hygiene",
           "src": "docs/user/skills/handwashing_and_hygiene.md",
           "tags": [
             "guide",
             "real",
             "health",
+            "safety"
+          ]
+        },
+        {
+          "title": "Rats, Flies, Mosquitoes and Ticks",
+          "src": "docs/user/skills/rats_flies_mosquitoes_and_ticks.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "shelter",
             "safety"
           ]
         },
