@@ -309,7 +309,11 @@ pub fn draw_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.add_space(theme.spacing_xs);
     let joined = state.copresence_active;
     if let Some(l) = state.fleet.ledger.clone() {
-        draw_ledger(ui, theme, &l);
+        // The server's settings, when this game has them, say the mode as it is NOW (an admin's
+        // change reaches every connected app as `server_settings_state`); the ledger says it as
+        // it was when the ledger was sent.
+        let supply = state.server_settings.as_ref().map_or_else(|| l.supply.clone(), |s| s.fleet_supply_mode.clone());
+        draw_ledger(ui, theme, &l, &supply);
     } else if joined {
         widgets::body_hint(ui, theme, "Asking the server for your ledger...");
     } else {
@@ -327,7 +331,7 @@ pub fn draw_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 }
 
 /// The ledger itself: the headline, the totals, the supply mode, each kind, the newest lines.
-fn draw_ledger(ui: &mut egui::Ui, theme: &Theme, l: &FleetLedger) {
+fn draw_ledger(ui: &mut egui::Ui, theme: &Theme, l: &FleetLedger, supply: &str) {
     let color = match l.standing.as_str() {
         "black" => theme.success(),
         "red" => theme.danger(),
@@ -339,7 +343,7 @@ fn draw_ledger(ui: &mut egui::Ui, theme: &Theme, l: &FleetLedger) {
         ui.add_space(theme.spacing_md);
         ui.label(RichText::new(format!("Given to the fleet: {}", credits(l.contributed))).color(theme.text_primary()));
     });
-    widgets::body_hint(ui, theme, supply_sentence(&l.supply));
+    widgets::body_hint(ui, theme, supply_sentence(supply));
     if !l.kinds.is_empty() {
         ui.add_space(theme.spacing_sm);
         widgets::subsection_label(ui, theme, "By kind");
@@ -638,6 +642,15 @@ pub(crate) mod tests {
         for text in ["In the red: you have used 4 CR more", "Used from the fleet: 10 CR", "Given to the fleet: 6 CR", "fleet is unlimited", "2 Bread", "Take a meal", "Give to the fleet"] {
             assert!(find_text_in_shapes(&out.shapes, text).is_some(), "the panel shows {text:?}");
         }
+        // An admin switched the server to stocked after the ledger came: the server's settings,
+        // which every connected app is sent, say so at once. Seen red 2026-10-04 with the
+        // sentence read from the ledger only: "after the switch the panel says the fleet is
+        // stocked".
+        let mut s = crate::relay::storage::ServerSettings::default();
+        s.fleet_supply_mode = "stocked".into();
+        gs.server_settings = Some(s);
+        let out = frame(&ctx, &theme, &mut gs);
+        assert!(find_text_in_shapes(&out.shapes, "fleet is stocked").is_some(), "after the switch the panel says the fleet is stocked");
     }
 
     /// One headless frame of the admin's Fleet supply section, with `events`.
