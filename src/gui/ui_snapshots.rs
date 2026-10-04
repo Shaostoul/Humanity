@@ -1809,6 +1809,31 @@ fn snapshot_market_publish() {
 }
 page_snapshot!(snapshot_profile, "profile", profile, 1280, 900);
 page_snapshot!(snapshot_crafting, "crafting", crafting, 1280, 900);
+
+/// The Crafting page with a spacecraft pod selected (BUG-147): each part
+/// split between the backpack and home storage, the last part 2 short in
+/// both together, and the pod (far bigger than the backpack) bound for home
+/// storage. The plain page snapshot selects no recipe, so it shows none of it.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_crafting_home_storage() {
+    // Tall enough to show the Produces card (where the pod will go) below
+    // the pod's 27 parts.
+    render_page_png("crafting_home_storage", 1280, 1500, |ctx, theme, state| {
+        if state.craft_selected.is_none() {
+            let idx = state.craft_recipes.iter().position(|r| r.id == "build_spacecraft_pod").expect("the pod recipe ships");
+            state.craft_selected = Some(idx);
+            let parts = state.craft_recipes[idx].inputs.clone();
+            let last = parts.len() - 1;
+            for (i, (id, need)) in parts.into_iter().enumerate() {
+                let slot = GuiItemSlot { item_id: id.clone(), name: id.clone(), quantity: need / 3, wear: 0, quality: 0 };
+                state.inventory_items.push(Some(slot));
+                state.home_stock.insert(id, if i == last { need - need / 3 - 2 } else { need });
+            }
+        }
+        crate::gui::pages::crafting::draw(ctx, theme, state);
+    });
+}
 page_snapshot!(snapshot_library, "library", library, 1280, 900);
 
 /// A SHORT Library document that has siblings, so the ladder footer at the foot of the

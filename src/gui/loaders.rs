@@ -1252,23 +1252,37 @@ pub fn load_crafting_recipes(data_dir: &std::path::Path) -> Vec<GuiRecipe> {
     };
     let rows: Vec<Row> = crate::assets::loader::parse_csv(&bytes).unwrap_or_default();
     let tool_rules = crate::systems::crafting::tools::load(data_dir);
-    // Which outputs are durable (graded when made by hand, 2026-09-26).
+    // Which outputs are durable (graded when made by hand, 2026-09-26), and
+    // each item's litres (where a result goes, BUG-147).
     #[derive(serde::Deserialize)]
     struct Dur {
         id: String,
         #[serde(default)]
         durability: u32,
+        #[serde(default)]
+        volume_l: f32,
     }
-    let durable: std::collections::HashSet<String> = std::fs::read(data_dir.join("items.csv"))
+    let items: Vec<Dur> = std::fs::read(data_dir.join("items.csv"))
         .ok()
         .and_then(|b| crate::assets::loader::parse_csv::<Dur>(&b).ok())
-        .map(|v| v.into_iter().filter(|d| d.durability > 0).map(|d| d.id).collect())
         .unwrap_or_default();
+    let durable: std::collections::HashSet<&str> = items.iter().filter(|d| d.durability > 0).map(|d| d.id.as_str()).collect();
+    let litres: std::collections::HashMap<&str, f32> = items.iter().map(|d| (d.id.as_str(), d.volume_l)).collect();
+    let kits = std::fs::read(data_dir.join("vehicles").join("kits.ron"))
+        .ok()
+        .and_then(|b| crate::systems::vehicles::VehicleKitRegistry::from_ron(&b).ok());
+    let rolls = |id: &str| kits.as_ref().is_some_and(|k| k.get_vehicle(id).is_some());
     rows.into_iter()
         .map(|r| GuiRecipe {
             graded: crate::systems::crafting::Recipe::parse_ingredients(&r.outputs)
                 .iter()
-                .any(|(o, _)| durable.contains(o)),
+                .any(|(o, _)| durable.contains(o.as_str())),
+            output_volume_l: crate::systems::crafting::Recipe::parse_ingredients(&r.outputs)
+                .iter()
+                .filter(|(o, _)| !rolls(o))
+                .map(|(o, q)| litres.get(o.as_str()).copied().unwrap_or(0.0) * *q as f32)
+                .sum(),
+            rolls_out: crate::systems::crafting::Recipe::parse_ingredients(&r.outputs).iter().any(|(o, _)| rolls(o)),
             tools: tool_rules.tools_for(
                 &r.id,
                 r.station_required.trim(),

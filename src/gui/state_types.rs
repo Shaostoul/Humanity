@@ -646,6 +646,11 @@ pub struct GuiRecipe {
     pub tools: Vec<String>,
     /// Makes a durable good, so a hand craft grades it (2026-09-26).
     pub graded: bool,
+    /// Litres of what it makes, vehicles that roll out left aside, and
+    /// whether one rolls out (data/vehicles/kits.ron): where the result goes
+    /// (backpack, or home storage when too big, BUG-147).
+    pub output_volume_l: f32,
+    pub rolls_out: bool,
 }
 
 /// One vendor-tradeable good for GUI display (v0.747, ladder rung 3).

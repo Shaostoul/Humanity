@@ -222,13 +222,21 @@ pub fn in_storage_room(places: &[crate::gui::Place], path: &str, rooms: &[String
 /// channel, 2026-09-26) into home storage: the organize-pool place labelled
 /// as a storage zone (the Barn), else loose in the home. Merges into an
 /// unworn entry of the same item there. The Barn's crates follow.
+/// Hand-made goods the backpack could not take (BUG-147, the
+/// `crafting::home_store::HAND_MADE_TO_STORAGE` channel) are filed the same
+/// way, keeping the grade the crafter gave them.
 pub fn receive_machine_outputs(state: &mut crate::engine::state::EngineState) {
     let made: Vec<(String, u32)> = state
         .data_store
         .get::<std::sync::Mutex<Vec<(String, u32)>>>("home_stock_outputs")
         .and_then(|m| m.lock().ok().map(|mut v| std::mem::take(&mut *v)))
         .unwrap_or_default();
-    if made.is_empty() {
+    let hand_made: Vec<(String, u32, u8)> = state
+        .data_store
+        .get::<std::sync::Mutex<Vec<(String, u32, u8)>>>(crate::systems::crafting::home_store::HAND_MADE_TO_STORAGE)
+        .and_then(|m| m.lock().ok().map(|mut v| std::mem::take(&mut *v)))
+        .unwrap_or_default();
+    if made.is_empty() && hand_made.is_empty() {
         return;
     }
     let rooms = storage_room_labels(state);
@@ -239,8 +247,11 @@ pub fn receive_machine_outputs(state: &mut crate::engine::state::EngineState) {
         .data_store
         .get::<crate::systems::crafting::quality::QualityLevels>("quality_levels")
         .map_or(0, |l| l.standard());
-    for (id, qty) in made {
+    let made = made.into_iter().map(|(id, qty)| {
         let quality = if reg.map_or(false, |r| r.durability_for(&id) > 0) { standard } else { 0 };
+        (id, qty, quality)
+    });
+    for (id, qty, quality) in made.chain(hand_made) {
         let pool = &mut state.gui_state.placed_items;
         if let Some(p) = pool
             .iter_mut()
@@ -252,6 +263,40 @@ pub fn receive_machine_outputs(state: &mut crate::engine::state::EngineState) {
             pool.push(PlacedItem { key: id, name, qty, container: container.clone(), wear: 0, quality });
         }
     }
+}
+
+/// Home storage for this tick (v0.737 for the automated machines; the build
+/// menu and, since BUG-147, hand crafts count it too): the organize-layer
+/// pool's counts by item, published as "home_stock" for the systems to count
+/// and draw on, and kept on the GUI for the Crafting page. A chest built on a
+/// planet is left out: it is the player's, but what it holds is on that
+/// planet, not in the home. Returns the snapshot, for
+/// [`take_consumed_home_stock`] after the tick.
+pub fn publish_home_stock(state: &mut crate::engine::state::EngineState) -> std::collections::HashMap<String, u32> {
+    let away = crate::systems::construction::uses::planet_store_paths(&state.game_world.world);
+    let stock = crate::systems::inventory::placed::stock_counts(&state.gui_state.placed_items, &away);
+    state.data_store.insert("home_stock", std::sync::Mutex::new(stock.clone()));
+    state.gui_state.home_stock = stock.clone();
+    stock
+}
+
+/// After the tick: what the systems drew from home storage (the drop in the
+/// "home_stock" map from `before`) comes out of the placed containers, so the
+/// two layers agree. First-found first; emptied stacks disappear.
+pub fn take_consumed_home_stock(
+    state: &mut crate::engine::state::EngineState,
+    before: &std::collections::HashMap<String, u32>,
+) {
+    let after = match state
+        .data_store
+        .get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock")
+        .and_then(|m| m.lock().ok().map(|s| s.clone()))
+    {
+        Some(a) => a,
+        None => return,
+    };
+    let away = crate::systems::construction::uses::planet_store_paths(&state.game_world.world);
+    crate::systems::inventory::placed::take_consumed(&mut state.gui_state.placed_items, before, &after, &away);
 }
 
 /// The organize-pool container path of the first place labelled as one of

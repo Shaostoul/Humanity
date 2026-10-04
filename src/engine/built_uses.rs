@@ -67,6 +67,15 @@ pub(crate) fn publish_stations(state: &mut EngineState) {
         state.data_store.insert("placed_machine_types", std::sync::Mutex::new(types.clone()));
     }
     state.data_store.insert("stations_where", std::sync::Mutex::new(here.clone()));
+    // A hand craft also draws on the home's storage (BUG-147), aboard with
+    // the home on this ship: a guest's home is put away, not here.
+    let home_away = state.gui_state.ship_structure.as_ref().is_some_and(|s| s.home_is_away());
+    let storage_here = here == StationsWhere::Home && !home_away;
+    state.data_store.insert(
+        crate::systems::crafting::home_store::HOME_STORAGE_HERE,
+        std::sync::Mutex::new(storage_here),
+    );
+    state.gui_state.home_storage_here = storage_here;
     state.gui_state.stations_here = types;
     state.gui_state.stations_where = here;
     state.gui_state.unpowered_station_types = unpowered;

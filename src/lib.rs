@@ -6635,22 +6635,12 @@ mod native_app {
                         }
                     }
 
-                    // Home-storage stock for auto machines (v0.737): mirror the
-                    // organize-layer placed items (garage bags, trunks, duffels)
-                    // into a shared id -> qty map the crafting system counts and
-                    // consumes from during the tick. The snapshot is rebuilt every
-                    // frame; the after-tick diff below drains what machines took
-                    // back out of the GUI containers, so the two layers agree.
-                    let home_stock_before: std::collections::HashMap<String, u32> = {
-                        let mut stock = std::collections::HashMap::new();
-                        for pi in &state.gui_state.placed_items {
-                            *stock.entry(pi.key.clone()).or_insert(0) += pi.qty;
-                        }
-                        state
-                            .data_store
-                            .insert("home_stock", std::sync::Mutex::new(stock.clone()));
-                        stock
-                    };
+                    // Home-storage stock (v0.737 machines; hand crafts since
+                    // BUG-147): mirror the organize-layer placed items into a
+                    // shared id -> qty map the systems count and consume from
+                    // during the tick; the after-tick diff below drains what
+                    // they took back out of the GUI containers.
+                    let home_stock_before = crate::engine::stock_piles::publish_home_stock(state);
 
                     // Tick all ECS systems
                     {
@@ -6663,39 +6653,9 @@ mod native_app {
                         );
                     }
 
-                    // Apply what auto machines consumed FROM home storage this
-                    // tick (v0.737): any shortfall vs the pre-tick snapshot comes
-                    // out of the matching placed-item entries, first-found first;
-                    // emptied stacks disappear from their containers.
-                    if let Some(slot) = state
-                        .data_store
-                        .get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock")
-                    {
-                        if let Ok(after) = slot.lock() {
-                            let mut changed = false;
-                            for (id, before_qty) in &home_stock_before {
-                                let after_qty = after.get(id).copied().unwrap_or(0);
-                                let mut deficit = before_qty.saturating_sub(after_qty);
-                                if deficit == 0 {
-                                    continue;
-                                }
-                                for pi in state.gui_state.placed_items.iter_mut() {
-                                    if deficit == 0 {
-                                        break;
-                                    }
-                                    if pi.key == *id {
-                                        let take = pi.qty.min(deficit);
-                                        pi.qty -= take;
-                                        deficit -= take;
-                                        changed = true;
-                                    }
-                                }
-                            }
-                            if changed {
-                                state.gui_state.placed_items.retain(|p| p.qty > 0);
-                            }
-                        }
-                    }
+                    // What the systems used FROM home storage this tick comes out
+                    // of the placed containers (v0.737; planet chests excluded).
+                    crate::engine::stock_piles::take_consumed_home_stock(state, &home_stock_before);
                     crate::engine::stock_piles::receive_machine_outputs(state);
                     // Backpack overflow from "Take to backpack" goes back to the
                     // container it came from (2026-09-25; it used to vanish).
