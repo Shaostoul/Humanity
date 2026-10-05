@@ -593,7 +593,7 @@ lints:
 # showcase-pins.test.js, 2026-10-04): one shared list, pipe_marking included.
 # Add a file here whenever a rig script grows a judgement of its own.
 rig-tests:
-    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js scripts/tests/rig-exe-copy.test.js scripts/tests/showcase-pins.test.js
+    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js scripts/tests/rig-exe-copy.test.js scripts/tests/showcase-pins.test.js scripts/tests/rig-gameplay.test.js
 
 # The scripted second player (scripts/second-player.js) against a REAL relay.
 # NOT pure node, so NOT in rig-tests or `just verify` (rig-tests keeps the
@@ -1151,6 +1151,11 @@ snapshot-check:
 # Every sweep now records what it ran at in manifest.graphics, and a run WITHOUT
 # the flag prints the gap against the operator up front. Never call a visual
 # effect absent, weak or fixed from a run that did not mirror.
+# GAMEPLAY is the opposite: never mirrored, always pinned. Fresh installs start in
+# Normal mode with progress kept (2026-10-04), and every rig is a Dev sandbox that
+# starts from the default home, so spawnGame pins play_mode Dev and
+# fresh_world_each_launch true into the rig's config.json before every boot
+# (scripts/lib/rig-gameplay.js; scripts/tests/rig-gameplay.test.js).
 #
 # THE BINARY: the exe must be this tree's build (scripts/check-fresh-exe.js, run
 # first, before the rig is touched). An A/B against an archive or another

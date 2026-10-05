@@ -10,6 +10,26 @@ pub(crate) fn spawn_home_power_entities(world: &mut hecs::World, data_dir: &std:
     let Some(home) = crate::machines::MachineHome::load(&path) else {
         return;
     };
+    spawn_home_power_entities_for(world, &home, data_dir);
+}
+
+/// The menu's machine entities again, from `home` (the character's own layout, applied after the
+/// save at startup: engine/own_home.rs `adopt_saved_home`, 2026-10-04): every home machine entity
+/// goes (the air space and the feed taps with them), `home`'s are spawned in their place, and
+/// what the old ones held (each bank's charge, each tank's litres, the saved levels still held for
+/// world entry) is put back on the new ones by instance id, as world entry does.
+pub(crate) fn respawn_home_power_entities(world: &mut hecs::World, home: &crate::machines::MachineHome, data_dir: &std::path::Path) {
+    let carried = crate::systems::machine_levels::take_all(world);
+    let old: Vec<hecs::Entity> = world.query::<&crate::ecs::components::HomeMachine>().iter().map(|(e, _)| e).collect();
+    for e in old {
+        let _ = world.despawn(e);
+    }
+    spawn_home_power_entities_for(world, home, data_dir);
+    crate::systems::machine_levels::restore(world, &carried);
+}
+
+/// `spawn_home_power_entities` for a layout already in hand.
+pub(crate) fn spawn_home_power_entities_for(world: &mut hecs::World, home: &crate::machines::MachineHome, data_dir: &std::path::Path) {
     let all = home.all_instances();
     // Each machine carries its electrical + plumbing ISLAND so the sims flow per circuit. (v0.607/v0.608)
     let power_islands = home.electrical_islands(&all);
@@ -20,8 +40,8 @@ pub(crate) fn spawn_home_power_entities(world: &mut hecs::World, data_dir: &std:
         };
         spawn_home_machine_entity(world, inst, def, &power_islands, &water_islands, None, None);
     }
-    spawn_home_feed_taps(world, &home, &all, &power_islands);
-    spawn_home_air_space(world, home_metabolic_kcal(&home), own_home_air_m3(data_dir, None));
+    spawn_home_feed_taps(world, home, &all, &power_islands);
+    spawn_home_air_space(world, home_metabolic_kcal(home), own_home_air_m3(data_dir, None));
 }
 
 /// The player's own home's air, m3 (ship homes increment 4, src/ship/ship_space.rs): its own

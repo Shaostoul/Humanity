@@ -725,25 +725,30 @@ pub fn identity_only_save(existing: Option<WorldSave>, world: &hecs::World) -> W
 /// Extract + write the active offline home to disk. Logs on failure. `placed` is the
 /// organize-layer container pool (GuiState-owned, not in the ECS world), persisted
 /// alongside the world-derived save so container contents + transfers survive a restart.
+/// `own_home` is the character's own home (`GuiState::own_home`, engine/own_home.rs): written
+/// into a save that keeps progress as it is given, None for a character living in the default
+/// home. A save that keeps only the character leaves the save's own home as it was on disk.
 pub fn save_active_home(
     world: &hecs::World,
     placed: &[crate::systems::inventory::placed::PlacedItem],
     data: &crate::hot_reload::data_store::DataStore,
     keep_progress: bool,
+    own_home: Option<&crate::persistence::SavedHome>,
 ) {
-    save_home_at(&active_home_path(), world, placed, data, keep_progress);
+    save_home_at(&active_home_path(), world, placed, data, keep_progress, own_home);
 }
 
 /// `save_active_home` with the save file given, so a test can point it at a
 /// throwaway path and see exactly what a save writes (or, while a restore is
 /// waiting to load, that it writes nothing). The game only ever calls it
 /// through `save_active_home`, with `active_home_path()`.
-fn save_home_at(
+pub(crate) fn save_home_at(
     path: &std::path::Path,
     world: &hecs::World,
     placed: &[crate::systems::inventory::placed::PlacedItem],
     data: &crate::hot_reload::data_store::DataStore,
     keep_progress: bool,
+    own_home: Option<&crate::persistence::SavedHome>,
 ) {
     if restored_save_waiting() {
         // Settings > Data restored a snapshot over the active home and asked
@@ -767,6 +772,8 @@ fn save_home_at(
     // Where the home stood, beside its pieces and vehicles where they stand (`HomeFrame`).
     record_home_frame(&mut save, frame_for_save(data).as_ref());
     save.placed_items = Some(placed.to_vec());
+    // The character's own home, as built outside the Dev mode (engine/own_home.rs), or none.
+    save.home = own_home.cloned();
     // The world clock, from the TimeSystem's DataStore export. Crop
     // planted_at values are only meaningful against it.
     save.game_time = crate::systems::time::elapsed_now(data);
@@ -849,8 +856,8 @@ pub fn restore_snapshot_into_game(
         hold_saves_for_restore();
         // lib.rs finds the save by this name among the saves and applies it.
         gui.launcher_pending_load = Some(restored.name.clone());
-        // With "Start every session from the default home" on (the default
-        // during development) the load applies only the character, so say so:
+        // With "Start every session from the default home" on (off by default
+        // since 2026-10-04) the load applies only the character, so say so:
         // the restored home is safe on disk (a character-only save leaves the
         // progress in the file untouched), it just is not what you are playing.
         if gui.settings.fresh_world_each_launch {
@@ -899,28 +906,26 @@ fn snapshot_home_now_at(path: &std::path::Path, now_ms: u64) -> Result<SnapshotN
     })
 }
 
-/// Save the offline home at most once per `interval_secs` of wall-clock time. Call
-/// every frame from the main loop; it self-throttles. Robust to ANY exit path
-/// (in-app quit, crash, kill) where the graceful close-save would not fire.
-pub fn maybe_periodic_save(
-    world: &hecs::World,
-    placed: &[crate::systems::inventory::placed::PlacedItem],
-    data: &crate::hot_reload::data_store::DataStore,
-    keep_progress: bool,
-    interval_secs: u64,
-) {
+/// Whether the periodic save of the offline home is due: at most once per `interval_secs` of
+/// wall-clock time. Call every frame from the main loop, and save when it says so; it
+/// self-throttles. Robust to ANY exit path (in-app quit, crash, kill) where the graceful
+/// close-save would not fire. A question rather than the save itself (2026-10-04) so the main
+/// loop can bring the character's own home up to date first (engine/own_home.rs
+/// `refresh_own_home`) only when a save is actually about to be written.
+pub fn periodic_save_due(interval_secs: u64) -> bool {
     let now = now_secs();
     let last = LAST_SAVE_SECS.load(Ordering::Relaxed);
     if last == 0 {
         // First call: arm the timer; do NOT save immediately (avoids writing an
         // empty home before any play happens on a fresh first run).
         LAST_SAVE_SECS.store(now, Ordering::Relaxed);
-        return;
+        return false;
     }
     if now.saturating_sub(last) >= interval_secs {
         LAST_SAVE_SECS.store(now, Ordering::Relaxed);
-        save_active_home(world, placed, data, keep_progress);
+        return true;
     }
+    false
 }
 
 /// What `resume_home` did, for the log and the "while you were away" notice.
@@ -2262,13 +2267,13 @@ mod tests {
         let mut data = crate::hot_reload::data_store::DataStore::new();
         let p2 = [[0.0, 0.0, 99.0], [55.0, 12.0, 188.0]];
         data.insert(LOADED_HOME_BOX_KEY, LoadedHomeBox(p2));
-        save_home_at(&path, &world, &[], &data, true);
+        save_home_at(&path, &world, &[], &data, true, None);
         let saved = persistence::load_world(&path).unwrap().home_plot_box;
         assert_eq!(saved, Some(p2), "a save written before the world loaded says its home stood nowhere: {saved:?}");
         // The world loaded: the frame kept with the live ship wins.
         let p1 = (glam::Vec3::ZERO, glam::Vec3::new(55.0, 12.0, 89.0));
         data.insert(HOME_FRAME_KEY, HomeFrame { home: p1 });
-        save_home_at(&path, &world, &[], &data, true);
+        save_home_at(&path, &world, &[], &data, true, None);
         assert_eq!(persistence::load_world(&path).unwrap().home_plot_box, Some([p1.0.to_array(), p1.1.to_array()]));
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -2305,8 +2310,8 @@ mod tests {
         let data = crate::hot_reload::data_store::DataStore::new();
 
         hold_saves_for_restore();
-        save_home_at(&path, &world, &[], &data, true);
-        save_home_at(&path, &world, &[], &data, false);
+        save_home_at(&path, &world, &[], &data, true, None);
+        save_home_at(&path, &world, &[], &data, false, None);
         assert!(
             std::fs::read(&path).unwrap() == restored_bytes,
             "a held save writes nothing over the restored home"
@@ -2317,7 +2322,7 @@ mod tests {
         // The load releases the hold, and the same save now writes: the
         // restored home is kept as a snapshot first, then saved over.
         apply_save_to_world(&mut world, &restored);
-        save_home_at(&path, &world, &[], &data, true);
+        save_home_at(&path, &world, &[], &data, true, None);
         assert_eq!(persistence::load_world(&path).unwrap().name, "My Homestead", "after the load, the save writes");
         let kept = persistence::list_snapshots(&slot);
         assert_eq!(kept.len(), 1);

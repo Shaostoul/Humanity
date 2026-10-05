@@ -44,7 +44,7 @@
 //! the game's word that the items were in it, and the game's word for its home's power (each
 //! report held to one home's electrical service, `home_service_watts`). An altered game can
 //! therefore write gifts it never had. So can an unaltered one in one way: with "Start every
-//! session from the default home" on (the default during development) every session starts
+//! session from the default home" on (off by default since 2026-10-04) every session starts
 //! with the starter kit, and giving the kit each session counts each time. Gifts made while
 //! the game is in Creative mode, which makes things from nothing, are recorded as such and
 //! never counted (`item_creative`, worth 0). All of this ends when the server holds the

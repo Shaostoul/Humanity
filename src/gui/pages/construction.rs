@@ -605,11 +605,14 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     state.construction_structure_type = None; // safety, though structures need a HomeStructure
                 }
             });
-            ui.label(
-                RichText::new("Save layout -> homestead_layout.ron;  Save machines -> home.ron.")
-                    .size(theme.font_size_small)
-                    .color(theme.text_muted()),
-            );
+            // Where a save goes is the play mode's (engine/own_home.rs): only the Dev mode writes
+            // the data files; this fallback layout has no home design of the player's to keep.
+            let where_to = if state.settings.play_mode.allows(crate::config::Capability::DefaultHomeAuthoring) {
+                "Save layout -> homestead_layout.ron;  Save machines -> home.ron."
+            } else {
+                "Outside the Dev mode this fallback layout's changes are not kept."
+            };
+            ui.label(RichText::new(where_to).size(theme.font_size_small).color(theme.text_muted()));
         });
 
     // Apply a deferred delete after both panels (the index stays valid through the closures).
@@ -3964,6 +3967,7 @@ mod multi_select_tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
         }
     }
 

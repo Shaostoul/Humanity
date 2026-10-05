@@ -1198,11 +1198,15 @@ mod native_app {
                 "inventory_transfer_returns",
                 std::sync::Mutex::new(Vec::<(String, u32)>::new()),
             );
-            // Creative mode (default ON during early dev): the resource-consuming
-            // systems (farming seeds/fertilizer, crafting materials) skip the
-            // inventory requirement + consumption when this is true. Mirrored from
-            // GuiState.creative_mode each frame by the bridge below.
-            data_store.insert("creative_mode", std::sync::Mutex::new(true));
+            // Creative mode: the resource-consuming systems (farming seeds/fertilizer,
+            // crafting materials) skip the inventory requirement + consumption when
+            // this is true. Mirrored from GuiState.creative_mode each frame by the
+            // bridge below; it starts as the default play mode gives it (Normal since
+            // 2026-10-04: off), until the config's mode lands.
+            data_store.insert(
+                "creative_mode",
+                std::sync::Mutex::new(crate::config::PlayMode::default().allows(crate::config::Capability::FreeResources)),
+            );
             // Dev: stock the "one seed of each" starter set into the player inventory
             // (FarmingSystem drains it). Lets survival mode be tested in early dev.
             data_store.insert(
@@ -1677,9 +1681,9 @@ mod native_app {
             // Here and not at the apply above because the toggle is a setting,
             // and settings land only now. Nothing has ticked in between.
             //
-            // "Start every session from the default home" (on by default
-            // during development) keeps only the character, and so does a
-            // save that carries no progress.
+            // "Start every session from the default home" (off by default since
+            // 2026-10-04; the operator's own config keeps it on) keeps only the
+            // character, and so does a save that carries no progress.
             if let Some(save) = &home_save {
                 if gui_state.settings.fresh_world_each_launch || !save.progress_saved {
                     crate::save_load::apply_identity(&mut game_world.world, save);
@@ -1689,6 +1693,18 @@ mod native_app {
                     );
                 } else {
                     crate::save_load::apply_save_to_world(&mut game_world.world, save);
+                    // The character's own home (engine/own_home.rs, 2026-10-04): outside the Dev
+                    // mode the save's machines take the household's place in the layout loaded
+                    // from the data files, before anything reads it (the Home page, the offline
+                    // catch-up below, the menu's live power, whose entities are respawned from
+                    // it with the levels just restored). Its design goes on the plot at world load.
+                    if crate::engine::own_home::adopt_saved_home(&mut gui_state, save) {
+                        if let Some(home) = gui_state.home_machines.as_ref() {
+                            crate::engine::home_spawn::respawn_home_power_entities(&mut game_world.world, home, &data_dir);
+                            gui_state.garden_areas = crate::gui::garden_areas_of(home, &data_dir);
+                        }
+                        log::info!("Loaded the character's own home (built outside the Dev mode) from the save");
+                    }
                     // Where its home stood: the world load carries its pieces to the plot the
                     // home is built on (engine/home_plot.rs `carry_loaded_save_home`).
                     if let Some(b) = save.home_plot_box {
@@ -6805,16 +6821,24 @@ mod native_app {
                         }
                     }
 
+                    // A paid machine removed by any path since the last frame gives its item
+                    // back (engine/own_home.rs), before the save below and before the editor's
+                    // history tick, so neither ever sees a payment for a machine that is gone.
+                    crate::engine::own_home::refund_removed_machines(state);
                     // Periodic auto-save of the offline home (v0.381). Self-throttles
                     // to every 2 minutes; robust to any exit path (in-app quit, crash)
-                    // where the graceful close-save would not fire.
-                    crate::save_load::maybe_periodic_save(
-                        &state.game_world.world,
-                        &state.gui_state.placed_items,
-                        &state.data_store,
-                        !state.gui_state.settings.fresh_world_each_launch,
-                        120,
-                    );
+                    // where the graceful close-save would not fire. The character's own
+                    // home goes in as it stands (engine/own_home.rs).
+                    if crate::save_load::periodic_save_due(120) {
+                        crate::engine::own_home::refresh_own_home(&mut state.gui_state);
+                        crate::save_load::save_active_home(
+                            &state.game_world.world,
+                            &state.gui_state.placed_items,
+                            &state.data_store,
+                            !state.gui_state.settings.fresh_world_each_launch,
+                            state.gui_state.own_home.as_ref(),
+                        );
+                    }
                     // Ship-structure autosave (v0.791): build edits used to persist
                     // ONLY through the explicit Save button; this + the close flush
                     // make walls/lights/strips/corridors as durable as inventory.
@@ -7144,6 +7168,11 @@ mod native_app {
                         let entry = std::mem::take(&mut state.construction_entry_rebuild);
                         if crate::engine::editor::arms_autosave(edited, entry) {
                             state.gui_state.construction_unsaved = true;
+                            // An edit outside the Dev mode makes the home the character's own:
+                            // from now on every save records it (engine/own_home.rs).
+                            if !crate::engine::own_home::authors_data_files(state.gui_state.settings.play_mode) {
+                                state.gui_state.own_home_live = true;
+                            }
                         }
                     }
                     // Machine-only edit (offset / add / remove / connect): refresh just the machine
@@ -7161,33 +7190,37 @@ mod native_app {
                         state.gui_state.construction_structure_dirty = false;
                         rebuild_homestead(state);
                     }
-                    if state.gui_state.construction_save {
-                        state.gui_state.construction_save = false;
-                        // v0.534/v0.754: the home is a SHIP when present -> save it split back
-                        // into its files (increment 1a: data/homes/<kind>.ron always, the ship
-                        // file only in the Dev mode); else the legacy AABB layout. The AI and
-                        // the editor share the same files.
+                    // The editor's Save buttons: "Save home" asks for both halves (the structure and
+                    // the machines), the legacy room editor's "Save layout" and "Save machines" one
+                    // each. WHERE they go is the play mode's (engine/own_home.rs, 2026-10-04): the
+                    // Dev mode writes the data files the AI and the editor share (increment 1a: the
+                    // home design always, the ship file and the ship's machines with
+                    // ShipStructureEditing, the household's machines); Normal and Creative keep the
+                    // character's own home in their save and write no data file at all.
+                    let save_structure = std::mem::take(&mut state.gui_state.construction_save);
+                    let save_machines = std::mem::take(&mut state.gui_state.home_machines_save);
+                    if save_structure || save_machines {
                         if state.gui_state.ship_structure.is_some() {
-                            // Persist the build-mode SPAWN point with the EDITED zone (v0.582) so
-                            // the moved avatar survives the save (was lost -- spawn lived only in
-                            // GuiState). build_char_pos is zone-local, exactly what body.spawn holds.
-                            let spawn = state.gui_state.build_char_pos;
-                            if let Some(hs) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone) {
-                                hs.spawn = spawn;
+                            if save_structure {
+                                // Persist the build-mode SPAWN point with the EDITED zone (v0.582) so
+                                // the moved avatar survives the save (was lost -- spawn lived only in
+                                // GuiState). build_char_pos is zone-local, exactly what body.spawn holds.
+                                let spawn = state.gui_state.build_char_pos;
+                                if let Some(hs) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone) {
+                                    hs.spawn = spawn;
+                                }
+                                let ship = state.gui_state.ship_structure.as_mut().unwrap();
+                                // Drop corridor rows that no longer resolve (a referenced door/zone was
+                                // edited away) BEFORE writing: validate() rejects a whole file over one
+                                // bad corridor, so a saved file must always re-load. Live editing keeps
+                                // broken rows visible (the Corridors panel shows why); save is the
+                                // deliberate moment they are let go. (Increment B.)
+                                let pruned = ship.prune_invalid_corridors();
+                                if pruned > 0 {
+                                    log::warn!("Construction: dropped {pruned} corridor(s) whose openings no longer exist or align");
+                                }
                             }
-                            let ship = state.gui_state.ship_structure.as_mut().unwrap();
-                            // Drop corridor rows that no longer resolve (a referenced door/zone was
-                            // edited away) BEFORE writing: validate() rejects a whole file over one
-                            // bad corridor, so a saved file must always re-load. Live editing keeps
-                            // broken rows visible (the Corridors panel shows why); save is the
-                            // deliberate moment they are let go. (Increment B.)
-                            let pruned = ship.prune_invalid_corridors();
-                            if pruned > 0 {
-                                log::warn!("Construction: dropped {pruned} corridor(s) whose openings no longer exist or align");
-                            }
-                            // Increment 1a: the home design always, the ship file and the ship's
-                            // machines only in the Dev mode (engine::editor::save_ship_and_home).
-                            match crate::engine::editor::save_ship_and_home(state) {
+                            match crate::engine::own_home::keep_edits_now(state) {
                                 Ok(note) => {
                                     log::info!("Construction: {note}");
                                     state.gui_state.construction_save_note = note;
@@ -7197,30 +7230,40 @@ mod native_app {
                                     state.gui_state.construction_save_note = format!("Save FAILED: {e}");
                                 }
                             }
-                        } else if let Some(layout) = &state.homestead_layout {
-                            match crate::ship::fibonacci::save_layout(layout) {
-                                Ok(()) => log::info!("Construction: layout saved to RON"),
-                                Err(e) => log::warn!("Construction: save failed: {e}"),
-                            }
-                        }
-                    }
-                    // Machine layout save (v0.519): the editor's machine panel edits
-                    // gui_state.home_machines; this writes it back to home.ron (the same
-                    // file the AI edits -- home-design parity).
-                    if state.gui_state.home_machines_save {
-                        state.gui_state.home_machines_save = false;
-                        if let Some(home) = &state.gui_state.home_machines {
-                            let path = crate::machines::home_ron_path(&state.data_dir);
-                            match home.save(&path) {
-                                Ok(()) => {
-                                    log::info!("Construction: machine layout saved to {}", path.display());
-                                    state.gui_state.construction_save_note =
-                                        "Saved home structure + machines.".to_string();
+                        } else if !crate::engine::own_home::authors_data_files(state.gui_state.settings.play_mode) {
+                            // The legacy fallback layout (the ship did not assemble) has no home
+                            // design of the player's to keep, and outside Dev nothing is written
+                            // to the data files.
+                            state.gui_state.construction_save_note = "Not kept: outside the Dev mode the fallback layout's \
+                                 changes are not saved (your home did not load from its design)."
+                                .to_string();
+                        } else {
+                            if save_structure {
+                                if let Some(layout) = &state.homestead_layout {
+                                    match crate::ship::fibonacci::save_layout(layout) {
+                                        Ok(()) => log::info!("Construction: layout saved to RON"),
+                                        Err(e) => log::warn!("Construction: save failed: {e}"),
+                                    }
                                 }
-                                Err(e) => {
-                                    log::warn!("Construction: machine save failed: {e}");
-                                    state.gui_state.construction_save_note =
-                                        format!("Machine save FAILED: {e}");
+                            }
+                            // Machine layout save (v0.519): the editor's machine panel edits
+                            // gui_state.home_machines; this writes it back to home.ron (the same
+                            // file the AI edits -- home-design parity).
+                            if save_machines {
+                                if let Some(home) = &state.gui_state.home_machines {
+                                    let path = crate::machines::home_ron_path(&state.data_dir);
+                                    match home.save(&path) {
+                                        Ok(()) => {
+                                            log::info!("Construction: machine layout saved to {}", path.display());
+                                            state.gui_state.construction_save_note =
+                                                "Saved home structure + machines.".to_string();
+                                        }
+                                        Err(e) => {
+                                            log::warn!("Construction: machine save failed: {e}");
+                                            state.gui_state.construction_save_note =
+                                                format!("Machine save FAILED: {e}");
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -7278,11 +7321,13 @@ mod native_app {
                             *o = outfit.clone();
                             break;
                         }
+                        crate::engine::own_home::refresh_own_home(&mut state.gui_state);
                         crate::save_load::save_active_home(
                             &state.game_world.world,
                             &state.gui_state.placed_items,
                             &state.data_store,
                             !state.gui_state.settings.fresh_world_each_launch,
+                            state.gui_state.own_home.as_ref(),
                         );
                         state.controller.showroom_lock = false;
                         state
@@ -14516,6 +14561,11 @@ mod native_app {
                                                     &mut state.game_world.world,
                                                     &save,
                                                 );
+                                                // The home goes back to the one this save holds, the
+                                                // character's own or the default, machines and walls
+                                                // both: a restore that gave a machine's item back also
+                                                // takes the machine away (engine/own_home.rs).
+                                                crate::engine::own_home::reapply_saved_home(state, &save);
                                                 // From the plot its home stood on to the one it stands on now (1b).
                                                 crate::engine::home_plot::carry_saved_pieces_home(state, save.home_plot_box);
                                                 // The clock rewinds with the save, and

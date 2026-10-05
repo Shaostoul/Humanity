@@ -1738,6 +1738,32 @@ impl ShipStructure {
         ship.assemble(design, &plot_id)
     }
 
+    /// `assemble_from` with the player's OWN design (2026-10-04, engine/own_home.rs: a home built
+    /// outside the Dev mode is kept in the character's save, not in data/homes/): when `own` is of
+    /// the plot's kind and goes on the plot, it is the home; otherwise, or without one, the design
+    /// file's is, with a log line saying why the own one was passed over.
+    pub fn assemble_from_own(
+        ship: ShipStructure,
+        data_dir: &Path,
+        plot: Option<&str>,
+        own: Option<&HomeDesign>,
+    ) -> Result<ShipStructure, String> {
+        if let Some(design) = own {
+            let (plot_id, kind) = ship.plot_and_kind(plot)?;
+            if design.kind == kind {
+                match ship.clone().assemble(design.clone(), &plot_id) {
+                    Ok(assembled) => return Ok(assembled),
+                    Err(e) => log::warn!(
+                        "your own {kind} home does not go on plot {plot_id} ({e}); the {kind} design file is used instead"
+                    ),
+                }
+            } else {
+                log::warn!("your own home is a {} and plot {plot_id} takes a {kind}; the {kind} design file is used", design.kind);
+            }
+        }
+        Self::assemble_from(ship, data_dir, plot)
+    }
+
     /// `plot` (the default plot when None) and the kind of home it takes.
     fn plot_and_kind(&self, plot: Option<&str>) -> Result<(String, String), String> {
         let plot_id = match plot {

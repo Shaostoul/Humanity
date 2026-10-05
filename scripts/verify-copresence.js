@@ -710,7 +710,9 @@ async function main() {
     if (!relay.health) throw new Error("the throwaway relay did not come up");
 
     // ── 3. The game, pointed at OUR relay.
-    game = GL.spawnGame(RIG_EXE, [], { fresh, rigName: "verify-copresence", log, cwd: RIG, detached: true, stdio: "ignore", env: gameEnv() });
+    // gameplay.server_url: the sandbox's server is this run's throwaway relay, never one off this
+    // computer (lib/rig-gameplay.js; spawnGame pins it and clears every saved server).
+    game = GL.spawnGame(RIG_EXE, [], { fresh, rigName: "verify-copresence", log, cwd: RIG, detached: true, stdio: "ignore", env: gameEnv(), gameplay: { server_url: relay.httpUrl } });
     const child = game.child;
     gamePid = child.pid;
     fs.writeFileSync(path.join(RIG, "probe_pid.txt"), String(gamePid));
@@ -1797,7 +1799,9 @@ async function runPlotsOnce(order, runStamp, cleanups) {
    *  both boots of a --plots run (the second proves the remembered plot) go
    *  through it. */
   const bootAndEnter = async (entry, label) => {
-    plotsGame = GL.spawnGame(RIG_EXE, [], { fresh, rigName: "verify-copresence", log, cwd: RIG, detached: true, stdio: "ignore", env: gameEnv() });
+    // The sandbox's server is this run's relay (lib/rig-gameplay.js); the plot it remembers for
+    // that relay (loopback) survives the pin, which is what the second boot proves.
+    plotsGame = GL.spawnGame(RIG_EXE, [], { fresh, rigName: "verify-copresence", log, cwd: RIG, detached: true, stdio: "ignore", env: gameEnv(), gameplay: { server_url: relay.httpUrl } });
     const child = plotsGame.child;
     gamePid = child.pid;
     fs.writeFileSync(path.join(RIG, "probe_pid.txt"), String(gamePid));
