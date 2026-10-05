@@ -777,6 +777,11 @@ pub struct GuiState {
     /// provenance must key by what we truly connected to, never the draft.
     /// Set at every connect site; empty when never connected.
     pub connected_server_url: String,
+    /// The Server field holds an address the person typed and has not connected: a draft that
+    /// only Connect dials (BUG-160). Its own state, not `ws_manually_disconnected` (a Disconnect):
+    /// it never goes with a parked connection and never holds a connection's reconnect after a
+    /// drop (BUG-160's follow-up). See gui/connections.rs, `dial_address`.
+    pub server_field_draft: bool,
     /// Whether currently connected to a server.
     pub server_connected: bool,
     /// Onboarding step 1's "Connect" button (v0.643) used to just set
@@ -3284,6 +3289,7 @@ impl Default for GuiState {
             onboarding_step: 0,
             server_url: OFFICIAL_SERVER.to_string(),
             connected_server_url: String::new(),
+            server_field_draft: false,
             server_connected: false,
             server_check_rx: None,
             history_rx: None,

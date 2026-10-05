@@ -197,6 +197,7 @@ pub(super) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
                         state.dm_fetch_sent = false;
                         state.ws_status = "Connecting...".to_string();
                         state.ws_manually_disconnected = false;
+                        state.server_field_draft = false; // the typed address is dialled now
                         state.ws_reconnect_timer = 0.0;
                         state.ws_reconnect_delay = 5.0;
                         state.ws_reconnect_attempts = 0;
