@@ -4734,3 +4734,116 @@ this does not start it over. It still passes on its own in about 2 hours.";
   percent. Not the body's own system, so left with this note.
 - The whole-course runs are ignored by default; run them with
   `cargo test --features native --lib -- --ignored frame_rate_tests`.
+
+## BUG-165: the rig's scripted walk walks backwards and never turns the camera (FIXED next release, found 2026-10-05)
+
+**Seen:** the operator, watching a co-presence rig run on his screen: "the walk through that
+you're showing is walking backwards instead of forwards", and "It doesn't actually look like
+the camera rotates at all while walking around. It seems like you're just using WASD instead
+of also using the mouse movement."
+
+**Cause:** the showcase `walk_to` verb ("x,y,z,yaw,pitch,speed",
+`src/engine/move_check.rs`) set the camera's yaw and pitch to the walk's FINAL facing on every
+frame while it moved the camera along its line. And the rig (`scripts/verify-copresence.js`
+`walkRoute`) asked every point of a route for that one facing, the one the camera had before
+the walk, so wherever a route headed anywhere else the camera slid sideways or backwards
+through the ship without ever turning. The game's figure on the other players' screens did the
+same, because the facing it sends is the camera's yaw.
+
+**Fix (2026-10-05):**
+- `walk_step` (`src/engine/move_check.rs`) walks it the way a person does with the mouse and W:
+  it turns to face the way to the point, looking level, and walks on as the facing comes round
+  (it stands and turns while 60 degrees or more off the way, keeps its whole pace within 15
+  degrees, easing between, so it never crabs sideways at speed); at the point it turns where it
+  stands to the facing asked for, and only then is the walk over (the probe's `moves.walking`,
+  which the rig waits on, stays true through that turn). The line it walks is unchanged, so
+  the routes the rig plans through the doors are walked exactly. The stride rule stays: a step
+  is at most 0.1 s of walking and of turning.
+- The turn is `src/turning.rs`, new: the quickest turn that never goes faster than its rate and
+  changes speed by no more than its acceleration, slowing in time to stop exactly on the
+  heading (braking counted in whole frames, so no frame rate swings it past), and following a
+  heading that moves from whatever speed it has. The camera turns with `LOOK`: at most 150
+  degrees a second, reached in a quarter of a second, so a quarter turn takes about 0.8 s and a
+  half turn about 1.4 s.
+- The rig walks a route facing along it: each door is asked for "the way this leg walks",
+  level (`routeFacings`, `walkYaw` in `scripts/lib/copresence-judge.js`), and only the last
+  point for the facing wanted there. The meeting walk now ends facing the line the walker
+  walks (MEET_POSE's yaw), so the `cam` turn after it only stands the camera exactly there.
+- Checked, and nothing to change: no rig judge reads the camera's facing during one of the
+  game's walks. The pass judge's view check (`judgeCopresence`) reads the camera only while
+  the game stands parked for the walker's pass, the crew look is judged after the turn to
+  CREW_POSE, the nameplate check uses the parked meeting yaw, and `judgeWalks` and
+  `turnInPlace` compare positions. Every walk's wait (its walking time plus 15 s) covers the
+  turns, at most about 1.5 s at each end.
+
+**Tests:** `src/engine/move_check.rs`, on one walk whose route heads opposite to its final
+facing (from looking along +x and 17 degrees up, 20 m along +z, asked to end looking back
+along -z and 23 degrees down), all three seen red on main (0f8b30944):
+- `the_rig_faces_the_way_it_walks`: "0.02 s into the walk it moved 0.100 m while looking
+  180.0 degrees away from the way it walked".
+- `the_rig_turns_to_the_asked_facing_only_after_it_arrives`: "the walk was over the frame it
+  reached the point, looking 180.0 degrees away from the way it walked: it never turned there".
+- `the_rig_turns_no_faster_than_a_person`: "frame 1 turned the camera at 5400 degrees a
+  second; a person turns at most 150".
+- `a_long_frame_never_makes_a_long_stride` guards the stride rule (green before too).
+- `src/turning.rs`: the turn keeps its limits and lands on its heading at 240, 60 and 30 frames
+  a second and at the 0.1 s cap, goes the short way round, follows a heading that moves, and
+  caps a long frame.
+- `scripts/tests/copresence-judge.test.js` "walks: a route faces along its legs and turns to
+  the asked facing only at its end", seen red: every point of a 3-point route was asked
+  `{ yaw: 3.14159, pitch: -0.05 }`.
+
+**Rig legs to rerun:** `verify-copresence --plots`: every leg that walks the game (meet, the
+crew look, guest_far, the jump's nudge, the teleporter's step off, walk_away, editorjump,
+walk_away2). Not booted here.
+
+## BUG-166: crew figures turn in a snap, and one that stops can snap back to an old facing (FIXED next release, found 2026-10-05)
+
+**Reported as** every crew figure facing +z whichever way it walks: the relay's chore AI
+moves crew members (`step_toward`, `src/relay/handlers/game_state.rs`) and never sets their
+rotation. **Checked:** the game already turned each crew figure along its path, at each relay
+update (the NpcUpdate arm of `src/net/sync.rs`, since 2026-07-01), so a crew member walking
++x or -z was drawn facing it. A new test of that is green on main. What was wrong:
+- An update that did not move the figure kept its last turn and started it again. The relay
+  repeats where a crew member stands in its arrival, chore-done and next-chore updates, so a
+  figure whose walk lasted one update (a chore half a metre from the last) snapped back to the
+  facing it had before that walk, then turned again.
+- Every turn took the half second of the position's interpolation, whatever its size: a turn
+  back went at 540 degrees a second at its middle, a turn of ten degrees at 30 degrees a second.
+
+**Fix (2026-10-05):** each crew figure faces the way it is DRAWN walking, worked out every
+frame from its own motion (`RemoteNpc::heading`, the floor direction of the step it is drawn
+across, and `RemoteNpc::facing`, turning toward it with `turning::BODY`: at most 360 degrees a
+second, reached in a fifth of a second, a half turn in about 0.7 s). Standing still it keeps
+the way it last walked. Facing is cosmetic, so it stays on each screen and is never sent: the
+wire is unchanged, the relay still sends where a crew member is.
+
+**Tests** (`src/net/sync.rs`, a crew member walked the way the relay walks one, an update
+every half second at 1.1 m/s, drawn at 60 frames a second, its facing read off the figure
+`crew_figure_parts` builds):
+- `a_crew_figure_faces_the_way_it_walks`: walking east it faces east, walking north (-z)
+  north. Green on main too (above), kept as the guard.
+- `a_crew_member_that_stops_keeps_its_last_facing`, seen red on main (0f8b30944): "0.52 s in,
+  standing still, the figure faced 89.7 degrees away from east, the way it last walked".
+- `a_crew_figure_turns_round_smoothly`, seen red on main: "2.25 s in the figure turned at 539
+  degrees a second; a person turns on the spot at 360".
+
+**Other players' figures, checked for the same fault:** a player's figure faces the yaw their
+client sends (`player_face`), their camera's. A person walking with W walks the way they look,
+so they are drawn facing forward; walking back with S or sideways with A and D they are drawn
+moving backwards or sideways, because they are (there is no walking animation yet to show a
+step back or aside). Driving goes where the driver looks. The one path that drew a walking
+player facing the wrong way was the rig's own walk, BUG-165 above, now fixed. The scripted
+second player (`scripts/second-player.js`) faces its own velocity (`facingQuat`), so it never
+walks backwards, but it turns in one update: at each end of its line, and at each corner of
+its route, its figure turns round in the 1/15 s between two updates. That is the same snap as
+the crew's, left as it was (it is the rig's walker, and no judge reads its facing); the fix
+would turn its facing toward its velocity with the same limits.
+
+**Rig legs to rerun:** `verify-copresence --plots`, the crew look (`crew_seen` counts the amber
+body under a name in crew.png, and the figures now stand turned along their walks); the other
+crew judges read positions only. Not booted here.
+
+**Left:** the crew's position still eases to a stop at every update (a smooth step over the
+half second between two of them), so a walking crew member slows and speeds up twice a
+second, the stop-go `SnapshotBuffer` fixed for players (2026-10-02).

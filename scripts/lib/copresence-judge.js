@@ -1852,6 +1852,26 @@ function turnInPlace(at, pose, tol = TURN_IN_PLACE_M) {
   return { ok: off <= tol, off };
 }
 
+/** The camera yaw that looks across the floor from `from` toward `to` (renderer/camera.rs
+ *  forward: (sin yaw, 0, -cos yaw)), or `otherwise` when the two stand within 5 cm of each other
+ *  across the floor, where there is no way to look. A route's points but its last are walked to
+ *  facing this way (BUG-165): the game arrives at a door looking the way it walked, the way a
+ *  person does, and turns only as far as the next leg needs. Pure. */
+function walkYaw(from, to, otherwise = 0) {
+  const dx = Number(to[0]) - Number(from[0]);
+  const dz = Number(to[2]) - Number(from[2]);
+  return Math.hypot(dx, dz) < 0.05 ? otherwise : Math.atan2(dx, -dz);
+}
+
+/** The facing the rig asks the game to end each walk of an `n`-point route with: { yaw, pitch }.
+ *  The route's last point ends with the asked `yaw` and `pitch`; every point before it with
+ *  `yaw: null`, "the way this leg walks" (the rig fills it in with `walkYaw` from where the
+ *  camera stands), and level (BUG-165). Asking each door for the end's facing had the camera
+ *  turn to it at every door and back again for the next leg. Pure. */
+function routeFacings(n, yaw, pitch) {
+  return Array.from({ length: n }, (_, i) => (i === n - 1 ? { yaw, pitch } : { yaw: null, pitch: 0 }));
+}
+
 /**
  * Every walk of the run arrived, and every turn in place was one (R4: a walk that never arrived
  * was silent, the rig went on as if it had, and the turn after it finished the walk with a
@@ -2038,6 +2058,8 @@ function judgeTeleporter(tele) {
 module.exports = {
   turnInPlace,
   TURN_IN_PLACE_M,
+  walkYaw,
+  routeFacings,
   judgeWalks,
   clearPath,
   PATH_CLEAR_M,

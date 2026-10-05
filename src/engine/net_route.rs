@@ -499,8 +499,9 @@ pub(crate) fn remote_figure_parts(eye: glam::Vec3, sent_rotation: glam::Quat, lo
 
 /// Where each piece of a crew member's figure goes (2026-10-03): the same
 /// figure as a player's without a look, standing on the floor. `rotation` is
-/// their transform's, a true turn of +z onto their path (net/sync.rs faces
-/// them along it with `from_rotation_y(dx.atan2(dz))`).
+/// their transform's, a true turn of +z onto the way they walk: net/sync.rs
+/// turns each crew figure toward its drawn motion as a person turns, and it
+/// keeps that facing when it stops (`RemoteNpc::facing`, BUG-166).
 ///
 /// Before this the crew were drawn with their own fixed offsets, the 1.4 m
 /// body box from 0.3 m under their position and the head 0.55 m over it: the
@@ -1392,8 +1393,8 @@ mod tests {
                 greetings: Vec::new(),
                 last_position: Vec3::ZERO,
                 target_position: Vec3::ZERO,
-                last_rotation: Quat::IDENTITY,
-                target_rotation: Quat::IDENTITY,
+                facing: crate::turning::Turn::default(),
+                heading: 0.0,
                 interpolation_t: 1.0,
             },
         ));
