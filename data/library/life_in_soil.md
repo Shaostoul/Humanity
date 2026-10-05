@@ -692,19 +692,20 @@ tetanus.
 
 **Two settings change what you see.**
 
-- **Play mode.** During development the game starts in the Dev play
-  mode (Settings > Gameplay > Play mode), and in Dev, as in Creative,
-  materials are free: the Fertilizer bag (the Composter's compost),
-  Stored Urine, Garden Lime, Garden Sulfur, Wood Ash and the sawdust
-  and bark mulches cost nothing from your pack. Switch Play mode to
-  Normal to garden with what you actually have.
-- **Starting from the default home.** While Settings > Gameplay >
-  "Start every session from the default home" is on, which is also the
-  default during development, only your character (name, look and
-  outfit) carries between launches. Your beds, and the slow nitrogen
-  banked in them, start each session as the default home has them, so
-  the years-long build-up from compost cannot be seen. Turn the setting
-  off to keep your garden from one session to the next.
+- **Play mode.** The game starts in the Normal play mode (Settings >
+  Gameplay > Play mode), where you garden with what you actually have:
+  the Fertilizer bag (the Composter's compost), Stored Urine, Garden
+  Lime, Garden Sulfur, Wood Ash and the sawdust and bark mulches all
+  come out of your pack. In Creative, or in Dev if you choose it,
+  materials are free while the Inventory page's Creative mode switch is
+  on, and they cost nothing.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so your beds, and
+  the slow nitrogen banked in them, are kept from one session to the
+  next, and the years-long build-up from compost can be seen. With the
+  setting on, only your character (name, look and outfit) carries
+  between launches, and your beds start each session as the default
+  home has them.
 
 ## You own this when
 

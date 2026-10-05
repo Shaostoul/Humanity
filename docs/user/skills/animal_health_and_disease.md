@@ -556,16 +556,19 @@ home's animals never need a vet.
 
 **Two settings change this.**
 
-- **Play mode.** During development the game starts in the Dev play mode
-  (Settings > Gameplay > Play mode). In Dev, as in Creative, materials
-  are free while the Creative mode switch on the Inventory page is on,
-  which it is unless you turn it off, so cooking needs no milk or meat.
-  The risk of eating raw or spoiled food is the same in every mode.
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which is also the default
-  during development, only your character carries between launches, so
-  the food in your pack, and any milk you collected, is gone at the next
-  launch.
+- **Play mode.** The game starts in the Normal play mode (Settings >
+  Gameplay > Play mode), where cooking uses up the milk or meat it
+  calls for. In Creative, or in Dev if you choose it, materials are free
+  while the Creative mode switch on the Inventory page is on, which it
+  is unless you turn it off, so cooking uses up no milk or meat, though
+  the Crafting page still wants them on hand. The risk of eating raw or
+  spoiled food is the same in every mode.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so your progress is
+  kept between launches: the food in your pack, and any milk you
+  collected, are still there at the next launch. With the setting on,
+  only your character carries between launches, and they are gone at the
+  next launch.
 
 What the game leaves out, so you do not learn it from the game: illness,
 parasites, bloat, birth, the diseases that pass to people, reporting,

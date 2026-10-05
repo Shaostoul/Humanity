@@ -667,18 +667,20 @@ timescales, and leaves out nearly everything that can go wrong inside one.
   your health drains, faster the harder the burn: at 4 g, about 50 seconds
   takes you from full health to none (`data/ship/flight.ron`).
 
-**What changes with the settings.** The default Dev play mode (Settings >
-Gameplay > Play mode) makes materials free, but it does not pause your
-body: hunger, thirst, tiredness, air and body heat run the same in every
-play mode. The Vitals drain slider changes the pace of hunger, thirst and
-tiredness (0 pauses them), and the Dev page's fly mode, a developer tool,
-suspends the danger of airless space and the weather while it is on.
-Your health, your vitals and the conditions on you are saved with your
-game, so quitting heals and refills nothing; but while "Start every
-session from the default home" is on, which it is by default during
-development, every launch starts you with a new body at the starting
-levels, fed, watered and rested, and only your character's name, look
-and clothes carry over, so the food and water in your pack go too.
+**What changes with the settings.** The game starts in the Normal play
+mode (Settings > Gameplay > Play mode). Creative, and Dev if you choose
+it, make materials free, but no play mode pauses your body: hunger,
+thirst, tiredness, air and body heat run the same in every one. The
+Vitals drain slider changes the pace of hunger, thirst and tiredness (0
+pauses them), and the Dev page's fly mode, a developer tool of the Dev
+play mode, suspends the danger of airless space and the weather while it
+is on. Your health, your vitals and the conditions on you are saved with
+your game, so quitting heals and refills nothing, and with "Start every
+session from the default home" off, as it is by default, the next launch
+brings your body back as you left it. With that setting on, every launch
+starts you with a new body at the starting levels, fed, watered and
+rested, and only your character's name, look and clothes carry over, so
+the food and water in your pack go too.
 
 What the game leaves out, so you do not learn it from the game: there are
 no heart attacks, strokes, allergies, infections, sepsis, diabetes or

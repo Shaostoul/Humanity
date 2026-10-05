@@ -473,24 +473,25 @@ The game has soap, lye, animal fat, and a recipe that joins them.
 
 **Two settings change this.**
 
-- **Play mode.** During development the game starts in the Dev play mode
-  (Settings > Gameplay > Play mode). In Dev, as in Creative, crafting
-  uses up no materials. The Crafting page still asks for the fat, lye
-  and water to be in your backpack (or the water in the home's tanks)
-  and for a Chemistry Set to be where you are, and the recipe still
-  needs Alchemy level 2. In Dev, while the "Enable dev cheats" switch is
-  on (Settings > Animations, also on by default during development), the
-  Crafting page also shows a "Dev: stock all materials" button that puts
-  a stack of every recipe input in your backpack, lye included, and the
-  Profile page a "Dev: max skills" button. Washing a container wears the
-  soap bar in every mode. To make soap something you spend, switch Play
-  mode to Normal.
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which is also the default
-  during development, only your character's name, appearance and
-  clothes carry between launches, so the soap and lye you held and the
-  Alchemy level you earned start the next session as they were in the
-  default home. Turn the setting off to keep them.
+- **Play mode.** The game starts in the Normal play mode (Settings >
+  Gameplay > Play mode), where Make Soap Bar uses up its fat, lye and
+  water, so soap is something you spend. In Creative, or in Dev if you
+  choose it, crafting uses up no materials while the Inventory page's
+  Creative mode switch is on. In every mode the Crafting page asks for
+  the fat, lye and water to be in your backpack or the home's storage
+  (or the water in the home's tanks) and for a Chemistry Set to be where
+  you are, and the recipe needs Alchemy level 2. In Dev, while the
+  "Enable dev cheats" switch is on (Settings > Animations, on by
+  default), the Crafting page also shows a "Dev: stock all materials"
+  button that puts a stack of every recipe input in your backpack, lye
+  included, and the Profile page a "Dev: max skills" button. Washing a
+  container wears the soap bar in every mode.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so the soap and lye
+  you held and the Alchemy level you earned are kept between launches.
+  With the setting on, only your character's name, appearance and
+  clothes carry between launches, and the rest starts the next session
+  as it was in the default home.
 
 What the game simplifies, so you do not learn it from the game: making
 lye solution is not a step, nothing gets hot, spatters or burns you,

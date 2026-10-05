@@ -422,8 +422,9 @@ body.
   game gives you the conditions Shivering, Hypothermia (below 35 C,
   which slows you), Heat Exhaustion (above 39 C, which also slows you)
   and Heatstroke (above 40 C, which slows you more and does lasting
-  harm). Body heat runs in every play mode, including the default Dev
-  mode; only the developer flying mode switches it off.
+  harm). Body heat runs in every play mode, the default Normal among
+  them; only the developer flying mode, a tool of the Dev play mode,
+  switches it off.
 
 What the game leaves out, so you do not learn it from the game: nothing
 in the game conducts heat through a solid, so there are no hot handles

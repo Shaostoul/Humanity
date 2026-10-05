@@ -411,11 +411,13 @@ and machines leave most of optics out.
   coated with silver at a workbench), Binoculars, a Telescope and a
   Microscope are in the item list with recipes, but none of them shows
   you anything: there is no zoom, no magnifier and no way to light a
-  fire with a lens. Under the default settings, the Dev play mode
-  (Settings > Gameplay > Play mode) makes the materials free, and while
-  "Start every session from the default home" is on, which it is by
-  default, only your character carries between launches, so anything
-  you made is gone at the next start.
+  fire with a lens. Under the default settings, the Normal play mode
+  (Settings > Gameplay > Play mode) uses up their materials (Creative,
+  and Dev if you choose it, use up nothing, though the Crafting page
+  still wants the materials on hand), and "Start every session from the
+  default home" is off, so anything you made is kept between launches.
+  With that setting on, only your character carries between launches,
+  and anything you made is gone at the next start.
 
 What the game does not model, so you do not learn it from the game:
 water that looks shallower than it is, lenses and focusing, burning

@@ -463,17 +463,20 @@ The game makes canned food, but not by pressure canning.
   2; Cook Soup is a level-1 recipe, and the game's skill gate starts at
   level 2, so anyone can make it (`src/gui/pages/crafting.rs`,
   `src/systems/crafting/mod.rs`).
-- **Under the default settings.** In the default Dev play mode (Settings >
-  Gameplay > Play mode) a craft uses up none of its parts and wears no
-  tool, but the Craft button still waits until the parts are in your
-  backpack, or in your home's storage while you are at home, and the
-  knife is in your backpack (`src/gui/pages/crafting.rs`,
-  `src/systems/crafting/mod.rs`). The page's "Dev: stock all materials"
-  button fills your backpack with every recipe's parts but no tools; a
-  new character's starting kit holds the Utility Knife
-  (`data/world/player.ron`). Cooking the level-1 cooking recipes trains
-  the Cooking skill, and the Profile page's "Dev: max skills" button
-  raises every skill at once.
+- **Under the default settings.** In the Normal play mode, where the game
+  starts (Settings > Gameplay > Play mode), the Craft button waits until
+  the parts are in your backpack, or in your home's storage while you are
+  at home, and the knife is in your backpack, and the craft then uses up
+  its parts and wears the knife by one use (`src/gui/pages/crafting.rs`,
+  `src/systems/crafting/mod.rs`); a new character's starting kit holds
+  the Utility Knife (`data/world/player.ron`). In Creative, and in Dev if
+  you choose it, a craft uses up none of its parts and wears no tool
+  while the Inventory page's Creative mode switch is on, though the
+  button still waits for them; in Dev, the page's "Dev: stock all
+  materials" button fills your backpack with every recipe's parts but no
+  tools. Cooking the level-1 cooking recipes trains the Cooking skill,
+  and in Dev the Profile page's "Dev: max skills" button raises every
+  skill at once.
 - **What the recipes get right, and wrong.** Potatoes, carrots, onions and
   meat are all low-acid foods, so in real life every one of these would
   need a pressure canner and a tested process. The salt in Can Food is

@@ -485,12 +485,12 @@ The game models almost none of this.
   Decay](rust_rot_and_decay.md) describe: machines need no servicing,
   wood does not rot and metal does not rust.
 
-**One setting changes what you keep.** While Settings > Gameplay >
-"Start every session from the default home" is on, which is the default
-during development, only your character (name, look and outfit) carries
-between launches, so anything you built or took down starts the next
-session as the default home has it. Turn the setting off to keep your
-changes.
+**One setting changes what you keep.** Settings > Gameplay > "Start
+every session from the default home" is off by default, so what you
+built or took down is kept between launches. With the setting on, only
+your character (name, look and outfit) carries between launches, and
+anything you built or took down starts the next session as the default
+home has it.
 
 What the game leaves out, so you do not learn it from the game: there
 are no leaks, no stains, no cracks, no rot, no lead paint and no

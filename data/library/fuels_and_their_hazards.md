@@ -581,9 +581,10 @@ hazards.
   that is the arrangement that kills people in a power cut. The game's
   data includes a table of gases with their flammable ranges
   (`data/chemistry/gases.csv`), but no game system reads it yet.
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which is the default during
-  development, only your character carries between launches, so the next
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so the fuel you
+  refined or moved stays in the home's drums between launches. With the
+  setting on, only your character carries between launches, and the next
   session starts with the default home's machines and drums as they were,
   whatever fuel you refined or moved.
 

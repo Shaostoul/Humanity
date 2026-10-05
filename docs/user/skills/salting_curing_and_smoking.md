@@ -485,15 +485,21 @@ The game has salt-cured meat, but no curing salt and no smoking.
   Jerky's description quotes the Food Safety and Inspection Service's
   rule to heat the meat to 160 F before drying it, but the craft itself
   has no heating step, thickness, temperature or drying time to get right.
-- **Under the default settings.** In the default Dev play mode (Settings >
-  Gameplay > Play mode) a craft uses up none of its parts and wears no
-  tool, but the Craft button still waits until the parts are in your
-  backpack, or in your home's storage while you are at home, and any tool
-  it needs is in your backpack (`src/gui/pages/crafting.rs`,
-  `src/systems/crafting/mod.rs`). The page's "Dev: stock all materials"
-  button fills your backpack with every recipe's parts, Raw Mutton and
-  Salt included, but no tools; a new character's starting kit holds the
-  Utility Knife (`data/world/player.ron`).
+- **Under the default settings.** In the Normal play mode, where the game
+  starts (Settings > Gameplay > Play mode), the Craft button waits until
+  the parts are in your backpack, or in your home's storage while you are
+  at home, and any tool it needs is in your backpack, and the craft then
+  uses up the parts and wears the tool by one use
+  (`src/gui/pages/crafting.rs`, `src/systems/crafting/mod.rs`). The Salt
+  is in the Barn, Raw Mutton comes from the home's sheep and goats, as
+  [Keeping Animals](keeping_animals.md) describes, and a new character's
+  starting kit holds the Utility Knife (`data/places/seed.json`,
+  `data/creatures.csv`, `data/world/player.ron`). In Creative, and in Dev
+  if you choose it, a craft uses up none of its parts and wears no tool
+  while the Inventory page's Creative mode switch is on, though the
+  button still waits for them; in Dev, the page's "Dev: stock all
+  materials" button fills your backpack with every recipe's parts, Raw
+  Mutton and Salt included, but no tools.
 - **No curing salt.** No item contains nitrite. The item list has
   Saltpeter, which it describes as, among other things, "a meat cure",
   but no recipe uses it (`data/items.csv`, `data/recipes.csv`).

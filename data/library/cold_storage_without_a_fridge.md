@@ -442,11 +442,12 @@ not the weather around it. Produce has no best temperature or humidity,
 nothing turns green or sprouts, nothing absorbs a smell, and food does
 not age while the game is closed.
 
-**Starting from the default home.** While Settings > Gameplay > "Start
-every session from the default home" is on, which is the default during
-development, only your character carries between launches, so the
-home's stores, and whatever you were carrying, start each session as
-they are in the default home.
+**Starting from the default home.** Settings > Gameplay > "Start every
+session from the default home" is off by default, so your progress is
+kept between launches: the home's stores, and whatever you were
+carrying, come back as you left them, each food at the age it had
+reached. With the setting on, only your character carries between
+launches, and they start each session as they are in the default home.
 
 ## You own this when
 

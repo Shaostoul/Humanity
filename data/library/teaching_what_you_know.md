@@ -419,11 +419,11 @@ lets one player teach another, or be taught by a character, and the
 Leadership skill, which this topic belongs to, appears in the skill
 list but nothing levels it yet.
 
-**One setting matters here.** While Settings > Gameplay > "Start every
-session from the default home" is on, which is the default during
-development, only your character's name, look and outfit carry between
-launches. Your skill levels start over each time you launch. Turn the
-setting off to keep them.
+**One setting matters here.** Settings > Gameplay > "Start every session
+from the default home" is off by default, so your skill levels are kept
+between launches. With the setting on, only your character's name, look
+and outfit carry between launches, and your skill levels start over each
+time you launch.
 
 **HumanityOS's own Library is built the way this guide recommends.**
 Its Curriculum view lists everything the Library intends to teach,

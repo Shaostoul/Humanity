@@ -489,7 +489,8 @@ The game has a little of this, mostly in what crafting leaves behind.
   `data/medical.ron`, eye surgery needs one, and vendors sell it. But
   no recipe uses Scrap Metal, and the creatures whose loot includes it
   (the robots, and the goblin, in `data/creatures.csv`) never appear in
-  the world by themselves; only the Dev page's spawn tool can place one.
+  the world by themselves; only the Dev page's spawn tool, in the Dev
+  play mode, can place one.
 - **No breaking down.** There is no way to take a crafted item apart
   into its materials, or to melt down scrap. A vendor refuses to buy
   defective goods, and its message suggests scrapping or recycling
@@ -497,18 +498,19 @@ The game has a little of this, mostly in what crafting leaves behind.
 
 **Two settings change this.**
 
-- **Play mode.** The game starts in the Dev play mode (Settings >
-  Gameplay > Play mode). In Dev, unless you turn off the Creative switch
-  on the Inventory page, crafting does not use up what goes into it, so
-  byproducts only matter as stock in Normal mode. Building a piece from
-  the Crafting page uses up its materials in every mode: from your pack
+- **Play mode.** The game starts in the Normal play mode (Settings >
+  Gameplay > Play mode), where crafting uses up what goes into it, so
+  byproducts matter as stock. In Creative, or in Dev if you choose it,
+  crafting does not use up what goes into it unless you turn off the
+  Creative mode switch on the Inventory page. Building a piece from the
+  Crafting page uses up its materials in every mode: from your pack
   first, then the home's storage, on board the ship, and from your pack
   alone on a planet.
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which is the default
-  during development, only your character (name, look and outfit)
-  carries between launches, so anything you kept starts the next
-  session as the default home has it.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so anything you kept
+  is still there at the next launch. With the setting on, only your
+  character (name, look and outfit) carries between launches, and
+  anything you kept starts the next session as the default home has it.
 
 What the game leaves out, so you do not learn it from the game: nothing
 in it is painted with lead, treated with arsenic, full of nails, or a

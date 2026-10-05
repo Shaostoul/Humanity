@@ -550,10 +550,12 @@ nothing carries a disease to you.
   slugs and the rest in `data/garden/pests.ron` attack your crops, never
   you; [Pests and Disease](/library#pests-and-disease) covers them.
 
-**The default settings.** The Dev play mode (Settings > Gameplay > Play
-mode) does not change any of this; your waste rises in every mode. The
-Waste reading is saved with your body, but while "Start every session
-from the default home" is on, which it is by default during development,
+**The default settings.** The play mode (Settings > Gameplay > Play
+mode; Normal, unless you choose another) does not change any of this;
+your waste rises in every mode. The Waste reading is saved with your
+body, and "Start every session from the default home" is off by
+default, so the next launch brings it back where you left it, and the
+fertiliser that was in your pack is still there. With that setting on,
 only your character carries over: each launch starts you with a new
 body, its Waste reading empty, and without the fertiliser that was in
 your pack.

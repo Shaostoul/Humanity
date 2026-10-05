@@ -471,17 +471,20 @@ The game has fibre, rope and cloth as materials and ingredients.
 
 **Two settings change this.**
 
-- **Play mode.** During development the game starts in the Dev play mode
-  (Settings > Gameplay > Play mode). In Dev, as in Creative, crafting
-  takes no materials, no station and no tools, so you can make rope and
-  cloth without collecting any fibre. To make the fibre matter, switch
-  Play mode to Normal, or, in Dev, turn off the Creative mode switch on
-  the Inventory page.
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which is also the default
-  during development, only your character carries between launches, so
-  your fibre, rope and cloth start the next session as they were in the
-  default home.
+- **Play mode.** The game starts in the Normal play mode (Settings >
+  Gameplay > Play mode), where a craft uses up its materials and needs
+  its station and its tools, so rope and cloth take fibre you have
+  collected. In Creative, or in Dev if you choose it, a craft uses up no
+  materials and wears no tools while the Creative mode switch on the
+  Inventory page is on, which it is unless you turn it off, though the
+  Crafting page still wants the fibre, the station and the tools on hand
+  before it lets you press Craft; in Dev, its "Dev: stock all materials"
+  button supplies the fibre.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so your progress is
+  kept between launches, your fibre, rope and cloth included. With the
+  setting on, only your character carries between launches, and they
+  start the next session as they were in the default home.
 
 **Clothes and the cold.** The game's body heat model counts the warmth
 of what you wear, garment by garment, and soaked clothes keep only

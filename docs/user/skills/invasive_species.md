@@ -506,12 +506,15 @@ The game does not model invasive species.
   slow trickle; nothing you carry or move brings one in, though in real
   life people carrying things is how most invasive species travel.
 
-**Two settings change this.** In the default Dev play mode (Settings >
-Gameplay > Play mode), materials are free, so hoeing needs no hoe and
-mulch costs nothing from your pack. And while "Start every session from
-the default home" is on, which it is by default during development, only
-your character carries between launches, so your garden, its weeds and
-its seed bank start fresh each time.
+**Two settings change this.** The game starts in the Normal play mode
+(Settings > Gameplay > Play mode), where hoeing needs a hoe in your pack
+and wears it, and mulch comes out of your pack. In Creative, or in Dev if
+you choose it, materials are free while the Inventory page's Creative
+mode switch is on, so hoeing needs no hoe and mulch costs nothing from
+your pack. And "Start every session from the default home" (Settings >
+Gameplay) is off by default, so your garden, its weeds and its seed bank
+are kept between launches; with it on, only your character carries
+between launches, and they start fresh each time.
 
 What the game leaves out, so you do not learn it from the game: the
 arrival, the spread, the harm to other places, and the duty to stop it.
