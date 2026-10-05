@@ -25,13 +25,25 @@
 //! is where every building game puts rotate. lib.rs calls `frame` once a
 //! frame and `key` from its key handler, ahead of the E chain and the menu
 //! Escape.
+//!
+//! IN A SHARED WORLD (ship homes increment 5, 2026-10-05): where a piece may
+//! go, and whether it is the player's own or kept by the server, is
+//! `engine::shared_build::gate`, asked by the hint every frame and by E
+//! (`press_build`) before anything is spent; offline the gate is the plot rule
+//! of increment 1a, the Dev mode exempt. E on a piece the server keeps sends
+//! it and draws nothing until the relay says it is kept; F on one asks the
+//! relay to take it down (`take_down_entity`).
 
 use crate::engine::planet_build;
+use crate::engine::shared_build::{self, Gate};
 use crate::engine::state::EngineState;
 use crate::gui::{BuildPlacing, GuiPage, GuiState};
+use crate::hot_reload::data_store::DataStore;
 use crate::input::bindings::{pretty_key_name, GameAction};
 use crate::ecs::components::Transform;
+use crate::ship::build_frames::{plot_frame_id, BuildFrames};
 use crate::ship::wall_collision::WallSegment;
+use crate::systems::construction::shared::{self as contract, Action, Reason, SharedPiece};
 use crate::systems::construction::{doorway, placement, BlueprintRegistry, BuildRequest, DoorOpen, PlanetSite, Structure};
 use glam::Vec3;
 
@@ -85,36 +97,109 @@ pub(crate) fn key(state: &mut EngineState, key_name: &str, escape: bool, repeat:
                 p.quarter_turns = (p.quarter_turns + 1) % 4;
             }
         }
-        PlaceKey::Build => {
-            // Only where a ghost stands (first person, on foot, aboard or on
-            // a planet's ground), and never twice in one spot.
-            let Some(p) = state.gui_state.build_placing.as_ref() else { return false };
-            let Some(pose) = p.ghost.clone() else { return false };
-            if p.occupied {
-                return true;
-            }
-            // Too few materials: say so where the player is looking, naming
-            // what is missing, instead of sending a build the ConstructionSystem
-            // refuses where only the Crafting page shows it (first-hour audit
-            // Friction 8, 2026-10-04).
-            let (blueprint_id, on_planet) = (p.blueprint_id.clone(), p.site.is_some());
-            if let Some(why) = build_refusal(&state.game_world.world, &state.data_store, &blueprint_id, on_planet) {
-                set_placing_note(state, why);
-                return true;
-            }
-            let Some(p) = state.gui_state.build_placing.as_ref() else { return false };
-            if p.short {
-                return true;
-            }
-            let request = BuildRequest::new(p.blueprint_id.clone(), pose).on(p.site.clone());
-            if let Some(chan) = state.data_store.get::<std::sync::Mutex<Vec<BuildRequest>>>("build_request") {
-                if let Ok(mut c) = chan.lock() {
-                    c.push(request);
-                }
-            }
-        }
+        PlaceKey::Build => return press_build(state),
     }
     true
+}
+
+/// What E did with the piece in hand ([`press_build_on`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Press {
+    /// Nothing in hand, or nowhere to put it (no ghost): the key keeps its usual meaning.
+    NoGhost,
+    /// Nothing, quietly: the same piece already stands there or is on its way to the server, or
+    /// on a planet the pack is short (the hint says which).
+    Nothing,
+    /// Refused, and the player told: the line shown.
+    Refused(String),
+    /// Asked for, as the player's own piece (None) or to be kept by the server in this frame.
+    Asked(Option<String>),
+}
+
+/// E with a piece in hand (the key, and the dev IPC's `place` verb, [`place_at`]): build it where
+/// its ghost stands. True when the key was used.
+pub(crate) fn press_build(state: &mut EngineState) -> bool {
+    let pressed = press_build_on(&mut state.gui_state, &state.game_world.world, &state.data_store, &state.shared_build);
+    pressed != Press::NoGhost
+}
+
+/// What E does, on the parts it reads (tested without a window). Only where a ghost stands (first
+/// person, on foot, aboard or on a planet's ground), and in this order:
+/// 1. where it may go (`shared_build::gate`): refused, the line goes up in a notice and nothing is
+///    spent (the hint shows it already, so E normally has no ghost there; the `place` verb has);
+/// 2. never twice in one spot: a piece or scaffold with its box stands there, or one is on its way
+///    to the server (`SharedBuild::waiting_at`, Wave 1B's note on a quick double press);
+/// 3. too few materials: said where the player is looking, naming what is missing, instead of
+///    sending a build the ConstructionSystem refuses where only the Crafting page shows it
+///    (first-hour audit Friction 8, 2026-10-04);
+/// 4. the build request, kept by the server in the gate's frame or the player's own. Either way
+///    the ConstructionSystem checks the spot and takes the materials; a shared one then waits in
+///    `shared::OUT_CHANNEL` for `shared_build::tick` to send.
+pub(crate) fn press_build_on(gui: &mut GuiState, world: &hecs::World, data: &DataStore, sb: &shared_build::SharedBuild) -> Press {
+    let Some(p) = gui.build_placing.as_ref() else { return Press::NoGhost };
+    let Some(pose) = p.ghost.clone() else { return Press::NoGhost };
+    let (blueprint_id, name, site, occupied, short) = (p.blueprint_id.clone(), p.name.clone(), p.site.clone(), p.occupied, p.short);
+    let registry = data.get::<BlueprintRegistry>("blueprint_registry");
+    let frame = match shared_build::gate_here(gui, registry, sb.ranks, registry.and_then(|r| r.get(&blueprint_id)), &pose, site.as_ref()) {
+        Gate::Refused(words) => {
+            let line = format!("{name} not built: {words}.");
+            gui.pending_notices.push(line.clone());
+            return Press::Refused(line);
+        }
+        Gate::Shared(frame) => Some(frame),
+        Gate::Private => None,
+    };
+    if occupied || (frame.is_some() && sb.waiting_at(data, &pose)) {
+        return Press::Nothing;
+    }
+    if let Some(why) = build_refusal(world, data, &blueprint_id, site.is_some()) {
+        gui.pending_notices.push(why.clone());
+        return Press::Refused(why);
+    }
+    if short {
+        return Press::Nothing;
+    }
+    let request = BuildRequest::new(blueprint_id, pose).on(site).shared(frame.clone());
+    if let Some(chan) = data.get::<std::sync::Mutex<Vec<BuildRequest>>>("build_request") {
+        if let Ok(mut c) = chan.lock() {
+            c.push(request);
+        }
+    }
+    Press::Asked(frame)
+}
+
+/// The dev IPC's `place` verb (engine/ipc.rs, ship homes increment 5): what E does with
+/// `blueprint_id` in hand, turned `turns` quarter turns, aimed at the floor point (x, z) in ship
+/// metres, through E's own path ([`press_build`]: the gate, one piece per spot, the materials). The
+/// pose is the ghost's own (`planet_build::aboard_pose`), on the deck of the plot or shared space
+/// the point is over (elsewhere the floor the player stands on), so a rig's point lands exactly
+/// where it names whatever floor the camera stands on. Nothing is left in hand after it, so no
+/// ghost stands in a picture. Aboard only. Returns a line for the log.
+pub(crate) fn place_at(state: &mut EngineState, blueprint_id: &str, x: f32, z: f32, turns: u8) -> String {
+    let Some(bp) = state.data_store.get::<BlueprintRegistry>("blueprint_registry").and_then(|r| r.get(blueprint_id)).cloned() else {
+        return format!("no blueprint {blueprint_id:?}");
+    };
+    if !state.aboard_station {
+        return "not aboard: the place verb builds on the ship".to_string();
+    }
+    let turns = turns % 4;
+    let deck = state.gui_state.ship_structure.as_ref().and_then(|s| BuildFrames::of_ship(s).frame_at(Vec3::new(x, 0.0, z)).map(|f| f.origin.y));
+    let at = Vec3::new(x, deck.unwrap_or_else(|| state.controller.ground_floor()), z);
+    let pose = planet_build::aboard_pose(state, &bp, at, turns);
+    let occupied = placement::occupied(&state.game_world.world, &pose, None);
+    state.gui_state.build_placing = Some(BuildPlacing {
+        blueprint_id: bp.id.clone(),
+        name: bp.name.clone(),
+        quarter_turns: turns,
+        ghost: Some(pose),
+        site: None,
+        occupied,
+        short: false,
+        hint: String::new(),
+    });
+    let pressed = press_build_on(&mut state.gui_state, &state.game_world.world, &state.data_store, &state.shared_build);
+    state.gui_state.build_placing = None;
+    format!("{} at ({x}, {z}), {turns} turn(s): {pressed:?}", bp.name)
 }
 
 /// Where the cast waiting to go builds, when it is a building ability
@@ -139,11 +224,7 @@ fn publish_cast_spot(state: &mut EngineState) {
     let Some(blueprint) = builds else { return };
     let id = id.clone();
     let placed = planet_build::ghost(state, &blueprint, 0);
-    let off_plot = refused_off_plot(
-        state.gui_state.ship_structure.as_ref(),
-        state.gui_state.settings.play_mode.allows(crate::config::Capability::ShipStructureEditing),
-        &placed,
-    );
+    let off_plot = refused_off_plot_here(&state.gui_state, &placed);
     let outdoors_only = state
         .data_store
         .get::<BlueprintRegistry>("blueprint_registry")
@@ -188,14 +269,16 @@ pub(crate) fn cast_spot(
 /// holds wherever the player goes, where "only inside your own plot" sent
 /// them home to be refused again as "never aboard", and told a guest nothing
 /// true. Then a piece that would roof over a campfire
-/// (`construction::roofs_over_outdoors_piece`), then the own-plot rule
-/// aboard ([`refused_off_plot`]). Pure, so the order is tested whole.
+/// (`construction::roofs_over_outdoors_piece`), then where it may go aboard:
+/// `where_refused`, the words of `shared_build::gate` (offline the own-plot
+/// rule, [`off_plot_reason`]; in a shared world someone else's plot, the
+/// ship's shared spaces without the rank, ship homes increment 5). Pure, so
+/// the order is tested whole.
 pub(crate) fn place_refusal_hint(
     name: &str,
     not_outdoors: Option<crate::systems::construction::NotOutdoors>,
     roofs_over: Option<&str>,
-    off_plot: bool,
-    guest: bool,
+    where_refused: Option<&str>,
 ) -> Option<String> {
     if let Some(why) = not_outdoors {
         return Some(format!("Placing {name}: {}   [Esc] done", why.reason()));
@@ -203,7 +286,7 @@ pub(crate) fn place_refusal_hint(
     if let Some(fire) = roofs_over {
         return Some(format!("Placing {name}: {}   [Esc] done", crate::systems::construction::roof_over_fire_reason(fire)));
     }
-    off_plot.then(|| off_plot_hint(name, guest))
+    where_refused.map(|words| format!("Placing {name}: {words}   [Esc] done"))
 }
 
 /// Once a frame: pick up what Build was clicked on, drop it when the player
@@ -243,19 +326,13 @@ pub(crate) fn frame(state: &mut EngineState) {
     // aboard, the build site they stand in on a planet (planet_build).
     let (name, turns) = (p.name.clone(), p.quarter_turns);
     let placed = planet_build::ghost(state, &p.blueprint_id, turns);
-    // Aboard, a piece goes only inside your own plot (increment 1a of
-    // docs/design/ship-homes-and-logistics.md); the Dev mode builds anywhere.
-    let off_plot = refused_off_plot(
-        state.gui_state.ship_structure.as_ref(),
-        state.gui_state.settings.play_mode.allows(crate::config::Capability::ShipStructureEditing),
-        &placed,
-    );
     // A piece built only outdoors (BUG-153: a campfire) is refused aboard,
     // under a roof and where there is no air to burn, and a roof is refused
     // over a campfire, with the reason here, by the rules the build itself
     // applies (`construction::outdoors_refusal`, `roofs_over_outdoors_piece`).
     let registry = state.data_store.get::<BlueprintRegistry>("blueprint_registry");
-    let (not_outdoors, roofs_over) = match (&placed, registry.and_then(|r| r.get(&p.blueprint_id))) {
+    let bp = registry.and_then(|r| r.get(&p.blueprint_id));
+    let (not_outdoors, roofs_over) = match (&placed, bp) {
         (Ok(g), Some(bp)) => {
             let world = &state.game_world.world;
             (
@@ -265,10 +342,27 @@ pub(crate) fn frame(state: &mut EngineState) {
         }
         _ => (None, None),
     };
-    let guest = state.gui_state.ship_structure.as_ref().is_some_and(|s| s.home_is_away());
+    // Where it may go aboard (`shared_build::gate`): offline only inside your
+    // own plot (increment 1a of docs/design/ship-homes-and-logistics.md), the
+    // Dev mode anywhere; in a shared world (increment 5) the ship is the
+    // server's, nobody is exempt, and a shell piece on your own plot is kept
+    // by the server, which the hint says.
+    let gate = match &placed {
+        Ok(g) => shared_build::gate_here(&state.gui_state, registry, state.shared_build.ranks, bp, &g.pose, g.site.as_ref()),
+        Err(_) => Gate::Private,
+    };
+    let where_refused = match &gate {
+        Gate::Refused(words) => Some(words.as_str()),
+        _ => None,
+    };
     let refusal = match &placed {
-        Ok(_) => place_refusal_hint(&name, not_outdoors, roofs_over.as_deref(), off_plot, guest),
+        Ok(_) => place_refusal_hint(&name, not_outdoors, roofs_over.as_deref(), where_refused),
         Err(_) => None,
+    };
+    let kept = match (&gate, &placed) {
+        (Gate::Shared(_), _) => Some(contract::KEPT_BY_THE_SERVER),
+        (Gate::Private, Ok(g)) if state.gui_state.copresence_active && g.site.is_none() => Some(contract::ONLY_IN_YOUR_HOME),
+        _ => None,
     };
     // On a planet only the pack counts (the home's storage is in orbit).
     let short = match &placed {
@@ -287,6 +381,7 @@ pub(crate) fn frame(state: &mut EngineState) {
             &pretty_key_name(keys.pair(GameAction::Interact).0),
             &pretty_key_name(keys.pair(GameAction::ToggleRoof).0),
             &pretty_key_name(keys.pair(GameAction::AttackSwing).0),
+            kept,
         ),
         (Err(why), _) => planet_build::cannot_build_hint(&name, *why),
     };
@@ -309,9 +404,9 @@ pub(crate) fn frame(state: &mut EngineState) {
 }
 
 /// Whether the ghost in hand is refused because it would stand outside the builder's own plot:
-/// aboard (a ghost with no planet site), outside the Dev mode (`ship_scope` false), and
-/// `outside_own_plot`. A planet build, a ghost that could not be placed at all, and the Dev mode
-/// are never refused here. The one decision `frame` uses, kept pure so it is tested whole.
+/// aboard (a ghost with no planet site), without the ship's structure to edit (`ship_scope`
+/// false), and `outside_own_plot`. A planet build, a ghost that could not be placed at all, and
+/// `ship_scope` (the Dev mode, offline) are never refused here.
 pub(crate) fn refused_off_plot(
     ship: Option<&crate::ship::ship_structure::ShipStructure>,
     ship_scope: bool,
@@ -320,29 +415,38 @@ pub(crate) fn refused_off_plot(
     !ship_scope && matches!(placed, Ok(g) if g.site.is_none() && outside_own_plot(ship, &g.pose))
 }
 
-/// How far a built piece may overhang its plot's edge and still count as inside (metres): half
-/// the thickest wall piece (a 0.3 m stone wall), so a wall laid ON the plot line, the way the
-/// home's own shell sits on it, is allowed. The 1 m build grid puts a wall's centre on the line,
-/// which leaves half its thickness over it. Anything bigger, a foundation's metre say, is refused.
-const PLOT_EDGE_EPS_M: f32 = 0.15;
+/// `refused_off_plot` for this session as it stands: the ship it is on, and whether the ship's
+/// structure is its to edit (`config::ship_editing_for`: the Dev mode, and only out of a shared
+/// world, ship homes increment 5). The one decision `frame` and a building ability's cast
+/// (`publish_cast_spot`) use, kept pure so it is tested whole.
+pub(crate) fn refused_off_plot_here(gui: &GuiState, placed: &Result<planet_build::Ghost, planet_build::CannotBuild>) -> bool {
+    refused_off_plot(gui.ship_structure.as_ref(), crate::config::ship_editing_for(gui), placed)
+}
 
 /// True when a piece built aboard with `pose` (ship metres) would reach outside the builder's own
 /// plot: any part of its turned footprint (`placement::world_aabb`, x and z) lies past the plot
-/// box. Height is not bounded, the same 2D rule collision uses. Testing the centre alone let a
-/// 4 x 4 m foundation centred 2 m inside the edge cover the home's door and a metre of the
-/// shared corridor (the critic's review of 1a). False without an assembled ship, where there is
-/// no plot to bound against (the legacy layout). TRUE everywhere aboard while the home is put
-/// away (a guest, ship homes increment 2): a guest has no plot of this ship to build on. The
-/// Dev-mode exemption is `refused_off_plot`'s.
+/// box, give or take the slack that lets a wall lie ON the plot line the way the home's own shell
+/// does (`build_frames::EDGE_SLACK_M`, half the thickest wall). Height is not bounded, the same
+/// 2D rule collision uses. Testing the centre alone let a 4 x 4 m foundation centred 2 m inside
+/// the edge cover the home's door and a metre of the shared corridor (the critic's review of 1a).
+/// The rule is the relay's own since increment 5 (`BuildFrame::footprint_inside`, the plot's frame
+/// measured from its corner), so the game and the server bound a plot alike. False without an
+/// assembled ship, where there is no plot to bound against (the legacy layout). TRUE everywhere
+/// aboard while the home is put away (a guest, ship homes increment 2): a guest has no plot of
+/// this ship to build on. The Dev-mode exemption is `refused_off_plot`'s.
 pub(crate) fn outside_own_plot(ship: Option<&crate::ship::ship_structure::ShipStructure>, pose: &Transform) -> bool {
-    let Some(plot) = ship.and_then(|s| s.home_plot()) else { return ship.is_some_and(|s| s.home_is_away()) };
-    let (lo, hi) = plot.aabb();
-    let (a, b) = placement::world_aabb(pose);
-    a.x < lo.x - PLOT_EDGE_EPS_M || b.x > hi.x + PLOT_EDGE_EPS_M || a.z < lo.z - PLOT_EDGE_EPS_M || b.z > hi.z + PLOT_EDGE_EPS_M
+    let Some(s) = ship else { return false };
+    let Some(plot) = s.home_plot() else { return s.home_is_away() };
+    let frames = BuildFrames::of_ship(s);
+    let Some(frame) = frames.get(&plot_frame_id(&plot.id)) else { return true };
+    !frame.footprint_inside(&frame.to_local(pose))
 }
 
-/// The line under the crosshair when the piece in hand points outside your plot. `guest`: the
-/// player has no plot of this ship (ship homes increment 2, the home is put away).
+/// The line under the crosshair when the piece in hand points outside your plot, offline. `guest`:
+/// the player has no plot of this ship (ship homes increment 2, the home is put away). Since
+/// increment 5 the game shows it through `place_refusal_hint` with the gate's words, so only the
+/// tests spell it out whole.
+#[cfg(test)]
 pub(crate) fn off_plot_hint(name: &str, guest: bool) -> String {
     format!("Placing {name}: {}   [Esc] done", off_plot_reason(guest))
 }
@@ -427,6 +531,10 @@ pub(crate) fn short_hint(name: &str, item: &str, more: u32) -> String {
 /// ghost rests above the floor it is aimed at (a roof on walls); `occupied`
 /// says the same piece already stands there, so E will not build it again.
 /// `take_down_key` takes down the finished piece in view (`take_down`).
+/// `kept`: in a shared world, who keeps what E builds, after the build key
+/// (ship homes increment 5): "[E] build here (kept by the server: anyone near
+/// sees it)" or "[E] build here (only in your own home)"; None offline.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn placing_hint(
     name: &str,
     quarter_turns: u8,
@@ -435,6 +543,7 @@ pub(crate) fn placing_hint(
     build_key: &str,
     turn_key: &str,
     take_down_key: &str,
+    kept: Option<&str>,
 ) -> String {
     let turned = match quarter_turns % 4 {
         0 => String::new(),
@@ -446,7 +555,8 @@ pub(crate) fn placing_hint(
             "Placing {name}{turned}{on_top}: already built here   [{turn_key}] turn   [{take_down_key}] take down   [Esc] done"
         );
     }
-    format!("Placing {name}{turned}{on_top}   [{build_key}] build here   [{turn_key}] turn   [{take_down_key}] take down   [Esc] done")
+    let kept = kept.map(|k| format!(" ({k})")).unwrap_or_default();
+    format!("Placing {name}{turned}{on_top}   [{build_key}] build here{kept}   [{turn_key}] turn   [{take_down_key}] take down   [Esc] done")
 }
 
 /// How far away a piece can be taken down from, metres: the reach a piece is
@@ -511,11 +621,71 @@ fn take_down(state: &mut EngineState) {
     );
     match plan {
         Err(why) => set_placing_note(state, why),
-        Ok((e, name, materials)) => {
-            let msg = apply_take_down(&mut state.game_world.world, &state.data_store, e, &name, &materials);
-            state.gui_state.pending_notices.push(msg);
+        Ok((e, name, materials)) => take_down_entity(state, e, &name, &materials),
+    }
+}
+
+/// Take down the piece `e` (F, and the dev IPC's `take_down` verb): the player's own at once
+/// (`apply_take_down`); one the server keeps (ship homes increment 5) by asking the relay, when
+/// `shared_build::take_down_gate` says it would let this player, else the reason why not. A piece
+/// the server keeps stays standing until the relay says it came down; then its materials come
+/// back (`shared_build`, `game_unbuilt`).
+pub(crate) fn take_down_entity(state: &mut EngineState, e: hecs::Entity, name: &str, materials: &[(String, u32)]) {
+    let line = take_down_entity_on(&mut state.shared_build, &mut state.game_world.world, &state.data_store, &state.gui_state, e, name, materials);
+    if let Some(line) = line {
+        state.gui_state.pending_notices.push(line);
+    }
+}
+
+/// [`take_down_entity`] on the parts it touches (tested without a window): the line to show, or
+/// None while a take-down waits for the relay.
+pub(crate) fn take_down_entity_on(
+    sb: &mut shared_build::SharedBuild,
+    world: &mut hecs::World,
+    data: &DataStore,
+    gui: &GuiState,
+    e: hecs::Entity,
+    name: &str,
+    materials: &[(String, u32)],
+) -> Option<String> {
+    let kept = world.get::<&SharedPiece>(e).ok().map(|k| (*k).clone());
+    let Some(kept) = kept else { return Some(apply_take_down(world, data, e, name, materials)) };
+    match shared_build::take_down_gate(&kept, gui.ship_structure.as_ref(), sb.ranks) {
+        Err(why) => Some(contract::refusal_message(Action::Unbuild, name, Reason::NotAllowed, Some(why))),
+        Ok(()) => {
+            sb.ask_take_down(shared_build::Unbuild { piece_id: kept.piece_id, name: name.to_string(), materials: materials.to_vec() });
+            None
         }
     }
+}
+
+/// The dev IPC's `take_down` verb (engine/ipc.rs, ship homes increment 5): what F does at the
+/// piece the server keeps as `piece_id`, wherever the player looks. Returns a line for the log.
+pub(crate) fn take_down_piece(state: &mut EngineState, piece_id: u64) -> String {
+    let Some(e) = shared_build::entity_of(&state.game_world.world, piece_id) else {
+        return format!("no piece {piece_id} the server keeps in this world");
+    };
+    let (name, materials) = kept_piece_back(&state.game_world.world, state.data_store.get::<BlueprintRegistry>("blueprint_registry"), e);
+    take_down_entity(state, e, &name, &materials);
+    format!("piece {piece_id} ({name}) asked to come down")
+}
+
+/// The name of the piece `e` the server keeps, finished or still a scaffold, and what taking it
+/// down gives back (the dev verb `take_down`): what F gives for a finished piece
+/// (`fires::materials_back`, its fuel read as `take_down_plan` reads it); for a scaffold the
+/// blueprint's whole price, which is what was paid for it, as a refused build gives back what it
+/// took. A shared piece never burns, so both are its materials in full.
+pub(crate) fn kept_piece_back(world: &hecs::World, registry: Option<&BlueprintRegistry>, e: hecs::Entity) -> (String, Vec<(String, u32)>) {
+    let id = match (world.get::<&Structure>(e), world.get::<&crate::systems::construction::Construction>(e)) {
+        (Ok(s), _) => s.blueprint_id.clone(),
+        (_, Ok(c)) => c.blueprint_id.clone(),
+        _ => String::new(),
+    };
+    let bp = registry.and_then(|r| r.get(&id));
+    let name = bp.map_or_else(|| id.clone(), |b| b.name.clone());
+    let fuel = world.get::<&crate::systems::construction::fires::FireFuel>(e).ok().map(|f| *f);
+    let materials = bp.map(|b| crate::systems::construction::fires::materials_back(b, fuel.as_ref())).unwrap_or_default();
+    (name, materials)
 }
 
 /// What a take-down does, once `take_down_plan` has chosen the piece: its
@@ -721,17 +891,19 @@ mod tests {
         assert_eq!(not_outdoors, Some(NotOutdoors::Aboard));
         let words = NotOutdoors::Aboard.reason();
 
-        let hint = place_refusal_hint("Campfire", not_outdoors, None, off_plot, false).expect("refused");
+        // The plot rule's words when it refuses (what `frame` hands over from the gate offline).
+        let plot_words = |off: bool, guest: bool| off.then(|| off_plot_reason(guest));
+        let hint = place_refusal_hint("Campfire", not_outdoors, None, plot_words(off_plot, false)).expect("refused");
         assert_eq!(hint, format!("Placing Campfire: {words}   [Esc] done"));
         let away = p1.put_home_away().expect("the home can be put away");
         let guest_off_plot = refused_off_plot(Some(&away), false, &in_the_commons(reg, "campfire"));
-        let guest = place_refusal_hint("Campfire", not_outdoors, None, guest_off_plot, true).expect("refused");
+        let guest = place_refusal_hint("Campfire", not_outdoors, None, plot_words(guest_off_plot, true)).expect("refused");
         assert_eq!(guest, format!("Placing Campfire: {words}   [Esc] done"), "a guest hears the same");
         let wall_off_plot = refused_off_plot(Some(&p1), false, &in_the_commons(reg, "wood_wall"));
-        let wall = place_refusal_hint("Wood Wall", None, None, wall_off_plot, false);
+        let wall = place_refusal_hint("Wood Wall", None, None, plot_words(wall_off_plot, false));
         assert_eq!(wall, Some(off_plot_hint("Wood Wall", false)), "a wall still hears the plot rule");
-        assert_eq!(place_refusal_hint("Wood Wall", None, None, true, true), Some(off_plot_hint("Wood Wall", true)));
-        assert_eq!(place_refusal_hint("Wood Wall", None, None, false, false), None, "in your own plot: nothing to refuse");
+        assert_eq!(place_refusal_hint("Wood Wall", None, None, plot_words(true, true)), Some(off_plot_hint("Wood Wall", true)));
+        assert_eq!(place_refusal_hint("Wood Wall", None, None, None), None, "in your own plot: nothing to refuse");
     }
 
     /// A CAMPFIRE CAST OUTSIDE YOUR PLOT IS REFUSED FOR BEING ABOARD, NOT FOR THE PLOT (the
@@ -769,6 +941,42 @@ mod tests {
             "a piece that can be built aboard still hears the plot rule"
         );
         assert_eq!(cast_spot("wood_wall", in_the_commons(reg, "wood_wall"), true, false, true).err().as_deref(), Some(off_plot_reason(true)));
+    }
+
+    /// THE DEV MODE IN A SHARED WORLD BUILDS ONLY ON ITS OWN PLOT (ship homes increment 5,
+    /// 2026-10-05). Offline the Dev mode builds anywhere aboard, the Commons and other plots
+    /// included. Joined to a shared world it has no exemption, because the ship is the server's
+    /// (`config::ship_editing_for`): on the shipped ship assembled at p1, the Commons and p2
+    /// (someone else's plot) are refused and its own yard is not, as for a Normal player. The
+    /// decision is the one `frame` and a building ability's cast use (`refused_off_plot_here`).
+    ///
+    /// Seen red 2026-10-05 with the Dev exemption kept (`refused_off_plot_here` asking
+    /// `play_mode.allows(ShipStructureEditing)` alone, as `frame` did): "in a shared world the
+    /// Dev mode was let build in the Commons".
+    #[test]
+    fn dev_in_a_shared_world_builds_only_on_its_own_plot() {
+        use crate::ship::ship_structure::ShipStructure;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = catalog();
+        let reg = data.get::<BlueprintRegistry>("blueprint_registry").unwrap();
+        let at = |x: f32, z: f32| -> Result<planet_build::Ghost, planet_build::CannotBuild> {
+            let bp = reg.get("wood_foundation").unwrap();
+            let pose = placement::placement_pose(bp, Vec3::new(x, 0.0, z), 0, &hecs::World::new(), reg, None);
+            Ok(planet_build::Ghost { pose, site: None, above_floor: 0.0, occupied: false })
+        };
+        let (commons, theirs, yard) = (at(80.0, 40.0), at(30.0, 140.0), at(30.0, 20.0));
+        let mut gui = GuiState::default();
+        gui.settings.play_mode = crate::config::PlayMode::Dev;
+        gui.ship_structure = Some(ShipStructure::load_and_assemble_shipped(&dir, Some("p1")).expect("assembles at p1"));
+        assert!(!refused_off_plot_here(&gui, &commons), "offline, the Dev mode builds in the Commons");
+        assert!(!refused_off_plot_here(&gui, &theirs), "offline, the Dev mode builds on any plot");
+        gui.copresence_active = true;
+        assert!(refused_off_plot_here(&gui, &commons), "in a shared world the Dev mode was let build in the Commons");
+        assert!(refused_off_plot_here(&gui, &theirs), "in a shared world the Dev mode was let build on p2, someone else's plot");
+        assert!(!refused_off_plot_here(&gui, &yard), "in a shared world the Dev mode still builds in its own yard");
+        gui.settings.play_mode = crate::config::PlayMode::Normal;
+        assert!(refused_off_plot_here(&gui, &commons), "a Normal player is refused in the Commons, as before");
+        assert!(!refused_off_plot_here(&gui, &yard), "and builds in their own yard");
     }
 
     fn holding() -> GuiState {
@@ -812,19 +1020,26 @@ mod tests {
 
     /// The hint names the piece, its turn, whether it rests on top, and the
     /// live keys; over a piece already built it says so and offers no build
-    /// key; and each place a piece cannot go has its own plain reason.
+    /// key; and each place a piece cannot go has its own plain reason. In a
+    /// shared world it says who keeps what E builds (ship homes increment 5).
     #[test]
     fn the_hint_says_the_turn_and_the_keys() {
         assert_eq!(
-            placing_hint("Wood Wall", 1, 0.0, false, "E", "R", "F"),
+            placing_hint("Wood Wall", 1, 0.0, false, "E", "R", "F", None),
             "Placing Wood Wall, turned 90 degrees   [E] build here   [R] turn   [F] take down   [Esc] done"
         );
         assert_eq!(
-            placing_hint("Wood Roof", 4, 3.0, false, "E", "T", "F"),
+            placing_hint("Wood Roof", 4, 3.0, false, "E", "T", "F", None),
             "Placing Wood Roof, on top at 3.0 m   [E] build here   [T] turn   [F] take down   [Esc] done"
         );
-        let twice = placing_hint("Wood Wall", 0, 0.0, true, "E", "R", "F");
+        let twice = placing_hint("Wood Wall", 0, 0.0, true, "E", "R", "F", None);
         assert!(twice.contains("already built here") && !twice.contains("[E]"), "{twice}");
+        assert_eq!(
+            placing_hint("Wood Wall", 0, 0.0, false, "E", "R", "F", Some(contract::KEPT_BY_THE_SERVER)),
+            "Placing Wood Wall   [E] build here (kept by the server: anyone near sees it)   [R] turn   [F] take down   [Esc] done"
+        );
+        let own = placing_hint("Bed", 0, 0.0, false, "E", "R", "F", Some(contract::ONLY_IN_YOUR_HOME));
+        assert!(own.contains("[E] build here (only in your own home)"), "{own}");
         use planet_build::{cannot_build_hint, CannotBuild};
         assert!(cannot_build_hint("Bed", CannotBuild::NotFirstPerson).contains("first person"));
         assert!(cannot_build_hint("Bed", CannotBuild::Driving).contains("vehicle"));
@@ -1057,5 +1272,169 @@ mod take_down_tests {
         assert_eq!(refused, "Empty the Storage Chest before taking it down");
         let (e, _, _) = take_down_plan(&stores, &[], Some(&reg), at_chest, Vec3::Z, None, &[]).expect("an empty chest comes down");
         assert_eq!(e, chest);
+    }
+}
+
+#[cfg(test)]
+mod shared_world_tests {
+    //! E and F in a server's shared world (ship homes increment 5, 2026-10-05).
+    use super::*;
+    use crate::ecs::components::Controllable;
+    use crate::ecs::systems::System;
+    use crate::engine::shared_build::{on_message, tick_core, welcome, Ctx, SharedBuild};
+    use crate::ship::ship_structure::ShipStructure;
+    use crate::systems::construction::shared::{FromRelay, Piece};
+    use crate::systems::construction::{Construction, ConstructionSystem};
+    use crate::systems::inventory::{Inventory, ItemRegistry, TransferOp};
+    use std::sync::Mutex;
+
+    /// The relay's clock, Unix seconds.
+    const T: f64 = 1_759_500_000.0;
+
+    fn registry() -> BlueprintRegistry {
+        BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap()
+    }
+
+    /// The data E, the ConstructionSystem and the shared books read.
+    fn store() -> DataStore {
+        let mut data = DataStore::new();
+        data.insert("blueprint_registry", registry());
+        data.insert("item_registry", ItemRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/items.csv"))).unwrap());
+        data.insert("build_request", Mutex::new(Vec::<BuildRequest>::new()));
+        data.insert("build_status", Mutex::new(String::new()));
+        data.insert("quest_events", Mutex::new(Vec::<String>::new()));
+        data.insert("inventory_transfer_ops", Mutex::new(Vec::<TransferOp>::new()));
+        data.insert(contract::OUT_CHANNEL, contract::OutQueue::default());
+        data
+    }
+
+    /// The home on p1, in a shared world.
+    fn joined_at_p1() -> GuiState {
+        let mut gui = GuiState::default();
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        gui.ship_structure = Some(ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("assembles at p1"));
+        gui.copresence_active = true;
+        gui
+    }
+
+    fn hear(sb: &mut SharedBuild, world: &mut hecs::World, data: &DataStore, gui: &mut GuiState, m: &FromRelay) {
+        on_message(&mut Ctx { sb, world, data, gui }, &serde_json::to_value(m).unwrap());
+    }
+
+    fn pieces_in(world: &hecs::World) -> usize {
+        world.query::<&Construction>().iter().count() + world.query::<&Structure>().iter().count()
+    }
+
+    fn sent(sb: &mut SharedBuild) -> Vec<serde_json::Value> {
+        sb.outbox.drain(..).map(|m| serde_json::from_str(&m).unwrap()).collect()
+    }
+
+    /// E ON A SHAREABLE PIECE IN THE SHARED WORLD SENDS IT AND PUTS UP NOTHING. The home on p1, a
+    /// Wood Wall in hand in p1's yard, 10 planks in the pack: E asks for it kept by the server in
+    /// `plot:p1`; the ConstructionSystem takes its 6 planks and puts up nothing of its own; the tick
+    /// sends one `game_build`, measured from p1's corner; a second E on the same spot spends nothing
+    /// (it is on its way); and only the relay's answer puts the piece up, a scaffold that is ours.
+    ///
+    /// Seen red 2026-10-05 with E asking for a private build (the request without
+    /// `.shared(frame)`, as E did before): "E in the shared world put up a scaffold of its own:
+    /// left: 1, right: 0".
+    #[test]
+    fn e_on_a_shareable_piece_in_the_shared_world_sends_and_spawns_nothing() {
+        let data = store();
+        let reg = registry();
+        let mut world = hecs::World::new();
+        let mut pack = Inventory::new(16);
+        pack.add_item("wood_plank_0", 10, 99);
+        let player = world.spawn((pack, Controllable));
+        let mut gui = joined_at_p1();
+        let mut sb = SharedBuild::default();
+        welcome(&mut Ctx { sb: &mut sb, world: &mut world, data: &data, gui: &mut gui }, &serde_json::json!({ "type": "game_welcome" }));
+        hear(&mut sb, &mut world, &data, &mut gui, &FromRelay::Pieces { frame: "plot:p1".into(), seq: 0, server_time: T, part: 1, parts: 1, pieces: Vec::new() });
+        let bp = reg.get("wood_wall").unwrap();
+        let pose = placement::placement_pose(bp, Vec3::new(30.0, 0.0, 20.0), 0, &world, &reg, None);
+        gui.build_placing = Some(BuildPlacing {
+            blueprint_id: "wood_wall".into(),
+            name: "Wood Wall".into(),
+            quarter_turns: 0,
+            ghost: Some(pose.clone()),
+            site: None,
+            occupied: false,
+            short: false,
+            hint: String::new(),
+        });
+
+        assert_eq!(press_build_on(&mut gui, &world, &data, &sb), Press::Asked(Some("plot:p1".into())));
+        ConstructionSystem::new().tick(&mut world, 0.016, &data);
+        assert_eq!(pieces_in(&world), 0, "E in the shared world put up a scaffold of its own: left: {}, right: 0", pieces_in(&world));
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("wood_plank_0"), 4, "the wall's 6 planks, spent once");
+
+        tick_core(&mut Ctx { sb: &mut sb, world: &mut world, data: &data, gui: &mut gui }, 0.3, true, true);
+        let out = sent(&mut sb);
+        assert_eq!(out.len(), 1, "{out:?}");
+        assert_eq!((out[0]["type"].as_str(), out[0]["frame"].as_str(), out[0]["blueprint_id"].as_str()), (Some("game_build"), Some("plot:p1"), Some("wood_wall")));
+        assert_eq!(out[0]["position"], serde_json::json!([30.0, 0.0, 20.0]), "measured from p1's corner, the ship's origin");
+        let req = out[0]["req_id"].as_u64().unwrap() as u32;
+
+        assert_eq!(press_build_on(&mut gui, &world, &data, &sb), Press::Nothing, "on its way: a second E spends nothing");
+        assert!(data.get::<Mutex<Vec<BuildRequest>>>("build_request").unwrap().lock().unwrap().is_empty());
+
+        let kept = Piece { piece_id: 40, blueprint_id: "wood_wall".into(), position: [30.0, 0.0, 20.0], rotation: [0.0, 0.0, 0.0, 1.0], scale: bp.size, placed_at: T, mine: true };
+        hear(&mut sb, &mut world, &data, &mut gui, &FromRelay::Built { frame: "plot:p1".into(), seq: 1, server_time: T, piece: kept, req_id: Some(req) });
+        let mut q = world.query::<(&Construction, &SharedPiece)>();
+        let up: Vec<(u64, bool)> = q.iter().map(|(_e, (_c, k))| (k.piece_id, k.mine)).collect();
+        assert_eq!(up, vec![(40, true)], "the relay's answer puts it up, a scaffold, ours");
+        drop(q);
+        assert_eq!(sb.counts(), (0, 0, 0), "settled");
+    }
+
+    /// F ON A PIECE THE SERVER KEEPS SENDS `game_unbuild` AND WAITS. The home on p1: F at the wall
+    /// the server keeps on p1 asks the relay and changes nothing (the wall stands, nothing comes
+    /// back); the tick sends `game_unbuild` with the piece's id; when the relay says it came down
+    /// with our req_id, it goes and its 6 planks come back, and the player is told. F at a wall on
+    /// p2 (someone else's plot) is refused in the take-down sentence, sends nothing, and the wall
+    /// stands.
+    ///
+    /// Seen red 2026-10-05 with F taking every piece down at once (`apply_take_down`, as F did
+    /// before): it took the wall down and said so, left: `Some("Took down the Wood Wall: 6 Wood
+    /// Plank back")`, right: `None`.
+    #[test]
+    fn f_on_a_shared_piece_sends_game_unbuild_and_waits() {
+        let data = store();
+        let reg = registry();
+        let mut world = hecs::World::new();
+        world.spawn((Inventory::new(16), Controllable));
+        let mut gui = joined_at_p1();
+        let mut sb = SharedBuild::default();
+        welcome(&mut Ctx { sb: &mut sb, world: &mut world, data: &data, gui: &mut gui }, &serde_json::json!({ "type": "game_welcome" }));
+        let size = reg.get("wood_wall").unwrap().size;
+        let wall = |id: u64, x: f32| Piece { piece_id: id, blueprint_id: "wood_wall".into(), position: [x, 0.0, 20.0], rotation: [0.0, 0.0, 0.0, 1.0], scale: size, placed_at: T - 100.0, mine: true };
+        let list = |frame: &str, seq: u64, pieces: Vec<Piece>| FromRelay::Pieces { frame: frame.into(), seq, server_time: T, part: 1, parts: 1, pieces };
+        hear(&mut sb, &mut world, &data, &mut gui, &list("plot:p1", 1, vec![wall(7, 20.0)]));
+        hear(&mut sb, &mut world, &data, &mut gui, &list("plot:p2", 3, vec![wall(9, 20.0)]));
+        let seven = shared_build::entity_of(&world, 7).expect("piece 7 stands");
+        let nine = shared_build::entity_of(&world, 9).expect("piece 9 stands");
+        let materials = vec![("wood_plank_0".to_string(), 6)];
+        let ops = |data: &DataStore| data.get::<Mutex<Vec<TransferOp>>>("inventory_transfer_ops").unwrap().lock().unwrap().clone();
+
+        assert_eq!(take_down_entity_on(&mut sb, &mut world, &data, &gui, seven, "Wood Wall", &materials), None);
+        assert!(world.contains(seven), "F took the piece down before the server said so");
+        assert!(ops(&data).is_empty(), "nothing back yet");
+        tick_core(&mut Ctx { sb: &mut sb, world: &mut world, data: &data, gui: &mut gui }, 0.3, true, true);
+        let out = sent(&mut sb);
+        assert_eq!(out.len(), 1, "{out:?}");
+        assert_eq!((out[0]["type"].as_str(), out[0]["piece_id"].as_u64()), (Some("game_unbuild"), Some(7)));
+        assert!(out[0].get("permit").is_none(), "no permit on your own plot");
+        assert!(world.contains(seven), "still standing until the relay says so");
+        let req = out[0]["req_id"].as_u64().map(|r| r as u32);
+
+        hear(&mut sb, &mut world, &data, &mut gui, &FromRelay::Unbuilt { frame: "plot:p1".into(), seq: 2, piece_id: 7, req_id: req });
+        assert!(!world.contains(seven), "the relay said it came down");
+        assert_eq!(ops(&data), vec![TransferOp { item_id: "wood_plank_0".into(), qty: 6, add: true, ..Default::default() }], "its planks back, once");
+        assert_eq!(gui.pending_notices, vec!["Took down the Wood Wall: 6 Wood Plank back".to_string()]);
+
+        let refused = take_down_entity_on(&mut sb, &mut world, &data, &gui, nine, "Wood Wall", &materials);
+        assert_eq!(refused.as_deref(), Some("Wood Wall not taken down: this is someone else's plot, and you cannot take down what stands on it."));
+        tick_core(&mut Ctx { sb: &mut sb, world: &mut world, data: &data, gui: &mut gui }, 0.3, true, true);
+        assert!(sent(&mut sb).is_empty() && world.contains(nine), "nothing sent, and it stands");
     }
 }

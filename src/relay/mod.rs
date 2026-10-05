@@ -941,6 +941,8 @@ pub async fn run_relay() {
                     let _ = game_state.broadcast_tx.send(relay::RelayMessage::System {
                         message: format!("__game__:{}", sync_msg),
                     });
+                    // And each player's check of the building pieces in their view and of their ranks (shared_build.rs `send_checks`).
+                    crate::relay::handlers::shared_build::send_checks(&game_state).await;
                 }
             }
         });

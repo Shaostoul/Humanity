@@ -1,6 +1,29 @@
 # Shared building
 
-**SUPERSEDED IN PART (2026-10-03, the operator):** homes get their own places on the
+**Status (2026-10-05): BUILT, in a different shape, as ship homes increment 5 ("building
+only on your own plot"). For the design as built read
+[ship-homes-increment-5-plan.md](ship-homes-increment-5-plan.md), and for the messages
+exactly, `src/systems/construction/shared.rs` (the contract the relay and the game both
+compile).** This document is the FIRST design, kept for its reasoning: why these seven
+blueprints, the seams that keep shared pieces out of the save, the budget. Where the two
+disagree, the plan and the code are right. The differences that matter:
+- Pieces are kept per frame: a plot (`plot:p3`, the pose measured from the plot's corner)
+  or one of the ship's shared spaces (`zone:commons`), never one `"home"` frame.
+- The rules are enforced, not co-op trust: you build on your own plot, on someone else's
+  only with a household permit its holder signed for you, and in the ship's shared spaces
+  only with the server's `can_edit_ship` rank (the plan's section 3.3).
+- **Nobody is told who built what.** No message names a piece's builder: the `owner` and
+  `owner_name` fields this design put on every piece, and the `by` it put on a take-down,
+  were left out of the build on purpose, for privacy. The relay keeps the builder's
+  `did:hum:` (the table's `owner_did`; no name is stored) only to judge who may take a
+  piece down, and each player's copy of a piece says only whether it is their own
+  (`mine`). This is increment 4's rule, nobody is told who lives where, carried over to
+  what people build. Sections 0, 2, 3, 4 and 7 below are corrected where they put the
+  builder on the wire (with a few as-built notes beside), section 6 says its two
+  decisions were made, and section 9 points at the work now logged in
+  [in-app-ops.md](in-app-ops.md); the rest still reads as first written.
+
+**Superseded in part (2026-10-03, the operator):** homes get their own places on the
 mothership and never overlap, and a player builds only inside their own home, so the
 "everyone in one home frame, anyone builds anywhere" model below is out; the build was
 stopped at its first step (its draft contract is kept in the session scratchpad, not in
@@ -8,7 +31,7 @@ the tree). What survives: relay-held piece records, the seq and snapshot protoco
 client's SharedPiece apply and save separation, refunds. The frame becomes the ship frame
 with per-player plots; see docs/design/ship-homes-and-logistics.md.
 
-**Status (2026-10-03):** first increment was being built (week plan Day 4). Designed by an
+**The first status (2026-10-03, now history):** first increment was being built (week plan Day 4). Designed by an
 agent from four read-only maps of the code, then implemented in waves with a critic
 per lane. **Two decisions are the operator's and are NOT made here:** co-op trust vs
 enforced rules, and where players meet. The design ships the reversible default
@@ -20,7 +43,7 @@ Read with: `docs/design/homes-as-profiles.md` (Server homes), `docs/design/game-
 
 ## 0. In one paragraph
 
-Shell pieces built aboard while a player is in the shared world become relay-owned records. Each record gets a never-reused `piece_id`, an `owner` DID and a `frame`. The relay writes each change straight to its own SQLite table and broadcasts it with a sequence number. Each client spawns the pieces into its ECS with a `SharedPiece` marker. Because of that marker, they are drawn, collide and shelter with no new render code, but they never enter the local save and never earn the viewer rewards or refunds. Pieces built before joining, and every other blueprint, keep today's private behaviour unchanged. Code checked for this design: relay.rs, msg_handlers.rs, storage/mod.rs, construction/mod.rs, placement.rs, save_load.rs, build_place.rs, lib.rs, net_route.rs, features.rs, did.rs and Cargo.toml.
+Shell pieces built aboard while a player is in the shared world become relay-owned records. Each record gets a never-reused `piece_id`, its builder's DID (`owner_did`, which the relay keeps to judge take-downs and never sends to anyone) and a `frame`. The relay writes each change straight to its own SQLite table and broadcasts it with a sequence number. Each client spawns the pieces into its ECS with a `SharedPiece` marker. Because of that marker, they are drawn, collide and shelter with no new render code, but they never enter the local save and never earn the viewer rewards or refunds. Pieces built before joining, and every other blueprint, keep today's private behaviour unchanged. Code checked for this design: relay.rs, msg_handlers.rs, storage/mod.rs, construction/mod.rs, placement.rs, save_load.rs, build_place.rs, lib.rs, net_route.rs, features.rs, did.rs and Cargo.toml.
 
 ## 1. The first increment
 
@@ -52,9 +75,32 @@ Why these seven:
 
 ## 2. Wire messages
 
+**What is sent now (as built, 2026-10-05).** The plan's section 3.2, defined exactly by
+`ToRelay`, `FromRelay` and `Piece` in `src/systems/construction/shared.rs`; every message is
+`__game__:` JSON with its `type`:
+- game to relay: `game_build` {`req_id`, `frame`, `blueprint_id`, `position`, `rotation`,
+  `scale`, `permit` only on someone else's plot}; `game_unbuild` {`req_id`, `piece_id`,
+  `permit` only for your own piece on someone else's plot}; `game_pieces_request` {`frame`};
+- relay to game: `game_built` {`frame`, `seq`, `server_time`, `piece`, and `req_id` in the
+  builder's copy only}; `game_unbuilt` {`frame`, `seq`, `piece_id`, and `req_id` in the
+  remover's copy only}; `game_pieces` {`frame`, `seq`, `server_time`, `part`, `parts`,
+  `pieces`}; `game_frame_out_of_view` {`frame`}; `game_build_refused` {`req_id`, `action`,
+  `reason`, `why` with `not_allowed`, `message`};
+- a piece: {`piece_id`, `blueprint_id`, `position`, `rotation`, `scale`, `placed_at`, and
+  `mine: true` only in copies sent to the player who built it}, its pose measured from its
+  frame's corner (the frame rides on the message).
+
+The builder is never named to other players. No message carries a piece's builder or the
+person who took it down, by DID, by name or by key: a player's copy of a piece says only
+whether it is their own (`mine`), and only whoever asked gets their `req_id` back. Each
+change goes to the players with that frame in view, and the answer to whoever asked, not to
+every socket. The relay's end-to-end test `nobody_is_told_who_built_what`
+(`src/relay/features.rs`) fails if a builder is ever put back on the wire. The rest of this
+section is the first design's wording, corrected where it named the builder.
+
 All outbound messages are `__game__:{json}`, as RelayMessage::System (broadcast) or Private, the same as every other game message (msg_handlers.rs:3095-3099, 3963-3969). All inbound types start `game_`, so `ws_message_feature` gates them under Feature::Game automatically (features.rs:284-290).
 
-**Piece object** (it appears inside several messages):
+**Piece object** (it appears inside several messages; as built the frame rides on the message, not the piece):
 
 | field | type | meaning |
 |---|---|---|
@@ -64,9 +110,10 @@ All outbound messages are `__game__:{json}`, as RelayMessage::System (broadcast)
 | position | [f32;3] | metres in the frame, Y up; snapped to the grid by the relay |
 | rotation | [f32;4] x,y,z,w | snapped to the exact quarter turn by the relay |
 | scale | [f32;3] | x and z equal the blueprint size; y may be levelled |
-| owner | string | `did:hum:<22 base58>` of the builder's bound socket key (did.rs `did_for_pubkey`); never taken from the client |
-| owner_name | string, max 48 | the joined entity's name at build time, for display only |
 | placed_at | f64 | unix seconds, on the relay's clock |
+| mine | bool, sent only when true | the player this copy goes to built the piece; absent from everyone else's copy |
+
+This design also gave every piece an `owner` (the builder's `did:hum:`, from their bound socket key) and an `owner_name` (their name at build time, for display). Neither was built: telling everyone near who built each piece would tell them who lives on each plot, which increment 4 keeps from them. The relay keeps the builder (`owner_did`, section 3) and tells each player only `mine`.
 
 **Client to relay:**
 
@@ -76,12 +123,12 @@ All outbound messages are `__game__:{json}`, as RelayMessage::System (broadcast)
 
 **Relay to clients:**
 
-- **`game_built`** (broadcast): {type, `seq` u64, `server_time` f64 unix seconds (the same clock as game_time_sync's server_time), `req_id` u32 (the builder's; everyone else ignores it), `piece` Piece}
-- **`game_unbuilt`** (broadcast): {type, `seq`, `piece_id`, `by` (the remover's DID), `req_id`}
+- **`game_built`** (broadcast): {type, `seq` u64, `server_time` f64 unix seconds (the same clock as game_time_sync's server_time), `req_id` u32 (in the builder's copy only), `piece` Piece}
+- **`game_unbuilt`** (broadcast): {type, `seq`, `piece_id`, `req_id` (in the remover's copy only)}. This design also sent `by`, the remover's DID; it was left out, so no message says who took a piece down.
 - **`game_pieces`** (private, in parts): {type, `frame`, `seq` (the seq this snapshot is current to), `server_time`, `part` (1-based), `parts`, `pieces` [Piece, at most 128 per part]}. An empty world sends one part with `[]`.
 - **`game_build_refused`** (private): {type, `req_id`, `action` ("build" | "unbuild" | "pieces"), `reason` code, `message` (a plain sentence)}
 
-Reason codes:
+Reason codes (the first design's list; as built there are eighteen, and `not_allowed` is sent, with a `why`: the plan's section 3.2):
 - `not_in_game`, `rate_limited`, `bad_shape`, `bad_frame`
 - `unknown_blueprint`, `not_shared`, `off_grid`, `out_of_bounds`
 - `occupied`, `world_full`, `owner_full`
@@ -101,19 +148,22 @@ Reason codes:
 **Storage.** New `src/relay/storage/world_pieces.rs` (impl Storage: insert, delete, load_all). The table goes in its own `execute_batch` beside the game tables (storage/mod.rs:673-690):
 
 ```sql
+-- As built (src/relay/storage/mod.rs, 2026-10-05).
 CREATE TABLE IF NOT EXISTS world_pieces (
     piece_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    world_id     TEXT NOT NULL,             -- the ship, so one relay keeps each ship apart
     frame        TEXT NOT NULL,
     blueprint_id TEXT NOT NULL,
     pos_x REAL NOT NULL, pos_y REAL NOT NULL, pos_z REAL NOT NULL,
     rot_x REAL NOT NULL, rot_y REAL NOT NULL, rot_z REAL NOT NULL, rot_w REAL NOT NULL,
     scale_x REAL NOT NULL, scale_y REAL NOT NULL, scale_z REAL NOT NULL,
-    owner_did    TEXT NOT NULL,
-    owner_name   TEXT NOT NULL DEFAULT '',
+    owner_did    TEXT NOT NULL,             -- the builder; kept, never sent
     placed_at    INTEGER NOT NULL,          -- unix ms
     state_json   TEXT NOT NULL DEFAULT '{}' -- door/health later; present now so that needs no ALTER
 );
 ```
+
+This design's table also had `owner_name` (the builder's name, for display). It was not built: no name is kept, because none is ever shown.
 
 - **No index.** At 2048 rows nothing needs one: the load reads everything and deletes go by primary key.
 - **BUG-046.** The rule is met trivially: this is a new table, so every column is in its CREATE.
@@ -124,11 +174,11 @@ Why a dedicated table and not `GameEntity` records:
 - They would wait up to 30 s for the periodic save.
 - They would inflate every `game_welcome` and every `game_perceive`.
 
-Here every change is written immediately, before it is broadcast. The owner is stored as the DID (31 characters), not the 3,904-hex-character Dilithium key. A ban sweep can still find a player's pieces by computing the DID from the banned key.
+Here every change is written immediately, before it is broadcast. The owner is stored as the DID (about 30 characters), not the 3,904-hex-character Dilithium key, and it stays on the relay: no message carries it. A ban sweep can still find a player's pieces by computing the DID from the banned key (no such sweep exists yet; the admin control for it is logged in [in-app-ops.md](in-app-ops.md)).
 
 **`handle_game_build`.** Validation runs cheapest first:
 1. Rate: a `key|build` bucket at 200 ms, kept in the existing `last_perception_times` map (relay.rs:215-219; the same shape as msg_handlers.rs:3534-3574). Otherwise `rate_limited`.
-2. Joined: `game_world.read().find_player_entity(key)`. Otherwise `not_in_game`. The `owner_name` is read from that entity's name component, then the lock is dropped.
+2. Joined: `game_world.read().find_player_entity(key)`. Otherwise `not_in_game`. (This design read the builder's name from that entity here, for `owner_name`; as built no name is read, kept or sent.)
 3. Shape: `req_id` is a u32; strings are within their caps; every number is finite; arrays have the right lengths. Otherwise `bad_shape`. `frame == "home"`, otherwise `bad_frame`.
 4. Blueprint: `registry.get` (otherwise `unknown_blueprint`) and `bp.shared` (otherwise `not_shared`).
 5. Pose, through `shared::validate_pose` (Wave 0, the same function the client tests run against real placements):
@@ -139,7 +189,7 @@ Here every change is written immediately, before it is broadcast. The owner is s
 
    The relay then **canonicalises** the pose (exact grid, exact quarter-turn quaternion), so every client stores identical numbers.
 6. Under `build_world.write()`:
-   - caps: 2048 per world (`world_full`) and 512 per owner (`owner_full`);
+   - caps: 2048 per world (`world_full`) and 512 per owner (`owner_full`) (as built: 512 per frame, `frame_full`, 512 per owner and 4,096 per ship);
    - `shared::same_box` against pieces in the same frame (the `SAME_BOX_M` 2 cm rule of placement.rs:70, 269-283), otherwise `occupied`;
    - the DB insert (otherwise `storage_error`), then the map insert;
    - `seq += 1`, and the `game_built` broadcast, sent while still holding the lock so ring order equals seq order.
@@ -159,7 +209,7 @@ The owner always comes from the bound socket key. The two-phase identify (v0.274
 ## 4. Client side
 
 **Wave 0 contract: `src/systems/construction/shared.rs`.** It compiles into both the relay and the native build, and holds:
-- `SharedPiece { piece_id: u64, owner: String, owner_name: String, mine: bool }` (an ECS component);
+- `SharedPiece` (an ECS component): as built `{ piece_id: u64, frame: String, mine: bool }`. This design also gave it `owner` and `owner_name`; as built the game is never told who built a piece, only whether it is its player's own;
 - the serde `Piece` wire struct;
 - `SharedBuildIntent { blueprint_id, pose: Transform, spent: Vec<(String, u32)> }`;
 - `OUT_CHANNEL = "shared_build_out"` and `FRAME_HOME = "home"`;
@@ -173,7 +223,7 @@ Blueprint gains `#[serde(default)] shared: bool` (construction/mod.rs:24-79). `B
 3. If `req.shared && bp.shared && site.is_none()` and the `OUT_CHANNEL` exists, it pushes a `SharedBuildIntent`, sets the status "Placing Wood Wall in the shared world..." and `continue`s with no local spawn (mod.rs:489-504). This is the accepted-build point the maps identified, so builds that are refused locally are never sent. If the channel is missing (tests, no engine), it builds locally.
 4. In the co-presence block (lib.rs:6862-6874), `state.shared_build.tick(world, data_store, ws, now)` drains the channel and sends `game_build` through `ws_client.send`. The system runner ticks before this block (lib.rs:6703-6712), so the intent goes out on the same frame.
 
-**Applying the messages.** New `src/net/shared_build.rs` holds `SharedBuildClient { index: HashMap<u64, hecs::Entity>, last_seq: Option<u64>, staging, pending_builds, pending_unbuilds, inbox, my_did }`. It is a field on EngineState (state.rs, beside 769-771). `my_did` comes from the identity's Dilithium key via `crate::relay::core::did::did_for_pubkey`: the native feature includes relay (Cargo.toml:18), and the Identity page already calls it (gui/pages/identity.rs:41).
+**Applying the messages.** New `src/net/shared_build.rs` holds `SharedBuildClient { index: HashMap<u64, hecs::Entity>, last_seq: Option<u64>, staging, pending_builds, pending_unbuilds, inbox, my_did }`. It is a field on EngineState (state.rs, beside 769-771). `my_did` was to come from the identity's Dilithium key via `crate::relay::core::did::did_for_pubkey`, to compare with each piece's `owner`. As built there is no `my_did` (and the client is `src/engine/shared_build.rs`): no piece carries an owner, the relay marks the player's own pieces `mine`, and it answers each request by its `req_id`, so the game never compares DIDs.
 
 `route_game_message` (net_route.rs:19-201) gets four arms that hand the JSON to `shared_build.receive`. `tick` processes the inbox in order:
 - **`game_pieces`**: parts are staged; when the last part arrives, the world is fully replaced. Pieces whose ids are missing from the list are despawned, missing ones are spawned, and `last_seq = seq`.
@@ -183,14 +233,14 @@ Blueprint gains `#[serde(default)] shared: bool` (construction/mod.rs:24-79). `B
   - on a gap (`seq > last_seq + 1`), applied anyway, and a `game_pieces_request` is sent.
 - **Spawning a piece:**
   - `age = server_time - placed_at`.
-  - If `age < bp.build_time`: spawn `(Transform, Construction { progress: age, build_time, builder_key: Some(owner) }, SharedPiece)`. This is the first real value `builder_key` has ever held.
+  - If `age < bp.build_time`: spawn `(Transform, Construction { progress: age, build_time, builder_key: None }, SharedPiece)`. (This design put the owner in `builder_key`; as built the game is never told who built a piece, so it stays None.)
   - Otherwise spawn `(Transform, Structure { health, max_health, provides, uid: 0 }, SharedPiece)`.
   - A blueprint unknown locally becomes a Structure with defaults, logged once.
 - **Despawning:** go through `index`, after checking that the entity still carries a `SharedPiece` with that id (hecs reuses entity ids).
 - **Confirmations, refunds and reconciliation:**
-  - A `game_built` whose `req_id` matches a pending build, with `owner == my_did`, confirms that build.
+  - A `game_built` carrying the `req_id` of a pending build (only the builder's own copy carries one) confirms that build.
   - A refusal of a build refunds `spent` through `inventory_transfer_ops` (TransferOp add, the same path as build_place.rs:309-316) and shows a notice: "Wood Wall not built: one already stands there. 6 Wood Plank back."
-  - A pending build left 10 s without a reply sends one `game_pieces_request`. At the next completed snapshot, a pending build whose box equals a piece with `mine` is confirmed (the occupancy rule makes the box unique per frame). One still unresolved 10 s after that is refunded.
+  - A pending build left 10 s without a reply sends one `game_pieces_request`. At the next completed snapshot, a pending build whose box equals a piece with `mine` is confirmed (the occupancy rule makes the box unique per frame). One still unresolved is asked for again, never refunded on a timer: since 2026-10-05 every build and take-down settles exactly once, against the frame's next list known to come after the relay handled it (BUG-168), and requests are filed under the server they went to. Every 5 s the relay also sends `game_pieces_check` (each in-view frame's seq and the player's ranks), so a frame whose news was lost is asked for again and a rank given mid-session reaches the game without a rejoin (BUG-167).
   - Pending builds survive a socket drop.
 
 **How a remote piece is drawn.** No change. `push_render_objects` (planet_build.rs:425-468) puts it in the home list, which is shifted by station_off (lib.rs:15204-15234), the same as remote figures. The scaffold's growth is local and cosmetic, and is never networked.
@@ -204,7 +254,7 @@ Blueprint gains `#[serde(default)] shared: bool` (construction/mod.rs:24-79). `B
 6. **Placement.** `rest_height` and `level_top` (placement.rs:237-263) take a filter. A piece that will be shared rests only on shared pieces, so nobody sees a shared wall floating on someone's private foundation. `occupied` still checks everything.
 7. **Take-down** (build_place.rs:271-291):
    - If the planned entity carries a SharedPiece, the client sends `game_unbuild`, records a pending unbuild with the blueprint's materials, and shows "Taking down the Wood Wall...". It does not despawn the piece or refund anything yet.
-   - When `game_unbuilt` arrives with `by == my_did` and a matching `req_id`, the materials are refunded and the notice is shown. Splitting `apply_take_down` (build_place.rs:301-330) into a refund part and a despawn part makes this possible.
+   - When `game_unbuilt` arrives carrying the `req_id` of a pending take-down (only the remover's own copy carries one), the materials are refunded and the notice is shown. Splitting `apply_take_down` (build_place.rs:301-330) into a refund part and a despawn part makes this possible.
    - The despawn itself happens in the generic apply path, for everyone.
 
 **Leaving and disconnecting.**
@@ -231,6 +281,8 @@ Blueprint gains `#[serde(default)] shared: bool` (construction/mod.rs:24-79). `B
 - Client: one spawn or despawn per event, and at most 2048 extra ECS boxes drawn through the existing path.
 
 ## 6. What the open operator decisions would change
+
+(Both were settled by the operator on 2026-10-03: a player builds only inside their own home, every home has its own place on the mothership, and players meet anywhere aboard. The rules built from that are the plan's section 3.3; its section 6 holds the recommendations taken until he confirms them, such as who gets the materials from a take-down. Kept below as first written.)
 
 **Co-op trust vs enforced rules.** Co-op trust is the shipped default:
 - anyone joined may place shared pieces within bounds and take down any shared piece;
@@ -261,7 +313,7 @@ None of these changes a message.
 
 **Real-relay tests** (src/relay/features.rs, using `spawn_relay`, `bind_socket`, `join_game`, `send_json` and `frames_until_quiet` at features.rs:697-908 and 1251). Run them with `cargo test --features relay --no-default-features --lib relay::features`. Each one is seen red by deleting the line it guards.
 
-1. `two_players_see_a_shared_build_appear_and_disappear`: A builds `wood_foundation`. Both A and B receive `game_built` with the same piece_id, blueprint, canonical pose and A's DID, and A's copy carries A's `req_id`. B unbuilds; both receive `game_unbuilt` with `by` = B's DID, and the row is gone from the DB.
+1. `two_players_see_a_shared_build_appear_and_disappear`: A builds `wood_foundation`. Both A and B receive `game_built` with the same piece_id, blueprint and canonical pose; A's copy carries A's `req_id` and `mine`, B's carries neither, and no copy names A. B unbuilds; both receive `game_unbuilt`, B's copy with B's `req_id`, neither naming B, and the row is gone from the DB. (As built, the rule that nobody is named is its own test, `nobody_is_told_who_built_what` in `src/relay/features.rs`; this design had both copies carry A's DID and the take-down carry `by` = B's DID.)
 2. `the_same_spot_cannot_be_built_twice`: B gets `occupied`, and the DB holds one row.
 3. `shared_builds_survive_a_reconnect_and_a_relay_restart`: A builds, A's socket closes, A rebinds and joins, and A's `game_pieces` holds the piece. The state is then dropped, `Storage::open` reopens the same path, a new `RelayState` and router start, C joins, and the piece has the same piece_id.
 4. `a_refused_build_says_why_and_stores_nothing`, table-driven over: off grid, tilted, non-unit, NaN, wrong scale, out of bounds, `furnace` (`not_shared`), an unknown id, frame `"site:x"`, a socket that is identified but not joined (`not_in_game`), unbuild of a missing id (`no_such_piece`), and two builds within 200 ms (`rate_limited`).
@@ -306,7 +358,7 @@ None of these changes a message.
    5. The walker unbuilds; the piece is gone within 1.5 s, and a second screenshot no longer shows it.
    6. The walker builds again. `throwaway-relay.js` gets a `restart()` that kills the relay and respawns it on the same exe, port and dbPath. The game reconnects through its backoff ladder and rejoins, and the piece returns with the same piece_id.
    7. The save count stays 0 for the whole run.
-   8. The reverse direction: a showcase verb `shared_build_req` (ipc.rs:326 / planet_build.rs:500-549) pushes a BuildRequest through the real `build_request` channel exactly as E does, after granting materials in the sandbox. The walker logs a `game_built` whose owner is the game's DID.
+   8. The reverse direction: a showcase verb `shared_build_req` (ipc.rs:326 / planet_build.rs:500-549) pushes a BuildRequest through the real `build_request` channel exactly as E does, after granting materials in the sandbox. The walker logs the game's piece arriving in a `game_built` at the same pose (the message does not say who built it; this design had the walker check the owner was the game's DID).
 
    The judge must be seen red once, with the `game_built` arm removed from net_route.
 
@@ -365,7 +417,7 @@ None of these changes a message.
 4. **Lost pending builds.** A build pending when the player leaves and never rejoins loses its materials if the relay refused it. This is rare.
 5. **Data skew.** The relay's registry decides shareability and size, and the client's decides scaffold time and tint. A modded client shows an odd box in the right place. The relay loads the registry only at boot; there is no hot reload.
 6. **Private overlap.** The relay cannot see private pieces, so a shared and a private piece can overlap on one client.
-7. **Limits are constants.** The caps and bounds are compile-time constants for now. Making them server settings needs Server Settings rows (the GUI-first rule); log that in docs/design/in-app-ops.md.
+7. **Limits are constants.** The caps and bounds are compile-time constants for now. Making them server settings needs Server Settings rows (the GUI-first rule). Logged in [in-app-ops.md](in-app-ops.md) (2026-10-05) with the caps as built: 512 pieces per frame, 512 per builder, 4,096 per ship.
 8. **Clocks.** Each client's scaffold finishes at a slightly different moment because of clock skew. This is cosmetic.
 
 **Later:**
@@ -377,5 +429,5 @@ None of these changes a message.
 - vehicles and crops;
 - the enforced-rules set listed in section 6;
 - delivery only to sockets in the game, and interest management;
-- Game Admin controls to list or remove pieces by owner, including a ban sweep;
+- Game Admin controls to list or remove pieces by owner, including a ban sweep (logged in [in-app-ops.md](in-app-ops.md), 2026-10-05; admin-only, since no player is ever told who built what);
 - listing pieces in `game_perceive` so AI agents can see builds.

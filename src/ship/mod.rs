@@ -4,6 +4,10 @@
 //! Layouts are defined in RON data files under `data/ships/`.
 
 pub mod assembly;
+/// Where a piece built in the shared world is kept: a plot (`plot:p3`) or a shared space
+/// (`zone:commons`), and what lies inside one (increment 5 of
+/// docs/design/ship-homes-and-logistics.md).
+pub mod build_frames;
 pub mod conduits;
 /// What a pipe, hose or cable is made of, as data (2026-10-04, data/piping/pipe_materials.ron).
 pub mod pipe_materials;

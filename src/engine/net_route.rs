@@ -15,6 +15,10 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
     if crate::engine::fleet::on_game_message(state, &v) {
         return;
     }
+    // The pieces the server keeps (ship homes increment 5, engine/shared_build.rs).
+    if crate::engine::shared_build::on_game_message(state, &v) {
+        return;
+    }
     let arr3 = |val: &serde_json::Value| -> Option<[f32; 3]> {
         let a = val.as_array()?;
         if a.len() != 3 { return None; }
@@ -39,6 +43,8 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
             crate::engine::move_check::on_welcome(state, &v);
             // The fleet's stores, a fresh power baseline, the ledger (engine/fleet.rs).
             crate::engine::fleet::on_welcome(state, &v);
+            // What this player may build where, and the pieces the server keeps afresh (increment 5).
+            crate::engine::shared_build::on_welcome(state, &v);
             if let Some(id) = v.get("player_id").and_then(|x| x.as_u64()) {
                 let own_id = id as u32;
                 // Welcome first (sets our local_player_id so the self-filter +
@@ -987,6 +993,85 @@ pub(crate) fn chat_history_pump(state: &mut EngineState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// EVERY MESSAGE ABOUT THE PIECES THE SERVER KEEPS REACHES THE CLIENT (ship homes increment 5,
+    /// 2026-10-05). `route_game_message` hands each `game_*` message to engine/shared_build.rs
+    /// before its own match (where an unknown type falls to `_ => {}`), and its welcome arm tells
+    /// it of the welcome. Then each of the relay's five messages, written as the relay writes it
+    /// and read as the router reads it (the `__game__:` payload parsed), is claimed and applied: a
+    /// frame's list draws its pieces, a piece built goes up, one taken down comes down, a refusal
+    /// gives back what a build spent, a frame out of view is forgotten; and a message that is not
+    /// about pieces is left to the router's own arms.
+    ///
+    /// Seen red 2026-10-05 with the hook not yet in `route_game_message`: "route_game_message
+    /// never hands the pieces' messages to engine::shared_build: they fall to `_ => {}`".
+    #[test]
+    fn each_shared_build_message_reaches_the_client() {
+        use crate::engine::shared_build::{on_message, tick_core, welcome, Ctx, SharedBuild};
+        use crate::systems::construction::shared::{self, Action, FromRelay, Piece, Reason, SharedBuildIntent, SharedPiece, Spent};
+        use crate::systems::construction::BlueprintRegistry;
+        use std::sync::Mutex;
+        // The router: the hook before its own match, and the welcome told.
+        let src = include_str!("net_route.rs").replace("\r\n", "\n");
+        let start = src.find("pub(crate) fn route_game_message(").expect("the router");
+        let body = &src[start..start + src[start..].find("\n}\n").expect("the router's end")];
+        let own_match = body.find("match v.get(\"type\")").expect("the router's own match");
+        let hook = body.find("crate::engine::shared_build::on_game_message(state, &v)");
+        assert!(
+            hook.is_some_and(|h| h < own_match),
+            "route_game_message never hands the pieces' messages to engine::shared_build: they fall to `_ => {{}}`"
+        );
+        assert!(body.contains("crate::engine::shared_build::on_welcome(state, &v)"), "the welcome arm never tells engine::shared_build");
+
+        // A game with its home on p1, in a shared world, welcomed.
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        let size = reg.get("wood_wall").unwrap().size;
+        let mut data = crate::hot_reload::data_store::DataStore::new();
+        data.insert("blueprint_registry", reg);
+        data.insert("inventory_transfer_ops", Mutex::new(Vec::<crate::systems::inventory::TransferOp>::new()));
+        data.insert(shared::OUT_CHANNEL, shared::OutQueue::default());
+        let mut world = hecs::World::new();
+        let mut gui = crate::gui::GuiState::default();
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        gui.ship_structure = Some(crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&dir, Some("p1")).unwrap());
+        gui.copresence_active = true;
+        let mut sb = SharedBuild::default();
+        welcome(&mut Ctx { sb: &mut sb, world: &mut world, data: &data, gui: &mut gui }, &serde_json::json!({ "type": "game_welcome" }));
+        // As the relay writes it, and as frame_ws_poll hands it on: the payload after `__game__:`.
+        let mut route = |m: &FromRelay| -> bool {
+            let wire = format!("__game__:{}", serde_json::to_string(m).unwrap());
+            let payload = wire.strip_prefix("__game__:").unwrap();
+            let v: serde_json::Value = serde_json::from_str(payload).unwrap();
+            on_message(&mut Ctx { sb: &mut sb, world: &mut world, data: &data, gui: &mut gui }, &v)
+        };
+        let wall = |id: u64| Piece { piece_id: id, blueprint_id: "wood_wall".into(), position: [20.0 + id as f32, 0.0, 20.0], rotation: [0.0, 0.0, 0.0, 1.0], scale: size, placed_at: 0.0, mine: false };
+        let t = 1_759_500_000.0;
+        assert!(route(&FromRelay::Pieces { frame: "plot:p2".into(), seq: 1, server_time: t, part: 1, parts: 1, pieces: vec![wall(1)] }));
+        assert!(route(&FromRelay::Built { frame: "plot:p2".into(), seq: 2, server_time: t, piece: wall(2), req_id: None }));
+        assert!(route(&FromRelay::Unbuilt { frame: "plot:p2".into(), seq: 3, piece_id: 1, req_id: None }));
+        drop(route);
+        let ids: Vec<u64> = world.query::<&SharedPiece>().iter().map(|(_e, k)| k.piece_id).collect();
+        assert_eq!(ids, vec![2], "the list drew 1, the build put up 2, the take-down took 1 down");
+
+        // A build of ours, sent, then refused: what it spent comes back.
+        let intent = SharedBuildIntent { frame: "plot:p1".into(), blueprint_id: "wood_wall".into(), pose: crate::ecs::components::Transform::default(), spent: Spent { pack: vec![("wood_plank_0".into(), 6)], storage: Vec::new() } };
+        data.get::<shared::OutQueue>(shared::OUT_CHANNEL).unwrap().lock().unwrap().push(intent);
+        tick_core(&mut Ctx { sb: &mut sb, world: &mut world, data: &data, gui: &mut gui }, 0.3, true, true);
+        let req = sb.outbox.drain(..).next().and_then(|m| serde_json::from_str::<serde_json::Value>(&m).ok()).and_then(|v| v["req_id"].as_u64()).expect("the build went out") as u32;
+        let mut route = |m: &FromRelay| -> bool {
+            let v = serde_json::to_value(m).unwrap();
+            on_message(&mut Ctx { sb: &mut sb, world: &mut world, data: &data, gui: &mut gui }, &v)
+        };
+        assert!(route(&FromRelay::Refused { req_id: Some(req), action: Action::Build, reason: Reason::Occupied, why: None, message: "...".into() }));
+        assert!(route(&FromRelay::FrameOutOfView { frame: "plot:p2".into() }));
+        drop(route);
+        assert_eq!(world.query::<&SharedPiece>().iter().count(), 0, "out of view, p2's piece came down");
+        let back = data.get::<Mutex<Vec<crate::systems::inventory::TransferOp>>>("inventory_transfer_ops").unwrap().lock().unwrap().len();
+        assert_eq!(back, 1, "the refused build's planks are on their way back");
+        // Not about pieces: left to the router's own arms.
+        let clock = serde_json::json!({ "type": "game_time_sync", "game_time": 10.0 });
+        assert!(!on_message(&mut Ctx { sb: &mut sb, world: &mut world, data: &data, gui: &mut gui }, &clock));
+    }
 
     /// A PLAYER COMES INTO VIEW, GOES OUT OF IT AND COMES BACK (the review of increment 4, R6):
     /// the relay sends a mover that comes into our view whole (`game_in_view`) and takes one

@@ -229,13 +229,19 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     // gone after a restart even though its materials had been consumed.
     // A piece built on a planet carries its build site (2026-09-27): the
     // pose is then site-local, and the site says which body and where.
-    use crate::systems::construction::{fires::FireFuel, Construction, DoorOpen, PlanetSite, Structure};
+    // A piece the server keeps (`SharedPiece`, ship homes increment 5,
+    // 2026-10-05) is never saved: it is the server's, shown here, and every
+    // welcome brings it afresh.
+    use crate::systems::construction::{fires::FireFuel, shared::SharedPiece, Construction, DoorOpen, PlanetSite, Structure};
     let pose = |t: &crate::ecs::components::Transform| {
         (t.position.to_array(), t.rotation.to_array(), t.scale.to_array())
     };
     // A built fire keeps its fuel (BUG-153, 2026-10-05).
     for (_e, (s, t, site, open, mark, fire)) in world
-        .query::<(&Structure, &crate::ecs::components::Transform, Option<&PlanetSite>, Option<&DoorOpen>, Option<&NotTheHomes>, Option<&FireFuel>)>()
+        .query::<hecs::Without<
+            (&Structure, &crate::ecs::components::Transform, Option<&PlanetSite>, Option<&DoorOpen>, Option<&NotTheHomes>, Option<&FireFuel>),
+            &SharedPiece,
+        >>()
         .iter()
     {
         let (position, rotation, scale) = pose(t);
@@ -256,7 +262,7 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
         });
     }
     for (_e, (c, t, site, mark)) in world
-        .query::<(&Construction, &crate::ecs::components::Transform, Option<&PlanetSite>, Option<&NotTheHomes>)>()
+        .query::<hecs::Without<(&Construction, &crate::ecs::components::Transform, Option<&PlanetSite>, Option<&NotTheHomes>), &SharedPiece>>()
         .iter()
     {
         let (position, rotation, scale) = pose(t);
@@ -576,9 +582,12 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
     // Builds (2026-09-25): authoritative like crops and vehicles. The
     // ConstructionSystem finishes a restored scaffold on its own tick,
     // with the usual completion events, once progress reaches build_time.
-    use crate::systems::construction::{Construction, Structure};
+    // Authoritative over the player's OWN pieces only: a piece the server
+    // keeps (`SharedPiece`, ship homes increment 5, 2026-10-05) was never in
+    // any save, so it stays as the server last said, once.
+    use crate::systems::construction::{shared::SharedPiece, Construction, Structure};
     let existing: Vec<hecs::Entity> = world
-        .query_mut::<hecs::Or<&Structure, &Construction>>()
+        .query_mut::<hecs::Without<hecs::Or<&Structure, &Construction>, &SharedPiece>>()
         .into_iter()
         .map(|(e, _)| e)
         .collect();
@@ -1068,9 +1077,12 @@ pub fn catch_up_world(
         // away finished keeps how long ago that was (`FinishedWhileAway`, the
         // BUG-153 review, A5), so a campfire is lit at the finish and comes
         // back having burned since, as one finished before the player left
-        // does (FIRES, below).
+        // does (FIRES, below). A scaffold the server keeps (`SharedPiece`,
+        // ship homes increment 5) grows by the server's clock, from when the
+        // server took it, never by this save's time away.
+        use crate::systems::construction::{shared::SharedPiece, Construction};
         let mut finished_away: Vec<(hecs::Entity, f32)> = Vec::new();
-        for (e, c) in world.query_mut::<&mut crate::systems::construction::Construction>() {
+        for (e, c) in world.query_mut::<hecs::Without<&mut Construction, &SharedPiece>>() {
             let ago = c.progress as f64 + away_secs - c.build_time as f64;
             c.progress = (c.progress as f64 + away_secs).min(c.build_time as f64) as f32;
             if ago > 0.0 {
@@ -1989,6 +2001,52 @@ mod tests {
         let json = serde_json::to_string(&save).unwrap();
         let back: WorldSave = serde_json::from_str(&json).unwrap();
         assert_eq!(back.constructions, save.constructions);
+    }
+
+    /// PIECES THE SERVER KEEPS ARE NOT THE PLAYER'S TO SAVE (ship homes
+    /// increment 5, 2026-10-05). In a shared world the shell pieces built
+    /// aboard are kept by the server and drawn with a `SharedPiece` marker;
+    /// the game only shows them, and every welcome brings them afresh. A
+    /// world with one piece of the player's own (a chest), a shared wall the
+    /// player put up, and a shared scaffold someone else is putting up: the
+    /// save holds the chest alone. Loading that save back into the running
+    /// world, as a character pick does, puts the chest back once and leaves
+    /// the two shared pieces exactly as they were, once each, with their ids;
+    /// and the time away does not grow the shared scaffold, which grows by
+    /// the server's clock, nor count it among the builds that kept going up.
+    /// Seen red 2026-10-05 on the code before: "only the player's own piece
+    /// is saved: left: 3, right: 1".
+    #[test]
+    fn shared_pieces_never_enter_the_save_and_survive_a_save_load() {
+        use crate::ecs::components::Transform;
+        use crate::systems::construction::shared::SharedPiece;
+        use crate::systems::construction::{Construction, Structure};
+        let tf = |x: f32| Transform { position: glam::Vec3::new(x, 0.0, 140.0), rotation: glam::Quat::IDENTITY, scale: glam::Vec3::new(4.0, 3.0, 0.2) };
+        let kept = |piece_id: u64, mine: bool| SharedPiece { piece_id, frame: "plot:p2".into(), mine };
+        let mut world = hecs::World::new();
+        world.spawn((tf(10.0), Structure { blueprint_id: "storage_chest".into(), health: 80.0, max_health: 80.0, provides: Some("storage".into()), uid: 3 }));
+        world.spawn((tf(20.0), Structure { blueprint_id: "wood_wall".into(), health: 150.0, max_health: 150.0, provides: Some("shelter".into()), uid: 0 }, kept(42, true)));
+        world.spawn((tf(30.0), Construction { blueprint_id: "wood_wall".into(), progress: 1.0, build_time: 4.0, builder_key: None }, kept(43, false)));
+        let mut save = extract_world_save(&world);
+        assert_eq!(save.constructions.len(), 1, "only the player's own piece is saved");
+        assert_eq!(save.constructions[0].blueprint_id, "storage_chest");
+
+        // Loaded back into the same running world: the chest once, the shared pieces once each.
+        apply_save_to_world(&mut world, &save);
+        let chests = world.query::<&Structure>().iter().filter(|(_, s)| s.blueprint_id == "storage_chest").count();
+        assert_eq!(chests, 1, "the player's own piece comes back once");
+        let mut shared: Vec<(u64, f32, bool)> =
+            world.query::<(&SharedPiece, &Transform)>().iter().map(|(_, (k, t))| (k.piece_id, t.position.x, k.mine)).collect();
+        shared.sort_by_key(|s| s.0);
+        assert_eq!(shared, vec![(42, 20.0, true), (43, 30.0, false)], "the shared pieces stay, once each, as they were");
+        assert_eq!(world.query::<(&Structure, &SharedPiece)>().iter().count(), 1, "the shared wall is still finished");
+
+        // A day away: the save's own scaffolds would grow; the shared one waits for the server's clock.
+        save.timestamp = 1_000_000;
+        let r = catch_up_world(&mut world, &save, true, 1.0, 1_000_000 + 86_400);
+        let progress: Vec<f32> = world.query::<(&Construction, &SharedPiece)>().iter().map(|(_, (c, _))| c.progress).collect();
+        assert_eq!(progress, vec![1.0], "the shared scaffold is not grown by the time away");
+        assert_eq!(r.builds_advanced, 0, "and is not one of the builds that kept going up");
     }
 
     /// A door left open is open after a save and a load (2026-09-28), a shut

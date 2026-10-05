@@ -1262,6 +1262,7 @@ mod native_app {
             // ConstructionSystem drains them + reports one honest status line.
             data_store.insert("build_request", std::sync::Mutex::new(Vec::<crate::systems::construction::BuildRequest>::new()));
             data_store.insert("build_status", std::sync::Mutex::new(String::new()));
+            data_store.insert(crate::systems::construction::shared::OUT_CHANNEL, crate::systems::construction::shared::OutQueue::default()); // paid-for shared builds, sent by engine::shared_build
             // World rewind signal (v0.679 review fix): raised right after
             // apply_save_to_world rewinds the live world (launcher character
             // pick); CraftingSystem drops its in-flight batches so a rewound
@@ -2041,6 +2042,7 @@ mod native_app {
                 ship_air: Default::default(),
                 aboard_bounds: None,
                 moves: Default::default(),
+                shared_build: Default::default(),
                 death_packs: Default::default(),
                 screenshot_counter: 0,
                 ship_world_pos: glam::DVec3::ZERO,
@@ -6844,6 +6846,7 @@ mod native_app {
                             // without a live feed; a rejoin starts from fresh updates).
                             crate::engine::home_plot::forget_shared_world(state);
                         }
+                        crate::engine::shared_build::tick(state, clock_dt); // pieces the server keeps: sent, or given back out of the shared world (increment 5)
                     }
 
                     // A paid machine removed by any path since the last frame gives its item
@@ -7220,7 +7223,7 @@ mod native_app {
                     // each. WHERE they go is the play mode's (engine/own_home.rs, 2026-10-04): the
                     // Dev mode writes the data files the AI and the editor share (increment 1a: the
                     // home design always, the ship file and the ship's machines with
-                    // ShipStructureEditing, the household's machines); Normal and Creative keep the
+                    // ship editing, offline only (config::ship_editing_for), the household's machines); Normal and Creative keep the
                     // character's own home in their save and write no data file at all.
                     let save_structure = std::mem::take(&mut state.gui_state.construction_save);
                     let save_machines = std::mem::take(&mut state.gui_state.home_machines_save);

@@ -69,6 +69,14 @@
 //! (`carry_saved_pieces`), whichever plot that is: the default plot at a boot, the player's own
 //! plot in a running world. The frame follows the live ship through every rebuild
 //! (`follow_home_box`), so a Dev edit of the plots cannot leave it stale.
+//!
+//! THE PIECES THE SERVER KEEPS (increment 5, 2026-10-05). In the shared world the shell pieces
+//! built aboard are kept by the server, in the frame of the plot or shared space they stand in,
+//! and drawn here with a `shared::SharedPiece` marker. They are not the home's: a move of the home
+//! leaves them where they stand (`carry_built_pieces`, `carry_saved_pieces`), the rig's report of
+//! the home leaves them out (`built_positions`), the save never holds them (save_load.rs), and
+//! leaving the shared world takes them down with the other players' figures
+//! (`forget_shared_entities`); the next welcome brings them back.
 
 use crate::ecs::components::Transform;
 use crate::engine::state::{ConstructionHistory, EditorSnapshot, EngineState};
@@ -428,18 +436,21 @@ fn plain_plot_id(id: &str) -> &str {
 }
 
 /// The refusal for a plot our home cannot be placed on: the plot is not one our ship has, or
-/// our ship has no home design. The plot goes back (`give_up_plot`).
+/// our ship has no home design. The plot goes back (`give_up_plot`), and the relay takes down
+/// every piece it keeps on it, whoever built them (ship homes increment 5, relay home_plots.rs
+/// `give_up_plot_if_asked`), so the sentence says that too (the review of increment 5, finding 7).
 fn cannot_place_sentence(id: &str) -> String {
     format!(
-        "Not joining the shared world: your home could not be placed on the plot this server gave you ({}), so the plot went back to the server; restart the app, and if it happens again the reason is in logs/run.log.",
+        "Not joining the shared world: your home could not be placed on the plot this server gave you ({}), so the plot went back to the server and anything built on it in the shared world was taken down; restart the app, and if it happens again the reason is in logs/run.log.",
         plain_plot_id(id)
     )
 }
 
-/// The refusal for a plot our home does not fit (the assembly refused it). The plot goes back.
+/// The refusal for a plot our home does not fit (the assembly refused it). The plot goes back,
+/// and what the server kept on it comes down with it (as [`cannot_place_sentence`]).
 fn does_not_fit_sentence(id: &str) -> String {
     format!(
-        "Not joining the shared world: your home does not fit the plot this server gave you ({}), so the plot went back to the server; change your home's design to fit this ship's plots and reconnect, and logs/run.log says which part did not fit.",
+        "Not joining the shared world: your home does not fit the plot this server gave you ({}), so the plot went back to the server and anything built on it in the shared world was taken down; change your home's design to fit this ship's plots and reconnect, and logs/run.log says which part did not fit.",
         plain_plot_id(id)
     )
 }
@@ -515,16 +526,27 @@ fn forget_shared_world_keeping_home(state: &mut EngineState) {
     state.moves.forget_session();
     crate::systems::time::release_host_clock(&state.data_store);
     state.gui_state.copresence_names.clear();
-    let gone: Vec<hecs::Entity> = state
-        .game_world
-        .world
-        .query::<hecs::Or<&crate::net::sync::RemotePlayer, &crate::net::sync::RemoteNpc>>()
-        .iter()
-        .map(|(e, _)| e)
-        .collect();
-    for e in gone {
-        let _ = state.game_world.world.despawn(e);
+    let pieces = forget_shared_entities(&mut state.game_world.world);
+    if pieces > 0 {
+        log::info!("Co-presence: out of the shared world; took down the {pieces} pieces the server keeps (the next welcome brings them back)");
     }
+}
+
+/// What the shared world put into our world, taken out when we leave it: the other players'
+/// figures, the relay's crew, and the pieces the server keeps (`shared::SharedPiece`, ship homes
+/// increment 5, 2026-10-05: never the home's, never saved). All of them are stale without the
+/// relay's feed, and the next welcome brings them back. The player's own pieces stay. Returns how
+/// many pieces the server keeps were taken down. Pure on the world.
+pub(crate) fn forget_shared_entities(world: &mut hecs::World) -> usize {
+    use crate::net::sync::{RemoteNpc, RemotePlayer};
+    use crate::systems::construction::shared::SharedPiece;
+    let figures: Vec<hecs::Entity> = world.query::<hecs::Or<&RemotePlayer, &RemoteNpc>>().iter().map(|(e, _)| e).collect();
+    let pieces: Vec<hecs::Entity> = world.query::<&SharedPiece>().iter().map(|(e, _)| e).collect();
+    let taken = pieces.len();
+    for e in figures.into_iter().chain(pieces) {
+        let _ = world.despawn(e);
+    }
+    taken
 }
 
 /// Stop joining the shared world on this server and show `sentence`. `leave`: Some(give_up)
@@ -956,14 +978,18 @@ pub(crate) fn still_not_the_homes(mark: Option<&NotTheHomes>, at: Vec3) -> bool 
 /// stands on now (`home`), and mark the ones that now stand over the home but were not in it
 /// (`NotTheHomes`), so a move of the home does not take them along. Returns (pieces, vehicles)
 /// carried and how many were marked. Nothing happens without both boxes. Pure on the world.
+/// The pieces the server keeps (`shared::SharedPiece`) were never in the save and are not the
+/// home's: they are neither carried nor marked.
 pub(crate) fn carry_saved_pieces(world: &mut hecs::World, saved: Option<[[f32; 3]; 2]>, home: Option<PlotBox>) -> (usize, usize, usize) {
-    use crate::systems::construction::{Construction, PlanetSite, Structure};
+    use crate::systems::construction::{shared::SharedPiece, Construction, PlanetSite, Structure};
     let (Some(s), Some(home)) = (saved, home) else { return (0, 0, 0) };
     let saved: PlotBox = (Vec3::from_array(s[0]), Vec3::from_array(s[1]));
     // Not the home's: over the home now, and not in the home's box when saved (planet pieces
     // are never the ship's).
     let mut foreign: Vec<(hecs::Entity, Vec3)> = Vec::new();
-    for (e, (t, _built, site)) in world.query::<(&Transform, hecs::Or<&Structure, &Construction>, Option<&PlanetSite>)>().iter() {
+    for (e, (t, _built, site)) in
+        world.query::<hecs::Without<(&Transform, hecs::Or<&Structure, &Construction>, Option<&PlanetSite>), &SharedPiece>>().iter()
+    {
         if site.is_none() && over_plot(t.position, home) && !over_plot(t.position, saved) {
             foreign.push((e, t.position));
         }
@@ -1122,20 +1148,24 @@ pub(crate) fn over_plot(p: Vec3, plot: PlotBox) -> bool {
 /// someone else's home, with its contents, when the home moved to p2). A piece built on a
 /// planet (it carries a `PlanetSite`, its pose is in that site's frame) never moves; neither does
 /// anything outside `from` (the ship's own spaces), nor anything a loaded save marked as not
-/// the home's that still stands where it was marked (`NotTheHomes`). A vehicle driving to a
-/// point in the home drives to the same point of the moved home. Health, contents (filed under
-/// the piece's uid) and open doors are kept: the pieces are moved, not built again. Returns
-/// (pieces, vehicles) moved. Pure on the world.
+/// the home's that still stands where it was marked (`NotTheHomes`), nor a piece the server keeps
+/// (`shared::SharedPiece`, ship homes increment 5, 2026-10-05): that one stands in the frame the
+/// server keeps it in (`plot:p1`), where everyone else sees it, and carried along it would stand
+/// on the new plot for this player alone. A vehicle driving to a point in the home drives to the
+/// same point of the moved home. Health, contents (filed under the piece's uid) and open doors
+/// are kept: the pieces are moved, not built again. Returns (pieces, vehicles) moved. Pure on the
+/// world.
 pub(crate) fn carry_built_pieces(world: &mut hecs::World, from: PlotBox, delta: Vec3) -> (usize, usize) {
-    use crate::systems::construction::{Construction, PlanetSite, Structure};
+    use crate::systems::construction::{shared::SharedPiece, Construction, PlanetSite, Structure};
     if delta == Vec3::ZERO {
         return (0, 0);
     }
     let stays = |t: &Transform, mark: Option<&NotTheHomes>| still_not_the_homes(mark, t.position);
     let mut pieces = 0;
-    for (_e, (t, _built, site, mark)) in
-        world.query_mut::<(&mut Transform, hecs::Or<&Structure, &Construction>, Option<&PlanetSite>, Option<&NotTheHomes>)>()
-    {
+    for (_e, (t, _built, site, mark)) in world.query_mut::<hecs::Without<
+        (&mut Transform, hecs::Or<&Structure, &Construction>, Option<&PlanetSite>, Option<&NotTheHomes>),
+        &SharedPiece,
+    >>() {
         if site.is_none() && over_plot(t.position, from) && !stays(t, mark) {
             t.position += delta;
             pieces += 1;
@@ -1163,12 +1193,14 @@ pub(crate) fn carry_built_pieces(world: &mut hecs::World, from: PlotBox, delta: 
 }
 
 /// Where the pieces built aboard and the vehicles stand (ship metres), for the rig's report
-/// (`home_things_json`). Planet pieces are left out (their poses are in their site's frame).
-/// Pure on the world.
+/// (`home_things_json`). Planet pieces are left out (their poses are in their site's frame), and
+/// so are the pieces the server keeps (`shared::SharedPiece`, ship homes increment 5): they are
+/// not the home's, and stand in whichever plot or shared space they were built in. Pure on the
+/// world.
 pub(crate) fn built_positions(world: &hecs::World) -> (Vec<Vec3>, Vec<Vec3>) {
-    use crate::systems::construction::{Construction, PlanetSite, Structure};
+    use crate::systems::construction::{shared::SharedPiece, Construction, PlanetSite, Structure};
     let pieces = world
-        .query::<(&Transform, hecs::Or<&Structure, &Construction>, Option<&PlanetSite>)>()
+        .query::<hecs::Without<(&Transform, hecs::Or<&Structure, &Construction>, Option<&PlanetSite>), &SharedPiece>>()
         .iter()
         .filter(|(_, (_, _, site))| site.is_none())
         .map(|(_, (t, _, _))| t.position)
@@ -1379,7 +1411,8 @@ pub(crate) fn probe_json(ship: Option<&ShipStructure>) -> (serde_json::Value, se
 /// Where the things that belong to the home stand now, for the rig (verify-copresence --plots
 /// judges each one against the plot the game should hold): the Respawn point, the hologram,
 /// the showroom stage, every farm animal's grazing point, every decoration plant, every piece
-/// built aboard and every parked vehicle.
+/// of the player's own built aboard (not one the server keeps, `built_positions`) and every
+/// parked vehicle.
 pub(crate) fn home_things_json(state: &EngineState) -> serde_json::Value {
     let v = |p: Vec3| serde_json::json!([p.x, p.y, p.z]);
     let animals: Vec<serde_json::Value> = state
@@ -1928,6 +1961,38 @@ mod tests {
         }
     }
 
+    /// A PLOT GIVEN BACK SAYS THAT WHAT STOOD ON IT WAS TAKEN DOWN (review of increment 5, finding
+    /// 7). Giving a plot back (`game_leave` with `give_up_plot`, relay home_plots.rs
+    /// `give_up_plot_if_asked`) takes down every piece the server keeps on it, the player's own
+    /// and their household's (decision 2 of the increment 5 plan), so both sentences that give a
+    /// plot back say so, not only that the plot went back: a home that does not fit the plot (here
+    /// p2 made narrower than the home, as the test above), and a home that could not be placed on
+    /// it. Each stays one sentence.
+    ///
+    /// Seen red 2026-10-05 on inc5-integration (d6c327c62): "the sentence never says what stood on
+    /// the plot was taken down: Not joining the shared world: your home does not fit the plot this
+    /// server gave you (p2), so the plot went back to the server; change your home's design to fit
+    /// this ship's plots and reconnect, and logs/run.log says which part did not fit."
+    #[test]
+    fn a_plot_given_back_says_what_stood_on_it_was_taken_down() {
+        let mut file = ShipStructure::load_ship_file(&data_dir()).unwrap();
+        let p2 = file.plots.iter().position(|p| p.id == "p2").unwrap();
+        file.plots[p2].size.0 = 30.0;
+        let design = booted().home_design().unwrap();
+        let ship = file.clone().assemble(design, "p1").expect("the home stands on p1");
+        let w = welcome(Some("p2"), &ship.ship_hash());
+        let WelcomeHome::Refuse { sentence, give_up_plot: true } = plan_welcome(Some(&ship), &w, &arriving(P1_DOOR)) else {
+            panic!("a home that does not fit p2 gives it back");
+        };
+        for said in [sentence, cannot_place_sentence("p2")] {
+            assert!(
+                said.contains("anything built on it in the shared world was taken down"),
+                "the sentence never says what stood on the plot was taken down: {said}"
+            );
+            assert!(said.ends_with('.') && said.matches(". ").count() == 0, "one sentence: {said}");
+        }
+    }
+
     /// What the game puts in its `game_join`: the ship it draws and its own home's door,
     /// plot-local. No ship: no join at all (`add_join_fields` refuses to build one; round 4). A home with no authored door: no door (each side takes the plot's middle). Seen red
     /// 2026-10-03 with `add_join_fields` adding nothing (the first 1b join): "the join names no
@@ -2058,6 +2123,115 @@ mod tests {
         assert!(pieces.contains(&chest));
         // Moving by nothing moves nothing.
         assert_eq!(carry_built_pieces(&mut built_world(), p1, Vec3::ZERO), (0, 0));
+    }
+
+    /// A piece the server keeps (ship homes increment 5): a finished wall, or a scaffold when
+    /// `going_up`, at (x, z) on the deck, kept in `frame`.
+    fn kept_piece(w: &mut hecs::World, x: f32, z: f32, frame: &str, piece_id: u64, going_up: bool) -> hecs::Entity {
+        use crate::systems::construction::{shared::SharedPiece, Construction, Structure};
+        let tf = Transform { position: Vec3::new(x, 0.0, z), rotation: glam::Quat::IDENTITY, scale: Vec3::new(4.0, 3.0, 0.2) };
+        let marker = SharedPiece { piece_id, frame: frame.into(), mine: true };
+        if going_up {
+            w.spawn((tf, Construction { blueprint_id: "wood_wall".into(), progress: 1.0, build_time: 4.0, builder_key: None }, marker))
+        } else {
+            w.spawn((tf, Structure { blueprint_id: "wood_wall".into(), health: 150.0, max_health: 150.0, provides: None, uid: 0 }, marker))
+        }
+    }
+
+    fn position_of(w: &hecs::World, e: hecs::Entity) -> Vec3 {
+        w.get::<&Transform>(e).unwrap().position
+    }
+
+    /// WHAT THE SERVER KEEPS STAYS WHERE THE SERVER KEEPS IT (ship homes increment 5,
+    /// 2026-10-05). The relay says p2 while the home stands on p1, so the welcome moves the home,
+    /// and what the home holds goes with it (`follow_home_box` carries by the move's delta). A
+    /// piece the server keeps (`SharedPiece`) is not the home's: it stands in its plot's frame,
+    /// `plot:p1`, where the server keeps it (or takes it down with the plot), and carried 99 m it
+    /// would stand on p2 for this player alone while everyone else saw it on p1. So the move
+    /// carries the chest built in the home and leaves the shared wall and the shared scaffold
+    /// where they stand. A save loaded into the running world (a character pick) is carried the
+    /// same way: its home's pieces go from the plot it was saved on to the one the home stands
+    /// on, and the shared pieces are neither carried nor marked as left behind (a shared piece on
+    /// p2 is not the save's, and not a stray either).
+    /// Seen red 2026-10-05 on the code before: "only the chest is the home's: left: (3, 0),
+    /// right: (1, 0)".
+    #[test]
+    fn a_home_move_carries_private_pieces_and_leaves_shared_ones() {
+        use crate::systems::construction::Structure;
+        let ship = booted();
+        let hash = ship.ship_hash();
+        let moved = match plan_welcome(Some(&ship), &welcome_at(Some("p2"), &hash, Some(P2_DOOR.into())), &arriving(P1_DOOR)) {
+            WelcomeHome::Move { ship, .. } => ship,
+            other => panic!("the relay said p2: {other:?}"),
+        };
+        let (from, delta) = match home_box_change(home_box(&ship), home_box(&moved)) {
+            HomeBoxChange::Carry { from, delta } => (from, delta),
+            other => panic!("the move carries what the home holds: {other:?}"),
+        };
+        assert_eq!(delta, Vec3::new(0.0, 0.0, 99.0));
+        let mut w = hecs::World::new();
+        let chest = w.spawn((
+            Transform { position: Vec3::new(20.0, 0.0, 30.0), rotation: glam::Quat::IDENTITY, scale: Vec3::ONE },
+            Structure { blueprint_id: "chest".into(), health: 42.0, max_health: 100.0, provides: None, uid: 7 },
+        ));
+        let wall = kept_piece(&mut w, 10.0, 12.0, "plot:p1", 42, false);
+        let going_up = kept_piece(&mut w, 14.0, 20.0, "plot:p1", 43, true);
+        assert_eq!(carry_built_pieces(&mut w, from, delta), (1, 0), "only the chest is the home's");
+        assert_eq!(position_of(&w, chest), Vec3::new(20.0, 0.0, 129.0), "the chest goes with the home");
+        assert_eq!(position_of(&w, wall), Vec3::new(10.0, 0.0, 12.0), "the shared wall stays on p1");
+        assert_eq!(position_of(&w, going_up), Vec3::new(14.0, 0.0, 20.0), "the shared scaffold stays on p1");
+
+        // A save written while the home stood on p1, loaded with the home on p2.
+        let p2 = home_box(&moved).unwrap();
+        let mut loaded = hecs::World::new();
+        let saved_chest = loaded.spawn((
+            Transform { position: Vec3::new(20.0, 0.0, 30.0), rotation: glam::Quat::IDENTITY, scale: Vec3::ONE },
+            Structure { blueprint_id: "chest".into(), health: 42.0, max_health: 100.0, provides: None, uid: 7 },
+        ));
+        let on_p1 = kept_piece(&mut loaded, 10.0, 12.0, "plot:p1", 42, false);
+        let on_p2 = kept_piece(&mut loaded, 10.0, 120.0, "plot:p2", 44, false);
+        let p1 = [from.0.to_array(), from.1.to_array()];
+        assert_eq!(carry_saved_pieces(&mut loaded, Some(p1), Some(p2)), (1, 0, 0), "the save's chest is carried, nothing shared is carried or marked");
+        assert_eq!(position_of(&loaded, saved_chest), Vec3::new(20.0, 0.0, 129.0));
+        assert_eq!((position_of(&loaded, on_p1), position_of(&loaded, on_p2)), (Vec3::new(10.0, 0.0, 12.0), Vec3::new(10.0, 0.0, 120.0)));
+        assert_eq!(loaded.query::<&NotTheHomes>().iter().count(), 0);
+    }
+
+    /// LEAVING THE SHARED WORLD TAKES ITS PIECES DOWN (ship homes increment 5, 2026-10-05).
+    /// Out of the shared world (a step out to solo play, a refusal, a switch of server, Respawn's
+    /// step out and back) the game no longer hears from the server, so the pieces it keeps are as
+    /// stale as the other players' figures: they all go (`forget_shared_entities`, which
+    /// `forget_shared_world_keeping_home` runs), and the next welcome's lists bring them back. The
+    /// player's own pieces, finished or going up, stay.
+    /// Seen red 2026-10-05 on the code before: "after leaving, the pieces the server keeps are
+    /// gone: left: 2, right: 0".
+    #[test]
+    fn leaving_the_shared_world_takes_shared_pieces_down() {
+        use crate::systems::construction::shared::SharedPiece;
+        let mut w = built_world();
+        let before = w.len();
+        kept_piece(&mut w, 30.0, 40.0, "plot:p1", 42, false);
+        kept_piece(&mut w, 80.0, 50.0, "zone:commons", 43, true);
+        let taken = forget_shared_entities(&mut w);
+        assert_eq!(w.query::<&SharedPiece>().iter().count(), 0, "after leaving, the pieces the server keeps are gone");
+        assert_eq!(taken, 2, "and counted for the log");
+        assert_eq!(w.len(), before, "everything of the player's own stays");
+    }
+
+    /// The rig's report of what the home holds (`home_things_json`, verify-copresence --plots,
+    /// which judges each piece against the plot the home should stand on) lists the pieces built
+    /// aboard that are the player's own, never one the server keeps (ship homes increment 5,
+    /// 2026-10-05): those stand on whichever plot or shared space they were built in.
+    /// Seen red 2026-10-05 on the code before: "the shared pieces are not the home's: left: (5,
+    /// 2), right: (3, 2)".
+    #[test]
+    fn built_positions_leave_out_shared_pieces() {
+        let mut w = built_world();
+        kept_piece(&mut w, 30.0, 40.0, "plot:p1", 42, false);
+        kept_piece(&mut w, 31.0, 44.0, "plot:p1", 43, true);
+        let (pieces, cars) = built_positions(&w);
+        assert_eq!((pieces.len(), cars.len()), (3, 2), "the shared pieces are not the home's");
+        assert!(!pieces.contains(&Vec3::new(30.0, 0.0, 40.0)) && !pieces.contains(&Vec3::new(31.0, 0.0, 44.0)));
     }
 
 

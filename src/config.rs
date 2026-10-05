@@ -107,6 +107,9 @@ impl HudVitals {
 ///     (see `GuiState::dev_cheats_active`).
 ///   - Construction editor scope: Dev edits the whole ship (all zones, zone
 ///     add/remove, corridors); Normal/Creative are pinned to the HOME zone.
+///     Dev does so only OFFLINE: in a shared world the ship is the server's,
+///     so even Dev is pinned to the home there and builds only on its own plot
+///     (`ship_editing_allowed`, ship homes increment 5, 2026-10-05).
 ///   - Where the build editor's edits are kept (2026-10-04,
 ///     `Capability::DefaultHomeAuthoring`): Dev writes the shared data files
 ///     (the default home every new player starts from); Normal and Creative
@@ -131,10 +134,11 @@ pub enum PlayMode {
     /// Vitals stay on the Gameplay "Vitals drain" slider (0 pauses needs) --
     /// the mode deliberately does NOT touch that slider. No Dev tools.
     Creative,
-    /// Everything: whole-ship structural editing, the Dev page (spawn +
-    /// travel/FTL), the G creature editor, all "Dev:" provisioning buttons,
-    /// and the build editor writing the shared data files. The operator's
-    /// mode for building the mothership and the default home in-game.
+    /// Everything: whole-ship structural editing (offline only, see
+    /// `ship_editing_allowed`), the Dev page (spawn + travel/FTL), the G
+    /// creature editor, all "Dev:" provisioning buttons, and the build editor
+    /// writing the shared data files. The operator's mode for building the
+    /// mothership and the default home in-game.
     Dev,
 }
 
@@ -159,6 +163,8 @@ pub enum Capability {
     /// Whole-ship structural editing: zone add/remove/relabel/move,
     /// corridors, and selecting non-home zones in the construction editor.
     /// The operator's multi-zone mothership is untouchable without this.
+    /// Gates never ask for it alone: they ask `ship_editing_allowed` (or
+    /// `ship_editing_for`), which also turns it off in a shared world.
     ShipStructureEditing,
     /// The build editor's edits to the home are written to the SHARED data
     /// files (data/homes/<kind>.ron, data/machines/*.ron): the default home
@@ -187,6 +193,29 @@ pub fn play_mode_allows(mode: PlayMode, capability: Capability) -> bool {
             mode == PlayMode::Dev
         }
     }
+}
+
+/// Whether the ship's own structure is this player's to change right now (ship homes increment
+/// 5, 2026-10-05): the Dev mode's ShipStructureEditing, and only OUT of a shared world. Every gate
+/// on the ship's structure asks this, never the mode alone: the build editor's ship scope (the
+/// zone selector, corridors, plots and districts, the ship's machines; gui/pages/construction),
+/// the ship file a Dev save writes (engine/own_home.rs), and a piece built outside your own plot
+/// (engine/build_place.rs).
+///
+/// WHY JOINED TURNS IT OFF, EVEN IN DEV. In a shared world the ship is the server's. A ship
+/// changed here no longer matches the server's, and the server refuses a join naming another
+/// ship, so the edit would cost this game its next join; and a piece built outside your own plot
+/// would stand in your copy of the ship alone, unseen by everyone else. What is built there goes
+/// through the server instead, which keeps the ship's shared spaces for the players it gives its
+/// `can_edit_ship` rank. Offline, Dev keeps everything.
+pub fn ship_editing_allowed(mode: PlayMode, in_shared_world: bool) -> bool {
+    mode.allows(Capability::ShipStructureEditing) && !in_shared_world
+}
+
+/// `ship_editing_allowed` for this session as it stands: its play mode, and whether it is in a
+/// shared world (`GuiState::copresence_active`, set from the join until the session leaves).
+pub fn ship_editing_for(gui: &crate::gui::GuiState) -> bool {
+    ship_editing_allowed(gui.settings.play_mode, gui.copresence_active)
 }
 
 impl PlayMode {
@@ -221,10 +250,10 @@ impl PlayMode {
                  tools."
             }
             PlayMode::Dev => {
-                "Everything: whole-ship structural editing, the Dev spawn and \
-                 travel page, and every dev toggle. Build edits are written to \
-                 the game's data files, the default home every new player starts \
-                 from, instead of your save."
+                "Everything: whole-ship structural editing while you play \
+                 offline, the Dev spawn and travel page, and every dev toggle. \
+                 Build edits are written to the game's data files, the default \
+                 home every new player starts from, instead of your save."
             }
         }
     }
@@ -2016,6 +2045,40 @@ mod play_mode_tests {
             );
             // The method must never drift from the free function.
             assert_eq!(mode.allows(cap), want);
+        }
+    }
+
+    /// THE SHIP'S STRUCTURE IS THE DEV MODE'S ONLY OFFLINE (ship homes increment 5, 2026-10-05):
+    /// in a shared world the ship is the server's, so `ship_editing_allowed` turns whole-ship
+    /// editing (and building outside your own plot) off there even in Dev; offline, Dev keeps it.
+    /// Normal and Creative never had it, in a shared world or out of one. `ship_editing_for` asks
+    /// the same of a session: its play mode and `copresence_active`.
+    ///
+    /// Seen red 2026-10-05 with today's mode-only gate (`ship_editing_allowed` returning
+    /// `mode.allows(ShipStructureEditing)`): "ship_editing_allowed(Dev, in a shared world: true)
+    /// should be false".
+    #[test]
+    fn ship_editing_in_and_out_of_a_shared_world() {
+        use PlayMode::*;
+        // (mode, in a shared world, allowed)
+        let table = [
+            (Dev, false, true),
+            (Dev, true, false),
+            (Normal, false, false),
+            (Normal, true, false),
+            (Creative, false, false),
+            (Creative, true, false),
+        ];
+        for (mode, joined, want) in table {
+            assert_eq!(
+                ship_editing_allowed(mode, joined),
+                want,
+                "ship_editing_allowed({mode:?}, in a shared world: {joined}) should be {want}"
+            );
+            let mut gui = crate::gui::GuiState::default();
+            gui.settings.play_mode = mode;
+            gui.copresence_active = joined;
+            assert_eq!(ship_editing_for(&gui), want, "ship_editing_for({mode:?}, copresence_active {joined}) should be {want}");
         }
     }
 

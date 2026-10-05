@@ -241,7 +241,17 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   down; a released plot's pieces come down with it; household permits end within 90 days,
   renewable, and the household page is a later increment 5b; `can_edit_ship` builds the
   ship's shared spaces through the server, whole-ship editing stays offline Dev, Admin has
-  it by default. Also (2026-10-05): BUG-163 part 2, when an update changes a data file a
+  it by default. Two more from increment 5's review (2026-10-05; logged, nothing changed):
+  (a) the caps: twelve plots at 512 pieces each (6,144) exceed the 4,096 a ship holds, so
+  eight full plots fill the ship and stop everyone else building, even on their own plot,
+  and identities cost nothing to make; recommended: a ship cap of at least the plots times
+  the frame cap (6,144; 7,168 counting the two shared spaces), or a share of the ship's cap
+  kept for each plot; (b) height and support: a piece may stand anywhere from 1 m below a
+  plot's floor to 40 m above it although a plot is 3 m tall, and the relay does not check
+  what a piece rests on, so a modified game can float walls about 37 m up; recommended:
+  bound a piece's height by the plot's storeys (one 3 m storey today, about 3.4 m with a
+  foundation and a roof) and have the relay check that each piece rests on the floor or on
+  another piece. Also (2026-10-05): BUG-163 part 2, when an update changes a data file a
   player edited: A keep the edit (recommended for now), B replace it and keep the edit
   beside it, or C move the edit into a local mod; should crops' growth answer a room's
   temperature (recommended: yes in Realistic, no in the simplified mode; 17 crops' ranges
