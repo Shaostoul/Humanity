@@ -1035,6 +1035,14 @@ impl BuildabilityReport {
     }
 }
 
+/// The items.csv id a machine type is placed from: `<type>_0` ("smelter" -> "smelter_0"), the
+/// convention the recipes' stations ("smelter_0") and the Structures blueprints (the "solar_panel"
+/// piece costs one "solar_panel_0") already use. Whether such an item exists is items.csv's to
+/// say; the build editor's Normal-mode placement takes one (engine::editor::pay_for_machine).
+pub fn placement_item_id(machine_type: &str) -> String {
+    format!("{machine_type}_0")
+}
+
 /// Resolve which home design file to load/save, per the operator-configurable
 /// `AppConfig::home_variant` setting (Settings page, "Household size"): `"home_solo"` uses
 /// the one-person self-sufficient design (`docs/design/homestead-solo-design.md`), anything
