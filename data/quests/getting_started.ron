@@ -79,10 +79,11 @@
                 objective: Gather(item_id: "iron_ore_0", quantity: 3),
             ),
             (
-                // The smelter burns coal, which the trading post sells; the
+                // The smelter burns coal: the starting Barn holds 5 (data/places/seed.json,
+                // first-hour audit Friction 4), and the trading post sells more; the
                 // graphite a drone brings from asteroid C-3 smelts it too
                 // ("Smelt Iron (graphite)"), and either way makes the ingot.
-                description: "Smelt iron: Crafting > Smelt Iron (coal: trading post)",
+                description: "Smelt iron: Crafting > Smelt Iron (coal is in the Barn)",
                 objective: Make(item_id: "iron_ingot_0", quantity: 1),
             ),
             (

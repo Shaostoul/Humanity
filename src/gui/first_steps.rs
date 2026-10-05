@@ -3,8 +3,9 @@
 //!
 //! The only tips anywhere were the last onboarding page's "Press Escape anytime to open the
 //! menu. Press Enter to toggle chat." Nothing said that I opens the inventory, E uses what you
-//! face, holding Alt frees the mouse so a card's buttons can be clicked (every in-world button
-//! needs it), or that holding F1 lists every key. So the first time a player stands in the
+//! face, holding Alt frees the mouse so a button can be clicked (a window with buttons, such as
+//! the vendor, the privacy chooser or a pinned card, frees it by itself since the quests lane of
+//! 2026-10-04), or that holding F1 lists every key. So the first time a player stands in the
 //! world, one notice names those four, through the game's notice path (`pending_notices`, the
 //! toast that stays up long enough to read), and the config remembers it was shown. The keys
 //! named are the player's own binds (Settings > Controls); Alt and F1 are fixed keys.
@@ -26,7 +27,7 @@ fn bound_key(kb: &Keybinds, action: GameAction) -> String {
 /// the two fixed keys, hold Alt and hold F1 (input/bindings.rs `FIXED_BINDS`).
 pub(crate) fn controls_hint(kb: &Keybinds) -> String {
     format!(
-        "Press {} for your inventory and {} to use what you are facing. Hold Alt to free the mouse and click, and hold F1 to see every key.",
+        "Press {} for your inventory and {} to use what you are facing. A window with buttons frees the mouse by itself; anywhere else, hold Alt to free the mouse and click. Hold F1 to see every key.",
         bound_key(kb, GameAction::Inventory),
         bound_key(kb, GameAction::Interact),
     )
@@ -94,7 +95,7 @@ mod tests {
         assert!(s.queue_controls_hint_once(true), "the first entry into the world showed no controls hint");
         assert_eq!(s.pending_notices.len(), 1, "{:?}", s.pending_notices);
         let hint = s.pending_notices[0].clone();
-        for words in ["Press I for your inventory", "E to use what you are facing", "Hold Alt to free the mouse", "hold F1 to see every key"] {
+        for words in ["Press I for your inventory", "E to use what you are facing", "A window with buttons frees the mouse by itself", "hold Alt to free the mouse", "Hold F1 to see every key"] {
             assert!(hint.contains(words), "the controls hint does not say {words:?}: {hint}");
         }
         assert!(s.controls_hint_shown);
