@@ -207,6 +207,9 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   (worktree-agent-aa41fef38bb3ee28f, head 247b933a4); generators, emergency shelter,
   pressure (worktree-agent-a7b5df9645fc4a9c8, 77fce2f29). With them: change Dry Meat's
   description in data/recipes.csv (it air-dries raw meat with no heat).
+- **FTL reopened (operator, 2026-10-05, a proposal):** FTL, with ships built to survive
+  indefinitely if it is ever lost (docs/design/gravity-and-movement.md, the
+  interstellar section). Recommended; awaiting his answer.
 - **For the operator, when convenient:** at 1x the no-FTL decision means about 18.5
   days to Jupiter (docs/design/gravity-and-movement.md); revisit or keep.
 

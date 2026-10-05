@@ -385,6 +385,17 @@ wrong:
   and it would teach something false about energy in a project whose mission is
   teaching real systems.
 
+**Reopened by the operator, 2026-10-05 (a proposal, not yet a decision):** "What
+do you think about having FTL but, designing the ships to survive indefinitely in
+case the FTL engines become permanently unavailable? Y'know, just incase the
+apocalypse happens... again." Context: the clock became real time on 2026-10-04,
+so without FTL the founding crossing takes real years again, the outcome his
+original question ruled out. The orchestrator recommended adopting it: FTL as the
+fleet's fast and fragile layer (like a supply chain or a power grid), never a
+dependency, with the ship's closed loops, mining, fabrication and the Library able
+to carry everyone indefinitely without it, and an honest label in-game that FTL is
+the one deliberate fiction. Awaiting his answer.
+
 **Decision: torch-ship brachistochrone, no FTL.** Travel stays a closed-form
 function of the clock, which is the shape `src/station/orbit.rs` already has, so
 there is nothing to sync. In-system voyages become the near-term destination
