@@ -4036,20 +4036,101 @@ a planet (BUG-153's campfire is the planet side); and `data/hvac.ron`'s other he
   now reads "warms the air it stands in, a grow room's or a tent's, else the whole home's,
   up to 24 C".
 
-## BUG-156: trees float in the air beside the Silverdale waterfront (OPEN, found 2026-10-05)
+## BUG-156: trees float in the air beside the Silverdale waterfront (FIXED 2026-10-05, found 2026-10-05)
 
 **Seen:** in v0.1459.0's probe capture of the new vantage `silverdale-home-marker`
 (`.probe-rig/sweeps/20261005-071141/silverdale-home-marker.png`, the right third of the
 frame): a stand of full-geometry trees west of the camera is drawn with its trunks ending
 in open sky, well above the hillside behind them, leaning only by the camera's upward
 pitch. The vantage starts the camera 300 m up, then stands on the ground 200 m north of
-the Dyes Inlet waterfront and settles for 8 s before the capture.
+the Dyes Inlet waterfront and settles for 8 s before the capture. The HUD in that capture
+reads "Alt 18 m": the eye was floating too.
 
-**Not yet known:** whether the trees keep heights sampled from a coarser terrain level of
-detail while the camera was 300 m up (a teleport artifact a walking player would never
-see: arriving by teleport and arriving the way a player does have differed before), or whether trees there float
-for anyone. First step: capture the same place after a longer settle and after walking
-in, and compare each tree's base with the terrain height under it.
+**Measured: not a teleport artifact; trees there floated for anyone, and so did the
+player.** A diagnostic build of v0.1462.1 carried a new readout (`{"tree_ground":"1"}`
+writes `debug/tree_ground.json`: every near tree's base and the eye against the patch
+actually drawn under them, at that patch's own depth with the region carve, plus the
+finest ground and the surface the harvest sampled; `src/engine/tree_ground.rs`), run by
+probe-sweep at the operator's graphics (trees as models out to 400 m, density 0.2),
+arriving three ways:
+
+| arrival | on-screen trees | base above the drawn ground | eye above the drawn ground |
+|---|---|---|---|
+| the vantage as written (300 m park, `stand`, 8 s) | 54 | +28.7 to +39.9 m, median +36.8 | 18.9 m |
+| the same, settled 60 s | 53 | +28.7 to +39.9 m | 40.1 m |
+| on foot: `stand` 500 m north, `walk`, then forward held 100 s (`hold`, below; about 390 m walked, the harvest re-run all the way) | 90 | +31.4 to +38.4 m, median +37.5 | 25.0 m |
+
+Captures and readouts: `.probe-rig/sweeps/20261005-bug156-pre/` (with the vantage file it
+ran). Per tree, every base sat EXACTLY on the elevation formula without the region carve
+(0.00 m), and the carve put the drawn ground 34.7 to 38.6 m lower under the on-screen
+trees. The level of detail played no part: with no tile tier installed every drawn patch
+and the harvest were at depth 13 (the base-only cap, 54 m triangles), and the finest
+ground differed from the drawn face under the trees by -0.3 to +1.0 m.
+
+**Cause:** `DrawnPatchSurface` (`src/terrain/drawn_surface.rs`), the sampler everything that
+stands on the ground goes through (the near-tree harvest's bases, the grass harvest's
+bases, the walk clamp, and `planet_build::Ground`, so `stand` and building on a planet),
+carried its own copy of the elevation formula, written in v0.1091, before the region water
+carve (v0.1149) and the region DEM (v0.1153). `build_patch_mesh` and
+`drawn_elevation_normalized` apply the carve, whose first step REPLACES the elevation with
+the region's ~13 m survey; this copy never did. Near the Dyes Inlet waterfront the coarse
+grid (0.05 degree cells) plus detail noise sits 34 to 45 m above the survey, so the trees
+and the player stood that far above the ground actually drawn. The eye did not even stay
+there: the walk clamp stands on the drawn surface only within 40 m of the field ground
+(`DRAWN_GROUND_MAX_ALT_M`) and on the field above that, so it wandered between the two
+(the three readings above). The v0.1153 commit said patches, the walk clamp, grass and the
+tree streams "all agree by construction"; only the patches and the region grids did. Every
+region with a DEM (Silverdale, Seattle Center) was affected, however the player arrived.
+
+**Fix:** one formula, `planet_chunks::drawn_elevation_at_depth` (base, depth-gated detail,
+then the region carve and DEM), now called by `build_patch_mesh`,
+`drawn_elevation_normalized` and `DrawnPatchSurface`, so the copies cannot part again.
+`DrawnPatchSurface` snapshots the published carve masks when it is built, as a patch build
+does (`with_carve` lets a test hand in its own set). Outside the regions nothing moves: the
+shared function was checked bit for bit against the copies it replaced (42,129 samples over
+the globe and over Silverdale at nine depths, with and without the masks; a scratch test,
+not kept), and the existing Fuji and Amazon ground gates pass unchanged. After the fix
+(`.probe-rig/sweeps/20261005-bug156-post/`), all four arrivals (the canonical vantage, the
+two settles and the walk-in) read every on-screen tree (53, 53, 53 and 56) at -0.11 to
+-0.23 m against the drawn ground, which is the designed quarter-root-flare sink, none
+floating, and the eye at 1.750 m above it.
+
+**Tests, each seen red first** (`terrain::drawn_surface::region_tests`, the new file
+`src/terrain/drawn_surface_region_tests.rs`: the shipped Silverdale region and DEM, published
+under a test lock, `water_carve::PublishedForTest`, and measured against the real built
+patch mesh):
+- `the_drawn_surface_is_the_drawn_mesh_inside_a_dem_region`: red at 45.04 m off the built mesh
+  over 226 probes at depths 17 and 20; now 0.0000 m, while the uncarved control stays 45.04 m off.
+- `trees_stand_on_the_drawn_ground_beside_the_silverdale_waterfront`: red with 306 of 306
+  trees floating +34.1 to +39.6 m; now -0.24 to -0.11 m, none floating.
+- `the_player_stands_on_the_drawn_ground_in_silverdale`: red at 44.7 m from one body height;
+  now 0.000 m.
+
+**Probe-level check:** `silverdale-home-marker` now carries `ground_probe`: probe-sweep asks
+for the readout after the capture, keeps `<id>-tree-ground.json` beside the PNG, and fails
+the vantage when an on-screen tree floats more than 0.3 m, sinks more than 1 m, or the eye
+is not 1.75 m above the drawn ground (`scripts/lib/tree-ground-check.js`;
+`scripts/tests/tree-ground-check.test.js` in `just rig-tests`, each judgement shown failing
+with its check removed). Red first: the pre-fix sweep failed all three vantages on it.
+
+**New rig tools:** `{"hold":"forward","hold_s":"100"}` presses movement keys through the
+controller's own action path for that long (`src/engine/rig_walk.rs`), so a capture can
+arrive on foot the way a player does; `probe-sweep.js --vantages FILE` runs a one-off
+vantage list.
+
+**Still open:**
+- The near trees all stand on the surface of the FINEST drawn depth (the harvest anchors to
+  the max drawn depth and re-harvests when it changes). With the tile tier installed the
+  patches far from the camera draw coarser than that, so a far tree can sit off its own
+  patch by that patch's level-of-detail error; the readout's per-tree `leaf_depth` and
+  `gap_drawn_m` will show it. On this machine (no tiles) every patch was depth 13 and the
+  gap was the sink alone. Re-grounding each tree on the leaf drawn under it would close it.
+- The harvest does not re-run when a terrain tile arrives (only on 12 m of movement or a
+  max-depth change), so on a machine with tiles the bases can lag a tile arrival.
+- Inside a DEM region the patches still stop at the base-only depth 13 when no tile tier is
+  installed: the 13 m survey is drawn with 54 m triangles, up to about 2 m off the finest
+  ground under these trees, and the region's buildings and roads stand on the finest ground,
+  not on that coarse face.
 
 ## BUG-157: two data files are silently ignored: their field names do not match the code that reads them (FIXED v0.1462.0, found 2026-10-05)
 

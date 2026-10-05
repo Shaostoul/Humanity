@@ -17,14 +17,16 @@
 //! "what does the elevation FIELD say here", which is NOT what the player
 //! sees; this answers "where does the drawn TRIANGLE sit here", which is.
 
+use std::sync::Arc;
+
 use glam::DVec3;
 
 use super::planet::PlanetDef;
 use super::planet_chunks::{
-    child_corners, root_face_corners, smoothstep01, tile_or_base, ElevationSource,
-    DETAIL_LAND_FADE_M, PATCH_TESS,
+    child_corners, drawn_elevation_at_depth, root_face_corners, ElevationSource, PATCH_TESS,
 };
 use super::planet_surface::{displaced_radius_f64, displaced_radius_f64_true};
+use super::water_carve::RegionMask;
 
 // ── The DRAWN surface, exactly (v0.1091) ──────────────────────────────────
 //
@@ -135,6 +137,11 @@ pub struct DrawnPatchSurface<'a, 'b> {
     memo: VertexMemo,
     /// Count of elevation samples actually taken (diagnostics + tests).
     pub samples: usize,
+    /// The region water carve and real-elevation overlay this surface applies,
+    /// the same set `build_patch_mesh` snapshots (BUG-156). Without it, inside
+    /// a region with a DEM (Silverdale) this surface is the coarse grid plus
+    /// detail noise while the drawn ground is the survey, metres apart.
+    carve: Option<Arc<Vec<RegionMask>>>,
 }
 
 impl<'a, 'b> DrawnPatchSurface<'a, 'b> {
@@ -153,6 +160,10 @@ impl<'a, 'b> DrawnPatchSurface<'a, 'b> {
             base_level: 0,
             memo: VertexMemo::new(),
             samples: 0,
+            // One registry lock per surface, as a patch build takes one per
+            // patch: every query then sees the mask set the patches were
+            // built with (BUG-156).
+            carve: crate::terrain::water_carve::snapshot(),
         }
     }
 
@@ -181,7 +192,16 @@ impl<'a, 'b> DrawnPatchSurface<'a, 'b> {
             base_level: 0,
             memo: VertexMemo::small(),
             samples: 0,
+            carve: crate::terrain::water_carve::snapshot(),
         }
+    }
+
+    /// Replace the region carve this surface applies. Both constructors take
+    /// the published set, the same one `build_patch_mesh` takes; a test hands
+    /// in its own, and `None` is the uncarved formula (the BUG-156 control).
+    pub fn with_carve(mut self, carve: Option<Arc<Vec<RegionMask>>>) -> Self {
+        self.carve = carve;
+        self
     }
 
     /// Pin the descent to the deepest patch that wholly contains a spherical
@@ -300,30 +320,19 @@ impl<'a, 'b> DrawnPatchSurface<'a, 'b> {
         Some([b0 / s, b1 / s, b2 / s])
     }
 
-    /// The elevation formula `build_patch_mesh` uses, at THIS depth.
+    /// The elevation formula `build_patch_mesh` uses, at THIS depth: the one
+    /// shared copy, carve included (BUG-156).
     fn mesh_elevation(&self, dir: DVec3) -> f32 {
         match self.source {
-            ElevationSource::Heightmap { hm, detail, tiles, .. } => {
-                let (base, from_tile) = tile_or_base(hm, *tiles, dir, self.depth);
-                let range_m = hm.max_meters() - hm.min_meters();
-                if range_m <= 0.0 {
-                    return base.clamp(0.0, 1.0);
-                }
-                let sea = self.def.sea_level.clamp(0.0, 1.0);
-                let above_sea_m = (base - sea) * range_m;
-                let mask = smoothstep01(above_sea_m / DETAIL_LAND_FADE_M);
-                let e = if mask > 0.0 {
-                    let dm = if from_tile {
-                        detail.sample_m_tile_gated(dir, self.depth)
-                    } else {
-                        detail.sample_m(dir, self.depth)
-                    };
-                    base + (dm * mask) / range_m
-                } else {
-                    base
-                };
-                e.clamp(0.0, 1.0)
-            }
+            ElevationSource::Heightmap { hm, detail, tiles, .. } => drawn_elevation_at_depth(
+                hm,
+                self.def,
+                detail,
+                *tiles,
+                self.carve.as_deref().map(Vec::as_slice),
+                dir,
+                self.depth,
+            ),
             ElevationSource::Noise(s) => s.elevation_at(dir.as_vec3()),
         }
     }
@@ -583,14 +592,67 @@ pub fn patch_lattice_radius(
     Some(p[0].dot(nrm) / den)
 }
 
+/// The patch of a DRAWN leaf set that covers `dir`, or None when no drawn patch
+/// does (the selection culls by the view frustum, so ground behind the camera
+/// is often not drawn at all). Walks down from the root face, taking at each
+/// level the child whose spherical triangle holds `dir` most firmly, and stops
+/// at the first patch that is in the set.
+pub fn drawn_leaf_containing(
+    drawn: &std::collections::HashSet<super::planet_chunks::PatchId>,
+    dir: DVec3,
+) -> Option<super::planet_chunks::PatchId> {
+    use super::planet_chunks::PatchId;
+    if drawn.is_empty() {
+        return None;
+    }
+    let d = dir.normalize();
+    // The least of the three raw barycentric weights: positive inside, and
+    // the largest across siblings is the child that holds `d` (an edge point
+    // ties two siblings at ~0, either of which is the drawn triangle's edge).
+    let firmness = |c: &[DVec3; 3]| -> f64 {
+        let b0 = d.dot(c[1].cross(c[2]));
+        let b1 = d.dot(c[2].cross(c[0]));
+        let b2 = d.dot(c[0].cross(c[1]));
+        b0.min(b1).min(b2)
+    };
+    let roots = root_face_corners();
+    let (face, mut corners) = roots
+        .iter()
+        .enumerate()
+        .map(|(f, c)| (f, *c))
+        .max_by(|a, b| firmness(&a.1).partial_cmp(&firmness(&b.1)).unwrap_or(std::cmp::Ordering::Equal))?;
+    let mut id = PatchId::root(face as u8);
+    // PatchId packs 2 bits per level into a u64: 32 levels at most.
+    while id.depth < 32 {
+        if drawn.contains(&id) {
+            return Some(id);
+        }
+        let kids = child_corners(&corners);
+        let (ci, kid) = kids
+            .iter()
+            .enumerate()
+            .map(|(i, c)| (i, *c))
+            .max_by(|a, b| firmness(&a.1).partial_cmp(&firmness(&b.1)).unwrap_or(std::cmp::Ordering::Equal))?;
+        corners = kid;
+        id = id.child(ci as u32);
+    }
+    None
+}
+
+/// The same contract inside a region with a survey DEM (BUG-156): a child in
+/// its own file, because this one is on the file-size ratchet.
+#[cfg(test)]
+#[path = "drawn_surface_region_tests.rs"]
+mod region_tests;
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use super::super::planet_albedo::PlanetAlbedo;
     use super::super::planet_chunks::{
         build_patch_mesh, near_tree_instances, near_tree_instances_on_drawn, patch_corners,
-        patch_edge_arc_m, tests::earth_like, tree_flare_radius_m, DetailNoise, PatchId, PatchMesh,
-        TREE_GROUND_SINK_FLARE_FRAC,
+        patch_edge_arc_m, tests::earth_like, tile_or_base, tree_flare_radius_m, DetailNoise,
+        PatchId, PatchMesh, TREE_GROUND_SINK_FLARE_FRAC,
     };
     use super::super::planet_heightmap::PlanetHeightmap;
     use std::collections::HashMap;

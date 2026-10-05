@@ -16,7 +16,7 @@
 //                               [--only id1,id2] [--keep-open] [--no-refresh]
 //                               [--width PX] [--shipped-assets] [--game-only]
 //                               [--operator-config [--operator-config-path F]]
-//                               [--allow-other-build "<reason>"]
+//                               [--allow-other-build "<reason>"] [--vantages FILE]
 //
 // THE BINARY (BUG-133): before anything else, the exe goes through the
 //   freshness gate (scripts/check-fresh-exe.js, via runFreshGate): it must be
@@ -139,6 +139,14 @@ const DEFAULT_RIG = SHIPPED_ASSETS
 const RIG = path.resolve(opt("--rig", DEFAULT_RIG));
 const EXE_SRC = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
 const ONLY = opt("--only", "").split(",").map((s) => s.trim()).filter(Boolean);
+// --vantages FILE: read the vantage list from another file of the same shape
+// ({"vantages": [...]}) instead of tests/visual/vantages.json. For one-off
+// experiments (BUG-156's long-settle and walk-in variants) that should not
+// become canonical vantages.
+const VANTAGES_FILE = path.resolve(opt("--vantages", path.join(REPO, "tests", "visual", "vantages.json")));
+// The ground_probe vantage check (BUG-156): where the near trees and the eye
+// stand against the ground drawn under them, judged from the game's readout.
+const TG = require("./lib/tree-ground-check.js");
 // The DESCENT LADDER (environment program increment 1): instead of the
 // vantage list, fly one fixed surface column down a rung list from orbit
 // to ground, capturing a PAIR at every rung. Score with
@@ -564,7 +572,7 @@ function prepareGraphics() {
 }
 
 async function main() {
-  const spec = JSON.parse(fs.readFileSync(path.join(REPO, "tests", "visual", "vantages.json"), "utf8"));
+  const spec = JSON.parse(fs.readFileSync(VANTAGES_FILE, "utf8"));
   let vantages = spec.vantages;
   if (LADDER) {
     if (!spec.ladder) {
@@ -1066,6 +1074,25 @@ async function main() {
           if (moved !== dd.files) log(`  !! profile dump: engine wrote ${dd.files} files, ${moved} moved`);
           log(`  profile atlas dumped: ${moved} files -> ${v.id}-profile/ (knob ${dd.knob}, flags ${dd.flags})`);
         }
+        // GROUND PROBE (BUG-156, 2026-10-05): a vantage with `ground_probe`
+        // asks the game, right after the capture, where every near tree's
+        // base and the eye stand against the ground drawn under them
+        // (src/engine/tree_ground.rs), keeps the readout beside the PNG as
+        // <id>-tree-ground.json, and judges it (scripts/lib/tree-ground-check.js):
+        // a tree floating over the drawn ground, or an eye not standing on it,
+        // fails the vantage once its picture is saved.
+        if (v.ground_probe) {
+          const tgPath = path.join(DEBUG, "tree_ground.json");
+          if (fs.existsSync(tgPath)) fs.unlinkSync(tgPath);
+          req("showcase_request.json", { tree_ground: "1" });
+          const tg = await waitFile("tree_ground.json", 30000);
+          if (!tg) throw new Error("ground probe: the game wrote no debug/tree_ground.json");
+          fs.writeFileSync(path.join(OUT, `${v.id}-tree-ground.json`), JSON.stringify(tg, null, 2));
+          const verdict = TG.judgeTreeGround(tg, v.ground_probe);
+          rec.ground_probe = { ok: verdict.ok, failures: verdict.failures, ...verdict.summary };
+          log(`  ground probe: ${verdict.ok ? "ok" : "FAILED"} ${JSON.stringify(verdict.summary)}`);
+          for (const f of verdict.failures) log(`  !! ground probe: ${f}`);
+        }
         // Capture window closes. Marks rec.contaminated when a foreign
         // instance was up at either end.
         guardEnd(rec, guardPre);
@@ -1112,6 +1139,10 @@ async function main() {
           // from these, not the manifest fps (2026-09-05, perf day 0).
           const fcv = path.join(RIG, "debug", "frame_costs.json");
           if (fs.existsSync(fcv)) fs.copyFileSync(fcv, path.join(OUT, `${v.id}-costs.json`));
+        }
+        if (rec.ok && rec.ground_probe && !rec.ground_probe.ok) {
+          rec.ok = false;
+          rec.error = `GROUND PROBE: ${rec.ground_probe.failures.join(" | ")}`;
         }
       } catch (e) {
         rec.error = String(e.message || e);
