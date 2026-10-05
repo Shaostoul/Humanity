@@ -423,9 +423,13 @@ impl RelayState {
         }
 
         let (broadcast_tx, _) = broadcast::channel(broadcast_capacity);
-        // The shared world's clock runs at the speed an admin set (server_settings).
+        // The shared world's clock runs at the speed an admin set, its stores in the fleet
+        // supply mode an admin set (server_settings; unlimited on a new server).
         let mut game_world = GameWorld::new();
-        game_world.time_scale = db.get_server_settings().map_or(game_world.time_scale, |s| s.world_time_scale);
+        if let Ok(s) = db.get_server_settings() {
+            game_world.time_scale = s.world_time_scale;
+            game_world.fleet_supply = super::handlers::ship_stores::FleetSupply::from_setting(&s.fleet_supply_mode);
+        }
         Self {
             peers: RwLock::new(HashMap::new()),
             live_conns: RwLock::new(Default::default()),
@@ -1089,6 +1093,9 @@ pub enum RelayMessage {
         /// The shared world's clock speed, game seconds per real second (2026-10-04).
         #[serde(default)]
         world_time_scale: Option<f64>,
+        /// The fleet's supply, "unlimited" or "stocked" (2026-10-04, handlers/fleet_ledger.rs).
+        #[serde(default)]
+        fleet_supply_mode: Option<String>,
     },
 
     /// Typing indicator — broadcast to show who is composing a message.
@@ -3563,6 +3570,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             // go privately to the requester (msg_handlers.rs).
                             Some(kind @ ("game_ban" | "game_unban" | "game_banned_list_request" | "game_release_plot")) => {
                                 handle_game_admin(&state_clone, &my_key_for_recv, kind, &raw).await;
+                                continue;
+                            }
+                            // The fleet ledger (2026-10-04): your own ledger, gives and their corrections, power reports, admin totals.
+                            Some(kind @ ("game_fleet_ledger_request" | "game_fleet_give" | "game_fleet_gives_request" | "game_fleet_give_adjust" | "game_fleet_power" | "game_fleet_totals_request")) => {
+                                super::handlers::fleet_ledger::handle(&state_clone, &my_key_for_recv, kind, &raw).await;
                                 continue;
                             }
                             _ => {} // Fall through to normal RelayMessage handling

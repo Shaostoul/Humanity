@@ -1105,6 +1105,7 @@ impl Storage {
                 erased_accounts_ttl_days  INTEGER NOT NULL DEFAULT 30,
                 erased_accounts_cap       INTEGER NOT NULL DEFAULT 100000,
                 world_time_scale          REAL    NOT NULL DEFAULT 72,
+                fleet_supply_mode         TEXT    NOT NULL DEFAULT 'unlimited',
                 updated_at                INTEGER NOT NULL DEFAULT 0,
                 updated_by                TEXT
             );
@@ -1234,6 +1235,38 @@ impl Storage {
             )?;
             info!("Migration: added world_time_scale (server_settings)");
         }
+
+        // Guarded ALTER (the fleet's supply, 2026-10-04): "unlimited" (the operator: "the fleet
+        // has unlimited of everything" during early development) until an admin picks
+        // "stocked", the stores that can run empty, in Server Settings > ADMIN > Fleet supply.
+        if conn.prepare("SELECT fleet_supply_mode FROM server_settings LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE server_settings ADD COLUMN fleet_supply_mode TEXT NOT NULL DEFAULT 'unlimited';"
+            )?;
+            info!("Migration: added fleet_supply_mode (server_settings)");
+        }
+
+        // The fleet ledger (2026-10-04, storage/fleet_ledger.rs): what each player used from the
+        // fleet and what they gave it. A new table in a batch of its own, every index over its
+        // own CREATE TABLE columns, so a live database from before it simply gains it (BUG-046).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS fleet_ledger (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                public_key  TEXT    NOT NULL,
+                kind        TEXT    NOT NULL,
+                direction   TEXT    NOT NULL,
+                item_id     TEXT    NOT NULL DEFAULT '',
+                quantity    REAL    NOT NULL,
+                value       REAL    NOT NULL,
+                game_time   REAL    NOT NULL,
+                real_day    INTEGER NOT NULL,
+                give_id     TEXT,
+                home        TEXT    NOT NULL DEFAULT '',
+                adjusted    INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_fleet_ledger_key ON fleet_ledger(public_key, id);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_fleet_ledger_give ON fleet_ledger(public_key, give_id) WHERE give_id IS NOT NULL;"
+        )?;
 
 
         // ── v0.1132 — guaranteed local-only room toggle. Default ON: every
@@ -2372,7 +2405,8 @@ mod reviews;
 mod members;
 mod server_settings;
 pub use server_settings::{
-    clamp_world_time_scale, default_world_time_scale, ServerSettings,
+    clamp_world_time_scale, default_world_time_scale, fleet_supply_mode_of, ServerSettings,
+    DEFAULT_FLEET_SUPPLY_MODE,
     ERASED_ACCOUNTS_CAP_RANGE, ERASED_ACCOUNTS_TTL_DAYS_RANGE,
 };
 mod roles;
@@ -2402,6 +2436,8 @@ mod game_persistence;
 mod game_bans;
 mod plots;
 pub use plots::plot_owner_id;
+pub mod fleet_ledger;
+pub use fleet_ledger::{Adjusted, FleetBalance, FleetEntry, FleetGiveRecord, FleetKindTotal, FleetTotals, NewFleetEntry, Recorded};
 pub mod docs_accord;
 
 pub use civilization::CivilizationStats;

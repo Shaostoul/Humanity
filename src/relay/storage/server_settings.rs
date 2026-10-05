@@ -149,6 +149,16 @@ pub struct ServerSettings {
     /// from Server Settings > ADMIN > Shared world clock, live, no restart.
     #[serde(default = "default_world_time_scale")]
     pub world_time_scale: f64,
+    /// Where the shared world's stores stand (the operator, 2026-10-04: "For the sake of
+    /// simplicity during early development we'll say the fleet has unlimited of everything
+    /// and just track what they player uses and contributes."): "unlimited", the default, the
+    /// fleet never runs out and nobody misses a meal; or "stocked", the realistic mode built
+    /// in ship homes increment 3, stores holding a stock the crew and players eat down and the
+    /// ship's farms fill, an empty store a missed meal. Either way each player's fleet ledger
+    /// keeps what they used and gave (storage/fleet_ledger.rs). An admin changes it from Server
+    /// Settings > ADMIN > Fleet supply, live, no restart; a change never touches a ledger.
+    #[serde(default = "default_fleet_supply_mode")]
+    pub fleet_supply_mode: String,
     /// Last update unix-millis. 0 = never updated since creation.
     pub updated_at: i64,
     /// Public key of the admin who last touched it. Empty = never.
@@ -186,6 +196,26 @@ pub const ERASED_ACCOUNTS_CAP_RANGE: (i64, i64) = (1, 1_000_000);
 /// `world_time_scale_defaults_to_simplified_and_round_trips`.
 pub fn default_world_time_scale() -> f64 {
     f64::from(crate::systems::time::SIMPLIFIED_TIME_SPEED)
+}
+
+/// The fleet's supply on a new server, and on one whose stored value is not a mode this code
+/// knows: "unlimited" (the operator's early-development decision of 2026-10-04). The schema's
+/// `DEFAULT 'unlimited'` (storage/mod.rs) is checked against it by
+/// `fleet_supply_mode_defaults_to_unlimited_and_round_trips`.
+pub const DEFAULT_FLEET_SUPPLY_MODE: &str = "unlimited";
+
+fn default_fleet_supply_mode() -> String {
+    DEFAULT_FLEET_SUPPLY_MODE.to_string()
+}
+
+/// A fleet supply mode as it is stored: "unlimited" or "stocked", whatever the case or
+/// spacing it came in, or None for anything else (a bad message changes nothing).
+pub fn fleet_supply_mode_of(v: &str) -> Option<&'static str> {
+    match v.trim().to_ascii_lowercase().as_str() {
+        "unlimited" => Some("unlimited"),
+        "stocked" => Some("stocked"),
+        _ => None,
+    }
 }
 
 /// A world clock speed from an admin, inside the range a player's own Time
@@ -230,6 +260,7 @@ impl Default for ServerSettings {
             erased_accounts_ttl_days: default_erased_accounts_ttl_days(),
             erased_accounts_cap: default_erased_accounts_cap(),
             world_time_scale: default_world_time_scale(),
+            fleet_supply_mode: default_fleet_supply_mode(),
             updated_at: 0,
             updated_by: String::new(),
         }
@@ -294,7 +325,8 @@ impl Storage {
                         COALESCE(message_retention_days, 0),
                         COALESCE(erased_accounts_ttl_days, 30),
                         COALESCE(erased_accounts_cap, 100000),
-                        world_time_scale
+                        world_time_scale,
+                        fleet_supply_mode
                  FROM server_settings WHERE id = 1",
                 [],
                 |row| {
@@ -339,6 +371,9 @@ impl Storage {
                         erased_accounts_cap: row.get::<_, i64>(30)?.max(1),
                         world_time_scale: clamp_world_time_scale(row.get::<_, f64>(31)?)
                             .unwrap_or_else(default_world_time_scale),
+                        fleet_supply_mode: fleet_supply_mode_of(&row.get::<_, String>(32)?)
+                            .unwrap_or(DEFAULT_FLEET_SUPPLY_MODE)
+                            .to_string(),
                     })
                 },
             ) {
@@ -396,6 +431,7 @@ impl Storage {
                     erased_accounts_ttl_days        = ?30,
                     erased_accounts_cap             = ?31,
                     world_time_scale                = ?32,
+                    fleet_supply_mode               = ?33,
                     updated_at               = ?15,
                     updated_by               = ?16
                  WHERE id = 1",
@@ -434,6 +470,7 @@ impl Storage {
                     s.erased_accounts_ttl_days.max(1),
                     s.erased_accounts_cap.max(1),
                     clamp_world_time_scale(s.world_time_scale).unwrap_or_else(default_world_time_scale),
+                    fleet_supply_mode_of(&s.fleet_supply_mode).unwrap_or(DEFAULT_FLEET_SUPPLY_MODE),
                 ],
             )?;
             Ok(rows > 0)
@@ -571,6 +608,35 @@ mod tests {
         assert_eq!(db.get_server_settings().expect("get3").world_time_scale, 1000.0, "held to the range");
         assert_eq!(clamp_world_time_scale(0.0), Some(1.0), "never slower than real time");
         assert_eq!(clamp_world_time_scale(f64::NAN), None, "not a number: refused");
+    }
+
+    /// THE FLEET'S SUPPLY SETTING (operator, 2026-10-04: "the fleet has unlimited of
+    /// everything" during early development): a new server is "unlimited"; an admin's
+    /// "stocked" persists through the positional SQL without bleeding into the clock's column
+    /// beside it; a value that is no mode is refused by `fleet_supply_mode_of` and a stored one
+    /// reads back as the default.
+    ///
+    /// Seen red 2026-10-04 with the UPDATE's ?33 bound to the default instead of the admin's
+    /// mode: "the admin's mode persists / left: \"unlimited\" / right: \"stocked\"". (Binding ?32,
+    /// the clock's, into the column instead is caught before any test can read it: rusqlite
+    /// refuses the statement, "InvalidParameterCount(33, 32)".)
+    #[test]
+    fn fleet_supply_mode_defaults_to_unlimited_and_round_trips() {
+        let db = fresh_db();
+        let s = db.get_server_settings().expect("get");
+        assert_eq!(s.fleet_supply_mode, "unlimited", "a new server's fleet is unlimited");
+        assert_eq!(ServerSettings::default().fleet_supply_mode, DEFAULT_FLEET_SUPPLY_MODE);
+        let mut updated = s.clone();
+        updated.fleet_supply_mode = "stocked".into();
+        updated.world_time_scale = 24.0; // the column just before it
+        assert!(db.set_server_settings(&updated, "admin_key").expect("set"));
+        let got = db.get_server_settings().expect("get2");
+        assert_eq!(got.fleet_supply_mode, "stocked", "the admin's mode persists");
+        assert_eq!(got.world_time_scale, 24.0, "no positional-index bleed");
+        assert_eq!(fleet_supply_mode_of(" Stocked "), Some("stocked"));
+        assert_eq!(fleet_supply_mode_of("plenty"), None, "not a mode: refused");
+        db.with_conn(|c| c.execute("UPDATE server_settings SET fleet_supply_mode = 'plenty'", [])).unwrap();
+        assert_eq!(db.get_server_settings().unwrap().fleet_supply_mode, "unlimited", "a stored value that is no mode reads as the default");
     }
 
     /// A server whose database predates the clock setting upgrades to 72x and

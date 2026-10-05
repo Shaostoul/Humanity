@@ -283,6 +283,13 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     // The relay trades this backpack has settled (2026-10-02), in the same
     // save as the backpack they changed.
     save.settled_trades = settled_trades(world);
+    // And the home's id with the fleet, and the gives whose items have left
+    // the backpack and wait for a server's answer (2026-10-04, engine/fleet.rs):
+    // saved with the backpack they left, so a give is never in two places.
+    if let Some((_e, (ts, _))) = world.query::<(&crate::systems::inventory::TradeSettlements, &Controllable)>().iter().next() {
+        save.home_id = ts.home_id.clone();
+        save.fleet_held = ts.fleet_held.clone();
+    }
     save
 }
 
@@ -318,7 +325,8 @@ fn settled_trades(world: &hecs::World) -> Vec<String> {
 /// items were lost. For the same reason a rewind DROPS the queued moves: they
 /// were sized against the backpack before the load, and `tick` queues them
 /// afresh against the one just loaded.
-fn restore_settled_trades(world: &mut hecs::World, ids: &[String], rewound: bool) {
+fn restore_settled_trades(world: &mut hecs::World, save: &WorldSave, rewound: bool) {
+    let ids = &save.settled_trades;
     use crate::systems::inventory::TradeSettlements;
     let Some(player) = world.query::<(&Inventory, &Controllable)>().iter().next().map(|(e, _)| e) else {
         return;
@@ -330,6 +338,13 @@ fn restore_settled_trades(world: &mut hecs::World, ids: &[String], rewound: bool
         if rewound {
             ts.settled.clear();
             ts.pending.clear();
+            // The fleet (2026-10-04): the save's home and the gives its backpack had
+            // handed over, and the fleet's record of this home asked for again, so a
+            // give the save does not list is settled out of the backpack just put back
+            // (engine/fleet.rs). A fresh home (`rewound` false) keeps the live ones.
+            ts.home_id = save.home_id.clone();
+            ts.fleet_held = save.fleet_held.clone();
+            ts.fleet_recheck = true;
         }
         ts.settled.extend(ids.iter().cloned());
         let done = ts.settled.clone();
@@ -404,7 +419,7 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
         }
     }
     // Settled trades (2026-10-02) travel with the backpack just rebuilt.
-    restore_settled_trades(world, &save.settled_trades, true);
+    restore_settled_trades(world, save, true);
     // Quests (v0.748): a saved tracker replaces the fresh spawn default
     // (which auto-accepted gs_first_steps); None keeps the fresh start.
     if let Some(saved) = &save.quests {
@@ -619,7 +634,7 @@ pub fn apply_identity(world: &mut hecs::World, save: &WorldSave) {
     // what a trade brought along with the rest of the session, as the setting
     // says; replaying every old trade into each fresh home instead would make
     // traded goods the one thing that carried over.
-    restore_settled_trades(world, &save.settled_trades, false);
+    restore_settled_trades(world, save, false);
 }
 
 /// The save to write when progress is NOT being kept: the existing save
@@ -2765,5 +2780,64 @@ mod tests {
         assert_eq!(settled(&live, r).settled.iter().collect::<Vec<_>>(), vec!["t-1", "t-5"]);
         let kept = identity_only_save(Some(save.clone()), &live);
         assert_eq!(kept.settled_trades, vec!["t-1".to_string(), "t-5".to_string()]);
+    }
+
+    /// THE FLEET'S HELD GIVES AND THE HOME'S ID RIDE THE SAVE WITH THE BACKPACK (the fleet
+    /// ledger's review, 2026-10-04, findings 1, 2, 3 and 12): a give whose items left the
+    /// backpack is saved with it, so a restart neither loses those items nor gives them twice;
+    /// the home's id travels with the save, so a save loaded back asks the fleet for ITS gives
+    /// (and marks the fleet's record to be asked for again); a fresh home ("Start every session
+    /// from the default home") keeps the live ones.
+    ///
+    /// Seen red 2026-10-04 with the fleet lines taken out of `extract_world_save`: "the save
+    /// carries the home's id / left: \"\" / right: \"home-a\"".
+    #[test]
+    fn fleet_held_gives_and_the_home_id_ride_the_save() {
+        use crate::systems::inventory::{FleetHeld, TradeSettlements};
+        let player = |world: &mut hecs::World| {
+            world.spawn((
+                Controllable,
+                Inventory::new(16),
+                PlayerSkills::new(),
+                crate::ecs::components::Name("Astra".to_string()),
+                crate::ecs::components::Appearance::default(),
+                crate::ecs::components::Outfit::default(),
+            ))
+        };
+        let ts_of = |world: &hecs::World, e| world.get::<&TradeSettlements>(e).map(|t| (*t).clone()).unwrap_or_default();
+        let mut world = hecs::World::new();
+        let p = player(&mut world);
+        let held = FleetHeld { give_id: "g-1".into(), server: "wss://here".into(), store: 12, item_id: "bread_0".into(), name: "Bread".into(), qty: 3, ..Default::default() };
+        world.insert_one(p, TradeSettlements { home_id: "home-a".into(), fleet_held: vec![held.clone()], ..Default::default() }).unwrap();
+
+        let save = extract_world_save(&world);
+        assert_eq!(save.home_id, "home-a", "the save carries the home's id / left: {:?} / right: \"home-a\"", save.home_id);
+        assert_eq!(save.fleet_held, vec![held.clone()]);
+        let text = serde_json::to_string(&save).unwrap();
+        let save: WorldSave = serde_json::from_str(&text).unwrap();
+
+        // Loaded back over another home's backpack: the save's home, its held give, and the
+        // fleet's record to be asked for again.
+        let mut other = hecs::World::new();
+        let q = player(&mut other);
+        other.insert_one(q, TradeSettlements { home_id: "home-b".into(), ..Default::default() }).unwrap();
+        apply_save_to_world(&mut other, &save);
+        let t = ts_of(&other, q);
+        assert_eq!((t.home_id.as_str(), t.fleet_held.len(), t.fleet_recheck), ("home-a", 1, true), "{t:?}");
+
+        // A fresh home keeps the live ones.
+        let mut live = hecs::World::new();
+        let r = player(&mut live);
+        live.insert_one(r, TradeSettlements { home_id: "home-fresh".into(), ..Default::default() }).unwrap();
+        apply_identity(&mut live, &save);
+        let t = ts_of(&live, r);
+        assert_eq!((t.home_id.as_str(), t.fleet_held.len(), t.fleet_recheck), ("home-fresh", 0, false), "{t:?}");
+
+        // A save from before the fields loads with none.
+        let mut old: serde_json::Value = serde_json::from_str(&text).unwrap();
+        old.as_object_mut().unwrap().remove("home_id");
+        old.as_object_mut().unwrap().remove("fleet_held");
+        let old: WorldSave = serde_json::from_value(old).unwrap();
+        assert!(old.home_id.is_empty() && old.fleet_held.is_empty());
     }
 }

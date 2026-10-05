@@ -175,6 +175,22 @@ fn my_side<'a>(t: &'a GuiTrade, me: &str) -> Option<(&'a [GuiTradeItem], bool)> 
     }
 }
 
+/// How many of `item_id` I have promised in active trades I confirmed
+/// (2026-10-04, the fleet ledger's review, finding 1): those are spoken for, so
+/// they are not free to give to the fleet as well. Once both players confirm, the
+/// other player's game hands them over whether or not they are still here.
+pub(crate) fn promised_to_trades(gs: &GuiState, item_id: &str) -> u32 {
+    gs.trades
+        .iter()
+        .filter(|t| t.status == "active")
+        .filter_map(|t| my_side(t, &gs.profile_public_key))
+        .filter(|(_, confirmed)| *confirmed)
+        .flat_map(|(mine, _)| mine.iter())
+        .filter(|i| i.reference_id.as_deref() == Some(item_id))
+        .map(|i| i.quantity)
+        .sum()
+}
+
 /// Confirmations to withdraw (2026-10-02): every active trade I confirmed whose
 /// offered items the backpack no longer covers, as (trade id, the
 /// `trade_update_items` message re-sending the same offer, the line to show).

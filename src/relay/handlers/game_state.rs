@@ -362,6 +362,16 @@ pub struct GameWorld {
     /// not on the player's entity, so stepping out of the world and back in does not reset it;
     /// not saved with the world (a restart forgets it, and the next meal is simply allowed).
     pub player_next_meal: HashMap<String, f64>,
+    /// Which mode the fleet's stores run in (the server setting `fleet_supply_mode`, set by
+    /// `RelayState::new` and by an admin's change, ship_stores.rs `FleetSupply`): unlimited
+    /// unless an admin picked stocked.
+    pub fleet_supply: super::ship_stores::FleetSupply,
+    /// What the fleet ledger records and what things are worth (data/ship/fleet_ledger.ron,
+    /// data/trade_goods.ron, data/ship_power.ron; fleet_ledger.rs).
+    pub fleet_ledger: super::fleet_ledger::LedgerData,
+    /// When each player's game last reported its power (game seconds, by key): how much one
+    /// report may carry is held to the time since (fleet_ledger.rs `power_report`). Not saved.
+    pub fleet_power_last: HashMap<String, f64>,
     /// Accumulator throttling traveling-NPC position broadcasts (not persisted).
     npc_broadcast_accum: f64,
     /// The mothership's plots (increment 1b of docs/design/ship-homes-and-logistics.md):
@@ -490,6 +500,9 @@ impl GameWorld {
             chores: Vec::new(),
             provisions: super::ship_stores::Provisions::load(),
             player_next_meal: HashMap::new(),
+            fleet_supply: Default::default(),
+            fleet_ledger: super::fleet_ledger::LedgerData::load(),
+            fleet_power_last: HashMap::new(),
             npc_broadcast_accum: 0.0,
             ship_plots: Default::default(),
         };

@@ -77,7 +77,8 @@
         { "icon": "❓", "label": "Help",            "desc": "Show help",     "cmd": "/help" },
         { "icon": "🔑", "label": "Export Identity", "desc": "Backup keys",   "cmd": "/export" },
         { "icon": "🔗", "label": "Link Device",     "desc": "Multi-device",  "cmd": "/link" },
-        { "icon": "📊", "label": "Server Stats",    "desc": "View stats",    "action_id": "openServerStats" }
+        { "icon": "📊", "label": "Server Stats",    "desc": "View stats",    "action_id": "openServerStats" },
+        { "icon": "🚀", "label": "Your fleet ledger", "desc": "Used and given", "action_id": "openFleetLedger" }
       ]
     },
     {

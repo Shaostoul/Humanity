@@ -148,6 +148,14 @@ pub struct WorldSave {
     /// until this the desktop app never moved a traded item at all.
     #[serde(default)]
     pub settled_trades: Vec<String>,
+    /// The id this home goes by with a server's fleet, and the gives whose items have left
+    /// the backpack and still wait for that server's answer (2026-10-04,
+    /// systems::inventory::TradeSettlements, engine/fleet.rs). Empty in a save from before
+    /// them: the id is made at the first give.
+    #[serde(default)]
+    pub home_id: String,
+    #[serde(default)]
+    pub fleet_held: Vec<crate::systems::inventory::FleetHeld>,
     /// The box of the plot the player's home stood on when this was saved, [min, max] in
     /// ship metres (ship homes increment 1b, docs/design/ship-homes-and-logistics.md). The
     /// pieces built aboard and the parked vehicles are saved where they stood; a load carries
@@ -230,6 +238,8 @@ impl WorldSave {
             machine_levels: Vec::new(),
             ship_supply: Default::default(),
             settled_trades: Vec::new(),
+            home_id: String::new(),
+            fleet_held: Vec::new(),
             home_plot_box: None,
         }
     }
@@ -903,6 +913,8 @@ mod tests {
             machine_levels: Vec::new(),
             ship_supply: Default::default(),
             settled_trades: Vec::new(),
+            home_id: String::new(),
+            fleet_held: Vec::new(),
             home_plot_box: None,
         }
     }

@@ -80,6 +80,22 @@
       '  </div>' +
       '  <p class="gameadmin-clock-if" id="gameadmin-clock-if"></p>' +
       '  <button class="gameadmin-refresh-btn" id="gameadmin-clock-apply">Apply to the shared world</button>' +
+      '  <h3 class="gameadmin-section">Fleet supply</h3>' +
+      '  <p class="gameadmin-hint">Whether the fleet\'s stores can run out in this server\'s shared world. Unlimited (the ' +
+      '     default during early development): they never run out, no meal is ever refused, and each player\'s ledger shows ' +
+      '     what they used and gave. Stocked (the realistic mode): the stores hold only what the ship\'s farms put in, and ' +
+      '     an empty store means a missed meal, crew included. A change applies at once and never touches anyone\'s ledger.</p>' +
+      '  <p class="gameadmin-hint" id="gameadmin-fleet-now"></p>' +
+      '  <div class="gameadmin-toolbar" id="gameadmin-fleet-modes"></div>' +
+      '  <button class="gameadmin-refresh-btn" id="gameadmin-fleet-apply">Apply to the fleet</button>' +
+      '  <p class="gameadmin-hint">The fleet\'s totals are sums over every player with a ledger. They are shown only once at ' +
+      '     least three players other than you have one, because with fewer, the totals minus your own lines would ' +
+      '     be someone\'s own ledger. Even then, watching them change while you know who is online can hint at who did ' +
+      '     what.</p>' +
+      '  <div class="gameadmin-toolbar">' +
+      '    <button class="gameadmin-refresh-btn" id="gameadmin-fleet-totals-btn">Show the fleet\'s totals</button>' +
+      '    <span class="gameadmin-hint" id="gameadmin-fleet-totals"></span>' +
+      '  </div>' +
       '  <div class="gameadmin-status" id="gameadmin-status"></div>' +
       '</div>';
     document.body.appendChild(overlay);
@@ -96,7 +112,78 @@
     overlay.querySelector('#gameadmin-ban-btn').addEventListener('click', submitBan);
     overlay.querySelector('#gameadmin-release-btn').addEventListener('click', submitRelease);
     buildClockControls(overlay);
+    buildFleetControls(overlay);
     return overlay;
+  }
+
+  // ── Fleet supply (2026-10-04; the native original is draw_admin in
+  // src/gui/pages/fleet_ledger.rs). The operator: "we'll say the fleet has unlimited of everything and
+  // just track what they player uses and contributes." The relay keeps the server setting
+  // fleet_supply_mode ("unlimited" by default, or "stocked", the stores that can run empty); an admin
+  // changes it here with server_settings_update, and the running world follows at once. The mode shown
+  // comes from server_settings_state (app.js keeps it in window.fleetSupplyMode). The totals are the
+  // relay's game_fleet_totals: every player's ledger summed, naming no one (app.js keeps them in
+  // window.fleetTotals), held back while fewer than three other players have a ledger. A player's
+  // own ledger has its own read-only window (chat-fleet.js, "Your fleet ledger").
+  var FLEET_MODES = [['unlimited', 'Unlimited (never runs out)'], ['stocked', 'Stocked (realistic: stores can run empty)']];
+  var fleetDraft = null; // the admin's unapplied pick; null follows the server's mode
+
+  function fleetModeName(m) {
+    for (var i = 0; i < FLEET_MODES.length; i++) if (FLEET_MODES[i][0] === m) return FLEET_MODES[i][1];
+    return FLEET_MODES[0][1];
+  }
+  // Credits as the game writes them (native credits()): whole numbers bare, else one decimal.
+  function creditsText(v) { return (Math.abs(v - Math.round(v)) < 0.05 ? String(Math.round(v)) : v.toFixed(1)) + ' CR'; }
+
+  function buildFleetControls(overlay) {
+    var box = overlay.querySelector('#gameadmin-fleet-modes');
+    FLEET_MODES.forEach(function (m) {
+      var b = document.createElement('button');
+      b.className = 'gameadmin-refresh-btn';
+      b.textContent = m[1];
+      b.setAttribute('data-mode', m[0]);
+      b.addEventListener('click', function () { fleetDraft = m[0]; renderGameAdminFleet(); });
+      box.appendChild(b);
+    });
+    overlay.querySelector('#gameadmin-fleet-apply').addEventListener('click', submitFleet);
+    overlay.querySelector('#gameadmin-fleet-totals-btn').addEventListener('click', function () {
+      if (typeof ws === 'undefined' || !ws || ws.readyState !== WebSocket.OPEN) { setStatus('Not connected to the server.'); return; }
+      ws.send(JSON.stringify({ type: 'game_fleet_totals_request' }));
+    });
+  }
+
+  // Paint the fleet section: the server's mode, the admin's pick, the totals when asked.
+  function renderGameAdminFleet() {
+    var now = document.getElementById('gameadmin-fleet-now');
+    if (!now) return; // window not built yet
+    var cur = typeof window.fleetSupplyMode === 'string' ? window.fleetSupplyMode : null;
+    if (fleetDraft !== null && fleetDraft === cur) fleetDraft = null;
+    now.textContent = cur === null ? 'Connect to a server to see its fleet\'s supply.' : 'Now: ' + fleetModeName(cur);
+    var chosen = fleetDraft !== null ? fleetDraft : (cur !== null ? cur : 'unlimited');
+    Array.prototype.forEach.call(document.querySelectorAll('#gameadmin-fleet-modes button'), function (b) {
+      b.classList.toggle('active', b.getAttribute('data-mode') === chosen);
+    });
+    document.getElementById('gameadmin-fleet-apply').disabled = cur !== null && chosen === cur;
+    var t = window.fleetTotals;
+    var tot = document.getElementById('gameadmin-fleet-totals');
+    if (t && typeof t.players === 'number') {
+      var who = (t.players === 1 ? '1 player has' : t.players + ' players have') + ' a ledger';
+      // Held back while too few other players have a ledger (native totals_sentence).
+      tot.textContent = t.withheld
+        ? who + '. The totals are shown once at least ' + (t.others_needed || 3) + ' players other than you have one.'
+        : who + ': ' + creditsText(t.used_value || 0) + ' used from the fleet, ' + creditsText(t.contributed_value || 0) + ' given to it.';
+    }
+  }
+
+  // Ask the relay to run the fleet's stores in the chosen mode. It checks the sender is an admin,
+  // saves it and changes the running world; only a message that went out is reported as asked.
+  function submitFleet() {
+    var cur = typeof window.fleetSupplyMode === 'string' ? window.fleetSupplyMode : null;
+    var chosen = fleetDraft !== null ? fleetDraft : cur;
+    if (chosen === null) { setStatus('Pick a mode first.'); return; }
+    if (typeof ws === 'undefined' || !ws || ws.readyState !== WebSocket.OPEN) { setStatus('Not connected to the server.'); return; }
+    ws.send(JSON.stringify({ type: 'server_settings_update', fleet_supply_mode: chosen }));
+    setStatus('Asked the server to make the fleet ' + chosen + '.');
   }
 
   // ── Shared world clock (2026-10-04; the native original is src/gui/pages/world_clock_admin.rs).
@@ -311,6 +398,7 @@
     setStatus('');
     renderGameAdminList();          // paint whatever we already have
     renderGameAdminClock();
+    renderGameAdminFleet();
     sendGameBannedListRequest();    // then refresh from the relay
     // The server's settings, for the clock's speed (the relay answers with server_settings_state).
     if (typeof ws !== 'undefined' && ws && ws.readyState === WebSocket.OPEN) {
@@ -328,5 +416,6 @@
   window.closeGameAdminModal = closeGameAdminModal;
   window.renderGameAdminList = renderGameAdminList;
   window.renderGameAdminClock = renderGameAdminClock;
+  window.renderGameAdminFleet = renderGameAdminFleet;
   window.showGameAdminError = showGameAdminError;
 })();

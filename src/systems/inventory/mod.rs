@@ -74,6 +74,44 @@ pub struct TradeSettlements {
     /// backpack moves. Deliberately NOT saved: a trade still waiting here has
     /// not changed the backpack yet, so it must settle again after a restart.
     pub pending: Vec<(String, Vec<TransferOp>)>,
+    /// The id this backpack's home goes by with a fleet (2026-10-04, the fleet
+    /// ledger's review): sent with every give, so a server hands back only THIS
+    /// home's gives to settle again after a save load (engine/fleet.rs). Saved
+    /// with the backpack (WorldSave.home_id); made the first time it is needed.
+    pub home_id: String,
+    /// Gives to a fleet whose items have LEFT the backpack and wait for that
+    /// server's answer (engine/fleet.rs). Saved with the backpack
+    /// (WorldSave.fleet_held), so a give is never in two places: in flight it
+    /// is here, not in the backpack, so it cannot also be traded, stored, eaten
+    /// or given again; a refusal puts it back.
+    pub fleet_held: Vec<FleetHeld>,
+    /// A save was just put back over the backpack (save_load restores it):
+    /// the fleet's record of this home's gives must be asked for again, to
+    /// settle any the save does not list. Not saved.
+    pub fleet_recheck: bool,
+}
+
+/// A give to a server's fleet whose items have left the backpack and wait for
+/// that server to record it or refuse it (2026-10-04, engine/fleet.rs).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct FleetHeld {
+    /// The game's id for the give (the server records a give once per id).
+    pub give_id: String,
+    /// The server whose fleet it was given to, as this game addresses it: it
+    /// is sent there and nowhere else.
+    pub server: String,
+    /// The fleet store it was handed in at (the shared world's entity id).
+    pub store: u64,
+    pub item_id: String,
+    /// The item's name, for the panel.
+    pub name: String,
+    pub qty: u32,
+    pub wear: u32,
+    pub quality: u8,
+    /// The game was in Creative mode, which makes things from nothing: the
+    /// fleet records the gift but does not count it.
+    #[serde(default)]
+    pub creative: bool,
 }
 
 impl TradeSettlements {
