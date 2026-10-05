@@ -408,12 +408,26 @@ The game has two ways to trade, and both teach something.
   visible, and it is a reason to trade with other players when you can. The file's own notes say the
   values were set so that one credit is roughly a minute of unskilled
   work.
-- **Quality changes the price.** Tools, clothing and furniture you make
-  by hand are graded by your skill, and the trading post pays for each
-  grade at a different rate: 0.4 times its usual price for poor work,
-  1.5 times for good, 2.5 for excellent and 5 for a masterwork, and it will not buy
-  defective goods at all. The grades are in `data/manufacturing.ron`.
-  Condition is part of value, in the game as in life.
+- **Quality changes the price, up to a point.** Tools, clothing and
+  furniture you make by hand are graded by your skill. The trading post
+  pays 0.4 times its usual price for poor work, and it will not buy
+  defective goods at all. For better work it pays more: up to 1.5 times
+  its usual price for good, 2.5 for excellent and 5 for a masterwork,
+  but never more than the parts to make the piece would cost at the
+  post. A dealer that sells parts and buys finished goods has to keep
+  its offers under its own price for the parts; otherwise anyone could
+  buy the parts, make the piece, sell it back at a profit and do it
+  again, with the dealer paying for every round. So where the parts are
+  cheap next to the finished piece, a grade gets its full figure; where
+  they are not, each better grade closes part of the gap between a
+  standard piece's price and the parts' price (a good piece a third of
+  it, an excellent one three fifths, a masterwork four fifths), and none
+  closes all of it. A hammer's parts cost 16.50 credits at the post: a
+  poor hammer fetches 2 there, a standard one 7, a good one 10, an
+  excellent one 12 and a masterwork 14. Other players are free to pay
+  more for fine work. The grades are in `data/manufacturing.ron` and the
+  rule in `src/systems/economy/parts.rs`. Condition is part of value, in
+  the game as in life.
 - **Trades with other players.** When you are connected to a server,
   the Trade page lets you trade items directly with another player.
   One of you proposes a trade and the other accepts; each side then
@@ -444,7 +458,8 @@ by supply and demand; there is no haggling, no written agreement, no
 trading of work, no measuring or weighing, and no tax. The Trading
 skill exists in the skill list, but nothing in the game levels it yet.
 
-The trading post's prices are in `src/systems/economy/mod.rs` and
+The trading post's prices are in `src/systems/economy/mod.rs`,
+`src/systems/economy/parts.rs` (what a better grade fetches) and
 `src/gui/pages/vendor.rs`, and the player-to-player trade in
 `src/gui/pages/trade.rs` and `src/relay/storage/trading.rs`.
 
@@ -581,7 +596,9 @@ public domain. Web pages were read on 3 October 2026.
   125 and 50 percent rule), `src/systems/economy/mod.rs`,
   `src/gui/pages/vendor.rs`, and the `trading_post` machine in
   `data/machines/home.ron`. Quality grades: `data/manufacturing.ron`
-  and `src/systems/crafting/quality.rs`.
+  and `src/systems/crafting/quality.rs`; what the post pays for a
+  better grade, and the parts' price that limits it,
+  `src/systems/economy/parts.rs`.
 - Player-to-player trades: `src/gui/pages/trade.rs`,
   `src/gui/trade_types.rs` and `src/relay/storage/trading.rs` (any
   change to an offer clears both confirmations).
@@ -601,7 +618,9 @@ public domain. Web pages were read on 3 October 2026.
 
 - "Both sides would do it again" as the test of a fair trade, the
   would-you-do-it-again check, and the reasoning about the middleman's
-  share are our framing.
+  share are our framing, as is the reasoning that a dealer who sells
+  parts must keep its offers for finished goods under its own price for
+  the parts.
 - Weighing a jar to find the tare is our example of NIST's rule.
 - A shared kitchen scale between neighbours, saying what is wrong with
   what you trade, letting the other side test it, valuing a used item by

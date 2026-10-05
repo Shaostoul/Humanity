@@ -44,6 +44,13 @@
 // vehicle a full bill of materials in data/recipes.csv and its price can
 // rise with it. Done the same day: see the VEHICLES section below.
 //
+// A hand-made good of a better grade (data/manufacturing.ron) fetches its
+// grade's multiple of the 0.5x price, but never more than its parts cost at
+// the vendor (BUG-146, 2026-10-05, src/systems/economy/parts.rs), so no grade
+// loops either; the test no_grade_sells_back_for_more_than_its_parts_cost
+// checks every recipe at every grade. A base value here can therefore rise to
+// the BUG-145 limit without opening a loop at any grade.
+//
 // Value rationale:
 //   1 CR ~ 1 minute of unskilled labor
 //   A day of basic farming yields ~16-80 CR (2-10/hr * 8 hrs)

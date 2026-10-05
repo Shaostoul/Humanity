@@ -7,8 +7,12 @@
 //!
 //! Data: data/economy.ron (formula, earning rates, trade fees)
 //!       data/trade_goods.ron (250 item base values -> TradeGoodsRegistry; every id is an item, see the test every_shipped_trade_good_is_an_item)
+//!
+//! What the trading post pays for a better craft grade, and the parts price
+//! that keeps it from paying people to loop its own goods: `parts` (BUG-146).
 
 pub mod fleet;
+pub mod parts;
 
 use crate::hot_reload::data_store::DataStore;
 use crate::ecs::systems::System;
@@ -36,6 +40,13 @@ pub struct TradeGood {
 #[derive(Debug, Default)]
 pub struct TradeGoodsRegistry {
     pub goods: HashMap<String, TradeGood>,
+    /// The parts price of each good some recipe makes from goods the post
+    /// sells: the least its parts cost bought there (BUG-146,
+    /// `parts::parts_prices`). It caps what a better grade fetches
+    /// (`vendor_buy_price_graded`). Empty until `with_parts_prices` fills it,
+    /// as `engine::registries` does at load; empty, every grade is paid its
+    /// full multiple, the pricing that looped.
+    pub parts: HashMap<String, f64>,
 }
 
 impl TradeGoodsRegistry {
@@ -46,7 +57,25 @@ impl TradeGoodsRegistry {
         for row in rows {
             goods.insert(row.id.clone(), row);
         }
-        Ok(Self { goods })
+        Ok(Self { goods, parts: HashMap::new() })
+    }
+
+    /// Work out every good's parts price from the items and recipes the game
+    /// loaded (BUG-146). Call once all three are loaded; `engine::registries`
+    /// does, so the trading post never pays a grade more than its parts cost.
+    pub fn with_parts_prices(
+        mut self,
+        items: &crate::systems::inventory::ItemRegistry,
+        recipes: &crate::systems::crafting::RecipeRegistry,
+    ) -> Self {
+        self.parts = parts::parts_prices(items, &self, recipes);
+        self
+    }
+
+    /// The least the parts of one `id` cost at the post, bought or made from
+    /// goods bought there; None when nothing it sells can be made into `id`.
+    pub fn parts_price(&self, id: &str) -> Option<f64> {
+        self.parts.get(id).copied()
     }
 
     pub fn get(&self, id: &str) -> Option<&TradeGood> {
@@ -58,9 +87,27 @@ impl TradeGoodsRegistry {
         self.get(id).map(|g| ((g.base_value as f64 * 1.25).ceil() as i64).max(1))
     }
 
-    /// What an NPC vendor PAYS the player (base x 0.5, rounded down).
+    /// What an NPC vendor PAYS the player (base x 0.5, rounded down): the
+    /// price of an ungraded or standard good.
     pub fn vendor_buy_price(&self, id: &str) -> Option<i64> {
         self.get(id).map(|g| (g.base_value as f64 * 0.5).floor() as i64)
+    }
+
+    /// What an NPC vendor PAYS for one `id` of craft grade `quality` (0 =
+    /// ungraded), by `parts::graded_pay`: the standard price for ungraded and
+    /// standard goods, a lower grade's multiple of it below standard, and above
+    /// standard the grade's multiple up to a ceiling set by the parts price
+    /// (BUG-146). None when the vendor does not trade `id`, or does not buy
+    /// that grade at all (defective). `levels` None: everything is ungraded.
+    pub fn vendor_buy_price_graded(
+        &self,
+        id: &str,
+        quality: u8,
+        levels: Option<&crate::systems::crafting::quality::QualityLevels>,
+    ) -> Option<i64> {
+        let standard = self.vendor_buy_price(id)?;
+        let m = levels.map_or(1.0, |l| l.price_multiplier(quality));
+        parts::graded_pay(standard, self.parts_price(id), m)
     }
 
     pub fn len(&self) -> usize {
@@ -248,7 +295,9 @@ pub fn vendor_buy(
     Ok(format!("Bought {qty}x {item_id} for {total} CR"))
 }
 
-/// Sell `qty` of `item_id` to an NPC vendor: removes the items, pays 0.5x base.
+/// Sell `qty` of `item_id` to an NPC vendor: removes the items, pays 0.5x base
+/// for an ungraded or standard good, and for a graded one what
+/// `TradeGoodsRegistry::vendor_buy_price_graded` says (BUG-146).
 pub fn vendor_sell(
     inv: &mut crate::systems::inventory::Inventory,
     credits: &mut i64,
@@ -258,15 +307,15 @@ pub fn vendor_sell(
     quality: u8,
     levels: Option<&crate::systems::crafting::quality::QualityLevels>,
 ) -> Result<String, String> {
-    let price = goods
-        .vendor_buy_price(item_id)
-        .ok_or_else(|| format!("{item_id} is not traded here"))?;
-    // One grade at a time, at that grade's price (2026-09-26): a good hammer
-    // fetches more than a poor one, and defective goods are not bought.
-    let m = levels.map_or(1.0, |l| l.price_multiplier(quality) as f64);
-    if m <= 0.0 {
-        return Err("The vendor will not buy defective goods: scrap or recycle them.".to_string());
+    if goods.vendor_buy_price(item_id).is_none() {
+        return Err(format!("{item_id} is not traded here"));
     }
+    // One grade at a time, at that grade's price (2026-09-26): a good hammer
+    // fetches more than a poor one, and defective goods are not bought. Above
+    // standard, never more than the parts cost at the post (BUG-146).
+    let Some(price) = goods.vendor_buy_price_graded(item_id, quality, levels) else {
+        return Err("The vendor will not buy defective goods: scrap or recycle them.".to_string());
+    };
     let have: u32 = inv
         .slots
         .iter()
@@ -278,7 +327,7 @@ pub fn vendor_sell(
         return Err(format!("You only have {have}x {item_id}"));
     }
     inv.remove_graded(item_id, qty, quality);
-    let total = (price as f64 * m).floor() as i64 * qty as i64;
+    let total = price * qty as i64;
     *credits += total;
     Ok(format!("Sold {qty}x {item_id} for {total} CR"))
 }
@@ -411,29 +460,14 @@ mod tests {
         crate::systems::crafting::RecipeRegistry::from_csv(&std::fs::read(path).unwrap()).unwrap()
     }
 
-    /// What the vendor charges for an item it stocks: a trade good that is
-    /// also an items.csv item (the src/lib.rs catalog filter). None when it
-    /// does not stock it.
-    fn vendor_charge(
-        items: &crate::systems::inventory::ItemRegistry,
-        goods: &TradeGoodsRegistry,
-        id: &str,
-    ) -> Option<f64> {
-        if items.items.contains_key(id) {
-            goods.vendor_sell_price(id).map(|p| p as f64)
-        } else {
-            None
-        }
-    }
+    // What the vendor charges for an item it stocks, and what a recipe's
+    // inputs cost at a set of prices: the walk's own helpers, shared with the
+    // game's parts prices since BUG-146 (2026-10-05).
+    use super::parts::{inputs_cost, vendor_charge};
 
     /// What the vendor pays for a trade good (nothing for anything else).
     fn vendor_pays(goods: &TradeGoodsRegistry, id: &str) -> f64 {
         goods.vendor_buy_price(id).unwrap_or(0) as f64
-    }
-
-    /// What a recipe's inputs cost at `cheapest`; None when one has no price.
-    fn inputs_cost(r: &crate::systems::crafting::Recipe, cheapest: &HashMap<String, f64>) -> Option<f64> {
-        r.inputs.iter().map(|(id, q)| cheapest.get(id).map(|c| c * *q as f64)).sum()
     }
 
     /// The cheapest credits-to-item cost of every item a player can get for
@@ -442,50 +476,16 @@ mod tests {
     /// (a recipe with none is gathering, not buying), sorted by id so a walk
     /// and its messages are the same on every run, and the costs. Settles in
     /// a few rounds; a cost that keeps falling means a cycle of recipes makes
-    /// goods from nothing, itself a loop.
+    /// goods from nothing, itself a loop. The walk is `parts::cheapest_costs`
+    /// (it moved there for BUG-146), byproducts at the standard price.
     fn cheapest_costs<'a>(
         items: &crate::systems::inventory::ItemRegistry,
         goods: &TradeGoodsRegistry,
         recipes: &'a crate::systems::crafting::RecipeRegistry,
     ) -> (Vec<&'a crate::systems::crafting::Recipe>, HashMap<String, f64>) {
-        let mut book: Vec<&crate::systems::crafting::Recipe> =
-            recipes.recipes.values().filter(|r| !r.inputs.is_empty()).collect();
-        book.sort_by(|a, b| a.id.cmp(&b.id));
-        let mut cheapest: HashMap<String, f64> = goods
-            .goods
-            .keys()
-            .filter_map(|id| vendor_charge(items, goods, id).map(|c| (id.clone(), c)))
-            .collect();
-        let mut rounds = 0;
-        loop {
-            let mut changed = false;
-            for r in &book {
-                let Some(cost) = inputs_cost(r, &cheapest) else { continue };
-                for (i, (out, q)) in r.outputs.iter().enumerate() {
-                    if *q == 0 {
-                        continue;
-                    }
-                    let byproducts: f64 = r
-                        .outputs
-                        .iter()
-                        .enumerate()
-                        .filter(|(j, _)| *j != i)
-                        .map(|(_, (id, qq))| vendor_pays(goods, id) * *qq as f64)
-                        .sum();
-                    let unit = (cost - byproducts) / *q as f64;
-                    if cheapest.get(out).map_or(true, |c| unit < c - 1e-9) {
-                        cheapest.insert(out.clone(), unit);
-                        changed = true;
-                    }
-                }
-            }
-            if !changed {
-                break;
-            }
-            rounds += 1;
-            assert!(rounds < 100, "item costs never settle: a cycle of recipes makes goods from nothing");
-        }
-        (book, cheapest)
+        let walk = parts::cheapest_costs(items, goods, recipes, &|id: &str| vendor_pays(goods, id));
+        assert!(walk.settled, "item costs never settle: a cycle of recipes makes goods from nothing");
+        (parts::recipe_book(recipes), walk.costs)
     }
 
     /// v0.747 (ladder rung 3): the shipped trade_goods.ron parses and the price
@@ -732,16 +732,19 @@ mod tests {
     }
 
     /// A sale is priced by grade (2026-09-26): a good hammer fetches more than
-    /// an ungraded one, a defective one nothing.
+    /// an ungraded one, a defective one nothing. Since BUG-146 the price above
+    /// standard is `vendor_buy_price_graded`'s (the grade's multiple, capped by
+    /// the parts price), on the registry as the game loads it.
     #[test]
     fn a_sale_is_priced_by_grade() {
         use crate::systems::inventory::Inventory;
-        let goods = shipped_goods();
+        let goods = shipped_goods().with_parts_prices(&shipped_items(), &shipped_recipes());
         let levels = crate::systems::crafting::quality::QualityLevels::from_ron(
             &std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/data/manufacturing.ron")).unwrap(),
         )
         .unwrap();
         let base = goods.vendor_buy_price("hammer_0").expect("the vendor buys hammers");
+        let graded = |q: u8| goods.vendor_buy_price_graded("hammer_0", q, Some(&levels)).unwrap();
         let sell = |quality: u8| {
             let mut inv = Inventory::new(4);
             inv.add_item_q("hammer_0", 1, 1, quality);
@@ -750,7 +753,10 @@ mod tests {
             credits
         };
         assert_eq!(sell(0), base, "ungraded: the base price");
-        assert_eq!(sell(4), (base as f64 * 1.5).floor() as i64, "good: 1.5x");
+        assert_eq!(sell(3), base, "standard: the base price");
+        assert_eq!(sell(2), (base as f64 * 0.4).floor() as i64, "poor: 0.4x");
+        assert_eq!(sell(4), graded(4), "good: the graded price");
+        assert!(sell(4) > base, "good fetches more than standard");
         // Defective: refused, and the hammer is kept.
         let mut inv = Inventory::new(4);
         inv.add_item_q("hammer_0", 1, 1, 1);
@@ -763,7 +769,8 @@ mod tests {
         inv.add_item_q("hammer_0", 1, 1, 1);
         let mut credits = 0i64;
         vendor_sell(&mut inv, &mut credits, &goods, "hammer_0", 1, 6, Some(&levels)).unwrap();
-        assert_eq!(credits, (base as f64 * 5.0).floor() as i64);
+        assert_eq!(credits, graded(6), "the masterwork's price");
+        assert!(credits > graded(4), "a masterwork fetches more than a good one");
         let left: Vec<u8> = inv.slots.iter().flatten().map(|s| s.quality).collect();
         assert_eq!(left, vec![1], "the defective one is still in the pack");
     }
