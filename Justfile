@@ -599,16 +599,16 @@ lints:
 # socket, never a reload's auto-connect or an automatic reconnect.
 # And the sticky showcase pins the rigs release before every vantage (scripts/tests/
 # showcase-pins.test.js, 2026-10-04): one shared list, pipe_marking included.
-# And the probe sweep's ground_probe judgement (scripts/tests/tree-ground-check.test.js,
-# BUG-156, 2026-10-05): trees floating over the drawn ground, or an eye off it, fail.
 # And the shared-build judge (scripts/lib/shared-build-judge.js, ship homes increment 5,
 # 2026-10-05): a made-up `verify-shared-build` run that went right passes every check, each
 # broken one (the builder's build kept inside the game's plot, a piece drawn late or off where
 # it was built, planks spent twice, a wall not in the picture, ...) fails its own check and no
 # other, and the same run saved to a folder is judged by `--dry-verdict`.
+# And the probe sweep's ground_probe judgement (scripts/tests/tree-ground-check.test.js,
+# BUG-156, 2026-10-05): trees floating over the drawn ground, or an eye off it, fail.
 # Add a file here whenever a rig script grows a judgement of its own.
 rig-tests:
-    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js scripts/tests/rig-exe-copy.test.js scripts/tests/showcase-pins.test.js scripts/tests/rig-gameplay.test.js scripts/tests/clean-test-temp.test.js scripts/tests/tree-ground-check.test.js scripts/tests/shared-build-judge.test.js
+    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js scripts/tests/rig-exe-copy.test.js scripts/tests/showcase-pins.test.js scripts/tests/rig-gameplay.test.js scripts/tests/clean-test-temp.test.js scripts/tests/shared-build-judge.test.js scripts/tests/tree-ground-check.test.js
 
 # The scripted second player (scripts/second-player.js) against a REAL relay.
 # NOT pure node, so NOT in rig-tests or `just verify` (rig-tests keeps the

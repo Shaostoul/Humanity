@@ -53,6 +53,7 @@ pub mod surface_walk;
 /// out of the frame-lock block in lib.rs so it is testable headless; ungated
 /// like `surface_walk`. See `src/surface_move.rs`.
 pub mod surface_move;
+pub mod turning; // How a person turns (the rig's walking camera, the crew figures); ungated, see src/turning.rs.
 /// Curated named viewpoints (data/scenic_views.ron) for the camera-hub arc.
 pub mod scenic_views;
 /// Reaction emoji palette (data/reactions.json): one source for the native

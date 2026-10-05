@@ -17,7 +17,7 @@
 //!     vehicle is a jump of any length;
 //!   - walks the camera for the rig (`walk_tick`, the showcase `walk_to` verb), at a speed the
 //!     relay takes, where the rig used to move the game in 40 m teleports the old 100 m rule let
-//!     through.
+//!     through; facing the way it walks and turning as a person turns (`walk_step`, BUG-165).
 
 use crate::engine::state::EngineState;
 use crate::ship::moves::MoveDecl;
@@ -42,13 +42,26 @@ pub(crate) struct Correction {
     pub epoch_ms: f64,
 }
 
-/// The rig's scripted walk: to `to` at `speed` m/s, facing `yaw` and `pitch`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// The rig's scripted walk: to `to` at `speed` m/s, ending facing `yaw` and `pitch` (`walk_step`).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub(crate) struct ScriptedWalk {
     pub to: Vec3,
     pub yaw: f32,
     pub pitch: f32,
     pub speed: f32,
+    /// How fast the camera is turning, left and right and up and down, radians a second.
+    pub yaw_rate: f32,
+    pub pitch_rate: f32,
+    /// Standing at `to`: from now on the walk only turns to `yaw` and `pitch`.
+    pub there: bool,
+}
+
+/// Where the camera stands and how it looks: before and after one frame of the rig's walk.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct WalkPose {
+    pub at: Vec3,
+    pub yaw: f32,
+    pub pitch: f32,
 }
 
 /// What the game keeps about the speed check (`EngineState::moves`).
@@ -231,25 +244,91 @@ pub(crate) fn body_report(following: bool, follow_body: &mut Option<Vec3>, camer
     }
 }
 
-/// One frame of the rig's scripted walk: the camera (and the walking body) a step of
-/// `speed * dt` toward the target, facing as asked; the walk ends on arrival. `dt` is the
-/// movement's own capped step, so a long frame never makes a long stride.
+/// One frame of the rig's scripted walk (`walk_step`): the camera, and the walking body with it,
+/// turned and moved the way a person walks it; the walk ends once it stands at the point looking
+/// as asked. `dt` is the movement's own step, capped in `walk_step`, so a long frame never makes
+/// a long stride.
 pub(crate) fn walk_tick(state: &mut EngineState, dt: f32) {
-    let Some(w) = state.moves.walk else { return };
-    let here = state.camera.position;
-    let to_go = w.to - here;
-    let step = w.speed.max(0.0) * dt.clamp(0.0, 0.1);
-    let at = if to_go.length() <= step { w.to } else { here + to_go.normalize_or_zero() * step };
+    let Some(mut w) = state.moves.walk else { return };
+    let now = WalkPose { at: state.camera.position, yaw: state.camera.yaw, pitch: state.camera.pitch };
+    let (pose, over) = walk_step(&mut w, now, dt);
     for (_e, (t, _c)) in state.game_world.world.query_mut::<(&mut crate::ecs::components::Transform, &crate::ecs::components::Controllable)>() {
-        t.position = at;
+        t.position = pose.at;
     }
-    state.camera.position = at;
-    state.camera.yaw = w.yaw;
-    state.camera.pitch = w.pitch;
-    if at == w.to {
-        state.moves.walk = None;
-        log::info!("Showcase: walk_to arrived at {at:?}");
+    state.camera.position = pose.at;
+    state.camera.yaw = pose.yaw;
+    state.camera.pitch = pose.pitch;
+    state.moves.walk = if over { None } else { Some(w) };
+    if over {
+        log::info!("Showcase: walk_to arrived at {:?}", pose.at);
     }
+}
+
+/// Where the rig's walk looks while it walks, radians up: level, the way a person looks where
+/// they are going.
+const WALK_PITCH: f32 = 0.0;
+
+/// Looking within this of the way it walks (radians, 15 degrees), the rig's walk goes at its
+/// whole pace.
+const FULL_PACE_OFF: f32 = 15.0 * std::f32::consts::PI / 180.0;
+
+/// Looking this far off the way it walks or more (radians, 60 degrees), it does not walk on at
+/// all: it turns where it stands first.
+const NO_PACE_OFF: f32 = 60.0 * std::f32::consts::PI / 180.0;
+
+/// The share of its pace a walker keeps while looking `off` radians away from the way it walks:
+/// all of it within `FULL_PACE_OFF`, none from `NO_PACE_OFF`, easing in between. A person starts
+/// to walk as they come round, and never crabs sideways at full speed.
+fn pace(off: f32) -> f32 {
+    let t = ((NO_PACE_OFF - off.abs()) / (NO_PACE_OFF - FULL_PACE_OFF)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+/// One frame of the rig's walk, on the walk and the camera's pose alone: the pose after the
+/// frame, and true once the walk is over. The walk the way a person walks it with the mouse and
+/// W (BUG-165; the operator watched it walk backwards and never turn, because every frame set
+/// the camera to the FINAL facing while it moved):
+///   1. turn to face the way to the point, looking level (`turning::LOOK`: at most 150 degrees
+///      a second, speeding up into the turn and slowing out of it), walking on as the facing
+///      comes round (`pace`); the way is fixed, a straight line, so the route the rig planned
+///      through the doors is walked exactly;
+///   2. at the point, turn where it stands to the facing asked for;
+///   3. only then is the walk over: the probe's `moves.walking`, which the rig waits on, stays
+///      true until it is.
+/// The step is capped at 0.1 s (the stride rule): a long frame never makes a long stride or a
+/// long turn.
+pub(crate) fn walk_step(w: &mut ScriptedWalk, now: WalkPose, dt: f32) -> (WalkPose, bool) {
+    use crate::turning::{shortest, Turn, LOOK};
+    let dt = if dt.is_finite() { dt.clamp(0.0, 0.1) } else { 0.0 };
+    let mut yaw = Turn { angle: now.yaw, rate: w.yaw_rate };
+    let mut pitch = Turn { angle: now.pitch, rate: w.pitch_rate };
+    let mut at = w.to;
+    let mut over = false;
+    if !w.there {
+        let to_go = w.to - now.at;
+        // The camera at yaw a looks along (sin a, 0, -cos a) (renderer/camera.rs `forward`).
+        let way = if to_go.x.hypot(to_go.z) > 1e-3 { to_go.x.atan2(-to_go.z) } else { now.yaw };
+        yaw.toward(way, dt, LOOK);
+        pitch.toward(WALK_PITCH, dt, LOOK);
+        let step = w.speed.max(0.0) * pace(shortest(yaw.angle, way)) * dt;
+        if to_go.length() > step {
+            at = now.at + to_go.normalize_or_zero() * step;
+        }
+        w.there = at == w.to;
+    } else {
+        let turned = yaw.toward(w.yaw, dt, LOOK);
+        let tilted = pitch.toward(w.pitch, dt, LOOK);
+        if turned && tilted {
+            // Exactly as asked (the turn lands on it; this drops any whole turns the camera's
+            // yaw had wound up).
+            yaw.angle = w.yaw;
+            pitch.angle = w.pitch;
+            over = true;
+        }
+    }
+    w.yaw_rate = yaw.rate;
+    w.pitch_rate = pitch.rate;
+    (WalkPose { at, yaw: yaw.angle, pitch: pitch.angle }, over)
 }
 
 /// Read the showcase `walk_to` verb: "x,y,z,yaw,pitch,speed" (metres, radians, m/s).
@@ -257,7 +336,7 @@ pub(crate) fn parse_walk(spec: &str) -> Option<ScriptedWalk> {
     let v: Vec<f32> = spec.split(',').map(|p| p.trim().parse().ok()).collect::<Option<Vec<f32>>>()?;
     match v.as_slice() {
         [x, y, z, yaw, pitch, speed] if v.iter().all(|f| f.is_finite()) && *speed > 0.0 => {
-            Some(ScriptedWalk { to: Vec3::new(*x, *y, *z), yaw: *yaw, pitch: *pitch, speed: *speed })
+            Some(ScriptedWalk { to: Vec3::new(*x, *y, *z), yaw: *yaw, pitch: *pitch, speed: *speed, ..Default::default() })
         }
         _ => None,
     }
@@ -422,9 +501,143 @@ mod tests {
     /// check taken out: "a walk that never arrives".
     #[test]
     fn the_walk_verb_reads_six_numbers() {
-        assert_eq!(parse_walk("76,1.7,64,0.5,0,6"), Some(ScriptedWalk { to: Vec3::new(76.0, 1.7, 64.0), yaw: 0.5, pitch: 0.0, speed: 6.0 }));
+        assert_eq!(parse_walk("76,1.7,64,0.5,0,6"), Some(ScriptedWalk { to: Vec3::new(76.0, 1.7, 64.0), yaw: 0.5, pitch: 0.0, speed: 6.0, ..Default::default() }));
         assert_eq!(parse_walk("76,1.7,64,0.5,0"), None);
         assert_eq!(parse_walk("76,1.7,64,0.5,0,0"), None, "a walk that never arrives");
         assert_eq!(parse_walk("76,1.7,64,0.5,0,NaN"), None);
+    }
+
+    // ── The rig's walk, the way a person walks it with the mouse and W (BUG-165) ──
+
+    const DT: f32 = 1.0 / 60.0;
+
+    /// The walk every BUG-165 test takes: from the origin at eye height looking along +x (yaw a
+    /// quarter turn) and 17 degrees up, 20 m along +z, where it is asked to end looking back the
+    /// way it came (-z, yaw 0) and 23 degrees down. The route heads opposite to the final facing,
+    /// the case the operator saw walked backwards.
+    const WALK: &str = "0,1.7,20,0,-0.4,6";
+    const START: WalkPose = WalkPose { at: Vec3::new(0.0, 1.7, 0.0), yaw: std::f32::consts::FRAC_PI_2, pitch: 0.3 };
+    const THERE: Vec3 = Vec3::new(0.0, 1.7, 20.0);
+
+    /// Every frame of `WALK` at 60 frames a second: the pose after it and whether the walk was
+    /// over. A minute at most.
+    fn walk_frames() -> Vec<(WalkPose, bool)> {
+        let mut w = parse_walk(WALK).expect("a walk");
+        let mut now = START;
+        let mut out = Vec::new();
+        for _ in 0..3600 {
+            let (p, over) = walk_step(&mut w, now, DT);
+            out.push((p, over));
+            now = p;
+            if over {
+                break;
+            }
+        }
+        out
+    }
+
+    /// Degrees between where a camera at `yaw` looks across the floor (renderer/camera.rs
+    /// `forward_xz`: (sin yaw, 0, -cos yaw)) and the way the walk goes, +z.
+    fn off_the_way(yaw: f32) -> f32 {
+        Vec3::new(yaw.sin(), 0.0, -yaw.cos()).angle_between(Vec3::Z).to_degrees()
+    }
+
+    /// THE RIG FACES THE WAY IT WALKS (BUG-165; the operator, watching the co-presence rig: "the
+    /// walk through that you're showing is walking backwards instead of forwards"). Once the
+    /// camera has had time to turn (1.5 s; a half turn takes about 1.4 s), and until it reaches
+    /// the point, it looks along the way it walks, and level, the way a person walking with the
+    /// mouse and W does. It never walks while looking 60 degrees or more away from that way (it
+    /// turns where it stands first), and goes at 90% of its pace or more only within 25 degrees
+    /// of it (its whole pace within 15, `pace`): a person can walk and turn together, but does
+    /// not crab sideways.
+    ///
+    /// Seen red 2026-10-05 on main (0f8b30944, the camera held the asked facing every frame of
+    /// the walk): "0.02 s into the walk it moved 0.100 m while looking 180.0 degrees away from
+    /// the way it walked".
+    #[test]
+    fn the_rig_faces_the_way_it_walks() {
+        let mut prev = START;
+        for (i, (p, _)) in walk_frames().iter().enumerate() {
+            let t = (i + 1) as f32 * DT;
+            let moved = (p.at - prev.at).length();
+            let off = off_the_way(p.yaw);
+            if moved > 0.0 {
+                assert!(off < 60.01, "{t:.2} s into the walk it moved {moved:.3} m while looking {off:.1} degrees away from the way it walked");
+            }
+            if moved >= 0.9 * 6.0 * DT {
+                assert!(off <= 25.0, "{t:.2} s into the walk it went at {:.0}% of its pace while looking {off:.1} degrees off the way it walked: a crab, not a walk", 100.0 * moved / (6.0 * DT));
+            }
+            if t >= 1.5 && p.at != THERE {
+                assert!(off < 3.0, "{t:.2} s into the walk, {:.1} m along, the camera looked {off:.1} degrees away from the way it walked", p.at.z);
+                assert!(p.pitch.abs() < 0.02, "{t:.2} s into the walk the camera looked {:.1} degrees up or down, not ahead", p.pitch.to_degrees());
+            }
+            prev = *p;
+        }
+    }
+
+    /// AT THE POINT IT TURNS TO THE FACING IT WAS ASKED FOR, AND ONLY THEN HAS IT ARRIVED (BUG-165):
+    /// the frame the camera reaches the point it still looks the way it walked and the walk goes
+    /// on (the probe's `moves.walking`, which the rig waits on, stays true); it turns, a half
+    /// turn taking over a second, and the walk is over once it looks exactly as asked.
+    ///
+    /// Seen red 2026-10-05 on main (0f8b30944): "the walk was over the frame it reached the
+    /// point, looking 180.0 degrees away from the way it walked: it never turned there".
+    #[test]
+    fn the_rig_turns_to_the_asked_facing_only_after_it_arrives() {
+        let frames = walk_frames();
+        let (end, over) = *frames.last().expect("frames");
+        assert!(over, "the walk never ended");
+        assert_eq!(end.at, THERE);
+        assert!(crate::turning::shortest(end.yaw, 0.0).abs() < 1e-5, "it ended looking along yaw {}, not the asked 0", end.yaw);
+        assert!((end.pitch - -0.4).abs() < 1e-5, "it ended looking {} rad up, not the asked -0.4", end.pitch);
+        let first = frames.iter().position(|(p, _)| p.at == THERE).expect("it never reached the point");
+        let (p, over) = frames[first];
+        assert!(
+            !over,
+            "the walk was over the frame it reached the point, looking {:.1} degrees away from the way it walked: it never turned there",
+            off_the_way(p.yaw)
+        );
+        assert!(off_the_way(p.yaw) < 3.0, "it reached the point looking {:.1} degrees off the way it walked", off_the_way(p.yaw));
+        assert!(frames[first..].iter().all(|(q, _)| q.at == THERE), "it moved again after it got there");
+        let turning_s = (frames.len() - 1 - first) as f32 * DT;
+        assert!(turning_s > 1.0, "it turned half way round in {turning_s:.2} s after arriving: a snap, not a person turning");
+    }
+
+    /// THE CAMERA TURNS NO FASTER THAN A PERSON, AND EASES INTO IT (BUG-165): on every frame of
+    /// the walk, from the facing it started with to the one it ends with, it turns left or right
+    /// and up or down at no more than `turning::LOOK`'s 150 degrees a second, and its first frame
+    /// turns no more than the turn's speeding-up allows.
+    ///
+    /// Seen red 2026-10-05 on main (0f8b30944): "frame 1 turned the camera at 5400 degrees a
+    /// second; a person turns at most 150".
+    #[test]
+    fn the_rig_turns_no_faster_than_a_person() {
+        let look = crate::turning::LOOK;
+        let mut prev = START;
+        for (i, (p, _)) in walk_frames().iter().enumerate() {
+            let yaw_rate = crate::turning::shortest(prev.yaw, p.yaw).abs() / DT;
+            let pitch_rate = (p.pitch - prev.pitch).abs() / DT;
+            for (what, rate) in [("the camera", yaw_rate), ("the camera up or down", pitch_rate)] {
+                assert!(rate <= look.rate * 1.0001, "frame {} turned {what} at {:.0} degrees a second; a person turns at most {:.0}", i + 1, rate.to_degrees(), look.rate.to_degrees());
+                if i == 0 {
+                    assert!(rate <= look.accel * DT * 1.0001, "the first frame turned {what} at {:.0} degrees a second: a turn starts gently", rate.to_degrees());
+                }
+            }
+            prev = *p;
+        }
+    }
+
+    /// A LONG FRAME NEVER MAKES A LONG STRIDE (the stride rule, kept): a two-second frame moves a
+    /// walk already facing its way on by at most a tenth of a second of walking. A guard of the
+    /// rule the walk always had, so green before BUG-165 too; a long frame's turn is capped the
+    /// same way (turning.rs `a_long_frame_turns_no_further_than_the_cap`).
+    #[test]
+    fn a_long_frame_never_makes_a_long_stride() {
+        let mut w = parse_walk("0,1.7,20,3.14159265,0,6").expect("a walk");
+        let facing_the_way = WalkPose { at: Vec3::new(0.0, 1.7, 0.0), yaw: std::f32::consts::PI, pitch: 0.0 };
+        let (p, over) = walk_step(&mut w, facing_the_way, 2.0);
+        assert!(!over);
+        let strode = (p.at - facing_the_way.at).length();
+        assert!(strode > 0.0 && strode <= 6.0 * 0.1 + 1e-5, "a two-second frame strode {strode} m");
     }
 }
