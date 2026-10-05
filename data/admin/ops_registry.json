@@ -309,10 +309,10 @@
     },
     {
       "name": "Edit roles and create custom roles",
-      "what": "Per-role permissions (stream/upload/voice/image/file) plus label, color, message-length and upload limits; create new roles like 'family' and delete custom ones.",
+      "what": "Per-role permissions (stream/upload/voice/image/file, and edit ship: building in the ship's shared spaces, the Commons and First Street, in the shared world; the built-in Admin role starts with it, the server's owner always has it, and everyone builds on their own plot without it) plus label, color, message-length and upload limits; create new roles like 'family' and delete custom ones.",
       "where": "native-app",
       "audience": "any-admin",
-      "how": "Server Settings > ADMIN > Roles grid: edit + per-row Save (role_upsert WS), Delete on custom roles (role_delete); 'Add a custom role' row with preset Prefill (src/gui/pages/server_settings.rs:1873-2161)."
+      "how": "Server Settings > ADMIN > Roles grid: edit + per-row Save (role_upsert WS), Delete on custom roles (role_delete); the 'Edit ship' column is the can_edit_ship rank (src/relay/storage/roles.rs has_ship_rank); 'Add a custom role' row with preset Prefill (src/gui/pages/server_settings.rs draw_roles_admin)."
     },
     {
       "name": "Services: feature gates and daemon start/stop",
