@@ -3,18 +3,24 @@
     // its footprint covers, at the tallest one's height (a roof on walls, a wall on a
     // foundation), or on the floor where there are none. Floor (the default) puts it on
     // the floor. Doors and windows stay Floor until they can be set INTO a wall.
-    (id: "wood_foundation", name: "Wood Foundation", category: "foundation", materials: [("wood_plank_0", 8)], build_time: 5.0, size: (4.0, 0.2, 4.0), snap_to: [], health: 200.0, provides: Some("foundation")),
-    (id: "stone_foundation", name: "Stone Foundation", category: "foundation", materials: [("stone_brick_0", 12)], build_time: 8.0, size: (4.0, 0.3, 4.0), snap_to: [], health: 400.0, provides: Some("foundation")),
-    (id: "wood_wall", name: "Wood Wall", category: "wall", materials: [("wood_plank_0", 6)], build_time: 4.0, size: (4.0, 3.0, 0.2), snap_to: ["foundation"], mount: OnTop, health: 150.0, provides: Some("shelter")),
-    (id: "stone_wall", name: "Stone Wall", category: "wall", materials: [("stone_brick_0", 10)], build_time: 6.0, size: (4.0, 3.0, 0.3), snap_to: ["foundation"], mount: OnTop, health: 350.0, provides: Some("shelter")),
-    (id: "metal_wall", name: "Metal Wall", category: "wall", materials: [("iron_ingot_0", 8)], build_time: 10.0, size: (4.0, 3.0, 0.15), snap_to: ["foundation"], mount: OnTop, health: 500.0, provides: Some("shelter")),
+    // shared (2026-10-05, ship homes increment 5): built in a server's shared world, on your
+    // own plot (or with a household permit), the piece is kept by the server and everyone near
+    // sees it. Only pieces whose pose is their whole state: the foundations, the plain walls,
+    // the window wall and the roof. A door, a chest, a bed, a station, a generator or a fire
+    // carries state the server does not keep. Unset is false: the piece stays in your own home.
+    // src/systems/construction/shared.rs `shared_only_on_stateless_blueprints` holds this line.
+    (id: "wood_foundation", name: "Wood Foundation", category: "foundation", materials: [("wood_plank_0", 8)], build_time: 5.0, size: (4.0, 0.2, 4.0), snap_to: [], health: 200.0, provides: Some("foundation"), shared: true),
+    (id: "stone_foundation", name: "Stone Foundation", category: "foundation", materials: [("stone_brick_0", 12)], build_time: 8.0, size: (4.0, 0.3, 4.0), snap_to: [], health: 400.0, provides: Some("foundation"), shared: true),
+    (id: "wood_wall", name: "Wood Wall", category: "wall", materials: [("wood_plank_0", 6)], build_time: 4.0, size: (4.0, 3.0, 0.2), snap_to: ["foundation"], mount: OnTop, health: 150.0, provides: Some("shelter"), shared: true),
+    (id: "stone_wall", name: "Stone Wall", category: "wall", materials: [("stone_brick_0", 10)], build_time: 6.0, size: (4.0, 3.0, 0.3), snap_to: ["foundation"], mount: OnTop, health: 350.0, provides: Some("shelter"), shared: true),
+    (id: "metal_wall", name: "Metal Wall", category: "wall", materials: [("iron_ingot_0", 8)], build_time: 10.0, size: (4.0, 3.0, 0.15), snap_to: ["foundation"], mount: OnTop, health: 500.0, provides: Some("shelter"), shared: true),
     // A wall with a door in it (2026-09-28): the wall's six planks less the
     // one the 1 x 2.1 m opening saves, plus four for the leaf.
     (id: "wood_wall_door", name: "Wood Wall with Door", category: "wall", materials: [("wood_plank_0", 9)], build_time: 5.0, size: (4.0, 3.0, 0.2), snap_to: ["foundation"], mount: OnTop, health: 150.0, provides: Some("shelter"), doorway: Some((width: 1.0, height: 2.1))),
     // A wall with a window in it (2026-09-28): a 1 x 1 m pane of glass 0.9 m
     // up, framed with a plank more than the plain wall.
-    (id: "wood_wall_window", name: "Wood Wall with Window", category: "wall", materials: [("wood_plank_0", 7), ("glass_pane_0", 1)], build_time: 5.0, size: (4.0, 3.0, 0.2), snap_to: ["foundation"], mount: OnTop, health: 140.0, provides: Some("shelter"), window: Some((width: 1.0, height: 1.0, sill: 0.9))),
-    (id: "roof", name: "Wood Roof", category: "roof", materials: [("wood_plank_0", 10)], build_time: 6.0, size: (4.0, 0.2, 4.0), snap_to: ["wall"], mount: OnTop, health: 180.0, provides: Some("shelter")),
+    (id: "wood_wall_window", name: "Wood Wall with Window", category: "wall", materials: [("wood_plank_0", 7), ("glass_pane_0", 1)], build_time: 5.0, size: (4.0, 3.0, 0.2), snap_to: ["foundation"], mount: OnTop, health: 140.0, provides: Some("shelter"), window: Some((width: 1.0, height: 1.0, sill: 0.9)), shared: true),
+    (id: "roof", name: "Wood Roof", category: "roof", materials: [("wood_plank_0", 10)], build_time: 6.0, size: (4.0, 0.2, 4.0), snap_to: ["wall"], mount: OnTop, health: 180.0, provides: Some("shelter"), shared: true),
     (id: "crafting_table", name: "Crafting Table", category: "furniture", materials: [("wood_plank_0", 6)], build_time: 4.0, size: (1.0, 1.0, 1.0), snap_to: ["foundation"], mount: OnTop, health: 100.0, provides: Some("crafting_station"), stations: ["workbench"]),
     (id: "furnace", name: "Furnace", category: "machine", materials: [("stone_brick_0", 15), ("iron_ingot_0", 3)], build_time: 12.0, size: (1.0, 1.5, 1.0), snap_to: ["foundation"], mount: OnTop, health: 300.0, provides: Some("smelting"), stations: ["smelter", "kiln"]),
     // Stations you craft at the workbench, then set down here (2026-09-26): each

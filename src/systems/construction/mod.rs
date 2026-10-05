@@ -11,6 +11,10 @@ pub mod site;
 pub mod uses;
 pub mod doorway;
 pub mod fires;
+/// Shared building (ship homes increment 5, 2026-10-05): the pieces a server keeps for everyone
+/// in its shared world, the messages about them, and the one set of rules the relay and the game
+/// both check a build against. See `shared.rs`.
+pub mod shared;
 
 pub use site::PlanetSite;
 
@@ -87,6 +91,15 @@ pub struct Blueprint {
     /// [`fires`].
     #[serde(default)]
     pub burns: Option<fires::Burn>,
+    /// Kept by the server when built in a shared world (ship homes increment 5, 2026-10-05,
+    /// `shared.rs`): the piece goes to the relay, which keeps it and shows it to everyone near,
+    /// instead of into the builder's own save. Only a piece whose pose is its whole state may say
+    /// so: a foundation, a wall, a window wall, a roof. A door (open or shut), a chest (its
+    /// contents), a station or a generator (power), a bed (rest) or a fire (its fuel) carries
+    /// state the server does not keep, and the data test in `shared.rs` fails if one is marked.
+    /// False, the default: it stays in the builder's own home, as every build did before.
+    #[serde(default)]
+    pub shared: bool,
 }
 
 /// Why a piece built only outdoors cannot go where it was asked
@@ -264,17 +277,34 @@ pub struct BuildRequest {
     /// The build site on a planet the pose is in, or None for the home frame
     /// (aboard). See `site`.
     pub site: Option<PlanetSite>,
+    /// The shared world's frame this piece is to be kept in (ship homes increment 5,
+    /// 2026-10-05, `shared.rs`): `"plot:p3"` or `"zone:commons"` (`ship::build_frames`), or
+    /// None for a private build in the builder's own home, as every build was before. Set by
+    /// the placing code's gate while the player is in a shared world. The pose stays in ship
+    /// metres (the home frame's) either way; this only says where the piece will be kept. With
+    /// it set, the ConstructionSystem checks the spot and takes the materials as for any build,
+    /// then hands the build to the engine as a `shared::SharedBuildIntent` in
+    /// `shared::OUT_CHANNEL` instead of putting up a scaffold; the scaffold comes when the relay
+    /// says the piece is built.
+    pub shared_frame: Option<String>,
 }
 
 impl BuildRequest {
-    /// A request for a piece at `pose` in the home frame.
+    /// A request for a piece at `pose` in the home frame, private.
     pub fn new(blueprint_id: impl Into<String>, pose: Transform) -> Self {
-        Self { blueprint_id: blueprint_id.into(), pose, site: None }
+        Self { blueprint_id: blueprint_id.into(), pose, site: None, shared_frame: None }
     }
 
     /// The same request in a planet build site's frame.
     pub fn on(mut self, site: Option<PlanetSite>) -> Self {
         self.site = site;
+        self
+    }
+
+    /// The same request, to be kept in the shared world's `frame` (`"plot:p3"`), or private
+    /// (None). See `shared_frame`.
+    pub fn shared(mut self, frame: Option<String>) -> Self {
+        self.shared_frame = frame;
         self
     }
 }

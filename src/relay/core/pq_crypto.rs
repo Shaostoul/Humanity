@@ -290,6 +290,142 @@ pub fn verify_friend_cert(issuer_hex: &str, grantee_hex: &str, cert_b64: &str) -
     .is_ok()
 }
 
+// ── Household permits (ship homes increment 5, 2026-10-05) ─────────────────
+// In a server's shared world a player builds only on their own plot. A HOUSEHOLD PERMIT lets
+// someone else build there too: the plot's holder signs
+//
+//   permit = Dilithium_holder("hum/permit/v1\n{plot}\n{grantee}\n{expiry}")
+//
+// where `plot` is the plot's id in the ship file ("p3"), `grantee` is the id the relay holds
+// plots under for the person let in (`relay::storage::plots::plot_owner_id`: their `did:hum:`),
+// and `expiry` is when it runs out, Unix seconds. The grantee keeps it and sends it with each
+// build or take-down they make on that plot (systems/construction/shared.rs `Permit`). The
+// relay checks it STATELESSLY, the friendship certificate's pattern, and stores nothing.
+//
+// What the relay checks, split between this function and its caller (the build handler):
+// - here: the signature is the issuer's over words the RELAY rebuilds from what it knows (the
+//   frame's plot, the sender's own id), never over the plot and grantee the permit claims, so a
+//   permit for p1 used on p2, or one given to someone else, fails as a bad signature; and the
+//   end date: not passed, and not more than PLOT_PERMIT_MAX_DAYS ahead;
+// - the caller: the issuer (`plot_owner_id` of the key in the permit) is who holds that plot on
+//   this ship NOW, so a permit stops working when the plot changes hands.
+//
+// NO ENDLESS PERMITS (the operator, 2026-10-05). The relay keeps no list of permits, so none can
+// be withdrawn before it runs out; every permit therefore has an end date at most 90 days ahead,
+// and is renewed by signing a new one. An expiry of 0, which the first design used for "a
+// household member, no end", is simply long past. MINT AND CHECK LIVE TOGETHER, as the
+// friendship certificate's do: the minting refuses what the check would refuse.
+//
+// Known limit (v1, 2026-10-05): the signed words name no server. Someone who holds the same plot
+// id on two servers (likely: plots are handed out in the ship file's order, so many people hold
+// p1 somewhere) lets the grantee in on both. Naming the server (its `did:hum:`, which
+// /api/server-info gives) in the signed words would close it; to be settled before the household
+// page (increment 5b) mints real permits, while nothing has been signed in this format yet.
+
+/// Household-permit signature domain: the first line of what is signed.
+pub const PLOT_PERMIT_DOMAIN: &str = "hum/permit/v1";
+
+/// The longest a household permit may run, days (the operator, 2026-10-05). The sentence a player
+/// reads names it too (`systems::construction::shared::PERMIT_MAX_DAYS`, pinned to this by a
+/// test).
+pub const PLOT_PERMIT_MAX_DAYS: u64 = 90;
+
+/// [`PLOT_PERMIT_MAX_DAYS`] in seconds.
+pub const PLOT_PERMIT_MAX_SECS: u64 = PLOT_PERMIT_MAX_DAYS * 86_400;
+
+/// How much longer than [`PLOT_PERMIT_MAX_SECS`] the CHECK allows, seconds: the issuer mints on
+/// their own clock and the relay checks on its own, so a 90-day permit minted on a clock that
+/// runs ahead of the relay's would otherwise be refused as too long. A day covers a clock set to
+/// the wrong time zone as well as ordinary drift. The minting allows none.
+pub const PLOT_PERMIT_CLOCK_SLACK_SECS: u64 = 86_400;
+
+/// The longest a permit's plot id or grantee id may be, bytes (a `did:hum:` is about 30).
+pub const PLOT_PERMIT_FIELD_MAX_LEN: usize = 128;
+
+/// What a household permit's issuer signs.
+pub fn plot_permit_preimage(plot: &str, grantee: &str, expiry: u64) -> String {
+    format!("{PLOT_PERMIT_DOMAIN}\n{plot}\n{grantee}\n{expiry}")
+}
+
+/// Why a household permit was not minted, or does not let its holder in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlotPermitError {
+    /// A plot or grantee id that is empty, longer than [`PLOT_PERMIT_FIELD_MAX_LEN`], or holds a
+    /// line break (which would let two different permits sign the same words).
+    Malformed,
+    /// It has run out: the clock has reached its `expiry`.
+    Expired,
+    /// It runs out more than [`PLOT_PERMIT_MAX_DAYS`] days ahead.
+    TooLong,
+    /// The issuer's key or the signature is not well formed, or the signature is not the
+    /// issuer's over these words.
+    BadSignature,
+}
+
+/// A plot or grantee id fit to sign: not empty, not too long, no line break.
+fn plot_permit_field_ok(s: &str) -> bool {
+    !s.is_empty() && s.len() <= PLOT_PERMIT_FIELD_MAX_LEN && !s.contains(|c: char| c == '\n' || c == '\r')
+}
+
+/// Does a permit ending at `expiry` keep the rules at `now`: not run out, and not more than the
+/// ceiling (plus `slack`) ahead?
+fn plot_permit_window(expiry: u64, now: u64, slack: u64) -> std::result::Result<(), PlotPermitError> {
+    if expiry <= now {
+        return Err(PlotPermitError::Expired);
+    }
+    if expiry - now > PLOT_PERMIT_MAX_SECS + slack {
+        return Err(PlotPermitError::TooLong);
+    }
+    Ok(())
+}
+
+/// Mint MY household permit for `grantee` on my plot `plot`, running out at `expiry` (Unix
+/// seconds): a base64 Dilithium3 signature over [`plot_permit_preimage`], made with the Dilithium
+/// key derived from my BIP39 `seed`, as [`build_friend_cert`] makes a friendship note. `now` is
+/// my clock. Refused, minting nothing, when [`verify_plot_permit`] would refuse it: a malformed
+/// id, an end date already past, or one more than [`PLOT_PERMIT_MAX_DAYS`] days ahead.
+pub fn build_plot_permit(
+    seed: &[u8],
+    plot: &str,
+    grantee: &str,
+    expiry: u64,
+    now: u64,
+) -> std::result::Result<String, PlotPermitError> {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
+    if !plot_permit_field_ok(plot) || !plot_permit_field_ok(grantee) {
+        return Err(PlotPermitError::Malformed);
+    }
+    plot_permit_window(expiry, now, 0)?;
+    let kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(seed));
+    Ok(B64.encode(kp.sign(plot_permit_preimage(plot, grantee, expiry).as_bytes())))
+}
+
+/// Does `sig_b64` let `grantee` build on `plot` until `expiry`, signed by `issuer_hex` (a
+/// Dilithium3 public key, hex)? Stateless. `plot` and `grantee` must be the RELAY's own facts
+/// (the frame's plot, the sender's `plot_owner_id`), not what the permit claims. `now` is the
+/// relay's clock, Unix seconds. Checked cheapest first, so a stale or absurd permit costs no
+/// signature check: the ids, the end date (not passed, not more than [`PLOT_PERMIT_MAX_DAYS`]
+/// days plus [`PLOT_PERMIT_CLOCK_SLACK_SECS`] ahead), then the signature. Whether the issuer
+/// holds the plot is the caller's question (see the note above).
+pub fn verify_plot_permit(
+    issuer_hex: &str,
+    plot: &str,
+    grantee: &str,
+    expiry: u64,
+    sig_b64: &str,
+    now: u64,
+) -> std::result::Result<(), PlotPermitError> {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
+    if !plot_permit_field_ok(plot) || !plot_permit_field_ok(grantee) {
+        return Err(PlotPermitError::Malformed);
+    }
+    plot_permit_window(expiry, now, PLOT_PERMIT_CLOCK_SLACK_SECS)?;
+    let Ok(issuer_pk) = hex_decode_str(issuer_hex) else { return Err(PlotPermitError::BadSignature) };
+    let Ok(sig) = B64.decode(sig_b64.trim()) else { return Err(PlotPermitError::BadSignature) };
+    verify_dilithium(&issuer_pk, plot_permit_preimage(plot, grantee, expiry).as_bytes(), &sig)
+        .map_err(|_| PlotPermitError::BadSignature)
+}
+
 /// Local hex decode (the `hex` crate is native-gated in some builds; the
 /// relay feature carries it too, but a dependency-free decode keeps this
 /// function unconditionally available).
@@ -557,5 +693,76 @@ mod tests {
         assert!(!verify_friend_cert(&issuer_hex, "deadbeef", &cert));
         assert!(!verify_friend_cert("deadbeef", &grantee_hex, &cert));
         assert!(!verify_friend_cert(&issuer_hex, &grantee_hex, "bm90LWEtc2ln"));
+    }
+
+    /// HOUSEHOLD PERMIT ROUND TRIP + A PINNED PREIMAGE (ship homes increment 5). The signed words
+    /// are frozen here, because the game that mints a permit and the relay that checks it must
+    /// build them byte for byte alike. A permit minted by the SHIPPED builder verifies, to its
+    /// last second; each signed field matters (another plot, grantee, end date or signer is a
+    /// bad signature, as are words that are not a signature and a key that is not a key); it
+    /// runs out at its expiry; and ids that could frame two permits alike are refused by the
+    /// minting and the check both, as is minting one already run out.
+    /// Seen red 2026-10-05 with the plot and grantee swapped in `plot_permit_preimage`: left
+    /// `"hum/permit/v1\ndid:hum:abc\np3\n0"`, right `"hum/permit/v1\np3\ndid:hum:abc\n0"`.
+    #[test]
+    fn plot_permit_roundtrip_and_pinned_preimage() {
+        assert_eq!(plot_permit_preimage("p3", "did:hum:abc", 0), "hum/permit/v1\np3\ndid:hum:abc\n0");
+        let issuer_master = [0x11u8; 32];
+        let issuer_hex = hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&issuer_master)).public_key());
+        let grantee = crate::relay::core::did::did_for_pubkey(
+            &DilithiumKeypair::from_seed(&derive_dilithium_seed(&[0x22u8; 32])).public_key(),
+        );
+        let other_hex = hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&[0x33u8; 32])).public_key());
+        let now = 1_760_000_000u64;
+        let expiry = now + 30 * 86_400;
+        let sig = build_plot_permit(&issuer_master, "p3", &grantee, expiry, now).expect("a 30-day permit is minted");
+        assert_eq!(verify_plot_permit(&issuer_hex, "p3", &grantee, expiry, &sig, now), Ok(()));
+        assert_eq!(verify_plot_permit(&issuer_hex, "p3", &grantee, expiry, &sig, expiry - 1), Ok(()), "good to its last second");
+        let bad = Err(PlotPermitError::BadSignature);
+        assert_eq!(verify_plot_permit(&issuer_hex, "p4", &grantee, expiry, &sig, now), bad, "another plot");
+        assert_eq!(verify_plot_permit(&issuer_hex, "p3", "did:hum:someoneelse", expiry, &sig, now), bad, "another grantee");
+        assert_eq!(verify_plot_permit(&issuer_hex, "p3", &grantee, expiry + 1, &sig, now), bad, "another end date");
+        assert_eq!(verify_plot_permit(&other_hex, "p3", &grantee, expiry, &sig, now), bad, "another signer");
+        assert_eq!(verify_plot_permit(&issuer_hex, "p3", &grantee, expiry, "bm90LWEtc2ln", now), bad, "not a signature");
+        assert_eq!(verify_plot_permit("zz", "p3", &grantee, expiry, &sig, now), bad, "not a key");
+        assert_eq!(verify_plot_permit(&issuer_hex, "p3", &grantee, expiry, &sig, expiry), Err(PlotPermitError::Expired));
+        let malformed = Some(PlotPermitError::Malformed);
+        assert_eq!(build_plot_permit(&issuer_master, "p3\ndid:hum:x", "y", expiry, now).err(), malformed, "a line break in an id");
+        assert_eq!(verify_plot_permit(&issuer_hex, "p3", "", expiry, &sig, now).err(), malformed, "an empty grantee");
+        assert_eq!(verify_plot_permit(&issuer_hex, &"p".repeat(129), &grantee, expiry, &sig, now).err(), malformed, "an id over the cap");
+        assert_eq!(build_plot_permit(&issuer_master, "p3", &grantee, now, now).err(), Some(PlotPermitError::Expired), "never minted run out");
+    }
+
+    /// NO PERMIT RUNS MORE THAN 90 DAYS (the operator, 2026-10-05: every household permit has an
+    /// end date, renewable; the relay keeps no list, so an endless permit could never be taken
+    /// back). Permits signed by hand, as a modified game could make them, so the check is shown
+    /// not to lean on the builder's: 90 days verifies, and so does 90 days minted on a clock an
+    /// hour ahead of the relay's; 92 days, a year and "endless" are refused as too long; the old
+    /// "no end" zero is long past. The builder never mints one over the ceiling. The words a
+    /// player reads name the ceiling the check enforces.
+    /// Seen red 2026-10-05 with the ceiling's line removed from `plot_permit_window`: "92 days",
+    /// left `Ok(())`, right `Err(TooLong)`.
+    #[test]
+    fn a_permit_longer_than_90_days_is_refused() {
+        use base64::{engine::general_purpose::STANDARD as B64, Engine};
+        assert_eq!(crate::systems::construction::shared::PERMIT_MAX_DAYS, PLOT_PERMIT_MAX_DAYS, "the words name the ceiling enforced");
+        let issuer_master = [0x11u8; 32];
+        let issuer = DilithiumKeypair::from_seed(&derive_dilithium_seed(&issuer_master));
+        let issuer_hex = hex::encode(issuer.public_key());
+        let grantee = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
+        let (now, day) = (1_760_000_000u64, 86_400u64);
+        let check = |expiry: u64| {
+            let sig = B64.encode(issuer.sign(plot_permit_preimage("p3", grantee, expiry).as_bytes()));
+            verify_plot_permit(&issuer_hex, "p3", grantee, expiry, &sig, now)
+        };
+        assert_eq!(check(now + 90 * day), Ok(()), "90 days, the most a permit may run");
+        assert_eq!(check(now + 90 * day + 3600), Ok(()), "minted on a clock an hour ahead of the relay's");
+        let too_long = Err(PlotPermitError::TooLong);
+        assert_eq!(check(now + 92 * day), too_long, "92 days");
+        assert_eq!(check(now + 365 * day), too_long, "a year");
+        assert_eq!(check(u64::MAX), too_long, "endless");
+        assert_eq!(check(0), Err(PlotPermitError::Expired), "the old no-end zero is long past");
+        assert_eq!(build_plot_permit(&issuer_master, "p3", grantee, now + 90 * day + 1, now).err(), Some(PlotPermitError::TooLong), "never minted over it");
+        assert!(build_plot_permit(&issuer_master, "p3", grantee, now + 90 * day, now).is_ok());
     }
 }
