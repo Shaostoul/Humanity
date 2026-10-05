@@ -409,6 +409,8 @@ pub(crate) fn load_world(state: &mut EngineState) {
                     stats: home.stats_for(&inst.machine),
                     room: inst.room.clone(),
                     machine_id: inst.id.clone(),
+                    // What E does at it (the home's bed sleeps you, first-hour audit F5).
+                    on_use: crate::engine::built_uses::machine_use(def),
                 });
                 // Spawn the machine's electrical + water roles as a LIVE ECS entity so the
                 // SolarSystem + ElectricalSystem + PlumbingSystem tick against the real home

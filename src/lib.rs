@@ -2740,6 +2740,8 @@ mod native_app {
                                         }
                                     }
                                 }
+                            } else if crate::engine::built_uses::use_machine(state) {
+                                // The home's bed (its def `provides: "rest"`): E sleeps, as at a built bed.
                             } else if let Some(t) = state.gui_state.targeted_machine {
                                 // Looking at a machine: toggle its card open/closed.
                                 state.gui_state.selected_machine =

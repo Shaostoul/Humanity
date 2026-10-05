@@ -1559,6 +1559,21 @@ pub struct MachineLabel {
     /// entity so the per-frame refresh can patch LIVE stats (cistern fill,
     /// battery charge) over the static RON placeholders. (v0.724)
     pub machine_id: String,
+    /// What E does at it instead of opening its card, from its def's `provides`
+    /// (`engine::built_uses::machine_use`): the home's bed sleeps you. None: the card.
+    pub on_use: Option<crate::systems::construction::uses::StructureUse>,
+}
+
+#[cfg(feature = "native")]
+impl MachineLabel {
+    /// The crosshair prompt here: a machine that is used says what E does, as a built
+    /// piece does ("[E] sleep in the Bed"); any other opens or closes its card.
+    pub fn prompt(&self, card_open: bool) -> String {
+        match self.on_use {
+            Some(u) => u.prompt(&self.name),
+            None => format!("[E] {} {}", if card_open { "close" } else { "open" }, self.name),
+        }
+    }
 }
 
 // NOTE (v0.725): the pinned machine card's auto-recipe selector state lives on

@@ -214,6 +214,14 @@ pub struct MachineDef {
     /// card can show live contents + fill. None = not a material container.
     #[serde(default)]
     pub container_type: Option<String>,
+    /// What this machine serves when the player presses E at it, by the names a built
+    /// piece's blueprint uses (`construction::uses::StructureUse::from_provides`; first-hour
+    /// audit F5, 2026-10-04): `Some("rest")` is somewhere to sleep, so the bedroom's bed
+    /// sleeps you exactly as a bed you built does, where E only opened its card. Only `rest`
+    /// acts at a machine (a machine's storage is used through its card). None: E opens the
+    /// card. See `engine::built_uses::machine_use`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provides: Option<String>,
     /// GLB model path (v0.734, docs/game/model-pipeline.md): rendered instead
     /// of the primitive shape when set. Resolved against the DATA dir first
     /// ("models/x.glb"), then the dev repo root ("assets/models/x.glb").
@@ -2655,6 +2663,7 @@ mod tests {
             scrubs_co2_kg_day: 0.0,
             level_gauge: false,
             container_type: None,
+            provides: None,
             model: None,
             screen: None,
             camera: None,

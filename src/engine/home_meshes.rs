@@ -709,12 +709,18 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
                 .unwrap_or_else(|| state.renderer.add_material_typed(color, 0.1, 0.7, 0.0));
             objs.push((mi, ma, pos, p.rotation));
         }
+        // What E does at it (the home's bed sleeps you, first-hour audit F5).
+        let on_use = type_by_id
+            .get(&p.id)
+            .and_then(|ty| state.gui_state.home_machines.as_ref().and_then(|h| h.catalog.get(ty)))
+            .and_then(crate::engine::built_uses::machine_use);
         state.gui_state.machine_labels.push(crate::gui::MachineLabel {
             pos: Vec3::new(p.pos.0, p.top_y + 0.4, p.pos.2),
             name: p.label.clone(),
             stats: p.stats.clone(),
             room: p.room.clone(),
             machine_id: p.id.clone(),
+            on_use,
         });
         // Pick volume for viewport selection: a sphere covering the machine body. Center at its
         // mid-height; radius the larger of half-height / half-width plus a click margin.

@@ -17,7 +17,9 @@
 //! clock is never jumped), which is why this is not one.
 //!
 //! Who asks: a built structure whose blueprint `provides: "rest"` (a bed),
-//! through `construction::uses` and the E press in `engine::built_uses`.
+//! through `construction::uses` and the E press in `engine::built_uses`, and,
+//! the same way, a home machine whose def `provides: Some("rest")` (the
+//! bedroom's bed, 2026-10-04, `built_uses::use_machine`).
 //! The FoodSystem, which owns the vitals, runs `tick` every frame.
 
 use crate::ecs::components::{Controllable, Dead, StatusEffects, Vitals};
