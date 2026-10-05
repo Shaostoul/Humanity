@@ -859,6 +859,20 @@
                 (utility: Electricity, dir: In, label: "bed heaters + blower", watts: 860.0),
             ],
         ),
+        "heater": (
+            shape: "box", size: (0.178, 0.234, 0.152), color: (0.78, 0.79, 0.8),
+            label: "Space heater",
+            category: "Life support",
+            // The same electric space heater as home.ron's `heater` (2026-10-05, BUG-155), whose
+            // comment quotes its sources: the Lasko 754200's 1,500 W ceramic element, all of it
+            // heat, cycled by its thermostat, set to 24 C (a GAME CHOICE, 75 F, the middle of
+            // UGA Bulletin 792's 70 to 80 F days). Not placed in the seed design: one heater
+            // flat out is 36 kWh a day, nine times what this home makes.
+            heats_w: 1500.0,
+            heat_setpoint_c: 24.0,
+            stats: [(kind: "power", value: "1,500 W while it heats, none once its air is at 24 C", status: "warn"), (kind: "air", value: "warms the air of the room it stands in, up to 24 C", status: "ok")],
+            power: Some(Consumer(watts: 1500.0, priority: 4)),
+        ),
         "composter": (
             shape: "box", size: (0.7, 0.55, 0.7), color: (0.35, 0.25, 0.14),
             label: "Composter",

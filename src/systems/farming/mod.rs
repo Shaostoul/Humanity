@@ -15,6 +15,9 @@ pub mod automation;
 pub mod units;
 pub mod picking;
 pub mod humidity;
+pub mod heat;
+#[cfg(test)]
+mod heat_tests;
 #[cfg(test)]
 mod humidity_tests;
 #[cfg(test)]
@@ -2026,8 +2029,10 @@ impl System for FarmingSystem {
                 let need_n = need_for(&c.crop_def_id, unit_plants(c)).n;
                 let cond = pests::CropConditions {
                     outdoors,
-                    // Warmer under a row cover (pests::cover_warming, 2026-09-27).
-                    temp_c: (if outdoors { f64::from(weather_temp) } else { pest_data.indoor_temp_c })
+                    // Warmer under a row cover (pests::cover_warming, 2026-09-27),
+                    // and indoors in air a heater has warmed (2026-10-05, BUG-155,
+                    // farming::heat): the rooms' own temperature plus that warmth.
+                    temp_c: (if outdoors { f64::from(weather_temp) } else { pest_data.indoor_temp_c + air_map.warmed_k_for(area, &room_air) })
                         + pests::cover_warming(pest_data, area_pests.get(area), outdoors && sun_up, pest_severity),
                     water_stressed: c.water_level < WATER_STRESS_THRESHOLD,
                     excess_n: s.map_or(false, |s| need_n > 0.0 && s.store.n > pest_data.excess_n_seasons * need_n),
@@ -2541,6 +2546,18 @@ impl System for FarmingSystem {
                 sp.atmosphere.humidity = rh as f32;
                 sp.atmosphere.composition.insert("O2".to_string(), o2 as f32);
                 sp.atmosphere.composition.insert("CO2".to_string(), co2 as f32);
+            }
+        }
+        // Its temperature too (2026-10-05, BUG-155, farming::heat): its own,
+        // recorded the first time the space is seen, plus what its heaters and
+        // the grow rooms around them have warmed it by. The body heat model
+        // reads it inside the home, and the Air readout shows it.
+        if air_map.home_known {
+            for (_, (h, sp)) in world.query_mut::<(&mut crate::systems::atmosphere::HomeAir, &mut crate::systems::atmosphere::EnclosedSpace)>() {
+                if !(h.own_temp_k > 0.0) {
+                    h.own_temp_k = sp.atmosphere.temperature_k;
+                }
+                sp.atmosphere.temperature_k = (f64::from(h.own_temp_k) + home_air.warmed_k.max(0.0)) as f32;
             }
         }
         // The banked organic N, the pests and the air go back where they live.
