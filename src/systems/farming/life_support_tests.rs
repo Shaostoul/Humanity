@@ -846,7 +846,11 @@ mod shipped {
         for inst in &all {
             crate::engine::home_spawn::spawn_home_machine_entity(&mut world, inst, &home.catalog[&inst.machine], &power, &water, None, None);
         }
-        crate::engine::home_spawn::spawn_home_air_space(&mut world, crate::engine::home_spawn::home_metabolic_kcal(&home));
+        // As big as the shipped home (ship homes increment 4: each home its own air), the shipped
+        // design and not this checkout's own home, which a Save can change.
+        let shipped = crate::ship::ship_structure::HomeDesign::built_in("homestead").expect("the shipped homestead");
+        let home_m3 = crate::ship::ship_space::home_air_volume_m3(&shipped.body);
+        crate::engine::home_spawn::spawn_home_air_space(&mut world, crate::engine::home_spawn::home_metabolic_kcal(&home), home_m3);
         for (area, plant, slot) in sow {
             world.spawn((crop(&data, &plant, &area, slot, 0.0),));
         }

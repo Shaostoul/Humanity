@@ -82,6 +82,14 @@ pub(crate) fn editor_restore(state: &mut EngineState, snap: EditorSnapshot) {
     rebuild_machine_objects(state);
 }
 
+/// Whether this frame's dirty flags arm the 60 s autosave (`autosave_ship_structure`): an edit
+/// does; the rebuild the editor asks for as it opens (`toggle_build_editor`, so its pick volumes
+/// are rebuilt in its own space) does not. `edited`: a structure or machine dirty flag was set
+/// this frame; `entry_rebuild`: the editor asked for that rebuild as it opened.
+pub(crate) fn arms_autosave(edited: bool, entry_rebuild: bool) -> bool {
+    edited && !entry_rebuild
+}
+
 /// Per-frame undo-history tick (v0.575). Call BEFORE the dirty-flag rebuild blocks consume them.
 /// `edited` = a dirty flag was set this frame. Resets history on editor-open; coalesces a continuous
 /// drag -- a gizmo OR a slider -- into ONE undo step by checkpointing only while the left mouse
@@ -161,6 +169,7 @@ pub(crate) fn construction_duplicate(state: &mut EngineState) {
                 np.pos.0 += 1.0;
                 np.pos.2 += 1.0;
                 np.pair = None; // a copy starts unpaired
+                np.id = hs.next_structure_id(&np.type_id); // and is a piece of its own (increment 4)
                 hs.structures.push(np);
                 new_idx = Some(hs.structures.len() - 1);
             }
@@ -601,6 +610,7 @@ pub(crate) fn try_place_structure(state: &mut EngineState) {
     let place_y = floor_y + state.gui_state.construction_structure_place_y.max(0.0);
     if let Some(hs) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone) {
         hs.structures.push(crate::ship::home_structure::PlacedStructure {
+            id: hs.next_structure_id(&tid),
             type_id: tid,
             pos: (hx - zo.x, place_y - zo.y, hz - zo.z),
             rot_deg: state.gui_state.construction_structure_yaw,
@@ -1901,6 +1911,8 @@ pub(crate) fn toggle_build_editor(state: &mut EngineState) {
         // repro. `construction_structure_dirty` routes through the exact same
         // rebuild_homestead -> rebuild_machine_objects path that workaround hit. (v0.624)
         state.gui_state.construction_structure_dirty = true;
+        // That rebuild is not an edit, and must not arm the autosave (`arms_autosave`).
+        state.construction_entry_rebuild = true;
         // The rooms.ron registry for the ZONE detail panel (console-room
         // increment): a zone's room_type picker lists these keys and the
         // panel shows the purpose + actions the pick resolves to. Loaded here,
@@ -1963,5 +1975,29 @@ pub(crate) fn toggle_build_editor(state: &mut EngineState) {
             state.gui_state.construction_add_type =
                 state.gui_state.construction_room_types.first().cloned().unwrap_or_default();
         }
+    }
+}
+
+#[cfg(test)]
+mod autosave_tests {
+    use super::arms_autosave;
+
+    /// OPENING AND SHUTTING THE BUILD EDITOR WITH NO EDIT WRITES NOTHING. The editor asks for a
+    /// structure rebuild as it opens (its pick volumes), and the dirty-flag choke point took that
+    /// for an edit: 60 s later the autosave rewrote the home, the ship and the machine files
+    /// (dropping their comments), though nothing was changed. Found 2026-10-04 by the co-presence
+    /// rig (the increment 4 review's editor leg made a run outlast the 60 s), whose game's data
+    /// folder is the tree's: run 20261005-023055-plots-walker-first, run-first.log "Autosave: Saved
+    /// your home and the ship." a minute after "build_editor open" and "shut" with no edit between,
+    /// and data/machines/home.ron, ship.ron and the two homes rewritten in the checkout.
+    ///
+    /// Seen red 2026-10-04 on the code before the fix (any dirty flag armed it): "the editor's own
+    /// rebuild as it opens armed the autosave".
+    #[test]
+    fn opening_the_editor_is_not_an_edit() {
+        assert!(!arms_autosave(true, true), "the editor's own rebuild as it opens armed the autosave");
+        assert!(arms_autosave(true, false), "an edit arms it");
+        assert!(!arms_autosave(false, false));
+        assert!(!arms_autosave(false, true));
     }
 }

@@ -263,18 +263,22 @@ impl QuestSystem {
         }
     }
 
-    /// Check if a single objective is met given the player's inventory and progress map.
+    /// Check if a single objective is met given the player's inventory, what
+    /// the home holds (`at_home`, by item id) and the progress map.
     fn check_objective(
         objective: &QuestObjective,
         inventory: Option<&Inventory>,
+        at_home: &dyn Fn(&str) -> u32,
         progress: &HashMap<String, u32>,
     ) -> bool {
         match objective {
             QuestObjective::Gather { item_id, quantity } => {
-                // Check inventory for required items
-                inventory
-                    .map(|inv| inv.count_item(item_id) >= *quantity)
-                    .unwrap_or(false)
+                // Acquired = carried, or kept at home (2026-10-04, with
+                // BUG-150): the drone unloads its haul into home storage and
+                // the automated machines file their goods there, so ore the
+                // drone brought home counts whether or not it was carried.
+                let carried = inventory.map_or(0, |inv| inv.count_item(item_id));
+                carried + at_home(item_id) >= *quantity
             }
             QuestObjective::Craft { recipe_id, quantity } => {
                 // Track via progress counter (crafting system increments this)
@@ -349,6 +353,25 @@ impl System for QuestSystem {
             .and_then(|m| m.lock().ok().map(|mut e| e.drain(..).collect()))
             .unwrap_or_default();
 
+        // What the home holds, for Gather steps: home storage as mirrored for
+        // this tick ("home_stock", engine::stock_piles::publish_home_stock),
+        // after what the systems ahead of this one took from it, plus what
+        // landed in it this tick and is not put away yet ("home_stock_outputs":
+        // a drone haul, a machine's batch; the main loop files it after the
+        // tick). Read per item, only when a Gather step asks. None of it
+        // without home storage (tests, headless).
+        let at_home = |id: &str| -> u32 {
+            let stored = data
+                .get::<std::sync::Mutex<HashMap<String, u32>>>("home_stock")
+                .and_then(|m| m.lock().ok().map(|s| s.get(id).copied().unwrap_or(0)))
+                .unwrap_or(0);
+            let landed: u32 = data
+                .get::<std::sync::Mutex<Vec<(String, u32)>>>("home_stock_outputs")
+                .and_then(|m| m.lock().ok().map(|v| v.iter().filter(|(i, _)| i == id).map(|(_, q)| q).sum::<u32>()))
+                .unwrap_or(0);
+            stored + landed
+        };
+
         // Collect entities with QuestTracker to process. Completed tuples carry
         // (quest_id, item rewards, xp rewards).
         #[allow(clippy::type_complexity)]
@@ -396,7 +419,7 @@ impl System for QuestSystem {
                 }
 
                 let step = &quest_def.steps[active.current_step];
-                if Self::check_objective(&step.objective, inventory, &active.progress) {
+                if Self::check_objective(&step.objective, inventory, &at_home, &active.progress) {
                     let next_step = active.current_step + 1;
                     if next_step >= quest_def.steps.len() {
                         // Final step completed
@@ -743,6 +766,49 @@ mod quest_tests {
             world.get::<&Inventory>(player).unwrap().count_item("iron_ingot_0"),
             2,
             "completion granted the reward"
+        );
+    }
+
+    /// WHAT THE HOME HOLDS IS ACQUIRED (2026-10-04, with BUG-150). The drone
+    /// now unloads its haul into home storage, the store the home's machines
+    /// are fed from, not into the backpack, so the first quest's "Acquire 3
+    /// iron ore (mine it with a drone, or stock it)" counts what the home
+    /// holds as well as what is carried: home storage as mirrored for the
+    /// tick, and what landed in it this tick and is not put away yet (the
+    /// drone files its haul during the tick; the main loop puts it away
+    /// after). 1 carried + 1 stored is 2, short; the haul's 1 makes 3.
+    ///
+    /// Seen red before the fix: "1 carried + 1 stored + 1 just landed is 3:
+    /// complete" (the Gather step counted the backpack's 1 alone).
+    #[test]
+    fn gather_counts_what_the_home_holds_as_well_as_the_backpack() {
+        use std::sync::Mutex;
+        let mut reg = QuestRegistry::default();
+        reg.quests.insert(
+            "q_gather".into(),
+            quest("q_gather", QuestObjective::Gather { item_id: "iron_ore_0".into(), quantity: 3 }, vec![], None),
+        );
+        let mut data = DataStore::new();
+        data.insert("quest_registry", reg);
+        data.insert("home_stock", Mutex::new(HashMap::from([("iron_ore_0".to_string(), 1u32)])));
+        data.insert("home_stock_outputs", Mutex::new(Vec::<(String, u32)>::new()));
+        let mut world = hecs::World::new();
+        let mut tracker = QuestTracker::default();
+        tracker.accept_quest("q_gather");
+        let mut inv = Inventory::new(16);
+        inv.add_item("iron_ore_0", 1, 99);
+        let player = world.spawn((tracker, inv));
+        let mut sys = QuestSystem::new();
+        sys.tick(&mut world, 0.0, &data);
+        assert!(
+            !world.get::<&QuestTracker>(player).unwrap().is_completed("q_gather"),
+            "1 carried + 1 stored is 2 < 3: incomplete"
+        );
+        data.get::<Mutex<Vec<(String, u32)>>>("home_stock_outputs").unwrap().lock().unwrap().push(("iron_ore_0".into(), 1));
+        sys.tick(&mut world, 0.0, &data);
+        assert!(
+            world.get::<&QuestTracker>(player).unwrap().is_completed("q_gather"),
+            "1 carried + 1 stored + 1 just landed is 3: complete"
         );
     }
 

@@ -111,15 +111,51 @@ pub(crate) fn join_denied_sentence(reason: &str) -> Option<&'static str> {
     }
 }
 
+/// The sentence for a server whose ship is not ours (reason "other_ship", or a welcome naming
+/// another ship). `theirs`: the server's ship hash; `built_in`: the hash of the ship built into
+/// this app; `ours_from`: the ship file this game read its own ship from (None: the copy built
+/// into the app). Pure.
+///
+/// The review of increment 4, P6: an installed game writes the ship file into its data folder on
+/// its first run and never refreshes it (src/storage.rs `extract_data_if_needed`), the updater
+/// swaps only the exe, and the ship is read from the data folder first. So after an update that
+/// changes the ship, the game names the OLD ship, and every server running the new one refused
+/// it with "update whichever of the app and the server is older", which cannot help: both are
+/// new. When the server runs the ship built into this app and ours came from the data folder,
+/// that file is the old one: the sentence says so and names it. Otherwise the usual sentence.
+pub(crate) fn other_ship_sentence(theirs: Option<&str>, built_in: Option<&str>, ours_from: Option<&std::path::Path>) -> String {
+    match (theirs, built_in, ours_from) {
+        (Some(t), Some(b), Some(file)) if t == b => format!(
+            "Not joining the shared world: this server runs the ship built into this app, but this game read an older ship file from its data folder ({}), which updating the app does not replace, so move that file aside (the app then uses its own) and reconnect.",
+            file.display()
+        ),
+        _ => SHIP_MISMATCH.to_string(),
+    }
+}
+
+/// `other_ship_sentence` for this game: the ship file it read from `data_dir` (when the data
+/// folder has one: `ShipStructure::load_ship_file` reads it first) and, only then and only now,
+/// the hash of the ship built into this app, to compare with the server's. That read goes
+/// through `built_in_ship_file`, so the log says the built-in copy was read and why (BUG-133:
+/// a rig refuses a run that logs it; no rig run is ever refused a ship).
+pub(crate) fn other_ship_sentence_here(data_dir: &std::path::Path, theirs: Option<&str>) -> String {
+    let file = data_dir.join(crate::ship::ship_structure::SHIP_FILE);
+    let ours_from = file.exists().then_some(file.as_path());
+    let built_in = ours_from
+        .and(theirs)
+        .and_then(|_| ShipStructure::built_in_ship_file("read only to compare with the ship of a server that refused ours; this game runs its data folder's copy").ok())
+        .map(|s| s.ship_hash());
+    other_ship_sentence(theirs, built_in.as_deref(), ours_from)
+}
+
 /// The sentence for a welcome that gives a plot with no id, which only a server of another
 /// version sends. Round 4 of the 1b review: it used to read as another ship.
 pub(crate) const WELCOME_WITHOUT_PLOT_ID: &str = "Not joining the shared world: this server's welcome gave a plot with no id, as a server of another version can, so update whichever of the app and the server is older and reconnect.";
 
 /// How far the game may stand from where the relay holds the player before a welcome stands
-/// them back there, metres, whatever else it says. The relay refuses any update more than
-/// 100 m from where it holds them, so a game standing farther away than that would be frozen
-/// for everyone else; 90 leaves a margin for one update's walk.
-pub(crate) const FAR_FROM_HELD_M: f32 = 90.0;
+/// them back there, metres, whatever else it says: one place for the game and the relay since
+/// increment 4 (src/ship/moves.rs), whose speed check grants a reconnect at most this.
+pub(crate) use crate::ship::moves::FAR_FROM_HELD_M;
 
 /// A plot box, (min, max) in ship metres.
 pub(crate) type PlotBox = (Vec3, Vec3);
@@ -161,6 +197,9 @@ pub(crate) struct WelcomeContext<'a> {
     pub arrived_on: Option<&'a str>,
     pub server: &'a str,
     pub camera: Vec3,
+    /// The game's data folder, for the sentence of a welcome naming another ship
+    /// (`other_ship_sentence_here`); None: the usual sentence.
+    pub data_dir: Option<&'a std::path::Path>,
 }
 
 /// The server the game is talking to, as the connection list keys it (normalized, the URL the
@@ -242,7 +281,7 @@ pub(crate) fn join_step(g: &JoinGate) -> JoinStep {
 impl<'a> WelcomeContext<'a> {
     /// Read from the running game.
     fn of(state: &'a EngineState, server: &'a str) -> Self {
-        WelcomeContext { arrived_on: state.home_arrived_on.as_deref(), server, camera: state.camera.position }
+        WelcomeContext { arrived_on: state.home_arrived_on.as_deref(), server, camera: state.camera.position, data_dir: Some(&state.data_dir) }
     }
 }
 
@@ -270,7 +309,8 @@ pub(crate) fn plan_welcome(ship: Option<&ShipStructure>, welcome: &serde_json::V
     let theirs = welcome.get("ship").and_then(|s| s.get("hash")).and_then(|h| h.as_str());
     let Some(ship) = ship else { return refuse(OWN_SHIP, false) };
     if theirs != Some(ship.ship_hash().as_str()) {
-        return refuse(SHIP_MISMATCH, false);
+        let sentence = ctx.data_dir.map_or_else(|| SHIP_MISMATCH.to_string(), |d| other_ship_sentence_here(d, theirs));
+        return refuse(&sentence, false);
     }
     // Where the relay holds us right now (our own entry in the snapshot), and whether to stand
     // there.
@@ -453,6 +493,8 @@ fn forget_shared_world_keeping_home(state: &mut EngineState) {
     state.game_joined = false;
     state.game_welcomed = false;
     state.gui_state.copresence_active = false;
+    // The speed check's books of that session (engine/move_check.rs, increment 4 review M2, M6).
+    state.moves.forget_session();
     crate::systems::time::release_host_clock(&state.data_store);
     state.gui_state.copresence_names.clear();
     let gone: Vec<hecs::Entity> = state
@@ -1169,8 +1211,8 @@ fn carry_with_home(state: &mut EngineState, old_home: PlotBox, delta: Vec3) {
 }
 
 /// Stand the player at `at` (ship metres, eye height): the walking body and the camera
-/// (`stand_player_at`).
-fn put_player_at(state: &mut EngineState, at: Vec3) {
+/// (`stand_player_at`). Also what a relay's correction does (engine/move_check.rs).
+pub(crate) fn put_player_at(state: &mut EngineState, at: Vec3) {
     let standing = Standing {
         camera: &mut state.camera.position,
         showroom_open: state.gui_state.showroom_active,
@@ -1187,7 +1229,7 @@ fn put_player_at(state: &mut EngineState, at: Vec3) {
 
 /// The notice when closing the build editor leaves the player where they stood
 /// (`editor_close_spot`), so the build-mode avatar's spot not being used is explained.
-pub(crate) const EDITOR_HELD_BACK: &str = "You are back where you stood before building: the shared world does not let you jump that far, so walk to your build spot.";
+pub(crate) const EDITOR_HELD_BACK: &str = "You are back where you stood before building: in the shared world, shutting the editor only puts you at your build spot when it is on your own plot and within 90 m, so walk there.";
 
 /// Where closing the build editor stands the player (lib.rs, the editor's close), and whether
 /// it held them back from the editor's own pick.
@@ -1217,11 +1259,18 @@ pub(crate) struct EditorClose {
 /// `home_away`: the home is put away (a guest, increment 2), so a pick in it (the build-mode
 /// avatar's spot is in the home) is no place to stand, and they stay at `back` with nothing to
 /// explain: the welcome that put the home away shut the editor and said why (`GUEST_NO_EDITOR`).
-/// Increment 2 review, finding 1: an editor opened between a reconnect and its guest welcome. Pure.
-pub(crate) fn editor_close_spot(chosen: Option<Vec3>, back: Vec3, joined: bool, home_away: bool) -> EditorClose {
+/// Increment 2 review, finding 1: an editor opened between a reconnect and its guest welcome.
+///
+/// `own_plot`: the box of the plot the home stands on (None for none). Increment 4: the relay
+/// passes this jump, declared as the editor's (`MoveDecl::Editor`, engine/move_check.rs), only
+/// onto the player's own plot (src/relay/handlers/move_check.rs), so in the shared world a pick
+/// anywhere else (a Dev's build-mode avatar left in a shared zone it was editing) leaves them at
+/// `back` too, instead of a jump the relay would correct. Pure.
+pub(crate) fn editor_close_spot(chosen: Option<Vec3>, back: Vec3, joined: bool, home_away: bool, own_plot: Option<PlotBox>) -> EditorClose {
     let chosen = chosen.filter(|_| !home_away);
+    let on_own_plot = |c: Vec3| own_plot.is_some_and(|(lo, hi)| c.x >= lo.x && c.x <= hi.x && c.z >= lo.z && c.z <= hi.z);
     match chosen {
-        Some(c) if !joined || c.distance(back) <= FAR_FROM_HELD_M => EditorClose { at: c, held_back: false },
+        Some(c) if !joined || (on_own_plot(c) && c.distance(back) <= FAR_FROM_HELD_M) => EditorClose { at: c, held_back: false },
         Some(_) => EditorClose { at: back, held_back: true },
         None => EditorClose { at: back, held_back: false },
     }
@@ -1370,17 +1419,18 @@ mod tests {
 
     /// The first welcome since the world loaded, the camera at `camera`.
     fn arriving(camera: Vec3) -> WelcomeContext<'static> {
-        WelcomeContext { arrived_on: None, server: SERVER, camera }
+        WelcomeContext { arrived_on: None, server: SERVER, camera, data_dir: None }
     }
 
     /// A later welcome from the same server (we arrived on it before), the camera at `camera`.
     fn again(camera: Vec3) -> WelcomeContext<'static> {
-        WelcomeContext { arrived_on: Some(SERVER), server: SERVER, camera }
+        WelcomeContext { arrived_on: Some(SERVER), server: SERVER, camera, data_dir: None }
     }
 
     const P1_DOOR: Vec3 = Vec3::new(53.5, 1.7, 40.5);
     const P2_DOOR: Vec3 = Vec3::new(53.5, 1.7, 139.5);
-    const COMMONS: Vec3 = Vec3::new(82.0, 1.7, 47.5);
+    // Where a guest arrives: the Commons' spawn (data/blueprints/ship_structure.ron, increment 4).
+    const COMMONS: Vec3 = Vec3::new(87.5, 1.7, 67.5);
 
     /// THE CASE 1b EXISTS FOR: the relay says p2. The home moves to p2 (every room and the
     /// spawn by exactly p2's offset, through 1a's assembly), Respawn becomes p2's door, and the
@@ -1632,10 +1682,10 @@ mod tests {
     /// ignored: "a build spot in a home put away stood the player at Vec3(53.5, 1.7, 40.5)".
     #[test]
     fn closing_the_editor_with_the_home_put_away_stands_where_the_welcome_did() {
-        let c = editor_close_spot(Some(P1_DOOR), COMMONS, true, true);
+        let c = editor_close_spot(Some(P1_DOOR), COMMONS, true, true, None);
         assert_eq!(c.at, COMMONS, "a build spot in a home put away stood the player at {:?}", c.at);
         assert!(!c.held_back, "nothing to explain: the welcome said why the editor shut");
-        let out = editor_close_spot(Some(P1_DOOR), COMMONS, false, true);
+        let out = editor_close_spot(Some(P1_DOOR), COMMONS, false, true, None);
         assert_eq!(out.at, COMMONS, "out of the shared world too");
     }
 
@@ -1740,6 +1790,31 @@ mod tests {
         // One sentence: one full stop, at the end.
         assert_eq!(SHIP_MISMATCH.matches(". ").count(), 0);
         assert!(SHIP_MISMATCH.ends_with('.'));
+    }
+
+    /// AN UPDATED APP WITH AN OLD SHIP FILE IN ITS DATA FOLDER IS TOLD WHICH FILE (the review of
+    /// increment 4, P6). An installed game writes the ship file to its data folder on the first
+    /// run and never refreshes it (src/storage.rs `extract_data_if_needed`); the updater swaps
+    /// only the exe, and the ship is read from the data folder first. So after an update that
+    /// changes the ship, the game names the OLD ship and every server running the new one
+    /// refuses it with "update whichever of the app and the server is older", which cannot help:
+    /// both are new. When the server's ship is the one built into this app, the sentence says
+    /// the data folder's file is the old one and names it. Otherwise the usual sentence.
+    ///
+    /// Seen red 2026-10-04 on the code before the fix: "the sentence does not name the old ship
+    /// file: Not joining the shared world: this server has a different ship from yours, and
+    /// positions only agree when everyone has the same ship, so update whichever of the app and
+    /// the server is older and reconnect."
+    #[test]
+    fn an_updated_app_with_an_old_ship_file_is_told_which_file() {
+        let file = std::path::Path::new("C:/Users/someone/AppData/Roaming/HumanityOS/data/blueprints/ship_structure.ron");
+        let said = other_ship_sentence(Some("1234abcd"), Some("1234abcd"), Some(file));
+        assert!(said.contains(&file.display().to_string()), "the sentence does not name the old ship file: {said}");
+        assert_ne!(said, SHIP_MISMATCH);
+        assert!(said.ends_with('.') && said.matches(". ").count() == 0, "one sentence: {said}");
+        assert_eq!(other_ship_sentence(Some("1234abcd"), Some("99990000"), Some(file)), SHIP_MISMATCH, "the server's ship is not the app's either");
+        assert_eq!(other_ship_sentence(Some("1234abcd"), Some("1234abcd"), None), SHIP_MISMATCH, "our ship is the app's own copy");
+        assert_eq!(other_ship_sentence(None, Some("1234abcd"), Some(file)), SHIP_MISMATCH, "the server named no ship");
     }
 
     /// A plot our home does not fit (here p2 made narrower than the home, on a ship whose hash
@@ -2608,7 +2683,8 @@ mod tests {
     #[test]
     fn closing_the_build_editor_far_from_where_the_relay_holds_us_leaves_us_there() {
         let street_end = Vec3::new(70.0, 1.7, 190.0);
-        let c = editor_close_spot(Some(P1_DOOR), street_end, true, false);
+        let p1 = Some(p1_box());
+        let c = editor_close_spot(Some(P1_DOOR), street_end, true, false, p1);
         assert_eq!(
             c.at,
             street_end,
@@ -2619,16 +2695,42 @@ mod tests {
         assert!(c.held_back, "the player is told why the build spot was not used");
         // Near where the relay holds them, the build spot is used, as before.
         let near = Vec3::new(60.0, 1.7, 70.0);
-        assert_eq!(editor_close_spot(Some(P1_DOOR), near, true, false), EditorClose { at: P1_DOOR, held_back: false });
+        assert_eq!(editor_close_spot(Some(P1_DOOR), near, true, false, p1), EditorClose { at: P1_DOOR, held_back: false });
         // Out of the shared world nothing holds them: the build spot, wherever it is.
-        assert_eq!(editor_close_spot(Some(P1_DOOR), street_end, false, false), EditorClose { at: P1_DOOR, held_back: false });
+        assert_eq!(editor_close_spot(Some(P1_DOOR), street_end, false, false, p1), EditorClose { at: P1_DOOR, held_back: false });
         // No build spot and no home spawn: where they stood.
-        assert_eq!(editor_close_spot(None, street_end, true, false), EditorClose { at: street_end, held_back: false });
-        // The margin is the welcome's own (`FAR_FROM_HELD_M`): at it, the pick; past it, held.
+        assert_eq!(editor_close_spot(None, street_end, true, false, p1), EditorClose { at: street_end, held_back: false });
+        // The margin is the welcome's own (`FAR_FROM_HELD_M`): at it, the pick; past it, held. (A
+        // plot as big as the street, so only the distance decides here.)
+        let street_plot = Some((Vec3::new(0.0, 0.0, 0.0), Vec3::new(200.0, 3.0, 200.0)));
         let at_edge = street_end + Vec3::new(0.0, 0.0, -FAR_FROM_HELD_M);
-        assert_eq!(editor_close_spot(Some(at_edge), street_end, true, false).at, at_edge);
+        assert_eq!(editor_close_spot(Some(at_edge), street_end, true, false, street_plot).at, at_edge);
         let past = street_end + Vec3::new(0.0, 0.0, -FAR_FROM_HELD_M - 0.5);
-        assert_eq!(editor_close_spot(Some(past), street_end, true, false).at, street_end);
+        assert_eq!(editor_close_spot(Some(past), street_end, true, false, street_plot).at, street_end);
+    }
+
+    /// The plot p1's box, ship metres (data/blueprints/ship_structure.ron).
+    fn p1_box() -> PlotBox {
+        (Vec3::ZERO, Vec3::new(55.0, 3.0, 89.0))
+    }
+
+    /// INCREMENT 4: in the shared world, shutting the build editor stands the player at their
+    /// build spot only on their OWN plot, the one place the relay lets that jump land
+    /// (src/relay/handlers/move_check.rs, `MoveDecl::Editor`). A Dev's build-mode avatar left in
+    /// the Commons it was editing, 20 m away, holds them back with the notice; the same spot out
+    /// of the shared world is used as before; a spot on their own plot is used.
+    /// Seen red 2026-10-04 with the own-plot condition left out: "a build spot in the Commons
+    /// put the player at Vec3(80.0, 1.7, 60.0)", which the relay corrects.
+    #[test]
+    fn shutting_the_editor_stands_us_only_on_our_own_plot() {
+        let held = Vec3::new(60.0, 1.7, 45.0); // in the corridor from p1 to the Commons
+        let in_commons = Vec3::new(80.0, 1.7, 60.0);
+        let c = editor_close_spot(Some(in_commons), held, true, false, Some(p1_box()));
+        assert_eq!(c.at, held, "a build spot in the Commons put the player at {:?}", c.at);
+        assert!(c.held_back);
+        assert_eq!(editor_close_spot(Some(in_commons), held, false, false, Some(p1_box())).at, in_commons, "out of the shared world");
+        assert_eq!(editor_close_spot(Some(P1_DOOR), held, true, false, Some(p1_box())).at, P1_DOOR, "on their own plot");
+        assert_eq!(editor_close_spot(Some(P1_DOOR), held, true, false, None).at, held, "with no plot, nowhere is theirs");
     }
 
     /// ROUND 5, finding 1, the other half: a welcome lands while the build editor is open (a
@@ -2663,7 +2765,7 @@ mod tests {
         assert_eq!(body_at(&w), P2_DOOR);
         // A build spot left in the home on p1, 99 m from p2's door, where the welcome stood
         // them: the close leaves them at the door.
-        assert_eq!(editor_close_spot(Some(P1_DOOR), ed, true, false).at, P2_DOOR);
+        assert_eq!(editor_close_spot(Some(P1_DOOR), ed, true, false, Some(p1_box())).at, P2_DOOR);
     }
 
     /// The game's side of an erase in the shared world (ROUND 5, findings 2 and 4): the relay
