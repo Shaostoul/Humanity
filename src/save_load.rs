@@ -12,10 +12,15 @@
 //! exit-save SAFE: the player always carries the loaded state, so closing without
 //! playing round-trips the save instead of overwriting it with an empty inventory.
 //!
-//! Deferred (need new WorldSave fields or extra care -- see docs/design/
-//! homes-as-profiles.md): health, position, vitals. So on reload you wake rested
-//! at home. Crops, quests, vehicles, wallet and the world clock round-trip; the
-//! clock and the offline catch-up are `resume_home` below.
+//! The body round-trips too (first-hour audit S1, 2026-10-04): health, the
+//! vitals with the waste meter, the status effects still running, a death, and
+//! the home's urine tank, so quitting no longer heals or refills anyone. Still
+//! deferred: POSITION. A load stands you at the home's front door, because a
+//! saved position means nothing without the frame it was taken in (the home
+//! aboard, a planet's build site, a Dev trip) and the plot the home stood on,
+//! which the next launch can change (docs/design/homes-as-profiles.md). Crops,
+//! quests, vehicles, wallet and the world clock round-trip; the clock and the
+//! offline catch-up are `resume_home` below.
 
 use crate::ecs::components::Controllable;
 use crate::persistence::{self, WorldSave};
@@ -139,6 +144,8 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
             .iter()
             .filter_map(|s| s.as_ref().map(|st| (st.wear, st.quality)))
             .collect();
+        // Each stack's food clock (2026-10-04, first-hour audit S6).
+        save.inventory_age = inv.slots.iter().filter_map(|s| s.as_ref().map(|st| st.age_s)).collect();
         save.skills = skills
             .skills
             .iter()
@@ -175,6 +182,10 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
         save.credits = wallet.credits;
         break;
     }
+    // The body and the home's urine tank (first-hour audit S1, 2026-10-04): quitting used
+    // to heal and refill everything.
+    save.body = body_of(world);
+    save.urine_tank_person_days = crate::systems::food::urine_tank_level(world);
     // Quests (v0.748, ladder rung 4): the tracker round-trips, so progress
     // and completions survive restarts (was: reset fresh every session).
     for (_e, (tracker, _ctrl)) in world
@@ -352,9 +363,54 @@ fn restore_settled_trades(world: &mut hecs::World, save: &WorldSave, rewound: bo
     }
 }
 
-/// Apply a loaded WorldSave's inventory + skills + vehicles + crops onto the
-/// live world. Health/position/vitals are left fresh -- not yet persisted.
-/// Idempotent; called at startup and on character select.
+/// The player's body for the save (first-hour audit S1, 2026-10-04): health, the vitals,
+/// the effects still running and the cause when dead. None when the world has no player
+/// body (a test's bare world).
+fn body_of(world: &hecs::World) -> Option<persistence::BodySave> {
+    use crate::ecs::components::{Dead, Health, StatusEffects, Vitals};
+    let mut q = world.query::<(&Health, &Vitals, &StatusEffects, Option<&Dead>, &Controllable)>();
+    let (_e, (health, vitals, effects, dead, _)) = q.iter().next()?;
+    Some(persistence::BodySave {
+        health: health.clone(),
+        vitals: vitals.clone(),
+        effects: effects.clone(),
+        dead: dead.map(|d| if d.cause.is_empty() { "injuries".to_string() } else { d.cause.clone() }),
+    })
+}
+
+/// Put a save's body on the player (first-hour audit S1, 2026-10-04): as it was saved, dead
+/// or alive. A save without one (from before it) gives the body a new character starts with.
+/// The save is authoritative here as it is for the backpack, because the character picker
+/// loads a save over a live player.
+fn restore_body(world: &mut hecs::World, body: Option<&persistence::BodySave>) {
+    use crate::ecs::components::{Dead, Health, StatusEffects, Vitals};
+    let Some(p) = world.query::<(&Health, &Vitals, &StatusEffects, &Controllable)>().iter().next().map(|(e, _)| e)
+    else {
+        return;
+    };
+    let (health, vitals, effects, death) = match body {
+        Some(b) => (b.health.clone(), b.vitals.clone(), b.effects.clone(), b.death()),
+        None => (Health::default(), Vitals::default(), StatusEffects::default(), None),
+    };
+    if let Ok((h, v, fx)) = world.query_one_mut::<(&mut Health, &mut Vitals, &mut StatusEffects)>(p) {
+        *h = health;
+        *v = vitals;
+        *fx = effects;
+    }
+    match death {
+        Some(cause) => {
+            let _ = world.insert_one(p, Dead { cause, ..Default::default() });
+        }
+        None => {
+            let _ = world.remove_one::<Dead>(p);
+        }
+    }
+}
+
+/// Apply a loaded WorldSave's inventory + skills + vehicles + crops + the body
+/// (first-hour audit S1) onto the live world. Position is left to the world
+/// load: the home's front door. Idempotent; called at startup and on
+/// character select.
 pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
     // The live world now comes from a save on disk again, so a restored
     // snapshot that was waiting for this may be saved over (see
@@ -387,14 +443,15 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
         // undoing the never-lose-a-haul guarantee one launch later. Mirror the
         // delivery-site pattern: ensure the slots, then land everything.
         // Each saved stack comes back exactly as it was, with its wear and
-        // grade (2026-09-26); a stack an older save has no state for comes
-        // back unworn and ungraded.
+        // grade (2026-09-26) and its food's age (2026-10-04); a stack an
+        // older save has no state for comes back unworn, ungraded and fresh.
         inv.ensure_slots(save.inventory.len());
         for (i, (item_id, qty)) in save.inventory.iter().enumerate() {
             let (wear, quality) = save.inventory_state.get(i).copied().unwrap_or((0, 0));
             let mut stack = crate::systems::inventory::ItemStack::new(item_id.clone(), *qty, (*qty).max(99));
             stack.wear = wear;
             stack.quality = quality;
+            stack.age_s = save.inventory_age.get(i).copied().filter(|a| a.is_finite()).unwrap_or(0.0);
             inv.slots[i] = Some(stack);
         }
         // Rebuild skills.
@@ -418,6 +475,9 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
             break;
         }
     }
+    // The body as it was left, and the home's urine tank (first-hour audit S1).
+    restore_body(world, save.body.as_ref());
+    crate::systems::food::set_urine_tank(world, save.urine_tank_person_days);
     // Settled trades (2026-10-02) travel with the backpack just rebuilt.
     restore_settled_trades(world, save, true);
     // Quests (v0.748): a saved tracker replaces the fresh spawn default
@@ -918,7 +978,9 @@ pub struct Resumed {
 ///   moves on by the time away, to one yield waiting, as when you are home
 ///   and do not collect (`livestock::timers_after_away`).
 ///
-/// Deliberately not advanced: vitals (not persisted; you wake rested), and
+/// Deliberately not advanced: the body (saved since 2026-10-04, first-hour
+/// audit S1, and put back exactly as it was left: the time away costs no
+/// food, water or sleep and runs no effect's timer) and the urine tank, and
 /// anything that consumes or destroys. That includes garden PESTS
 /// (2026-09-26): their pressure costs crop health and the player could not
 /// have answered it while away, so it resumes where the save left it and the
@@ -1062,6 +1124,9 @@ pub fn after_resume(gui: &mut crate::gui::GuiState, save: &WorldSave, r: &Resume
     if save.mining_order.is_some() {
         gui.last_drone_order = save.mining_order.clone();
     }
+    // The body came back with the save (first-hour audit S1): a save written dead comes
+    // back to the death screen with its cause, and a living one clears it.
+    gui.player_death_cause = save.body.as_ref().and_then(persistence::BodySave::death);
 }
 
 /// Put the world clock back where `save` left it and apply the offline
@@ -1688,8 +1753,7 @@ mod tests {
             name: "Wood Plank".into(),
             qty: 5,
             container: "2/0".into(),
-            wear: 0,
-            quality: 0,
+            ..Default::default()
         };
         let mut gui = crate::gui::GuiState::default();
         gui.placed_items = vec![plank.clone()];
@@ -1716,16 +1780,14 @@ mod tests {
                 name: "Ice Axe".into(),
                 qty: 1,
                 container: "1/0/0".into(),
-                wear: 0,
-                quality: 0,
+                ..Default::default()
             },
             crate::systems::inventory::placed::PlacedItem {
                 key: "iron_ore_0".into(),
                 name: "Iron Ore".into(),
                 qty: 5,
                 container: "2/0".into(),
-                wear: 0,
-                quality: 0,
+                ..Default::default()
             },
         ]);
         let json = serde_json::to_string(&save).expect("serialize");
@@ -2070,8 +2132,7 @@ mod tests {
             name: "Wood Plank".into(),
             qty: 5,
             container: path.clone(),
-            wear: 0,
-            quality: 0,
+            ..Default::default()
         }]);
         let back: WorldSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
 
@@ -2855,3 +2916,8 @@ mod tests {
         assert!(old.home_id.is_empty() && old.fleet_held.is_empty());
     }
 }
+
+/// The player's body in the save (first-hour audit S1, 2026-10-04).
+#[cfg(test)]
+#[path = "save_load_body_tests.rs"]
+mod body_tests;

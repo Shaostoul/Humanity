@@ -346,6 +346,9 @@ fn trade_transfers(t: &GuiTrade, my_key: &str, known: impl Fn(&str) -> bool) -> 
                     add,
                     wear: i.wear,
                     quality: i.quality,
+                    // A trade carries no food's age (the relay's trade items have none), so
+                    // food from a trade arrives fresh (2026-10-04, first-hour audit S6).
+                    age_s: 0.0,
                 }),
                 _ => unmovable += 1,
             }

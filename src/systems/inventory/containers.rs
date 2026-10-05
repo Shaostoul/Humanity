@@ -59,6 +59,10 @@ pub struct ContainerTypeRow {
     /// Contents touch the material itself (2026-09-26). See types.csv.
     #[serde(default = "default_direct_contact")]
     pub direct_contact: bool,
+    /// The temperature zone of data/food_system.ron it keeps what it holds in (2026-10-04,
+    /// first-hour audit S6), e.g. a freezer chest's "frozen". Empty: the air around it.
+    #[serde(default)]
+    pub keeps_zone: String,
 }
 
 fn default_direct_contact() -> bool {
@@ -84,6 +88,11 @@ pub struct ContainerType {
     /// Contents touch the material itself, so its food-grade and reactivity
     /// rules apply (false for cabinets and freezers of packaged goods).
     pub direct_contact: bool,
+    /// The temperature zone (data/food_system.ron `temperature_zones`) this container keeps
+    /// its contents in, whatever the air around it (2026-10-04, first-hour audit S6): a
+    /// freezer chest keeps "frozen", so food in it spoils at that zone's rate. None: the air
+    /// around it, the home's for a home vessel.
+    pub keeps_zone: Option<String>,
 }
 
 /// A contact material, one row of `data/containers/materials.csv`
@@ -158,6 +167,7 @@ impl ContainerType {
             accepted_content_classes: accepted,
             description: row.description,
             direct_contact: row.direct_contact,
+            keeps_zone: Some(row.keeps_zone.trim().to_string()).filter(|z| !z.is_empty()),
         }
     }
 
@@ -302,6 +312,15 @@ pub struct Container {
     /// cleared: such a container may not hold food or drinking water again.
     #[serde(default)]
     pub toxic_from: Option<String>,
+    /// How long the FOOD it holds has aged (2026-10-04, first-hour audit S6), in game seconds
+    /// at room temperature, the way a backpack stack's does (`ItemStack::age_s`). The
+    /// FoodSystem ages it in the zone the vessel keeps (`ContainerType::keeps_zone`, a
+    /// freezer's "frozen") or else in the home's air. What arrives joins at the count-weighted
+    /// average age (`try_store` takes it in fresh, `arrived_aged` gives it the age it had),
+    /// and what is taken out leaves at this age. Saved with the vessel; 0 in a save from
+    /// before it.
+    #[serde(default)]
+    pub content_age_s: f64,
 }
 
 impl Container {
@@ -316,6 +335,16 @@ impl Container {
             damage_ratio: 1.0,
             last_content: None,
             toxic_from: None,
+            content_age_s: 0.0,
+        }
+    }
+
+    /// The last `n` units `try_store` took in (counted in at the age of fresh food) had aged
+    /// `age_s` (2026-10-04, first-hour audit S6): put their age into the contents' average,
+    /// so food moved in from the backpack keeps the age it had there.
+    pub fn arrived_aged(&mut self, n: u32, age_s: f64) {
+        if self.current_qty > 0 {
+            self.content_age_s += age_s * f64::from(n.min(self.current_qty)) / f64::from(self.current_qty);
         }
     }
 
@@ -381,6 +410,7 @@ impl Container {
         self.current_content_item = None;
         self.current_qty = 0;
         self.used_liters = 0.0;
+        self.content_age_s = 0.0;
     }
 }
 
@@ -717,6 +747,9 @@ impl ContainerRegistry {
         if container.toxic_from.is_none() && class.map_or(false, |c| c.leaves_toxic_history) {
             container.toxic_from = Some(item_id.to_string());
         }
+        // What arrives counts in as fresh food (2026-10-04, first-hour audit S6): a harvest or
+        // a craft is. A caller moving aged food in gives its age with `arrived_aged`.
+        container.content_age_s = super::blend_age(container.content_age_s, container.current_qty, 0.0, storable);
         container.current_qty += storable;
         container.used_liters += unit_vol * storable as f32;
         StoreOutcome::Stored { quantity: storable }

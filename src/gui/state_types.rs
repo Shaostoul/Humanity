@@ -63,6 +63,9 @@ pub struct GuiItemSlot {
     pub wear: u32,
     /// Grade of a crafted durable good (0 = ungraded; crafting::quality).
     pub quality: u8,
+    /// How long the food has aged (`ItemStack::age_s`), so a stack stashed into storage
+    /// keeps its age there (2026-10-04, first-hour audit S6).
+    pub age_s: f64,
 }
 
 /// Game time snapshot bridged from TimeSystem for GUI display.
@@ -1559,6 +1562,21 @@ pub struct MachineLabel {
     /// entity so the per-frame refresh can patch LIVE stats (cistern fill,
     /// battery charge) over the static RON placeholders. (v0.724)
     pub machine_id: String,
+    /// What E does at it instead of opening its card, from its def's `provides`
+    /// (`engine::built_uses::machine_use`): the home's bed sleeps you. None: the card.
+    pub on_use: Option<crate::systems::construction::uses::StructureUse>,
+}
+
+#[cfg(feature = "native")]
+impl MachineLabel {
+    /// The crosshair prompt here: a machine that is used says what E does, as a built
+    /// piece does ("[E] sleep in the Bed"); any other opens or closes its card.
+    pub fn prompt(&self, card_open: bool) -> String {
+        match self.on_use {
+            Some(u) => u.prompt(&self.name),
+            None => format!("[E] {} {}", if card_open { "close" } else { "open" }, self.name),
+        }
+    }
 }
 
 // NOTE (v0.725): the pinned machine card's auto-recipe selector state lives on

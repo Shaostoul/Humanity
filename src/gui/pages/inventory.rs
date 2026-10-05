@@ -1828,7 +1828,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             add: false,
                             wear: it.wear,
                             quality: it.quality,
+                            age_s: it.age_s,
                         });
+                        // Food goes into storage at the age it had (first-hour audit S6).
                         state.placed_items.push(crate::systems::inventory::placed::PlacedItem {
                             key: it.item_id,
                             name: it.name,
@@ -1836,6 +1838,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             container: target,
                             wear: it.wear,
                             quality: it.quality,
+                            age_s: it.age_s,
                         });
                         if state.selected_slot == Some(i) {
                             state.selected_slot = None;
@@ -1850,6 +1853,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             add: true,
                             wear: pi.wear,
                             quality: pi.quality,
+                            age_s: pi.age_s,
                         });
                         state.placed_items.remove(idx);
                         with_placed_sel(|s| *s = None);
@@ -1900,7 +1904,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 add: false,
                                 wear: it.wear,
                                 quality: it.quality,
+                                age_s: it.age_s,
                             });
+                            // Food goes into storage at the age it had (first-hour audit S6).
                             state.placed_items.push(crate::systems::inventory::placed::PlacedItem {
                                 key: it.item_id.clone(),
                                 name: it.name.clone(),
@@ -1908,6 +1914,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 container: target,
                                 wear: it.wear,
                                 quality: it.quality,
+                                age_s: it.age_s,
                             });
                             state.selected_slot = None;
                         }
@@ -1920,6 +1927,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             quantity: pi.qty,
                             wear: pi.wear,
                             quality: pi.quality,
+                            age_s: pi.age_s,
                         };
                         let containers = crate::gui::collect_containers(&state.places);
                         let mut move_to: Option<String> = None;
@@ -1957,12 +1965,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             });
                         });
                         if take_to_backpack {
+                            // Food arrives in the backpack as old as it was in storage (S6).
                             state.pending_inventory_transfers.push(crate::systems::inventory::TransferOp {
                                 item_id: pi.key.clone(),
                                 qty: pi.qty,
                                 add: true,
                                 wear: pi.wear,
                                 quality: pi.quality,
+                                age_s: pi.age_s,
                             });
                             // Remember where it came from: a full backpack sends
                             // the rest back here (lib.rs, after the tick).
