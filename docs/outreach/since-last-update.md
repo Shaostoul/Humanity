@@ -11,6 +11,22 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1460.0: the first hour gets stakes, and the shared world runs in real
+  time.** A new player now starts alone in their own home instead of being
+  dropped into the live shared world, every way out of the game saves first,
+  and a one-time hint names the keys that matter. Your body is saved with
+  your game, so quitting no longer heals you or fills you up; stored food ages
+  wherever it is kept (the freezer slowest); the bedroom's own bed sleeps
+  you. The one-person home can now finish the first quests (it has a smelter,
+  a workbench and a trading post), quest steps that could never finish now
+  can, the first step says where to get iron, and a finished quest tells you
+  what you got and what is next. The drone stops after an empty trip and has
+  a Stop button, gathering takes what fits in your pack and leaves the rest,
+  a build you cannot afford says what is missing right where you aimed, the
+  starting Barn holds coal, and the free showcase garden only grows while
+  resources are free. On a shared server, a day is now a real day: the
+  operator's decision, so nobody joining faces accelerated hunger.
+
 - **v0.1459.1: six Library guides on heat, fire and first aid.** Heating a
   Home Safely (space heaters, a carbon monoxide alarm on every sleeping
   floor, the signs of carbon monoxide poisoning, and Washington's rule on
