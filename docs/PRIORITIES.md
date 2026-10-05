@@ -197,9 +197,10 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   into main, the full chain, release as v0.1464.0.
 - **Walking backwards (the operator saw it, 2026-10-05):** the rig's `walk_to` held the final
   facing for the whole walk (src/engine/move_check.rs `walk_tick`), so the camera strafed and
-  backpedalled; and the crew never turn (the relay never sets their rotation). A lane is fixing
-  both (the walk turns like a player; the game faces the crew along their motion). Merge with
-  increment 5 into v0.1464.0; rerun the rigs whose walks it touches.
+  backpedalled; the crew did turn toward their path but snapped back on still updates and
+  turned at up to 540 degrees a second. FIXED on main (BUG-165, BUG-166: the walk turns like a
+  person, crew turn smoothly and hold their facing), merged into inc5-integration; ships in
+  v0.1464.0 with increment 5 (rerun the --plots legs that walk).
 - **Follow-ups found today (not started):** BUG-161 (the copresence rig's steady-speed
   judges fail a starved machine); BUG-163 part 2 (refresh a stale data folder on update:
   docs/design/data-folder-updates.md, waits on the operator below); no gasoline or diesel
