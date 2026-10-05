@@ -4847,3 +4847,146 @@ crew judges read positions only. Not booted here.
 **Left:** the crew's position still eases to a stop at every update (a smooth step over the
 half second between two of them), so a walking crew member slows and speeds up twice a
 second, the stop-go `SnapshotBuffer` fixed for players (2026-10-02).
+
+## BUG-167: a game that lost a relay message about the shared world's pieces never put it right without a rejoin (FIXED next release, found 2026-10-05)
+
+**Found by** the review of ship homes increment 5 ("building only on your own plot"), finding
+1 (medium), reading the code on inc5-integration (d6c327c62). Not seen on screen: the
+increment had not been released.
+
+**Cause:** when a socket falls behind the relay's send queue, the relay skips what it missed
+and keeps the connection open (`src/relay/relay.rs` `recv_skipping_lag`: about 1.4 s of slack
+with a dozen players moving, 6 s with two or three). A game could therefore lose any message
+about the pieces the server keeps without a word, and `src/engine/shared_build.rs` asked for a
+frame's list again only after a gap in its `seq` or a build left unanswered. So:
+- **Case A, a lost take-down (`game_unbuilt`)** with nothing else changing on that plot: the
+  game kept drawing the wall, solid; F on it was answered `no_such_piece`, the game said "Wood
+  Wall not taken down: it is already gone." and the wall stayed. It healed only on the next
+  change there, a 300 m walk away and back, or a rejoin.
+- **Case B, a lost part (or all) of a frame's list at the join:** the frame never got a list,
+  and every later piece built there was ignored, the player's own included (its answer settled
+  the build without drawing it): on your own plot you spent materials and saw nothing all
+  session.
+
+**Fix (2026-10-05):**
+- The game asks for a frame's whole list again (`game_pieces_request`, one a second, the
+  relay's limit) whenever it may have lost one of that frame's messages: news about a frame it
+  holds no list of (`SharedBuild::step`); a list whose other parts have not come
+  `shared::PARTS_WAIT_S` (3 s) after its first (`parts_overdue`; every part of a list leaves the
+  relay together); and a take-down the relay answers `no_such_piece`, whose piece also comes
+  down here at once (`refused`).
+- **A check every 5 s** (`shared::CHECK_INTERVAL_S`): the relay sends each player in the shared
+  world, with its `game_time_sync`, a new message `game_pieces_check` naming every frame in
+  their view with its `seq`, and their ranks as they stand now (`src/relay/handlers/
+  shared_build.rs` `send_checks`, called from the time sync's loop in `src/relay/mod.rs`). It is
+  built and sent under the world's lock, in order with the frames' news, so a frame the game
+  holds at another `seq`, or holds no list of, lost a message (its list is asked for), and a
+  frame the game holds that the check does not name left the view without the word reaching it
+  (it is forgotten). A list still arriving in parts at the check's `seq` is left to its parts.
+  The ranks in it are BUG-167's companion fix, the review's finding 5: a rank given or taken
+  away mid-session reached the game only at the next welcome, so a new shipwright was refused
+  at their own crosshair until they rejoined.
+- The relay answers a list asked for a frame out of the asker's view with the list and then
+  `game_frame_out_of_view` (it used to send `game_frame_out_of_view` alone), so a build or
+  take-down whose answer was lost can always be settled (BUG-168).
+
+**Wire change (both sides, `src/systems/construction/shared.rs`):** new relay-to-game message
+`game_pieces_check {frames: {"plot:p1": 4, ...}, ranks: {can_edit_ship, take_down_any}}`
+(`FromRelay::Check`, `msg::PIECES_CHECK`), every 5 s; and `game_pieces_request` for a frame out
+of view is answered with `game_pieces` (all parts) followed by `game_frame_out_of_view`. A game
+older than this ignores the check (unknown types fall through), and reads the extra list
+followed by the out-of-view word correctly.
+
+**Tests**, each seen red on inc5-integration (d6c327c62):
+- `src/engine/shared_build_tests.rs` `a_lost_message_is_put_right_by_the_next_check` (case A,
+  a lost list and a lost out-of-view word): "the check asked for nothing", left `[]`.
+- `f_on_a_piece_already_gone_takes_it_down_and_asks_for_its_frame` (case A at the crosshair):
+  "the wall the server no longer keeps still stands: left: [(7, \"plot:p1\", true)]".
+- `a_list_whose_last_part_was_lost_is_asked_for_again` (case B): "3.5 s after its first part,
+  p1's list was never asked for again", left `[]`.
+- `news_about_a_frame_with_no_list_asks_for_its_list` (case B, the player's own build): "news
+  about p1, which has no list, never asked for it", left `[]`.
+- `a_rank_given_mid_session_reaches_the_gate` (finding 5): "the check's rank never reached the
+  gate", left `Refused("the ship's shared spaces are built by people this server has given that
+  rank")`, right `Shared("zone:commons")`.
+- `src/relay/features.rs` `a_list_asked_for_a_frame_out_of_view_comes_then_the_word_that_it_is_out_of_view`:
+  "p12's list never came: [(\"game_frame_out_of_view\", \"plot:p12\")]".
+- New code, each seen red with its guarded line removed (recorded in its comment):
+  `each_check_names_the_frames_in_view_with_their_seq_and_the_ranks_as_they_stand` (the ranks
+  left out of the check), `src/relay/handlers/shared_build_tests.rs`
+  `the_check_goes_out_with_the_time_sync` (the `send_checks` line taken out of the time sync's
+  loop), `a_list_still_arriving_at_the_checks_seq_is_left_to_its_parts`, and the contract's
+  `the_wire_messages_have_exactly_the_contract_fields` (its new row for the check).
+
+**Not booted here:** the proof rig (`just verify-shared-build`) and the co-presence rig are the
+orchestrator's to rerun on the merged build. The rig's walker (`scripts/second-player.js`)
+logs no line for the new check and needs none.
+
+## BUG-168: a build or take-down could be paid back twice, or never, across a disconnect, a Respawn or a lost answer (FIXED next release, found 2026-10-05)
+
+**Found by** the review of ship homes increment 5, finding 2 (low-medium), reading the code on
+inc5-integration (d6c327c62). Materials are counted by the game (the relay holds no inventories
+yet, increment 8), so this is about their integrity: a refund must happen exactly once.
+
+**Cause** (`src/engine/shared_build.rs`): the only refund for a take-down was its answer
+(`took_down`), but leaving the shared world (`leave()`, every Respawn, every dropped socket)
+cleared the take-downs waiting for an answer, and `timeouts` dropped them after 10 s. F on your
+own wall, then Respawn or a socket drop inside the round trip: the relay deleted the row, its
+answer arrived after `leave()`, and the planks were gone for good. And while out of the shared
+world, `give_up_unanswered` gave back every build sent and unanswered for 20 s, though the relay
+may have kept it: E, the socket drops before `game_built`, the reconnect takes over 20 s: the
+planks came back AND the next welcome's list showed the piece as yours. In a session, a build
+whose frame's list never came was also given back on a timer, with the same risk.
+
+**Fix (2026-10-05):** every build and take-down sent settles exactly once, and never on a timer:
+- by its answer (`req_id`), whenever it comes, in a session or out of one: `leave()` now keeps
+  the builds AND take-downs waiting (a Respawn steps out and in on the same connection, so the
+  answer still arrives); only what was never sent is given back (builds) or dropped
+  (take-downs) on leaving;
+- or, when that answer is lost, by its frame's next list known to come after the relay handled
+  it (asked for after `shared::PENDING_TIMEOUT_S`, or in a later session; `settle_by_list`): a
+  build the list holds as ours, matched by its blueprint as well as its box, was kept and stays
+  paid for; one it does not hold was not kept, and its materials come back; a take-down whose
+  piece the list lacks was done, and the piece's materials come back to the player who took it
+  down; one whose piece still stands was not, and the player is told ("Wood Wall not taken down:
+  the server never said it came down.");
+- with no list after `PENDING_TIMEOUT_S`, the game asks again rather than guessing; the relay
+  now answers a list asked for a frame out of view (BUG-167's wire change), so a request is
+  settled wherever the player stands, a Respawn having put them at their door;
+- someone else's take-down of a piece we asked to take down settles ours on the spot, nothing
+  back ("Wood Wall not taken down: it is already gone."), and the relay's `no_such_piece` answer
+  then finds nothing to settle;
+- requests are filed under the server they went to (`SharedBuild::server`,
+  `home_plot::active_server_key`), so another server's lists never settle them, and what waits
+  for one server holds up no spot (`waiting_at`) or piece number (`ask_take_down`) on another.
+
+**Tests** (`src/engine/shared_build_tests.rs`), each seen red on inc5-integration (d6c327c62):
+- `a_take_down_the_relay_did_gives_back_once_across_a_respawn_and_a_lost_answer`: "the relay
+  took 7 down and its answer came after the step out: its planks are gone", left `[]`, right one
+  `TransferOp` of 6 Wood Planks. It also settles a take-down whose answer was lost (the next
+  welcome's list lacks the piece: 6 planks back, once) and one the relay did not do (the list
+  still holds the piece: nothing back, the player told), and checks a late duplicate answer and
+  another list give nothing more.
+- `a_build_the_relay_kept_is_never_given_back_however_long_the_reconnect`: "25 s out of the
+  shared world gave back builds the relay may have kept", left three `TransferOp`s of 6 planks,
+  right `[]`. It also settles the three builds by the reconnect's list: the one it holds as ours
+  stays paid for, the one it lacks and the one whose box holds a different piece of ours (a Wood
+  Wall with Window, so the relay refused it as occupied) come back once each.
+- `src/relay/features.rs` `a_list_asked_for_a_frame_out_of_view_comes_then_the_word_that_it_is_out_of_view`
+  (above, BUG-167) is what lets a request in a frame out of view settle.
+- New code, each seen red with its guarded line removed (recorded in its comment):
+  `a_take_down_whose_answer_is_lost_is_settled_by_the_list_asked_for_later` (a lost answer with
+  no rejoin; take-downs left out of `timeouts`), `someone_elses_take_down_first_settles_ours_and_nothing_is_paid_twice`
+  (`beaten_to_it` not called: the planks paid twice), and
+  `a_request_waits_for_the_server_it_went_to` (the server left out of `settle_by_list`).
+- `what_waits_for_another_server_holds_nothing_up_here`, seen red before `waiting_at` and
+  `ask_take_down` looked only at this server's requests: "a build waiting for the first server
+  held up the same spot on this one" (E there did nothing, and F on that server's piece of the
+  same number was never sent).
+
+**Left:** a request whose answer is lost and whose game is closed before it settles is never
+settled (nothing about pending requests is saved); and a take-down whose answer was lost, of a
+piece someone else took down first while the news of THEIR take-down was lost too, gives back
+once more than it should (the list cannot tell whose take-down removed the piece; when that news
+does arrive, `beaten_to_it` settles ours with nothing back). Both need the relay to hold
+inventories (increment 8) to close for good.

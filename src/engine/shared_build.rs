@@ -23,6 +23,25 @@
 //!   stays until the relay says it came down; then its materials come back to whoever took it
 //!   down (the operator's decision of 2026-10-05), once, the way F's take-down of the player's own
 //!   piece gives them back: into the backpack, and what it has no room for into home storage.
+//! - PUTTING RIGHT WHAT WAS LOST (the review of increment 5, finding 1). The relay skips what a
+//!   socket that fell behind missed and keeps the connection open (relay.rs `recv_skipping_lag`),
+//!   so any message can be lost without a word. A frame's whole list is asked for again
+//!   (`game_pieces_request`, one a second, the relay's limit) whenever this game may have lost one
+//!   of its messages: a gap in its `seq`; news about a frame it holds no list of; a list whose
+//!   other parts never came (`shared::PARTS_WAIT_S`); a take-down the relay says is of a piece
+//!   already gone (which comes down here at once); and the relay's check (`game_pieces_check`,
+//!   every `shared::CHECK_INTERVAL_S`), which names each frame in view with its `seq`, so a lost
+//!   change with nothing after it is noticed too. A frame the check does not name has left the
+//!   view. The check also carries the player's ranks as they stand (finding 5).
+//! - EXACTLY ONCE (finding 2). Every build and take-down sent settles exactly once: by its answer
+//!   (`req_id`), whenever it comes, in a session or out of one; or, when that answer is lost, by
+//!   its frame's next list known to come after the relay handled it (asked for after
+//!   `shared::PENDING_TIMEOUT_S`, or in a later session). A build the list holds as ours (its
+//!   blueprint and its box) was kept; one it does not was not, and its materials come back. A
+//!   take-down whose piece the list lacks was done, and the materials come back; one whose piece
+//!   still stands was not. Nothing settles on a timer, and leaving the shared world keeps what
+//!   waits: a Respawn steps out and in on the same connection, and the answer still comes. Only
+//!   the server a request went to can settle it.
 //!
 //! A PIECE IS DRAWN ONLY WHEN THE RELAY SAYS IT IS KEPT. The player's own build never puts up a
 //! scaffold here: the relay's `game_built` does, for the builder exactly as for everyone near, so
@@ -221,6 +240,9 @@ struct Staging {
     server_time: f64,
     parts: u32,
     got: BTreeMap<u32, Vec<Piece>>,
+    /// When its first part came ([`SharedBuild`]'s clock). Every part of one list leaves the relay
+    /// together, so past `shared::PARTS_WAIT_S` the rest was lost ([`parts_overdue`]).
+    since: f64,
 }
 
 /// A take-down this player asked for: the piece, its name, and what comes back when the relay says
@@ -243,19 +265,27 @@ struct PendingBuild {
     sent_at: f64,
     /// The session it was sent in: a list from a later one settles it (its answer is lost).
     session: u32,
-    /// When its frame's list was asked for, after `shared::PENDING_TIMEOUT_S` with no answer.
+    /// The server it went to ([`SharedBuild::server`]): only that server's lists settle it.
+    server: String,
+    /// When its frame's list was last asked for, each `shared::PENDING_TIMEOUT_S` with no answer.
     asked: Option<f64>,
     /// The relay said too much at once: send it again then.
     resend_at: Option<f64>,
 }
 
-/// A take-down sent and not answered yet.
+/// A take-down sent and not answered yet: settled as a build is ([`PendingBuild`]), by its answer
+/// or by its frame's list.
 #[derive(Debug, Clone)]
 struct PendingUnbuild {
     req_id: u32,
     unbuild: Unbuild,
+    /// The frame the piece stood in when it was sent: that frame's list settles it.
+    frame: String,
     message: String,
     sent_at: f64,
+    session: u32,
+    server: String,
+    asked: Option<f64>,
     resend_at: Option<f64>,
 }
 
@@ -269,6 +299,10 @@ pub(crate) struct SharedBuild {
     active: bool,
     /// Counts welcomes, so a build sent in an earlier session is settled by this one's lists.
     session: u32,
+    /// The server this session is with (`home_plot::active_server_key`, set as its welcome comes,
+    /// [`on_welcome`]): builds and take-downs sent are filed under it, and only its lists settle
+    /// them. A request sent to one server and never answered waits for that server.
+    pub(crate) server: String,
     /// Real seconds since the game started (every timer here runs on it).
     now: f64,
     /// Each frame whose list this game holds, with its `seq`. A frame not here has no list:
@@ -287,8 +321,9 @@ pub(crate) struct SharedBuild {
     last_req: u32,
     /// The next build or take-down may go then (`shared::SEND_INTERVAL_MS` apart).
     next_send_at: f64,
-    /// Frames whose whole list this game will ask for again (a gap in their `seq`, a build with
-    /// no answer), and the last one asked for and when: one player asks at most once a
+    /// Frames whose whole list this game will ask for again (whenever it may have lost one of
+    /// their messages, or to settle a request with no answer; see the top of this file), and the
+    /// last one asked for and when: one player asks at most once a
     /// `shared::PIECES_REQUEST_INTERVAL_MS`, whichever frame.
     lists_wanted: BTreeSet<String>,
     last_list: Option<(String, f64)>,
@@ -315,7 +350,8 @@ impl SharedBuild {
     pub(crate) fn waiting_at(&self, data: &DataStore, pose: &Transform) -> bool {
         let same = |q: &Transform| shared::same_box(q, pose);
         self.queue.iter().any(|i| same(&i.pose))
-            || self.pending.iter().any(|p| same(&p.intent.pose))
+            // A build waiting for another server is of a spot there, not here.
+            || self.pending.iter().any(|p| p.server == self.server && same(&p.intent.pose))
             || data
                 .get::<OutQueue>(shared::OUT_CHANNEL)
                 .is_some_and(|q| q.lock().is_ok_and(|q| q.iter().any(|i| same(&i.pose))))
@@ -327,7 +363,9 @@ impl SharedBuild {
     /// Ask the relay to take a piece down (F, or the dev verb): sent by the tick, never twice for
     /// one piece.
     pub(crate) fn ask_take_down(&mut self, u: Unbuild) {
-        let asked = self.unbuilds.iter().any(|q| q.piece_id == u.piece_id) || self.pending_unbuilds.iter().any(|q| q.unbuild.piece_id == u.piece_id);
+        // (A take-down waiting for another server is of that server's piece, whatever its number.)
+        let asked = self.unbuilds.iter().any(|q| q.piece_id == u.piece_id)
+            || self.pending_unbuilds.iter().any(|q| q.unbuild.piece_id == u.piece_id && q.server == self.server);
         if !asked {
             self.unbuilds.push_back(u);
         }
@@ -339,22 +377,37 @@ impl SharedBuild {
     }
 
     /// Whether a `game_built` or `game_unbuilt` with `seq` in `frame` is applied, moving the frame's
-    /// seq on: never outside a session, never for a frame with no list (the list will hold it),
-    /// never at or below the frame's seq (a duplicate, or news the list already holds); after a
-    /// gap (more than one ahead) it is applied, and the frame's whole list asked for again.
+    /// seq on: never outside a session, never for a frame with no list (the list will hold it,
+    /// and it is asked for), never at or below the frame's seq (a duplicate, or news the list
+    /// already holds); after a gap (more than one ahead) it is applied, and the frame's whole list
+    /// asked for again.
     fn step(&mut self, frame: &str, seq: u64) -> bool {
         if !self.active {
             return false;
         }
-        let Some(have) = self.seqs.get_mut(frame) else { return false };
+        let Some(have) = self.seqs.get_mut(frame) else {
+            // News about a frame this game holds no whole list of: the list, or a part of it,
+            // was lost (the relay sends a frame's list before any news of it), or this is our own
+            // answer from a frame out of view. The list holds this news too, so it is asked for
+            // (review of increment 5, finding 1, case B: before, every piece built there was
+            // ignored for the rest of the session, the player's own included).
+            self.want_list(frame);
+            return false;
+        };
         if seq <= *have {
             return false;
         }
         if seq > *have + 1 {
+            // (`want_list`, by its field: `have` holds `seqs`.)
             self.lists_wanted.insert(frame.to_string());
         }
         *have = seq;
         true
+    }
+
+    /// Ask for `frame`'s whole list, the next time one may be asked for ([`ask_for_lists`]).
+    fn want_list(&mut self, frame: &str) {
+        self.lists_wanted.insert(frame.to_string());
     }
 
     /// Keep one part of a frame's list; the whole list (and the relay's clock with it) once every
@@ -364,9 +417,10 @@ impl SharedBuild {
             log::warn!("Shared building: part {part} of {parts} of {frame}'s list makes no sense; ignored");
             return None;
         }
+        let now = self.now;
         let s = self.staging.entry(frame.to_string()).or_default();
         if s.got.is_empty() || s.seq != seq || s.parts != parts {
-            *s = Staging { seq, server_time, parts, got: BTreeMap::new() };
+            *s = Staging { seq, server_time, parts, got: BTreeMap::new(), since: now };
         }
         s.got.insert(part, pieces);
         if s.got.len() < parts as usize {
@@ -400,8 +454,10 @@ pub(crate) fn on_game_message(state: &mut EngineState, v: &serde_json::Value) ->
     claimed
 }
 
-/// A welcome to a shared world (engine/net_route.rs, once the home has taken it).
+/// A welcome to a shared world (engine/net_route.rs, once the home has taken it). The server it
+/// comes from is this session's ([`SharedBuild::server`]).
 pub(crate) fn on_welcome(state: &mut EngineState, v: &serde_json::Value) {
+    state.shared_build.server = crate::engine::home_plot::active_server_key(&state.gui_state);
     welcome(&mut ctx(state), v);
     flush(state);
 }
@@ -435,7 +491,7 @@ fn flush(state: &mut EngineState) {
 
 /// Is `ty` one of the relay's messages about the pieces it keeps?
 pub(crate) fn is_ours(ty: &str) -> bool {
-    [msg::BUILT, msg::UNBUILT, msg::PIECES, msg::FRAME_OUT_OF_VIEW, msg::BUILD_REFUSED].contains(&ty)
+    [msg::BUILT, msg::UNBUILT, msg::PIECES, msg::FRAME_OUT_OF_VIEW, msg::BUILD_REFUSED, msg::PIECES_CHECK].contains(&ty)
 }
 
 /// A relay message: true when it is about the pieces the server keeps (then it is applied here,
@@ -467,8 +523,12 @@ fn receive(cx: &mut Ctx, m: FromRelay) {
             }
         }
         FromRelay::Unbuilt { frame, seq, piece_id, req_id } => {
-            if let Some(id) = req_id {
-                took_down(cx, id);
+            match req_id {
+                // Our own take-down, done: its materials come back. Settled even after leaving
+                // (a late answer on this connection).
+                Some(id) => took_down(cx, id),
+                // Someone else's: a take-down of ours of the same piece is beaten to it.
+                None => beaten_to_it(cx, piece_id),
             }
             if cx.sb.step(&frame, seq) {
                 despawn_piece(cx.world, &mut cx.sb.index, piece_id);
@@ -494,6 +554,35 @@ fn receive(cx: &mut Ctx, m: FromRelay) {
             }
         }
         FromRelay::Refused { req_id, action, reason, why, message } => refused(cx, req_id, action, reason, why, &message),
+        FromRelay::Check { frames, ranks } => {
+            // A check from a session this game has left says nothing about the next one.
+            if cx.sb.active {
+                cx.sb.ranks = ranks;
+                check(cx, &frames);
+            }
+        }
+    }
+}
+
+/// The relay's check (`game_pieces_check`, every `shared::CHECK_INTERVAL_S`; the review of
+/// increment 5, finding 1): what this game should hold. It goes out in order with the frames'
+/// news, so a frame's `seq` in it is exactly that of the last news about the frame sent before it:
+/// a frame this game holds at another `seq`, or holds no whole list of, lost a message, and its
+/// list is asked for. A frame whose list is arriving in parts at that very `seq` is left to its
+/// parts (a list the player asked for can go out beside a check; [`parts_overdue`] looks after
+/// them). A frame this game holds and the check does not name has left the player's view, and the
+/// word of it was lost: it is forgotten, as `game_frame_out_of_view` would have.
+fn check(cx: &mut Ctx, frames: &BTreeMap<String, u64>) {
+    for (frame, seq) in frames {
+        let held = cx.sb.seqs.get(frame) == Some(seq);
+        let arriving = cx.sb.staging.get(frame).is_some_and(|s| s.seq == *seq);
+        if !held && !arriving {
+            cx.sb.want_list(frame);
+        }
+    }
+    let left: Vec<String> = cx.sb.seqs.keys().chain(cx.sb.staging.keys()).filter(|f| !frames.contains_key(*f)).cloned().collect();
+    for frame in left {
+        forget_frame(cx, &frame);
     }
 }
 
@@ -588,24 +677,30 @@ fn replace_frame(cx: &mut Ctx, frame_id: &str, seq: u64, server_time: f64, piece
     settle_by_list(cx, &frame, pieces);
 }
 
-/// The builds a frame's list settles. One whose box a piece of ours in the list has was kept
-/// (its answer was lost): its materials stay spent. One the list does not hold is settled only
-/// when the list is known to come after the relay handled it: its frame's list was asked for after
-/// it went unanswered, or it was sent in an earlier session (its answer went with that
-/// connection). Then it was never kept, and what it took comes back. Any other build is still on
-/// its way: a list the relay sent before handling it cannot hold it.
+/// The builds and take-downs a frame's list settles, each exactly once (the review of increment 5,
+/// finding 2), and only those sent to this session's server.
+/// - A build whose blueprint and box a piece of ours in the list has was kept (its answer was
+///   lost): its materials stay spent.
+/// - Anything else is settled only when the list is known to come after the relay handled it: its
+///   frame's list was asked for after it went unanswered, or it was sent in an earlier session
+///   (its answer went with that one). Then a build the list does not hold was never kept, and
+///   what it took comes back; a take-down whose piece the list lacks was done, and the piece's
+///   materials come back; one whose piece the list still holds was not done, and the player is
+///   told. A list the relay sent before handling a request says nothing about it, so any other
+///   request waits on.
 fn settle_by_list(cx: &mut Ctx, frame: &BuildFrame, pieces: &[Piece]) {
-    let session = cx.sb.session;
+    let (session, server) = (cx.sb.session, cx.sb.server.clone());
+    let after_it = |asked: Option<f64>, sent_in: u32| asked.is_some() || sent_in != session;
     let mut lost = Vec::new();
     cx.sb.pending.retain(|p| {
-        if p.intent.frame != frame.id {
+        if p.intent.frame != frame.id || p.server != server {
             return true;
         }
         let local = frame.to_local(&p.intent.pose);
-        if pieces.iter().any(|q| q.mine && shared::same_box(&q.local_pose(), &local)) {
+        if pieces.iter().any(|q| q.mine && q.blueprint_id == p.intent.blueprint_id && shared::same_box(&q.local_pose(), &local)) {
             return false;
         }
-        if p.asked.is_some() || p.session != session {
+        if after_it(p.asked, p.session) {
             lost.push(p.intent.clone());
             return false;
         }
@@ -615,9 +710,29 @@ fn settle_by_list(cx: &mut Ctx, frame: &BuildFrame, pieces: &[Piece]) {
         let line = never_answered(cx.data, &intent.blueprint_id);
         refund_build(cx, &intent, line);
     }
+    let (mut done, mut standing) = (Vec::new(), Vec::new());
+    cx.sb.pending_unbuilds.retain(|u| {
+        if u.frame != frame.id || u.server != server || !after_it(u.asked, u.session) {
+            return true;
+        }
+        if pieces.iter().any(|q| q.piece_id == u.unbuild.piece_id) {
+            standing.push(u.unbuild.clone());
+        } else {
+            done.push(u.unbuild.clone());
+        }
+        false
+    });
+    for u in done {
+        give_back_taken_down(cx, &u);
+    }
+    for u in standing {
+        cx.gui.pending_notices.push(format!("{} not taken down: the server never said it came down.", u.name));
+    }
 }
 
 /// A frame left the player's view: its pieces come down, and news about it waits for its next list.
+/// A build or take-down waiting on it keeps waiting ([`timeouts`] asks for the list, which comes
+/// out of view too).
 fn forget_frame(cx: &mut Ctx, frame_id: &str) {
     let gone: Vec<(hecs::Entity, u64)> = cx.world.query::<&SharedPiece>().iter().filter(|(_e, k)| k.frame == frame_id).map(|(e, k)| (e, k.piece_id)).collect();
     for (e, id) in gone {
@@ -633,15 +748,40 @@ fn forget_frame(cx: &mut Ctx, frame_id: &str) {
 fn took_down(cx: &mut Ctx, req_id: u32) {
     let Some(i) = cx.sb.pending_unbuilds.iter().position(|u| u.req_id == req_id) else { return };
     let u = cx.sb.pending_unbuilds.remove(i).unbuild;
+    give_back_taken_down(cx, &u);
+}
+
+/// A take-down of ours the relay did: the piece's materials come back to us, once (decision 1 of
+/// the increment 5 plan: whoever takes a piece down gets them), and we are told.
+fn give_back_taken_down(cx: &mut Ctx, u: &Unbuild) {
     let back = Spent { pack: u.materials.clone(), storage: Vec::new() };
     let got = give_back(cx, &back);
     cx.gui.pending_notices.push(if got.is_empty() { format!("Took down the {}", u.name) } else { format!("Took down the {}: {got} back", u.name) });
 }
 
+/// Someone else took piece `piece_id` down (a `game_unbuilt` carrying no req_id of ours): a
+/// take-down of ours of the same piece, waiting to go or waiting for its answer, was beaten to it.
+/// Nothing comes back (whoever took it down got its materials), the player is told once, in the
+/// words of the relay's own answer to ours (`no_such_piece`), and that answer, when it comes, finds
+/// nothing left to settle. Only a take-down sent to this session's server: another server's piece
+/// numbers are its own.
+fn beaten_to_it(cx: &mut Ctx, piece_id: u64) {
+    let mut names: Vec<String> = cx.sb.unbuilds.iter().filter(|u| u.piece_id == piece_id).map(|u| u.name.clone()).collect();
+    cx.sb.unbuilds.retain(|u| u.piece_id != piece_id);
+    let server = cx.sb.server.clone();
+    let ours = |u: &PendingUnbuild| u.unbuild.piece_id == piece_id && u.server == server;
+    names.extend(cx.sb.pending_unbuilds.iter().filter(|u| ours(u)).map(|u| u.unbuild.name.clone()));
+    cx.sb.pending_unbuilds.retain(|u| !ours(u));
+    for name in names {
+        cx.gui.pending_notices.push(shared::refusal_message(Action::Unbuild, &name, Reason::NoSuchPiece, None));
+    }
+}
+
 /// A refusal (`game_build_refused`). A build gives back exactly what it took and says why; a
-/// take-down says why; "too much at once" (`rate_limited`) sends the request again a moment later.
-/// The sentence is the contract's (`shared::refusal_message`), or the relay's own for a code this
-/// game does not know.
+/// take-down says why, and one of a piece the server no longer keeps (`no_such_piece`) also takes
+/// that piece down here and asks for its frame's list; "too much at once" (`rate_limited`) sends
+/// the request again a moment later. The sentence is the contract's (`shared::refusal_message`),
+/// or the relay's own for a code this game does not know.
 fn refused(cx: &mut Ctx, req_id: Option<u32>, action: Action, reason: Reason, why: Option<Why>, message: &str) {
     let retry = cx.sb.now + shared::RATE_LIMITED_RETRY_MS as f64 / 1000.0;
     let said = |name: &str| if reason == Reason::Unknown { message.to_string() } else { shared::refusal_message(action, name, reason, why) };
@@ -663,11 +803,19 @@ fn refused(cx: &mut Ctx, req_id: Option<u32>, action: Action, reason: Reason, wh
                 return;
             }
             let u = cx.sb.pending_unbuilds.remove(i);
+            if reason == Reason::NoSuchPiece && cx.sb.active && u.server == cx.sb.server {
+                // The server no longer keeps it, and this game still drew it, solid: the news of
+                // its take-down was lost (review of increment 5, finding 1, case A). It comes down
+                // here too, and its frame's whole list is asked for, which may have missed more.
+                // (Out of a session every piece is down already.)
+                despawn_piece(cx.world, &mut cx.sb.index, u.unbuild.piece_id);
+                cx.sb.want_list(&u.frame);
+            }
             cx.gui.pending_notices.push(said(&u.unbuild.name));
         }
         // A list we asked for (it carries no req_id): too soon, and the last frame asked for is
-        // asked for again; anything else is only logged, and an unanswered build still settles
-        // on its own clock.
+        // asked for again; anything else is only logged, and a request with no answer is asked
+        // about again on its own clock ([`timeouts`]).
         (Action::Pieces, _) => {
             if reason == Reason::RateLimited {
                 if let Some((frame, _)) = cx.sb.last_list.clone() {
@@ -737,10 +885,11 @@ fn give_back(cx: &mut Ctx, spent: &Spent) -> String {
 
 // ── Welcome, leaving, the tick ────────────────────────────────────────────
 
-/// A welcome to a shared world: what this player may do (`ranks`, absent fields false), and the
-/// shared pieces start afresh, because the relay sends every frame in view whole right after it.
-/// Builds sent before it stay waiting: the lists that follow settle them ([`settle_by_list`]), on a
-/// fresh clock.
+/// A welcome to a shared world: what this player may do (`ranks`, absent fields false; the relay's
+/// check keeps them current, [`check`]), and the shared pieces start afresh, because the relay
+/// sends every frame in view whole right after it. Builds and take-downs sent before it stay
+/// waiting: the lists that follow settle them ([`settle_by_list`]), on a fresh clock, and one
+/// whose frame sends no list is asked about after `shared::PENDING_TIMEOUT_S` ([`timeouts`]).
 pub(crate) fn welcome(cx: &mut Ctx, v: &serde_json::Value) {
     leave(cx);
     cx.sb.ranks = v.get("ranks").and_then(|r| serde_json::from_value::<Ranks>(r.clone()).ok()).unwrap_or_default();
@@ -751,12 +900,18 @@ pub(crate) fn welcome(cx: &mut Ctx, v: &serde_json::Value) {
         p.asked = None;
         p.sent_at = now;
     }
+    for u in &mut cx.sb.pending_unbuilds {
+        u.asked = None;
+        u.sent_at = now;
+    }
 }
 
 /// The session ended (left, dropped, or a new join waiting for its welcome): every shared piece
-/// comes down (home_plot.rs `forget_shared_entities` usually took them already), and what this
-/// game knew of the frames goes with them. Take-downs not answered are dropped: whether the piece
-/// came down, the next list says. Builds not answered stay waiting for the next session's lists.
+/// comes down (home_plot.rs `forget_shared_entities` usually took them already), what this game
+/// knew of the frames goes with them, and so do the take-downs not sent yet. Builds and take-downs
+/// sent and not answered STAY (the review of increment 5, finding 2: the take-downs were dropped
+/// here, so one the relay did gave nothing back): their answer can still come on this connection
+/// (a Respawn steps out and in on the same one), and the next session's lists settle the rest.
 fn leave(cx: &mut Ctx) {
     let pieces: Vec<hecs::Entity> = cx.world.query::<&SharedPiece>().iter().map(|(e, _)| e).collect();
     let taken = pieces.len();
@@ -764,16 +919,18 @@ fn leave(cx: &mut Ctx) {
         let _ = cx.world.despawn(e);
     }
     let sb = &mut *cx.sb;
-    let dropped = sb.unbuilds.len() + sb.pending_unbuilds.len();
     sb.index.clear();
     sb.seqs.clear();
     sb.staging.clear();
     sb.lists_wanted.clear();
     sb.unbuilds.clear();
-    sb.pending_unbuilds.clear();
     sb.ranks = Ranks::default();
     if sb.active {
-        log::info!("Shared building: out of the session; took down {taken} piece(s) the server keeps, dropped {dropped} take-down(s) not answered");
+        log::info!(
+            "Shared building: out of the session; took down {taken} piece(s) the server keeps; {} build(s) and {} take-down(s) wait for their answer",
+            sb.pending.len(),
+            sb.pending_unbuilds.len()
+        );
     }
     sb.active = false;
 }
@@ -790,14 +947,16 @@ pub(crate) fn tick_core(cx: &mut Ctx, real_dt: f32, joined: bool, welcomed: bool
         leave(cx);
     }
     if !joined {
-        // Out of the shared world nothing can be sent: what waits comes back now, in the words of
-        // the relay's own refusal, and a build sent and never answered after a good while too.
+        // Out of the shared world nothing can be sent: a paid-for build that never went comes
+        // back now, in the words of the relay's own refusal, and a take-down that never went is
+        // dropped. What WAS sent and not answered waits: its answer can still come on this
+        // connection, and the next session's lists settle it either way (the review of increment
+        // 5, finding 2: a timer here gave back builds the relay had kept).
         while let Some(intent) = cx.sb.queue.pop_front() {
             let line = shared::refusal_message(Action::Build, &blueprint_name(cx.data, &intent.blueprint_id), Reason::NotInGame, None);
             refund_build(cx, &intent, line);
         }
         cx.sb.unbuilds.clear();
-        give_up_unanswered(cx, 2.0 * f64::from(shared::PENDING_TIMEOUT_S));
         return;
     }
     if !welcomed {
@@ -805,52 +964,48 @@ pub(crate) fn tick_core(cx: &mut Ctx, real_dt: f32, joined: bool, welcomed: bool
         return;
     }
     timeouts(cx);
+    parts_overdue(cx);
     ask_for_lists(cx);
     send_next(cx);
 }
 
-/// Builds sent and not answered for `after` seconds come back as never kept.
-fn give_up_unanswered(cx: &mut Ctx, after: f64) {
-    let now = cx.sb.now;
-    let mut lost = Vec::new();
-    cx.sb.pending.retain(|p| {
-        let keep = now - p.sent_at < after;
-        if !keep {
-            lost.push(p.intent.clone());
-        }
-        keep
-    });
-    for intent in lost {
-        let line = never_answered(cx.data, &intent.blueprint_id);
-        refund_build(cx, &intent, line);
-    }
-}
-
-/// A build with no answer after `shared::PENDING_TIMEOUT_S` asks once for its frame's list, which
-/// settles it ([`settle_by_list`]); with no list either after as long again, it counts as never
-/// kept and its materials come back. A take-down with no answer is dropped.
+/// A build or take-down sent to this session's server with no answer after
+/// `shared::PENDING_TIMEOUT_S` asks for its frame's list, which settles it ([`settle_by_list`]);
+/// with no list either after as long again (the ask, or the list, lost), it asks again. Never a
+/// refund on a timer: the relay may have kept the build, and the list is the only word on it (the
+/// review of increment 5, finding 2). A frame out of the player's view is sent all the same, so
+/// this settles wherever they stand.
 fn timeouts(cx: &mut Ctx) {
     let now = cx.sb.now;
     let timeout = f64::from(shared::PENDING_TIMEOUT_S);
+    let server = cx.sb.server.clone();
+    let due = |sent_at: f64, asked: Option<f64>| now - asked.unwrap_or(sent_at) >= timeout;
     let mut want = Vec::new();
-    for p in cx.sb.pending.iter_mut().filter(|p| p.asked.is_none() && now - p.sent_at >= timeout) {
+    for p in cx.sb.pending.iter_mut().filter(|p| p.server == server && due(p.sent_at, p.asked)) {
         p.asked = Some(now);
         want.push(p.intent.frame.clone());
     }
-    cx.sb.lists_wanted.extend(want);
-    let mut lost = Vec::new();
-    cx.sb.pending.retain(|p| {
-        let keep = p.asked.map_or(true, |t| now - t < timeout);
-        if !keep {
-            lost.push(p.intent.clone());
-        }
-        keep
-    });
-    for intent in lost {
-        let line = never_answered(cx.data, &intent.blueprint_id);
-        refund_build(cx, &intent, line);
+    for u in cx.sb.pending_unbuilds.iter_mut().filter(|u| u.server == server && due(u.sent_at, u.asked)) {
+        u.asked = Some(now);
+        want.push(u.frame.clone());
     }
-    cx.sb.pending_unbuilds.retain(|u| now - u.sent_at < timeout);
+    for frame in want {
+        cx.sb.want_list(&frame);
+    }
+}
+
+/// A frame's list whose first part came more than `shared::PARTS_WAIT_S` ago and whose other
+/// parts have not: they were lost (every part leaves the relay together), so what came is let go
+/// and the whole list asked for again (the review of increment 5, finding 1, case B: the part
+/// used to wait for good, and the frame never had a list again that session).
+fn parts_overdue(cx: &mut Ctx) {
+    let now = cx.sb.now;
+    let wait = f64::from(shared::PARTS_WAIT_S);
+    let overdue: Vec<String> = cx.sb.staging.iter().filter(|(_, s)| now - s.since > wait).map(|(f, _)| f.clone()).collect();
+    for frame in overdue {
+        cx.sb.staging.remove(&frame);
+        cx.sb.want_list(&frame);
+    }
 }
 
 /// How much later than the relay's own spacing this game asks, seconds: the two clocks measure the
@@ -892,10 +1047,23 @@ fn send_next(cx: &mut Ctx) {
         u.resend_at = None;
         Some(u.message.clone())
     } else if let Some(unbuild) = cx.sb.unbuilds.pop_front() {
-        let req_id = cx.sb.next_req_id();
-        let message = wire(&ToRelay::Unbuild { req_id, piece_id: unbuild.piece_id, permit: None });
-        cx.sb.pending_unbuilds.push(PendingUnbuild { req_id, unbuild, message: message.clone(), sent_at: now, resend_at: None });
-        Some(message)
+        // The frame the piece stands in, whose list settles the take-down if its answer is lost.
+        // A piece that left this game's world meanwhile (its frame out of view, or someone else
+        // took it down) is not asked about.
+        let frame = entity_of(cx.world, unbuild.piece_id).and_then(|e| cx.world.get::<&SharedPiece>(e).ok().map(|k| k.frame.clone()));
+        match frame {
+            None => {
+                log::info!("Shared building: piece {} left this world before its take-down went; not sent", unbuild.piece_id);
+                None
+            }
+            Some(frame) => {
+                let req_id = cx.sb.next_req_id();
+                let message = wire(&ToRelay::Unbuild { req_id, piece_id: unbuild.piece_id, permit: None });
+                let (session, server) = (cx.sb.session, cx.sb.server.clone());
+                cx.sb.pending_unbuilds.push(PendingUnbuild { req_id, unbuild, frame, message: message.clone(), sent_at: now, session, server, asked: None, resend_at: None });
+                Some(message)
+            }
+        }
     } else if let Some(intent) = cx.sb.queue.pop_front() {
         match frame_of(cx.gui, &intent.frame) {
             None => {
@@ -915,8 +1083,8 @@ fn send_next(cx: &mut Ctx) {
                     scale: local.scale.to_array(),
                     permit: None,
                 });
-                let session = cx.sb.session;
-                cx.sb.pending.push(PendingBuild { req_id, intent, message: message.clone(), sent_at: now, session, asked: None, resend_at: None });
+                let (session, server) = (cx.sb.session, cx.sb.server.clone());
+                cx.sb.pending.push(PendingBuild { req_id, intent, message: message.clone(), sent_at: now, session, server, asked: None, resend_at: None });
                 Some(message)
             }
         }

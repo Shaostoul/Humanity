@@ -98,9 +98,18 @@ pub const RATE_LIMITED_RETRY_MS: u64 = 500;
 /// One player may ask for a frame's pieces again (`game_pieces_request`) this often at most,
 /// milliseconds.
 pub const PIECES_REQUEST_INTERVAL_MS: u64 = 1000;
-/// A build or take-down left this long without an answer asks once for its frame's pieces, and
-/// that list settles it, seconds.
+/// A build or take-down left this long without an answer asks for its frame's pieces, and that
+/// list settles it; with no list either after as long again, it asks again. Seconds. (Never a
+/// refund on a timer: a build the relay kept would then be paid for twice. Review of increment 5,
+/// finding 2.)
 pub const PENDING_TIMEOUT_S: f32 = 10.0;
+/// The relay sends each player in the shared world a [`FromRelay::Check`] this often, seconds,
+/// with its `game_time_sync` (relay/mod.rs). A message the game lost is noticed by the next one.
+pub const CHECK_INTERVAL_S: u64 = 5;
+/// A frame's list whose first part came this long ago and whose other parts have not, seconds:
+/// the rest was lost, and the whole list is asked for again. Every part of one list leaves the
+/// relay together, so a part is never this late on its way.
+pub const PARTS_WAIT_S: f32 = 3.0;
 
 // ── How exact a pose must be ──────────────────────────────────────────────
 
@@ -450,6 +459,9 @@ pub mod msg {
     pub const FRAME_OUT_OF_VIEW: &str = "game_frame_out_of_view";
     /// Relay to one game: your request was refused, and why.
     pub const BUILD_REFUSED: &str = "game_build_refused";
+    /// Relay to one game, every [`super::CHECK_INTERVAL_S`] seconds: the frames in its view with
+    /// each one's `seq`, and what this player may do now (review of increment 5, findings 1 and 5).
+    pub const PIECES_CHECK: &str = "game_pieces_check";
 }
 
 /// A household permit (ship homes section 4): a plot's holder lets one person build on that
@@ -574,7 +586,9 @@ pub enum ToRelay {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         permit: Option<Permit>,
     },
-    /// Send this frame's pieces again (after a gap in its `seq`).
+    /// Send this frame's pieces again: after a gap in its `seq`, a check that disagrees, a part
+    /// that never came, or to settle a build or take-down whose answer was lost. Any frame, in
+    /// view or not (one out of view comes followed by `game_frame_out_of_view`).
     #[serde(rename = "game_pieces_request")]
     PiecesRequest { frame: String },
 }
@@ -609,12 +623,25 @@ pub enum FromRelay {
     },
     /// Every piece in `frame` as of `seq`, to one player: when the frame comes into view, on a
     /// join, or asked for. At most [`PIECES_PER_PART`] per message, parts numbered from 1; an
-    /// empty frame is one part with no pieces.
+    /// empty frame is one part with no pieces. Asked for a frame out of the player's view, it
+    /// comes all the same, followed by `game_frame_out_of_view`: so a game can settle a build or
+    /// a take-down whose answer it lost wherever it stands, and then forgets the frame.
     #[serde(rename = "game_pieces")]
     Pieces { frame: String, seq: u64, server_time: f64, part: u32, parts: u32, pieces: Vec<Piece> },
     /// `frame` left this player's view: forget its pieces until it comes back.
     #[serde(rename = "game_frame_out_of_view")]
     FrameOutOfView { frame: String },
+    /// Every [`CHECK_INTERVAL_S`] seconds, to each player in the shared world (review of increment
+    /// 5, findings 1 and 5): each frame in their view with its `seq`, and what they may do now.
+    /// The relay can skip messages for a socket that fell behind and keep it open (relay.rs
+    /// `recv_skipping_lag`), so a game can miss a change, a list, or a frame leaving its view
+    /// without a word; this says what it should hold. A frame held at another `seq`, or not held
+    /// at all, is asked for again; a frame held and not listed has left the view. And `ranks`
+    /// are the player's ranks as they stand now, so a rank given or taken away mid-session counts
+    /// without a rejoin. Sent in order with the frames' news, so the frames' `seq` are exactly
+    /// those of the news sent before it.
+    #[serde(rename = "game_pieces_check")]
+    Check { frames: std::collections::BTreeMap<String, u64>, ranks: Ranks },
     /// A request was refused, and nothing changed.
     #[serde(rename = "game_build_refused")]
     Refused {
@@ -1194,7 +1221,11 @@ mod tests {
     /// silently.
     /// Seen red 2026-10-05 with `Piece::mine` always written (its `skip_serializing_if`
     /// removed): "someone else's copy: no builder, no mine", left: `["blueprint_id", "mine",
-    /// "piece_id", "placed_at", "position", "rotation", "scale"]`.
+    /// "piece_id", "placed_at", "position", "rotation", "scale"]`. The check's row (the review of
+    /// increment 5, findings 1 and 5), seen red with the variant named otherwise
+    /// (`game_pieces_checks`): "{\"type\":\"game_pieces_check\",...}: unknown variant
+    /// `game_pieces_check`, expected one of `game_built`, `game_unbuilt`, `game_pieces`,
+    /// `game_frame_out_of_view`, `game_pieces_checks`, `game_build_refused`".
     #[test]
     fn the_wire_messages_have_exactly_the_contract_fields() {
         let keys = |v: &serde_json::Value| -> Vec<String> {
@@ -1282,6 +1313,11 @@ mod tests {
                 msg::BUILD_REFUSED,
                 vec!["type", "action", "reason", "message"],
             ),
+            (
+                r#"{"type":"game_pieces_check","frames":{"plot:p1":4,"zone:commons":0},"ranks":{"can_edit_ship":true,"take_down_any":false}}"#.into(),
+                msg::PIECES_CHECK,
+                vec!["type", "frames", "ranks"],
+            ),
         ];
         for (json, ty, fields) in &from_relay {
             let m: FromRelay = serde_json::from_str(json).unwrap_or_else(|e| panic!("{json}: {e}"));
@@ -1299,6 +1335,13 @@ mod tests {
             refused,
             FromRelay::Refused { req_id: Some(7), action: Action::Build, reason: Reason::NotAllowed, why: Some(Why::NotYourPlot), .. }
         ));
+        // The check (review of increment 5, findings 1 and 5): each frame in view with its seq,
+        // and the ranks as they stand, absent fields false like the welcome's.
+        let FromRelay::Check { frames, ranks } = serde_json::from_str(&from_relay[8].0).unwrap() else { panic!("a check") };
+        assert_eq!(frames.into_iter().collect::<Vec<_>>(), vec![("plot:p1".to_string(), 4), ("zone:commons".to_string(), 0)]);
+        assert_eq!(ranks, Ranks { can_edit_ship: true, take_down_any: false });
+        let bare: FromRelay = serde_json::from_str(r#"{"type":"game_pieces_check","frames":{},"ranks":{}}"#).expect("a check with no frame");
+        assert_eq!(bare, FromRelay::Check { frames: Default::default(), ranks: Ranks::default() });
 
         // The welcome's ranks: absent fields read false.
         let ranks: Ranks = serde_json::from_str(r#"{"can_edit_ship":true}"#).unwrap();

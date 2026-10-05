@@ -322,6 +322,25 @@ fn one_piece_to_a_box() {
     assert_eq!(db.load_world_pieces(&world.ship_plots.ship_id).unwrap().len(), 4, "and four rows");
 }
 
+/// THE CHECK GOES OUT WITH THE TIME SYNC (the review of increment 5, findings 1 and 5): the loop in
+/// relay/mod.rs that sends `game_time_sync` every `shared::CHECK_INTERVAL_S` seconds also sends
+/// every player their check (`send_checks`). The end-to-end test calls `send_checks` itself, so
+/// without this a relay that never sent a check would pass it, and every game's lost messages
+/// would go unnoticed again.
+///
+/// Seen red 2026-10-05 with the `send_checks` line taken out of the loop: "the time sync loop
+/// never sends the checks".
+#[test]
+fn the_check_goes_out_with_the_time_sync() {
+    let src = include_str!("../mod.rs").replace("\r\n", "\n");
+    let start = src.find("// Game TimeSync broadcast").expect("the time sync loop in relay/mod.rs");
+    let end = src[start..].find("// Scheduled re-votes").map_or(src.len(), |e| start + e);
+    let body = &src[start..end];
+    let every = format!("Duration::from_secs({})", shared::CHECK_INTERVAL_S);
+    assert!(body.contains(&every), "the time sync loop no longer runs every {} s: {body}", shared::CHECK_INTERVAL_S);
+    assert!(body.contains("shared_build::send_checks(&game_state).await"), "the time sync loop never sends the checks");
+}
+
 /// THE POSE KEPT IS THE EXACT ONE (shared.rs `pose_in_frame`): a wall sent a little off (x 0.4 mm
 /// and z 0.3 mm off the grid, turned 0.2 degrees off a quarter about a tilted axis, all inside
 /// the tolerances) is kept, in the relay's book and in its row, exactly on the grid, exactly the
