@@ -2162,6 +2162,11 @@ becomes finished tools on its own. Three pieces:
   concurrently), outputs land back in home stock. Deliberately no skill gate: owning
   the machine is the unlock. Data-driven -- any machine gains auto production by
   adding `auto_recipe` in the RON, no code.
+  **Since BUG-150 (2026-10-04) "home stock" is home storage only:** a machine never
+  takes from the player's backpack (the sawmill used to saw the logs the player
+  carried), its status line says "waiting for X in home storage", and the drone
+  unloads its haul into home storage, so the chain still runs untouched. A quest's
+  Gather step counts what the home holds as well as what is carried.
 - **Drone standing orders**: the Mining panel's "Keep mining" checkbox turns a
   commission into a standing order (`auto_mine_order`); the drone re-launches the
   same trip after every delivery until the asteroid depletes (which removes the

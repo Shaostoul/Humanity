@@ -535,9 +535,9 @@ buoyancy and no boating.
   at the normal speed gear with fly mode off, and your depth holds steady
   until you swim up or down. You reach the Earth, and so its sea,
   through the Dev page's travel or Land on surface buttons, and both
-  leave fly mode on, although once you are on the surface the line under
-  the compass reads "WALK x1 [F9 to fly]". Until you press F9 twice, or
-  untick Fly mode on the Dev page, you swim at 5 metres a second.
+  leave fly mode on, and the line under the compass says so ("FLY x1 -
+  gravity on [F9 to hover]"). Until you press F9 twice, or untick Fly
+  mode on the Dev page, you swim at 5 metres a second.
   Nothing about your own density,
   clothing or a life jacket changes how you float. The game's code calls
   this riding of the waves its buoyancy float, but it is a floor that
@@ -565,10 +565,10 @@ buoyancy and no boating.
   nails, paint, bolts, cloth or steel. During development the Dev
   buttons "Dev: stock all materials" on the Crafting page and "Dev: max
   skills" on the Profile page supply the parts and the skill levels, but
-  not the tools. Craft the raft straight after stocking: in this build
-  the home's sawmill takes logs from your backpack by itself, two at a
-  time, and turns them into planks, so the stocked logs are gone within
-  seconds. A boat is too big for your backpack, so it goes into your
+  not the tools. The stock button fills your backpack, and the home's
+  sawmill, which saws logs into planks by itself, takes its logs from
+  home storage only, never from your backpack, so the stocked logs wait
+  for the raft. A boat is too big for your backpack, so it goes into your
   home's storage when it is made, and the game makes one only aboard,
   with your own home on this ship; on a planet your home's storage is in
   orbit and does not count. No boat can be put on the water or sat in:
@@ -773,8 +773,9 @@ facts are used here and the wording is not.
   `src/terrain/ocean_waves.rs`, `src/terrain/ocean_fft.rs`); the Dev
   page's travel and Land on surface buttons turning fly mode on, F9 and
   the Fly mode box turning it off (`src/lib.rs`,
-  `src/gui/pages/dev.rs`), and the HUD's movement line reading WALK
-  meanwhile (`src/gui/pages/hud.rs`); oxygen falling only where the air
+  `src/gui/pages/dev.rs`), and the HUD's movement line reading FLY
+  meanwhile (`movement_line` in `src/gui/pages/hud.rs`); oxygen falling
+  only where the air
   is not breathable (`src/systems/food.rs`, `src/engine/survival_env.rs`,
   `src/systems/body_environment.rs`); clothing wetted only by falling rain
   and snow (`src/systems/body_heat.rs`), and the weather reaching the body
@@ -791,8 +792,9 @@ facts are used here and the wording is not.
   the Dev play mode uses up no parts and wears no tool
   (`src/systems/crafting/mod.rs`); the home's sawmill, which runs Saw
   Planks by itself (`data/machines/home.ron`, `data/recipes.csv`), and
-  automated machines taking their inputs from the backpack first, in
-  every play mode (`src/systems/crafting/mod.rs`); "Dev: max skills"
+  automated machines taking their inputs from home storage only, never
+  the backpack, in every play mode (`src/systems/crafting/mod.rs`); "Dev:
+  max skills"
   (`src/gui/pages/profile.rs`); skills starting at level 0
   (`src/systems/skills/`); the default home's stock
   (`data/places/seed.json`); a boat too big for the backpack going to

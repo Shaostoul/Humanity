@@ -1155,7 +1155,7 @@ pub fn resume_home(
     // THE DRONE: its standing order is the player's own setting, so it comes
     // back whether or not the time away counts; then the trip in flight and
     // any the order sends finish in the time away, out of the asteroid's real
-    // ore, and each haul lands in the backpack as it would have.
+    // ore, and each haul lands in home storage as it would have (BUG-150).
     crate::systems::mining::set_standing_order(data, save.mining_order.clone());
     // THE SHIP SUPPLY LEDGER comes back as saved; the time away adds to it
     // when the machines take it (crafting::away::meter_away_reactor).
@@ -2475,6 +2475,8 @@ mod tests {
     /// standing order mines the asteroid out (three hauls of 2), the smelter
     /// smelts each haul from the moment it landed (three ingots, one coal
     /// each), and the hen's timer waits for the herd with the hour added.
+    /// Since BUG-150 the hauls land in home storage and the coal is taken from
+    /// there; the backpack is not touched.
     /// Seen red with `mining::advance_away` returning at once (no hauls, so no
     /// ore and no ingots).
     #[test]
@@ -2490,7 +2492,9 @@ mod tests {
         data.insert("creature_registry", crate::systems::livestock::CreatureRegistry::from_csv(&read("creatures.csv")).unwrap());
         data.insert("auto_mine_order", Mutex::new(Option::<(String, Vec<(String, u32)>)>::None));
         data.insert("player_notices", Mutex::new(Vec::<String>::new()));
-        data.insert("home_stock", Mutex::new(std::collections::HashMap::<String, u32>::new()));
+        // The smelter's coal waits in home storage, the only store the home's
+        // machines draw on (BUG-150); the drone files each haul there too.
+        data.insert("home_stock", Mutex::new(std::collections::HashMap::from([("coal_0".to_string(), 3u32)])));
         data.insert("home_stock_outputs", Mutex::new(Vec::<(String, u32)>::new()));
         crate::systems::crafting::register(&mut data);
         crate::systems::livestock::register(&mut data);
@@ -2502,9 +2506,7 @@ mod tests {
         save.herd = vec![("chicken#0".into(), 100.0)];
 
         let mut world = hecs::World::new();
-        let mut inv = Inventory::new(16);
-        inv.add_item("coal_0", 3, 99);
-        let player = world.spawn((inv, Controllable));
+        let player = world.spawn((Inventory::new(16), Controllable));
         world.spawn((AutoRefine { recipe_id: "smelt_iron".into(), keep: None }, MachineInstanceId("smelter_1".into())));
         apply_save_to_world(&mut world, &save);
         let r = resume_home(&mut world, &data, &save, true, 1.0, None);
@@ -2524,8 +2526,20 @@ mod tests {
             .map(|(_, q)| *q)
             .sum();
         assert_eq!(ingots, 3);
+        let ore_filed: u32 = data
+            .get::<Mutex<Vec<(String, u32)>>>("home_stock_outputs")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(id, _)| id == "iron_ore_0")
+            .map(|(_, q)| *q)
+            .sum();
+        assert_eq!(ore_filed, 0, "every haul was smelted");
+        let coal_left = data.get::<Mutex<std::collections::HashMap<String, u32>>>("home_stock").unwrap().lock().unwrap()["coal_0"];
+        assert_eq!(coal_left, 0, "one coal from home storage for each ingot");
         let inv = world.get::<&Inventory>(player).unwrap();
-        assert_eq!((inv.count_item("iron_ore_0"), inv.count_item("coal_0")), (0, 0));
+        assert_eq!(inv.slots.iter().flatten().count(), 0, "the backpack is not touched");
         assert_eq!(
             away_notice(&r).unwrap(),
             "While you were away (1 h 0 min), 1 animal was ready to collect from again and the drone brought home 3 hauls."

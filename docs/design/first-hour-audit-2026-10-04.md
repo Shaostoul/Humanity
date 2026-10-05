@@ -8,6 +8,19 @@
 > sub-audits (quests; tools, drone, smelting and building; the shared server), and it
 > replaces a shorter first version. It is the evidence base for the first-hour arc
 > in docs/PRIORITIES.md. Reproduced as the auditor wrote it.
+>
+> **The operator's decisions on it (2026-10-04, late evening):** "I like your
+> suggestions. For normal mode, especially for my MMO server, let's have everything
+> be real time, not the 72x. That way anyone joining isn't dealing with accelerated
+> death. We'll wait until we have everything actually working before we accelerate
+> everything for fast mode." The suggestions he accepted: fresh installs start in
+> Normal mode with progress kept, the rigs pin Dev and his own saved settings keep
+> Dev; death costs nothing in Simplified mode, and in Realistic mode the carried
+> items stay where you fell for a while; the first ten minutes are check your
+> vitals, eat, plant, craft a tool, send the drone for iron, smelt it, build one
+> thing, and end at your front door looking out on the Commons; about ten more
+> plots along First Street. The audit's 72x figures below describe the shared
+> clock as it was that day.
 
 New-player first-hour audit of HumanityOS, play mode Normal, progress kept between launches
 
