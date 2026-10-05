@@ -22,6 +22,18 @@ use super::light::RoomLight;
 /// (v^2 / 2g with jump_speed 5.0), which reads as slightly floatier.
 const GRAVITY_FALLBACK: f32 = 9.81;
 
+/// The walking speed on foot, metres a second (the controller's `speed`, lib.rs). The relay's
+/// on-foot limit (data/ship/shared_world.ron) is checked against it and the sprint below by a
+/// test (ship/moves.rs), so a faster walk cannot leave the shared world correcting honest players.
+pub const WALK_SPEED_MPS: f32 = 5.0;
+/// How much faster Shift runs than walking (`update_first_person`).
+pub const SPRINT_FACTOR: f32 = 1.9;
+/// How fast a jump leaves the floor, metres a second (`CameraController::jump_speed`): at the
+/// homestead's 1 g it rises about 1.27 m (v^2 / 2g). A home's air reaches high enough over the
+/// highest thing in it for a person to jump there (src/ship/ship_space.rs `HEADROOM_M`, held to
+/// this number by a test in engine/survival_env.rs).
+pub const JUMP_SPEED_MPS: f32 = 5.0;
+
 /// Flight roll rate (rad/s) for the Q/E bank keys in dev fly mode (v0.890).
 /// ~80 deg/s: a full barrel roll in ~4.5 s, fast enough to frame a shot,
 /// slow enough to stop level by eye.
@@ -630,10 +642,15 @@ impl Camera {
             };
         }
 
-        // When switching from TP/Orbit to FP, set position to effective position
-        if new_mode == CameraMode::FirstPerson {
-            self.position = self.effective_position();
-        }
+        // Back to first person from third person or the orbit camera, the body is where it stood:
+        // `position` never moved while the other camera looked around (third person's WASD moves
+        // `tp_target`, which has no collision, no gravity and no figure drawn; the orbit camera
+        // moves only the point it circles), so it is left alone and the view eases back to it.
+        // It used to be set to the other camera's eye (`effective_position`), which in the
+        // shared world was a jump of any length: the relay corrected a 60 m third-person walk
+        // and passed any orbit eye within its allowance, through walls (ship homes increment 4
+        // review, M1). Every other caller that switches back stands the player somewhere itself
+        // (the build editor's close, the showroom, Dev travel).
 
         self.transition = Some(CameraTransition {
             from: snapshot,
@@ -794,7 +811,7 @@ impl CameraController {
             vertical_velocity: 0.0,
             is_grounded: true,
             eye_height: 1.7,
-            jump_speed: 5.0,
+            jump_speed: JUMP_SPEED_MPS,
             interior_gravity: GRAVITY_FALLBACK,
             ground_y: 1.7,
             climb_zone: None,
@@ -1198,7 +1215,7 @@ impl CameraController {
         // Shift = SPRINT (hold to move faster). `speed_multiplier` carries status-effect
         // modifiers (well_nourished speeds up, thirsty/flu slow down), and
         // `carry_speed_factor` the carried load's (BUG-136, walking only).
-        let sprint = if self.descend { 1.9 } else { 1.0 };
+        let sprint = if self.descend { SPRINT_FACTOR } else { 1.0 };
         let move_speed = self.speed * sprint * self.speed_multiplier * self.carry_speed_factor;
 
         if velocity.length_squared() > 0.0 {
@@ -1519,6 +1536,76 @@ mod liftoff_tests {
         let (fly_free, fly_loaded) = (travel(1.0, true, 1.0), travel(0.15, true, 1.0));
         assert!(fly_free > 1.0, "dev flight moves ({fly_free:.3} m)");
         assert_eq!(fly_loaded, fly_free, "dev flight ignores the load");
+    }
+}
+
+#[cfg(test)]
+mod camera_body_tests {
+    use super::*;
+    use crate::input::bindings::GameAction as A;
+
+    /// One frame of the controller, as lib.rs runs it.
+    fn frame(ctl: &mut CameraController, cam: &mut Camera, dt: f32) {
+        ctl.update_camera(cam, dt);
+    }
+
+    /// THIRD PERSON AND THE ORBIT CAMERA ARE CAMERAS AROUND A BODY STANDING STILL (ship homes
+    /// increment 4 review, M1). Neither moves the body: WASD in third person moves `tp_target`,
+    /// which has no collision, no gravity and no figure drawn, and the orbit camera's WASD and
+    /// wheel move only the point it circles. The body (`position`, what the shared world is told
+    /// and where the walls and floors act) stays where it stood, and stays there on the way back
+    /// to first person. Before the fix, coming back to first person stood the body at the
+    /// camera's own eye: in the shared world that was a jump of any length (the relay corrected
+    /// a 60 m third-person walk, losing all of it, and passed any orbit eye within 47.9 m, a
+    /// jump through walls).
+    ///
+    /// Seen red 2026-10-04 on the code before the fix: "returning from third person moved the body
+    /// 57.0 m, to the camera's eye Vec3(54.0, 2.1974888, -16.499659)".
+    #[test]
+    fn returning_to_first_person_leaves_the_body_where_it_stood() {
+        let door = Vec3::new(53.5, 1.7, 40.5);
+        // V, then 12 s of W in third person (60 m at 5 m/s), then V again.
+        let mut cam = Camera::new();
+        cam.position = door;
+        let mut ctl = CameraController::new(WALK_SPEED_MPS, 1.0);
+        ctl.apply_action(A::ToggleView, true);
+        frame(&mut ctl, &mut cam, 0.016);
+        assert_eq!(cam.mode, CameraMode::ThirdPerson);
+        ctl.apply_action(A::MoveForward, true);
+        for _ in 0..1200 {
+            frame(&mut ctl, &mut cam, 0.01);
+        }
+        ctl.apply_action(A::MoveForward, false);
+        assert!(cam.tp_target.distance(door) > 55.0, "the third-person camera walked {:.1} m", cam.tp_target.distance(door));
+        assert_eq!(cam.position, door, "third person moved the body itself");
+        ctl.apply_action(A::ToggleView, true);
+        frame(&mut ctl, &mut cam, 0.016);
+        assert_eq!(cam.mode, CameraMode::FirstPerson);
+        let moved = cam.position.distance(door);
+        assert!(moved < 1e-3, "returning from third person moved the body {moved:.1} m, to the camera's eye {:?}", cam.position);
+
+        // M, the wheel out to the farthest the orbit goes and a second of W, then M again.
+        let mut cam = Camera::new();
+        cam.position = door;
+        let mut ctl = CameraController::new(WALK_SPEED_MPS, 1.0);
+        ctl.apply_action(A::OrbitCamera, true);
+        frame(&mut ctl, &mut cam, 0.016);
+        assert_eq!(cam.mode, CameraMode::Orbit);
+        for _ in 0..20 {
+            ctl.process_scroll(-10.0);
+            frame(&mut ctl, &mut cam, 0.016);
+        }
+        ctl.apply_action(A::MoveForward, true);
+        for _ in 0..100 {
+            frame(&mut ctl, &mut cam, 0.01);
+        }
+        ctl.apply_action(A::MoveForward, false);
+        assert_eq!(cam.position, door, "the orbit camera moved the body itself");
+        ctl.apply_action(A::OrbitCamera, true);
+        frame(&mut ctl, &mut cam, 0.016);
+        assert_eq!(cam.mode, CameraMode::FirstPerson);
+        let moved = cam.position.distance(door);
+        assert!(moved < 1e-3, "returning from the orbit camera moved the body {moved:.1} m, to its eye {:?}", cam.position);
     }
 }
 

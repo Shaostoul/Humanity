@@ -3503,19 +3503,7 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                 }
             }
         });
-        widgets::setting_hint(
-            ui,
-            theme,
-            hint,
-            "Your body makes heat and the weather takes it away: walking warms you, \
-             clothes and shelter keep the heat in, and wind, rain and wet clothes \
-             pull it out. Ordinary clothes are fine all day at 15 to 25 C. \
-             Realistic is the real heat balance: hours standing still in the cold \
-             wind, or hard work in the heat, can make you hypothermic or give you \
-             heatstroke. Forgiving uses the same weather, clothes and shelter, but \
-             your temperature swings half as far from normal and cold or heat harm \
-             you half as fast.",
-        );
+        widgets::setting_hint(ui, theme, hint, &body_heat_hint());
         // Carrying weight (BUG-136, systems::encumbrance; the dual-mode house rule).
         ui.add_space(theme.spacing_sm);
         ui.label(RichText::new("Carrying weight").color(theme.text_secondary()));
@@ -4813,9 +4801,44 @@ pub fn grass_far_within_cap(cap: f32, cover: f32) -> f32 {
     lo
 }
 
+/// The Body heat setting's hint (Settings > Gameplay), with its numbers read
+/// from the code it describes (systems::body_heat), so the two cannot drift.
+///
+/// It used to say Forgiving makes cold or heat "harm you half as fast",
+/// which is not what the code does (2026-10-04). Forgiving SHOWS the core
+/// temperature swinging half as far from normal (`Mode::shown`) and harms
+/// only while that shown temperature is past the harm lines (below 32 C,
+/// above 40 C: `harm_per_s`), at half the Realistic rate for each shown
+/// degree past them. So harm waits until the real heat balance would be at
+/// about 27 C or 43 C, which is much later, and then comes far slower than
+/// half. Pinned by `body_heat_hint_tests`.
+pub(crate) fn body_heat_hint() -> String {
+    use crate::systems::body_heat::{Mode, HEAT_STROKE_C, MODERATE_HYPOTHERMIA_C};
+    let (cold, heat) = (MODERATE_HYPOTHERMIA_C, HEAT_STROKE_C);
+    // What a Forgiving body reads where the real balance is at the cold line,
+    // and where the real balance is when the reading reaches each line.
+    let cold_read = Mode::Forgiving.shown(cold as f64);
+    let (cold_real, heat_real) = (Mode::Forgiving.real(cold as f64), Mode::Forgiving.real(heat as f64));
+    format!(
+        "Your body makes heat and the weather takes it away: walking warms you, \
+         clothes and shelter keep the heat in, and wind, rain and wet clothes \
+         pull it out. Ordinary clothes are fine all day at 15 to 25 C. \
+         Realistic is the real heat balance: hours standing still in the cold \
+         wind, or hard work in the heat, can make you hypothermic or give you \
+         heatstroke, and below a {cold:.0} C core or above {heat:.0} C you take \
+         lasting harm. Forgiving uses the same weather, clothes and shelter, but \
+         your temperature moves only half as far from normal: where the real \
+         balance would put you at {cold:.0} C, you read {cold_read:.1} C. So harm \
+         waits until the real balance would have you below about {cold_real:.0} C \
+         or above about {heat_real:.0} C, and then comes at half the rate for \
+         each degree you read past {cold:.0} C or {heat:.0} C."
+    )
+}
+
 /// Format an instance count for a help line: 12,755 reads better than 12755
-/// and much better than 1.2755e4.
-fn thousands(v: f32) -> String {
+/// and much better than 1.2755e4. Also the HUD's tracked-marker distance
+/// ("36,000 km", gui::pages::hud::marker_distance).
+pub(crate) fn thousands(v: f32) -> String {
     let n = v.max(0.0).round() as u64;
     let s = n.to_string();
     let b = s.as_bytes();
@@ -5212,6 +5235,51 @@ mod veg_lod_range_tests {
         assert_eq!(thousands(12_755.0), "12,755");
         assert_eq!(thousands(200_000.0), "200,000");
         assert_eq!(thousands(1_234_567.0), "1,234,567");
+    }
+}
+
+/// THE BODY HEAT HINT SAYS WHAT THE CODE DOES (2026-10-04). It told players
+/// Forgiving makes cold or heat "harm you half as fast". The code
+/// (systems::body_heat) halves how far the SHOWN core temperature swings
+/// from normal, and harms only while that shown temperature is past the
+/// harm lines (below 32 C, above 40 C), at half the Realistic rate for each
+/// shown degree past them. So harm starts only where the real heat balance
+/// would be at about 27 C or 43 C: much later than Realistic, and far less
+/// than half. The hint's numbers are computed from the same constants and
+/// conversion the code uses, so the two cannot drift apart.
+///
+/// Seen red before the fix: "the hint no longer says harm comes half as
+/// fast" (the old text was still there).
+#[cfg(test)]
+mod body_heat_hint_tests {
+    use super::body_heat_hint;
+    use crate::systems::body_heat::{self, Mode};
+
+    #[test]
+    fn the_body_heat_hint_says_what_the_code_does() {
+        let hint = body_heat_hint();
+        assert!(!hint.contains("half as fast"), "the hint no longer says harm comes half as fast: {hint}");
+        // The harm lines, and where the real heat balance is when Forgiving
+        // reaches them, from the code's own constants and conversion.
+        let (cold, heat) = (body_heat::MODERATE_HYPOTHERMIA_C, body_heat::HEAT_STROKE_C);
+        let (cold_real, heat_real) = (Mode::Forgiving.real(cold as f64), Mode::Forgiving.real(heat as f64));
+        for needle in [
+            format!("below a {cold:.0} C core or above {heat:.0} C"),
+            format!("you read {:.1} C", Mode::Forgiving.shown(cold as f64)),
+            format!("below about {cold_real:.0} C or above about {heat_real:.0} C"),
+            "half as far from normal".to_string(),
+            "half the rate".to_string(),
+        ] {
+            assert!(hint.contains(&needle), "the hint says {needle:?}: {hint}");
+        }
+        // The two "half"s are the code's shares; reword the hint if they change.
+        assert_eq!((body_heat::FORGIVING_SWING, body_heat::FORGIVING_HARM), (0.5, 0.5));
+        // And the code does what the hint says: no harm short of the line,
+        // half the Realistic rate for a shown degree past it.
+        assert_eq!(body_heat::harm_per_s(cold + 0.01, Mode::Forgiving), 0.0);
+        assert_eq!(body_heat::harm_per_s(heat - 0.01, Mode::Forgiving), 0.0);
+        let share = body_heat::harm_per_s(cold - 1.0, Mode::Forgiving) / body_heat::harm_per_s(cold - 1.0, Mode::Realistic);
+        assert!((share - 0.5).abs() < 1e-6, "{share}");
     }
 }
 

@@ -655,6 +655,10 @@ pub(crate) struct EngineState {
     pub(crate) construction_cam_active: bool,
     /// First-person position to return to when leaving the construction editor. (v0.464)
     pub(crate) construction_return_pos: Vec3,
+    /// The structure rebuild the editor asks for as it opens is not an edit: it must not arm the
+    /// autosave (engine/editor.rs `arms_autosave`). Set by `toggle_build_editor`, taken once a
+    /// frame at the dirty-flag choke point (lib.rs).
+    pub(crate) construction_entry_rebuild: bool,
     /// Last cursor position in physical pixels (top-left origin), for 3D picking. (v0.466)
     pub(crate) cursor_pos: (f32, f32),
     /// The room currently grabbed (left-drag) in the 3D astral editor. (v0.466)
@@ -826,6 +830,15 @@ pub(crate) struct EngineState {
     /// survival environment context: inside = oxygenated/heated, outside =
     /// vacuum/cold. None until the homestead generates.
     pub(crate) homestead_bounds: Option<(Vec3, Vec3)>,
+    /// Whose air each place breathes (ship homes increment 4, src/ship/ship_space.rs): this
+    /// player's own home box and the ship's shared spaces, refreshed with the meshes. The survival
+    /// context reads it; `homestead_bounds` stays the box around every room (the hull top).
+    pub(crate) ship_air: crate::ship::ship_space::AirSpaces,
+    /// The ship's box, where "aboard" ends (increment 4, `ShipStructure::aboard_bounds`),
+    /// refreshed with the meshes. None until the ship assembles.
+    pub(crate) aboard_bounds: Option<crate::ship::ship_space::Aabb>,
+    /// The game's half of the relay's speed check (engine/move_check.rs).
+    pub(crate) moves: crate::engine::move_check::ClientMoves,
     /// Live screenshot command counter (v0.639): monotonic per session, names
     /// `debug/screenshot_N.png` so repeated requests never collide.
     pub(crate) screenshot_counter: u32,

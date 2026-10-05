@@ -11,6 +11,21 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1459.0: getting around the ship, and a HUD that tells the truth.** On
+  a shared server, the server now checks how far each player moves. A move
+  that is too big puts the player back where the server last had them,
+  instead of freezing them, and the honest fast moves are allowed: coming
+  back after a respawn or a reconnect, closing the build editor on your own
+  plot, teleporters, transit links, vehicles and ladders. Other players
+  aboard appear when they come within 250 m and drop out past 300 m, so the
+  server sends you only who you could see. Each home has its own air, up its
+  own elevator and stairs. Nobody is told who lives on which plot. Also
+  fixed: the Home Station marker now shows from the ground with its distance,
+  the HUD says FLY whenever fly mode is on, the home's machines take their
+  inputs from home storage and never from your backpack, and opening and
+  shutting the build editor without an edit no longer rewrites the home's
+  files.
+
 - **v0.1458.1: six Library guides on electricity, power tools, finding
   your way and boats.** Electricity and How It Flows, Where Your Own
   Electrical Work Stops (proving a circuit dead, generators and carbon

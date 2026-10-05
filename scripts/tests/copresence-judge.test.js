@@ -796,15 +796,39 @@ test("routes: the shipped meeting's routes and view cross no wall; a wall moved 
   assert.ok(hit, "the room block's wall moved across p1's way in was not found");
   assert.deepEqual(hit.wall, [65.5, 49, 72, 49]);
   // Planned on the edited walls, there is no way round by one corner (the block on one side,
-  // the stretched wall on the other): the route stays straight, and the check finds it.
+  // the stretched wall on the other): since the review of increment 4 the planner finds one on a
+  // grid that keeps clear of every wall (clearPath), round the block, where the route used to stay
+  // straight into the wall (and a walk there stopped at it).
   const round = doorRoute({ ...DOORS, walls: moved }, P1_SPAWN, MEET_CAM, 40);
-  assert.ok(routeWalls([P1_SPAWN, ...round.points], moved), `a way in with no clear corner passed: ${JSON.stringify(round.waypoints)}`);
+  assert.equal(routeWalls([P1_SPAWN, ...round.points], moved), null, `a way in round the stretched wall crosses one: ${JSON.stringify(round.waypoints)}`);
+  assert.ok(round.waypoints.length > 4, `more than one corner: ${JSON.stringify(round.waypoints)}`);
   // On the shipped walls the way in goes round the room block by its west side, while the
   // straight way the rig planned before doorRoute knew the walls goes through it.
   assert.deepEqual(doorRoute(DOORS, P1_SPAWN, MEET_CAM).waypoints, [[54, 1.7, 40], [66, 1.7, 40], [66, 1.7, 64], MEET_CAM]);
   assert.ok(routeWalls([P1_SPAWN, [54, 1.7, 40], [66, 1.7, 40], MEET_CAM], DOORS.walls), "the straight way through the room block was not found");
   // Touching a wall's end, or running along one, is no crossing.
   assert.equal(routeWalls([[0, 0, 0], [10, 0, 0]], [[10, 0, 10, 5], [2, 0, 8, 0]]), null);
+});
+
+// THE REVIEW OF INCREMENT 4, R4: a walk with no clear corner. Once the rig checked that every walk
+// arrives, the Respawn walk from p2 to the Commons' far corner stopped at the room block's wall:
+// neither single corner was clear, so the planner went straight at it (a low frame rate had let the
+// game tunnel through before). Red check run 2026-10-04: with clearPath answering null (the old
+// straight fallback), FAILED "a way round the wall crosses it: [[9,0,1]]".
+test("routes: with no clear corner, a grid path round the walls, aboard, clear of them", () => {
+  const { clearPath } = require("../lib/copresence-judge.js");
+  // A wall across the way, wide enough that neither single corner gets round it.
+  const walls = [[2, 5, 10, 5]];
+  const report = { places: [{ id: "zone:a", kind: "zone", min: [0, 0, 0], max: [12, 3, 12] }], doors: [], walls };
+  const from = [5, 0, 9];
+  const to = [9, 0, 1];
+  const path = doorRoute(report, from, to).waypoints;
+  assert.equal(routeWalls([from, ...path], walls), null, `a way round the wall crosses it: ${JSON.stringify(path)}`);
+  assert.deepEqual(path[path.length - 1], to);
+  for (let i = 1; i < path.length - 1; i++) assert.ok(walls.every((w) => wallDistXZ(path[i], w) >= 0.75 - 1e-9), `a corner of the path is too near a wall: ${path[i]}`);
+  // Never out of the places: with the only way round outside the zone's box, no path.
+  const boxed = { places: [{ id: "zone:a", kind: "zone", min: [0, 0, 0], max: [12, 3, 12] }], doors: [], walls: [[0, 5, 12, 5]] };
+  assert.equal(clearPath([5, 0, 9], [5, 0, 1], boxed.walls, { inside: (q) => q[0] >= 0 && q[0] <= 12 && q[2] >= 0 && q[2] <= 12 }), null, "a wall from side to side: no way round aboard");
 });
 
 // The second boot against the same relay (the remembered plot): the home built
@@ -1184,4 +1208,330 @@ test("crew: amber is the crew's body as drawn, not their activity text, oak, tea
   for (let y = 100; y < 300; y++) for (let x = 180; x < 220; x++) img.rgba.set([176, 151, 71, 255], (y * 400 + x) * 4);
   assert.equal(crewPixels(img, [200, 90]).count, 200 * 40);
   assert.equal(crewPixels(img, [380, 450]).count, 0, "nothing under a name drawn elsewhere");
+});
+
+// ── Increment 4: the relay's speed check ────────────────────────────────────────────────────
+
+const { judgeJump, judgeHonestMoves, bankedAllowanceM } = require("../lib/copresence-judge.js");
+
+// The relay's allowance, read from its own rules file: 25 m/s x 1.25 x 1.5 s + 1 m.
+test("jump: the allowance is read from the relay's rules file", () => {
+  const ron = require("fs").readFileSync(require("path").join(__dirname, "..", "..", "data", "ship", "shared_world.ron"), "utf8");
+  assert.ok(Math.abs(bankedAllowanceM(ron) - (25 * 1.25 * 1.5 + 1)) < 1e-9, `the shipped rules allow ${bankedAllowanceM(ron)} m`);
+  assert.equal(bankedAllowanceM("( moving: ( on_foot_mps: 25.0 ) )"), null, "a number missing reads as unknown");
+});
+
+// What a good run of the jump leg records: the game stood at the crew look, jumped 138 m to the
+// far end of First Street, was corrected back, and its nudge reached the walker.
+const goodJump = () => ({
+  from: [91, 1.7, 58],
+  held: [91, 1.7, 58],
+  target: [66, 1.7, 194],
+  allowance_m: 47.875,
+  before: { count: 0, applied: 0, last: null, walking: false },
+  after: { count: 1, applied: 1, last: { seq: 1, at: [91, 1.7, 58], from: [66, 1.7, 194], reason: "too_fast" }, walking: false },
+  camera: [91, 1.7, 58],
+  relayedAfterJump: [[91, 1.7, 58]],
+  nudged: [90, 1.7, 58],
+  seen: [[90.4, 1.7, 58], [90, 1.7, 58]],
+  notices: ["The server put you back where it last saw you: that move was faster than anyone can go aboard."],
+});
+const jumpCheck = (j, id) => judgeJump(j).checks.find((c) => c.id === id);
+
+test("jump: a good run passes every check", () => {
+  const r = judgeJump(goodJump());
+  assert.ok(r.pass, r.checks.filter((c) => !c.ok).map((c) => `${c.id}: ${c.detail}`).join("\n"));
+  assert.deepEqual(r.checks.map((c) => c.id), ["jump_far_enough", "jump_corrected", "jump_corrected_once", "jump_said_once", "jump_stands_where_held", "jump_never_relayed", "jump_moves_reach_others"]);
+});
+
+// Each way a broken build shows, failing its own check and no other where the record allows.
+test("jump: the old relay's silent refusal FAILS: no correction, and frozen", () => {
+  const j = goodJump();
+  // The 100 m rule refused the 138 m jump without a word: no correction, the game left standing
+  // at the jump's target, and every update after it refused.
+  j.after = { count: 0, applied: 0, last: null, walking: false };
+  j.camera = j.target.slice();
+  j.seen = [];
+  const r = judgeJump(j);
+  assert.equal(jumpCheck(j, "jump_corrected").ok, false, jumpCheck(j, "jump_corrected").detail);
+  assert.equal(jumpCheck(j, "jump_stands_where_held").ok, false);
+  assert.equal(jumpCheck(j, "jump_moves_reach_others").ok, false);
+  assert.equal(jumpCheck(j, "jump_never_relayed").ok, true, "nothing leaked: the relay refused it");
+  assert.equal(r.pass, false);
+});
+
+test("jump: a game that ignores the correction FAILS where it stands and frozen", () => {
+  const j = goodJump();
+  j.after = { count: 0, applied: 0, last: null, walking: false };
+  j.camera = [66, 1.7, 194];
+  j.seen = [];
+  assert.equal(jumpCheck(j, "jump_corrected").ok, false);
+  assert.equal(jumpCheck(j, "jump_stands_where_held").ok, false);
+  assert.equal(jumpCheck(j, "jump_moves_reach_others").ok, false);
+});
+
+test("jump: a relay that passes the jump on FAILS never_relayed", () => {
+  const j = goodJump();
+  j.relayedAfterJump = [[91, 1.7, 58], [66.2, 1.7, 193.8]];
+  assert.equal(jumpCheck(j, "jump_never_relayed").ok, false, jumpCheck(j, "jump_never_relayed").detail);
+  assert.equal(judgeJump(j).checks.filter((c) => !c.ok).length, 1, "and nothing else");
+});
+
+test("jump: a correction to the wrong place, or for another reason, FAILS corrected", () => {
+  const wrong = goodJump();
+  wrong.after.last.at = [70, 1.7, 100];
+  assert.equal(jumpCheck(wrong, "jump_corrected").ok, false);
+  const reason = goodJump();
+  reason.after.last.reason = "link_unknown";
+  assert.equal(jumpCheck(reason, "jump_corrected").ok, false);
+});
+
+test("jump: a jump the relay would have taken anyway means nothing: FAILS far_enough", () => {
+  const j = goodJump();
+  j.after.last.from = [91, 1.7, 98]; // the game's own record: 40 m, inside the 47.9 m a player can bank
+  assert.equal(jumpCheck(j, "jump_far_enough").ok, false, jumpCheck(j, "jump_far_enough").detail);
+  const unknown = goodJump();
+  unknown.allowance_m = null;
+  assert.equal(jumpCheck(unknown, "jump_far_enough").ok, false, "an allowance not recorded fails");
+});
+
+test("jump: nothing recorded fails", () => {
+  const r = judgeJump({});
+  assert.equal(r.pass, false);
+  assert.ok(r.checks.every((c) => c.ok === false), r.checks.map((c) => `${c.id} ${c.ok}`).join(", "));
+});
+
+test("honest moves: only the jump's correction, and no walker's, passes", () => {
+  assert.ok(judgeHonestMoves({ gameTotal: 1, fromJump: 1, relaySent: 1, walkerLines: [] }).pass);
+  const extra = judgeHonestMoves({ gameTotal: 2, fromJump: 1, relaySent: 2, walkerLines: [] });
+  assert.equal(extra.pass, false, "a correction of an honest move of the game");
+  assert.match(extra.checks[0].detail, /1 time\(s\) for moves that were not the jump/);
+  const walker = judgeHonestMoves({ gameTotal: 1, fromJump: 1, relaySent: 1, walkerLines: ["[TestBotPlots] second-player: corrected to (70.00, 1.70, 60.00) (too_fast, correction 1)"] });
+  assert.equal(walker.checks.find((c) => c.id === "moves_walkers_never_corrected").ok, false, "a walker corrected");
+  assert.equal(judgeHonestMoves({}).pass, false, "nothing recorded fails");
+  assert.ok(judgeHonestMoves({ gameTotal: 0, fromJump: 0, relaySent: 0, walkerLines: [] }).pass, "the guest order: no jump, no correction");
+});
+
+// THE REVIEW OF INCREMENT 4, R7: the jump and the run's honest moves are judged on what the game
+// itself recorded and on what the relay sent, not on where the rig aimed or on the game's word
+// alone. Red checks run 2026-10-04 on the judge, each restored afterwards:
+//  - the jump's correction taken whatever the count did: FAILED "a correction left over from
+//    before the jump" (the check passed on the stale one, "correction 1 (too_fast) stood the game at
+//    (91.00, 1.70, 58.00)");
+//  - corrected_once always true: FAILED "two corrections for one jump", "the jump drew 2
+//    correction(s)";
+//  - said_once always true: FAILED "no sentence on screen, or two", "0 correction notice(s) on
+//    screen after it (exactly one sentence)";
+//  - far_enough and the leak measured from the rig's target: FAILED far_enough's test and
+//    "measured where the game says it landed" ("... 138.3 m across the floor ...");
+//  - the relay's count never compared: FAILED "the relay sent the game 2 correction(s) but the
+//    game applied 1: a correction was dropped";
+//  - a resend counted as a new correction: FAILED "three new corrections; the one sent again is
+//    not one".
+test("jump: a correction left over from before the jump FAILS corrected", () => {
+  const j = goodJump();
+  j.before = { count: 1, applied: 1, last: j.after.last, walking: false };
+  j.after = { count: 1, applied: 1, last: { seq: 1, at: [91, 1.7, 58], from: [66, 1.7, 194], reason: "too_fast" }, walking: false };
+  assert.equal(jumpCheck(j, "jump_corrected").ok, false, jumpCheck(j, "jump_corrected").detail);
+  assert.equal(jumpCheck(j, "jump_corrected_once").ok, false, "and no correction this time");
+});
+
+test("jump: two corrections for one jump FAIL corrected_once", () => {
+  const j = goodJump();
+  j.after.count = 2;
+  j.after.last.seq = 2;
+  assert.equal(jumpCheck(j, "jump_corrected_once").ok, false, jumpCheck(j, "jump_corrected_once").detail);
+  assert.equal(jumpCheck(j, "jump_corrected").ok, true);
+});
+
+test("jump: no sentence on screen, or two, FAIL said_once", () => {
+  const none = goodJump();
+  none.notices = [];
+  assert.equal(jumpCheck(none, "jump_said_once").ok, false, jumpCheck(none, "jump_said_once").detail);
+  const two = goodJump();
+  two.notices = [two.notices[0], two.notices[0]];
+  assert.equal(jumpCheck(two, "jump_said_once").ok, false);
+  const other = goodJump();
+  other.notices = ["Saved your home.", other.notices[0]];
+  assert.equal(jumpCheck(other, "jump_said_once").ok, true, "other notices do not count");
+  const unknown = goodJump();
+  delete unknown.notices;
+  assert.equal(jumpCheck(unknown, "jump_said_once").ok, false, "not recorded fails");
+});
+
+test("jump: measured where the game says it landed, not where the rig aimed", () => {
+  // The rig aimed at the far end of First Street, but the game only got 30 m (its own record).
+  const short = goodJump();
+  short.after.last.from = [91, 1.7, 88];
+  assert.equal(jumpCheck(short, "jump_far_enough").ok, false, jumpCheck(short, "jump_far_enough").detail);
+  // The jump reached the walker where the game really stood, far from where the rig aimed.
+  const leak = goodJump();
+  leak.target = [10, 1.7, 10];
+  leak.relayedAfterJump = [[66.1, 1.7, 193.9]];
+  assert.equal(jumpCheck(leak, "jump_never_relayed").ok, false, jumpCheck(leak, "jump_never_relayed").detail);
+});
+
+test("honest moves: a correction the relay sent and the game dropped FAILS", () => {
+  const dropped = judgeHonestMoves({ gameTotal: 1, fromJump: 1, relaySent: 2, walkerLines: [] });
+  const c = dropped.checks.find((x) => x.id === "moves_relay_sent_what_the_game_took");
+  assert.equal(c.ok, false, c.detail);
+  assert.match(c.detail, /dropped/);
+  const unknown = judgeHonestMoves({ gameTotal: 1, fromJump: 1, walkerLines: [] });
+  assert.equal(unknown.checks.find((x) => x.id === "moves_relay_sent_what_the_game_took").ok, false, "not recorded fails");
+});
+
+test("the relay's corrections are counted from its log, new ones only, walkers apart", () => {
+  const { relayCorrections } = require("../lib/copresence-judge.js");
+  const log = [
+    "\u001b[2m2026-10-04T23:33:09Z\u001b[0m WARN msg_handlers: Game: corrected ce376ca5469f7fa6.. (correction 1, too_fast): [91.0,1.7,58.0]",
+    "WARN msg_handlers: Game: corrected ce376ca5469f7fa6.. (correction 1 sent again, too_fast): [91.0,1.7,58.0]",
+    "WARN msg_handlers: Game: corrected b56a11f1cc7ee551.. (correction 1, too_fast): [70.0,1.7,60.0]",
+    "WARN msg_handlers: Game: corrected ce376ca5469f7fa6.. (correction 2, editor_off_plot): [91.0,1.7,58.0]",
+    "INFO something else",
+  ].join("\n");
+  assert.equal(relayCorrections(log).total, 3, "three new corrections; the one sent again is not one");
+  const game = relayCorrections(log, ["b56a11f1cc7ee551aaaa"]);
+  assert.equal(game.total, 2, "the walker's left out by its key");
+  assert.deepEqual(game.byKey, { ce376ca5469f7fa6: 2 });
+});
+
+// ── The review of increment 4: R1 and R4 ──────────────────────────────────────────────────────
+//
+// R1: the rig now walks the game onto its home's own teleporter and shuts the build editor away
+// from the build spot, each a jump only its declaration explains; R4: every walk of the rig must
+// arrive, and a turn in place is never sent from anywhere else. Red checks run 2026-10-04 on the
+// judge, each restored afterwards:
+//  - a walk that never arrived passing: FAILED "1 of 3 walks never arrived; the first, crew, to
+//    (91.00, 1.70, 58.00), stopped at (81.30, 1.70, 48.90)";
+//  - a turn from anywhere passing: FAILED "4.5 m off is a teleport, not a turn";
+//  - the editor jump's correction count, or the close's place, never compared: FAILED "the relay
+//    corrected the game 1 time(s) between the walk and the shut", and at_build_spot "true == false";
+//  - the teleporter's arrival, its correction count, or what the walker saw never compared: FAILED
+//    each ("the relay corrected the game 1 time(s) from the step onto the pad ...");
+//  - the editor target ignoring the allowance: FAILED "no point past a 500 m allowance aboard:
+//    says why".
+
+const { turnInPlace, judgeWalks, padApproach, editorJumpTarget, judgeEditorJump, judgeTeleporter } = require("../lib/copresence-judge.js");
+
+test("walks: a turn in place is only one where the camera already stands", () => {
+  assert.ok(turnInPlace([76, 1.7, 64.05], "76,1.7,64,3.14159,-0.05").ok, "5 cm off: a turn");
+  const far = turnInPlace([74, 1.7, 60], "76,1.7,64,3.14159,-0.05");
+  assert.equal(far.ok, false, "4.5 m off is a teleport, not a turn");
+  assert.ok(Math.abs(far.off - Math.hypot(2, 4)) < 1e-9);
+  assert.equal(turnInPlace(null, "76,1.7,64,0,0").ok, false, "no camera: no turn");
+});
+
+test("walks: every walk arrived and every turn was in place, or FAIL", () => {
+  const walks = [{ label: "meet", to: [66, 1.7, 40], at: [66, 1.7, 40], ok: true }, { label: "crew", to: [91, 1.7, 58], at: [91, 1.7, 58], ok: true }];
+  const turns = [{ pose: "76,1.7,64,3.14,-0.05", at: [76, 1.7, 64], off: 0, ok: true }];
+  assert.ok(judgeWalks(walks, turns).pass);
+  const short = judgeWalks([...walks, { label: "crew", to: [91, 1.7, 58], at: [81.3, 1.7, 48.9], ok: false }], turns);
+  assert.equal(short.checks.find((c) => c.id === "walks_all_arrived").ok, false, short.checks[0].detail);
+  assert.match(short.checks[0].detail, /stopped at \(81\.30, 1\.70, 48\.90\)/);
+  const refused = judgeWalks(walks, [...turns, { pose: "91,1.7,58,0,-0.05", at: [81.3, 1.7, 48.9], off: 13.7, ok: false }]);
+  assert.equal(refused.checks.find((c) => c.id === "walks_turns_in_place").ok, false);
+  assert.equal(judgeWalks(null, null).pass, false, "not recorded fails");
+  assert.equal(judgeWalks([], []).checks[0].ok, false, "no walk recorded fails");
+});
+
+const shipReport = () => ({
+  places: [
+    { id: "zone:commons", kind: "zone", purpose: "commons", min: [65, 0, 20], max: [99, 8, 75], door: null, own: false },
+    { id: "zone:street-1", kind: "zone", purpose: "street", min: [65, 0, 85], max: [75, 4, 195], door: null, own: false },
+    { id: "plot:p1", kind: "plot", purpose: "home", min: [0, 0, 0], max: [55, 3, 89], door: [53.5, 1.7, 40.5], own: true },
+  ],
+  doors: [
+    { from: "zone:commons", to: "zone:street-1", axis: "z", lat: 70, mouths: [[70, 0, 75], [70, 0, 85]], steps: [[70, 1.7, 74], [70, 1.7, 86]], tube: [[69, 0, 75], [71, 3, 85]] },
+    { from: "plot:p1", to: "zone:commons", axis: "x", lat: 40, mouths: [[55, 0, 40], [65, 0, 40]], steps: [[54, 1.7, 40], [66, 1.7, 40]], tube: [[55, 0, 39], [65, 3, 41]] },
+  ],
+  walls: [[65, 20, 99, 20], [99, 20, 99, 75], [65, 75, 69, 75], [71, 75, 99, 75], [65, 20, 65, 39], [65, 41, 65, 75], [65, 85, 65, 195], [75, 85, 75, 195], [65, 195, 75, 195], [65, 85, 69, 85], [71, 85, 75, 85]],
+});
+
+test("editor jump: the walk goes past one update's allowance, inside the 90 m, through the doors", () => {
+  const r = shipReport();
+  const t = editorJumpTarget(r, [53.5, 1.7, 40.5], 47.875);
+  assert.ok(!t.error, t.error);
+  assert.ok(t.dist > 47.875 + 5 && t.dist < 80, `${t.dist.toFixed(1)} m from the build spot`);
+  assert.ok(Math.abs(t.dist - 60) < 2, "about 60 m");
+  assert.ok(r.walls.every((w) => wallDistXZ(t.at, w) >= 1), "clear of every wall");
+  assert.deepEqual(t.route[t.route.length - 1], t.at, "the route ends there");
+  assert.ok(editorJumpTarget(r, [53.5, 1.7, 40.5], 500).error, "no point past a 500 m allowance aboard: says why");
+});
+
+test("teleporter: the approach is beside the pad, out of its footprint, on its clearest side", () => {
+  const a = padApproach([22.5, 0, 20], [[0, 22, 9, 22], [10.6, 22, 25, 22], [20, 0, 20, 10], [20, 11.6, 20, 22]]);
+  assert.deepEqual(a.p, [22.5, 1.7, 18.5], "south of the pad, away from the wall 2 m north");
+  assert.ok(a.clear >= 1.5);
+});
+
+const goodEditorJump = () => ({
+  buildSpot: [53.5, 1.7, 40.5],
+  walkedTo: [72.5, 1.7, 97.5],
+  toggled: true,
+  camera: [53.5, 1.7, 40.5],
+  seen: [[53.5, 1.7, 40.5]],
+  before: { count: 1, applied: 1 },
+  after: { count: 1, applied: 1 },
+  allowance_m: 47.875,
+});
+const ejCheck = (e, id) => judgeEditorJump(e).checks.find((c) => c.id === id);
+
+test("editor jump: a good run passes every check", () => {
+  const r = judgeEditorJump(goodEditorJump());
+  assert.ok(r.pass, r.checks.filter((c) => !c.ok).map((c) => `${c.id}: ${c.detail}`).join("\n"));
+  assert.deepEqual(r.checks.map((c) => c.id), ["editorjump_far_enough", "editorjump_toggled", "editorjump_at_build_spot", "editorjump_relayed", "editorjump_never_corrected"]);
+});
+
+test("editor jump: a relay that corrects the declared close FAILS, and so does every way it shows", () => {
+  // The declaration lost: the relay corrects the 60 m close; the game stands back where it walked.
+  const lost = goodEditorJump();
+  lost.after = { count: 2, applied: 2 };
+  lost.camera = lost.walkedTo.slice();
+  lost.seen = [];
+  assert.equal(ejCheck(lost, "editorjump_never_corrected").ok, false, ejCheck(lost, "editorjump_never_corrected").detail);
+  assert.equal(ejCheck(lost, "editorjump_at_build_spot").ok, false);
+  assert.equal(ejCheck(lost, "editorjump_relayed").ok, false);
+  const near = goodEditorJump();
+  near.walkedTo = [70, 1.7, 60];
+  assert.equal(ejCheck(near, "editorjump_far_enough").ok, false, "a close the allowance would have taken means nothing");
+  const shut = goodEditorJump();
+  shut.toggled = false;
+  assert.equal(ejCheck(shut, "editorjump_toggled").ok, false);
+  assert.equal(judgeEditorJump({}).pass, false, "nothing recorded fails");
+});
+
+const goodTele = () => ({
+  link: { zone: "home", from: "teleporter-1", to: "teleporter-2", from_at: [22.5, 0, 20], to_at: [31, 0, 80], reach_m: 0.79 },
+  camera: [31, 1.7, 80],
+  seen: [[31, 1.7, 80]],
+  before: { count: 1, applied: 1 },
+  after: { count: 1, applied: 1 },
+  allowance_m: 47.875,
+});
+const teleCheck = (t, id) => judgeTeleporter(t).checks.find((c) => c.id === id);
+
+test("teleporter: a good run passes every check", () => {
+  const r = judgeTeleporter(goodTele());
+  assert.ok(r.pass, r.checks.filter((c) => !c.ok).map((c) => `${c.id}: ${c.detail}`).join("\n"));
+  assert.deepEqual(r.checks.map((c) => c.id), ["tele_far_enough", "tele_arrived", "tele_relayed", "tele_never_corrected"]);
+});
+
+test("teleporter: a relay that corrects the declared jump FAILS, and so does every way it shows", () => {
+  // The declaration lost: the relay corrects the 60.6 m jump and stands the game back at the west pad.
+  const lost = goodTele();
+  lost.after = { count: 2, applied: 2 };
+  lost.camera = [22.5, 1.7, 19.8];
+  lost.seen = [];
+  assert.equal(teleCheck(lost, "tele_never_corrected").ok, false, teleCheck(lost, "tele_never_corrected").detail);
+  assert.equal(teleCheck(lost, "tele_arrived").ok, false);
+  assert.equal(teleCheck(lost, "tele_relayed").ok, false);
+  const never = goodTele();
+  never.camera = [22.5, 1.7, 18.5];
+  assert.equal(teleCheck(never, "tele_arrived").ok, false, "a pad that never jumped");
+  const near = goodTele();
+  near.link = { ...near.link, to_at: [22.5, 0, 50] };
+  near.camera = [22.5, 1.7, 50];
+  near.seen = [[22.5, 1.7, 50]];
+  assert.equal(teleCheck(near, "tele_far_enough").ok, false, "a jump the allowance would have taken means nothing");
+  assert.equal(judgeTeleporter({}).pass, false, "nothing recorded fails");
 });

@@ -2995,12 +2995,14 @@ pub async fn handle_game_join(
     // "Player N" placeholders and stationary players went invisible. Reuse
     // the live entity and fall through to send a fresh welcome; skip the
     // duplicate player_joined broadcast (others still have the entity).
+    let mut held_for_grace = false;
     let (player_id, is_rejoin) = match world.find_player_entity(my_key) {
         Some(id) => {
             // They are back inside the grace period (or never really left):
             // cancel the pending despawn and hand them their own entity back,
             // position and in-progress state intact.
-            if state.link_dead.write().await.remove(my_key).is_some() {
+            held_for_grace = state.link_dead.write().await.remove(my_key).is_some();
+            if held_for_grace {
                 tracing::info!(
                     "Game: {} reconnected within the grace period; place kept",
                     my_key
@@ -3072,10 +3074,17 @@ pub async fn handle_game_join(
     // This socket now holds the game seat (a rejoin from a fresh socket moves
     // it). Taken while the world lock is held, so a despawn cannot slip in
     // between the entity existing and the seat naming its socket.
-    crate::relay::handlers::live_conns::take_game_seat(state, my_key, conn_id).await;
+    let seat_was = crate::relay::handlers::live_conns::take_game_seat(state, my_key, conn_id).await;
 
-    // Build world snapshot for the joiner.
-    let snapshot = world.snapshot();
+    // Increment 4: a fresh allowance for a spawn, one move's grant for a reconnect, nothing for
+    // a join repeated on the same socket (move_check.rs `JoinKind`); who they see and who sees
+    // them (game_interest.rs). Their welcome lists the movers in their view; the others who see
+    // them are told of them below, before the world is let go (game_interest.rs, P4).
+    world.moves_on_join(player_id, super::move_check::JoinKind::of(is_rejoin, held_for_grace, seat_was, conn_id));
+    let changes = world.rejudge_view(player_id);
+    let seen_by = world.viewer_keys(player_id);
+    let view_msgs = if is_rejoin { world.view_messages(&changes, Some(player_id)) } else { Vec::new() };
+    let snapshot = world.snapshot_for(player_id);
     let game_time = world.game_time;
     let ship = serde_json::json!({ "id": world.ship_plots.ship_id, "hash": world.ship_plots.ship_hash });
     // Surface the starter quest in the welcome payload so AI agents
@@ -3103,7 +3112,6 @@ pub async fn handle_game_join(
             "center": center,
         })
     }).collect();
-    drop(world);
 
     // Build snapshot JSON values.
     let snapshot_json: Vec<serde_json::Value> = snapshot.iter().map(|s| {
@@ -3140,10 +3148,11 @@ pub async fn handle_game_join(
     };
     let _ = state.broadcast_tx.send(private);
 
-    // Broadcast PlayerJoined to all clients -- only for a FRESH join (v0.779):
-    // on a rejoin everyone else still has the entity, and the client side
-    // treats duplicate joins idempotently anyway. Position comes from the
-    // entity (its live spot on a rejoin, the spawn point on a fresh join).
+    // PlayerJoined to the players who have them in view (increment 4; it went to every socket)
+    // -- only for a FRESH join (v0.779): on a rejoin everyone else still has the entity, and
+    // one who lost it while they were away is sent it whole. Position comes from the entity
+    // (its live spot on a rejoin, the spawn point on a fresh join).
+    super::game_interest::send_each(state, view_msgs);
     if !is_rejoin {
         let joined = serde_json::json!({
             "type": "game_player_joined",
@@ -3152,10 +3161,11 @@ pub async fn handle_game_join(
             "position": entity_pos,
             "appearance": look.map(|l| l.to_json()),
         });
-        let _ = state.broadcast_tx.send(RelayMessage::System {
-            message: format!("__game__:{}", joined),
-        });
+        super::game_interest::send_to(state, seen_by, &joined);
     }
+    // Only now let the world go: every message above went out in the order of the world it
+    // describes, so no later move can be sent ahead of it (increment 4 review, P4).
+    drop(world);
 
     tracing::info!("Game: player '{}' ({}) joined as entity {}", player_name, my_key, player_id);
 }
@@ -3324,28 +3334,32 @@ pub async fn handle_game_position_update(
         None => return, // Not in the game world
     };
 
-    // Server-side validation: reject teleportation (> 100 units per update).
-    if let Some(entity) = world.entities.get(&player_id) {
-        let dx = position[0] - entity.position[0];
-        let dy = position[1] - entity.position[1];
-        let dz = position[2] - entity.position[2];
-        let dist_sq = dx * dx + dy * dy + dz * dz;
-        if dist_sq > 100.0 * 100.0 {
-            tracing::warn!("Game: rejected teleport from {} (dist={})", my_key, dist_sq.sqrt());
-            return;
+    // The speed check (ship homes increment 4, move_check.rs): a move faster than anyone can go
+    // is answered with a correction to where the relay holds them, never a freeze.
+    let (verdict, correction) = world.judge_move(player_id, position, raw);
+    if verdict != super::move_check::Verdict::Accept {
+        drop(world);
+        if let Some(c) = correction {
+            // One line per correction sent, with its number, and " sent again" on a resend: the rig
+            // counts the new ones against the corrections the game applied (copresence-judge.js
+            // `relayCorrections`, the increment 4 review, R7).
+            tracing::warn!("Game: corrected {}.. (correction {}{}, {}): {}", my_key.get(..16).unwrap_or(my_key), c["seq"], if verdict == super::move_check::Verdict::Resend { " sent again" } else { "" }, c["reason"].as_str().unwrap_or("?"), c["position"]);
+            send_game_private(state, my_key, &c).await;
         }
+        return;
     }
-
     world.update_position(player_id, position, rotation);
+    // Who sees them now, and who just came into or went out of their view (game_interest.rs).
+    let changes = world.rejudge_view(player_id);
+    let viewers = world.viewer_keys(player_id);
+    let view_msgs = world.view_messages(&changes, None);
 
     // Quest progress on the explore_ship quest: a first visit to a room of the ship (with its
     // crew member's greeting), or, once every room is visited, stepping onto their own plot
     // ("find your home", increment 3). Some(progress) only when something actually changed.
     let (quest_progress, greeting) = world.quest_step_at(player_id, position);
 
-    drop(world);
-
-    // Relay to all other game clients via broadcast.
+    // Relay to the players who have them in view, and nobody else (increment 4).
     let update = serde_json::json!({
         "type": "game_position_update",
         "player_id": player_id,
@@ -3354,9 +3368,13 @@ pub async fn handle_game_position_update(
         "velocity": velocity,
         "timestamp": timestamp,
     });
-    let _ = state.broadcast_tx.send(RelayMessage::System {
-        message: format!("__game__:{}", update),
-    });
+    // Whoever just came into view is sent whole first, so their game draws them before the move.
+    // Both go out before the world is let go (increment 4 review, P4): sent after it, another
+    // player's move could take this one out of a viewer's view in between, and this update would
+    // then reach them after their `game_out_of_view` and stand a figure there for good.
+    super::game_interest::send_each(state, view_msgs);
+    super::game_interest::send_to(state, viewers, &update);
+    drop(world);
 
     // If the position update advanced a quest, send a private update to the
     // player and broadcast a public completion event when they finish.
@@ -3508,7 +3526,11 @@ pub async fn despawn_player_now(
     let progress = world
         .find_player_entity(player_key)
         .and_then(|id| world.extract_player_progress(id));
+    let seen_by = world.find_player_entity(player_key).map(|id| world.viewer_keys(id)).unwrap_or_default();
     if let Some(entity_id) = world.despawn_player(player_key) {
+        // To the players who had them in view (increment 4), found before the despawn forgot them,
+        // and sent before the world is let go, in order with every other move (review P4).
+        super::game_interest::send_to(state, seen_by, &serde_json::json!({ "type": "game_player_left", "player_id": entity_id }));
         drop(world);
 
         // Durably persist the leaving player's progress so a returning player
@@ -3525,14 +3547,6 @@ pub async fn despawn_player_now(
                 tracing::warn!("Could not persist progress on disconnect for {}: {e}", player_key);
             }
         }
-
-        let left = serde_json::json!({
-            "type": "game_player_left",
-            "player_id": entity_id,
-        });
-        let _ = state.broadcast_tx.send(RelayMessage::System {
-            message: format!("__game__:{}", left),
-        });
 
         tracing::info!("Game: player {} left (entity {})", player_key, entity_id);
     }
@@ -3781,7 +3795,7 @@ pub async fn handle_game_interact(
         "entity_type": target.entity_type,
         "action": action,
         "success": true,
-        "components": target.components,
+        "components": super::game_interest::components_seen_by_others(target),
         "position": target.position,
     });
     if let Some(line) = &dialog_line {
@@ -3790,13 +3804,16 @@ pub async fn handle_game_interact(
     if let Some(name) = &speaker_name {
         response["speaker"] = serde_json::Value::String(name.clone());
     }
+    // Who is told of it: the players who have the actor in view, and the actor (increment 4
+    // review, P5: it went to every socket, chat-only ones included, and it says where they stand).
+    let mut told = world.viewer_keys(player_id);
+    told.insert(my_key.to_string());
 
     drop(world);
     send_game_private(state, my_key, &response).await;
 
-    // Broadcast the interaction to other clients. If a dialog line was
-    // returned, surface it in the broadcast too — humans nearby will see
-    // "Helm Officer Vex: Course laid in." style chat.
+    // The interaction to the humans nearby. If a dialog line was returned, it rides along, so
+    // they see "Helm Officer Vex: Course laid in." style chat.
     let mut broadcast = serde_json::json!({
         "type": "game_entity_interacted",
         "entity_id": entity_id,
@@ -3809,9 +3826,7 @@ pub async fn handle_game_interact(
     if let Some(ref name) = speaker_name {
         broadcast["speaker"] = serde_json::Value::String(name.clone());
     }
-    let _ = state.broadcast_tx.send(RelayMessage::System {
-        message: format!("__game__:{}", broadcast),
-    });
+    super::game_interest::send_to(state, told, &broadcast);
 
     // Quest progress for the meet_the_crew (a crew member) AND survey_storage (a storage
     // entity) flows: game_state.rs record_interaction_quest.
@@ -3983,7 +3998,7 @@ pub async fn handle_game_query_entity(
         "position": target.position,
         "rotation": target.rotation,
         "distance": dist,
-        "components": target.components,
+        "components": super::game_interest::components_seen_by_others(target),
         "owner": target.owner,
     });
 
