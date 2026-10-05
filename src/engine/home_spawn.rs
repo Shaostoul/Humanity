@@ -178,7 +178,7 @@ pub(crate) fn spawn_home_machine_entity(
                     ),
                 );
             }
-            MachinePower::Generator { watts, fuel_lph } => {
+            MachinePower::Generator { watts, fuel_lph, fuels } => {
                 // fuel_per_second > 0 marks a backstop genset: the
                 // ElectricalSystem gates it on need + drum fuel (v0.733).
                 let _ = world.insert_one(
@@ -189,6 +189,18 @@ pub(crate) fn spawn_home_machine_entity(
                         active: *fuel_lph <= 0.0,
                     },
                 );
+                // What its engine burns (BUG-154): only these run it, and its
+                // drum takes and offers only these. One that names none burns
+                // nothing, so say why it will never start.
+                if *fuel_lph > 0.0 {
+                    if fuels.is_empty() {
+                        log::warn!(
+                            "machine {} ({}) burns fuel but names none (`fuels` on its Generator), so it will never run",
+                            inst.id, inst.machine
+                        );
+                    }
+                    let _ = world.insert_one(e, crate::ecs::components::BurnsFuels(fuels.clone()));
+                }
             }
             MachinePower::Consumer { watts, priority, idle_watts, .. } => {
                 // A work station starts idle; the crafting system raises it
@@ -545,6 +557,105 @@ mod tests {
                 .map(|(_, (_, id, t))| (id.0.clone(), t.position.to_array()))
                 .collect();
             assert_eq!(found, vec![("hive_test".to_string(), [2.0, 0.0, 3.0])], "{file}");
+        }
+    }
+
+    /// BUG-154: the shipped backup generator names the fuel its engine burns,
+    /// and the game holds it to that from the data file to the drum. In either
+    /// home `generator_portable` names Refined Fuel, the refinery's product and
+    /// the game's stand-in for the gasoline its model (a Honda EU2200i class
+    /// inverter set) runs on; every fuelled generator in either catalog names
+    /// fuels that are items its drum's class takes, and a free source names
+    /// none. Spawned the way the game spawns it, it carries that list
+    /// (`BurnsFuels`) beside its drum: the drum offers Refined Fuel and not
+    /// Paint, and on a short island it runs on Refined Fuel and not on Paint.
+    /// Seen red on the old code twice: before the data named a fuel (the
+    /// generator named none), and with the data in (its drum offered Paint);
+    /// and red against a rule that burns nothing (Refined Fuel did not run it).
+    #[test]
+    fn the_shipped_generator_burns_its_own_fuel_and_not_paint() {
+        use crate::ecs::components::{BurnsFuels, PowerCircuit, PowerConsumer, PowerGenerator};
+        use crate::ecs::systems::System;
+        use crate::systems::electrical::{ElectricalSystem, PowerStatus};
+        use crate::systems::inventory::containers::{store_offers, Container, ContainerRegistry};
+        use crate::systems::inventory::ItemRegistry;
+        let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let read = |rel: &str| std::fs::read(data_dir.join(rel)).unwrap_or_else(|_| panic!("data/{rel}"));
+        let items = ItemRegistry::from_csv(&read("items.csv")).expect("items.csv");
+        let containers = ContainerRegistry::from_bytes(&read("containers/types.csv"), &read("containers/content_classes.ron"))
+            .expect("container types")
+            .with_contact_rules(
+                &read("containers/materials.csv"),
+                &read("containers/content_traits.ron"),
+                &read("food/item_profiles.ron"),
+            )
+            .expect("contact rules");
+        for file in ["home.ron", "home_solo.ron"] {
+            let home = crate::machines::MachineHome::load(&data_dir.join("machines").join(file))
+                .unwrap_or_else(|| panic!("{file} parses"));
+            for (id, def) in &home.catalog {
+                if def.backstop_watts().1 <= 0.0 {
+                    assert!(def.fuels().is_empty(), "{file}: {id} burns nothing, so it names no fuel");
+                    continue;
+                }
+                assert!(!def.fuels().is_empty(), "{file}: {id} burns fuel, so it names which");
+                let drum = def
+                    .container_type
+                    .as_deref()
+                    .and_then(|t| containers.container_type(t))
+                    .unwrap_or_else(|| panic!("{file}: {id} has a fuel drum"));
+                for fuel in def.fuels() {
+                    assert!(items.items.contains_key(fuel), "{file}: {id} burns {fuel}, which is not in items.csv");
+                    assert!(drum.accepts_class(items.class_for(fuel)), "{file}: {id}'s {} cannot take {fuel}", drum.id);
+                }
+            }
+            let def = &home.catalog["generator_portable"];
+            assert_eq!(def.fuels(), ["fuel_refined_0".to_string()], "{file}: the backup generator burns Refined Fuel");
+
+            // Spawned as the game spawns it, on a short island: a 100 W load and nothing else.
+            let mut world = hecs::World::new();
+            let empty = std::collections::HashMap::new();
+            let inst = crate::machines::MachineInstance {
+                id: "genset_t".to_string(),
+                machine: "generator_portable".to_string(),
+                room: "room-plant".to_string(),
+                offset: (0.0, 0.0, 0.0),
+                rotation: 0.0,
+                zone: "home".to_string(),
+                screen_source: None,
+            };
+            spawn_home_machine_entity(&mut world, &inst, def, &empty, &empty, None, Some(&containers));
+            world.spawn((PowerConsumer { draw_watts: 100.0, priority: 1, enabled: true }, PowerCircuit { island: 0 }));
+            let gen = world
+                .query::<(&BurnsFuels, &Container)>()
+                .iter()
+                .map(|(e, _)| e)
+                .next()
+                .unwrap_or_else(|| panic!("{file}: the generator carries its fuels beside its drum"));
+            let pack: std::collections::HashMap<String, u32> =
+                [("paint_0".to_string(), 3), ("fuel_refined_0".to_string(), 5)].into_iter().collect();
+            let offered: Vec<String> = {
+                let burns = world.get::<&BurnsFuels>(gen).unwrap();
+                let drum = world.get::<&Container>(gen).unwrap();
+                store_offers(&containers, Some(&items), &*drum, Some(&*burns), &pack).into_iter().map(|(id, _, _)| id).collect()
+            };
+            assert_eq!(offered, vec!["fuel_refined_0".to_string()], "{file}: its drum offers its fuel, not Paint");
+
+            let mut data = crate::hot_reload::data_store::DataStore::new();
+            data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
+            data.insert("item_registry", items.clone());
+            let mut sys = ElectricalSystem::new(&data_dir);
+            for (item, runs) in [("paint_0", false), ("fuel_refined_0", true)] {
+                {
+                    let mut drum = world.get::<&mut Container>(gen).unwrap();
+                    drum.spill();
+                    drum.current_content_item = Some(item.to_string());
+                    drum.current_qty = 3;
+                    drum.used_liters = 3.0 * items.volume_for(item);
+                }
+                sys.tick(&mut world, 1.0, &data);
+                assert_eq!(world.get::<&PowerGenerator>(gen).unwrap().active, runs, "{file}: {item} in its drum");
+            }
         }
     }
 }

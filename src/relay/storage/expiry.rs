@@ -46,13 +46,7 @@ mod tests {
     use rusqlite::params;
 
     fn fresh_db(tag: &str) -> Storage {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let dir = std::env::temp_dir().join(format!("hum_expiry_{tag}_{}_{nanos}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("test folder");
-        Storage::open(&dir.join("relay.db")).expect("open test db")
+        Storage::open_temp_dir(&format!("expiry_{tag}"))
     }
 
     /// The pass the relay runs at start, every six hours and after a settings change culls

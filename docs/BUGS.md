@@ -3544,7 +3544,7 @@ In a checkout (the rigs' data folder is the checkout) that rewrote four tracked 
 rebuild (755018fa0). Test `engine::editor::autosave_tests::opening_the_editor_is_not_an_edit`,
 seen red: "the editor's own rebuild as it opens armed the autosave".
 
-## BUG-152: three tests fail under machine load, not on their code (OPEN, found 2026-10-04)
+## BUG-152: three tests fail under machine load, not on their code (FIXED next release, found 2026-10-04; the rig judges of the same class split out as BUG-161)
 
 **Seen:** while increment 4's fixes were checked, with other builds running: the media
 seek tests `a_seek_lands_where_it_was_asked_and_the_picture_agrees`,
@@ -3566,19 +3566,101 @@ until it is green, which is how a real failure gets waved through.
   (the remote walker extrapolated to 1.1 to 2.4 m/s against 1.4). The rerun with
   every cargo, rustc and link process held at BelowNormal priority (a scratchpad
   loop, deprioritize-builds.ps1) drew 16 to 24 fps and passed 88/88 in every
-  order. The judge cannot tell a starved machine from a regression.
+  order. The judge cannot tell a starved machine from a regression. (Split out
+  2026-10-05 as BUG-161, still OPEN: they are a rig's judges, not cargo tests.)
 
-**Fix (not started):** make the media tests wait on the decoder's progress rather
-than on wall-clock time (or give them a deterministic clock), and give the fleet
-ledger test a relay rate limit that cannot trip in a test (or space its sends by
-the limit it is testing). Give the relay storage tests a pool timeout that cannot
-expire under load. For the rigs: the machine guard should hold builds at
-BelowNormal priority for the length of a capture (what the scratchpad loop did),
-and the steady-speed judges should report the frame rate and refuse to judge, as
-"contaminated" rather than FAIL, when frames run long enough to break the
-interpolation the check measures.
+**Causes (found 2026-10-05, each reproduced under a deliberate load:** CPU-burning
+node threads, and for the relay three copies of its 556-test suite running at once):
+- **The media seek tests** gave the decoder a fixed 3 or 5 s of wall-clock time to
+  reach a seek target while the player's clock (an `Instant`) ran on. A busy machine
+  decodes slower than that and the wait ran out. Under 96 burner threads with two test
+  processes at once, 20 of 20 runs failed: `a_seek_lands_where_it_was_asked...`,
+  `a_seek_with_no_keyframe_in_the_window...`, `seeking_while_paused...` and
+  `seek_to_start_rewinds_and_replays` in all 20, `a_short_preroll...` in 15, every
+  failure a wait running out ("frames resume after a seek", "the fallback still
+  delivers", "a paused seek still shows a frame", "never got past 0.4 s"). The landing
+  bound itself never failed: the 4-frame queue keeps the first frame within four
+  frames of the target.
+- **`the_fleet_ledger_end_to_end`** sends two gives back to back and expects the 200 ms
+  limit to turn the second away. The limit measures the time between the relay
+  REACHING the two, which is the time it spends on the first: writing it to SQLite and
+  flushing it to disk, 2.4 ms on an idle machine. In a reproduced failure that write
+  took 437 ms and the second give went through. Beside three relay suites and 64
+  burner threads, 6 of 16 runs failed with exactly the reported assertion (the limit
+  saw the two 310 to 702 ms apart; in the closest passing runs, 169 and 179 ms).
+- **The relay storage tests:** r2d2's `Pool::build` returns only once all 8 read
+  connections are open, and gives them `connection_timeout` (5 s); three worker threads
+  per pool open them, and every test that opens a database builds a pool. With three
+  relay suites at once under load, building a pool took 3.3 s at the median and up to
+  5.6 s, and 335 of 1,013 builds failed, every one with no error from SQLite at all.
+  In the unchanged suites, 373 of the 375 failures across three runs were this; the
+  other 2 were the fleet ledger's.
 
-## BUG-153: the Campfire ability promises a fire with warmth and light, and only heals 3 health (OPEN, found 2026-10-04)
+**Fix (no tolerance widened, no timeout lengthened):** the media and pool tests now wait
+on the work's own progress, and fail as stuck only when it stops (30 s with no picture
+decoded, or no connection opened) or, for the media waits, when the decoder goes round a
+loop or a wait passes an absolute two-minute backstop. The fleet ledger test's fix is of
+another kind: its rate limit reads a clock the test moves, while its waits for the
+relay's answers keep their 5 s of wall-clock time (`next_game_of`, `wait_until`), so
+that test is not free of the wall clock.
+- `src/test_clock.rs`: `ManualClock`, a clock a test moves by hand. Test builds only.
+- Media (`src/media/mod.rs`, `src/media/tests.rs`): the player's `Clock` reads a test's
+  manual clock when it has one (`VideoPlayer::use_manual_clock`, `#[cfg(test)]`; the
+  product reads `Instant::now()` exactly as before). The seek tests hold the clock at
+  the target and wait on the DECODER (`wait_for_frame_at`: pictures decoded, end of
+  pass, thread alive), with no wall-clock budget for the work. A wait still cannot hang
+  the run: it fails when the decoder produces no picture for 30 s (stopped), more than
+  120 pictures during the wait (twice the fixture's 60 frames: going round a loop), or
+  after two minutes in all. The picture cap and the backstop came from the 2026-10-05
+  review, which hung the run by injecting a restart where the awaited frame would be
+  queued (the stall check counted the looping decoder's pictures as work);
+  `a_decoder_going_round_a_loop_fails_the_wait_instead_of_hanging_the_run` keeps that
+  fault in the suite. Every check is kept and the landing one is now exact: the first
+  frame after a seek is the first frame at or after the target (it was "within 0.35 s
+  after it"), and the clock reads the target exactly (it was "within 50 ms"). The paused
+  seek keeps the wall clock, because only the wall can show a paused clock standing
+  still, checks its position did not move, and since the review seeks to 1.21 s,
+  BETWEEN two frames, so only `show_next_frame` can hand out its frame (1.2333 s): at
+  1.2 s, a frame time, that frame was due at once and the test passed with the arm
+  taken out. Seen red at 1.21 s with the arm taken out. The fallback seek lands exactly
+  too since BUG-158 (found on the way) was fixed.
+- Relay: the perception rate limit reads `RelayState::perception_now()`, which a test
+  can point at a manual clock (`perception_clock`, `#[cfg(test)]`). The ledger test
+  moves it 250 ms where it used to sleep, so the gives meant to arrive together are
+  0 ms apart however long the relay takes over the first.
+  `the_give_limit_reads_the_test_clock_not_the_wall` (fleet_ledger_tests.rs) pins the
+  hook; seen red with `perception_now` reading the wall, which also fails the ledger
+  test on every machine (its repeated give comes back `rate_limited`).
+- Pool (`src/relay/storage/pool.rs`): `build_read_pool` builds through `build_pool`,
+  which in a test build builds the same pool (the product's builder: same manager, size,
+  checkout timeout and checkout validation) with `build_unchecked` and waits for its
+  connections to OPEN, failing only when none has opened for 30 s (`build_for_tests`;
+  its error handler logs as the product's does and also keeps the newest error for that
+  message); the product still uses `build` and its 5 s (`build_by_deadline`).
+  `a_pool_whose_connections_open_slowly_is_waited_for_in_tests` (700 ms a connection
+  against a 1 s limit) builds through `build_pool` and passes, and its control shows the
+  product's build failing the same pool; seen red with `build_pool`'s test arm switched
+  back to `build` (it used to call `build_for_tests` directly, so that switch failed
+  nothing: the review). `the_products_build_gives_up_at_its_deadline_and_opens_a_real_database`
+  runs the product's build, which nothing else in a test build does; seen red with it
+  bypassed.
+
+**Loaded loops after the fix, same loads:** the media seek tests 40 of 40 runs passed
+(about 24 s a run instead of 4: the tests waited for the decoder instead of failing);
+the ledger test beside three relay suites 16 of 16 passed; the three relay suites
+themselves passed 558 of 558 tests in each of 3 runs (375 failures before). Idle:
+`cargo test --features native --lib` 3,141 passed, `just verify-relay` 2,226 passed.
+These loops ran before the review's changes (the picture cap, the backstop, the paused
+seek at 1.21 s, the pool's two tests), which were checked idle only.
+
+**Split out:** the co-presence rig's steady-speed judges above are a rig's judges, not
+cargo tests, and this fix does not touch them: BUG-161, OPEN.
+
+**Seen while measuring:** the test runs' temporary databases piling up in the temp
+folder, filed as BUG-159. Not the cause here (opening a file there took the same 42
+microseconds as in an empty folder).
+
+## BUG-153: the Campfire ability promises a fire with warmth and light, and only heals 3 health (PARTLY FIXED (merging in v0.1463.0), found 2026-10-04)
 
 **Seen (code reading, by the check of the heat, fire and fuel guides; confirmed by the
 orchestrator):** `data/abilities.csv` row `campfire` is described as "Build a campfire that
@@ -3588,11 +3670,47 @@ provides warmth light and slow healing". It is a non-offensive ability, so casti
 and the `campfire_warmth` status effect (`data/status_effects.csv`) is applied by no code.
 For a new character it sorts first among castable abilities, so it sits in hotbar slot 1.
 
-**Fix (not started):** either make it place a real fire the body heat model and the light
-system see (and that can spread or go out, as the fire guide teaches), or describe what it
-does today. A test casts it and checks what the description promises.
+**Fixed (2026-10-05):** the ability now builds a real campfire, and the fire is a heat
+source the body heat model sees. Step by step:
 
-## BUG-154: the backup generator runs on Paint, Glue or Crude Oil (OPEN, found 2026-10-04)
+1. The engine works out where it goes when the cast is pressed: the spot a piece in hand
+   would be placed at (`engine::build_place::publish_cast_spot`, the same
+   `planet_build::ghost`), handed to the ability system in `abilities::BUILD_SPOT_SLOT`.
+   An ability row names what it builds in the new `builds` column of `data/abilities.csv`.
+2. The cast goes through the one build path every piece takes, now
+   `construction::begin_build` (moved out of the ConstructionSystem's tick): the
+   `campfire` blueprint (`data/blueprints/basic.ron`, 6 Raw Stone and 3 Wood Logs, as
+   `data/structures.csv` always listed it) is refused with the reason, and nothing spent,
+   aboard the ship, under a built roof, where there is no air to burn, or without the
+   materials; otherwise its materials leave the pack and its scaffold goes up. Only then
+   are the 15 energy spent and the cooldown started. No heal: `healing_base` is 0.
+3. Finished, it is lit with its own three logs (2 h), burns them down on the game clock,
+   and goes out; E at it puts another log from the pack on (it holds four) and relights
+   it when out (`src/systems/construction/fires.rs`). Its fuel is saved with it and burns
+   down while the game is closed.
+4. While it burns it radiates 16 kW (a Forest Service campground fire ring's burn rate,
+   NIST's effective heat of combustion and radiative fraction for wood; the sources are
+   in the module's doc), falling off as the inverse square, and `engine::survival_env`
+   adds it to the mean radiant temperature of a person near it. On a clear, calm 0 C
+   night that is about 16 C at 1.5 m and nothing at 20 m; an out fire gives nothing.
+5. The dead `campfire_warmth` effect is deleted, and the description says what it does.
+
+Tests, each seen red on the code before the fix:
+`the_campfire_ability_builds_a_campfire_outdoors_from_the_pack`,
+`a_campfire_cast_that_cannot_build_spends_nothing` (`src/systems/abilities.rs`);
+`a_campfire_by_a_cold_night_keeps_a_body_warmer_than_one_20_m_away` and
+`an_out_campfire_gives_no_heat` (`src/engine/survival_env.rs`); with the fire's own
+burning, fuel, take-down and warmth tests in `fires.rs`.
+
+**Still open:** the campfire gives NO LIGHT. The renderer's point lights are not
+evaluated in the celestial pass, where a planet's ground and everything built on it is
+drawn (that pass's light count is 0 by design since v0.1155, `80-fragment-shared.wgsl`),
+so a campfire light needs renderer work, not a data entry. Also not modelled: smoke,
+sparks or spreading, carbon monoxide, and needing a light (tinder, a match, the Campfire
+Kit) to start or relight it. In the Normal play mode nobody leaves the ship, so there the
+ability is always refused; it can be used only where the Dev travel tools reach a planet.
+
+## BUG-154: the backup generator runs on Paint, Glue or Crude Oil (FIXED (merging in v0.1463.0), found 2026-10-04)
 
 **Seen (the same check, confirmed):** the generator burns whatever flammable-class item is
 in its drum (`src/systems/electrical.rs`, `fuel_ok`: any item whose class is
@@ -3601,8 +3719,30 @@ accepts them, and the Store button offers them, so the house runs on a can of pa
 generator burns the fuel its engine is made for (gasoline, diesel or propane), and the fuels
 guide teaches exactly that.
 
-**Fix (not started):** a generator names the fuels it burns (a data field on the machine),
-and only those run it; a test puts Paint in the drum and expects no power.
+**Fix:** a generator names the fuels its engine burns, as data: `fuels` on its `Generator`
+power role (`src/machines.rs`; item ids from `data/items.csv`). Both homes'
+`generator_portable` names `fuel_refined_0`: its own item calls it a "Gasoline electric
+generator", the game has no gasoline item, and Refined Fuel, the fuel refinery's product, is
+the one that stands for it. The spawn puts the list on the generator's entity
+(`ecs::components::BurnsFuels`, `src/engine/home_spawn.rs`), and from there only those fuels
+run it (`src/systems/electrical.rs`), its drum takes only those whatever asks (the Store
+action in `src/lib.rs`, harvest surplus in `src/systems/farming/mod.rs` and a machine's own
+craft output in `src/systems/crafting/mod.rs`, all through `containers::vessel_takes_item`),
+and its Store buttons offer only those (`containers::store_offers`, the card's list moved
+out of `src/lib.rs`). A fuelled generator whose data names no fuel burns nothing and its
+drum takes nothing, with a warning at spawn: no fuel can safely be assumed for it, and
+guessing from a class is what put the paint in. Tests, each seen red on the old rule first:
+`systems::electrical::tests::paint_in_the_drum_makes_no_power` (it ran on Paint; the test
+checks Glue and Crude Oil too), `a_generator_that_names_no_fuel_burns_nothing` (it ran on
+Refined Fuel with no list),
+`systems::inventory::containers::tests::a_generators_drum_offers_only_its_fuel` (the drum
+offered Crude Oil, Glue, Paint and Refined Fuel) and
+`engine::home_spawn::tests::the_shipped_generator_burns_its_own_fuel_and_not_paint` (red
+twice: the shipped data named no fuel, then, with the data in, the drum offered Paint). The
+positive control, `systems::electrical::tests::the_generators_own_fuel_runs_it`, passes on
+the old rule by design; it, the shipped-generator test and
+`backstop_genset_runs_when_needed_and_burns_its_drum_dry` were seen red against a rule that
+burns nothing, so the Paint test cannot pass merely because no genset runs.
 
 ## BUG-155: the greenhouse quest asks for a heater that does nothing (FIXED (merging in v0.1463.0), found 2026-10-04)
 
@@ -3639,8 +3779,11 @@ effect, by making `heat::heaters` find no heater, and by the mutation each test 
 `the_thermostat_holds_its_setpoint`, `a_heater_outside_the_grow_rooms_warms_the_home_air_the_body_reads`,
 `a_grow_rooms_heat_reaches_the_home_air_and_none_is_lost`, `the_heat_step_keeps_every_joule`,
 `the_greenhouse_quests_heater_warms_a_grow_rooms_air` (the quest's words, the recipe's item,
-the catalog machine, spawned the way the engine spawns it), and
-`engine::survival_env::tests::indoors_the_body_feels_the_air_of_the_room_it_stands_in`.
+the catalog machine, spawned the way the engine spawns it),
+`engine::survival_env::tests::indoors_the_body_feels_the_air_of_the_room_it_stands_in`, and,
+with BUG-153's campfire merged, `a_heaters_warm_air_and_a_fires_warmth_add_up`: a heater
+warms the air and a fire the surroundings, from that air, so the two add up and neither
+replaces the other (seen red with the fire's warmth taken from a fixed 21 C).
 
 **Still open:** the crops' growth does not answer an indoor room's temperature (indoors
 they still grow as if every room were inside their range, so the heater warms the plants'
@@ -3669,3 +3812,187 @@ detail while the camera was 300 m up (a teleport artifact a walking player would
 see: arriving by teleport and arriving the way a player does have differed before), or whether trees there float
 for anyone. First step: capture the same place after a longer settle and after walking
 in, and compare each tree's base with the terrain height under it.
+
+## BUG-157: two data files are silently ignored: their field names do not match the code that reads them (FIXED v0.1462.0, found 2026-10-05)
+
+**Seen (by the leaving-the-ship design proposal, confirmed):** `data/docking.ron` writes
+`docking_ports: [...]` and `docking_procedures: [...]`, but `src/systems/docking.rs` reads
+`ports` and `procedures`; `data/transportation.ron` writes `space: [...]`, but
+`src/systems/transportation.rs` reads `space_infrastructure`. Every one of those loader
+fields is `#[serde(default)]`, so each mismatched list loads as EMPTY with no error and no
+warning: the ports, procedures and space infrastructure written in the data never reach
+the game. Three module headers also name data files that do not exist (`data/vehicles.csv`,
+`data/ship_classes.csv`, `data/propulsion.csv`).
+
+**Fix:** the data keys renamed to the loaders' names (ports, procedures,
+space_infrastructure; no aliases, nothing else read the old names), with
+`docking::tests::the_shipped_docking_file_fills_every_list` and
+`transportation::tests::the_shipped_transportation_file_fills_every_list`, both seen red
+first (the ports and the space infrastructure arrived empty). The three module headers now
+say what loads (or that nothing does yet). Both systems are still unwired scaffolds, so
+nothing in the game changed. Still open, the class: a lint that every top-level key in a
+shipped RON file is a field its loader knows.
+
+## BUG-158: a seek that falls back to decoding from the top shows the clip from its first frame on the way (FIXED next release, found 2026-10-05)
+
+**Seen (while fixing BUG-152):** when a seek finds no keyframe in its rewind window (a
+long-GOP file we did not encode), the decode pass retries from the top of the file
+(`PassEnd::RetryFromStart`) so the seek always arrives. Its own comment says the retry
+lets "the pts filter drop everything before the target", but `decode_thread` hands the
+retry `start_s = 0.0`, and `start_s` is both where the demuxer repositions and where the
+pts filter starts keeping frames. So the retry queues every frame from the first one, and
+as each is at or before the clock (which already stands at the target) the screen plays
+the clip from its start at decode speed before it lands, while the sound has already
+jumped. With the clock held at a 1.5 s target on the test fixture, the first frame the
+player hands out after the seek is the one at 0 s (3 of 3 runs).
+
+**Fix:** `decode_pass` takes the target and a separate `from_top` flag
+(src/media/mod.rs): the retry skips only the reposition and still queues nothing older
+than the target, which is what its comment always said it did. The screen now holds the
+last picture while the retry decodes its way to the target, then lands on the first frame
+at or after it, exactly as the fast start does (the next frame for a target between two;
+none, so the picture stays, for a target after the last frame).
+`a_seek_with_no_keyframe_in_the_window_still_arrives` requires the first frame after the
+seek to be the frame at the target, as the other seek tests do; seen red before the fix
+with the message above, green 3 of 3 after, and 20 of 20 loaded runs of the six seek
+tests (96 burner threads, two test processes at once) passed with it.
+
+## BUG-159: the tests leave their temporary databases and files behind (FIXED, merging in v0.1463.0; found 2026-10-05)
+
+**Seen (by the BUG-152 fix, counted):** the system temp folder held about 182,000 entries,
+174,578 of them `hum_*` files left by test runs (76,906 SQLite databases). Fifty-four test
+files each build their own path (`std::env::temp_dir().join(format!("hum_..."))`) and
+nothing deletes it afterwards, so the pile grows with every `just verify` and every
+worktree agent's test run. It did not cause BUG-152's timeouts (opening a file there is
+as fast as in an empty folder), but it is disk and directory growth with no end.
+
+**Why nothing deleted them:** most of those tests did end with `remove_file(&path)`, but it
+ran while the test still held the database open, which Windows refuses (SQLite opens its
+files without delete sharing), and nothing ever removed the `-wal` and `-shm` beside it. A
+relay a test starts holds its database in its tasks, which the test's runtime drops only
+after the test body (and anything in it) is gone.
+
+**Fix:**
+- `src/test_temp.rs` (test builds only): `db(tag)`, `file(tag, ext)`, `path(tag)` and
+  `dir(tag)` hand out `hum_<tag>_<pid>_<nanos>_<n>` paths in the temp folder as a guard
+  (`TempPath`, derefs to `Path`) that deletes the file with its `-wal`, `-shm` and
+  `-journal`, or the folder, when it is dropped, also while a failed assertion unwinds the
+  test. A delete that fails because something still has the file open is kept and tried
+  again at every later guard drop and once more at exit (an `atexit` hook); whatever is
+  still open then is named on stderr.
+- The relay's storage keeps the guard inside itself: `Storage::open_temp(tag)`,
+  `open_temp_dir(tag)` (a `relay.db` in a folder of its own) and `open_sharing(&guard)`, a
+  `#[cfg(test)]` field declared last so it is dropped after the writer and the read pool
+  have closed the file. A relay a test starts deletes its database when its last task
+  lets go of it. The plots tests that restart a relay on one file share one guard among the
+  relays (`plots_db`, `relay_on`), so the file outlives every relay on it.
+- 85 path-building sites in 59 files moved onto it: every `hum_*` one, plus the four
+  `hos_*` helpers that leaked too (storage.rs, file_browser.rs, own_home.rs,
+  ship_structure.rs `temp_path`). The hand-written `remove_file` / `remove_dir_all` lines at
+  the ends of tests went; moves.rs keeps its `remove_dir_all`, which is part of the test.
+- `test_temp::tests::a_dropped_guard_deletes_what_it_made_even_when_the_test_panics`, seen
+  red with the delete taken out of `Drop`: "the guards left these behind after the test
+  panicked: [...hum_guard_db_..._2.db-wal, ...db-shm, ...db-journal, ...db,
+  ...hum_guard_dir_..._5, ...hum_guard_file_..._6.ron]".
+  `a_database_still_open_when_its_guard_drops_goes_once_it_closes`, seen red on Windows
+  with the retry taken out: "the database its guard could not delete while open was still
+  there after it closed".
+- `just clean-test-temp` (scripts/clean-test-temp.js): deletes the `hum_*` entries in the
+  temp folder nothing has touched for a day, refuses while cargo, rustc or a test binary
+  runs, and prints the count and the space (`--dry-run`, `--dir <folder>`, `--days <n>`).
+  Its tests (scripts/tests/clean-test-temp.test.js, added to `just rig-tests`) work in
+  scratch folders only; seen red with the age check taken out.
+
+**Measured:** before the fix, every full test run left 740 entries in the temp folder (288
+databases, 191 `-wal`, 191 `-shm`, 70 folders): the leftovers of 239 `cargo test --features
+native --lib` runs and 82 relay-only runs already there, grouped by the process id in their
+names (median 738 and 734 over the last 20 of each). After it, `cargo test --features native
+--lib` (3,152 passed) and `just verify-relay` (2,235 passed) left 0 each.
+
+**Still to do:** the old pile (186,523 `hum_*` entries on 2026-10-05) goes with one
+`just clean-test-temp` when no build or test run is going. Left on their own names: 24
+test paths in 9 files (machines.rs, persistence.rs, save_load.rs, home_structure.rs,
+stars.rs, terrain_tiles.rs, assets/mod.rs, cosmos.rs, plant_pass.rs) that delete their own
+files when they pass, so they leave something only when a test fails, and the recipe does
+not sweep their names; host_node.rs's scratch path, which a passing test never creates; and
+tests/federation_two_relays.rs, an integration test, which cannot see a `#[cfg(test)]`
+module of the library.
+
+## BUG-160: an empty server address turns into the live server, and five rigs sent one (rigs FIXED v0.1462.0; the game FIXED, merging in v0.1463.0; found 2026-10-05)
+
+**Seen:** v0.1462.0's screens check failed `no_builtin_data`. Its game identified on the
+live server (wss://united-humanity.us/ws), read its chat, tried to join its shared world
+and was refused its ship, although the rig had pinned the sandbox's config to a dead
+loopback port (http://127.0.0.1:9; scripts/lib/rig-gameplay.js). Two faults together:
+
+1. **The rigs (FIXED v0.1462.0).** Five rigs (boot-timing, make-clips, photograph-home,
+   probe-sweep, verify-screens) sent `{ server_url: "" }` in their autopilot request, and
+   the game applies that over the pinned config (src/engine/ipc.rs,
+   `poll_autopilot_request`). They now send no address, so the pin stands. A rig test,
+   "no rig's autopilot request sends an empty or public server address"
+   (scripts/tests/rig-gameplay.test.js), refuses either in any rig's request; the one
+   deliberate clear, verify-live-screen's "No server set" step, carries the marker
+   `rig-clears-server:`. Seen red first: run over the committed scripts, the check listed
+   all six. The screens check then passed on the same build.
+2. **The game (FIXED, merging in v0.1463.0).** Drawing the chat page's connect form filled an empty
+   server address with the live server's (src/gui/pages/chat/left_panel.rs, `if
+   state.server_url.is_empty() { state.server_url = "https://united-humanity.us" }`), and
+   the auto-connect then dials it. So a player who cleared their server is put back on the
+   live server just by opening Chat, without pressing anything. Now the form writes no
+   server: the empty field shows the official server as a suggestion (`OFFICIAL_SERVER`),
+   and only the Connect button turns an empty address into it. The test
+   `drawing_the_connect_form_sets_no_server` (src/gui/pages/chat/left_panel.rs) draws the
+   form with no server set and checks none is set, nothing may dial, the form was drawn and
+   the field shows the suggestion. Seen red first with the old line in place: "drawing the
+   connect form set a server" (left: "https://united-humanity.us", right: "").
+
+Checked 2026-10-05 (read-only): no member has joined the live server since 2026-10-01, so
+today's rig visits left no rows in its member list.
+
+## BUG-161: the co-presence rig's steady-speed judges fail a starved machine as a regression (OPEN, found 2026-10-04; split from BUG-152 2026-10-05)
+
+**Seen (first filed under BUG-152):** v0.1459.0's first `--plots` runs of the co-presence
+rig, with ten agents compiling, drew the game at 6 to 16 fps with single frames of 160 to
+465 ms, and three of six orders failed the `steady_speed` and `meet_steady_speed` judges
+(the remote walker extrapolated to 1.1 to 2.4 m/s against 1.4). The rerun with every
+cargo, rustc and link process held at BelowNormal priority (a scratchpad loop,
+deprioritize-builds.ps1) drew 16 to 24 fps and passed 88/88 in every order. The judges
+cannot tell a starved machine from a regression, and a check that fails on a busy machine
+teaches people to rerun it until it is green. BUG-152 fixed the cargo tests of the same
+class; these judges are a rig's (scripts/lib/copresence-judge.js), and nothing changed
+for them.
+
+**Fix (not started):** the machine guard holds builds at BelowNormal priority for the
+length of a capture (what the scratchpad loop did), and the steady-speed judges report the
+frame rate and refuse to judge, as "contaminated" rather than FAIL, when frames run long
+enough to break the interpolation the check measures. A judge test feeds a capture with
+400 ms frames and expects "contaminated", not a FAIL.
+
+## BUG-162: medicine cures nothing, and food poisoning kills in about 8 minutes (OPEN, found 2026-10-05)
+
+**Seen (by the sanitation guides' fixer, confirmed by reading the code):**
+- The inventory's generic **Use** button discards its click (src/gui/pages/inventory.rs,
+  `let _ = widgets::compact_button(ui, theme, "Use", ...)`), so a Bandage, Medkit, Advanced
+  Medkit or Antibiotics does nothing when used.
+- data/status_effects.csv's `dispel_type` column (food poisoning's is "medicine") is not a
+  field of `StatusEffectDef` (src/systems/status_effects.rs), so nothing removes an effect.
+- Food Poisoning takes 3 health every 15 s for 5,400 s (`data/status_effects.csv`; the tick
+  in src/systems/food.rs): from full health it kills in about 8 minutes 20 seconds unless
+  Well Fed (1 health a second) or the First Aid ability (35) outpaces it. Under the default
+  Simplified death mode a respawn clears it.
+
+**Why it matters:** real food poisoning is not a fast poison. It is mostly fluid loss over
+hours to days; most healthy adults recover with fluids and rest, and the danger is
+dehydration, worst in babies, older people and anyone already weak (the Library's When Food
+or Water Makes You Sick says exactly this). Antibiotics help only some bacterial illnesses,
+and the advice is not to take them for ordinary food poisoning. The game teaches the
+opposite: an eight-minute death with medicine in the pack that cannot be taken.
+
+**Fix (not started):** illness as fluid loss on the body's water (the vitals already track
+it), on the game clock, cleared by time and helped by drinking (oral rehydration more than
+plain water), with the severe course for the vulnerable in Realistic and a milder one in the
+simplified mode (the dual-mode house rule); the Use button applying each medical item's
+effect from data (what it heals, what it removes, what it does not help), so antibiotics
+clear only effects marked as bacterial; a test that food poisoning untreated does not kill a
+healthy adult in minutes, that drinking shortens it, and that Use on each medical item does
+what its data says.

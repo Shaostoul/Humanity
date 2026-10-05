@@ -462,7 +462,11 @@ test("plots: the ship file's plots read the way the game has them", () => {
   const fs = require("fs");
   const path = require("path");
   const text = fs.readFileSync(path.join(__dirname, "..", "..", "data", "blueprints", "ship_structure.ron"), "utf8");
-  assert.deepEqual(readShipPlots(text), PLOTS);
+  const read = readShipPlots(text);
+  assert.deepEqual(read.slice(0, 2), PLOTS, "p1 and p2 where they always were");
+  // The twelve plots along First Street (2026-10-04): p3 to p12 down its west side, 99 m apart.
+  assert.deepEqual(read.map((p) => p.id), Array.from({ length: 12 }, (_, k) => `p${k + 1}`));
+  for (const [k, p] of read.entries()) assert.deepEqual([p.kind, p.origin, p.size], ["homestead", [0, 0, 99 * k], [55, 3, 89]], p.id);
   assert.ok(inPlot(P2_SPAWN, PLOTS[1]) && !inPlot(P2_SPAWN, PLOTS[0]));
 });
 
@@ -626,7 +630,7 @@ test("respawn: judged like a rejoin, under its own check ids", () => {
 // (src/ship/door_points.rs). These tests route on a copy of that report for the
 // shipped ship, seen from p1 (fixtures/door-points-p1.json); the Rust test
 // door_points::the_rigs_fixture_is_what_the_game_reports keeps the copy true.
-const { doorRoute, routeClear, routeWalls, farPlaces, farthestFrom, placeAt, judgeMeet, judgeReboot } = require("../lib/copresence-judge.js");
+const { doorRoute, routeClear, routeWalls, farPlaces, farthestFrom, placeAt, judgeMeet, judgeReboot, inViewM, FAR_VIEW_MARGIN_M, farPlacesAlong, farPlaceInView } = require("../lib/copresence-judge.js");
 const DOORS = require("./fixtures/door-points-p1.json");
 const P2_DOOR = [53.5, 1.7, 139.5];
 const MEET_CAM = [76, 1.7, 64];
@@ -678,19 +682,54 @@ test("routes: the walker's way to the meeting line never runs along it", () => {
   assert.equal(routeClear([[70, 1.7, 70], [75, 1.7, 70], MEET_LINE.start], MEET_LINE), false, "a leg back along the line is not clear");
 });
 
-// The far places, from the report: each shared zone's corners a metre in; the
-// one farthest from each door is more than 100 m away (what the step out and
-// back, Respawn and the build editor legs need).
-test("routes: the far places are the shared zones' corners, the farthest past the 100 m rule", () => {
+// The far places, from the report: each shared zone's corners a metre in. Since
+// the twelve plots (2026-10-04) First Street runs to z 1185, so its far corner
+// is more than a kilometre from either door, past every walker's view.
+test("routes: the far places are the shared zones' corners", () => {
   const far = farPlaces(DOORS);
   assert.equal(far.length, 8, "four corners of the Commons and of First Street");
   assert.deepEqual(far[0], [66, 1.7, 21]);
-  assert.deepEqual(farthestFrom(far, P1_SPAWN), [74, 1.7, 194]);
-  assert.deepEqual(farthestFrom(far, P2_DOOR), [98, 1.7, 21]);
+  assert.deepEqual(farthestFrom(far, P1_SPAWN), [74, 1.7, 1184]);
+  assert.deepEqual(farthestFrom(far, P2_DOOR), [74, 1.7, 1184]);
+});
+
+// THE FAR PLACE THE WALKERS SEE (the twelve plots along First Street, 2026-10-04).
+// The rig's far legs judge what a walker logged the relay passing on, and the relay
+// sends a move only to the players within its view (increment 4, data/ship/
+// shared_world.ron in_view_m). The far place is the farthest point of the shared
+// zones' floors (corners, and every 5 m along their sides) still within the view,
+// less a margin, of both ends of the watching walker's line; from either door it is
+// well past the 100 m the rejoin, Respawn and editor legs need, and far down First
+// Street. Seen red 2026-10-04 with farPlaceInView returning the farthest corner
+// whatever the watchers (`farthestFrom(farPlaces(report), from)`, the rig before):
+// "the far place [74,1.7,1184] is 1114.0 m from the walker at [72,1.7,70], past the
+// 225 m it may be".
+test("far places: the farthest shared place every watching walker still has in view", () => {
+  const view = inViewM(require("fs").readFileSync(require("path").join(__dirname, "..", "..", "data", "ship", "shared_world.ron"), "utf8"));
+  assert.equal(view, 250, "the shipped view");
+  const within = view - FAR_VIEW_MARGIN_M;
+  const line = [MEET_LINE.start, MEET_LINE.end];
   for (const door of [P1_SPAWN, P2_DOOR]) {
-    const f = farthestFrom(far, door);
-    assert.ok(Math.hypot(f[0] - door[0], f[2] - door[2]) > 100, `the farthest place from ${door} is past the relay's 100 m rule`);
+    const far = farPlaceInView(DOORS, door, line, within);
+    assert.ok(Array.isArray(far), `a far place from ${door}`);
+    for (const w of line) {
+      const d = Math.hypot(far[0] - w[0], far[2] - w[2]);
+      assert.ok(d <= within + 1e-9, `the far place ${JSON.stringify(far)} is ${d.toFixed(1)} m from the walker at ${JSON.stringify(w)}, past the ${within} m it may be`);
+    }
+    const fromDoor = Math.hypot(far[0] - door[0], far[2] - door[2]);
+    assert.ok(fromDoor > 100, `the far place is ${fromDoor.toFixed(1)} m from ${door}: past the 100 m the rejoin legs need`);
+    assert.ok(placeAt(DOORS, far) && placeAt(DOORS, far).id === "zone:street-1", `it stands on First Street: ${JSON.stringify(far)}`);
+    assert.ok(far[2] > 250, `well down First Street: ${JSON.stringify(far)}`);
   }
+  // The guest's: from the Commons arrival, seen by the walker at home on p1.
+  const home = [P1_SPAWN, [P1_SPAWN[0], P1_SPAWN[1], P1_SPAWN[2] + 8]];
+  const g = farPlaceInView(DOORS, [87.5, 1.7, 67.5], home, within);
+  assert.ok(g && home.every((w) => Math.hypot(g[0] - w[0], g[2] - w[2]) <= within + 1e-9), `the guest's far place ${JSON.stringify(g)} is in view of p1's door`);
+  assert.ok(Math.hypot(g[0] - 87.5, g[2] - 67.5) > 100, "and more than 100 m from where a guest arrives");
+  // Along a zone's sides, not only its corners; nobody in view of anything: none.
+  assert.ok(farPlacesAlong(DOORS).length > 400, "points along First Street's 1.1 km");
+  assert.equal(farPlaceInView(DOORS, P1_SPAWN, [[5000, 1.7, 5000]], within), null);
+  assert.equal(farPlaceInView(DOORS, P1_SPAWN, line, NaN), null, "no view read: none");
 });
 
 // The meeting itself, beyond the walk (judgeCopresence and the pictures judge
@@ -919,7 +958,7 @@ test("editor: a build spot inside the 100 m rule's reach proves nothing, and a c
 // default plot with all it holds, and a dropped connection, with the home back on
 // p1 and the camera walked into it, coming back inside the grace to stand the
 // guest off the plot where the relay holds it.
-const { judgeGuest, onPlotGround, GUEST_NO_EDITOR_START } = require("../lib/copresence-judge.js");
+const { judgeGuest, onPlotGround, GUEST_NO_EDITOR_START, GUEST_ARRIVAL_START } = require("../lib/copresence-judge.js");
 const PLOTS2 = [
   { id: "p1", origin: [0, 0, 0], size: [55, 3, 89] },
   { id: "p2", origin: [0, 0, 99], size: [55, 3, 89] },
@@ -935,7 +974,7 @@ const GUEST_OK = {
   commons: COMMONS_BOX,
   defaultPlot: "p1",
   walkers: [{ name: "TestBotPlots", id: 1, plot: "p1" }, { name: "TestBotPlotsTwo", id: 2, plot: "p2" }],
-  arrived: { lastWelcome: "guest", homePlot: null, homeAway: true, camera: GUEST_ARRIVAL, homeThings: THINGS_AWAY },
+  arrived: { lastWelcome: "guest", homePlot: null, homeAway: true, camera: GUEST_ARRIVAL, homeThings: THINGS_AWAY, notices: [`${GUEST_ARRIVAL_START}, so you are a guest on its ship.`] },
   editor: { open: false, notices: [`${GUEST_NO_EDITOR_START}, so your home is not aboard to build on.`] },
   respawn: { far: [74, 1.7, 194], relaySpawn: GUEST_ARRIVAL, camera: GUEST_ARRIVAL, nudged: [82, 1.7, 48.5], seen: [[82, 1.7, 48.5]] },
   back: { homeAway: false, homePlot: { id: "p1" }, homeThings: THINGS_BACK },
@@ -957,6 +996,7 @@ test("guest: a run that went right passes, every check its own", () => {
   assert.deepEqual(r.checks.map((c) => c.id), [
     "guest_plots_taken",
     "guest_welcome",
+    "guest_told",
     "guest_in_commons",
     "guest_respawn_point",
     "guest_nothing_on_plots",
@@ -1008,6 +1048,12 @@ test("guest: each broken guest run FAILS its own check", () => {
     ["the reconnected guest's move refused", w({ reconnect: { ...GUEST_OK.reconnect, seen: [] } }), "guest_reconnect_moves_reach_others"],
     ["a plot left free (the game held p2)", w({ walkers: [GUEST_OK.walkers[0]] }), "guest_plots_taken"],
     ["the welcome moved the home onto a plot", w({ arrived: { ...GUEST_OK.arrived, lastWelcome: "move", homePlot: { id: "p2" }, homeAway: false } }), "guest_welcome"],
+    // Told on arriving (engine/home_plot.rs GUEST_ARRIVAL, the first-hour audit's Blocker 1).
+    // Seen red 2026-10-05 before judgeGuest had the check: "a guest told nothing on arriving
+    // should fail guest_told; failed: nothing".
+    ["a guest told nothing on arriving", w({ arrived: { ...GUEST_OK.arrived, notices: [] } }), "guest_told"],
+    ["only the build editor's refusal on screen", w({ arrived: { ...GUEST_OK.arrived, notices: [`${GUEST_NO_EDITOR_START}.`] } }), "guest_told"],
+    ["the arrival's notices never recorded", w({ arrived: { ...GUEST_OK.arrived, notices: undefined } }), "guest_told"],
     ["the guest left at its old door", w({ arrived: { ...GUEST_OK.arrived, camera: P1_SPAWN } }), "guest_in_commons"],
     ["Respawn still the old door", w({ arrived: { ...GUEST_OK.arrived, homeThings: { ...THINGS_AWAY, respawn: P1_SPAWN } } }), "guest_respawn_point"],
     ["an animal left on p1", w({ arrived: { ...GUEST_OK.arrived, homeThings: { ...THINGS_AWAY, animals: [[30, 0, 30]] } } }), "guest_nothing_on_plots"],

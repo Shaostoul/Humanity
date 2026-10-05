@@ -254,13 +254,7 @@ mod tests {
     use super::*;
 
     fn fresh_state(tag: &str) -> Arc<RelayState> {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let dir = std::env::temp_dir().join(format!("hum_signups_{tag}_{}_{nanos}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("test folder");
-        let db = crate::relay::storage::Storage::open(&dir.join("relay.db")).expect("open test db");
+        let db = crate::relay::storage::Storage::open_temp_dir(&format!("signups_{tag}"));
         Arc::new(RelayState::new(db))
     }
 

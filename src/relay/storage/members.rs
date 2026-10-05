@@ -405,13 +405,7 @@ mod directory_optout_tests {
     use super::*;
 
     fn test_storage() -> Storage {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_members_{pid}_{nanos}.db"));
-        Storage::open(&path).expect("open test db")
+        Storage::open_temp("members")
     }
 
     #[test]

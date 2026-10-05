@@ -552,8 +552,8 @@ hazards.
   recipes at the smelter, kiln and forge use it up, several of them
   leaving wood ash (`data/items.csv`, `data/recipes.csv`); [Making and
   Controlling Fire](making_and_controlling_fire.md) has more. It is not
-  in the flammable class, so it never goes in a drum and the generator
-  cannot burn it.
+  in the flammable class, so it never goes in a fuel drum, and it is not
+  the generator's fuel either.
 - **Containers remember.** The game sorts what a container may hold by
   class, and fuel, oil and solvents are the "flammable" class, needing a
   sealed vessel. A container that has once held fuel can never hold food
@@ -562,19 +562,21 @@ hazards.
   (`data/containers/content_classes.ron`,
   `src/systems/inventory/containers.rs`, `src/lib.rs`). That is the real
   rule too: see [Storing Water Safely](storing_water_safely.md).
-- **A generator that burns anything flammable.** The backup generator is
+- **A generator that burns only its own fuel.** The backup generator is
   modelled on a 1.8 kilowatt inverter set burning 1.125 litres an hour
   while it runs, and it runs only when its circuit is short of power and
   the batteries on that circuit are below a quarter full, or there are
-  none (`data/machines/home.ron`, `src/systems/electrical.rs`). It burns
-  whatever flammable-class item is in its drum: Refined Fuel, but also
-  Crude Oil, Glue and Paint, which its Store button offers too, so in
-  this build a can of paint can run the house (`data/items.csv`). That is
-  a known bug, BUG-154; a real generator runs only on the fuel its engine
-  was made for (general knowledge). Under Settings > Gameplay > "Ship
-  life support", the default, Station-supplied, ties a circuit with a
-  feed from the ship to the ship's reactor, which counts as its supply,
-  so a backup generator on such a circuit never needs to run.
+  none (`data/machines/home.ron`, `src/systems/electrical.rs`). Its data
+  names the one fuel its engine is built for, Refined Fuel, the game's
+  stand-in for the gasoline a real set like it runs on, and nothing else
+  runs it: its drum takes nothing else and its Store button offers
+  nothing else. Crude Oil, Glue and Paint are in the same flammable class
+  (`data/items.csv`), and none of them runs it: a real engine runs only
+  on the fuel it was made for (general knowledge). Under Settings >
+  Gameplay > "Ship life support", the default, Station-supplied, ties a
+  circuit with a feed from the ship to the ship's reactor, which counts
+  as its supply, so a backup generator on such a circuit never needs to
+  run.
 - **No hazards at all.** There are no flash points, vapour, spills,
   leaks, static, fuel fires or carbon monoxide. The generator and its drum
   sit indoors, in the home's plant room, and make no exhaust; in real life
@@ -763,8 +765,10 @@ October 2026.
   Oil, Refined Fuel, Glue and Paint and their content classes
   (`data/items.csv`), and the recipes that use Coal up
   (`data/recipes.csv`); the backstop rule, the fed circuit and the
-  generator burning any flammable-class item in its drum
-  (`src/systems/electrical.rs`); the Ship life support setting
+  generator burning only the fuel its data names (`fuels` in
+  `data/machines/home.ron`, `src/systems/electrical.rs`), the only thing
+  its drum takes and its Store button offers (`store_offers` in
+  `src/systems/inventory/containers.rs`); the Ship life support setting
   (`src/gui/pages/settings.rs`); the flammable class and the container's
   memory (`data/containers/content_classes.ron`,
   `src/systems/inventory/containers.rs`), with the warning line built in

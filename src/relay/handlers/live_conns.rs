@@ -253,13 +253,7 @@ mod tests {
     use crate::relay::relay::Peer;
 
     fn fresh_state(tag: &str) -> Arc<RelayState> {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir()
-            .join(format!("hum_liveconns_{tag}_{}_{nanos}.db", std::process::id()));
-        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+        let db = crate::relay::storage::Storage::open_temp(&format!("liveconns_{tag}"));
         Arc::new(RelayState::new(db))
     }
 
@@ -349,13 +343,7 @@ mod tests {
     }
 
     fn graced_state(tag: &str) -> Arc<RelayState> {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir()
-            .join(format!("hum_liveconns_{tag}_{}_{nanos}.db", std::process::id()));
-        let mut state = RelayState::new(crate::relay::storage::Storage::open(&path).expect("open test db"));
+        let mut state = RelayState::new(crate::relay::storage::Storage::open_temp(&format!("liveconns_{tag}")));
         // This machine's server-config.json may set the grace to 0.
         state.reconnect_grace = std::time::Duration::from_secs(90);
         Arc::new(state)

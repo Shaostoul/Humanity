@@ -859,13 +859,7 @@ mod tests {
     /// against the actual server logic.
     #[test]
     fn native_built_proposal_and_vote_round_trip_through_relay_storage() {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_gov_page_test_{pid}_{nanos}.db"));
-        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+        let db = crate::relay::storage::Storage::open_temp("gov_page_test");
 
         let proposer_seed = [11u8; 32];
         let proposal = build_proposal(&proposer_seed, "local_rule", "local", "Test", "Body", 7.0)

@@ -691,10 +691,13 @@ mod tests {
     use super::*;
     use crate::gui::screen_surface::find_text_in_shapes;
 
-    /// One headless frame of the Plots and Districts panel in a plain panel, with `events`.
+    /// One headless frame of the Plots and Districts panel in a plain panel, with `events`. Tall
+    /// enough for the whole panel with the twelve shipped plots open (2026-10-04: at 1400 px the
+    /// "Add plot" button below them was clipped and not drawn; in the game the panel sits in the
+    /// Construction page's scrolling side column, construction.rs `hs_left_scroll`).
     fn frame(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, events: Vec<egui::Event>) -> egui::FullOutput {
         let input = egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(900.0, 1400.0))),
+            screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(900.0, 4000.0))),
             events,
             ..Default::default()
         };
@@ -715,10 +718,11 @@ mod tests {
 
     /// The Plots and Districts panel is the in-app control the critic found missing in 1a, so it
     /// is proven the way a player meets it, drawn and clicked, not just built: outside the Dev
-    /// mode it is not there at all; in the Dev mode "Plots (2)" opens to the shipped plots, yours
-    /// marked, and "Add plot" really adds a plot and asks for a rebuild; "Districts (13)" opens
-    /// to the districts. Red check, run: the panel with its early `return` for the Dev mode
-    /// removed draws "Plots (2)" in Normal mode and fails the first assertion.
+    /// mode it is not there at all; in the Dev mode "Plots (12)" opens to the shipped plots, yours
+    /// marked, and "Add plot" really adds a plot (a copy of the last, p12, past it) and asks for a
+    /// rebuild; "Districts (13)" opens to the districts. Red check, run: the panel with its early
+    /// `return` for the Dev mode removed draws "Plots (2)" in Normal mode and fails the first
+    /// assertion (the ship had two plots then; twelve since 2026-10-04).
     #[test]
     fn the_plots_panel_is_dev_only_and_its_buttons_edit_the_ship() {
         let ctx = egui::Context::default();
@@ -733,18 +737,18 @@ mod tests {
 
         state.settings.play_mode = crate::config::PlayMode::Normal;
         let out = frame(&ctx, &theme, &mut state, Vec::new());
-        assert!(find_text_in_shapes(&out.shapes, "Plots (2)").is_none(), "no plot editing outside the Dev mode");
+        assert!(find_text_in_shapes(&out.shapes, "Plots (12)").is_none(), "no plot editing outside the Dev mode");
 
         state.settings.play_mode = crate::config::PlayMode::Dev;
-        click(&ctx, &theme, &mut state, "Plots (2)");
+        click(&ctx, &theme, &mut state, "Plots (12)");
         let out = frame(&ctx, &theme, &mut state, Vec::new());
         assert!(find_text_in_shapes(&out.shapes, "p1  homestead  (yours)  (offline)").is_some(), "your plot, marked");
         assert!(find_text_in_shapes(&out.shapes, "lat 40.0 m").is_some(), "p1's door lat, shown");
         state.construction_structure_dirty = false;
         click(&ctx, &theme, &mut state, "Add plot");
         let ship = state.ship_structure.as_ref().unwrap();
-        assert_eq!(ship.plots.len(), 3, "Add plot added a plot");
-        assert_eq!(ship.plots[2].origin, (0.0, 0.0, 198.0), "past p2");
+        assert_eq!(ship.plots.len(), 13, "Add plot added a plot");
+        assert_eq!(ship.plots[12].origin, (0.0, 0.0, 1188.0), "past p12");
         assert!(state.construction_structure_dirty && state.construction_machines_dirty, "and asked for a rebuild");
 
         click(&ctx, &theme, &mut state, "Districts (13)");

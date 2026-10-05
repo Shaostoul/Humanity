@@ -604,13 +604,7 @@ mod tests {
         use crate::relay::relay::RelayState;
         use std::sync::Arc;
 
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir()
-            .join(format!("hum_featgate_{}_{nanos}.db", std::process::id()));
-        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+        let db = crate::relay::storage::Storage::open_temp("featgate");
 
         let mut state = RelayState::new(db);
         // The owner said: chat yes, backups no.
@@ -688,27 +682,20 @@ mod tests {
         // The pre-existing fields must survive — clients already read these.
         assert!(info.get("name").is_some(), "server-info kept its existing fields");
         assert!(info.get("version").is_some());
-
-        let _ = std::fs::remove_file(&path);
     }
 
     /// Spin the REAL relay (real router, real `/ws` handler) on an ephemeral
     /// port with a given manifest. Returns the state (so a test can inspect the
-    /// database afterwards) and the port.
+    /// database afterwards) and the port. The database is a temp file its storage
+    /// deletes when the relay's last task lets go of it (BUG-159).
     async fn spawn_relay(
         tag: &str,
         features: Features,
-    ) -> (std::sync::Arc<crate::relay::relay::RelayState>, u16, std::path::PathBuf) {
+    ) -> (std::sync::Arc<crate::relay::relay::RelayState>, u16) {
         use crate::relay::relay::RelayState;
         use std::sync::Arc;
 
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir()
-            .join(format!("hum_featws_{tag}_{}_{nanos}.db", std::process::id()));
-        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+        let db = crate::relay::storage::Storage::open_temp(&format!("featws_{tag}"));
         let mut state = RelayState::new(db);
         state.features = features;
         let state = Arc::new(state);
@@ -719,7 +706,7 @@ mod tests {
         tokio::spawn(async move {
             let _ = axum::serve(listener, app).await;
         });
-        (state, port, path)
+        (state, port)
     }
 
     /// Connect to `/ws`, complete the two-phase Dilithium identify handshake,
@@ -800,14 +787,40 @@ mod tests {
         tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
         String,
     ) {
+        bind_socket_from(state, port, seed, name, expect_live, None).await
+    }
+
+    /// `bind_socket` from a connection of its own: `forwarded_for` is the address
+    /// the socket says it comes from, in the X-Forwarded-For header nginx writes in
+    /// front of a live relay (src/relay/mod.rs `ws_handler`). A test that signs up
+    /// more than five NEW identities needs it: the relay lets one address sign up
+    /// five new accounts an hour (handlers/sign_ups.rs `NEW_ID_MAX_PER_IP`), and a
+    /// socket with no header shares the one "unknown" address with every other.
+    /// Twelve households joining a twelve-home ship are twelve connections.
+    async fn bind_socket_from(
+        state: &std::sync::Arc<crate::relay::relay::RelayState>,
+        port: u16,
+        seed: [u8; 32],
+        name: Option<&str>,
+        expect_live: usize,
+        forwarded_for: Option<&str>,
+    ) -> (
+        tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+        String,
+    ) {
         use base64::{engine::general_purpose::STANDARD as B64, Engine};
         use futures::{SinkExt, StreamExt};
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
         use tokio_tungstenite::tungstenite::Message as WsMsg;
 
         let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
         let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
         let pubkey = hex::encode(dil.public_key());
-        let (mut sock, _) = tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{port}/ws"))
+        let mut request = format!("ws://127.0.0.1:{port}/ws").into_client_request().expect("a websocket request");
+        if let Some(ip) = forwarded_for {
+            request.headers_mut().insert("x-forwarded-for", ip.parse().expect("an address header"));
+        }
+        let (mut sock, _) = tokio_tungstenite::connect_async(request)
             .await
             .expect("client connects to /ws");
         sock.send(WsMsg::Text(
@@ -854,7 +867,7 @@ mod tests {
     /// open.
     #[tokio::test]
     async fn closing_one_of_two_sockets_keeps_the_person_signed_in() {
-        let (state, port, path) = spawn_relay("two_sockets", Features::all_enabled()).await;
+        let (state, port) = spawn_relay("two_sockets", Features::all_enabled()).await;
         let seed = [42u8; 32];
         let (mut first, key) = bind_socket(&state, port, seed, Some("TwoTabs"), 1).await;
         let (mut second, _) = bind_socket(&state, port, seed, Some("TwoTabs"), 2).await;
@@ -875,7 +888,6 @@ mod tests {
             "closing the last socket signs the person out"
         );
         assert_eq!(live_count(&state, &key).await, 0);
-        let _ = std::fs::remove_file(&path);
     }
 
     type TestSocket =
@@ -923,7 +935,7 @@ mod tests {
     /// departure" failed after the 5 s wait.
     #[tokio::test]
     async fn closing_the_game_socket_departs_the_game_while_a_tab_stays_open() {
-        let (state, port, path) = spawn_relay("game_seat_close", Features::all_enabled()).await;
+        let (state, port) = spawn_relay("game_seat_close", Features::all_enabled()).await;
         let seed = [43u8; 32];
         let (mut game, key) = bind_socket(&state, port, seed, Some("GameAndTab"), 1).await;
         let game_conn = only_conn(&state, &key).await;
@@ -944,7 +956,6 @@ mod tests {
         );
 
         tab.close(None).await.ok();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// The other half: closing a tab that never joined the game leaves the
@@ -954,7 +965,7 @@ mod tests {
     /// socket was still open.
     #[tokio::test]
     async fn closing_a_tab_that_never_joined_leaves_the_game_seat_alone() {
-        let (state, port, path) = spawn_relay("game_seat_keep", Features::all_enabled()).await;
+        let (state, port) = spawn_relay("game_seat_keep", Features::all_enabled()).await;
         let seed = [44u8; 32];
         let (mut game, key) = bind_socket(&state, port, seed, Some("GameKeeps"), 1).await;
         let game_conn = only_conn(&state, &key).await;
@@ -974,7 +985,6 @@ mod tests {
         assert_eq!(state.live_conns.read().await.game_seat.get(&key), Some(&game_conn), "the seat stays with the game");
 
         game.close(None).await.ok();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// LEAVING ON PURPOSE IS NOT A DROPPED LINE (2026-10-02). The reconnect
@@ -1001,13 +1011,7 @@ mod tests {
         use std::sync::Arc;
 
         // spawn_relay, with the grace set before the state is shared.
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir()
-            .join(format!("hum_featws_leave_vs_drop_{}_{nanos}.db", std::process::id()));
-        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+        let db = crate::relay::storage::Storage::open_temp("featws_leave_vs_drop");
         let mut st = RelayState::new(db);
         st.features = Features::all_enabled();
         st.reconnect_grace = std::time::Duration::from_secs(90);
@@ -1056,7 +1060,6 @@ mod tests {
         );
 
         leaver.close(None).await.ok();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// A GAME BAN TAKES THE PLAYER OUT OF THE WORLD AT ONCE (2026-10-03,
@@ -1074,12 +1077,7 @@ mod tests {
         use crate::relay::relay::RelayState;
         use std::sync::Arc;
 
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_featws_ban_{}_{nanos}.db", std::process::id()));
-        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+        let db = crate::relay::storage::Storage::open_temp("featws_ban");
         let mut st = RelayState::new(db);
         st.features = Features::all_enabled();
         st.reconnect_grace = std::time::Duration::from_secs(90);
@@ -1109,7 +1107,6 @@ mod tests {
         use futures::SinkExt;
         admin.close(None).await.ok();
         target.close(None).await.ok();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// The next frame on `sock`, within 10 s, that `pick` turns into a value.
@@ -1153,7 +1150,7 @@ mod tests {
     /// heard).
     #[tokio::test]
     async fn a_world_clock_change_reaches_every_connected_game() {
-        let (state, port, path) = spawn_relay("world_clock", Features::all_enabled()).await;
+        let (state, port) = spawn_relay("world_clock", Features::all_enabled()).await;
         assert_eq!(state.game_world.read().await.time_scale, 1.0, "a new server runs the shared world at 1x (real time)");
         state.game_world.write().await.game_time = 5_000.0;
 
@@ -1183,7 +1180,6 @@ mod tests {
         use futures::SinkExt;
         admin.close(None).await.ok();
         player.close(None).await.ok();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// Voice follows the same rule: the socket that joined a room holds the
@@ -1194,7 +1190,7 @@ mod tests {
     /// failed, the roster kept them.
     #[tokio::test]
     async fn closing_the_socket_in_voice_leaves_voice_while_another_stays_open() {
-        let (state, port, path) = spawn_relay("voice_seat", Features::all_enabled()).await;
+        let (state, port) = spawn_relay("voice_seat", Features::all_enabled()).await;
         state.db.create_channel("lounge", "Lounge", None, "test", false).expect("a voice-enabled channel");
         let in_voice = |key: String| {
             let state = state.clone();
@@ -1230,7 +1226,6 @@ mod tests {
         assert_eq!(live_count(&state, &key).await, 1, "the other socket is still signed in");
 
         other.close(None).await.ok();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// A NAMELESS SECOND SOCKET (2026-10-02). The web Tasks board signs in
@@ -1241,7 +1236,7 @@ mod tests {
     /// the first assertion failed with `None`.
     #[tokio::test]
     async fn a_nameless_second_socket_keeps_the_persons_name() {
-        let (state, port, path) = spawn_relay("nameless_tab", Features::all_enabled()).await;
+        let (state, port) = spawn_relay("nameless_tab", Features::all_enabled()).await;
         let seed = [45u8; 32];
         let name_of = |key: String| {
             let state = state.clone();
@@ -1265,7 +1260,6 @@ mod tests {
         );
 
         tasks.close(None).await.ok();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// A NAMELESS SIGN-IN AFTER A RENAME (review, 2026-10-02). The person
@@ -1280,7 +1274,7 @@ mod tests {
     /// failed (it cleared Aold's).
     #[tokio::test]
     async fn a_nameless_sign_in_after_a_rename_keeps_the_new_name() {
-        let (state, port, path) = spawn_relay("renamed", Features::all_enabled()).await;
+        let (state, port) = spawn_relay("renamed", Features::all_enabled()).await;
         let seed = [47u8; 32];
         use futures::SinkExt;
         let (mut old, key) = bind_socket(&state, port, seed, Some("Aold"), 1).await;
@@ -1319,7 +1313,6 @@ mod tests {
         );
 
         tasks.close(None).await.ok();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// Every JSON frame that arrives until the socket has been quiet for `idle_ms`.
@@ -1338,10 +1331,10 @@ mod tests {
     /// The real relay with a voice-enabled channel, "lounge".
     async fn voice_relay(
         tag: &str,
-    ) -> (std::sync::Arc<crate::relay::relay::RelayState>, u16, std::path::PathBuf) {
-        let (state, port, path) = spawn_relay(tag, Features::all_enabled()).await;
+    ) -> (std::sync::Arc<crate::relay::relay::RelayState>, u16) {
+        let (state, port) = spawn_relay(tag, Features::all_enabled()).await;
         state.db.create_channel("lounge", "Lounge", None, "test", false).expect("a voice-enabled channel");
-        (state, port, path)
+        (state, port)
     }
 
     /// How many times `key` is listed in the lounge (more than once is a bug).
@@ -1376,7 +1369,7 @@ mod tests {
     /// re-sent join moves the seat to the new socket" failed.
     #[tokio::test]
     async fn a_voice_rejoin_on_a_new_socket_keeps_the_person_in_the_room() {
-        let (state, port, path) = voice_relay("voice_rejoin").await;
+        let (state, port) = voice_relay("voice_rejoin").await;
         let seed = [48u8; 32];
         let (mut a, key) = bind_socket(&state, port, seed, Some("Blip"), 1).await;
         let a_conn = only_conn(&state, &key).await;
@@ -1405,7 +1398,6 @@ mod tests {
         assert_eq!(state.live_conns.read().await.voice_seat.get(&key), Some(&b_conn), "on B's seat");
 
         b.close(None).await.ok();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// VOICE THROUGH A NETWORK BLIP, part (b): what the others in the room
@@ -1417,7 +1409,7 @@ mod tests {
     /// the person.
     #[tokio::test]
     async fn the_old_sockets_close_after_a_voice_rejoin_changes_nothing_others_see() {
-        let (state, port, path) = voice_relay("voice_rejoin_seen").await;
+        let (state, port) = voice_relay("voice_rejoin_seen").await;
         let (mut watcher, watcher_key) = bind_socket(&state, port, [49u8; 32], Some("Watcher"), 1).await;
         voice_join(&mut watcher).await;
         assert!(wait_until(|| async { times_listed(&state, &watcher_key).await == 1 }).await, "the watcher is in the room");
@@ -1461,7 +1453,6 @@ mod tests {
 
         b.close(None).await.ok();
         watcher.close(None).await.ok();
-        let _ = std::fs::remove_file(&path);
     }
 
     // ── Homes on plots (increment 1b of docs/design/ship-homes-and-logistics.md) ──
@@ -1492,11 +1483,13 @@ mod tests {
     }
 
     /// The real relay on the database at `path`, with its server task, so a
-    /// test can stop it and open another on the same file (a restart).
+    /// test can stop it and open another on the same file (a restart). Each
+    /// relay keeps a share of the test's guard, so the file is deleted only after
+    /// the last relay on it is gone (BUG-159).
     async fn relay_on(
-        path: &std::path::Path,
+        path: &std::sync::Arc<crate::test_temp::TempPath>,
     ) -> (std::sync::Arc<crate::relay::relay::RelayState>, u16, tokio::task::JoinHandle<()>) {
-        let db = crate::relay::storage::Storage::open(path).expect("open test db");
+        let db = crate::relay::storage::Storage::open_sharing(path);
         let mut state = crate::relay::relay::RelayState::new(db);
         state.features = Features::all_enabled();
         let state = std::sync::Arc::new(state);
@@ -1509,12 +1502,10 @@ mod tests {
         (state, port, server)
     }
 
-    fn plots_db(tag: &str) -> std::path::PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        std::env::temp_dir().join(format!("hum_plots_{tag}_{}_{nanos}.db", std::process::id()))
+    /// The test's guard for a plots database: every relay started on it keeps a
+    /// share (`relay_on`, `Storage::open_sharing`), and the file goes with the last.
+    fn plots_db(tag: &str) -> std::sync::Arc<crate::test_temp::TempPath> {
+        std::sync::Arc::new(crate::test_temp::db(&format!("plots_{tag}")))
     }
 
     /// The ship hash this relay and the game both compute from data/.
@@ -1650,7 +1641,6 @@ mod tests {
         a.close(None).await.ok();
         b.close(None).await.ok();
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// Two players get two different plots, in the ship's order, and each
@@ -1691,7 +1681,6 @@ mod tests {
         a.close(None).await.ok();
         b.close(None).await.ok();
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// A player keeps their plot when their socket closes and when the relay
@@ -1733,7 +1722,6 @@ mod tests {
 
         b3.close(None).await.ok();
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// Joining first is no privilege: swap the order on a fresh relay and the
@@ -1761,14 +1749,16 @@ mod tests {
                 s.close(None).await.ok();
             }
             server.abort();
-            let _ = std::fs::remove_file(&path);
         }
         assert_eq!(got[0], (Some(ids[0].clone()), Some(ids[1].clone())), "66 first: 66 on the first plot");
         assert_eq!(got[1], (Some(ids[1].clone()), Some(ids[0].clone())), "67 first: the plots swap");
     }
 
     /// A full ship: one more player than there are plots gets no plot
-    /// (home_plot null) and arrives in the Commons as a guest.
+    /// (home_plot null) and arrives in the Commons as a guest. Each player on a
+    /// connection of their own (`bind_socket_from`): since the twelve plots along
+    /// First Street there are more households than the five new accounts one
+    /// address may sign up in an hour.
     ///
     /// Seen red 2026-10-03 on the 1a relay: "the welcome carries no home_plot
     /// field".
@@ -1781,11 +1771,12 @@ mod tests {
         for n in 0..ids.len() {
             let s = 70 + n as u8;
             let name = format!("PlotHolder{n}");
-            let (mut sock, _) = bind_socket(&state, port, [s; 32], Some(&name), 1).await;
+            let ip = format!("10.70.0.{}", n + 1);
+            let (mut sock, _) = bind_socket_from(&state, port, [s; 32], Some(&name), 1, Some(&ip)).await;
             assert!(welcome_plot(&welcome_after_join(&mut sock, &name).await).is_some(), "{name} gets a plot");
             socks.push(sock);
         }
-        let (mut guest, guest_key) = bind_socket(&state, port, [90u8; 32], Some("PlotGuest"), 1).await;
+        let (mut guest, guest_key) = bind_socket_from(&state, port, [90u8; 32], Some("PlotGuest"), 1, Some("10.70.1.1")).await;
         let w = welcome_after_join(&mut guest, "PlotGuest").await;
         assert_eq!(welcome_plot(&w), None, "a full ship gives home_plot null");
 
@@ -1803,7 +1794,135 @@ mod tests {
             s.close(None).await.ok();
         }
         server.abort();
-        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The Commons arrival a guest is spawned at: the Commons' own spawn, at eye height (the rule
+    /// `ShipStructure::guest_spawn` and the game share).
+    fn commons_arrival() -> [f32; 3] {
+        let ship = crate::ship::ship_structure::ShipStructure::load_ship_file(std::path::Path::new("data")).unwrap();
+        let g = ship.guest_spawn().expect("the ship has a Commons");
+        [g.x, g.y, g.z]
+    }
+
+    /// Join `n` households, each on its own connection (`bind_socket_from`, address
+    /// 10.`net`.0.`k`), and return each one's socket, key, name and the plot its welcome gave,
+    /// failing the test when one is given none.
+    async fn join_households(
+        state: &std::sync::Arc<crate::relay::relay::RelayState>,
+        port: u16,
+        n: usize,
+        net: u8,
+        seed0: u8,
+    ) -> Vec<(TestSocket, String, String, String)> {
+        let ships_plots = ship_plot_ids().len();
+        let mut out = Vec::new();
+        for k in 0..n {
+            let name = format!("Plots{net}H{k}");
+            let ip = format!("10.{net}.0.{}", k + 1);
+            let (mut sock, key) = bind_socket_from(state, port, [seed0 + k as u8; 32], Some(&name), 1, Some(&ip)).await;
+            let w = welcome_after_join(&mut sock, &name).await;
+            let plot = welcome_plot(&w).unwrap_or_else(|| {
+                panic!("household {} of {n} ({name}) was given no plot: a guest, on a ship of {ships_plots} plot(s)", k + 1)
+            });
+            out.push((sock, key, name, plot));
+        }
+        out
+    }
+
+    /// TWELVE HOMES ALONG FIRST STREET (2026-10-04, the operator's "add plots along First Street
+    /// (about ten) so more than two people can have homes"). Twelve households joining, each on a
+    /// connection of its own, get twelve DIFFERENT plots, in the ship's order, each spawned at its
+    /// own door on its own plot (where the game stands its camera, `game_spawn_on`); the
+    /// thirteenth is a guest, as a guest has always been: its welcome's home_plot is null and it
+    /// arrives in the Commons, where its game puts its home away and tells it, when it presses B,
+    /// the guest's sentence (engine/home_plot.rs `GUEST_NO_EDITOR`, which the rig's guest order
+    /// checks on screen).
+    ///
+    /// Seen red 2026-10-04 on the two-plot ship file: "household 3 of 12 (Plots12H2) was given no
+    /// plot: a guest, on a ship of 2 plot(s)".
+    #[tokio::test]
+    async fn twelve_households_get_twelve_homes_and_the_thirteenth_is_a_guest() {
+        let path = plots_db("twelve");
+        let (state, port, server) = relay_on(&path).await;
+        let ids = ship_plot_ids();
+        let homes = join_households(&state, port, 12, 12, 130).await;
+        let got: Vec<&str> = homes.iter().map(|h| h.3.as_str()).collect();
+        let distinct: std::collections::HashSet<&str> = got.iter().copied().collect();
+        assert_eq!(distinct.len(), 12, "twelve households, twelve different plots: {got:?}");
+        assert_eq!(got, ids.iter().take(12).map(|s| s.as_str()).collect::<Vec<_>>(), "handed out in the ship's order");
+        for (_, key, name, plot) in &homes {
+            let at = relay_position(&state, key).await;
+            let want = game_spawn_on(plot);
+            assert!(dist(at, want) < 1e-3, "{name} on {plot}: the relay spawned at {at:?}, the game stands at {want:?}");
+        }
+        // The thirteenth: a guest in the Commons.
+        let (mut guest, guest_key) = bind_socket_from(&state, port, [150u8; 32], Some("PlotsThirteenth"), 1, Some("10.12.1.1")).await;
+        let w = welcome_after_join(&mut guest, "PlotsThirteenth").await;
+        assert_eq!(welcome_plot(&w), None, "the thirteenth household is a guest: home_plot null");
+        let at = relay_position(&state, &guest_key).await;
+        assert!(dist(at, commons_arrival()) < 1e-3, "the guest spawned at {at:?}, the Commons arrival is {:?}", commons_arrival());
+
+        guest.close(None).await.ok();
+        for (mut s, ..) in homes {
+            s.close(None).await.ok();
+        }
+        server.abort();
+    }
+
+    /// A FULL SHIP OF TWELVE STILL GIVES HOMES BACK (2026-10-04). With every plot held and a
+    /// thirteenth household a guest: an admin's release of plot p7 by its id (its holder has
+    /// stepped out; refused while they stood in the world) gives p7 to the next household that
+    /// joins, not a guest place; and erasing the account of p11's holder, standing in the world,
+    /// takes their figure out and gives p11 to the next one.
+    ///
+    /// Seen red 2026-10-04 on the two-plot ship file: "household 3 of 12 (Plots13H2) was given no
+    /// plot: a guest, on a ship of 2 plot(s)".
+    #[tokio::test]
+    async fn a_full_ship_of_twelve_gives_homes_back_by_release_and_by_erase() {
+        let path = plots_db("full_twelve");
+        let (state, port, server) = relay_on(&path).await;
+        let ship = state.game_world.read().await.ship_plots.ship_id.clone();
+        let (mut admin, admin_key) = bind_socket_from(&state, port, [170u8; 32], Some("PlotsAdmin"), 1, Some("10.13.1.1")).await;
+        state.db.set_role(&admin_key, "admin").expect("make admin");
+        let mut homes = join_households(&state, port, 12, 13, 150).await;
+        let (mut guest, _) = bind_socket_from(&state, port, [171u8; 32], Some("PlotsGuestNow"), 1, Some("10.13.1.2")).await;
+        assert_eq!(welcome_plot(&welcome_after_join(&mut guest, "PlotsGuestNow").await), None, "every plot is held: a guest");
+        let answer = |r: Option<Value>| r.expect("an answer");
+
+        // p7's holder steps out; the admin gives p7 back by its id; the next household gets it.
+        let i7 = homes.iter().position(|h| h.3 == "p7").expect("someone holds p7");
+        let key7 = homes[i7].1.clone();
+        send_json(&mut admin, serde_json::json!({ "type": "game_release_plot", "target": "p7" })).await;
+        let r = answer(next_game_of(&mut admin, &["game_admin_error", "game_admin_notice"]).await);
+        assert_eq!(r["type"], "game_admin_error", "refused while p7's holder stands in the world: {r}");
+        send_json(&mut homes[i7].0, serde_json::json!({ "type": "game_leave" })).await;
+        assert!(wait_until(|| async { state.game_world.read().await.find_player_entity(&key7).is_none() }).await, "p7's holder left");
+        send_json(&mut admin, serde_json::json!({ "type": "game_release_plot", "target": "p7" })).await;
+        let r = answer(next_game_of(&mut admin, &["game_admin_error", "game_admin_notice"]).await);
+        assert_eq!(r["type"], "game_admin_notice", "{r}");
+        assert!(r["message"].as_str().unwrap_or("").contains("Released plot p7"), "{r}");
+        let (mut next, _) = bind_socket_from(&state, port, [172u8; 32], Some("PlotsNextIn"), 1, Some("10.13.1.3")).await;
+        let got = welcome_plot(&welcome_after_join(&mut next, "PlotsNextIn").await);
+        assert_eq!(got.as_deref(), Some("p7"), "the next household gets the plot the admin released");
+
+        // p11's holder erases their account while standing in the world: the figure goes and p11
+        // is free for the next one.
+        let i11 = homes.iter().position(|h| h.3 == "p11").expect("someone holds p11");
+        let (key11, name11) = (homes[i11].1.clone(), homes[i11].2.clone());
+        erase_and_wait(&state, &mut homes[i11].0, &key11, &name11).await;
+        assert!(wait_until(|| async { state.db.plot_holder(&ship, "p11").ok().flatten().is_none() }).await, "the erase gave p11 back");
+        assert!(state.game_world.read().await.find_player_entity(&key11).is_none(), "the erased holder's figure is out of the world");
+        let (mut after, _) = bind_socket_from(&state, port, [173u8; 32], Some("PlotsAfterErase"), 1, Some("10.13.1.4")).await;
+        let got = welcome_plot(&welcome_after_join(&mut after, "PlotsAfterErase").await);
+        assert_eq!(got.as_deref(), Some("p11"), "the next household gets the erased account's plot");
+
+        for mut s in [admin, guest, next, after] {
+            s.close(None).await.ok();
+        }
+        for (mut s, ..) in homes {
+            s.close(None).await.ok();
+        }
+        server.abort();
     }
 
     // ── Increment 3: the relay's world is the ship ────────────────────────────
@@ -1908,7 +2027,6 @@ mod tests {
 
         sock.close(None).await.ok();
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// THE FLEET LEDGER, end to end on a real relay (the operator, 2026-10-04: "the fleet has
@@ -1923,11 +2041,24 @@ mod tests {
     ///
     /// Seen red 2026-10-04 with the fleet ledger's dispatch arm taken out of relay.rs: "no answer
     /// to game_fleet_give" (the message fell through to the ordinary handling, unanswered).
+    ///
+    /// The 200 ms rate limit reads a clock this test moves by hand (BUG-152). Against the wall
+    /// clock, "two gives sent at once" meant "two gives the relay reached within 200 ms", and
+    /// between them the relay writes the first give to the database and flushes it to disk:
+    /// about 4 ms on an idle machine, 45 ms under a 96-thread CPU load, and on a machine busy
+    /// enough past 200 ms, when the second give was let through and this test failed with
+    /// nothing wrong in the relay. Now the gives meant to come at once are 0 ms apart however
+    /// long the relay takes, and the ones meant to come later are 250 ms apart because the test
+    /// says so, not because a sleep ran. Only the limit's clock is the test's: the waits for the
+    /// relay's answers keep their 5 s of wall-clock time (`next_game_of`, `wait_until`).
     #[tokio::test]
     async fn the_fleet_ledger_end_to_end() {
         use crate::relay::handlers::ship_stores::FleetSupply;
         let path = plots_db("fleet_ledger");
         let (state, port, server) = relay_on(&path).await;
+        let limit_clock = crate::test_clock::ManualClock::new();
+        assert!(state.perception_clock.set(limit_clock.clone()).is_ok(), "a new relay has no test clock yet");
+        let after_the_limit = || limit_clock.advance(std::time::Duration::from_millis(250));
         let (mut admin, admin_key) = bind_socket(&state, port, [97u8; 32], Some("FleetAdmin"), 1).await;
         state.db.set_role(&admin_key, "admin").expect("make admin");
         let (mut sock, key) = bind_socket(&state, port, [95u8; 32], Some("FleetGiver"), 1).await;
@@ -1960,7 +2091,7 @@ mod tests {
         let bread = g["value"].as_f64().unwrap();
         // Sent again (as a game does when the answer was lost): the same line. (After the
         // 200 ms a player waits between gives, the interaction rate limit.)
-        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        after_the_limit();
         send_json(&mut sock, give).await;
         let again = next_game_of(&mut sock, &["game_fleet_give_result"]).await.expect("an answer to the repeated give");
         assert_eq!((again["already"].as_bool(), &again["value"]), (Some(true), &g["value"]), "{again}");
@@ -1971,7 +2102,7 @@ mod tests {
         // 2026-10-04 review). Seen red 2026-10-04 with the fleet's give gate put back on
         // check_perception_rate, which answers only with a game_error that names no give: "no
         // answer to the second of two gives sent at once".
-        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        after_the_limit();
         for id in ["e2e-fast-1", "e2e-fast-2"] {
             send_json(&mut sock, serde_json::json!({ "type": "game_fleet_give", "give_id": id, "home": "e2e-home", "entity_id": store_id, "item_id": "bread_0", "quantity": 1 })).await;
         }
@@ -1983,7 +2114,7 @@ mod tests {
         assert!(state.db.fleet_give_of(&key, "e2e-fast-2").unwrap().is_none(), "a turned-away give writes nothing");
 
         // The ledger: one meal used, two loaves and then one given, in the red by the difference.
-        tokio::time::sleep(std::time::Duration::from_millis(250)).await; // past the 200 ms rate limit
+        after_the_limit();
         send_json(&mut sock, serde_json::json!({ "type": "game_fleet_ledger_request" })).await;
         let l = next_game_of(&mut sock, &["game_fleet_ledger"]).await.expect("a ledger");
         let given = bread * 1.5;
@@ -2020,7 +2151,6 @@ mod tests {
         other.close(None).await.ok();
         admin.close(None).await.ok();
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// Wait up to 5 s for the next game message (the JSON after "__game__:")
@@ -2099,7 +2229,6 @@ mod tests {
         a.close(None).await.ok();
         b.close(None).await.ok();
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     fn dist_v(v: &Value, p: [f32; 3]) -> f32 {
@@ -2150,7 +2279,6 @@ mod tests {
             s.close(None).await.ok();
         }
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// JOINING AGAIN ON THE SAME SOCKET MOVES NOBODY FURTHER (the review of increment 4, M4).
@@ -2169,7 +2297,7 @@ mod tests {
     async fn joining_again_on_the_same_socket_moves_nobody_further() {
         use crate::relay::relay::RelayState;
         let path = plots_db("join_again");
-        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+        let db = crate::relay::storage::Storage::open_sharing(&path);
         let mut st = RelayState::new(db);
         st.features = Features::all_enabled();
         st.reconnect_grace = std::time::Duration::from_secs(90);
@@ -2206,7 +2334,6 @@ mod tests {
         assert!(moved, "after 2.5 s away a reconnect's 60 m first move was not taken: the relay holds them at {:?}", relay_position(&state, &key).await);
         b.close(None).await.ok();
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// AN INTERACTION GOES TO THE PLAYERS WHO SEE IT, NOT TO EVERY SOCKET (the review of
@@ -2247,7 +2374,6 @@ mod tests {
             s.close(None).await.ok();
         }
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// Every game message a socket receives in the next `ms` milliseconds.
@@ -2333,7 +2459,6 @@ mod tests {
             s.close(None).await.ok();
         }
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// Every welcome says whether the relay found the player still in the
@@ -2350,7 +2475,7 @@ mod tests {
     async fn a_welcome_says_whether_the_relay_kept_the_player() {
         use crate::relay::relay::RelayState;
         let path = plots_db("rejoin_flag");
-        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+        let db = crate::relay::storage::Storage::open_sharing(&path);
         let mut st = RelayState::new(db);
         st.features = Features::all_enabled();
         st.reconnect_grace = std::time::Duration::from_secs(90);
@@ -2387,7 +2512,6 @@ mod tests {
 
         b.close(None).await.ok();
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// An admin gives a player's plot back from Server Settings
@@ -2438,7 +2562,6 @@ mod tests {
             s.close(None).await.ok();
         }
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// The third review of 1b, two findings on the admin's release:
@@ -2491,7 +2614,6 @@ mod tests {
             s.close(None).await.ok();
         }
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// A relay that has no ship (its ship file and the built-in copy both failed to load)
@@ -2520,7 +2642,6 @@ mod tests {
             s.close(None).await.ok();
         }
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// ROUND 4 of the 1b review (finding 1): a join whose `ship_hash` is EMPTY names no ship
@@ -2555,7 +2676,6 @@ mod tests {
             }
             game.close(None).await.ok();
             server.abort();
-            let _ = std::fs::remove_file(&path);
         }
     }
 
@@ -2594,7 +2714,6 @@ mod tests {
         holder.close(None).await.ok();
         next.close(None).await.ok();
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// ROUND 5 of the 1b review (findings 2 and 4): an account erased while its figure stands
@@ -2629,7 +2748,6 @@ mod tests {
         holder.close(None).await.ok();
         other.close(None).await.ok();
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// BUG-135: after an erase the clients stayed connected, so the next automatic reconnect
@@ -2668,7 +2786,6 @@ mod tests {
         holder.close(None).await.ok();
         other.close(None).await.ok();
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// Review of BUG-135: an erase where one part fails on the relay (storage/account.rs
@@ -2695,7 +2812,6 @@ mod tests {
         assert_eq!(erased["partial"], true, "an erase with a failed part was reported as finished");
         holder.close(None).await.ok();
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// Review of BUG-135 option 2, second round, finding 10: every native sign-in now asks for
@@ -2707,7 +2823,7 @@ mod tests {
     /// was sent the answer: [String(\"server_settings_state\"), String(\"role_list\")]".
     #[tokio::test]
     async fn a_settings_request_is_answered_to_the_asker_and_a_save_to_everyone() {
-        let (state, port, path) = spawn_relay("settings_unicast", Features::all_enabled()).await;
+        let (state, port) = spawn_relay("settings_unicast", Features::all_enabled()).await;
         let (mut asker, _) = bind_socket(&state, port, [152u8; 32], Some("SettingsAsker"), 1).await;
         let (mut other, other_key) = bind_socket(&state, port, [153u8; 32], Some("SettingsBystander"), 1).await;
         frames_until_quiet(&mut asker, 300).await;
@@ -2732,7 +2848,6 @@ mod tests {
         );
         asker.close(None).await.ok();
         other.close(None).await.ok();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// Connect to `/ws` and complete the Dilithium identify handshake with `extra` merged into
@@ -2833,7 +2948,6 @@ mod tests {
         later.close(None).await.ok();
         other.close(None).await.ok();
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// The person chooses to come back: the Connect (native) or Enter (web) after an erase
@@ -2872,7 +2986,6 @@ mod tests {
 
         again.close(None).await.ok();
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// A device of the account still connected from before the erase (it got
@@ -2904,7 +3017,6 @@ mod tests {
         erasing.close(None).await.ok();
         stays.close(None).await.ok();
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// ROUND 5 of the 1b review (finding 3): an erase and then a crash before the next world
@@ -2936,7 +3048,6 @@ mod tests {
         );
         holder.close(None).await.ok();
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// A game whose home cannot stand on the plot it was given leaves with
@@ -2961,17 +3072,19 @@ mod tests {
         let got = welcome_plot(&welcome_after_join(&mut next, "PlotAfter").await);
         assert_eq!(got.as_deref(), Some(ids[0].as_str()), "after giving up {} the next player got {got:?}", ids[0]);
 
-        // A plain leave keeps the plot: the ship is then full for the last one.
+        // A plain leave keeps the plot: the last one is given the next free plot, never the
+        // keeper's (on the two-plot ship this was "the ship is then full"; twelve since
+        // 2026-10-04, so the next free one is the third).
         assert_eq!(welcome_plot(&welcome_after_join(&mut keeper, "PlotKeeper").await).as_deref(), Some(ids[1].as_str()));
         send_json(&mut keeper, serde_json::json!({ "type": "game_leave" })).await;
         assert!(wait_until(|| async { state.game_world.read().await.find_player_entity(&keeper_key).is_none() }).await);
-        assert_eq!(welcome_plot(&welcome_after_join(&mut last, "PlotLast").await), None, "a plain leave keeps the plot");
+        let after_keeper = welcome_plot(&welcome_after_join(&mut last, "PlotLast").await);
+        assert_eq!(after_keeper, ids.get(2).cloned(), "a plain leave keeps the plot: the last one got {after_keeper:?}");
 
         for mut s in [misfit, next, keeper, last] {
             s.close(None).await.ok();
         }
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// The player arrives at THEIR OWN home's front door: the game sends its
@@ -3027,7 +3140,6 @@ mod tests {
         b.close(None).await.ok();
         c.close(None).await.ok();
         server.abort();
-        let _ = std::fs::remove_file(&path);
     }
 
     /// The OTHER door onto the server owner's disk, over the WebSocket.
@@ -3043,7 +3155,7 @@ mod tests {
         // ── Backup OFF: the save is refused and nothing is written.
         let mut off = Features::all_enabled();
         off.set(Feature::VaultBackup, false);
-        let (state, port, db_path) = spawn_relay("off", off).await;
+        let (state, port) = spawn_relay("off", off).await;
 
         let seed = [23u8; 32];
         let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
@@ -3071,7 +3183,7 @@ mod tests {
 
         // ── Backup ON: the very same request succeeds. Without this half, a
         //    gate that refused everything would look correct.
-        let (on_state, on_port, on_db_path) = spawn_relay("on", Features::all_enabled()).await;
+        let (on_state, on_port) = spawn_relay("on", Features::all_enabled()).await;
         let reply = identify_then_send(
             on_port,
             seed,
@@ -3089,9 +3201,6 @@ mod tests {
             on_state.db.load_user_data(&pubkey).unwrap_or(None).is_some(),
             "with backup enabled the blob must actually be stored"
         );
-
-        let _ = std::fs::remove_file(&db_path);
-        let _ = std::fs::remove_file(&on_db_path);
     }
 
     /// THE COMPLETENESS GATE. Every inbound WS message type must be either

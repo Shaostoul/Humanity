@@ -1866,7 +1866,7 @@
     "cistern": {
       "term": "Cistern",
       "category": "homestead",
-      "definition": "A large tank that stores collected water until it is needed. In the simulation pumps and purifiers fill yours while you use it up, so cutting the power eventually drains it.",
+      "definition": "A large tank that stores collected water until it is needed. In the simulation the pump, rain and the air handlers' condensate fill yours while you use it up; the pump and air handlers need power, so losing it eventually drains the cistern.",
       "link": "https://en.wikipedia.org/wiki/Cistern"
     },
     "catchment": {

@@ -896,10 +896,17 @@
             // rated load", "8.1 hrs @ 1/4 load". So 1,800 W while it runs, on 3.6 L / 3.2 h =
             // 1.125 L an hour at that load, 0.63 L a kWh (at a quarter load it is 0.44 L an hour,
             // about 1.0 L a kWh, which is why a backstop charges the batteries flat out). It was
-            // 2,000 W on 1.5 L an hour from no source. It burns what is in its 200 L drum.
+            // 2,000 W on 1.5 L an hour from no source. THE FUEL (BUG-154, 2026-10-05): its engine
+            // runs on gasoline (its own item, generator_portable_0 in data/items.csv, is a
+            // "Gasoline electric generator 2kW"), and on nothing else. It used to burn any item of
+            // the "flammable" class, so Paint, Glue and Crude Oil ran the house. The game has no
+            // gasoline item: `fuels` names Refined Fuel, the fuel refinery's product, which stands
+            // for it. Only a fuel named here runs it, goes into its 200 L drum, or is offered by
+            // the drum's Store button.
             power: Some(Generator(
                 watts: 1800.0,
                 fuel_lph: 1.125,
+                fuels: ["fuel_refined_0"],
             )),
             ports: [],
             storage: [],

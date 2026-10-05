@@ -2319,17 +2319,29 @@
       "subject": "health",
       "title": "Infection and hygiene",
       "summary": "Prevent infection, and recognise it when prevention failed.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "preventing-and-spotting-infection"
+      ],
       "skills": [
         "medicine"
       ],
       "sources": [
-        "cdc"
+        "cdc",
+        "kitsap-public-health",
+        "nih",
+        "wa-doh"
       ],
       "locale_dependent": false,
       "hazard": "lethal",
       "data": [
-        "data/medical.ron"
+        "data/medical.ron",
+        "data/status_effects.csv",
+        "data/items.csv",
+        "data/recipes.csv"
+      ],
+      "prerequisites": [
+        "health_bleeding"
       ]
     },
     {
@@ -2366,12 +2378,25 @@
       "subject": "health",
       "title": "Waterborne and foodborne illness",
       "summary": "Know the organisms, how they get in, and what they do.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "when-food-or-water-makes-you-sick"
+      ],
       "skills": [
         "medicine"
       ],
+      "data": [
+        "data/status_effects.csv",
+        "data/food_system.ron",
+        "data/containers/fluids.ron"
+      ],
       "sources": [
-        "cdc"
+        "cdc",
+        "fda",
+        "nih",
+        "local-health-jurisdiction",
+        "epa",
+        "hrsa"
       ],
       "locale_dependent": false,
       "hazard": "lethal",
@@ -2917,13 +2942,27 @@
       "subject": "chemistry",
       "title": "The chemistry of preservation",
       "summary": "Understand why salt, acid, sugar, smoke and cold each stop spoilage.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "the-chemistry-of-keeping-food"
+      ],
       "skills": [
         "cooking",
         "alchemy"
       ],
+      "data": [
+        "data/food_system.ron",
+        "data/containers/types.csv",
+        "data/recipes.csv"
+      ],
       "sources": [
-        "nchfp"
+        "usda-canning-guide",
+        "usda-fsis",
+        "fda",
+        "cdc",
+        "usgs",
+        "oregon-state-extension",
+        "ift"
       ],
       "locale_dependent": false,
       "hazard": "lethal"
@@ -3097,14 +3136,26 @@
       "subject": "biology",
       "title": "Microbes, good and bad",
       "summary": "Understand bacteria, fungi and viruses as both tool and threat.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "microbes-good-and-bad"
+      ],
       "skills": [
         "medicine",
         "alchemy"
       ],
+      "data": [
+        "data/food_system.ron",
+        "data/garden/pests.ron",
+        "data/status_effects.csv"
+      ],
       "sources": [
         "cdc",
-        "nih"
+        "fda",
+        "nih",
+        "usda-canning-guide",
+        "usda-fsis",
+        "epa"
       ],
       "locale_dependent": false,
       "hazard": "lethal"
@@ -3787,17 +3838,42 @@
       "subject": "sanitation",
       "title": "Human waste",
       "summary": "Deal with human waste so it does not reach your water or your food.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "toilets-and-human-waste"
+      ],
       "skills": [
         "shelter_building"
       ],
       "sources": [
         "cdc",
         "epa",
-        "who"
+        "cpsc",
+        "fema",
+        "nps",
+        "ecfr",
+        "who",
+        "wa-doh",
+        "wa-ecology",
+        "local-health-jurisdiction",
+        "kitsap-public-health",
+        "clallam-county-wa",
+        "niosh",
+        "nih"
       ],
       "locale_dependent": true,
-      "hazard": "lethal"
+      "hazard": "lethal",
+      "data": [
+        "data/status_effects.csv",
+        "data/garden/nutrients.ron",
+        "data/machines/home.ron",
+        "data/items.csv",
+        "data/home_outline.json"
+      ],
+      "prerequisites": [
+        "earth_water_cycle",
+        "sanitation_handwashing"
+      ]
     },
     {
       "id": "sanitation_greywater",
@@ -3827,16 +3903,32 @@
       "subject": "sanitation",
       "title": "The pathogens that matter",
       "summary": "Know the specific organisms sanitation exists to stop.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "the-germs-that-matter"
+      ],
       "skills": [
         "medicine"
       ],
       "sources": [
         "cdc",
-        "who"
+        "who",
+        "wa-doh",
+        "kitsap-public-health",
+        "nih"
       ],
       "locale_dependent": false,
-      "hazard": "lethal"
+      "hazard": "lethal",
+      "data": [
+        "data/food_system.ron",
+        "data/status_effects.csv",
+        "data/food/item_profiles.ron",
+        "data/abilities.csv",
+        "data/items.csv"
+      ],
+      "prerequisites": [
+        "sanitation_handwashing"
+      ]
     },
     {
       "id": "sanitation_handwashing",

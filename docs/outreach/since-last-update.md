@@ -11,6 +11,20 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1462.1: three Library guides on germs and food.** Microbes, Good and Bad (which
+  germs help and which harm, and what stops them); When Food or Water Makes You Sick (what
+  to do, what to drink, the danger signs that mean a doctor, with the special rules for
+  babies, pregnancy and shellfish); and The Chemistry of Keeping Food (why salt, acid,
+  drying, cold and heat keep food safe, and where each stops working). Each was checked
+  against its sources by a second, independent reviewer before it shipped.
+
+- **v0.1462.0: room for twelve households aboard.** The mothership now has
+  twelve homestead plots along a First Street over a kilometre long, so a shared
+  server can give twelve players a home of their own; the thirteenth arrives as a
+  guest and is told so. Players near each other see each other, and the far end of
+  the street is out of sight from the Commons. Also fixed: two of the game's data
+  files (docking ports and space infrastructure) were being silently ignored.
+
 - **v0.1461.0: a real game from the first minute.** A fresh install now
   starts in Normal mode with your progress kept between sessions: things are
   used up, tools wear, and nothing is free. Your first ten minutes walk you

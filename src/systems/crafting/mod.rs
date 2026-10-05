@@ -1829,12 +1829,19 @@ impl CraftingSystem {
                         "container_registry",
                     )
                 {
+                    // A generator's drum takes only its fuels (BUG-154).
+                    let fuels = world
+                        .get::<&crate::ecs::components::BurnsFuels>(machine)
+                        .ok()
+                        .map(|f| (*f).clone());
                     if let Ok(mut c) = world
                         .get::<&mut crate::systems::inventory::containers::Container>(machine)
                     {
                         use crate::systems::inventory::containers::StoreOutcome;
                         for (id, qty) in inv_recipe.outputs.iter_mut() {
-                            if *qty == 0 {
+                            if *qty == 0
+                                || !crate::systems::inventory::containers::vessel_takes_item(fuels.as_ref(), id)
+                            {
                                 continue;
                             }
                             // A vessel keeps a count, not each item's wear and

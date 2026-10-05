@@ -722,7 +722,7 @@ async function main() {
     await waitBoot(180000, game);
     log("entering world (autopilot)...");
     clearDone("autopilot_done.json");
-    req("autopilot_request.json", { server_url: "" });
+    req("autopilot_request.json", {}); // no server_url: the pinned one stands. An empty one let the game fill in the live server and dial it (2026-10-05, BUG-160)
     const ap = await waitFile("autopilot_done.json", 180000);
     if (!ap || ap.ok !== true) throw new Error(`autopilot failed: ${JSON.stringify(ap)}`);
 

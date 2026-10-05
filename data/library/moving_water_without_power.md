@@ -519,10 +519,12 @@ guide is about: what happens when the power goes.
 
 - **The well pump is electric.** The home's Water pump draws 10 watts
   for its motor, and the plumbing system only moves its water while that
-  machine has power. Cut the power, or let the home shed the load in a
-  shortage, and the pump stops and the cistern stops filling. The
-  Home page's Live water card says it plainly: "powered pumps +
-  purifiers fill the cistern; cut the power and it drains", and it shows
+  machine has power. In the default Station-supplied ship life support
+  the ship's reactor makes up any power the home lacks, so the pump keeps
+  running; in the Realistic mode a shortage makes the home shed the
+  load, and the pump stops and the cistern stops filling. The Home
+  page's Live water card says it plainly: "the pump and air handlers
+  need power, and without it the cistern drains", and it shows
   production, demand, the balance and how many days the cistern would
   last. The pump is `water_pump` in `data/machines/home.ron`; the rule
   that its water needs power is in `src/engine/home_spawn.rs` and

@@ -80,6 +80,12 @@ pub(crate) type ReadPool = Pool<SqliteConnectionManager>;
 /// Returns the same `rusqlite::Error` family the rest of `Storage::open` uses,
 /// so the boot path can propagate it with `?` without a new error type.
 pub(crate) fn build_read_pool(path: &Path) -> Result<ReadPool, rusqlite::Error> {
+    build_pool(read_pool_builder(), read_manager(path))
+}
+
+/// The manager that opens the pool's connections to the database at `path`:
+/// each one read-only, with the writer's consistency pragmas.
+fn read_manager(path: &Path) -> SqliteConnectionManager {
     // READ_ONLY: a pooled connection physically cannot write — a mis-routed
     // write becomes a clean error, never silent corruption.
     // NO_MUTEX: each connection is used by exactly one thread at a time (r2d2
@@ -87,7 +93,7 @@ pub(crate) fn build_read_pool(path: &Path) -> Result<ReadPool, rusqlite::Error> 
     // overhead. Matches the single-thread-per-checkout invariant of r2d2.
     let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
 
-    let manager = SqliteConnectionManager::file(path)
+    SqliteConnectionManager::file(path)
         .with_flags(flags)
         .with_init(|conn| {
             // Same consistency settings as the writer. WAL is set on the
@@ -101,8 +107,11 @@ pub(crate) fn build_read_pool(path: &Path) -> Result<ReadPool, rusqlite::Error> 
             // would refuse writes. Cheap, defensive.
             conn.pragma_update(None, "query_only", true)?;
             Ok(())
-        });
+        })
+}
 
+/// The pool's settings, the same in the product and in tests.
+fn read_pool_builder<M: r2d2::ManageConnection>() -> r2d2::Builder<M> {
     Pool::builder()
         .max_size(READ_POOL_SIZE)
         .connection_timeout(POOL_CHECKOUT_TIMEOUT)
@@ -110,15 +119,122 @@ pub(crate) fn build_read_pool(path: &Path) -> Result<ReadPool, rusqlite::Error> 
         // runs a trivial `SELECT 1`). Cheap insurance against handing out a
         // connection whose underlying file handle went bad.
         .test_on_check_out(true)
-        .build(manager)
-        .map_err(|e| {
-            // r2d2::Error isn't a rusqlite::Error; fold it into the SQLite
-            // error channel the boot path already threads through `?`.
-            rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CANTOPEN),
-                Some(format!("failed to build SQLite read pool: {e}")),
-            )
-        })
+}
+
+/// Build the pool: the product with r2d2's own `build` and its deadline
+/// (`build_by_deadline`), a test build by waiting for the connections to open
+/// (`build_for_tests`, BUG-152). `build_read_pool` builds through here, and so
+/// does `a_pool_whose_connections_open_slowly_is_waited_for_in_tests`, which
+/// turns red if the test arm below goes back to r2d2's `build`.
+fn build_pool<M: r2d2::ManageConnection>(
+    builder: r2d2::Builder<M>,
+    manager: M,
+) -> Result<Pool<M>, rusqlite::Error> {
+    #[cfg(not(test))]
+    let pool = build_by_deadline(builder, manager);
+    #[cfg(test)]
+    let pool = build_for_tests(builder, manager);
+    pool
+}
+
+/// The product's build. `build` opens all READ_POOL_SIZE connections before it
+/// returns and gives that `connection_timeout` (5 s); a relay that cannot open
+/// its read connections in 5 s at boot fails loudly instead of hanging.
+/// Compiled in test builds too, where nothing else runs it, so that tests can:
+/// `the_products_build_gives_up_at_its_deadline_and_opens_a_real_database`.
+fn build_by_deadline<M: r2d2::ManageConnection>(
+    builder: r2d2::Builder<M>,
+    manager: M,
+) -> Result<Pool<M>, rusqlite::Error> {
+    builder.build(manager).map_err(pool_build_error)
+}
+
+/// r2d2::Error isn't a rusqlite::Error; fold it into the SQLite error channel
+/// the boot path already threads through `?`.
+fn pool_build_error(e: impl std::fmt::Display) -> rusqlite::Error {
+    rusqlite::Error::SqliteFailure(
+        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CANTOPEN),
+        Some(format!("failed to build SQLite read pool: {e}")),
+    )
+}
+
+/// How long `build_for_tests` may go without a single new connection opening
+/// before it calls the pool stuck. A guard against a hang, NOT a budget for
+/// the work (see `build_for_tests`).
+#[cfg(test)]
+const TEST_POOL_STALL: Duration = Duration::from_secs(30);
+
+/// Tests only (BUG-152): the production pool, built without racing a clock.
+///
+/// `Pool::build` returns only once all READ_POOL_SIZE connections are open,
+/// and gives them `connection_timeout` (5 s); three r2d2 worker threads per
+/// pool open them one by one. Every test that opens a database builds a pool,
+/// and when several test binaries run at once each runs a dozen such tests in
+/// parallel, so hundreds of those worker threads wait their turn for a CPU.
+/// Measured 2026-10-05 with three relay test suites at once under a 96-thread
+/// CPU load: building a pool took 3.3 s at the median and up to 5.6 s, and 335
+/// of 1,013 builds failed "timed out waiting for connection", every one with
+/// no error from SQLite at all. The tests failed because the machine was busy,
+/// not because a database could not be opened.
+///
+/// So a test waits for the connections to OPEN rather than for 5 s to pass:
+/// it returns the pool once all are open, and fails only when no new one has
+/// opened for `TEST_POOL_STALL` (with the last error a connection attempt
+/// reported, if any). A busy machine now builds the pool slowly instead of
+/// failing the test.
+///
+/// Same manager, same size, same checkout timeout and checkout validation as
+/// the product (the caller passes the product's builder). Two things differ:
+/// this wait, and the pool's error handler. r2d2 takes one handler per pool,
+/// for the pool's whole life, so a test pool's is `LastError`, which logs
+/// every connection error the way the product's handler (r2d2's default,
+/// `LoggingErrorHandler`) does, and also keeps the newest for the stall
+/// message.
+#[cfg(test)]
+fn build_for_tests<M: r2d2::ManageConnection>(
+    builder: r2d2::Builder<M>,
+    manager: M,
+) -> Result<Pool<M>, rusqlite::Error> {
+    use std::sync::{Arc, Mutex};
+    use std::time::Instant;
+
+    /// Logs each connection error as r2d2's default handler does, and keeps
+    /// the newest for the stall message. r2d2 retries a failed connection by
+    /// itself, so an error is not yet a failure.
+    #[derive(Debug)]
+    struct LastError(Arc<Mutex<Option<String>>>);
+    impl<E: std::error::Error> r2d2::HandleError<E> for LastError {
+        fn handle_error(&self, e: E) {
+            *self.0.lock().unwrap_or_else(|p| p.into_inner()) = Some(e.to_string());
+            r2d2::HandleError::handle_error(&r2d2::LoggingErrorHandler, e);
+        }
+    }
+
+    let last_error = Arc::new(Mutex::new(None));
+    let pool = builder.error_handler(Box::new(LastError(last_error.clone()))).build_unchecked(manager);
+    // What r2d2's own `build` waits for: `min_idle` connections, or all of them.
+    let want = pool.min_idle().unwrap_or(pool.max_size());
+    let mut open = 0;
+    let mut last_progress = Instant::now();
+    loop {
+        let now_open = pool.state().connections;
+        if now_open >= want {
+            return Ok(pool);
+        }
+        if now_open != open {
+            open = now_open;
+            last_progress = Instant::now();
+        }
+        if last_progress.elapsed() >= TEST_POOL_STALL {
+            let last = last_error.lock().unwrap_or_else(|p| p.into_inner()).take();
+            return Err(pool_build_error(format!(
+                "no read connection opened for {} s ({open} of {want} open; last connection error: {})",
+                TEST_POOL_STALL.as_secs(),
+                last.as_deref().unwrap_or("none")
+            )));
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
 }
 
 #[cfg(test)]
@@ -133,21 +249,12 @@ mod tests {
     //!      loud error, never silent corruption. This is the guard that makes
     //!      "erring toward the writer is always correct" enforceable.
     use crate::relay::storage::Storage;
-    use std::path::PathBuf;
-
-    fn tmp_db(tag: &str) -> PathBuf {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        std::env::temp_dir().join(format!("hum_pool_{tag}_{pid}_{nanos}.db"))
-    }
+    use r2d2::ManageConnection as _;
 
     /// Invariant 1: data written on the writer is visible through the read pool.
     #[test]
     fn read_pool_sees_writer_committed_rows() {
-        let db = Storage::open(&tmp_db("read_after_write")).expect("open");
+        let db = Storage::open_temp("pool_read_after_write");
 
         // Write via the writer path (this is how all current call sites work).
         let id = db
@@ -178,13 +285,106 @@ mod tests {
         assert_eq!(count, 1);
     }
 
+    /// In-memory SQLite connections that each take 700 ms to open, the way a
+    /// busy machine stretches them: the 8 of a pool take about 2.1 s on r2d2's
+    /// 3 worker threads.
+    struct Slow(r2d2_sqlite::SqliteConnectionManager);
+
+    impl Slow {
+        fn new() -> Self {
+            Slow(r2d2_sqlite::SqliteConnectionManager::memory())
+        }
+    }
+
+    impl r2d2::ManageConnection for Slow {
+        type Connection = rusqlite::Connection;
+        type Error = rusqlite::Error;
+        fn connect(&self) -> Result<rusqlite::Connection, rusqlite::Error> {
+            std::thread::sleep(std::time::Duration::from_millis(700));
+            self.0.connect()
+        }
+        fn is_valid(&self, conn: &mut rusqlite::Connection) -> Result<(), rusqlite::Error> {
+            self.0.is_valid(conn)
+        }
+        fn has_broken(&self, conn: &mut rusqlite::Connection) -> bool {
+            self.0.has_broken(conn)
+        }
+    }
+
+    /// BUG-152: a pool whose connections open slowly is waited for in tests,
+    /// not failed. Given 1 s, the product's build (`build_by_deadline`, r2d2's
+    /// `build`, which waits `connection_timeout` for all 8) refuses exactly
+    /// this pool; the product gives 5 s, which three relay suites at once
+    /// overran a third of the time. A test build waits for the connections
+    /// themselves and gets all 8.
+    ///
+    /// Built through `build_pool`, the very call `build_read_pool` makes, so a
+    /// test build switched back to r2d2's `build` turns this red: seen
+    /// 2026-10-05 with `build_pool`'s test arm reverted to
+    /// `builder.build(manager).map_err(pool_build_error)`, "a test build
+    /// waits for slow connections instead of failing: ... timed out waiting
+    /// for connection". (Until the 2026-10-05 review this test called
+    /// `build_for_tests` directly, so that revert failed nothing.)
+    #[test]
+    fn a_pool_whose_connections_open_slowly_is_waited_for_in_tests() {
+        use super::{build_by_deadline, build_pool, read_pool_builder, READ_POOL_SIZE};
+        let one_second = || read_pool_builder().connection_timeout(std::time::Duration::from_secs(1));
+
+        let control = build_by_deadline(one_second(), Slow::new());
+        assert!(control.is_err(), "the control: the product's build gives up on connections slower than its deadline");
+
+        let pool = build_pool(one_second(), Slow::new()).expect("a test build waits for slow connections instead of failing");
+        assert_eq!(pool.state().connections, READ_POOL_SIZE, "every connection opened");
+    }
+
+    /// The PRODUCT's build, run by a test: since BUG-152 a test build waits
+    /// for its connections instead, so nothing else in a test build runs the
+    /// path the relay boots with (the 2026-10-05 review). On a real database
+    /// it opens every connection with the product's settings, the same
+    /// settings `Storage::open` gives its pool in a test build, and the pooled
+    /// connections read and refuse to write; on connections slower than its
+    /// deadline it gives up, which is how a relay that cannot open its read
+    /// connections fails at boot instead of hanging.
+    ///
+    /// Seen red 2026-10-05 with the product's build bypassed
+    /// (`build_by_deadline` returning `build_unchecked`, which waits for
+    /// nothing): "the product's build gives up on connections slower than its
+    /// deadline".
+    #[test]
+    fn the_products_build_gives_up_at_its_deadline_and_opens_a_real_database() {
+        use super::{build_by_deadline, read_manager, read_pool_builder, POOL_CHECKOUT_TIMEOUT, READ_POOL_SIZE};
+        let slow = build_by_deadline(read_pool_builder().connection_timeout(std::time::Duration::from_secs(1)), Slow::new());
+        let err = slow.err().expect("the product's build gives up on connections slower than its deadline");
+        assert!(err.to_string().contains("failed to build SQLite read pool"), "the error names the pool: {err}");
+
+        let path = crate::test_temp::db("pool_product_build");
+        let db = Storage::open(&path).expect("open (the schema, and a pool built the test way)");
+        let pool = build_by_deadline(read_pool_builder(), read_manager(&path)).expect("the product's build opens a real database");
+        for (which, p) in [("the product's build", &pool), ("Storage::open in a test build", &db.read_pool)] {
+            assert_eq!(
+                (p.max_size(), p.connection_timeout(), p.test_on_check_out(), p.state().connections),
+                (READ_POOL_SIZE, POOL_CHECKOUT_TIMEOUT, true, READ_POOL_SIZE),
+                "{which}: the product's settings, every connection open"
+            );
+        }
+        let conn = pool.get().expect("a connection from the product's pool");
+        let rows: i64 = conn.query_row("SELECT COUNT(*) FROM dm_mailbox", [], |r| r.get(0)).expect("it reads");
+        assert_eq!(rows, 0);
+        assert!(
+            conn.execute("INSERT INTO dm_mailbox (to_key, content, received_day) VALUES ('y', 'x', 1)", []).is_err(),
+            "and refuses to write"
+        );
+        // Close everything before the guard (`path`, dropped last) deletes the files.
+        drop((conn, pool, db));
+    }
+
     /// Invariant 2: a write through the read pool is REJECTED by SQLite.
     /// This is the safety net behind the conservative routing rule — if anyone
     /// ever sends write SQL to `with_read_conn`, it fails loudly here instead of
     /// silently hitting a read replica.
     #[test]
     fn read_pool_rejects_writes() {
-        let db = Storage::open(&tmp_db("reject_writes")).expect("open");
+        let db = Storage::open_temp("pool_reject_writes");
 
         let result: Result<usize, rusqlite::Error> = db.with_read_conn(|conn| {
             conn.execute(

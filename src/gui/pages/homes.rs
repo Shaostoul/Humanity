@@ -421,13 +421,14 @@ fn draw_design(
         }
 
         // ── Live water (the running PlumbingSystem, v0.608) ──
-        // Production needs power (cut the power and the cistern stops filling); the cistern buffers
+        // Production needs power (cut the power and the cistern stops filling, but for the cistern's
+        // own trickle of rain; the purifier makes no water, 2026-10-05); the cistern buffers
         // the difference, so "days of water" is a draining number coupled to the power sim.
         if water.production > 0.0 || water.demand > 0.0 || water.capacity > 0.0 {
             widgets::card(ui, theme, |ui| {
                 ui.label(RichText::new("Live water").size(theme.font_size_body).strong().color(theme.text_primary()));
                 ui.label(
-                    RichText::new("The running sim: powered pumps + purifiers fill the cistern; cut the power and it drains.")
+                    RichText::new("The running sim: the pump, rain and the air handlers' condensate fill the cistern; the pump and air handlers need power, and without it the cistern drains.")
                         .size(theme.font_size_small)
                         .color(theme.text_muted()),
                 );

@@ -661,13 +661,8 @@ impl Storage {
 mod local_only_room_tests {
     use crate::relay::storage::Storage;
 
-    fn temp_db(tag: &str) -> std::path::PathBuf {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        std::env::temp_dir().join(format!("hum_local_only_{tag}_{pid}_{nanos}.db"))
+    fn temp_db(tag: &str) -> crate::test_temp::TempPath {
+        crate::test_temp::db(&format!("local_only_{tag}"))
     }
 
     #[test]
@@ -700,8 +695,6 @@ mod local_only_room_tests {
         // strips the federated mark (mutually exclusive by intent).
         db.set_channel_local_only("local", true).expect("reflag");
         assert!(!db.is_channel_federated("local").expect("q"), "flagging local_only unfederates");
-
-        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
@@ -736,7 +729,5 @@ mod local_only_room_tests {
         );
         db.set_channel_local_only("general", true).expect("flag works post-migration");
         assert!(db.any_local_only_channel().expect("q"));
-
-        let _ = std::fs::remove_file(&path);
     }
 }

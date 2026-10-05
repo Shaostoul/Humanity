@@ -715,9 +715,8 @@ mod tests {
     }
 
     /// A scratch folder standing in for the game's working directory.
-    fn scratch(name: &str) -> std::path::PathBuf {
-        let d = std::env::temp_dir().join(format!("hum_movie_{name}_{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&d);
+    fn scratch(name: &str) -> crate::test_temp::TempPath {
+        let d = crate::test_temp::dir(&format!("movie_{name}"));
         std::fs::create_dir_all(d.join("debug")).unwrap();
         d
     }
@@ -749,7 +748,6 @@ mod tests {
         std::fs::write(root.join(REQUEST_PATH), "{}").unwrap();
         assert_eq!(take_requests(&root, false, false), Incoming::Nothing);
         assert!(std::fs::read_to_string(root.join(DONE_PATH)).unwrap().contains("world not loaded"));
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// A CANCEL STOPS THE RUNNING RECORDING, AND ONLY THAT (2026-10-02 review:
@@ -776,7 +774,6 @@ mod tests {
         assert_eq!(take_requests(&root, true, true), Incoming::Cancel);
         assert!(root.join(REQUEST_PATH).exists(), "the new request waits for the next frame");
         assert!(matches!(take_requests(&root, false, true), Incoming::Start(_)));
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// FFMPEG'S OWN WORDS SURVIVE (2026-10-02 review). When ffmpeg dies, the

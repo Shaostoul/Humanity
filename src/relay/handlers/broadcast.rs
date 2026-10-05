@@ -477,13 +477,7 @@ mod mod_command_guard_tests {
     use crate::relay::storage::Storage;
 
     fn fresh_state() -> Arc<RelayState> {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_modcmd_{pid}_{nanos}.db"));
-        let db = Storage::open(&path).expect("open test db");
+        let db = Storage::open_temp("modcmd");
         Arc::new(RelayState::new(db))
     }
 

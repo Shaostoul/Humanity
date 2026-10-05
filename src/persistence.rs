@@ -363,6 +363,11 @@ pub struct ConstructionSave {
     /// engine/home_plot.rs `NotTheHomes`). Absent from older saves: not marked.
     #[serde(default)]
     pub outside_home: bool,
+    /// A built fire's game seconds of burning left (BUG-153, 2026-10-05,
+    /// `construction::fires::FireFuel`), 0 when it is out. None for a piece
+    /// that is not a fire. Absent from saves written before fires: none.
+    #[serde(default)]
+    pub fire_s: Option<f32>,
 }
 
 fn default_true_save() -> bool {
@@ -961,6 +966,7 @@ mod tests {
                     open: false,
                     site: None,
                     outside_home: false,
+                    fire_s: None,
                 },
             ],
             crafts: Vec::new(),

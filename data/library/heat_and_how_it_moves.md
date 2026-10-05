@@ -382,8 +382,10 @@ practice from the physics above:
 
 ## How the game models it
 
-The game models one kind of heat in real detail, the heat of your own
-body, and one more simply: a heater's heat in the air of a room aboard.
+The game models one kind of heat in real detail: the heat of your own
+body, and what the weather, your clothes, a shelter and a campfire do to
+it. It models one more simply: a heater's heat in the air of a room
+aboard.
 
 - **Your body's heat balance.** The body heat system is based on a
   published model of human temperature regulation, the two-node model
@@ -409,6 +411,16 @@ body, and one more simply: a heater's heat in the air of a room aboard.
   feel at least 2 C warmer or colder than the thermometer says, the
   weather line on the HUD adds what it feels like, such as "feels 35C"
   in the noon sun.
+- **A campfire.** A campfire you build on a planet's ground radiates heat
+  the way the sun does, and your body takes it the same way: as warmer
+  surroundings, falling with the square of the distance from the fire.
+  Standing 1.5 m from one on a clear, calm 0 C night, your surroundings
+  feel like about 16 C instead of minus 11; at 20 m it makes no
+  difference, and a fire that has gone out warms nothing. In life the
+  warmth lands on the side of you facing the fire; the game's body has
+  one skin, so it spreads it all round (`src/systems/construction/fires.rs`;
+  [Making and Controlling Fire](/library#making-and-controlling-fire) has the
+  rest).
 - **Indoors aboard.** Inside your home aboard the station the air is
   sealed and still, at the home's own temperature, and the weather line
   says so: "Indoors", with the temperature and "still air". In a grow

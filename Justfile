@@ -280,6 +280,14 @@ disk-guard *args:
 install-disk-guard:
     powershell -NoProfile -Command "Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File \"{{justfile_directory()}}\scripts\install-pc-disk-guard.ps1\"'"
 
+# Delete what test runs left in the temp folder (BUG-159, 2026-10-05): the `hum_*`
+# files and folders nothing has touched for a day. The tests delete their own now
+# (src/test_temp.rs); this sweeps the old pile and whatever a killed run leaves.
+# Refuses while cargo, rustc or a test binary runs. Prints the count and the space.
+# --dry-run only reports; --dir <folder> sweeps another folder; --days <n> the age.
+clean-test-temp *args:
+    @node scripts/clean-test-temp.js {{args}}
+
 # Rotate the orchestrator journal: archive decisions older than the recent `keep` tail
 # into docs/history/journal-archive-<month>.md so the session-loaded JSON stays small.
 # Order is preserved (newest stays at the bottom). Run at session end when it has grown.
@@ -593,7 +601,7 @@ lints:
 # showcase-pins.test.js, 2026-10-04): one shared list, pipe_marking included.
 # Add a file here whenever a rig script grows a judgement of its own.
 rig-tests:
-    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js scripts/tests/rig-exe-copy.test.js scripts/tests/showcase-pins.test.js scripts/tests/rig-gameplay.test.js
+    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js scripts/tests/rig-exe-copy.test.js scripts/tests/showcase-pins.test.js scripts/tests/rig-gameplay.test.js scripts/tests/clean-test-temp.test.js
 
 # The scripted second player (scripts/second-player.js) against a REAL relay.
 # NOT pure node, so NOT in rig-tests or `just verify` (rig-tests keeps the

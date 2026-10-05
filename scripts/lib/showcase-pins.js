@@ -22,6 +22,9 @@ const STICKY_PIN_RESETS = Object.freeze({
   fov: "auto",
   // Settings > Gameplay > Pipe markings: "auto" hands the mode back to the setting.
   pipe_marking: "auto",
+  // The hull, as the H key toggles it (2026-10-05, the ship-first-street vantage hides it to see
+  // the homes along First Street): "1" shows it again. Not a setting, so no "auto".
+  hull: "1",
 });
 
 // Diagnostic channels, also sticky, reset at the start of every vantage.

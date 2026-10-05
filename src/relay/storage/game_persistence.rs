@@ -275,13 +275,7 @@ mod tests {
     /// Mirrors the per-module helper used across `storage/` (see ai_status.rs):
     /// a unique temp path so parallel test runs never collide.
     fn make_test_storage() -> Storage {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_gamepersist_test_{pid}_{nanos}.db"));
-        Storage::open(&path).expect("open test db")
+        Storage::open_temp("gamepersist_test")
     }
 
     /// A world snapshot must round-trip: what we save is exactly what we load,

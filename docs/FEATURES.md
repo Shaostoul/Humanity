@@ -1547,8 +1547,9 @@ File watcher (notify) invalidates asset cache per frame.
 
 ### Homes on the ship: plots (increment 1a of docs/design/ship-homes-and-logistics.md, v0.1442.0)
 The ship and the home are separate files: `data/blueprints/ship_structure.ron`
-holds the Commons, street-1, the corridors, 13 districts and a `plots` list (p1,
-p2, `default_plot`); `data/homes/homestead.ron` holds the home design (23 room
+holds the Commons, street-1, the corridors, 13 districts and a `plots` list
+(twelve homesteads since 2026-10-04: p1 on the Commons and p2 to p12 down the
+west side of First Street, which runs 1.1 km; `default_plot`); `data/homes/homestead.ron` holds the home design (23 room
 zones, door, spawn); `data/machines/ship.ron` the Commons machines (zone-local).
 Loading assembles the ship with "my home" at my plot's origin
 (`ship_structure::load_and_assemble`); moving a plot moves the whole home, its
@@ -1681,9 +1682,16 @@ casts: skill gate (level-1 gates baseline-open), energy cost (mana + stamina col
 both pay from the energy vital), live cooldowns. v1 effects are self-scoped healing
 (first_aid, cauterize, repair, heal...); offensive rows load but honestly wait for
 the combat arc. Profile > Skills gains the Abilities panel with Cast buttons.
+**Building abilities (BUG-153, 2026-10-05):** a row whose `builds` column names a
+blueprint builds that piece where a piece in hand would go (the engine's spot,
+`abilities::BUILD_SPOT_SLOT`), through `construction::begin_build`, spending its
+energy only when the build starts. The Campfire ability builds a campfire
+(`construction::fires`: lit with its own logs, burns down, E adds a log, radiates
+heat the body heat model feels; outdoors only).
 - Native: `src/systems/abilities.rs`, `src/gui/pages/profile.rs` (panel),
-  lib.rs bridge (`pending_cast`, `ability_status`, `ability_cooldowns`)
-- Data: `data/abilities.csv`
+  lib.rs bridge (`pending_cast`, `ability_status`, `ability_cooldowns`),
+  `src/engine/build_place.rs` (`publish_cast_spot`), `src/systems/construction/fires.rs`
+- Data: `data/abilities.csv`, `data/blueprints/basic.ron` (`campfire`)
 
 ### Player Controller
 WASD movement, gravity, jump, ground detection via raycast.
@@ -1836,7 +1844,10 @@ tests. WIRED (v0.728+): `MachineDef.container_type` in home.ron spawns a
 `Container` component on the machine entity (grain silo bin, steel fuel
 drum); the walk-up machine card shows "Holds: Nx item" + Take + per-item
 Store buttons; harvest overflow and refinery output fill them; the backstop
-genset burns its drum's flammable contents (`src/systems/electrical.rs`).
+genset burns only the fuels its data names (`fuels` on its `Generator` power
+role, spawned as `BurnsFuels`; BUG-154), and its drum takes and offers only
+those (`vessel_takes_item`, `store_offers` in `containers.rs`;
+`src/systems/electrical.rs`).
 Always pre-check `registry.check().is_accepted()` before `try_store` — a
 wrong-class store DAMAGES the vessel by design.
 Content memory and materials (v0.1345.0): a vessel remembers its last
@@ -2083,6 +2094,10 @@ and measured human trials (Helland et al. 2025; Thompson and Hayward 1996).
   (`body_heat::open_sky_radiant_c`, `sun_mrt_rise_c`, `Weather::cloud_share`). The HUD's weather line ends with
   what the air feels like when that is 2 C or more from its temperature ("feels 35C" in the noon sun in 20 C air,
   v0.1419.0): the model's operative temperature, `body_heat::operative_c`.
+- **A campfire's warmth** (BUG-153, 2026-10-05): a burning built fire radiates (16 kW for the campfire) and a
+  person near it feels warmer surroundings, falling as the inverse square: about 16 C instead of -11 C at 1.5 m
+  on a clear 0 C night, nothing at 20 m, nothing from an out fire (`construction::fires::warmth_at`,
+  `body_heat::radiant_with_source_c`, applied in `engine::survival_env`).
 - **Sweat costs water** (v0.1422.0): the sweat the model evaporates comes out of hydration, about 50 mL a
   point (an hour walking in dry 35 C air, about 0.2 L; hard work in heat several times that), scaled by the
   Vitals drain slider (`BodyHeat::sweat_litres`, `HeatOutcome::sweat_l`, `food::HYDRATION_PER_LITRE`).
@@ -2605,6 +2620,8 @@ decision-briefs Brief 1) generalized it into a whole vessel:
   top cutouts over every glass roof + corridor lid, double-sided plating (look up through glass and see
   hull), greebles (engines/radiators/masts) as data rows. Regrows on any structure edit; H key /
   Settings "Show hull" toggle; purely visual (no exterior collision - bay doors/EVA are follow-ups).
+  Dev pin: showcase `{"hull":"0"}` hides it as H does (released with "1" before every other vantage;
+  the ship-first-street vantage uses it to see the homes along First Street, 2026-10-05).
 - Native: `src/ship/ship_structure.rs` (zones + corridors, load/save/adopt, merged meshes),
   `src/ship/home_structure.rs` (the per-zone body incl. shell cuts), `src/ship/hull.rs` (profile +
   loft + greebles), `src/ship/wall_collision.rs` (`ship_wall_segments` + shell-cut gaps),

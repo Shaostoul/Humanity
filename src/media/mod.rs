@@ -316,16 +316,49 @@ struct Clock {
     /// 0.0 means unknown (no clamping at the end).
     duration: f64,
     reported: Cell<f64>,
+    /// Tests only (BUG-152): a clock the test moves by hand, read instead of
+    /// the wall. A test that judged a seek against the wall clock was judging
+    /// how fast the machine decoded: under load the clock ran on while the
+    /// decoder worked, and the test failed with nothing wrong in the player.
+    /// Never present in the product, which reads `Instant::now()`.
+    #[cfg(test)]
+    manual: Option<Arc<crate::test_clock::ManualClock>>,
 }
 
 impl Clock {
     fn new(duration: f64) -> Self {
-        Self { playing: false, anchor: Instant::now(), base: 0.0, duration, reported: Cell::new(0.0) }
+        Self {
+            playing: false,
+            anchor: Instant::now(),
+            base: 0.0,
+            duration,
+            reported: Cell::new(0.0),
+            #[cfg(test)]
+            manual: None,
+        }
+    }
+
+    /// The time now: the wall clock, or a test's manual clock.
+    fn now(&self) -> Instant {
+        #[cfg(test)]
+        if let Some(m) = &self.manual {
+            return m.now();
+        }
+        Instant::now()
+    }
+
+    /// Time since `anchor`: wall time, or a test's manual clock.
+    fn elapsed(&self) -> Duration {
+        #[cfg(test)]
+        if let Some(m) = &self.manual {
+            return m.now().duration_since(self.anchor);
+        }
+        self.anchor.elapsed()
     }
 
     /// The raw estimate, before the monotonic guard.
     fn raw(&self) -> f64 {
-        let p = if self.playing { self.base + self.anchor.elapsed().as_secs_f64() } else { self.base };
+        let p = if self.playing { self.base + self.elapsed().as_secs_f64() } else { self.base };
         if self.duration > 0.0 {
             p.min(self.duration)
         } else {
@@ -342,7 +375,7 @@ impl Clock {
 
     fn play(&mut self) {
         if !self.playing {
-            self.anchor = Instant::now();
+            self.anchor = self.now();
             self.playing = true;
         }
     }
@@ -355,7 +388,7 @@ impl Clock {
     /// Move the clock to `pos` without touching the playing flag (audio sync).
     fn rebase(&mut self, pos: f64) {
         self.base = pos;
-        self.anchor = Instant::now();
+        self.anchor = self.now();
     }
 
     /// Move to an absolute position. A seek is the ONE time the clock may go
@@ -363,7 +396,7 @@ impl Clock {
     /// rather than continuing to hold the old high-water mark.
     fn seek(&mut self, pos: f64) {
         self.base = pos;
-        self.anchor = Instant::now();
+        self.anchor = self.now();
         self.reported.set(pos);
     }
 
@@ -421,6 +454,19 @@ struct Shared {
     /// stack). Its own Arc so a test can hold it across `drop(player)` and
     /// prove that Drop joined the thread rather than leaking it.
     alive: Arc<AtomicBool>,
+    /// Tests only (BUG-152): every picture the decoder has produced, kept or
+    /// thrown away on the way to a seek target. A test waits on this rising
+    /// instead of on a wall-clock budget: a decoder still producing pictures
+    /// is working, however slowly a busy machine runs it.
+    #[cfg(test)]
+    pictures_decoded: AtomicU64,
+    /// Tests only: a fault a test switches on (`inject_restart_instead_of_queueing`)
+    /// to prove that its waits FAIL on a decoder going round a loop instead of
+    /// hanging the test run (the 2026-10-05 review of BUG-152). While it is set,
+    /// a pass that is about to queue a frame restarts itself instead, with no new
+    /// seek, so the decoder produces pictures for ever and the frame never comes.
+    #[cfg(test)]
+    restart_instead_of_queueing: AtomicBool,
 }
 
 /// Cleared on the way out of the decode thread, however it exits.
@@ -490,6 +536,12 @@ fn push_frame(shared: &Shared, generation: u64, frame: VideoFrame) -> Push {
 /// decodes normally while refusing to QUEUE anything older than the target.
 /// The frames in between are real decoding work that is thrown away; that is
 /// what it costs to start an inter-frame codec in the middle.
+///
+/// `from_top` is the fallback after a fast start failed (`RetryFromStart`):
+/// no reposition, decode from the first packet, but still queue nothing older
+/// than `start_s`. (It used to be done by passing `start_s = 0.0`, which also
+/// switched off that filter, so a fallback seek showed the clip from its first
+/// frame on its way to the target: BUG-158.)
 fn decode_pass(
     path: &Path,
     info: &MediaInfo,
@@ -497,6 +549,7 @@ fn decode_pass(
     generation: u64,
     threads: i32,
     start_s: f64,
+    from_top: bool,
 ) -> Result<PassEnd, MediaError> {
     let mut mkv = open_demuxer(path)?;
     let mut decoder = video::Av1Decoder::new(threads)?;
@@ -508,7 +561,7 @@ fn decode_pass(
     // scan; it lands on the first frame AFTER the time asked for, which is why
     // the rewind and the keyframe scan below are both needed.
     let mut need_keyframe = false;
-    if start_s > 0.0 {
+    if start_s > 0.0 && !from_top {
         let preroll_s = shared.seek_preroll_ns.load(Ordering::SeqCst) as f64 / 1.0e9;
         let pre_s = (start_s - preroll_s).max(0.0);
         let ts = (pre_s * 1.0e9 / scale as f64) as u64;
@@ -526,11 +579,18 @@ fn decode_pass(
     // (a Cell so the closure and the loop below can both touch it).
     let early: Cell<Option<PassEnd>> = Cell::new(None);
     let mut deliver = |frame: VideoFrame| -> bool {
+        #[cfg(test)]
+        shared.pictures_decoded.fetch_add(1, Ordering::SeqCst);
         // Decoded only to get the codec to the target; never drawn. A hair of
         // tolerance so a frame sitting exactly on the target is not lost to
         // floating point.
         if frame.pts_s + 1.0e-6 < start_s {
             return true;
+        }
+        #[cfg(test)]
+        if shared.restart_instead_of_queueing.load(Ordering::SeqCst) {
+            early.set(Some(PassEnd::Restart));
+            return false;
         }
         match push_frame(shared, generation, frame) {
             Push::Pushed => true,
@@ -608,12 +668,9 @@ fn decode_thread(path: PathBuf, info: MediaInfo, shared: Arc<Shared>, threads: i
         // anyway. Reading them the other way round could pair a new generation
         // with an old target, which would seek to the wrong place.
         let generation = shared.generation.load(Ordering::SeqCst);
-        let start_s = if from_start_generation == Some(generation) {
-            0.0
-        } else {
-            shared.seek_target_ns.load(Ordering::SeqCst) as f64 / 1.0e9
-        };
-        match decode_pass(&path, &info, &shared, generation, threads, start_s) {
+        let start_s = shared.seek_target_ns.load(Ordering::SeqCst) as f64 / 1.0e9;
+        let from_top = from_start_generation == Some(generation);
+        match decode_pass(&path, &info, &shared, generation, threads, start_s, from_top) {
             Ok(PassEnd::Stop) => return,
             Ok(PassEnd::Restart) => continue,
             Ok(PassEnd::RetryFromStart) => {
@@ -681,7 +738,11 @@ pub struct VideoPlayer {
     /// A seek just happened: hand out the first frame that arrives even if
     /// the clock has not reached it. Without this, seeking while PAUSED
     /// leaves the previous picture on screen, because a paused clock never
-    /// advances to meet the new frames.
+    /// advances to meet the new frames. The decoder queues nothing older than
+    /// the target, so whenever the target falls between two frames the first
+    /// frame queued is AHEAD of the clock, and only this hands it out
+    /// (`seeking_while_paused_shows_the_frame_it_landed_on` seeks to 1.21 s,
+    /// between two frames of its fixture, for that reason).
     show_next_frame: bool,
     last_error: Option<String>,
 }
@@ -713,6 +774,10 @@ impl VideoPlayer {
             seek_preroll_ns: AtomicU64::new((SEEK_PREROLL_S * 1.0e9) as u64),
             seek_fallbacks: AtomicU64::new(0),
             alive: Arc::new(AtomicBool::new(true)),
+            #[cfg(test)]
+            pictures_decoded: AtomicU64::new(0),
+            #[cfg(test)]
+            restart_instead_of_queueing: AtomicBool::new(false),
         });
         let thread = {
             let (path, info, shared) = (path.clone(), info.clone(), shared.clone());
@@ -855,7 +920,12 @@ impl VideoPlayer {
     }
 
     /// Move playback to `seconds`, clamped into the clip. Keeps the play /
-    /// pause state, and shows the picture there even while paused.
+    /// pause state, and shows the picture there even while paused: the first
+    /// frame at or after `seconds`, which is the NEXT frame when `seconds`
+    /// falls between two (the decoder keeps nothing older than the target).
+    /// A target after the clip's last frame has no frame to show, so the
+    /// screen keeps the picture it had. The fallback that decodes from the
+    /// top of the file lands the same way as the fast start (since BUG-158).
     ///
     /// The decode thread is told where to start by writing the target and then
     /// bumping the generation, in that order: anything it had queued for the
@@ -993,6 +1063,46 @@ impl VideoPlayer {
         let clock = self.clock.position();
         let q = self.shared.queue.lock().unwrap_or_else(|e| e.into_inner());
         q.eof || q.frames.back().map_or(false, |f| f.pts_s > clock)
+    }
+
+    /// Tests only (BUG-152): drive this player's clock by hand. From here on
+    /// its time passes only when the test calls `ManualClock::advance`, so a
+    /// seek is judged against a clock that stood still while the decoder
+    /// worked, not one that ran on for as long as a busy machine took. The
+    /// position does not move at the switch.
+    #[cfg(test)]
+    pub(crate) fn use_manual_clock(&mut self, time: &Arc<crate::test_clock::ManualClock>) {
+        let position = self.clock.raw();
+        self.clock.manual = Some(time.clone());
+        self.clock.base = position;
+        self.clock.anchor = self.clock.now();
+    }
+
+    /// Tests only (BUG-152): how many pictures the decode thread has produced
+    /// so far, kept or thrown away on the way to a seek target. A waiting test
+    /// treats a rising count as "still working".
+    #[cfg(test)]
+    pub(crate) fn pictures_decoded(&self) -> u64 {
+        self.shared.pictures_decoded.load(Ordering::SeqCst)
+    }
+
+    /// Tests only: break this player's decoder on purpose. From here on every
+    /// pass that is about to queue a frame restarts itself instead, with no new
+    /// seek: the decoder goes round a loop, producing pictures for ever and
+    /// never the frame a test waits for. A test switches it on to prove its
+    /// waits fail on such a decoder instead of hanging the run.
+    #[cfg(test)]
+    pub(crate) fn inject_restart_instead_of_queueing(&self) {
+        self.shared.restart_instead_of_queueing.store(true, Ordering::SeqCst);
+    }
+
+    /// Tests only (BUG-152): the decoder has delivered the last frame of the
+    /// current position's pass and nothing is left queued, so no frame will
+    /// arrive until the next seek.
+    #[cfg(test)]
+    pub(crate) fn decoder_finished(&self) -> bool {
+        let q = self.shared.queue.lock().unwrap_or_else(|e| e.into_inner());
+        q.eof && q.frames.is_empty()
     }
 
     /// Audio-led clock: while the kira sound is playing, adopt its reported

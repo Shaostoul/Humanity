@@ -713,7 +713,7 @@ async function main() {
     const mark = logSize();
     log("clearing the server...");
     clearDone("autopilot_done.json");
-    req("autopilot_request.json", { server_url: "" });
+    req("autopilot_request.json", { server_url: "" }); // rig-clears-server: the "No server set" step clears it on purpose, and checks no socket opens after
     const ap2 = await waitFile("autopilot_done.json", 60000);
     step("clear_server", ap2 || { ok: false, error: "no autopilot_done.json" });
     let ns = null;

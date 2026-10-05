@@ -214,16 +214,22 @@ pub(crate) enum CannotBuild {
     OnWater,
 }
 
-/// The line under the crosshair when a piece in hand cannot be placed.
-pub(crate) fn cannot_build_hint(name: &str, why: CannotBuild) -> String {
-    let what = match why {
+/// What to do, or why nothing can be built, from where the player is: the
+/// words after "Placing X: " in the hint, and after a building ability's name
+/// when its cast finds nowhere to build (BUG-153, `build_place::publish_cast_spot`).
+pub(crate) fn cannot_build_reason(why: CannotBuild) -> &'static str {
+    match why {
         CannotBuild::NotFirstPerson => "go to first person, on foot, to place it",
         CannotBuild::Driving => "get out of the vehicle to place it",
         CannotBuild::OpenSpace => "pieces are built on the ship or on a planet's ground, not in open space",
         CannotBuild::NotOnGround => "stand on the ground to place it",
         CannotBuild::OnWater => "pieces cannot be built on water",
-    };
-    format!("Placing {name}: {what}   [Esc] done")
+    }
+}
+
+/// The line under the crosshair when a piece in hand cannot be placed.
+pub(crate) fn cannot_build_hint(name: &str, why: CannotBuild) -> String {
+    format!("Placing {name}: {}   [Esc] done", cannot_build_reason(why))
 }
 
 /// Where the piece in hand would be built this frame.
@@ -455,7 +461,8 @@ pub(crate) fn push_render_objects(
     let registry = state.data_store.get::<BlueprintRegistry>("blueprint_registry");
     let mat_for = |bp_id: &str| -> usize {
         match registry.and_then(|r| r.get(bp_id)).map(|bp| bp.category.as_str()).unwrap_or("") {
-            "foundation" => stone_mat,
+            // A campfire is a ring of stones (BUG-153).
+            "foundation" | "fire" => stone_mat,
             "wall" | "roof" | "door" | "window" | "furniture" => wood_mat,
             _ => metal_mat,
         }

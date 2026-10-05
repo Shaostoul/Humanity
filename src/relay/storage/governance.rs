@@ -681,13 +681,7 @@ mod tests {
     use crate::relay::core::pq_crypto::DilithiumKeypair;
 
     fn make_test_storage() -> Storage {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_gov_test_{pid}_{nanos}.db"));
-        Storage::open(&path).expect("open test db")
+        Storage::open_temp("gov_test")
     }
 
     fn make_proposal(
@@ -1180,12 +1174,7 @@ mod tests {
     /// requires that startup survives and the new paths work.
     #[test]
     fn opens_a_pre_revote_database_and_migrates_it() {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_gov_mig_{pid}_{nanos}.db"));
+        let path = crate::test_temp::db("gov_mig");
 
         {
             let conn = rusqlite::Connection::open(&path).expect("raw open");

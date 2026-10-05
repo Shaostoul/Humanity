@@ -220,6 +220,17 @@
           ]
         },
         {
+          "title": "Microbes, Good and Bad",
+          "src": "docs/user/skills/microbes_good_and_bad.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "health",
+            "safety"
+          ]
+        },
+        {
           "title": "Keeping What You Grew",
           "src": "docs/user/skills/keeping_what_you_grew.md",
           "tags": [
@@ -302,6 +313,17 @@
             "guide",
             "real",
             "food",
+            "safety"
+          ]
+        },
+        {
+          "title": "The Chemistry of Keeping Food",
+          "src": "docs/user/skills/the_chemistry_of_keeping_food.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "technical",
             "safety"
           ]
         },
@@ -630,6 +652,17 @@
             "real",
             "technical"
           ]
+        },
+        {
+          "title": "Toilets and Human Waste",
+          "src": "docs/user/skills/toilets_and_human_waste.md",
+          "tags": [
+            "guide",
+            "real",
+            "water",
+            "health",
+            "safety"
+          ]
         }
       ]
     },
@@ -854,6 +887,30 @@
           ]
         },
         {
+          "title": "The Germs That Matter",
+          "src": "docs/user/skills/the_germs_that_matter.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "food",
+            "water",
+            "safety"
+          ]
+        },
+        {
+          "title": "When Food or Water Makes You Sick",
+          "src": "docs/user/skills/when_food_or_water_makes_you_sick.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "water",
+            "food",
+            "safety"
+          ]
+        },
+        {
           "title": "Rats, Flies, Mosquitoes and Ticks",
           "src": "docs/user/skills/rats_flies_mosquitoes_and_ticks.md",
           "tags": [
@@ -880,6 +937,16 @@
           "tags": [
             "guide",
             "real"
+          ]
+        },
+        {
+          "title": "Preventing and Spotting Infection",
+          "src": "docs/user/skills/preventing_and_spotting_infection.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "safety"
           ]
         },
         {

@@ -1488,11 +1488,8 @@ mod tests {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data")
     }
 
-    fn scratch(name: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("hum_video_{name}_{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&d);
-        std::fs::create_dir_all(&d).unwrap();
-        d
+    fn scratch(name: &str) -> crate::test_temp::TempPath {
+        crate::test_temp::dir(&format!("video_{name}"))
     }
 
     /// Every piece of text egui laid out in a run, joined; how a test reads
@@ -1624,7 +1621,7 @@ mod tests {
     /// file in neither resolves to nothing (never to a made-up path).
     #[test]
     fn media_paths_resolve_data_dir_first_then_repo_root() {
-        let root = std::env::temp_dir().join(format!("hum_video_paths_{}", std::process::id()));
+        let root = crate::test_temp::dir("video_paths");
         let data = root.join("data");
         std::fs::create_dir_all(data.join("media")).unwrap();
         std::fs::create_dir_all(root.join("media")).unwrap();
@@ -1637,7 +1634,6 @@ mod tests {
         assert_eq!(resolve_media_path(&data, "media/nowhere.webm"), None);
         // A directory is not a file.
         assert_eq!(resolve_media_path(&data, "media"), None);
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// The click hook as pure state: a press on the picture toggles, a
@@ -1734,7 +1730,7 @@ mod tests {
         let theme = load_theme();
         let mut core = ScreenCore::new("s", "video:x", 640, 360, &theme);
         let cache = scratch("vp8");
-        let mut p = VideoProvider::new(UNSUPPORTED).with_cache_dir(cache.clone());
+        let mut p = VideoProvider::new(UNSUPPORTED).with_cache_dir(cache.to_path_buf());
         p.open_with(&data_dir(), core.size());
         assert!(p.player.is_none(), "a VP8 file never opens as it is");
         let _ = p.plan_frame(&mut core, Instant::now());
@@ -1751,7 +1747,6 @@ mod tests {
             assert!(drawn.contains("Settings > Media"), "{drawn:?}");
         }
         drop(p);
-        let _ = std::fs::remove_dir_all(&cache);
     }
 
     /// The GPU-free playback half over the shipped clip: frames come out at
@@ -2293,7 +2288,7 @@ mod tests {
         }
         let cache = scratch("mp4");
         let mp4 = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(MP4);
-        let mut p = VideoProvider::new(DEMO).with_cache_dir(cache.clone());
+        let mut p = VideoProvider::new(DEMO).with_cache_dir(cache.to_path_buf());
         p.display_px = Some((1280, 720));
         p.open_path(&mp4);
         assert!(p.job.is_some(), "an MP4 needs a conversion: {:?}", p.error());
@@ -2338,7 +2333,6 @@ mod tests {
         assert_eq!(s["media"]["transcodes"].as_u64(), Some(1), "still one conversion");
         assert_eq!(s["media"]["resolved"].as_str().map(PathBuf::from), Some(resolved));
         drop(p);
-        let _ = std::fs::remove_dir_all(&cache);
     }
 
     /// A DISC on the screen, when ffmpeg exists: handing the provider the
@@ -2356,7 +2350,7 @@ mod tests {
         let cache = scratch("disc");
         // The folder ABOVE VIDEO_TS, which is what a disc drive looks like.
         let disc = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("fixtures").join("media");
-        let mut p = VideoProvider::new(DEMO).with_cache_dir(cache.clone());
+        let mut p = VideoProvider::new(DEMO).with_cache_dir(cache.to_path_buf());
         p.display_px = Some((1280, 720));
         p.open_path(&disc);
         assert!(p.error.is_none(), "{:?}", p.error);
@@ -2387,7 +2381,6 @@ mod tests {
         }
         assert!(frames >= 5, "frames from the converted disc: {frames}");
         drop(p);
-        let _ = std::fs::remove_dir_all(&cache);
     }
 
     /// A folder that is not a disc, and a disc that is copy protected, are
@@ -2432,8 +2425,6 @@ mod tests {
         assert_eq!(err, crate::media::dvd::PROTECTED_MESSAGE);
         assert!(q.job.is_none(), "nothing is converted");
         assert!(q.notice_text().unwrap().contains("does not break disc protection"), "{:?}", q.notice_text());
-        let _ = std::fs::remove_dir_all(&d);
-        let _ = std::fs::remove_dir_all(&protected);
     }
 
     /// A remembered choice in the config wins over the data file's source:
@@ -2476,7 +2467,6 @@ mod tests {
         let saved: crate::config::AppConfig =
             serde_json::from_str(&std::fs::read_to_string(scratch_dir.join("config.json")).unwrap()).unwrap();
         assert_eq!(saved.screen_media.get("wall_x"), Some(&demo_abs), "and the file on disk carries it");
-        let _ = std::fs::remove_dir_all(&scratch_dir);
     }
 
     /// `data/media/README.md` promises the shipped demo clip is a

@@ -60,10 +60,18 @@ pub enum MachinePower {
     /// low, drawing from the machine's own Container (empty drum = no watts).
     /// The static meters never count a backstop as what the home makes: they
     /// show what it can add while it runs, apart (2026-09-27).
+    /// `fuels` (BUG-154, 2026-10-05): the item ids (`data/items.csv`) a
+    /// backstop's engine is built to burn. Only these run it, only these go
+    /// into its drum, and only these are offered by the drum's Store button
+    /// (spawned as `ecs::components::BurnsFuels`); before, any "flammable"
+    /// class item ran it, Paint, Glue and Crude Oil included. A backstop that
+    /// names none burns nothing (see `BurnsFuels`); a free source names none.
     Generator {
         watts: f32,
         #[serde(default)]
         fuel_lph: f32,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        fuels: Vec<String>,
     },
     /// Power draw. `priority` 1 = critical (shed last), 5 = optional (shed first).
     /// `idle_watts` (2026-09-26): a work station (stove, oven, electronics
@@ -467,7 +475,7 @@ impl MachineDef {
         match &self.power {
             Some(MachinePower::Solar { average_watts: Some(a), .. }) => a.max(0.0),
             Some(MachinePower::Solar { peak_watts, .. }) => peak_watts.max(0.0) * sun_hours.clamp(0.0, 24.0) / 24.0,
-            Some(MachinePower::Generator { watts, fuel_lph }) if *fuel_lph <= 0.0 => watts.max(0.0),
+            Some(MachinePower::Generator { watts, fuel_lph, .. }) if *fuel_lph <= 0.0 => watts.max(0.0),
             _ => 0.0,
         }
     }
@@ -477,8 +485,18 @@ impl MachineDef {
     /// meters show apart from what the home makes. (0, 0) for anything else.
     pub fn backstop_watts(&self) -> (f32, f32) {
         match &self.power {
-            Some(MachinePower::Generator { watts, fuel_lph }) if *fuel_lph > 0.0 => (watts.max(0.0), *fuel_lph),
+            Some(MachinePower::Generator { watts, fuel_lph, .. }) if *fuel_lph > 0.0 => (watts.max(0.0), *fuel_lph),
             _ => (0.0, 0.0),
+        }
+    }
+
+    /// The fuels this machine's engine is built to burn (BUG-154): a
+    /// generator's named `fuels`, item ids from `data/items.csv`. Empty for
+    /// anything that names none, which then burns nothing.
+    pub fn fuels(&self) -> &[String] {
+        match &self.power {
+            Some(MachinePower::Generator { fuels, .. }) => fuels.as_slice(),
+            _ => &[],
         }
     }
 
@@ -1947,7 +1965,7 @@ impl MachineHome {
                 average_watts += def.average_load_watts(basis, is_grow_light(&inst.machine));
                 match &def.power {
                     Some(MachinePower::Solar { peak_watts, .. }) => solar_peak += peak_watts,
-                    Some(MachinePower::Generator { watts, fuel_lph }) => {
+                    Some(MachinePower::Generator { watts, fuel_lph, .. }) => {
                         if *fuel_lph > 0.0 {
                             backstop_w += watts;
                             backstop_lph += fuel_lph;
@@ -3718,8 +3736,8 @@ mod tests {
     fn the_meter_shows_a_backstop_apart_from_what_the_home_makes() {
         let mut catalog = BTreeMap::new();
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 400.0, average_watts: Some(45.3) })));
-        catalog.insert("wind".to_string(), def_with_power(Some(MachinePower::Generator { watts: 4.4, fuel_lph: 0.0 })));
-        catalog.insert("genset".to_string(), def_with_power(Some(MachinePower::Generator { watts: 1800.0, fuel_lph: 1.125 })));
+        catalog.insert("wind".to_string(), def_with_power(Some(MachinePower::Generator { watts: 4.4, fuel_lph: 0.0, fuels: Vec::new() })));
+        catalog.insert("genset".to_string(), def_with_power(Some(MachinePower::Generator { watts: 1800.0, fuel_lph: 1.125, fuels: vec!["fuel_refined_0".into()] })));
         catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 4000.0, max_charge_w: 2000.0, max_discharge_w: 2000.0 })));
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 1000.0, priority: 1, idle_watts: None, average_watts: None })));
         catalog.insert("big_load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 3000.0, priority: 1, idle_watts: None, average_watts: None })));
@@ -4406,7 +4424,7 @@ mod tests {
         assert!(frames_mixed < 10.0, "without the zones the offsets alone say {frames_mixed} m");
 
         let mut home = wired_pair(
-            def_with_power(Some(MachinePower::Generator { watts: 5000.0, fuel_lph: 0.0 })),
+            def_with_power(Some(MachinePower::Generator { watts: 5000.0, fuel_lph: 0.0, fuels: Vec::new() })),
             def_with_power(Some(MachinePower::Consumer { watts: 1000.0, priority: 1, idle_watts: None, average_watts: None })),
             2.0,
             Some("cu_awg12"),
@@ -4723,7 +4741,7 @@ mod tests {
     #[test]
     fn buildability_conduits_undersized_pinned_cable_fails() {
         let home = wired_pair(
-            def_with_power(Some(MachinePower::Generator { watts: 5000.0, fuel_lph: 0.0 })),
+            def_with_power(Some(MachinePower::Generator { watts: 5000.0, fuel_lph: 0.0, fuels: Vec::new() })),
             def_with_power(Some(MachinePower::Consumer { watts: 3000.0, priority: 1, idle_watts: None, average_watts: None })),
             1.0,
             Some("cu_awg14"), // 15 A cable; 3000 W @ 120 V = 25 A -> over ampacity
@@ -4738,7 +4756,7 @@ mod tests {
     #[test]
     fn buildability_conduits_unknown_cable_id_fails() {
         let home = wired_pair(
-            def_with_power(Some(MachinePower::Generator { watts: 500.0, fuel_lph: 0.0 })),
+            def_with_power(Some(MachinePower::Generator { watts: 500.0, fuel_lph: 0.0, fuels: Vec::new() })),
             def_with_power(Some(MachinePower::Consumer { watts: 200.0, priority: 1, idle_watts: None, average_watts: None })),
             1.0,
             Some("unobtainium_42"),

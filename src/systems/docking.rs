@@ -101,3 +101,22 @@ impl System for DockingSystem {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// BUG-157 (2026-10-05): data/docking.ron wrote `docking_ports` and `docking_procedures`
+    /// while this loader reads `ports` and `procedures`; every field is `serde(default)`, so
+    /// both lists loaded EMPTY with no error and the file's ports never reached the game. Every
+    /// list the shipped file writes must arrive.
+    #[test]
+    fn the_shipped_docking_file_fills_every_list() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let s = DockingSystem::new(&dir);
+        assert!(!s.data.ports.is_empty(), "data/docking.ron's ports arrive");
+        assert!(!s.data.airlocks.is_empty(), "data/docking.ron's airlocks arrive");
+        assert!(!s.data.eva_equipment.is_empty(), "data/docking.ron's EVA equipment arrives");
+        assert!(!s.data.procedures.is_empty(), "data/docking.ron's procedures arrive");
+    }
+}

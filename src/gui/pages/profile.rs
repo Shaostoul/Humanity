@@ -387,8 +387,9 @@ fn draw_skills(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     // ── Abilities (v0.753, ladder rung 8) ── the activation layer: castable
     // actions with an energy cost and a cooldown, gated by skills you level
-    // by doing. Healing abilities work today; offensive rows say honestly
-    // that they wait for the combat arc.
+    // by doing. Healing abilities cast on yourself; offensive ones (since
+    // v0.760) cast at a creature you face within range, and say so when
+    // there is none (src/systems/abilities.rs, `cast`).
     ui.add_space(theme.spacing_md);
     ui.label(RichText::new("Abilities").size(theme.font_size_title).color(theme.text_primary()));
     ui.add_space(theme.spacing_xs);
