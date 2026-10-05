@@ -3630,3 +3630,23 @@ detail while the camera was 300 m up (a teleport artifact a walking player would
 see: arriving by teleport and arriving the way a player does have differed before), or whether trees there float
 for anyone. First step: capture the same place after a longer settle and after walking
 in, and compare each tree's base with the terrain height under it.
+
+## BUG-157: two data files are silently ignored: their field names do not match the code that reads them (FIXED v0.1462.0, found 2026-10-05)
+
+**Seen (by the leaving-the-ship design proposal, confirmed):** `data/docking.ron` writes
+`docking_ports: [...]` and `docking_procedures: [...]`, but `src/systems/docking.rs` reads
+`ports` and `procedures`; `data/transportation.ron` writes `space: [...]`, but
+`src/systems/transportation.rs` reads `space_infrastructure`. Every one of those loader
+fields is `#[serde(default)]`, so each mismatched list loads as EMPTY with no error and no
+warning: the ports, procedures and space infrastructure written in the data never reach
+the game. Three module headers also name data files that do not exist (`data/vehicles.csv`,
+`data/ship_classes.csv`, `data/propulsion.csv`).
+
+**Fix:** the data keys renamed to the loaders' names (ports, procedures,
+space_infrastructure; no aliases, nothing else read the old names), with
+`docking::tests::the_shipped_docking_file_fills_every_list` and
+`transportation::tests::the_shipped_transportation_file_fills_every_list`, both seen red
+first (the ports and the space infrastructure arrived empty). The three module headers now
+say what loads (or that nothing does yet). Both systems are still unwired scaffolds, so
+nothing in the game changed. Still open, the class: a lint that every top-level key in a
+shipped RON file is a field its loader knows.

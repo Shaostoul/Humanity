@@ -1,6 +1,7 @@
 //! Spaceship systems — power, life support, shields, weapons.
 //!
-//! Ship class definitions loaded from `data/ship_classes.csv`.
+//! No data file loads ship classes yet: the `data/ship_classes.csv` this header used to
+//! name does not exist (BUG-157, 2026-10-05).
 
 use serde::{Deserialize, Serialize};
 

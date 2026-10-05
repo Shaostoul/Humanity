@@ -1010,6 +1010,30 @@
       "settle_s": 10
     },
     {
+      "id": "ship-first-street",
+      "desc": "The twelve homes along First Street (2026-10-04) from above the ship's north end, 55 m up, looking south down the street at 12:00 station time with the hull hidden (showcase hull 0, what the H key does): the hull's plating covers every plot but the camera's own home, so this is the one view where the plots stand in a row.",
+      "expect": "Bottom centre-right, p1, the camera's own home, open under its glass roof with its rooms, machines and plants; left of it the Commons with the corridor from p1's door, and from the Commons' south end First Street, a narrow glass-roofed strip, running south into the distance. Along the street's west side (right of it), a row of eleven neighbour homesteads with plain opaque roofs, p2 to p12, each 89 m long with a 10 m gap before the next and its short door corridor across to the street, shrinking into the distance toward the far end 1.2 km away. In the street near its north end, three small rare-ore veins (data/entities/wild_spawns.ron, the first-hour audit's B5); nothing else stands in the street or in a gap between homes.",
+      "_why": "More plots along First Street (2026-10-04, docs/design/ship-homes-and-logistics.md, 'More plots along First Street, as built'): ten plots added so more than two people can have homes on a shared server. A neighbour's home is drawn as the default homestead (src/ship/neighbours.rs), and from the street at eye height only its door corridor's mouth shows, a thin slit at a grazing angle; from above, with the hull hidden, every plot shows.",
+      "regressions": [
+        "all twelve plots are drawn: the own home on p1 and eleven neighbour homesteads in a row",
+        "each neighbour's door corridor reaches First Street",
+        "First Street is drawn its whole length beside the plots",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "30,55,-45,3.14159265,-0.55",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "hull": "0"
+      },
+      "settle_s": 10
+    },
+    {
       "id": "console-face-6",
       "desc": "The console room, 2.2 m from the east wall, facing wall_screen_6 (the readable-web screen). The screens rig park.",
       "expect": "Two wall screens on the east wall (tasks above, web below), the north wall screens (watch, video) at the right edge, the glass ceiling lit by the deck sun; every visible screen shows a rendered page, never a black quad.",

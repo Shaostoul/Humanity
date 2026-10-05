@@ -178,6 +178,13 @@ second-player: a scripted second player that walks around the shared world.
   --chat TEXT       say one line in #${CHAT_CHANNEL} after joining (signed like a
                     person's message). A brand-new name has to wait a minute
                     before posting in public; it waits and tries again.
+  --forwarded-for IP  the address this connection says it comes from, in the
+                    X-Forwarded-For header nginx writes in front of a live
+                    relay. A relay signs up at most five NEW accounts an hour
+                    from one address, and every local connection without the
+                    header shares one; a rig filling a ship with households
+                    (verify-copresence --plots --order guest) gives each its
+                    own. Local relays only, like everything here.
   --allow-remote    allow a relay that is not on this computer. Do not point
                     this at united-humanity.us without the operator's say-so.
 
@@ -191,6 +198,7 @@ function parseOptions(argv) {
   const known = new Set([
     "--server", "--name", "--seed", "--path", "--axis", "--center", "--radius",
     "--speed", "--seconds", "--chat", "--route", "--route-speed", "--home-spawn",
+    "--forwarded-for",
   ]);
   const flags = new Set(["--allow-remote", "--help", "-h"]);
   const raw = {};
@@ -247,6 +255,12 @@ function parseOptions(argv) {
     homeSpawn = String(raw["--home-spawn"]).split(",").map((s) => Number(s.trim()));
     if (homeSpawn.length !== 2 || !homeSpawn.every(Number.isFinite)) throw new Error("--home-spawn must be two numbers like 53.5,40.5");
   }
+  let forwardedFor = null;
+  if (raw["--forwarded-for"] !== undefined) {
+    forwardedFor = String(raw["--forwarded-for"]).trim();
+    // An IPv4 or IPv6 address and nothing else: it goes into a header as it stands.
+    if (!/^[0-9A-Fa-f.:]{2,45}$/.test(forwardedFor)) throw new Error("--forwarded-for must be an address like 10.77.0.3");
+  }
 
   return {
     help: false,
@@ -263,6 +277,7 @@ function parseOptions(argv) {
     route,
     routeSpeed: num("--route-speed", null, (v) => v > 0 && v <= 100, "a number of metres per second above 0 and at most 100"),
     homeSpawn,
+    forwardedFor,
     chat: raw["--chat"] === undefined ? null : String(raw["--chat"]),
     allowRemote: !!raw["--allow-remote"],
   };
@@ -463,13 +478,16 @@ function wrapSocket(ws) {
 
 /** Open a socket and sign in as `identity` under `name`, answering the
  *  relay's challenge. Resolves with the wrapped client once the relay lets
- *  us in (its `peer_list`); rejects with the relay's own reason otherwise. */
-function signIn(serverUrl, identity, name, { timeoutMs = 20000 } = {}) {
+ *  us in (its `peer_list`); rejects with the relay's own reason otherwise.
+ *  `forwardedFor`: the address this connection says it comes from
+ *  (X-Forwarded-For, the --forwarded-for option); Node's WebSocket takes
+ *  headers in its second argument. */
+function signIn(serverUrl, identity, name, { timeoutMs = 20000, forwardedFor = null } = {}) {
   if (typeof WebSocket === "undefined") {
     return Promise.reject(new Error("this Node has no built-in WebSocket; use Node 22 or newer"));
   }
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(serverUrl);
+    const ws = forwardedFor ? new WebSocket(serverUrl, { headers: { "x-forwarded-for": forwardedFor } }) : new WebSocket(serverUrl);
     const client = wrapSocket(ws);
     let settled = false;
     const finish = (err) => {
@@ -930,11 +948,11 @@ async function main() {
 
   let client;
   try {
-    client = await signIn(opts.server, identity, opts.name);
+    client = await signIn(opts.server, identity, opts.name, { forwardedFor: opts.forwardedFor });
   } catch (e) {
     return fail(2, e.message);
   }
-  log("signed in: the relay accepted our proof of key");
+  log(`signed in: the relay accepted our proof of key${opts.forwardedFor ? ` (from ${opts.forwardedFor}, by X-Forwarded-For)` : ""}`);
 
   // The relay's ship, named in the join so we hold a plot of it like a desktop
   // player (since ship homes 1b a join naming no ship is a guest in the Commons).

@@ -15,9 +15,11 @@
 //! meeting judges exactly that, `meet_walker_through_its_corridor`), and a person across First
 //! Street's glass lid would vanish at the zone's edge. A distance with a gap is what "nearby"
 //! means for both, and costs one pass over the movers per move. On the first test ship every
-//! place is within 210 m of every other, so with the shipped 250 m everyone aboard sees everyone,
-//! and nothing a player sees changes; what changes is that nothing goes to sockets that are not
-//! in the shared world.
+//! place was within 210 m of every other, so with the shipped 250 m everyone aboard saw everyone,
+//! and what changed was that nothing went to sockets that are not in the shared world. Since the
+//! twelve plots along First Street (2026-10-04) the street runs 1.1 km: neighbours, 99 m apart,
+//! see each other, and the households at its far end are out of view of the Commons until they
+//! walk up it (`on_the_shipped_ship_neighbours_see_each_other_and_the_far_end_is_out_of_view`).
 //!
 //! COMING INTO VIEW AND GOING OUT. A mover that comes into a player's view is sent to that player
 //! whole (`game_in_view`: its snapshot entry, as in the welcome), because nothing about it reached
@@ -291,21 +293,29 @@ mod tests {
         assert!(crew_in(&world.snapshot_for(p)) >= 5);
     }
 
-    /// ON THE SHIPPED SHIP EVERYONE ABOARD SEES EVERYONE: with the shipped view, the two places
-    /// aboard farthest apart (the farthest two corners of every zone, plot and corridor of the
-    /// relay's own ship file, measured, not picked: First Street's far end and the far corner of
-    /// p1, about 209 m) are in each other's view, and two players standing there see each other,
-    /// so nothing anyone sees changes on this ship. (The review of increment 4, R3: the test
-    /// used to stand two players at a hand-picked pair 193.6 m apart, which a view of 200 m
-    /// passed while it hid the real farthest pair.)
+    /// ON THE SHIPPED SHIP NEIGHBOURS SEE EACH OTHER, AND THE FAR END OF FIRST STREET IS OUT OF
+    /// VIEW (restated 2026-10-04 for the twelve plots along First Street). Until then this test
+    /// was "everyone aboard sees everyone": every place was within 209 m of every other, inside
+    /// the shipped 250 m view, so delivery by view changed nothing anyone saw. Twelve homesteads
+    /// cannot all stand within 250 m of each other (twelve 55 x 89 m plots cover 58,740 m2, and
+    /// the largest area whose points are all within 250 m of each other is a circle 250 m across,
+    /// 49,087 m2), and First Street now runs 1.1 km, so the view does the job it was made for
+    /// (data/ship/shared_world.ron: "a bigger ship is where they start to matter"). With the
+    /// shipped view, measured on the relay's own ship file:
+    ///   - the two places aboard farthest apart (the farthest two corners of every zone, plot and
+    ///     corridor, measured, not picked) are past the view, and two players standing there are
+    ///     not sent each other;
+    ///   - every plot's door and the doors of the plots either side of it (99 m apart) are in
+    ///     each other's view: a household sees its neighbours come and go;
+    ///   - the Commons (where a guest arrives) and the doors of p1 and p2 are in each other's
+    ///     view, which the co-presence rig's walker at home relies on to see the game in the
+    ///     Commons.
     ///
-    /// Seen red 2026-10-04 with the shipped file's view at 150 m: "assertion failed:
-    /// world.viewer_keys(b).contains(\"e11e00dd\") && world.viewer_keys(a).contains(\"e11e00ee\")";
-    /// and, the farthest pair measured, with the view at 200 m (which the hand-picked pair
-    /// passed): "the farthest two corners aboard, zone street-1 at [75, 4, 195] and plot p1 at
-    /// [0, 0, 0], are 209.0 m apart, past the 200 m view".
+    /// Seen red 2026-10-04 (the restated test) on the two-plot ship file: "the farthest two
+    /// corners aboard, zone street-1 at [75, 4, 195] and plot p1 at [0, 0, 0], are 209.0 m apart:
+    /// inside the 300 m it takes to go out of view, so everyone aboard still sees everyone".
     #[test]
-    fn on_the_shipped_ship_everyone_aboard_sees_everyone() {
+    fn on_the_shipped_ship_neighbours_see_each_other_and_the_far_end_is_out_of_view() {
         use crate::ship::ship_space::{tube_box, Aabb};
         use crate::ship::ship_structure::{HomeDesign, ShipStructure};
         let mut world = GameWorld::new();
@@ -338,14 +348,47 @@ mod tests {
             }
         }
         let (na, a_at, nb, b_at) = pair.expect("the ship has places");
-        let view = world.rules.delivery.in_view_m;
-        assert!(far <= view, "the farthest two corners aboard, {na} at {a_at} and {nb} at {b_at}, are {far:.1} m apart, past the {view} m view");
-        // Two players standing there (at eye height over each corner's floor) see each other.
+        let (view, gone) = (world.rules.delivery.in_view_m, world.rules.delivery.out_of_view_m);
+        assert!(
+            far > gone,
+            "the farthest two corners aboard, {na} at {a_at} and {nb} at {b_at}, are {far:.1} m apart: inside the {gone} m it takes to go out of view, so everyone aboard still sees everyone"
+        );
+        // Two players standing there (at eye height over each corner's floor) are not sent each other.
         let a = world.spawn_player("e11e00dd", [a_at.x, 1.7, a_at.z]);
         let b = world.spawn_player("e11e00ee", [b_at.x, 1.7, b_at.z]);
         world.rejudge_view(a);
-        assert!(world.viewer_keys(b).contains("e11e00dd") && world.viewer_keys(a).contains("e11e00ee"));
-        assert_eq!(world.snapshot_for(a).len(), world.snapshot().len(), "the welcome lists everything");
+        world.rejudge_view(b);
+        assert!(!world.viewer_keys(b).contains("e11e00dd") && !world.viewer_keys(a).contains("e11e00ee"), "{far:.0} m apart, out of view");
+        assert!(world.snapshot_for(a).iter().all(|s| s.entity_id != b), "nor in each other's welcome");
+        world.despawn_player("e11e00dd");
+        world.despawn_player("e11e00ee");
+
+        // Neighbours: each plot's door and the next plot's door, with the shipped homestead.
+        let design = HomeDesign::built_in_ref("homestead").expect("the shipped homestead");
+        let doors: Vec<(String, glam::Vec3)> = ship.plots.iter().map(|p| (p.id.clone(), ShipStructure::plot_spawn(p, design))).collect();
+        assert!(doors.len() >= 12, "the twelve plots along First Street: {}", doors.len());
+        for w in doors.windows(2) {
+            let ((ia, pa), (ib, pb)) = (&w[0], &w[1]);
+            assert!(pa.distance(*pb) < view, "{ia}'s door and {ib}'s are {:.1} m apart, past the {view} m view", pa.distance(*pb));
+            let a = world.spawn_player("e11e0d0a", pa.to_array());
+            let b = world.spawn_player("e11e0d0b", pb.to_array());
+            world.rejudge_view(a);
+            world.rejudge_view(b);
+            assert!(world.viewer_keys(b).contains("e11e0d0a") && world.viewer_keys(a).contains("e11e0d0b"), "neighbours on {ia} and {ib} see each other");
+            world.despawn_player("e11e0d0a");
+            world.despawn_player("e11e0d0b");
+        }
+        // The Commons and the first two doors.
+        let commons = ship.guest_spawn().expect("the ship has a Commons");
+        for (id, door) in doors.iter().take(2) {
+            let a = world.spawn_player("e11e0c0a", commons.to_array());
+            let b = world.spawn_player("e11e0c0b", door.to_array());
+            world.rejudge_view(a);
+            world.rejudge_view(b);
+            assert!(world.viewer_keys(b).contains("e11e0c0a") && world.viewer_keys(a).contains("e11e0c0b"), "the Commons and {id}'s door see each other");
+            world.despawn_player("e11e0c0a");
+            world.despawn_player("e11e0c0b");
+        }
     }
 
     /// NOBODY IS TOLD WHO LIVES WHERE (the review of increment 4, P7; the design, section 5.10:

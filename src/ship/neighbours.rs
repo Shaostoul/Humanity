@@ -299,16 +299,19 @@ mod tests {
 
     /// THE NEIGHBOUR: with the home on p1, p2 is drawn as the default homestead (geometry fills
     /// p2's box) with its corridor to First Street, and nothing of it is a room, a light's room or
-    /// a wall anyone walks into. On p2 the same holds for p1. Seen red 2026-10-04 with
-    /// `draw_into` doing nothing (the 1b game, which drew no neighbour): "p2 is drawn: 0 vertices
-    /// of the ship's geometry stand on it".
+    /// a wall anyone walks into. On p2 the same holds for p1. Every other plot is a neighbour too
+    /// (eleven since the twelve plots along First Street, 2026-10-04), in the ship file's order.
+    /// Seen red 2026-10-04 with `draw_into` doing nothing (the 1b game, which drew no neighbour):
+    /// "p2 is drawn: 0 vertices of the ship's geometry stand on it".
     #[test]
     fn the_other_plot_is_drawn_as_the_default_home_render_only() {
         use crate::ship::wall_collision::ship_wall_segments;
         for (own, other) in [("p1", "p2"), ("p2", "p1")] {
             let ship = on(own);
             let view = neighbour_view(&ship);
-            assert_eq!(view.neighbours.len(), 1, "on {own}: one neighbour");
+            let ids: Vec<&str> = view.neighbours.iter().map(|n| n.plot.id.as_str()).collect();
+            let want: Vec<&str> = ship.plots.iter().map(|p| p.id.as_str()).filter(|id| *id != own).collect();
+            assert_eq!(ids, want, "on {own}: every other plot is a neighbour's");
             assert_eq!(view.neighbours[0].plot.id, other);
             let (lo, hi) = ship.plots.iter().find(|p| p.id == other).unwrap().aabb();
             let m = ship.generate_meshes();
@@ -334,19 +337,25 @@ mod tests {
     /// The hole a neighbour's corridor makes in the shared zone it runs to is in the MESH only: on
     /// p1, p2's corridor arrives at First Street's west wall at z 139, so the street's mesh has an
     /// opening there and its collision does not (the wall still stops anyone walking into a
-    /// neighbour's corridor). Seen red 2026-10-04 with the neighbour cuts left out of
-    /// `generate_meshes`: "First Street has no hole where p2's corridor arrives: 0 cuts".
+    /// neighbour's corridor). Since the twelve plots (2026-10-04) every neighbour from p2 to p12
+    /// opens the street's west wall at its own door, one hole each. Seen red 2026-10-04 with the
+    /// neighbour cuts left out of `generate_meshes`: "First Street has no hole where p2's corridor
+    /// arrives: 0 cuts".
     #[test]
     fn a_neighbours_corridor_opens_the_street_wall_for_the_eye_only() {
         let ship = on("p1");
         let view = neighbour_view(&ship);
         let street = ship.zone_index("street-1").expect("street-1");
         let cuts: Vec<ShellCut> = view.zone_cuts(street).collect();
-        assert_eq!(cuts.len(), 1, "First Street has no hole where p2's corridor arrives: {} cuts", cuts.len());
+        let on_street = ship.plots.iter().filter(|p| p.id != "p1" && p.door.zone == "street-1").count();
+        assert!(on_street >= 11, "the plots along First Street: {on_street}");
+        assert_eq!(cuts.len(), on_street, "First Street has no hole where p2's corridor arrives: {} cuts", cuts.len());
         // The west wall (edge 3, winding -z along x = 0) at z 139 - 85 local, the door 2 m wide.
+        let depth = ship.zones[street].body.depth;
         let c = cuts[0];
         assert_eq!(c.edge, 3);
-        assert!((c.at - (110.0 - (54.0 + 1.0))).abs() < 1e-3, "edge-local at {}", c.at);
+        assert!((c.at - (depth - (54.0 + 1.0))).abs() < 1e-3, "edge-local at {}", c.at);
+        assert!(cuts.iter().all(|k| k.edge == 3), "every neighbour's hole is in the street's west wall: {cuts:?}");
         // Collision keeps the street's west wall whole there: no zone cut of its own at z 139.
         assert!(
             ship.shell_cuts_for_zone(street).iter().all(|k| k.edge != 3),
@@ -404,7 +413,8 @@ mod tests {
         assert!(away.home_is_away() && away.home_plot().is_none());
         let view = neighbour_view(&away);
         let ids: Vec<&str> = view.neighbours.iter().map(|n| n.plot.id.as_str()).collect();
-        assert_eq!(ids, ["p1", "p2"], "every plot is a neighbour's while the home is away");
+        let all: Vec<&str> = away.plots.iter().map(|p| p.id.as_str()).collect();
+        assert_eq!(ids, all, "every plot is a neighbour's while the home is away");
         let m = away.generate_meshes();
         let o = Vec3::from(crate::ship::ship_structure::HOME_AWAY_ORIGIN);
         let near = |p: Vec3| p.distance(o) < 200.0;
@@ -457,15 +467,16 @@ mod tests {
     }
 
     /// One shell is baked per design and door, however many plots use them (finding 6): with the
-    /// home put away both plots are neighbours, the same design with the same door, so one bake
-    /// is moved to both. Seen red 2026-10-04 with one bake per neighbour (the c98c5465b
-    /// `draw_into`): "2 shells baked for 2 neighbours of one design and door".
+    /// home put away every plot is a neighbour's (twelve since 2026-10-04), the same design with
+    /// the same door, so one bake is moved to each. Seen red 2026-10-04 with one bake per
+    /// neighbour (the c98c5465b `draw_into`): "2 shells baked for 2 neighbours of one design and
+    /// door".
     #[test]
     fn plots_of_one_design_and_door_share_one_bake() {
         let away = on("p1").put_home_away().unwrap();
         let view = neighbour_view(&away);
-        assert_eq!(view.neighbours.len(), 2);
-        assert_eq!(view.shells_baked, 1, "{} shells baked for 2 neighbours of one design and door", view.shells_baked);
+        assert_eq!(view.neighbours.len(), away.plots.len());
+        assert_eq!(view.shells_baked, 1, "{} shells baked for {} neighbours of one design and door", view.shells_baked, view.neighbours.len());
         // And both are drawn: each plot carries its share of the geometry.
         let m = away.generate_meshes();
         for p in &away.plots {
@@ -510,7 +521,9 @@ mod tests {
         let i = ship.plots.iter().position(|p| p.id == "p2").unwrap();
         ship.plots[i].size.0 -= 1.0;
         let view = neighbour_view(&ship);
-        assert_eq!(view.neighbours.len(), 0, "a neighbour that does not fit p2 is drawn: {} neighbour(s)", view.neighbours.len());
+        let drawn = view.neighbours.iter().filter(|n| n.plot.id == "p2").count();
+        assert_eq!(drawn, 0, "a neighbour that does not fit p2 is drawn: {drawn} neighbour(s)");
+        assert_eq!(view.neighbours.len(), ship.plots.len() - 2, "every other neighbour is still drawn");
         let (lo, hi) = ship.plots[i].aabb();
         let m = ship.generate_meshes();
         let spill = wall_points(&m).into_iter().filter(|p| inside_xz(*p, lo - Vec3::new(1.0, 0.0, 0.0), hi + Vec3::new(1.0, 0.0, 0.0))).count();
