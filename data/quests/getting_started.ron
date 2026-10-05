@@ -1,44 +1,99 @@
 // HumanityOS Quest Chain: Getting Started
 //
-// A SATISFIABLE starter chain that uses only the wired gameplay loops:
-//   - Gather objectives → checked against live inventory (ore comes from the
-//     drone on the Inventory page's Mining section, or the trading post).
-//   - Craft objectives  → satisfied by the quest-progress event CraftingSystem
-//     emits on completion ("craft_<recipe_id>"). Make objectives count units
-//     of an item made by ANY recipe ("make_<item_id>", one per unit), so the
-//     iron step below takes coal or graphite alike. All recipes used here are
-//     skill_level <= 1 (the free starter tier), so a fresh player can complete them.
+// FIRST STEPS IS THE OPENING: a new player's first ten minutes, in the order the
+// operator accepted on 2026-10-04 (docs/design/first-hour-audit-2026-10-04.md):
+// "check your vitals, eat, plant, craft a tool, send the drone for iron, smelt
+// it, build one thing, and end at your front door looking out on the Commons."
+// gs_first_steps is accepted on spawn (lib.rs); finishing it accepts Toolsmith,
+// and finishing that accepts Build First Habitat (data/quests/tutorial.ron), so
+// the HUD's quest line never goes blank between them. A player who finished the
+// two-step First Steps of before keeps it finished (the id is unchanged, and a
+// finished quest is never accepted again), so nobody is sent back to the start.
 //
-// As of v0.746 Build objectives fire too (the Crafting page's Structures
-// section pushes build_<blueprint_id> events), so the construction chain is
-// completable; as of v0.748 quests can also be ACCEPTED from the Quests page
-// and grant xp_rewards. gs_first_steps is auto-accepted on spawn; completing
-// it auto-accepts gs_toolsmith (prerequisite chaining), and completing that
-// accepts Build First Habitat (data/quests/tutorial.ron), so the HUD's quest
-// line never goes blank between them. Each completion posts a notice saying
-// what it gave and what comes next (2026-10-04).
+// Every step is something the game sees the player do, reported where it really
+// happens:
+//   View(view: "vitals")   the Inventory page's Status section came on screen
+//                          (the vitals with their numbers; the HUD's own rows show
+//                          only once a need runs low, so a healthy player has none
+//                          on screen to look at)
+//   Eat(quantity: n)       the food system ate an item from the backpack
+//   Plant(quantity: n)     the farming system planted a crop the player sowed
+//   Make(item_id, n)       units made by any recipe (crafting reports each one)
+//   Gather(item_id, n)     carried, or in home storage (where the drone unloads)
+//   Build(blueprint_id)    a piece finished building
+//   Travel(destination)    standing in the place while this is the step; the
+//                          front door is the player's own, resolved to the plot
+//                          they were given (data/entities/destinations.ron)
+// Eat and Plant name no item, so any food and any crop count; give them an
+// item_id / crop_id to ask for one. A count step counts from when the quest was
+// accepted, so doing a later thing early is not wasted; Travel counts only on
+// its own step, so passing the door on the way to the forge does not end it.
 //
-// A step's text is the HUD's quest line, shown as "<text> (1/2)" and cut at 64
-// characters (src/gui/pages/hud.rs): keep it under about 58, and name the place
-// to go. Every shipped home (data/machines/home.ron and home_solo.ron) has the
-// stations these steps use and the trading post the first one names (tests:
-// every_shipped_home_has_what_the_starter_quests_need in src/machines.rs and
-// the_first_step_says_where_to_get_iron_ore in src/systems/quests/mod.rs).
+// A step's text is the HUD's quest line, shown as "<text> (1/8)" and cut at 64
+// characters (src/gui/pages/hud.rs): it names the key, the page and the section
+// as the game shows them. `{front_door_opens_on}` is filled with what the
+// player's own front door opens on ("the Commons", "First Street";
+// systems::quests::step_text). Each step's completion posts a notice naming the
+// next one, and the quest's completion one naming what it gave.
+//
+// Tests (src/systems/quests/mod.rs, src/machines.rs): the_opening_walks_*
+// plays the whole opening on this data with the real systems; every_step_*
+// holds every line to the 64 characters and to the places it names;
+// every_shipped_home_has_what_the_starter_quests_need checks both shipped homes
+// have what each step uses (the station, the food, the seeds, the materials).
 //
 // Format: Vec<QuestDef>, see src/systems/quests/mod.rs
 [
     (
         id: "gs_first_steps",
         name: "First Steps",
-        description: "Get your production loop going: acquire raw ore, then refine your first metal.",
+        description: "Your first ten minutes aboard: check on yourself, eat, plant, make a tool, bring in iron and smelt it, build something, then step out of your own front door.",
         steps: [
             (
-                description: "Get 3 iron ore: Inventory > Mining, or the trading post",
+                description: "Check your vitals: press I, see Inventory > Status",
+                objective: View(view: "vitals"),
+            ),
+            (
+                description: "Eat something: press I, click a Basic Ration, then Eat",
+                objective: Eat(quantity: 1),
+            ),
+            (
+                // The tower design's group, near the top of the Garden section: its
+                // button reads "Plant this tower" (or "Plant again" once some cups
+                // hold plants), and it sows one seed from the backpack per cup whose
+                // plant the player has a seed for (lettuce, tomato, carrot and bean
+                // in the starting kit; data/world/player.ron).
+                description: "Plant: press I, Garden > Variety Greens and Beans > Plant",
+                objective: Plant(quantity: 1),
+            ),
+            (
+                // A fishing rod: the one tool a new home can make before it has
+                // metal (a plank and a wire from the Barn, at the workbench).
+                description: "Craft a tool: Esc > Crafting > Carve Fishing Rod > Craft",
+                objective: Make(item_id: "fishing_rod_0", quantity: 1),
+            ),
+            (
+                // The drone, or the trading post in the vehicle bay: E at it
+                // opens its card, whose Trade button opens the shop.
+                description: "Get 3 iron ore: Inventory > Mining, or trading post (E)",
                 objective: Gather(item_id: "iron_ore_0", quantity: 3),
             ),
             (
-                description: "Smelt an iron ingot at a smelter (with coal or graphite)",
+                // The smelter burns coal, which the trading post sells; the
+                // graphite a drone brings from asteroid C-3 smelts it too
+                // ("Smelt Iron (graphite)"), and either way makes the ingot.
+                description: "Smelt iron: Crafting > Smelt Iron (coal: trading post)",
                 objective: Make(item_id: "iron_ingot_0", quantity: 1),
+            ),
+            (
+                // The Storage Chest, the one chest in the Structures list: eight
+                // planks from the Barn, and it holds things once built (E opens it).
+                description: "Build a chest: Crafting > Structures > Build, aim, then E",
+                objective: Build(blueprint_id: "storage_chest"),
+            ),
+            (
+                description: "Step out your front door and look out on {front_door_opens_on}",
+                objective: Travel(destination: "front_door"),
             ),
         ],
         rewards: [
@@ -55,7 +110,8 @@
         description: "Put your metal to work, forge your first hand tool.",
         steps: [
             (
-                description: "Forge a hammer",
+                // The opening's reward is two iron ingots, one for this.
+                description: "Forge a hammer: Esc > Crafting > Craft Hammer > Craft",
                 objective: Craft(recipe_id: "craft_hammer", quantity: 1),
             ),
         ],

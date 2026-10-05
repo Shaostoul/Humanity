@@ -145,12 +145,8 @@ pub fn draw(
                 y += 4.0;
                 text_shadowed(painter, Pos2::new(16.0, y), Align2::LEFT_TOP, &truncate_chars(&q.name, 48), 12.0, theme.accent());
                 y += 15.0;
-                let step = if q.step_total > 0 {
-                    format!("{} ({}/{})", q.step_desc, (q.step_index + 1).min(q.step_total), q.step_total)
-                } else {
-                    q.step_desc.clone()
-                };
-                text_shadowed(painter, Pos2::new(16.0, y), Align2::LEFT_TOP, &truncate_chars(&step, 64), 11.0, theme.text_secondary());
+                let step = quest_line(&q.step_desc, q.step_index, q.step_total);
+                text_shadowed(painter, Pos2::new(16.0, y), Align2::LEFT_TOP, &truncate_chars(&step, QUEST_LINE_CHARS), 11.0, theme.text_secondary());
                 y += 16.0;
             }
 
@@ -1084,6 +1080,22 @@ fn crew_label_lines(name: &str, activity: &str, cam_dist: f32) -> Option<(String
         None
     };
     Some((name.to_string(), activity_line))
+}
+
+/// The most characters of the quest line the HUD shows under the quest's name;
+/// a longer line is cut with "..." (2026-10-04: every shipped quest step fits it
+/// with its counter, `systems::quests::opening_tests`).
+pub(crate) const QUEST_LINE_CHARS: usize = 64;
+
+/// The quest line under the quest's name: the step as the player reads it and
+/// where it stands, "Eat something: press I, ... (2/8)", or the text alone for a
+/// quest with no steps.
+pub(crate) fn quest_line(step_desc: &str, step_index: usize, step_total: usize) -> String {
+    if step_total > 0 {
+        format!("{} ({}/{})", step_desc, (step_index + 1).min(step_total), step_total)
+    } else {
+        step_desc.to_string()
+    }
 }
 
 /// Truncate to at most `max` characters, replacing the tail with "..." when cut.

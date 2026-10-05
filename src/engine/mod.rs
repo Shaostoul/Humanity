@@ -73,6 +73,9 @@ pub mod account_erase;
 /// Built beds and chests in use: the crosshair prompt, the E press, and
 /// built chests as containers in the places tree (2026-09-27).
 pub mod built_uses;
+/// The quests' per-frame glue (2026-10-04, the opening): views that came on
+/// screen as quest events, and the player's own front door for Travel.
+pub mod quest_hooks;
 /// Placing a built piece: the ghost that follows the crosshair, R to turn
 /// it, E to build it there, Esc to stop (2026-09-27).
 pub mod build_place;
