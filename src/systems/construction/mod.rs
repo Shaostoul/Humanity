@@ -10,6 +10,7 @@ pub mod placement;
 pub mod site;
 pub mod uses;
 pub mod doorway;
+pub mod fires;
 
 pub use site::PlanetSite;
 
@@ -76,6 +77,96 @@ pub struct Blueprint {
     /// `doorway::piece_parts`.
     #[serde(default)]
     pub window: Option<Window>,
+    /// Built only outdoors (BUG-153, 2026-10-05): on a planet's open ground,
+    /// never aboard the ship, under a built roof, or where there is no air to
+    /// breathe. A fire is. See [`outdoors_refusal`].
+    #[serde(default)]
+    pub outdoors_only: bool,
+    /// A fire (BUG-153): what it burns, how long one fuel item lasts, how many
+    /// it holds and the heat it radiates. None = it does not burn. See
+    /// [`fires`].
+    #[serde(default)]
+    pub burns: Option<fires::Burn>,
+}
+
+/// Why a piece built only outdoors cannot go where it was asked
+/// ([`outdoors_refusal`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotOutdoors {
+    /// In the home frame: aboard the ship, whose rooms and halls are sealed,
+    /// or on its hull, where there is no air.
+    Aboard,
+    /// On ground where the open air cannot be breathed (the Moon, Mars, high
+    /// in the death zone), so there is no air for a fire to burn.
+    NoAir,
+    /// Under a finished roof (`uses::shelter_at`).
+    UnderRoof,
+}
+
+impl NotOutdoors {
+    /// Why, in words that follow "The Campfire is not built here: " and
+    /// "Placing Campfire: ".
+    pub fn reason(self) -> &'static str {
+        match self {
+            NotOutdoors::Aboard => "it is built outdoors on a planet's ground, never indoors or aboard the ship",
+            NotOutdoors::NoAir => "a fire needs air to burn, and there is no breathable air here",
+            NotOutdoors::UnderRoof => "it needs open sky over it, because under a roof its smoke would fill the shelter",
+        }
+    }
+}
+
+/// Why a piece built only outdoors (`Blueprint::outdoors_only`, a fire)
+/// cannot stand at `pose` in `site`, or None when it can, or when the piece
+/// goes anywhere (BUG-153, 2026-10-05). Outdoors is a planet's open ground
+/// with air to burn: not the home frame (`site` None: aboard the ship or on
+/// its hull), not where the open air there cannot be breathed (the
+/// `"body_environment"` the engine publishes for the body the player stands
+/// on, `BodyEnvironment::breathable_outside`; none published reads as no
+/// air), and not under a finished roof (`uses::shelter_at` at the piece's
+/// base). Applied by `begin_build`, so every way of building agrees, and by
+/// the placing hint (`engine::build_place`).
+pub fn outdoors_refusal(
+    bp: &Blueprint,
+    world: &hecs::World,
+    data: &DataStore,
+    site: Option<&PlanetSite>,
+    pose: &Transform,
+) -> Option<NotOutdoors> {
+    if !bp.outdoors_only {
+        return None;
+    }
+    let Some(site) = site else {
+        return Some(NotOutdoors::Aboard);
+    };
+    let air = data
+        .get::<crate::systems::body_environment::BodyEnvironment>("body_environment")
+        .is_some_and(|e| e.body_id == site.body && e.breathable_outside());
+    if !air {
+        return Some(NotOutdoors::NoAir);
+    }
+    if uses::shelter_at(world, pose.position, Some(site)).roofed {
+        return Some(NotOutdoors::UnderRoof);
+    }
+    None
+}
+
+/// What a build is short of, as words: "6 more Raw Stone and 3 more Wood
+/// Log", by the items' names where the registry knows them, the ids
+/// otherwise. The build's refusal (`begin_build`) and the crosshair's
+/// (`engine::build_place::build_refusal`) both say it this way.
+pub fn missing_list(missing: &[(String, u32)], items: Option<&crate::systems::inventory::ItemRegistry>) -> String {
+    let parts: Vec<String> = missing
+        .iter()
+        .map(|(id, more)| {
+            let name = items.and_then(|r| r.items.get(id)).map_or_else(|| id.clone(), |d| d.name.clone());
+            format!("{more} more {name}")
+        })
+        .collect();
+    match parts.as_slice() {
+        [] => String::new(),
+        [one] => one.clone(),
+        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+    }
 }
 
 /// A glazed opening in a piece (`Blueprint::window`), metres.
@@ -409,6 +500,118 @@ impl ConstructionSystem {
     }
 }
 
+/// Start one build: refuse it, with the reason and nothing taken, or take its
+/// materials and put up its scaffold, which the ConstructionSystem finishes
+/// over the blueprint's build time. Returns the status line either way.
+///
+/// THE ONE PATH every build takes (2026-10-05, BUG-153: moved out of the
+/// ConstructionSystem's tick unchanged, so a building ability, the Campfire,
+/// builds exactly as a piece placed from the Crafting page does). In order:
+/// an unknown blueprint; a piece built only outdoors where it cannot stand
+/// ([`outdoors_refusal`]); the same piece already standing there; too few
+/// materials. Blueprint builds take their materials in every play mode,
+/// Creative and Dev included (the Dev page's "stock all materials" is how Dev
+/// builds freely; the build editor's own machine placement is what goes free
+/// there).
+pub fn begin_build(world: &mut hecs::World, data: &DataStore, req: BuildRequest) -> Result<String, String> {
+    let Some(bp) = data.get::<BlueprintRegistry>("blueprint_registry").and_then(|r| r.get(&req.blueprint_id).cloned()) else {
+        return Err(format!("Unknown blueprint '{}'", req.blueprint_id));
+    };
+    // OUTDOORS ONLY (BUG-153): a fire is never built aboard the ship, under
+    // a roof, or where there is no air to burn.
+    if let Some(why) = outdoors_refusal(&bp, world, data, req.site.as_ref(), &req.pose) {
+        return Err(format!("The {} is not built here: {}", bp.name, why.reason()));
+    }
+    // ONE PIECE PER SPOT (review of the shelter commit): a piece, or a
+    // scaffold still going up, with this exact box already stands here, so a
+    // second press would spend the materials twice for what looks like one
+    // wall. Refused before anything is taken.
+    if placement::occupied(world, &req.pose, req.site.as_ref()) {
+        return Err(format!("{} not built: one already stands there", bp.name));
+    }
+
+    // MATERIALS ARE REAL (v0.746): the doc header always said "consumes
+    // inventory materials" but nothing ever did. Count backpack + home
+    // storage (the same home_stock mirror auto-machines use, v0.737), refuse
+    // honestly when short, consume BACKPACK-FIRST when not.
+    let home_stock = data.get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock");
+    let home_count = |id: &str| -> u32 {
+        home_stock
+            .as_ref()
+            .and_then(|m| m.lock().ok().map(|s| s.get(id).copied().unwrap_or(0)))
+            .unwrap_or(0)
+    };
+    let player = world
+        .query::<(&crate::systems::inventory::Inventory, &crate::ecs::components::Controllable)>()
+        .iter()
+        .next()
+        .map(|(e, _)| e);
+    let Some(player) = player else {
+        return Err("No builder inventory".to_string());
+    };
+    // On a planet only the pack counts: the home's storage is in orbit
+    // (review of the planet build, 2026-09-27).
+    let on_planet = req.site.is_some();
+    // Aboard, the home's storage counts where a hand craft's does
+    // (crafting::home_store): not for a guest, whose home is put away off
+    // this ship. The Crafting page's structures list counts the same way, so
+    // the list and the build agree (the review of BUG-147).
+    let away = if on_planet { None } else { crate::systems::crafting::home_store::HomeStore::here(data).not_here };
+    let storage_counts = !on_planet && away.is_none();
+    let missing = {
+        let inv = world.get::<&crate::systems::inventory::Inventory>(player).expect("player inventory queried above");
+        let stores: Option<&dyn Fn(&str) -> u32> = if storage_counts { Some(&home_count) } else { None };
+        materials_missing(&bp, |id| inv.count_item(id), stores)
+    };
+    if !missing.is_empty() {
+        // Every item it is short of, by name (2026-10-05; the first one, by
+        // id, before).
+        let list = missing_list(&missing, data.get::<crate::systems::inventory::ItemRegistry>("item_registry"));
+        return Err(if on_planet {
+            format!("need {list} in your pack to build {} here: on a planet you build from what you carry", bp.name)
+        } else if let Some(why) = away {
+            format!("need {list} in your pack to build {} here: {why}", bp.name)
+        } else {
+            format!("need {list} to build {}", bp.name)
+        });
+    }
+    if let Ok(mut inv) = world.get::<&mut crate::systems::inventory::Inventory>(player) {
+        for (id, qty) in &bp.materials {
+            let from_pack = inv.count_item(id).min(*qty);
+            if from_pack > 0 {
+                inv.remove_item(id, from_pack);
+            }
+            let remainder = qty - from_pack;
+            if remainder > 0 && storage_counts {
+                if let Some(m) = home_stock.as_ref() {
+                    if let Ok(mut s) = m.lock() {
+                        if let Some(c) = s.get_mut(id) {
+                            *c = c.saturating_sub(remainder);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Where it goes: the ghost's pose, as the player saw it (x and z on the
+    // metre grid, turned, on the floor or on top of what it rests on), in its
+    // frame: the home, or a site on a planet.
+    let scaffold = world.spawn((
+        req.pose,
+        Construction {
+            blueprint_id: bp.id.clone(),
+            progress: 0.0,
+            build_time: bp.build_time,
+            builder_key: None,
+        },
+    ));
+    if let Some(site) = req.site {
+        let _ = world.insert_one(scaffold, site);
+    }
+    Ok(format!("Building {}...", bp.name))
+}
+
 impl System for ConstructionSystem {
     fn name(&self) -> &str {
         "Construction"
@@ -427,114 +630,13 @@ impl System for ConstructionSystem {
         let registry = data.get::<BlueprintRegistry>("blueprint_registry");
         let mut status: Option<String> = None;
 
+        // Each one started or refused, with its status line (`begin_build`,
+        // which a building ability calls too).
         for req in builds {
-            let bp = match registry.and_then(|r| r.get(&req.blueprint_id).cloned()) {
-                Some(found) => found,
-                None => {
-                    status = Some(format!("Unknown blueprint '{}'", req.blueprint_id));
-                    continue;
-                }
-            };
-            // ONE PIECE PER SPOT (review of the shelter commit): a piece, or a
-            // scaffold still going up, with this exact box already stands
-            // here, so a second press would spend the materials twice for
-            // what looks like one wall. Refused before anything is taken.
-            if placement::occupied(world, &req.pose, req.site.as_ref()) {
-                status = Some(format!("{} not built: one already stands there", bp.name));
-                continue;
-            }
-
-            // MATERIALS ARE REAL (v0.746): the doc header always said "consumes
-            // inventory materials" but nothing ever did. Count backpack + home
-            // storage (the same home_stock mirror auto-machines use, v0.737),
-            // refuse honestly when short, consume BACKPACK-FIRST when not.
-            let home_stock =
-                data.get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock");
-            let home_count = |id: &str| -> u32 {
-                home_stock
-                    .as_ref()
-                    .and_then(|m| m.lock().ok().map(|s| s.get(id).copied().unwrap_or(0)))
-                    .unwrap_or(0)
-            };
-            let mut player_inv: Option<hecs::Entity> = None;
-            for (e, (_inv, _ctrl)) in world
-                .query::<(
-                    &crate::systems::inventory::Inventory,
-                    &crate::ecs::components::Controllable,
-                )>()
-                .iter()
-            {
-                player_inv = Some(e);
-                break;
-            }
-            let Some(player) = player_inv else {
-                status = Some("No builder inventory".to_string());
-                continue;
-            };
-            // On a planet only the pack counts: the home's storage is in
-            // orbit (review of the planet build, 2026-09-27).
-            let on_planet = req.site.is_some();
-            // Aboard, the home's storage counts where a hand craft's does
-            // (crafting::home_store): not for a guest, whose home is put away
-            // off this ship. The Crafting page's structures list counts the
-            // same way, so the list and the build agree (the review of
-            // BUG-147).
-            let away = if on_planet { None } else { crate::systems::crafting::home_store::HomeStore::here(data).not_here };
-            let storage_counts = !on_planet && away.is_none();
-            let missing: Option<String> = {
-                let inv = world
-                    .get::<&crate::systems::inventory::Inventory>(player)
-                    .expect("player inventory queried above");
-                let stores: Option<&dyn Fn(&str) -> u32> = if storage_counts { Some(&home_count) } else { None };
-                materials_short(&bp, |id| inv.count_item(id), stores).map(|(id, more)| {
-                    if on_planet {
-                        format!("need {more}x {id} more in your pack to build {} here: on a planet you build from what you carry", bp.name)
-                    } else if let Some(why) = away {
-                        format!("need {more}x {id} more in your pack to build {} here: {why}", bp.name)
-                    } else {
-                        format!("need {more}x {id} to build {}", bp.name)
-                    }
-                })
-            };
-            if let Some(m) = missing {
-                status = Some(m);
-                continue;
-            }
-            if let Ok(mut inv) = world.get::<&mut crate::systems::inventory::Inventory>(player) {
-                for (id, qty) in &bp.materials {
-                    let from_pack = inv.count_item(id).min(*qty);
-                    if from_pack > 0 {
-                        inv.remove_item(id, from_pack);
-                    }
-                    let remainder = qty - from_pack;
-                    if remainder > 0 && storage_counts {
-                        if let Some(m) = home_stock.as_ref() {
-                            if let Ok(mut s) = m.lock() {
-                                if let Some(c) = s.get_mut(id) {
-                                    *c = c.saturating_sub(remainder);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Where it goes: the ghost's pose, as the player saw it (x and z
-            // on the metre grid, turned, on the floor or on top of what it
-            // rests on), in its frame: the home, or a site on a planet.
-            status = Some(format!("Building {}...", bp.name));
-            let scaffold = world.spawn((
-                req.pose,
-                Construction {
-                    blueprint_id: bp.id.clone(),
-                    progress: 0.0,
-                    build_time: bp.build_time,
-                    builder_key: None,
-                },
-            ));
-            if let Some(site) = req.site {
-                let _ = world.insert_one(scaffold, site);
-            }
+            status = Some(match begin_build(world, data, req) {
+                Ok(started) => started,
+                Err(refused) => refused,
+            });
         }
 
         // Advance active constructions
@@ -551,11 +653,13 @@ impl System for ConstructionSystem {
         for (entity, bp_id) in completed {
             let _ = world.remove_one::<Construction>(entity);
 
-            let (health, provides, name) = registry
+            // A fire is lit as it is finished, with the fuel it was built
+            // with (BUG-153: a campfire's three logs, `fires`).
+            let (health, provides, name, fire) = registry
                 .as_ref()
                 .and_then(|r| r.get(&bp_id))
-                .map(|bp| (bp.health, bp.provides.clone(), bp.name.clone()))
-                .unwrap_or((100.0, None, bp_id.clone()));
+                .map(|bp| (bp.health, bp.provides.clone(), bp.name.clone(), fires::lit_when_finished(bp)))
+                .unwrap_or((100.0, None, bp_id.clone(), None));
 
             let _ = world.insert_one(
                 entity,
@@ -567,6 +671,9 @@ impl System for ConstructionSystem {
                     uid: 0,
                 },
             );
+            if let Some(fuel) = fire {
+                let _ = world.insert_one(entity, fuel);
+            }
             // Completion is PROGRESS (v0.746): the construction quest chain's
             // Build objectives finally advance, and building trains the builder.
             crate::systems::quests::push_quest_event(data, format!("build_{bp_id}"));
@@ -583,6 +690,12 @@ impl System for ConstructionSystem {
         // Every finished structure gets its stable uid: one just completed,
         // or one restored from a save written before uids existed.
         uses::assign_uids(world);
+
+        // Built fires burn their fuel down on the game clock (BUG-153), the
+        // clock the world's other stocks run on (`time::scaled_dt`), so a log
+        // lasts 40 minutes of game time at any time speed and a fire burns
+        // down through a night asleep.
+        fires::burn(world, crate::systems::time::scaled_dt(dt, data));
 
         // Built electric stations join the home's power (2026-09-26).
         // Generators first, so a site's stations find its island this tick.

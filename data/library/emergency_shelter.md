@@ -623,6 +623,11 @@ of what kills people on a real first night.
   a structure trains Shelter Building.
 - **Only what you build.** Trees, hollows and a parked vehicle give no
   shelter in the game; only built pieces count.
+- **A fire in the open.** A campfire you build (the Campfire ability)
+  warms you while its logs burn, the nearer the more (see [Making and
+  Controlling Fire](/library#making-and-controlling-fire)). The game will not
+  build one under a roof you built, so it stands in the open beside your
+  shelter, never inside it (`src/systems/construction/fires.rs`).
 
 What the game leaves out, so you do not learn it from the game: there is
 no ground to lose heat to, so lying on cold earth costs nothing; no
