@@ -55,6 +55,11 @@
       "url": "https://ecology.wa.gov/water-shorelines/water-supply/water-rights",
       "note": "WRIA 15 overrides the statewide groundwater permit exemption, so what you may legally draw here is not the statewide answer."
     },
+    "state-electrical-authority": {
+      "name": "Washington State Department of Labor & Industries, Electrical Program",
+      "url": "https://lni.wa.gov/licensing-permits/electrical/",
+      "note": "Licenses electrical contractors and certifies electricians under chapter 19.28 RCW, and issues electrical permits and inspects electrical work everywhere in Washington except the cities that inspect for themselves and the area Tacoma Power serves. None of those is in Kitsap County, so in Silverdale the permit and the inspection come from L&I. An owner doing their own work buys the property owner permit (form F500-094-000) before starting and requests the inspection before anything is covered; a hired electrical contractor buys the permit instead, and L&I's site can check a contractor's licence."
+    },
     "soil-testing-lab": {
       "name": "WSU Puyallup, Soils",
       "url": "https://puyallup.wsu.edu/soils/"
