@@ -38,23 +38,12 @@ pub(crate) fn pump_background_connections(state: &mut EngineState, dt: f32) {
     // part of EngineState (decrypt helpers take the whole GuiState).
     let mut inbox: Vec<(usize, String)> = Vec::new();
     for (i, conn) in state.gui_state.connections.iter_mut().enumerate() {
-        if conn.ws.is_none() && !conn.manually_disconnected && conn.reconnect_timer > 0.0 {
-            conn.reconnect_timer -= dt;
-        }
         if let Some(ws) = conn.ws.as_mut() {
             for m in ws.poll_messages() {
                 inbox.push((i, m));
             }
         }
-        if conn.ws.as_ref().map_or(false, |w| w.is_dropped()) {
-            conn.ws = None;
-            conn.identified = false;
-            conn.status = "Disconnected".to_string();
-            if !conn.manually_disconnected {
-                conn.reconnect_timer = conn.reconnect_delay;
-                conn.reconnect_delay = (conn.reconnect_delay * 2.0).min(60.0);
-            }
-        }
+        link_frame(conn, dt);
     }
     for (ci, raw) in inbox {
         handle_bg_message(state, ci, &raw);
@@ -62,6 +51,33 @@ pub(crate) fn pump_background_connections(state: &mut EngineState, dt: f32) {
 
     pump_carrier_history(state);
     redial_dropped(state);
+}
+
+/// One frame of a background link's own life once its messages are read: a dropped link's
+/// countdown runs, and a socket that dropped is let go with the countdown armed (its delay
+/// doubling, to a minute). A link the person closed (`manually_disconnected`: a Disconnect
+/// before the switch, an erase, a refused sign-in) is neither counted down nor armed: it stays
+/// closed. Counting down before the drop check, as before: the two never meet in one frame
+/// (one needs no socket, the other a socket), so reading the messages first changes nothing.
+pub(crate) fn link_frame(conn: &mut crate::gui::ServerConnection, dt: f32) {
+    if conn.ws.is_none() && !conn.manually_disconnected && conn.reconnect_timer > 0.0 {
+        conn.reconnect_timer -= dt;
+    }
+    if conn.ws.as_ref().map_or(false, |w| w.is_dropped()) {
+        conn.ws = None;
+        conn.identified = false;
+        conn.status = "Disconnected".to_string();
+        if !conn.manually_disconnected {
+            conn.reconnect_timer = conn.reconnect_delay;
+            conn.reconnect_delay = (conn.reconnect_delay * 2.0).min(60.0);
+        }
+    }
+}
+
+/// Whether `redial_dropped` dials this background link again this frame: no socket, not closed
+/// by the person, its countdown run out.
+pub(crate) fn redial_due(conn: &crate::gui::ServerConnection) -> bool {
+    conn.ws.is_none() && !conn.manually_disconnected && conn.reconnect_timer <= 0.0 && !conn.url.is_empty()
 }
 
 /// One-at-a-time REST history fetch for background carriers' federated
@@ -276,11 +292,7 @@ fn redial_dropped(state: &mut EngineState) {
     let pubkey = state.gui_state.profile_public_key.clone();
     let kyber = state.gui_state.kyber_public_b64.clone();
     for conn in state.gui_state.connections.iter_mut() {
-        if conn.ws.is_none()
-            && !conn.manually_disconnected
-            && conn.reconnect_timer <= 0.0
-            && !conn.url.is_empty()
-        {
+        if redial_due(conn) {
             let ws_url = crate::gui::pages::chat::derive_ws_url(&conn.display_url);
             log::info!(
                 "Background reconnect: {} (attempt {})",

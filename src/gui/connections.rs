@@ -25,9 +25,16 @@
 //! page's Server field, and the config keeps it through a restart (config.rs). Nothing dials a
 //! server by itself then: not the auto-connect (`may_auto_connect`), not the backoff reconnect
 //! (`backoff_reconnect_runs`), not the background links to the saved servers
-//! (`may_dial_saved_servers`). An address typed into that field is a draft that Connect dials:
-//! the edit holds dialling, as a Disconnect does (`hold_dialling_until_connect`). Only the Chat
-//! page's Connect turns an empty field into a server, the official one (`connect_target`).
+//! (`may_dial_saved_servers`). Only the Chat page's Connect turns an empty field into a server,
+//! the official one (`connect_target`).
+//!
+//! THE TYPING HOLD (BUG-160, and its follow-up). An address typed into that field is a draft
+//! that only Connect dials (`hold_dialling_until_connect`, `server_field_draft`). It is its own
+//! state, not a Disconnect: it holds the dialling of the typed address and nothing else. The
+//! connection the person already had keeps reconnecting after a drop, to its own server
+//! (`dial_address`), and a connection parked by a switch takes nothing of it along. It once set
+//! the Disconnect flag instead, which went with the connection Connect parked and stayed on the
+//! live one, so after its next drop (a relay restart) that server was never dialled again.
 
 use super::{pages, GuiState, ServerConnection};
 
@@ -164,6 +171,9 @@ impl GuiState {
         }
         self.ws_status = "Not connected".to_string();
         self.server_connected = false;
+        // The switch puts a chosen server in the Server field (Connect's, or a saved server's
+        // row): an address typed there is no longer being typed. Nothing of it was parked.
+        self.server_field_draft = false;
         self.reset_per_server_transients();
     }
 
@@ -178,6 +188,7 @@ impl GuiState {
         };
         let conn = self.connections.swap_remove(pos);
         self.server_url = conn.display_url.clone();
+        self.server_field_draft = false;
         self.connected_server_url = conn.display_url;
         self.ws_client = conn.ws;
         self.ws_status = conn.status;
@@ -320,57 +331,129 @@ impl GuiState {
         !self.server_url.trim().is_empty()
     }
 
+    /// Whether the Server field holds an address the person typed that is not the connected
+    /// server's: a draft, which only Connect dials (`hold_dialling_until_connect`). An edit typed
+    /// back to the connected address holds nothing.
+    pub fn typed_address_held(&self) -> bool {
+        self.server_field_draft
+            && pages::chat::norm_server_url(&self.server_url) != pages::chat::norm_server_url(&self.connected_server_url)
+    }
+
+    /// The address the app dials by itself (lib.rs: the auto-connect and the backoff reconnect;
+    /// engine/frame_ws_poll.rs: the self-hosted fast path), and keeps the DM store under
+    /// (engine/dm.rs): the Server field's, or, while the field holds an address being typed
+    /// (`typed_address_held`), the server the active connection was dialled for, so that
+    /// connection reconnects after a drop as it always did and the typed one waits for Connect
+    /// (BUG-160's follow-up). None when there is nothing to dial: an empty field (no server,
+    /// BUG-160), or an address being typed with nothing connected this session.
+    pub fn dial_address(&self) -> Option<&str> {
+        let address = if self.typed_address_held() {
+            self.connected_server_url.as_str()
+        } else if self.has_server() {
+            self.server_url.as_str()
+        } else {
+            return None;
+        };
+        (!address.trim().is_empty()).then_some(address)
+    }
+
     /// Whether the app may dial the active server by itself this frame: at boot, after an
     /// unlock (which clears `ws_manually_disconnected`), or after a server switch (lib.rs, the
-    /// auto-connect). Never with no server set (BUG-160), never with no identity unlocked (a
-    /// locked seed would register a keyless name-squatter), never after a Disconnect or while an
-    /// address is being typed (`hold_dialling_until_connect`), and never on a server this
-    /// identity erased its account on (BUG-135): that would sign up again without the person
-    /// asking.
+    /// auto-connect, which dials `dial_address`). Never with nothing to dial (no server set,
+    /// BUG-160, or only an address being typed), never with no identity unlocked (a locked seed
+    /// would register a keyless name-squatter), never after a Disconnect, and never on a server
+    /// this identity erased its account on (BUG-135): that would sign up again without the
+    /// person asking.
     pub fn may_auto_connect(&self) -> bool {
-        self.has_server()
-            && self.ws_client.is_none()
+        let Some(address) = self.dial_address() else { return false };
+        self.ws_client.is_none()
             && !self.user_name.is_empty()
             && self.onboarding_complete
             && !self.ws_manually_disconnected
-            && !self.account_erased_here(&self.server_url)
+            && !self.account_erased_here(address)
             && self.ws_reconnect_timer <= 0.0
             && self.ws_reconnect_attempts == 0
             && self.private_key_bytes.is_some()
     }
 
-    /// Whether the backoff reconnect's countdown runs this frame (lib.rs): the socket dropped by
-    /// itself (not a Disconnect), its countdown is armed (engine/frame_ws_poll.rs), and a server
-    /// is set. With no server it does nothing, as `may_auto_connect` does (review of BUG-160's
-    /// first fix, finding B3: with the field cleared during a countdown it dialled "/ws" and
-    /// kept failing).
+    /// Whether the backoff reconnect's countdown runs this frame (lib.rs, which redials
+    /// `dial_address`): the socket dropped by itself (not a Disconnect), its countdown is armed
+    /// (`active_socket_dropped`), and there is a server to dial. With no server it does nothing,
+    /// as `may_auto_connect` does (review of BUG-160's first fix, finding B3: with the field
+    /// cleared during a countdown it dialled "/ws" and kept failing). An address being typed
+    /// does not stop it: the dropped connection is redialled to its own server.
     pub fn backoff_reconnect_runs(&self) -> bool {
         self.ws_client.is_none()
             && !self.ws_manually_disconnected
             && self.ws_reconnect_timer > 0.0
-            && self.has_server()
+            && self.dial_address().is_some()
     }
 
     /// Whether the background pump may dial the saved servers by itself this frame
     /// (engine/bg_connections.rs). Not until a server is chosen this session: one was dialled
-    /// (`connected_server_url`), or an address is set and dialling is not held (an address
-    /// being typed is held until Connect, `hold_dialling_until_connect`). So after a restart
-    /// with no server the saved servers wait for Connect. The official server is among them
+    /// (`connected_server_url`), or an address is set, not being typed, and not disconnected.
+    /// So after a restart with no server the saved servers wait for Connect, and the first
+    /// letter typed into the empty field starts none of them. The official server is among them
     /// once it has been connected (lib.rs keeps every server it connects to in the list), so a
     /// person who cleared the address was otherwise back on the live server at the next launch,
     /// only as a background link (BUG-160).
     pub fn may_dial_saved_servers(&self) -> bool {
-        !self.connected_server_url.trim().is_empty() || (self.has_server() && !self.ws_manually_disconnected)
+        !self.connected_server_url.trim().is_empty() || (self.dial_address().is_some() && !self.ws_manually_disconnected)
     }
 
-    /// The person edited the Chat page's Server field: what it holds is a draft that Connect
-    /// dials (BUG-160), so nothing dials it by itself, letter by letter, as it is typed: the
-    /// auto-connect and the backoff reconnect are held, as after a Disconnect, and the status
-    /// stops counting down to a reconnect that will not come. Connect, a saved server's row and
-    /// an unlock lift the hold.
+    /// The person edited a Server field (the Chat page's connect form, or the onboarding's
+    /// server step): what it holds is a draft that Connect dials (BUG-160), so nothing dials it
+    /// by itself, letter by letter, as it is typed. Only the typed address is held: the
+    /// connection the person already had is not disconnected, reconnects after a drop to its
+    /// own server (`dial_address`), and takes nothing of the hold along when a switch parks it
+    /// (BUG-160's follow-up: this used to set the Disconnect flag, which did both). Connect and
+    /// a saved server's row lift it, and so does the connection coming up
+    /// (`active_socket_up`), when the form it was typed in is no longer shown.
     pub fn hold_dialling_until_connect(&mut self) {
-        self.ws_manually_disconnected = true;
-        if self.ws_client.is_none() {
+        self.server_field_draft = true;
+    }
+
+    /// The active socket is up, so the Chat page's connect form is not shown (engine/
+    /// frame_ws_poll.rs calls this every frame it is, before any of the frame's messages is
+    /// handled). An address typed into that form and never connected is dropped, and the field
+    /// holds the connected server's address again: the rest of the app reads the field as the
+    /// active server (the messages it files, its DM store, the saved servers), which must not
+    /// name a draft while this server's messages arrive.
+    pub fn active_socket_up(&mut self) {
+        if self.server_field_draft {
+            self.server_field_draft = false;
+            if !self.connected_server_url.trim().is_empty() {
+                self.server_url = self.connected_server_url.clone();
+            }
+        }
+    }
+
+    /// The active socket dropped by itself (engine/frame_ws_poll.rs; the teardown moved here
+    /// from there, 2026-10-05, so a test runs the one the app runs). The client goes, and with
+    /// it the WebRTC manager, whose signalling rides it (it starts again lazily on reconnect);
+    /// the on-demand admin lists and the server's settings are asked for again after a
+    /// reconnect (the relay sends them only on request); and the backoff reconnect's countdown
+    /// is armed, unless the person closed the connection (`ws_manually_disconnected`: a
+    /// Disconnect, or an erase). An address being typed holds nothing here.
+    pub fn active_socket_dropped(&mut self) {
+        self.ws_client = None;
+        self.webrtc = None;
+        self.chat_banned_requested = false;
+        self.chat_muted_requested = false;
+        // Same for the Game Admin game-ban list (v0.474), and the Backups panel (v0.938).
+        self.game_bans_requested = false;
+        self.backup_list_requested = false;
+        // And the server's settings, if the answer to the last request never arrived.
+        self.server_settings_requested = false;
+        if !self.ws_manually_disconnected {
+            log::info!(
+                "WebSocket disconnected, will reconnect in {}s (attempt {})",
+                self.ws_reconnect_delay as u32,
+                self.ws_reconnect_attempts + 1
+            );
+            self.ws_reconnect_timer = self.ws_reconnect_delay;
+            self.ws_status = format!("Reconnecting in {}s...", self.ws_reconnect_delay as u32);
+        } else {
             self.ws_status = "Disconnected".to_string();
         }
     }
@@ -1061,22 +1144,33 @@ mod no_server_tests {
         assert!(!state.backoff_reconnect_runs(), "the backoff reconnect ran after a Disconnect");
     }
 
-    /// The two decisions are the ones the dialling paths take, read from the source the way
+    /// The decisions are the ones the dialling paths take, read from the source the way
     /// `only_the_chat_pages_connect_signs_up_again` reads it (the frame loop cannot run in a
-    /// unit test): the backoff reconnect asks `backoff_reconnect_runs`, and the background pump
-    /// asks `may_dial_saved_servers` before it dials the saved servers.
+    /// unit test): the backoff reconnect asks `backoff_reconnect_runs`, the background pump
+    /// asks `may_dial_saved_servers` before it dials the saved servers, the auto-connect and the
+    /// backoff reconnect dial `dial_address` (never the Server field as typed), and the message
+    /// pump hands the socket's coming up and dropping to `active_socket_up` and
+    /// `active_socket_dropped` (BUG-160's follow-up), whose tests are in pages/chat.rs.
     ///
     /// Seen red 2026-10-05 on efe55abad, which asked neither: "the backoff reconnect does not
-    /// ask backoff_reconnect_runs" (left: 0, right: 1).
+    /// ask backoff_reconnect_runs" (left: 0, right: 1). The follow-up's part, seen red with
+    /// lib.rs's two dialling paths as on 347c8f77b: "the auto-connect and the backoff reconnect
+    /// do not dial dial_address" (left: 0, right: 2).
     #[test]
     fn the_dialling_paths_ask_these_decisions() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
         let read = |rel: &str| std::fs::read_to_string(root.join(rel)).unwrap_or_else(|e| panic!("read {rel}: {e}"));
         let lib = read("src/lib.rs");
         assert_eq!(lib.matches("if state.gui_state.backoff_reconnect_runs() {").count(), 1, "the backoff reconnect does not ask backoff_reconnect_runs");
+        let dials = "let address = state.gui_state.dial_address().unwrap_or_default().to_string();";
+        assert_eq!(lib.matches(dials).count(), 2, "the auto-connect and the backoff reconnect do not dial dial_address");
+        assert!(!lib.contains("derive_ws_url(&state.gui_state.server_url)"), "a dialling path in lib.rs dials the Server field as typed");
         let bg = read("src/engine/bg_connections.rs").replace("\r\n", "\n"); // a checkout may hold CRLF
         let dial = &bg[bg.find("fn dial_missing_saved_servers").expect("the pump's dial")..];
         let body = &dial[..dial.find("\n}\n").expect("the end of the pump's dial")];
         assert!(body.contains("if !state.gui_state.may_dial_saved_servers() {"), "the background pump dials the saved servers without asking may_dial_saved_servers");
+        let poll = read("src/engine/frame_ws_poll.rs");
+        assert!(poll.contains("state.gui_state.active_socket_up();"), "the message pump does not drop a typed draft when the socket is up");
+        assert!(poll.contains("state.gui_state.active_socket_dropped();"), "the message pump does not run active_socket_dropped when the socket drops");
     }
 }

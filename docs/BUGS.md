@@ -4327,13 +4327,75 @@ loopback port (http://127.0.0.1:9; scripts/lib/rig-gameplay.js). Two faults toge
      server, unlocks, clicks the field and types "h", headlessly; seen red with B1's change
      and the edit holding nothing: "the first letter typed after a restart with no server
      was dialled".
+4. **The typing hold, its own state (FIXED, merging in v0.1463.0; the second seam review of
+   2026-10-05, items 3 and 10).** B5's hold set the Disconnect flag (`ws_manually_disconnected`)
+   on any edit of the Server field, whether or not a connection was up or coming up (the form
+   shows while a socket opens and while a dropped one waits to reconnect). Connect, and a saved
+   server's row, park the active connection first, and the flag went with it; the connection
+   that stayed kept it. A link marked that way is never re-armed or redialled
+   (engine/bg_connections.rs, engine/frame_ws_poll.rs). So on server A, typing B and pressing
+   Connect left A with no reconnect after its next drop (every deploy restarts the relay), and
+   its chat and DMs stopped for the session; a letter typed and deleted while A's socket opened
+   did the same to A itself; and an address typed while A waited to reconnect stopped A's
+   reconnect. Now the hold is its own state (`GuiState::server_field_draft`) and holds only the
+   dialling of the typed address. What the app dials by itself is `dial_address`
+   (src/gui/connections.rs): the field's address, or, while an address is being typed over a
+   connection, that connection's own server, so the backoff reconnect redials the dropped
+   connection and never the draft. lib.rs's auto-connect and backoff reconnect dial it, the
+   self-hosted fast path (frame_ws_poll.rs) compares it, and the DM store is loaded under it
+   (engine/dm.rs `ensure_dm_store`), so a DM row opened while a draft sits in the field does
+   not load the draft's store, which would take the connection's DMs once it is back up (no
+   test: the store reads the real DM folder). A switch takes nothing of the hold along. When the connection comes up its form is gone, and the draft gives way to its
+   address before any of its messages is filed (`active_socket_up`): the app reads the field as
+   the active server (the messages, the DM store, the saved servers), so a draft left there
+   filed them under the wrong server. An unlock no longer lifts the hold (an address never
+   connected is not dialled by itself); Connect and a saved server's row do. The teardown of a
+   dropped socket moved from frame_ws_poll.rs to `active_socket_dropped`, and the pump's
+   per-link steps to `link_frame` and `redial_due` (bg_connections.rs), so the tests run the
+   app's own steps. Tests in src/gui/pages/chat.rs, drawn, clicked and typed into headlessly,
+   every address a loopback port nothing listens on, each seen red with the hold as on 347c8f77b:
+   - `connecting_elsewhere_leaves_the_server_you_left_reconnecting_after_a_drop`: "A, parked
+     by Connect, was never redialled after its socket dropped".
+   - `an_edit_typed_and_deleted_leaves_the_connection_reconnecting_after_a_drop`: "an edit of
+     the Server field, typed and deleted, left the connection with no reconnect after its drop".
+   - `an_address_typed_during_a_reconnect_waits_and_the_connection_still_reconnects`: "an
+     address typed while A was reconnecting stopped A's reconnect".
+   - `the_dialling_paths_ask_these_decisions` (src/gui/connections.rs) also holds lib.rs's two
+     dialling paths to `dial_address` and the pump to the two socket handlers; seen red with
+     lib.rs as on 347c8f77b: "the auto-connect and the backoff reconnect do not dial
+     dial_address" (left: 0, right: 2).
+   - B5's `typing_into_the_empty_server_field_waits_for_connect` stays green: a half-typed
+     address in an empty field is still not dialled before Connect.
+
+   Connect saves the config, and a test build's save reached the person's real config.json:
+   `config::keep_saves_off_disk` keeps one test thread's saves off the disk.
+
+   **The onboarding's server step (item 10)** hinted the official server as a literal, said
+   "Default: united-humanity.us (the official community server)", and its Connect checked
+   "/health" for an empty field, which fails; a new player who cleared the field and pressed
+   Skip ended with no server, which is what an empty field means, after being told it had a
+   default. It now keeps the Chat page's rule: the empty field suggests `OFFICIAL_SERVER`, the
+   line under it says "With the field empty, Connect uses united-humanity.us, the official
+   community server.", Connect checks `connect_target` of the field and the field then holds it
+   (the ready step names it, the app dials it once setup is done), and an edit holds dialling as
+   on the Chat page: an address typed there and skipped is not dialled once setup is done, while
+   the address the step starts with, never edited, still is (chat connects by itself, as the
+   first-hour audit kept it). A test build records Connect's check instead of sending it. Tests
+   in src/gui/pages/main_menu.rs (`server_step_tests`), seen red with the step as on 347c8f77b:
+   `the_server_steps_connect_with_an_empty_field_uses_the_official_server` ("the server step's
+   Connect checked [\"/health\"] for an empty field"),
+   `the_server_step_says_what_an_empty_field_means_as_the_chat_page_does` ("the step still
+   calls the official server a default"), and
+   `an_address_typed_on_the_server_step_and_skipped_is_not_dialled` ("an address typed on the
+   server step and skipped was dialled once setup was done").
 
    **Still open:** clearing the field and quitting with nothing saved in between keeps the
    previous address, which comes back at the next launch: the field is written by Connect
-   and by every other save of the config, not by the edit itself. Saving at the edit is a
-   line in the connect form, but `AppConfig::save` has no test path, so its test would write
-   the real config.json. And an edit made while a connection attempt is still in progress
-   holds that connection's automatic reconnect too, until Connect.
+   and by every other save of the config, not by the edit itself. The reverse holds too: a
+   half-typed address that some other save writes to the config (the hold itself is not
+   saved) is dialled at the next launch. A test path for `AppConfig::save` exists now
+   (`keep_saves_off_disk`), so saving at the edit could be tested; whether the draft or the
+   connected address belongs in the config is a choice about the no-server rule, not made here.
 
 Checked 2026-10-05 (read-only): no member has joined the live server since 2026-10-01, so
 today's rig visits left no rows in its member list.
