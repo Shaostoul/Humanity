@@ -137,6 +137,25 @@
             "real",
             "safety"
           ]
+        },
+        {
+          "title": "Navigating Without Instruments",
+          "src": "docs/user/skills/navigating_without_instruments.md",
+          "tags": [
+            "guide",
+            "real",
+            "safety"
+          ]
+        },
+        {
+          "title": "What to Do When You Are Lost",
+          "src": "docs/user/skills/what_to_do_when_you_are_lost.md",
+          "tags": [
+            "guide",
+            "real",
+            "beginner",
+            "safety"
+          ]
         }
       ]
     },
@@ -900,6 +919,16 @@
             "real",
             "power",
             "technical",
+            "safety"
+          ]
+        },
+        {
+          "title": "Floating and Boats",
+          "src": "docs/user/skills/floating_and_boats.md",
+          "tags": [
+            "guide",
+            "real",
+            "water",
             "safety"
           ]
         },

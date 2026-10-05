@@ -252,6 +252,25 @@
             "real",
             "safety"
           ]
+        },
+        {
+          "title": "Navigating Without Instruments",
+          "file": "navigating_without_instruments.md",
+          "tags": [
+            "guide",
+            "real",
+            "safety"
+          ]
+        },
+        {
+          "title": "What to Do When You Are Lost",
+          "file": "what_to_do_when_you_are_lost.md",
+          "tags": [
+            "guide",
+            "real",
+            "beginner",
+            "safety"
+          ]
         }
       ],
       "section": "Learn"
@@ -1016,6 +1035,16 @@
             "real",
             "power",
             "technical",
+            "safety"
+          ]
+        },
+        {
+          "title": "Floating and Boats",
+          "file": "floating_and_boats.md",
+          "tags": [
+            "guide",
+            "real",
+            "water",
             "safety"
           ]
         },
