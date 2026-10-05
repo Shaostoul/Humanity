@@ -27,6 +27,22 @@
 // validate() refuses overlapping plots, zones and corridor tubes (touching is fine).
 // Districts are areas, not boxes, and are not checked.
 //
+// TWELVE HOMES ALONG FIRST STREET (2026-10-04, "More plots along First Street, as built" in the
+// design doc). p1 and p2 stand where increment 1a put them, and never move: a relay's stored
+// claims (`game_plots`) and a player's remembered plot name plots by id. p3 to p12 continue down
+// the WEST side of First Street, each 55 x 89 m and 99 m on from the last (a 10 m gap, as between
+// p1 and p2), each with its door corridor to the street at the home's door, local z 40 (so lat =
+// origin z + 40). Only the west side: the homestead's door is in its east wall and a plot cannot
+// turn yet, so a home east of the street would face away from it, which `assemble` refuses. First
+// Street runs z 85 to 1185, 7 m past p12's end; the residential district holds the plots, their
+// corridors, the street and the Commons; the Concourse and the Transit Hub, which stood just past
+// the street's old end at z 205, moved 20 m east, off it. The ship is 1.2 km long now, past the
+// relay's 250 m view (data/ship/shared_world.ron): neighbours see each other, and the far end of
+// the street is out of view of the Commons. A new plot added here (the Dev Plots panel's "Add
+// plot" copies the last one, past it) needs First Street to reach past its door. First Street has
+// no lights of its own, as before: it is lit through its glass roof, and every zone's lights are
+// charged to each player's home meter today (lib.rs, the house lighting consumer).
+//
 // The relay's world is this file (increment 3, src/relay/handlers/ship_world.rs): every zone is
 // a room of it, and so is every labelled volume in a zone's body (the Commons' "mess-hall", the
 // north strip along its first wall, where the crew eat and the ship's food stores stand,
@@ -972,7 +988,7 @@
             origin: (65.0, 0.0, 85.0),
             body: (
                 width: 10.0,
-                depth: 110.0,
+                depth: 1100.0,
                 height: 4.0,
                 shell_material: 1,
                 roof_material: 4,
@@ -1029,14 +1045,154 @@
                 glass_top: true,
             ),
         ),
+        (
+            id: "p3",
+            kind: "homestead",
+            origin: (0.0, 0.0, 198.0),
+            size: (55.0, 3.0, 89.0),
+            door: (
+                zone: "street-1",
+                lat: 238.0,
+                width: 3.0,
+                door_width: 2.0,
+                door_height: 2.2,
+                glass_top: true,
+            ),
+        ),
+        (
+            id: "p4",
+            kind: "homestead",
+            origin: (0.0, 0.0, 297.0),
+            size: (55.0, 3.0, 89.0),
+            door: (
+                zone: "street-1",
+                lat: 337.0,
+                width: 3.0,
+                door_width: 2.0,
+                door_height: 2.2,
+                glass_top: true,
+            ),
+        ),
+        (
+            id: "p5",
+            kind: "homestead",
+            origin: (0.0, 0.0, 396.0),
+            size: (55.0, 3.0, 89.0),
+            door: (
+                zone: "street-1",
+                lat: 436.0,
+                width: 3.0,
+                door_width: 2.0,
+                door_height: 2.2,
+                glass_top: true,
+            ),
+        ),
+        (
+            id: "p6",
+            kind: "homestead",
+            origin: (0.0, 0.0, 495.0),
+            size: (55.0, 3.0, 89.0),
+            door: (
+                zone: "street-1",
+                lat: 535.0,
+                width: 3.0,
+                door_width: 2.0,
+                door_height: 2.2,
+                glass_top: true,
+            ),
+        ),
+        (
+            id: "p7",
+            kind: "homestead",
+            origin: (0.0, 0.0, 594.0),
+            size: (55.0, 3.0, 89.0),
+            door: (
+                zone: "street-1",
+                lat: 634.0,
+                width: 3.0,
+                door_width: 2.0,
+                door_height: 2.2,
+                glass_top: true,
+            ),
+        ),
+        (
+            id: "p8",
+            kind: "homestead",
+            origin: (0.0, 0.0, 693.0),
+            size: (55.0, 3.0, 89.0),
+            door: (
+                zone: "street-1",
+                lat: 733.0,
+                width: 3.0,
+                door_width: 2.0,
+                door_height: 2.2,
+                glass_top: true,
+            ),
+        ),
+        (
+            id: "p9",
+            kind: "homestead",
+            origin: (0.0, 0.0, 792.0),
+            size: (55.0, 3.0, 89.0),
+            door: (
+                zone: "street-1",
+                lat: 832.0,
+                width: 3.0,
+                door_width: 2.0,
+                door_height: 2.2,
+                glass_top: true,
+            ),
+        ),
+        (
+            id: "p10",
+            kind: "homestead",
+            origin: (0.0, 0.0, 891.0),
+            size: (55.0, 3.0, 89.0),
+            door: (
+                zone: "street-1",
+                lat: 931.0,
+                width: 3.0,
+                door_width: 2.0,
+                door_height: 2.2,
+                glass_top: true,
+            ),
+        ),
+        (
+            id: "p11",
+            kind: "homestead",
+            origin: (0.0, 0.0, 990.0),
+            size: (55.0, 3.0, 89.0),
+            door: (
+                zone: "street-1",
+                lat: 1030.0,
+                width: 3.0,
+                door_width: 2.0,
+                door_height: 2.2,
+                glass_top: true,
+            ),
+        ),
+        (
+            id: "p12",
+            kind: "homestead",
+            origin: (0.0, 0.0, 1089.0),
+            size: (55.0, 3.0, 89.0),
+            door: (
+                zone: "street-1",
+                lat: 1129.0,
+                width: 3.0,
+                door_width: 2.0,
+                door_height: 2.2,
+                glass_top: true,
+            ),
+        ),
     ],
     default_plot: Some("p1"),
     districts: [
         (
             id: "res-1",
             type_id: "residential",
-            origin: (57.0, 0.0, 0.0),
-            size: (120.0, 4.0, 200.0),
+            origin: (0.0, 0.0, 0.0),
+            size: (100.0, 4.0, 1195.0),
             label: "Residential District A",
         ),
         (
@@ -1084,14 +1240,14 @@
         (
             id: "mall-1",
             type_id: "civic_mall",
-            origin: (60.0, 0.0, 205.0),
+            origin: (80.0, 0.0, 205.0),
             size: (40.0, 6.0, 40.0),
             label: "The Concourse",
         ),
         (
             id: "transit-1",
             type_id: "transit_hub",
-            origin: (110.0, 0.0, 205.0),
+            origin: (130.0, 0.0, 205.0),
             size: (24.0, 6.0, 24.0),
             label: "Transit Hub",
         ),

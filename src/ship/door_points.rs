@@ -161,13 +161,18 @@ mod tests {
         (0..3).all(|k| p[k] >= pl.min[k] - 1e-3 && p[k] <= pl.max[k] + 1e-3)
     }
 
-    /// The shipped ship, from either plot: the Commons, First Street and both plots are places; the
-    /// three corridors are doors (the Commons to the street, each plot to its zone); each door's
-    /// steps stand inside the two places it joins, and its mouths are the corridor the game draws
-    /// (the home's own corridor for its plot, the neighbour's tube for the other). The numbers are
-    /// the ship file's (section 2.4 of the design). Seen red 2026-10-04 with the steps taken a
-    /// metre OUTWARD from each mouth instead of in: "zone:commons -> zone:street-1: step [70.0, 1.7,
-    /// 76.0] is not inside zone:commons".
+    /// The places a ship's door points list: its two shared zones, then every plot in the file's order.
+    fn shipped_place_ids(ship: &ShipStructure) -> Vec<String> {
+        ["zone:commons", "zone:street-1"].iter().map(|s| s.to_string()).chain(ship.plots.iter().map(|p| format!("plot:{}", p.id))).collect()
+    }
+
+    /// The shipped ship, from either plot: the Commons, First Street and every plot (twelve since
+    /// 2026-10-04) are places; the corridors are doors (the Commons to the street, each plot to its
+    /// zone); each door's steps stand inside the two places it joins, and its mouths are the
+    /// corridor the game draws (the home's own corridor for its plot, the neighbours' tubes for the
+    /// others). The numbers are the ship file's (section 2.4 of the design). Seen red 2026-10-04
+    /// with the steps taken a metre OUTWARD from each mouth instead of in: "zone:commons ->
+    /// zone:street-1: step [70.0, 1.7, 76.0] is not inside zone:commons".
     #[test]
     fn every_door_of_the_shipped_ship_joins_two_places_where_the_game_draws_it() {
         for own in ["p1", "p2"] {
@@ -175,8 +180,8 @@ mod tests {
             let d = door_points(&ship);
             assert_eq!(d.ship_hash, ship.ship_hash());
             let ids: Vec<&str> = d.places.iter().map(|p| p.id.as_str()).collect();
-            assert_eq!(ids, ["zone:commons", "zone:street-1", "plot:p1", "plot:p2"], "on {own}");
-            assert_eq!(d.doors.len(), 3, "on {own}: {:?}", d.doors);
+            assert_eq!(ids, shipped_place_ids(&ship), "on {own}");
+            assert_eq!(d.doors.len(), 1 + ship.plots.len(), "on {own}: {:?}", d.doors);
             for x in &d.doors {
                 for (step, end) in x.steps.iter().zip([&x.from, &x.to]) {
                     assert!(inside(*step, place(&d, end)), "{} -> {}: step {step:?} is not inside {end}", x.from, x.to);
@@ -253,13 +258,14 @@ mod tests {
     }
 
     /// A guest's home put away is no place of the ship, and every plot is still one: the guest walks
-    /// past both homes as a neighbour's.
+    /// past every home as a neighbour's.
     #[test]
     fn a_home_put_away_is_no_place_of_the_ship() {
-        let d = door_points(&on("p1").put_home_away().expect("put away"));
+        let away = on("p1").put_home_away().expect("put away");
+        let d = door_points(&away);
         let ids: Vec<&str> = d.places.iter().map(|p| p.id.as_str()).collect();
-        assert_eq!(ids, ["zone:commons", "zone:street-1", "plot:p1", "plot:p2"]);
+        assert_eq!(ids, shipped_place_ids(&away));
         assert!(d.places.iter().all(|p| !p.own), "a guest owns no plot");
-        assert_eq!(d.doors.len(), 3);
+        assert_eq!(d.doors.len(), 1 + away.plots.len());
     }
 }

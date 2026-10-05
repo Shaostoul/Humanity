@@ -800,14 +800,40 @@ mod tests {
         tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
         String,
     ) {
+        bind_socket_from(state, port, seed, name, expect_live, None).await
+    }
+
+    /// `bind_socket` from a connection of its own: `forwarded_for` is the address
+    /// the socket says it comes from, in the X-Forwarded-For header nginx writes in
+    /// front of a live relay (src/relay/mod.rs `ws_handler`). A test that signs up
+    /// more than five NEW identities needs it: the relay lets one address sign up
+    /// five new accounts an hour (handlers/sign_ups.rs `NEW_ID_MAX_PER_IP`), and a
+    /// socket with no header shares the one "unknown" address with every other.
+    /// Twelve households joining a twelve-home ship are twelve connections.
+    async fn bind_socket_from(
+        state: &std::sync::Arc<crate::relay::relay::RelayState>,
+        port: u16,
+        seed: [u8; 32],
+        name: Option<&str>,
+        expect_live: usize,
+        forwarded_for: Option<&str>,
+    ) -> (
+        tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+        String,
+    ) {
         use base64::{engine::general_purpose::STANDARD as B64, Engine};
         use futures::{SinkExt, StreamExt};
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
         use tokio_tungstenite::tungstenite::Message as WsMsg;
 
         let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
         let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
         let pubkey = hex::encode(dil.public_key());
-        let (mut sock, _) = tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{port}/ws"))
+        let mut request = format!("ws://127.0.0.1:{port}/ws").into_client_request().expect("a websocket request");
+        if let Some(ip) = forwarded_for {
+            request.headers_mut().insert("x-forwarded-for", ip.parse().expect("an address header"));
+        }
+        let (mut sock, _) = tokio_tungstenite::connect_async(request)
             .await
             .expect("client connects to /ws");
         sock.send(WsMsg::Text(
@@ -1768,7 +1794,10 @@ mod tests {
     }
 
     /// A full ship: one more player than there are plots gets no plot
-    /// (home_plot null) and arrives in the Commons as a guest.
+    /// (home_plot null) and arrives in the Commons as a guest. Each player on a
+    /// connection of their own (`bind_socket_from`): since the twelve plots along
+    /// First Street there are more households than the five new accounts one
+    /// address may sign up in an hour.
     ///
     /// Seen red 2026-10-03 on the 1a relay: "the welcome carries no home_plot
     /// field".
@@ -1781,11 +1810,12 @@ mod tests {
         for n in 0..ids.len() {
             let s = 70 + n as u8;
             let name = format!("PlotHolder{n}");
-            let (mut sock, _) = bind_socket(&state, port, [s; 32], Some(&name), 1).await;
+            let ip = format!("10.70.0.{}", n + 1);
+            let (mut sock, _) = bind_socket_from(&state, port, [s; 32], Some(&name), 1, Some(&ip)).await;
             assert!(welcome_plot(&welcome_after_join(&mut sock, &name).await).is_some(), "{name} gets a plot");
             socks.push(sock);
         }
-        let (mut guest, guest_key) = bind_socket(&state, port, [90u8; 32], Some("PlotGuest"), 1).await;
+        let (mut guest, guest_key) = bind_socket_from(&state, port, [90u8; 32], Some("PlotGuest"), 1, Some("10.70.1.1")).await;
         let w = welcome_after_join(&mut guest, "PlotGuest").await;
         assert_eq!(welcome_plot(&w), None, "a full ship gives home_plot null");
 
@@ -1800,6 +1830,137 @@ mod tests {
 
         guest.close(None).await.ok();
         for mut s in socks {
+            s.close(None).await.ok();
+        }
+        server.abort();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The Commons arrival a guest is spawned at: the Commons' own spawn, at eye height (the rule
+    /// `ShipStructure::guest_spawn` and the game share).
+    fn commons_arrival() -> [f32; 3] {
+        let ship = crate::ship::ship_structure::ShipStructure::load_ship_file(std::path::Path::new("data")).unwrap();
+        let g = ship.guest_spawn().expect("the ship has a Commons");
+        [g.x, g.y, g.z]
+    }
+
+    /// Join `n` households, each on its own connection (`bind_socket_from`, address
+    /// 10.`net`.0.`k`), and return each one's socket, key, name and the plot its welcome gave,
+    /// failing the test when one is given none.
+    async fn join_households(
+        state: &std::sync::Arc<crate::relay::relay::RelayState>,
+        port: u16,
+        n: usize,
+        net: u8,
+        seed0: u8,
+    ) -> Vec<(TestSocket, String, String, String)> {
+        let ships_plots = ship_plot_ids().len();
+        let mut out = Vec::new();
+        for k in 0..n {
+            let name = format!("Plots{net}H{k}");
+            let ip = format!("10.{net}.0.{}", k + 1);
+            let (mut sock, key) = bind_socket_from(state, port, [seed0 + k as u8; 32], Some(&name), 1, Some(&ip)).await;
+            let w = welcome_after_join(&mut sock, &name).await;
+            let plot = welcome_plot(&w).unwrap_or_else(|| {
+                panic!("household {} of {n} ({name}) was given no plot: a guest, on a ship of {ships_plots} plot(s)", k + 1)
+            });
+            out.push((sock, key, name, plot));
+        }
+        out
+    }
+
+    /// TWELVE HOMES ALONG FIRST STREET (2026-10-04, the operator's "add plots along First Street
+    /// (about ten) so more than two people can have homes"). Twelve households joining, each on a
+    /// connection of its own, get twelve DIFFERENT plots, in the ship's order, each spawned at its
+    /// own door on its own plot (where the game stands its camera, `game_spawn_on`); the
+    /// thirteenth is a guest, as a guest has always been: its welcome's home_plot is null and it
+    /// arrives in the Commons, where its game puts its home away and tells it, when it presses B,
+    /// the guest's sentence (engine/home_plot.rs `GUEST_NO_EDITOR`, which the rig's guest order
+    /// checks on screen).
+    ///
+    /// Seen red 2026-10-04 on the two-plot ship file: "household 3 of 12 (Plots12H2) was given no
+    /// plot: a guest, on a ship of 2 plot(s)".
+    #[tokio::test]
+    async fn twelve_households_get_twelve_homes_and_the_thirteenth_is_a_guest() {
+        let path = plots_db("twelve");
+        let (state, port, server) = relay_on(&path).await;
+        let ids = ship_plot_ids();
+        let homes = join_households(&state, port, 12, 12, 130).await;
+        let got: Vec<&str> = homes.iter().map(|h| h.3.as_str()).collect();
+        let distinct: std::collections::HashSet<&str> = got.iter().copied().collect();
+        assert_eq!(distinct.len(), 12, "twelve households, twelve different plots: {got:?}");
+        assert_eq!(got, ids.iter().take(12).map(|s| s.as_str()).collect::<Vec<_>>(), "handed out in the ship's order");
+        for (_, key, name, plot) in &homes {
+            let at = relay_position(&state, key).await;
+            let want = game_spawn_on(plot);
+            assert!(dist(at, want) < 1e-3, "{name} on {plot}: the relay spawned at {at:?}, the game stands at {want:?}");
+        }
+        // The thirteenth: a guest in the Commons.
+        let (mut guest, guest_key) = bind_socket_from(&state, port, [150u8; 32], Some("PlotsThirteenth"), 1, Some("10.12.1.1")).await;
+        let w = welcome_after_join(&mut guest, "PlotsThirteenth").await;
+        assert_eq!(welcome_plot(&w), None, "the thirteenth household is a guest: home_plot null");
+        let at = relay_position(&state, &guest_key).await;
+        assert!(dist(at, commons_arrival()) < 1e-3, "the guest spawned at {at:?}, the Commons arrival is {:?}", commons_arrival());
+
+        guest.close(None).await.ok();
+        for (mut s, ..) in homes {
+            s.close(None).await.ok();
+        }
+        server.abort();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A FULL SHIP OF TWELVE STILL GIVES HOMES BACK (2026-10-04). With every plot held and a
+    /// thirteenth household a guest: an admin's release of plot p7 by its id (its holder has
+    /// stepped out; refused while they stood in the world) gives p7 to the next household that
+    /// joins, not a guest place; and erasing the account of p11's holder, standing in the world,
+    /// takes their figure out and gives p11 to the next one.
+    ///
+    /// Seen red 2026-10-04 on the two-plot ship file: "household 3 of 12 (Plots13H2) was given no
+    /// plot: a guest, on a ship of 2 plot(s)".
+    #[tokio::test]
+    async fn a_full_ship_of_twelve_gives_homes_back_by_release_and_by_erase() {
+        let path = plots_db("full_twelve");
+        let (state, port, server) = relay_on(&path).await;
+        let ship = state.game_world.read().await.ship_plots.ship_id.clone();
+        let (mut admin, admin_key) = bind_socket_from(&state, port, [170u8; 32], Some("PlotsAdmin"), 1, Some("10.13.1.1")).await;
+        state.db.set_role(&admin_key, "admin").expect("make admin");
+        let mut homes = join_households(&state, port, 12, 13, 150).await;
+        let (mut guest, _) = bind_socket_from(&state, port, [171u8; 32], Some("PlotsGuestNow"), 1, Some("10.13.1.2")).await;
+        assert_eq!(welcome_plot(&welcome_after_join(&mut guest, "PlotsGuestNow").await), None, "every plot is held: a guest");
+        let answer = |r: Option<Value>| r.expect("an answer");
+
+        // p7's holder steps out; the admin gives p7 back by its id; the next household gets it.
+        let i7 = homes.iter().position(|h| h.3 == "p7").expect("someone holds p7");
+        let key7 = homes[i7].1.clone();
+        send_json(&mut admin, serde_json::json!({ "type": "game_release_plot", "target": "p7" })).await;
+        let r = answer(next_game_of(&mut admin, &["game_admin_error", "game_admin_notice"]).await);
+        assert_eq!(r["type"], "game_admin_error", "refused while p7's holder stands in the world: {r}");
+        send_json(&mut homes[i7].0, serde_json::json!({ "type": "game_leave" })).await;
+        assert!(wait_until(|| async { state.game_world.read().await.find_player_entity(&key7).is_none() }).await, "p7's holder left");
+        send_json(&mut admin, serde_json::json!({ "type": "game_release_plot", "target": "p7" })).await;
+        let r = answer(next_game_of(&mut admin, &["game_admin_error", "game_admin_notice"]).await);
+        assert_eq!(r["type"], "game_admin_notice", "{r}");
+        assert!(r["message"].as_str().unwrap_or("").contains("Released plot p7"), "{r}");
+        let (mut next, _) = bind_socket_from(&state, port, [172u8; 32], Some("PlotsNextIn"), 1, Some("10.13.1.3")).await;
+        let got = welcome_plot(&welcome_after_join(&mut next, "PlotsNextIn").await);
+        assert_eq!(got.as_deref(), Some("p7"), "the next household gets the plot the admin released");
+
+        // p11's holder erases their account while standing in the world: the figure goes and p11
+        // is free for the next one.
+        let i11 = homes.iter().position(|h| h.3 == "p11").expect("someone holds p11");
+        let (key11, name11) = (homes[i11].1.clone(), homes[i11].2.clone());
+        erase_and_wait(&state, &mut homes[i11].0, &key11, &name11).await;
+        assert!(wait_until(|| async { state.db.plot_holder(&ship, "p11").ok().flatten().is_none() }).await, "the erase gave p11 back");
+        assert!(state.game_world.read().await.find_player_entity(&key11).is_none(), "the erased holder's figure is out of the world");
+        let (mut after, _) = bind_socket_from(&state, port, [173u8; 32], Some("PlotsAfterErase"), 1, Some("10.13.1.4")).await;
+        let got = welcome_plot(&welcome_after_join(&mut after, "PlotsAfterErase").await);
+        assert_eq!(got.as_deref(), Some("p11"), "the next household gets the erased account's plot");
+
+        for mut s in [admin, guest, next, after] {
+            s.close(None).await.ok();
+        }
+        for (mut s, ..) in homes {
             s.close(None).await.ok();
         }
         server.abort();
@@ -2961,11 +3122,14 @@ mod tests {
         let got = welcome_plot(&welcome_after_join(&mut next, "PlotAfter").await);
         assert_eq!(got.as_deref(), Some(ids[0].as_str()), "after giving up {} the next player got {got:?}", ids[0]);
 
-        // A plain leave keeps the plot: the ship is then full for the last one.
+        // A plain leave keeps the plot: the last one is given the next free plot, never the
+        // keeper's (on the two-plot ship this was "the ship is then full"; twelve since
+        // 2026-10-04, so the next free one is the third).
         assert_eq!(welcome_plot(&welcome_after_join(&mut keeper, "PlotKeeper").await).as_deref(), Some(ids[1].as_str()));
         send_json(&mut keeper, serde_json::json!({ "type": "game_leave" })).await;
         assert!(wait_until(|| async { state.game_world.read().await.find_player_entity(&keeper_key).is_none() }).await);
-        assert_eq!(welcome_plot(&welcome_after_join(&mut last, "PlotLast").await), None, "a plain leave keeps the plot");
+        let after_keeper = welcome_plot(&welcome_after_join(&mut last, "PlotLast").await);
+        assert_eq!(after_keeper, ids.get(2).cloned(), "a plain leave keeps the plot: the last one got {after_keeper:?}");
 
         for mut s in [misfit, next, keeper, last] {
             s.close(None).await.ok();
