@@ -749,6 +749,17 @@
           ]
         },
         {
+          "title": "First Aid Until Help Arrives",
+          "src": "docs/user/skills/first_aid_until_help_arrives.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "safety",
+            "beginner"
+          ]
+        },
+        {
           "title": "Handwashing and Hygiene",
           "src": "docs/user/skills/handwashing_and_hygiene.md",
           "tags": [
@@ -798,11 +809,32 @@
           ]
         },
         {
+          "title": "When Heat Becomes Dangerous",
+          "src": "docs/user/skills/when_heat_becomes_dangerous.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "safety"
+          ]
+        },
+        {
           "title": "Teeth",
           "src": "docs/user/skills/teeth.md",
           "tags": [
             "guide",
             "real"
+          ]
+        },
+        {
+          "title": "Helping Your Neighbours After a Disaster",
+          "src": "docs/user/skills/helping_your_neighbours_after_a_disaster.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "safety",
+            "governance"
           ]
         }
       ]
