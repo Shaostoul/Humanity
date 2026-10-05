@@ -1851,15 +1851,9 @@ pub async fn handle_account_delete(state: &Arc<RelayState>, my_key: &str, confir
     crate::relay::handlers::sign_ups::remember_erase(state, my_key);
     // Out of the shared world, with their plot freed in the same step (home_plots.rs; ship
     // homes 1b, round 4 of the review), before the rest is erased.
-    let freed = crate::relay::handlers::home_plots::leave_world_for_erase(state, my_key).await;
+    let left = crate::relay::handlers::home_plots::leave_world_for_erase(state, my_key).await;
     let mut receipt = state.db.delete_account(my_key, &name);
-    if freed {
-        // The plot freed there counts in the receipt with any others the erase gave back.
-        match receipt.iter_mut().find(|(label, _)| label == "ship_plots") {
-            Some(entry) => entry.1 += 1,
-            None => receipt.push(("ship_plots".to_string(), 1)),
-        }
-    }
+    left.add_to(&mut receipt); // the plot freed there, and the pieces that came down with it, count with the rest
     let summary: Vec<String> = receipt
         .iter()
         .filter(|(_, n)| *n > 0)
@@ -3138,6 +3132,7 @@ pub async fn handle_game_join(
         // False when spawned afresh (first join, after a game_leave, the grace or a relay
         // restart): the game then stands where this welcome holds it (home_plot.rs).
         "rejoin": is_rejoin,
+        "ranks": super::shared_build::ranks_of(state, my_key), // what they may build or take down beyond their own plot (increment 5)
     });
     if let Some(q) = current_quest {
         welcome["current_quest"] = q;
@@ -3147,6 +3142,7 @@ pub async fn handle_game_join(
         message: format!("__game__:{}", welcome),
     };
     let _ = state.broadcast_tx.send(private);
+    super::shared_build::on_join(state, &mut world, player_id, my_key); // the building pieces in their view, after the welcome (increment 5)
 
     // PlayerJoined to the players who have them in view (increment 4; it went to every socket)
     // -- only for a FRESH join (v0.779): on a rejoin everyone else still has the entity, and
@@ -3374,6 +3370,7 @@ pub async fn handle_game_position_update(
     // then reach them after their `game_out_of_view` and stand a figure there for good.
     super::game_interest::send_each(state, view_msgs);
     super::game_interest::send_to(state, viewers, &update);
+    super::shared_build::on_move(state, &mut world, player_id); // building pieces in frames that came into or left their view (increment 5)
     drop(world);
 
     // If the position update advanced a quest, send a private update to the
