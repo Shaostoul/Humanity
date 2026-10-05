@@ -745,6 +745,17 @@
           ]
         },
         {
+          "title": "Where Your Own Electrical Work Stops",
+          "file": "where_your_electrical_work_stops.md",
+          "tags": [
+            "guide",
+            "real",
+            "power",
+            "shelter",
+            "safety"
+          ]
+        },
+        {
           "title": "Your First Solar Power",
           "file": "first_solar_power.md",
           "tags": [
@@ -998,6 +1009,17 @@
           ]
         },
         {
+          "title": "Electricity and How It Flows",
+          "file": "electricity_and_how_it_flows.md",
+          "tags": [
+            "guide",
+            "real",
+            "power",
+            "technical",
+            "safety"
+          ]
+        },
+        {
           "title": "Sharpening",
           "file": "sharpening.md",
           "tags": [
@@ -1014,6 +1036,16 @@
             "guide",
             "real",
             "technical"
+          ]
+        },
+        {
+          "title": "Power Tools",
+          "file": "power_tools.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "safety"
           ]
         },
         {

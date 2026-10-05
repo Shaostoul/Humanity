@@ -1556,9 +1556,26 @@
       "subject": "energy",
       "title": "Where amateur electrical work stops",
       "summary": "Know exactly which electrical work is safe to do and which kills people.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "where-your-electrical-work-stops"
+      ],
       "skills": [
         "engineering"
+      ],
+      "data": [
+        "data/utilities/conduits.ron",
+        "data/machines/home.ron"
+      ],
+      "sources": [
+        "osha",
+        "ecfr",
+        "niosh",
+        "cpsc",
+        "fema",
+        "dod-technical-manuals",
+        "wa-lni",
+        "state-electrical-authority"
       ],
       "locale_dependent": true,
       "hazard": "lethal"
@@ -2481,9 +2498,25 @@
       "subject": "physics",
       "title": "Electricity, physically",
       "summary": "Understand current, resistance and why electricity hurts people.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "electricity-and-how-it-flows"
+      ],
       "skills": [
         "engineering"
+      ],
+      "data": [
+        "data/utilities/conduits.ron",
+        "data/machines/home.ron"
+      ],
+      "sources": [
+        "dod-technical-manuals",
+        "nist",
+        "osha",
+        "ecfr",
+        "niosh",
+        "cpsc",
+        "nws"
       ],
       "locale_dependent": false,
       "hazard": "lethal"
@@ -3351,10 +3384,26 @@
       "subject": "tools",
       "title": "Power tools and their hazards",
       "summary": "Use powered tools with the specific respect each one demands.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "power-tools"
+      ],
       "skills": [
         "woodworking",
         "engineering"
+      ],
+      "data": [
+        "data/items.csv",
+        "data/crafting/tools.ron",
+        "data/machines/home.ron"
+      ],
+      "sources": [
+        "osha",
+        "ecfr",
+        "niosh",
+        "cpsc",
+        "federal-register",
+        "usfs"
       ],
       "locale_dependent": false,
       "hazard": "lethal"
