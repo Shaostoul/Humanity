@@ -3507,3 +3507,33 @@ never what is in your pockets.
 plumbed to), never the backpack, with a test. Related, smaller: "Dev: stock all
 materials" supplies no tools, and since BUG-147 a craft's parts come from home storage
 but its tools must still be carried.
+
+## BUG-151: opening and shutting the build editor with no edit rewrote the home, ship and machine data files (FIXED v0.1459.0, found 2026-10-05)
+
+**Seen:** by the first run of increment 4's new rig legs (the editor jump). The
+editor's opening rebuild set `construction_structure_dirty`, and the choke point in
+lib.rs armed the autosave on any dirty flag, so a minute after a player merely
+opened and shut the editor, the autosave rewrote `data/homes/<kind>.ron`, the ship
+file, `data/machines/home.ron` and `data/machines/ship.ron`, dropping their comments.
+In a checkout (the rigs' data folder is the checkout) that rewrote four tracked files.
+
+**Fix:** `arms_autosave(edited, entry_rebuild)` ignores the editor's own opening
+rebuild (755018fa0). Test `engine::editor::autosave_tests::opening_the_editor_is_not_an_edit`,
+seen red: "the editor's own rebuild as it opens armed the autosave".
+
+## BUG-152: three tests fail under machine load, not on their code (OPEN, found 2026-10-05)
+
+**Seen:** while increment 4's fixes were checked, with other builds running: the media
+seek tests `a_seek_lands_where_it_was_asked_and_the_picture_agrees`,
+`a_seek_with_no_keyframe_in_the_window_still_arrives` and once
+`seeking_while_paused_shows_the_frame_it_landed_on` (they wait 5 s of wall-clock time
+for frames), and the fleet ledger's `the_fleet_ledger_end_to_end` ("rate_limited",
+features.rs ~1980). Each passed alone and on reruns; src/media was unchanged.
+
+**Why it matters:** a check that fails on a busy machine teaches people to rerun it
+until it is green, which is how a real failure gets waved through.
+
+**Fix (not started):** make the media tests wait on the decoder's progress rather
+than on wall-clock time (or give them a deterministic clock), and give the fleet
+ledger test a relay rate limit that cannot trip in a test (or space its sends by
+the limit it is testing).
