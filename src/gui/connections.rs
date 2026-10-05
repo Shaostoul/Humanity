@@ -20,8 +20,36 @@
 //! (lib.rs), not the background links (engine/bg_connections.rs). The Chat page's Connect does,
 //! after saying that it signs you up again (`ERASED_CONNECT_NOTE`), and pressing it forgets the
 //! server (`forget_account_erased`).
+//!
+//! NO SERVER (BUG-160). An empty address is no server: the person chose it by clearing the Chat
+//! page's Server field, and the config keeps it through a restart (config.rs). Nothing dials a
+//! server by itself then: not the auto-connect (`may_auto_connect`), not the backoff reconnect
+//! (`backoff_reconnect_runs`), not the background links to the saved servers
+//! (`may_dial_saved_servers`). An address typed into that field is a draft that Connect dials:
+//! the edit holds dialling, as a Disconnect does (`hold_dialling_until_connect`). Only the Chat
+//! page's Connect turns an empty field into a server, the official one (`connect_target`).
 
 use super::{pages, GuiState, ServerConnection};
+
+/// The official community server. A fresh install starts on it (`GuiState::default`), a saved
+/// config that never held an address reads as it (config.rs, `default_server_url`), and the
+/// Chat page's Connect dials it for an empty field (`connect_target`). Nothing else turns an
+/// empty address into it (BUG-160).
+pub const OFFICIAL_SERVER: &str = "https://united-humanity.us";
+
+/// The server the Chat page's Connect dials for the address in its field: that address, or the
+/// official server when the field is empty, the suggestion the empty field shows. The connect
+/// form asks it for the note above the button (`erase_note`) and for the button itself, so the
+/// note is always about the server the button dials (review of BUG-160's first fix, finding B2:
+/// the note was looked up for the empty field while Connect signed up again on the official
+/// server). Nothing that dials by itself asks it: to those an empty address is no server.
+pub fn connect_target(field: &str) -> &str {
+    if field.trim().is_empty() {
+        OFFICIAL_SERVER
+    } else {
+        field
+    }
+}
 
 /// What the Chat page's connect box says under a server whose account this identity erased.
 /// One sentence, naming the control it sits above (BUG-135). The web login screen says the same
@@ -285,13 +313,22 @@ impl GuiState {
         }
     }
 
+    /// Whether a server is set: the address is not empty (BUG-160). An empty one, which the
+    /// person chooses by clearing the Chat page's Server field, is no server, and nothing dials
+    /// one by itself; an address of only spaces is none either.
+    pub fn has_server(&self) -> bool {
+        !self.server_url.trim().is_empty()
+    }
+
     /// Whether the app may dial the active server by itself this frame: at boot, after an
     /// unlock (which clears `ws_manually_disconnected`), or after a server switch (lib.rs, the
-    /// auto-connect). Never with no identity unlocked (a locked seed would register a keyless
-    /// name-squatter), never after a Disconnect, and never on a server this identity erased
-    /// its account on (BUG-135): that would sign up again without the person asking.
+    /// auto-connect). Never with no server set (BUG-160), never with no identity unlocked (a
+    /// locked seed would register a keyless name-squatter), never after a Disconnect or while an
+    /// address is being typed (`hold_dialling_until_connect`), and never on a server this
+    /// identity erased its account on (BUG-135): that would sign up again without the person
+    /// asking.
     pub fn may_auto_connect(&self) -> bool {
-        !self.server_url.is_empty()
+        self.has_server()
             && self.ws_client.is_none()
             && !self.user_name.is_empty()
             && self.onboarding_complete
@@ -300,6 +337,42 @@ impl GuiState {
             && self.ws_reconnect_timer <= 0.0
             && self.ws_reconnect_attempts == 0
             && self.private_key_bytes.is_some()
+    }
+
+    /// Whether the backoff reconnect's countdown runs this frame (lib.rs): the socket dropped by
+    /// itself (not a Disconnect), its countdown is armed (engine/frame_ws_poll.rs), and a server
+    /// is set. With no server it does nothing, as `may_auto_connect` does (review of BUG-160's
+    /// first fix, finding B3: with the field cleared during a countdown it dialled "/ws" and
+    /// kept failing).
+    pub fn backoff_reconnect_runs(&self) -> bool {
+        self.ws_client.is_none()
+            && !self.ws_manually_disconnected
+            && self.ws_reconnect_timer > 0.0
+            && self.has_server()
+    }
+
+    /// Whether the background pump may dial the saved servers by itself this frame
+    /// (engine/bg_connections.rs). Not until a server is chosen this session: one was dialled
+    /// (`connected_server_url`), or an address is set and dialling is not held (an address
+    /// being typed is held until Connect, `hold_dialling_until_connect`). So after a restart
+    /// with no server the saved servers wait for Connect. The official server is among them
+    /// once it has been connected (lib.rs keeps every server it connects to in the list), so a
+    /// person who cleared the address was otherwise back on the live server at the next launch,
+    /// only as a background link (BUG-160).
+    pub fn may_dial_saved_servers(&self) -> bool {
+        !self.connected_server_url.trim().is_empty() || (self.has_server() && !self.ws_manually_disconnected)
+    }
+
+    /// The person edited the Chat page's Server field: what it holds is a draft that Connect
+    /// dials (BUG-160), so nothing dials it by itself, letter by letter, as it is typed: the
+    /// auto-connect and the backoff reconnect are held, as after a Disconnect, and the status
+    /// stops counting down to a reconnect that will not come. Connect, a saved server's row and
+    /// an unlock lift the hold.
+    pub fn hold_dialling_until_connect(&mut self) {
+        self.ws_manually_disconnected = true;
+        if self.ws_client.is_none() {
+            self.ws_status = "Disconnected".to_string();
+        }
     }
 
     /// The person pressed Connect for `url`: they chose to sign up there again.
@@ -955,5 +1028,55 @@ mod settings_draft_tests {
         let mut other = clock.clone();
         other.message_retention_days = 7;
         assert!(said(Some(&edited), Some(&older), &other, false), "a real change under the edits came with a clock change and went unsaid");
+    }
+}
+
+/// BUG-160: with no server set (an empty address), nothing dials a server by itself. The
+/// restart cases are in config.rs (`server_address_tests`); the connect form's in
+/// pages/chat/left_panel.rs (its note) and pages/chat.rs (`connect_form_tests`, typing).
+#[cfg(all(test, feature = "native"))]
+mod no_server_tests {
+    use crate::gui::GuiState;
+
+    /// The review of BUG-160's first fix, finding B3: the backoff reconnect (lib.rs) dialled the
+    /// address in the field when its countdown ran out, so with the field cleared during the
+    /// countdown it dialled "/ws" and kept failing. With no server it does nothing, as the
+    /// auto-connect (`may_auto_connect`) does.
+    ///
+    /// Seen red 2026-10-05 with the countdown's condition as on efe55abad: "the backoff
+    /// reconnect ran with no server set".
+    #[test]
+    fn the_backoff_reconnect_never_dials_an_empty_address() {
+        let mut state = GuiState::default();
+        state.server_url = "https://a.example".to_string();
+        state.ws_reconnect_timer = 5.0; // a dropped socket's countdown (engine/frame_ws_poll.rs)
+        assert!(state.backoff_reconnect_runs(), "the setup itself must run the countdown");
+        state.server_url.clear();
+        assert!(!state.backoff_reconnect_runs(), "the backoff reconnect ran with no server set");
+        state.server_url = "  ".to_string();
+        assert!(!state.backoff_reconnect_runs(), "the backoff reconnect ran with a blank address");
+        // A Disconnect holds it off, as before.
+        state.server_url = "https://a.example".to_string();
+        state.ws_manually_disconnected = true;
+        assert!(!state.backoff_reconnect_runs(), "the backoff reconnect ran after a Disconnect");
+    }
+
+    /// The two decisions are the ones the dialling paths take, read from the source the way
+    /// `only_the_chat_pages_connect_signs_up_again` reads it (the frame loop cannot run in a
+    /// unit test): the backoff reconnect asks `backoff_reconnect_runs`, and the background pump
+    /// asks `may_dial_saved_servers` before it dials the saved servers.
+    ///
+    /// Seen red 2026-10-05 on efe55abad, which asked neither: "the backoff reconnect does not
+    /// ask backoff_reconnect_runs" (left: 0, right: 1).
+    #[test]
+    fn the_dialling_paths_ask_these_decisions() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let read = |rel: &str| std::fs::read_to_string(root.join(rel)).unwrap_or_else(|e| panic!("read {rel}: {e}"));
+        let lib = read("src/lib.rs");
+        assert_eq!(lib.matches("if state.gui_state.backoff_reconnect_runs() {").count(), 1, "the backoff reconnect does not ask backoff_reconnect_runs");
+        let bg = read("src/engine/bg_connections.rs").replace("\r\n", "\n"); // a checkout may hold CRLF
+        let dial = &bg[bg.find("fn dial_missing_saved_servers").expect("the pump's dial")..];
+        let body = &dial[..dial.find("\n}\n").expect("the end of the pump's dial")];
+        assert!(body.contains("if !state.gui_state.may_dial_saved_servers() {"), "the background pump dials the saved servers without asking may_dial_saved_servers");
     }
 }

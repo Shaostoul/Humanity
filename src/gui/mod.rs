@@ -51,7 +51,7 @@ mod connections;
 /// first entry into the world (first-hour audit 2026-10-04). See `gui/first_steps.rs`.
 #[cfg(feature = "native")]
 mod first_steps;
-pub use connections::{erased_entry, EraseOutcome, ERASED_CONNECT_NOTE, ERASE_UNFINISHED_NOTE};
+pub use connections::{connect_target, erased_entry, EraseOutcome, ERASED_CONNECT_NOTE, ERASE_UNFINISHED_NOTE, OFFICIAL_SERVER};
 
 
 // Headless UI snapshot tests (v0.495): render egui pages to PNGs for review +
@@ -3279,7 +3279,7 @@ impl Default for GuiState {
 
             onboarding_complete: false,
             onboarding_step: 0,
-            server_url: "https://united-humanity.us".to_string(),
+            server_url: OFFICIAL_SERVER.to_string(),
             connected_server_url: String::new(),
             server_connected: false,
             server_check_rx: None,

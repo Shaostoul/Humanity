@@ -333,7 +333,11 @@ pub struct RememberedPlot {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
-    #[serde(default)]
+    /// The active server's address, saved as it is (BUG-160): empty is no server, which the
+    /// person chose by clearing the Chat page's Server field. A config that never held one (the
+    /// field absent, or a file that did not parse and loads as `AppConfig::default()`) reads as
+    /// the official server, as a fresh install with no config file does.
+    #[serde(default = "default_server_url")]
     pub server_url: String,
     #[serde(default)]
     pub user_name: String,
@@ -994,6 +998,7 @@ pub struct AppConfig {
 fn default_water_clarity_cfg() -> f32 { 0.35 }
 fn default_precip_density_cfg() -> f32 { 1.0 }
 fn default_fog_density_cfg() -> f32 { 1.0 }
+fn default_server_url() -> String { crate::gui::OFFICIAL_SERVER.to_string() }
 fn default_nav_top_category() -> String { "reality".to_string() }
 fn default_boot_page() -> String { "onboarding".to_string() }
 
@@ -1546,10 +1551,11 @@ impl AppConfig {
     /// Apply loaded config values into a GuiState.
     #[cfg(feature = "native")]
     pub fn apply_to_gui_state(&self, state: &mut crate::gui::GuiState) {
+        // The saved address is the address (BUG-160): an empty one is no server, which the
+        // person chose by clearing the Chat page's Server field, and a restart keeps it (a
+        // config that never held one reads as the official server, `default_server_url`).
+        state.server_url = self.server_url.clone();
         // Only overwrite if config has non-empty values (preserve defaults)
-        if !self.server_url.is_empty() {
-            state.server_url = self.server_url.clone();
-        }
         if !self.user_name.is_empty() {
             state.user_name = self.user_name.clone();
         }
@@ -2023,9 +2029,13 @@ mod play_mode_tests {
     /// Seen red 2026-10-05 by breaking the apply on purpose (apply_to_gui_state setting
     /// `fresh_world_each_launch = false` instead of the file's value): "the fresh-home switch
     /// comes through a load".
+    ///
+    /// The server is the official one, as in his file (read 2026-10-05). It was `""` here, a
+    /// stand-in the load used to replace with the official server; since BUG-160's second fix
+    /// an empty saved address is no server and stays so, which is not what this test is about.
     #[test]
     fn a_config_holding_dev_and_the_default_home_keeps_them_through_a_load_and_a_save() {
-        let json = r#"{"server_url":"","user_name":"","public_key_hex":"","completed_onboarding":true,"play_mode":"Dev","fresh_world_each_launch":true}"#;
+        let json = r#"{"server_url":"https://united-humanity.us","user_name":"","public_key_hex":"","completed_onboarding":true,"play_mode":"Dev","fresh_world_each_launch":true}"#;
         let cfg: AppConfig = serde_json::from_str(json).unwrap();
         assert_eq!(cfg.play_mode, PlayMode::Dev);
         assert!(cfg.fresh_world_each_launch);
@@ -2034,9 +2044,11 @@ mod play_mode_tests {
         assert_eq!(gui.settings.play_mode, PlayMode::Dev, "the Dev mode comes through a load");
         assert!(gui.settings.fresh_world_each_launch, "the fresh-home switch comes through a load");
         assert!(gui.creative_mode, "the Dev mode gives free resources");
+        assert_eq!(gui.server_url, crate::gui::OFFICIAL_SERVER, "the server comes through a load");
         let saved = serde_json::to_string_pretty(&AppConfig::from_gui_state(&gui)).unwrap();
         assert!(saved.contains("\"play_mode\": \"Dev\""), "the save writes the Dev mode");
         assert!(saved.contains("\"fresh_world_each_launch\": true"), "the save writes the fresh-home switch");
+        assert!(saved.contains("\"server_url\": \"https://united-humanity.us\""), "the save writes the server");
         let back: AppConfig = serde_json::from_str(&saved).unwrap();
         assert_eq!(back.play_mode, PlayMode::Dev);
         assert!(back.fresh_world_each_launch);
@@ -2470,5 +2482,103 @@ mod saved_servers_tests {
                  and the Settings chooser have drifted apart"
             );
         }
+    }
+}
+
+/// BUG-160: the server address through a restart. An empty address is no server, which the
+/// person chose by clearing the field, and a restart keeps it; a config that never held an
+/// address (the field absent) is the official server, as a fresh install is.
+#[cfg(all(test, feature = "native"))]
+mod server_address_tests {
+    use super::*;
+    use crate::gui::{GuiState, OFFICIAL_SERVER};
+
+    /// A player whose onboarding is done, with a name, on `address`: nothing but the address
+    /// can keep the auto-connect from dialling after a restart.
+    fn player(address: &str) -> GuiState {
+        let mut s = GuiState::default();
+        s.onboarding_complete = true;
+        s.user_name = "Ada".to_string();
+        s.server_url = address.to_string();
+        s
+    }
+
+    /// A restart: the save (as every save writes it), the load into a fresh state (lib.rs at
+    /// boot) and the unlock of the identity (`apply_pq_identity`, which every unlock runs).
+    fn restart(before: &GuiState) -> GuiState {
+        let saved = serde_json::to_string(&AppConfig::from_gui_state(before)).expect("the config serializes");
+        let mut after = GuiState::default();
+        serde_json::from_str::<AppConfig>(&saved).expect("the config loads").apply_to_gui_state(&mut after);
+        after.private_key_bytes = Some(vec![7u8; 32]);
+        after.apply_pq_identity();
+        after
+    }
+
+    /// The review of BUG-160's first fix, finding B1: the load skipped an empty saved address,
+    /// so GuiState's default, the official server, came back after a restart and the boot
+    /// auto-connect dialled it with nobody pressing Connect.
+    ///
+    /// Seen red 2026-10-05 on efe55abad: "a restart put a server in the cleared address" (left:
+    /// "https://united-humanity.us", right: "").
+    #[test]
+    fn a_cleared_server_address_survives_a_restart() {
+        let after = restart(&player(""));
+        assert_eq!(after.server_url, "", "a restart put a server in the cleared address");
+        assert!(!after.may_auto_connect(), "a restart with no server dialled one by itself");
+        // The same restart with an address dials it: nothing else here holds the auto-connect.
+        let on = restart(&player("https://a.example"));
+        assert_eq!(on.server_url, "https://a.example");
+        assert!(on.may_auto_connect(), "the setup itself must allow a connect");
+    }
+
+    /// A fresh install still starts on the official server: with no config file nothing is
+    /// applied (`AppConfig::load_if_exists`, lib.rs) and GuiState's default stands, and a
+    /// config that never held an address (the field absent, or a file that did not parse,
+    /// which loads as `AppConfig::default()`) reads as the official server, not as no server.
+    ///
+    /// It passes on efe55abad (the load skipped every empty address). Seen red 2026-10-05 with
+    /// B1's change and no default for the field: "a config that never held an address came back
+    /// with no server" (left: "", right: "https://united-humanity.us").
+    #[test]
+    fn a_fresh_install_starts_on_the_official_server() {
+        assert_eq!(GuiState::default().server_url, OFFICIAL_SERVER, "with no config file");
+        for cfg in [serde_json::from_str::<AppConfig>("{}").expect("an empty config loads"), AppConfig::default()] {
+            let mut state = GuiState::default();
+            cfg.apply_to_gui_state(&mut state);
+            assert_eq!(state.server_url, OFFICIAL_SERVER, "a config that never held an address came back with no server");
+        }
+    }
+
+    /// The saved servers are dialled in the background at boot (engine/bg_connections.rs), the
+    /// official server among them once it has been connected (lib.rs keeps every server it
+    /// connects to in the list). After a restart with no server none of them is dialled by
+    /// itself: the person who cleared the address would otherwise be back on the live server
+    /// with nobody pressing Connect, only in the background. A restart with an address, and a
+    /// server dialled this session (Connect), dial them as before.
+    ///
+    /// Seen red 2026-10-05 with the background pump as on efe55abad, which asked nothing: "a
+    /// restart with no server dialled the saved servers in the background".
+    #[test]
+    fn a_restart_with_no_server_dials_no_saved_server() {
+        let with_saved = |address: &str| {
+            let mut s = player(address);
+            s.chat_servers.push(crate::gui::ChatServer {
+                id: format!("srv_{OFFICIAL_SERVER}"),
+                name: "united-humanity".into(),
+                url: OFFICIAL_SERVER.into(),
+                connected: false,
+                channels: Vec::new(),
+                voice_channels: Vec::new(),
+            });
+            s
+        };
+        let mut after = restart(&with_saved(""));
+        assert_eq!(after.chat_servers.len(), 1, "the saved server came through the restart");
+        assert!(!after.may_dial_saved_servers(), "a restart with no server dialled the saved servers in the background");
+        // Connect leaves the dialled server here and lifts the hold (pages/chat/left_panel.rs).
+        after.connected_server_url = OFFICIAL_SERVER.to_string();
+        after.ws_manually_disconnected = false;
+        assert!(after.may_dial_saved_servers(), "after Connect the saved servers are not dialled");
+        assert!(restart(&with_saved("https://a.example")).may_dial_saved_servers(), "a restart with an address does not dial the saved servers");
     }
 }
