@@ -3592,7 +3592,7 @@ For a new character it sorts first among castable abilities, so it sits in hotba
 system see (and that can spread or go out, as the fire guide teaches), or describe what it
 does today. A test casts it and checks what the description promises.
 
-## BUG-154: the backup generator runs on Paint, Glue or Crude Oil (OPEN, found 2026-10-04)
+## BUG-154: the backup generator runs on Paint, Glue or Crude Oil (FIXED (merging in v0.1463.0), found 2026-10-04)
 
 **Seen (the same check, confirmed):** the generator burns whatever flammable-class item is
 in its drum (`src/systems/electrical.rs`, `fuel_ok`: any item whose class is
@@ -3601,8 +3601,30 @@ accepts them, and the Store button offers them, so the house runs on a can of pa
 generator burns the fuel its engine is made for (gasoline, diesel or propane), and the fuels
 guide teaches exactly that.
 
-**Fix (not started):** a generator names the fuels it burns (a data field on the machine),
-and only those run it; a test puts Paint in the drum and expects no power.
+**Fix:** a generator names the fuels its engine burns, as data: `fuels` on its `Generator`
+power role (`src/machines.rs`; item ids from `data/items.csv`). Both homes'
+`generator_portable` names `fuel_refined_0`: its own item calls it a "Gasoline electric
+generator", the game has no gasoline item, and Refined Fuel, the fuel refinery's product, is
+the one that stands for it. The spawn puts the list on the generator's entity
+(`ecs::components::BurnsFuels`, `src/engine/home_spawn.rs`), and from there only those fuels
+run it (`src/systems/electrical.rs`), its drum takes only those whatever asks (the Store
+action in `src/lib.rs`, harvest surplus in `src/systems/farming/mod.rs` and a machine's own
+craft output in `src/systems/crafting/mod.rs`, all through `containers::vessel_takes_item`),
+and its Store buttons offer only those (`containers::store_offers`, the card's list moved
+out of `src/lib.rs`). A fuelled generator whose data names no fuel burns nothing and its
+drum takes nothing, with a warning at spawn: no fuel can safely be assumed for it, and
+guessing from a class is what put the paint in. Tests, each seen red on the old rule first:
+`systems::electrical::tests::paint_in_the_drum_makes_no_power` (it ran on Paint; the test
+checks Glue and Crude Oil too), `a_generator_that_names_no_fuel_burns_nothing` (it ran on
+Refined Fuel with no list),
+`systems::inventory::containers::tests::a_generators_drum_offers_only_its_fuel` (the drum
+offered Crude Oil, Glue, Paint and Refined Fuel) and
+`engine::home_spawn::tests::the_shipped_generator_burns_its_own_fuel_and_not_paint` (red
+twice: the shipped data named no fuel, then, with the data in, the drum offered Paint). The
+positive control, `systems::electrical::tests::the_generators_own_fuel_runs_it`, passes on
+the old rule by design; it, the shipped-generator test and
+`backstop_genset_runs_when_needed_and_burns_its_drum_dry` were seen red against a rule that
+burns nothing, so the Paint test cannot pass merely because no genset runs.
 
 ## BUG-155: the greenhouse quest asks for a heater that does nothing (OPEN, found 2026-10-04)
 

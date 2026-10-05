@@ -1836,7 +1836,10 @@ tests. WIRED (v0.728+): `MachineDef.container_type` in home.ron spawns a
 `Container` component on the machine entity (grain silo bin, steel fuel
 drum); the walk-up machine card shows "Holds: Nx item" + Take + per-item
 Store buttons; harvest overflow and refinery output fill them; the backstop
-genset burns its drum's flammable contents (`src/systems/electrical.rs`).
+genset burns only the fuels its data names (`fuels` on its `Generator` power
+role, spawned as `BurnsFuels`; BUG-154), and its drum takes and offers only
+those (`vessel_takes_item`, `store_offers` in `containers.rs`;
+`src/systems/electrical.rs`).
 Always pre-check `registry.check().is_accepted()` before `try_store` — a
 wrong-class store DAMAGES the vessel by design.
 Content memory and materials (v0.1345.0): a vessel remembers its last

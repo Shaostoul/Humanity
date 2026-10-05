@@ -615,13 +615,24 @@ one thing: a generator is a backstop, not a source.
   manual it took the figures from). The Construction page lists it as a
   backstop generator, with the watts it supplies while it runs and the
   fuel it burns an hour.
+- **Its own fuel and nothing else.** The data file names the fuel its
+  engine is built for, Refined Fuel, which the home's fuel refinery
+  makes and which stands in for gasoline (the generator's own item calls
+  it a gasoline generator, `data/items.csv`). Only that fuel runs it,
+  and its drum takes, and its Store button offers, nothing else: Paint,
+  Glue and Crude Oil are flammable too, and none of them runs it
+  (`fuels` in the data file, `src/systems/electrical.rs`). A real engine
+  is the same: it runs on the fuel its maker built it for (general
+  knowledge), and [Fuels and Their Hazards](fuels_and_their_hazards.md)
+  has how to keep each fuel in its own labelled can so the wrong one
+  never goes in.
 - **It runs only when it has to.** Under Settings > Gameplay > Ship life
   support, the default, Station-supplied, ties the home to the ship's
   reactor, which covers whatever shortfall the home's own sources and
   batteries leave, so the generator never starts and never burns fuel.
   In the Realistic setting it starts only
   when the home's own sources fall short of the load, its batteries are
-  below a quarter full, and its drum holds fuel, and it burns that fuel
+  below a quarter full, and its drum holds its fuel, and it burns that fuel
   from its own 200-litre drum while it runs; an empty drum means no power
   (`src/systems/electrical.rs`). The play mode makes no difference to
   this.
@@ -797,7 +808,11 @@ were read on 4 October 2026; the Washington rule was read the same day.
   Plant room; the maker's figures it rests on are recorded in the file);
   the Construction page's description (`src/gui/pages/construction.rs`);
   the backstop rule, the fed islands that never start it, and the drum
-  burn (`src/systems/electrical.rs`); the Ship life support setting and
+  burn (`src/systems/electrical.rs`); the one fuel it names, Refined Fuel
+  (`fuels` in both data files), the only one that runs it and the only
+  one its drum takes and its Store button offers
+  (`src/systems/inventory/containers.rs`), and its item's description as
+  a gasoline generator (`data/items.csv`); the Ship life support setting and
   its Station-supplied default (`src/systems/ship_power.rs`,
   `src/config.rs`, `src/gui/pages/settings.rs`).
 - [Where Your Own Electrical Work Stops](where_your_electrical_work_stops.md),
@@ -852,5 +867,7 @@ were read on 4 October 2026; the Washington rule was read the same day.
   pole transformer steps the voltage back up, are our explanation;
   live pins on a double-plug cord are general practice.
 - The purpose of the Washington meter-base sign is our reading.
+- That a real engine runs only on the fuel its maker built it for is
+  general knowledge.
 - The household, its generator, its yard and its schedule in the worked
   example are made up to illustrate the rules.
