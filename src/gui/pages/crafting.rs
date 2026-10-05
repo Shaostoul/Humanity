@@ -325,7 +325,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.label(
                     RichText::new(format!(
                         "Build puts the piece in your hands: aim at the floor, [{}] turns it, [{}] builds it there, \
-                         [{}] takes down the piece you look at (its materials come back), [Esc] when done. Built \
+                         [{}] takes down the piece you look at (all its materials come back, except that a fire \
+                         gives back only its stones and the whole logs it has not burned), [Esc] when done. Built \
                          pieces are solid. A roof rests on top of the walls it covers; three walls and a roof keep \
                          out the wind and rain when the open side faces away from the wind.",
                         key(crate::input::bindings::GameAction::ToggleRoof),

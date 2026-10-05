@@ -416,9 +416,12 @@ aboard.
   surroundings, falling with the square of the distance from the fire.
   Standing 1.5 m from one on a clear, calm 0 C night, your surroundings
   feel like about 16 C instead of minus 11; at 20 m it makes no
-  difference, and a fire that has gone out warms nothing. In life the
-  warmth lands on the side of you facing the fire; the game's body has
-  one skin, so it spreads it all round (`src/systems/construction/fires.rs`;
+  difference, and a fire that has gone out warms nothing. Its warmth
+  travels in straight lines, as radiation does, so a wall or a roof
+  between you and the fire stops all of it, and an open doorway lets it
+  through. In
+  life the warmth lands on the side of you facing the fire; the game's
+  body has one skin, so it spreads it all round (`src/systems/construction/fires.rs`;
   [Making and Controlling Fire](making_and_controlling_fire.md) has the
   rest).
 - **Indoors aboard.** Inside your home aboard the station the air is

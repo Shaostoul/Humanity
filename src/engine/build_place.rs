@@ -125,8 +125,9 @@ pub(crate) fn key(state: &mut EngineState, key_name: &str, escape: bool, repeat:
 /// moves the cast into the ability channel (the abilities bridge, later in
 /// the same frame), so the spot is where the player stood and looked when
 /// they cast. Aboard, a spot outside the player's own plot is refused as a
-/// piece in hand is (`refused_off_plot`); a piece built only outdoors is then
-/// refused aboard by the build itself, with its reason.
+/// piece in hand is (`refused_off_plot`), except for a piece built only
+/// outdoors, which the build itself refuses aboard first, with its outdoors
+/// reason (`cast_spot`, the BUG-153 review).
 fn publish_cast_spot(state: &mut EngineState) {
     use crate::systems::abilities::{AbilityRegistry, BuildSpot, BUILD_SPOT_SLOT};
     let Some((id, _)) = state.gui_state.pending_cast.as_ref() else { return };
@@ -143,13 +144,66 @@ fn publish_cast_spot(state: &mut EngineState) {
         state.gui_state.settings.play_mode.allows(crate::config::Capability::ShipStructureEditing),
         &placed,
     );
-    let at = match placed {
-        Ok(_) if off_plot => Err("you can build only inside your own plot (your home)".to_string()),
+    let outdoors_only = state
+        .data_store
+        .get::<BlueprintRegistry>("blueprint_registry")
+        .and_then(|r| r.get(&blueprint))
+        .is_some_and(|bp| bp.outdoors_only);
+    let guest = state.gui_state.ship_structure.as_ref().is_some_and(|s| s.home_is_away());
+    let spot: BuildSpot = (id, cast_spot(&blueprint, placed, off_plot, outdoors_only, guest));
+    state.data_store.insert(BUILD_SPOT_SLOT, std::sync::Mutex::new(Some(spot)));
+}
+
+/// Where a building ability's cast builds, or why it cannot, from the ghost a
+/// piece in hand would have (`publish_cast_spot`): the build request at its
+/// pose and in its frame, or the reason. Pure, so it is tested whole.
+///
+/// THE PLOT RULE NEVER SPEAKS FOR A PIECE BUILT ONLY OUTDOORS (the BUG-153
+/// review, 2026-10-05, A2): such a piece is never built aboard, and the
+/// build refuses it there with its own outdoors words before anything else
+/// (`construction::begin_build`), the words the placing hint shows
+/// ([`place_refusal_hint`]). Refused here as "only inside your own plot", a
+/// Campfire cast in the Commons sent the player home, where it was refused
+/// again as "never aboard"; and a guest, who has no plot, heard nothing true
+/// about it at all.
+pub(crate) fn cast_spot(
+    blueprint: &str,
+    placed: Result<planet_build::Ghost, planet_build::CannotBuild>,
+    off_plot: bool,
+    outdoors_only: bool,
+    guest: bool,
+) -> Result<BuildRequest, String> {
+    match placed {
+        Ok(_) if off_plot && !outdoors_only => Err(off_plot_reason(guest).to_string()),
         Ok(g) => Ok(BuildRequest::new(blueprint, g.pose).on(g.site)),
         Err(why) => Err(planet_build::cannot_build_reason(why).to_string()),
-    };
-    let spot: BuildSpot = (id, at);
-    state.data_store.insert(BUILD_SPOT_SLOT, std::sync::Mutex::new(Some(spot)));
+    }
+}
+
+/// The line under the crosshair when the piece in hand cannot go where its
+/// ghost stands, before anything about materials, or None when it can: the
+/// first reason that applies, in this order (the BUG-153 review, 2026-10-05,
+/// A2). A piece built only outdoors hears its outdoors refusal first, aboard
+/// or anywhere (`construction::outdoors_refusal`): it is the answer that
+/// holds wherever the player goes, where "only inside your own plot" sent
+/// them home to be refused again as "never aboard", and told a guest nothing
+/// true. Then a piece that would roof over a campfire
+/// (`construction::roofs_over_outdoors_piece`), then the own-plot rule
+/// aboard ([`refused_off_plot`]). Pure, so the order is tested whole.
+pub(crate) fn place_refusal_hint(
+    name: &str,
+    not_outdoors: Option<crate::systems::construction::NotOutdoors>,
+    roofs_over: Option<&str>,
+    off_plot: bool,
+    guest: bool,
+) -> Option<String> {
+    if let Some(why) = not_outdoors {
+        return Some(format!("Placing {name}: {}   [Esc] done", why.reason()));
+    }
+    if let Some(fire) = roofs_over {
+        return Some(format!("Placing {name}: {}   [Esc] done", crate::systems::construction::roof_over_fire_reason(fire)));
+    }
+    off_plot.then(|| off_plot_hint(name, guest))
 }
 
 /// Once a frame: pick up what Build was clicked on, drop it when the player
@@ -197,16 +251,23 @@ pub(crate) fn frame(state: &mut EngineState) {
         &placed,
     );
     // A piece built only outdoors (BUG-153: a campfire) is refused aboard,
-    // under a roof and where there is no air to burn, with the reason here,
-    // by the rule the build itself applies (`construction::outdoors_refusal`).
-    let not_outdoors = match &placed {
-        Ok(g) => state
-            .data_store
-            .get::<BlueprintRegistry>("blueprint_registry")
-            .and_then(|r| r.get(&p.blueprint_id))
-            .and_then(|bp| {
-                crate::systems::construction::outdoors_refusal(bp, &state.game_world.world, &state.data_store, g.site.as_ref(), &g.pose)
-            }),
+    // under a roof and where there is no air to burn, and a roof is refused
+    // over a campfire, with the reason here, by the rules the build itself
+    // applies (`construction::outdoors_refusal`, `roofs_over_outdoors_piece`).
+    let registry = state.data_store.get::<BlueprintRegistry>("blueprint_registry");
+    let (not_outdoors, roofs_over) = match (&placed, registry.and_then(|r| r.get(&p.blueprint_id))) {
+        (Ok(g), Some(bp)) => {
+            let world = &state.game_world.world;
+            (
+                crate::systems::construction::outdoors_refusal(bp, world, &state.data_store, g.site.as_ref(), &g.pose),
+                crate::systems::construction::roofs_over_outdoors_piece(bp, world, registry, g.site.as_ref(), &g.pose),
+            )
+        }
+        _ => (None, None),
+    };
+    let guest = state.gui_state.ship_structure.as_ref().is_some_and(|s| s.home_is_away());
+    let refusal = match &placed {
+        Ok(_) => place_refusal_hint(&name, not_outdoors, roofs_over.as_deref(), off_plot, guest),
         Err(_) => None,
     };
     // On a planet only the pack counts (the home's storage is in orbit).
@@ -216,10 +277,7 @@ pub(crate) fn frame(state: &mut EngineState) {
     };
     let keys = &state.gui_state.keybinds;
     let hint = match (&placed, &short) {
-        _ if off_plot => off_plot_hint(&name, state.gui_state.ship_structure.as_ref().is_some_and(|s| s.home_is_away())),
-        _ if not_outdoors.is_some() => {
-            format!("Placing {name}: {}   [Esc] done", not_outdoors.map_or("", |w| w.reason()))
-        }
+        _ if refusal.is_some() => refusal.clone().unwrap_or_default(),
         (Ok(_), Some((item, more))) => short_hint(&name, item, *more),
         (Ok(g), None) => placing_hint(
             &name,
@@ -236,7 +294,7 @@ pub(crate) fn frame(state: &mut EngineState) {
         p.hint = hint;
         p.short = short.is_some();
         match placed {
-            Ok(g) if !off_plot && not_outdoors.is_none() => {
+            Ok(g) if refusal.is_none() => {
                 p.ghost = Some(g.pose);
                 p.site = g.site;
                 p.occupied = g.occupied;
@@ -286,10 +344,16 @@ pub(crate) fn outside_own_plot(ship: Option<&crate::ship::ship_structure::ShipSt
 /// The line under the crosshair when the piece in hand points outside your plot. `guest`: the
 /// player has no plot of this ship (ship homes increment 2, the home is put away).
 pub(crate) fn off_plot_hint(name: &str, guest: bool) -> String {
+    format!("Placing {name}: {}   [Esc] done", off_plot_reason(guest))
+}
+
+/// Why a piece is not built aboard outside your plot, in the words after "Placing X: " and after
+/// a building ability's name (`cast_spot`). `guest`: the player has no plot of this ship.
+pub(crate) fn off_plot_reason(guest: bool) -> &'static str {
     if guest {
-        format!("Placing {name}: you are a guest on this ship, with no plot of your own to build on   [Esc] done")
+        "you are a guest on this ship, with no plot of your own to build on"
     } else {
-        format!("Placing {name}: you can build only inside your own plot (your home)   [Esc] done")
+        "you can build only inside your own plot (your home)"
     }
 }
 
@@ -615,6 +679,96 @@ mod tests {
         let site = PlanetSite { body: "earth".into(), origin: glam::DVec3::new(6.371e6, 0.0, 0.0) };
         assert!(!refused_off_plot(Some(&p1), false, &ghost(80.0, 40.0, Some(site))), "a planet site has no plot");
         assert!(!refused_off_plot(Some(&p1), false, &Err(planet_build::CannotBuild::OpenSpace)), "no ghost, nothing to refuse");
+    }
+
+    /// The shipped blueprint catalog in a DataStore, as the build reads it.
+    fn catalog() -> crate::hot_reload::data_store::DataStore {
+        let mut data = crate::hot_reload::data_store::DataStore::new();
+        data.insert(
+            "blueprint_registry",
+            BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap(),
+        );
+        data
+    }
+
+    /// The ghost of `id` in the Commons of the shipped ship (outside every
+    /// plot), as the ghost places a piece aboard.
+    fn in_the_commons(reg: &BlueprintRegistry, id: &str) -> Result<planet_build::Ghost, planet_build::CannotBuild> {
+        let pose = placement::placement_pose(reg.get(id).unwrap(), Vec3::new(80.0, 0.0, 40.0), 0, &hecs::World::new(), reg, None);
+        Ok(planet_build::Ghost { pose, site: None, above_floor: 0.0, occupied: false })
+    }
+
+    /// AN OUTDOORS-ONLY PIECE HEARS ITS OUTDOORS REFUSAL FIRST, ABOARD OR ANYWHERE (the BUG-153
+    /// review, 2026-10-05, A2). On the shipped ship assembled at p1, a Campfire in hand in the
+    /// Commons, outside the player's own plot: the line under the crosshair says it is never built
+    /// aboard, not that it goes only in their own plot (which sent them home, to be refused there
+    /// as "never aboard"); a guest, whose home is put away, hears the same. A Wood Wall in the
+    /// Commons still hears the plot rule, and a guest's wall the guest's words. Seen red
+    /// 2026-10-05 with the plot rule checked first, the order `frame` used: "Placing Campfire:
+    /// you can build only inside your own plot (your home)   [Esc] done".
+    #[test]
+    fn an_outdoors_piece_hears_its_outdoors_refusal_before_the_plot_rule() {
+        use crate::ship::ship_structure::ShipStructure;
+        use crate::systems::construction::{outdoors_refusal, NotOutdoors};
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = catalog();
+        let reg = data.get::<BlueprintRegistry>("blueprint_registry").unwrap();
+        let p1 = ShipStructure::load_and_assemble_shipped(&dir, Some("p1")).expect("assembles at p1");
+        let off_plot = refused_off_plot(Some(&p1), false, &in_the_commons(reg, "campfire"));
+        assert!(off_plot, "the Commons is outside the player's own plot");
+        let pose = in_the_commons(reg, "campfire").map(|g| g.pose).unwrap();
+        let not_outdoors = outdoors_refusal(reg.get("campfire").unwrap(), &hecs::World::new(), &data, None, &pose);
+        assert_eq!(not_outdoors, Some(NotOutdoors::Aboard));
+        let words = NotOutdoors::Aboard.reason();
+
+        let hint = place_refusal_hint("Campfire", not_outdoors, None, off_plot, false).expect("refused");
+        assert_eq!(hint, format!("Placing Campfire: {words}   [Esc] done"));
+        let away = p1.put_home_away().expect("the home can be put away");
+        let guest_off_plot = refused_off_plot(Some(&away), false, &in_the_commons(reg, "campfire"));
+        let guest = place_refusal_hint("Campfire", not_outdoors, None, guest_off_plot, true).expect("refused");
+        assert_eq!(guest, format!("Placing Campfire: {words}   [Esc] done"), "a guest hears the same");
+        let wall_off_plot = refused_off_plot(Some(&p1), false, &in_the_commons(reg, "wood_wall"));
+        let wall = place_refusal_hint("Wood Wall", None, None, wall_off_plot, false);
+        assert_eq!(wall, Some(off_plot_hint("Wood Wall", false)), "a wall still hears the plot rule");
+        assert_eq!(place_refusal_hint("Wood Wall", None, None, true, true), Some(off_plot_hint("Wood Wall", true)));
+        assert_eq!(place_refusal_hint("Wood Wall", None, None, false, false), None, "in your own plot: nothing to refuse");
+    }
+
+    /// A CAMPFIRE CAST OUTSIDE YOUR PLOT IS REFUSED FOR BEING ABOARD, NOT FOR THE PLOT (the
+    /// BUG-153 review, 2026-10-05, A2). The Campfire ability cast in the Commons of the shipped
+    /// ship: its spot reaches the build (`cast_spot`), which refuses it with the campfire's
+    /// outdoors words, the placing hint's, and spends nothing, where the cast used to stop at
+    /// "you can build only inside your own plot (your home)". For a guest the same. A piece that
+    /// can be built aboard still hears the plot rule from the cast, a guest in a guest's words.
+    /// Seen red 2026-10-05 with the plot rule checked first, the order `publish_cast_spot` used:
+    /// "the plot rule does not speak for a campfire: \"you can build only inside your own plot
+    /// (your home)\"".
+    #[test]
+    fn a_campfire_cast_outside_your_plot_hears_the_outdoors_words() {
+        use crate::ecs::components::Controllable;
+        use crate::systems::construction::{begin_build, NotOutdoors};
+        use crate::systems::inventory::Inventory;
+        let data = catalog();
+        let reg = data.get::<BlueprintRegistry>("blueprint_registry").unwrap();
+        let words = format!("The Campfire is not built here: {}", NotOutdoors::Aboard.reason());
+        for guest in [false, true] {
+            let request = cast_spot("campfire", in_the_commons(reg, "campfire"), true, true, guest)
+                .expect("the plot rule does not speak for a campfire");
+            let mut world = hecs::World::new();
+            let mut pack = Inventory::new(16);
+            pack.add_item("stone_raw_0", 6, 99);
+            pack.add_item("wood_log_0", 3, 99);
+            let player = world.spawn((pack, Controllable));
+            let refused = begin_build(&mut world, &data, request).expect_err("never aboard");
+            assert_eq!(refused, words, "guest: {guest}");
+            assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("wood_log_0"), 3, "nothing spent");
+        }
+        assert_eq!(
+            cast_spot("wood_wall", in_the_commons(reg, "wood_wall"), true, false, false).err().as_deref(),
+            Some(off_plot_reason(false)),
+            "a piece that can be built aboard still hears the plot rule"
+        );
+        assert_eq!(cast_spot("wood_wall", in_the_commons(reg, "wood_wall"), true, false, true).err().as_deref(), Some(off_plot_reason(true)));
     }
 
     fn holding() -> GuiState {

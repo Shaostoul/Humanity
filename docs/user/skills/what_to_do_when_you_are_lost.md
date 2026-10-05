@@ -526,7 +526,8 @@ worth saying why.
   built and any campfire you have built and keep burning: wind, rain and
   wet clothes pull heat out, a roof you built keeps the rain off, under a
   roof walls on the windward side keep the wind off, and a fire warms you
-  the nearer you stand. Natural cover such as a tree or a hollow does not count.
+  the nearer you stand, as long as no wall or roof stands between you and
+  it. Natural cover such as a tree or a hollow does not count.
   While fly mode is on, the weather does not reach your body at all.
   Under the default Body heat setting, Forgiving, the temperature shown
   swings half as far from normal as under Realistic, and cold does harm

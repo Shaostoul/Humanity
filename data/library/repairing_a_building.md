@@ -476,8 +476,9 @@ The game models almost none of this.
   the Crafting page, the Swing tool key (F by default) takes down the
   finished piece you are looking at, within 8 m, and returns all of its
   materials to your pack, and what does not fit there to storage, with
-  a message saying so; a chest has to be emptied first. You can then
-  build it again (`src/engine/build_place.rs`).
+  a message saying so; a chest has to be emptied first, and a campfire
+  gives back its stones and only the whole logs it has not burned. You
+  can then build it again (`src/engine/build_place.rs`).
 - **Building trains you.** Finishing a piece gives experience in the
   Shelter Building skill (`src/systems/construction/mod.rs`).
 - **The rest of the home does not wear either,** as [Keeping Things

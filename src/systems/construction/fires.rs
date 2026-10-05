@@ -20,7 +20,19 @@
 //!   model sees that as warmer surroundings for a person near it
 //!   ([`warmth_at`], taken into the mean radiant temperature by
 //!   `engine::survival_env` through `body_heat::radiant_with_source_c`). An
-//!   out fire radiates nothing.
+//!   out fire radiates nothing, and a built piece standing between the fire
+//!   and a person (a wall, a roof, a shut door) stops all of it: radiant heat
+//!   goes in straight lines (`blocked`, the BUG-153 review).
+//! - It stays in the OPEN for its whole life (the BUG-153 review,
+//!   2026-10-05): it is not built under a roof, finished or still going up
+//!   (`construction::outdoors_refusal`), and no roof is built over it,
+//!   burning, out or going up (`construction::roofs_over_outdoors_piece`),
+//!   both for the one reason that under a roof its smoke would fill the
+//!   shelter.
+//! - Finished while the game was closed (a scaffold the offline catch-up
+//!   finished, `construction::FinishedWhileAway`), it is lit at the finish
+//!   and comes back having burned since; one left burning burns down while
+//!   the game is closed (`save_load::catch_up_world`).
 //! - It gives NO LIGHT yet. The renderer's point lights are not evaluated in
 //!   the pass that draws a planet's ground and everything built on it (that
 //!   pass's light count is 0 by design, `80-fragment-shared.wgsl`, v0.1155),
@@ -98,7 +110,7 @@
 //! feature set (the relay build includes `systems/`).
 
 use super::site::PlanetSite;
-use super::{Blueprint, BlueprintRegistry, Structure};
+use super::{doorway, placement, uses, Blueprint, BlueprintRegistry, DoorOpen, Structure};
 use crate::ecs::components::{Controllable, Transform};
 use crate::systems::inventory::{Inventory, ItemRegistry};
 use glam::{DVec3, Vec3};
@@ -285,11 +297,13 @@ pub fn irradiance_w_m2(radiant_watts: f64, distance_m: f64) -> f64 {
 /// both in the body's frame in f64 (CLAUDE.md, "f32 at planet scale"): a
 /// fire's place comes from its build site the same way (`PlanetSite::to_body`),
 /// so a fire in any site on the body counts by its true distance. An out
-/// fire, a fire on another body, and a piece that does not burn give nothing.
+/// fire, a fire on another body, a piece that does not burn, and a fire with
+/// a built piece standing between it and the person (`blocked`, the BUG-153
+/// review) give nothing.
 pub fn warmth_at(world: &hecs::World, registry: Option<&BlueprintRegistry>, body: &str, middle: DVec3, up: DVec3) -> f64 {
     let up = up.normalize_or_zero();
     let mut absorbed = 0.0;
-    for (_e, (s, tf, site, fuel)) in world.query::<(&Structure, &Transform, &PlanetSite, &FireFuel)>().iter() {
+    for (fire, (s, tf, site, fuel)) in world.query::<(&Structure, &Transform, &PlanetSite, &FireFuel)>().iter() {
         if site.body != body || !fuel.burning() {
             continue;
         }
@@ -299,12 +313,100 @@ pub fn warmth_at(world: &hecs::World, registry: Option<&BlueprintRegistry>, body
         // The radiating centre: half the piece's height above its base (a
         // piece's box is bottom-origin, `uses::ray_hits_box`).
         let source = site.to_body(tf.position + Vec3::Y * (tf.scale.y * 0.5));
+        // A wall, a roof, a shut door between them: none of it reaches the
+        // person.
+        if blocked(world, registry, body, fire, source, middle) {
+            continue;
+        }
         let to_fire = source - middle;
         let d = to_fire.length();
         let below_deg = if d > 0.0 { (to_fire.dot(up) / d).clamp(-1.0, 1.0).asin().to_degrees().abs() } else { 90.0 };
         absorbed += crate::systems::body_heat::projected_area_factor(below_deg) * irradiance_w_m2(f64::from(burn.radiant_watts), d);
     }
     absorbed
+}
+
+/// Does a finished built piece on `body` stand between the points `from` and
+/// `to` (both in the body's frame, f64), so that the heat a fire radiates from
+/// one does not reach the other? `fire` is the radiating piece itself, never
+/// in its own way.
+///
+/// WHAT STOPS A FIRE'S WARMTH, AND WHY THIS TEST (the BUG-153 review,
+/// 2026-10-05, A1). Radiant heat travels in straight lines and a solid does
+/// not let it through, so a fire warms only a person it has a clear line to:
+/// a wall between them, the walls and roof of a closed hut with the fire
+/// outside it, a shut door, each stop all of it. Before this a fire just
+/// outside a closed hut warmed the person inside, through the wall. The test
+/// is ONE STRAIGHT LINE, from the fire's radiating centre to the person's
+/// middle, the two points the warmth itself is computed between (a point
+/// source, [`warmth_at`]), against every finished piece's boxes as they are
+/// drawn and walked into (`doorway::piece_parts`: an open door lets the
+/// warmth through its doorway, a shut one stops it). One line rather than the
+/// whole flame against the whole body, because the warmth is already a point
+/// source's: a person at the very end of a wall is warmed fully or not at
+/// all, the same coarseness, and the cost is a box test or two per piece near
+/// the line, per burning fire, per frame. The pieces are tested in their own
+/// sites' frames, the line's ends brought into each (`PlanetSite::to_local`,
+/// f64 until the small result), so a wall of a neighbouring site stops it too.
+///
+/// A GAME CHOICE: a window's glass stops it all, like the wall around it.
+/// Real glass passes the shorter part of a fire's infrared and stops the
+/// rest; what passes is left out. Not counted: a scaffold still going up
+/// (open framing until it is finished), a piece the fire or the person is
+/// inside or touching (a campfire set on a foundation sits on it, not behind
+/// it; a built piece is solid to walk into, so a person is never inside a
+/// wall), and the ground and the trees, which this does not model.
+fn blocked(world: &hecs::World, registry: Option<&BlueprintRegistry>, body: &str, fire: hecs::Entity, from: DVec3, to: DVec3) -> bool {
+    // The line's two ends in each site's frame, worked out once per site.
+    let mut frames: Vec<(PlanetSite, Vec3, Vec3)> = Vec::new();
+    let mut pieces = world.query::<(&Structure, &Transform, &PlanetSite, Option<&DoorOpen>)>();
+    for (e, (s, tf, site, open)) in pieces.iter() {
+        if e == fire || site.body != body {
+            continue;
+        }
+        let (a, b) = match frames.iter().find(|(f, _, _)| f == site) {
+            Some((_, a, b)) => (*a, *b),
+            None => {
+                let (a, b) = (site.to_local(from), site.to_local(to));
+                frames.push((site.clone(), a, b));
+                (a, b)
+            }
+        };
+        // Each part of a piece with a door or a window in it (an open door's
+        // leaf stands out past the wall's own box), else the piece's box.
+        let parts = registry.and_then(|r| r.get(&s.blueprint_id)).and_then(|bp| doorway::piece_parts(bp, tf, open.is_some()));
+        let between = match parts {
+            Some(parts) => parts.iter().any(|(p, _)| box_between(a, b, p)),
+            None => box_between(a, b, tf),
+        };
+        if between {
+            return true;
+        }
+    }
+    false
+}
+
+/// Does the straight line from `a` to `b` pass through the box `tf` (all in
+/// the box's frame), with neither end inside the box or on its surface? A
+/// box an end sits in or on is where that end is, not between the two.
+fn box_between(a: Vec3, b: Vec3, tf: &Transform) -> bool {
+    // A millimetre: an end on a box's face counts as on the box.
+    const EDGE_M: f32 = 1.0e-3;
+    // Nowhere near the line (the boxes around each do not meet): no ray test.
+    let (lo, hi) = placement::world_aabb(tf);
+    if hi.cmplt(a.min(b)).any() || lo.cmpgt(a.max(b)).any() {
+        return false;
+    }
+    let d = b - a;
+    let len = d.length();
+    if len <= 2.0 * EDGE_M {
+        return false;
+    }
+    let dir = d / len;
+    // `ray_hits_box` gives where the ray ENTERS the box, 0 when it starts in
+    // it: entered past the first end and before the second, and entered past
+    // the second end coming back, is a box between them.
+    uses::ray_hits_box(a, dir, tf).is_some_and(|t| t > EDGE_M && t < len) && uses::ray_hits_box(b, -dir, tf).is_some_and(|t| t > EDGE_M)
 }
 
 #[cfg(test)]
@@ -447,5 +549,76 @@ mod tests {
 
         world.get::<&mut FireFuel>(fire).unwrap().seconds_left = 0.0;
         assert_eq!(w(&world, 1.5), 0.0, "an out fire gives no heat");
+    }
+
+    /// A WALL BETWEEN A FIRE AND A PERSON STOPS ITS WARMTH (the BUG-153
+    /// review, 2026-10-05, A1). Radiant heat goes in straight lines, so a
+    /// person reached from a burning campfire only through a built piece
+    /// takes none of its warmth. 2 m from the fire with a clear line, a
+    /// person takes it; 2 m from it on the other side, behind a Wood Wall
+    /// standing between them, none. A wall with a door in it lets the warmth
+    /// through its doorway while the door stands open, and stops it shut; the
+    /// open door itself, standing out from its wall, stops it for a person it
+    /// stands in front of. A wall that is not between them (north of the
+    /// fire, the person to its west) changes nothing, to the last bit. Seen
+    /// red 2026-10-05 on the code before the fix: "behind the wall: 82.5
+    /// W/m2" (the warmth went through it).
+    #[test]
+    fn a_wall_between_a_fire_and_a_person_stops_its_warmth() {
+        use super::super::{placement, DoorOpen};
+        let reg = shipped();
+        let site = earth_site();
+        let up = site.origin.normalize();
+        let w = |world: &hecs::World, x: f32| warmth_at(world, Some(&reg), "earth", site.to_body(Vec3::new(x, BODY_MIDDLE_M as f32, 0.0)), up);
+        // A finished piece of `id` placed at (x, z), turned `turns` quarters,
+        // in the fire's site, as the build menu places it.
+        let build = |world: &mut hecs::World, id: &str, x: f32, z: f32, turns: u8| {
+            let bp = reg.get(id).unwrap_or_else(|| panic!("{id} in basic.ron"));
+            let tf = placement::placement_pose(bp, Vec3::new(x, 0.0, z), turns, world, &reg, Some(&site));
+            world.spawn((tf, Structure { blueprint_id: id.into(), health: bp.health, max_health: bp.health, provides: bp.provides.clone(), uid: 0 }, site.clone()))
+        };
+
+        let mut world = hecs::World::new();
+        campfire(&mut world, &reg, 2400.0);
+        let clear = w(&world, -2.0);
+        assert!(clear > 50.0, "2 m from the fire, a clear line: {clear:.1} W/m2");
+        assert!((w(&world, 2.0) - clear).abs() < 1e-9, "the same 2 m on the other side, nothing between yet");
+
+        // A Wood Wall running north-south 1 m east of the fire's centre.
+        build(&mut world, "wood_wall", 1.0, 0.0, 1);
+        assert_eq!(w(&world, 2.0), 0.0, "behind the wall: {:.1} W/m2", w(&world, 2.0));
+        assert_eq!(w(&world, -2.0), clear, "the clear side keeps it all");
+        // A wall north of the fire is between the fire and nobody here.
+        build(&mut world, "wood_wall", 0.0, -2.0, 0);
+        assert_eq!(w(&world, -2.0), clear, "a wall beside the line changes nothing");
+
+        // A wall with a door in it, the door in the line: shut, it stops the
+        // warmth; open, the warmth goes through the doorway.
+        let mut world = hecs::World::new();
+        campfire(&mut world, &reg, 2400.0);
+        let door = build(&mut world, "wood_wall_door", 1.0, 0.0, 1);
+        assert_eq!(w(&world, 2.0), 0.0, "a shut door stops it: {:.1} W/m2", w(&world, 2.0));
+        world.insert_one(door, DoorOpen).unwrap();
+        assert_eq!(w(&world, 2.0), clear, "through the open doorway, all of it");
+
+        // An open door stands out from its wall, square to it, and it stops
+        // the warmth like any other piece: the fire and the person both east
+        // of a wall running north-south, the door swung open between them
+        // (its leaf 0.1 to 1.1 m east of the wall's line, at z 0.42 to 0.5).
+        // Shut, the line between them is clear.
+        let mut world = hecs::World::new();
+        let ring = reg.get("campfire").unwrap();
+        world.spawn((
+            Transform { position: Vec3::new(0.6, 0.0, -2.0), rotation: Quat::IDENTITY, scale: Vec3::from_array(ring.size) },
+            Structure { blueprint_id: "campfire".into(), health: ring.health, max_health: ring.health, provides: ring.provides.clone(), uid: 1 },
+            site.clone(),
+            FireFuel { seconds_left: 2400.0 },
+        ));
+        let door = build(&mut world, "wood_wall_door", 0.0, 0.0, 1);
+        let past_the_door = |world: &hecs::World| warmth_at(world, Some(&reg), "earth", site.to_body(Vec3::new(0.6, BODY_MIDDLE_M as f32, 3.0)), up);
+        let shut = past_the_door(&world);
+        assert!(shut > 10.0, "shut, the line is clear: {shut:.1} W/m2");
+        world.insert_one(door, DoorOpen).unwrap();
+        assert_eq!(past_the_door(&world), 0.0, "the open door stands between them");
     }
 }
