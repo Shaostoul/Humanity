@@ -1158,6 +1158,15 @@ blocker:
 Real features the system promises but does not deliver on every platform. Weeks
 of work each.
 
+**Candidate (suggested to the operator by a member of the public, 2026-10-05; not yet
+decided): search from the Browser page's address bar.** Today the address bar takes URLs only.
+Suggested: Ecosia as the default engine, and privacy-first defaults like FireDragon or
+Brave. Before building: the engine list as a data file the player chooses from, and a
+dated findings document on each engine's terms for being queried from inside another
+app (the 2026-09-25 site-embed review is the pattern). The embedded Chromium for video
+platforms keeps those platforms' players and advertising intact (the 2026-09-18
+agreement), so ad-blocking defaults do not apply there.
+
 > **Cross-cutting mandate (CLAUDE.md non-negotiable rule): GUI-first
 > configurability.** Every ops and config capability must be reachable in-app,
 > not CLI-only. The shipped ops work (alerts, backups, fail2ban, watchdog,
