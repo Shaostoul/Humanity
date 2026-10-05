@@ -181,20 +181,25 @@ night-to-sunrise shot from Silverdale toward Mount Rainier. Earlier: the start
 tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 (2026-10-04: being built), the old plain backups deleted (2026-10-02).
 
-### RESUME HERE: where the work stands (updated 2026-10-05, about 14:00)
+### RESUME HERE: where the work stands (updated 2026-10-05, about 15:00)
 
-- **Released today:** v0.1459.0 to v0.1460.1 (overnight), v0.1461.0, v0.1462.0 (twelve
-  homes; BUG-157; BUG-160's rig side), v0.1462.1 (germs and food guides), v0.1463.0 (fires,
-  heaters, illness, medicine, the body's clock, the Silverdale ground, the trading post,
-  the server address, the data-folder fallback, the sanitation guides: BUG-146, 152, 153,
-  154, 155, 156, 158, 159, 160, 162, 163, 164).
-- **Increment 5 (building only on your own plot) in progress:** Waves 0 and 1 and the proof
-  rig are merged on branch `inc5-integration` (worktree .claude/worktrees/inc5-int; 3,248
-  lib tests pass there); Wave 2A (the relay's handler) and 2B (the game's net and engine)
-  are building from it. Then: merge both, run `just verify-shared-build` (calibrate its
-  wood tint from the first run), a seam review, merge inc5-integration into main, the full
-  chain, release. Briefs and handoffs: the session scratchpad's wave*-*.md files, copied
-  into docs/design/ship-homes-increment-5-plan.md's references when it lands.
+- **Released today:** v0.1459.0 to v0.1460.1 (overnight), v0.1461.0, v0.1462.0, v0.1462.1,
+  and v0.1463.0 (fires, heaters, illness, medicine, the body's clock, the Silverdale ground,
+  the trading post, the server address, the data-folder fallback, the sanitation guides),
+  delivered to the taskbar exe. Two new clips (scripts/clips.json: silverdale-waterfront-on-foot,
+  first-street-twelve-homes; committed on main, unpushed) were filmed and sent to the operator.
+- **Increment 5 (building only on your own plot): at its proof rig.** All waves merged on branch
+  `inc5-integration` (worktree .claude/worktrees/inc5-int: 3,281 lib tests pass, release build
+  done). First `just verify-shared-build` run: 30/35 (every rule check passes; failures: the
+  scripted walker sent its wall inside the relay's 200 ms limit, and the game does not refund
+  its own confirmed take-down). A fix lane is on both; then rerun the rig from the inc5-int
+  worktree (copy dxcompiler.dll and dxil.dll there first), a seam review, merge inc5-integration
+  into main, the full chain, release as v0.1464.0.
+- **Walking backwards (the operator saw it, 2026-10-05):** the rig's `walk_to` held the final
+  facing for the whole walk (src/engine/move_check.rs `walk_tick`), so the camera strafed and
+  backpedalled; and the crew never turn (the relay never sets their rotation). A lane is fixing
+  both (the walk turns like a player; the game faces the crew along their motion). Merge with
+  increment 5 into v0.1464.0; rerun the rigs whose walks it touches.
 - **Follow-ups found today (not started):** BUG-161 (the copresence rig's steady-speed
   judges fail a starved machine); BUG-163 part 2 (refresh a stale data folder on update:
   docs/design/data-folder-updates.md, waits on the operator below); no gasoline or diesel
