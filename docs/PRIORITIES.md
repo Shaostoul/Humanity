@@ -190,11 +190,11 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   first-street-twelve-homes; committed on main, unpushed) were filmed and sent to the operator.
 - **Increment 5 (building only on your own plot): at its proof rig.** All waves merged on branch
   `inc5-integration` (worktree .claude/worktrees/inc5-int: 3,281 lib tests pass, release build
-  done). First `just verify-shared-build` run: 30/35 (every rule check passes; failures: the
-  scripted walker sent its wall inside the relay's 200 ms limit, and the game does not refund
-  its own confirmed take-down). A fix lane is on both; then rerun the rig from the inc5-int
-  worktree (copy dxcompiler.dll and dxil.dll there first), a seam review, merge inc5-integration
-  into main, the full chain, release as v0.1464.0.
+  done). `just verify-shared-build` PASSES 35/35 (2026-10-05, after the walker learned the
+  relay's pace and the judge counted a refund that spills into home storage; run it from the
+  inc5-int worktree with dxcompiler.dll and dxil.dll copied there). NEXT: the review of the
+  whole increment (running), fix what it finds, merge inc5-integration into main, the full
+  chain (include the --plots legs that walk, for BUG-165), release as v0.1464.0, deliver.
 - **Walking backwards (the operator saw it, 2026-10-05):** the rig's `walk_to` held the final
   facing for the whole walk (src/engine/move_check.rs `walk_tick`), so the camera strafed and
   backpedalled; the crew did turn toward their path but snapped back on still updates and
