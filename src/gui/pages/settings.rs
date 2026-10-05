@@ -4814,8 +4814,9 @@ pub fn grass_far_within_cap(cap: f32, cover: f32) -> f32 {
 }
 
 /// Format an instance count for a help line: 12,755 reads better than 12755
-/// and much better than 1.2755e4.
-fn thousands(v: f32) -> String {
+/// and much better than 1.2755e4. Also the HUD's tracked-marker distance
+/// ("36,000 km", gui::pages::hud::marker_distance).
+pub(crate) fn thousands(v: f32) -> String {
     let n = v.max(0.0).round() as u64;
     let s = n.to_string();
     let b = s.as_bytes();
