@@ -229,10 +229,17 @@ taking and following a bearing. The parts that make dead reckoning work:
   manual: "On average, the amount of variation in shadow fall per hour is
   15 degrees." (It gives the figure for reading shadows on aerial
   photographs, and says it needs correcting for the season and the
-  latitude more than three hours from noon.) Kept for an hour unchecked,
-  that swing turns your course by about 15 degrees, and at the manual's
-  18 metres off line per degree per 1,000 metres it puts you about 270
-  metres off line for every kilometre (arithmetic). Take a fresh direction from a shadow often,
+  latitude more than three hours from noon.) Fifteen degrees is an
+  average, not a steady rate: the sun swings fastest around midday, and
+  fastest of all around a summer midday. At Silverdale's latitude, in the
+  hour either side of noon, it swings about 31 degrees in June, 20 at the
+  equinoxes and 14 in December, and early and late on a summer day
+  nearer 10 (our arithmetic from the standard formulas for the sun's
+  position). Kept for an hour unchecked, that swing turns your course by
+  about 15 degrees on average, and at the manual's 18 metres off line per
+  degree per 1,000 metres that puts you about 270 metres off line for
+  every kilometre; around a summer midday it is about twice that
+  (arithmetic). Take a fresh direction from a shadow often,
   and use the sun to pick a distant landmark, then walk to the landmark
   (general practice, the steering mark method again).
 - **The stars.** The map reading manual puts Polaris less than 1 degree
@@ -309,7 +316,8 @@ whatever the dot says.
 
 And it tells you what to aim at. A target smaller than your box can be
 missed without your knowing which way it lies. A target bigger than your
-box cannot be missed. [Reading a Map](reading_a_map.md) covers the tools
+box is hard to miss, if your errors are no worse than you assumed.
+[Reading a Map](reading_a_map.md) covers the tools
 the map reading manual gives for this: aim deliberately to one side of a
 point that sits on a long feature, so that you know which way to turn
 when you reach the feature; follow handrails; use a catching feature
@@ -428,8 +436,8 @@ compass is set to read true bearings.
    straight at it and an error that size can put you on the road out of
    sight of the gate, not knowing whether to turn left or right.
 5. **The way back, the right way.** Aim off. The map reading manual
-   calls an offset of 10 degrees adequate for most uses, but here you
-   start with up to 50 or 55 metres of error and add more on the way
+   calls an offset of 10 degrees adequate for most tactical uses, but
+   here you start with up to 50 or 55 metres of error and add more on the way
    back, so give yourself a wider margin: walk on 237 degrees, 20
    degrees to the right of the gate. You meet the road about 200 metres
    north of the gate, after about 360 metres of walking, and even with
@@ -458,7 +466,8 @@ compass is set to read true bearings.
 - **"I'll remember the count."** You will not, and the manual says
   never to try. Pebbles, knots or a notebook.
 - **"The sun was on my left all morning."** It moved about 15 degrees
-  an hour, and you moved with it.
+  an hour on average, about twice that around a summer midday, and you
+  moved with it.
 - **"It's straight on the map."** The map line does not show the gully,
   the windfall or the cliff. Look along the whole corridor first.
 - **"An hour at walking pace is 5 kilometres."** Through brush it may be
@@ -471,34 +480,49 @@ compass is set to read true bearings.
 
 ## How the game models it
 
-The game puts you on a real-scale Earth, and gives you one useful tool
-for practising and several things that are not what they look like.
+The game has a real-scale Earth, and gives you one useful tool for
+practising and several things that are not what they look like.
 
 - **A real-scale planet.** A kilometre walked on the game's Earth is a
   kilometre of the planet, and the Silverdale and Seattle Center map
   regions are built in at their real latitude and longitude, as
-  [Coordinates](coordinates.md) describes.
+  [Coordinates](coordinates.md) describes. A session starts in your home
+  aboard the ship in orbit, not on the ground; in the default Dev play
+  mode, the Dev page's Land on surface buttons put you on the ground,
+  and its travel buttons take you to a planet's orbit. Both leave fly
+  mode on, although once you are on the ground the line under the
+  compass reads "WALK x1 [F9 to fly]". Press F9 twice, or untick Fly mode
+  on the Dev page, and you are really walking. Until you do, there are
+  no footsteps, and the mouse wheel can raise your speed far past the
+  fifty-times limit that holds while walking.
 - **Footsteps you can count.** Walking on the ground of a planet, or on
-  foot aboard the ship in first-person view, the game plays one footstep
-  sound for every 1.5 metres you move. So 100 metres is about 67
-  footsteps (100 / 1.5, arithmetic), and you can practise keeping a
-  count by ear. It is a perfect count, which yours is not: every step is
-  exactly 1.5 metres, uphill and downhill, in mud and on a road, by day
-  and by night. Fly mode makes no footsteps, nor does time in the air on
-  a planet (aboard the ship a jump still counts toward the next step),
-  and any single frame that moves you 2 metres or more is ignored, so at
-  high speed gears the steps go silent.
+  foot aboard the ship in first-person view, with fly mode off, the game
+  plays a footstep sound about every 1.5 metres you move. So 100 metres
+  is about 60 to 67 footsteps (arithmetic), and you can practise keeping
+  a count by ear. It is steadier than yours but not perfect: a step is
+  about 1.5 metres, a little more at low frame rates, because the
+  distance left over at each step is dropped rather than carried on. It
+  is the same uphill and on the flat, in mud and on a road, by day and by
+  night, but at the normal speed gear, walking down a slope steeper than
+  about 30 percent makes no footsteps at all, because the game counts
+  you as in the air. Fly mode makes no footsteps, nor does time in the
+  air on a planet (aboard the ship a jump still counts toward the next
+  step), and any single frame that moves you 2 metres or more is
+  ignored, so at high speed gears the steps go silent.
 - **Walking speed is not yours.** On a planet's surface you walk at 5
   metres a second at the normal speed gear (the "Gear: x1" beside the
   altitude on screen). That is 18 km/h, four and a half times the Army's
   4 km/h marching rate (arithmetic). If you have raised the speed in dev
   fly mode, with the mouse wheel while flying or with the Dev page's
-  slider, walking keeps that speed up to fifty times faster (the Dev
-  page's 1x button sets it back). Hiking boots add 5 percent, and the
-  fatigued and hypothermia conditions slow you down. A heavy load slows you only when Settings > Gameplay >
-  Carrying weight is set to Realistic; the default, Forgiving, only warns
-  you. A time-and-speed estimate learned in the game is wrong for your
-  own legs.
+  slider, walking with fly mode off keeps that speed up to fifty times
+  faster (the Dev page's 1x button sets it back). Hiking boots add 5
+  percent and being well nourished 10 percent. Hunger (10 percent),
+  thirst (20), fatigue (15), low blood oxygen (30) or none at all (half),
+  heat exhaustion (20), hypothermia (half) and an unsanitary build-up of
+  waste (5) slow you down. A heavy load slows you only when Settings >
+  Gameplay > Carrying weight is set to Realistic; the default,
+  Forgiving, only warns you. A time-and-speed estimate learned in the
+  game is wrong for your own legs.
 - **Direction.** The N, E, S and W letters at the top of the screen turn
   with your view, but [Knowing Which Way Is
   North](knowing_which_way_is_north.md) explains why they have not been
@@ -510,17 +534,21 @@ for practising and several things that are not what they look like.
   the real regions with north up and a bar scale but does not mark where
   you are. That makes the game a fair place to practise keeping a log,
   and an honest one: if you lose track, nothing on screen will rescue the
-  arithmetic. The tracked Home Station ring does show the distance to
-  your home in orbit, which no real walk ever gives you ([What to Do When
-  You Are Lost](what_to_do_when_you_are_lost.md)).
+  arithmetic. The Maps page's Track switch for the Home Station is meant
+  to ring your home in orbit with its distance, but in this build the
+  ring is cut off at the Render distance setting (Settings > Graphics,
+  500 metres by default and 2 kilometres at most), so from the ground it
+  never appears ([What to Do When You Are
+  Lost](what_to_do_when_you_are_lost.md)).
 - **The Navigation skill exists, but nothing in the game levels it
   yet.**
 
 What the game leaves out, so you do not learn it from the game: errors.
-You walk exactly straight while you hold the key, your footsteps never
-change length, nothing drifts, and the sun, the slope and the dark do not
-shorten your stride. Dead reckoning is mostly the management of errors,
-and those you have to practise with real feet.
+You walk exactly straight while you hold the key, your footsteps change
+length only a little, with the frame rate, nothing drifts, and the sun,
+the slope and the dark do not shorten your stride. Dead reckoning is
+mostly the management of errors, and those you have to practise with
+real feet.
 
 ## You own this when
 
@@ -631,23 +659,37 @@ October 2026.
 
 ### Inside this project
 
-- The footstep stride meter (one footstep per 1.5 metres walked on a
-  planet's ground or aboard, steps over 2 metres in one frame ignored):
-  `src/lib.rs`; the footstep sounds: `data/sounds.toml`. The walking
+- The session's start in the home aboard the ship in orbit
+  (`data/world/spawn.ron`); the Dev page's travel and Land on surface
+  buttons, which turn fly mode on, and F9 and the Fly mode box, which
+  turn it off (`src/lib.rs`, `src/gui/pages/dev.rs`); the HUD's movement
+  line, which reads WALK whenever F9's hover is off
+  (`src/gui/pages/hud.rs`). The footstep stride meter (a footstep each
+  time 1.5 metres have been walked on a planet's ground or aboard, with
+  fly mode off, the leftover distance dropped at each step, and steps
+  over 2 metres in one frame ignored): `src/lib.rs`; the 0.35 metre
+  standing gate and the settle rate of 4 a second that make a steep
+  descent count as airborne (`GROUNDED_REACH_M` in `src/surface_move.rs`,
+  `SURFACE_SETTLE_RATE` in `src/engine/frame_lock.rs`); the footstep
+  sounds: `data/sounds.toml`. The walking
   speed (5 metres a second, `CameraController::new` in `src/lib.rs`), the
   speed gear taken from the dev fly speed, which the mouse wheel changes
   only in dev fly mode (`src/lib.rs`, `src/gui/pages/dev.rs`), and its
-  x50 cap while walking (`SURFACE_SPEED_MULT_MAX` in
-  `src/engine/frame_lock.rs`), the slowing conditions
-  (`data/status_effects.csv`), and the Carrying weight setting, which
+  x50 cap while walking with fly mode off (`SURFACE_SPEED_MULT_MAX` in
+  `src/engine/frame_lock.rs`), the conditions that speed or slow you
+  (`data/status_effects.csv`) and the hiking boots
+  (`data/equipment.csv`), and the Carrying weight setting, which
   slows an overloaded walker only in its Realistic mode
   (`src/systems/encumbrance.rs`, `src/engine/carry_load.rs`). The
   compass strip, the Compass and GPS
   Device items and the Navigation skill, as described in [Knowing Which
   Way Is North](knowing_which_way_is_north.md) and
-  [Coordinates](coordinates.md). The Maps page's planet view:
-  `src/gui/pages/cosmos.rs`. The tracked Home Station ring:
-  `src/gui/pages/hud.rs`.
+  [Coordinates](coordinates.md). The Maps page's planet view and Track
+  switch: `src/gui/pages/cosmos.rs`. The Home Station ring, dropped by
+  the HUD's `world_to_screen` beyond the camera's far plane
+  (`src/gui/pages/hud.rs`), which is the Render distance setting
+  (`src/config.rs`, applied in `src/lib.rs`; the reverse-depth
+  projection is in `src/renderer/camera.rs`).
 - [Knowing Which Way Is North](knowing_which_way_is_north.md), [The Sky
   as an Instrument](the_sky_as_an_instrument.md),
   [Estimating](estimating.md), [Reading a Map](reading_a_map.md),
@@ -658,13 +700,18 @@ October 2026.
 
 ### Labelled in the text as general practice, our reading or arithmetic, not sourced
 
-- The 3-4-5 example, the sine and cosine method and its values, the sun
-  drift of about 270 metres per kilometre, the 360 metres for ten
-  degrees over two kilometres, the 800 metre time check, the error box
-  of about 220 by 400 metres, the 250 metres of drift per quarter hour,
-  the 67 footsteps per 100 metres, the game's 18 km/h, and every number
-  in the worked example are arithmetic, on the sources' rules where they
-  apply.
+- The 3-4-5 example, the sine and cosine method and its values, the
+  sun's hourly swing at Silverdale's latitude (worked from the standard
+  formulas for the sun's position, at 47.65 degrees north, with the sun's
+  declination at the solstices and equinoxes), the sun drift of about 270
+  metres per kilometre and twice that around a summer midday, the 360
+  metres for ten degrees over two kilometres, the 800 metre time check,
+  the error box of about 220 by 400 metres, the 250 metres of drift per
+  quarter hour, the 60 to 67 footsteps per 100 metres, the slope of about
+  30 percent that silences them (from the game's 0.35 metre gate, its
+  settle rate and its 5 metres a second), the game's 18 km/h, and every
+  number in the worked example are arithmetic, on the sources' rules
+  where they apply.
 - Drawing legs to scale as the field method; reading the gap between a
   reckoned and a confirmed position as a measure of your own errors;
   applying the ship's four plotting rules and fix expansion to walking;

@@ -2560,7 +2560,11 @@
       ],
       "data": [
         "data/items.csv",
-        "data/recipes.csv"
+        "data/recipes.csv",
+        "data/crafting/tools.ron",
+        "data/world/player.ron",
+        "data/places/seed.json",
+        "data/machines/home.ron"
       ],
       "sources": [
         "uscg",
@@ -3279,7 +3283,10 @@
         "data/sounds.toml",
         "data/maps/regions/silverdale.bin",
         "data/stars.csv",
-        "data/constellations.json"
+        "data/constellations.json",
+        "data/world/spawn.ron",
+        "data/status_effects.csv",
+        "data/equipment.csv"
       ],
       "sources": [
         "dod-technical-manuals",
@@ -3333,7 +3340,8 @@
       ],
       "data": [
         "data/status_effects.csv",
-        "data/equipment.csv"
+        "data/equipment.csv",
+        "data/weather/events.ron"
       ],
       "sources": [
         "usfs",

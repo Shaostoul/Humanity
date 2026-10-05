@@ -9,11 +9,13 @@ are the reasons behind every rule for being safe in a small boat.
 
 Those rules are not optional extras. In 2024 the US Coast Guard counted
 556 deaths in recreational boating. Where the cause of death was known,
-76 percent of the people who died drowned, and where it was known whether
-they wore a life jacket, 87 percent were not wearing one. The Coast
-Guard's guide to the federal requirements for recreational boats puts it
-in one line: "Drowning is the #1 cause of boating fatalities, and it is
-in many cases preventable."
+76 percent of the people who died drowned, and of those who drowned,
+where it was known whether they wore a life jacket, 87 percent were not
+wearing one. (Of all 556 deaths, where it was known, 80 percent were not
+wearing one: our arithmetic from the same report's table of deaths by
+life jacket wear.) The Coast Guard's guide to the federal requirements
+for recreational boats puts it in one line: "Drowning is the #1 cause of
+boating fatalities, and it is in many cases preventable."
 
 This guide sits beside [Reading the Tide](/library#reading-the-tide), which
 covers currents, being cut off on the shore and what cold water does to a
@@ -41,18 +43,22 @@ Read this part even if you skip the physics.
    warns that "most boating related drownings happen on nice days", the
    days people leave the jacket off. Fasten it: the Coast Guard says a
    foam jacket worn correctly fits snugly and does not ride up above the
-   chin or ears. Federal rules require a wearable life jacket on board
-   for every person (33 CFR 175.15), and a child under 13
-   must wear one while the boat is under way, unless below deck or in an
-   enclosed cabin, wherever a state has not set its own rule (33 CFR
-   175.15 and 175.25). Washington's rule is in the worked example below.
+   chin or ears. Clip a whistle to each one; the Coast Guard: "Some items
+   that are not required but are a good idea to have with your wearable
+   PFD are a whistle and an emergency light." Federal rules require a
+   wearable life jacket on board for every person (33 CFR 175.15), and a
+   child under 13 must wear one while the boat is under way, unless
+   below deck or in an enclosed cabin, wherever a state has not set its
+   own rule (33 CFR 175.15 and 175.25). Washington's rule is in the
+   worked example below.
 2. **Treat all water as cold until you know otherwise.** The National
    Weather Service says cold shock can be just as severe in water of 50
    to 60 F as in water of 35 F, and that the gasping it causes can be
    triggered by water as warm as 77 F (25 C). Its advice: "Always dress
-   for water temperature, not for air temperature." [Reading the
-   Tide](/library#reading-the-tide) has the numbers for Puget Sound and the
-   1-10-1 rule.
+   for water temperature, not for air temperature." The examples it gives
+   are a wetsuit, a drysuit, an immersion suit, a survival suit and
+   exposure coveralls. [Reading the Tide](/library#reading-the-tide) has the
+   numbers for Puget Sound and the 1-10-1 rule.
 3. **Do not overload, and sit down.** The Coast Guard: "Too many people
    and/or too much gear can cause the boat to become unstable." And:
    "Standing in a boat raises the center of gravity and risks capsizing
@@ -60,15 +66,33 @@ Read this part even if you skip the physics.
 4. **Boat sober.** In the Coast Guard's 2024 statistics, alcohol was the
    leading known contributing factor in fatal boating incidents, and the
    leading factor in 20 percent of deaths where the main cause was known.
-5. **Check the weather, leave a float plan, and carry a way to call.**
-   The Coast Guard: "You should never leave the dock without first
-   checking the local weather forecast." Tell a responsible person where
-   you are going and when you will be back, as it advises. It also
-   recommends always carrying a means of sending a distress alert, most
-   commonly a VHF marine radio, and says a mobile phone is not a
-   substitute for one, though it can be an added measure of safety. Keep
-   a phone in a waterproof case (general practice; [What to Do When You
-   Are Lost](/library#what-to-do-when-you-are-lost)).
+5. **Check the weather, get off the water at the first thunder, leave a
+   float plan, and carry a way to call.** The Coast Guard: "You should
+   never leave the dock without first checking the local weather
+   forecast." The National Weather Service says most lightning deaths
+   and injuries on boats happen on small boats with no cabin, and that if
+   thunderstorms are forecast, you should not go out. Its rule for
+   thunder: "If you hear thunder, lightning is close enough to strike
+   you." It says to move at once to a substantial building or a
+   hard-topped vehicle, and to anyone caught outside: "Immediately get
+   out and away from ponds, lakes and other bodies of water". On a small
+   boat that means heading for shore at the first rumble, then getting
+   out of the boat and away from the water. If you cannot get back to
+   land, it says to drop anchor and get as low as possible; anchor from
+   the bow, never the stern (the Coast Guard's rule, explained below).
+   Tell a responsible person where you are going and when you will be
+   back, as the Coast Guard advises. It also recommends always carrying a
+   means of sending a distress alert, most commonly a VHF marine radio,
+   and says a mobile phone is not a substitute for one, though it can be
+   an added measure of safety. The Weather Service's cold water advice is
+   the same: carry a beacon or a VHF radio. A personal locator beacon
+   calls for help by satellite, and the Coast Guard says such beacons
+   alert rescuers and guide them to you "even when all other
+   communications fail"; they must be registered with NOAA. That advice
+   is for every trip; beyond the near shore, treat it as a rule and do
+   not go without a VHF radio or a beacon (our reading of both). Keep a
+   phone in a waterproof case as well (general practice; [What to Do
+   When You Are Lost](/library#what-to-do-when-you-are-lost)).
 6. **If you go in, stay with the boat.** The Coast Guard says a
    capsized vessel will likely float on or just below the surface, and
    advises: "To reduce the effects of hypothermia, get in or on the
@@ -140,12 +164,13 @@ movement is needed to keep the face out. That small margin is all that
 separates floating from drowning, and cold water's gasping and loss of
 muscle control take it away; a life jacket gives it back (our reading).
 
-**Clothes do not drag you down.** The Coast Guard: "It is a common belief
-that persons dressed in heavy clothing or waders will sink immediately if
-they fall overboard. This is not true." It explains that air trapped in
-clothing provides buoyancy, and that bending your knees traps air in
-waders. Its advice is not to try to take clothing or footwear off in the
-water: thrashing wears you out and lets the air escape.
+**Clothes do not sink you straight away.** The Coast Guard: "It is a
+common belief that persons dressed in heavy clothing or waders will sink
+immediately if they fall overboard. This is not true." It explains that
+air trapped in clothing provides buoyancy, and that bending your knees
+traps air in waders. Its advice is not to try to take clothing or
+footwear off in the water: thrashing wears you out and lets the air
+escape.
 
 ## What a boat can carry, and why the law leaves a margin
 
@@ -368,7 +393,7 @@ Fresh water is about 1,000 kilograms per cubic metre (USGS). So:
   long enough can settle to the bottom (our reading).
 
 The handbook warns that moisture varies considerably within and between
-trees, even between boards cut from the same tree, so treat these
+trees, and even within a single board cut from one tree, so treat these
 numbers as a guide, not a promise.
 
 **What that means for a raft.** A raft is a floor held up by its own
@@ -437,14 +462,24 @@ jackets in adult sizes only and says they are not appropriate for weak
 swimmers or non-swimmers, so the child wears an inherently buoyant
 (foam) jacket.
 
-**Dressed for the water.** For water of 13 to 16 C, that means clothing
-that still insulates when wet, not cotton (general practice; [Cold and
+**Dressed for the water.** For water of 13 to 16 C, that means a wetsuit
+or a drysuit, the first two of the National Weather Service's examples
+of dressing for the water. At the very least, wear clothing that still
+insulates when wet, not cotton (general practice; [Cold and
 Hypothermia](/library#cold-and-hypothermia) explains why cotton is the
 problem).
 
-**The plan.** Tell someone ashore where you are paddling and when you
-will be back. Stay close enough to shore to reach it quickly, and carry a
-phone in a waterproof bag (general practice).
+**The plan.** Check the forecast first, and if thunderstorms are
+forecast, stay ashore; if you hear thunder while you are out, head for
+the shore at once and get away from the water (the National Weather
+Service, item 5 above). Tell someone ashore where you are paddling and
+when you will be back. Stay close enough to shore to reach it quickly
+(general practice). Clip a whistle to each life jacket, as the Coast
+Guard suggests. Carry a phone in a waterproof bag and a handheld VHF
+radio: the Coast Guard advises always carrying a way to send a distress
+alert, and names the VHF radio as the most common. A paddle beyond the
+near shore is not one to make without a VHF radio or a personal locator
+beacon (item 5).
 
 **If you tip over.** Keep your life jackets on, get hold of the canoe and
 of each other, and keep your faces clear of the water until the gasping
@@ -475,8 +510,9 @@ for shore alone.
 - **"The life jackets are right here under the seat."** That is where
   they are when you drown. Wear them.
 - **"It's a hot day."** The air is not the water. Dress for the water.
-- **"Heavy clothes will drag me down."** They will not; air trapped in
-  them helps you float.
+- **"Heavy clothes will drag me down."** They will not sink you straight
+  away; air trapped in them helps you float while you keep still and do
+  not thrash.
 - **Standing up** to land a fish, to stretch, to change places. Stay low
   and move to the middle first.
 - **"One more will fit."** The plate's limit already keeps most of the
@@ -496,31 +532,47 @@ buoyancy and no boating.
   on the sea surface, which rises and falls with the waves under your
   feet; you go under only by holding the sprint key (Shift by default).
   Under water you move where you look, at up to about 2.5 metres a second
-  at the normal speed gear, and your depth holds steady until you swim up
-  or down. Nothing about your own density, clothing or a life jacket
-  changes how you float. The game's code calls this riding of the waves
-  its buoyancy float, but it is a floor that follows the drawn waves, not
-  a calculation of what floats.
+  at the normal speed gear with fly mode off, and your depth holds steady
+  until you swim up or down. You reach the Earth, and so its sea,
+  through the Dev page's travel or Land on surface buttons, and both
+  leave fly mode on, although once you are on the surface the line under
+  the compass reads "WALK x1 [F9 to fly]". Until you press F9 twice, or
+  untick Fly mode on the Dev page, you swim at 5 metres a second.
+  Nothing about your own density,
+  clothing or a life jacket changes how you float. The game's code calls
+  this riding of the waves its buoyancy float, but it is a floor that
+  follows the drawn waves, not a calculation of what floats.
 - **No drowning and no cold water.** Your oxygen does not fall under
-  water, so you cannot drown. Your body heat model counts rain and snow
-  wetting your clothes, but going into the sea does not wet them or chill
-  you.
+  water, so you cannot drown. With fly mode off, your body heat model
+  counts rain and snow wetting your clothes; with it on, the weather does
+  not reach your body at all. Either way, going into the sea does not wet
+  your clothes or chill you.
 - **Boats are items you cannot launch.** The item list has a Raft (20
-  kilograms), a Canoe (25), a Rowboat (40) and a Sailboat (200), and
-  there are recipes for each: the raft is lashed by hand from six logs
-  and four ropes, and the others are built at a workbench, the canoe and
-  rowboat at Shelter Building level 3 and the sailboat at level 4. Under
-  the default Dev play mode (Settings > Gameplay > Play mode) a craft does
-  not use its parts up, but the Crafting page still wants them in your
-  backpack or home storage before it lets you craft, and the skill levels
-  still apply. A new character starts with no skill levels, and the
-  default home stocks planks and rope but no logs, glue, nails or cloth.
-  During development the Dev buttons "Dev: stock all materials" on the
-  Crafting page and "Dev: max skills" on the Profile page supply both. A
-  boat is too big for your backpack, so it goes into your home's storage
-  when it is made, and the game refuses to make one where no home storage
-  is within reach. No boat can be put on the water or sat in: none of the
-  vehicles you can drive is a boat.
+  kilograms), a Canoe (25), a Rowboat (40), a Sailboat (200), a
+  Motorboat (400) and a Submarine (5,000). The last two have no recipe.
+  The raft is lashed by hand from six logs and four ropes. The canoe,
+  rowboat and sailboat are built at a workbench, the canoe and rowboat at
+  Shelter Building level 3 and the sailboat at level 4, and like other
+  assembly at the workbench they need an Adjustable Wrench and a Flat
+  Screwdriver in your backpack; tools in home storage do not count. A new
+  character carries both tools but starts with no skill levels. Under the
+  default Dev play mode (Settings > Gameplay > Play mode) a craft uses up
+  none of its parts and wears no tool, but the Craft button still wants
+  the parts in your backpack or home storage and the tools in your
+  backpack, and the skill levels still apply. The default home's store
+  holds 60 planks and 10 ropes: enough for a canoe's or a rowboat's
+  planks and rope, short of the sailboat's 72 and 12, and no logs, glue,
+  nails, paint, bolts, cloth or steel. During development the Dev
+  buttons "Dev: stock all materials" on the Crafting page and "Dev: max
+  skills" on the Profile page supply the parts and the skill levels, but
+  not the tools. Craft the raft straight after stocking: in this build
+  the home's sawmill takes logs from your backpack by itself, two at a
+  time, and turns them into planks, so the stocked logs are gone within
+  seconds. A boat is too big for your backpack, so it goes into your
+  home's storage when it is made, and the game makes one only aboard,
+  with your own home on this ship; on a planet your home's storage is in
+  orbit and does not count. No boat can be put on the water or sat in:
+  none of the vehicles you can drive is a boat.
 - **Starting from the default home.** While Settings > Gameplay > "Start
   every session from the default home" is on, which is the default
   during development, only your character carries between launches, so a
@@ -528,9 +580,9 @@ buoyancy and no boating.
   you start the game.
 
 What the game leaves out, so you do not learn it from the game: weight
-and displacement, capacity, stability, capsizing, swamping, cold shock
-and drowning. All of the lessons in this guide have to be learned on real
-water, carefully.
+and displacement, capacity, stability, capsizing, swamping, cold shock,
+lightning and drowning. All of the lessons in this guide have to be
+learned on real water, carefully.
 
 ## You own this when
 
@@ -545,6 +597,8 @@ water, carefully.
   and why standing up, leaning out and water in the bottom tip a boat.
 - You load low, central and secured, and you never anchor from the stern.
 - You dress for the water's temperature, not the air's.
+- You head for shore at the first thunder, and you carry a whistle on
+  each life jacket and a way to call for help that is not only a phone.
 - If you capsize, you would keep your life jacket on, stay with the boat
   and get as much of yourself out of the water as you can.
 - You would throw something that floats rather than go in after someone.
@@ -560,9 +614,14 @@ October 2026; regulations and statutes were read on the same day.
 - US Coast Guard, Office of Auxiliary and Boating Safety. *2024
   Recreational Boating Statistics*, COMDTPUB P16754.38, 24 June 2025
   (556 deaths in 2024; 76 percent drowned where the cause was known; 87
-  percent not wearing a life jacket where use was known; alcohol the
-  leading known contributing factor, 20 percent of deaths; 69 percent of
-  deaths on boats whose operator had no boating safety instruction;
+  percent of those who drowned not wearing a life jacket where wear was
+  known: its executive summary gives the 87 percent after the drowning
+  figure, and its Table 35, deaths by life jacket wear and cause, counts
+  48 drowned wearing one, 310 not and 7 unknown, while across all causes
+  it counts 104 wearing one, 426 not and 26 unknown, which is our 80
+  percent; alcohol the leading known contributing factor, 20 percent of
+  deaths; 69 percent of deaths on boats whose operator had no boating
+  safety instruction;
   swamping, 262 incidents and 57 deaths, and a person falling overboard,
   239 incidents and 138 deaths, among the top five primary incident
   types; the glossary definitions of capsizing, swamping, flooding and
@@ -572,11 +631,16 @@ October 2026; regulations and statutes were read on the same day.
   Federal Requirements for Recreational Boats*, revised November 2023
   ("Drowning is the #1 cause of boating fatalities, and it is in many
   cases preventable."; "You should never leave the dock without first
-  checking the local weather forecast."; a float plan; a means of sending
+  checking the local weather forecast."; "Some items that are not
+  required but are a good idea to have with your wearable PFD are a
+  whistle and an emergency light."; a float plan; a means of sending
   distress alerts, most commonly a VHF radio, and a mobile phone as an
-  added measure but not a substitute; VHF channel 16; carbon monoxide
-  near the stern and swim platform; safe loading, "Too many people and/or too
-  much gear can cause the boat to become unstable.", the even, low,
+  added measure but not a substitute; EPIRBs and PLBs alerting rescuers
+  and guiding them to you "even when all other communications fail", and
+  registered with NOAA; VHF channel 16; anchoring by the bow; carbon
+  monoxide near the stern and swim platform; safe loading, "Too many
+  people and/or too much gear can cause the boat to become unstable.",
+  the even, low,
   seated and secured load, the rule of thumb for boats without a plate
   and its limits, and asking the maker or a naval architect; "Do not
   anchor from the stern as this could swamp the boat."; less stable hull
@@ -619,10 +683,23 @@ October 2026; regulations and statutes were read on the same day.
   water as warm as 77 F, and gasping and rapid breathing during the first
   2 to 3 minutes or more; a drowning risk "even for confident swimmers in
   calm waters"; "Always dress for water temperature, not for air
-  temperature."; the Coast Guard guidelines, "If you can swim to safety,
+  temperature.", with its examples, wet suit, dry suit, immersion suit,
+  survival suit and exposure coveralls; carrying an EPIRB, a PLB or a VHF
+  radio; the Coast Guard guidelines, "If you can swim to safety,
   stay calm and do so.", "If you cannot swim to safety, conserve energy
   and heat and await rescue.", the H.E.L.P. position and the huddle).
   https://www.weather.gov/safety/coldwater
+- National Weather Service. Lightning Tips, undated ("If you hear
+  thunder, lightning is close enough to strike you."; a substantial
+  building or an enclosed, metal-topped vehicle as safe shelter;
+  "Immediately get out and away from ponds, lakes and other bodies of
+  water").
+  https://www.weather.gov/safety/lightning-tips
+- National Weather Service. Lightning Safety Outdoors, undated (on the
+  water: most lightning injuries and deaths on boats on small boats with
+  no cabin; do not go out if thunderstorms are forecast; if you cannot
+  get back to land, drop anchor and get as low as possible).
+  https://www.weather.gov/safety/lightning-outdoors
 - US Geological Survey, Water Science School. Water Density, dated 24
   August 2026 (water roughly 1 gram per millilitre; 62.4 pounds per cubic
   foot near freezing and 62.3 at 70 F, from its table; ice about 90 percent
@@ -645,11 +722,12 @@ October 2026; regulations and statutes were read on the same day.
   percent; maximum moisture content (equation 4-3) and the moisture
   content at which wood sinks (equation 4-4); liquid water replacing the
   air in the cells; specific gravity unchanged above about 30 percent;
-  density including water (equation 4-14, Table 4-6a); the variability
-  between trees. Chapter 5, Mechanical Properties of Wood (Senalik and
-  Farber): Table 5-3b specific gravities (Douglas-fir, coast, 0.45 green
-  and 0.48 at 12 percent; western redcedar 0.31 and 0.32; red alder 0.37
-  and 0.41). https://research.fs.usda.gov/download/treesearch/62243.pdf
+  density including water (equation 4-14, Table 4-6a); green moisture
+  varying within and between trees, and even within individual boards
+  cut from the same tree. Chapter 5, Mechanical Properties of Wood
+  (Senalik and Farber): Table 5-3b specific gravities (Douglas-fir,
+  coast, 0.45 green and 0.48 at 12 percent; western redcedar 0.31 and
+  0.32; red alder 0.37 and 0.41). https://research.fs.usda.gov/download/treesearch/62243.pdf
   and https://research.fs.usda.gov/download/treesearch/62244.pdf
 - Headquarters, Department of the Army. *Survival*, FM 21-76 (also
   Marine Corps MCRP 3-02F), 5 June 1992, chapter 16, sea survival
@@ -689,27 +767,42 @@ facts are used here and the wording is not.
 
 ### Inside this project
 
-- Standing on and diving under the sea surface, the swim speed and the
-  wave-height function (`src/lib.rs`, `src/surface_move.rs`,
-  `src/terrain/ocean_waves.rs`, `src/terrain/ocean_fft.rs`); oxygen
-  falling only where the air is not breathable
-  (`src/systems/food.rs`, `src/engine/survival_env.rs`,
+- Standing on and diving under the sea surface, the swim speed (2.5
+  metres a second with fly mode off, the walking speed of 5 with it on),
+  and the wave-height function (`src/lib.rs`, `src/surface_move.rs`,
+  `src/terrain/ocean_waves.rs`, `src/terrain/ocean_fft.rs`); the Dev
+  page's travel and Land on surface buttons turning fly mode on, F9 and
+  the Fly mode box turning it off (`src/lib.rs`,
+  `src/gui/pages/dev.rs`), and the HUD's movement line reading WALK
+  meanwhile (`src/gui/pages/hud.rs`); oxygen falling only where the air
+  is not breathable (`src/systems/food.rs`, `src/engine/survival_env.rs`,
   `src/systems/body_environment.rs`); clothing wetted only by falling rain
-  and snow (`src/systems/body_heat.rs`). The Raft, Canoe, Rowboat and
-  Sailboat items and recipes, with their Shelter Building levels
-  (`data/items.csv`, `data/recipes.csv`); the Crafting page's check for
-  parts and skill, which the Dev play mode does not lift, and its "Dev:
-  stock all materials" button (`src/gui/pages/crafting.rs`); the craft
-  itself, which in the Dev play mode does not use parts up but still
-  checks the skill (`src/systems/crafting/mod.rs`); "Dev: max skills"
+  and snow (`src/systems/body_heat.rs`), and the weather reaching the body
+  only with fly mode off (`src/engine/survival_env.rs`). The Raft, Canoe,
+  Rowboat, Sailboat, Motorboat and Submarine items, and the recipes for
+  the first four with their Shelter Building levels (`data/items.csv`,
+  `data/recipes.csv`); the Adjustable Wrench and Flat Screwdriver that
+  assembly at the workbench needs (`data/crafting/tools.ron`), carried by
+  a new character (`data/world/player.ron`); the Crafting page's check
+  for parts, tools and skill, with tools counted only in the backpack,
+  which the Dev play mode does not lift, and its "Dev: stock all
+  materials" button (`src/gui/pages/crafting.rs`), which stocks one
+  stack of every recipe input and no tools; the craft itself, which in
+  the Dev play mode uses up no parts and wears no tool
+  (`src/systems/crafting/mod.rs`); the home's sawmill, which runs Saw
+  Planks by itself (`data/machines/home.ron`, `data/recipes.csv`), and
+  automated machines taking their inputs from the backpack first, in
+  every play mode (`src/systems/crafting/mod.rs`); "Dev: max skills"
   (`src/gui/pages/profile.rs`); skills starting at level 0
   (`src/systems/skills/`); the default home's stock
   (`data/places/seed.json`); a boat too big for the backpack going to
-  home storage
+  home storage, which counts only aboard, with your own home on the ship
   (`src/systems/crafting/mod.rs`, `src/systems/crafting/home_store.rs`);
-  the drivable vehicles (`data/vehicles/kits.ron`). The Play mode and
-  "Start every session from the default home" settings (`src/config.rs`,
-  `src/save_load.rs`).
+  the drivable vehicles (`data/vehicles/kits.ron`); the Thunderstorm
+  weather event, with no hazard (`data/weather/events.ron`), and the
+  lightning in `src/systems/disasters.rs`, which no code registers. The
+  Play mode and "Start every session from the default home" settings
+  (`src/config.rs`, `src/save_load.rs`).
 - [Reading the Tide](/library#reading-the-tide), [Cold and
   Hypothermia](/library#cold-and-hypothermia), [Force, Levers and Mechanical
   Advantage](/library#force-levers-and-mechanical-advantage), [Navigating
@@ -726,13 +819,17 @@ facts are used here and the wording is not.
   rowboat example (its 150 and 1,700 pounds are made up); the 12 by 4.5
   foot rule of thumb; the wood densities, lifts and sinking points worked
   from the handbook's figures; the raft example; the canoe's 240
-  kilograms and 240 litres.
+  kilograms and 240 litres; the 80 percent of all deaths, from the
+  statistics' Table 35.
 - Our reading: the same boat floating higher in salt water; the small
   margin between floating and drowning that a life jacket restores; why
   the capacity fraction is so small; the pounds on the plate as the
   limit that counts; how the loading rules follow from the two centres;
   the cold water phases read together as a plan; a boat being easier to
-  see than a head in the water; a soaked log settling to the bottom.
+  see than a head in the water; a soaked log settling to the bottom;
+  what the Weather Service's lightning advice means on a small boat
+  (heading for shore at the first rumble); making a VHF radio or a beacon
+  a rule beyond the near shore.
 - Our explanation: weight moved to one side using up that side's
   freeboard; why anchoring from the stern swamps a boat, and why meeting
   waves at an angle helps.
@@ -744,5 +841,6 @@ facts are used here and the wording is not.
   re-entry in warm, shallow water, and how hard a swamped canoe or kayak
   is to re-enter; using a raft only on calm, shallow, warm water near
   shore with life jackets; the canoe's seating; clothing that insulates
-  when wet; staying near shore; repairs and changes beyond the plate.
+  when wet, at the least; staying near shore; repairs and changes beyond
+  the plate.
 - The worked example's people, weights, day and route are made up.

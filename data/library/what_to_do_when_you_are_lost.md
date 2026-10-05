@@ -55,11 +55,11 @@ STOP: Stop, Think, Observe, Plan.
 
 Then, at once:
 
-5. **Call 911 if you have any signal,** or text it if you cannot call.
-   Tell them where you started, where you were last sure of, what you
-   can see, what you are wearing and carrying, and any medical
-   condition. Then stay on the line until they say otherwise (details
-   below).
+5. **Call 911,** even if your phone shows little or no service, and
+   text it if you cannot call. Tell them where you started, where you
+   were last sure of, what you can see, what you are wearing and
+   carrying, and any medical condition. Then stay on the line until they
+   say otherwise (details below).
 6. **Stay put** unless something is about to hurt you where you are. The
    National Park Service: "Changing location will make it difficult for
    authorities to find you. Move only if there is an immediate threat to
@@ -127,10 +127,12 @@ can and text if you cannot; a voice call is still the best way to reach
 911. Text-to-911 is not available everywhere, and if it is not where you
 are, the program says you should get an immediate message back from
 your phone company telling you the text was not delivered. Washington's
-911 office adds two cautions (restated), which this guide takes to hold
+911 office adds three cautions (restated), which this guide takes to hold
 elsewhere too (our reading): a text does not necessarily tell the
-dispatcher where you are, so type your location into it, and texting
-911 does not work while your phone is roaming.
+dispatcher where you are, so type your location into it; texting 911
+does not work while your phone is roaming; and a text to 911, like any
+text, can be delayed, arrive out of order or never arrive at all. So if
+no reply comes, keep trying to call (our reading).
 
 When you get through, the Park Service's plan lists what to tell them:
 
@@ -262,10 +264,40 @@ your pack if you have nothing else (general practice).
   moves);
 - keep away from avalanche and rockslide slopes.
 
-**Water, food and rest.** Drink and eat a little at a time from what you
-carry (general practice; the Park Service's plan says to inventory and
-conserve). Do not start eating wild plants or mushrooms to stretch your
-food. The Army's survival manual: "Although you can live several weeks
+**If you hear thunder.** The National Weather Service: "If you hear
+thunder, lightning is close enough to strike you." The safe places it
+names are a substantial building or a hard-topped vehicle; if one is in
+sight and you can reach it safely, go to it. A lost person usually has
+neither, so its last-resort tips for someone caught outside with no safe
+shelter nearby are the ones that apply:
+
+- "Immediately get off elevated areas such as hills, mountain ridges or
+  peaks";
+- "Never shelter under an isolated tree"; in a forest, its page on
+  lightning outdoors says to stay near a lower stand of trees;
+- "Never use a cliff or rocky overhang for shelter";
+- "Immediately get out and away from ponds, lakes and other bodies of
+  water", and keep away from wire fences and power lines;
+- never lie flat on the ground; and, from the same page on lightning
+  outdoors, if you are in a group, spread out.
+
+The Weather Service is plain that these only lower the risk: nowhere
+outside is safe in a thunderstorm. Read with the survival manual's site
+rules above, the place to wait one out is neither the ridge top nor the
+creek bed but partway down a slope, among trees no taller than those
+around them, away from water (our reading of the two together).
+
+**Water, food and rest.** Eat a little at a time from what you carry,
+and drink small amounts often (general practice; the Park Service's plan
+says to inventory and conserve your resources). In hot weather, do
+not ration water. The Army's survival manual, in its chapter on deserts:
+"Do not ration your water! If you try to ration water, you stand a good
+chance of becoming a heat casualty." Make the water last by sweating
+less instead: the same chapter says to get into shade, put something
+between you and the hot ground, and limit your movement.
+
+Do not start eating wild plants or mushrooms to stretch your food. The
+survival manual again: "Although you can live several weeks
 without food, you need an adequate amount to stay healthy." A day or two
 of hunger is safer than one wrong plant ([Identifying Wild
 Plants](/library#identifying-wild-plants); our reading). Stay where you are through the night: the Forest Service's
@@ -404,10 +436,14 @@ left.
    it also warns that a text does not necessarily tell the dispatcher
    where you are, so you would type the location yourself.
 5. **Wait well.** You move ten paces off the low, wet ground by the
-   junction to a flatter spot under a big cedar, clear of dead branches
-   overhead, still in sight of the junction, pile fallen fir boughs to
-   sit on, and pull the space blanket over your knees. Every few minutes
-   you blow three blasts on the whistle.
+   junction to a flatter spot on the slope, among young firs no taller
+   than the trees around them, clear of dead branches overhead and still
+   in sight of the junction. It is below the ridge, out of the creek bed
+   and away from water, which is also where the Weather Service's
+   lightning tips would put you if thunder came; a lone big tree would
+   not be. You pile fallen fir boughs to sit on and pull the space
+   blanket over your knees. Every few minutes you blow three blasts on
+   the whistle.
 6. **Be found.** Your trusted contact had your trip plan and the time
    you expected to be back, and the dispatcher already has your
    coordinates. When you hear voices, you whistle and shout back.
@@ -458,26 +494,40 @@ worth saying why.
   respawner. Nothing was lost, but the body remembers: keep fed,
   hydrated, warm, and breathing." Real life has no respawner, which is
   the whole reason this guide exists.
-- **Home is always marked.** The Maps page has a Track switch for the
-  Home Station in orbit, on by default; while it is on and you are more
-  than a kilometre from the station, a ring and a label with its distance
-  mark it on screen whenever it is in view. You can always find which way
-  home is. No real walk has that.
+- **Home is not marked, in this build.** The Maps page has a Track
+  switch for the Home Station in orbit, on by default, which is meant to
+  put a ring and a label with its distance on screen once you are more
+  than a kilometre from the station. In this build the ring is cut off at
+  the Render distance setting (Settings > Graphics, 500 metres by default
+  and 2 kilometres at most), so it shows only close to the station and
+  never from the ground. As on a real walk, nothing on screen shows the
+  way home.
 - **The default play mode can teleport you.** The game starts in the Dev
   play mode (Settings > Gameplay > Play mode), which includes the Dev
   page and its travel buttons, among them one to return to where you were
-  before you first teleported.
+  before you first teleported. Its buttons that take you to a planet,
+  both the travel row and the Land on surface row, leave fly mode on,
+  and once you are on the ground the line under the compass still reads
+  "WALK x1 [F9 to fly]". Press F9 twice, or untick Fly mode on the Dev
+  page, and you are really walking.
 - **Waiting does cost something.** Hunger, thirst and energy fall over
-  time (Settings > Gameplay > Vitals drain, where 1.0 means real time:
-  thirst in about two days and hunger in about a week), and low energy
-  makes you fatigued and slower. Your body heat is modelled from the
-  weather, your clothes and any shelter you have built: wind, rain and
-  wet clothes pull heat out, a roof you built keeps the rain off, and
-  under a roof, walls on the windward side keep the wind off. Natural
-  cover such as a tree or a hollow does not count. Under the default
-  Body heat setting, Forgiving, your temperature swings half as far and
-  cold harms you half as fast as under Realistic. Hypothermia halves your
-  movement.
+  time (Settings > Gameplay > Vitals drain: at 1.0, with time at its
+  default Realistic speed, thirst comes in about two days and hunger in
+  about a week; the drain runs on the game's clock, so a faster time
+  speed in Settings > Gameplay > Time empties them sooner), and low
+  energy makes you fatigued and slower. Once fly mode is off, your body
+  heat is modelled from the weather, your clothes and any shelter you
+  have built: wind, rain and wet clothes pull heat out, a roof you built
+  keeps the rain off, and under a roof, walls on the windward side keep
+  the wind off. Natural cover such as a tree or a hollow does not count.
+  While fly mode is on, the weather does not reach your body at all.
+  Under the default Body heat setting, Forgiving, the temperature shown
+  swings half as far from normal as under Realistic, and cold does harm
+  only when that shown temperature is below 32 C (a real core of about
+  27 C), and then at half the Realistic rate. So harm starts only much
+  deeper into the cold, and at any real core temperature it is far less
+  than half of what Realistic does. Hypothermia, a shown temperature
+  below 35 C, halves your movement.
 - **The rescue gear does nothing yet.** A Flare, a Radio, a Walkie Talkie,
   a Flashlight, a Compass, a Paper Map and a GPS Device are all in the
   item list, and some of them are parts in other recipes, but none of
@@ -488,8 +538,10 @@ worth saying why.
   during development, only your character carries between launches.
 
 What the game leaves out, so you do not learn it from the game:
-searchers, phones, whistles, darkness that stops you moving, and the
-plain fact that a person cannot be put back where they started.
+searchers, phones, whistles, lightning (a Thunderstorm in its weather
+brings rain, wind and a darker sky, but nothing strikes), darkness that
+stops you moving, and the plain fact that a person cannot be put back
+where they started.
 
 ## You own this when
 
@@ -497,13 +549,18 @@ plain fact that a person cannot be put back where they started.
 - You would stay put when lost, and you can name the reasons to move
   (an immediate threat to life, or a route you are very, very sure of).
 - You know that any mobile phone can try 911, what to tell the call
-  taker, and not to hang up until told.
+  taker, not to hang up until told, and to keep trying to call if a text
+  gets no reply.
 - You carry a whistle and a light, and know three blasts and a pause, and
   the SOS flash.
 - You know the ground-to-air V and X.
 - You would not light a signal fire in fire season.
 - You can make a small shelter off the ground, out of the wind and away
   from low ground, dead branches and flood lines.
+- If you hear thunder, you get off ridges, away from water and out from
+  under any lone tree.
+- In hot weather you keep drinking and save water by resting in shade,
+  not by rationing it.
 - You leave a trip plan with a trusted contact every time, keep to it,
   and check in when you get back.
 - You would call 911 quickly if someone else were missing, and not
@@ -598,7 +655,13 @@ October 2026; statutes were read on the same day.
   against heat lost to the ground; site selection: suitable for
   signalling, falling dead trees, flash flood areas, avalanche and
   rockslide areas, below the high water mark, low ground collecting cold
-  air at night; the evasion rules to blend in). Chapter 19, signalling
+  air at night; the evasion rules to blend in). Chapter 13, desert
+  survival ("Do not ration your water! If you try to ration water, you
+  stand a good chance of becoming a heat casualty."; shade, something
+  between you and the hot ground, and limited movement to cut sweating;
+  its chapter 4 says to ration water sensibly until you find a source,
+  and the guide gives the hot-weather rule because that is where
+  rationing does harm). Chapter 19, signalling
   (three fires in a triangle as the international distress signal, three
   columns of smoke; the mirror caution; whistles heard up to 1.6
   kilometres in documented cases, and manufactured whistles carrying
@@ -613,6 +676,20 @@ October 2026; statutes were read on the same day.
 - National Weather Service. Turn Around Don't Drown, undated ("A mere 6
   inches of fast-moving flood water can knock over an adult.").
   https://www.weather.gov/safety/flood-turn-around-dont-drown
+- National Weather Service. Lightning Tips, undated ("If you hear
+  thunder, lightning is close enough to strike you."; a substantial
+  building or an enclosed, metal-topped vehicle as safe shelter; no place
+  outside safe; the last-resort tips for someone caught outside with no
+  safe shelter nearby: "Immediately get off elevated areas such as hills,
+  mountain ridges or peaks", never lying flat on the ground, "Never
+  shelter under an isolated tree", "Never use a cliff or rocky overhang
+  for shelter", "Immediately get out and away from ponds, lakes and other
+  bodies of water", and away from fences, power lines and other
+  conductors). https://www.weather.gov/safety/lightning-tips
+- National Weather Service. Lightning Safety Outdoors, undated (in a
+  forest, staying near a lower stand of trees; a group spreading out;
+  the tips lowering the risk without making anyone safe outside).
+  https://www.weather.gov/safety/lightning-outdoors
 - US Census Bureau. 2020 Census Gazetteer file for places in Washington
   (Silverdale listed as a census-designated place, a statistical entity
   rather than an incorporated city).
@@ -643,26 +720,42 @@ facts are used here and the wording is not.
 - Washington State Military Department. Texting911, undated (text-to-911
   available statewide; call if you can, text if you cannot; a text does
   not necessarily tell the dispatcher where you are; texting is not
-  available while roaming).
+  available while roaming; a text to or from 911, like any text, can be
+  delayed, arrive out of order or not arrive at all).
   https://mil.wa.gov/texting911
 
 ### Inside this project
 
 - The death screen and Respawn button: `src/gui/pages/hud.rs`. The Home
   Station Track switch (`src/gui/pages/cosmos.rs`, on by default in
-  `src/gui/mod.rs`) and its ring and distance label
-  (`src/gui/pages/hud.rs`). The Dev play mode and the Dev page's travel
-  buttons (`src/config.rs`, `src/gui/pages/dev.rs`). Vitals drain, Body
-  heat and the other Gameplay settings (`src/gui/pages/settings.rs`); the
-  body heat model and shelter, which counts only built pieces and walls
-  only under a roof (`src/systems/body_heat.rs`,
-  `src/engine/survival_env.rs`, `src/systems/construction/uses.rs`); the
-  fatigued and hypothermia conditions
+  `src/gui/mod.rs`) and its ring and distance label, shown only beyond a
+  kilometre (`src/lib.rs`) and dropped by the HUD's `world_to_screen`
+  beyond the camera's far plane (`src/gui/pages/hud.rs`), which is the
+  Render distance setting, 500 metres by default and at most 2,000
+  (`src/config.rs`, applied in `src/lib.rs`; the reverse-depth
+  projection is in `src/renderer/camera.rs`). The Dev play mode and the
+  Dev page's travel, Land on surface and Return home buttons
+  (`src/config.rs`, `src/gui/pages/dev.rs`); the travel and landing
+  code that turns fly mode on (`src/lib.rs`), F9 and the Fly mode box
+  that turn it off (`src/lib.rs`,
+  `src/gui/pages/dev.rs`), and the HUD's movement line, which reads WALK
+  whenever F9's hover is off (`src/gui/pages/hud.rs`). Vitals drain, Body
+  heat, Time and the other Gameplay settings (`src/gui/pages/settings.rs`,
+  `src/gui/pages/settings_time.rs`); the vitals drain on the game clock
+  (`src/systems/food.rs`, `src/systems/time.rs`); the body heat model, its
+  Forgiving mode's shown temperature and harm below a shown 32 C, and
+  shelter, which counts only built pieces and walls only under a roof
+  (`src/systems/body_heat.rs`, `src/systems/construction/uses.rs`); the
+  weather reaching the body only with fly mode off
+  (`src/engine/survival_env.rs`); the fatigued and hypothermia conditions
   (`data/status_effects.csv`). The Flare, Radio, Walkie Talkie,
   Flashlight, Compass, Paper Map and GPS Device items (`data/items.csv`;
   some are recipe parts in `data/recipes.csv`), none given an effect by
-  game code. The "Start every session from the default
-  home" setting (`src/config.rs`, `src/save_load.rs`).
+  game code. The Thunderstorm weather event, with rain, wind and cloud
+  but no hazard (`data/weather/events.ron`), and the lightning in
+  `src/systems/disasters.rs`, which no code registers, so it never runs.
+  The "Start every session from the default home" setting
+  (`src/config.rs`, `src/save_load.rs`).
 - [Knowing Which Way Is North](/library#knowing-which-way-is-north), [Reading a
   Map](/library#reading-a-map), [Coordinates](/library#coordinates), [Navigating
   Without Instruments](/library#navigating-without-instruments), [Cold and
@@ -675,18 +768,20 @@ facts are used here and the wording is not.
 ### Labelled in the text as general practice or our reading, not sourced
 
 - Eating, drinking and sitting down when you stop; agreeing a time to
-  turn the phone back on; sitting on your pack; drinking and eating a
-  little at a time; staying together as a group; leaving an injured
-  person warm, equipped and findable; not searching alone or in the
+  turn the phone back on; sitting on your pack; eating a little at a time
+  and drinking small amounts often; staying together as a group; leaving
+  an injured person warm, equipped and findable; not searching alone or in the
   dark; answering searchers; checking for burn bans and not lighting a
   fire in dry weather; streams in steep country running into gorges and
   waterfalls; knowing the sunset time and starting back early; not
   crossing fast water, cliffs, snowfields or tide flats to rescue
   yourself; the lessons to teach children.
 - That another company's network may carry a 911 call when your own
-  shows no service; that Washington's two texting cautions hold
-  elsewhere too; that the survival manual's radio advice applies to a
-  phone; that the
+  shows no service; that Washington's three texting cautions hold
+  elsewhere too, and that a text with no reply means keep trying to call;
+  that the survival manual's radio advice applies to a phone; the place
+  to wait out a thunderstorm, read from the survival manual's site rules
+  and the Weather Service's lightning tips together; that the
   evasion rules to blend in are the opposite of what a lost person
   wants; that the study's circling is the reason behind "Do not walk
   aimlessly."; rising water, fire and falling rock as examples of an
