@@ -135,7 +135,7 @@ pub fn wire_built_generators(world: &mut hecs::World, registry: &BlueprintRegist
                     (PowerGenerator { output_watts: peak_watts, fuel_per_second: 0.0, active: true }, SolarPanel { peak_watts }),
                 );
             }
-            MachinePower::Generator { watts, fuel_lph } if fuel_lph <= 0.0 => {
+            MachinePower::Generator { watts, fuel_lph, .. } if fuel_lph <= 0.0 => {
                 let _ = world.insert_one(e, PowerGenerator { output_watts: watts, fuel_per_second: 0.0, active: true });
             }
             _ => log::warn!("a blueprint's `generates` must be Solar or a fuel-free Generator"),

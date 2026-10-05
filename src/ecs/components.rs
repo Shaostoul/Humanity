@@ -1068,6 +1068,29 @@ impl Default for PowerGenerator {
     }
 }
 
+/// The fuels a fuelled generator's engine is built to burn: item ids from
+/// `data/items.csv`, named by its machine's data (`fuels` on
+/// `machines::MachinePower::Generator`) and put on the machine entity when it
+/// spawns (`engine::home_spawn`). BUG-154 (2026-10-05): the generator burned
+/// any item of the "flammable" class, so Paint, Glue and Crude Oil ran the
+/// house, its drum took them and its Store button offered them. Now only
+/// these run it (`systems::electrical`), and the drum on the same entity takes
+/// and offers only these (`containers::vessel_takes_item`), the way a real
+/// engine runs on the fuel it was made for and nothing else.
+///
+/// Empty = it burns nothing. A machine that names no fuel never runs and its
+/// drum takes nothing: there is no fuel it can safely be assumed to run on,
+/// and guessing from a broad class is exactly what put the paint in the drum.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct BurnsFuels(pub Vec<String>);
+
+impl BurnsFuels {
+    /// True when this engine is built to burn `item_id`.
+    pub fn burns(&self, item_id: &str) -> bool {
+        self.0.iter().any(|f| f == item_id)
+    }
+}
+
 /// A power consumer. Draws `draw_watts` while `enabled`. Higher `priority`
 /// stays on first when supply < demand (1 = critical, 5 = optional).
 #[derive(Debug, Clone, Serialize, Deserialize)]
