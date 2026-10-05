@@ -114,8 +114,14 @@ The divergence was real: his save held 1,976 crops with 1,575 dead of
 thirst, and because the showcase garden only replants an EMPTY garden, it
 would never have come back, while a new player got a fresh one.
 
-So Settings > Gameplay > "Start every session from the default home" is ON
-by default (`fresh_world_each_launch`). While it is on, only the character
+**Changed 2026-10-04 (v0.1461.0):** the operator accepted that fresh installs
+start in Normal mode with progress kept, so the setting is now OFF by default.
+His own saved config keeps it ON (his development workflow above is unchanged),
+and the test rigs pin it on. The rest of this section describes the setting
+when it is on.
+
+So Settings > Gameplay > "Start every session from the default home" was ON
+by default (`fresh_world_each_launch`) until then. While it is on, only the character
 (name, look, outfit) is applied from the save; the home, garden, inventory,
 builds, craft batches and clock start from the default every launch, and
 offline progression does not apply. Saving writes only the character into
