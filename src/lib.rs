@@ -1000,7 +1000,7 @@ mod native_app {
             camera.yaw = std::f32::consts::PI;
             // Sensitivity here is just the frame-0 default; the boot-time settings_dirty
             // sync (below) overrides it with the saved value on the first frame.
-            let controller = CameraController::new(5.0, 0.25);
+            let controller = CameraController::new(crate::renderer::camera::WALK_SPEED_MPS, 0.25);
 
             // Minimal asset/ECS (lightweight, no file I/O)
             let asset_manager = AssetManager::new(data_dir.clone());
@@ -1948,6 +1948,7 @@ mod native_app {
                 homestead_layout: None,
                 construction_cam_active: false,
                 construction_return_pos: Vec3::new(0.0, 1.7, 0.0),
+                construction_entry_rebuild: false,
                 cursor_pos: (0.0, 0.0),
                 construction_grab: None,
                 construction_ghost: None,
@@ -2010,6 +2011,9 @@ mod native_app {
                 hologram_room_center: Vec3::new(-0.5, 1.0, 2.5),
                 room_lights: Vec::new(),
                 homestead_bounds: None,
+                ship_air: Default::default(),
+                aboard_bounds: None,
+                moves: Default::default(),
                 screenshot_counter: 0,
                 ship_world_pos: glam::DVec3::ZERO,
                 dev_travel_home: None,
@@ -3360,7 +3364,10 @@ mod native_app {
                             state.camera.position.z as f64,
                         );
                         let cam_world = state.ship_world_pos + cam_local;
-                        let aboard = (cam_world - new_pos).length() < 400.0;
+                        // Aboard is inside the ship's bounds (ship homes increment 4,
+                        // ship/ship_space.rs): a 400 m sphere let go of a player a fifth of
+                        // the way along the first drum.
+                        let aboard = crate::ship::ship_space::aboard_at(state.aboard_bounds, cam_world - new_pos);
                         // Departure is measured against where the station was when the
                         // frame was last synced to it, NOT against where it has since
                         // moved. Two different things break if you get this wrong:
@@ -3381,7 +3388,7 @@ mod native_app {
                         //
                         // Measuring against prev_pos answers only "did the player move
                         // relative to the home", which is the actual question.
-                        let departed = (cam_world - prev_pos).length() >= 400.0
+                        let departed = !crate::ship::ship_space::aboard_at(state.aboard_bounds, cam_world - prev_pos)
                             && prev_pos != glam::DVec3::ZERO;
                         let was_riding = state.station_ride;
 
@@ -3703,53 +3710,9 @@ mod native_app {
                     }
 
                     // Teleporter pads (v0.584): stepping onto a teleporter that has a linked pair jumps
-                    // the player to the partner pad. A cooldown (set on jump, also blocks arrival re-fire)
-                    // prevents ping-ponging while you stand on the destination. First person, not build.
-                    if state.teleport_cooldown > 0.0 {
-                        state.teleport_cooldown = (state.teleport_cooldown - dt).max(0.0);
-                    }
-                    if state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
-                        && !state.gui_state.construction_active
-                        // Not in dev fly mode (v0.791.x): flying through a pad's
-                        // footprint must not yank the traveler across the ship.
-                        && !state.controller.fly_mode
-                        && state.teleport_cooldown <= 0.0
-                    {
-                        let p = state.camera.position;
-                        // v0.754: EVERY zone's teleporters, at world positions. A pair links WITHIN
-                        // its zone (pair indices are per-body), so the destination shifts by the
-                        // same zone's origin.
-                        let jump: Option<(f32, f32, f32)> =
-                            state.gui_state.ship_structure.as_ref().and_then(|ship| {
-                                for zone in &ship.zones {
-                                    let o = zone.origin;
-                                    let hs = &zone.body;
-                                    for ps in &hs.structures {
-                                        let ty = crate::ship::structure::structure_type(&ps.type_id)?;
-                                        if ty.kind != crate::ship::structure::StructureKind::Teleporter {
-                                            continue;
-                                        }
-                                        let Some(pair) = ps.pair else { continue };
-                                        if pair >= hs.structures.len() {
-                                            continue;
-                                        }
-                                        let wpos = (ps.pos.0 + o.0, ps.pos.1 + o.1, ps.pos.2 + o.2);
-                                        if crate::ship::structure::in_footprint(
-                                            ty, wpos, ps.rot_deg.to_radians(), p.x, p.z,
-                                        ) {
-                                            let d = hs.structures[pair].pos;
-                                            return Some((d.0 + o.0, d.1 + o.1, d.2 + o.2));
-                                        }
-                                    }
-                                }
-                                None
-                            });
-                        if let Some(dest) = jump {
-                            state.camera.position.x = dest.0;
-                            state.camera.position.z = dest.2;
-                            state.teleport_cooldown = 1.2; // seconds; clears once you step off the pad
-                        }
-                    }
+                    // the player to the partner pad, and re-arms only once they have stepped off every
+                    // pad (engine/move_check.rs `teleporter_tick`, ship homes increment 4).
+                    crate::engine::move_check::teleporter_tick(state, dt);
 
                     // Ladder CLIMB zone (v0.589): if the player stands at a ladder, tell the controller
                     // its span so an up/down input climbs it (instead of jumping/falling). First person,
@@ -5423,8 +5386,13 @@ mod native_app {
                     // stays yours.
                     if let Some(bits) = state.gui_state.pending_follow_vehicle.take() {
                         state.follow_vehicle = hecs::Entity::from_bits(bits);
-                        // Watching, not walking: close the page so the world shows.
+                        // Watching, not walking: close the page so the world shows. In the shared
+                        // world the body stays here, and so does what we report (engine/move_check.rs
+                        // `body_position`, ship homes increment 4).
                         state.gui_state.active_page = GuiPage::None;
+                        if state.game_joined && state.moves.follow_body.is_none() {
+                            state.moves.follow_body = Some(state.camera.position);
+                        }
                     }
                     if let Some(veh) = state.follow_vehicle {
                         let input = state
@@ -6979,8 +6947,9 @@ mod native_app {
                         // Fall back to the home zone's saved spawn, then the pre-build position.
                         // In the shared world, a pick more than 90 m from where the relay holds the
                         // player (the pre-build position, or where a welcome stood them while the
-                        // editor was open) leaves them there instead: the relay refuses any update
-                        // more than 100 m from it (home_plot.rs `editor_close_spot`, ship homes 1b).
+                        // editor was open), or off their own plot, leaves them there instead
+                        // (home_plot.rs `editor_close_spot`, ship homes 1b and 4); a pick it takes is
+                        // declared as the editor's in the next update, so the relay passes the jump.
                         let zo = active_zone_origin(state);
                         let chosen = match state.gui_state.build_char_pos {
                             Some((x, z)) => Some(Vec3::new(x + zo.x, zo.y + 1.7, z + zo.z)),
@@ -6997,7 +6966,11 @@ mod native_app {
                             state.construction_return_pos,
                             state.game_joined,
                             state.gui_state.ship_structure.as_ref().is_some_and(|s| s.home_is_away()),
+                            state.gui_state.ship_structure.as_ref().and_then(|s| s.home_plot()).map(|p| p.aabb()),
                         );
+                        if state.game_joined && close.at != state.construction_return_pos {
+                            crate::engine::move_check::declare(state, crate::ship::moves::MoveDecl::Editor);
+                        }
                         state.camera.position = close.at;
                         if close.held_back {
                             state.gui_state.pending_notices.push(
@@ -7172,8 +7145,10 @@ mod native_app {
                         construction_history_tick(state, edited);
                         // Arm the autosave (v0.791): any structure/machine edit means there
                         // is unsaved ship state. The 60 s autosave + window-close flush
-                        // persist it; the explicit Save button also clears it.
-                        if edited {
+                        // persist it; the explicit Save button also clears it. The rebuild the
+                        // editor asks for as it opens is no edit (engine/editor.rs `arms_autosave`).
+                        let entry = std::mem::take(&mut state.construction_entry_rebuild);
+                        if crate::engine::editor::arms_autosave(edited, entry) {
                             state.gui_state.construction_unsaved = true;
                         }
                     }
@@ -8741,8 +8716,8 @@ mod native_app {
                                 if !is_train {
                                     continue;
                                 }
-                                if let Some(j) = ps.pair {
-                                    if j > i && j < hs.structures.len() {
+                                if let Some(j) = hs.pair_index(i) {
+                                    if j > i {
                                         let pj = &hs.structures[j];
                                         crate::renderer::line::push_polyline(
                                             &mut ring_lines,

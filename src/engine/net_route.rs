@@ -35,6 +35,8 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
             if !crate::engine::home_plot::apply_welcome_home(state, &v) {
                 return;
             }
+            // Increment 4: a fresh spawn starts the relay's correction count again.
+            crate::engine::move_check::on_welcome(state, &v);
             // The fleet's stores, a fresh power baseline, the ledger (engine/fleet.rs).
             crate::engine::fleet::on_welcome(state, &v);
             if let Some(id) = v.get("player_id").and_then(|x| x.as_u64()) {
@@ -52,84 +54,19 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
                 // update -- two stationary players were invisible to each other).
                 if let Some(snap) = v.get("world_snapshot").and_then(|s| s.as_array()) {
                     for e in snap {
-                        let Some(eid) = e.get("entity_id").and_then(|x| x.as_u64()) else { continue; };
-                        let Some(pos) = e.get("position").and_then(&arr3) else { continue; };
-                        let etype = e.get("entity_type").and_then(|t| t.as_str()).unwrap_or("");
-                        if etype == "player" {
-                            if eid as u32 == own_id {
-                                continue; // skip ourselves
-                            }
-                            // Real name from the entity's `name` component (v0.774,
-                            // relay stamps it at join); "Player" only if an older
-                            // snapshot lacks it.
-                            let name = e
-                                .get("components")
-                                .and_then(|c| c.get("name"))
-                                .and_then(|n| n.as_str())
-                                .unwrap_or("Player")
-                                .to_string();
-                            let look = e
-                                .get("components")
-                                .and_then(|c| c.get("appearance"))
-                                .and_then(crate::player_look::PlayerLook::from_json);
-                            msgs.push(NetMessage::PlayerJoined {
-                                player_id: eid as u32,
-                                name,
-                                position: pos,
-                                look,
-                            });
-                            continue;
-                        }
-                        // Crew NPC dialogue capture (v0.797): any snapshot entity
-                        // carrying dialog[]/greetings[] components is a talkable
-                        // crew member. Forward the lines to net_sync as an
-                        // NpcProfile so the RemoteNpc spawns with them -- the
-                        // walk-up talk card only DISPLAYS relay-authored text
-                        // (which the relay builds from its NPC data), never its
-                        // own. This also makes dwelling crew visible to a fresh
-                        // joiner (they send no NpcUpdate until their next move).
-                        let Some(c) = e.get("components") else { continue; };
-                        let strings = |key: &str| -> Vec<String> {
-                            c.get(key)
-                                .and_then(|x| x.as_array())
-                                .map(|a| {
-                                    a.iter()
-                                        .filter_map(|s| s.as_str().map(str::to_string))
-                                        .collect()
-                                })
-                                .unwrap_or_default()
-                        };
-                        let dialog = strings("dialog");
-                        let greetings = strings("greetings");
-                        if dialog.is_empty() && greetings.is_empty() {
-                            continue; // not a talkable NPC (equipment, windows, ...)
-                        }
-                        msgs.push(NetMessage::NpcProfile {
-                            entity_id: eid,
-                            name: c
-                                .get("name")
-                                .and_then(|n| n.as_str())
-                                .unwrap_or("Crew")
-                                .to_string(),
-                            role: c
-                                .get("role")
-                                .and_then(|r| r.as_str())
-                                .unwrap_or("")
-                                .to_string(),
-                            position: pos,
-                            activity: c
-                                .get("activity")
-                                .and_then(|a| a.as_str())
-                                .unwrap_or("")
-                                .to_string(),
-                            dialog,
-                            greetings,
-                        });
+                        msgs.extend(snapshot_entry_messages(e, Some(own_id)));
                     }
                 }
                 state.net_sync.queue_messages(msgs);
             }
         }
+        // Increment 4 (src/relay/handlers/game_interest.rs): another player or a crew member came
+        // into our view, sent whole as a welcome lists it (nothing about it reached us while it
+        // was out of view, and a crew member at work sends no moves); or went out of it, and is
+        // taken off our screen instead of standing frozen where it was last seen.
+        Some("game_in_view") | Some("game_out_of_view") => state.net_sync.queue_messages(view_change_messages(&v)),
+        // The relay put us back where it holds us: a move faster than anyone can go (increment 4).
+        Some("game_position_correction") => crate::engine::move_check::apply_correction(state, &v),
         Some("game_player_joined") => {
             if let (Some(id), Some(pos)) = (
                 v.get("player_id").and_then(|x| x.as_u64()),
@@ -202,7 +139,14 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
                     let server = crate::engine::home_plot::active_server_key(&state.gui_state);
                     crate::engine::home_plot::remember_plot(state, &server, None);
                 }
-                crate::engine::home_plot::refuse_shared_world(state, sentence.to_string(), None);
+                // Another ship: say so plainly when it is our data folder's copy that is old
+                // (the review of increment 4, P6).
+                let sentence = if reason == "other_ship" {
+                    crate::engine::home_plot::other_ship_sentence_here(&state.data_dir, v.get("ship").and_then(|s| s.get("hash")).and_then(|h| h.as_str()))
+                } else {
+                    sentence.to_string()
+                };
+                crate::engine::home_plot::refuse_shared_world(state, sentence, None);
                 return;
             }
             let msg = v.get("message").and_then(|x| x.as_str())
@@ -223,6 +167,127 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
         }
         _ => {}
     }
+}
+
+/// What a `game_in_view` or `game_out_of_view` (increment 4, src/relay/handlers/game_interest.rs)
+/// asks of the sync. In view: the mover sent whole, as a welcome lists it (`snapshot_entry_messages`),
+/// and for a crew member its place and work now (its profile does not move one we still draw).
+/// Out of view: taken off our screen (`EntityDespawn`). Nothing for anything else.
+pub(crate) fn view_change_messages(v: &serde_json::Value) -> Vec<crate::net::protocol::NetMessage> {
+    use crate::net::protocol::NetMessage;
+    let arr3 = |val: &serde_json::Value| -> Option<[f32; 3]> {
+        let a = val.as_array()?;
+        if a.len() != 3 { return None; }
+        Some([a[0].as_f64()? as f32, a[1].as_f64()? as f32, a[2].as_f64()? as f32])
+    };
+    match v.get("type").and_then(|t| t.as_str()) {
+        Some("game_in_view") => {
+            let Some(e) = v.get("entity") else { return Vec::new() };
+            let mut msgs = snapshot_entry_messages(e, None);
+            let c = e.get("components");
+            if let (Some(eid), Some(pos), true) = (e.get("entity_id").and_then(|x| x.as_u64()), e.get("position").and_then(arr3), c.is_some_and(|c| c.get("chore_agent").is_some())) {
+                let chore = c.and_then(|c| c.get("chore"));
+                msgs.push(NetMessage::NpcUpdate {
+                    entity_id: eid,
+                    name: c.and_then(|c| c.get("name")).and_then(|n| n.as_str()).unwrap_or("Crew").to_string(),
+                    position: pos,
+                    activity: chore.and_then(|ch| ch.get("label")).and_then(|l| l.as_str()).unwrap_or("").to_string(),
+                    working: chore.and_then(|ch| ch.get("state")).and_then(|s| s.as_str()) == Some("working"),
+                });
+            }
+            msgs
+        }
+        Some("game_out_of_view") => v.get("entity_id").and_then(|x| x.as_u64()).map(|id| vec![NetMessage::EntityDespawn { entity_id: id }]).unwrap_or_default(),
+        _ => Vec::new(),
+    }
+}
+
+/// What one entity of a welcome's world snapshot (or a `game_in_view`, increment 4) asks of the
+/// sync: another player to draw (`PlayerJoined`, with their name and look), or a talkable crew
+/// member (`NpcProfile`, with the lines the relay wrote for it); nothing for ourselves
+/// (`own_id`) or for things that are neither (equipment, windows).
+pub(crate) fn snapshot_entry_messages(e: &serde_json::Value, own_id: Option<u32>) -> Vec<crate::net::protocol::NetMessage> {
+    use crate::net::protocol::NetMessage;
+    let mut msgs = Vec::new();
+    let arr3 = |val: &serde_json::Value| -> Option<[f32; 3]> {
+        let a = val.as_array()?;
+        if a.len() != 3 { return None; }
+        Some([a[0].as_f64()? as f32, a[1].as_f64()? as f32, a[2].as_f64()? as f32])
+    };
+    let Some(eid) = e.get("entity_id").and_then(|x| x.as_u64()) else { return msgs; };
+    let Some(pos) = e.get("position").and_then(arr3) else { return msgs; };
+    let etype = e.get("entity_type").and_then(|t| t.as_str()).unwrap_or("");
+    if etype == "player" {
+        if Some(eid as u32) == own_id {
+            return msgs; // skip ourselves
+        }
+        // Real name from the entity's `name` component (v0.774,
+        // relay stamps it at join); "Player" only if an older
+        // snapshot lacks it.
+        let name = e
+            .get("components")
+            .and_then(|c| c.get("name"))
+            .and_then(|n| n.as_str())
+            .unwrap_or("Player")
+            .to_string();
+        let look = e
+            .get("components")
+            .and_then(|c| c.get("appearance"))
+            .and_then(crate::player_look::PlayerLook::from_json);
+        msgs.push(NetMessage::PlayerJoined {
+            player_id: eid as u32,
+            name,
+            position: pos,
+            look,
+        });
+        return msgs;
+    }
+    // Crew NPC dialogue capture (v0.797): any snapshot entity
+    // carrying dialog[]/greetings[] components is a talkable
+    // crew member. Forward the lines to net_sync as an
+    // NpcProfile so the RemoteNpc spawns with them -- the
+    // walk-up talk card only DISPLAYS relay-authored text
+    // (which the relay builds from its NPC data), never its
+    // own. This also makes dwelling crew visible to a fresh
+    // joiner (they send no NpcUpdate until their next move).
+    let Some(c) = e.get("components") else { return msgs; };
+    let strings = |key: &str| -> Vec<String> {
+        c.get(key)
+            .and_then(|x| x.as_array())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|s| s.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let dialog = strings("dialog");
+    let greetings = strings("greetings");
+    if dialog.is_empty() && greetings.is_empty() {
+        return msgs; // not a talkable NPC (equipment, windows, ...)
+    }
+    msgs.push(NetMessage::NpcProfile {
+        entity_id: eid,
+        name: c
+            .get("name")
+            .and_then(|n| n.as_str())
+            .unwrap_or("Crew")
+            .to_string(),
+        role: c
+            .get("role")
+            .and_then(|r| r.as_str())
+            .unwrap_or("")
+            .to_string(),
+        position: pos,
+        activity: c
+            .get("activity")
+            .and_then(|a| a.as_str())
+            .unwrap_or("")
+            .to_string(),
+        dialog,
+        greetings,
+    });
+    msgs
 }
 
 /// The host's game clock and its speed from a `game_time_sync` message, when
@@ -510,18 +575,26 @@ pub(crate) fn drive_position_send(state: &mut EngineState, in_world: bool, dt: f
     if !state.game_welcomed {
         return;
     }
-    let (position, yaw) = (state.camera.position, state.camera.yaw);
+    // The rig's scripted walk (the showcase `walk_to` verb), and where the body stands while the
+    // follow cam watches a vehicle (ship homes increment 4, engine/move_check.rs).
+    crate::engine::move_check::walk_tick(state, dt);
+    let position = crate::engine::move_check::body_position(state);
+    let yaw = state.camera.yaw;
     let out = state.net_sync.position_to_send(dt, real_dt, in_world, position, yaw, &mut state.game_pos_timer);
     if let Some(out) = out {
         send_game_position(state, &out);
     }
 }
 
-/// Send one position update to the relay (reused chat socket). The relay
-/// validates (anti-teleport) and broadcasts it to the other clients.
-pub(crate) fn send_game_position(state: &EngineState, out: &crate::net::sync::OutgoingPosition) {
+/// Send one position update to the relay (reused chat socket). The relay checks it against how
+/// fast anyone can go (src/relay/handlers/move_check.rs: a fast move this game made for real is
+/// declared in `moved`, and `correction` says which correction it last stood at) and passes
+/// it on to the players who have us in view.
+pub(crate) fn send_game_position(state: &mut EngineState, out: &crate::net::sync::OutgoingPosition) {
+    let mut msg = position_update_json(out);
+    crate::engine::move_check::stamp(state, &mut msg);
     let Some(ref ws) = state.gui_state.ws_client else { return; };
-    ws.send(&position_update_json(out).to_string());
+    ws.send(&msg.to_string());
 }
 
 /// The `game_position_update` message for one of our updates.
@@ -913,6 +986,47 @@ pub(crate) fn chat_history_pump(state: &mut EngineState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A PLAYER COMES INTO VIEW, GOES OUT OF IT AND COMES BACK (the review of increment 4, R6):
+    /// the relay sends a mover that comes into our view whole (`game_in_view`) and takes one
+    /// that leaves it off our screen (`game_out_of_view`). Neither was tested, and on the shipped
+    /// ship everyone aboard sees everyone, so no rig run ever sends either. In view: drawn, under
+    /// its name, where the relay says; out: gone; in view again: drawn again. A crew member the
+    /// same way, at its place and work.
+    ///
+    /// Seen red 2026-10-04 with the out-of-view arm of `view_change_messages` answering nothing:
+    /// "out of view: taken off the screen" (left: [(5, "Ada")], right: []).
+    #[test]
+    fn a_player_comes_into_view_goes_out_and_comes_back() {
+        use crate::ecs::systems::System;
+        use crate::net::sync::{NetSyncSystem, RemoteNpc, RemotePlayer};
+        let data = crate::hot_reload::data_store::DataStore::new();
+        let mut sys = NetSyncSystem::new();
+        let mut world = hecs::World::new();
+        let hear = |sys: &mut NetSyncSystem, world: &mut hecs::World, v: serde_json::Value| {
+            sys.queue_messages(view_change_messages(&v));
+            sys.tick(world, 0.016, &data);
+        };
+        let player_in = serde_json::json!({ "type": "game_in_view", "entity": { "entity_id": 5, "entity_type": "player", "position": [60.0, 1.7, 40.0], "rotation": [0.0, 0.0, 0.0, 1.0], "components": { "name": "Ada" } } });
+        let player_out = serde_json::json!({ "type": "game_out_of_view", "entity_id": 5 });
+        let crew_in = serde_json::json!({ "type": "game_in_view", "entity": { "entity_id": 9, "entity_type": "npc", "position": [80.0, 1.7, 30.0], "rotation": [0.0, 0.0, 0.0, 1.0], "components": { "name": "Cook Ana", "role": "cook", "dialog": ["Soup's on."], "chore_agent": true, "chore": { "label": "Stirring the pot", "state": "working" } } } });
+        let crew_out = serde_json::json!({ "type": "game_out_of_view", "entity_id": 9 });
+        let players = |w: &mut hecs::World| -> Vec<(u32, String)> { w.query_mut::<&RemotePlayer>().into_iter().map(|(_, r)| (r.player_id, r.name.clone())).collect() };
+        let crew = |w: &mut hecs::World| -> Vec<(u64, String, bool)> { w.query_mut::<&RemoteNpc>().into_iter().map(|(_, n)| (n.entity_id, n.activity.clone(), n.working)).collect() };
+        hear(&mut sys, &mut world, player_in.clone());
+        assert_eq!(players(&mut world), vec![(5, "Ada".to_string())], "in view: drawn under its name");
+        hear(&mut sys, &mut world, player_out);
+        assert_eq!(players(&mut world), Vec::new(), "out of view: taken off the screen");
+        hear(&mut sys, &mut world, player_in);
+        assert_eq!(players(&mut world), vec![(5, "Ada".to_string())], "in view again: drawn again");
+        hear(&mut sys, &mut world, crew_in.clone());
+        assert_eq!(crew(&mut world), vec![(9, "Stirring the pot".to_string(), true)], "a crew member in view, at its work");
+        hear(&mut sys, &mut world, crew_out);
+        assert_eq!(crew(&mut world), Vec::new(), "a crew member out of view");
+        hear(&mut sys, &mut world, crew_in);
+        assert_eq!(crew(&mut world).len(), 1, "and back");
+        assert_eq!(players(&mut world).len(), 1, "the player stayed drawn");
+    }
 
     /// ANOTHER PLAYER'S FIGURE WEARS THEIR LOOK (2026-09-29, appearance sync
     /// rung 2). Without a look: body and head, no hair. With one: a hair cap

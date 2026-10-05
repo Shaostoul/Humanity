@@ -17,7 +17,15 @@ pub mod home_structure;
 pub mod hull;
 pub mod layout;
 pub mod lock_types;
+/// Moving aboard the shared ship: the relay's speed rules, how a fast move is declared, who is in
+/// view (increment 4 of docs/design/ship-homes-and-logistics.md, data/ship/shared_world.ron).
+pub mod moves;
 pub mod neighbours;
+/// Where a point is in the ship: aboard or not (its bounds), and whose air it breathes (a home's
+/// own, the ship's shared spaces', or none) (increment 4).
+pub mod ship_space;
+/// Transit links: a teleporter and its partner, by stable ids (increment 4).
+pub mod transit;
 pub mod rooms;
 pub mod ship_structure;
 pub mod structure;

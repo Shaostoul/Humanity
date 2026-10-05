@@ -258,8 +258,18 @@ fn mine(world: &mut hecs::World, target: &str, manifest: &[(String, u32)]) -> Ve
     collected
 }
 
-/// Land a haul in the home inventory (`home` = the player's entity bits) and
-/// train Mining for it. Returns the units delivered.
+/// Land a haul at home and train Mining for it. Returns the units delivered.
+///
+/// HOME STORAGE takes it whenever the home has storage (BUG-150, 2026-10-04):
+/// the haul goes on the "home_stock_outputs" channel, which the main loop
+/// files into the Barn after the tick exactly as it files an automated
+/// machine's batch (engine::stock_piles::receive_machine_outputs). A drone
+/// that brings ore home unloads it into the home's store, not into the
+/// player's pockets, and home storage is the only store the home's automated
+/// machines draw on since BUG-150, so drone ore still becomes ingots and
+/// hammers untouched. Where there is no home storage (headless, the older
+/// tests) it lands in the backpack (`home` = the player's entity bits) as it
+/// always did.
 fn deliver_haul(
     world: &mut hecs::World,
     data: &DataStore,
@@ -268,6 +278,19 @@ fn deliver_haul(
     cargo: &[(String, u32)],
 ) -> u32 {
     let Some(home_e) = hecs::Entity::from_bits(home) else { return 0 };
+    if let Some(slot) = data.get::<std::sync::Mutex<Vec<(String, u32)>>>("home_stock_outputs") {
+        let landed: Vec<(String, u32)> = cargo.iter().filter(|(_, q)| *q > 0).cloned().collect();
+        let total: u32 = landed.iter().map(|(_, q)| q).sum();
+        if let Ok(mut out) = slot.lock() {
+            out.extend(landed);
+        }
+        if total > 0 {
+            log::info!("[Mining] drone delivered {total} units to home storage");
+            // A delivered haul trains Mining (1 XP per ore unit).
+            crate::systems::skills::award_skill_xp(data, "mining", total);
+        }
+        return total;
+    }
     let mut total = 0u32;
     for (ore, qty) in cargo {
         if *qty == 0 {
@@ -345,7 +368,7 @@ const MAX_AWAY_TRIPS: usize = 100_000;
 /// session's rules: the trip in flight finishes, and while a standing order
 /// is set it keeps flying the same trip until its asteroid is mined out. Ore
 /// comes only out of the asteroid, so a haul is bounded by what is really
-/// there, and it lands in the home inventory the way a session haul does.
+/// there, and it lands where a session haul does (home storage, BUG-150).
 /// A trip still in the air when the time runs out is left mid-flight, where
 /// the player finds it.
 ///
@@ -486,6 +509,51 @@ mod drone_tests {
         assert!(iron >= 8, "manifest ore delivered (got {iron})");
         assert_eq!(world.query::<&Drone>().iter().count(), 0, "completed drone despawned");
         assert!(world.get::<&AsteroidBody>(ast).is_err(), "depleted asteroid removed");
+    }
+
+    /// The drone unloads into HOME STORAGE when the home has storage (BUG-150,
+    /// 2026-10-04): it is the store the home's automated machines are fed
+    /// from, and the only one they draw on now, so a haul left in the
+    /// backpack would never reach the smelter. The haul goes on the channel
+    /// the main loop files into the Barn, as an automated machine's batch
+    /// does; the backpack is untouched. Mining is still trained for it.
+    ///
+    /// Seen red before the fix: "the haul is filed for home storage" (left:
+    /// 0, right: 8): it landed in the backpack.
+    #[test]
+    fn the_drone_unloads_into_home_storage_when_the_home_has_it() {
+        let mut data = make_store();
+        data.insert("home_stock_outputs", std::sync::Mutex::new(Vec::<(String, u32)>::new()));
+        data.insert("xp_grants", std::sync::Mutex::new(Vec::<crate::systems::skills::SkillXPEvent>::new()));
+        let mut sys = DroneSystem::new();
+        let mut world = hecs::World::new();
+        let player = world.spawn((Inventory::new(16), Controllable));
+        world.spawn((asteroid("rock", vec![("iron_ore_0", 8.0)]),));
+        commission(&data, "rock", vec![("iron_ore_0", 8)]);
+        for _ in 0..20 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let filed: u32 = data
+            .get::<std::sync::Mutex<Vec<(String, u32)>>>("home_stock_outputs")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(id, _)| id == "iron_ore_0")
+            .map(|(_, q)| *q)
+            .sum();
+        assert_eq!(filed, 8, "the haul is filed for home storage");
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("iron_ore_0"), 0, "not into the backpack");
+        let xp: u32 = data
+            .get::<std::sync::Mutex<Vec<crate::systems::skills::SkillXPEvent>>>("xp_grants")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|e| e.skill_id == "mining")
+            .map(|e| e.amount)
+            .sum();
+        assert_eq!(xp, 8, "a haul home still trains Mining, 1 XP per unit");
     }
 
     /// Standing order (economy automation Phase 1, v0.663): with an auto_mine_order

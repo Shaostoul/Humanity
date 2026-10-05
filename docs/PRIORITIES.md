@@ -111,10 +111,17 @@ every load-bearing claim checked by an adversarial verifier
   on main, all rigs green (67/67 per --plots order, the crew judged where they
   are drawn). NPC homesteads ANSWERED 2026-10-04: their contribution stays 0, and during
   early development the fleet is UNLIMITED with a per-player ledger of what
-  each player used and contributed, in the red or the black (built 2026-10-04 on branch fleet-ledger: the setting fleet_supply_mode, the ledger, Inventory > The fleet, Server Settings > ADMIN > Fleet supply; design doc, increment 3, "The fleet ledger, as built"). NEXT: increment 4,
-  getting around at ship scale (the relay's speed check with a correction
-  instead of a freeze, transit links with stable ids, "aboard" as inside the
-  ship's bounds, game delivery by zone, an air volume per home). Left for later (design doc section 7): a Dev move of the plot
+  each player used and contributed, in the red or the black (built 2026-10-04 on branch fleet-ledger: the setting fleet_supply_mode, the ledger, Inventory > The fleet, Server Settings > ADMIN > Fleet supply; design doc, increment 3, "The fleet ledger, as built"; released v0.1458.0).
+  Increment 4 MERGED 2026-10-04 (v0.1459.0): getting around at ship scale
+  (the relay's speed check answers an oversized move with a correction, never
+  a freeze, and knows every honest fast move; transit links by stable ids;
+  "aboard" is inside the ship's bounds; delivery by view, in at 250 m and out
+  at 300 m; each home has its own air; nobody is told who lives on which
+  plot). Three reviews, 21 findings fixed; its new rig legs found BUG-151.
+  NEXT: increment 5, building only on your own plot (design doc section 7:
+  `may_build`/`may_remove`, the permit certificate, ShipStructureEditing off
+  while joined unless the relay grants `can_edit_ship`, through the ALTER
+  block per BUG-046). Left for later (design doc section 7): a Dev move of the plot
   does not carry animals and decoration plants; idle plots are never given
   back automatically (open question 19); a vehicle-driving rig leg needs an
   IPC verb. The rig follow-up about the previous order's game still holding the exe is done (BUG-142, v0.1452.0: all four rigs share a copy that waits out the lock). Follow-ups 1a found: put
@@ -170,6 +177,62 @@ until a qualified person is officially involved; the landing hero shot becomes a
 night-to-sunrise shot from Silverdale toward Mount Rainier. Earlier: the start
 tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 (2026-10-04: being built), the old plain backups deleted (2026-10-02).
+
+### THE FIRST HOUR: a basic starting loop with stakes (audit 2026-10-04)
+
+The operator asked how the basic starting gameplay loop is going. A read-only
+trace of a new player's first hour with stakes on (Normal play mode, progress
+kept) is `docs/design/first-hour-audit-2026-10-04.md`: the mechanics mostly
+exist, but out of the box there are no stakes, nothing teaches the game, and
+several things break. Ranked:
+
+- **Blockers (fix first):** B2 a player who typed a name is joined to the live
+  shared world without being asked (72x clock: thirsty in about 20 minutes, no
+  sleep; the ship has only two plots, so the third identity ever is a guest who
+  cannot build); B3 Quit from the hub or the updater skips the save; B4 the Solo
+  home has no smelter, so the first quest cannot finish; B5 quests that can
+  never finish (Travel steps read a position walking never moves; ore_sample_0
+  and rare_ore_0 come only from creatures never spawned); B1 the default "fresh
+  home" setting wipes progress every launch (a default, see the decision below).
+- **Friction:** F1 nothing teaches I, E, F1 or Alt; F2 the vendor, privacy and
+  machine-card windows need Alt held and nothing says so; F3 the quest text
+  points at a Dev-only button, completions are silent, the HUD goes blank after
+  Toolsmith; F4 machines eat the backpack (BUG-150, fixed v0.1459.0); F5 the
+  bedroom's bed says "sleep here" but cannot be slept in; F7 nothing planted
+  ripens in a session; F8 food poisoning can kill with no cure and no word;
+  "Keep mining" traps the drone in endless empty trips with no Stop; logs are
+  refused as "pack is full" with 47 L free (each log is 26 L); building with
+  too few materials does nothing in the world and says why only on the
+  Crafting page; the smelter's fuel choice is lost on every load; the
+  character picker's hint ("Gear and skills stay in the world you earn them
+  in") is false.
+- **Missing stakes:** S1 quitting heals and refills (vitals never saved); S2
+  death costs nothing; the B editor places any machine for free even in
+  Normal, and writes it into the data files rather than the save; S4 the free showcase garden replants itself in every
+  mode; S6 stored food never spoils; S7 animals have no needs; S8 the medical
+  system is never registered.
+- **Operator decisions, ANSWERED 2026-10-04 (late evening):** "I like your
+  suggestions. For normal mode, especially for my MMO server, let's have
+  everything be real time, not the 72x. That way anyone joining isn't dealing
+  with accelerated death. We'll wait until we have everything actually working
+  before we accelerate everything for fast mode." So:
+  1. **Defaults flip now:** fresh installs start in Normal mode with progress
+     kept ("Start every session from the default home" off); the rigs pin Dev;
+     the operator's own saved settings keep Dev. (After the session-flow and
+     world-friction lanes merge: they touch the same config and Normal-mode
+     code.)
+  2. **Death:** Simplified mode keeps "Nothing was lost"; in Realistic mode the
+     carried items stay where you fell for a while, to go back for. (After the
+     survival lane merges.)
+  3. **The first ten minutes:** check your vitals, eat, plant, craft a tool,
+     send the drone for iron, smelt it, build one thing, and end at your front
+     door looking out on the Commons. (After the quests lane merges.)
+  4. **More plots:** about ten along First Street, so more than two people can
+     have homes. (Started at once: data and relay, no overlap with the lanes.)
+  5. **Real time:** the shared world's clock defaults to 1x, not 72x (the solo
+     game already defaults to 1x); a faster "fast mode" waits until everything
+     works. (Started at once; the live server's stored 72 is set to 1 after the
+     deploy.)
 
 ### IN FLIGHT AT THE USAGE CAP (2026-09-27 evening): resume from these branches
 
@@ -234,7 +297,11 @@ And: cable sizing (`cheapest_cable_for`) falls back to a superconductor, a
 material that does not exist, whenever no copper cable passes, so a long
 heavy power run "passes" (3,000 W over 60 m picks it), and the Construction
 page offers "Upgrade N power run(s) to superconductor" today; the lightning
-code in `disasters.rs` is never registered, so it never runs.
+code in `disasters.rs` is never registered, so it never runs. The heat, fire
+and fuel guides' check (same night) added BUG-153 (the Campfire ability
+promises a fire with warmth and light, and only heals 3), BUG-154 (the backup
+generator runs on Paint, Glue or Crude Oil) and BUG-155 (the greenhouse quest
+asks for a heater that does nothing).
 
 ### 1. Environment regions: the rest of the arc BUG-080 opened
 
