@@ -977,14 +977,14 @@ mimic_tooth_0,Mimic Tooth,material,creature_part,bone,0.3,20,0,Skeletal material
 mineral_claw_0,Mineral Claw,material,ore,stone,1,20,0,Mineral matter from a creature,solid,1.5
 nanite_cluster_0,Nanite Cluster,material,salvage,metal,0.8,20,0,Salvage from a mechanical creature,solid,1.2
 ogre_hide_0,Ogre Hide,material,fiber,leather,0.7,20,0,Hide or pelt from a creature,solid,1.05
-ore_sample_0,Ore Sample,material,ore,stone,1,20,0,Mineral matter from a creature,solid,1.5
+ore_sample_0,Ore Sample,material,ore,stone,1,20,0,Chip of mineralized rock taken from an ore outcrop for testing,solid,1.5
 petrifying_eye_0,Petrifying Eye,material,creature_part,organic,0.2,20,0,Part harvested from a creature,solid,0.3
 phoenix_ash_0,Phoenix Ash,material,exotic,essence,0.05,20,0,Exotic residue from a creature,solid,0.08
 phoenix_feather_0,Phoenix Feather,material,fiber,organic,0.05,20,0,Light material from a creature,solid,0.08
 plasma_dust_0,Plasma Dust,material,exotic,essence,0.05,20,0,Exotic residue from a creature,solid,0.08
 rare_alloy_0,Rare Alloy,material,salvage,metal,0.8,20,0,Salvage from a mechanical creature,solid,1.2
 rare_gem_0,Rare Gem,material,exotic,crystal,0.3,20,0,Energetic material from a creature,solid,0.45
-rare_ore_0,Rare Ore,material,ore,stone,1,20,0,Mineral matter from a creature,solid,1.5
+rare_ore_0,Rare Ore,material,ore,stone,1,20,0,Ore carrying uncommon metals from a narrow seam,solid,1.5
 raw_beef_0,Raw Beef,food,protein,flesh,0.6,20,0,Butchered creature meat,solid,0.9
 raw_fish_0,Raw Fish,food,protein,flesh,0.6,20,0,Butchered creature meat,solid,0.9
 raw_meat_0,Raw Meat,food,protein,flesh,0.6,20,0,Butchered creature meat,solid,0.9

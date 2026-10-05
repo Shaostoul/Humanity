@@ -16404,13 +16404,10 @@ mod native_app {
                 // a machine-card button must not spin the camera.
                 // Same for the expanded F10 sidebar (2026-09-05): the cursor
                 // is free to work the panel, so motion must not spin the
-                // camera - the alt_held rule, made sticky.
-                if state.gui_state.active_page == GuiPage::None
-                    && !state.alt_held
-                    && !state.gui_state.cloud_dev_sidebar_expanded()
-                    && !state.gui_state.in_world_modal_open()
-                    && state.gui_state.player_death_cause.is_none()
-                {
+                // camera - the alt_held rule, made sticky. The whole rule is
+                // engine::input::mouse_look_allowed (2026-10-04), beside the
+                // cursor rule it has to agree with.
+                if crate::engine::input::mouse_look_allowed(&state.gui_state, state.alt_held) {
                     state.controller.process_mouse_motion(delta.0, delta.1);
                     // Real mouse-look releases the probe hold's yaw/pitch
                     // pin (same rule as the keyboard: the human wins).
