@@ -14,9 +14,9 @@
 //! WHO MAY BUILD WHERE (the operator, 2026-10-03 and 2026-10-05). The relay decides; the game
 //! asks the same questions first only so a player is told before anything is spent.
 //! - On your own plot you build, and you may take down anything that stands on it.
-//! - On someone else's plot, only with a household permit its holder signed for you
-//!   (`relay::core::pq_crypto::verify_plot_permit`, at most [`PERMIT_MAX_DAYS`] days), and you
-//!   take down only what you put up there.
+//! - On someone else's plot, only with a household permit its holder signed for you on that
+//!   server (`relay::core::pq_crypto::verify_plot_permit`, at most [`PERMIT_MAX_DAYS`] days),
+//!   and you take down only what you put up there.
 //! - In the ship's shared spaces, only people the server gave the `can_edit_ship` rank.
 //! - The server's admins and owners take down anything.
 //! - A guest (no plot on this ship) builds nowhere without a permit.
@@ -453,15 +453,19 @@ pub mod msg {
 }
 
 /// A household permit (ship homes section 4): a plot's holder lets one person build on that
-/// plot until a date. Held by the grantee and sent with each build or take-down they make there;
-/// the relay checks it without storing it (`relay::core::pq_crypto::verify_plot_permit`), the
-/// friendship certificate's pattern. The relay rebuilds the signed words from what it knows (the
-/// frame's plot, the sender's own id), so `plot` and `grantee` here only say what the permit
-/// claims to be for.
+/// plot, on one server, until a date. Held by the grantee and sent with each build or take-down
+/// they make there; the relay checks it without storing it
+/// (`relay::core::pq_crypto::verify_plot_permit`), the friendship certificate's pattern. The
+/// relay rebuilds the signed words from what it knows (its own server id, the frame's plot, the
+/// sender's own id), so `server`, `plot` and `grantee` here only say what the permit claims to be
+/// for: the grantee's game files it by them and shows them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Permit {
     /// The plot holder's Dilithium3 public key, hex: whose signature this is.
     pub issuer: String,
+    /// The server it was given on: that server's own `did:hum:` (its /api/server-info). Good on
+    /// that server only: one person often holds the same plot id on several servers.
+    pub server: String,
     /// The plot it is for, by its ship-file id (`p3`, not `plot:p3`).
     pub plot: String,
     /// Who it lets build: the grantee's id as a relay holds plots under it (`did:hum:...`,
@@ -469,8 +473,8 @@ pub struct Permit {
     pub grantee: String,
     /// When it runs out, Unix seconds; never more than [`PERMIT_MAX_DAYS`] days ahead.
     pub expiry: u64,
-    /// The issuer's Dilithium3 signature over `hum/permit/v1\n{plot}\n{grantee}\n{expiry}`,
-    /// base64.
+    /// The issuer's Dilithium3 signature over
+    /// `hum/permit/v1\n{server}\n{plot}\n{grantee}\n{expiry}`, base64.
     pub sig: String,
 }
 
@@ -1182,7 +1186,8 @@ mod tests {
 
     /// THE WIRE. Every message, written exactly as the plan spells it, parses as its variant and
     /// writes back with exactly the plan's fields: the `type` strings are the `msg` constants; a
-    /// piece carries no builder, and `mine` only in its builder's own copy; a refusal's codes are
+    /// permit names the server it was given on; a piece carries no builder, and `mine` only in
+    /// its builder's own copy; a refusal's codes are
     /// snake case; the welcome's `ranks` reads false where a field is missing; a code from a
     /// newer server reads as `unknown` instead of losing the whole message. The relay, the game
     /// and the rig's scripts all read these names, so a rename here would break the others
@@ -1218,7 +1223,9 @@ mod tests {
         assert_eq!(keys(&serde_json::to_value(&mine).unwrap()), sorted(&with_mine), "the builder's own copy says mine");
         assert_eq!(mine.marker("plot:p2"), SharedPiece { piece_id: 42, frame: "plot:p2".into(), mine: true });
 
-        let permit = r#"{"issuer":"aabb","plot":"p3","grantee":"did:hum:abc","expiry":1767225600,"sig":"c2ln"}"#;
+        let permit = r#"{"issuer":"aabb","server":"did:hum:srv","plot":"p3","grantee":"did:hum:abc","expiry":1767225600,"sig":"c2ln"}"#;
+        let p: Permit = serde_json::from_str(permit).expect("the plan's permit parses");
+        assert_eq!(keys(&serde_json::to_value(&p).unwrap()), sorted(&["issuer", "server", "plot", "grantee", "expiry", "sig"]));
         // (json text, the variant's type constant, the fields it writes back with)
         let to_relay: Vec<(String, &str, Vec<&str>)> = vec![
             (
