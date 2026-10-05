@@ -576,9 +576,10 @@ one thing in the garden.
   nothing is used up and no tool wears: hoeing needs no hoe at all, and
   laying a row cover takes no pieces from your pack. Crafting is the
   exception to "needs no tools": the Craft button still wants the
-  recipe's parts and tools in your backpack or your home's storage, it
-  just does not use them up or wear the tools, and the Crafting page's
-  "Dev: stock all materials" button fills in everything a recipe needs.
+  recipe's parts in your backpack or your home's storage and its tools
+  in your backpack; it just does not use them up or wear the tools. The
+  Crafting page's "Dev: stock all materials" button fills in every
+  recipe's parts, but not its tools.
   Only the soap bar wears in every mode. To see tools wear, switch Play
   mode to Normal.
 - **Starting from the default home.** While Settings > Gameplay > "Start
