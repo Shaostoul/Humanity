@@ -230,10 +230,29 @@ starts the body over.
   23.6 C) and the body shivers about 40 percent less
   (`a_roof_keeps_the_night_sky_off_the_body`).
 
+## A fire's radiant heat (BUG-153, 2026-10-05)
+
+A built fire (the `campfire` blueprint, built by the Campfire ability) radiates
+16 kW while it burns, and a person near it feels that as warmer surroundings:
+`construction::fires::warmth_at` sums, for each burning fire on the body, its
+point-source irradiance at the person's middle (power over 4 pi R^2, NUREG-1805
+eq. 5-1) times the standing body's projected area factor for the fire's angle
+(`projected_area_factor`), and `engine::survival_env` adds that to the mean
+radiant temperature as fourth powers (`body_heat::radiant_with_source_c`, the
+fire's infrared absorbed like the long-wave the body trades with its
+surroundings). On a clear, calm 0 C night in the everyday outfit: the
+surroundings go from -11 C to about 16 C at 1.5 m and move 0.2 C at 20 m; half a
+metre from the ring the core holds at 36.8 C through the night and the body
+shivers too little to show as Shivering (3 W/m2, against 56 with no fire), and an
+out fire gives nothing (`survival_env`'s tests). The 16 kW and the burn time come from a Forest
+Service campground fire ring test and NIST TN 2314 (sources in `fires.rs`).
+The model's one skin layer spreads the warmth all round; a real fire warms the
+side facing it.
+
 ## Not modelled yet
 
-- A fire's radiant heat (the `radiant_temp_c` input is there for it; the
-  `campfire_warmth` effect is the obvious first user).
+- A fire's warmth only on the side facing it (the two-node body has one skin),
+  the air a fire warms (it heats only by radiation here), and its light.
 - For the sky and the sun: humidity's effect on the night sky (Brunt's and
   Idso's formulas use the vapour pressure; Swinbank's does not); the sun
   coming in under a roof's eaves through the open sides when it is low, and

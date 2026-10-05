@@ -469,6 +469,27 @@ pub fn open_sky_radiant_c(air_c: f32, cloud: f32, sun_sin: f32) -> f32 {
     (open4.powf(0.25) - 273.15 + sun_mrt_rise_c(sun_sin, cloud)) as f32
 }
 
+/// The mean radiant temperature, C, with a radiant source such as a fire
+/// added to surroundings at `radiant_c` (BUG-153, 2026-10-05).
+/// `absorbed_w_m2` is what the body takes from the source, per square metre
+/// of its radiating area: the source's irradiance times the body's projected
+/// area factor for its direction (`construction::fires::warmth_at`). The mean
+/// radiant temperature is the uniform surroundings the body would trade the
+/// same radiation with, so the source adds to it as fourth powers:
+/// T^4 = T_surroundings^4 + absorbed / sigma, the way the six-direction method
+/// of ISO 7726 builds a mean radiant temperature out of fluxes. The source's
+/// absorptivity is taken equal to the skin's emissivity: a fire's heat is
+/// infrared, absorbed like the long-wave the body trades with its
+/// surroundings (SolarCal scales sunlight by 0.7 / 0.95 for the same reason,
+/// sunlight being short-wave). Nothing absorbed changes nothing.
+pub fn radiant_with_source_c(radiant_c: f32, absorbed_w_m2: f64) -> f32 {
+    if absorbed_w_m2 <= 0.0 {
+        return radiant_c;
+    }
+    let t = f64::from(radiant_c) + 273.15;
+    ((t.powi(4) + absorbed_w_m2 / SIGMA).powf(0.25) - 273.15) as f32
+}
+
 /// How hard rain or snow lands on an unsheltered person, 0 to 1, from what the
 /// weather says falls there (`systems::precipitation`: the condition decides
 /// how hard, the air where it falls decides rain or snow). Rain at full

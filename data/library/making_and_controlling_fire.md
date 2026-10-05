@@ -540,16 +540,28 @@ that goes.
   mode and not in Normal, where the game starts, raises it, along with
   every other skill (`src/gui/pages/profile.rs`,
   `src/systems/skills/mod.rs`).
-- **A campfire that is not a fire.** The item list has a Campfire Kit,
-  "Tinder flint and starter bundle", and decorative Candles and Handheld
-  Torches, but there is no campfire to build and no flame to light
-  (`data/items.csv`). The Abilities list does have a Campfire ability,
-  described as building a campfire for warmth, light and slow healing,
+- **A campfire you build.** The Abilities list has a Campfire ability,
   and for a new character it sits in the first slot of the hotbar, so
-  the 1 key casts it. Casting it costs 15 energy and restores 3 health at
-  once, and that is all: nothing burns, lights or warms
-  (`data/abilities.csv`, `src/systems/abilities.rs`). That is a known
-  bug, BUG-153.
+  the 1 key casts it. Casting it builds a campfire on the ground in front
+  of you: a ring of 6 Raw Stone with 3 Wood Logs in it, taken from your
+  backpack, for 15 energy. The Crafting page's structures list has the
+  same Campfire to place by hand. It is built only outdoors, on a
+  planet's ground: never aboard the ship, never under a roof you built,
+  and never where there is no air for it to burn, such as the Moon.
+  Refused, it says why and uses nothing up. In the Normal play mode,
+  where the game starts, you never leave the ship, so there it is always
+  refused; only the Dev play mode's travel tools take you down to a
+  planet's ground (Settings > Gameplay > Play mode). Finished, it is lit, and its
+  three logs are its fuel: each Wood Log burns 40 minutes of game time,
+  the rate at which a campground fire ring the US Forest Service tested
+  burned its wood in ordinary use (11 kg in 55 minutes). Press E at it
+  to put another log from your backpack on; the ring holds four at a
+  time. A log put on a fire that has gone out lights it again, with no
+  match or tinder, which no real fire allows. It heals nothing
+  (`data/abilities.csv`, `data/blueprints/basic.ron`,
+  `src/systems/abilities.rs`, `src/systems/construction/fires.rs`). The
+  item list's Campfire Kit, "Tinder flint and starter bundle", and its
+  decorative Candles and Handheld Torches do nothing (`data/items.csv`).
 - **Charcoal without a fire.** The Make Charcoal recipe turns three wood
   logs into four Coal (the game's charcoal) in a kiln, and the home has a
   kiln in its forge room; recipes at the smelter, kiln and forge list
@@ -563,18 +575,34 @@ that goes.
   charcoal included, taken from home storage and never from your
   backpack (`src/systems/crafting/mod.rs`). No flame or smoke is involved
   either way.
-- **Nothing burns.** The code has a fire system that would let fires
-  spread and do harm (`src/systems/fire.rs`), but nothing registers it, so
-  in the game nothing catches fire, spreads fire or has to be put out. The
-  Crafting page lists a Fire Extinguisher and a Smoke Detector, but once
-  made neither does anything.
+- **Nothing else burns, and nothing spreads.** A campfire burns its own
+  logs and nothing more: it lights nothing near it, throws no sparks and
+  makes no smoke, so nothing in the game catches fire or has to be put
+  out. The code has a fire system that would let fires spread and do harm
+  (`src/systems/fire.rs`), but nothing registers it. The Crafting page
+  lists a Fire Extinguisher and a Smoke Detector, but once made neither
+  does anything.
 - **No burn bans, smoke or wind-blown sparks.** There are no fire
   restrictions, no smoke and no wildfire.
-- **Warmth without fire.** Out on a planet, built shelter keeps wind and
-  rain off your body, and a roof hides the cold night sky, but no fire
-  warms you, not even the Campfire ability; [Heating a Home
+- **Warmth from a fire.** While a campfire burns, your body feels its
+  heat the way the body heat model feels the sun's: as warmer
+  surroundings, strongest close in and falling with the square of the
+  distance. Standing 1.5 m from its centre on a clear, calm night at
+  0 C, your surroundings feel like about 16 C instead of minus 11, and
+  at 20 m the fire makes no difference. Half a metre from the ring, a
+  person in everyday clothes keeps a normal core temperature through
+  that freezing night and shivers too little for the game to show it;
+  at 1.5 m they are shivering by morning, and far from it they shiver
+  hard. A fire that has gone out warms nothing. A real fire warms only the side of you that faces it;
+  the game's body has one skin, so it spreads that warmth all round
+  (`src/systems/construction/fires.rs`, `src/engine/survival_env.rs`,
+  `src/systems/body_heat.rs`). Built shelter keeps wind and rain off your
+  body, and a roof hides the cold night sky; [Heating a Home
   Safely](/library#heating-a-home-safely) describes the body heat model and its
   default settings.
+- **No light.** A campfire gives no light at night: the game's lamps
+  light the inside of the ship, and nothing yet lights a planet's ground.
+  That is a known gap, recorded as BUG-153.
 
 What the game leaves out, so you do not learn it from the game: wet
 tinder, matches that blow out, sparks in dry grass, embers that wake up
@@ -640,6 +668,28 @@ October 2026.
 - USDA Forest Service, Pacific Northwest Region. Prevention, last updated
   29 June 2026 (report smoke or fire; call 911).
   https://www.fs.usda.gov/r06/fire/prevention
+- USDA Forest Service, Rocky Mountain Research Station, Missoula Fire
+  Sciences Laboratory (Shawn Urbanski). Recreational Outdoor Firepit
+  Emissions Testing, 20 November 2021, printed in the Minnesota Pollution
+  Control Agency's *Minnesota Residential Wood Combustion Survey Results*,
+  December 2022 (document aq-ei4-48); and Urbanski, Lincoln, Baker,
+  Nordgren and Jackson, *Recreational Fire Pit Emissions Testing*, US EPA
+  International Emissions Inventory Conference, Seattle, 28 September 2023
+  (an accessible campground fire ring 32 inches across; its steady burn
+  of typical recreational use, with split wood added every 10 minutes:
+  11 kg in 55 minutes; its radiant heat measured 27 inches from the
+  ring's centre). Used for how fast the game's campfire burns its logs.
+  Read 5 October 2026.
+  https://www.lrl.mn.gov/docs/2025/Other/250946.pdf and
+  https://www.epa.gov/system/files/documents/2023-11/iec_28sept2023_urbanski_508.pdf
+- National Institute of Standards and Technology. Sung, Mueller, Bundy,
+  Fernandez and Hamins, *Global Burning Properties of Little Bluestem,
+  Excelsior and Douglas Fir*, Technical Note 2314, April 2025 (the
+  effective heat of combustion of Douglas fir, 17.5 kJ per gram; an
+  average radiative fraction of 0.32 across its three fuels, the share of
+  a fire's heat given off as radiation). Used for how much heat the
+  game's campfire radiates. Read 5 October 2026.
+  https://doi.org/10.6028/NIST.TN.2314
 - US Fire Administration. Outdoor Fire Safety, page last reviewed 8 August
   2024 (grills outside only, away from siding, railings, eaves and
   branches, a 3 foot safe zone, never left alone, not on a porch or
@@ -767,7 +817,12 @@ not.
   skill to its maximum (`src/systems/skills/mod.rs`); the Campfire
   ability and what casting it does (`data/abilities.csv`,
   `src/systems/abilities.rs`) and its place on the hotbar (sorted in
-  `src/lib.rs`, drawn in `src/gui/pages/hud.rs`); the Campfire Kit,
+  `src/lib.rs`, drawn in `src/gui/pages/hud.rs`); the campfire it builds,
+  where it may stand, how it burns and how much heat it gives, with the
+  sources of those numbers in the code's own notes
+  (`data/blueprints/basic.ron`, `src/systems/construction/mod.rs`,
+  `src/systems/construction/fires.rs`) and the warmth a body feels from it
+  (`src/engine/survival_env.rs`, `src/systems/body_heat.rs`); the Campfire Kit,
   Candle, Handheld Torch, Coal, Fire Extinguisher and Smoke Detector
   items (`data/items.csv`); the Make Charcoal and other recipes
   (`data/recipes.csv`); the home's kiln and smelter, and the smelter's

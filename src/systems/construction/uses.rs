@@ -49,6 +49,9 @@ pub enum StructureUse {
     Store,
     /// A door set into a wall (the blueprint's `doorway`): E opens or shuts it.
     Door,
+    /// A fire (the blueprint's `burns`, BUG-153): E puts a fuel item from the
+    /// pack on it (`fires::add_fuel`).
+    Tend,
 }
 
 impl StructureUse {
@@ -69,6 +72,9 @@ impl StructureUse {
             Self::Sleep => format!("[E] sleep in the {name}"),
             Self::Store => format!("[E] open the {name}"),
             Self::Door => format!("[E] open or shut the door in the {name}"),
+            // The crosshair shows `fires::tend_prompt` instead, which names
+            // the fuel and how the fire is burning (engine::built_uses).
+            Self::Tend => format!("[E] put fuel on the {name}"),
         }
     }
 }
@@ -141,6 +147,10 @@ pub fn looked_at(
     // wall's `shelter`), which only the blueprint says.
     if registry.and_then(|r| r.get(&s.blueprint_id)).is_some_and(|bp| bp.doorway.is_some()) {
         return Some((e, StructureUse::Door));
+    }
+    // A fire is tended (BUG-153), which only the blueprint's `burns` says.
+    if registry.and_then(|r| r.get(&s.blueprint_id)).is_some_and(|bp| bp.burns.is_some()) {
+        return Some((e, StructureUse::Tend));
     }
     let u = use_of(&s)?;
     Some((e, u))

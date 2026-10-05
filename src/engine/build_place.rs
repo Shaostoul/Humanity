@@ -117,10 +117,47 @@ pub(crate) fn key(state: &mut EngineState, key_name: &str, escape: bool, repeat:
     true
 }
 
+/// Where the cast waiting to go builds, when it is a building ability
+/// (BUG-153, 2026-10-05: the Campfire): the ghost a piece in hand would have
+/// right now, put in `abilities::BUILD_SPOT_SLOT` for the AbilitySystem, which
+/// builds there through the path a placed piece takes
+/// (`construction::begin_build`). `frame` runs this before the main loop
+/// moves the cast into the ability channel (the abilities bridge, later in
+/// the same frame), so the spot is where the player stood and looked when
+/// they cast. Aboard, a spot outside the player's own plot is refused as a
+/// piece in hand is (`refused_off_plot`); a piece built only outdoors is then
+/// refused aboard by the build itself, with its reason.
+fn publish_cast_spot(state: &mut EngineState) {
+    use crate::systems::abilities::{AbilityRegistry, BuildSpot, BUILD_SPOT_SLOT};
+    let Some((id, _)) = state.gui_state.pending_cast.as_ref() else { return };
+    let builds = state
+        .data_store
+        .get::<AbilityRegistry>("ability_registry")
+        .and_then(|r| r.get(id))
+        .and_then(|d| d.builds.clone());
+    let Some(blueprint) = builds else { return };
+    let id = id.clone();
+    let placed = planet_build::ghost(state, &blueprint, 0);
+    let off_plot = refused_off_plot(
+        state.gui_state.ship_structure.as_ref(),
+        state.gui_state.settings.play_mode.allows(crate::config::Capability::ShipStructureEditing),
+        &placed,
+    );
+    let at = match placed {
+        Ok(_) if off_plot => Err("you can build only inside your own plot (your home)".to_string()),
+        Ok(g) => Ok(BuildRequest::new(blueprint, g.pose).on(g.site)),
+        Err(why) => Err(planet_build::cannot_build_reason(why).to_string()),
+    };
+    let spot: BuildSpot = (id, at);
+    state.data_store.insert(BUILD_SPOT_SLOT, std::sync::Mutex::new(Some(spot)));
+}
+
 /// Once a frame: pick up what Build was clicked on, drop it when the player
 /// can no longer place (the build editor, the showroom, death), and move the
-/// ghost and the hint.
+/// ghost and the hint. First, the spot for a building ability's cast
+/// (`publish_cast_spot`).
 pub(crate) fn frame(state: &mut EngineState) {
+    publish_cast_spot(state);
     if let Some(id) = state.gui_state.pending_build.take() {
         let name = state
             .data_store
@@ -159,6 +196,19 @@ pub(crate) fn frame(state: &mut EngineState) {
         state.gui_state.settings.play_mode.allows(crate::config::Capability::ShipStructureEditing),
         &placed,
     );
+    // A piece built only outdoors (BUG-153: a campfire) is refused aboard,
+    // under a roof and where there is no air to burn, with the reason here,
+    // by the rule the build itself applies (`construction::outdoors_refusal`).
+    let not_outdoors = match &placed {
+        Ok(g) => state
+            .data_store
+            .get::<BlueprintRegistry>("blueprint_registry")
+            .and_then(|r| r.get(&p.blueprint_id))
+            .and_then(|bp| {
+                crate::systems::construction::outdoors_refusal(bp, &state.game_world.world, &state.data_store, g.site.as_ref(), &g.pose)
+            }),
+        Err(_) => None,
+    };
     // On a planet only the pack counts (the home's storage is in orbit).
     let short = match &placed {
         Ok(g) if g.site.is_some() => carried_short(state, &p.blueprint_id),
@@ -167,6 +217,9 @@ pub(crate) fn frame(state: &mut EngineState) {
     let keys = &state.gui_state.keybinds;
     let hint = match (&placed, &short) {
         _ if off_plot => off_plot_hint(&name, state.gui_state.ship_structure.as_ref().is_some_and(|s| s.home_is_away())),
+        _ if not_outdoors.is_some() => {
+            format!("Placing {name}: {}   [Esc] done", not_outdoors.map_or("", |w| w.reason()))
+        }
         (Ok(_), Some((item, more))) => short_hint(&name, item, *more),
         (Ok(g), None) => placing_hint(
             &name,
@@ -183,7 +236,7 @@ pub(crate) fn frame(state: &mut EngineState) {
         p.hint = hint;
         p.short = short.is_some();
         match placed {
-            Ok(g) if !off_plot => {
+            Ok(g) if !off_plot && not_outdoors.is_none() => {
                 p.ghost = Some(g.pose);
                 p.site = g.site;
                 p.occupied = g.occupied;
@@ -289,19 +342,8 @@ pub(crate) fn build_refusal(
     if missing.is_empty() {
         return None;
     }
-    let items = data.get::<ItemRegistry>("item_registry");
-    let parts: Vec<String> = missing
-        .iter()
-        .map(|(id, more)| {
-            let name = items.and_then(|r| r.items.get(id)).map(|d| d.name.clone()).unwrap_or_else(|| id.clone());
-            format!("{more} more {name}")
-        })
-        .collect();
-    let list = match parts.as_slice() {
-        [] => String::new(),
-        [one] => one.clone(),
-        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
-    };
+    // Worded as the build's own refusal words it (`construction::missing_list`).
+    let list = crate::systems::construction::missing_list(&missing, data.get::<ItemRegistry>("item_registry"));
     Some(if on_planet {
         format!("Not enough to build the {} here: carry {list} (on a planet you build from what you carry)", bp.name)
     } else if let Some(why) = away {
@@ -373,7 +415,11 @@ pub(crate) fn take_down_plan(
     if uid != 0 && placed.iter().any(|it| it.container == path && it.qty > 0) {
         return Err(format!("Empty the {name} before taking it down"));
     }
-    Ok((e, name, bp.map(|b| b.materials.clone()).unwrap_or_default()))
+    // A fire gives back its stones and only the logs it has not burned
+    // (BUG-153), so burning logs and taking the ring down cannot make logs.
+    let fuel = world.get::<&crate::systems::construction::fires::FireFuel>(e).ok().map(|f| *f);
+    let back = bp.map(|b| crate::systems::construction::fires::materials_back(b, fuel.as_ref())).unwrap_or_default();
+    Ok((e, name, back))
 }
 
 /// Take down the finished piece the player looks at (the Swing tool key with a
@@ -382,7 +428,8 @@ pub(crate) fn take_down_plan(
 /// storage and the player is told; the piece is gone. Built pieces are solid
 /// (`built_piece_segments`), so without this four walls could shut a player in.
 /// Every material comes back: a game choice, since nothing models what
-/// dismantling breaks.
+/// dismantling breaks. A fire's burnt logs do not (BUG-153,
+/// `fires::materials_back`): only its stones and the logs still whole.
 fn take_down(state: &mut EngineState) {
     let Some(f) = planet_build::player_frame(state) else {
         set_placing_note(state, "Nothing built in reach to take down".to_string());

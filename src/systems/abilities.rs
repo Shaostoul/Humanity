@@ -7,24 +7,47 @@
 //! knowing it). One stat pipeline, one request channel, same validate-consume
 //! shape as machine automation.
 //!
-//! v1 scope is deliberately SELF-scoped: healing abilities restore Health and
-//! energy pays the cost (mana_cost + stamina_cost both draw from the energy
-//! vital until a separate stamina vital exists - casting makes you tired,
-//! which makes abilities part of the survival economy). Offensive rows load
-//! in the registry but are not castable until the combat arc gives them
-//! targets - the GUI says so honestly instead of fizzling.
+//! Healing abilities restore Health and energy pays the cost (mana_cost +
+//! stamina_cost both draw from the energy vital until a separate stamina vital
+//! exists - casting makes you tired, which makes abilities part of the
+//! survival economy). Offensive rows (damage_base > 0) cast at a creature the
+//! caster faces within range and deal damage_base (v0.760); with no target
+//! they say so instead of fizzling.
+//!
+//! BUILDING ABILITIES (BUG-153, 2026-10-05): a row whose `builds` column names
+//! a blueprint builds that piece in front of the caster, through the one
+//! build path a piece placed by hand takes (`construction::begin_build`), at
+//! the spot the engine found where the player stands and looks
+//! ([`BUILD_SPOT_SLOT`]). The Campfire builds a campfire; it used to heal 3
+//! health and build nothing. A build that is refused (aboard the ship, under
+//! a roof, too few materials, nowhere to stand) spends nothing.
 
 use crate::ecs::components::{Controllable, Health, Vitals};
 use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
+use crate::systems::construction::BuildRequest;
 use crate::systems::skills::PlayerSkills;
 use serde::Deserialize;
 use std::collections::HashMap;
 
+/// Where a building ability builds (BUG-153, 2026-10-05): the ability's id
+/// and the build request at the spot in front of the player, or why there is
+/// no spot from where they stand (open space, flying, in a vehicle, on the
+/// sea, not in first person). Only the engine knows where the player stands
+/// and looks (aboard, in the home frame; on a planet, in the build site
+/// under the crosshair), so it fills this for the cast waiting to go, from
+/// the same ghost a piece in hand is placed by
+/// (`engine::build_place::publish_cast_spot`).
+pub type BuildSpot = (String, Result<BuildRequest, String>);
+
+/// The DataStore slot holding the [`BuildSpot`] for the cast waiting to go:
+/// a `Mutex<Option<BuildSpot>>`, taken by the cast.
+pub const BUILD_SPOT_SLOT: &str = "ability_build_spot";
+
 // ── Definitions (data/abilities.csv) ────────────────────────────────
 
 /// One abilities.csv row. Columns the engine does not consume yet (aoe,
-/// damage, duration) still parse so the combat arc reads the same registry.
+/// duration) still parse so later work reads the same registry.
 #[derive(Debug, Clone, Deserialize)]
 pub struct AbilityDef {
     pub id: String,
@@ -68,6 +91,13 @@ pub struct AbilityDef {
     /// real | tech | fantasy - Real mode shows real+tech (a data view).
     #[serde(default)]
     pub flavor: String,
+    /// The blueprint this ability builds in front of the caster (BUG-153:
+    /// the Campfire builds `campfire`), or None. The `builds` column, last in
+    /// data/abilities.csv and empty on every other row: an Option, because a
+    /// row that stops before a trailing column reads as None only for an
+    /// Option (the CSV reader is flexible about row length).
+    #[serde(default)]
+    pub builds: Option<String>,
 }
 
 impl AbilityDef {
@@ -77,10 +107,11 @@ impl AbilityDef {
         self.mana_cost + self.stamina_cost
     }
 
-    /// Does this row do anything in the v1 self-scoped pipeline? Healing
-    /// abilities are live; damage rows wait for the combat arc's targets.
+    /// Is this row cast on the caster, with no target? Healing abilities and
+    /// building ones (BUG-153) are; damage rows are not (they need a creature
+    /// in range, see `cast`).
     pub fn self_castable(&self) -> bool {
-        self.healing_base > 0.0
+        self.healing_base > 0.0 || self.builds.is_some()
     }
 
     /// Does the caster's training meet this row's skill gate? Level-1 gates
@@ -223,6 +254,10 @@ impl AbilitySystem {
         if let Some(t) = self.cooldowns.get(id) {
             return format!("{} recharging ({:.0}s)", def.name, t.max(1.0));
         }
+        // A building ability builds where the engine said (BUG-153).
+        if let Some(blueprint) = def.builds.as_deref() {
+            return self.cast_build(world, data, def, blueprint);
+        }
 
         // Offensive casts need a living target within range (v0.760).
         let mut target_entity: Option<hecs::Entity> = None;
@@ -320,6 +355,56 @@ impl AbilitySystem {
             return format!("{} hits {} for {:.0}", def.name, target_name, def.damage_base);
         }
         "No caster in the world yet".to_string()
+    }
+
+    /// A building ability's cast (BUG-153, 2026-10-05): build `blueprint` at
+    /// the spot the engine found for this cast ([`BUILD_SPOT_SLOT`]), through
+    /// `construction::begin_build`, the path a piece placed by hand takes.
+    /// The skill gate and the energy are checked first and the spot is taken
+    /// either way (it belongs to this one cast); the energy is paid, the
+    /// cooldown started and the skill trained only when the build starts, so
+    /// a refusal (aboard, under a roof, too few materials, nowhere to stand)
+    /// costs nothing and says why.
+    fn cast_build(&mut self, world: &mut hecs::World, data: &DataStore, def: &AbilityDef, blueprint: &str) -> String {
+        let spot = data
+            .get::<std::sync::Mutex<Option<BuildSpot>>>(BUILD_SPOT_SLOT)
+            .and_then(|m| m.lock().ok().and_then(|mut s| s.take()))
+            .filter(|(id, _)| *id == def.id);
+        let caster = world
+            .query::<(&PlayerSkills, &Vitals, &Controllable)>()
+            .iter()
+            .next()
+            .map(|(e, (skills, vitals, _c))| (e, def.skill_gate_met(skills), vitals.energy));
+        let Some((caster, gate_met, energy)) = caster else {
+            return "No caster in the world yet".to_string();
+        };
+        if !gate_met {
+            return format!("{} needs {} level {}", def.name, def.skill_required, def.skill_level);
+        }
+        let cost = def.energy_cost();
+        if energy < cost {
+            return format!("Too tired to cast {} ({cost:.0} energy)", def.name);
+        }
+        let mut request = match spot {
+            None => return format!("{}: stand on the ground in first person to build it", def.name),
+            Some((_, Err(why))) => return format!("{}: {why}", def.name),
+            Some((_, Ok(request))) => request,
+        };
+        // The row says what is built; the engine says where.
+        request.blueprint_id = blueprint.to_string();
+        match crate::systems::construction::begin_build(world, data, request) {
+            Err(refused) => refused,
+            Ok(started) => {
+                if let Ok(mut v) = world.get::<&mut Vitals>(caster) {
+                    v.energy -= cost;
+                }
+                self.cooldowns.insert(def.id.clone(), def.cooldown_s);
+                if !def.skill_required.is_empty() {
+                    crate::systems::skills::award_skill_xp(data, &def.skill_required, 5);
+                }
+                started
+            }
+        }
     }
 }
 
@@ -541,5 +626,194 @@ mod tests {
         world.insert_one(hen, crate::ecs::components::Dead::default()).unwrap();
         let msg = sys.cast(&mut world, &data, "ember_shot", Some(hen.to_bits().into()));
         assert!(msg.contains("gone"), "got: {msg}");
+    }
+
+    // ── BUG-153: the Campfire ability builds a campfire ────────────────
+    //
+    // The DataStore slot the engine fills with where a building ability
+    // builds (`BUILD_SPOT_SLOT`): the ability's id and the build request at
+    // the spot in front of the player, or why there is no spot. Spelled out
+    // as the plain tuple here so these tests compile against the code from
+    // before the fix, where they were seen failing (the cast healed 3).
+
+    const STONE: &str = "stone_raw_0";
+    const LOG: &str = "wood_log_0";
+
+    /// A player holding `stones` Raw Stone and `logs` Wood Logs, with the
+    /// blueprint catalog and the build channels a cast needs, standing on
+    /// Earth (breathable air: a fire can burn).
+    fn campfire_world(stones: u32, logs: u32) -> (hecs::World, DataStore, hecs::Entity) {
+        use crate::systems::inventory::Inventory;
+        let (mut world, mut data) = cast_world();
+        let player = world.query::<&Controllable>().iter().next().map(|(e, _)| e).unwrap();
+        let mut inv = Inventory::new(16);
+        if stones > 0 {
+            inv.add_item(STONE, stones, 99);
+        }
+        if logs > 0 {
+            inv.add_item(LOG, logs, 99);
+        }
+        world.insert_one(player, inv).unwrap();
+        let bp = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("blueprints").join("basic.ron");
+        data.insert(
+            "blueprint_registry",
+            crate::systems::construction::BlueprintRegistry::from_ron(&std::fs::read(bp).unwrap()).unwrap(),
+        );
+        data.insert("build_request", std::sync::Mutex::new(Vec::<crate::systems::construction::BuildRequest>::new()));
+        data.insert("build_status", std::sync::Mutex::new(String::new()));
+        data.insert("quest_events", std::sync::Mutex::new(Vec::<String>::new()));
+        data.insert(
+            "item_registry",
+            crate::systems::inventory::ItemRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/items.csv"))).unwrap(),
+        );
+        data.insert(
+            "body_environment",
+            crate::systems::body_environment::BodyEnvironment { locked: true, ..Default::default() },
+        );
+        data.insert(
+            "ability_build_spot",
+            std::sync::Mutex::new(None::<(String, Result<crate::systems::construction::BuildRequest, String>)>),
+        );
+        (world, data, player)
+    }
+
+    /// A build site on Earth's ground.
+    fn earth_site() -> crate::systems::construction::PlanetSite {
+        crate::systems::construction::PlanetSite { body: "earth".into(), origin: glam::DVec3::new(0.0, 6_371_000.0, 0.0) }
+    }
+
+    /// Where the engine says the campfire goes: 2 m ahead on the ground of
+    /// `site` (None = aboard, in the home frame).
+    fn put_spot(data: &DataStore, site: Option<crate::systems::construction::PlanetSite>) {
+        use crate::systems::construction::BuildRequest;
+        let pose = crate::ecs::components::Transform {
+            position: glam::Vec3::new(0.0, 0.0, -2.0),
+            rotation: glam::Quat::IDENTITY,
+            scale: glam::Vec3::new(1.0, 0.6, 1.0),
+        };
+        let spot: (String, Result<BuildRequest, String>) = ("campfire".to_string(), Ok(BuildRequest::new("campfire", pose).on(site)));
+        *data
+            .get::<std::sync::Mutex<Option<(String, Result<BuildRequest, String>)>>>("ability_build_spot")
+            .unwrap()
+            .lock()
+            .unwrap() = Some(spot);
+    }
+
+    fn cast_status(sys: &mut AbilitySystem, world: &mut hecs::World, data: &DataStore) -> String {
+        data.get::<std::sync::Mutex<Vec<(String, Option<u64>)>>>("ability_request")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .push(("campfire".to_string(), None));
+        sys.tick(world, 0.016, data);
+        data.get::<std::sync::Mutex<String>>("ability_status").unwrap().lock().unwrap().clone()
+    }
+
+    /// What the player has: energy, health, Raw Stone and Wood Logs carried.
+    fn holdings(world: &hecs::World, player: hecs::Entity) -> (f32, f32, u32, u32) {
+        use crate::systems::inventory::Inventory;
+        let v = world.get::<&Vitals>(player).unwrap().energy;
+        let h = world.get::<&Health>(player).unwrap().current;
+        let inv = world.get::<&Inventory>(player).unwrap();
+        (v, h, inv.count_item(STONE), inv.count_item(LOG))
+    }
+
+    /// BUG-153. CASTING CAMPFIRE OUTDOORS BUILDS A CAMPFIRE FROM THE PACK.
+    /// Standing on Earth's ground with 6 Raw Stone and 3 Wood Logs, the cast
+    /// starts the campfire where the engine said (its site, its pose), takes
+    /// the stones and the logs, costs its 15 energy, and heals nothing; the
+    /// scaffold finishes into a finished campfire. Seen red 2026-10-05 on the
+    /// code before the fix: the cast restored 3 health and built nothing
+    /// ("Campfire restores 3 health").
+    #[test]
+    fn the_campfire_ability_builds_a_campfire_outdoors_from_the_pack() {
+        use crate::systems::construction::{Construction, ConstructionSystem, PlanetSite, Structure};
+        use crate::ecs::components::Transform;
+        let (mut world, data, player) = campfire_world(6, 3);
+        put_spot(&data, Some(earth_site()));
+        let mut sys = AbilitySystem::new();
+        let status = cast_status(&mut sys, &mut world, &data);
+        assert!(status.contains("Campfire") && !status.contains("restores"), "got: {status}");
+        let started: Vec<(String, Transform, PlanetSite)> = world
+            .query::<(&Construction, &Transform, &PlanetSite)>()
+            .iter()
+            .map(|(_e, (c, t, s))| (c.blueprint_id.clone(), t.clone(), s.clone()))
+            .collect();
+        assert_eq!(started.len(), 1, "one campfire going up: {status}");
+        assert_eq!(started[0].0, "campfire");
+        assert_eq!(started[0].1.position, glam::Vec3::new(0.0, 0.0, -2.0), "where the engine said");
+        assert_eq!(started[0].2, earth_site(), "in the site on the ground");
+        let (energy, health, stones, logs) = holdings(&world, player);
+        assert_eq!((stones, logs), (0, 0), "the ring's stones and its logs came out of the pack");
+        assert_eq!(energy, Vitals::default().energy - 15.0, "15 energy to build it");
+        assert_eq!(health, 40.0, "a fire heals nothing");
+
+        // The scaffold finishes into a campfire.
+        let mut build = ConstructionSystem::new();
+        build.tick(&mut world, 60.0, &data);
+        let fires: Vec<String> = world.query::<&Structure>().iter().map(|(_e, s)| s.blueprint_id.clone()).collect();
+        assert_eq!(fires, vec!["campfire".to_string()], "a finished campfire");
+
+        // The description names what it takes, by the blueprint's own numbers
+        // and the items' own names, so the two cannot drift apart.
+        let desc = shipped_registry().get("campfire").unwrap().description.clone();
+        let blueprints = data.get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry").unwrap();
+        let items = data.get::<crate::systems::inventory::ItemRegistry>("item_registry").unwrap();
+        for (id, qty) in &blueprints.get("campfire").unwrap().materials {
+            let named = format!("{qty} {}", items.items[id].name);
+            assert!(desc.contains(&named), "the description says {named}: {desc}");
+        }
+        assert!(desc.contains("outdoors") && !desc.contains("heal"), "{desc}");
+    }
+
+    /// BUG-153. A CAMPFIRE CAST THAT CANNOT BUILD SPENDS NOTHING. With no
+    /// stones or logs in the pack; aboard the ship (the home frame, indoors);
+    /// and under a built roof on a planet: each is refused with the reason,
+    /// and no energy, health, stone or log changes, and no cooldown starts
+    /// (the same cast succeeds the moment it can). Seen red 2026-10-05 on the
+    /// code before the fix: each cast spent 15 energy and restored 3 health.
+    #[test]
+    fn a_campfire_cast_that_cannot_build_spends_nothing() {
+        use crate::systems::construction::{placement, BlueprintRegistry, Construction, Structure};
+        // Nothing in the pack, outdoors.
+        let (mut world, data, player) = campfire_world(0, 0);
+        put_spot(&data, Some(earth_site()));
+        let mut sys = AbilitySystem::new();
+        let before = holdings(&world, player);
+        let status = cast_status(&mut sys, &mut world, &data);
+        assert!(status.contains("Raw Stone") && status.contains("Wood Log"), "names what is missing: {status}");
+        assert_eq!(holdings(&world, player), before, "nothing spent: {status}");
+        assert_eq!(world.query::<&Construction>().iter().count(), 0);
+
+        // Aboard the ship: the spot is in the home frame.
+        let (mut world, data, player) = campfire_world(6, 3);
+        put_spot(&data, None);
+        let mut sys = AbilitySystem::new();
+        let before = holdings(&world, player);
+        let status = cast_status(&mut sys, &mut world, &data);
+        assert!(status.contains("outdoors") && status.contains("aboard"), "says why: {status}");
+        assert_eq!(holdings(&world, player), before, "nothing spent aboard: {status}");
+        assert_eq!(world.query::<&Construction>().iter().count(), 0);
+        // No cooldown started: on the ground the same cast builds at once.
+        put_spot(&data, Some(earth_site()));
+        let status = cast_status(&mut sys, &mut world, &data);
+        assert_eq!(world.query::<&Construction>().iter().count(), 1, "the refusal started no cooldown: {status}");
+
+        // Indoors on a planet: under a roof on three walls.
+        let (mut world, data, player) = campfire_world(6, 3);
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        let site = earth_site();
+        for (id, x, z, turns) in [("wood_wall", 0.0, -4.0, 0), ("wood_wall", -2.0, -2.0, 1), ("wood_wall", 2.0, -2.0, 1), ("roof", 0.0, -2.0, 0)] {
+            let bp = reg.get(id).unwrap();
+            let tf = placement::placement_pose(bp, glam::Vec3::new(x, 0.0, z), turns, &world, &reg, Some(&site));
+            world.spawn((tf, Structure { blueprint_id: id.into(), health: bp.health, max_health: bp.health, provides: bp.provides.clone(), uid: 0 }, site.clone()));
+        }
+        put_spot(&data, Some(site));
+        let mut sys = AbilitySystem::new();
+        let before = holdings(&world, player);
+        let status = cast_status(&mut sys, &mut world, &data);
+        assert!(status.contains("roof"), "says why: {status}");
+        assert_eq!(holdings(&world, player), before, "nothing spent under a roof: {status}");
+        assert_eq!(world.query::<&Construction>().iter().count(), 0);
     }
 }

@@ -646,8 +646,9 @@ sources given with each.
 
 ## How the game models it
 
-The game models being cold. It does not model heating, and it does not
-model what heating does to people.
+The game models being cold. Of heating it models one thing, the warmth
+of a campfire built outdoors, and it does not model what heating does to
+people.
 
 - **Inside the home, nothing heats the air.** Sessions start in the home
   aboard the station in orbit, and the air there stays at about 20 C with
@@ -695,9 +696,20 @@ model what heating does to people.
   (`data/machines/home.ron`); in real life a generator used indoors is
   one of the two things NOAA's record names in the carbon monoxide deaths
   after the 2006 storm.
-- **No fires, no alarms that do anything.** Nothing in the game burns, so
-  no heater, stove or candle can start a fire. A Smoke Detector and a Fire
-  Extinguisher can be crafted, but neither does anything once made.
+- **A campfire warms you outdoors.** On a planet's ground you can build a
+  campfire (the Campfire ability, or the Crafting page's structures list),
+  and while it burns your body feels its heat: standing 1.5 m from it on a
+  clear, calm 0 C night, your surroundings feel like about 16 C instead of
+  minus 11, and at 20 m it makes no difference. It cannot be built aboard
+  the ship or under a roof, so it never heats a room, and it makes no
+  smoke or carbon monoxide (`src/systems/construction/fires.rs`,
+  `src/engine/survival_env.rs`); [Making and Controlling
+  Fire](making_and_controlling_fire.md) has the rest.
+- **No house fires, no alarms that do anything.** The only fire in the
+  game is a campfire built outdoors, and it spreads to nothing; no
+  heater, stove or candle burns, so none can start a fire. A Smoke
+  Detector and a Fire Extinguisher can be crafted, but neither does
+  anything once made.
 - **Starting from the default home.** Settings > Gameplay > "Start every
   session from the default home" is off by default, so what you built and
   your body, its core temperature included, are kept between launches.
