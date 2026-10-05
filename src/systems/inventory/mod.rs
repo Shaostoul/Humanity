@@ -34,6 +34,36 @@ pub struct ItemStack {
     /// only merge when their grades match.
     #[serde(default)]
     pub quality: u8,
+    /// How long this stack of FOOD has aged (2026-10-04, first-hour audit S6), in game
+    /// seconds at room temperature: the FoodSystem adds the time it spends wherever it is
+    /// kept, scaled by the temperature zone there (`food::FoodData::spoilage_multiplier_at`),
+    /// and it is spoiled once this reaches its profile's `spoilage_rate_hours`. It is the
+    /// stack's own clock: moving it to another slot, into storage or a vessel and back keeps
+    /// it, and the save keeps it. Items joining a stack give it the count-weighted average
+    /// age (`blend_age`), so no age is made or lost. Always 0 for what is not food.
+    #[serde(default)]
+    pub age_s: f64,
+}
+
+/// The age of `a_qty` items aged `a_age` and `b_qty` aged `b_age` once they share a stack
+/// (2026-10-04, first-hour audit S6): the count-weighted average, so a merge makes no age and
+/// loses none (a fresh loaf joining three old ones takes a share of their age, and they a
+/// share of its freshness). With no items at all, `b_age`.
+pub fn blend_age(a_age: f64, a_qty: u32, b_age: f64, b_qty: u32) -> f64 {
+    let total = f64::from(a_qty) + f64::from(b_qty);
+    if total <= 0.0 {
+        return b_age;
+    }
+    (a_age * f64::from(a_qty) + b_age * f64::from(b_qty)) / total
+}
+
+/// The mean age of `count` items whose ages add up to `age_sum`; 0 for none.
+fn mean_age(age_sum: f64, count: u32) -> f64 {
+    if count == 0 {
+        0.0
+    } else {
+        age_sum / f64::from(count)
+    }
 }
 
 /// One backpack <-> home-storage move from the GUI (2026-09-26): what,
@@ -47,6 +77,9 @@ pub struct TransferOp {
     pub add: bool,
     pub wear: u32,
     pub quality: u8,
+    /// How long the items have aged, for food (2026-10-04, first-hour audit S6): food taken
+    /// from storage arrives in the backpack as old as it was there. 0 for fresh goods.
+    pub age_s: f64,
 }
 
 /// The player's record of finished P2P trades (2026-10-02), a component on
@@ -112,6 +145,10 @@ pub struct FleetHeld {
     /// fleet records the gift but does not count it.
     #[serde(default)]
     pub creative: bool,
+    /// How long the items had aged, for food (2026-10-04, first-hour audit S6): a give the
+    /// fleet refuses comes back into the backpack as old as it left.
+    #[serde(default)]
+    pub age_s: f64,
 }
 
 impl TradeSettlements {
@@ -129,6 +166,7 @@ impl ItemStack {
             max_stack,
             wear: 0,
             quality: 0,
+            age_s: 0.0,
         }
     }
 
@@ -239,8 +277,22 @@ impl Inventory {
         unit_volume_l: f32,
         quality: u8,
     ) -> u32 {
+        self.add_item_volume_gated_aged(item_id, quantity, max_stack, unit_volume_l, quality, 0.0)
+    }
+
+    /// `add_item_volume_gated_q` for items that have aged `age_s` (food, 2026-10-04,
+    /// `add_item_aged`): what a vessel or home storage hands back keeps its age.
+    pub fn add_item_volume_gated_aged(
+        &mut self,
+        item_id: &str,
+        quantity: u32,
+        max_stack: u32,
+        unit_volume_l: f32,
+        quality: u8,
+        age_s: f64,
+    ) -> u32 {
         if unit_volume_l <= 0.0 {
-            return self.add_item_q(item_id, quantity, max_stack, quality);
+            return self.add_item_aged(item_id, quantity, max_stack, quality, age_s);
         }
         let remaining_l = (self.volume_capacity_l - self.volume_current_l).max(0.0);
         let fits = (remaining_l / unit_volume_l).floor() as u32;
@@ -254,7 +306,7 @@ impl Inventory {
             let worst_case_new = (accepted as usize).div_ceil(max_stack.max(1) as usize);
             self.ensure_slots(occupied + worst_case_new);
         }
-        let slot_overflow = self.add_item_q(item_id, accepted, max_stack, quality);
+        let slot_overflow = self.add_item_aged(item_id, accepted, max_stack, quality, age_s);
         let added = accepted - slot_overflow;
         self.volume_current_l += added as f32 * unit_volume_l;
         (quantity - accepted) + slot_overflow
@@ -268,7 +320,14 @@ impl Inventory {
 
     /// `add_item` for items of grade `quality` (0 = ungraded): they only
     /// join a stack of the same grade.
-    pub fn add_item_q(&mut self, item_id: &str, mut quantity: u32, max_stack: u32, quality: u8) -> u32 {
+    pub fn add_item_q(&mut self, item_id: &str, quantity: u32, max_stack: u32, quality: u8) -> u32 {
+        self.add_item_aged(item_id, quantity, max_stack, quality, 0.0)
+    }
+
+    /// `add_item_q` for items that have aged `age_s` game seconds (food, 2026-10-04,
+    /// first-hour audit S6): a stack they join takes the count-weighted average age
+    /// (`blend_age`), a stack they start has theirs. Everything else adds fresh (age 0).
+    pub fn add_item_aged(&mut self, item_id: &str, mut quantity: u32, max_stack: u32, quality: u8, age_s: f64) -> u32 {
         // First pass: fill existing stacks of the same item and grade
         for slot in self.slots.iter_mut() {
             if quantity == 0 {
@@ -277,6 +336,7 @@ impl Inventory {
             if let Some(stack) = slot {
                 if stack.item_id == item_id && stack.quality == quality && !stack.is_full() {
                     let can_add = stack.space_remaining().min(quantity);
+                    stack.age_s = blend_age(stack.age_s, stack.quantity, age_s, can_add);
                     stack.quantity += can_add;
                     quantity -= can_add;
                 }
@@ -292,6 +352,7 @@ impl Inventory {
                 let stack_qty = quantity.min(max_stack);
                 let mut stack = ItemStack::new(item_id.to_string(), stack_qty, max_stack);
                 stack.quality = quality;
+                stack.age_s = age_s;
                 *slot = Some(stack);
                 quantity -= stack_qty;
             }
@@ -327,6 +388,7 @@ impl Inventory {
     /// carried in storage (2026-09-26): a worn tool put away and taken back
     /// comes back as worn as it left. The wear goes on a stack this add
     /// created (a tool's stack is one item), else on the last stack of it.
+    /// Food keeps the age it had in storage the same way (`age_s`, 2026-10-04).
     /// Returns the number NOT added.
     pub fn add_item_worn(
         &mut self,
@@ -336,9 +398,10 @@ impl Inventory {
         unit_volume_l: f32,
         wear: u32,
         quality: u8,
+        age_s: f64,
     ) -> u32 {
         let before: Vec<bool> = self.slots.iter().map(|s| s.is_some()).collect();
-        let overflow = self.add_item_volume_gated_q(item_id, quantity, max_stack, unit_volume_l, quality);
+        let overflow = self.add_item_volume_gated_aged(item_id, quantity, max_stack, unit_volume_l, quality, age_s);
         if wear > 0 && overflow < quantity {
             let new_stack = self
                 .slots
@@ -376,6 +439,23 @@ impl Inventory {
         0
     }
 
+    /// Remove like `remove_item` and say how old what left was (2026-10-04, first-hour audit
+    /// S6): (the deficit, the count-weighted mean age of the items taken; 0 when none were).
+    /// The machine card's Store puts that age into the vessel.
+    pub fn remove_item_aged(&mut self, item_id: &str, quantity: u32) -> (u32, f64) {
+        let (left, age_sum) = self.take_where_aged(quantity, |st| st.item_id == item_id);
+        (left, mean_age(age_sum, quantity - left))
+    }
+
+    /// `remove_worn` that also says how old what left was (`remove_item_aged`): a give to the
+    /// fleet holds its items at their age. The same three passes as `remove_worn`.
+    pub fn remove_worn_aged(&mut self, item_id: &str, quantity: u32, wear: u32, quality: u8) -> (u32, f64) {
+        let (left, a) = self.take_where_aged(quantity, |st| st.item_id == item_id && st.wear == wear && st.quality == quality);
+        let (left, b) = self.take_where_aged(left, |st| st.item_id == item_id && st.quality == quality);
+        let (left, c) = self.take_where_aged(left, |st| st.item_id == item_id);
+        (left, mean_age(a + b + c, quantity - left))
+    }
+
     /// Remove `quantity` of `item_id` of grade `quality` only (2026-09-26,
     /// the vendor sells one grade). Returns the deficit.
     pub fn remove_graded(&mut self, item_id: &str, quantity: u32, quality: u8) -> u32 {
@@ -384,7 +464,14 @@ impl Inventory {
 
     /// Take up to `quantity` from the stacks `pick` matches, last first.
     /// Returns what could not be taken.
-    fn take_where(&mut self, mut quantity: u32, pick: impl Fn(&ItemStack) -> bool) -> u32 {
+    fn take_where(&mut self, quantity: u32, pick: impl Fn(&ItemStack) -> bool) -> u32 {
+        self.take_where_aged(quantity, pick).0
+    }
+
+    /// `take_where`, also returning the sum of the taken items' ages (each item's stack age
+    /// once per item), for the mean age of what left (2026-10-04, first-hour audit S6).
+    fn take_where_aged(&mut self, mut quantity: u32, pick: impl Fn(&ItemStack) -> bool) -> (u32, f64) {
+        let mut age_sum = 0.0;
         for slot in self.slots.iter_mut().rev() {
             if quantity == 0 {
                 break;
@@ -392,6 +479,7 @@ impl Inventory {
             if let Some(stack) = slot {
                 if pick(stack) {
                     let take = stack.quantity.min(quantity);
+                    age_sum += stack.age_s * f64::from(take);
                     stack.quantity -= take;
                     quantity -= take;
                     if stack.quantity == 0 {
@@ -400,7 +488,7 @@ impl Inventory {
                 }
             }
         }
-        quantity
+        (quantity, age_sum)
     }
 
     /// Check if the inventory contains at least `quantity` of the given item.
@@ -1036,10 +1124,10 @@ mod transfer_tests {
             w.sort();
             w
         };
-        push(TransferOp { item_id: "hammer_0".into(), qty: 1, add: true, wear: 150, quality: 0 });
+        push(TransferOp { item_id: "hammer_0".into(), qty: 1, add: true, wear: 150, ..Default::default() });
         sys.tick(&mut world, 1.0, &data);
         assert_eq!(wears(&world), vec![0, 150], "the stored hammer comes back worn");
-        push(TransferOp { item_id: "hammer_0".into(), qty: 1, add: false, wear: 150, quality: 0 });
+        push(TransferOp { item_id: "hammer_0".into(), qty: 1, add: false, wear: 150, ..Default::default() });
         sys.tick(&mut world, 1.0, &data);
         assert_eq!(wears(&world), vec![0], "putting it away takes the worn one, not the fresh one");
     }
@@ -1104,7 +1192,7 @@ mod transfer_tests {
             "t-1".into(),
             vec![
                 TransferOp { item_id: "rope_0".into(), qty: 2, add: false, ..Default::default() },
-                TransferOp { item_id: "hammer_0".into(), qty: 1, add: true, wear: 40, quality: 0 },
+                TransferOp { item_id: "hammer_0".into(), qty: 1, add: true, wear: 40, ..Default::default() },
             ],
         ));
         let player = world.spawn((inv, Controllable, ts));
@@ -1173,7 +1261,7 @@ fn apply_transfer(inv: &mut Inventory, op: &TransferOp, registry: Option<&ItemRe
     // Volume-gated (Stage A slice 2): a full backpack refuses the transfer
     // instead of over-filling.
     let unit_vol = registry.map(|r| r.volume_for(&op.item_id)).unwrap_or(0.0);
-    let overflow = inv.add_item_worn(&op.item_id, op.qty, max_stack, unit_vol, op.wear, op.quality);
+    let overflow = inv.add_item_worn(&op.item_id, op.qty, max_stack, unit_vol, op.wear, op.quality, op.age_s);
     if overflow > 0 {
         if let Some(ret) = data.get::<std::sync::Mutex<Vec<(String, u32)>>>("inventory_transfer_returns") {
             if let Ok(mut r) = ret.lock() {

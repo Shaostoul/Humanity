@@ -292,8 +292,8 @@ pub(crate) fn snapshot_entry_messages(e: &serde_json::Value, own_id: Option<u32>
 
 /// The host's game clock and its speed from a `game_time_sync` message, when
 /// this player is in the shared world; None otherwise, or when the message has
-/// no clock. The speed is the server's Shared world clock setting (72x by
-/// default, 2026-10-04); a word without one is a host that runs at 1x
+/// no clock. The speed is the server's Shared world clock setting (real time,
+/// 1x, by default, 2026-10-04); a word without one is a host that runs at 1x
 /// (`HOST_TIME_SPEED`), and a speed out of range is held to the Time
 /// setting's (`clamp_time_speed`).
 pub(crate) fn host_clock_from(v: &serde_json::Value, joined: bool) -> Option<crate::systems::time::HostClock> {
@@ -1299,10 +1299,11 @@ mod tests {
         assert_eq!(host_clock_from(&serde_json::json!({"type": "game_time_sync"}), true), None);
     }
 
-    /// THE HOST'S WORD CARRIES ITS SPEED (2026-10-04, the shared world at
-    /// 72x). The relay's `game_time_sync` says how fast its clock runs, and
-    /// the game takes it with the clock; a speed outside the Time setting's
-    /// range is held to it.
+    /// THE HOST'S WORD CARRIES ITS SPEED (2026-10-04: the shared world runs
+    /// at the speed its admin sets, real time unless they change it; 72x
+    /// here, so a speed left unread shows). The relay's `game_time_sync` says
+    /// how fast its clock runs, and the game takes it with the clock; a speed
+    /// outside the Time setting's range is held to it.
     ///
     /// Seen red 2026-10-04 with `time_scale` left unread: "assertion `left
     /// == right` failed: the host's 72x, left: 1.0, right: 72.0".

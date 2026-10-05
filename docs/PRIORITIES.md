@@ -111,10 +111,17 @@ every load-bearing claim checked by an adversarial verifier
   on main, all rigs green (67/67 per --plots order, the crew judged where they
   are drawn). NPC homesteads ANSWERED 2026-10-04: their contribution stays 0, and during
   early development the fleet is UNLIMITED with a per-player ledger of what
-  each player used and contributed, in the red or the black (built 2026-10-04 on branch fleet-ledger: the setting fleet_supply_mode, the ledger, Inventory > The fleet, Server Settings > ADMIN > Fleet supply; design doc, increment 3, "The fleet ledger, as built"). NEXT: increment 4,
-  getting around at ship scale (the relay's speed check with a correction
-  instead of a freeze, transit links with stable ids, "aboard" as inside the
-  ship's bounds, game delivery by zone, an air volume per home). Left for later (design doc section 7): a Dev move of the plot
+  each player used and contributed, in the red or the black (built 2026-10-04 on branch fleet-ledger: the setting fleet_supply_mode, the ledger, Inventory > The fleet, Server Settings > ADMIN > Fleet supply; design doc, increment 3, "The fleet ledger, as built"; released v0.1458.0).
+  Increment 4 MERGED 2026-10-04 (v0.1459.0): getting around at ship scale
+  (the relay's speed check answers an oversized move with a correction, never
+  a freeze, and knows every honest fast move; transit links by stable ids;
+  "aboard" is inside the ship's bounds; delivery by view, in at 250 m and out
+  at 300 m; each home has its own air; nobody is told who lives on which
+  plot). Three reviews, 21 findings fixed; its new rig legs found BUG-151.
+  NEXT: increment 5, building only on your own plot (design doc section 7:
+  `may_build`/`may_remove`, the permit certificate, ShipStructureEditing off
+  while joined unless the relay grants `can_edit_ship`, through the ALTER
+  block per BUG-046). Left for later (design doc section 7): a Dev move of the plot
   does not carry animals and decoration plants; idle plots are never given
   back automatically (open question 19); a vehicle-driving rig leg needs an
   IPC verb. The rig follow-up about the previous order's game still holding the exe is done (BUG-142, v0.1452.0: all four rigs share a copy that waits out the lock). Follow-ups 1a found: put
@@ -156,8 +163,9 @@ the Day 5 session (he will post on his Discord or ask a brother when it is
 ready); how to balance what NPC homesteads give the fleet against what human
 players give (his open question). ANSWERED 2026-10-04 (journal, verbatim):
 backups stay as they are; no GitHub branch protection for now (immediate deploys
-suit the dev cycle); the shared-world clock is 72x by default with an in-app
-admin control; multiplayer stays ahead of arc A ("not as important as getting
+suit the dev cycle); the shared-world clock got an in-app admin control (its
+default, 72x that morning, became real time the same night: see THE FIRST
+HOUR, decision 5); multiplayer stays ahead of arc A ("not as important as getting
 the game playable"); the net-cup lean stays; server worlds start every player
 FRESH (only appearance crosses; the mothership gateway arrives players stripped
 of upgrades); joint homes wanted later; NPCs eat from the same stores; BUG-136
@@ -170,6 +178,40 @@ until a qualified person is officially involved; the landing hero shot becomes a
 night-to-sunrise shot from Silverdale toward Mount Rainier. Earlier: the start
 tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 (2026-10-04: being built), the old plain backups deleted (2026-10-02).
+
+### RESUME HERE: in flight at the usage cap (2026-10-05, about 01:10)
+
+- **v0.1460.0 is half through its chain. DO NOT PUSH main until it passes:** a push
+  deploys the relay. main (local, unpushed) = the four first-hour lanes (quests,
+  session flow, world friction, survival) + the real-time clock lane + the seam fix
+  76b66c680. `just verify` PASSED on it. Still to run: rig-tests, verify-relay, the
+  release build, the rigs (scratchpad chain1460-2/3/4.sh; hold builds at BelowNormal
+  during rigs, BUG-152), a seam review of the five merged lanes (it was stopped
+  unread: rerun it), then release v0.1460.0 and `just deliver`.
+- **Done, merge next (v0.1461.0):** the scripted first ten minutes, branch
+  worktree-agent-aa9a3f8a6f70330a2 (eight steps; Eat, Plant and View objective kinds;
+  the own-front-door destination). Reconcile at merge: it assumes coal is bought at the
+  trading post, but the friction lane seeds 5 coal in the Barn. Operator choices to
+  confirm: the first tool is a fishing rod (no fishing yet), the useful thing a
+  storage chest.
+- **Stopped mid-work at the cap (check each worktree for uncommitted work, then
+  relaunch or finish):** more plots (worktree-agent-ac4c5e7fee2ce644e), Normal mode by
+  default with progress kept plus rigs never dialing the live server
+  (worktree-agent-a50538ab1ae2d83d8), death cost by mode
+  (worktree-agent-a467966d22b3a5718), the Library sweep of game sections after the
+  first-hour lanes (worktree-agent-ab6799dbb2c8d66e9), the conflict / law / mental
+  health guides fixer (worktree-agent-acd16cffeea6aa67a; findings in scratchpad
+  fc-community.md, crit-law.md, crit-conflict.md, crit-mental.md).
+- **Library, corrected and waiting (ship as a patch after v0.1460.0):** canning,
+  pressure canning, curing and the Drying Food Trichinella fix
+  (worktree-agent-aa41fef38bb3ee28f, head 247b933a4); generators, emergency shelter,
+  pressure (worktree-agent-a7b5df9645fc4a9c8, 77fce2f29). With them: change Dry Meat's
+  description in data/recipes.csv (it air-dries raw meat with no heat).
+- **FTL reopened (operator, 2026-10-05, a proposal):** FTL, with ships built to survive
+  indefinitely if it is ever lost (docs/design/gravity-and-movement.md, the
+  interstellar section). Recommended; awaiting his answer.
+- **For the operator, when convenient:** at 1x the no-FTL decision means about 18.5
+  days to Jupiter (docs/design/gravity-and-movement.md); revisit or keep.
 
 ### THE FIRST HOUR: a basic starting loop with stakes (audit 2026-10-04)
 
@@ -190,7 +232,7 @@ several things break. Ranked:
 - **Friction:** F1 nothing teaches I, E, F1 or Alt; F2 the vendor, privacy and
   machine-card windows need Alt held and nothing says so; F3 the quest text
   points at a Dev-only button, completions are silent, the HUD goes blank after
-  Toolsmith; F4 machines eat the backpack (BUG-150, being fixed); F5 the
+  Toolsmith; F4 machines eat the backpack (BUG-150, fixed v0.1459.0); F5 the
   bedroom's bed says "sleep here" but cannot be slept in; F7 nothing planted
   ripens in a session; F8 food poisoning can kill with no cure and no word;
   "Keep mining" traps the drone in endless empty trips with no Stop; logs are
@@ -204,10 +246,28 @@ several things break. Ranked:
   Normal, and writes it into the data files rather than the save; S4 the free showcase garden replants itself in every
   mode; S6 stored food never spoils; S7 animals have no needs; S8 the medical
   system is never registered.
-- **Operator decisions this needs:** when the pre-launch defaults flip (Play
-  mode Dev to Normal, the fresh-home setting off) and how the rigs pin Dev;
-  what death should cost; the shape of the scripted first ten minutes; more
-  plots on the ship before a third player can have a home.
+- **Operator decisions, ANSWERED 2026-10-04 (late evening):** "I like your
+  suggestions. For normal mode, especially for my MMO server, let's have
+  everything be real time, not the 72x. That way anyone joining isn't dealing
+  with accelerated death. We'll wait until we have everything actually working
+  before we accelerate everything for fast mode." So:
+  1. **Defaults flip now:** fresh installs start in Normal mode with progress
+     kept ("Start every session from the default home" off); the rigs pin Dev;
+     the operator's own saved settings keep Dev. (After the session-flow and
+     world-friction lanes merge: they touch the same config and Normal-mode
+     code.)
+  2. **Death:** Simplified mode keeps "Nothing was lost"; in Realistic mode the
+     carried items stay where you fell for a while, to go back for. (After the
+     survival lane merges.)
+  3. **The first ten minutes:** check your vitals, eat, plant, craft a tool,
+     send the drone for iron, smelt it, build one thing, and end at your front
+     door looking out on the Commons. (After the quests lane merges.)
+  4. **More plots:** about ten along First Street, so more than two people can
+     have homes. (Started at once: data and relay, no overlap with the lanes.)
+  5. **Real time:** the shared world's clock defaults to 1x, not 72x (the solo
+     game already defaults to 1x); a faster "fast mode" waits until everything
+     works. (Started at once; the live server's stored 72 is set to 1 after the
+     deploy.)
 
 ### IN FLIGHT AT THE USAGE CAP (2026-09-27 evening): resume from these branches
 
@@ -272,7 +332,11 @@ And: cable sizing (`cheapest_cable_for`) falls back to a superconductor, a
 material that does not exist, whenever no copper cable passes, so a long
 heavy power run "passes" (3,000 W over 60 m picks it), and the Construction
 page offers "Upgrade N power run(s) to superconductor" today; the lightning
-code in `disasters.rs` is never registered, so it never runs.
+code in `disasters.rs` is never registered, so it never runs. The heat, fire
+and fuel guides' check (same night) added BUG-153 (the Campfire ability
+promises a fire with warmth and light, and only heals 3), BUG-154 (the backup
+generator runs on Paint, Glue or Crude Oil) and BUG-155 (the greenhouse quest
+asks for a heater that does nothing).
 
 ### 1. Environment regions: the rest of the arc BUG-080 opened
 
@@ -1074,6 +1138,18 @@ blocker:
    `get_members`, `get_member_count` and `get_member_by_key`), deliberately
    deferred: a backend flag is useless without the user-facing toggle, so build
    both in the same privacy-UI increment. Verify json1 is compiled in first.
+3. **Blocking a sender (found again 2026-10-04 by the conflict guide's fact
+   check; recorded in `docs/accord/conformance_gaps.md`).** Nobody can stop
+   another person messaging them: a friendship certificate cannot be withdrawn
+   (`verify_friend_cert` is stateless, no revocation), unfollowing does not
+   close the message path, a stranger's certless "knocks" allow 20 a day
+   (`DM_KNOCKS_PER_DAY`), native chat has no block at all, and web's block list
+   only hides messages locally, by name. The Accord requires consent to be
+   revocable. Wanted before the shared world opens to strangers: a
+   recipient-side deny list the relay enforces at dm_put (kept as the
+   recipient's own sealed data where possible, in the certificate pattern),
+   certificate revocation (a serial or an expiry in the preimage, with the KAT
+   tests updated on both clients), and a Block button on both clients.
 
 ---
 
@@ -1081,6 +1157,15 @@ blocker:
 
 Real features the system promises but does not deliver on every platform. Weeks
 of work each.
+
+**Candidate (suggested to the operator by a member of the public, 2026-10-05; not yet
+decided): search from the Browser page's address bar.** Today the address bar takes URLs only.
+Suggested: Ecosia as the default engine, and privacy-first defaults like FireDragon or
+Brave. Before building: the engine list as a data file the player chooses from, and a
+dated findings document on each engine's terms for being queried from inside another
+app (the 2026-09-25 site-embed review is the pattern). The embedded Chromium for video
+platforms keeps those platforms' players and advertising intact (the 2026-09-18
+agreement), so ad-blocking defaults do not apply there.
 
 > **Cross-cutting mandate (CLAUDE.md non-negotiable rule): GUI-first
 > configurability.** Every ops and config capability must be reachable in-app,

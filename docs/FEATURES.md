@@ -2162,6 +2162,11 @@ becomes finished tools on its own. Three pieces:
   concurrently), outputs land back in home stock. Deliberately no skill gate: owning
   the machine is the unlock. Data-driven -- any machine gains auto production by
   adding `auto_recipe` in the RON, no code.
+  **Since BUG-150 (2026-10-04) "home stock" is home storage only:** a machine never
+  takes from the player's backpack (the sawmill used to saw the logs the player
+  carried), its status line says "waiting for X in home storage", and the drone
+  unloads its haul into home storage, so the chain still runs untouched. A quest's
+  Gather step counts what the home holds as well as what is carried.
 - **Drone standing orders**: the Mining panel's "Keep mining" checkbox turns a
   commission into a standing order (`auto_mine_order`); the drone re-launches the
   same trip after every delivery until the asteroid depletes (which removes the
@@ -3101,11 +3106,15 @@ hidden behind walls like the crew's; the relay always sent the name, nothing dre
 clock wins (v0.1424.0, operator decision): the relay's `game_time_sync` sets the game clock, its speed and its calendar
 (24-hour days, v0.1427.0) while the
 player is joined, crops keep their age across the jump (`time::REBASE_SLOT`), and the bed says the night can't be
-slept away there. The shared world's clock runs at 72x by default (2026-10-04, operator: "let's do 72x but, make sure
-there's admin tools for me to adjust it from inside the app"): the server setting `world_time_scale`
-(`server_settings`, 1 to 1,000), changed in Server Settings > ADMIN > Shared world clock (native
+slept away there. The shared world's clock runs in real time (1x) by default, like a new solo game (operator,
+2026-10-04 evening: "For normal mode, especially for my MMO server, let's have everything be real time, not the 72x.
+That way anyone joining isn't dealing with accelerated death."; it had shipped at 72x earlier that day with the admin
+control he asked for: "let's do 72x but, make sure there's admin tools for me to adjust it from inside the app"):
+the server setting `world_time_scale` (`server_settings`, 1 to 1,000, `relay::storage::default_world_time_scale`),
+changed in Server Settings > ADMIN > Shared world clock (native
 `src/gui/pages/world_clock_admin.rs`, web: the chat's Game Admin window), which says in words what the picked speed
-means from the data (a day in 20 minutes, a lettuce in about 15 hours). The relay applies it to the running world at
+means from the data (at 1x a day takes a real day and a lettuce its real 45 days; at 72x a day passes in 20 minutes
+and a lettuce grows in about 15 hours). The relay applies it to the running world at
 once and sends a `game_time_sync` carrying `time_scale` to every game (`handlers/server_settings_update.rs`
 `set_world_clock`); a game runs at the host's speed between words (`time::HostClock`). Only the clock is scaled: the
 crew walk and do their chores in real seconds. Each other player looks like themselves (v0.1430.0 and v0.1431.0, `src/player_look.rs`): their

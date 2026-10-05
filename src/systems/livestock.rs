@@ -994,7 +994,7 @@ mod tests {
                 target: None,
             },
             Transform { position: Vec3::new(5.0, 0.0, 0.0), ..Default::default() },
-            crate::ecs::components::Dead { since: 0.0, looted: false },
+            crate::ecs::components::Dead::default(),
         ));
         // Dead wolf first: the hen ambles normally (no westward panic).
         let mut sys = LivestockSystem::new();
@@ -1052,7 +1052,7 @@ mod tests {
         herd_hen(&mut world, "chicken#0", 100.0);
         herd_hen(&mut world, "chicken#1", 300.0);
         let dead = herd_hen(&mut world, "chicken#2", 0.0);
-        world.insert_one(dead, crate::ecs::components::Dead { since: 0.0, looted: false }).unwrap();
+        world.insert_one(dead, crate::ecs::components::Dead::default()).unwrap();
         let saved = herd_timers(&world);
         assert_eq!(saved, vec![("chicken#0".to_string(), 100.0), ("chicken#1".to_string(), 300.0)], "the dead left out");
 

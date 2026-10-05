@@ -838,8 +838,8 @@ mod transit_tests {
 
     /// A SUMMONED VEHICLE DRIVES AT ITS REAL SPEED, WHATEVER THE CLOCK'S SPEED
     /// (review of 2026-10-04, finding 2). Its drive was timed on the game
-    /// clock, so at 72x (the Simplified speed, and every shared world's
-    /// speed unless its admin sets another) a 6 m/s rover covered 432 m in a
+    /// clock, so at 72x (the Simplified speed, which a player can pick for
+    /// their own game and an admin for a shared world) a 6 m/s rover covered 432 m in a
     /// real second. A vehicle you watch drive is motion, and motion stays on
     /// real seconds like the player's own walking (decision-briefs.md Brief 6:
     /// "the player moves and acts in real seconds"); only the clock speeds up.

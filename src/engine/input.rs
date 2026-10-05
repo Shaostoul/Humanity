@@ -282,6 +282,7 @@ mod tests {
             stats: Vec::new(),
             room: "room-vehicle".into(),
             machine_id: "trading_1".into(),
+            on_use: None,
         }
     }
 

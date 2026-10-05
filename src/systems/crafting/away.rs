@@ -9,10 +9,12 @@
 //! the same rules:
 //!
 //! - a batch starts only on inputs that were really there at that moment:
-//!   the backpack, home storage, what an earlier batch made, drone ore from
-//!   the moment it landed, tap water from the tanks. Inputs are spent when a
-//!   batch STARTS, as in a session, so nothing is made from stock that was
-//!   not there and nothing is reserved that was not;
+//!   home storage, what an earlier batch made, drone ore from the moment it
+//!   landed, tap water from the tanks. Never the backpack (BUG-150,
+//!   2026-10-04): a machine takes from the store it is fed from, not from
+//!   the player's pockets. Inputs are spent when a batch STARTS, as in a
+//!   session, so nothing is made from stock that was not there and nothing
+//!   is reserved that was not;
 //! - a machine rests at its keep target (the mill's 20 flour);
 //! - an electric machine works only on power the home could have spared: the
 //!   Usage meter's day average of what the home makes less what it uses
@@ -57,8 +59,8 @@ pub struct AwayWork {
     /// Station-supplied `[0]` and Realistic `[1]`.
     pub power_balance_w: [f32; 2],
     /// Ore the drone brought home during the time away, (seconds in, cargo)
-    /// (mining::advance_away). It is in the backpack already; a machine may
-    /// use it only from the moment it landed.
+    /// (mining::advance_away). It is in home storage already (filed, or put
+    /// away; BUG-150); a machine may use it only from the moment it landed.
     pub hauls: Vec<(f64, Vec<(String, u32)>)>,
 }
 
@@ -193,9 +195,11 @@ struct Ledger<'a> {
     player: hecs::Entity,
     /// Made during the time away and bound for home storage, not yet filed
     /// (the main loop files it after this tick, from "home_stock_outputs").
+    /// A drone haul filed but not yet put away is in it too.
     pool: HashMap<String, u32>,
-    /// Drone ore in the backpack that has not landed yet at the moment
-    /// being run.
+    /// Drone ore in home storage that has not landed yet at the moment being
+    /// run (since BUG-150 the drone unloads into home storage, so the haul
+    /// is already in the pool or the Barn when this pass starts).
     unarrived: HashMap<String, u32>,
     /// Home storage (the Barn), mirrored by the main loop before the tick;
     /// what is taken from it here the main loop takes out of the Barn after.
@@ -204,56 +208,61 @@ struct Ledger<'a> {
 }
 
 impl Ledger<'_> {
+    /// The backpack. Counted toward a keep target, as a session counts it,
+    /// and never spent (BUG-150).
     fn backpack(&self, world: &hecs::World, id: &str) -> u32 {
-        let have = world.get::<&Inventory>(self.player).map(|i| i.count_item(id)).unwrap_or(0);
-        have.saturating_sub(self.unarrived.get(id).copied().unwrap_or(0))
+        world.get::<&Inventory>(self.player).map(|i| i.count_item(id)).unwrap_or(0)
     }
 
     fn stored(&self, id: &str) -> u32 {
         self.home.and_then(|m| m.lock().ok().map(|s| s.get(id).copied().unwrap_or(0))).unwrap_or(0)
     }
 
+    /// Home storage at the moment being run: what was in it, what was made
+    /// while away, less the drone ore that has not landed yet.
+    fn in_store(&self, id: &str) -> u32 {
+        (self.pool.get(id).copied().unwrap_or(0) + self.stored(id))
+            .saturating_sub(self.unarrived.get(id).copied().unwrap_or(0))
+    }
+
     /// On hand for a keep target: the session counts the backpack and home storage.
     fn on_hand(&self, world: &hecs::World, id: &str) -> u32 {
-        self.backpack(world, id) + self.pool.get(id).copied().unwrap_or(0) + self.stored(id)
+        self.backpack(world, id) + self.in_store(id)
     }
 
-    /// Available as an input: on hand, and tap water from the tanks.
+    /// Available as an input: home storage, and tap water from the tanks.
+    /// Never the backpack (BUG-150).
     fn available(&self, world: &hecs::World, id: &str) -> u32 {
-        self.on_hand(world, id) + self.fluids.map_or(0, |t| crate::systems::fluids::tap_units(t, world, id))
+        self.in_store(id) + self.fluids.map_or(0, |t| crate::systems::fluids::tap_units(t, world, id))
     }
 
-    /// Spend `qty` of `id`: the backpack first, as a session does, then home
-    /// storage (what was made while away, then what was already there), then
-    /// the tanks for a measure of tap water.
+    /// Spend `qty` of `id` from home storage (what was made while away, then
+    /// what was already there), then the tanks for a measure of tap water.
+    /// Never the backpack (BUG-150). Only what has landed is spent: the caller
+    /// checked `available`, which holds the unlanded drone ore back, and the
+    /// pool and the Barn are one store, so which of the two gives it does not
+    /// matter.
     fn spend(&mut self, world: &mut hecs::World, id: &str, qty: u32) {
-        let mut left = qty;
-        let from_pack = self.backpack(world, id).min(left);
-        if from_pack > 0 {
-            if let Ok(mut inv) = world.get::<&mut Inventory>(self.player) {
-                inv.remove_item(id, from_pack);
-            }
-            left -= from_pack;
-        }
-        if left > 0 {
+        // From home storage, as much as has landed; the rest is tap water.
+        let mut from_store = qty.min(self.in_store(id));
+        let from_tanks = qty - from_store;
+        if from_store > 0 {
             if let Some(p) = self.pool.get_mut(id) {
-                let take = (*p).min(left);
+                let take = (*p).min(from_store);
                 *p -= take;
-                left -= take;
+                from_store -= take;
             }
         }
-        if left > 0 {
+        if from_store > 0 {
             if let Some(Ok(mut s)) = self.home.map(|m| m.lock()) {
                 if let Some(c) = s.get_mut(id) {
-                    let take = (*c).min(left);
-                    *c -= take;
-                    left -= take;
+                    *c -= (*c).min(from_store);
                 }
             }
         }
-        if left > 0 {
+        if from_tanks > 0 {
             if let Some(l) = self.fluids.and_then(|t| t.tap_litres(id)) {
-                crate::systems::fluids::draw_from_tanks(world, left as f32 * l);
+                crate::systems::fluids::draw_from_tanks(world, from_tanks as f32 * l);
             }
         }
     }

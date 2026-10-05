@@ -257,12 +257,39 @@ pub fn receive_machine_outputs(state: &mut crate::engine::state::EngineState) {
             .iter_mut()
             .find(|p| p.key == id && p.container == container && p.wear == 0 && p.quality == quality)
         {
+            // What was just made is fresh: the entry takes the average age (S6).
+            p.age_s = crate::systems::inventory::blend_age(p.age_s, p.qty, 0.0, qty);
             p.qty += qty;
         } else {
             let name = reg.and_then(|r| r.items.get(&id).map(|d| d.name.clone())).unwrap_or_else(|| id.clone());
-            pool.push(PlacedItem { key: id, name, qty, container: container.clone(), wear: 0, quality });
+            pool.push(PlacedItem { key: id, name, qty, container: container.clone(), quality, ..Default::default() });
         }
     }
+}
+
+/// Food in home storage ages (2026-10-04, first-hour audit S6): the FoodSystem counts the
+/// time the home's air has given it since the last frame into `food::STORAGE_AGING_KEY`
+/// (game seconds at room temperature, the home air's temperature zone applied), and this
+/// puts it on every food item in the pool: the Barn, the home's other places, a built chest.
+/// Before this only a backpack aged, so stored food never spoiled. Once a frame, after the
+/// tick; the first call registers the slot (nothing is owed before it exists).
+///
+/// KNOWN GAP: a chest built on a planet is aged by the home's air too; what the planet's
+/// own air does to it is not modelled per chest yet.
+pub fn age_home_storage(state: &mut crate::engine::state::EngineState) {
+    use std::sync::Mutex;
+    let key = crate::systems::food::STORAGE_AGING_KEY;
+    if state.data_store.get::<Mutex<f64>>(key).is_none() {
+        state.data_store.insert(key, Mutex::new(0.0_f64));
+        return;
+    }
+    let secs = state
+        .data_store
+        .get::<Mutex<f64>>(key)
+        .and_then(|m| m.lock().ok().map(|mut owed| std::mem::take(&mut *owed)))
+        .unwrap_or(0.0);
+    let food = crate::systems::food::consume_kinds();
+    crate::systems::inventory::placed::age_food(&mut state.gui_state.placed_items, secs, |k| food.contains_key(k));
 }
 
 /// Home storage for this tick (v0.737 for the automated machines; the build
@@ -500,7 +527,7 @@ mod tests {
     use super::*;
 
     fn item(key: &str, qty: u32) -> PlacedItem {
-        PlacedItem { key: key.into(), name: key.into(), qty, container: "Home".into(), wear: 0, quality: 0 }
+        PlacedItem { key: key.into(), name: key.into(), qty, container: "Home".into(), ..Default::default() }
     }
 
     #[test]

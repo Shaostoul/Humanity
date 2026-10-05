@@ -18,13 +18,18 @@ pub struct WorldSave {
     pub game_time: f64,
     pub player_position: [f32; 3],
     pub player_rotation: [f32; 4],
-    pub player_health: f32,
     pub inventory: Vec<(String, u32)>,
     /// Wear and grade of each saved backpack stack, in the same order as
     /// `inventory` (2026-09-26: a restart used to renew every carried tool
     /// and erase its grade). An older save without it restores unworn.
     #[serde(default)]
     pub inventory_state: Vec<(u32, u8)>,
+    /// How long each saved backpack stack of food has aged, in the same order as `inventory`
+    /// (2026-10-04, first-hour audit S6, `ItemStack::age_s`): a restart used to make all food
+    /// fresh again. A save without it loads every stack fresh. (Home storage keeps its ages
+    /// inside `placed_items`, a vessel inside `machine_levels`.)
+    #[serde(default)]
+    pub inventory_age: Vec<f64>,
     pub skills: HashMap<String, (u32, u32)>,
     pub constructions: Vec<ConstructionSave>,
     /// Craft batches in flight (2026-09-25); see CraftSave.
@@ -164,6 +169,45 @@ pub struct WorldSave {
     /// from before 1b: nothing is carried.
     #[serde(default)]
     pub home_plot_box: Option<[[f32; 3]; 2]>,
+    /// The player's body when this was saved (first-hour audit S1, 2026-10-04): health, the
+    /// vitals (food, water, energy, blood oxygen, core temperature and the waste meter), the
+    /// status effects still running, and a death. Before it, quitting healed and refilled
+    /// everything. None in a save from before it, and in a character-only save ("Start every
+    /// session from the default home"): the body then starts as a new character's does.
+    /// (The never-written `player_health` field this replaced is gone; a save that still has
+    /// it loads, the field ignored.)
+    #[serde(default)]
+    pub body: Option<BodySave>,
+    /// Person-days of urine in the home's sealed tank (`food::UrineTank`, first-hour audit S1).
+    /// 0 in a save from before it: the tank starts empty.
+    #[serde(default)]
+    pub urine_tank_person_days: f64,
+}
+
+/// The player's body in a save (first-hour audit S1, 2026-10-04). Put back exactly as it was
+/// left: the time the game was closed costs no food, water or sleep and runs no effect's
+/// timer (`save_load::catch_up_world` advances nothing that consumes).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BodySave {
+    /// Health, now and at most.
+    pub health: crate::ecs::components::Health,
+    /// Food, water, energy, blood oxygen, core temperature and the waste meter, with their maxima.
+    pub vitals: crate::ecs::components::Vitals,
+    /// The status effects still running, each with the seconds it has left.
+    #[serde(default)]
+    pub effects: crate::ecs::components::StatusEffects,
+    /// What killed them, when they were dead at the save: they come back to the death screen
+    /// with it, and Respawn. None: alive.
+    #[serde(default)]
+    pub dead: Option<String>,
+}
+
+impl BodySave {
+    /// The death the body comes back to: the saved cause, or "injuries" for a body saved with
+    /// no health and no cause (a living body at zero health would never die again).
+    pub fn death(&self) -> Option<String> {
+        self.dead.clone().or_else(|| (self.health.current <= 0.0).then(|| "injuries".to_string()))
+    }
 }
 
 fn default_credits() -> i64 {
@@ -209,7 +253,6 @@ impl WorldSave {
             game_time: 0.0,
             player_position: [0.0, 0.0, 0.0],
             player_rotation: [0.0, 0.0, 0.0, 1.0],
-            player_health: 100.0,
             inventory: Vec::new(),
             skills: HashMap::new(),
             constructions: Vec::new(),
@@ -228,6 +271,7 @@ impl WorldSave {
             crop_pollination: Vec::new(),
             crop_picking: Vec::new(),
             inventory_state: Vec::new(),
+            inventory_age: Vec::new(),
             soil_memory: Default::default(),
             credits: -1,
             quests: None,
@@ -241,6 +285,8 @@ impl WorldSave {
             home_id: String::new(),
             fleet_held: Vec::new(),
             home_plot_box: None,
+            body: None,
+            urine_tank_person_days: 0.0,
         }
     }
 }
@@ -861,7 +907,6 @@ mod tests {
             game_time: 3600.0,
             player_position: [10.0, 5.0, -3.0],
             player_rotation: [0.0, 0.0, 0.0, 1.0],
-            player_health: 100.0,
             inventory: vec![
                 ("wood".to_string(), 50),
                 ("stone".to_string(), 25),
@@ -903,6 +948,7 @@ mod tests {
             crop_pollination: Vec::new(),
             crop_picking: Vec::new(),
             inventory_state: Vec::new(),
+            inventory_age: Vec::new(),
             soil_memory: Default::default(),
             credits: -1,
             quests: None,
@@ -916,6 +962,8 @@ mod tests {
             home_id: String::new(),
             fleet_held: Vec::new(),
             home_plot_box: None,
+            body: None,
+            urine_tank_person_days: 0.0,
         }
     }
 

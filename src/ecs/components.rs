@@ -984,11 +984,16 @@ pub struct Dead {
     pub since: f32,
     /// Whether loot has been dropped (prevents double-drop).
     pub looted: bool,
+    /// What killed the player: the line the death screen shows ("dehydration"). Saved with
+    /// the body, so a player who quit on the death screen comes back to it (first-hour audit
+    /// S1, 2026-10-04). Empty for anything else that dies.
+    #[serde(default)]
+    pub cause: String,
 }
 
 impl Default for Dead {
     fn default() -> Self {
-        Self { since: 0.0, looted: false }
+        Self { since: 0.0, looted: false, cause: String::new() }
     }
 }
 
