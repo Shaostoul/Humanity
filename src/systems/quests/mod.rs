@@ -148,6 +148,26 @@ pub fn travel_transitions(
     entered
 }
 
+/// Where the player stands, as (x, z) in the frame destinations use, for the
+/// Travel emitter (2026-10-04, the first-hour audit's B5). In first person the
+/// camera IS the player: walking moves the camera, and the player entity's
+/// Transform keeps wherever spawning or a teleport last put it, so reading the
+/// Transform meant a Travel step never fired however far the player walked.
+/// The game publishes "camera_position" every frame (lib.rs, the home-local
+/// camera its proximity checks read, the walk-up interaction among them), and
+/// this reads it; the controlled entity's Transform is the fallback only where
+/// nothing publishes one (a headless world, a test).
+pub fn player_xz(world: &hecs::World, data: &DataStore) -> Option<(f32, f32)> {
+    if let Some(p) = data.get::<glam::Vec3>("camera_position") {
+        return Some((p.x, p.z));
+    }
+    world
+        .query::<(&crate::ecs::components::Transform, &crate::ecs::components::Controllable)>()
+        .iter()
+        .next()
+        .map(|(_, (tf, _))| (tf.position.x, tf.position.z))
+}
+
 /// Stable quest key for an NPC display name: lowercase, every non-alphanumeric
 /// run collapsed to one underscore, trimmed. "Mira Chen" -> "mira_chen", so a
 /// quest authors Talk(npc_id: "mira_chen") no matter how the relay styles the
@@ -185,6 +205,57 @@ pub fn push_quest_event(data: &DataStore, key: String) {
     if let Some(lock) = data.get::<std::sync::Mutex<Vec<String>>>("quest_events") {
         if let Ok(mut events) = lock.lock() {
             events.push(key);
+        }
+    }
+}
+
+// ── Telling the player (2026-10-04, the first-hour audit's F3) ──────
+//
+// A finished quest was written only to the log: the rewards arrived and the
+// next quest began with nothing on screen. These lines go on "player_notices",
+// the channel the main loop shows as a toast that stays up long enough to read.
+
+/// "Quest complete: First Steps. You received 2 Iron Ingot and 30 Metalworking
+/// XP." Names come from the item and skill registries, falling back to the id.
+pub fn completion_notice(
+    name: &str,
+    rewards: &[(String, u32)],
+    xp_rewards: &[(String, u32)],
+    items: Option<&crate::systems::inventory::ItemRegistry>,
+    skills: Option<&crate::systems::skills::SkillRegistry>,
+) -> String {
+    let item = |id: &str| items.and_then(|r| r.items.get(id)).map(|d| d.name.clone()).unwrap_or_else(|| id.to_string());
+    let skill = |id: &str| skills.and_then(|r| r.get(id)).map(|d| d.name.clone()).unwrap_or_else(|| id.replace('_', " "));
+    let mut got: Vec<String> = rewards.iter().map(|(id, q)| format!("{q} {}", item(id))).collect();
+    got.extend(xp_rewards.iter().map(|(id, xp)| format!("{xp} {} XP", skill(id))));
+    if got.is_empty() {
+        format!("Quest complete: {name}.")
+    } else {
+        format!("Quest complete: {name}. You received {}.", crate::systems::crafting::away::join_list(&got))
+    }
+}
+
+/// The line for the quests a finished one started: "New quest: Toolsmith.
+/// Forge a hammer." with the first step, or "New quests: A, B and C." for
+/// several. None when it started none.
+pub fn next_quest_notice(started: &[&QuestDef]) -> Option<String> {
+    match started {
+        [] => None,
+        [one] => Some(match one.steps.first() {
+            Some(step) => format!("New quest: {}. {}.", one.name, step.description.trim_end_matches('.')),
+            None => format!("New quest: {}.", one.name),
+        }),
+        many => {
+            let names: Vec<String> = many.iter().map(|q| q.name.clone()).collect();
+            Some(format!("New quests: {}.", crate::systems::crafting::away::join_list(&names)))
+        }
+    }
+}
+
+fn post_notice(data: &DataStore, line: String) {
+    if let Some(slot) = data.get::<std::sync::Mutex<Vec<String>>>("player_notices") {
+        if let Ok(mut n) = slot.lock() {
+            n.push(line);
         }
     }
 }
@@ -323,17 +394,11 @@ impl System for QuestSystem {
         // Travel emitter (v0.979): fire "travel_<id>" the moment the player
         // steps into a destination radius (data/entities/destinations.ron).
         // Runs before the drain below, so an arrival advances its Travel
-        // objective in the SAME tick.
+        // objective in the SAME tick. Where the player is comes from the
+        // walking camera (`player_xz`, 2026-10-04): the entity's Transform
+        // never moved when they walked.
         if let Some(dests) = data.get::<DestinationList>("quest_destinations") {
-            let player_xz = world
-                .query::<(
-                    &crate::ecs::components::Transform,
-                    &crate::ecs::components::Controllable,
-                )>()
-                .iter()
-                .next()
-                .map(|(_, (tf, _))| (tf.position.x, tf.position.z));
-            if let Some(xz) = player_xz {
+            if let Some(xz) = player_xz(world, data) {
                 for id in travel_transitions(xz, dests, &mut self.inside_destinations) {
                     push_quest_event(data, format!("travel_{id}"));
                 }
@@ -433,6 +498,7 @@ impl System for QuestSystem {
 
             // Prerequisite chaining: completing a quest auto-accepts any quest whose
             // prerequisite it satisfies (and that isn't already active or completed).
+            let mut started: Vec<&QuestDef> = Vec::new();
             for (completed_id, _, _) in &completed_this_tick {
                 for def in registry.quests.values() {
                     if def.prerequisite.as_deref() == Some(completed_id.as_str())
@@ -440,8 +506,22 @@ impl System for QuestSystem {
                         && !tracker.is_completed(&def.id)
                     {
                         tracker.accept_quest(&def.id);
+                        started.push(def);
                     }
                 }
+            }
+
+            // Tell the player (2026-10-04, F3): what finished and what it gave,
+            // then what started. Only the player carries a QuestTracker.
+            let items = data.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+            let skills = data.get::<crate::systems::skills::SkillRegistry>("skill_registry");
+            for (completed_id, rewards, xp_rewards) in &completed_this_tick {
+                let name = registry.get(completed_id).map_or(completed_id.as_str(), |d| d.name.as_str());
+                post_notice(data, completion_notice(name, rewards, xp_rewards, items, skills));
+            }
+            started.sort_by(|a, b| a.name.cmp(&b.name)); // the registry's order is a hash map's
+            if let Some(line) = next_quest_notice(&started) {
+                post_notice(data, line);
             }
 
             if events_applied
@@ -848,5 +928,232 @@ mod quest_tests {
             t.is_active("q_next"),
             "completing q_craft auto-accepts its dependent q_next"
         );
+    }
+
+    /// TRAVEL STEPS READ WHERE THE PLAYER IS (2026-10-04, the first-hour audit's
+    /// B5). The emitter read the player entity's Transform, which only spawning
+    /// and a teleport set: walking moves the camera (in first person the camera
+    /// IS the player, lib.rs's walk), so a Travel step never fired however far
+    /// the player walked. It now reads "camera_position", the home-local
+    /// position the game publishes every frame for its proximity checks (the
+    /// walk-up interaction reads the same). Here the player entity stays at the
+    /// front door, where spawning left it, while the camera walks to the shipped
+    /// outdoor fields.
+    ///
+    /// Red, run on the emitter before this: "walking to the outdoor fields
+    /// completes Initial Survey's Travel step" (left: 1, right: 2).
+    #[test]
+    fn walking_to_a_destination_completes_its_travel_step() {
+        use crate::ecs::components::{Controllable, Transform};
+        use glam::Vec3;
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let reg = QuestRegistry::from_ron_dir(&root.join("data/quests"));
+        let travel = reg
+            .get("exploration_first_survey")
+            .expect("Initial Survey ships")
+            .steps
+            .iter()
+            .position(|s| matches!(&s.objective, QuestObjective::Travel { destination } if destination == "outdoor_fields"))
+            .expect("Initial Survey walks to the outdoor fields");
+        let dests = DestinationList::from_ron(&std::fs::read(root.join("data/entities/destinations.ron")).unwrap()).unwrap();
+        let fields = dests.destinations.iter().find(|d| d.id == "outdoor_fields").expect("the fields are a destination").pos;
+        let mut data = DataStore::new();
+        data.insert("quest_registry", reg);
+        data.insert("quest_destinations", dests);
+        data.insert("quest_events", std::sync::Mutex::new(Vec::<String>::new()));
+
+        let door = Vec3::new(53.5, 1.7, 40.5);
+        let mut tracker = QuestTracker::default();
+        tracker.accept_quest("exploration_first_survey");
+        tracker.active_quests[0].current_step = travel; // the compass is made
+        let mut world = hecs::World::new();
+        let player = world.spawn((Transform { position: door, ..Default::default() }, Controllable, tracker, Inventory::new(8)));
+        let mut sys = QuestSystem::new();
+
+        data.insert("camera_position", door);
+        sys.tick(&mut world, 0.1, &data);
+        assert_eq!(world.get::<&QuestTracker>(player).unwrap().active_quests[0].current_step, travel, "nothing fires at the door");
+        // Walk there: only the camera moves, as in play.
+        data.insert("camera_position", Vec3::new(fields.0, 1.7, fields.1));
+        sys.tick(&mut world, 0.1, &data);
+        assert_eq!(
+            world.get::<&QuestTracker>(player).unwrap().active_quests[0].current_step,
+            travel + 1,
+            "walking to the outdoor fields completes Initial Survey's Travel step"
+        );
+    }
+
+    /// The ore two exploration quests gather comes from a node a player can
+    /// walk to (2026-10-04, B5). "Initial Survey" asks for 5 ore samples and
+    /// "Distant Expeditions" for 3 rare ore, which only two creatures dropped
+    /// that nothing spawns (tests/recipe_sources_lint.rs now fails on any
+    /// Gather item with no source). Their sources are resource nodes in
+    /// data/entities/wild_spawns.ron; this holds each such placement, scatter
+    /// radius and all, inside a room of the home or a zone of the ship (ship
+    /// metres, the home on plot p1 where offline play puts it), so the source
+    /// is somewhere a player can stand, not in a wall or the void between.
+    ///
+    /// Red, run on the shipped data before this: "no placed node yields
+    /// ore_sample_0" (nothing in wild_spawns.ron gave either ore).
+    #[test]
+    fn quest_ore_comes_from_nodes_a_player_can_walk_to() {
+        use crate::systems::livestock::{CreatureRegistry, WildSpawnList};
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let creatures = CreatureRegistry::from_csv(&std::fs::read(root.join("data/creatures.csv")).unwrap()).unwrap();
+        let spawns = WildSpawnList::from_ron(&std::fs::read(root.join("data/entities/wild_spawns.ron")).unwrap()).unwrap();
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&root.join("data"), None)
+            .expect("the shipped ship assembles");
+        // Walkable boxes in ship metres, (id, x0, x1, z0, z1): the home's rooms and every other zone.
+        let mut boxes: Vec<(String, f32, f32, f32, f32)> = Vec::new();
+        let home_i = ship.home_zone_index();
+        for (i, z) in ship.zones.iter().enumerate() {
+            if i == home_i {
+                for r in z.body.zones.iter().filter(|r| r.origin.0 >= 0.0 && r.origin.2 >= 0.0 && r.origin.0 + r.size.0 <= z.body.width && r.origin.2 + r.size.2 <= z.body.depth) {
+                    let (x0, z0) = (z.origin.0 + r.origin.0, z.origin.2 + r.origin.2);
+                    boxes.push((r.id.clone(), x0, x0 + r.size.0, z0, z0 + r.size.2));
+                }
+            } else {
+                boxes.push((z.id.clone(), z.origin.0, z.origin.0 + z.body.width, z.origin.2, z.origin.2 + z.body.depth));
+            }
+        }
+        assert!(boxes.len() > 20, "the home's rooms and the ship's zones, got {}", boxes.len());
+
+        for item in ["ore_sample_0", "rare_ore_0"] {
+            let nodes: Vec<_> = spawns
+                .spawns
+                .iter()
+                .filter(|s| creatures.get(&s.creature).and_then(|d| d.renewable()).is_some_and(|p| p.item == item))
+                .collect();
+            assert!(!nodes.is_empty(), "no placed node yields {item}");
+            for s in nodes {
+                let inside = boxes.iter().find(|(_, x0, x1, z0, z1)| {
+                    s.pos.0 - s.radius >= *x0 && s.pos.0 + s.radius <= *x1 && s.pos.1 - s.radius >= *z0 && s.pos.1 + s.radius <= *z1
+                });
+                assert!(
+                    inside.is_some(),
+                    "{} ({item}) at ({}, {}) with radius {} is not inside any room of the home or zone of the ship",
+                    s.creature,
+                    s.pos.0,
+                    s.pos.1,
+                    s.radius
+                );
+            }
+        }
+    }
+
+    // ── The starter quests say where and what next (2026-10-04, the
+    //    first-hour audit's F3) ──
+
+    /// The shipped quests, items and skills, and the event and notice
+    /// channels the game registers.
+    fn shipped_quest_data() -> DataStore {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut data = DataStore::new();
+        data.insert("quest_registry", QuestRegistry::from_ron_dir(&root.join("data/quests")));
+        data.insert(
+            "item_registry",
+            crate::systems::inventory::ItemRegistry::from_csv(&std::fs::read(root.join("data/items.csv")).unwrap()).unwrap(),
+        );
+        data.insert(
+            "skill_registry",
+            crate::systems::skills::SkillRegistry::from_csv(&std::fs::read(root.join("data/skills/skills.csv")).unwrap()).unwrap(),
+        );
+        data.insert("quest_events", std::sync::Mutex::new(Vec::<String>::new()));
+        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        data
+    }
+
+    fn notices(data: &DataStore) -> Vec<String> {
+        std::mem::take(&mut *data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap())
+    }
+
+    /// THE FIRST STEP SAYS WHERE. It read "Acquire 3 iron ore (mine it with a
+    /// drone, or stock it)": the drone is on the Inventory page, which it never
+    /// said, and "stock it" is a Dev-mode button. It now names the two places a
+    /// new player gets ore, and this holds them true: the Inventory page has a
+    /// Mining section, and every shipped home places a trading post. The HUD
+    /// shows "<step> (1/2)" and cuts the line at 64 characters (hud.rs), so the
+    /// whole of it must fit there.
+    ///
+    /// Red, run on the shipped quest before this: "the first step names the
+    /// Inventory page's Mining section: Acquire 3 iron ore (mine it with a
+    /// drone, or stock it)".
+    #[test]
+    fn the_first_step_says_where_to_get_iron_ore() {
+        const HUD_STEP_CHARS: usize = 64;
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let reg = QuestRegistry::from_ron_dir(&root.join("data/quests"));
+        let q = reg.get("gs_first_steps").expect("First Steps ships");
+        let first = &q.steps[0].description;
+        assert!(first.contains("Inventory > Mining"), "the first step names the Inventory page's Mining section: {first}");
+        assert!(first.contains("trading post"), "the first step names the trading post: {first}");
+        assert!(!first.contains("stock"), "the first step points at no Dev-mode button: {first}");
+        // The places it names exist.
+        let inventory = std::fs::read_to_string(root.join("src/gui/pages/inventory.rs")).expect("the Inventory page source");
+        assert!(inventory.contains("\"Mining\", tree_force"), "the Inventory page has a Mining section");
+        for file in ["home.ron", "home_solo.ron"] {
+            let home = crate::machines::MachineHome::load(&root.join("data/machines").join(file)).unwrap_or_else(|| panic!("{file} parses"));
+            assert!(
+                home.all_instances().iter().any(|i| i.machine == "trading_post" && i.zone == "home"),
+                "{file} places a trading post in the home, where the first step sends the player"
+            );
+        }
+        let line = format!("{first} (1/{})", q.steps.len());
+        assert!(line.chars().count() <= HUD_STEP_CHARS, "the first step fits the HUD's quest line: {line}");
+    }
+
+    /// A FINISHED QUEST TELLS THE PLAYER. Completion was written only to the
+    /// log, so First Steps finished, its two ingots arrived and Toolsmith began
+    /// with nothing on screen to say so. It now posts on "player_notices", the
+    /// channel the main loop shows as a toast: what finished and what it gave,
+    /// then the quest the data says comes next.
+    ///
+    /// Red, run on the system before this: "finishing First Steps tells the
+    /// player" (left: [], right: the two lines below).
+    #[test]
+    fn a_finished_quest_tells_the_player_what_it_gave_and_what_is_next() {
+        let data = shipped_quest_data();
+        let mut tracker = QuestTracker::default();
+        tracker.accept_quest("gs_first_steps");
+        let mut inv = Inventory::new(16);
+        inv.add_item("iron_ore_0", 3, 99);
+        let mut world = hecs::World::new();
+        world.spawn((tracker, inv));
+        let mut sys = QuestSystem::new();
+        sys.tick(&mut world, 0.0, &data); // three ore in the backpack: step 1 done
+        assert_eq!(notices(&data), Vec::<String>::new(), "a step is not a finished quest");
+        push_quest_event(&data, make_event_key("iron_ingot_0"));
+        sys.tick(&mut world, 0.0, &data); // the first ingot: First Steps done
+        assert_eq!(
+            notices(&data),
+            vec![
+                "Quest complete: First Steps. You received 2 Iron Ingot and 30 Metalworking XP.".to_string(),
+                "New quest: Toolsmith. Forge a hammer.".to_string(),
+            ],
+            "finishing First Steps tells the player"
+        );
+    }
+
+    /// THE STARTER QUESTS RUN ON. After Toolsmith the HUD's quest line went
+    /// blank: Build First Habitat named no prerequisite, so the chaining never
+    /// reached it and a new player had to find it on the Quests page. The data
+    /// now says it follows Toolsmith, and the chaining accepts it the moment
+    /// Toolsmith is done.
+    ///
+    /// Red, run on the shipped quests before this: "finishing Toolsmith
+    /// accepts Build First Habitat".
+    #[test]
+    fn finishing_toolsmith_starts_build_first_habitat() {
+        let data = shipped_quest_data();
+        let mut tracker = QuestTracker::default();
+        tracker.accept_quest("gs_toolsmith");
+        let mut world = hecs::World::new();
+        let player = world.spawn((tracker, Inventory::new(16)));
+        let mut sys = QuestSystem::new();
+        push_quest_event(&data, "craft_craft_hammer".to_string());
+        sys.tick(&mut world, 0.0, &data);
+        let t = world.get::<&QuestTracker>(player).unwrap();
+        assert!(t.is_completed("gs_toolsmith"), "the hammer finishes Toolsmith");
+        assert!(t.is_active("tutorial_first_habitat"), "finishing Toolsmith accepts Build First Habitat");
     }
 }

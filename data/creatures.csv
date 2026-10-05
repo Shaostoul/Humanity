@@ -143,3 +143,10 @@ stone_outcrop,Stone Outcrop,mineral,saxum_expositum,120,0,0,medium,400,0,walk,no
 clay_pit,Clay Deposit,mineral,argilla_cruda,60,0,0,small,150,0,walk,none,passive,wetland|river|grassland,clay_raw_0:100:1:3,stationary,false,55,Damp bank of fine sculptable clay,clay_raw_0:2:600
 salt_flat,Salt Crust,mineral,sal_evaporitum,30,0,0,small,60,0,walk,none,passive,desert|wetland,salt_food_0:100:1:2,stationary,false,45,Evaporite crust of harvestable salt,salt_food_0:2:900
 sand_pit,Sand Drift,mineral,arena_sicca,25,0,0,small,90,0,walk,none,passive,desert|beach|river,sand_0:100:2:4,stationary,false,55,Loose drift of clean building sand,sand_0:3:480
+# Ore nodes (2026-10-04, the first-hour audit's B5): the ore samples Initial
+# Survey gathers and the rare ore Distant Expeditions recovers
+# (data/quests/exploration.ron) had no source: only the mining automaton and
+# the silicon crab dropped them, and nothing spawns either. Placed in
+# data/entities/wild_spawns.ron where those two quests send the player.
+ore_outcrop,Ore Outcrop,mineral,vena_metallica,150,0,0,medium,500,0,walk,none,passive,mountain|grassland|desert,ore_sample_0:100:1:2|stone_raw_0:60:1:2,stationary,false,40,Weathered vein of mineralized rock where ore samples can be chipped for testing,ore_sample_0:2:900
+rare_ore_vein,Rare Ore Vein,mineral,vena_rara,200,0,0,medium,600,0,walk,none,passive,mountain|cave|asteroid,rare_ore_0:100:1:1|stone_raw_0:60:1:2,stationary,false,15,Narrow seam of ore carrying uncommon metals,rare_ore_0:1:1800
