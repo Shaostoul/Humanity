@@ -3485,8 +3485,10 @@ expects a marker.
 fly mode on (lib.rs ~5965-5966, ~6082-6083) and lib.rs ~3571 keeps it on every frame,
 while the HUD still reads "WALK x1 [F9 to fly]" (hud.rs ~374-387). With fly mode on: no
 footsteps (the stride meter needs it off, lib.rs ~15693-15695), the weather never reaches
-body heat (survival_env.rs ~178-181 uses the indoor default), and walking runs at 5 m/s
-instead of about 2.5 (lib.rs ~4830-4831). A player who lands believes they are walking.
+body heat (survival_env.rs ~178-181 uses the indoor default), and swimming runs at 5 m/s
+instead of about 2.5 (lib.rs ~4830-4831 is the swim cap; walking is 5 m/s either way).
+A player who lands believes they are walking. (The speed detail was corrected the same day
+by the fixer of the navigation guides: the first version said walking.)
 
 **Fix (not started):** either land the player in walk mode, or make the HUD say what is
 true (FLY) whenever fly mode is on, with a test on the HUD text for each state.

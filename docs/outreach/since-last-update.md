@@ -11,6 +11,18 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1458.1: six Library guides on electricity, power tools, finding
+  your way and boats.** Electricity and How It Flows, Where Your Own
+  Electrical Work Stops (proving a circuit dead, generators and carbon
+  monoxide, what a homeowner may do in Washington), Power Tools (guards,
+  kickback, grinders, chain saws), Navigating Without Instruments, What to Do
+  When You Are Lost (stay put, calling and texting 911, signals, lightning),
+  and Floating and Boats (life jackets, cold water, capacity plates). The
+  Library now has 95 sourced guides. The fact checks also found three game
+  bugs, now being fixed: the home marker never shows from the ground, the HUD
+  says WALK after the Dev page's travel left fly mode on, and the home's
+  sawmill eats logs from your backpack.
+
 - **v0.1458.0: the fleet never runs out, and you can see what you use and
   give.** On a shared server the fleet's stores are unlimited for now, so
   nobody misses a meal. Every meal you take and the ship's power your home
