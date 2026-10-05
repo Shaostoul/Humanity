@@ -564,6 +564,32 @@
             description: "Clean drinking water. No calories, and the one thing nobody lives three days without.",
         ),
 
+        // Oral rehydration solution (BUG-162, 2026-10-05). Base: one sachet of
+        // WHO and UNICEF's reduced-osmolarity oral rehydration salts in one
+        // litre of drinking water (WHO/FCH/CAH/06.1, "Oral Rehydration Salts:
+        // Production of the new ORS", 2006, Table 1): 13.5 g anhydrous glucose
+        // a litre is 1.35 g carbohydrate and, at 4 kcal a gram, 5 kcal per
+        // 100 g; potassium 20 mmol a litre at 39.1 mg a mmol is 78 mg per
+        // 100 g. Its 75 mmol of sodium a litre has no field here.
+        // Keeps: the packet's label, "DISCARD REMAINING SOLUTION AFTER 24
+        // HOURS". What it does for someone who is ill is in
+        // data/medical/illnesses.ron (drinks_while_ill).
+        (
+            id: "oral_rehydration_solution",
+            name: "Oral Rehydration Solution",
+            category: "beverage",
+            calories_per_100g: 5,
+            protein_g: 0.0,
+            carbs_g: 1.35,
+            fat_g: 0.0,
+            fiber_g: 0.0,
+            vitamins: (A: 0.0, B: 0.0, C: 0.0, D: 0.0, E: 0.0, K: 0.0),
+            minerals: (iron: 0.0, calcium: 0.0, zinc: 0.0, potassium: 78.0),
+            spoilage_rate_hours: 24.0,
+            raw_consumption_risk: 0.0,
+            description: "Water with the salts and the sugar the gut takes in together, even while it is losing water to vomiting or diarrhoea.",
+        ),
+
         // Base: USDA SR Legacy NDB 9016 "Apple juice, canned or bottled,
         // unsweetened, without added ascorbic acid".
         // Keeps: FoodKeeper fresh-squeezed apple juice 6 days refrigerated

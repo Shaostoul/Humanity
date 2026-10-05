@@ -49,6 +49,12 @@ pub mod flight;
 pub mod food;
 /// Body heat: the Gagge two-node heat balance behind the core temperature (2026-09-27).
 pub mod body_heat;
+/// Illness: what a stomach illness from food does to the body's water, over game hours,
+/// and what helps (BUG-162, 2026-10-05).
+pub mod illness;
+/// Medical items: what the Inventory's Use button does with each, from
+/// data/medical/treatments.ron (BUG-162, 2026-10-05).
+pub mod treatment;
 /// Sleeping in a bed: the night runs fast and the body wakes rested (2026-09-27).
 pub mod sleep;
 /// What dying costs: Simplified loses nothing, Realistic leaves the backpack's contents in a

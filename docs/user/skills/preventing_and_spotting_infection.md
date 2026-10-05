@@ -486,10 +486,16 @@ game gives one to you.
   it (`src/systems/medical.rs`) is not registered with the game, and the
   Infected Wound and Infection conditions in `data/status_effects.csv`
   are not applied by anything either.
-- **Medical items do nothing yet.** The item list includes Bandage,
-  Antiseptic, Painkillers, Antibiotics and Medkit (`data/items.csv`). In
-  the Inventory, an item like these shows a Use button, and pressing it
-  does nothing (`src/gui/pages/inventory.rs`).
+- **Medical items treat little yet.** The item list includes Bandage,
+  Antiseptic, Painkillers, Antibiotics and Medkit (`data/items.csv`), and
+  each has a Use button in the Inventory. Antibiotics would end the
+  Infection and Infected Wound conditions, which the game marks as caused
+  by bacteria, and nothing else; since nothing gives you either, using
+  them keeps them in your pack and says why, and they do not touch the
+  game's Food Poisoning. A Bandage or a Medkit puts back health, and
+  Antiseptic does nothing on its own: it goes into a Medkit
+  (`data/medical/treatments.ron`, `src/systems/treatment.rs`,
+  `src/gui/pages/inventory.rs`).
 - **The game brews antibiotics.** The Crafting page has a recipe called
   Culture Antibiotics that makes Antibiotics from Purified Water, Flour
   and Sugar at a Chemistry Set, at Medicine level 4 (`data/recipes.csv`).
@@ -684,8 +690,10 @@ were read on 5 October 2026.
 
 - The medical catalogue and the system that is not registered:
   `data/medical.ron` and `src/systems/medical.rs`. The Infected Wound and
-  Infection conditions: `data/status_effects.csv`. The medical items and
-  the Use button: `data/items.csv` and `src/gui/pages/inventory.rs`. The
+  Infection conditions, and the tag that marks them as caused by bacteria:
+  `data/status_effects.csv`. The medical items and the Use button:
+  `data/items.csv` and `src/gui/pages/inventory.rs`; what each item does:
+  `data/medical/treatments.ron` and `src/systems/treatment.rs`. The
   Culture Antibiotics recipe: `data/recipes.csv`. Skills from crafting and
   the Dev button: `src/systems/crafting/mod.rs` and
   `src/gui/pages/profile.rs`. What is saved: `src/save_load.rs`.

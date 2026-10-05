@@ -4049,7 +4049,7 @@ frame rate and refuse to judge, as "contaminated" rather than FAIL, when frames 
 enough to break the interpolation the check measures. A judge test feeds a capture with
 400 ms frames and expects "contaminated", not a FAIL.
 
-## BUG-162: medicine cures nothing, and food poisoning kills in about 8 minutes (OPEN, found 2026-10-05)
+## BUG-162: medicine cures nothing, and food poisoning kills in about 8 minutes (FIXED (merging in v0.1463.0), found 2026-10-05)
 
 **Seen (by the sanitation guides' fixer, confirmed by reading the code):**
 - The inventory's generic **Use** button discards its click (src/gui/pages/inventory.rs,
@@ -4069,11 +4069,68 @@ or Water Makes You Sick says exactly this). Antibiotics help only some bacterial
 and the advice is not to take them for ordinary food poisoning. The game teaches the
 opposite: an eight-minute death with medicine in the pack that cannot be taken.
 
-**Fix (not started):** illness as fluid loss on the body's water (the vitals already track
-it), on the game clock, cleared by time and helped by drinking (oral rehydration more than
-plain water), with the severe course for the vulnerable in Realistic and a milder one in the
-simplified mode (the dual-mode house rule); the Use button applying each medical item's
-effect from data (what it heals, what it removes, what it does not help), so antibiotics
-clear only effects marked as bacterial; a test that food poisoning untreated does not kill a
-healthy adult in minutes, that drinking shortens it, and that Use on each medical item does
-what its data says.
+**Fix (2026-10-05):** the illness takes WATER, and the medical items work from data.
+- **The illness.** Food Poisoning is a `disease` row of `data/status_effects.csv` (course
+  172,800 s, two days, the middle of the CDC's "1 to 3 days" for norovirus; no damage of its
+  own; `speed:0.85` while it lasts) with a row in the new `data/medical/illnesses.ron`: it
+  takes 1.5 L of water a day from Hydration on top of the usual 2.5 L (a labelled game choice
+  under WHO's 2 L a day of rehydration solution for an adult with cholera), on the game clock,
+  scaled by the Vitals drain slider, and passes by itself (`src/systems/illness.rs`, applied in
+  `src/systems/food.rs`). Every `disease` effect now counts game seconds
+  (`StatusEffects::tick_with`). Harm comes only through the existing dehydration drain, and a
+  death while it was taking water reads "dehydration from Food Poisoning". While an illness
+  takes water a drink keeps only a share of its water: oral rehydration solution all,
+  plain water and other drinks 0.75, juice, the energy drink, coffee and tea 0.5 (labelled
+  game choices from the CDC's guidance). New items: Oral Rehydration Salts (`ors_sachet_0`,
+  medical; four in the starting kit, sold at the trading post) and Oral Rehydration Solution
+  (1 L) (`ors_solution_0`, a beverage that keeps 24 hours, the WHO packet's limit), made by
+  the hand recipe `mix_ors` from a sachet and a litre of drinking water (the backpack's or the
+  tap's). The player is told when it starts (what it is, how long it lasts in this mode, what
+  helps) and when it passes.
+- **The modes.** Settings > Gameplay > Illness: Forgiving, the default, runs half the course
+  and takes half the water (`forgiving` shares in the data); Realistic, the data's numbers.
+  `AppConfig::illness_realistic`, published by `engine::survival_env`, hint read from the data.
+- **Use.** `data/medical/treatments.ron` gives every medical item (all 18 in `data/items.csv`)
+  what it restores, which effects it ends by a TAG on the effect, what it says when used, and
+  what it says when it would not help (then it is kept, not used up, with what helps any
+  illness the player has). Bandage 5 health, Medkit 30, Advanced Medkit 50 (labelled game
+  choices), each ending `bleeding`; Antibiotics end only `bacterial` effects (Infection,
+  Infected Wound, Plague), so not Food Poisoning; the Antidote ends `toxin` (Poisoned); the
+  other twelve say why the game has no use for them yet (pain, venom, fractures, transfusion,
+  a stopped heart, vitamins...). The Use button shows only for items with a row
+  (`treatment::has_use`) and rides the new `use_item_request` channel (`src/systems/treatment.rs`;
+  `src/lib.rs` touched only in the inventory-action bridge beside Drink).
+- **The data and the code agree.** `dispel_type`, which nothing read, is gone from the CSV;
+  `StatusEffectDef` declares every column and refuses a row with an unknown one
+  (`deny_unknown_fields`). `stackable`, `max_stacks` and `damage_type` are read but not acted
+  on, and the CSV header says so.
+
+Tests, each seen red on the code before the fix (main at ee2947a79, with this change's new
+data but the old Food Poisoning row): in `src/systems/illness_tests.rs`,
+`an_untreated_healthy_adult_with_food_poisoning_is_alive_after_an_hour` (it killed),
+`food_poisoning_takes_the_water_its_data_says`, `while_ill_oral_rehydration_solution_puts_back_more_than_water`,
+`drinking_through_food_poisoning_keeps_a_body_from_harm`,
+`the_simplified_mode_is_milder_than_realistic`,
+`food_poisoning_tells_the_player_when_it_starts_and_when_it_passes`,
+`use_on_each_medical_item_does_what_its_data_says`,
+`antibiotics_do_not_end_food_poisoning_but_end_a_bacterial_infection` and
+`every_status_effect_column_is_read`; `drying_out_from_food_poisoning_says_so_on_the_death_screen`
+(red with the death line's illness removed); and
+`config::play_mode_tests::the_illness_mode_survives_a_save_and_a_load` (red with the save leg
+writing false). The Library's game sections were corrected to match
+(When Food or Water Makes You Sick, How Your Body Works, Animal Health and Disease, First Aid
+Until Help Arrives, Preventing and Spotting Infection, The Germs That Matter, Microbes Good and
+Bad, Helping Your Neighbours After a Disaster).
+
+**Left for later (not this bug):**
+- Nobody in the game is a baby, old or already weak (the player has no `Age`), so the faster,
+  more dangerous course for the vulnerable has no one to apply to; nor does vomiting that keeps
+  a person from drinking. Both belong with a body that can be vulnerable.
+- Nothing applies Bleeding, Infection, Infected Wound, Plague or Poisoned yet, so in play the
+  dressings and medkits only restore health and Antibiotics and the Antidote are always kept;
+  pain, fractures, venom, allergy and transfusion have no model at all.
+- No effect stacks (`stackable`, `max_stacks`) and damage has no type (`damage_type`).
+- Every drink restores the same 30 Hydration points whatever its volume (`DRINK_HYDRATION`,
+  src/systems/food.rs), so the litre of rehydration solution counts no more than a 500 mL
+  bottle; at 20 points a litre it would be 20. A drink-volume fix changes the whole thirst
+  economy and is its own change.

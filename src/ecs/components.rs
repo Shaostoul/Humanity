@@ -211,7 +211,8 @@ impl Default for EnvironmentContext {
 pub struct ActiveEffect {
     /// Effect id from `data/status_effects.csv`.
     pub id: String,
-    /// Seconds remaining before this effect expires.
+    /// Seconds remaining before this effect expires: game seconds for an
+    /// illness (a `disease` row, `systems::illness`), real seconds for the rest.
     pub remaining: f32,
 }
 
@@ -248,8 +249,15 @@ impl StatusEffects {
 
     /// Count down every effect and drop the ones that have expired.
     pub fn tick(&mut self, dt: f32) {
+        self.tick_with(|_| dt);
+    }
+
+    /// Count each effect down by its own clock's step, `step(id)`, and drop the
+    /// ones that have expired. An illness counts game seconds and the rest real
+    /// ones (BUG-162, `systems::illness`).
+    pub fn tick_with(&mut self, step: impl Fn(&str) -> f32) {
         for e in &mut self.active {
-            e.remaining -= dt;
+            e.remaining -= step(&e.id);
         }
         self.active.retain(|e| e.remaining > 0.0);
     }

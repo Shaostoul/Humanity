@@ -34,6 +34,7 @@
         ("coffee_0", "brewed_coffee"),        // roasted beans; drinking one = brewing a cup
         ("tea_0", "brewed_tea"),              // dried leaves; drinking one = brewing a cup
         ("milk_0", "milk"),                   // also what the homestead's goats produce
+        ("ors_solution_0", "oral_rehydration_solution"), // a sachet mixed into a litre of water (mix_ors)
 
         // --- Meat, fish, eggs, dairy, fats ---
         ("raw_meat_0", "raw_meat"),

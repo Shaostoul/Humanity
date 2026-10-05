@@ -5787,6 +5787,10 @@ mod native_app {
                             }
                         }
                     }
+                    // Use: the clicked medical item to FoodSystem's use channel (BUG-162).
+                    if let Some(item_id) = state.gui_state.pending_use_item.take() {
+                        crate::systems::treatment::request_use(&mut state.data_store, item_id);
+                    }
                     // Gardening: bridge plant/water/harvest/dev-grow to FarmingSystem.
                     if let Some(seed_id) = state.gui_state.pending_plant_seed.take() {
                         if let Some(slot) = state

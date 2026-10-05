@@ -660,20 +660,33 @@ timescales, and leaves out nearly everything that can go wrong inside one.
   is the real balance. [Heat and How It Moves](heat_and_how_it_moves.md)
   has the detail.
 - **Food poisoning.** Spoiled food always gives you food poisoning, and
-  several raw foods carry a chance of it (`data/food_system.ron`). It can
-  kill you: for an hour and a half of real time it takes 3 health every
-  15 seconds, which with nothing healing you empties a full health bar in
-  about 8 minutes 20 seconds (`data/status_effects.csv`,
-  `src/systems/food.rs`). Nothing in the game cures it, because the
-  medical items' Use button does nothing (`src/gui/pages/inventory.rs`).
-  What keeps you alive is healing faster than it drains: the Well Fed
-  condition a filling meal gives heals 1 health a second for half an
-  hour, and First Aid (above) puts 35 back at once. Its description in
-  the game also mentions stamina and vomiting, but the game models
-  neither. If it does kill you, the default Death setting, Simplified,
-  takes nothing from you, and the Respawn button brings you back at full
-  health with the illness gone (Settings > Gameplay > Death;
-  `src/config.rs`, `src/lib.rs`).
+  several raw foods carry a chance of it (`data/food_system.ron`). As in
+  life, its danger is drying out. While it lasts it takes water from your
+  Hydration, 1.5 litres a day on top of the usual 2.5, and slows you a
+  little, and then it passes on its own: after two days of game time in
+  the Realistic Illness mode, and after one day, taking half the water,
+  in Forgiving, the default (Settings > Gameplay > Illness). It does no
+  harm of its own, so drinking keeps you safe: while you are ill, oral
+  rehydration solution puts back all of a drink's water, plain water
+  three quarters and sugary or caffeinated drinks half. You start with
+  four sachets of Oral Rehydration Salts to mix into a litre of water
+  (Crafting, Mix Oral Rehydration Solution). Antibiotics do not help it,
+  and no medical item ends it. The game tells you when it starts, what
+  helps, and when it has passed ([When Food or Water Makes You
+  Sick](when_food_or_water_makes_you_sick.md) has the detail;
+  `data/medical/illnesses.ron`, `src/systems/illness.rs`,
+  `src/systems/food.rs`).
+- **Medical items.** In the Inventory, a medical item shows a Use
+  button. A Bandage, a Medkit and an Advanced Medkit put back 5, 30 and
+  50 health, and Antibiotics and the Antidote end the conditions they
+  treat, though nothing in the game gives you those yet. An item that
+  would do nothing for you, because you are not hurt or because the game
+  does not model what it is for (pain, broken bones, a stopped heart),
+  stays in your pack and the game says why (`data/medical/treatments.ron`,
+  `src/systems/treatment.rs`). If you do die, the default Death setting,
+  Simplified, takes nothing from you, and the Respawn button brings you
+  back at full health with every condition gone (Settings > Gameplay >
+  Death; `src/config.rs`, `src/lib.rs`).
 - **Acceleration.** Aboard a ship under a hard burn, you feel extra
   weight. Above 1.5 g you get High Gravity, which halves your speed, and
   your health drains, faster the harder the burn: at 4 g, about 50 seconds
@@ -683,8 +696,9 @@ timescales, and leaves out nearly everything that can go wrong inside one.
 mode (Settings > Gameplay > Play mode). Creative, and Dev if you choose
 it, make materials free, but no play mode pauses your body: hunger,
 thirst, tiredness, air and body heat run the same in every one. The
-Vitals drain slider changes the pace of hunger, thirst and tiredness (0
-pauses them), and the Dev page's fly mode, a developer tool of the Dev
+Vitals drain slider changes the pace of hunger, thirst and tiredness,
+the water an illness takes included (0 pauses them), and the Dev page's
+fly mode, a developer tool of the Dev
 play mode, suspends the danger of airless space and the weather while it
 is on. Your health, your vitals and the conditions on you are saved with
 your game, so quitting heals and refills nothing, and with "Start every
@@ -701,9 +715,10 @@ blood pressure to measure. The game's data includes a catalogue of
 injuries and illnesses (`data/medical.ron`) and disease effects such as
 flu and infection in `data/status_effects.csv`, but nothing in the game
 gives them to you yet. In the game, a body fails in a handful of clear
-ways (hunger, thirst, air, heat and cold, food poisoning and hard
-acceleration), and each one warns you with a bar or a named condition. A
-real one fails in hundreds, and tells you only if you know how to listen.
+ways (hunger, thirst, air, heat and cold, and hard acceleration, with
+food poisoning harming you only through thirst), and each one warns you
+with a bar or a named condition. A real one fails in hundreds, and tells
+you only if you know how to listen.
 
 ## You own this when
 
@@ -860,8 +875,8 @@ Grouped by what kind of authority each one is. Web pages were read on
   `src/systems/body_heat.rs`; raw and spoiled food in
   `data/food_system.ron`.
 - The Inventory readings (`src/gui/pages/inventory.rs`) and the Settings >
-  Gameplay controls: Vitals drain, Body heat, and "Survival bars on the
-  HUD" (`src/gui/pages/settings.rs`, `HudVitals` in `src/config.rs`; which
+  Gameplay controls: Vitals drain, Body heat, Illness, and "Survival bars
+  on the HUD" (`src/gui/pages/settings.rs`, `HudVitals` in `src/config.rs`; which
   rows "When low" shows: `vital_rows` in `src/gui/pages/hud.rs`).
 - Acceleration: the crew tolerance row (1.5 g safe, 2 health a second at
   4 g) in `data/ship/flight.ron`, `harm_per_sec` in `src/systems/flight.rs`,
@@ -877,13 +892,17 @@ Grouped by what kind of authority each one is. Web pages were read on
 - The First Aid ability: `data/abilities.csv`, cast by
   `src/systems/abilities.rs` from its button in `src/gui/pages/profile.rs`
   or the HUD's number keys in `src/lib.rs`.
-- Food Poisoning and Well Fed: their length, damage and healing in
-  `data/status_effects.csv`, applied each tick in `src/systems/food.rs`
-  (the effect tick, in real seconds); nothing reads the "medicine" cure
-  column, and the medical items' Use button in
-  `src/gui/pages/inventory.rs` does nothing. The Death setting
-  (`death_realistic` in `src/config.rs`) and the respawn that restores
-  full health and clears every condition (`src/lib.rs`).
+- Food Poisoning: its course and tags in `data/status_effects.csv`, the
+  water it takes, what each drink puts back while you are ill and what
+  you are told in `data/medical/illnesses.ron`, applied each tick in
+  `src/systems/food.rs` through `src/systems/illness.rs` (an illness
+  counts game time); the Illness setting (`illness_realistic` in
+  `src/config.rs`). Well Fed's healing in `data/status_effects.csv`. The
+  medical items' Use button in `src/gui/pages/inventory.rs`, what each
+  item does in `data/medical/treatments.ron`, applied by
+  `src/systems/treatment.rs`. The Death setting (`death_realistic` in
+  `src/config.rs`) and the respawn that restores full health and clears
+  every condition (`src/lib.rs`).
 - The medical catalogue and disease rows that nothing applies yet:
   `data/medical.ron` (its system, `src/systems/medical.rs`, is not
   registered with the game) and `data/status_effects.csv`.

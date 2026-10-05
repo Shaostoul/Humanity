@@ -154,6 +154,11 @@ water_bottle_0,Water Bottle,food,drink,hdpe,0.5,10,0,Purified drinking water 500
 water_bottle_empty_0,Water Bottle (empty),tool,container,hdpe,0.03,10,0,Empty 500 ml bottle: fill it at a water tank,solid,1.16
 water_jerrycan_empty_0,Water Jerrycan (empty),tool,container,hdpe,1.2,5,0,20 L food-grade HDPE jerrycan kept for water only: fill it at a water tank,solid,24.0
 water_jerrycan_0,Water Jerrycan (20 L),material,liquid,hdpe,21.2,1,0,A 20 L jerrycan of drinking water: pour it into a tank or carry it where water is needed,water,24.0
+# Oral rehydration solution (BUG-162, 2026-10-05): one sachet of oral rehydration salts (ors_sachet_0,
+# under MEDICAL) dissolved in one litre of drinking water, the mix_ors recipe. 1 L of water and the
+# sachet's 20.5 g, in the same 1 L jug as water_purified_0. WHO's packet label: "DISCARD REMAINING
+# SOLUTION AFTER 24 HOURS" (WHO/FCH/CAH/06.1, 2006), which is its spoilage time in food_system.ron.
+ors_solution_0,Oral Rehydration Solution (1 L),food,drink,hdpe,1.02,10,0,One litre of oral rehydration solution: sip it while ill with vomiting or diarrhoea and throw away what is left after 24 hours,food,1.82
 ration_basic_0,Basic Ration,food,meal,cotton,0.4,20,0,Vacuum-packed survival meal,solid,0.58
 bread_0,Bread,food,baked,cotton,0.3,10,0,Baked wheat loaf,solid,0.43
 jerky_0,Jerky,food,preserved,cotton,0.1,30,0,Dried seasoned meat strip,solid,0.14
@@ -205,6 +210,11 @@ splint_0,Splint,medical,medical,aluminum,0.2,10,0,Bone fracture immobilizer,soli
 antiseptic_0,Antiseptic,medical,medical,hdpe,0.1,20,0,Wound disinfectant solution,liquid,0.23
 surgical_kit_0,Surgical Kit,medical,medical,steel,2.0,1,0,Field surgery instrument set,solid,0.57
 blood_pack_0,Blood Pack,medical,medical,pvc,0.5,5,0,Stored blood transfusion unit,solid,0.79
+# Oral rehydration salts (BUG-162, 2026-10-05): WHO and UNICEF's reduced-osmolarity formula, 20.5 g a
+# sachet (2.6 g sodium chloride, 13.5 g anhydrous glucose, 1.5 g potassium chloride, 2.9 g trisodium
+# citrate dihydrate) in laminated aluminium foil, "Dissolve entire content of packet in one litre of
+# drinking water" (WHO/FCH/CAH/06.1, 2006, Table 1 and the packet's label). The mix_ors recipe does that.
+ors_sachet_0,Oral Rehydration Salts,medical,medicine,aluminum,0.022,50,0,One sachet of oral rehydration salts: dissolve it in one litre of clean drinking water,solid,0.03
 #
 # === MATERIALS / RESOURCES ===
 wood_log_0,Wood Log,material,raw_wood,pine,8.0,10,0,Unprocessed timber round,solid,26.1

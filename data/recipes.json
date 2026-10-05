@@ -1,5 +1,5 @@
 {
-  "count": 383,
+  "count": 384,
   "categories": [
     "assembly",
     "chemistry",
@@ -4217,7 +4217,7 @@
       "station": "Stove",
       "skill": "Cooking",
       "skill_level": 1,
-      "description": "Salt and air-dry meat strips",
+      "description": "Heat thin meat strips to 160 F (165 F for wild game) then salt and dry them (USDA FSIS; CDC)",
       "tools": []
     },
     {
@@ -8149,6 +8149,36 @@
       "skill": "Medicine",
       "skill_level": 1,
       "description": "Distill wound disinfectant solution",
+      "tools": []
+    },
+    {
+      "id": "mix_ors",
+      "name": "Mix Oral Rehydration Solution",
+      "category": "chemistry",
+      "inputs": [
+        {
+          "id": "ors_sachet_0",
+          "label": "Ors Sachet",
+          "qty": 1
+        },
+        {
+          "id": "water_purified_0",
+          "label": "Water Purified",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "id": "ors_solution_0",
+          "label": "Ors Solution",
+          "qty": 1
+        }
+      ],
+      "craft_time_sec": 30,
+      "station": "",
+      "skill": "",
+      "skill_level": 1,
+      "description": "Dissolve one sachet of oral rehydration salts in one litre of clean drinking water",
       "tools": []
     },
     {

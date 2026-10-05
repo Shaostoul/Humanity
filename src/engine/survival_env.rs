@@ -9,7 +9,8 @@
 //! what they are doing, and the warmth of any campfire burning near them
 //! (BUG-153, 2026-10-05: `warmed_by_fires`). FoodSystem reads the result from the DataStore
 //! ("environment_context") to drive oxygen and the core temperature, and the
-//! Settings > Gameplay > Body heat mode rides beside it (`body_heat::MODE_KEY`).
+//! Settings > Gameplay > Body heat mode rides beside it (`body_heat::MODE_KEY`),
+//! as does the Illness mode (`illness::MODE_KEY`, BUG-162).
 
 use crate::ecs::components::EnvironmentContext;
 use crate::engine::state::EngineState;
@@ -158,7 +159,8 @@ fn fire_warmth(state: &EngineState) -> f64 {
     fires::warmth_at(&state.game_world.world, registry, body, middle, up)
 }
 
-/// Once per frame: publish the survival context and the body heat mode.
+/// Once per frame: publish the survival context, the body heat mode and the
+/// illness mode (BUG-162, `systems::illness`).
 pub(crate) fn publish(state: &mut EngineState) {
     let mode = if state.gui_state.settings.body_heat_realistic {
         body_heat::Mode::Realistic
@@ -166,6 +168,8 @@ pub(crate) fn publish(state: &mut EngineState) {
         body_heat::Mode::Forgiving
     };
     state.data_store.insert(body_heat::MODE_KEY, mode);
+    let illness = crate::systems::illness::Mode::from_realistic(state.gui_state.settings.illness_realistic);
+    state.data_store.insert(crate::systems::illness::MODE_KEY, illness);
 
     // The air where the player stands: temperature, humidity, wind, what is
     // falling and the pressure, all from the weather's at-player export

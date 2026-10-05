@@ -270,8 +270,8 @@ mod tests {
     /// moves the player with (the review of increment 4, R2: this read `speed:<v>:multiply` from
     /// the text and missed every other kind of modifier the folds apply): the walk and the sprint
     /// the movement code uses, times the status effects' `net_stat_multiplier` over every effect
-    /// that speeds a person up, each as often as it stacks (the CSV's `max_stacks`: the registry
-    /// keeps no stack count), times the gear's `net_stat_multiplier` over every piece of gear
+    /// that speeds a person up, each as often as it stacks (the CSV's `max_stacks`, which the
+    /// registry reads; nothing stacks an effect yet), times the gear's `net_stat_multiplier` over every piece of gear
     /// that does, all worn at once (more than any one outfit can). The folds run in the order
     /// they are given, and an `add` counts for most before the multiplies, so those come first.
     #[cfg(feature = "native")]
@@ -289,7 +289,7 @@ mod tests {
             .filter(|c| fx.net_stat_multiplier([c[0].as_str()], "speed") > 1.0)
             .map(|c| {
                 let adds = fx.get(&c[0]).and_then(|d| d.modifier()).is_some_and(|(_, _, op)| op == "add");
-                (adds, c[0].clone(), c.get(5).and_then(|s| s.trim().parse().ok()).unwrap_or(1).max(1))
+                (adds, c[0].clone(), fx.get(&c[0]).map_or(1, |d| d.max_stacks as usize).max(1))
             })
             .collect();
         buffs.sort_by_key(|(adds, _, _)| !*adds);
@@ -321,7 +321,7 @@ mod tests {
         let effects = std::fs::read_to_string("data/status_effects.csv").expect("data/status_effects.csv");
         let equipment = std::fs::read_to_string("data/equipment.csv").expect("data/equipment.csv");
         let without = fastest_walk_mps(&effects, &equipment);
-        let tonic = format!("{}\nsprint_tonic,Sprint Tonic,buff,60,false,1,0,speed:0.5:add,0,none,0,item,movement,Half again as fast\n", effects.trim_end());
+        let tonic = format!("{}\nsprint_tonic,Sprint Tonic,buff,60,false,1,0,speed:0.5:add,0,none,0,movement,Half again as fast\n", effects.trim_end());
         let with = fastest_walk_mps(&tonic, &equipment);
         assert!(with >= without * 1.49, "an `add` speed buff was not counted: {with:.2} m/s with it, {without:.2} without");
         let boots = format!("{}\nboots_sprint_0,feet,0.08,0,0,0,0,0,0,,0,speed:0.5:add,Racing spikes\n", equipment.trim_end());

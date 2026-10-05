@@ -799,11 +799,20 @@ spot, and little else of what this guide is about.
   with the game, so nothing in it ever happens to you. The Bleeding, Broken
   Bone, Concussion and Infected Wound conditions in
   `data/status_effects.csv` are not applied by anything either.
-- **Medical items do nothing yet.** The item list includes a Bandage, a
-  Medkit, a Splint, Antiseptic, Painkillers and a Defibrillator
-  (`data/items.csv`), and the Crafting page has recipes that make some of
-  them (`data/recipes.csv`). In the Inventory, an item like these shows a
-  Use button, and pressing it does nothing (`src/gui/pages/inventory.rs`).
+- **Medical items put health back, or say why not.** The item list
+  includes a Bandage, a Medkit, a Splint, Antiseptic, Painkillers and a
+  Defibrillator (`data/items.csv`), and the Crafting page has recipes
+  that make some of them (`data/recipes.csv`). In the Inventory each one
+  has a Use button. A Bandage puts back 5 health, a Medkit 30 and an
+  Advanced Medkit 50, up to full, and each would also stop the Bleeding
+  condition. The rest do nothing yet, because nothing in the game causes
+  what they treat: pain, an infection, poisoning, venom, a broken bone or
+  a stopped heart. Pressing Use on one, or on a medkit when you are not
+  hurt, keeps it in your pack and tells you why in plain words. An item
+  is used up only when it helps
+  (`data/medical/treatments.ron`, `src/systems/treatment.rs`,
+  `src/gui/pages/inventory.rs`). Like First Aid, a medkit restores
+  health at once, which real first aid does not.
 - **The Medicine skill.** Crafting a recipe trains the skill that recipe
   names (`src/systems/crafting/mod.rs`), and the medical recipes name
   Medicine. So in the game, Medicine rises by making supplies, not by
@@ -1078,9 +1087,11 @@ were read on 4 October 2026 and are cited with the date they carry.
   medical catalogue `data/medical.ron` and its unregistered system
   `src/systems/medical.rs`; the injury conditions in
   `data/status_effects.csv`, applied by no code. The medical items in
-  `data/items.csv`, the medical recipes in `data/recipes.csv`, and the
-  Inventory's Use button, which does nothing for them
-  (`src/gui/pages/inventory.rs`). Skill experience from crafting:
+  `data/items.csv`, the medical recipes in `data/recipes.csv`, the
+  Inventory's Use button (`src/gui/pages/inventory.rs`), and what each
+  item does when used, the health it restores, the conditions it ends
+  and what it says when it cannot help, in `data/medical/treatments.ron`,
+  applied by `src/systems/treatment.rs`. Skill experience from crafting:
   `src/systems/crafting/mod.rs`. The body saved with the game: `BodySave`
   in `src/persistence.rs` and `restore_body` in `src/save_load.rs`; the
   "Start every session from the default home" setting: `src/config.rs`.

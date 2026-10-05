@@ -211,7 +211,16 @@ required = true
 default = "none"
 description = """
 How this effect can be removed before its duration expires.
-Determines which items, skills, or actions can cure it."""
+Determines which items, skills, or actions can cure it.
+
+NOT IN THE SHIPPED CSV (BUG-162, 2026-10-05). data/status_effects.csv carried
+a dispel_type column that nothing read, so its "medicine" promised a cure the
+game never gave. It was removed, and the loader now refuses a row with a column
+it does not declare (src/systems/status_effects.rs). What a medical item ends
+is decided by a TAG in the effect's tags column ("bleeding", "bacterial",
+"toxin"), named by the item's row in data/medical/treatments.ron
+(src/systems/treatment.rs). The values below are this schema's design, not the
+game's."""
 constraints = "Must be one of the values listed below"
 valid_values = [
     "none",          # Cannot be dispelled; must wait for duration

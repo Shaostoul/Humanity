@@ -841,6 +841,9 @@ fn draw_container(
 struct ItemCardActions {
     eat: Option<String>,
     drink: Option<String>,
+    /// Medical item id the player clicked Use on (BUG-162): what it does is its
+    /// row in data/medical/treatments.ron, applied by the food system.
+    use_item: Option<String>,
     plant: Option<String>,
     /// Vehicle KIT item id to deploy into the world (economy Phase 2 Stage 1).
     deploy: Option<String>,
@@ -973,8 +976,13 @@ fn draw_item_card(
             if widgets::compact_button(ui, theme, "Plant", widgets::ButtonVariant::Primary) {
                 acts.plant = Some(item.item_id.clone());
             }
-        } else {
-            let _ = widgets::compact_button(ui, theme, "Use", widgets::ButtonVariant::Secondary);
+        } else if crate::systems::treatment::has_use(&item.item_id) {
+            // Use (BUG-162): offered only for an item with a row in
+            // data/medical/treatments.ron, which says what it does. It used
+            // to show on every other item and discard its click.
+            if widgets::compact_button(ui, theme, "Use", widgets::ButtonVariant::Primary) {
+                acts.use_item = Some(item.item_id.clone());
+            }
         }
         if widgets::compact_button(ui, theme, "Equip", widgets::ButtonVariant::Secondary) {
             acts.equip = true;
@@ -1643,7 +1651,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.horizontal_wrapped(|ui| {
                     ui.label(RichText::new("Effects:").color(theme.text_secondary()));
                     for (name, remaining) in &effects {
-                        let label = if *remaining >= 60.0 {
+                        // An illness lasts a day or two (BUG-162): hours, not
+                        // thousands of minutes.
+                        let label = if *remaining >= 2.0 * 3600.0 {
+                            format!("{} ({:.0}h)", name, remaining / 3600.0)
+                        } else if *remaining >= 60.0 {
                             format!("{} ({:.0}m)", name, remaining / 60.0)
                         } else {
                             format!("{} ({:.0}s)", name, remaining)
@@ -2838,6 +2850,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
     if let Some(item_id) = item_acts.drink {
         state.pending_drink_item = Some(item_id);
+    }
+    if let Some(item_id) = item_acts.use_item {
+        state.pending_use_item = Some(item_id);
     }
     if let Some(seed_id) = item_acts.plant {
         state.pending_plant_seed = Some(seed_id);

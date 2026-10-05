@@ -147,6 +147,10 @@ pub const CRAFTING_TOOLS_RON: &str = include_str!("../data/crafting/tools.ron");
 pub const GARDEN_NUTRIENTS_RON: &str = include_str!("../data/garden/nutrients.ron");
 pub const FOOD_SYSTEM_RON: &str = include_str!("../data/food_system.ron");
 pub const FOOD_ITEM_PROFILES_RON: &str = include_str!("../data/food/item_profiles.ron");
+/// What an illness does to the body's water, and what each medical item's Use does
+/// (BUG-162, 2026-10-05: systems::illness and systems::treatment).
+pub const MEDICAL_ILLNESSES_RON: &str = include_str!("../data/medical/illnesses.ron");
+pub const MEDICAL_TREATMENTS_RON: &str = include_str!("../data/medical/treatments.ron");
 pub const MACHINES_HOME_RON: &str = include_str!("../data/machines/home.ron");
 pub const MACHINES_HOME_SOLO_RON: &str = include_str!("../data/machines/home_solo.ron");
 /// The ship's own machines (the Commons), merged into a home file that names them (increment 1a).
@@ -362,6 +366,8 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "garden/nutrients.ron" => Some(GARDEN_NUTRIENTS_RON),
         "food_system.ron" => Some(FOOD_SYSTEM_RON),
         "food/item_profiles.ron" => Some(FOOD_ITEM_PROFILES_RON),
+        "medical/illnesses.ron" => Some(MEDICAL_ILLNESSES_RON),
+        "medical/treatments.ron" => Some(MEDICAL_TREATMENTS_RON),
         "machines/home.ron" => Some(MACHINES_HOME_RON),
         "machines/home_solo.ron" => Some(MACHINES_HOME_SOLO_RON),
         "machines/ship.ron" => Some(MACHINES_SHIP_RON),
@@ -524,6 +530,8 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "garden/nutrients.ron",
     "food_system.ron",
     "food/item_profiles.ron",
+    "medical/illnesses.ron",
+    "medical/treatments.ron",
     "machines/home.ron",
     "machines/home_solo.ron",
     "machines/ship.ron",

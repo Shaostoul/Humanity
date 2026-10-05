@@ -415,6 +415,11 @@ craft_bandage,Craft Bandage,chemistry,cloth_bolt_0:1,bandage_0:5,5,,medicine,0,C
 craft_medkit,Assemble Medkit,chemistry,bandage_0:5|antiseptic_0:2|splint_0:1|painkillers_0:3,medkit_0:1,15,workbench_0,medicine,2,Pack a complete first-aid kit
 craft_splint,Craft Splint,chemistry,aluminum_ingot_0:1|cloth_bolt_0:1,splint_0:3,8,workbench_0,medicine,1,Bend and pad fracture immobilizers
 craft_antiseptic,Brew Antiseptic,chemistry,water_purified_0:2|salt_food_0:1,antiseptic_0:3,10,chemistry_set_0,medicine,1,Distill wound disinfectant solution
+# Oral rehydration solution (BUG-162, 2026-10-05): the packet's own instruction, "Dissolve entire content of
+# packet in one litre of drinking water" (WHO/FCH/CAH/06.1, 2006). By hand, no skill: a litre of drinking
+# water from the backpack or the home's tap (data/containers/fluids.ron). There is no recipe for the salts
+# themselves: the Library's guide gives no home recipe because "serious errors can occur" (CDC MMWR 2003).
+mix_ors,Mix Oral Rehydration Solution,chemistry,ors_sachet_0:1|water_purified_0:1,ors_solution_0:1,30,,,0,Dissolve one sachet of oral rehydration salts in one litre of clean drinking water
 craft_fire_extinguisher,Build Fire Extinguisher,chemistry,steel_ingot_0:2|water_purified_0:2,fire_extinguisher_0:1,15,workbench_0,engineering,2,Pressurize a fire suppression unit
 craft_flare,Make Flare,chemistry,iron_ingot_0:1|coal_0:1|plastic_sheet_0:1,flare_0:5,10,chemistry_set_0,alchemy,1,Mix and pack emergency signal flares
 # Composting (2026-09-26). NRAES-54 On-Farm Composting Handbook (Rynk et al., 1992): a pile composts

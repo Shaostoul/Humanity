@@ -3504,6 +3504,20 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             }
         });
         widgets::setting_hint(ui, theme, hint, &body_heat_hint());
+        // Illness (BUG-162, systems::illness; the dual-mode house rule): how hard
+        // food poisoning is. The hint's numbers are read from the data it describes.
+        ui.add_space(theme.spacing_sm);
+        ui.label(RichText::new("Illness").color(theme.text_secondary()));
+        ui.horizontal(|ui| {
+            for (realistic, label) in [(false, "Forgiving"), (true, "Realistic")] {
+                let selected = state.settings.illness_realistic == realistic;
+                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
+                    state.settings.illness_realistic = realistic;
+                    state.settings_dirty = true;
+                }
+            }
+        });
+        widgets::setting_hint(ui, theme, hint, &crate::systems::illness::mode_hint());
         // Carrying weight (BUG-136, systems::encumbrance; the dual-mode house rule).
         ui.add_space(theme.spacing_sm);
         ui.label(RichText::new("Carrying weight").color(theme.text_secondary()));
