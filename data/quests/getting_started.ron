@@ -1,8 +1,8 @@
 // HumanityOS Quest Chain: Getting Started
 //
 // A SATISFIABLE starter chain that uses only the wired gameplay loops:
-//   - Gather objectives → checked against live inventory (mine ore with a drone,
-//     or use "Dev: stock materials").
+//   - Gather objectives → checked against live inventory (ore comes from the
+//     drone on the Inventory page's Mining section, or the trading post).
 //   - Craft objectives  → satisfied by the quest-progress event CraftingSystem
 //     emits on completion ("craft_<recipe_id>"). Make objectives count units
 //     of an item made by ANY recipe ("make_<item_id>", one per unit), so the
@@ -13,7 +13,17 @@
 // section pushes build_<blueprint_id> events), so the construction chain is
 // completable; as of v0.748 quests can also be ACCEPTED from the Quests page
 // and grant xp_rewards. gs_first_steps is auto-accepted on spawn; completing
-// it auto-accepts gs_toolsmith (prerequisite chaining).
+// it auto-accepts gs_toolsmith (prerequisite chaining), and completing that
+// accepts Build First Habitat (data/quests/tutorial.ron), so the HUD's quest
+// line never goes blank between them. Each completion posts a notice saying
+// what it gave and what comes next (2026-10-04).
+//
+// A step's text is the HUD's quest line, shown as "<text> (1/2)" and cut at 64
+// characters (src/gui/pages/hud.rs): keep it under about 58, and name the place
+// to go. Every shipped home (data/machines/home.ron and home_solo.ron) has the
+// stations these steps use and the trading post the first one names (tests:
+// every_shipped_home_has_what_the_starter_quests_need in src/machines.rs and
+// the_first_step_says_where_to_get_iron_ore in src/systems/quests/mod.rs).
 //
 // Format: Vec<QuestDef>, see src/systems/quests/mod.rs
 [
@@ -23,7 +33,7 @@
         description: "Get your production loop going: acquire raw ore, then refine your first metal.",
         steps: [
             (
-                description: "Acquire 3 iron ore (mine it with a drone, or stock it)",
+                description: "Get 3 iron ore: Inventory > Mining, or the trading post",
                 objective: Gather(item_id: "iron_ore_0", quantity: 3),
             ),
             (

@@ -3079,6 +3079,22 @@ impl GuiState {
         self.chat_input_active || self.dev_edit_target.is_some() || self.npc_talk_target.is_some()
     }
 
+    /// True while an in-world PANEL with buttons is open that is not a modal
+    /// (2026-10-04, the first-hour audit's F2): the trading post's vendor
+    /// window, the first-connect "Choose your privacy" window, or a pinned
+    /// machine card (E opened it; its Fill, Take and Trade buttons sit under
+    /// it). They needed Alt held, which nothing on screen says. Now the cursor
+    /// is free and mouse-look stops while one is open, as for a page
+    /// (`engine::input::cursor_free_for` and `mouse_look_allowed`). Unlike
+    /// `in_world_modal_open` it does not take the keyboard: WASD still walks
+    /// and E still closes the card. A pin whose card is not drawn (its index
+    /// past the labels, which is how the HUD decides) does not count.
+    pub fn in_world_panel_open(&self) -> bool {
+        self.vendor_open
+            || self.privacy_tier_prompt_open
+            || self.selected_machine.is_some_and(|i| i < self.machine_labels.len())
+    }
+
     /// The F10 Cloud dev sidebar is open AND expanded (2026-09-05). This is
     /// the "hold Alt" condition made sticky: lib.rs frees the OS cursor and
     /// suppresses mouse-look while it is true (reconcile_cursor + the
