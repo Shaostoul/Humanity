@@ -444,7 +444,7 @@ learn which animals share your ground.
 
 ## How the game models it
 
-The game keeps a creature database of 99 species, 51 of them typed as
+The game keeps a creature database of 101 species, 51 of them typed as
 animals; the others are fantasy creatures, robots and gatherable
 resource nodes such as berry bushes and clay pits. It is in
 `data/creatures.csv`.
@@ -604,7 +604,7 @@ documents were read on 4 October 2026.
 
 ### Inside this project
 
-- The creature database, `data/creatures.csv` (99 rows; diet, mass,
+- The creature database, `data/creatures.csv` (101 rows; diet, mass,
   speed, movement, behaviour, drops and renewable products), read by
   `src/systems/livestock.rs` (body size from mass, the amble at a third
   of listed speed, fleeing predators within 12 metres); the home's

@@ -438,8 +438,10 @@ compost.
   points of waste into a 2 kg bag of Fertilizer, which the game's
   nutrient data treats as finished compost, and empties the meter. The
   same button draws off the urine collected in your home's tank. The
-  Waste meter is not saved: it starts again from empty each time you
-  launch.
+  Waste meter and the tank are saved with your game, but while "Start
+  every session from the default home" is on, which it is by default,
+  each launch starts with a new body and the default home, so both start
+  empty.
 - **Composting at the Composter.** Recipes at a Composter make Fertilizer
   from sawdust with seed press cake or wheat bran, or from olive or apple
   pomace. Under the default settings, the Dev play mode (Settings >
@@ -648,7 +650,9 @@ public domain. Web pages were read on 3 October 2026.
   `WASTE_PER_FERTILIZER` in `src/systems/food.rs`; the `unsanitary` row
   of `data/status_effects.csv`; the "Compost and draw off urine" button
   in `src/gui/pages/inventory.rs`; `fertilizer_0` in `data/items.csv` and
-  `data/garden/nutrients.ron`.
+  `data/garden/nutrients.ron`. The meter and the urine tank saved with
+  the game: `BodySave` and `urine_tank_person_days` in
+  `src/persistence.rs`, restored in `src/save_load.rs`.
 - The Composter recipes: `craft_fertilizer`, `compost_bran`,
   `compost_pomace` and `compost_apple_pomace` in `data/recipes.csv`.
 - The waste categories nothing uses yet: `data/waste_management.ron` and

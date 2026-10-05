@@ -810,10 +810,12 @@ spot, and little else of what this guide is about.
   page's "Dev: max skills" button also sets every skill, Medicine
   included, to its maximum in one click (`src/gui/pages/profile.rs`,
   `src/systems/skills/mod.rs`).
-- **Nothing carries over.** Your health and vitals are not saved between
-  launches (`src/save_load.rs`), and while Settings > Gameplay > "Start
-  every session from the default home" is on, which it is by default during
-  development, only your character's name, look and clothes carry over.
+- **Nothing carries over, by default.** Your health, your vitals and the
+  conditions on you are saved with your game, so quitting heals nothing
+  (`src/save_load.rs`). But while Settings > Gameplay > "Start every
+  session from the default home" is on, which it is by default during
+  development, every session starts with a new body, and only your
+  character's name, look and clothes carry over.
 
 What the game leaves out, so you do not learn it from the game: there is
 no CPR and no defibrillator to use, nobody chokes, faints, has a seizure or
@@ -1073,7 +1075,8 @@ were read on 4 October 2026 and are cited with the date they carry.
   `data/items.csv`, the medical recipes in `data/recipes.csv`, and the
   Inventory's Use button, which does nothing for them
   (`src/gui/pages/inventory.rs`). Skill experience from crafting:
-  `src/systems/crafting/mod.rs`. Vitals not saved: `src/save_load.rs`; the
+  `src/systems/crafting/mod.rs`. The body saved with the game: `BodySave`
+  in `src/persistence.rs` and `restore_body` in `src/save_load.rs`; the
   "Start every session from the default home" setting: `src/config.rs`.
 - [How Your Body Works](/library#how-your-body-works), [Bleeding and
   Wounds](/library#bleeding-and-wounds), [Treating Burns](/library#treating-burns),

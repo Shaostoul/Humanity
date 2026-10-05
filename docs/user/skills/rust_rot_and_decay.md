@@ -494,10 +494,11 @@ The game models almost none of this yet.
   Gameplay > Garden pests, diseases and weeds, set to Gentle by
   default). In the default Dev play mode, laying a cover or a
   mulch takes nothing from your pack.
-- **Food spoils.** Food in your pack spoils on a timer set by the kind of
-  food, and spoiled food gives a quarter of its nourishment and food
-  poisoning. Telling spoiled food from safe in real life is in [Telling
-  Spoiled From Safe](telling_spoiled_from_safe.md).
+- **Food spoils.** Food spoils on a timer set by the kind of food,
+  wherever it is kept, faster in heat and slower in the cold (slowest in
+  the home's Freezer), and spoiled food gives a quarter of its
+  nourishment and food poisoning. Telling spoiled food from safe in real
+  life is in [Telling Spoiled From Safe](telling_spoiled_from_safe.md).
 - **The data knows about corrosion, but nothing uses it.** The alloy table
   (`data/chemistry/alloys.csv`) rates each metal's corrosion resistance
   from poor to excellent, and the compounds table

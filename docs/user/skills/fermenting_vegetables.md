@@ -471,8 +471,8 @@ The game does not model fermenting yet.
 
 - **The crops are there.** Cabbage and cucumbers grow in the garden and are
   food items (`data/items.csv`), and both spoil on the fresh-vegetable clock
-  of about a week (`data/food/item_profiles.ron`, the `raw_vegetables` row of
-  `data/food_system.ron`).
+  of about a week at room temperature (`data/food/item_profiles.ron`, the
+  `raw_vegetables` row of `data/food_system.ron`).
 - **Salt is there.** It is sold by the food vendor and used in several cooking
   recipes (`data/recipes.csv`).
 - **Fermenting is only written down.** `data/food_system.ron` defines a
