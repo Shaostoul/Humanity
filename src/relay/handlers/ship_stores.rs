@@ -7,7 +7,8 @@
 //!
 //!   - a CREW member who eats (crew.ron `eats`) walks to its seat in the mess hall when a meal
 //!     is due (every `meal_interval_hours` of the world's GAME clock, which runs at the server's
-//!     `world_time_scale`, 72x by default: 8 game hours is 400 real seconds), eats for the length
+//!     `world_time_scale`, 1x, real time, by default: 8 game hours is 8 real hours, and 400 real
+//!     seconds at 72x), eats for the length
 //!     of its meal chore (chores.ron, `meal: true`, in real seconds like every chore), and takes
 //!     ONE meal from the store at that place. An empty store means a missed meal
 //!     (`meals_missed`) and another try in `empty_store_retry_minutes` (game minutes);
@@ -488,6 +489,17 @@ pub(crate) fn meals_every(world: &mut GameWorld, hours: f64) {
     world.restart_meal_clocks();
 }
 
+/// TESTS: run `world`'s clock at the Simplified 72x (`systems::time::SIMPLIFIED_TIME_SPEED`),
+/// the speed a new world ran at until the operator made real time (1x) the default on
+/// 2026-10-04. A test that runs whole game days sets it so a game day is 4,800 quarter-second
+/// ticks rather than 345,600; one whose meals must come within minutes of real time, or whose
+/// point is that something runs on real seconds and not on the clock (which a 1x clock cannot
+/// tell apart), sets it for that.
+#[cfg(test)]
+pub(crate) fn at_simplified_speed(world: &mut GameWorld) {
+    world.time_scale = f64::from(crate::systems::time::SIMPLIFIED_TIME_SPEED);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -570,10 +582,12 @@ mod tests {
     /// every 4 game hours and a game day of it, whatever the clock's speed. Written in real
     /// seconds (a meal every 15 minutes, an hour of ticks) it failed on the merged tree with
     /// "nobody missed a meal with a full store / left: 105 / right: 0": at 72x that hour was three
-    /// game days, and the 90 meals ran out.
+    /// game days, and the 90 meals ran out. Ticked at 72x (`at_simplified_speed`), since a new
+    /// world keeps real time and a game day there is 72 times the ticks.
     #[test]
     fn the_crew_and_the_players_eat_from_the_same_store() {
         let mut world = stocked_world();
+        at_simplified_speed(&mut world);
         meals_every(&mut world, 4.0); // a meal every 4 game hours, to see several in a day
         world.provisions.ship_farms_meals_per_day = 0.0; // nothing in, so every meal shows
         let store = stores(&world)[0];
@@ -602,6 +616,7 @@ mod tests {
     #[test]
     fn an_empty_store_is_a_missed_meal_for_everyone() {
         let mut world = stocked_world();
+        at_simplified_speed(&mut world); // a game day of ticks, as written (a new world keeps 1x)
         meals_every(&mut world, 4.0);
         world.provisions.ship_farms_meals_per_day = 0.0;
         let store = stores(&world)[0];
@@ -640,6 +655,7 @@ mod tests {
     #[test]
     fn an_npc_homestead_mostly_feeds_itself_and_gives_what_it_is_set_to() {
         let mut world = stocked_world();
+        at_simplified_speed(&mut world); // two game days of ticks, as written (a new world keeps 1x)
         world.provisions.ship_farms_meals_per_day = 0.0;
         world.provisions.npc_homestead_self_provided = 0.8;
         world.provisions.npc_homestead_fleet_meals_per_day = 0.0;
@@ -680,7 +696,8 @@ mod tests {
     }
 
     /// Tick `world` at 0.25 real seconds a tick until its clock has moved `hours` GAME hours:
-    /// the same game time at any clock speed (72x by default since main's shared clock).
+    /// the same game time at any clock speed (the tests that call it run at the Simplified 72x,
+    /// `at_simplified_speed`, so a game day is 4,800 ticks).
     fn run_game_hours(world: &mut GameWorld, hours: f64) {
         let end = world.game_time + hours * 3600.0;
         while world.game_time < end {
@@ -702,12 +719,13 @@ mod tests {
     }
 
     /// THE STORES HOLD STEADY AT THE SHARED CLOCK'S SPEED (the review of increment 3, findings 1
-    /// and 7). Meals come on the world's clock, which runs at its time scale (72x by default;
-    /// an admin can set 1x to 1000x at runtime), so the farms must restock on the same clock,
-    /// or at any speed but 1x the crew eat many times faster than the stores fill. A fresh
-    /// world, nobody else aboard, three REAL hours at the relay's 20 Hz tick: nobody misses a
-    /// meal and the store ends no lower than it began (18 a day in against the five eaters' 15),
-    /// at the shipped 72x, at 1x and at 500x.
+    /// and 7). Meals come on the world's clock, which runs at its time scale (1x, real time, by
+    /// default since 2026-10-04; an admin can set 1x to 1000x at runtime), so the farms must
+    /// restock on the same clock, or at any speed but 1x the crew eat many times faster than the
+    /// stores fill. A fresh world, nobody else aboard, three REAL hours at the relay's 20 Hz
+    /// tick: nobody misses a meal and the store ends no lower than it began (18 a day in against
+    /// the five eaters' 15), at 72x (the Simplified speed, a new world's until 2026-10-04), at
+    /// the shipped 1x and at 500x.
     ///
     /// Seen red 2026-10-04 on the merged tree (restocking on real seconds): "at 72x: 91 meals
     /// missed in three real hours".
@@ -778,6 +796,7 @@ mod tests {
     #[test]
     fn a_homestead_npc_finding_the_store_empty_gains_no_extra_home_meals() {
         let mut world = stocked_world();
+        at_simplified_speed(&mut world); // over two game days of ticks, as written (a new world keeps 1x)
         world.provisions.ship_farms_meals_per_day = 0.0;
         world.provisions.npc_homestead_self_provided = 0.8;
         let homesteader = one_homesteader(&mut world);

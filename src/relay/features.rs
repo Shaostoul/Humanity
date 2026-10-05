@@ -1137,8 +1137,10 @@ mod tests {
 
     /// THE SHARED WORLD'S CLOCK, CHANGED FROM INSIDE THE APP (operator,
     /// 2026-10-04: "let's do 72x but, make sure there's admin tools for me to
-    /// adjust it from inside the app"). A new server runs the world at 72x.
-    /// An admin's `server_settings_update` with `world_time_scale` (Server
+    /// adjust it from inside the app"; that evening the default became real
+    /// time: "For normal mode, especially for my MMO server, let's have
+    /// everything be real time, not the 72x."). A new server runs the world
+    /// at 1x. An admin's `server_settings_update` with `world_time_scale` (Server
     /// Settings > ADMIN > Shared world clock sends exactly this) changes the
     /// running world's clock at once and saves it, and a game in the world
     /// hears a `game_time_sync` with the new speed straight away, not at the
@@ -1152,7 +1154,7 @@ mod tests {
     #[tokio::test]
     async fn a_world_clock_change_reaches_every_connected_game() {
         let (state, port, path) = spawn_relay("world_clock", Features::all_enabled()).await;
-        assert_eq!(state.game_world.read().await.time_scale, 72.0, "a new server runs the shared world at 72x");
+        assert_eq!(state.game_world.read().await.time_scale, 1.0, "a new server runs the shared world at 1x (real time)");
         state.game_world.write().await.game_time = 5_000.0;
 
         let (mut admin, admin_key) = bind_socket(&state, port, [61u8; 32], Some("ClockAdmin"), 1).await;

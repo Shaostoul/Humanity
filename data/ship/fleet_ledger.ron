@@ -11,8 +11,9 @@
 //
 // So the relay keeps, per player key, one line for each thing they used from the
 // fleet and each thing they gave it: what, how many, what it was worth then, and
-// when (the shared world's game day, and the real day; at the default 72x clock a
-// game day is 20 real minutes). The balance is everything given minus everything
+// when (the shared world's game day, and the real day; at the default clock, real
+// time, a game day is a real day, and at 72x, if an admin sets it, 20 real
+// minutes). The balance is everything given minus everything
 // used, in credits (CR): in the black when it is above 0, in the red when it is
 // below. A player sees only their own ledger; an admin sees the totals once enough
 // players have one. Erasing an account deletes its ledger.
