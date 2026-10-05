@@ -672,7 +672,9 @@ timescales, and leaves out nearly everything that can go wrong inside one.
   four sachets of Oral Rehydration Salts to mix into a litre of water
   (Crafting, Mix Oral Rehydration Solution). Antibiotics do not help it,
   and no medical item ends it. The game tells you when it starts, what
-  helps, and when it has passed ([When Food or Water Makes You
+  helps, and when it has passed. Eating spoiled food again while you
+  are still ill does not start it over: it passes when it was going to,
+  and the game tells you so ([When Food or Water Makes You
   Sick](when_food_or_water_makes_you_sick.md) has the detail;
   `data/medical/illnesses.ron`, `src/systems/illness.rs`,
   `src/systems/food.rs`).

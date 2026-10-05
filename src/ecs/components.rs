@@ -77,6 +77,11 @@ impl Default for Health {
 /// Survival baseline: satiation (fullness) and hydration. Both decay over time
 /// and are replenished by eating/drinking. When either hits zero, Health drains
 /// (starvation / dehydration). Low levels apply the `hungry` / `thirsty` conditions.
+///
+/// The meters are f32, and a frame's share of a day's need at time speed 1 is
+/// below an f32's step near 100, so a change made every frame goes through the
+/// food system's `change_exactly`, which carries what rounding holds back to the
+/// next frame (BUG-164, 2026-10-05). A one-off change (a meal, a nap) needs none.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Vitals {
     /// Fullness, 0..=satiation_max. 0 = starving.
@@ -213,7 +218,13 @@ pub struct ActiveEffect {
     pub id: String,
     /// Seconds remaining before this effect expires: game seconds for an
     /// illness (a `disease` row, `systems::illness`), real seconds for the rest.
-    pub remaining: f32,
+    ///
+    /// f64, so a frame's step always comes off it (BUG-164, 2026-10-05): as an
+    /// f32, a two-day illness (172,800 s) moved in steps of 1/64 s, so at time
+    /// speed 1 a frame shorter than 1/128 s took nothing off and the illness
+    /// never passed at 144 frames a second, and longer frames were rounded to
+    /// whole steps. A save written with the f32 reads into it unchanged.
+    pub remaining: f64,
 }
 
 /// Active buffs / debuffs / conditions on an entity (food, environment, medical…).
@@ -230,8 +241,9 @@ impl StatusEffects {
         self.active.iter().any(|e| e.id == id)
     }
 
-    /// Add the effect, or refresh its timer to at least `duration` if already present.
-    pub fn apply(&mut self, id: &str, duration: f32) {
+    /// Add the effect, or refresh its timer to at least `duration` seconds if already present.
+    pub fn apply(&mut self, id: &str, duration: impl Into<f64>) {
+        let duration = duration.into();
         if let Some(e) = self.active.iter_mut().find(|e| e.id == id) {
             e.remaining = e.remaining.max(duration);
         } else {
@@ -240,6 +252,11 @@ impl StatusEffects {
                 remaining: duration,
             });
         }
+    }
+
+    /// Seconds an effect has left, or None when it is not on.
+    pub fn remaining(&self, id: &str) -> Option<f64> {
+        self.active.iter().find(|e| e.id == id).map(|e| e.remaining)
     }
 
     /// Remove an effect by id (e.g. when its triggering condition clears).
@@ -252,12 +269,13 @@ impl StatusEffects {
         self.tick_with(|_| dt);
     }
 
-    /// Count each effect down by its own clock's step, `step(id)`, and drop the
-    /// ones that have expired. An illness counts game seconds and the rest real
-    /// ones (BUG-162, `systems::illness`).
+    /// Count each effect down by its own clock's step, `step(id)` seconds, and
+    /// drop the ones that have expired. An illness counts game seconds and the
+    /// rest real ones (BUG-162, `systems::illness`). The step comes off an f64,
+    /// so all of every frame's step counts (BUG-164).
     pub fn tick_with(&mut self, step: impl Fn(&str) -> f32) {
         for e in &mut self.active {
-            e.remaining -= step(&e.id);
+            e.remaining -= f64::from(step(&e.id));
         }
         self.active.retain(|e| e.remaining > 0.0);
     }

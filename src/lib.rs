@@ -12485,7 +12485,7 @@ mod native_app {
                                         .and_then(|r| r.get(&e.id))
                                         .map(|d| d.name.clone())
                                         .unwrap_or_else(|| e.id.clone());
-                                    (name, e.remaining)
+                                    (name, e.remaining as f32)
                                 })
                                 .collect();
                         }

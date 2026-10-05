@@ -22,6 +22,14 @@
 //! THE CLOCK. Every `disease` effect counts down, and does whatever it does, on the game
 //! clock, with the body's other daily needs: the time-speed setting and a night asleep move
 //! it along. The other effects count real seconds (food.rs, the note at the top of its tick).
+//! The countdown and the water are worked out in f64, so a frame's share always counts
+//! (BUG-164, food.rs's EXACT AT ANY FRAME RATE).
+//!
+//! ILL AGAIN (2026-10-05). Spoiled or raw food eaten while the illness still lasts does not
+//! start it over: the time left grows by at most the illness's `again_adds_h` (0 for Food
+//! Poisoning: the bout runs the course it began with), and the player is told so, with the
+//! time it still has to run (`Illnesses::again`). Until then each exposure silently started
+//! the whole course again.
 //!
 //! TWO MODES (the house rule for deep systems, CLAUDE.md "Dual modes"). Realistic runs the
 //! course and takes the water the data gives. Forgiving, the default, runs
@@ -97,6 +105,16 @@ pub struct Illness {
     pub helps: String,
     /// What the player is told when it has passed.
     pub passed: String,
+    /// The most a second exposure while it still lasts adds to the time left
+    /// (2026-10-05): game hours of the Realistic course, of which Forgiving adds
+    /// its `course_share`, and never past a fresh course. 0, or absent from the
+    /// file: it runs the course it began with (`Illnesses::again`).
+    #[serde(default)]
+    pub again_adds_h: f32,
+    /// What the player is told when it happens; the game adds how long it still
+    /// lasts. Absent from the file: a plain line of the game's own.
+    #[serde(default)]
+    pub again: String,
 }
 
 /// How much of a drink's water a body keeps while an illness is taking water.
@@ -177,9 +195,44 @@ impl Illnesses {
     }
 
     /// Litres of water the illnesses on a body take in `game_dt` game seconds, in `mode`.
-    pub fn water_l(&self, effects: &StatusEffects, mode: Mode, game_dt: f32) -> f32 {
-        let per_day: f32 = self.on(effects).map(|i| i.water_l_per_day.max(0.0)).sum();
-        per_day * self.water_share(mode) * game_dt.max(0.0) / DAY_S
+    /// In f64 (BUG-164): a frame's share of a day's loss is a few millionths of a litre,
+    /// and the food system takes it from Hydration exactly.
+    pub fn water_l(&self, effects: &StatusEffects, mode: Mode, game_dt: f32) -> f64 {
+        let per_day: f64 = self.on(effects).map(|i| f64::from(i.water_l_per_day.max(0.0))).sum();
+        per_day * f64::from(self.water_share(mode)) * f64::from(game_dt.max(0.0)) / crate::systems::time::EARTH_DAY_S
+    }
+
+    /// Made ill again by `illness` while it still lasts (2026-10-05): eating spoiled or raw
+    /// food before it has passed. It does not start over: the time left grows by at most the
+    /// data's `again_adds_h` (this mode's course share of it), and never past `fresh_s`, a
+    /// whole course in this mode. Returns the game seconds left before and after, or None
+    /// when the body does not have it.
+    pub fn again(&self, illness: &Illness, effects: &mut StatusEffects, fresh_s: f64, mode: Mode) -> Option<(f64, f64)> {
+        let before = effects.remaining(&illness.effect)?;
+        let adds = f64::from(illness.again_adds_h.max(0.0))
+            * crate::systems::time::SECONDS_PER_HOUR
+            * f64::from(self.course_share(mode));
+        let after = (before + adds).min(fresh_s.max(before));
+        if after > before {
+            effects.apply(&illness.effect, after);
+        }
+        Some((before, after))
+    }
+
+    /// What the player is told when `again` has happened, in plain words: the data's `again`
+    /// line and how long the illness still lasts, `before_s` and `after_s` game seconds being
+    /// what was left before and after.
+    pub fn again_notice(illness: &Illness, before_s: f64, after_s: f64) -> String {
+        let line = if illness.again.trim().is_empty() {
+            "You are already ill, so this does not start it over."
+        } else {
+            illness.again.as_str()
+        };
+        if after_s < 45.0 * 60.0 {
+            return format!("{line} It passes on its own within the hour.");
+        }
+        let still = if after_s > before_s { "now" } else { "still" };
+        format!("{line} It {still} passes on its own in about {}.", duration_words(after_s as f32))
     }
 
     /// The share of a drink's water a body keeps: all of it while well, and while an illness
@@ -332,6 +385,49 @@ mod tests {
         for part in ["Food Poisoning", "about 2 days", "1.5 L", "about a day", "0.75 L", "2.5 L"] {
             assert!(hint.contains(part), "the hint names {part:?}: {hint}");
         }
+    }
+
+    /// Ill again while it still lasts (2026-10-05): Food Poisoning, whose data adds nothing,
+    /// keeps the time it had; an illness whose data lets a second exposure add hours adds at
+    /// most that many (Forgiving its course share of them), never past a fresh course; and a
+    /// body without the illness is left alone.
+    #[test]
+    fn being_ill_again_adds_at_most_what_the_data_says() {
+        let data = shipped_data();
+        let fp = data.get("food_poisoning").expect("food_poisoning").clone();
+        assert_eq!(fp.again_adds_h, 0.0, "Food Poisoning runs the course it began with");
+        let mut fx = StatusEffects::default();
+        assert_eq!(data.again(&fp, &mut fx, 172_800.0, Mode::Realistic), None, "not ill: nothing to add to");
+        fx.apply("food_poisoning", 7_200.0);
+        assert_eq!(data.again(&fp, &mut fx, 172_800.0, Mode::Realistic), Some((7_200.0, 7_200.0)));
+        assert_eq!(fx.remaining("food_poisoning"), Some(7_200.0), "not started over");
+
+        let mut six = fp.clone();
+        six.again_adds_h = 6.0;
+        assert_eq!(data.again(&six, &mut fx, 172_800.0, Mode::Realistic), Some((7_200.0, 28_800.0)), "six hours more");
+        assert_eq!(fx.remaining("food_poisoning"), Some(28_800.0));
+        let share = f64::from(data.course_share(Mode::Forgiving));
+        assert_eq!(
+            data.again(&six, &mut fx, 86_400.0, Mode::Forgiving),
+            Some((28_800.0, 28_800.0 + 21_600.0 * share)),
+            "Forgiving adds its share"
+        );
+        fx.apply("food_poisoning", 170_000.0);
+        assert_eq!(data.again(&six, &mut fx, 172_800.0, Mode::Realistic), Some((170_000.0, 172_800.0)), "never past a fresh course");
+    }
+
+    /// What the player is told when ill again: the data's line, and the time left in words.
+    #[test]
+    fn being_ill_again_is_told_in_plain_words() {
+        let fp = shipped_data().get("food_poisoning").expect("food_poisoning").clone();
+        assert!(!fp.again.is_empty(), "the shipped data says what happens");
+        let two_hours = Illnesses::again_notice(&fp, 7_200.0, 7_200.0);
+        assert_eq!(two_hours, format!("{} It still passes on its own in about 2 hours.", fp.again));
+        assert!(Illnesses::again_notice(&fp, 1_200.0, 1_200.0).ends_with("It passes on its own within the hour."));
+        assert!(Illnesses::again_notice(&fp, 7_200.0, 28_800.0).ends_with("It now passes on its own in about 8 hours."));
+        let mut bare = fp.clone();
+        bare.again.clear();
+        assert!(Illnesses::again_notice(&bare, 7_200.0, 7_200.0).starts_with("You are already ill"), "a file without the line");
     }
 
     /// BUG-163: the hint loads its data the way the game does, so a data folder whose
