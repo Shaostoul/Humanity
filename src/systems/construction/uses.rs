@@ -419,9 +419,7 @@ pub fn shelter_at(world: &hecs::World, feet: Vec3, frame: Option<&PlanetSite>) -
         .filter(|(_e, (s, _, site))| s.provides.as_deref() == Some(SHELTER) && in_frame(*site, frame))
         .map(|(e, (_, tf, _))| (e, tf.clone()))
         .collect();
-    let overhead = pieces.iter().any(|(_e, tf)| {
-        ray_hits_box(chest, Vec3::Y, tf).is_some_and(|t| (SHELTER_HEADROOM_M..=SHELTER_ROOF_REACH_M).contains(&t))
-    });
+    let overhead = pieces.iter().any(|(_e, tf)| covers_spot(tf, feet));
     if !overhead {
         return ShelterCheck::default();
     }
@@ -445,6 +443,42 @@ pub fn shelter_at(world: &hecs::World, feet: Vec3, frame: Option<&PlanetSite>) -
         }
     }
     ShelterCheck { roofed: true, walls }
+}
+
+/// Does the box `tf` stand straight over the spot `spot` (a point on the
+/// floor, in the box's frame) as a roof: overhead of a person standing
+/// there, its underside clearing the head and within reach
+/// ([`SHELTER_HEADROOM_M`] to [`SHELTER_ROOF_REACH_M`] above the chest)?
+///
+/// THE ONE RULE FOR "A ROOF OVER IT" (the BUG-153 review, 2026-10-05): a
+/// person's roof ([`shelter_at`]), the roof a campfire is not built under
+/// (`construction::outdoors_refusal`, through [`roof_over`]) and the campfire
+/// a roof is not built over (`construction::roofs_over_outdoors_piece`) are
+/// all this test, so the three cannot disagree about what is overhead.
+pub fn covers_spot(tf: &Transform, spot: Vec3) -> bool {
+    let chest = spot + Vec3::Y * SHELTER_CHEST_M;
+    ray_hits_box(chest, Vec3::Y, tf).is_some_and(|t| (SHELTER_HEADROOM_M..=SHELTER_ROOF_REACH_M).contains(&t))
+}
+
+/// Is there a roof over the spot `spot` in `frame`, one still going up
+/// included: a shelter piece that [`covers_spot`], finished or a scaffold
+/// (the BUG-153 review, 2026-10-05)? [`shelter_at`] counts only finished
+/// pieces, because a scaffold keeps no rain off yet; but a campfire is not
+/// built under a roof that is going up, since it is a roof the moment it is
+/// finished, and then the fire would be under it. A scaffold says what it
+/// will be only through its blueprint, so `registry` is asked; without one,
+/// no scaffold counts.
+pub fn roof_over(world: &hecs::World, registry: Option<&BlueprintRegistry>, spot: Vec3, frame: Option<&PlanetSite>) -> bool {
+    let finished = world
+        .query::<(&Structure, &Transform, Option<&PlanetSite>)>()
+        .iter()
+        .any(|(_e, (s, tf, site))| s.provides.as_deref() == Some(SHELTER) && in_frame(site, frame) && covers_spot(tf, spot));
+    finished
+        || world.query::<(&Construction, &Transform, Option<&PlanetSite>)>().iter().any(|(_e, (c, tf, site))| {
+            in_frame(site, frame)
+                && registry.and_then(|r| r.get(&c.blueprint_id)).is_some_and(|bp| bp.provides.as_deref() == Some(SHELTER))
+                && covers_spot(tf, spot)
+        })
 }
 
 /// How far along the level ray from `chest` in the axis direction `dir` the

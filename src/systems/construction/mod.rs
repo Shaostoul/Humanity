@@ -78,8 +78,10 @@ pub struct Blueprint {
     #[serde(default)]
     pub window: Option<Window>,
     /// Built only outdoors (BUG-153, 2026-10-05): on a planet's open ground,
-    /// never aboard the ship, under a built roof, or where there is no air to
-    /// breathe. A fire is. See [`outdoors_refusal`].
+    /// never aboard the ship, under a roof (built or going up), or where there
+    /// is no air to breathe ([`outdoors_refusal`]), and it stays in the open
+    /// for its whole life: no roof is built over it
+    /// ([`roofs_over_outdoors_piece`], the BUG-153 review). A fire is.
     #[serde(default)]
     pub outdoors_only: bool,
     /// A fire (BUG-153): what it burns, how long one fuel item lasts, how many
@@ -99,20 +101,77 @@ pub enum NotOutdoors {
     /// On ground where the open air cannot be breathed (the Moon, Mars, high
     /// in the death zone), so there is no air for a fire to burn.
     NoAir,
-    /// Under a finished roof (`uses::shelter_at`).
+    /// Under a roof, finished or still going up (`uses::roof_over`).
     UnderRoof,
 }
+
+/// Why a fire needs open sky, in the words both refusals give: a campfire's
+/// under a roof ([`NotOutdoors::UnderRoof`]) and a roof's over a campfire
+/// ([`roof_over_fire_reason`]), so the player hears one reason from either
+/// side (the BUG-153 review, 2026-10-05).
+const NEEDS_OPEN_SKY: &str = "needs open sky over it, because under a roof its smoke would fill the shelter";
 
 impl NotOutdoors {
     /// Why, in words that follow "The Campfire is not built here: " and
     /// "Placing Campfire: ".
-    pub fn reason(self) -> &'static str {
+    pub fn reason(self) -> String {
         match self {
-            NotOutdoors::Aboard => "it is built outdoors on a planet's ground, never indoors or aboard the ship",
-            NotOutdoors::NoAir => "a fire needs air to burn, and there is no breathable air here",
-            NotOutdoors::UnderRoof => "it needs open sky over it, because under a roof its smoke would fill the shelter",
+            NotOutdoors::Aboard => "it is built outdoors on a planet's ground, never indoors or aboard the ship".to_string(),
+            NotOutdoors::NoAir => "a fire needs air to burn, and there is no breathable air here".to_string(),
+            NotOutdoors::UnderRoof => format!("it {NEEDS_OPEN_SKY}"),
         }
     }
+}
+
+/// Why a piece is not built over `fire` (the name of a piece built only
+/// outdoors: a campfire), in words that follow "The Wood Roof is not built
+/// here: " and "Placing Wood Roof: " ([`roofs_over_outdoors_piece`]).
+pub fn roof_over_fire_reason(fire: &str) -> String {
+    format!("it would roof over the {fire}, which {NEEDS_OPEN_SKY}")
+}
+
+/// The piece built only outdoors (a campfire: burning, gone out, or still
+/// going up) that `bp` built at `pose` in `site` would stand over as its
+/// roof, by name, or None (the BUG-153 review, 2026-10-05, A1).
+///
+/// A fire stands in the open for its WHOLE LIFE, not only on the day it is
+/// built: refusing the campfire under a roof ([`outdoors_refusal`]) let a
+/// roof be laid over one afterwards, and the fire burned on under it, warming
+/// a sheltered hut. So a shelter piece is refused where it would be a roof
+/// over one, by the one rule that finds a roof (`uses::covers_spot`, which
+/// also finds a person's roof and the roof a campfire is refused under).
+/// Only shelter pieces are roofs (`uses::shelter_at`). The other way of
+/// keeping the promise, letting the roof go up and the fire smoke and go out
+/// under it, would need smoke modelled; refusing the roof is what the Library
+/// guides describe. Applied by `begin_build`, so every way of building
+/// agrees, and by the placing hint (`engine::build_place`).
+pub fn roofs_over_outdoors_piece(
+    bp: &Blueprint,
+    world: &hecs::World,
+    registry: Option<&BlueprintRegistry>,
+    site: Option<&PlanetSite>,
+    pose: &Transform,
+) -> Option<String> {
+    if bp.provides.as_deref() != Some(uses::SHELTER) {
+        return None;
+    }
+    let registry = registry?;
+    let outdoors_piece = |id: &str| registry.get(id).filter(|b| b.outdoors_only).map(|b| b.name.clone());
+    let under = |at: Option<&PlanetSite>, tf: &Transform| site::in_frame(at, site) && uses::covers_spot(pose, tf.position);
+    let mut finished = world.query::<(&Structure, &Transform, Option<&PlanetSite>)>();
+    let found = finished
+        .iter()
+        .filter(|(_e, (_, tf, at))| under(*at, tf))
+        .find_map(|(_e, (s, _, _))| outdoors_piece(&s.blueprint_id));
+    if found.is_some() {
+        return found;
+    }
+    let mut going_up = world.query::<(&Construction, &Transform, Option<&PlanetSite>)>();
+    let found = going_up
+        .iter()
+        .filter(|(_e, (_, tf, at))| under(*at, tf))
+        .find_map(|(_e, (c, _, _))| outdoors_piece(&c.blueprint_id));
+    found
 }
 
 /// Why a piece built only outdoors (`Blueprint::outdoors_only`, a fire)
@@ -122,9 +181,12 @@ impl NotOutdoors {
 /// its hull), not where the open air there cannot be breathed (the
 /// `"body_environment"` the engine publishes for the body the player stands
 /// on, `BodyEnvironment::breathable_outside`; none published reads as no
-/// air), and not under a finished roof (`uses::shelter_at` at the piece's
-/// base). Applied by `begin_build`, so every way of building agrees, and by
-/// the placing hint (`engine::build_place`).
+/// air), and not under a roof at the piece's base, finished or still going
+/// up (`uses::roof_over`: a roof scaffold counts too, the BUG-153 review,
+/// since it is a roof the moment it is finished). Applied by `begin_build`,
+/// so every way of building agrees, and by the placing hint
+/// (`engine::build_place`). The other half of keeping a fire in the open,
+/// that no roof is built over one later, is [`roofs_over_outdoors_piece`].
 pub fn outdoors_refusal(
     bp: &Blueprint,
     world: &hecs::World,
@@ -144,7 +206,8 @@ pub fn outdoors_refusal(
     if !air {
         return Some(NotOutdoors::NoAir);
     }
-    if uses::shelter_at(world, pose.position, Some(site)).roofed {
+    let registry = data.get::<BlueprintRegistry>("blueprint_registry");
+    if uses::roof_over(world, registry, pose.position, Some(site)) {
         return Some(NotOutdoors::UnderRoof);
     }
     None
@@ -467,6 +530,20 @@ pub struct Construction {
     pub builder_key: Option<String>,
 }
 
+/// On a scaffold the time away finished (the BUG-153 review, 2026-10-05,
+/// A5): how many game seconds before the player came back it would have been
+/// finished. The offline catch-up (`save_load::catch_up_world`) leaves the
+/// finishing itself to the ConstructionSystem's next tick, quest event,
+/// skill and all; this keeps the time since, so what starts at the finish
+/// has run since then: a campfire is lit at the finish and comes back having
+/// burned since, as one finished before the player left burns while they are
+/// away. Taken off when the piece is finished. Not saved: it lives only from
+/// the catch-up to the ConstructionSystem's next tick.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FinishedWhileAway {
+    pub seconds_ago: f32,
+}
+
 /// Component for completed structures.
 pub struct Structure {
     pub blueprint_id: String,
@@ -508,8 +585,9 @@ impl ConstructionSystem {
 /// ConstructionSystem's tick unchanged, so a building ability, the Campfire,
 /// builds exactly as a piece placed from the Crafting page does). In order:
 /// an unknown blueprint; a piece built only outdoors where it cannot stand
-/// ([`outdoors_refusal`]); the same piece already standing there; too few
-/// materials. Blueprint builds take their materials in every play mode,
+/// ([`outdoors_refusal`]); a roof over a piece built only outdoors
+/// ([`roofs_over_outdoors_piece`]); the same piece already standing there;
+/// too few materials. Blueprint builds take their materials in every play mode,
 /// Creative and Dev included (the Dev page's "stock all materials" is how Dev
 /// builds freely; the build editor's own machine placement is what goes free
 /// there).
@@ -521,6 +599,13 @@ pub fn begin_build(world: &mut hecs::World, data: &DataStore, req: BuildRequest)
     // a roof, or where there is no air to burn.
     if let Some(why) = outdoors_refusal(&bp, world, data, req.site.as_ref(), &req.pose) {
         return Err(format!("The {} is not built here: {}", bp.name, why.reason()));
+    }
+    // NOR A ROOF OVER ONE (the BUG-153 review, 2026-10-05): a fire stays in
+    // the open for its whole life, so no roof is built over a campfire,
+    // burning, gone out or still going up, for the campfire's own reason.
+    let registry = data.get::<BlueprintRegistry>("blueprint_registry");
+    if let Some(fire) = roofs_over_outdoors_piece(&bp, world, registry, req.site.as_ref(), &req.pose) {
+        return Err(format!("The {} is not built here: {}", bp.name, roof_over_fire_reason(&fire)));
     }
     // ONE PIECE PER SPOT (review of the shelter commit): a piece, or a
     // scaffold still going up, with this exact box already stands here, so a
@@ -642,19 +727,21 @@ impl System for ConstructionSystem {
         // Advance active constructions
         let mut completed = Vec::new();
 
-        for (entity, construction) in world.query_mut::<&mut Construction>() {
+        for (entity, (construction, away)) in world.query_mut::<(&mut Construction, Option<&FinishedWhileAway>)>() {
             construction.progress += dt;
             if construction.progress >= construction.build_time {
-                completed.push((entity, construction.blueprint_id.clone()));
+                completed.push((entity, construction.blueprint_id.clone(), away.map_or(0.0, |a| a.seconds_ago)));
             }
         }
 
         // Convert completed constructions to structures
-        for (entity, bp_id) in completed {
+        for (entity, bp_id, finished_ago) in completed {
             let _ = world.remove_one::<Construction>(entity);
+            let _ = world.remove_one::<FinishedWhileAway>(entity);
 
             // A fire is lit as it is finished, with the fuel it was built
-            // with (BUG-153: a campfire's three logs, `fires`).
+            // with (BUG-153: a campfire's three logs, `fires`). Finished
+            // while the game was closed, it has burned since (A5).
             let (health, provides, name, fire) = registry
                 .as_ref()
                 .and_then(|r| r.get(&bp_id))
@@ -672,6 +759,7 @@ impl System for ConstructionSystem {
                 },
             );
             if let Some(fuel) = fire {
+                let fuel = fires::FireFuel { seconds_left: (fuel.seconds_left - finished_ago).max(0.0) };
                 let _ = world.insert_one(entity, fuel);
             }
             // Completion is PROGRESS (v0.746): the construction quest chain's
@@ -940,6 +1028,118 @@ mod tests {
         sys.tick(&mut world, 0.05, &data);
         assert_eq!(world.query::<&Construction>().iter().count(), 1, "at home it builds from the storage");
         assert_eq!(stored(&data), per_wall * 9);
+    }
+
+    /// A build site on Earth's ground and the DataStore a build there needs:
+    /// the shipped catalog, and breathable air, so a fire can burn (the
+    /// BUG-153 review's tests).
+    fn earth_build() -> (PlanetSite, DataStore) {
+        let site = PlanetSite { body: "earth".into(), origin: glam::DVec3::new(0.0, 6_371_000.0, 0.0) };
+        let mut data = build_store(shipped_registry(), Vec::new());
+        data.insert("body_environment", crate::systems::body_environment::BodyEnvironment { locked: true, ..Default::default() });
+        (site, data)
+    }
+
+    /// A finished piece of `id` at (x, z) in `site`, turned `turns`
+    /// quarters, as the build menu places it.
+    fn finished_at(world: &mut hecs::World, reg: &BlueprintRegistry, site: &PlanetSite, id: &str, x: f32, z: f32, turns: u8) -> hecs::Entity {
+        let bp = reg.get(id).unwrap();
+        let tf = placement::placement_pose(bp, Vec3::new(x, 0.0, z), turns, world, reg, Some(site));
+        world.spawn((tf, Structure { blueprint_id: id.into(), health: bp.health, max_health: bp.health, provides: bp.provides.clone(), uid: 0 }, site.clone()))
+    }
+
+    /// The request to build `id` at (x, 0) in `site`, posed as the ghost
+    /// poses it (a roof on the walls under it).
+    fn request_at(world: &hecs::World, reg: &BlueprintRegistry, site: &PlanetSite, id: &str, x: f32) -> BuildRequest {
+        let pose = placement::placement_pose(reg.get(id).unwrap(), Vec3::new(x, 0.0, 0.0), 0, world, reg, Some(site));
+        BuildRequest::new(id, pose).on(Some(site.clone()))
+    }
+
+    /// Three Wood Walls, open to the south, round the cell at the origin of
+    /// `site`, and a builder carrying enough for everything built here.
+    fn hut(reg: &BlueprintRegistry, site: &PlanetSite) -> (hecs::World, hecs::Entity) {
+        use crate::ecs::components::Controllable;
+        use crate::systems::inventory::Inventory;
+        let mut world = hecs::World::new();
+        let mut pack = Inventory::new(16);
+        pack.add_item("wood_plank_0", 40, 999);
+        pack.add_item("stone_raw_0", 12, 999);
+        pack.add_item("wood_log_0", 6, 999);
+        let builder = world.spawn((pack, Controllable));
+        for (x, z, turns) in [(0.0, -2.0, 0), (-2.0, 0.0, 1), (2.0, 0.0, 1)] {
+            finished_at(&mut world, reg, site, "wood_wall", x, z, turns);
+        }
+        (world, builder)
+    }
+
+    /// NO ROOF GOES OVER A CAMPFIRE (the BUG-153 review, 2026-10-05, A1): a
+    /// fire stands in the open for its whole life, not only on the day it is
+    /// built. On Earth's ground, three walls with a campfire burning inside
+    /// them (allowed: there is no roof yet). A Wood Roof laid on those walls,
+    /// over the fire, is refused with the campfire's own reason (under a roof
+    /// its smoke would fill the shelter), and nothing is spent; so is the same
+    /// roof over the fire once it has gone out, and over a campfire still
+    /// going up. With the fire taken down, the same roof goes up. Seen red
+    /// 2026-10-05 on the code before the fix: "a roof over a burning campfire
+    /// is refused: \"Building Wood Roof...\"" (the roof went up, and the fire
+    /// burned on under it).
+    #[test]
+    fn a_roof_is_never_built_over_a_campfire() {
+        use crate::systems::inventory::Inventory;
+        let reg = shipped_registry();
+        let (site, data) = earth_build();
+        let planks = |world: &hecs::World, builder: hecs::Entity| world.get::<&Inventory>(builder).unwrap().count_item("wood_plank_0");
+
+        // A campfire burning in the hut, and a roof laid on the walls over it.
+        let (mut world, builder) = hut(&reg, &site);
+        let fire = finished_at(&mut world, &reg, &site, "campfire", 0.0, 0.0, 0);
+        world.insert_one(fire, fires::FireFuel { seconds_left: 2400.0 }).unwrap();
+        let roof = request_at(&world, &reg, &site, "roof", 0.0);
+        assert!(roof.pose.position.y > 2.9, "the roof rests on the walls, over the fire: {}", roof.pose.position);
+        let why = begin_build(&mut world, &data, roof.clone()).expect_err("a roof over a burning campfire is refused");
+        assert_eq!(
+            why,
+            "The Wood Roof is not built here: it would roof over the Campfire, which needs open sky over it, because under a roof its smoke would fill the shelter"
+        );
+        assert_eq!(world.query::<&Construction>().iter().count(), 0, "no roof going up");
+        assert_eq!(planks(&world, builder), 40, "nothing spent");
+        world.get::<&mut fires::FireFuel>(fire).unwrap().seconds_left = 0.0;
+        assert!(begin_build(&mut world, &data, roof.clone()).is_err(), "nor over the fire once it is out");
+        world.despawn(fire).unwrap();
+        let built = begin_build(&mut world, &data, roof);
+        assert!(built.is_ok(), "with the fire taken down, the roof goes up: {built:?}");
+
+        // A campfire still going up in the hut: no roof over it either.
+        let (mut world, _) = hut(&reg, &site);
+        let fire = request_at(&world, &reg, &site, "campfire", 0.0);
+        let started = begin_build(&mut world, &data, fire);
+        assert!(started.is_ok(), "a campfire with walls round it and no roof is in the open: {started:?}");
+        let roof = request_at(&world, &reg, &site, "roof", 0.0);
+        assert!(begin_build(&mut world, &data, roof).is_err(), "no roof over a campfire still going up");
+    }
+
+    /// NO CAMPFIRE GOES UNDER A ROOF THAT IS STILL GOING UP (the BUG-153
+    /// review, 2026-10-05, A1). A roof scaffold on three walls on Earth's
+    /// ground is not a roof to stand under yet (a person under it is still in
+    /// the rain, `uses::shelter_at`), but it is a roof the moment it is
+    /// finished, so a campfire under it is refused with the campfire's reason
+    /// and nothing is spent; in the open beside the hut it is built. Seen red
+    /// 2026-10-05 on the code before the fix, which counted only finished
+    /// roofs: "no campfire under a roof going up: \"Building Campfire...\"".
+    #[test]
+    fn a_campfire_is_never_built_under_a_roof_going_up() {
+        use crate::systems::inventory::Inventory;
+        let reg = shipped_registry();
+        let (site, data) = earth_build();
+        let (mut world, builder) = hut(&reg, &site);
+        let roof = request_at(&world, &reg, &site, "roof", 0.0);
+        assert!(begin_build(&mut world, &data, roof).is_ok());
+        let (under, beside) = (request_at(&world, &reg, &site, "campfire", 0.0), request_at(&world, &reg, &site, "campfire", 8.0));
+        let why = begin_build(&mut world, &data, under).expect_err("no campfire under a roof going up");
+        assert_eq!(why, "The Campfire is not built here: it needs open sky over it, because under a roof its smoke would fill the shelter");
+        assert_eq!(world.get::<&Inventory>(builder).unwrap().count_item("wood_log_0"), 6, "nothing spent");
+        let outside = begin_build(&mut world, &data, beside);
+        assert!(outside.is_ok(), "in the open beside the hut: {outside:?}");
     }
 
     #[test]

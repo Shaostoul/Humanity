@@ -3702,6 +3702,56 @@ Tests, each seen red on the code before the fix:
 `an_out_campfire_gives_no_heat` (`src/engine/survival_env.rs`); with the fire's own
 burning, fuel, take-down and warmth tests in `fires.rs`.
 
+**The seam review after the merge (2026-10-05) found five places where the game still broke
+what the Library guides promise, all fixed the same day:**
+
+- **A1: a roof could be built over a campfire after it was built.** The outdoors rule was
+  asked only about the piece being built, so three walls round a burning campfire (allowed:
+  no roof yet) then took a roof, the fire burned on under it, and the person under that roof
+  got Sheltered plus the fire's 16 kW. A campfire could also go up under a roof that was
+  still a scaffold (`shelter_at` counts only finished pieces), and a fire just outside a
+  closed hut warmed the person inside, through the wall. Now a fire stands in the open for
+  its whole life: (a) a shelter piece is refused where it would be a roof over a campfire,
+  burning, out or still going up (`construction::roofs_over_outdoors_piece`, in
+  `begin_build` and the placing hint), with the campfire's own reason, "it would roof over
+  the Campfire, which needs open sky over it, because under a roof its smoke would fill the
+  shelter"; (b) a campfire is refused under a roof that is still going up
+  (`uses::roof_over` counts roof scaffolds); both use one overhead rule, `uses::covers_spot`,
+  which `shelter_at` now uses too; (c) a fire's warmth reaches only a person it has a clear
+  straight line to: one line from the fire's radiating centre to the person's middle,
+  tested against every finished piece's boxes as drawn and walked into (an open door lets
+  it through, a shut one and a window's glass do not; a scaffold does not block), in
+  `fires::warmth_at` (`blocked`), which is what `warmed_by_fires` takes. Refusing the roof
+  was chosen over letting the fire smoke and go out under it, which would need smoke.
+- **A2: the wrong first refusal aboard.** A Campfire cast, or placed by hand, aboard outside
+  your plot was told to build "only inside your own plot (your home)", which sent the player
+  home to be refused there as "never aboard", and told a guest nothing true. The outdoors
+  refusal now comes first, aboard or anywhere, in the placing hint
+  (`build_place::place_refusal_hint`) and in the cast (`build_place::cast_spot`, which lets
+  the build refuse it with the outdoors words).
+- **A3:** the Crafting page's structures help said a taken-down piece's "materials come
+  back"; it now says a fire gives back only its stones and the whole logs it has not burned.
+- **A4:** the fire guide's "Nothing else burns" sat beside the generator guide's 1.125 L an
+  hour; it now says nothing catches fire, and that the generator burns its own fuel.
+- **A5: a campfire saved while still a scaffold came back lit with all its logs after any
+  time away**, while a finished one burned down. The offline catch-up does model build
+  progress, so a scaffold the time away finished now carries how long ago that was
+  (`construction::FinishedWhileAway`), and the ConstructionSystem lights it then and burns
+  that time off its logs.
+
+Tests, each seen red on the code before the fix: `a_roof_is_never_built_over_a_campfire` (the
+roof's build answered "Building Wood Roof..."), `a_campfire_is_never_built_under_a_roof_going_up`
+(the campfire's answered "Building Campfire...") (`src/systems/construction/mod.rs`);
+`a_wall_between_a_fire_and_a_person_stops_its_warmth` ("behind the wall: 82.5 W/m2",
+`fires.rs`); `an_outdoors_piece_hears_its_outdoors_refusal_before_the_plot_rule` and
+`a_campfire_cast_outside_your_plot_hears_the_outdoors_words` (`src/engine/build_place.rs`,
+red with the plot rule checked first: "Placing Campfire: you can build only inside your own
+plot (your home)"); `a_campfire_finished_while_away_has_burned_since` (`src/save_load.rs`, an
+hour away: 7200 s of fuel left, expected 3604). The guides that describe the campfire or
+taking a piece down were brought into line: emergency_shelter, heating_a_home_safely,
+making_and_controlling_fire, heat_and_how_it_moves, what_to_do_when_you_are_lost,
+roofs_and_keeping_water_out, repairing_a_building and salvage_and_reuse.
+
 **Still open:** the campfire gives NO LIGHT. The renderer's point lights are not
 evaluated in the celestial pass, where a planet's ground and everything built on it is
 drawn (that pass's light count is 0 by design since v0.1155, `80-fragment-shared.wgsl`),

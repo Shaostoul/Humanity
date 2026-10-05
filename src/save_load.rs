@@ -998,7 +998,10 @@ pub struct Resumed {
 /// - FIRES (2026-10-05, BUG-153): a campfire left burning burns its fuel
 ///   down by the time away (`construction::fires::burn`), so it is out when
 ///   the player comes back the next day. Its logs were spent when they went
-///   on the fire.
+///   on the fire. One still going up when the player left, which the time
+///   away finished, is lit at the finish and has burned since (the BUG-153
+///   review, A5: `construction::FinishedWhileAway`, applied when the
+///   ConstructionSystem finishes it on its next tick).
 ///
 /// Deliberately not advanced: the body (saved since 2026-10-04, first-hour
 /// audit S1, and put back exactly as it was left: the time away costs no
@@ -1060,10 +1063,22 @@ pub fn catch_up_world(
         // finishing it offline consumes nothing (the doc's "reserve inputs up
         // front" rule). Progress is a countdown in seconds; it is capped at
         // build_time so the ConstructionSystem's next tick does the
-        // completion itself, quest event, skill XP and all.
-        for (_e, c) in world.query_mut::<&mut crate::systems::construction::Construction>() {
+        // completion itself, quest event, skill XP and all. A build the time
+        // away finished keeps how long ago that was (`FinishedWhileAway`, the
+        // BUG-153 review, A5), so a campfire is lit at the finish and comes
+        // back having burned since, as one finished before the player left
+        // does (FIRES, below).
+        let mut finished_away: Vec<(hecs::Entity, f32)> = Vec::new();
+        for (e, c) in world.query_mut::<&mut crate::systems::construction::Construction>() {
+            let ago = c.progress as f64 + away_secs - c.build_time as f64;
             c.progress = (c.progress as f64 + away_secs).min(c.build_time as f64) as f32;
+            if ago > 0.0 {
+                finished_away.push((e, ago.min(f64::from(f32::MAX)) as f32));
+            }
             builds_advanced += 1;
+        }
+        for (e, ago) in finished_away {
+            let _ = world.insert_one(e, crate::systems::construction::FinishedWhileAway { seconds_ago: ago });
         }
         // FIRES (BUG-153): a campfire left burning burns down while the game
         // is closed, as it would in life. Its fuel was spent when it went on
@@ -2046,6 +2061,61 @@ mod tests {
         apply_save_to_world(&mut fresh, &back);
         catch_up_world(&mut fresh, &back, true, 1.0, 1_000 + 86_400);
         assert_eq!(fuel(&fresh), vec![(1, Some(0.0)), (2, None)], "a day away: out");
+    }
+
+    /// A CAMPFIRE FINISHED WHILE AWAY HAS BURNED SINCE (the BUG-153 review,
+    /// 2026-10-05, A5). A campfire saved one second into its 5 second build,
+    /// then the game closed for an hour: the time away finishes the build 4 s
+    /// in (the catch-up's own count), so it comes back lit and burned down by
+    /// the rest of the hour, its 2 h of logs less 59 min 56 s. Closed for a
+    /// day, it comes back out, as a finished fire left burning does. Closed
+    /// for 3 s, it is still going up; closed for exactly the 4 s it had left,
+    /// it finishes as the player comes back, with all its logs. Seen red
+    /// 2026-10-05 on the code before the fix: it came back with all 2 h of
+    /// its logs after any time away ("an hour away: left: 7200.0, right:
+    /// 3604.0").
+    #[test]
+    fn a_campfire_finished_while_away_has_burned_since() {
+        use crate::ecs::systems::System;
+        use crate::systems::construction::{fires::FireFuel, BlueprintRegistry, ConstructionSystem, Structure};
+        let mut save = WorldSave::new_offline("t", "fibonacci");
+        save.timestamp = 1_000;
+        save.constructions = vec![crate::persistence::ConstructionSave {
+            blueprint_id: "campfire".to_string(),
+            position: [0.0; 3],
+            rotation: [0.0, 0.0, 0.0, 1.0],
+            scale: [1.0, 0.6, 1.0],
+            health: 0.0,
+            max_health: 0.0,
+            provides: None,
+            building: Some((1.0, 5.0)),
+            uid: 0,
+            open: false,
+            site: Some(crate::systems::construction::PlanetSite { body: "earth".into(), origin: glam::DVec3::new(0.0, 6_371_000.0, 0.0) }),
+            outside_home: false,
+            fire_s: None,
+        }];
+        let mut data = crate::hot_reload::data_store::DataStore::new();
+        data.insert(
+            "blueprint_registry",
+            BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap(),
+        );
+        // Load the save, catch up `away` seconds, and run the first tick back
+        // (no time passes in it), which finishes the build as it always does.
+        let back_after = |away: u64| -> f32 {
+            let mut world = hecs::World::new();
+            apply_save_to_world(&mut world, &save);
+            catch_up_world(&mut world, &save, true, 1.0, 1_000 + away);
+            ConstructionSystem::new().tick(&mut world, 0.0, &data);
+            let mut q = world.query::<(&Structure, Option<&FireFuel>)>();
+            let left = q.iter().next().map(|(_e, (_, f))| f.map_or(-1.0, |f| f.seconds_left));
+            left.unwrap_or(-2.0)
+        };
+        assert_eq!(back_after(3_600), 7_200.0 - (3_600.0 - 4.0), "an hour away");
+        assert_eq!(back_after(86_400), 0.0, "a day away: out");
+        // -2 = not finished yet: 3 s away leaves the build a second short.
+        assert_eq!(back_after(3), -2.0, "3 s away: still going up");
+        assert_eq!(back_after(4), 7_200.0, "finished on the dot as the player comes back: all its logs");
     }
 
     /// A wall the player turned is built turned, saved turned, and comes back
