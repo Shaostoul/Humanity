@@ -625,6 +625,9 @@ mod tests {
             ("clay_pit", "clay_raw_0"),
             ("salt_flat", "salt_food_0"),
             ("sand_pit", "sand_0"),
+            // The two quests' ore (2026-10-04, the first-hour audit's B5).
+            ("ore_outcrop", "ore_sample_0"),
+            ("rare_ore_vein", "rare_ore_0"),
         ] {
             let def = reg.get(id).unwrap_or_else(|| panic!("{id} in creatures.csv"));
             assert_eq!(behavior_type_for(def), "stationary", "{id} must be stationary");
