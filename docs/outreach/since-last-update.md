@@ -11,6 +11,17 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1460.1: nine Library guides on keeping food, getting through an
+  outage, and getting along.** Water-Bath Canning, Pressure Canning, and
+  Salting, Curing and Smoking; Choosing and Running a Generator, Emergency
+  Shelter, and Pressure in Water, Air and Steam; Handling Conflict, The Law
+  Where You Live, and Mental Health Under Strain (how to help someone who may
+  be thinking about suicide, and where to call). Each was checked against its
+  sources at least twice before it shipped. Drying Food now says freezing is
+  not enough for wild game and cooks it to 165 F, and the game's Dry Meat
+  recipe now says to heat the meat first. The Library now has 110 sourced
+  guides.
+
 - **v0.1460.0: the first hour gets stakes, and the shared world runs in real
   time.** A new player now starts alone in their own home instead of being
   dropped into the live shared world, every way out of the game saves first,
