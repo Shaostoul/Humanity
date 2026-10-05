@@ -13412,15 +13412,16 @@
     },
     {
       "id": "silverdale-home-marker",
-      "desc": "Standing on the ground in Silverdale WA at noon (eye 1.7 m up, 200 m north of the Dyes Inlet waterfront), looking due south and 35 degrees up, which is where the Home Station hangs: its synchronous orbit (data/stations/home.ron) keeps it over longitude -122.3, and from latitude 47.6 a synchronous orbit stands about 35 degrees above the southern horizon, some 37,000 km away. The regression lock for BUG-148 (2026-10-04): the HUD projected the tracked station's ring through the gameplay camera's depth range, whose far plane is the Render distance (500 m by default, 2,000 m at most), so from the ground, and in fact from anywhere farther than that, the marker was dropped every frame. It is now placed by direction (gui::pages::hud::marker_placement).",
-      "expect": "A daytime sky over the ground and the HUD. The Home Station marker is drawn: a ring with the label 'Home Station' and its distance in kilometres (about 37,000 km) beside it, near the middle of the frame. If the station is out of view it is pinned to the edge of the screen on the side to turn toward, with an arrow pointing out; it is never missing.",
+      "desc": "Standing on the ground in Silverdale WA at noon, on foot (the walk verb turns fly mode and the hover off after the stand, so gravity puts the eye at standing height on the drawn ground, 200 m north of the Dyes Inlet waterfront), looking due south and 35 degrees up, which is where the Home Station hangs: its synchronous orbit (data/stations/home.ron) keeps it over longitude -122.3, and from latitude 47.6 a synchronous orbit stands about 35 degrees above the southern horizon, about 38,000 km away. The regression lock for BUG-148 (2026-10-04): the HUD projected the tracked station's ring through the gameplay camera's depth range, whose far plane is the Render distance (500 m by default, 2,000 m at most), so from the ground, and in fact from anywhere farther than that, the marker was dropped every frame. It is now placed by direction (gui::pages::hud::marker_placement).",
+      "expect": "A daytime sky over the ground and the HUD, whose movement line reads WALK. The Home Station marker is drawn: a ring with the label 'Home Station' and its distance in kilometres (about 38,000 km) beside it, near the middle of the frame, around the station's own small dot. If the station is out of view it is pinned to the edge of the screen on the side to turn toward, with an arrow pointing out; it is never missing.",
       "regressions": [
         "the tracked Home Station's ring and its label with the distance are drawn (they were dropped past the 500 m Render distance, BUG-148)",
         "panics=0"
       ],
       "camera": {"body":"earth","lat":47.645,"lon":-122.695,"altitude_km":0.3,"look_offset_deg":80,"time":12.0},
       "showcase": {"sea":"0.3","weather":"clear","cloud_cover":"0"},
-      "final_showcase": {"stand":"0,1.7,-200,180,35","stand_at":"47.645,-122.695"},
+      "final_showcase": {"stand":"0,1.7,-200,180,35","stand_at":"47.645,-122.695","walk":"1"},
+      "final_settle_s": 8,
       "settle_s": 14,
       "perf_floor_fps": 5
     }
