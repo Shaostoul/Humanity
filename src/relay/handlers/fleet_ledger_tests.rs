@@ -659,9 +659,11 @@ fn a_rate_limited_give_is_answered_with_its_id() {
 /// THE GIVE LIMIT READS THE TEST'S CLOCK, NOT THE WALL (BUG-152). The 200 ms limit reads
 /// `RelayState::perception_now`, which a test can point at a clock it moves by hand, and the
 /// end-to-end test (features.rs `the_fleet_ledger_end_to_end`) relies on that to make "two
-/// gives sent at once" 0 ms apart however long the relay takes over the first. If the limit
-/// went back to reading the wall, that test would still pass on an idle machine and fail again
-/// on a busy one; this is the test that says why.
+/// gives sent at once" 0 ms apart however long the relay takes over the first. Its waits past
+/// the limit are moves of that clock, not sleeps, so if the limit went back to reading the
+/// wall that test would fail on every machine, idle or busy, at its repeated give: on the wall
+/// the repeat comes a few milliseconds after the first give and is turned away as
+/// `rate_limited` (seen 2026-10-05). This test says why, without a relay.
 ///
 /// Seen red 2026-10-05 with `perception_now` reading `Instant::now()` whatever the test set:
 /// "250 ms of wall time passed but the limit's clock did not move, so this is still inside the

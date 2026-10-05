@@ -2092,7 +2092,8 @@ mod tests {
     /// enough past 200 ms, when the second give was let through and this test failed with
     /// nothing wrong in the relay. Now the gives meant to come at once are 0 ms apart however
     /// long the relay takes, and the ones meant to come later are 250 ms apart because the test
-    /// says so, not because a sleep ran.
+    /// says so, not because a sleep ran. Only the limit's clock is the test's: the waits for the
+    /// relay's answers keep their 5 s of wall-clock time (`next_game_of`, `wait_until`).
     #[tokio::test]
     async fn the_fleet_ledger_end_to_end() {
         use crate::relay::handlers::ship_stores::FleetSupply;

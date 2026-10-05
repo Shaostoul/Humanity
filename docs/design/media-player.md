@@ -455,7 +455,13 @@ the no-toolchain build is worth keeping simple.
   `RetryFromStart` and decodes from the top, which always arrives - count it
   with `seek_fallbacks()`. Audio gets the same position and kira seeks itself.
   Seeking while PAUSED shows the frame it landed on, which needs its own rule
-  because a paused clock never advances to make anything due.
+  because a paused clock never advances to make anything due. A seek lands on
+  the first frame at or after the target: the NEXT frame when the target falls
+  between two (the one a player would show for that instant is thrown away
+  with the rest of the pre-target frames), and no frame at all when the target
+  is after the clip's last one, so a paused screen keeps the picture it had.
+  The fallback from the top lands the same way (since BUG-158; before it, the
+  fallback showed the clip from its first frame on the way).
 - **Subtitles and chapters.** The demuxer exposes them; nothing reads them.
 - **Streaming from the relay.** The player reads a local file through a
   `BufReader<File>`. Playing a WebM as it downloads means a reader that

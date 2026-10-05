@@ -9,10 +9,12 @@
 //!
 //! How the tests that play keep time (BUG-152). The seek tests drive the
 //! player's clock BY HAND (`VideoPlayer::use_manual_clock`) and wait on the
-//! DECODER (`wait_for_frame_at`), never on a wall-clock budget, so their
-//! result does not depend on how busy the machine is: under a 96-thread CPU
-//! load the old versions, which gave the decoder 3 to 5 s of wall time while
-//! the clock ran on, failed in 20 of 20 runs with nothing wrong in the player.
+//! DECODER (`wait_for_frame_at`), never on a wall-clock budget for the work,
+//! so their result does not depend on how busy the machine is: under a
+//! 96-thread CPU load the old versions, which gave the decoder 3 to 5 s of
+//! wall time while the clock ran on, failed in 20 of 20 runs with nothing
+//! wrong in the player. A decoder that stops, or goes round a loop, still
+//! fails a wait rather than hanging the run (`wait_for_frame_at` says how).
 //! The live playback test is the one that runs against the wall clock on
 //! purpose, because the wall clock is the thing it checks; it runs until the
 //! clip ends rather than for a fixed window, so a loaded machine makes it
@@ -295,28 +297,65 @@ fn take_due_frame_never_hands_out_a_frame_ahead_of_the_clock() {
 
 /// How long the decoder may go without producing a single picture before a
 /// waiting test calls it stopped (BUG-152). A guard against a hang, NOT a
-/// budget for the work: the waits below have no deadline at all, because how
-/// long decoding takes is the machine's business. A busy machine decodes
-/// slowly but steadily (a picture every few tens of milliseconds even under a
-/// 96-thread CPU load); only a decoder that has stopped goes this long without
-/// one, and without some guard a stopped decoder would hang the whole test run
-/// instead of failing this test.
+/// budget for the work: how long decoding takes is the machine's business. A
+/// busy machine decodes slowly but steadily (a picture every few tens of
+/// milliseconds even under a 96-thread CPU load); only a decoder that has
+/// stopped goes this long without one.
 const DECODER_STALL: Duration = Duration::from_secs(30);
+
+/// The most pictures one wait watches the decoder produce before it calls the
+/// decoder stuck in a loop: twice the fixture's 60 frames. No correct route to
+/// a frame of the fixture decodes more than the clip once from its first frame
+/// (a fast start that finds no keyframe decodes nothing: it only scans packets
+/// before falling back to the top), plus a picture or so the pass a seek
+/// replaced finishes before it notices. Measured 2026-10-05: the longest wait
+/// in these tests, the fallback seek to 1.5 s, watched 46 pictures, the seek to
+/// 1.4 s 44, the paused seek 38, every other wait 13 or fewer.
+///
+/// Why a cap at all (the 2026-10-05 review of BUG-152): the stall check above
+/// counts ANY picture as work, so a decoder going round a loop (a pass that
+/// restarts itself with no new seek, decoding up to the awaited frame and never
+/// queueing it) reset it for ever, and with no other limit the wait hung the
+/// whole test run. Reproduced with a restart injected at the moment the frame
+/// would be queued: the seek test ran on until something outside stopped it.
+/// With the cap, the same fault (every pass of a seek past 0 restarting there)
+/// failed `a_seek_lands_where_it_was_asked_and_the_picture_agrees` in 3.7 s,
+/// after 121 pictures, and each other seek test in 5 to 8 s (2026-10-05).
+const WAIT_PICTURE_CAP: u64 = 2 * BAR_FRAMES as u64;
+
+/// The absolute backstop: one wait never runs longer than this, whatever the
+/// decoder does. The stall check and the picture cap catch a decoder that has
+/// stopped and one going round a loop; this catches whatever slips past both
+/// (a decoder crawling at one picture every 29 s would pass the stall check
+/// for an hour before reaching the cap). Two minutes is about five times the
+/// 24 s the whole set of seek tests took per run under a 96-thread CPU load
+/// with two test processes at once (BUG-152), so it is no budget for the work.
+const WAIT_BACKSTOP: Duration = Duration::from_secs(120);
 
 /// Poll until the player hands out a frame at or after `at_least`, and return
 /// it. Earlier frames are skipped.
 ///
-/// This waits on the DECODER, never on the wall clock (BUG-152). These waits
-/// used to give the decoder a fixed 3 or 5 s; with other builds running it
-/// needed longer to decode its way to a seek target, and the seek tests
-/// failed with nothing wrong in the player. Now the wait ends one of four
-/// ways, and only the first passes: the frame arrives; the decoder finishes
-/// its pass without it; the decode thread exits; or the decoder produces no
-/// picture at all for `DECODER_STALL`.
+/// This waits on the DECODER, never on a wall-clock budget for the work
+/// (BUG-152). These waits used to give the decoder a fixed 3 or 5 s; with
+/// other builds running it needed longer to decode its way to a seek target,
+/// and the seek tests failed with nothing wrong in the player. Now the wait
+/// ends one of six ways, and only the first passes: the frame arrives; the
+/// decoder finishes its pass without it; the decode thread exits; the decoder
+/// produces no picture for `DECODER_STALL` (stopped); it produces more than
+/// `WAIT_PICTURE_CAP` pictures during the wait without the frame (a loop); or
+/// the wait passes `WAIT_BACKSTOP`. Every way but the first fails the test
+/// with a message saying which, so no decoder fault can hang the run.
 fn wait_for_frame_at(player: &mut VideoPlayer, at_least: f64) -> VideoFrame {
+    let awaited = if at_least == f64::NEG_INFINITY {
+        "the next frame".to_string()
+    } else {
+        format!("a frame at or after {at_least} s")
+    };
     let alive = player.decode_thread_alive_flag();
-    let mut pictures = player.pictures_decoded();
-    let mut last_progress = Instant::now();
+    let started = Instant::now();
+    let pictures_before = player.pictures_decoded();
+    let mut pictures = pictures_before;
+    let mut last_progress = started;
     loop {
         if let Some(f) = player.poll() {
             if f.pts_s >= at_least {
@@ -325,22 +364,37 @@ fn wait_for_frame_at(player: &mut VideoPlayer, at_least: f64) -> VideoFrame {
         }
         if player.decoder_finished() {
             panic!(
-                "the decoder finished its pass without handing out a frame at or after {at_least} s (decode error: {:?})",
+                "the decoder finished its pass without handing out {awaited} (decode error: {:?})",
                 player.take_error()
             );
         }
-        assert!(alive.load(Ordering::SeqCst), "the decode thread exited before a frame at or after {at_least} s arrived");
+        assert!(alive.load(Ordering::SeqCst), "the decode thread exited before {awaited} arrived");
         let now = player.pictures_decoded();
         if now != pictures {
             pictures = now;
             last_progress = Instant::now();
         }
+        let watched = pictures - pictures_before;
+        assert!(
+            watched <= WAIT_PICTURE_CAP,
+            "the decoder produced {watched} pictures in {:.1} s of this wait, more than twice the fixture's {BAR_FRAMES} \
+             frames, without handing out {awaited}: it is going round a loop (no correct route to a frame decodes the \
+             clip more than once; seeks that fell back to the top so far: {})",
+            started.elapsed().as_secs_f64(),
+            player.seek_fallbacks()
+        );
         assert!(
             last_progress.elapsed() < DECODER_STALL,
-            "no picture decoded for {} s while a frame at or after {at_least} s was awaited ({pictures} so far; decoder ahead \
-             of the clock: {}): the decoder has stopped, or it is waiting on a clock the test never moved",
+            "no picture decoded for {} s while {awaited} was awaited ({watched} during this wait; decoder ahead of the \
+             clock: {}): the decoder has stopped, or it is waiting on a clock the test never moved",
             DECODER_STALL.as_secs(),
             player.decoder_past_clock()
+        );
+        assert!(
+            started.elapsed() < WAIT_BACKSTOP,
+            "{awaited} was awaited for {} s, the absolute backstop, with the decoder neither stopped nor past the picture \
+             cap ({watched} pictures during this wait)",
+            WAIT_BACKSTOP.as_secs()
         );
         std::thread::sleep(Duration::from_millis(3));
     }
@@ -361,16 +415,18 @@ fn player_on_manual_clock(time: &std::sync::Arc<ManualClock>) -> VideoPlayer {
 }
 
 /// Where a seek landed, judged exactly: the first frame the player hands out
-/// after a seek is the frame AT the target. Every target in these tests is a
-/// frame time of the fixture (1.4 s is frame 42), and the clock stands still
-/// at the target while the decoder works (a manual clock, or a paused one), so
-/// any other first frame is a real defect. The bound this replaced, "within
-/// 0.35 s after the target", was slack for a wall clock that ran on while the
-/// decoder worked (BUG-152).
-fn assert_landed_on(f: &VideoFrame, target: f64, what: &str) {
+/// after a seek is `frame_s`, the first frame at or after the target. For most
+/// targets here that is the target itself, a frame time of the fixture (1.4 s
+/// is frame 42); a target between two frames lands on the next one (1.21 s on
+/// frame 37, 1.2333 s), because the decoder keeps nothing older than the
+/// target. The clock stands still at the target while the decoder works (a
+/// manual clock, or a paused one), so any other first frame is a real defect.
+/// The bound this replaced, "within 0.35 s after the target", was slack for a
+/// wall clock that ran on while the decoder worked (BUG-152).
+fn assert_landed_on(f: &VideoFrame, frame_s: f64, what: &str) {
     assert!(
-        (f.pts_s - target).abs() < FRAME_S / 2.0,
-        "{what}: the first frame handed out after the seek is at {} s, not the frame at {target} s",
+        (f.pts_s - frame_s).abs() < FRAME_S / 2.0,
+        "{what}: the first frame handed out after the seek is at {} s, not the frame at {frame_s:.4} s",
         f.pts_s
     );
 }
@@ -758,22 +814,35 @@ fn a_seek_lands_where_it_was_asked_and_the_picture_agrees() {
 
 #[test]
 fn seeking_while_paused_shows_the_frame_it_landed_on() {
-    // A paused clock never advances, so nothing would ever become "due": the
-    // player has to hand out the first frame of the new position anyway or the
-    // screen keeps the old picture and the seek looks broken.
+    // A paused clock never advances, so a frame AHEAD of it never becomes
+    // "due": straight after a seek the player has to hand out the first frame
+    // of the new position anyway (`show_next_frame`), or the screen keeps the
+    // old picture and the seek looks broken.
+    //
+    // So the target falls BETWEEN two frames: 1.21 s, after frame 36 (1.2 s)
+    // and before frame 37 (1.2333 s). The decoder keeps nothing older than the
+    // target, so the first frame it queues is 1.2333 s, ahead of the paused
+    // clock, and only `show_next_frame` can hand it out. (This test used to
+    // seek to 1.2 s, a frame time, which made that frame due at once: it then
+    // passed with `show_next_frame` taken out, the 2026-10-05 review.) Seen
+    // red 2026-10-05 with that arm of `poll` disabled: the player handed out
+    // nothing and the wait failed after 30 s with "no picture decoded for 30 s
+    // while the next frame was awaited (...; decoder ahead of the clock:
+    // true)". A seek between two frames lands on the next one, here 1.2333 s,
+    // not 1.2 s (the frame a player would show at 1.21 s is thrown away).
     //
     // This one keeps the WALL clock on purpose: a paused clock must stand still
     // against real time, and only the wall clock can show it does. What used to
     // make it fail on a busy machine was the 5 s it gave the decoder to get
     // there (BUG-152); `wait_for_frame` waits on the decoder instead.
     let mut player = VideoPlayer::open_with_threads(fixture(BAR), 1).unwrap();
-    player.seek_to(1.2);
+    player.seek_to(1.21);
     assert!(!player.is_playing(), "still paused");
 
     let f = wait_for_frame(&mut player);
-    assert_landed_on(&f, 1.2, "a paused seek to 1.2 s");
-    assert_picture_matches_pts(&f, "paused at 1.2 s");
-    assert_eq!(player.position_s(), 1.2, "a paused clock stood still while the decoder worked");
+    assert_landed_on(&f, 37.0 * FRAME_S, "a paused seek to 1.21 s, between two frames");
+    assert_picture_matches_pts(&f, "paused at 1.21 s");
+    assert_eq!(player.position_s(), 1.21, "a paused clock stood still while the decoder worked");
 }
 
 #[test]
@@ -825,6 +894,28 @@ fn a_seek_with_no_keyframe_in_the_window_still_arrives() {
     assert_picture_matches_pts(&f, "fallback seek to 1.5 s");
     assert!(player.take_error().is_none());
     assert!(player.seek_fallbacks() >= 1, "this is the fallback path, and it must be the one that ran");
+}
+
+/// A decoder going round a loop FAILS the wait instead of hanging the test run
+/// (the 2026-10-05 review of BUG-152). The decoder is broken on purpose: every
+/// pass that is about to queue a frame restarts itself with no new seek, so it
+/// decodes its way to 1.4 s, throws the frame away and starts again, for ever.
+/// Before `WAIT_PICTURE_CAP` that kept the wait's stall check happy (pictures
+/// kept coming) and the run hung; the wait must now stop it, and say why.
+/// Without the cap this fails too, at `WAIT_BACKSTOP` (two minutes, 3,635
+/// pictures in), with the backstop's message instead of this one: seen
+/// 2026-10-05.
+#[test]
+#[should_panic(expected = "it is going round a loop")]
+fn a_decoder_going_round_a_loop_fails_the_wait_instead_of_hanging_the_run() {
+    let time = ManualClock::new();
+    let mut player = player_on_manual_clock(&time);
+    player.play();
+    assert_eq!(wait_for_frame(&mut player).pts_s, 0.0, "playback starts at the first frame");
+    player.inject_restart_instead_of_queueing();
+    player.seek_to(1.4);
+    let f = wait_for_frame(&mut player);
+    panic!("a decoder that never queues a frame handed one out, at {} s", f.pts_s);
 }
 
 #[test]

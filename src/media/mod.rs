@@ -460,6 +460,13 @@ struct Shared {
     /// is working, however slowly a busy machine runs it.
     #[cfg(test)]
     pictures_decoded: AtomicU64,
+    /// Tests only: a fault a test switches on (`inject_restart_instead_of_queueing`)
+    /// to prove that its waits FAIL on a decoder going round a loop instead of
+    /// hanging the test run (the 2026-10-05 review of BUG-152). While it is set,
+    /// a pass that is about to queue a frame restarts itself instead, with no new
+    /// seek, so the decoder produces pictures for ever and the frame never comes.
+    #[cfg(test)]
+    restart_instead_of_queueing: AtomicBool,
 }
 
 /// Cleared on the way out of the decode thread, however it exits.
@@ -579,6 +586,11 @@ fn decode_pass(
         // floating point.
         if frame.pts_s + 1.0e-6 < start_s {
             return true;
+        }
+        #[cfg(test)]
+        if shared.restart_instead_of_queueing.load(Ordering::SeqCst) {
+            early.set(Some(PassEnd::Restart));
+            return false;
         }
         match push_frame(shared, generation, frame) {
             Push::Pushed => true,
@@ -726,7 +738,11 @@ pub struct VideoPlayer {
     /// A seek just happened: hand out the first frame that arrives even if
     /// the clock has not reached it. Without this, seeking while PAUSED
     /// leaves the previous picture on screen, because a paused clock never
-    /// advances to meet the new frames.
+    /// advances to meet the new frames. The decoder queues nothing older than
+    /// the target, so whenever the target falls between two frames the first
+    /// frame queued is AHEAD of the clock, and only this hands it out
+    /// (`seeking_while_paused_shows_the_frame_it_landed_on` seeks to 1.21 s,
+    /// between two frames of its fixture, for that reason).
     show_next_frame: bool,
     last_error: Option<String>,
 }
@@ -760,6 +776,8 @@ impl VideoPlayer {
             alive: Arc::new(AtomicBool::new(true)),
             #[cfg(test)]
             pictures_decoded: AtomicU64::new(0),
+            #[cfg(test)]
+            restart_instead_of_queueing: AtomicBool::new(false),
         });
         let thread = {
             let (path, info, shared) = (path.clone(), info.clone(), shared.clone());
@@ -902,7 +920,12 @@ impl VideoPlayer {
     }
 
     /// Move playback to `seconds`, clamped into the clip. Keeps the play /
-    /// pause state, and shows the picture there even while paused.
+    /// pause state, and shows the picture there even while paused: the first
+    /// frame at or after `seconds`, which is the NEXT frame when `seconds`
+    /// falls between two (the decoder keeps nothing older than the target).
+    /// A target after the clip's last frame has no frame to show, so the
+    /// screen keeps the picture it had. The fallback that decodes from the
+    /// top of the file lands the same way as the fast start (since BUG-158).
     ///
     /// The decode thread is told where to start by writing the target and then
     /// bumping the generation, in that order: anything it had queued for the
@@ -1061,6 +1084,16 @@ impl VideoPlayer {
     #[cfg(test)]
     pub(crate) fn pictures_decoded(&self) -> u64 {
         self.shared.pictures_decoded.load(Ordering::SeqCst)
+    }
+
+    /// Tests only: break this player's decoder on purpose. From here on every
+    /// pass that is about to queue a frame restarts itself instead, with no new
+    /// seek: the decoder goes round a loop, producing pictures for ever and
+    /// never the frame a test waits for. A test switches it on to prove its
+    /// waits fail on such a decoder instead of hanging the run.
+    #[cfg(test)]
+    pub(crate) fn inject_restart_instead_of_queueing(&self) {
+        self.shared.restart_instead_of_queueing.store(true, Ordering::SeqCst);
     }
 
     /// Tests only (BUG-152): the decoder has delivered the last frame of the
