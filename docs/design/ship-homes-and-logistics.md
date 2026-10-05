@@ -1052,6 +1052,13 @@ The vantage `ship-first-street` (tests/visual/vantages.json), captured with `nod
 
 ### Increment 5: building only on your own plot
 
+**Build plan (2026-10-05):** [ship-homes-increment-5-plan.md](ship-homes-increment-5-plan.md),
+read against the code after increments 1 to 4 and the twelve plots: the contract (Wave 0), the
+relay's storage and rank, the client's save seams and Dev mode while joined (Wave 1), the
+relay handler and the client's net and engine (Wave 2), the proof rig and permits in the game
+(Wave 3). Its four questions were answered with their recommendations, for the operator to
+confirm (listed at its end). Wave 0 started 2026-10-05.
+
 What changes:
 - the stopped shared-building increment, in plot frames (section 8 below);
 - `may_build` and `may_remove` as in section 4;
