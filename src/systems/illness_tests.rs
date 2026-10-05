@@ -401,6 +401,10 @@ fn drying_out_from_food_poisoning_says_so_on_the_death_screen() {
 /// food two hours before Food Poisoning would pass does not start it over. It passes when it
 /// was going to, and the player is told so in plain words, with the time it still has to run
 /// (illnesses.ron's `again` line and `again_adds_h`, 0 for Food Poisoning).
+///
+/// Seen red on main at 347c8f77b (with this change's illnesses.ron): "ill again two hours
+/// before the end: it had not passed 24 h later (it was due in 2 h), and the player was told
+/// \"\"" (the course started over, without a word).
 #[test]
 fn eating_spoiled_food_again_while_ill_does_not_start_the_illness_over() {
     let fp = food_poisoning();

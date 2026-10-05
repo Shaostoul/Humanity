@@ -17,6 +17,14 @@
 //! course`, ignored by default) take twelve game hours and then the illness to its end:
 //! `cargo test --features native --lib -- --ignored frame_rate_tests`.
 //!
+//! SEEN RED on main at 347c8f77b, every run (docs/BUGS.md, BUG-164, has the messages). The
+//! ten-minute runs at 60 frames a second: "satiation fell 0.0000, its rate says 0.0992;
+//! Hydration fell 0.2747, its rate says 0.3472; ... starving took health 0.0000, its rate says
+//! 0.0496; ... the illness's countdown ran 562.50 s while the clock ran 600.00 s". At 240:
+//! satiation, Hydration, the waste meter and the illness's water all 0, and Realistic's
+//! countdown "ran 0.00 s". The whole-course runs: Realistic's illness never passed at 144 or
+//! 240, and passed at 21.9 and 22.3 h of Forgiving's 24 at 144 and 240.
+//!
 //! A child of `food` (`use super::*`), so it reads the FoodSystem's own record of the sweat
 //! its body heat model made.
 

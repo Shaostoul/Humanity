@@ -4628,3 +4628,109 @@ Tests, each seen failing first:
 - the rule's own unit tests in `assets::loader` and `embedded_data` (new code, nothing older to run
   them against), and three in `scripts/tests/compiled-in.test.js`, two of them red against the old
   check (no problem named load_data_or_embedded).
+
+## BUG-164: at time speed 1 the body's needs, its health and an illness's countdown lose each frame to rounding (FIXED next release, found 2026-10-05)
+
+**Seen (item 1 of the second seam review of 2026-10-05, confirmed by new tests):** the body's
+meters are f32, and at time speed 1 a frame's share of a day's need is a few millionths of a
+point: thirst takes 0.0000096 of a point a frame at 60 frames a second, hunger 0.0000028,
+starving 0.0000014 of health. An f32 between 64 and 128 moves in steps of 0.0000076, so
+every frame's change was rounded to a whole number of steps, or to none. An effect's time
+left was an f32 too, and at two days (172,800 s) it moves in steps of 1/64 s. Through the
+real FoodSystem tick, from a full stomach (`src/systems/food_frame_rate_tests.rs`), on main
+at 347c8f77b:
+- "Forgiving at 60 frames a second, 10 game minutes: satiation fell 0.0000, its rate says
+  0.0992; Hydration fell 0.2747, its rate says 0.3472; energy fell 0.8240, its rate says
+  0.7813; the waste meter rose 0.2747, its rate says 0.2315; starving took health 0.0000,
+  its rate says 0.0496; the illness took water (points) 0.0000, its rate says 0.1042; the
+  illness's countdown ran 562.50 s while the clock ran 600.00 s"
+- Realistic at 60: the same, and "the illness took water (points) 0.2747, its rate says
+  0.2083" (1.32 times).
+- At 144: Hydration 0.6592 against 0.3472 (1.9 times), energy 0.6592 against 0.7813, the
+  waste meter and the illness's water 0; the countdown "ran 0.00 s" in Realistic and
+  675.00 s in Forgiving.
+- At 240: satiation, Hydration, the waste meter and the illness's water all 0, energy 1.0986
+  against 0.7813; the countdown "ran 0.00 s" in Realistic, 1125.00 s in Forgiving.
+- Twelve game hours and then the whole course (the ignored runs, 26 minutes in a debug
+  build): at 60, satiation fell 0.0000 of 7.1429 and Hydration 19.78 of 25.00, and the
+  illness "had not passed 2 minutes after its 24 h course" (Forgiving) or its 48 h course
+  (Realistic); at 144, Hydration fell 41.73 of 25.00 and Forgiving's illness "passed after
+  21.901 h"; at 240, Hydration fell 0.0000 of 25.00 in twelve hours and Forgiving's
+  illness passed after 22.302 h; Realistic's countdown "ran 0.00 s while the clock ran
+  43200.00 s" at both 144 and 240 and never ended.
+
+**Why it matters:** since v0.1005.1 (2026-07-27), when the needs moved to real-scale clocks,
+a new character (satiation 80) never got hungry at 60 frames a second; at 240 Hydration did
+not fall at all above 64 points unless the body sweated; starving never took health from a
+healthy body; and the waste meter stopped filling by itself above 64 at 144 frames a second
+(above 32 at 240), so at those rates only meals made anyone Unsanitary.
+The one clock (v0.1395.0, 3cef4709c) kept all of it at the default time speed 1, and BUG-162's
+illness inherited it: no water taken in Forgiving above 64 Hydration, and a Realistic illness
+that never passed on a 144 Hz display. The Library's How Your Body Works and When Food or
+Water Makes You Sick quoted the right rates (Hydration empties in about two days, Satiation
+in about a week, food poisoning lasts two days or one and takes 1.5 L a day or half); the
+game did not deliver them at frame rate. Every long test stepped minutes per tick, where
+the rounding is far below the change, which is how it went unseen (the illness tests stepped
+600 s; the water tanks' BUG-096 was the same defect).
+
+**Fix (2026-10-05): every per-frame change to the body is worked out in f64, and nothing
+f32 rounding holds back is lost** (`src/systems/food.rs`, the EXACT AT ANY FRAME RATE note).
+- An effect's time left is an f64 (`ActiveEffect::remaining`, `src/ecs/components.rs`);
+  `StatusEffects::apply` takes any duration that converts to f64, `tick_with` takes each
+  frame's step off the f64, and `StatusEffects::remaining` reads it. A save written with the
+  f32 loads unchanged (test below); the HUD's effect list converts it back
+  (`src/lib.rs`, one line).
+- The meters stay f32 for everything else that reads them (the HUD, the save, abilities,
+  combat). Each per-frame change goes through `change_exactly`, which works out the exact
+  result in f64, holds it within the meter's bounds, and keeps what rounding held back in
+  the body's `BodyCarry` for the next frame, the way the water tanks carry theirs
+  (BUG-096). The carry is under half an f32 step and is not saved. Through it now: satiation
+  (hunger), Hydration (the day's thirst, an illness's water and sweat), energy, oxygen
+  (breath, both ways), the waste meter, and Health (starving, drying out, suffocation, heat
+  and cold, a hard burn, and every effect's damage and healing).
+- `Illnesses::water_l` works in f64 (`src/systems/illness.rs`).
+- Checked and left as they were, because they had no such flaw: the body heat model (its
+  state is f64 since 2026-09-27; its per-frame sweat and harm are amounts, not sums, and now
+  land through the carry), the spoilage clocks (f64), the urine tank (f64), the conditions'
+  short timers and the real-second buffs (seconds to minutes, where an f32's step is far
+  below a frame).
+
+**Ill again while still ill (item 7 of the same review, fixed with it):** eating spoiled
+food, or a raw food's chance of illness, while Food Poisoning still lasted applied it again
+with `max(left, a fresh course)` and said nothing: a litre of rehydration solution drunk past
+its 24 hours, two hours before the end, made it two more days, silently. Now it does not
+start over. `data/medical/illnesses.ron` gives each illness `again_adds_h`, the most a
+second exposure adds to the time left (game hours of the Realistic course, Forgiving's
+course share of them, never past a fresh course), 0 for Food Poisoning: a labelled game
+choice, because the sources the file cites give how long a bout lasts and nothing about a
+second helping during it. The player is told in plain words either way: the illness's
+`again` line and the time it still has to run ("You are already ill with Food Poisoning, so
+this does not start it over. It still passes on its own in about 2 hours.";
+`Illnesses::again`, `Illnesses::again_notice`). The two Library guides say so.
+
+**Tests:**
+- `src/systems/food_frame_rate_tests.rs`, through the real FoodSystem tick at 1/60, 1/144
+  and 1/240 of a game second at time speed 1, from a full stomach: six ten-minute runs that
+  always run (both Illness modes at each rate: satiation, Hydration with the body heat
+  model's own sweat, energy and the waste meter each within one percent of its rate, a
+  starving adult's health within one percent of starvation's, the illness's water within
+  one percent of its data, and its countdown within a second of the clock), and six
+  whole-course runs, ignored by default for their length (a tick costs about 40
+  microseconds in a debug build, so they took 26 minutes red): the same over twelve game
+  hours, then the illness must pass within a minute of its course. All twelve seen red on
+  main at 347c8f77b with the messages above, and all twelve pass with the fix (the
+  whole-course runs in 24.5 minutes, six at once).
+- `illness_tests::eating_spoiled_food_again_while_ill_does_not_start_the_illness_over`, seen
+  red: "ill again two hours before the end: it had not passed 24 h later (it was due in 2
+  h), and the player was told \"\"".
+- `illness::tests::being_ill_again_adds_at_most_what_the_data_says` and
+  `being_ill_again_is_told_in_plain_words` (the rule with an illness whose data adds six
+  hours, both modes, the fresh-course cap); `save_load::body_tests::a_body_saved_with_f32_timers_still_loads`.
+
+**Left:**
+- `src/systems/fire.rs` takes a fire's damage from Health each frame in f32 (1 a second at
+  full intensity). At full intensity that is hundreds of f32 steps a frame, so the error is
+  under 0.1 percent; on a fire burning down to a twentieth of its intensity it nears 2
+  percent. Not the body's own system, so left with this note.
+- The whole-course runs are ignored by default; run them with
+  `cargo test --features native --lib -- --ignored frame_rate_tests`.
