@@ -3560,3 +3560,41 @@ until it is green, which is how a real failure gets waved through.
 than on wall-clock time (or give them a deterministic clock), and give the fleet
 ledger test a relay rate limit that cannot trip in a test (or space its sends by
 the limit it is testing).
+
+## BUG-153: the Campfire ability promises a fire with warmth and light, and only heals 3 health (OPEN, found 2026-10-04)
+
+**Seen (code reading, by the check of the heat, fire and fuel guides; confirmed by the
+orchestrator):** `data/abilities.csv` row `campfire` is described as "Build a campfire that
+provides warmth light and slow healing". It is a non-offensive ability, so casting it
+(`src/systems/abilities.rs`, the self-castable arm) spends 15 energy and restores its
+`healing_base` of 3 health, and nothing else: no fire is placed, nothing warms or lights,
+and the `campfire_warmth` status effect (`data/status_effects.csv`) is applied by no code.
+For a new character it sorts first among castable abilities, so it sits in hotbar slot 1.
+
+**Fix (not started):** either make it place a real fire the body heat model and the light
+system see (and that can spread or go out, as the fire guide teaches), or describe what it
+does today. A test casts it and checks what the description promises.
+
+## BUG-154: the backup generator runs on Paint, Glue or Crude Oil (OPEN, found 2026-10-04)
+
+**Seen (the same check, confirmed):** the generator burns whatever flammable-class item is
+in its drum (`src/systems/electrical.rs`, `fuel_ok`: any item whose class is
+"flammable"). Crude Oil, Glue and Paint are all that class (`data/items.csv`), the drum
+accepts them, and the Store button offers them, so the house runs on a can of paint. A real
+generator burns the fuel its engine is made for (gasoline, diesel or propane), and the fuels
+guide teaches exactly that.
+
+**Fix (not started):** a generator names the fuels it burns (a data field on the machine),
+and only those run it; a test puts Paint in the drum and expects no power.
+
+## BUG-155: the greenhouse quest asks for a heater that does nothing (OPEN, found 2026-10-04)
+
+**Seen (the same check, confirmed):** the Greenhouse Construction quest's step reads
+"Build a heater for temperature regulation" (`data/quests/farming.ron`, objective
+`Craft(recipe_id: "build_heater")`), but no system gives a built heater any effect: it
+warms neither the air, the plants nor the player. The heating guide says plainly that the
+heater does nothing; the quest says the opposite.
+
+**Fix (not started):** give the heater a real effect on the room's air temperature (the
+greenhouse's plants and the body heat model read it), or change the quest step until it
+does. Either way a test pins the quest's promise to what the heater does.
