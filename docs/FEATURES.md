@@ -2948,7 +2948,18 @@ approximate and drift as data grows; run `just data-counts` for live figures.)
 
 ### Status Effects Database (v0.90.0)
 80 status effects (buffs, debuffs, conditions) with duration and stacking rules.
-- Data: `data/status_effects.csv`
+- Data: `data/status_effects.csv` (every column read since BUG-162; stacking is
+  read but not acted on yet)
+
+### Illness and medical items (BUG-162, 2026-10-05)
+Food poisoning takes water over game days and passes on its own (Realistic two
+days, Forgiving one, Settings > Gameplay > Illness); drinking puts the water back,
+oral rehydration solution most (sachets in the starting kit, mixed by the
+`mix_ors` recipe); harm only through dehydration. The Inventory's Use button works
+for the medical items, each from data: health restored, effects ended by tag
+(antibiotics: `bacterial` only), a plain reason when it cannot help.
+- Code: `src/systems/illness.rs`, `src/systems/treatment.rs`, `src/systems/food.rs`
+- Data: `data/medical/illnesses.ron`, `data/medical/treatments.ron`
 
 ### Enchantments Database (v0.90.0)
 133 enchantments for equipment with tier scaling and compatibility rules.

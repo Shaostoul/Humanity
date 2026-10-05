@@ -271,6 +271,7 @@
     (id: "antidote_0",        name: "Antidote",           category: "medical",         base_value: 20,   weight_kg: 0.1,   description: "Neutralizes common poisons and venoms"),
     (id: "antibiotics_0",     name: "Antibiotics",        category: "medical",         base_value: 5,    weight_kg: 0.1,   description: "Anti-bacterial medicine for infections"),
     (id: "painkillers_0",     name: "Painkillers",        category: "medical",         base_value: 1,    weight_kg: 0.05,  description: "Analgesic tablets for pain management"),
+    (id: "ors_sachet_0",      name: "Oral Rehydration Salts", category: "medical",     base_value: 1,    weight_kg: 0.022, description: "One sachet to mix into a litre of drinking water for vomiting or diarrhoea"),
     (id: "splint_0",          name: "Splint",             category: "medical",         base_value: 5,    weight_kg: 0.3,   description: "Rigid support for broken bones"),
     (id: "blood_pack_0",      name: "Blood Pack",         category: "medical",         base_value: 30,   weight_kg: 0.5,   description: "Synthetic blood for emergency transfusion"),
     (id: "surgical_kit_0",    name: "Surgical Kit",       category: "medical",         base_value: 100,  weight_kg: 2.0,   description: "Precision instruments for field surgery"),

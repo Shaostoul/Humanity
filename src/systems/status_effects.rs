@@ -11,37 +11,62 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
-/// One row of `data/status_effects.csv`. Extra columns (if any are added later)
-/// are ignored by the header-mapped CSV loader.
+/// One row of `data/status_effects.csv`.
+///
+/// EVERY COLUMN IS A FIELD (BUG-162, 2026-10-05). The loader refuses a row with
+/// a column this struct does not declare (`deny_unknown_fields`; the shared CSV
+/// loader logs and skips it), so a column can no longer sit in the data while
+/// the code silently drops it, as `dispel_type` did: it promised that medicine
+/// cures an effect while nothing read it. A test holds every shipped row
+/// loading and a row with an unknown column refused. A new column needs a field
+/// here, and a use or a stated reason why it has none yet.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct StatusEffectDef {
     /// Unique effect id (e.g. `well_fed`, `hungry`, `food_poisoning`).
     pub id: String,
     /// Display name.
     pub name: String,
     /// `buff`, `debuff`, `condition`, `environmental`, `disease`, or `poison`.
+    /// A `disease` runs on the game clock (`systems::illness`, BUG-162).
     #[serde(rename = "type")]
     pub kind: String,
     /// Duration in seconds. 0 = a condition that persists until removed (the
-    /// owning system refreshes it each tick while its trigger holds).
+    /// owning system refreshes it each tick while its trigger holds). For a
+    /// `disease`, game seconds: its Realistic course.
     #[serde(default)]
     pub duration_s: f32,
+    /// Whether the effect stacks. READ, NOT ACTED ON: no effect stacks yet;
+    /// applying one again refreshes its timer (`StatusEffects::apply`).
+    #[serde(default)]
+    pub stackable: bool,
+    /// The most stacks it can have. Read, not acted on (see `stackable`); the
+    /// relay's on-foot speed bound counts each speed buff at its most stacks
+    /// (ship::moves tests), so a stacking system can never outrun it.
+    #[serde(default)]
+    pub max_stacks: u32,
     /// `stat:value:operation`, e.g. `speed:0.8:multiply`. `none:0:none` = no modifier.
     #[serde(default)]
     pub stat_modifier: String,
     /// Seconds between damage/healing applications (0 = the per-tick values
     /// are already per second). Consumed by the FoodSystem effect tick
     /// (v0.745, loop-map rung 1) which normalizes to a continuous rate:
-    /// food_poisoning's 3 dmg / 15 s becomes 0.2 dmg/s.
+    /// infected_wound's 3 dmg / 20 s becomes 0.15 dmg/s.
     #[serde(default)]
     pub tick_interval_s: f32,
     /// Damage applied each tick (0 = none).
     #[serde(default)]
     pub damage_per_tick: f32,
+    /// What kind of damage it is (`fire`, `poison`, `cold`...). Read, not
+    /// acted on: the game has no resistances yet, so all damage counts alike.
+    #[serde(default)]
+    pub damage_type: String,
     /// Healing applied each tick (0 = none).
     #[serde(default)]
     pub healing_per_tick: f32,
-    /// Pipe-separated tags (e.g. `survival|food`).
+    /// Pipe-separated tags (e.g. `survival|food`). A medical item ends the
+    /// effects carrying a tag it names (data/medical/treatments.ron,
+    /// `systems::treatment`): `bleeding`, `bacterial`, `toxin`.
     #[serde(default)]
     pub tags: String,
     /// Short human-readable description.
@@ -50,6 +75,16 @@ pub struct StatusEffectDef {
 }
 
 impl StatusEffectDef {
+    /// Whether the effect carries `tag` in its `tags` column.
+    pub fn has_tag(&self, tag: &str) -> bool {
+        self.tags.split('|').any(|t| t == tag)
+    }
+
+    /// Whether it is an illness, which runs on the game clock (`systems::illness`).
+    pub fn is_disease(&self) -> bool {
+        self.kind == crate::systems::illness::DISEASE
+    }
+
     /// Parse `stat_modifier` into `(stat, value, operation)`, or `None` for the
     /// sentinel `none:0:none` / a malformed value.
     pub fn modifier(&self) -> Option<(&str, f32, &str)> {
@@ -145,9 +180,13 @@ mod tests {
             assert!(reg.get(id).is_some(), "missing status effect: {id}");
         }
 
-        // Durations come from data, not code.
+        // Durations come from data, not code. Food poisoning's is its Realistic
+        // course in game seconds, two days (BUG-162).
         assert_eq!(reg.duration("well_fed"), 1800.0);
-        assert_eq!(reg.duration("food_poisoning"), 5400.0);
+        assert_eq!(reg.duration("food_poisoning"), 172_800.0);
+        assert!(reg.get("food_poisoning").unwrap().is_disease());
+        assert!(reg.get("infection").unwrap().has_tag("bacterial"));
+        assert!(!reg.get("food_poisoning").unwrap().has_tag("bacterial"), "antibiotics do not end it");
         // Conditions have duration 0 (managed by their owning system).
         assert_eq!(reg.duration("hungry"), 0.0);
 

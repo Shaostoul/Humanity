@@ -66,8 +66,14 @@ lib.rs:6797-6841); a home power loss makes indoor air unbreathable.
   nothing.~~ **CLOSED in v0.745.** Both are consumed at
   `src/systems/food.rs:580-596`, normalized per-second by `tick_interval_s`.
   Five live health drains now exist (starvation, dehydration, suffocation,
-  freezing, heat exhaustion). Genuinely still unread: `stackable`, `max_stacks`,
-  `damage_type`, `dispel_type` are dropped by the loader.
+  freezing, heat exhaustion). ~~Genuinely still unread: `stackable`, `max_stacks`,
+  `damage_type`, `dispel_type` are dropped by the loader.~~ **CLOSED 2026-10-05
+  (BUG-162):** the loader now refuses a row with a column it does not declare;
+  `dispel_type`, which nothing read, became tags that medical items end
+  (`data/medical/treatments.ron`, `src/systems/treatment.rs`); `stackable`,
+  `max_stacks` and `damage_type` are read but not acted on (nothing stacks, and
+  damage has no type). Food poisoning stopped being a health drain: it takes
+  water over game days and passes (`src/systems/illness.rs`).
 - Vitals are visible only on the Inventory page; no in-world HUD warning.
 
 **Designed closure:** the death-and-recovery loop. Death inserts Dead,

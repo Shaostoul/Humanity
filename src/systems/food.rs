@@ -195,7 +195,7 @@ pub const STORAGE_AGING_KEY: &str = "food_storage_aging_s";
 const SATIATION_DECAY_PER_SEC: f32 = 100.0 / 604_800.0;
 /// Hydration lost per real second (full -> empty in ~2 days; thirsty from
 /// around day 1.5).
-const HYDRATION_DECAY_PER_SEC: f32 = 100.0 / 172_800.0;
+pub(crate) const HYDRATION_DECAY_PER_SEC: f32 = 100.0 / 172_800.0;
 /// Below this satiation the `hungry` condition applies.
 const HUNGRY_THRESHOLD: f32 = 25.0;
 /// Below this hydration the `thirsty` condition applies.
@@ -214,7 +214,7 @@ const DRINK_HYDRATION: f32 = 30.0;
 /// a resting adult loses (urine, breath and skin: Jequier and Constant 2010,
 /// "Water as an essential nutrient", Eur. J. Clin. Nutr. 64), so a point is
 /// about 50 mL. What sweat costs on top (`body_heat::HeatOutcome::sweat_l`).
-const HYDRATION_PER_LITRE: f32 = 20.0;
+pub(crate) const HYDRATION_PER_LITRE: f32 = 20.0;
 /// Health drained per second while fully starved / dehydrated (real scale,
 /// v0.1005: an empty tank kills over ~2 weeks starved / ~1 day dehydrated,
 /// so dehydration stays the far deadlier clock, matching human biology).
@@ -223,9 +223,10 @@ const DEHYDRATE_DAMAGE_PER_SEC: f32 = 100.0 / 86_400.0;
 /// Conditions (hungry/thirsty) are refreshed to this many seconds each tick
 /// while their trigger holds, so they linger briefly then fade once you recover.
 const CONDITION_LINGER: f32 = 3.0;
-/// Fallback durations (seconds) if status_effects.csv isn't loaded.
+/// Fallback durations (seconds) if status_effects.csv isn't loaded. Food
+/// poisoning's is its Realistic course in game seconds, two days (BUG-162).
 const FALLBACK_WELL_FED_S: f32 = 1800.0;
-const FALLBACK_FOOD_POISONING_S: f32 = 5400.0;
+const FALLBACK_FOOD_POISONING_S: f32 = 172_800.0;
 const FALLBACK_RESTED_S: f32 = 3600.0;
 /// Energy lost per real second while awake (real scale, v0.1005: full ->
 /// fatigued threshold after ~16 waking hours; a sleep cycle refills).
@@ -356,6 +357,12 @@ pub struct FoodSystem {
     /// Each living body's heat state (2026-09-27, `systems::body_heat`). Only
     /// the core temperature is saved (in `Vitals`); the rest restarts from it.
     body_heat: HashMap<hecs::Entity, crate::systems::body_heat::Tracked>,
+    /// What an illness does to the body's water and what the player is told
+    /// (BUG-162, `systems::illness`, data/medical/illnesses.ron).
+    illnesses: crate::systems::illness::Illnesses,
+    /// What the medical items' Use does (BUG-162, `systems::treatment`,
+    /// data/medical/treatments.ron).
+    treatments: crate::systems::treatment::Treatments,
 }
 
 impl FoodSystem {
@@ -391,11 +398,20 @@ impl FoodSystem {
             }
         }
         log::info!("Loaded {} edible items from {}", item_profile.len(), ItemProfiles::FILE);
+        let illnesses = crate::systems::illness::Illnesses::load(data_dir);
+        let treatments = crate::systems::treatment::Treatments::load(data_dir);
+        log::info!(
+            "Loaded {} illness(es) and {} medical item(s) with a Use",
+            illnesses.illnesses.len(),
+            treatments.treatments.len()
+        );
         Self {
             data,
             item_profile,
             asleep: None,
             body_heat: HashMap::new(),
+            illnesses,
+            treatments,
         }
     }
 
@@ -416,7 +432,10 @@ impl FoodSystem {
     /// StatusEffects) who carries it, applying the food's nutrition. Items that
     /// are not food, and non-beverages sent to Drink, are ignored. True when
     /// it was eaten or drunk (2026-10-04: the tick reports an eaten item to
-    /// the quests, the opening's "eat something" step).
+    /// the quests, the opening's "eat something" step). While an illness is
+    /// taking water, a drink puts back only the share of its water the body
+    /// keeps (BUG-162, `Illnesses::drink_kept`), and falling ill tells the
+    /// player what is happening and what helps (on `data`'s notice channel).
     fn consume(
         &self,
         world: &mut hecs::World,
@@ -424,6 +443,7 @@ impl FoodSystem {
         how: Consume,
         fx: &MealEffects,
         returns: Option<(&str, u32)>,
+        data: &DataStore,
     ) -> bool {
         use crate::ecs::components::{StatusEffects, Vitals};
         use crate::systems::inventory::Inventory;
@@ -481,10 +501,16 @@ impl FoodSystem {
                 inv.add_item(empty, 1, max_stack);
             }
             let nutrition_mult = if is_spoiled { 0.25 } else { 1.0 };
+            // While an illness takes water (vomiting, diarrhoea), the body
+            // keeps only part of a drink's: all of an oral rehydration
+            // solution's, less of plain water's, least of a sugary or
+            // caffeinated drink's (BUG-162, data/medical/illnesses.ron).
+            // Decided before this meal can make anyone ill.
+            let kept = if is_beverage { self.illnesses.drink_kept(effects, item_id) } else { 1.0 };
             vitals.satiation = (vitals.satiation + calories * SATIATION_PER_CALORIE * nutrition_mult)
                 .min(vitals.satiation_max);
             vitals.hydration =
-                (vitals.hydration + hydration_gain * nutrition_mult).min(vitals.hydration_max);
+                (vitals.hydration + hydration_gain * nutrition_mult * kept).min(vitals.hydration_max);
             // Eating solid food leaves a little organic waste (scraps) to
             // compost later; a drink leaves none.
             if !is_beverage {
@@ -493,11 +519,20 @@ impl FoodSystem {
             // Spoiled food always poisons; otherwise raw food risks illness while
             // cooked/preserved food (risk 0) is safe.
             if is_spoiled || (risk > 0.0 && rand::random::<f32>() < risk) {
+                let already = effects.has("food_poisoning");
                 effects.apply("food_poisoning", fx.poisoning_s);
                 log::info!(
                     "[Food] {item_id} consumed {} -> food poisoning!",
                     if is_spoiled { "spoiled" } else { "raw" }
                 );
+                // Tell the player, in plain words, once: what is happening,
+                // how long it lasts in this Illness mode, and what helps.
+                if !already {
+                    if let Some(ill) = self.illnesses.get("food_poisoning") {
+                        let msg = crate::systems::illness::Illnesses::onset_notice(ill, fx.poisoning_s);
+                        crate::systems::sleep::notice(data, msg);
+                    }
+                }
             }
             // A satisfying meal grants well_fed (stamina regen) + well_nourished
             // (a tangible +10% move speed via the camera speed_multiplier).
@@ -519,6 +554,47 @@ impl FoodSystem {
         }
         false
     }
+
+    /// Use one medical `item_id` from the first living player who carries it
+    /// (BUG-162): its row in data/medical/treatments.ron decides what it does
+    /// (`treatment::apply`). One is used up only when it helped. Either way the
+    /// player is told, and when it could not help, what does help with any
+    /// illness they have. An item with no row has no Use, and is left alone.
+    fn use_item(
+        &self,
+        world: &mut hecs::World,
+        item_id: &str,
+        registry: Option<&crate::systems::status_effects::StatusEffectRegistry>,
+        data: &DataStore,
+    ) {
+        use crate::ecs::components::{Dead, Health, StatusEffects};
+        use crate::systems::inventory::Inventory;
+
+        let Some(t) = self.treatments.get(item_id) else {
+            log::debug!("[Medical] Use of {item_id} ignored: it has no row in {}", crate::systems::treatment::Treatments::FILE);
+            return;
+        };
+        for (_e, (inv, health, effects, dead)) in
+            world.query_mut::<(&mut Inventory, &mut Health, &mut StatusEffects, Option<&Dead>)>()
+        {
+            if dead.is_some() || !inv.has_item(item_id, 1) {
+                continue;
+            }
+            let out = crate::systems::treatment::apply(t, health, effects, registry);
+            let mut message = out.message;
+            if out.used {
+                inv.remove_item(item_id, 1);
+            } else {
+                for line in self.illnesses.helps_lines(effects, registry) {
+                    message.push(' ');
+                    message.push_str(&line);
+                }
+            }
+            log::info!("[Medical] {} {item_id}: {message}", if out.used { "used" } else { "kept" });
+            crate::systems::sleep::notice(data, message);
+            return; // first player only
+        }
+    }
 }
 
 impl System for FoodSystem {
@@ -539,7 +615,12 @@ impl System for FoodSystem {
         // heat, a burn's g-load and timed status effects, because the player
         // moves and acts in real seconds, and at 72x a held breath would
         // otherwise last half a real second. At time speed 1 the two agree.
+        // An ILLNESS (a `disease` effect, BUG-162) is the exception among the
+        // effects: it runs its course over game days, so it counts game seconds.
         let game_dt = crate::systems::time::scaled_dt(dt, data);
+        // Settings > Gameplay > Illness (BUG-162, systems::illness): how long
+        // an illness lasts and how much water it takes.
+        let illness_mode = crate::systems::illness::Mode::from_store(data);
 
         // ── 1. EAT / DRINK: drain the consume_request (Eat button) and
         //    drink_request (Drink button) channels, written by the main-loop
@@ -560,7 +641,9 @@ impl System for FoodSystem {
                 registry.map(|r| r.duration(id)).filter(|d| *d > 0.0).unwrap_or(fallback)
             };
             let fx = MealEffects {
-                poisoning_s: effect_s("food_poisoning", FALLBACK_FOOD_POISONING_S),
+                // The Realistic course, or Forgiving's share of it.
+                poisoning_s: effect_s("food_poisoning", FALLBACK_FOOD_POISONING_S)
+                    * self.illnesses.course_share(illness_mode),
                 well_fed_s: effect_s("well_fed", FALLBACK_WELL_FED_S),
                 nourished_s: effect_s("well_nourished", FALLBACK_WELL_FED_S),
             };
@@ -574,14 +657,22 @@ impl System for FoodSystem {
                 // opening's "eat something"): reported here, where the item
                 // leaves the backpack, so a click on food the player does not
                 // carry counts nothing.
-                if self.consume(world, &item_id, Consume::Eat, &fx, back.as_ref().map(|(e, m)| (e.as_str(), *m))) {
+                if self.consume(world, &item_id, Consume::Eat, &fx, back.as_ref().map(|(e, m)| (e.as_str(), *m)), data) {
                     crate::systems::quests::push_quest_event(data, crate::systems::quests::eat_event_key(&item_id));
                 }
             }
             if let Some(item_id) = drank {
                 let back = empty_of(&item_id);
-                self.consume(world, &item_id, Consume::Drink, &fx, back.as_ref().map(|(e, m)| (e.as_str(), *m)));
+                self.consume(world, &item_id, Consume::Drink, &fx, back.as_ref().map(|(e, m)| (e.as_str(), *m)), data);
             }
+        }
+
+        // ── 1a. USE (BUG-162): the medical item the Inventory's Use button
+        //    was clicked on, from the use_item_request channel lib.rs's
+        //    inventory bridge fills. What it does is its row in
+        //    data/medical/treatments.ron (systems::treatment).
+        if let Some(item_id) = crate::systems::treatment::take_request(data) {
+            self.use_item(world, &item_id, registry, data);
         }
 
         // ── 1b. REST: drain the rest_request channel (the Rest button): a short
@@ -712,6 +803,11 @@ impl System for FoodSystem {
             .and_then(|m| m.lock().ok().map(|g| *g))
             .unwrap_or(1.0)
             .clamp(0.0, 5.0);
+        // What the player is told this tick when an illness passes (BUG-162).
+        let mut passed: Vec<String> = Vec::new();
+        // An illness (a `disease` effect) counts game seconds; the rest, real
+        // ones (BUG-162, systems::illness).
+        let on_game_clock = |id: &str| registry.and_then(|r| r.get(id)).is_some_and(|d| d.is_disease());
         for (e, (vitals, effects, health, ctrl, dead, outfit)) in world.query_mut::<(
             &mut Vitals,
             &mut StatusEffects,
@@ -740,6 +836,15 @@ impl System for FoodSystem {
                 (vitals.satiation - SATIATION_DECAY_PER_SEC * drain_scale * game_dt).max(0.0);
             vitals.hydration =
                 (vitals.hydration - HYDRATION_DECAY_PER_SEC * drain_scale * game_dt).max(0.0);
+            // An illness takes water while it lasts (BUG-162, systems::illness):
+            // food poisoning's vomiting and diarrhoea, on the game clock, by the
+            // Illness mode. It does no harm of its own: the harm is the empty
+            // Hydration bar below, when the player has not drunk enough. The
+            // Vitals drain slider scales it with the rest of thirst.
+            let ill_l = self.illnesses.water_l(effects, illness_mode, game_dt);
+            if ill_l > 0.0 {
+                vitals.hydration = (vitals.hydration - ill_l * HYDRATION_PER_LITRE * drain_scale).max(0.0);
+            }
             if vitals.satiation < HUNGRY_THRESHOLD {
                 effects.apply("hungry", CONDITION_LINGER);
             } else {
@@ -865,24 +970,26 @@ impl System for FoodSystem {
             // ── EFFECT TICK (v0.745, loop-map rung 1): damage/healing-over-time
             // rows from status_effects.csv finally act. Per-tick values are
             // normalized to a continuous per-second rate by tick_interval_s
-            // (0 = the value is already per second): food_poisoning's
-            // 3 dmg / 15 s drains 0.2/s; regeneration's 5 heal / 3 s restores
+            // (0 = the value is already per second): infected_wound's
+            // 3 dmg / 20 s drains 0.15/s; regeneration's 5 heal / 3 s restores
             // ~1.67/s. This is also the game's first health REGENERATION path.
+            // An illness's own rows count game seconds, like its course.
             let mut effect_heal = 0.0_f32;
             if let Some(reg) = registry {
                 for active in &effects.active {
                     if let Some(def) = reg.get(&active.id) {
                         let interval =
                             if def.tick_interval_s > 0.0 { def.tick_interval_s } else { 1.0 };
+                        let clock = if def.is_disease() { game_dt } else { dt };
                         if def.damage_per_tick > 0.0 {
-                            let amt = def.damage_per_tick / interval * dt;
+                            let amt = def.damage_per_tick / interval * clock;
                             health_drain += amt;
                             if amt > worst.1 {
                                 worst = (def.name.as_str(), amt);
                             }
                         }
                         if def.healing_per_tick > 0.0 {
-                            effect_heal += def.healing_per_tick / interval * dt;
+                            effect_heal += def.healing_per_tick / interval * clock;
                         }
                     }
                 }
@@ -900,15 +1007,36 @@ impl System for FoodSystem {
                 if ctrl.is_some() && before > 0.0 && health.current <= 0.0 {
                     let cause =
                         if worst.0.is_empty() { "injuries".to_string() } else { worst.0.to_string() };
+                    // Dried out while an illness was taking water: say which
+                    // (BUG-162), so the death line points at what to do.
+                    let cause = match self.illnesses.drying_illness(effects, registry) {
+                        Some(ill) if cause == "dehydration" => format!("dehydration from {ill}"),
+                        _ => cause,
+                    };
                     player_died = Some((e, cause));
                 }
             }
 
-            // Expire timed effects (conditions were just refreshed, so they survive dt).
-            effects.tick(dt);
+            // Expire timed effects (conditions were just refreshed, so they
+            // survive dt). An illness counts game seconds and passes on its
+            // own; the player is told when it has (BUG-162).
+            let step = |id: &str| if on_game_clock(id) { game_dt } else { dt };
+            if ctrl.is_some() {
+                for active in &effects.active {
+                    if active.remaining - step(&active.id) <= 0.0 {
+                        if let Some(ill) = self.illnesses.get(&active.id) {
+                            passed.push(ill.passed.clone());
+                        }
+                    }
+                }
+            }
+            effects.tick_with(step);
         }
         // Forget the heat state of bodies that are gone.
         self.body_heat.retain(|e, _| heat_seen.contains(e));
+        for msg in passed {
+            crate::systems::sleep::notice(data, msg);
+        }
 
         // Death (v0.745): mark the player Dead + publish the cause for the death
         // screen (the "player_death" DataStore slot; lib.rs surfaces it). Done
@@ -1201,32 +1329,34 @@ mod nutrition_tests {
     }
 
     /// v0.745 EFFECT TICK (loop-map rung 1): damage/healing-over-time rows in
-    /// status_effects.csv finally act. food_poisoning (3 dmg / 15 s) drains
-    /// health at 0.2/s; regeneration (5 heal / 3 s) restores it. Pinned with
+    /// status_effects.csv finally act. infected_wound (3 dmg / 20 s) drains
+    /// health at 0.15/s; regeneration (5 heal / 3 s) restores it. Pinned with
     /// exact rates so a CSV rebalance shows up as a test diff, not a surprise.
+    /// (Food poisoning was the example until BUG-162, 2026-10-05: it takes
+    /// water now, not health; systems::illness and illness_tests.rs.)
     #[test]
     fn status_effect_damage_and_healing_tick_on_health() {
         let mut sys = FoodSystem::new(data_dir());
         let data = make_store();
         let mut world = hecs::World::new();
         let mut fx = StatusEffects::default();
-        fx.apply("food_poisoning", 5400.0);
+        fx.apply("infected_wound", 5400.0);
         let e = world.spawn((Inventory::new(4), vitals(80.0, 80.0), fx, Health::default()));
 
-        // 30 simulated seconds of poison at 3/15 = 0.2 dmg/s -> ~6 damage.
+        // 30 simulated seconds of infection at 3/20 = 0.15 dmg/s -> 4.5 damage.
         for _ in 0..30 {
             sys.tick(&mut world, 1.0, &data);
         }
         let after_poison = world.get::<&Health>(e).unwrap().current;
         assert!(
-            (93.0..95.5).contains(&after_poison),
-            "food_poisoning drained ~6 HP over 30s, got {after_poison}"
+            (95.0..96.0).contains(&after_poison),
+            "infected_wound drained 4.5 HP over 30s, got {after_poison}"
         );
 
-        // Swap poison for regeneration (5 heal / 3 s): health climbs back.
+        // Swap the infection for regeneration (5 heal / 3 s): health climbs back.
         {
             let mut fx = world.get::<&mut StatusEffects>(e).unwrap();
-            fx.remove("food_poisoning");
+            fx.remove("infected_wound");
             fx.apply("regeneration", 300.0);
         }
         for _ in 0..3 {
@@ -2189,3 +2319,10 @@ mod g_load_wiring_tests {
 #[cfg(all(test, feature = "native"))]
 #[path = "food_spoilage_tests.rs"]
 mod spoilage_tests;
+
+/// Being ill and the medical items' Use button (BUG-162, 2026-10-05): the stomach illness
+/// takes water over game hours and passes, drinking puts it back, and Use does what each
+/// medical item's data says.
+#[cfg(test)]
+#[path = "illness_tests.rs"]
+mod illness_tests;
