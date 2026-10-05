@@ -590,6 +590,9 @@
     //             envelope_u_w_m2_k times their area, and with the air it
     //             exchanges, its air changes an hour (its leakage,
     //             base_air_changes_per_hour above, and its fans) times C / 3600.
+    //             The home's own air exchanges none: the half kilogram a day it
+    //             leaks overboard (data/life_support.ron) carries a few
+    //             milliwatts a degree, and is left out.
     //   G_coil    an air handler's cold coil cools the air it moves: the air it
     //             moves an hour times C per m3 / 3600. That heat goes to the
     //             station's cooling loop with the rest of the coil's.

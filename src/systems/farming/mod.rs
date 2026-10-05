@@ -2546,7 +2546,9 @@ impl System for FarmingSystem {
         // The home's own air goes into its air space, where the atmosphere
         // system judges it (breathable, toxic) and the Air readout shows it.
         if let (Some(l), true) = (life, air_map.home_known) {
-            let t_c = air_map.home_temp_c;
+            // At its temperature as the step left it: its own plus its heaters'
+            // warmth (2026-10-05, BUG-155), the one written into the space below.
+            let t_c = air_map.home_own_c + home_air.warmed_k.max(0.0);
             let rh = air_data.rh_of(home_air.vapour_g_m3, t_c).clamp(0.0, 1.0);
             let o2 = home_air.o2_g_m3 / crate::systems::life_support::pure_g_m3(air_data, l.o2_molar_mass, t_c).max(1e-9) * 100.0;
             let co2 = crate::systems::life_support::co2_ppm(air_data, home_air.co2_g_m3, t_c) / 1e4;
