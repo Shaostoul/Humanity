@@ -220,6 +220,17 @@
           ]
         },
         {
+          "title": "Microbes, Good and Bad",
+          "src": "docs/user/skills/microbes_good_and_bad.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "health",
+            "safety"
+          ]
+        },
+        {
           "title": "Keeping What You Grew",
           "src": "docs/user/skills/keeping_what_you_grew.md",
           "tags": [
@@ -302,6 +313,17 @@
             "guide",
             "real",
             "food",
+            "safety"
+          ]
+        },
+        {
+          "title": "The Chemistry of Keeping Food",
+          "src": "docs/user/skills/the_chemistry_of_keeping_food.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "technical",
             "safety"
           ]
         },
@@ -850,6 +872,18 @@
             "guide",
             "real",
             "health",
+            "safety"
+          ]
+        },
+        {
+          "title": "When Food or Water Makes You Sick",
+          "src": "docs/user/skills/when_food_or_water_makes_you_sick.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "water",
+            "food",
             "safety"
           ]
         },
