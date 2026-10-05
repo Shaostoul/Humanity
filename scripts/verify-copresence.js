@@ -3205,13 +3205,16 @@ async function runBuildOnce(runStamp, cleanups) {
     return p;
   };
   const camOf = (p) => (p && p.camera_end ? p.camera_end.pos : null);
-  /** Walk the game to `p` (the showcase `walk_to` verb at WALK_MPS) and wait until it arrives;
-   *  every walk recorded for judgeWalks (as --plots' walkGame). */
+  /** Walk the game to `p` (the showcase `walk_to` verb at WALK_MPS), ending facing yaw and pitch,
+   *  and wait until it arrives; a `yaw` of null ends facing the way this walk went (`walkYaw` from
+   *  where the camera stands), for the doors on a route (`walkRoute`, BUG-165). Every walk recorded
+   *  for judgeWalks (as --plots' walkGame). Returns whether it arrived. */
   const walkGame = async (p, yaw, pitch, label) => {
     const from = await probe();
     const here = camOf(from) || p;
     const far = Math.hypot(...[0, 1, 2].map((k) => p[k] - here[k]));
-    await showcase({ walk_to: `${p.join(",")},${yaw},${pitch},${WALK_MPS}` });
+    const endYaw = yaw === null ? walkYaw(here, p, from && from.camera_end ? from.camera_end.yaw : 0) : yaw;
+    await showcase({ walk_to: `${p.join(",")},${endYaw},${pitch},${WALK_MPS}` });
     const at = (pr) => pr && pr.moves && pr.moves.walking === false && pr.camera_end && Math.hypot(...[0, 1, 2].map((k) => pr.camera_end.pos[k] - p[k])) < 0.05;
     const pr = await until(at, Math.ceil((far / WALK_MPS) * 1000) + 15000);
     const ok = !!at(pr);
@@ -3219,6 +3222,18 @@ async function runBuildOnce(runStamp, cleanups) {
     manifest.walks.push({ label, to: p, at: stopped, ok });
     if (!ok) step(`${label}_walk`, false, `the walk to ${fmt(p)} never arrived: the camera stopped at ${stopped ? fmt(stopped) : "(unknown)"}`);
     return ok;
+  };
+  /** Walk the game through `points` in order (`walkGame`), stopping at the first walk that never
+   *  arrives (a failed step: the turn after it would be a teleport). It reaches each door facing
+   *  the way it walked there, level, and turns to yaw and pitch only at the last point
+   *  (`routeFacings`, BUG-165), as --plots' walkRoute: asking every door for one facing had the
+   *  camera turn to it at each door and back again for the next leg. True when every walk arrived. */
+  const walkRoute = async (points, yaw, pitch, label) => {
+    const facings = routeFacings(points.length, yaw, pitch);
+    for (const [i, p] of points.entries()) {
+      if (!(await walkGame(p, facings[i].yaw, facings[i].pitch, label))) return false;
+    }
+    return true;
   };
   /** Turn the game where it stands (the `cam` verb), only when it already stands there (R4). */
   const turnTo = async (pose) => {
@@ -3512,27 +3527,20 @@ async function runBuildOnce(runStamp, cleanups) {
       const meetCam = [mx, my, mz];
       const zoneBox = boxOf(BUILD_ZONE);
       const route = door ? doorRoute(dp, door, meetCam, MEET_STEP_M) : { error: "the game's door is unknown" };
-      const p0 = await probe();
-      const yaw0 = p0 && p0.camera_end ? p0.camera_end.yaw : 0;
-      const pitch0 = p0 && p0.camera_end ? p0.camera_end.pitch : 0;
       let walked = false;
       if (!zoneBox || !placeAt({ places: [zoneBox] }, meetCam)) {
         manifest.zone.parked = { ok: false, detail: `the meeting pose ${MEET_POSE} is not inside ${BUILD_ZONE} as the game reports it` };
       } else if (route.error) {
         manifest.zone.parked = { ok: false, detail: `no route from the game's door to the Commons: ${route.error}` };
       } else {
-        // From its door, the walk a person takes out of their home; stopping at the first walk that
-        // never arrives (it is a failed step, and the turn after it would be a teleport).
-        walked = true;
-        for (const p of [door, ...route.points]) {
-          if (!(await walkGame(p, yaw0, pitch0, "zone"))) {
-            walked = false;
-            break;
-          }
-        }
+        // From its door, the walk a person takes out of their home: facing each leg as it goes, and
+        // turning to the meeting pose's facing only at its end (BUG-165), as --plots' meeting walks.
+        walked = await walkRoute([door, ...route.points], myaw, mpitch, "zone");
       }
       if (walked) {
         await sleep(1500);
+        // At the meeting pose already, facing the way it asks: this only stands it exactly there
+        // (no move; refused if the walk stopped short).
         await turnTo(MEET_POSE);
         await sleep(2500);
         const c1 = await probe();

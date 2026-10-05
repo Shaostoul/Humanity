@@ -416,6 +416,29 @@ test("what comes back is counted in the backpack and home storage together", () 
   }
 });
 
+// BUG-165 IN THE --build RIG TOO (2026-10-05): its walk from the game's door into the Commons faces
+// each leg as a person walks it and turns to the meeting pose's facing only at the end
+// (copresence-judge.js `routeFacings`, `walkYaw`), as --plots' meeting walk does. It had a walk loop
+// of its own that asked every door for the facing the camera started with, so the camera turned
+// back to it at each door. The rig boots the game, so this reads its source, as
+// second-player.test.js reads the rig's use of CORRECTED_RE.
+//
+// Red first, 2026-10-05, on that loop:
+//   AssertionError [ERR_ASSERTION]: the --build walk asks a door for the facing the camera started
+//   with (yaw0): walkGame(p, yaw0, pitch0, "zone")
+test("the --build walk into the Commons faces its legs and turns only at its end", () => {
+  const rig = fs.readFileSync(path.join(REPO, "scripts", "verify-copresence.js"), "utf8");
+  const from = rig.indexOf("async function runBuildOnce(");
+  const to = rig.indexOf("\nasync function ", from + 1);
+  assert.ok(from >= 0 && to > from, "verify-copresence.js has runBuildOnce");
+  const build = rig.slice(from, to);
+  const fixed = build.match(/walkGame\([^)]*\byaw0\b[^)]*\)/);
+  assert.equal(fixed, null, `the --build walk asks a door for the facing the camera started with (yaw0): ${fixed && fixed[0]}`);
+  assert.match(build, /routeFacings\(points\.length, yaw, pitch\)/, "its walkRoute takes each walk's facing from routeFacings");
+  assert.match(build, /yaw === null \? walkYaw\(/, "and a door's facing is the way that leg walks");
+  assert.match(build, /walkRoute\(\[door, \.\.\.route\.points\], myaw, mpitch, "zone"\)/, "the walk into the Commons is one route, ending at the meeting pose's facing");
+});
+
 test("nothing recorded fails every check that has evidence to read", () => {
   const r = J.judgeSharedBuild({}, {});
   const passed = r.checks.filter((c) => c.ok).map((c) => c.id);
