@@ -128,10 +128,12 @@ pub(crate) fn outside_context(
 
 /// The context with the warmth of the fires near the player added
 /// (BUG-153, 2026-10-05): `absorbed_w_m2` is what their body takes from every
-/// burning fire (`construction::fires::warmth_at`), put into the mean radiant
-/// temperature (`body_heat::radiant_with_source_c`) on top of the open sky's,
-/// or of the air's where a roof hides the sky. Nothing absorbed, nothing
-/// changed. Pure, so the chain is tested.
+/// burning fire it has a clear line to (`construction::fires::warmth_at`,
+/// which leaves out a fire with a wall, a roof or a shut door between it and
+/// the person: radiant heat goes in straight lines, the BUG-153 review), put
+/// into the mean radiant temperature (`body_heat::radiant_with_source_c`) on
+/// top of the open sky's, or of the air's where a roof hides the sky. Nothing
+/// absorbed, nothing changed. Pure, so the chain is tested.
 pub(crate) fn warmed_by_fires(mut ctx: EnvironmentContext, absorbed_w_m2: f64) -> EnvironmentContext {
     if absorbed_w_m2 > 0.0 {
         let surroundings = ctx.radiant_temp_c.unwrap_or(ctx.ambient_temp_c);
@@ -145,7 +147,8 @@ pub(crate) fn warmed_by_fires(mut ctx: EnvironmentContext, absorbed_w_m2: f64) -
 /// only on a planet's ground, so aboard there is none. Their middle is a
 /// standing body's (`fires::BODY_MIDDLE_M` above the feet, under the eye at
 /// the frame lock's anchor), in the body's frame in f64, which is where every
-/// fire's place is taken too (`fires::warmth_at`).
+/// fire's place is taken too (`fires::warmth_at`). A fire with a built piece
+/// standing between it and the player gives nothing.
 fn fire_warmth(state: &EngineState) -> f64 {
     use crate::systems::construction::fires;
     if state.aboard_station {

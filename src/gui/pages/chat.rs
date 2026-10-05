@@ -4367,3 +4367,60 @@ mod ingame_chat_mode_tests {
         assert_eq!(dm_recency_order(&[]), Vec::<usize>::new());
     }
 }
+
+/// BUG-160: the connect form's Server field is a draft that Connect dials, proven drawn, clicked
+/// and typed into the way a person does it. Here rather than beside the form because
+/// pages/chat/left_panel.rs stands at its line budget (tests/file_size_ratchet.rs).
+#[cfg(test)]
+mod connect_form_tests {
+    use super::*;
+    use crate::gui::screen_surface::find_text_in_shapes;
+
+    /// One headless frame (no GPU) of the left panel, with `events`.
+    fn frame(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, events: Vec<egui::Event>) -> egui::FullOutput {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(320.0, 900.0))),
+            events,
+            ..Default::default()
+        };
+        ctx.run(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| draw_left_panel(ui, theme, state));
+        })
+    }
+
+    /// After a restart with no server, an address typed into the empty Server field is dialled
+    /// by Connect, not letter by letter by itself: the first letter made the address non-empty,
+    /// so the auto-connect dialled "h" and the background pump then started the saved servers.
+    /// The field's edit holds both until Connect, as a Disconnect does.
+    ///
+    /// Seen red 2026-10-05 with B1's change in place and the edit holding nothing: "the first
+    /// letter typed after a restart with no server was dialled".
+    #[test]
+    fn typing_into_the_empty_server_field_waits_for_connect() {
+        // A restart with no server: the config's empty address, loaded, and the identity
+        // unlocked (`apply_pq_identity`, which every unlock runs).
+        let cfg: crate::config::AppConfig =
+            serde_json::from_str(r#"{"server_url":"","user_name":"Ada","completed_onboarding":true}"#).expect("the config loads");
+        let mut state = GuiState::default();
+        cfg.apply_to_gui_state(&mut state);
+        state.private_key_bytes = Some(vec![7u8; 32]);
+        state.apply_pq_identity();
+        assert!(!state.may_auto_connect(), "a restart with no server dialled one by itself");
+
+        let ctx = egui::Context::default();
+        crate::gui::fonts::install_font_fallbacks(&ctx);
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        // Click the empty field (its suggestion is drawn inside it), then type one letter.
+        let out = frame(&ctx, &theme, &mut state, Vec::new());
+        let field = find_text_in_shapes(&out.shapes, crate::gui::OFFICIAL_SERVER).expect("the empty field is drawn");
+        let (pos, m) = (field.rect.center(), egui::Modifiers::default());
+        frame(&ctx, &theme, &mut state, vec![egui::Event::PointerMoved(pos)]);
+        frame(&ctx, &theme, &mut state, vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: m }]);
+        frame(&ctx, &theme, &mut state, vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: m }]);
+        frame(&ctx, &theme, &mut state, vec![egui::Event::Text("h".into())]);
+        assert_eq!(state.server_url, "h", "the letter did not reach the field");
+        assert!(!state.may_auto_connect(), "the first letter typed after a restart with no server was dialled");
+        assert!(!state.may_dial_saved_servers(), "typing an address started the background links");
+    }
+}

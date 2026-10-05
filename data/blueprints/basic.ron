@@ -54,7 +54,9 @@
     // data/structures.csv always listed it (stone:6|log:3, 1.0 x 0.6 x 1.0 m, 30 hp,
     // outdoor_only). The Campfire ability builds it in front of the player; the
     // Crafting page places it by hand. outdoors_only: never aboard the ship, under a
-    // built roof, or where there is no air to burn (construction::outdoors_refusal).
+    // roof (built or still going up), or where there is no air to burn
+    // (construction::outdoors_refusal), and no roof is ever built over it
+    // (construction::roofs_over_outdoors_piece): it stays in the open all its life.
     // burns: it is a fire (src/systems/construction/fires.rs, whose doc has every source):
     // - seconds_per_fuel 2400: the US Forest Service's campground fire ring burned 11 kg
     //   of split firewood in 55 minutes of typical recreational use (Urbanski 2021, for

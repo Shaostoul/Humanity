@@ -3682,8 +3682,8 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             theme,
             hint,
             "Your character keeps living while the game is closed, so crops grow by \
-             the time you were away, at the speed above. Nothing is lost while you \
-             are gone: the garden stays watered and hunger does not drain. Applies \
+             the time you were away, at the speed above. The garden stays watered and \
+             hunger does not drain, but a campfire keeps burning its logs. Applies \
              the next time your home loads, and only while progress is kept (the \
              setting above is off).",
         );

@@ -546,9 +546,12 @@ that goes.
   of you: a ring of 6 Raw Stone with 3 Wood Logs in it, taken from your
   backpack, for 15 energy. The Crafting page's structures list has the
   same Campfire to place by hand. It is built only outdoors, on a
-  planet's ground: never aboard the ship, never under a roof you built,
-  and never where there is no air for it to burn, such as the Moon.
-  Refused, it says why and uses nothing up. In the Normal play mode,
+  planet's ground: never aboard the ship, never under a roof you built
+  or one still going up, and never where there is no air for it to
+  burn, such as the Moon. Nor will the game build a roof over one,
+  burning, gone out or still going up: it refuses the roof with the
+  campfire's own reason, that under a roof its smoke would fill the
+  shelter. Refused, it says why and uses nothing up. In the Normal play mode,
   where the game starts, you never leave the ship, so there it is always
   refused; only the Dev play mode's travel tools take you down to a
   planet's ground (Settings > Gameplay > Play mode). Finished, it is lit, and its
@@ -557,9 +560,15 @@ that goes.
   burned its wood in ordinary use (11 kg in 55 minutes). Press E at it
   to put another log from your backpack on; the ring holds four at a
   time. A log put on a fire that has gone out lights it again, with no
-  match or tinder, which no real fire allows. It heals nothing
-  (`data/abilities.csv`, `data/blueprints/basic.ron`,
-  `src/systems/abilities.rs`, `src/systems/construction/fires.rs`). The
+  match or tinder, which no real fire allows. Taken down, it gives back
+  its stones and only the whole logs it has not burned. With Settings >
+  Gameplay > "Keep growing while away" on, as it is at first, a campfire
+  burns on while the game is closed: one left burning has burned down by
+  the time you come back, and one still going up when you quit is
+  finished while you are away and has burned from then on. It heals
+  nothing (`data/abilities.csv`, `data/blueprints/basic.ron`,
+  `src/systems/abilities.rs`, `src/systems/construction/fires.rs`,
+  `src/save_load.rs`). The
   item list's Campfire Kit, "Tinder flint and starter bundle", and its
   decorative Candles and Handheld Torches do nothing (`data/items.csv`).
 - **Charcoal without a fire.** The Make Charcoal recipe turns three wood
@@ -575,10 +584,13 @@ that goes.
   charcoal included, taken from home storage and never from your
   backpack (`src/systems/crafting/mod.rs`). No flame or smoke is involved
   either way.
-- **Nothing else burns, and nothing spreads.** A campfire burns its own
-  logs and nothing more: it lights nothing near it, throws no sparks and
-  makes no smoke, so nothing in the game catches fire or has to be put
-  out. The code has a fire system that would let fires spread and do harm
+- **Nothing catches fire, and nothing spreads.** A campfire burns its
+  own logs and nothing more: it lights nothing near it, throws no sparks
+  and makes no smoke, so nothing in the game catches fire or has to be
+  put out. The home's backup generator burns its own fuel too, from its
+  drum while it runs, but with no flame, smoke or exhaust ([Choosing and
+  Running a Generator](choosing_and_running_a_generator.md)). The code
+  has a fire system that would let fires spread and do harm
   (`src/systems/fire.rs`), but nothing registers it. The Crafting page
   lists a Fire Extinguisher and a Smoke Detector, but once made neither
   does anything.
@@ -593,7 +605,11 @@ that goes.
   person in everyday clothes keeps a normal core temperature through
   that freezing night and shivers too little for the game to show it;
   at 1.5 m they are shivering by morning, and far from it they shiver
-  hard. A fire that has gone out warms nothing. A real fire warms only the side of you that faces it;
+  hard. A fire that has gone out warms nothing. Its warmth reaches you
+  only in a straight line, as radiant heat does: anything built that
+  stands between you and the fire, a wall, a roof, a shut door, even a
+  window, which the game counts as a wall, stops all of it, and an open
+  doorway lets it through. A real fire warms only the side of you that faces it;
   the game's body has one skin, so it spreads that warmth all round
   (`src/systems/construction/fires.rs`, `src/engine/survival_env.rs`,
   `src/systems/body_heat.rs`). Built shelter keeps wind and rain off your
@@ -818,11 +834,14 @@ not.
   ability and what casting it does (`data/abilities.csv`,
   `src/systems/abilities.rs`) and its place on the hotbar (sorted in
   `src/lib.rs`, drawn in `src/gui/pages/hud.rs`); the campfire it builds,
-  where it may stand, how it burns and how much heat it gives, with the
-  sources of those numbers in the code's own notes
-  (`data/blueprints/basic.ron`, `src/systems/construction/mod.rs`,
-  `src/systems/construction/fires.rs`) and the warmth a body feels from it
-  (`src/engine/survival_env.rs`, `src/systems/body_heat.rs`); the Campfire Kit,
+  where it may stand and where no roof may go over it, how it burns and
+  how much heat it gives, with the sources of those numbers in the code's
+  own notes (`data/blueprints/basic.ron`, `src/systems/construction/mod.rs`,
+  `src/systems/construction/uses.rs`, `src/systems/construction/fires.rs`,
+  the placing hint in `src/engine/build_place.rs`), how it burns while the
+  game is closed (`src/save_load.rs`), and the warmth a body feels from
+  it, which a built piece between stops (`src/systems/construction/fires.rs`,
+  `src/engine/survival_env.rs`, `src/systems/body_heat.rs`); the Campfire Kit,
   Candle, Handheld Torch, Coal, Fire Extinguisher and Smoke Detector
   items (`data/items.csv`); the Make Charcoal and other recipes
   (`data/recipes.csv`); the home's kiln and smelter, and the smelter's

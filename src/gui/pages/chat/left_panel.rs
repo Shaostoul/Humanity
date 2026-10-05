@@ -38,12 +38,7 @@
 //! shared section-header and colour helpers, so nothing had to be widened.
 
 use super::*;
-
-/// The server an empty address stands for, used only when the person presses Connect
-/// (BUG-160, 2026-10-05). It used to be written into the settings whenever this form was
-/// drawn with no server set, so a player who had cleared their server was put back on the
-/// live one, and the auto-connect dialled it, just by opening Chat.
-const OFFICIAL_SERVER: &str = "https://united-humanity.us";
+use crate::gui::{connect_target, OFFICIAL_SERVER};
 
 // ─────────────────────────────── LEFT PANEL ───────────────────────────────
 
@@ -119,15 +114,16 @@ pub(super) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
                 }
 
                 // No server is written here (BUG-160): an empty address shows the official
-                // server as a suggestion in the field, and Connect uses it.
+                // server as a suggestion in the field, and Connect uses it (`connect_target`).
                 if state.user_name.is_empty() {
                     state.user_name = "DesktopUser".to_string();
                 }
 
-                // This identity erased its account on the server in the field (BUG-135): the
-                // app no longer dials it by itself, so say what the button below does there
-                // (signs up again), or, when the erase did not finish, to erase again.
-                if let Some(note) = state.erase_note(&state.server_url) {
+                // This identity erased its account on the server Connect dials (BUG-135; the
+                // official server for an empty field, BUG-160): the app no longer dials it by
+                // itself, so say what the button below does there (signs up again), or, when
+                // the erase did not finish, to erase again.
+                if let Some(note) = state.erase_note(connect_target(&state.server_url)) {
                     ui.label(
                         RichText::new(note)
                             .size(theme.font_size_small)
@@ -137,12 +133,16 @@ pub(super) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
                 }
 
                 ui.label(RichText::new("Server:").size(theme.font_size_small).color(theme.text_muted()));
-                ui.add(
+                let field = ui.add(
                     egui::TextEdit::singleline(&mut state.server_url)
                         .hint_text(OFFICIAL_SERVER)
                         .desired_width(ui.available_width() - 24.0)
                         .font(egui::TextStyle::Small),
                 );
+                // An address being typed is dialled by Connect, not letter by letter (BUG-160).
+                if field.changed() {
+                    state.hold_dialling_until_connect();
+                }
                 ui.add_space(2.0);
                 ui.label(RichText::new("Name:").size(theme.font_size_small).color(theme.text_muted()));
                 ui.add(
@@ -158,11 +158,9 @@ pub(super) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
                     if state.private_key_bytes.is_none() {
                         state.ws_status = "Unlock your identity first (Settings → Security → Unlock, or Recover from seed). Connecting locked would squat your name with no encryption key.".to_string();
                     } else {
-                        // The person pressed Connect with the field empty: that is the
-                        // official server, the suggestion the field showed (BUG-160).
-                        if state.server_url.trim().is_empty() {
-                            state.server_url = OFFICIAL_SERVER.to_string();
-                        }
+                        // The server the note above was about: the field's address, or for
+                        // an empty field the official server, its suggestion (BUG-160).
+                        state.server_url = connect_target(&state.server_url).to_string();
                         let ws_url = derive_ws_url(&state.server_url);
                         let name = state.user_name.clone();
                         let pubkey = if state.profile_public_key.is_empty() {
@@ -2075,5 +2073,22 @@ mod tests {
             crate::gui::screen_surface::find_text_in_shapes(shapes, OFFICIAL_SERVER).is_some(),
             "the empty field suggests the official server"
         );
+    }
+
+    /// The review of BUG-160's first fix, finding B2: with the field empty, Connect dials the
+    /// official server, so the note that Connect signs you up again after an erase (BUG-135) is
+    /// that server's. It was looked up for the empty field and not shown, and Connect then
+    /// signed a new account up there without it. Seen red 2026-10-05 on efe55abad: "the erase
+    /// note of the server Connect dials is not shown".
+    #[test]
+    fn an_empty_field_shows_the_erase_note_of_the_server_connect_dials() {
+        let mut state = GuiState::default();
+        state.server_url.clear();
+        state.profile_public_key = "ab12cd34".to_string();
+        let erased = crate::gui::erased_entry("ab12cd34", OFFICIAL_SERVER);
+        state.account_erased_on.insert(erased, crate::gui::EraseOutcome::Erased);
+        let out = draw_once(&mut state);
+        let note = crate::gui::screen_surface::find_text_in_shapes(&out.shapes, crate::gui::ERASED_CONNECT_NOTE);
+        assert!(note.is_some(), "the erase note of the server Connect dials is not shown");
     }
 }

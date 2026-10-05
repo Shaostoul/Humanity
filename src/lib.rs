@@ -14292,10 +14292,8 @@ mod native_app {
                     crate::engine::frame_ws_poll::poll_relay_messages(state);
 
                     // ── WebSocket auto-reconnect with exponential backoff ──
-                    if state.gui_state.ws_client.is_none()
-                        && !state.gui_state.ws_manually_disconnected
-                        && state.gui_state.ws_reconnect_timer > 0.0
-                    {
+                    // The decision, tested, is gui/connections.rs `backoff_reconnect_runs` (BUG-160).
+                    if state.gui_state.backoff_reconnect_runs() {
                         state.gui_state.ws_reconnect_timer -= dt;
                         let secs_left = state.gui_state.ws_reconnect_timer.ceil() as u32;
                         state.gui_state.ws_status = format!("Reconnecting in {}s...", secs_left.max(1));

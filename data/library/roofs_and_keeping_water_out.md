@@ -543,7 +543,10 @@ for the person under it.
   the ship it takes them from your pack first, then from the home's
   storage; on a planet only what you carry counts, because the home's
   storage is in orbit. Finishing a piece gives experience in the
-  Shelter Building skill.
+  Shelter Building skill. A roof is never built over a campfire,
+  burning, gone out or still going up, because under a roof its smoke
+  would fill the shelter ([Making and Controlling
+  Fire](/library#making-and-controlling-fire)).
 - **A roof keeps the rain and snow off you.** On a planet with weather,
   standing under a finished roof stops rain and snow from landing on
   you, so your clothes stop getting wetter. In the game's body heat
@@ -560,7 +563,8 @@ for the person under it.
   tool key (F by default) takes down the finished piece you are looking
   at, within 8 m, and every material comes back: into your pack, and
   what does not fit there goes back to storage, with a message saying
-  so.
+  so. A campfire gives back only its stones and the whole logs it has
+  not burned.
 
 **One setting changes what you keep.** Settings > Gameplay > "Start
 every session from the default home" is off by default, so a roof you

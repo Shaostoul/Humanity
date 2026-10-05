@@ -149,7 +149,7 @@ astral_projection,Astral Projection,psionic,arcane,45,0,60,3,0,0,point,0,none,0,
 dominate,Dominate,psionic,arcane,65,0,45,2.5,10,0,point,0,psychic,0,10,16,psionics,7,offensive,Overwhelm a target's will forcing them to obey your commands,fantasy
 psychic_scream,Psychic Scream,psionic,arcane,55,10,20,1,0,8,sphere,65,psychic,0,2,14,psionics,6,offensive,Unleash a scream of pure psychic anguish stunning and damaging all nearby,fantasy
 # === SURVIVAL ABILITIES ===
-campfire,Campfire,ability,nature,0,15,60,0,0,0,point,0,none,0,0,1,,0,utility,Build a stone-ring campfire on open ground in front of you from 6 Raw Stone and 3 Wood Logs in your pack (outdoors only). While its logs burn its radiant heat warms you the closer you stand. It goes out when they are gone unless you press E at it to add a log.,real,campfire
+campfire,Campfire,ability,nature,0,15,60,0,0,0,point,0,none,0,0,1,,0,utility,Build a stone-ring campfire on open ground in front of you from 6 Raw Stone and 3 Wood Logs in your pack (outdoors only). While its logs burn its radiant heat warms you the closer you stand unless a wall or roof stands between you. It goes out when they are gone unless you press E at it to add a log.,real,campfire
 purify_water,Purify Water,ability,nature,0,10,30,3,2,0,point,0,none,0,0,1,,0,utility,Make contaminated water safe to drink,real
 forage,Forage,ability,nature,0,10,15,2,0,5,sphere,0,none,0,0,1,,0,utility,Search the immediate area for edible plants and useful materials,real
 track,Track,ability,nature,0,10,10,1,0,15,sphere,0,none,0,30,2,,0,utility,Read tracks and signs to locate nearby creatures,real
