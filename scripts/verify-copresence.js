@@ -89,7 +89,8 @@
 // and at least one SEEN there: named on screen, drawn in front of the camera, and a crew
 // figure's amber body counted in the picture under the name. THE OVERSIZED JUMP (increment 4,
 // the relay's speed check): from the crew look the game jumps (the `cam` verb) to the shared
-// zones' place farthest away, farther than anyone can go in one update; judged under jump_* ids
+// zones' place farthest away that the walker still has in view, farther than anyone can go in
+// one update; judged under jump_* ids
 // (copresence-judge.js judgeJump): the relay corrected it once (the probe's `moves`, measured
 // from where the game itself says the jump put it), one sentence came on screen, it stands back
 // where the relay holds it, nothing of the jump reached the walker, and its next move did. And
@@ -119,23 +120,29 @@
 // (editorjump_* ids, judgeEditorJump); walks to the far place again, and opens and shuts the editor there:
 // shutting it must leave the game where the relay holds it, judged under editor_*
 // ids (round 5 of the review found it put the game back at its build spot, more
-// than 100 m away, frozen for everyone). The far place is the corner of a shared
-// zone farthest from the door, from the door points, and every walk to it goes
-// through the doors. Last, THE NEXT BOOT (increment 2's remembered plot): the
+// than 100 m away, frozen for everyone). The far place is the place in a shared
+// zone farthest from the door that the walker at the meeting still has in view
+// (copresence-judge.js farPlaceInView, from the door points: the relay sends
+// nothing about a player out of view, and since the twelve plots along First
+// Street of 2026-10-04 the street runs 1.1 km, past it), and every walk to it
+// goes through the doors. Last, THE NEXT BOOT (increment 2's remembered plot): the
 // game steps out, quits and boots again against the same relay, coming in the
 // same way; its world load must build the home on the plot it held before it
 // joins, and its welcome only confirm it (reboot_* ids).
 //
 // THE GUEST (--order guest; the increment 2 review, finding 2: no rig run had a
-// guest in it, though the third person to join any server running the shipped
-// ship is one). Two scripted players take both plots, the plots walker and a
-// second identity, and the game comes in third. Judged under guest_* ids
+// guest in it, though the thirteenth person to join any server running the
+// shipped ship is one). The plots walker and a second identity take the first
+// two plots and stay, walking at home; households (second-player.js, each from
+// an address of its own) take the rest one after another and step out again,
+// until one is given none; the game comes in after them all. Judged under guest_* ids
 // (scripts/lib/copresence-judge.js judgeGuest): its welcome is a guest's and its
-// home is put away, none of the home's things (hologram, showroom stage, animals,
+// home is put away, a notice on screen tells it so in the guest's own sentence
+// (engine/home_plot.rs GUEST_ARRIVAL), none of the home's things (hologram, showroom stage, animals,
 // plants, built pieces, vehicles) stands on a plot, it stands in the Commons and
 // its Respawn point is there; B opens no build editor and says why (the probe's
-// notices); walked to the far end of First Street, Respawn stands it in the
-// Commons where the relay spawns it; stepping out brings the home back onto the
+// notices); walked down First Street as far as the walker at home still sees it,
+// Respawn stands it in the Commons where the relay spawns it; stepping out brings the home back onto the
 // default plot with everything it holds, and stepping back in puts it away again.
 // Last, THE DROPPED CONNECTION (the review's finding 1): the showcase `drop_link`
 // verb drops the connection with no game_leave and holds the reconnect
@@ -204,6 +211,9 @@ const {
   routeClear,
   farPlaces,
   farthestFrom,
+  inViewM,
+  FAR_VIEW_MARGIN_M,
+  farPlaceInView,
   judgeMeet,
   judgeReboot,
   judgeGuest,
@@ -244,8 +254,8 @@ const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "Huma
 const TIMEOUT_MS = Number(opt("--timeout-min", flag("--plots") ? "20" : "10")) * 60 * 1000;
 const DRY = opt("--dry-verdict", null);
 const PLOTS = flag("--plots");
-// The join orders: the walker first, the game first, and the GUEST (two scripted players take
-// both plots, the game comes in third). All three by default; `both` is the first two.
+// The join orders: the walker first, the game first, and the GUEST (scripted players take every
+// plot, the game comes in after them). All three by default; `both` is the first two.
 const ORDERS = {
   all: ["walker-first", "game-first", "guest"],
   both: ["walker-first", "game-first"],
@@ -971,9 +981,22 @@ async function main() {
 const PLOTS_WALKER_NAME = "TestBotPlots"; // the TestBot prefix keeps it off the member list
 const PLOTS_WALKER_SEED = "verify-copresence-plots-walker";
 // The guest order's second scripted player (the increment 2 review, finding 2): with it and the
-// plots walker holding the shipped ship's two plots, the game comes in third, a guest.
+// plots walker holding the first two plots, and the households below the rest, the game comes in
+// after them all, a guest.
 const GUEST_SECOND_NAME = "TestBotPlotsTwo";
 const GUEST_SECOND_SEED = "verify-copresence-plots-walker-two";
+// THE REST OF THE SHIP, for the guest order (the twelve plots along First Street, 2026-10-04):
+// households of second-player.js, one after another, each taking the next free plot and stepping
+// out again (a plot once given is held whether or not its holder stands in the world), until one
+// is given none. Each comes from an address of its own (`--forwarded-for`, FILL_NET.<n>): the
+// relay signs up at most five new accounts an hour from one address (src/relay/handlers/
+// sign_ups.rs NEW_ID_MAX_PER_IP), reading it from X-Forwarded-For as nginx writes it in front of
+// the live relay, and the rig's two walkers and the game already share the one every socket
+// with no header has. FILL_MAX stops a ship that never fills.
+const FILL_NAME = "TestBotPlotsFill"; // the TestBot prefix keeps them off the member list
+const FILL_SEED = "verify-copresence-plots-fill";
+const FILL_NET = "10.77.0";
+const FILL_MAX = 60;
 // How long the guest leg's dropped connection stays down, seconds: long enough for the rig to
 // walk the camera into the home that came back, far inside the relay's 90 s grace (its entity is
 // alive when the game joins again, so the welcome says rejoin). The relay sees the old socket
@@ -1007,6 +1030,13 @@ const MEET_STEP_M = 40;
 const WALK_MPS = 6;
 /** The relay's own rules for moving aboard, read where the relay reads them. */
 const SHARED_WORLD_RON = path.join(REPO, "data", "ship", "shared_world.ron");
+/** How far from each walker watching it a far place may stand (copresence-judge.js
+ *  farPlaceInView): the relay's view, read from the file the relay reads, less
+ *  FAR_VIEW_MARGIN_M. NaN when the file does not say (farPlaceInView then finds none). */
+const farViewM = () => {
+  const v = inViewM(fs.readFileSync(SHARED_WORLD_RON, "utf8"));
+  return v === null ? NaN : v - FAR_VIEW_MARGIN_M;
+};
 // Where the game looks at the crew (increment 3): in the Commons' east aisle, facing north (yaw
 // 0) up it toward the mess hall, where the crew's chore sites are (data/npc/chores.ron), every
 // one within the 40 m the HUD names a crew member at, with no wall between.
@@ -1873,7 +1903,50 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     const onPath = await waitLine(/on the path at/, 15000, from);
     if (!inWorld || !onPath) throw new Error(`${who.name} never got walking: ${walkerOut.slice(from).map((o) => o.line).join(" | ")}`);
     const hp = plotLine && plotLine.m[1].startsWith("{") ? JSON.parse(plotLine.m[1]) : null;
-    return { name: who.name, id: Number(inWorld.m[1]), plot: hp ? hp.id : null, from };
+    const start = [Number(inWorld.m[2]), Number(inWorld.m[3]), Number(inWorld.m[4])];
+    return { name: who.name, id: Number(inWorld.m[1]), plot: hp ? hp.id : null, from, start };
+  };
+  /** One household of the guest order's fill (FILL_NAME): second-player.js from an address of
+   *  its own, which joins, takes the next free plot, walks a second and steps out again. Its
+   *  lines go into walkerOut under its name (walker.log). Not started through spawnWalker, which
+   *  makes each new walker THE walker that waitLine and stopWalker follow. Resolves with
+   *  { name, id, plot } (plot null for a guest: the ship is full); throws when it never said. */
+  const holdOnePlot = async (k) => {
+    const who = { name: `${FILL_NAME}${k}`, seed: `${FILL_SEED}-${k}` };
+    const args = [
+      path.join(__dirname, "second-player.js"),
+      "--server", relay.url,
+      "--name", who.name,
+      "--seed", who.seed,
+      "--path", "line",
+      "--axis", "z",
+      "--radius", "1",
+      "--speed", String(SPEED),
+      "--seconds", "1",
+      "--forwarded-for", `${FILL_NET}.${k}`,
+    ];
+    const started = Date.now();
+    const lines = [];
+    const child = spawn(process.execPath, args, { cwd: REPO, stdio: ["ignore", "pipe", "pipe"] });
+    walkers.push(child);
+    const take = (b) => {
+      for (const line of String(b).split(/\r?\n/).filter(Boolean)) {
+        lines.push(line);
+        walkerOut.push({ at_s: (Date.now() - started) / 1000, epoch: Date.now(), line, who: who.name });
+      }
+    };
+    child.stdout.on("data", take);
+    child.stderr.on("data", take);
+    const code = await Promise.race([new Promise((r) => child.on("exit", r)), sleep(60000).then(() => "still running")]);
+    if (code === "still running") {
+      try {
+        execSync(`taskkill /PID ${child.pid} /T /F`, { stdio: "ignore" });
+      } catch {}
+    }
+    const plotLine = lines.map((l) => l.match(/home_plot (null|missing|\{.*\})/)).find(Boolean);
+    const inWorld = lines.map((l) => l.match(/in the world as entity (\d+)/)).find(Boolean);
+    if (!plotLine || plotLine[1] === "missing") throw new Error(`${who.name} never said which plot it was given (exit ${code}): ${lines.join(" | ")}`);
+    return { name: who.name, id: inWorld ? Number(inWorld[1]) : null, plot: plotLine[1] === "null" ? null : JSON.parse(plotLine[1]).id };
   };
   /** Positions walker `name` logged the relay passing on for `entity`, from walkerOut index `from`. */
   const seenBy = (name, from, entity) =>
@@ -1901,17 +1974,34 @@ async function runPlotsOnce(order, runStamp, cleanups) {
   const camOf = (p) => (p && p.camera_end ? p.camera_end.pos : null);
 
   /** THE GUEST (the increment 2 review, finding 2). Two scripted players take the
-   *  shipped ship's two plots; the game comes in third, a guest. Recorded under
+   *  first two plots and stay, walking at home; households take the rest, one after
+   *  another, until one is given none (the twelve plots along First Street,
+   *  2026-10-04); the game comes in after them all, a guest. Recorded under
    *  manifest.guest and judged by judgeGuest. */
   const guestRun = async () => {
     const A = await startHomeWalker({ name: PLOTS_WALKER_NAME, seed: PLOTS_WALKER_SEED });
     const B = await startHomeWalker({ name: GUEST_SECOND_NAME, seed: GUEST_SECOND_SEED });
-    manifest.steps_ok.walker = { ok: true, detail: `${A.name} (entity ${A.id}) holds ${A.plot}, ${B.name} (entity ${B.id}) holds ${B.plot}; both walking at home` };
+    const fill = [];
+    let full = null;
+    for (let k = 1; !full; k++) {
+      if (k > FILL_MAX) throw new Error(`the ship never filled: ${FILL_MAX} households each got a plot`);
+      const h = await holdOnePlot(k);
+      if (h.plot === null) full = h;
+      else fill.push(h);
+    }
+    // Their last lines (a walker seeing them leave) settle before the game's join is looked for.
+    await sleep(1500);
+    manifest.steps_ok.walker = {
+      ok: true,
+      detail: `${A.name} (entity ${A.id}) holds ${A.plot}, ${B.name} (entity ${B.id}) holds ${B.plot}, both walking at home; ${fill.length} households took ${fill.map((h) => h.plot).join(", ") || "nothing"} and stepped out; ${full.name} was given none (the ship is full)`,
+    };
     step("walkers", true, manifest.steps_ok.walker.detail);
-    const g = { walkers: [A, B].map(({ name, id, plot }) => ({ name, id, plot })) };
+    const g = { walkers: [A, B, ...fill].map(({ name, id, plot }) => ({ name, id, plot })), full: { name: full.name, id: full.id } };
     manifest.guest = g;
+    // Entities that are not the game, for every "player joined" the rig reads from here on.
+    const notGame = [A.id, B.id, ...fill.map((h) => h.id), full.id].filter((x) => x !== null);
 
-    // The game comes in third.
+    // The game comes in after them all.
     const markJoin = walkerOut.length;
     const pr = await bootAndEnter(manifest.entry, "");
     const joined = !!(pr && pr.ok && pr.game_joined && pr.copresence_active && pr.welcomed !== false);
@@ -1933,8 +2023,10 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     g.commons = commons ? { min: commons.min, max: commons.max } : null;
     // The ship's default plot: the first the relay hands out, where a guest's home comes back.
     g.defaultPlot = Array.isArray(manifest.plots) && manifest.plots.length ? manifest.plots[0].id : null;
-    g.arrived = { lastWelcome: pj.last_welcome, homePlot: pj.home_plot, homeAway: pj.home_away, camera: camOf(pj), homeThings: pj.home_things, bootPlot: pj.boot_plot };
-    const gameJoin = await joinedSeenBy(A.name, markJoin, [A.id, B.id], 10000);
+    // The notices on screen two seconds after the welcome: the guest's own sentence
+    // (GUEST_ARRIVAL) stays up 12 s (gui NOTICE_LIFE), so it is there to read.
+    g.arrived = { lastWelcome: pj.last_welcome, homePlot: pj.home_plot, homeAway: pj.home_away, camera: camOf(pj), homeThings: pj.home_things, bootPlot: pj.boot_plot, notices: Array.isArray(pj.notices) ? pj.notices : null };
+    const gameJoin = await joinedSeenBy(A.name, markJoin, notGame, 10000);
     const entity = gameJoin ? gameJoin[0] : null;
     step("guest", true, `the game's welcome did "${pj.last_welcome}"; home on ${pj.home_plot ? pj.home_plot.id : "no plot"}, put away: ${pj.home_away}; its camera at ${fmt(camOf(pj) || [0, 0, 0])}; the relay spawned it as entity ${entity} at ${gameJoin ? fmt(gameJoin[1]) : "(not seen)"}`);
     save();
@@ -1947,11 +2039,15 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     step("guest_b", true, `after B the build editor is ${g.editor.open ? "open" : "shut"}; notices on screen: ${JSON.stringify(g.editor.notices)}`);
     if (g.editor.open) await showcase({ build_editor: "0" });
 
-    // Respawn from the far end of the ship: the relay must stand the guest in the Commons.
+    // Respawn from far down the ship: the relay must stand the guest in the Commons. The far
+    // place is the one farthest from the Commons that A, walking at home on p1, still has in
+    // view (farPlaceInView): A is the one whose log says where the relay held the guest.
     const yaw = pj && pj.camera_end ? pj.camera_end.yaw : 0;
     const pitch = pj && pj.camera_end ? pj.camera_end.pitch : 0;
     const arrival = camOf(pj) || (commons ? commons.min : [0, 0, 0]);
-    const farTarget = farthestFrom(farPlaces(dp), arrival);
+    const watchA = [A.start, [A.start[0], A.start[1], A.start[2] + 2 * RADIUS]];
+    const farTarget = farPlaceInView(dp, arrival, watchA, farViewM());
+    if (!farTarget) throw new Error(`no shared place is within ${farViewM()} m of ${A.name} walking at ${fmt(A.start)}`);
     const route = doorRoute(dp, arrival, farTarget).points;
     const markWalk = walkerOut.length;
     await walkRoute(route, yaw, pitch, "guest_far");
@@ -1961,7 +2057,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     step("guest_far", !!heldFar, `walked ${route.length} steps to ${fmt(farTarget)}; the relay last passed the guest on at ${heldFar ? fmt(heldFar) : "(never)"}`);
     const markRespawn = walkerOut.length;
     await showcase({ respawn: "1" });
-    const respawned = await joinedSeenBy(A.name, markRespawn, [A.id, B.id], 15000);
+    const respawned = await joinedSeenBy(A.name, markRespawn, notGame, 15000);
     await until((p) => p.game_joined && p.welcomed, 20000);
     await sleep(1500);
     const pr2 = await probe();
@@ -1989,7 +2085,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     await until((p) => p.game_joined && p.welcomed, 30000);
     await sleep(1500);
     const pa = await probe();
-    const again = await joinedSeenBy(A.name, markAgain, [A.id, B.id], 10000);
+    const again = await joinedSeenBy(A.name, markAgain, notGame, 10000);
     g.again = { lastWelcome: pa ? pa.last_welcome : null, homeAway: pa ? pa.home_away : null, camera: camOf(pa) };
     const entity3 = again ? again[0] : entity2;
     step("guest_in", true, `stepped back in as entity ${entity3}: the welcome did "${g.again.lastWelcome}", the home put away: ${g.again.homeAway}; the camera at ${g.again.camera ? fmt(g.again.camera) : "(none)"}`);
@@ -2284,7 +2380,10 @@ async function runPlotsOnce(order, runStamp, cleanups) {
         const heldSeen = gameEntity === null ? [] : seenSince(markCrew, gameEntity);
         const jHeld = heldSeen.length ? heldSeen[heldSeen.length - 1] : null;
         const allowance = bankedAllowanceM(fs.readFileSync(SHARED_WORLD_RON, "utf8"));
-        const jTarget = farthestFrom(farPlaces(dp), jFrom || meetCam);
+        // The shared place farthest from here that the walker at the meeting still has in view
+        // (farPlaceInView): a jump the relay let through must reach someone to be caught.
+        const jTarget = farPlaceInView(dp, jFrom || meetCam, [plan.start, plan.end], farViewM());
+        if (!jTarget) throw new Error(`no shared place is within ${farViewM()} m of the walker's line ${fmt(plan.start)} to ${fmt(plan.end)}`);
         const markJump = walkerOut.length;
         await showcase({ cam: `${jTarget.join(",")},${jYaw},${jPitch}` });
         const before = pj0 && pj0.moves ? pj0.moves : null;
@@ -2335,7 +2434,12 @@ async function runPlotsOnce(order, runStamp, cleanups) {
       const door = before && before.home_things ? before.home_things.respawn : null;
       const yaw = before && before.camera_end ? before.camera_end.yaw : 0;
       const pitch = before && before.camera_end ? before.camera_end.pitch : 0;
-      const farTarget = farthestFrom(farPlaces(dp), door || gameDoor);
+      // The far place: the shared place farthest from the door that the walker at the meeting
+      // still has in view (farPlaceInView). Since the twelve plots First Street runs 1.1 km, and
+      // the relay sends nothing about a player out of view, so a far place past the walker's view
+      // would leave walk_away, respawn_* and editor_* reading nothing.
+      const farTarget = farPlaceInView(dp, door || gameDoor, [plan.start, plan.end], farViewM());
+      if (!farTarget) throw new Error(`no shared place is within ${farViewM()} m of the walker's line ${fmt(plan.start)} to ${fmt(plan.end)}`);
       const mark = walkerOut.length;
       await showcase({ solo: "1" });
       const outside = await until((p) => p.game_joined === false, 20000);

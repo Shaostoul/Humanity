@@ -442,3 +442,17 @@ test("--route, --route-speed and --home-spawn, and the door named in the join", 
   assert.throws(() => sp.parseOptions(["--home-spawn", "1"]), /--home-spawn must be two numbers/);
   assert.throws(() => sp.parseOptions(["--route-speed", "0"]), /--route-speed must be/);
 });
+
+// The guest order fills a twelve-plot ship with households (2026-10-04), each from an address of
+// its own: the relay signs up at most five new accounts an hour from one, read from the header
+// nginx writes. The option takes an address and nothing else, since it goes into a header as it
+// stands. Seen red 2026-10-04 before the option existed: "unknown option \"--forwarded-for\"
+// (try --help)".
+test("--forwarded-for takes an address and only an address", () => {
+  assert.equal(sp.parseOptions(["--forwarded-for", "10.77.0.3"]).forwardedFor, "10.77.0.3");
+  assert.equal(sp.parseOptions(["--forwarded-for", "::1"]).forwardedFor, "::1");
+  assert.equal(sp.parseOptions([]).forwardedFor, null, "none given: no header");
+  for (const bad of ["10.0.0.1\r\nX-Evil: 1", "not an address", "10.0.0.1, 10.0.0.2", ""]) {
+    assert.throws(() => sp.parseOptions(["--forwarded-for", bad]), /--forwarded-for must be an address/, JSON.stringify(bad));
+  }
+});

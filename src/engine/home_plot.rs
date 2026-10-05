@@ -1682,8 +1682,9 @@ mod tests {
         }
     }
 
-    /// A player who arrives as a guest (every plot of the ship taken: it has two, so the third
-    /// player ever is one) is told so in plain words, what it means and how their home comes
+    /// A player who arrives as a guest (every plot of the ship taken: it had two then, so the
+    /// third player ever was one; twelve since the plots along First Street of 2026-10-04, so
+    /// now the thirteenth) is told so in plain words, what it means and how their home comes
     /// back (first-hour audit 2026-10-04, Blocker 1: "Becoming a guest shows no message"). Once:
     /// not again on a reconnect or a Respawn while still a guest, nor on the welcome that only
     /// steps out to join afresh (the welcome after that join tells them); and a plot holder who
@@ -1737,6 +1738,23 @@ mod tests {
             .and_then(|s| s.split('"').next())
             .expect("the judge names the sentence's start");
         assert!(start.len() > 20 && GUEST_NO_EDITOR.starts_with(start), "the rig looks for {start:?}");
+    }
+
+    /// The same for the sentence a guest reads on ARRIVING (`GUEST_ARRIVAL`). The rig's guest leg
+    /// fills the shipped ship's twelve plots with scripted households (the plots along First
+    /// Street, 2026-10-04) and the game comes in after them all; check guest_told judges that it
+    /// is told it is a guest by the start of this sentence (copresence-judge.js
+    /// GUEST_ARRIVAL_START). Seen red 2026-10-05 with the judge's start changed to "This server
+    /// has no plot free": "the rig looks for \"This server has no plot free\"".
+    #[test]
+    fn the_rig_knows_the_guest_arrival_sentence() {
+        let judge = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/lib/copresence-judge.js")).unwrap();
+        let start = judge
+            .split("const GUEST_ARRIVAL_START = \"")
+            .nth(1)
+            .and_then(|s| s.split('"').next())
+            .expect("the judge names the sentence's start");
+        assert!(start.len() > 20 && GUEST_ARRIVAL.starts_with(start), "the rig looks for {start:?}");
     }
 
     /// The build editor opened between a reconnect and its guest welcome (finding 1 of the
@@ -2206,8 +2224,9 @@ mod tests {
     /// THE 1b LEFTOVER (increment 2): a guest draws no home of its own. Whichever plot the home
     /// stood on, the default one (p1, someone else's: the game builds there at boot) or one a
     /// released player's earlier welcome moved it to (finding 8 of 1b's third review), a guest
-    /// welcome puts it AWAY: off every plot, at `HOME_AWAY_ORIGIN`, so both plots are drawn as
-    /// neighbours'. Respawn is the Commons. A home already away moves nothing.
+    /// welcome puts it AWAY: off every plot, at `HOME_AWAY_ORIGIN`, so every plot (twelve since
+    /// 2026-10-04) is drawn as a neighbour's. Respawn is the Commons. A home already away moves
+    /// nothing.
     ///
     /// Seen red 2026-10-04 with the guest arm putting nothing away (`away: None`, as 1b's left a
     /// home on the default plot where it stood): "a guest whose home stood on p1 still draws it on a
@@ -2225,7 +2244,7 @@ mod tests {
                     assert!(away.home_is_away());
                     let home = &away.zones[away.home_zone_index()];
                     assert_eq!(home.origin, crate::ship::ship_structure::HOME_AWAY_ORIGIN, "kept where homes are put away");
-                    assert_eq!(away.neighbour_plots().count(), 2, "both plots are drawn as neighbours'");
+                    assert_eq!(away.neighbour_plots().count(), away.plots.len(), "every plot is drawn as a neighbour's");
                     assert_eq!(away.ship_hash(), ship.ship_hash(), "putting the home away is not a new ship");
                     assert!(door.is_some_and(|d| (d - COMMONS).length() < 1e-4), "Respawn is the Commons: {door:?}");
                     assert!(stand_at.is_some_and(|a| (a - COMMONS).length() < 1e-4), "{stand_at:?}");
@@ -2307,7 +2326,8 @@ mod tests {
         assert_eq!(boot_plot(&file, Some(&r("p2", &hash))).as_deref(), Some("p2"), "the plot remembered for this server: {:?}", boot_plot(&file, Some(&r("p2", &hash))));
         assert_eq!(boot_plot(&file, None), None, "nothing remembered: the default plot");
         assert_eq!(boot_plot(&file, Some(&r("p2", "0123456789abcdef"))), None, "remembered on another ship: not trusted");
-        assert_eq!(boot_plot(&file, Some(&r("p9", &hash))), None, "a plot this ship does not have: the default plot");
+        // (p99: p9 is a real plot since the twelve plots along First Street, 2026-10-04.)
+        assert_eq!(boot_plot(&file, Some(&r("p99", &hash))), None, "a plot this ship does not have: the default plot");
         // And the assembled ship puts the home there.
         let ship = crate::ship::ship_structure::ShipStructure::assemble_from(file.clone(), &data_dir(), boot_plot(&file, Some(&r("p2", &hash))).as_deref()).unwrap();
         assert_eq!(ship.home_plot().map(|p| p.id.as_str()), Some("p2"));
@@ -2461,8 +2481,9 @@ mod tests {
         let mut no_id = welcome(Some("p2"), &hash);
         no_id["home_plot"].as_object_mut().unwrap().remove("id");
         let no_id = refusal(plan_welcome(Some(&ship), &no_id, &arriving(P1_DOOR)));
+        // (p99: p9 is a real plot since the twelve plots along First Street, 2026-10-04.)
         let mut unknown = welcome(Some("p2"), &hash);
-        unknown["home_plot"]["id"] = serde_json::json!("p9");
+        unknown["home_plot"]["id"] = serde_json::json!("p99");
         let unknown = refusal(plan_welcome(Some(&ship), &unknown, &arriving(P1_DOOR)));
         let mut file = ShipStructure::load_ship_file(&data_dir()).unwrap();
         let p2 = file.plots.iter().position(|p| p.id == "p2").unwrap();

@@ -84,6 +84,16 @@ pub(crate) fn drop_link_hold(raw: &str) -> Option<f32> {
     Some(hold.clamp(crate::net::ws_client::RECONNECT_DELAY_INITIAL_SECS, DROP_LINK_MAX_HOLD_SECS))
 }
 
+/// What a showcase `hull` pin asks for: "0" hides the ship's hull, "1" shows it (the H key's
+/// toggle, `GuiState::show_hull`). None for anything else, so a typo leaves the hull as it is.
+pub(crate) fn hull_pin(raw: &str) -> Option<bool> {
+    match raw.trim() {
+        "0" => Some(false),
+        "1" => Some(true),
+        _ => None,
+    }
+}
+
 /// Parse one pin value. `None` for anything unparseable, so a typo leaves the
 /// existing state alone instead of silently resetting it to a default.
 pub(crate) fn parse_showcase_pin(raw: &str) -> Option<ShowcasePin> {
@@ -628,6 +638,21 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             if state.renderer.room_gi.off { "OFF (the old ambient floor)" } else { "on" },
             state.renderer.room_gi.probe_count()
         );
+    }
+    // {"hull":"0"} hides the ship's hull and "1" shows it again (2026-10-05): what the H key and
+    // Settings > Graphics > "Show hull (H)" do (`GuiState::show_hull`, never saved), so a rig sees
+    // the ship the way a player who pressed H does. The hull's plating covers every plot but the
+    // home's own (its glass roof cuts a hole), so the homes along First Street are only in view
+    // with it hidden (the ship-first-street vantage). Sticky until "1": the rigs send "1" before
+    // every other vantage (scripts/lib/showcase-pins.js).
+    if let Some(t) = grab("hull") {
+        match hull_pin(&t) {
+            Some(shown) => {
+                state.gui_state.show_hull = shown;
+                log::info!("Showcase: hull -> {}", if shown { "shown" } else { "HIDDEN (as the H key)" });
+            }
+            None => log::warn!("Showcase: hull \"{t}\" is not 0 or 1 - the hull is left as it is"),
+        }
     }
     // {"pipe_marking":"full"} draws the pipes' marker bands as the scheme's whole marker,
     // "simplified" as one band of the main colour, "auto" hands the choice back to Settings >
@@ -3940,6 +3965,22 @@ mod showcase_pin_tests {
         // An absent key must read as absent, not as some default: that is what
         // makes "the handler leaves the pin alone" mean anything.
         assert_eq!(showcase_value(r#"{"time":"2.9"}"#, "wind"), None);
+    }
+
+    /// The hull pin (2026-10-05, the ship-first-street vantage): the body the vantage writes
+    /// hides the hull, the release every other vantage is sent (scripts/lib/showcase-pins.js
+    /// STICKY_PIN_RESETS, "1") shows it again, and a typo leaves it as it is. Seen red
+    /// 2026-10-05 with `hull_pin` answering None for everything (the handler then never
+    /// touches the hull): "the vantage's {\"hull\":\"0\"} hides the hull: None".
+    #[test]
+    fn the_hull_pin_hides_and_shows_the_hull_and_a_typo_changes_nothing() {
+        let pin = |body: &str| showcase_value(body, "hull").and_then(|t| hull_pin(&t));
+        assert_eq!(pin(r#"{"hull":"0","time":"20.15"}"#), Some(false), "the vantage's {{\"hull\":\"0\"}} hides the hull: {:?}", pin(r#"{"hull":"0"}"#));
+        assert_eq!(pin(r#"{"hull":"1"}"#), Some(true), "the release shows it again");
+        for typo in ["off", "", "2", "auto"] {
+            assert_eq!(hull_pin(typo), None, "{typo:?} leaves the hull as it is");
+        }
+        assert_eq!(pin(r#"{"time":"20.15"}"#), None, "a vantage that names no hull leaves it alone");
     }
 
     #[test]

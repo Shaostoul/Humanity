@@ -59,8 +59,12 @@
 //                    a socket that is only chatting.
 //
 // Every number above is a game rule chosen for this increment from the movement code, not a
-// sourced figure. On the first test ship every place is within 210 m of every other, so with
-// these radii everyone aboard sees everyone; a bigger ship is where they start to matter.
+// sourced figure. On the first test ship every place was within 210 m of every other, so with
+// these radii everyone aboard saw everyone. Since the twelve plots along First Street
+// (2026-10-04) the ship is 1.2 km long and they matter: neighbours, 99 m apart, see each other,
+// and the households at the street's far end are out of view of the Commons until they walk up
+// it (src/relay/handlers/game_interest.rs, the shipped-ship test; the co-presence rig keeps its
+// far places inside the view of the walker watching, copresence-judge.js farPlaceInView).
 (
     moving: (
         on_foot_mps: 25.0,

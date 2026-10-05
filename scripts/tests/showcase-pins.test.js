@@ -33,3 +33,12 @@ test("both rigs take the shared list rather than a copy of their own", () => {
     assert.ok(!/wind:\s*"auto",\s*anim_clock:\s*"auto"/.test(src), `${rig} keeps no copy of the list`);
   }
 });
+// The hull pin (2026-10-05): the ship-first-street vantage hides the hull ({"hull":"0"}, the
+// H key's toggle) to see the homes along First Street, which its plating covers. Unreleased, every
+// vantage after it in a sweep would be captured with no hull. Seen red 2026-10-05 before the list
+// had it: "hull resets to 1 (the hull shown again): undefined".
+test("the hull pin is released, and hiding the hull marks the pins as held", () => {
+  assert.strictEqual(STICKY_PIN_RESETS.hull, "1", `hull resets to 1 (the hull shown again): ${STICKY_PIN_RESETS.hull}`);
+  assert.strictEqual(holdsStickyPin({ hull: "0" }), true, "a vantage hiding the hull holds a sticky pin");
+  assert.strictEqual(holdsStickyPin({ hull: "1" }), false, "1 is the release, not a pin");
+});
