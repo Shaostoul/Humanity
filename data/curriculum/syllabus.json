@@ -2366,12 +2366,25 @@
       "subject": "health",
       "title": "Waterborne and foodborne illness",
       "summary": "Know the organisms, how they get in, and what they do.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "when-food-or-water-makes-you-sick"
+      ],
       "skills": [
         "medicine"
       ],
+      "data": [
+        "data/status_effects.csv",
+        "data/food_system.ron",
+        "data/containers/fluids.ron"
+      ],
       "sources": [
-        "cdc"
+        "cdc",
+        "fda",
+        "nih",
+        "local-health-jurisdiction",
+        "epa",
+        "hrsa"
       ],
       "locale_dependent": false,
       "hazard": "lethal",
@@ -2917,13 +2930,27 @@
       "subject": "chemistry",
       "title": "The chemistry of preservation",
       "summary": "Understand why salt, acid, sugar, smoke and cold each stop spoilage.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "the-chemistry-of-keeping-food"
+      ],
       "skills": [
         "cooking",
         "alchemy"
       ],
+      "data": [
+        "data/food_system.ron",
+        "data/containers/types.csv",
+        "data/recipes.csv"
+      ],
       "sources": [
-        "nchfp"
+        "usda-canning-guide",
+        "usda-fsis",
+        "fda",
+        "cdc",
+        "usgs",
+        "oregon-state-extension",
+        "ift"
       ],
       "locale_dependent": false,
       "hazard": "lethal"
@@ -3097,14 +3124,26 @@
       "subject": "biology",
       "title": "Microbes, good and bad",
       "summary": "Understand bacteria, fungi and viruses as both tool and threat.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "microbes-good-and-bad"
+      ],
       "skills": [
         "medicine",
         "alchemy"
       ],
+      "data": [
+        "data/food_system.ron",
+        "data/garden/pests.ron",
+        "data/status_effects.csv"
+      ],
       "sources": [
         "cdc",
-        "nih"
+        "fda",
+        "nih",
+        "usda-canning-guide",
+        "usda-fsis",
+        "epa"
       ],
       "locale_dependent": false,
       "hazard": "lethal"
