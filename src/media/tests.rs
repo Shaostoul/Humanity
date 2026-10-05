@@ -816,11 +816,12 @@ fn a_seek_with_no_keyframe_in_the_window_still_arrives() {
     player.seek_to(1.5);
     assert_eq!(player.position_s(), 1.5, "the clock moved to the target");
 
-    // Not yet `assert_landed_on`: the retry from the top hands out the clip's
-    // frames from its first one on the way to the target (BUG-158), so the
-    // first frame at or after 1.45 s is all this can require for now.
-    let f = wait_for_frame_at(&mut player, 1.45);
-    assert!(f.pts_s < 1.85, "landed near the target: {}", f.pts_s);
+    // The retry from the top still starts SHOWING at the target. Seen red
+    // 2026-10-05 before BUG-158 was fixed, when the retry queued every frame
+    // from the clip's first: "a fallback seek to 1.5 s: the first frame handed
+    // out after the seek is at 0 s, not the frame at 1.5 s" (3 of 3 runs).
+    let f = wait_for_frame(&mut player);
+    assert_landed_on(&f, 1.5, "a fallback seek to 1.5 s");
     assert_picture_matches_pts(&f, "fallback seek to 1.5 s");
     assert!(player.take_error().is_none());
     assert!(player.seek_fallbacks() >= 1, "this is the fallback path, and it must be the one that ran");

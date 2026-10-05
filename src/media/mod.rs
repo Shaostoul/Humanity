@@ -529,6 +529,12 @@ fn push_frame(shared: &Shared, generation: u64, frame: VideoFrame) -> Push {
 /// decodes normally while refusing to QUEUE anything older than the target.
 /// The frames in between are real decoding work that is thrown away; that is
 /// what it costs to start an inter-frame codec in the middle.
+///
+/// `from_top` is the fallback after a fast start failed (`RetryFromStart`):
+/// no reposition, decode from the first packet, but still queue nothing older
+/// than `start_s`. (It used to be done by passing `start_s = 0.0`, which also
+/// switched off that filter, so a fallback seek showed the clip from its first
+/// frame on its way to the target: BUG-158.)
 fn decode_pass(
     path: &Path,
     info: &MediaInfo,
@@ -536,6 +542,7 @@ fn decode_pass(
     generation: u64,
     threads: i32,
     start_s: f64,
+    from_top: bool,
 ) -> Result<PassEnd, MediaError> {
     let mut mkv = open_demuxer(path)?;
     let mut decoder = video::Av1Decoder::new(threads)?;
@@ -547,7 +554,7 @@ fn decode_pass(
     // scan; it lands on the first frame AFTER the time asked for, which is why
     // the rewind and the keyframe scan below are both needed.
     let mut need_keyframe = false;
-    if start_s > 0.0 {
+    if start_s > 0.0 && !from_top {
         let preroll_s = shared.seek_preroll_ns.load(Ordering::SeqCst) as f64 / 1.0e9;
         let pre_s = (start_s - preroll_s).max(0.0);
         let ts = (pre_s * 1.0e9 / scale as f64) as u64;
@@ -649,12 +656,9 @@ fn decode_thread(path: PathBuf, info: MediaInfo, shared: Arc<Shared>, threads: i
         // anyway. Reading them the other way round could pair a new generation
         // with an old target, which would seek to the wrong place.
         let generation = shared.generation.load(Ordering::SeqCst);
-        let start_s = if from_start_generation == Some(generation) {
-            0.0
-        } else {
-            shared.seek_target_ns.load(Ordering::SeqCst) as f64 / 1.0e9
-        };
-        match decode_pass(&path, &info, &shared, generation, threads, start_s) {
+        let start_s = shared.seek_target_ns.load(Ordering::SeqCst) as f64 / 1.0e9;
+        let from_top = from_start_generation == Some(generation);
+        match decode_pass(&path, &info, &shared, generation, threads, start_s, from_top) {
             Ok(PassEnd::Stop) => return,
             Ok(PassEnd::Restart) => continue,
             Ok(PassEnd::RetryFromStart) => {

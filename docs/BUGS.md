@@ -3607,7 +3607,7 @@ own progress, and only 30 s with no progress at all fails it as stuck):**
   "within 0.35 s after it"), and the clock reads the target exactly (it was "within
   50 ms"). The paused seek keeps the wall clock, because only the wall can show a
   paused clock standing still, and now also checks its position did not move. The
-  fallback seek keeps "within 0.35 s" until BUG-158 (found on the way) is fixed.
+  fallback seek lands exactly too since BUG-158 (found on the way) was fixed.
 - Relay: the perception rate limit reads `RelayState::perception_now()`, which a test
   can point at a manual clock (`perception_clock`, `#[cfg(test)]`). The ledger test
   moves it 250 ms where it used to sleep, so the gives meant to arrive together are
@@ -3694,7 +3694,7 @@ see: arriving by teleport and arriving the way a player does have differed befor
 for anyone. First step: capture the same place after a longer settle and after walking
 in, and compare each tree's base with the terrain height under it.
 
-## BUG-158: a seek that falls back to decoding from the top shows the clip from its first frame on the way (OPEN, found 2026-10-05)
+## BUG-158: a seek that falls back to decoding from the top shows the clip from its first frame on the way (FIXED next release, found 2026-10-05)
 
 **Seen (while fixing BUG-152):** when a seek finds no keyframe in its rewind window (a
 long-GOP file we did not encode), the decode pass retries from the top of the file
@@ -3707,6 +3707,11 @@ the clip from its start at decode speed before it lands, while the sound has alr
 jumped. With the clock held at a 1.5 s target on the test fixture, the first frame the
 player hands out after the seek is the one at 0 s (3 of 3 runs).
 
-**Fix (not started):** keep the target for the pts filter on the retry and drop only the
-reposition; `a_seek_with_no_keyframe_in_the_window_still_arrives` then requires the first
-frame after the seek to be the frame at the target, as the other seek tests do.
+**Fix:** `decode_pass` takes the target and a separate `from_top` flag
+(src/media/mod.rs): the retry skips only the reposition and still queues nothing older
+than the target, which is what its comment always said it did. The screen now holds the
+last picture while the retry decodes its way to the target, then lands on it.
+`a_seek_with_no_keyframe_in_the_window_still_arrives` requires the first frame after the
+seek to be the frame at the target, as the other seek tests do; seen red before the fix
+with the message above, green 3 of 3 after, and 20 of 20 loaded runs of the six seek
+tests (96 burner threads, two test processes at once) passed with it.
