@@ -4,7 +4,7 @@
 //! Returning user: shows the main hub with quick-access buttons.
 
 use egui::{Align2, Color32, RichText, Vec2};
-use crate::gui::{GuiPage, GuiState, VERSION};
+use crate::gui::{connect_target, GuiPage, GuiState, OFFICIAL_SERVER, VERSION};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
@@ -195,6 +195,35 @@ fn derive_health_url(url: &str) -> String {
     }
 }
 
+/// The server step's Connect, as the Chat page's: it checks the server the Chat page's Connect
+/// dials for this field (`connect_target`, the official server for an empty field), and the
+/// field then holds it, so the ready step names that server and the app dials it once setup is
+/// done; the address is chosen now, no longer being typed. Returns the address of its
+/// `/health`. Before BUG-160's follow-up an empty field was checked as "/health", which fails,
+/// while the step said the official server was the default.
+fn choose_server_to_check(state: &mut GuiState) -> String {
+    state.server_url = connect_target(&state.server_url).to_string();
+    state.server_field_draft = false;
+    derive_health_url(&state.server_url)
+}
+
+/// What the server step says under its field: the empty field's suggestion is the official
+/// server, which Connect uses, the way the Chat page's connect form shows it (`connect_target`).
+/// It used to say "Default: united-humanity.us", and a new player who cleared the field and
+/// pressed Skip ended with no server, as an empty field means (BUG-160).
+fn empty_field_note() -> String {
+    let host = OFFICIAL_SERVER.trim_start_matches("https://");
+    format!("With the field empty, Connect uses {host}, the official community server.")
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Test-only: the `/health` addresses the server step's Connect checked on this thread. A
+    /// test build records them instead of sending the request, so a test can press Connect
+    /// without reaching any server (BUG-160 was rigs reaching the live one).
+    static CHECKS_STARTED: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
 /// Poll the in-flight reachability check (if any) started by the "Connect"
 /// button below, applying its result to `server_connected`/
 /// `server_check_error` once it arrives. A no-op while idle or still
@@ -246,7 +275,7 @@ fn draw_step_server(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         let response = ui.add_sized(
             Vec2::new(380.0, 30.0),
             egui::TextEdit::singleline(&mut state.server_url)
-                .hint_text("https://united-humanity.us"),
+                .hint_text(OFFICIAL_SERVER),
         );
         if response.changed() {
             // The URL changed -- any in-flight or previous check result is
@@ -255,15 +284,16 @@ fn draw_step_server(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             state.server_connected = false;
             state.server_check_error.clear();
             state.server_check_rx = None;
+            // As on the Chat page, an address typed here is dialled by Connect, never by
+            // itself once setup is done (BUG-160): Skip leaves it undialled.
+            state.hold_dialling_until_connect();
         }
     });
 
     ui.add_space(8.0);
     ui.horizontal(|ui| {
         ui.add_space(40.0);
-        ui.label(RichText::new(
-            "Default: united-humanity.us (the official community server)"
-        ).size(11.0).color(theme.text_muted()));
+        ui.label(RichText::new(empty_field_note()).size(11.0).color(theme.text_muted()));
     });
 
     ui.add_space(16.0);
@@ -298,14 +328,18 @@ fn draw_step_server(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 let (tx, rx) = std::sync::mpsc::channel();
                 state.server_check_rx = Some(rx);
                 state.server_check_error.clear();
-                let health_url = derive_health_url(&state.server_url);
-                std::thread::spawn(move || {
-                    let result = ureq::get(&health_url)
-                        .call()
-                        .map(|_| ())
-                        .map_err(|e| format!("Could not reach {health_url}: {e}"));
-                    let _ = tx.send(result);
-                });
+                let health_url = choose_server_to_check(state);
+                #[cfg(test)]
+                CHECKS_STARTED.with(|checks| checks.borrow_mut().push(health_url.clone()));
+                if !cfg!(test) {
+                    std::thread::spawn(move || {
+                        let result = ureq::get(&health_url)
+                            .call()
+                            .map(|_| ())
+                            .map_err(|e| format!("Could not reach {health_url}: {e}"));
+                        let _ = tx.send(result);
+                    });
+                }
             }
         } else {
             if widgets::primary_button(ui, theme, "  Continue  ") {
@@ -397,6 +431,134 @@ mod server_check_tests {
         assert!(!state.server_connected, "a dead checker thread must never be reported as reachable");
         assert!(!state.server_check_error.is_empty());
         assert!(state.server_check_rx.is_none());
+    }
+}
+
+/// BUG-160's follow-up (the review of its completion, item 10): the onboarding's server step
+/// keeps the Chat page's rule for its field. An empty field is no server, its suggestion is the
+/// official server, Connect checks and takes `connect_target`, and an address typed and never
+/// connected is not dialled by itself. Drawn, clicked and typed into headlessly; Connect's
+/// request is recorded, never sent.
+#[cfg(test)]
+mod server_step_tests {
+    use super::{draw_step_server, empty_field_note, finish_onboarding, skip_server_step, CHECKS_STARTED};
+    use crate::gui::screen_surface::find_text_in_shapes;
+    use crate::gui::theme::Theme;
+    use crate::gui::{GuiState, OFFICIAL_SERVER};
+
+    fn headless() -> (egui::Context, Theme) {
+        let ctx = egui::Context::default();
+        crate::gui::fonts::install_font_fallbacks(&ctx);
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        (ctx, theme)
+    }
+
+    /// One headless frame (no GPU) of the server step, with `events`.
+    fn frame(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, events: Vec<egui::Event>) -> egui::FullOutput {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(900.0, 700.0))),
+            events,
+            ..Default::default()
+        };
+        ctx.run(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| draw_step_server(ui, theme, state));
+        })
+    }
+
+    /// Where the text drawn is exactly `text`. The button reads "  Connect  ", and
+    /// `find_text_in_shapes` trims what it looks for, so it finds the heading "Connect to a
+    /// Server" first.
+    fn exactly(shapes: &[egui::epaint::ClippedShape], text: &str) -> Option<egui::Rect> {
+        fn walk(shape: &egui::Shape, text: &str, found: &mut Option<egui::Rect>) {
+            match shape {
+                egui::Shape::Text(t) if t.galley.text() == text => *found = Some(t.galley.rect.translate(t.pos.to_vec2())),
+                egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, text, found)),
+                _ => {}
+            }
+        }
+        let mut found = None;
+        shapes.iter().for_each(|cs| walk(&cs.shape, text, &mut found));
+        found
+    }
+
+    /// Press and release the pointer at `pos`, the way a person clicks.
+    fn click_at(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, pos: egui::Pos2) {
+        let m = egui::Modifiers::default();
+        frame(ctx, theme, state, vec![egui::Event::PointerMoved(pos)]);
+        frame(ctx, theme, state, vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: m }]);
+        frame(ctx, theme, state, vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: m }]);
+    }
+
+    /// A new player who cleared the field presses Connect: the step checks the official server,
+    /// the server the Chat page's Connect dials for an empty field (`connect_target`), and the
+    /// field then holds it, so the ready step names it and the app dials it once setup is done.
+    ///
+    /// Seen red 2026-10-05 with the step's Connect as on 347c8f77b: "the server step's Connect
+    /// checked [\"/health\"] for an empty field".
+    #[test]
+    fn the_server_steps_connect_with_an_empty_field_uses_the_official_server() {
+        CHECKS_STARTED.with(|checks| checks.borrow_mut().clear());
+        let mut state = GuiState::default();
+        state.server_url.clear();
+        let (ctx, theme) = headless();
+        let out = frame(&ctx, &theme, &mut state, Vec::new());
+        let connect = exactly(&out.shapes, "  Connect  ").expect("the Connect button is drawn");
+        click_at(&ctx, &theme, &mut state, connect.center());
+        let checked = CHECKS_STARTED.with(|checks| checks.borrow().clone());
+        assert_eq!(checked, vec![format!("{OFFICIAL_SERVER}/health")], "the server step's Connect checked {checked:?} for an empty field");
+        assert_eq!(state.server_url, OFFICIAL_SERVER, "the field does not hold the server Connect checked");
+    }
+
+    /// The step says what an empty field means the way the Chat page's connect form shows it:
+    /// the official server is the empty field's suggestion, which Connect uses. It said
+    /// "Default: united-humanity.us", and a new player who cleared the field and pressed Skip
+    /// ended with no server, which is what an empty field means (BUG-160).
+    ///
+    /// Seen red 2026-10-05 with the step as on 347c8f77b: "the step still calls the official
+    /// server a default".
+    #[test]
+    fn the_server_step_says_what_an_empty_field_means_as_the_chat_page_does() {
+        let mut state = GuiState::default();
+        state.server_url.clear();
+        let (ctx, theme) = headless();
+        let out = frame(&ctx, &theme, &mut state, Vec::new());
+        assert!(find_text_in_shapes(&out.shapes, "Default:").is_none(), "the step still calls the official server a default");
+        assert!(exactly(&out.shapes, OFFICIAL_SERVER).is_some(), "the empty field does not suggest the official server");
+        assert!(exactly(&out.shapes, &empty_field_note()).is_some(), "the step does not say what Connect does with an empty field");
+        assert!(empty_field_note().contains(OFFICIAL_SERVER.trim_start_matches("https://")), "the note does not name the official server");
+    }
+
+    /// The Chat page's typing hold, on this step too: an address typed here and not checked with
+    /// Connect is not dialled by itself once setup is done (the button says "stay offline"), as an
+    /// address typed into the Chat page's field waits for its Connect. The address the step
+    /// starts with, never edited, is dialled as before: chat connects by itself (first-hour audit).
+    ///
+    /// Seen red 2026-10-05 with the step's field as on 347c8f77b: "an address typed on the server
+    /// step and skipped was dialled once setup was done".
+    #[test]
+    fn an_address_typed_on_the_server_step_and_skipped_is_not_dialled() {
+        let skip_and_finish = |state: &mut GuiState| {
+            skip_server_step(state);
+            state.user_name = "Ada".to_string();
+            state.private_key_bytes = Some(vec![7u8; 32]);
+            finish_onboarding(state);
+        };
+        let mut untouched = GuiState::default();
+        skip_and_finish(&mut untouched);
+        assert!(untouched.may_auto_connect(), "the setup itself must allow a connect");
+
+        let mut state = GuiState::default();
+        let (ctx, theme) = headless();
+        let out = frame(&ctx, &theme, &mut state, Vec::new());
+        let field = exactly(&out.shapes, OFFICIAL_SERVER).expect("the field holds the official server");
+        click_at(&ctx, &theme, &mut state, field.center());
+        let select_all = egui::Event::Key { key: egui::Key::A, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::COMMAND };
+        frame(&ctx, &theme, &mut state, vec![select_all]);
+        frame(&ctx, &theme, &mut state, vec![egui::Event::Text("https://my.server".into())]);
+        assert_eq!(state.server_url, "https://my.server", "the address did not reach the field");
+        skip_and_finish(&mut state);
+        assert!(!state.may_auto_connect(), "an address typed on the server step and skipped was dialled once setup was done");
     }
 }
 

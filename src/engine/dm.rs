@@ -30,10 +30,14 @@ pub(crate) fn ensure_dm_store(gui_state: &mut GuiState) -> bool {
         return true;
     }
     let Some(seed) = gui_state.private_key_bytes.clone() else { return false };
-    if gui_state.profile_public_key.is_empty() || gui_state.server_url.is_empty() {
+    // The store of the server the app is on (`dial_address`), never of an address still being
+    // typed into the Server field: the connection it was typed over reconnects with the draft
+    // there (BUG-160's follow-up), and a store loaded under the draft would take its DMs.
+    let Some(address) = gui_state.dial_address() else { return false };
+    if gui_state.profile_public_key.is_empty() {
         return false;
     }
-    let server = crate::gui::pages::chat::norm_server_url(&gui_state.server_url);
+    let server = crate::gui::pages::chat::norm_server_url(address);
     gui_state.dm_store = Some(crate::net::dm_store::DmStore::load(
         &seed,
         &gui_state.profile_public_key.clone(),

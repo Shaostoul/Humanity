@@ -61,6 +61,11 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
             }
             ws_dropped = true;
         }
+        // Up, so the connect form is gone: an address typed into it gives way to this server's
+        // before any of its messages is filed (gui/connections.rs, BUG-160's follow-up).
+        if ws.is_connected() {
+            state.gui_state.active_socket_up();
+        }
         for raw in messages {
             // Network overlay (v0.482): count every received frame.
             state.gui_state.ws_msgs_in = state.gui_state.ws_msgs_in.saturating_add(1);
@@ -1612,50 +1617,26 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
     }
 
     // ── Drop dead WebSocket client and start reconnect timer ──
+    // The teardown (the client, the WebRTC manager riding it, the on-demand lists asked for
+    // again, the countdown armed unless the person disconnected) is gui/connections.rs
+    // `active_socket_dropped`, where a test runs it.
     if ws_dropped {
-        state.gui_state.ws_client = None;
-        // Tear down the WebRTC manager too: its signaling rides
-        // the WS, so without a live WS it can't negotiate. The
-        // thread stops when its handle (and thus the command
-        // sender) drops. It re-starts lazily on reconnect.
-        #[cfg(feature = "native")]
-        {
-            state.gui_state.webrtc = None;
-        }
-        // Force the Banned-users panel to re-request after a
-        // reconnect (the relay only sends it on demand). The
-        // cached list itself is harmless to keep until then.
-        state.gui_state.chat_banned_requested = false;
-        state.gui_state.chat_muted_requested = false;
-        // Same for the Game Admin game-ban list (v0.474).
-        state.gui_state.game_bans_requested = false;
-        // And the Backups panel (v0.938).
-        state.gui_state.backup_list_requested = false;
-        // And the server's settings, if the answer to the last request never arrived.
-        state.gui_state.server_settings_requested = false;
-        if !state.gui_state.ws_manually_disconnected {
-            log::info!("WebSocket disconnected, will reconnect in {}s (attempt {})",
-                state.gui_state.ws_reconnect_delay as u32,
-                state.gui_state.ws_reconnect_attempts + 1);
-            state.gui_state.ws_reconnect_timer = state.gui_state.ws_reconnect_delay;
-            state.gui_state.ws_status = format!("Reconnecting in {}s...",
-                state.gui_state.ws_reconnect_delay as u32);
-        } else {
-            state.gui_state.ws_status = "Disconnected".to_string();
-        }
+        state.gui_state.active_socket_dropped();
     }
 
     // Self-hosted fast path (field test 4): when the active
     // server IS the node this app hosts and that node is up,
     // never sit out a long backoff -- "I'm obviously connected
     // to myself". Cap the countdown at half a second so the
-    // link snaps up as soon as the local node is ready.
+    // link snaps up as soon as the local node is ready. The server
+    // is the one the countdown redials (`dial_address`), never an
+    // address still being typed in the Server field.
     if state.gui_state.ws_client.is_none()
         && !state.gui_state.ws_manually_disconnected
         && state.gui_state.ws_reconnect_timer > 0.5
     {
         if let Some(local) = crate::gui::pages::host_node::running_local_url() {
-            let cur = crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url);
+            let cur = crate::gui::pages::chat::norm_server_url(state.gui_state.dial_address().unwrap_or(""));
             if cur == crate::gui::pages::chat::norm_server_url(&local) {
                 state.gui_state.ws_reconnect_timer = 0.5;
             }
