@@ -2995,7 +2995,11 @@ days, Forgiving one, Settings > Gameplay > Illness); drinking puts the water bac
 oral rehydration solution most (sachets in the starting kit, mixed by the
 `mix_ors` recipe); harm only through dehydration. The Inventory's Use button works
 for the medical items, each from data: health restored, effects ended by tag
-(antibiotics: `bacterial` only), a plain reason when it cannot help.
+(antibiotics: `bacterial` only), a plain reason when it cannot help. Spoiled or
+raw food eaten while still ill does not start it over (`again_adds_h`, 0 for food
+poisoning) and the player is told the time it still has to run. The body's needs,
+its health and the illness's countdown are exact at any frame rate (BUG-164,
+`change_exactly` and f64 effect timers).
 - Code: `src/systems/illness.rs`, `src/systems/treatment.rs`, `src/systems/food.rs`
 - Data: `data/medical/illnesses.ron`, `data/medical/treatments.ron`
 
