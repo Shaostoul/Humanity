@@ -6242,7 +6242,7 @@ mod native_app {
                                         if let Ok(mut h) = w.get::<&mut Health>(ent) {
                                             h.current = 0.0;
                                         }
-                                        let _ = w.insert_one(ent, Dead { since: 0.0, looted: false });
+                                        let _ = w.insert_one(ent, Dead::default());
                                         state.gui_state.close_in_world_modals();
                                         log::info!("Dev: edited creature killed via health slider");
                                     } else {

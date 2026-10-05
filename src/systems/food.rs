@@ -220,7 +220,9 @@ const WASTE_PER_FERTILIZER: f32 = 25.0;
 // and the WHO month before harvest are in data/garden/nutrients.ron). The
 // fraction of a day stays in the tank. The home has no urine-diverting
 // toilet placed yet (data/home_outline.json lists it as "not in game yet"),
-// so this stands in for its tank; like the waste meter, it is not saved.
+// so this stands in for its tank. It and the waste meter are saved with the
+// game (2026-10-04, first-hour audit S1): the tank is the world's `UrineTank`,
+// the waste meter is `Vitals::waste`.
 
 /// The item one person-day of stored urine becomes.
 const URINE_ITEM: &str = "urine_stored_0";
@@ -241,6 +243,39 @@ const URINE_TANK_PERSON_DAYS: f64 = 20.0 / 1.5;
 /// its size (the overflow goes to the septic tank). Returns the new level.
 fn collect_urine(tank_person_days: f64, dt: f64) -> f64 {
     (tank_person_days + dt.max(0.0) / SECONDS_PER_URINE_DAY).min(URINE_TANK_PERSON_DAYS)
+}
+
+/// The home's sealed urine tank (2026-09-26): person-days of urine waiting for the Compost
+/// action to draw them off as `URINE_ITEM`. One per world. It lived inside the running
+/// FoodSystem until 2026-10-04 (first-hour audit S1), so every launch emptied it; as a world
+/// component the save keeps it (`save_load`, `WorldSave::urine_tank_person_days`).
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct UrineTank {
+    pub person_days: f64,
+}
+
+/// The world's one urine tank, spawned the first time it is needed.
+fn urine_tank_entity(world: &mut hecs::World) -> hecs::Entity {
+    if let Some((e, _)) = world.query::<&UrineTank>().iter().next() {
+        return e;
+    }
+    world.spawn((UrineTank::default(),))
+}
+
+/// The tank's level for the save, in person-days (0 with no tank yet).
+pub fn urine_tank_level(world: &hecs::World) -> f64 {
+    world.query::<&UrineTank>().iter().next().map_or(0.0, |(_e, t)| t.person_days)
+}
+
+/// Put a save's tank level back (`save_load::apply_save_to_world`), within the tank's size.
+/// An empty level on a world with no tank yet adds none.
+pub fn set_urine_tank(world: &mut hecs::World, person_days: f64) {
+    let level = if person_days.is_finite() { person_days.clamp(0.0, URINE_TANK_PERSON_DAYS) } else { 0.0 };
+    if let Some((_e, t)) = world.query_mut::<&mut UrineTank>().into_iter().next() {
+        t.person_days = level;
+    } else if level > 0.0 {
+        world.spawn((UrineTank { person_days: level },));
+    }
 }
 
 /// Unique key for tracking a specific food stack: (entity bits, inventory slot index).
@@ -280,10 +315,6 @@ pub struct FoodSystem {
     spoilage: HashMap<FoodKey, SpoilageState>,
     /// Accumulator to throttle log spam.
     log_cooldown: f32,
-    /// Person-days of urine in the home's sealed collection tank, drawn off
-    /// as `URINE_ITEM` by the Compost action (2026-09-26). Not saved, like
-    /// the waste meter it rides beside.
-    urine_person_days: f64,
     /// A night's sleep in a bed while it runs (2026-09-27, `systems::sleep`).
     asleep: Option<crate::systems::sleep::Asleep>,
     /// Each living body's heat state (2026-09-27, `systems::body_heat`). Only
@@ -329,7 +360,6 @@ impl FoodSystem {
             item_profile,
             spoilage: HashMap::new(),
             log_cooldown: 0.0,
-            urine_person_days: 0.0,
             asleep: None,
             body_heat: HashMap::new(),
         }
@@ -569,9 +599,14 @@ impl System for FoodSystem {
             .iter()
             .any(|(_, (_, _, dead))| dead.is_none());
         if player_alive {
-            self.urine_person_days = collect_urine(self.urine_person_days, f64::from(game_dt));
+            let tank = urine_tank_entity(world);
+            if let Ok(mut t) = world.get::<&mut UrineTank>(tank) {
+                t.person_days = collect_urine(t.person_days, f64::from(game_dt));
+            }
         }
         if do_compost {
+            let tank = urine_tank_entity(world);
+            let mut tank_level = world.get::<&UrineTank>(tank).map_or(0.0, |t| t.person_days);
             let max_stack = item_registry
                 .map(|r| r.max_stack_for("fertilizer_0"))
                 .unwrap_or(99);
@@ -594,17 +629,20 @@ impl System for FoodSystem {
                 // The same action draws the urine tank off: every whole
                 // person-day becomes one stored urine for the garden. What
                 // does not fit the pack stays in the tank for next time.
-                let person_days = self.urine_person_days.floor().max(0.0) as u32;
+                let person_days = tank_level.floor().max(0.0) as u32;
                 if person_days > 0 {
                     let unit_vol = item_registry.map(|r| r.volume_for(URINE_ITEM)).unwrap_or(0.0);
                     let stack = item_registry.map(|r| r.max_stack_for(URINE_ITEM)).unwrap_or(20);
                     let lost = inv.add_item_volume_gated(URINE_ITEM, person_days, stack, unit_vol);
                     let taken = person_days.saturating_sub(lost);
-                    self.urine_person_days -= f64::from(taken);
+                    tank_level -= f64::from(taken);
                     log::info!("[Sanitation] drew off {taken}x {URINE_ITEM} ({lost} left in the tank)");
                 }
                 vitals.waste = 0.0;
                 break; // first player only
+            }
+            if let Ok(mut t) = world.get::<&mut UrineTank>(tank) {
+                t.person_days = tank_level;
             }
         }
 
@@ -835,7 +873,9 @@ impl System for FoodSystem {
         // screen (the "player_death" DataStore slot; lib.rs surfaces it). Done
         // outside the query pass because hecs cannot insert mid-borrow.
         if let Some((entity, cause)) = player_died {
-            let _ = world.insert_one(entity, crate::ecs::components::Dead::default());
+            // The Dead marker carries the cause, which the save keeps with the body
+            // (first-hour audit S1, 2026-10-04).
+            let _ = world.insert_one(entity, crate::ecs::components::Dead { cause: cause.clone(), ..Default::default() });
             if let Some(slot) = data.get::<std::sync::Mutex<Option<String>>>("player_death") {
                 if let Ok(mut s) = slot.lock() {
                     *s = Some(cause.clone());
