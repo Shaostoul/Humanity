@@ -436,18 +436,21 @@ fn plain_plot_id(id: &str) -> &str {
 }
 
 /// The refusal for a plot our home cannot be placed on: the plot is not one our ship has, or
-/// our ship has no home design. The plot goes back (`give_up_plot`).
+/// our ship has no home design. The plot goes back (`give_up_plot`), and the relay takes down
+/// every piece it keeps on it, whoever built them (ship homes increment 5, relay home_plots.rs
+/// `give_up_plot_if_asked`), so the sentence says that too (the review of increment 5, finding 7).
 fn cannot_place_sentence(id: &str) -> String {
     format!(
-        "Not joining the shared world: your home could not be placed on the plot this server gave you ({}), so the plot went back to the server; restart the app, and if it happens again the reason is in logs/run.log.",
+        "Not joining the shared world: your home could not be placed on the plot this server gave you ({}), so the plot went back to the server and anything built on it in the shared world was taken down; restart the app, and if it happens again the reason is in logs/run.log.",
         plain_plot_id(id)
     )
 }
 
-/// The refusal for a plot our home does not fit (the assembly refused it). The plot goes back.
+/// The refusal for a plot our home does not fit (the assembly refused it). The plot goes back,
+/// and what the server kept on it comes down with it (as [`cannot_place_sentence`]).
 fn does_not_fit_sentence(id: &str) -> String {
     format!(
-        "Not joining the shared world: your home does not fit the plot this server gave you ({}), so the plot went back to the server; change your home's design to fit this ship's plots and reconnect, and logs/run.log says which part did not fit.",
+        "Not joining the shared world: your home does not fit the plot this server gave you ({}), so the plot went back to the server and anything built on it in the shared world was taken down; change your home's design to fit this ship's plots and reconnect, and logs/run.log says which part did not fit.",
         plain_plot_id(id)
     )
 }
@@ -1955,6 +1958,38 @@ mod tests {
                 assert!(sentence.contains("does not fit"), "{sentence}");
             }
             other => panic!("{other:?}"),
+        }
+    }
+
+    /// A PLOT GIVEN BACK SAYS THAT WHAT STOOD ON IT WAS TAKEN DOWN (review of increment 5, finding
+    /// 7). Giving a plot back (`game_leave` with `give_up_plot`, relay home_plots.rs
+    /// `give_up_plot_if_asked`) takes down every piece the server keeps on it, the player's own
+    /// and their household's (decision 2 of the increment 5 plan), so both sentences that give a
+    /// plot back say so, not only that the plot went back: a home that does not fit the plot (here
+    /// p2 made narrower than the home, as the test above), and a home that could not be placed on
+    /// it. Each stays one sentence.
+    ///
+    /// Seen red 2026-10-05 on inc5-integration (d6c327c62): "the sentence never says what stood on
+    /// the plot was taken down: Not joining the shared world: your home does not fit the plot this
+    /// server gave you (p2), so the plot went back to the server; change your home's design to fit
+    /// this ship's plots and reconnect, and logs/run.log says which part did not fit."
+    #[test]
+    fn a_plot_given_back_says_what_stood_on_it_was_taken_down() {
+        let mut file = ShipStructure::load_ship_file(&data_dir()).unwrap();
+        let p2 = file.plots.iter().position(|p| p.id == "p2").unwrap();
+        file.plots[p2].size.0 = 30.0;
+        let design = booted().home_design().unwrap();
+        let ship = file.clone().assemble(design, "p1").expect("the home stands on p1");
+        let w = welcome(Some("p2"), &ship.ship_hash());
+        let WelcomeHome::Refuse { sentence, give_up_plot: true } = plan_welcome(Some(&ship), &w, &arriving(P1_DOOR)) else {
+            panic!("a home that does not fit p2 gives it back");
+        };
+        for said in [sentence, cannot_place_sentence("p2")] {
+            assert!(
+                said.contains("anything built on it in the shared world was taken down"),
+                "the sentence never says what stood on the plot was taken down: {said}"
+            );
+            assert!(said.ends_with('.') && said.matches(". ").count() == 0, "one sentence: {said}");
         }
     }
 

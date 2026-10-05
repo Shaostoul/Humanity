@@ -45,6 +45,16 @@
 //! new list, one message per player, rather than a message per piece, which could overrun the
 //! relay's 256-message send queue (relay.rs `DEFAULT_BROADCAST_CAPACITY`).
 //!
+//! WHAT A GAME MISSED (the review of increment 5, findings 1, 2 and 5). A socket that falls
+//! behind that queue skips what it missed and stays open (relay.rs `recv_skipping_lag`), so a game
+//! can lose any of these messages without a word. Every 5 s, with the `game_time_sync`, each
+//! player is sent a check ([`send_checks`], `game_pieces_check`): each frame in their view with
+//! its `seq`, and their ranks as they stand now. Their game asks again for the list of any frame
+//! it holds at another `seq`, or does not hold, and forgets one the check does not name. A list
+//! asked for (`game_pieces_request`) comes even for a frame out of the asker's view, followed by
+//! `game_frame_out_of_view`, so a game can settle a build or take-down whose answer it lost
+//! wherever the player stands.
+//!
 //! WHAT THE RELAY LOGS (the proof rig reads these lines, scripts/lib/shared-build-judge.js; none
 //! names a key): `Game: built piece {id} {bp} on {frame}`, `Game: build refused ({reason}/{why})
 //! on {frame}` (`({reason})` with no why), `Game: took down piece {id} on {frame}`, `Game:
@@ -299,7 +309,8 @@ fn home_plot_id(e: &GameEntity) -> Option<String> {
 /// (`Storage::has_ship_rank`: a role with `can_edit_ship`, or the server's owner), and take down
 /// anything anywhere (the game-admin rule, `is_game_admin`: an admin or the owner). The welcome
 /// says it (`ranks`), and every build and take-down is judged by it afresh, so a rank given or
-/// taken away counts from the next request.
+/// taken away counts from the next request; every check carries it too ([`send_checks`]), so the
+/// game's own gate follows within one (the review of increment 5, finding 5).
 pub fn ranks_of(state: &Arc<RelayState>, key: &str) -> Ranks {
     Ranks { can_edit_ship: state.db.has_ship_rank(key), take_down_any: super::msg_handlers::is_game_admin(state, key) }
 }
@@ -639,6 +650,46 @@ fn resend_frame(state: &RelayState, book: &PieceBook, frame: &str) {
     }
 }
 
+/// Each player's check (`game_pieces_check`; the review of increment 5, findings 1 and 5), as (to,
+/// message): every frame in their view with its `seq`, and `ranks`, their ranks as read just now
+/// ([`ranks_of`]). A player whose ranks were not read (they joined since) is left for the next one.
+pub fn check_messages(book: &PieceBook, ranks: &HashMap<String, Ranks>) -> Vec<(HashSet<String>, serde_json::Value)> {
+    book.views
+        .values()
+        .filter_map(|v| {
+            let ranks = *ranks.get(&v.key)?;
+            let frames = v.frames.iter().map(|f| (f.clone(), book.seq_of(f))).collect();
+            Some((HashSet::from([v.key.clone()]), wire(&FromRelay::Check { frames, ranks })))
+        })
+        .collect()
+}
+
+/// Send every player in the shared world their check (relay/mod.rs, every 5 s with the
+/// `game_time_sync`, `shared::CHECK_INTERVAL_S`). Their ranks are read first, outside the world's
+/// lock (a database read each); the frames and their `seq` are read, and the checks sent, under
+/// it, so each check goes out in order with the frames' news (sent under the write lock): every
+/// change it counts was sent before it, and every later one after it. A game holding a frame at
+/// another `seq` lost a message, never one still on its way. (A list someone asked for goes out
+/// under a read lock too, so its parts can straddle a check; the game leaves a list still
+/// arriving at the check's `seq` to its parts.)
+pub async fn send_checks(state: &Arc<RelayState>) {
+    let keys: Vec<String> = state.game_world.read().await.pieces.views.values().map(|v| v.key.clone()).collect();
+    if keys.is_empty() {
+        return;
+    }
+    let ranks: HashMap<String, Ranks> = keys
+        .into_iter()
+        .map(|k| {
+            let r = ranks_of(state, &k);
+            (k, r)
+        })
+        .collect();
+    let world = state.game_world.read().await;
+    for (to, m) in check_messages(&world.pieces, &ranks) {
+        send_to(state, to, &m);
+    }
+}
+
 // ── The world's comings and goings ────────────────────────────────────────
 
 /// A player joined or rejoined the shared world (msg_handlers.rs `handle_game_join`, right after
@@ -904,11 +955,15 @@ async fn unbuild(state: &Arc<RelayState>, key: &str, raw: &serde_json::Value) {
     }
 }
 
-/// `game_pieces_request`: a game that missed a change in a frame (a gap in its `seq`) asks for the
-/// frame's whole list again. Once a second per player, whichever frame (`PIECES_REQUEST_INTERVAL_MS`;
-/// the game paces its asks a little slower and asks again after a `rate_limited`); only for a
-/// frame in their view: one that is not is answered `game_frame_out_of_view`, so the game forgets
-/// it rather than asking again.
+/// `game_pieces_request`: a game that may have missed a change in a frame (a gap in its `seq`, a
+/// check that disagrees, a lost part) asks for the frame's whole list again, and one with a build
+/// or take-down whose answer it lost asks for that frame's list to settle it. Once a second per
+/// player, whichever frame (`PIECES_REQUEST_INTERVAL_MS`; the game paces its asks a little slower
+/// and asks again after a `rate_limited`). A frame out of their view is sent all the same, then
+/// `game_frame_out_of_view`, so their game settles what it asked about and keeps nothing of the
+/// frame (the review of increment 5, finding 2: answered with `game_frame_out_of_view` alone, a
+/// build in a frame out of view, the player having walked off or respawned at their door, could
+/// never be settled).
 async fn pieces_request(state: &Arc<RelayState>, key: &str, raw: &serde_json::Value) {
     let frame_said = raw.get("frame").and_then(|v| v.as_str()).unwrap_or("").to_string();
     let no = |r: Refusal| refuse(state, key, Action::Pieces, None, &frame_said, &Refused::of("piece", r));
@@ -929,13 +984,12 @@ async fn pieces_request(state: &Arc<RelayState>, key: &str, raw: &serde_json::Va
     }
     let book = &world.pieces;
     let Some(v) = book.views.get(&player) else { return };
-    if !v.frames.contains(&frame) {
-        send_to(state, HashSet::from([key.to_string()]), &wire(&FromRelay::FrameOutOfView { frame }));
-        return;
-    }
     let (_, server_time, _) = now();
     for m in snapshot_messages(book, &frame, &v.did, server_time) {
         send_to(state, HashSet::from([key.to_string()]), &m);
+    }
+    if !v.frames.contains(&frame) {
+        send_to(state, HashSet::from([key.to_string()]), &wire(&FromRelay::FrameOutOfView { frame }));
     }
 }
 

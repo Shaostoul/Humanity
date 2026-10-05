@@ -87,6 +87,11 @@ impl Game {
         on_message(&mut self.cx(), &v)
     }
 
+    /// A relay message written as JSON (one this file has no variant for builds it by hand).
+    fn hear_json(&mut self, v: serde_json::Value) -> bool {
+        on_message(&mut self.cx(), &v)
+    }
+
     /// A welcome, as the relay writes it (`ranks` may be missing).
     fn welcome(&mut self, v: serde_json::Value) {
         welcome(&mut self.cx(), &v);
@@ -95,6 +100,17 @@ impl Game {
     /// One frame of `dt` real seconds, joined and welcomed.
     fn frame(&mut self, dt: f32) {
         tick_core(&mut self.cx(), dt, true, true);
+    }
+
+    /// One frame of `dt` real seconds out of the shared world: a Respawn's step out, a dropped
+    /// socket, before the next join goes.
+    fn out(&mut self, dt: f32) {
+        tick_core(&mut self.cx(), dt, false, false);
+    }
+
+    /// One frame of `dt` real seconds joined again, the welcome not yet here.
+    fn rejoining(&mut self, dt: f32) {
+        tick_core(&mut self.cx(), dt, true, false);
     }
 
     /// What went to the relay since the last look.
@@ -140,6 +156,17 @@ fn planks(n: u32) -> Spent {
 
 fn plank_op(n: u32) -> TransferOp {
     TransferOp { item_id: "wood_plank_0".into(), qty: n, add: true, ..Default::default() }
+}
+
+/// The relay's `game_pieces_check` (every 5 s, shared.rs `FromRelay::Check`): `frames` as
+/// `{"plot:p1": 4, ...}`, `ranks` as the welcome writes them. Written by hand, as the relay sends it.
+fn check(frames: serde_json::Value, ranks: serde_json::Value) -> serde_json::Value {
+    serde_json::json!({ "type": "game_pieces_check", "frames": frames, "ranks": ranks })
+}
+
+/// The `game_pieces_request` for `frame`, as the game sends it.
+fn asks_for(frame: &str) -> serde_json::Value {
+    serde_json::json!({ "type": "game_pieces_request", "frame": frame })
 }
 
 /// THE GATE, EVERY ROW (plan section 3.4). On the shipped ship with the home on p1: OFFLINE, as
@@ -314,7 +341,8 @@ fn a_snapshot_replaces_one_frame_and_leaves_the_others() {
 /// piece 10 built at seq 4 goes up once, though the message comes twice; piece 11 "built" at seq 3
 /// (news the list already holds) does not go up; 10 taken down at seq 5 comes down; piece 12 built
 /// at seq 8 (three ahead: two messages lost) goes up AND the next frame asks for p2's whole list,
-/// once; and news about p7, whose list this game does not hold, waits for it.
+/// once; and news about p7, whose list this game does not hold, waits for that list (which it
+/// asks for: `news_about_a_frame_with_no_list_asks_for_its_list`).
 ///
 /// Seen red 2026-10-05 with the seq compare removed from `SharedBuild::step`: "a game_built at a seq
 /// the list already holds drew piece 11: [(10, \"plot:p2\", true), (11, \"plot:p2\", true)]".
@@ -662,4 +690,482 @@ fn a_piece_grows_from_when_the_relay_took_it() {
     assert_eq!(*world.get::<&SharedPiece>(young).unwrap(), SharedPiece { piece_id: 5, frame: "zone:commons".into(), mine: true });
     assert_eq!(world.get::<&Transform>(young).unwrap().position, Vec3::new(76.0, 0.0, 70.0), "the Commons' corner (65, 0, 20) added");
     assert_eq!(world.get::<&Transform>(old).unwrap().rotation, Quat::IDENTITY);
+}
+
+// ── The review of increment 5 (2026-10-05): findings 1, 2 and 5 ───────────
+
+/// A LOST MESSAGE IS PUT RIGHT BY THE NEXT CHECK, WITHOUT A REJOIN (review of increment 5,
+/// finding 1, case A, and the same loss of a whole list or of a frame leaving the view). The
+/// relay skips what a socket that fell behind missed and keeps the connection open (relay.rs
+/// `recv_skipping_lag`), so a game can lose any message without a word. The home on p2: p1's
+/// list holds a neighbour's walls 7 and 8 (seq 4), the Commons' a wall 3 (seq 2), p2's nothing.
+/// Then three messages are lost: p1's take-down of wall 7 (seq 5), First Street's whole list, and
+/// the word that the Commons left the view. Nothing else changes on p1, so no gap in its seq ever
+/// shows, and five seconds pass with nothing asked: before the fix wall 7 stood, solid, until the
+/// next change on p1, a 300 m walk away and back, or a rejoin. The relay's next check
+/// (`game_pieces_check`, every `shared::CHECK_INTERVAL_S`) names p1 at 5, p2 at 0 and First
+/// Street at 0, and not the Commons: the Commons' wall comes down at once, p1's list is asked for
+/// the next frame and First Street's a second later (one list a second, the relay's limit), and
+/// p1's list takes wall 7 down. Healed within one check and a second for each frame behind. A
+/// check that agrees with what the game holds asks for nothing.
+///
+/// Seen red 2026-10-05 on inc5-integration (d6c327c62), the check not understood: "the check
+/// asked for nothing: left: []", left: `[]`, right: `[Object {"frame": String("plot:p1"), "type":
+/// String("game_pieces_request")}]`. And with the forgetting of frames the check does not name
+/// taken out of `check`: "the Commons, out of view, came down: [(3, \"zone:commons\", true), (7,
+/// \"plot:p1\", true), (8, \"plot:p1\", true)]".
+#[test]
+fn a_lost_message_is_put_right_by_the_next_check() {
+    let mut g = Game::at("p2");
+    g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 3 }));
+    let old = T - 100.0;
+    let wall = |id: u64, x: f32| piece(id, "wood_wall", [x, 0.0, 10.0], old, false);
+    g.hear(&list("plot:p1", 4, vec![wall(7, 20.0), wall(8, 24.0)]));
+    g.hear(&list("plot:p2", 0, Vec::new()));
+    g.hear(&list("zone:commons", 2, vec![wall(3, 11.0)]));
+    // The three messages are lost, and five seconds pass: nothing tells the game.
+    for _ in 0..5 {
+        g.frame(1.0);
+    }
+    assert!(g.sent().is_empty(), "nothing shows a loss until the check");
+    let frames = serde_json::json!({ "plot:p1": 5, "plot:p2": 0, "zone:street-1": 0 });
+    g.hear_json(check(frames.clone(), serde_json::json!({})));
+    g.frame(0.016);
+    let sent = g.sent();
+    assert_eq!(sent, vec![asks_for("plot:p1")], "the check asked for nothing: left: {sent:?}");
+    let now = g.pieces();
+    assert_eq!(now, vec![(7, "plot:p1".to_string(), true), (8, "plot:p1".to_string(), true)], "the Commons, out of view, came down: {now:?}");
+    g.frame(0.5);
+    assert!(g.sent().is_empty(), "one list a second");
+    g.frame(0.6);
+    assert_eq!(g.sent(), vec![asks_for("zone:street-1")], "First Street's list, a second later");
+    g.hear(&list("plot:p1", 5, vec![wall(8, 24.0)]));
+    g.hear(&list("zone:street-1", 0, Vec::new()));
+    assert_eq!(g.pieces(), vec![(8, "plot:p1".to_string(), true)], "wall 7 came down with p1's list");
+    // A check that agrees asks for nothing.
+    assert!(g.hear_json(check(frames, serde_json::json!({}))), "the check is the game's to read");
+    for _ in 0..3 {
+        g.frame(1.1);
+    }
+    assert!(g.sent().is_empty(), "a check that agrees asks for nothing");
+    let seqs: Vec<(String, u64)> = g.sb.frame_seqs().map(|(f, s)| (f.clone(), *s)).collect();
+    assert_eq!(seqs, vec![("plot:p1".to_string(), 5), ("plot:p2".to_string(), 0), ("zone:street-1".to_string(), 0)]);
+}
+
+/// F ON A PIECE THE SERVER NO LONGER KEEPS TAKES IT DOWN HERE AND ASKS FOR ITS FRAME (review of
+/// increment 5, finding 1, case A at the crosshair). The home on p1, whose list holds wall 7 (seq
+/// 4). A household member took it down and that news was lost, so the wall still stands here,
+/// solid. F at it asks the relay, which answers `no_such_piece`: the wall comes down at once
+/// (before the fix it stayed, though the game had just said it was gone), the player is told it
+/// was already gone, nothing comes back (whoever took it down got its materials), and p1's whole
+/// list is asked for the next frame, since this game missed at least that change.
+///
+/// Seen red 2026-10-05 on inc5-integration (d6c327c62): "the wall the server no longer keeps
+/// still stands", left: `[(7, "plot:p1", true)]`, right: `[]`. And with the list not asked for in
+/// `refused`: "p1's list, which missed at least that change", left: `[]`, right: `[Object
+/// {"frame": String("plot:p1"), "type": String("game_pieces_request")}]`.
+#[test]
+fn f_on_a_piece_already_gone_takes_it_down_and_asks_for_its_frame() {
+    let mut g = Game::at("p1");
+    g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 3 }));
+    g.hear(&list("plot:p1", 4, vec![piece(7, "wood_wall", [20.0, 0.0, 20.0], T - 100.0, false)]));
+    let reg = registry();
+    let seven = g.entity(7);
+    let (name, back) = build_place::kept_piece_back(&g.world, Some(&reg), seven);
+    assert_eq!(build_place::take_down_entity_on(&mut g.sb, &mut g.world, &g.data, &g.gui, seven, &name, &back), None, "F asks the relay");
+    g.frame(0.3);
+    let sent = g.sent();
+    assert_eq!(sent.len(), 1, "{sent:?}");
+    let req = sent[0]["req_id"].as_u64().map(|r| r as u32);
+    g.hear(&refused(req, Action::Unbuild, Reason::NoSuchPiece, None));
+    let now = g.pieces();
+    assert!(now.is_empty(), "the wall the server no longer keeps still stands: left: {now:?}, right: []");
+    assert_eq!(g.gui.pending_notices, vec!["Wood Wall not taken down: it is already gone.".to_string()]);
+    assert!(g.ops().is_empty(), "nothing comes back: someone else took it down");
+    g.frame(0.016);
+    assert_eq!(g.sent(), vec![asks_for("plot:p1")], "p1's list, which missed at least that change");
+    assert_eq!(g.sb.counts(), (0, 0, 0), "nothing waits");
+}
+
+/// A LIST WHOSE LAST PART WAS LOST IS ASKED FOR AGAIN AFTER A FEW SECONDS (review of increment 5,
+/// finding 1, case B). The home on p1. p1's list comes in two parts at the welcome, and the second
+/// is lost. Every part of a list leaves the relay together, so past `shared::PARTS_WAIT_S` (3 s)
+/// the rest is not coming: p1's whole list is asked for again, once, and when it comes both pieces
+/// stand. Before the fix the half-received list waited for good, and with no list for p1 every
+/// later piece built there, the player's own included, was never drawn.
+///
+/// Seen red 2026-10-05 on inc5-integration (d6c327c62): "3.5 s after its first part, p1's list
+/// was never asked for again: left: []", left: `[]`, right: `[Object {"frame": String("plot:p1"),
+/// "type": String("game_pieces_request")}]`.
+#[test]
+fn a_list_whose_last_part_was_lost_is_asked_for_again() {
+    let mut g = Game::at("p1");
+    g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 3 }));
+    let ours = |id: u64, x: f32| piece(id, "wood_foundation", [x, 0.0, 20.0], T - 100.0, true);
+    g.hear(&part("plot:p1", 6, 1, 2, vec![ours(1, 10.0)]));
+    g.frame(2.0);
+    assert!(g.sent().is_empty() && g.pieces().is_empty(), "2 s: nothing yet");
+    g.frame(1.5);
+    let sent = g.sent();
+    assert_eq!(sent, vec![asks_for("plot:p1")], "3.5 s after its first part, p1's list was never asked for again: left: {sent:?}");
+    g.frame(1.1);
+    assert!(g.sent().is_empty(), "asked once");
+    g.hear(&part("plot:p1", 6, 1, 2, vec![ours(1, 10.0)]));
+    g.hear(&part("plot:p1", 6, 2, 2, vec![ours(2, 20.0)]));
+    let ids: Vec<u64> = g.pieces().iter().map(|r| r.0).collect();
+    assert_eq!(ids, vec![1, 2], "the whole list, at last");
+}
+
+/// NEWS ABOUT A FRAME WITH NO LIST ASKS FOR THE LIST (review of increment 5, finding 1, case B).
+/// The home on p1, and p1's whole list was lost at the welcome. The player builds a wall on p1: the
+/// relay keeps it and answers with its req_id, which settles the build (nothing comes back), but
+/// with no list for p1 the game has nothing to add it to. Before the fix the news was ignored, as
+/// was every later piece built there: materials spent, nothing seen all session. Now the next
+/// frame asks for p1's list, and the list draws the wall, ours. Someone else's piece on First
+/// Street, whose list was lost too, asks for First Street's list a second later.
+///
+/// Seen red 2026-10-05 on inc5-integration (d6c327c62): "news about p1, which has no list, never
+/// asked for it: left: []", left: `[]`, right: `[Object {"frame": String("plot:p1"), "type":
+/// String("game_pieces_request")}]`.
+#[test]
+fn news_about_a_frame_with_no_list_asks_for_its_list() {
+    let mut g = Game::at("p1");
+    g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 3 }));
+    g.hear(&list("zone:commons", 0, Vec::new()));
+    g.paid("plot:p1", "wood_wall", 30.0, 20.0, planks(6));
+    g.frame(0.3);
+    let sent = g.sent();
+    assert_eq!(sent.len(), 1, "{sent:?}");
+    let req = sent[0]["req_id"].as_u64().map(|r| r as u32);
+    g.hear(&built("plot:p1", 1, piece(21, "wood_wall", [30.0, 0.0, 20.0], T, true), req));
+    assert_eq!(g.sb.counts(), (0, 0, 0), "the answer settles the build");
+    assert!(g.ops().is_empty(), "kept: nothing comes back");
+    g.frame(0.016);
+    let sent = g.sent();
+    assert_eq!(sent, vec![asks_for("plot:p1")], "news about p1, which has no list, never asked for it: left: {sent:?}");
+    g.hear(&list("plot:p1", 1, vec![piece(21, "wood_wall", [30.0, 0.0, 20.0], T, true)]));
+    assert_eq!(g.pieces(), vec![(21, "plot:p1".to_string(), false)], "our wall, drawn at last: a scaffold, growing");
+    g.hear(&built("zone:street-1", 3, piece(30, "wood_wall", [10.0, 0.0, 10.0], T, false), None));
+    g.frame(1.1);
+    assert_eq!(g.sent(), vec![asks_for("zone:street-1")], "someone else's news on First Street, whose list was lost too");
+}
+
+/// A TAKE-DOWN THE RELAY DID GIVES BACK ONCE, ACROSS A RESPAWN AND A LOST ANSWER (review of
+/// increment 5, finding 2). The home on p1, whose list holds three walls of ours, 7, 8 and 9. F at
+/// each sends a take-down; then the player presses Respawn, which steps out of the shared world
+/// and joins again, inside the round trip. On the same connection the relay's answer for 7 still
+/// arrives, after the step out: its 6 planks come back, once (before the fix the step out dropped
+/// every take-down not answered, and the planks were gone for good though the relay had taken the
+/// wall down). The answers for 8 and 9 are lost. The next welcome's list of p1 holds 9, and neither
+/// 7 nor 8: 8 was taken down, and its 6 planks come back, once; 9 still stands, so nothing comes
+/// back for it and the player is told. A late copy of 8's answer and another list give nothing
+/// more.
+///
+/// Seen red 2026-10-05 on inc5-integration (d6c327c62): "the relay took 7 down and its answer came
+/// after the step out: its planks are gone", left: `[]`, right: `[TransferOp { item_id:
+/// "wood_plank_0", qty: 6, add: true, wear: 0, quality: 0, age_s: 0.0 }]`.
+#[test]
+fn a_take_down_the_relay_did_gives_back_once_across_a_respawn_and_a_lost_answer() {
+    let mut g = Game::at("p1");
+    g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 3 }));
+    let wall = |id: u64, x: f32| piece(id, "wood_wall", [x, 0.0, 20.0], T - 100.0, true);
+    g.hear(&list("plot:p1", 3, vec![wall(7, 20.0), wall(8, 24.0), wall(9, 28.0)]));
+    let reg = registry();
+    for id in [7, 8, 9] {
+        let e = g.entity(id);
+        let (name, back) = build_place::kept_piece_back(&g.world, Some(&reg), e);
+        assert_eq!(build_place::take_down_entity_on(&mut g.sb, &mut g.world, &g.data, &g.gui, e, &name, &back), None);
+    }
+    for _ in 0..3 {
+        g.frame(0.3);
+    }
+    let sent = g.sent();
+    assert_eq!(sent.len(), 3, "{sent:?}");
+    let req_of = |piece: u64| sent.iter().find(|m| m["piece_id"].as_u64() == Some(piece)).and_then(|m| m["req_id"].as_u64()).map(|r| r as u32);
+    // Respawn: out of the shared world, and straight back in.
+    g.out(0.016);
+    assert!(g.pieces().is_empty(), "out of the shared world, its pieces come down");
+    // 7's answer, on the same connection, after the step out.
+    g.hear(&unbuilt("plot:p1", 4, 7, req_of(7)));
+    let ops = g.ops();
+    assert_eq!(ops, vec![plank_op(6)], "the relay took 7 down and its answer came after the step out: its planks are gone: left: {ops:?}");
+    g.rejoining(0.016);
+    g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 4 }));
+    g.hear(&list("plot:p1", 5, vec![wall(9, 28.0)]));
+    assert_eq!(g.ops(), vec![plank_op(6), plank_op(6)], "8 was taken down, its answer lost: its planks, once");
+    assert_eq!(
+        g.gui.pending_notices,
+        vec![
+            "Took down the Wood Wall: 6 Wood Plank back".to_string(),
+            "Took down the Wood Wall: 6 Wood Plank back".to_string(),
+            "Wood Wall not taken down: the server never said it came down.".to_string(),
+        ]
+    );
+    assert_eq!(g.sb.counts(), (0, 0, 0), "every take-down settled");
+    // A late copy of 8's answer, and p1's list again: nothing more.
+    g.hear(&unbuilt("plot:p1", 5, 8, req_of(8)));
+    g.hear(&list("plot:p1", 5, vec![wall(9, 28.0)]));
+    assert_eq!(g.ops().len(), 2, "nothing more");
+    assert_eq!(g.pieces(), vec![(9, "plot:p1".to_string(), true)]);
+}
+
+/// A TAKE-DOWN WHOSE ANSWER IS LOST IN A SESSION IS SETTLED BY THE LIST ASKED FOR LATER (review of
+/// increment 5, finding 2). The home on p1, walls 7 and 8 of ours. F at both; the relay takes 7
+/// down and refuses 8, and both answers are lost to a socket that fell behind (no rejoin, no
+/// Respawn). Ten seconds on, p1's list is asked for, once; it comes without 7 and with 8: 7's 6
+/// planks come back, once (before the fix the take-down was dropped after 10 s with its planks),
+/// and the player is told 8 still stands.
+///
+/// Seen red 2026-10-05 with take-downs left out of `timeouts` (never asked about): "ten seconds
+/// with no answer, and p1's list was never asked for: left: []".
+#[test]
+fn a_take_down_whose_answer_is_lost_is_settled_by_the_list_asked_for_later() {
+    let mut g = Game::at("p1");
+    g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 3 }));
+    let wall = |id: u64, x: f32| piece(id, "wood_wall", [x, 0.0, 20.0], T - 100.0, true);
+    g.hear(&list("plot:p1", 3, vec![wall(7, 20.0), wall(8, 24.0)]));
+    let reg = registry();
+    for id in [7, 8] {
+        let e = g.entity(id);
+        let (name, back) = build_place::kept_piece_back(&g.world, Some(&reg), e);
+        assert_eq!(build_place::take_down_entity_on(&mut g.sb, &mut g.world, &g.data, &g.gui, e, &name, &back), None);
+    }
+    g.frame(0.3);
+    g.frame(0.3);
+    assert_eq!(g.sent().len(), 2, "both take-downs went");
+    // Both answers are lost.
+    g.frame(11.0);
+    let sent = g.sent();
+    assert_eq!(sent, vec![asks_for("plot:p1")], "ten seconds with no answer, and p1's list was never asked for: left: {sent:?}");
+    assert!(g.ops().is_empty(), "nothing back before the list");
+    g.hear(&list("plot:p1", 4, vec![wall(8, 24.0)]));
+    assert_eq!(g.ops(), vec![plank_op(6)], "7's planks, once");
+    assert_eq!(
+        g.gui.pending_notices,
+        vec!["Took down the Wood Wall: 6 Wood Plank back".to_string(), "Wood Wall not taken down: the server never said it came down.".to_string()]
+    );
+    assert_eq!(g.sb.counts(), (0, 0, 0), "both settled");
+    assert_eq!(g.pieces(), vec![(8, "plot:p1".to_string(), true)]);
+}
+
+/// A BUILD THE RELAY KEPT IS NEVER GIVEN BACK, HOWEVER LONG THE RECONNECT (review of increment 5,
+/// finding 2). The home on p1, its list empty. Three Wood Walls paid for go to the relay, and the
+/// connection drops before any answer. For 25 s the game is out of the shared world: before the
+/// fix every build sent and not answered came back after 20 s out, though the relay may have kept
+/// it (planks back AND the piece, the next welcome's list showing it as ours). Now nothing comes
+/// back while out. The reconnect's list of p1 holds the first wall as ours (kept: it stays paid
+/// for, once), not the second (never kept: its 6 planks come back, once), and where the third
+/// would stand a Wood Wall with Window of ours: the same box, another piece, so the relay refused
+/// the third as occupied, and its planks come back (a build is matched by its blueprint as well
+/// as its box). Another list gives nothing more.
+///
+/// Seen red 2026-10-05 on inc5-integration (d6c327c62): "25 s out of the shared world gave back
+/// builds the relay may have kept: left: [TransferOp { item_id: \"wood_plank_0\", qty: 6, add:
+/// true, wear: 0, quality: 0, age_s: 0.0 }, (the same twice more)], right: []". And with the
+/// blueprint left out of `settle_by_list`'s match (the box alone): "the second and the third come
+/// back, once each; the first was kept", left: one `TransferOp` of 6 planks, right: two.
+#[test]
+fn a_build_the_relay_kept_is_never_given_back_however_long_the_reconnect() {
+    let mut g = Game::at("p1");
+    g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 3 }));
+    g.hear(&list("plot:p1", 0, Vec::new()));
+    for x in [20.0, 24.0, 28.0] {
+        g.paid("plot:p1", "wood_wall", x, 20.0, planks(6));
+    }
+    for _ in 0..3 {
+        g.frame(0.3);
+    }
+    assert_eq!(g.sent().len(), 3, "three builds sent");
+    // The connection drops before any answer, for 25 s.
+    for _ in 0..25 {
+        g.out(1.0);
+    }
+    let ops = g.ops();
+    assert!(ops.is_empty(), "25 s out of the shared world gave back builds the relay may have kept: left: {ops:?}, right: []");
+    assert_eq!(g.sb.counts().0, 3, "all three wait for the next session's lists");
+    g.rejoining(0.5);
+    g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 4 }));
+    let kept = piece(21, "wood_wall", [20.0, 0.0, 20.0], T - 30.0, true);
+    let window = piece(22, "wood_wall_window", [28.0, 0.0, 20.0], T - 300.0, true);
+    g.hear(&list("plot:p1", 2, vec![kept.clone(), window.clone()]));
+    assert_eq!(g.ops(), vec![plank_op(6), plank_op(6)], "the second and the third come back, once each; the first was kept");
+    let never = "Wood Wall not built: the server never said it kept it. 6 Wood Plank back.".to_string();
+    assert_eq!(g.gui.pending_notices, vec![never.clone(), never]);
+    assert_eq!(g.sb.counts(), (0, 0, 0), "every build settled");
+    g.hear(&list("plot:p1", 2, vec![kept, window]));
+    assert_eq!(g.ops().len(), 2, "another list gives nothing more");
+}
+
+/// A RANK GIVEN MID-SESSION REACHES THE GAME'S GATE, AND ONE TAKEN AWAY LEAVES IT (review of
+/// increment 5, finding 5). The game learned its ranks only from the welcome, while the relay
+/// judges every request by the ranks as they stand, so someone given `can_edit_ship` mid-session
+/// was refused at their own crosshair until they rejoined. The home on p1, welcomed with no rank:
+/// a Wood Wall in the Commons is refused with the rank's words. The relay's next check carries the
+/// rank: the same wall goes to the server (`zone:commons`), and F on a piece there is let through.
+/// A later check without it refuses both again.
+///
+/// Seen red 2026-10-05 on inc5-integration (d6c327c62): "the check's rank never reached the gate",
+/// left: `Refused("the ship's shared spaces are built by people this server has given that
+/// rank")`, right: `Shared("zone:commons")`.
+#[test]
+fn a_rank_given_mid_session_reaches_the_gate() {
+    let mut g = Game::at("p1");
+    g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 3, "ranks": { "can_edit_ship": false, "take_down_any": false } }));
+    let reg = registry();
+    let bp = reg.get("wood_wall").unwrap();
+    let pose = placement::placement_pose(bp, Vec3::new(80.0, 0.0, 40.0), 0, &hecs::World::new(), &reg, None);
+    let gate_now = |g: &Game| gate_here(&g.gui, Some(&reg), g.sb.ranks, Some(bp), &pose, None);
+    let rank_words = Gate::Refused(shared::why_words(Action::Build, Reason::NotAllowed, Some(Why::ShipRank)));
+    assert_eq!(gate_now(&g), rank_words, "no rank: refused");
+    let in_commons = SharedPiece { piece_id: 3, frame: "zone:commons".into(), mine: false };
+    g.hear_json(check(serde_json::json!({}), serde_json::json!({ "can_edit_ship": true, "take_down_any": false })));
+    let now = gate_now(&g);
+    assert_eq!(now, Gate::Shared("zone:commons".into()), "the check's rank never reached the gate: left: {now:?}");
+    assert_eq!(take_down_gate(&in_commons, g.gui.ship_structure.as_ref(), g.sb.ranks), Ok(()), "and F there too");
+    g.hear_json(check(serde_json::json!({}), serde_json::json!({ "can_edit_ship": false, "take_down_any": false })));
+    assert_eq!(gate_now(&g), rank_words, "taken away: refused again");
+    assert_eq!(take_down_gate(&in_commons, g.gui.ship_structure.as_ref(), g.sb.ranks), Err(Why::ShipRank));
+}
+
+/// A LIST STILL ARRIVING AT THE CHECK'S SEQ IS LEFT TO ITS PARTS. A list the player asked for goes
+/// out under the relay's read lock, as the check does (relay shared_build.rs `send_checks`), so its
+/// parts can straddle a check. p1's list is at seq 6 in two parts; the first is here when a check
+/// names p1 at 6: nothing is asked (the second part is on its way, and `shared::PARTS_WAIT_S` looks
+/// after it if it was lost), and when it comes the list is whole. Asking again would bring a
+/// second list for nothing.
+///
+/// Seen red 2026-10-05 with the `arriving` test taken out of `check`: "a check asked again for a
+/// list still arriving in parts: left: [Object {\"frame\": String(\"plot:p1\"), \"type\":
+/// String(\"game_pieces_request\")}]".
+#[test]
+fn a_list_still_arriving_at_the_checks_seq_is_left_to_its_parts() {
+    let mut g = Game::at("p1");
+    g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 3 }));
+    let ours = |id: u64, x: f32| piece(id, "wood_foundation", [x, 0.0, 20.0], T - 100.0, true);
+    g.hear(&part("plot:p1", 6, 1, 2, vec![ours(1, 10.0)]));
+    g.hear_json(check(serde_json::json!({ "plot:p1": 6 }), serde_json::json!({})));
+    g.frame(0.016);
+    let sent = g.sent();
+    assert!(sent.is_empty(), "a check asked again for a list still arriving in parts: left: {sent:?}");
+    g.hear(&part("plot:p1", 6, 2, 2, vec![ours(2, 20.0)]));
+    let ids: Vec<u64> = g.pieces().iter().map(|r| r.0).collect();
+    assert_eq!(ids, vec![1, 2], "the list, whole");
+    g.frame(4.0);
+    assert!(g.sent().is_empty(), "and nothing asked later");
+}
+
+/// SOMEONE ELSE'S TAKE-DOWN FIRST SETTLES OURS, AND NOTHING IS PAID TWICE (review of increment 5,
+/// finding 2). The home on p1; F at wall 7 sends our take-down. Before the relay reaches it, a
+/// household member's take-down of the same wall arrives (no req_id of ours): the wall comes down,
+/// ours is settled on the spot with nothing back (they got its materials), and the player is told
+/// once. Our own answer (`no_such_piece`) is then lost: no list is asked for on its account, and
+/// p1's next list, without the wall, gives nothing either. Without this, that list would have read
+/// as our take-down done, and the wall's planks would have been paid twice.
+///
+/// Seen red 2026-10-05 with `beaten_to_it` not called (ours left waiting): "the wall's planks were
+/// paid twice, to whoever took it down and to us", left: `[TransferOp { item_id: "wood_plank_0",
+/// qty: 6, add: true, wear: 0, quality: 0, age_s: 0.0 }]`, right: `[]`.
+#[test]
+fn someone_elses_take_down_first_settles_ours_and_nothing_is_paid_twice() {
+    let mut g = Game::at("p1");
+    g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 3 }));
+    g.hear(&list("plot:p1", 3, vec![piece(7, "wood_wall", [20.0, 0.0, 20.0], T - 100.0, false)]));
+    let reg = registry();
+    let seven = g.entity(7);
+    let (name, back) = build_place::kept_piece_back(&g.world, Some(&reg), seven);
+    assert_eq!(build_place::take_down_entity_on(&mut g.sb, &mut g.world, &g.data, &g.gui, seven, &name, &back), None);
+    g.frame(0.3);
+    assert_eq!(g.sent().len(), 1, "our take-down went");
+    g.hear(&unbuilt("plot:p1", 4, 7, None));
+    assert!(g.pieces().is_empty(), "the wall came down");
+    // Our answer is lost. Eleven seconds on, p1's next list.
+    g.frame(11.0);
+    g.frame(0.016);
+    g.hear(&list("plot:p1", 4, Vec::new()));
+    let ops = g.ops();
+    assert!(ops.is_empty(), "the wall's planks were paid twice, to whoever took it down and to us: left: {ops:?}, right: []");
+    assert_eq!(g.gui.pending_notices, vec!["Wood Wall not taken down: it is already gone.".to_string()], "told once");
+    assert_eq!(g.sb.counts(), (0, 0, 0), "settled");
+    assert!(g.sent().is_empty(), "no list asked for on its account");
+}
+
+/// A REQUEST WAITS FOR THE SERVER IT WENT TO (review of increment 5, finding 2). A build sent to one
+/// server, and the player switches to another before its answer comes: that server's lists say
+/// nothing of it (its p1 is another place, its pieces other pieces), so there it is neither given
+/// back nor taken as kept, nor asked about. Back on the first server, that server's list settles
+/// it, once.
+///
+/// Seen red 2026-10-05 with the server left out of `settle_by_list`'s match: "another server's
+/// list settled a build sent to the first", left: `[TransferOp { item_id: "wood_plank_0", qty: 6,
+/// add: true, wear: 0, quality: 0, age_s: 0.0 }]`, right: `[]`.
+#[test]
+fn a_request_waits_for_the_server_it_went_to() {
+    let mut g = Game::at("p1");
+    let (one, two) = ("ws://one.example:3210".to_string(), "ws://two.example:3210".to_string());
+    let switch = |g: &mut Game, server: &str| {
+        g.out(0.016);
+        g.rejoining(0.016);
+        g.sb.server = server.to_string();
+        g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 3 }));
+    };
+    switch(&mut g, &one);
+    g.hear(&list("plot:p1", 0, Vec::new()));
+    g.paid("plot:p1", "wood_wall", 20.0, 20.0, planks(6));
+    g.frame(0.3);
+    assert_eq!(g.sent().len(), 1, "the build went to the first server");
+    switch(&mut g, &two);
+    g.hear(&list("plot:p1", 0, Vec::new()));
+    for _ in 0..3 {
+        g.frame(11.0);
+    }
+    let ops = g.ops();
+    assert!(ops.is_empty(), "another server's list settled a build sent to the first: left: {ops:?}, right: []");
+    assert!(g.sent().is_empty(), "nor was that server asked about it");
+    assert_eq!(g.sb.counts().0, 1, "it waits for its own server");
+    switch(&mut g, &one);
+    g.hear(&list("plot:p1", 3, Vec::new()));
+    assert_eq!(g.ops(), vec![plank_op(6)], "back on the first server, its list: never kept, its planks back once");
+    assert_eq!(g.sb.counts(), (0, 0, 0));
+}
+
+/// WHAT WAITS FOR ANOTHER SERVER HOLDS NOTHING UP HERE (review of increment 5, finding 2). A build
+/// and a take-down sent to one server wait for it after the player switches to another (the test
+/// above). There, E at the same spot is not taken as already on its way, and F on that server's
+/// piece of the same number is sent: each server's spots and piece numbers are its own.
+///
+/// Seen red 2026-10-05 before `waiting_at` and `ask_take_down` looked only at this server's
+/// requests: "a build waiting for the first server held up the same spot on this one".
+#[test]
+fn what_waits_for_another_server_holds_nothing_up_here() {
+    let mut g = Game::at("p1");
+    let switch = |g: &mut Game, server: &str| {
+        g.out(0.016);
+        g.rejoining(0.016);
+        g.sb.server = server.to_string();
+        g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 3 }));
+    };
+    let wall7 = |mine: bool| piece(7, "wood_wall", [30.0, 0.0, 20.0], T - 100.0, mine);
+    let take_down_7 = |g: &mut Game| {
+        let reg = registry();
+        let seven = g.entity(7);
+        let (name, back) = build_place::kept_piece_back(&g.world, Some(&reg), seven);
+        build_place::take_down_entity_on(&mut g.sb, &mut g.world, &g.data, &g.gui, seven, &name, &back)
+    };
+    switch(&mut g, "ws://one.example:3210");
+    g.hear(&list("plot:p1", 0, vec![wall7(true)]));
+    let spot = g.paid("plot:p1", "wood_wall", 20.0, 20.0, planks(6));
+    assert_eq!(take_down_7(&mut g), None);
+    g.frame(0.3);
+    g.frame(0.3);
+    assert_eq!(g.sent().len(), 2, "the take-down and the build went to the first server");
+    assert!(g.sb.waiting_at(&g.data, &spot), "on its own server the spot is held while the build waits");
+    switch(&mut g, "ws://two.example:3210");
+    g.hear(&list("plot:p1", 0, vec![wall7(false)]));
+    assert!(!g.sb.waiting_at(&g.data, &spot), "a build waiting for the first server held up the same spot on this one");
+    assert_eq!(take_down_7(&mut g), None);
+    g.frame(0.3);
+    let sent = g.sent();
+    assert_eq!(sent.len(), 1, "F on this server's piece 7 was never sent: {sent:?}");
+    assert_eq!(sent[0]["piece_id"], 7);
+    assert_eq!(g.sb.counts(), (1, 2, 0), "the first server's build and take-down wait on, beside this one's take-down");
 }

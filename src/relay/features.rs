@@ -3839,6 +3839,100 @@ mod tests {
         server.abort();
     }
 
+    /// A LIST ASKED FOR A FRAME OUT OF VIEW COMES ALL THE SAME, THEN THE WORD THAT IT IS OUT OF
+    /// VIEW (review of increment 5, finding 2). A game settles a build or a take-down whose answer
+    /// it lost by that frame's list, wherever the player stands: after a Respawn they stand at
+    /// their door, and a piece they built in the Commons (with the rank) or the far end of their
+    /// own plot can be out of view. Before the fix the relay answered such an ask with
+    /// `game_frame_out_of_view` alone, so the build could never be settled. A piece stands on p12,
+    /// 1 km from p1's door, where the player joins: asked for p12's list, they are sent it, with
+    /// the piece, and then `game_frame_out_of_view` for p12, so their game holds nothing of it
+    /// afterwards; asked for a frame in view, they are sent its list alone.
+    ///
+    /// Seen red 2026-10-05 on inc5-integration (d6c327c62): "p12's list never came: [(\"game_frame_out_of_view\",
+    /// \"plot:p12\")]".
+    #[tokio::test]
+    async fn a_list_asked_for_a_frame_out_of_view_comes_then_the_word_that_it_is_out_of_view() {
+        let path = plots_db("sb_far_list");
+        let (state, port, server) = relay_on(&path).await;
+        let clock = limit_clock(&state);
+        let on_p12 = keep_pieces(&state, "plot:p12", 1, "did:hum:TheHolderOfP12").await[0];
+        let (mut j, _, plot) = joiner(&state, port, 74, "FarListJoiner").await;
+        assert_eq!(plot.as_deref(), Some("p1"));
+        let _ = shared_build_messages_for(&mut j, 500).await;
+        send_json(&mut j, serde_json::json!({ "type": "game_pieces_request", "frame": "plot:p12" })).await;
+        let got = shared_build_messages_for(&mut j, 800).await;
+        let kinds: Vec<(&str, &str)> = got.iter().map(|g| (g["type"].as_str().unwrap_or(""), g["frame"].as_str().unwrap_or(""))).collect();
+        assert_eq!(kinds, vec![("game_pieces", "plot:p12"), ("game_frame_out_of_view", "plot:p12")], "p12's list never came: {kinds:?}");
+        assert_eq!(ids_of(got[0]["pieces"].as_array().unwrap()), vec![on_p12], "with its piece");
+        clock.advance(std::time::Duration::from_millis(1100));
+        send_json(&mut j, serde_json::json!({ "type": "game_pieces_request", "frame": "plot:p1" })).await;
+        let got = shared_build_messages_for(&mut j, 800).await;
+        let kinds: Vec<(&str, &str)> = got.iter().map(|g| (g["type"].as_str().unwrap_or(""), g["frame"].as_str().unwrap_or(""))).collect();
+        assert_eq!(kinds, vec![("game_pieces", "plot:p1")], "a frame in view: its list alone");
+
+        j.close(None).await.ok();
+        server.abort();
+    }
+
+    /// EACH PLAYER'S CHECK NAMES THE FRAMES IN THEIR VIEW, EACH WITH ITS SEQ, AND THEIR RANKS AS THEY
+    /// STAND NOW (the review of increment 5, findings 1 and 5). The relay's 5 s `game_time_sync`
+    /// loop calls `send_checks`; here it is called directly. Ann joins at p1's door with no rank and
+    /// builds a foundation on p1 (its first change). Her check names the frames in her view, p1 at
+    /// 1 and the others at 0, and says she may do nothing beyond her own plot; Bo, at p2, is sent a
+    /// check of his own. An admin gives Ann a role with `can_edit_ship` while she plays: her next
+    /// check says so, without a rejoin, and her wall in the Commons is kept. The role taken away
+    /// again, the check after says that too.
+    ///
+    /// Seen red 2026-10-05 with the check's ranks left at none (`Ranks::default()` in
+    /// `check_messages`): "a rank given mid-session reaches the next check / left:
+    /// {\"can_edit_ship\":false,\"take_down_any\":false} / right:
+    /// {\"can_edit_ship\":true,\"take_down_any\":false}".
+    #[tokio::test]
+    async fn each_check_names_the_frames_in_view_with_their_seq_and_the_ranks_as_they_stand() {
+        let path = plots_db("sb_check");
+        let (state, port, server) = relay_on(&path).await;
+        let clock = limit_clock(&state);
+        state.db.upsert_role(&shipwright_role()).expect("a role with the rank");
+        let (mut ann, ann_key, plot) = joiner(&state, port, 75, "CheckAnn").await;
+        assert_eq!(plot.as_deref(), Some("p1"));
+        let (mut bo, _, bo_plot) = joiner(&state, port, 76, "CheckBo").await;
+        assert_eq!(bo_plot.as_deref(), Some("p2"));
+        send_json(&mut ann, build_msg(1, "plot:p1", "wood_foundation", [20.0, 0.0, 20.0], 0)).await;
+        assert_eq!(answer(&mut ann, 1).await["seq"], 1, "p1's first change");
+        let checks = |v: &Value| game_payload(v).filter(|g| g["type"] == "game_pieces_check");
+        let none = serde_json::json!({ "can_edit_ship": false, "take_down_any": false });
+
+        crate::relay::handlers::shared_build::send_checks(&state).await;
+        let c = next_frame_with(&mut ann, checks).await.expect("Ann's check");
+        let want = serde_json::json!({ "plot:p1": 1, "plot:p2": 0, "plot:p3": 0, "zone:commons": 0, "zone:street-1": 0 });
+        assert_eq!(c["frames"], want, "the frames in view at p1's door, p1 at its one change: {c}");
+        assert_eq!(c["ranks"], none, "no rank: {c}");
+        let b = next_frame_with(&mut bo, checks).await.expect("Bo's check");
+        assert_eq!(b["frames"]["plot:p2"], 0, "Bo's own check, his plot in it: {b}");
+        assert_eq!(b["ranks"], none);
+
+        state.db.set_role(&ann_key, "shipwright").expect("the rank given");
+        crate::relay::handlers::shared_build::send_checks(&state).await;
+        let c = next_frame_with(&mut ann, checks).await.expect("Ann's next check");
+        let given = serde_json::json!({ "can_edit_ship": true, "take_down_any": false });
+        assert_eq!(c["ranks"], given, "a rank given mid-session reaches the next check / left: {} / right: {given}", c["ranks"]);
+        later(&clock);
+        send_json(&mut ann, build_msg(2, "zone:commons", "wood_wall", [11.0, 0.0, 50.0], 0)).await;
+        assert_eq!(answer(&mut ann, 2).await["type"], "game_built", "her wall in the Commons is kept");
+
+        state.db.set_role(&ann_key, "verified").expect("the rank taken away");
+        crate::relay::handlers::shared_build::send_checks(&state).await;
+        let c = next_frame_with(&mut ann, checks).await.expect("the check after");
+        assert_eq!(c["ranks"], none, "taken away: {c}");
+        assert_eq!(c["frames"]["zone:commons"], 1, "the Commons at its one change: {c}");
+
+        for mut s in [ann, bo] {
+            s.close(None).await.ok();
+        }
+        server.abort();
+    }
+
     /// A REFUSED BUILD SAYS WHY AND STORES NOTHING (shared.rs `Reason`, each with the one sentence
     /// for it). On Ann's own p1, each of these is refused with its reason, its request's number
     /// and its sentence, and no row is kept: a foundation half a metre off the grid
