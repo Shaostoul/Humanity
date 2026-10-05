@@ -599,9 +599,14 @@ lints:
 # socket, never a reload's auto-connect or an automatic reconnect.
 # And the sticky showcase pins the rigs release before every vantage (scripts/tests/
 # showcase-pins.test.js, 2026-10-04): one shared list, pipe_marking included.
+# And the shared-build judge (scripts/lib/shared-build-judge.js, ship homes increment 5,
+# 2026-10-05): a made-up `verify-shared-build` run that went right passes every check, each
+# broken one (the builder's build kept inside the game's plot, a piece drawn late or off where
+# it was built, planks spent twice, a wall not in the picture, ...) fails its own check and no
+# other, and the same run saved to a folder is judged by `--dry-verdict`.
 # Add a file here whenever a rig script grows a judgement of its own.
 rig-tests:
-    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js scripts/tests/rig-exe-copy.test.js scripts/tests/showcase-pins.test.js scripts/tests/rig-gameplay.test.js scripts/tests/clean-test-temp.test.js
+    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js scripts/tests/rig-exe-copy.test.js scripts/tests/showcase-pins.test.js scripts/tests/rig-gameplay.test.js scripts/tests/clean-test-temp.test.js scripts/tests/shared-build-judge.test.js
 
 # The scripted second player (scripts/second-player.js) against a REAL relay.
 # NOT pure node, so NOT in rig-tests or `just verify` (rig-tests keeps the
@@ -661,6 +666,28 @@ verify-second-player:
 [positional-arguments]
 verify-copresence *ARGS:
     node scripts/verify-copresence.js "$@"
+
+# Proves in the REAL game that building in the shared world keeps the rules of ship homes
+# increment 5, "building only on your own plot" (docs/design/ship-homes-increment-5-plan.md,
+# section 5): `verify-copresence --build`. BOOTS TWO THINGS, like verify-copresence: a throwaway
+# relay (loopback only, its own database, its admin the rig's rank holder through ADMIN_KEYS) and
+# ONE game in the .probe-rig/copresence sandbox (background, never focused, silent), plus two
+# scripted builders (scripts/second-player.js --path still). The plain builder holds p1, the game
+# p2, the rank holder p3. Judged (scripts/lib/shared-build-judge.js): the builder's pieces drawn in
+# the game in time, where built, as scaffolds finishing on the relay's clock and never in its save;
+# the game's own piece spent once and seen by the builder; each one's build inside the other's
+# plot refused (by the relay for the builder, at the game's own crosshair for the game); only the
+# plot's holder takes its pieces down, the planks coming back once; the Commons built only with
+# the rank, the rank holder's wall drawn and counted in a picture; ship editing off while joined
+# and back offline, the same pieces returning by the same ids. Refuses (exit 1) while ANY
+# HumanityOS.exe runs (one GPU) or when the exe is older than the source; exit 2 = a check failed.
+# Needs a build with increment 5's Wave 2 (the relay's game_build and the game's `place`,
+# `take_down` and `stock` verbs and `shared` recorder rows). Evidence in
+# .probe-rig/copresence/runs/<stamp>-build/.
+#   just verify-shared-build --dry-verdict <manifest.json>   re-judge without booting
+[positional-arguments]
+verify-shared-build *ARGS:
+    node scripts/verify-copresence.js --build "$@"
 
 # Render all 63 native UI snapshots to PNGs in tests/snapshots/ for review.
 # NEEDS A GPU: without an adapter every page is SKIPPED with a printed note and the

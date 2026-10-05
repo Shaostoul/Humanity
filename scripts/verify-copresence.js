@@ -152,6 +152,26 @@
 // guest off the plot where the relay holds it, its next move reaching the others.
 // Evidence in runs/<stamp>-plots-<order>/.
 //
+// SHARED BUILDING (--build, `just verify-shared-build`; ship homes increment 5, "building only
+// on your own plot", docs/design/ship-homes-increment-5-plan.md section 5). One game and two
+// scripted builders (second-player.js --path still, each building through lines on its input) on a
+// throwaway relay whose admin is the second builder (its ADMIN_KEYS, so it holds the server's
+// ship-editing rank). The plain builder joins first and holds p1, the game second (p2), the rank
+// holder third (p3). Then, judged by scripts/lib/shared-build-judge.js from the game's own
+// recordings (the recorder's `shared` rows), its probe (`shared_build`), the builders' logs and the
+// relay's log: THEIRS REACHES US (the builder's foundation and wall on its plot drawn in the
+// game's world in time, where built, as scaffolds finishing on the relay's clock, never in the
+// save); OURS REACHES THEM (the game's own foundation on its plot, the showcase `place` verb, spent
+// once, seen by the builder); THE NAMED CASE both ways (the builder's build inside the game's plot
+// refused by the relay as someone else's plot and never drawn; the game's place inside the
+// builder's plot refused on its own screen, nothing spent or sent); WHO TAKES DOWN (the builder
+// cannot take the game's piece down; the game can, the `take_down` verb, and the planks come back
+// once); THE SHIP'S SHARED SPACES (the game walks into the Commons, where its place and the
+// builder's build are refused for the rank and the rank holder's wall is drawn in front of the
+// camera and counted in a picture); DEV ONLY OFFLINE (no ship editing while joined; out of the
+// shared world, ship editing and no shared piece; back in, the same pieces by the same ids,
+// finished). Evidence in runs/<stamp>-build/.
+//
 // HOW THE GAME COMES IN (--entry, round 4 of the 1b review): a returning
 // player's game identifies on the main menu (its auto-connect) and only then
 // is Enter World pressed, so the join gate runs on that frame, BEFORE the
@@ -173,6 +193,8 @@
 //        in the manifest as other_build
 //   node scripts/verify-copresence.js --plots [--order walker-first|game-first|guest|both|all]
 //        [--entry menu|autopilot] [--exe PATH] [--radius M] [--speed M/S] [--timeout-min N]
+//        [--meet-pose x,y,z,yaw,pitch] [--allow-other-build "<reason>"]
+//   node scripts/verify-copresence.js --build [--exe PATH] [--timeout-min N]
 //        [--meet-pose x,y,z,yaw,pitch] [--allow-other-build "<reason>"]
 //   node scripts/verify-copresence.js --dry-verdict <manifest.json>
 // Exit 0 = every check passed. Exit 1 = refused to run. Exit 2 = failed.
@@ -233,6 +255,10 @@ const {
 const png = require("./lib/png.js");
 // The line a walker logs when the relay corrects it, one pattern for the walker and this rig.
 const { CORRECTED_RE } = require("./second-player.js");
+// --build (ship homes increment 5): the scripted builders' own identity, blueprint reader and the
+// lines they log, one copy each in second-player.js; and the judge of a --build run.
+const SP = require("./second-player.js");
+const { judgeSharedBuild } = require("./lib/shared-build-judge.js");
 // The freshness gate, run through its one runner so --allow-other-build reaches
 // it and comes back as the manifest's other_build record (BUG-133).
 const { runFreshGate, otherBuildNotice, requireBootCopy, bootRecord } = require("./lib/src-fingerprint.js");
@@ -250,10 +276,13 @@ const flag = (name) => args.includes(name);
 const KEEP_OPEN = flag("--keep-open");
 const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
 // A --plots run boots the game twice (the second boot proves the remembered plot) and walks
-// the meeting and the 1b legs between: 20 minutes per join order by default.
-const TIMEOUT_MS = Number(opt("--timeout-min", flag("--plots") ? "20" : "10")) * 60 * 1000;
+// the meeting and the 1b legs between: 20 minutes per join order by default. A --build run boots
+// it once and builds for a few minutes: 15.
+const TIMEOUT_MS = Number(opt("--timeout-min", flag("--plots") ? "20" : flag("--build") ? "15" : "10")) * 60 * 1000;
 const DRY = opt("--dry-verdict", null);
 const PLOTS = flag("--plots");
+// Shared building (ship homes increment 5): `just verify-shared-build`.
+const BUILD = flag("--build");
 // The join orders: the walker first, the game first, and the GUEST (scripted players take every
 // plot, the game comes in after them). All three by default; `both` is the first two.
 const ORDERS = {
@@ -437,7 +466,7 @@ if (DRY) {
   if (!fs.existsSync(manifest)) refuse([`--dry-verdict: no such manifest: ${manifest}`]);
   const m = JSON.parse(fs.readFileSync(manifest, "utf8"));
   console.log(`[dry] verdict only, nothing booted: ${rel(manifest)}`);
-  const printer = m.kind === "verify-copresence-plots" ? printPlotsVerdict : printVerdict;
+  const printer = m.kind === "verify-copresence-build" ? printBuildVerdict : m.kind === "verify-copresence-plots" ? printPlotsVerdict : printVerdict;
   const pass = printer("DRY VERDICT (nothing was booted): ", m, path.dirname(manifest));
   process.exit(pass ? 0 : 2);
 }
@@ -452,8 +481,9 @@ if (poseNums.length !== 5 || !poseNums.every(Number.isFinite)) refuse([`--pose m
 if (!(DISTANCE > 0 && RADIUS > 0 && SPEED > 0)) refuse(["--distance, --radius and --speed must be above 0"]);
 if (PLOTS && !ORDERS) refuse(["--order must be walker-first, game-first or both"]);
 if (PLOTS && ENTRY && ENTRY !== "menu" && ENTRY !== "autopilot") refuse(["--entry must be menu or autopilot"]);
+if (PLOTS && BUILD) refuse(["--plots and --build are separate runs: pick one (each boots the game on its own relay)"]);
 // Refuse a stage the judge could not read before booting anything.
-if (!PLOTS) {
+if (!PLOTS && !BUILD) {
   const p = planLine(poseNums.slice(0, 3), poseNums[3], DISTANCE, RADIUS);
   if (p.error) refuse([`REFUSED: ${p.error}.`]);
   if (!clearApproach(SPAWN, p)) {
@@ -2812,7 +2842,844 @@ async function mainPlots() {
   process.exit(results.every(([, ok]) => ok) ? 0 : 2);
 }
 
-(PLOTS ? mainPlots() : main()).catch((e) => {
+// ── --build: building only on your own plot (ship homes increment 5) ─────────────────────────
+//
+// docs/design/ship-homes-increment-5-plan.md section 5, step by step; judged by
+// scripts/lib/shared-build-judge.js (its header lists every check). One game, one relay, two
+// scripted builders, one run.
+//
+// WHAT THE GAME MUST PROVIDE (increment 5 Wave 2B, src/engine/ipc.rs), all of it read here:
+//   showcase verbs  {"stock":"1"}                    the Crafting page's "Dev: stock all
+//                                                    materials" (fills the pack)
+//                   {"place":"<blueprint>@<x>,<z>,<turns>"}  what E does with that piece in hand
+//                                                    aimed at that floor point (ship metres), through
+//                                                    the same gate: kept by the server on the
+//                                                    player's own plot, refused at the crosshair
+//                                                    elsewhere; nothing is left in hand after it
+//                   {"take_down":"<piece_id>"}       what F does at that shared piece
+//   the probe's     shared_build: { ranks {can_edit_ship, take_down_any} (the last welcome's),
+//   done JSON       ship_editing (config::ship_editing_allowed now), pieces [{piece_id, frame,
+//                   blueprint_id, pos (ship metres, the bottom centre it is drawn from), rot
+//                   [x,y,z,w], scale, mine, built (false while a scaffold), progress}] (every
+//                   SharedPiece in the world), save_constructions (the constructions the save
+//                   would hold now), pack {item: count} (the player's backpack), pending {builds,
+//                   unbuilds, intents}, hint (the placing line under the crosshair, or null),
+//                   editor_zone (the id of the zone the build editor edits: "home" when pinned),
+//                   frames [{frame, seq}] } and screen_px [w, h]
+//   each recorded   shared: the same piece rows plus rect [x0,y0,x1,y1]: the piece's box projected
+//   frame           with camera.view_projection_matrix(), in the window's physical pixels (the
+//                   space of the screenshot and of the ui `find` verb's pos_px), null when any
+//                   corner is behind the camera
+// AND THE RELAY (Wave 2A), in its log: "Game: built piece {id} {bp} on {frame}", "Game: build
+// refused ({reason}/{why}) on {frame}", "Game: took down piece {id} on {frame}", "Game: take-down
+// refused ({reason}/{why})"; and in each welcome, `ranks`.
+
+/** The plain builder: joins first, so it holds the ship's first plot. */
+const BUILD_BUILDER = { name: "TestBotBuilder", seed: "verify-copresence-build-builder" };
+/** The rank holder: the throwaway relay's admin (ADMIN_KEYS), so the built-in Admin role's
+ *  ship-editing rank is its own; joins third. */
+const BUILD_SHIPWRIGHT = { name: "TestBotShipwright", seed: "verify-copresence-build-shipwright" };
+/** Step 3: what the builder puts up on its own plot, in metres from the plot's corner: a
+ *  foundation, and a wall on its west edge (on top of it, 0.2 m up, turned to run along z). */
+const BUILD_THEIRS = [
+  { blueprint: "wood_foundation", local: [48, 0, 36], turns: 0 },
+  { blueprint: "wood_wall", local: [46, 0.2, 36], turns: 1 },
+];
+/** Step 4: what the game puts up on its own plot (the same spot of its plot). */
+const BUILD_OURS = { blueprint: "wood_foundation", local: [48, 0, 36], turns: 0 };
+/** Step 5: where each tries to build on the other's plot. */
+const BUILD_ACROSS = { blueprint: "wood_foundation", local: [20, 0, 20], turns: 0 };
+/** Step 7: the Commons, and where the game and the plain builder try to build in it (east of
+ *  the room block, behind the camera at the meeting pose). */
+const BUILD_ZONE = "zone:commons";
+const BUILD_ZONE_TRY = { blueprint: "wood_foundation", local: [23, 0, 33], turns: 0 };
+/** How far in front of the parked camera the rank holder's wall stands, metres (plan: 6 m). */
+const BUILD_WALL_AHEAD_M = 6;
+/** How long the game records while the builder builds on its plot (two builds, a 5 s and a 4 s
+ *  scaffold, with margin), and while the rank holder's wall goes up, seconds of its frame clock. */
+const BUILD_THEIRS_RECORD_S = 14;
+const BUILD_ZONE_RECORD_S = 12;
+/** How long the rig waits for the relay's answer to a builder's request, ms. */
+const BUILD_ANSWER_MS = 8000;
+/** The relay's log lines about pieces (Wave 2A), any of the four. */
+const RELAY_PIECE_RE = /Game: (built piece|build refused|took down piece|take-down refused)/;
+
+/** The game's report of the pieces the server keeps (the probe's `shared_build`), or {} from a
+ *  build without it (then every check that reads it fails as not recorded). */
+const sharedOf = (p) => (p && p.shared_build && typeof p.shared_build === "object" ? p.shared_build : {});
+const piecesOf = (p) => (Array.isArray(sharedOf(p).pieces) ? sharedOf(p).pieces : []);
+/** Did the game report its shared pieces at all? A list read from a game that did not is
+ *  recorded as null (not recorded, which fails), never as an empty list (which would pass
+ *  "nothing drawn" with no evidence: the checks-that-cannot-fail class). */
+const reported = (p) => !!(p && p.shared_build && typeof p.shared_build === "object" && Array.isArray(p.shared_build.pieces));
+/** One piece row as the manifest keeps it. */
+const pieceRecord = (x) => ({ piece_id: Number(x.piece_id), frame: x.frame, blueprint_id: x.blueprint_id, mine: x.mine === true, pos: x.pos, rot: x.rot, built: x.built === true });
+
+/** The evidence of a --build run in its folder (what its manifest names): the recordings, the two
+ *  pictures and the relay's log, read for the judge. Missing ones are left out (the judge fails
+ *  their checks as not recorded). */
+function buildEvidence(m, dir) {
+  const recordings = {};
+  const pictures = {};
+  const wall = (m.zone && m.zone.wall) || {};
+  for (const name of [m.theirs && m.theirs.samples, wall.samples].filter(Boolean)) {
+    try {
+      recordings[name] = JSON.parse(fs.readFileSync(path.join(dir, name), "utf8")).frames || [];
+    } catch {}
+  }
+  for (const name of [wall.before, wall.after].filter(Boolean)) {
+    try {
+      pictures[name] = png.decode(fs.readFileSync(path.join(dir, name)));
+    } catch {}
+  }
+  let relayLog = null;
+  try {
+    relayLog = fs.readFileSync(path.join(dir, "relay.log"), "utf8");
+  } catch {}
+  return { recordings, pictures, relayLog };
+}
+
+/** Print a --build run's verdict (the judge over its folder's evidence). Used live and by
+ *  --dry-verdict. Returns true when every check passed. */
+function printBuildVerdict(prefix, m, dir) {
+  const { checks, pass } = judgeSharedBuild(m, buildEvidence(m, dir));
+  console.log("");
+  console.log("-".repeat(72));
+  console.log("--build, building only on your own plot");
+  for (const c of checks) console.log(`${c.ok ? "PASS" : "FAIL"}  ${pad(c.id, 33)} ${c.detail}`);
+  console.log("-".repeat(72));
+  if (m.other_build) console.log(otherBuildNotice(m.other_build));
+  if (pass) console.log(`${prefix}PASS  ${checks.length}/${checks.length} shared-build checks passed`);
+  else {
+    const failed = checks.filter((c) => !c.ok).map((c) => c.id);
+    console.log(`${prefix}FAIL  ${checks.length - failed.length}/${checks.length} passed; failed: ${failed.join(", ")}`);
+  }
+  console.log(`        evidence ${rel(dir)}`);
+  console.log("-".repeat(72));
+  console.log("");
+  return pass;
+}
+
+/** The one --build run. Returns true when every check passed. */
+async function runBuildOnce(runStamp, cleanups) {
+  setupRig();
+  forgetSandboxPlots();
+  const out = path.join(RIG, "runs", `${runStamp}-build`);
+  fs.mkdirSync(out, { recursive: true });
+  const manifest = {
+    kind: "verify-copresence-build",
+    stamp: runStamp,
+    exe: EXE,
+    binary: bootRecord(fresh, RIG_EXE),
+    ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
+    rig: RIG,
+    relay: null,
+    frames: null,
+    blueprints: null,
+    walkers: {},
+    game: {},
+    theirs: null,
+    ours: null,
+    named: {},
+    take_down: {},
+    zone: {},
+    dev: {},
+    // Every walk of the game and every turn in place (judgeWalks, as --plots).
+    walks: [],
+    turns: [],
+    steps: [],
+    steps_ok: {},
+    panics: 0,
+  };
+  const save = () => fs.writeFileSync(path.join(out, "manifest.json"), JSON.stringify(manifest, null, 2));
+  const step = (id, ok, detail) => {
+    manifest.steps.push({ id, ok, detail });
+    save();
+    log(`${ok ? "ok  " : "FAIL"} ${pad(id, 12)} ${detail}`);
+    return ok;
+  };
+  let relay = null;
+  let gamePid = null;
+  let game = null;
+  const builders = [];
+  let killed = false;
+  const killGame = () => {
+    if (gamePid) {
+      if (game) game.expectExit(); // our own stop: not a hand-off to look for
+      try {
+        execSync(`taskkill /PID ${gamePid} /T /F`, { stdio: "ignore" });
+      } catch {}
+    }
+    killRigProcesses();
+  };
+  const killAll = () => {
+    if (killed) return;
+    killed = true;
+    for (const b of builders) {
+      if (b.child.exitCode !== null) continue;
+      try {
+        execSync(`taskkill /PID ${b.child.pid} /T /F`, { stdio: "ignore" });
+      } catch {}
+    }
+    killGame();
+    if (relay) {
+      relay.kill();
+      relay.removeDir();
+    }
+  };
+  cleanups.push(killAll);
+  const watchdog = setTimeout(() => {
+    log(`TIMEOUT after ${TIMEOUT_MS / 60000} min; killing everything`);
+    manifest.steps.push({ id: "timeout", ok: false, detail: `run exceeded ${TIMEOUT_MS / 60000} min` });
+    manifest.panics = panicCount();
+    save();
+    killAll();
+    printBuildVerdict("RESULT: ", manifest, out);
+    process.exit(2);
+  }, TIMEOUT_MS);
+
+  // Every line either builder printed, with the computer's clock, tagged with its name.
+  const walkerOut = [];
+  /** The first line builder `b` printed from index `from` matching `re` (and, when given,
+   *  `wanted(match)`), waiting up to `ms`: { hit, m }, or null (also once the builder has exited). */
+  const waitFor = async (b, re, from, ms, wanted = () => true) => {
+    let ended = false;
+    b.exit.then(() => (ended = true));
+    for (const t0 = Date.now(); Date.now() - t0 < ms; ) {
+      for (const o of walkerOut.slice(from)) {
+        if (o.who !== b.name) continue;
+        const m = o.line.match(re);
+        if (m && wanted(m)) return { hit: o, m };
+      }
+      if (ended) return null;
+      await sleep(50);
+    }
+    return null;
+  };
+  const linesOf = (b, from) => walkerOut.slice(from).filter((o) => o.who === b.name).map((o) => o.line);
+  /** Start a scripted builder as `who` (second-player.js --path still: it stands where the relay
+   *  puts it and builds through lines on its input) and wait until it stands in the world: its
+   *  entity, its plot, what its welcome says it may do, and its key. */
+  const joinBuilder = async (who) => {
+    const args = [path.join(__dirname, "second-player.js"), "--server", relay.url, "--name", who.name, "--seed", who.seed, "--path", "still", "--seconds", "0"];
+    const from = walkerOut.length;
+    const started = Date.now();
+    // Its input is a pipe: the rig's build lines, and "stop" to end it cleanly.
+    const child = spawn(process.execPath, args, { cwd: REPO, stdio: ["pipe", "pipe", "pipe"] });
+    const b = { ...who, args: args.slice(1), child, from, exit: new Promise((r) => child.on("exit", (code) => r(code))) };
+    builders.push(b);
+    const take = (buf) => {
+      for (const line of String(buf).split(/\r?\n/).filter(Boolean)) walkerOut.push({ at_s: (Date.now() - started) / 1000, epoch: Date.now(), line, who: who.name });
+    };
+    child.stdout.on("data", take);
+    child.stderr.on("data", take);
+    child.stdin.on("error", () => {});
+    const inWorld = await waitFor(b, /in the world as entity (\d+), starting at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\)/, from, 40000);
+    if (!inWorld) throw new Error(`${who.name} never got into the world: ${linesOf(b, from).join(" | ")}`);
+    const plotLine = await waitFor(b, /home_plot (null|missing|\{.*\})/, from, 5000);
+    const ranksLine = await waitFor(b, SP.RANKS_RE, from, 5000);
+    const keyLine = await waitFor(b, /\(key ([0-9a-f]{16})\.\.\.\)/, from, 1000);
+    const hp = plotLine && plotLine.m[1].startsWith("{") ? JSON.parse(plotLine.m[1]) : null;
+    let ranks = null;
+    try {
+      ranks = ranksLine && ranksLine.m[1] !== "missing" ? JSON.parse(ranksLine.m[1]) : null;
+    } catch {}
+    Object.assign(b, {
+      id: Number(inWorld.m[1]),
+      start: [Number(inWorld.m[2]), Number(inWorld.m[3]), Number(inWorld.m[4])],
+      plot: hp ? hp.id : null,
+      ranks,
+      key16: keyLine ? keyLine.m[1] : null,
+    });
+    return b;
+  };
+  /** A builder's record for the manifest. */
+  const builderRecord = (b) => ({ name: b.name, seed: b.seed, args: b.args, id: b.id, start: b.start, plot: b.plot, ranks: b.ranks, key16: b.key16 });
+  /** Write one command on builder `b`'s input and wait until it says it sent it (with its
+   *  req_id), or why it did not. { req, mark } or { error }. */
+  const command = async (b, line) => {
+    const mark = walkerOut.length;
+    try {
+      b.child.stdin.write(`${line}\n`);
+    } catch (e) {
+      return { error: `could not write to ${b.name}: ${e.message}` };
+    }
+    for (const t0 = Date.now(); Date.now() - t0 < 5000; ) {
+      for (const o of walkerOut.slice(mark)) {
+        if (o.who !== b.name) continue;
+        const s = o.line.match(SP.SENT_RE);
+        if (s) return { req: Number(s[2]), mark };
+        if (/command refused: /.test(o.line)) return { error: o.line };
+      }
+      await sleep(50);
+    }
+    return { error: `${b.name} never said it sent "${line}"` };
+  };
+  /** The relay's answer to builder `b`'s request `req` (its lines from `mark`): kept, taken down or
+   *  refused, as the builder logged it. Null after BUILD_ANSWER_MS. */
+  const answer = async (b, req, mark) => {
+    for (const t0 = Date.now(); Date.now() - t0 < BUILD_ANSWER_MS; ) {
+      for (const o of walkerOut.slice(mark)) {
+        if (o.who !== b.name) continue;
+        let m = o.line.match(SP.BUILT_RE);
+        if (m && Number(m[8]) === req) return { kind: "built", m, line: o.line, epoch: o.epoch };
+        m = o.line.match(SP.TOOK_DOWN_RE);
+        if (m && Number(m[3]) === req) return { kind: "took", m, line: o.line, epoch: o.epoch };
+        m = o.line.match(SP.REFUSED_RE);
+        if (m && m[4] !== "-" && Number(m[4]) === req) return { kind: "refused", m, line: o.line, epoch: o.epoch };
+      }
+      await sleep(50);
+    }
+    return null;
+  };
+  const refusalOf = (a) => ({ action: a.m[1], reason: a.m[2], why: a.m[3] || null, line: a.line });
+  /** Builder `b` builds `cmd` ({ blueprint, frame, local, turns }); the record the judge reads. */
+  const buildBy = async (b, cmd) => {
+    const sent = await command(b, `build ${cmd.blueprint}@${cmd.frame}:${cmd.local.join(",")},${cmd.turns}`);
+    if (sent.error) return { cmd, req: null, piece_id: null, refusal: null, error: sent.error };
+    const a = await answer(b, sent.req, sent.mark);
+    if (!a) return { cmd, req: sent.req, piece_id: null, refusal: null, error: `no answer from the relay in ${BUILD_ANSWER_MS / 1000} s` };
+    if (a.kind === "built") {
+      return {
+        cmd,
+        req: sent.req,
+        piece_id: Number(a.m[1]),
+        line_epoch_ms: a.epoch,
+        placed_at: Number(a.m[10]),
+        logged: { frame: a.m[3], local: [Number(a.m[4]), Number(a.m[5]), Number(a.m[6])], turn: Number(a.m[7]) },
+        refusal: null,
+        line: a.line,
+      };
+    }
+    return { cmd, req: sent.req, piece_id: null, refusal: refusalOf(a), line_epoch_ms: a.epoch };
+  };
+  /** Builder `b` takes piece `pieceId` down; the record the judge reads. */
+  const unbuildBy = async (b, pieceId) => {
+    const sent = await command(b, `unbuild ${pieceId}`);
+    if (sent.error) return { req: null, took: false, refusal: null, error: sent.error };
+    const a = await answer(b, sent.req, sent.mark);
+    if (!a) return { req: sent.req, took: false, refusal: null, error: `no answer from the relay in ${BUILD_ANSWER_MS / 1000} s` };
+    if (a.kind === "took") return { req: sent.req, took: true, refusal: null, line: a.line, epoch: a.epoch };
+    return { req: sent.req, took: false, refusal: refusalOf(a), epoch: a.epoch };
+  };
+  /** Stop every builder the way Ctrl+C does (game_leave, then close). */
+  const stopBuilders = async () => {
+    for (const b of builders) {
+      if (b.child.exitCode !== null) continue;
+      try {
+        b.child.stdin.write("stop\n");
+      } catch {}
+      const code = await Promise.race([b.exit, sleep(10000).then(() => "still running")]);
+      if (code === "still running") {
+        try {
+          execSync(`taskkill /PID ${b.child.pid} /T /F`, { stdio: "ignore" });
+        } catch {}
+      }
+    }
+  };
+  /** The relay's log so far, as a mark, and its piece lines since a mark (a window). */
+  const relayMark = () => (relay ? relay.logText().length : 0);
+  const relayLinesSince = (mark) => (relay ? relay.logText().slice(mark).split(/\r?\n/).filter((l) => RELAY_PIECE_RE.test(l)) : null);
+  /** Every line either builder printed since index `mark`. */
+  const walkerLinesSince = (mark) => walkerOut.slice(mark).map((o) => `[${o.who}] ${o.line}`);
+  const showcase = async (body) => {
+    req("showcase_request.json", body);
+    // The game deletes the request when it takes it (engine/ipc.rs poll_showcase_request).
+    for (const t0 = Date.now(); Date.now() - t0 < 10000 && fs.existsSync(path.join(DEBUG, "showcase_request.json")); ) await sleep(100);
+  };
+  const until = async (ok, ms) => {
+    let p = null;
+    for (const t0 = Date.now(); Date.now() - t0 < ms; ) {
+      p = await probe();
+      if (p && ok(p)) return p;
+      await sleep(500);
+    }
+    return p;
+  };
+  const camOf = (p) => (p && p.camera_end ? p.camera_end.pos : null);
+  /** Walk the game to `p` (the showcase `walk_to` verb at WALK_MPS) and wait until it arrives;
+   *  every walk recorded for judgeWalks (as --plots' walkGame). */
+  const walkGame = async (p, yaw, pitch, label) => {
+    const from = await probe();
+    const here = camOf(from) || p;
+    const far = Math.hypot(...[0, 1, 2].map((k) => p[k] - here[k]));
+    await showcase({ walk_to: `${p.join(",")},${yaw},${pitch},${WALK_MPS}` });
+    const at = (pr) => pr && pr.moves && pr.moves.walking === false && pr.camera_end && Math.hypot(...[0, 1, 2].map((k) => pr.camera_end.pos[k] - p[k])) < 0.05;
+    const pr = await until(at, Math.ceil((far / WALK_MPS) * 1000) + 15000);
+    const ok = !!at(pr);
+    const stopped = camOf(pr);
+    manifest.walks.push({ label, to: p, at: stopped, ok });
+    if (!ok) step(`${label}_walk`, false, `the walk to ${fmt(p)} never arrived: the camera stopped at ${stopped ? fmt(stopped) : "(unknown)"}`);
+    return ok;
+  };
+  /** Turn the game where it stands (the `cam` verb), only when it already stands there (R4). */
+  const turnTo = async (pose) => {
+    const pr = await probe();
+    const at = camOf(pr);
+    const t = turnInPlace(at, pose);
+    manifest.turns.push({ pose, at, off: Number.isFinite(t.off) ? Number(t.off.toFixed(3)) : null, ok: t.ok });
+    if (!t.ok) {
+      step("turn", false, `refused to turn to ${pose}: the camera stands ${Number.isFinite(t.off) ? t.off.toFixed(2) : "?"} m from it`);
+      return false;
+    }
+    await showcase({ cam: pose });
+    return true;
+  };
+  /** The counts in the game's pack of `blueprint`'s materials ({ item: count }), or null when the
+   *  probe reports no pack. */
+  const packOf = (p, blueprint) => {
+    const pack = sharedOf(p).pack;
+    const bp = manifest.blueprints && manifest.blueprints[blueprint];
+    if (!pack || typeof pack !== "object" || !bp) return null;
+    const o = {};
+    for (const [item] of bp.materials) o[item] = Number.isFinite(Number(pack[item])) ? Number(pack[item]) : 0;
+    return o;
+  };
+  /** The frame `id`'s box from the game's door points, and a point `local` metres from its corner
+   *  in ship metres. */
+  const boxOf = (id) => (manifest.frames || []).find((f) => f.id === id) || null;
+  const shipAt = (id, local) => {
+    const f = boxOf(id);
+    return f ? [0, 1, 2].map((k) => f.min[k] + local[k]) : null;
+  };
+  /** The showcase `place` verb's body for a piece at `local` metres from frame `id`'s corner. */
+  const placeBody = (id, piece) => {
+    const at = shipAt(id, piece.local);
+    return at ? { place: `${piece.blueprint}@${at[0]},${at[2]},${piece.turns}` } : null;
+  };
+  /** The game tries to build `piece` in frame `id` where its own gate refuses it (step 5, step 7):
+   *  what is on its screen after, what it spent, what the relay and the builders heard. */
+  const placeRefusedHere = async (id, piece) => {
+    const place = { blueprint: piece.blueprint, frame: id, local: piece.local, turns: piece.turns, at: shipAt(id, piece.local), epoch_ms: null };
+    const body = placeBody(id, piece);
+    if (!body) return { place, error: `no frame ${id} in the game's door points` };
+    const before = await probe();
+    const rMark = relayMark();
+    const wMark = walkerOut.length;
+    place.epoch_ms = Date.now();
+    await showcase(body);
+    await sleep(2000);
+    const after = await probe();
+    return {
+      place,
+      notices: after && Array.isArray(after.notices) ? after.notices : null,
+      hint: typeof sharedOf(after).hint === "string" ? sharedOf(after).hint : null,
+      pack_before: packOf(before, piece.blueprint),
+      pack_after: packOf(after, piece.blueprint),
+      relay_lines: relayLinesSince(rMark),
+      walker_lines: walkerLinesSince(wMark),
+      pending: sharedOf(after).pending && typeof sharedOf(after).pending === "object" ? sharedOf(after).pending : null,
+    };
+  };
+
+  try {
+    // ── 1. The relay, its admin the rank holder: R's key derived exactly as R will sign in
+    // (second-player.js's own masterSeedFrom and deriveIdentity), named in ADMIN_KEYS, which the
+    // relay reads at startup (src/relay/mod.rs) and which startRelay never takes from the shell.
+    const noble = await SP.loadNoble();
+    const rankKey = SP.deriveIdentity(noble, SP.masterSeedFrom(noble, BUILD_SHIPWRIGHT.seed, BUILD_SHIPWRIGHT.name)).publicKeyHex;
+    relay = await TR.startRelay({
+      sourceExe: EXE,
+      // Its copy must be the bytes the gate judged, like the rig's (BUG-133).
+      expectSha256: fresh.result && fresh.result.exe_sha256,
+      prefix: "verify-copresence-relay-",
+      config: { server_name: "verify-copresence build relay" },
+      env: { ADMIN_KEYS: rankKey },
+    });
+    manifest.relay = { url: relay.httpUrl, pid: relay.pid, dir: relay.dir, health: relay.health, listening: relay.listening.map((x) => x.line), admin: `${rankKey.slice(0, 16)}... (${BUILD_SHIPWRIGHT.name})` };
+    manifest.steps_ok.relay = relay.health
+      ? { ok: true, detail: `${relay.httpUrl} answered /health (pid ${relay.pid}), its admin ${BUILD_SHIPWRIGHT.name}; ${loopbackNote(relay)}` }
+      : { ok: false, detail: `${relay.httpUrl} never answered /health: ${relay.logText().slice(-400)}` };
+    step("relay", manifest.steps_ok.relay.ok, manifest.steps_ok.relay.detail);
+    if (!relay.health) throw new Error("the throwaway relay did not come up");
+    // The relay's own did:hum (/api/server-info), which any household permit given on it names
+    // (Wave 0's 6e0174cd7). This run mints none (the plan's section 5 has no permit leg); a builder
+    // that is told to mint one fetches it the same way first (second-player.js fetchServerDid).
+    try {
+      manifest.relay.server_did = await SP.fetchServerDid(relay.url);
+    } catch (e) {
+      manifest.relay.server_did = null;
+      log(`     could not ask the relay for its did:hum: ${e.message}`);
+    }
+    // The blueprints the builds use, from the file the relay and the builders read.
+    const bps = SP.readBlueprints(fs.readFileSync(SP.BLUEPRINTS_RON, "utf8"));
+    manifest.blueprints = {};
+    for (const id of new Set([...BUILD_THEIRS, BUILD_OURS, BUILD_ACROSS, BUILD_ZONE_TRY, { blueprint: "wood_wall" }].map((x) => x.blueprint))) {
+      const bp = bps.get(id);
+      if (!bp) throw new Error(`data/blueprints/basic.ron has no ${id}`);
+      manifest.blueprints[id] = { name: bp.name, size: bp.size, build_time: bp.build_time, materials: bp.materials, shared: bp.shared };
+    }
+
+    // ── 2. The plain builder first (the ship's first plot), the game second, the rank holder third.
+    const A = await joinBuilder(BUILD_BUILDER);
+    manifest.walkers.builder = builderRecord(A);
+    step("builder", !!A.plot, `${A.name} in the world as entity ${A.id} at ${fmt(A.start)}, holding ${A.plot || "no plot"}; its welcome's ranks ${JSON.stringify(A.ranks)}`);
+    save();
+    game = GL.spawnGame(RIG_EXE, [], { fresh, rigName: "verify-copresence", log, cwd: RIG, detached: true, stdio: "ignore", env: gameEnv(), gameplay: { server_url: relay.httpUrl } });
+    gamePid = game.child.pid;
+    fs.writeFileSync(path.join(RIG, "probe_pid.txt"), String(gamePid));
+    game.child.unref();
+    step("launch", true, `game pid ${gamePid} from ${rel(RIG_EXE)} (background, no focus)`);
+    await waitBoot(180000, game);
+    step("boot", true, "booted (run.log: cloud noise volumes generated, no PANIC)");
+    clearDone("autopilot_done.json");
+    req("autopilot_request.json", { server_url: relay.httpUrl, user_name: "CopresenceBuild", character_name: "CopresenceBuild" });
+    const ap = await waitFile("autopilot_done.json", 300000);
+    if (!ap || ap.ok !== true) throw new Error(`the autopilot did not run: ${ap ? ap.error || JSON.stringify(ap) : "no answer in 300 s"}`);
+    step("autopilot", true, `entering the world on ${ap.server_url}`);
+    let pj = null;
+    for (const t0 = Date.now(); Date.now() - t0 < 120000; ) {
+      pj = await probe();
+      if (pj && pj.ok && pj.world_loaded && pj.game_joined && pj.copresence_active && pj.welcomed !== false) break;
+      if (pj && pj.copresence_refused) break;
+      await sleep(1000);
+    }
+    const joined = !!(pj && pj.ok && pj.game_joined && pj.copresence_active && pj.welcomed !== false);
+    manifest.steps_ok.joined = {
+      ok: joined,
+      detail: pj ? `world_loaded=${pj.world_loaded} game_joined=${pj.game_joined} copresence_active=${pj.copresence_active} welcomed=${pj.welcomed} refused=${pj.copresence_refused}` : "the recorder never answered",
+    };
+    step("join", joined, manifest.steps_ok.joined.detail);
+    if (!joined) throw new Error("the game never joined the shared world");
+    await sleep(2000);
+    const pg = await probe();
+    manifest.game = { plot: pg && pg.home_plot ? pg.home_plot.id : null, ranks: sharedOf(pg).ranks || null, last_welcome: pg ? pg.last_welcome : null, camera: camOf(pg) };
+    step("game", !!manifest.game.plot, `the game holds ${manifest.game.plot || "no plot"} (the welcome did "${manifest.game.last_welcome}"); its ranks ${JSON.stringify(manifest.game.ranks)}${pg && pg.shared_build ? "" : " (this build reports no shared_build: older than increment 5's Wave 2B?)"}`);
+    const R = await joinBuilder(BUILD_SHIPWRIGHT);
+    manifest.walkers.rank = builderRecord(R);
+    manifest.steps_ok.walkers = {
+      ok: !!(A.plot && R.plot),
+      detail: `${A.name} (entity ${A.id}) holds ${A.plot || "no plot"}, ${R.name} (entity ${R.id}, the relay's admin) holds ${R.plot || "no plot"}; ranks ${JSON.stringify(A.ranks)} and ${JSON.stringify(R.ranks)}`,
+    };
+    step("shipwright", manifest.steps_ok.walkers.ok, manifest.steps_ok.walkers.detail);
+    // Every frame's box, from the game's own door points (src/ship/door_points.rs places are named
+    // exactly as frames: "plot:p1", "zone:commons").
+    const dp = await doorPointsOf();
+    if (!dp || dp.ok !== true) throw new Error(`the game reported no door points: ${JSON.stringify(dp)}`);
+    manifest.door_points = dp;
+    manifest.frames = dp.places.map((p) => ({ id: p.id, kind: p.kind, min: p.min, max: p.max }));
+    step("frames", true, `${manifest.frames.length} frames: ${manifest.frames.map((f) => f.id).join(", ")}`);
+    const aFrame = `plot:${A.plot}`;
+    const gFrame = `plot:${manifest.game.plot}`;
+    save();
+
+    // ── 3. THEIRS REACHES US: the builder's foundation and wall on its own plot, recorded in the
+    // game as they arrive and grow (no picture: a neighbour's plot is behind its shell from
+    // everywhere a player can stand).
+    const p3 = await probe();
+    manifest.theirs = { samples: null, save_before: Number.isFinite(Number(sharedOf(p3).save_constructions)) ? Number(sharedOf(p3).save_constructions) : null, save_after: null, builds: [] };
+    clearDone("remote_players_done.json");
+    req("remote_players_request.json", { seconds: BUILD_THEIRS_RECORD_S });
+    step("record", true, `recording ${BUILD_THEIRS_RECORD_S} s while ${A.name} builds on ${aFrame}`);
+    await sleep(1000);
+    for (const t of BUILD_THEIRS) {
+      const b = await buildBy(A, { blueprint: t.blueprint, frame: aFrame, local: t.local, turns: t.turns });
+      manifest.theirs.builds.push(b);
+      step("theirs", Number.isInteger(b.piece_id), Number.isInteger(b.piece_id) ? `${A.name}: ${b.line}` : `${A.name}'s ${t.blueprint} on ${aFrame} was not kept: ${b.refusal ? b.refusal.line : b.error}`);
+    }
+    const rec3 = await waitFile("remote_players_done.json", (BUILD_THEIRS_RECORD_S + 60) * 1000);
+    if (rec3 && rec3.ok === true) {
+      fs.copyFileSync(path.join(DEBUG, "remote_players_done.json"), path.join(out, "theirs_samples.json"));
+      manifest.theirs.samples = "theirs_samples.json";
+      const n = Number(sharedOf(rec3).save_constructions);
+      manifest.theirs.save_after = Number.isFinite(n) ? n : null;
+      step("theirs_rec", true, `${rec3.frame_count} frames over ${rec3.recorded_s.toFixed(2)} s -> theirs_samples.json`);
+    } else {
+      step("theirs_rec", false, `no recording came back: ${JSON.stringify(rec3 && rec3.error)}`);
+    }
+    save();
+
+    // ── 4. OURS REACHES THEM: the game's own foundation on its own plot, from a stocked pack.
+    {
+      const place = { blueprint: BUILD_OURS.blueprint, frame: gFrame, local: BUILD_OURS.local, turns: BUILD_OURS.turns, at: shipAt(gFrame, BUILD_OURS.local), epoch_ms: null };
+      manifest.ours = { place, pack_before: null, pack_after: null, pack_later: null, piece: null, seen_by_walker: null, save: null };
+      await showcase({ stock: "1" });
+      await sleep(1500);
+      const before = await probe();
+      manifest.ours.pack_before = packOf(before, place.blueprint);
+      const mark = walkerOut.length;
+      place.epoch_ms = Date.now();
+      const body = placeBody(gFrame, BUILD_OURS);
+      if (body) await showcase(body);
+      else step("ours", false, `no frame ${gFrame} in the game's door points: nothing to place on`);
+      const mine = (p) => piecesOf(p).find((x) => x.mine === true && x.frame === gFrame) || null;
+      const pr = await until((p) => !!mine(p), 8000);
+      const piece = mine(pr);
+      manifest.ours.piece = piece ? pieceRecord(piece) : null;
+      manifest.ours.pack_after = packOf(pr, place.blueprint);
+      // The builder's word that the relay passed the game's piece on to it (on the game's plot).
+      const saw = await waitFor(A, SP.SAW_BUILT_RE, mark, 5000, (m) => m[3] === gFrame);
+      manifest.ours.seen_by_walker = saw ? { epoch_ms: saw.hit.epoch, piece_id: Number(saw.m[1]), frame: saw.m[3], local: [Number(saw.m[4]), Number(saw.m[5]), Number(saw.m[6])], turn: Number(saw.m[7]) } : null;
+      await sleep(3000);
+      const later = await probe();
+      manifest.ours.pack_later = packOf(later, place.blueprint);
+      const n = Number(sharedOf(later).save_constructions);
+      manifest.ours.save = Number.isFinite(n) ? n : null;
+      step("ours", !!piece, piece ? `the game's piece ${piece.piece_id} stands on ${gFrame}, mine ${piece.mine}; ${A.name} ${saw ? `saw it: ${saw.hit.line}` : "never saw it"}` : `the game's ${place.blueprint} on ${gFrame} never stood in its world`);
+      save();
+    }
+    const ourId = manifest.ours.piece ? manifest.ours.piece.piece_id : null;
+
+    // ── 5. THE NAMED CASE, both ways. The builder's build inside the game's plot, refused by the
+    // relay and never drawn; the game's inside the builder's plot, refused at the game's own
+    // crosshair before anything is spent or sent.
+    {
+      const cmd = { blueprint: BUILD_ACROSS.blueprint, frame: gFrame, local: BUILD_ACROSS.local, turns: BUILD_ACROSS.turns };
+      const rMark = relayMark();
+      const b = await buildBy(A, cmd);
+      await sleep(1000);
+      const pr = await probe();
+      manifest.named.theirs_in_ours = {
+        cmd,
+        refusal: b.refusal,
+        piece_id: b.piece_id,
+        error: b.error || null,
+        relay_lines: relayLinesSince(rMark),
+        drawn_others: reported(pr) ? piecesOf(pr).filter((x) => x.frame === gFrame && Number(x.piece_id) !== ourId).map((x) => Number(x.piece_id)) : null,
+      };
+      step("named_a", !!b.refusal, `${A.name}'s build in ${gFrame}: ${b.refusal ? b.refusal.line : b.piece_id ? `KEPT as piece ${b.piece_id}` : b.error}`);
+      manifest.named.ours_in_theirs = await placeRefusedHere(aFrame, BUILD_ACROSS);
+      const o = manifest.named.ours_in_theirs;
+      step("named_game", true, `the game's place in ${aFrame}: notices ${JSON.stringify(o.notices)}, hint ${JSON.stringify(o.hint)}; ${o.relay_lines ? o.relay_lines.length : "?"} relay piece line(s) in that window`);
+      save();
+    }
+
+    // ── 6. WHO TAKES DOWN: the builder may not take the game's piece down; the game may.
+    if (ourId === null) {
+      step("take_down", false, "the game's own piece never stood, so nothing could be taken down");
+    } else {
+      const rMark = relayMark();
+      const u = await unbuildBy(A, ourId);
+      await sleep(1000);
+      const pr = await probe();
+      manifest.take_down.theirs = { piece_id: ourId, refusal: u.refusal, took: u.took, error: u.error || null, relay_lines: relayLinesSince(rMark), still_drawn: reported(pr) ? piecesOf(pr).some((x) => Number(x.piece_id) === ourId) : null };
+      step("their_take", !!u.refusal, `${A.name} took down piece ${ourId}: ${u.refusal ? u.refusal.line : u.took ? "TAKEN DOWN" : u.error}`);
+      const before = await probe();
+      const rMark2 = relayMark();
+      const mark = walkerOut.length;
+      const epoch = Date.now();
+      await showcase({ take_down: String(ourId) });
+      const saw = await waitFor(A, SP.SAW_UNBUILT_RE, mark, 5000, (m) => Number(m[1]) === ourId);
+      const gonePr = await until((p) => reported(p) && !piecesOf(p).some((x) => Number(x.piece_id) === ourId), 6000);
+      await sleep(500);
+      const after = await probe();
+      await sleep(3000);
+      const later = await probe();
+      manifest.take_down.ours = {
+        piece_id: ourId,
+        blueprint: BUILD_OURS.blueprint,
+        epoch_ms: epoch,
+        seen_by_walker: saw ? { epoch_ms: saw.hit.epoch, piece_id: ourId, line: saw.hit.line } : null,
+        gone: reported(gonePr) ? !piecesOf(gonePr).some((x) => Number(x.piece_id) === ourId) : null,
+        pack_before: packOf(before, BUILD_OURS.blueprint),
+        pack_after: packOf(after, BUILD_OURS.blueprint),
+        pack_later: packOf(later, BUILD_OURS.blueprint),
+        relay_lines: relayLinesSince(rMark2),
+      };
+      step("our_take", !!saw, `the game took down piece ${ourId}: ${saw ? `${A.name} saw it: ${saw.hit.line}` : `${A.name} never saw it come down`}`);
+      save();
+    }
+
+    // ── 7. THE SHIP'S SHARED SPACES: the game walks from its door into the Commons (the door
+    // route, `walk_to`) and stands at the meeting pose; its place and the builder's build there are
+    // refused for the rank; the rank holder's wall goes up in front of the camera.
+    {
+      const ownPlot = dp.places.find((p) => p.kind === "plot" && p.own);
+      const door = ownPlot && ownPlot.door ? ownPlot.door : manifest.game.camera;
+      const [mx, my, mz, myaw, mpitch] = MEET_POSE.split(",").map(Number);
+      const meetCam = [mx, my, mz];
+      const zoneBox = boxOf(BUILD_ZONE);
+      const route = door ? doorRoute(dp, door, meetCam, MEET_STEP_M) : { error: "the game's door is unknown" };
+      const p0 = await probe();
+      const yaw0 = p0 && p0.camera_end ? p0.camera_end.yaw : 0;
+      const pitch0 = p0 && p0.camera_end ? p0.camera_end.pitch : 0;
+      let walked = false;
+      if (!zoneBox || !placeAt({ places: [zoneBox] }, meetCam)) {
+        manifest.zone.parked = { ok: false, detail: `the meeting pose ${MEET_POSE} is not inside ${BUILD_ZONE} as the game reports it` };
+      } else if (route.error) {
+        manifest.zone.parked = { ok: false, detail: `no route from the game's door to the Commons: ${route.error}` };
+      } else {
+        // From its door, the walk a person takes out of their home; stopping at the first walk that
+        // never arrives (it is a failed step, and the turn after it would be a teleport).
+        walked = true;
+        for (const p of [door, ...route.points]) {
+          if (!(await walkGame(p, yaw0, pitch0, "zone"))) {
+            walked = false;
+            break;
+          }
+        }
+      }
+      if (walked) {
+        await sleep(1500);
+        await turnTo(MEET_POSE);
+        await sleep(2500);
+        const c1 = await probe();
+        await sleep(1000);
+        const c2 = await probe();
+        const a = c1 && c1.camera_end;
+        const b = c2 && c2.camera_end;
+        const drift = a && b ? Math.hypot(...b.pos.map((v, i) => v - a.pos[i])) : Infinity;
+        const turn = a && b ? Math.abs(b.yaw - a.yaw) : Infinity;
+        const off = b ? Math.hypot(...b.pos.map((v, i) => v - meetCam[i])) : Infinity;
+        const stillIn = !!(c2 && c2.game_joined && c2.copresence_active);
+        const ok = drift < 0.01 && turn < 0.001 && stillIn && off < 0.5;
+        manifest.zone.camera = b ? { pos: b.pos, yaw: b.yaw, pitch: b.pitch } : null;
+        manifest.zone.parked = {
+          ok,
+          detail: b
+            ? `walked from its door ${fmt(door)} through ${route.doors.join(", ")} to ${fmt(b.pos)} yaw ${b.yaw.toFixed(3)} (asked ${MEET_POSE}, ${off.toFixed(3)} m off); ${drift < 0.01 && turn < 0.001 ? "holding still" : `NOT holding still (${drift.toFixed(3)} m, ${turn.toFixed(4)} rad)`}; ${stillIn ? "still in the shared world" : "NOT in the shared world any more"}`
+            : "the game never reported its camera",
+        };
+      } else if (!manifest.zone.parked) {
+        manifest.zone.parked = { ok: false, detail: "a walk into the Commons never arrived (see the walks)" };
+      }
+      step("zone_cam", manifest.zone.parked.ok, manifest.zone.parked.detail);
+      // A clear view for the pictures (the first-run privacy window, as the meeting clears it).
+      manifest.zone.view = await clearFirstRunWindows();
+      step("zone_view", manifest.zone.view.ok, manifest.zone.view.detail);
+      // The game may not build here.
+      manifest.zone.game_place = await placeRefusedHere(BUILD_ZONE, BUILD_ZONE_TRY);
+      step("zone_game", true, `the game's place in ${BUILD_ZONE}: notices ${JSON.stringify(manifest.zone.game_place.notices)}, hint ${JSON.stringify(manifest.zone.game_place.hint)}`);
+      // Nor may the plain builder.
+      {
+        const cmd = { blueprint: BUILD_ZONE_TRY.blueprint, frame: BUILD_ZONE, local: BUILD_ZONE_TRY.local, turns: BUILD_ZONE_TRY.turns };
+        const rMark = relayMark();
+        const b = await buildBy(A, cmd);
+        await sleep(800);
+        manifest.zone.walker_refused = { cmd, refusal: b.refusal, piece_id: b.piece_id, error: b.error || null, relay_lines: relayLinesSince(rMark) };
+        step("zone_a", !!b.refusal, `${A.name}'s build in ${BUILD_ZONE}: ${b.refusal ? b.refusal.line : b.piece_id ? `KEPT as piece ${b.piece_id}` : b.error}`);
+      }
+      // The rank holder's wall, BUILD_WALL_AHEAD_M in front of the camera, across the view.
+      const cam = manifest.zone.camera ? manifest.zone.camera.pos : meetCam;
+      const yaw = manifest.zone.camera ? manifest.zone.camera.yaw : myaw;
+      const fwd = [Math.sin(yaw), 0, -Math.cos(yaw)];
+      const wallShip = [Math.round(cam[0] + fwd[0] * BUILD_WALL_AHEAD_M), zoneBox ? zoneBox.min[1] : 0, Math.round(cam[2] + fwd[2] * BUILD_WALL_AHEAD_M)];
+      const cmd = {
+        blueprint: "wood_wall",
+        frame: BUILD_ZONE,
+        local: zoneBox ? [0, 1, 2].map((k) => wallShip[k] - zoneBox.min[k]) : [11, 0, 50],
+        turns: Math.abs(fwd[0]) > Math.abs(fwd[2]) ? 1 : 0,
+      };
+      const shotBefore = await screenshot("zone_before");
+      if (shotBefore.ok) fs.copyFileSync(shotBefore.src, path.join(out, "zone_before.png"));
+      clearDone("remote_players_done.json");
+      req("remote_players_request.json", { seconds: BUILD_ZONE_RECORD_S });
+      await sleep(500);
+      const w = await buildBy(R, cmd);
+      step("zone_wall", Number.isInteger(w.piece_id), Number.isInteger(w.piece_id) ? `${R.name}: ${w.line}` : `${R.name}'s wall in ${BUILD_ZONE} was not kept: ${w.refusal ? w.refusal.line : w.error}`);
+      // The picture once the wall has finished on the relay's clock, and a moment more.
+      const due = Number.isFinite(w.placed_at) ? w.placed_at * 1000 + manifest.blueprints.wood_wall.build_time * 1000 + 1500 : Date.now() + 1000;
+      if (due > Date.now()) await sleep(due - Date.now());
+      const shotAfter = await screenshot("zone_after");
+      const afterEpoch = Date.now();
+      if (shotAfter.ok) fs.copyFileSync(shotAfter.src, path.join(out, "zone_after.png"));
+      const recZ = await waitFile("remote_players_done.json", (BUILD_ZONE_RECORD_S + 60) * 1000);
+      if (recZ && recZ.ok === true) fs.copyFileSync(path.join(DEBUG, "remote_players_done.json"), path.join(out, "zone_samples.json"));
+      manifest.zone.wall = {
+        ...w,
+        samples: recZ && recZ.ok === true ? "zone_samples.json" : null,
+        before: shotBefore.ok ? "zone_before.png" : null,
+        after: shotAfter.ok ? "zone_after.png" : null,
+        after_epoch_ms: afterEpoch,
+        screen_px: recZ && Array.isArray(recZ.screen_px) ? recZ.screen_px : null,
+        shot_errors: [shotBefore.ok ? null : shotBefore.error, shotAfter.ok ? null : shotAfter.error].filter(Boolean),
+      };
+      step("zone_shots", shotBefore.ok && shotAfter.ok && !!(recZ && recZ.ok), `zone_before.png ${shotBefore.ok ? "taken" : `failed: ${shotBefore.error}`}, zone_after.png ${shotAfter.ok ? "taken" : `failed: ${shotAfter.error}`}, ${recZ && recZ.ok ? `${recZ.frame_count} frames -> zone_samples.json` : "no recording"}`);
+      save();
+    }
+
+    // ── 8. DEV KEEPS EVERYTHING ONLY OFFLINE: no ship editing in the shared world, the build
+    // editor pinned to the home; out of it, ship editing and no shared piece; back in, the same
+    // pieces by the same ids, finished.
+    {
+      const pj8 = await probe();
+      await showcase({ build_editor: "1" });
+      const opened = await until((p) => p.build_editor === true, 10000);
+      await sleep(1500);
+      const pe = await probe();
+      await showcase({ build_editor: "0" });
+      await until((p) => p.build_editor === false, 10000);
+      manifest.dev.joined = { ship_editing: sharedOf(pj8).ship_editing ?? null, editor_open: !!(opened && opened.build_editor === true), editor_zone: sharedOf(pe).editor_zone ?? null };
+      step("dev_joined", manifest.dev.joined.ship_editing === false, `in the shared world: ship editing ${manifest.dev.joined.ship_editing}; the build editor ${manifest.dev.joined.editor_open ? "opened" : "did not open"} on ${JSON.stringify(manifest.dev.joined.editor_zone)}`);
+      await sleep(1500);
+      // The pieces standing before stepping out: the ones that must come back, by the same ids.
+      const pb = await probe();
+      manifest.dev.expect_ids = reported(pb) ? piecesOf(pb).map((x) => Number(x.piece_id)) : null;
+      const expect = manifest.dev.expect_ids || [];
+      await showcase({ solo: "1" });
+      await until((p) => p.game_joined === false, 20000);
+      await sleep(1500);
+      const po = await probe();
+      manifest.dev.solo = { joined: po ? po.game_joined : null, ship_editing: sharedOf(po).ship_editing ?? null, pieces: reported(po) ? piecesOf(po).map(pieceRecord) : null };
+      step("dev_solo", manifest.dev.solo.joined === false, `out of the shared world: ship editing ${manifest.dev.solo.ship_editing}, ${manifest.dev.solo.pieces ? manifest.dev.solo.pieces.length : "?"} shared piece(s) left`);
+      await showcase({ solo: "0" });
+      await until((p) => p.game_joined && p.welcomed, 30000);
+      // Each frame's list comes right after the welcome (plan section 3.3): until every piece is
+      // back, or 10 s.
+      const back = await until((p) => reported(p) && expect.every((id) => piecesOf(p).some((x) => Number(x.piece_id) === id)), 10000);
+      manifest.dev.back = { joined: back ? back.game_joined === true : null, pieces: reported(back) ? piecesOf(back).map(pieceRecord) : null };
+      step("dev_back", manifest.dev.back.joined === true, `back in: pieces ${JSON.stringify(manifest.dev.back.pieces && manifest.dev.back.pieces.map((x) => x.piece_id))} (before stepping out ${JSON.stringify(manifest.dev.expect_ids)})`);
+      save();
+    }
+
+    // ── 9. Every correction the game took this run (none may be).
+    const pEnd = await probe();
+    manifest.corrections_game = pEnd && pEnd.moves ? Number(pEnd.moves.count) : null;
+  } catch (e) {
+    manifest.steps.push({ id: "abort", ok: false, detail: String(e.message || e) });
+    log(`ABORT ${e.message || e}`);
+  }
+  clearTimeout(watchdog);
+  manifest.panics = panicCount();
+  // BUILT-IN DATA (BUG-133), as every rig: the game's run.log and the relay's log.
+  manifest.builtin_data = [
+    ...GL.builtinDataLines(fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8") : ""),
+    ...(relay ? GL.builtinDataLines(relay.logText()).map((l) => `relay: ${l}`) : []),
+  ];
+  await stopBuilders();
+  fs.writeFileSync(path.join(out, "walker.log"), walkerOut.map((o) => `${o.at_s.toFixed(2)}s [${o.who}] ${o.line}`).join("\n") + "\n");
+  // Every correction a builder took (none may be: they stand still), by the walker's own pattern.
+  manifest.walker_corrections = walkerOut.filter((o) => CORRECTED_RE.test(o.line)).map((o) => `[${o.who}] ${o.line}`);
+  // The builders' keys (first 16 hex digits), so the relay's corrections to the game can be told
+  // from theirs (judgeHonestMoves, as --plots).
+  manifest.walker_keys = [...new Set(walkerOut.map((o) => (o.line.match(/\(key ([0-9a-f]{16})\.\.\.\)/) || [])[1]).filter(Boolean))];
+  try {
+    fs.copyFileSync(LOG, path.join(out, "run.log"));
+  } catch {}
+  if (relay) {
+    try {
+      fs.copyFileSync(relay.logPath, path.join(out, "relay.log"));
+    } catch {}
+  }
+  save();
+  killAll();
+  await sleep(2000);
+  const pass = printBuildVerdict("RESULT: ", manifest, out);
+  if (!pass) {
+    console.log("What to do:");
+    console.log("  1. read the first FAIL line above and the step log above it: each says what it saw");
+    console.log(`  2. walker.log holds every line the two builders printed (what the relay told them), relay.log its "Game:" lines`);
+    console.log("  3. theirs_samples.json and zone_samples.json hold every frame's shared pieces as the game had them");
+    console.log(`  4. re-judge without booting: node scripts/verify-copresence.js --dry-verdict ${rel(path.join(out, "manifest.json"))}`);
+    console.log("");
+  }
+  return pass;
+}
+
+async function mainBuild() {
+  const cleanups = [];
+  process.on("exit", () => {
+    for (const k of cleanups) k();
+  });
+  for (const [sig, code] of [["SIGINT", 130], ["SIGTERM", 143], ["SIGBREAK", 149], ["SIGHUP", 129]]) {
+    process.on(sig, () => process.exit(code));
+  }
+  log("── --build, building only on your own plot ──");
+  const ok = await runBuildOnce(stamp, cleanups);
+  process.exit(ok ? 0 : 2);
+}
+
+(PLOTS ? mainPlots() : BUILD ? mainBuild() : main()).catch((e) => {
   console.error(e);
   process.exit(2);
 });
