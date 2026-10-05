@@ -4395,7 +4395,8 @@ mod connect_form_tests {
     /// After a restart with no server, an address typed into the empty Server field is dialled
     /// by Connect, not letter by letter by itself: the first letter made the address non-empty,
     /// so the auto-connect dialled "h" and the background pump then started the saved servers.
-    /// The field's edit holds both until Connect, as a Disconnect does.
+    /// The field's edit holds both until Connect (`hold_dialling_until_connect`; since BUG-160's
+    /// follow-up a hold of its own, not a Disconnect).
     ///
     /// Seen red 2026-10-05 with B1's change in place and the edit holding nothing: "the first
     /// letter typed after a restart with no server was dialled".
