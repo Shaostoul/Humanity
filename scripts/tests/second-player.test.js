@@ -397,6 +397,34 @@ test("a correction stands the walker where the relay holds it", () => {
   assert.ok(walk.onPath(), "it reaches the path again");
 });
 
+// THE WALKER'S CORRECTION LINE IS THE ONE THE RIG COUNTS (the review of increment 4, R5). A
+// correction goes through the walker's own handler (`onCorrection`, what its main() listens with):
+// it logs one line, which the rig's pattern finds with every part (scripts/verify-copresence.js
+// counts `walker_corrections` with this same CORRECTED_RE), and the walk is told to stand where
+// the relay holds it. Before, the rig matched its own /corrected to/ and nothing tied it to the
+// line or the handler. Red checks run 2026-10-04, each restored afterwards: the line reworded
+// FAILED "the rig's pattern finds the walker's line: the relay put me back at (76.00, 1.70,
+// 64.25) (too_fast, number 2)"; the handler without `walk.corrected` FAILED "the walk was told to
+// stand where the relay holds it".
+test("a correction is logged in the line the rig counts, and the walk stands where held", () => {
+  const lines = [];
+  const told = [];
+  const walk = { corrected: (seq, at) => told.push([seq, at]) };
+  const g = { type: "game_position_correction", position: [76, 1.7, 64.25], seq: 2, reason: "too_fast" };
+  assert.ok(sp.onCorrection(g, walk, (s) => lines.push(s)), "a correction is handled");
+  assert.equal(lines.length, 1, "one line");
+  const m = lines[0].match(sp.CORRECTED_RE);
+  assert.ok(m, `the rig's pattern finds the walker's line: ${lines[0]}`);
+  assert.deepEqual([Number(m[1]), Number(m[2]), Number(m[3]), m[4], Number(m[5])], [76, 1.7, 64.25, "too_fast", 2]);
+  assert.deepEqual(told, [[2, [76, 1.7, 64.25]]], "the walk was told to stand where the relay holds it");
+  assert.equal(sp.onCorrection({ type: "game_position_update", position: [1, 2, 3] }, walk, (s) => lines.push(s)), false, "anything else is not a correction");
+  assert.equal(lines.length, 1);
+  // The rig counts the walkers' corrections with exactly this pattern.
+  const rig = fs.readFileSync(path.join(__dirname, "..", "verify-copresence.js"), "utf8");
+  assert.match(rig, /walker_corrections = walkerOut\.filter\(\(o\) => CORRECTED_RE\.test\(o\.line\)\)/, "verify-copresence.js counts the walkers' corrections with CORRECTED_RE");
+  assert.match(rig, /const \{ CORRECTED_RE \} = require\("\.\/second-player\.js"\);/, "and takes it from the walker's own module");
+});
+
 // The walker names its door like a desktop player with that home, so the relay
 // spawns it there (increment 2), and the new options read cleanly or refuse.
 test("--route, --route-speed and --home-spawn, and the door named in the join", () => {

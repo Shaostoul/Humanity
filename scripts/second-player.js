@@ -654,6 +654,24 @@ function chooseCenter(opts, welcome) {
 
 const fmt = (p) => `(${p.map((v) => v.toFixed(2)).join(", ")})`;
 
+/** The line a walker logs when the relay corrects it (ship homes increment 4), and the pattern a
+ *  rig finds it by: scripts/verify-copresence.js counts every walker's corrections with
+ *  CORRECTED_RE, so the two are one place (the review of increment 4, R5: the rig matched its own
+ *  /corrected to/, and rewording the line or dropping the handler left every test green).
+ *  Groups: x, y, z, the reason, the correction's number. */
+const CORRECTED_RE = /corrected to \(([-\d.]+), ([-\d.]+), ([-\d.]+)\) \(([a-z_]+), correction (\d+)\)/;
+const correctedLine = (position, reason, seq) => `corrected to ${fmt(position.map(Number))} (${reason}, correction ${seq})`;
+
+/** One game message for the walk: a correction (`game_position_correction`) is logged in the line
+ *  the rig reads (`correctedLine`) and the walk stands where the relay holds it and walks on from
+ *  there (`walk.corrected`). Returns true when the message was one. */
+function onCorrection(g, walk, log) {
+  if (!g || g.type !== "game_position_correction" || !Array.isArray(g.position)) return false;
+  log(correctedLine(g.position, g.reason, g.seq));
+  walk.corrected(Number(g.seq), g.position);
+  return true;
+}
+
 /** The plot the relay gave us, as the one line the log carries (and
  *  scripts/verify-copresence.js reads): "home_plot {json}" with the welcome's
  *  {id, kind, origin, size}, or "home_plot null" for a guest (the ship is
@@ -947,14 +965,9 @@ async function main() {
 
   const plan = { path: opts.path, axis: opts.axis, center, radius: opts.radius, speed: opts.speed, route: opts.route, routeSpeed: opts.routeSpeed };
   const walker = startWalking(client, plan, start, log);
-  // A correction from the relay (increment 4): one line a rig reads ("corrected to"; an honest
+  // A correction from the relay (increment 4): one line a rig reads (CORRECTED_RE; an honest
   // walk never draws one), then stand where the relay holds us and walk on from there.
-  const stopCorrections = client.onGame((g) => {
-    if (g.type === "game_position_correction" && Array.isArray(g.position)) {
-      log(`corrected to ${fmt(g.position.map(Number))} (${g.reason}, correction ${g.seq})`);
-      walker.corrected(Number(g.seq), g.position);
-    }
-  });
+  const stopCorrections = client.onGame((g) => onCorrection(g, walker, log));
   const stopChat = opts.chat ? sayInChat(client, identity, opts.name, opts.chat, log) : () => {};
 
   let stopping = false;
@@ -1012,6 +1025,9 @@ async function main() {
 }
 
 module.exports = {
+  CORRECTED_RE,
+  correctedLine,
+  onCorrection,
   SEND_HZ,
   MAX_STEP_M,
   MAX_SPEED_MPS,

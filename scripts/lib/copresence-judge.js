@@ -1513,8 +1513,11 @@ function bankedAllowanceM(ronText) {
 
 /** How near where the relay holds the game it must stand after a correction, metres. */
 const JUMP_STAND_TOL_M = 0.5;
-/** How near the jump's target a relayed position must be to count as the jump leaking out. */
+/** How near where the jump landed a relayed position must be to count as the jump leaking out. */
 const JUMP_LEAK_M = 5;
+/** The first words of every correction notice the game shows (the relay's `correction_sentence`
+ *  in src/relay/handlers/move_check.rs, else the game's own in engine/move_check.rs). */
+const CORRECTION_NOTICE_START = "The server put you back where it last saw you";
 
 /**
  * Judge THE OVERSIZED JUMP (verify-copresence --plots, increment 4). The game stood still where
@@ -1528,11 +1531,15 @@ const JUMP_LEAK_M = 5;
  *                walker saw), or null
  *   target       [x,y,z] where the jump put the camera
  *   allowance_m  the most the relay lets anyone move in one update (`bankedAllowanceM`)
- *   before, after  the probe's `moves` before and after ({count, applied, last})
+ *   before, after  the probe's `moves` before and after ({count, applied, last}); `last.from` is
+ *                where the game itself stood when the correction arrived: where the jump really
+ *                put it (the review of increment 4, R7: the judge measured from the rig's intended
+ *                target instead)
  *   camera       [x,y,z] the game's camera after the correction
  *   relayedAfterJump  every position the walker saw the relay pass on for the game after the
  *                jump and before the nudge
  *   nudged, seen the next move and the positions the walker saw after it
+ *   notices      the notices on the game's screen after the correction (the probe's `notices`)
  * Returns { pass, checks }.
  */
 function judgeJump(jump) {
@@ -1542,28 +1549,45 @@ function judgeJump(jump) {
   const d = (a, b) => (Array.isArray(a) && Array.isArray(b) ? Math.hypot(...[0, 1, 2].map((k) => Number(a[k]) - Number(b[k]))) : Infinity);
   const dxz = (a, b) => (Array.isArray(a) && Array.isArray(b) ? Math.hypot(Number(a[0]) - Number(b[0]), Number(a[2]) - Number(b[2])) : Infinity);
   const fmt3 = (p) => (Array.isArray(p) ? `(${p.map((v) => Number(v).toFixed(2)).join(", ")})` : "(never)");
-  const gap = dxz(j.from, j.target);
+  const before = (j.before && Number(j.before.count)) || 0;
+  const after = j.after || {};
+  const drew = Number(after.count) - before;
+  // The correction the jump drew: the probe's newest one, and only when the count went up (a
+  // `last` from an earlier correction says nothing about this jump).
+  const last = drew > 0 && after.last ? after.last : null;
+  // Where the jump really put the game: its own record, else (no correction) where it stands.
+  const landed = last && Array.isArray(last.from) ? last.from : j.camera;
+  const gap = dxz(j.from, landed);
   add(
     "far_enough",
     Number.isFinite(gap) && Number.isFinite(j.allowance_m) && gap > j.allowance_m,
     Number.isFinite(j.allowance_m)
-      ? `the jump from ${fmt3(j.from)} to ${fmt3(j.target)} is ${gap.toFixed(1)} m across the floor; the relay lets anyone move at most ${Number(j.allowance_m).toFixed(1)} m in one update` +
+      ? `the jump from ${fmt3(j.from)} put the game at ${fmt3(landed)} (its own record${last ? ", the correction's `from`" : ", no correction"}; the rig asked for ${fmt3(j.target)}), ${Number.isFinite(gap) ? gap.toFixed(1) : "?"} m across the floor; the relay lets anyone move at most ${Number(j.allowance_m).toFixed(1)} m in one update` +
           (gap > j.allowance_m ? "" : " (needs more than that to mean anything)")
       : "the relay's allowance was not recorded (data/ship/shared_world.ron)",
   );
-  const before = (j.before && Number(j.before.count)) || 0;
-  const after = j.after || {};
-  const last = after.last || null;
-  const corrected = Number(after.count) > before && !!last;
   const toHeld = last ? d(last.at, j.held) : Infinity;
   add(
     "corrected",
-    corrected && last.reason === "too_fast" && toHeld <= JUMP_STAND_TOL_M,
+    !!last && last.reason === "too_fast" && toHeld <= JUMP_STAND_TOL_M,
     !j.after
       ? "the game's corrections were not recorded (the probe's moves)"
-      : !corrected
+      : !last
         ? `no correction reached the game (${before} before the jump, ${Number(after.count) || 0} after): the relay refused it without a word, or the game ignored it`
         : `correction ${last.seq} (${last.reason}) stood the game at ${fmt3(last.at)}, ${Number.isFinite(toHeld) ? toHeld.toFixed(2) : "?"} m from where the relay held it ${fmt3(j.held)}`,
+  );
+  add(
+    "corrected_once",
+    drew === 1,
+    !j.after ? "the game's corrections were not recorded" : `the jump drew ${Number.isFinite(drew) ? drew : "?"} correction(s) (exactly one: the relay sends one and drops the updates already on their way)`,
+  );
+  const said = Array.isArray(j.notices) ? j.notices.filter((n) => String(n).startsWith(CORRECTION_NOTICE_START)) : null;
+  add(
+    "said_once",
+    !!said && said.length === 1,
+    !said
+      ? "the notices on screen after the correction were not recorded"
+      : `${said.length} correction notice(s) on screen after it (exactly one sentence)${said.length ? `: "${said[0]}"` : ""}`,
   );
   const off = d(j.camera, j.held);
   add(
@@ -1572,15 +1596,17 @@ function judgeJump(jump) {
     `after the correction the game's camera at ${fmt3(j.camera)} is ${Number.isFinite(off) ? off.toFixed(2) : "?"} m from where the relay holds it ${fmt3(j.held)}` +
       (off <= JUMP_STAND_TOL_M ? "" : ` (at most ${JUMP_STAND_TOL_M} m)`),
   );
-  const leaked = (j.relayedAfterJump || []).filter((p) => dxz(p, j.target) <= JUMP_LEAK_M);
+  const leaked = Array.isArray(landed) ? (j.relayedAfterJump || []).filter((p) => dxz(p, landed) <= JUMP_LEAK_M) : [];
   add(
     "never_relayed",
-    Array.isArray(j.relayedAfterJump) && leaked.length === 0,
+    Array.isArray(j.relayedAfterJump) && Array.isArray(landed) && leaked.length === 0,
     !Array.isArray(j.relayedAfterJump)
       ? "what the relay passed on after the jump was not recorded"
-      : leaked.length
-        ? `the relay passed the jump on to the walker: ${fmt3(leaked[0])}`
-        : `nothing near the jump's target reached the walker (${j.relayedAfterJump.length} position(s) passed on in between)`,
+      : !Array.isArray(landed)
+        ? "where the jump put the game was not recorded"
+        : leaked.length
+          ? `the relay passed the jump on to the walker: ${fmt3(leaked[0])}`
+          : `nothing near where the jump put the game reached the walker (${j.relayedAfterJump.length} position(s) passed on in between)`,
   );
   const hit = (j.seen || []).find((p) => d(p, j.nudged) <= REJOIN_NUDGE_TOL_M);
   add(
@@ -1593,15 +1619,40 @@ function judgeJump(jump) {
   return { pass: checks.every((c) => c.ok), checks };
 }
 
+/** The relay's log line for a correction it sent (src/relay/handlers/msg_handlers.rs
+ *  `handle_game_position_update`): the player's key (its first 16 hex digits), the correction's
+ *  number, whether it is one sent again, and why. */
+const RELAY_CORRECTED_RE = /Game: corrected ([0-9a-f]+)\.\. \(correction (\d+)( sent again)?, ([a-z_]+)\)/;
+
+/** The corrections a relay sent, from its log text, by player key (the first 16 hex digits the line
+ *  names): each new one, never one sent again. `notKeys`: keys left out (the scripted walkers'),
+ *  matched on their first 16 digits. Returns { total, byKey: {key: count} }. Pure. */
+function relayCorrections(logText, notKeys = []) {
+  const skip = new Set((notKeys || []).map((k) => String(k).slice(0, 16)));
+  const byKey = {};
+  let total = 0;
+  for (const line of String(logText || "").split(/\r?\n/)) {
+    const m = line.match(RELAY_CORRECTED_RE);
+    if (!m || m[3] || skip.has(m[1].slice(0, 16))) continue;
+    byKey[m[1]] = (byKey[m[1]] || 0) + 1;
+    total += 1;
+  }
+  return { total, byKey };
+}
+
 /**
  * EVERY HONEST MOVE WAS TAKEN (increment 4): across the whole run, the relay corrected the game
  * only for the one oversized jump, and never a scripted walker. Walking through the doors,
- * shutting the build editor, Respawn, stepping out and back in, a reconnect: the relay must tell
- * each of them from a move nobody could make. `honest`:
- *   gameTotal     the game's corrections over the run, before its second boot (the probe's count)
+ * shutting the build editor away from the build spot, a teleporter, Respawn, stepping out and back
+ * in: the relay must tell each of them from a move nobody could make. `honest`:
+ *   gameTotal     the corrections the game applied over the run, both boots (the probe's count)
  *   fromJump      how many of those the jump drew (after - before)
- *   walkerLines   every "corrected to" line a walker logged
- * Returns { pass, checks }.
+ *   relaySent     the corrections the relay sent the game over the run (new ones, never one sent
+ *                 again, from its relay.log, `relayCorrections` without the walkers' keys)
+ *   walkerLines   every correction line a walker logged
+ * The game's own count alone could not be trusted (the review of increment 4, R7): the game
+ * drops a correction that reaches it out of the shared world or older than the last it applied,
+ * so a correction sent and dropped was never counted. Returns { pass, checks }.
  */
 function judgeHonestMoves(honest) {
   const checks = [];
@@ -1616,6 +1667,16 @@ function judgeHonestMoves(honest) {
         ? `the relay corrected the game ${h.gameTotal} time(s) over the run, every one for the oversized jump`
         : `the relay corrected the game ${others} time(s) for moves that were not the jump (${h.gameTotal} in all): an honest move was taken for one nobody could make`,
   });
+  checks.push({
+    id: "moves_relay_sent_what_the_game_took",
+    ok: Number.isFinite(Number(h.relaySent)) && h.relaySent !== null && Number(h.relaySent) === Number(h.gameTotal),
+    detail:
+      h.relaySent === null || h.relaySent === undefined || !Number.isFinite(Number(h.relaySent))
+        ? "the corrections the relay sent were not recorded (its relay.log in the run folder)"
+        : Number(h.relaySent) === Number(h.gameTotal)
+          ? `the relay sent the game ${h.relaySent} correction(s) and the game applied ${h.gameTotal}`
+          : `the relay sent the game ${h.relaySent} correction(s) but the game applied ${h.gameTotal}: ${Number(h.relaySent) > Number(h.gameTotal) ? "a correction was dropped" : "the game counted one the relay never sent"}`,
+  });
   const lines = Array.isArray(h.walkerLines) ? h.walkerLines : null;
   checks.push({
     id: "moves_walkers_never_corrected",
@@ -1625,10 +1686,218 @@ function judgeHonestMoves(honest) {
   return { pass: checks.every((c) => c.ok), checks };
 }
 
+// ── The rig's own walks (the review of increment 4, R4) ──────────────────────────────────────
+
+/** How near the pose's point the camera must already stand for a `cam` that only turns it, m. */
+const TURN_IN_PLACE_M = 0.1;
+
+/** Whether a `cam` to `pose` ("x,y,z,yaw,pitch") from a camera at `at` only turns it: the camera
+ *  already within TURN_IN_PLACE_M of the pose's point. A walk that stopped short must never be
+ *  finished by the turn, which is a teleport (R4: the meeting's and the crew look's turns were
+ *  sent whatever the walk before them did). Returns { ok, off }. Pure. */
+function turnInPlace(at, pose, tol = TURN_IN_PLACE_M) {
+  const p = String(pose).split(",").map(Number);
+  const off = Array.isArray(at) && p.length >= 3 ? Math.hypot(Number(at[0]) - p[0], Number(at[1]) - p[1], Number(at[2]) - p[2]) : Infinity;
+  return { ok: off <= tol, off };
+}
+
+/**
+ * Every walk of the run arrived, and every turn in place was one (R4: a walk that never arrived
+ * was silent, the rig went on as if it had, and the turn after it finished the walk with a
+ * teleport). `walks`: [{ label, to, at, ok }] (the camera where the walk ended); `turns`:
+ * [{ pose, at, off, ok }]. Not recorded fails. Returns { pass, checks }.
+ */
+function judgeWalks(walks, turns) {
+  const checks = [];
+  const fmt3 = (p) => (Array.isArray(p) ? `(${p.map((v) => Number(v).toFixed(2)).join(", ")})` : "(none)");
+  const short = Array.isArray(walks) ? walks.filter((w) => !w.ok) : null;
+  checks.push({
+    id: "walks_all_arrived",
+    ok: !!short && walks.length > 0 && short.length === 0,
+    detail: !short
+      ? "the rig's walks were not recorded"
+      : !walks.length
+        ? "no walk was recorded"
+        : short.length
+          ? `${short.length} of ${walks.length} walks never arrived; the first, ${short[0].label}, to ${fmt3(short[0].to)}, stopped at ${fmt3(short[0].at)}`
+          : `all ${walks.length} walks arrived`,
+  });
+  const bad = Array.isArray(turns) ? turns.filter((t) => !t.ok) : null;
+  checks.push({
+    id: "walks_turns_in_place",
+    ok: !!bad && bad.length === 0,
+    detail: !bad
+      ? "the rig's turns were not recorded"
+      : bad.length
+        ? `a turn to ${bad[0].pose} was refused: the camera stood ${Number.isFinite(Number(bad[0].off)) ? Number(bad[0].off).toFixed(2) : "?"} m from it, at ${fmt3(bad[0].at)} (more than ${TURN_IN_PLACE_M} m: the walk there stopped short)`
+        : `every turn (${turns.length}) was made where the camera already stood`,
+  });
+  return { pass: checks.every((c) => c.ok), checks };
+}
+
+// ── The fast moves that are declared, end to end (the review of increment 4, R1) ─────────────
+
+/** Where to stand beside a pad before stepping onto it: the floor point `stepM` from the pad's middle
+ *  along x or z, whichever of the four is farthest from every wall (`walls`: [x1, z1, x2, z2]
+ *  segments from the door points), at eye height. Pure. */
+function padApproach(padAt, walls, stepM = 1.5, eye = 1.7) {
+  const cands = [[stepM, 0], [-stepM, 0], [0, stepM], [0, -stepM]].map(([dx, dz]) => [Number(padAt[0]) + dx, eye, Number(padAt[2]) + dz]);
+  const clear = (p) => (Array.isArray(walls) && walls.length ? Math.min(...walls.map((w) => wallDistXZ(p, w))) : Infinity);
+  return cands.map((p) => ({ p, clear: clear(p) })).sort((a, b) => b.clear - a.clear)[0];
+}
+
+/**
+ * Where the rig walks the game before shutting the build editor, so that the close is a jump only
+ * its declaration explains: a point in a shared zone whose distance across the floor from the
+ * build spot `door` is more than the relay's allowance for one update (`allowanceM`) and well
+ * inside the 90 m an editor close may jump (aim `aimM`, 60 m), at least `clearM` from every wall,
+ * reached through the doors with no wall in the way (`doorRoute`, `routeWalls`). Returns
+ * { at, dist, route } or { error }. Pure.
+ */
+function editorJumpTarget(report, door, allowanceM, { aimM = 60, maxM = 80, clearM = 1.0, grid = 1 } = {}) {
+  const lo = Number(allowanceM) + 6;
+  if (!Number.isFinite(lo) || !Array.isArray(door)) return { error: "no allowance or no build spot" };
+  const walls = Array.isArray(report.walls) ? report.walls : [];
+  const zones = (report.places || []).filter((pl) => pl.kind === "zone");
+  const cands = [];
+  for (const z of zones) {
+    for (let x = Math.ceil(z.min[0]) + 0.5; x < z.max[0]; x += grid) {
+      for (let zz = Math.ceil(z.min[2]) + 0.5; zz < z.max[2]; zz += grid) {
+        const p = [x, Number(door[1]), zz];
+        const dist = Math.hypot(p[0] - door[0], p[2] - door[2]);
+        if (dist < lo || dist > maxM) continue;
+        const clear = walls.length ? Math.min(...walls.map((w) => wallDistXZ(p, w))) : Infinity;
+        if (clear < clearM) continue;
+        cands.push({ p, dist });
+      }
+    }
+  }
+  cands.sort((a, b) => Math.abs(a.dist - aimM) - Math.abs(b.dist - aimM) || a.p[0] - b.p[0] || a.p[2] - b.p[2]);
+  for (const c of cands) {
+    const route = doorRoute(report, door, c.p, 40);
+    if (route.error) continue;
+    if (routeWalls([door, ...route.points], walls)) continue;
+    return { at: c.p, dist: c.dist, route: route.points };
+  }
+  return { error: `no clear point ${lo.toFixed(1)} to ${maxM} m from the build spot ${JSON.stringify(door)} in a shared zone` };
+}
+
+/**
+ * SHUTTING THE BUILD EDITOR AWAY FROM THE BUILD SPOT (R1). At its door (its build spot) the game
+ * walked about 60 m into the ship, more than the relay lets anyone move in one update, opened the
+ * build editor and shut it: the close stands it back at the build spot, on its own plot, a jump
+ * its next update declares (`moved: {by: "editor"}`) and the relay must take. `ej`:
+ *   buildSpot  [x,y,z] the build spot (where the first open and shut at the door stood the game)
+ *   walkedTo   [x,y,z] where the walk left the camera before the editor opened
+ *   toggled    the editor opened and shut
+ *   camera     [x,y,z] the game's camera after it shut
+ *   seen       the positions the walker saw the relay pass on for the game after it shut
+ *   before, after  the probe's `moves` before the walk and after the shut
+ *   allowance_m    the relay's allowance for one update (`bankedAllowanceM`)
+ * Returns { pass, checks }.
+ */
+function judgeEditorJump(ej) {
+  const checks = [];
+  const add = (id, ok, detail) => checks.push({ id: `editorjump_${id}`, ok: !!ok, detail });
+  const e = ej || {};
+  const d = (a, b) => (Array.isArray(a) && Array.isArray(b) ? Math.hypot(...[0, 1, 2].map((k) => Number(a[k]) - Number(b[k]))) : Infinity);
+  const dxz = (a, b) => (Array.isArray(a) && Array.isArray(b) ? Math.hypot(Number(a[0]) - Number(b[0]), Number(a[2]) - Number(b[2])) : Infinity);
+  const fmt3 = (p) => (Array.isArray(p) ? `(${p.map((v) => Number(v).toFixed(2)).join(", ")})` : "(never)");
+  const gap = dxz(e.walkedTo, e.buildSpot);
+  add(
+    "far_enough",
+    Number.isFinite(gap) && Number.isFinite(e.allowance_m) && gap > e.allowance_m,
+    Number.isFinite(e.allowance_m)
+      ? `the editor opened at ${fmt3(e.walkedTo)}, ${Number.isFinite(gap) ? gap.toFixed(1) : "?"} m across the floor from the build spot ${fmt3(e.buildSpot)}; the relay lets anyone move at most ${Number(e.allowance_m).toFixed(1)} m in one update` +
+          (gap > e.allowance_m ? "" : " (needs more than that: shutting it would be a plain walk)")
+      : "the relay's allowance was not recorded",
+  );
+  add("toggled", e.toggled === true, e.toggled === true ? "the build editor opened and shut" : "the build editor did not open and shut");
+  const off = d(e.camera, e.buildSpot);
+  add(
+    "at_build_spot",
+    off <= JUMP_STAND_TOL_M,
+    `after it shut the game's camera at ${fmt3(e.camera)} is ${Number.isFinite(off) ? off.toFixed(2) : "?"} m from the build spot ${fmt3(e.buildSpot)}` + (off <= JUMP_STAND_TOL_M ? "" : ` (at most ${JUMP_STAND_TOL_M} m)`),
+  );
+  const hit = (e.seen || []).find((p) => d(p, e.buildSpot) <= REJOIN_NUDGE_TOL_M);
+  add(
+    "relayed",
+    !!hit,
+    hit ? `the walker saw the relay pass the game on at the build spot, at ${fmt3(hit)}` : `the walker never saw the game at the build spot (${(e.seen || []).length} position(s) seen after the shut): the relay corrected the jump, or held it back`,
+  );
+  const drew = e.after && e.before ? Number(e.after.count) - Number(e.before.count) : NaN;
+  add(
+    "never_corrected",
+    drew === 0,
+    Number.isFinite(drew) ? `the relay corrected the game ${drew} time(s) between the walk and the shut (none: a declared editor close is taken)` : "the game's corrections were not recorded",
+  );
+  return { pass: checks.every((c) => c.ok), checks };
+}
+
+/**
+ * THE HOME'S OWN TELEPORTER (R1). From beside the west pad of the game's home the game stepped
+ * onto it (the showcase `walk_to`): the pad jumps it to the east pad, more than the relay lets
+ * anyone move in one update, and its next update declares the jump (`moved: {by: "link", zone:
+ * "home", ...}`), which the relay must take. `tele`:
+ *   link       { zone, from, to, from_at, to_at, reach_m } the link the game reports for that pad
+ *   camera     [x,y,z] the game's camera after the jump
+ *   seen       the positions the walker saw the relay pass on for the game after it
+ *   before, after  the probe's `moves` before stepping on and after
+ *   allowance_m    the relay's allowance for one update
+ * Returns { pass, checks }.
+ */
+function judgeTeleporter(tele) {
+  const checks = [];
+  const add = (id, ok, detail) => checks.push({ id: `tele_${id}`, ok: !!ok, detail });
+  const t = tele || {};
+  const l = t.link || null;
+  const dxz = (a, b) => (Array.isArray(a) && Array.isArray(b) ? Math.hypot(Number(a[0]) - Number(b[0]), Number(a[2]) - Number(b[2])) : Infinity);
+  const fmt3 = (p) => (Array.isArray(p) ? `(${p.map((v) => Number(v).toFixed(2)).join(", ")})` : "(never)");
+  const gap = l ? dxz(l.from_at, l.to_at) : Infinity;
+  add(
+    "far_enough",
+    !!l && Number.isFinite(t.allowance_m) && gap > t.allowance_m,
+    !l
+      ? "the game reported no link for its home's west pad"
+      : `${l.from} at ${fmt3(l.from_at)} jumps to ${l.to} at ${fmt3(l.to_at)}, ${gap.toFixed(1)} m across the floor; the relay lets anyone move at most ${Number(t.allowance_m).toFixed(1)} m in one update` +
+          (gap > t.allowance_m ? "" : " (needs more than that: the jump would be a plain walk)"),
+  );
+  const reach = l && Number.isFinite(Number(l.reach_m)) ? Number(l.reach_m) + 0.3 : 1.0;
+  const off = l ? dxz(t.camera, l.to_at) : Infinity;
+  add(
+    "arrived",
+    off <= reach,
+    l ? `after stepping on, the game's camera at ${fmt3(t.camera)} is ${Number.isFinite(off) ? off.toFixed(2) : "?"} m across the floor from the far pad ${fmt3(l.to_at)}` + (off <= reach ? "" : ` (at most ${reach.toFixed(2)} m: it never jumped, or jumped elsewhere)`) : "no link",
+  );
+  const hit = l ? (t.seen || []).find((p) => dxz(p, l.to_at) <= reach) : null;
+  add(
+    "relayed",
+    !!hit,
+    hit ? `the walker saw the relay pass the game on at the far pad, at ${fmt3(hit)}` : `the walker never saw the game at the far pad (${(t.seen || []).length} position(s) seen after the jump): the relay corrected it`,
+  );
+  const drew = t.after && t.before ? Number(t.after.count) - Number(t.before.count) : NaN;
+  add(
+    "never_corrected",
+    drew === 0,
+    Number.isFinite(drew) ? `the relay corrected the game ${drew} time(s) from the step onto the pad until after the jump (none: a declared teleporter jump is taken)` : "the game's corrections were not recorded",
+  );
+  return { pass: checks.every((c) => c.ok), checks };
+}
+
 module.exports = {
+  turnInPlace,
+  TURN_IN_PLACE_M,
+  judgeWalks,
+  padApproach,
+  editorJumpTarget,
+  judgeEditorJump,
+  judgeTeleporter,
   bankedAllowanceM,
   judgeJump,
   judgeHonestMoves,
+  relayCorrections,
+  RELAY_CORRECTED_RE,
+  CORRECTION_NOTICE_START,
   JUMP_STAND_TOL_M,
   LIMITS,
   judgeCopresence,
