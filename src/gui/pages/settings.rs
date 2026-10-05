@@ -498,9 +498,10 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             ui, theme,
             "Erase removes your account from this server: your messages, uploads, \
              profile, settings sync, mailbox, reactions, codes and membership, your \
-             progress in the shared world, and your home's plot on the ship (it goes \
-             to the next player; if you come back you get a free plot or a guest \
-             place). Type your display name exactly to arm the button.",
+             progress in the shared world, what you built in the shared world, and \
+             your home's plot on the ship (it goes to the next player; if you come \
+             back you get a free plot or a guest place). Type your display name \
+             exactly to arm the button.",
         );
         ui.add_space(theme.spacing_sm);
         // Saying what SURVIVES is the part that was missing, and it is the part a
@@ -3449,17 +3450,22 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             }
             widgets::setting_hint(ui, theme, hint, mode.hint());
         }
-        // Multiplayer honesty note (task #50): in a shared world the relay is
-        // the authority on shared state, so Dev tools keep working for now;
-        // per-player server-enforced permissions are the follow-up when real
-        // players arrive. The HUD tag is force-shown so nobody can pass off a
-        // Dev-mode screenshot as survival play.
+        // Multiplayer honesty note (task #50; ship homes increment 5,
+        // 2026-10-05): in a shared world the ship is the server's, so even the
+        // Dev mode builds only on its own plot and leaves the ship's structure
+        // alone there (`config::ship_editing_for`: the build editor's ship
+        // scope, its save of the ship file, building off your plot). The HUD
+        // tag is force-shown so nobody can pass off a Dev-mode screenshot as
+        // survival play.
         if state.copresence_active {
             ui.label(
                 RichText::new(
-                    "You are in a shared world: the mode tag stays visible on \
-                     the HUD, and the server remains the authority on shared \
-                     state.",
+                    "You are in a shared world. Its ship belongs to the server, so \
+                     here even the Dev mode builds only on your own plot and edits \
+                     only your home, not the ship's zones, corridors or plots: a \
+                     ship changed here would no longer match the server's. Offline \
+                     (Characters > Your Homes) the Dev mode edits the whole ship. \
+                     The mode tag stays visible on the HUD.",
                 )
                 .color(theme.warning())
                 .size(theme.font_size_small),
