@@ -1,6 +1,7 @@
 //! Engine types — ion, nuclear thermal, fusion, chemical.
 //!
-//! Propulsion specs loaded from `data/propulsion.csv`.
+//! No data file loads these specs yet: the `data/propulsion.csv` this header used to
+//! name does not exist (BUG-157, 2026-10-05).
 
 use serde::{Deserialize, Serialize};
 

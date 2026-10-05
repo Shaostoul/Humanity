@@ -73,3 +73,20 @@ impl System for TransportationSystem {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// BUG-157 (2026-10-05): data/transportation.ron wrote `space` while this loader reads
+    /// `space_infrastructure`; the field is `serde(default)`, so the list loaded EMPTY with no
+    /// error. Every list the shipped file writes must arrive.
+    #[test]
+    fn the_shipped_transportation_file_fills_every_list() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let s = TransportationSystem::new(&dir);
+        assert!(!s.data.roads.is_empty(), "data/transportation.ron's roads arrive");
+        assert!(!s.data.rail.is_empty(), "data/transportation.ron's rail arrives");
+        assert!(!s.data.space_infrastructure.is_empty(), "data/transportation.ron's space infrastructure arrives");
+    }
+}

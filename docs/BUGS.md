@@ -3631,7 +3631,7 @@ see: arriving by teleport and arriving the way a player does have differed befor
 for anyone. First step: capture the same place after a longer settle and after walking
 in, and compare each tree's base with the terrain height under it.
 
-## BUG-157: two data files are silently ignored: their field names do not match the code that reads them (OPEN, found 2026-10-05)
+## BUG-157: two data files are silently ignored: their field names do not match the code that reads them (FIXED v0.1462.0, found 2026-10-05)
 
 **Seen (by the leaving-the-ship design proposal, confirmed):** `data/docking.ron` writes
 `docking_ports: [...]` and `docking_procedures: [...]`, but `src/systems/docking.rs` reads
@@ -3642,7 +3642,11 @@ warning: the ports, procedures and space infrastructure written in the data neve
 the game. Three module headers also name data files that do not exist (`data/vehicles.csv`,
 `data/ship_classes.csv`, `data/propulsion.csv`).
 
-**Fix (not started):** make the names agree (the data is the source of truth, so rename
-the loader fields or add serde aliases), and add a test that loads each shipped file and
-fails if a list the file writes arrives empty. A lint that every top-level key in a shipped
-RON file is a field its loader knows would catch the whole class.
+**Fix:** the data keys renamed to the loaders' names (ports, procedures,
+space_infrastructure; no aliases, nothing else read the old names), with
+ and
+, both seen red
+first (the ports and the space infrastructure arrived empty). The three module headers now
+say what loads (or that nothing does yet). Both systems are still unwired scaffolds, so
+nothing in the game changed. Still open, the class: a lint that every top-level key in a
+shipped RON file is a field its loader knows.
