@@ -1,10 +1,12 @@
 //! Server Settings > ADMIN > Shared world clock (2026-10-04).
 //!
 //! The operator: "Sure, let's do 72x but, make sure there's admin tools for me
-//! to adjust it from inside the app." The shared world's clock runs on the
-//! relay (`relay::handlers::game_state::GameWorld::time_scale`, saved as the
-//! server setting `world_time_scale`, 72 on a new server) and every game in
-//! the world follows it (`game_time_sync`, `engine::net_route`). This is the
+//! to adjust it from inside the app." That evening the default became real
+//! time: "For normal mode, especially for my MMO server, let's have everything
+//! be real time, not the 72x." The shared world's clock runs on the relay
+//! (`relay::handlers::game_state::GameWorld::time_scale`, saved as the server
+//! setting `world_time_scale`, 1 on a new server) and every game in the world
+//! follows it (`game_time_sync`, `engine::net_route`). This is the
 //! in-app control: pick a speed, see in plain words what it means, Apply. The
 //! relay changes the running world at once and tells every connected game; no
 //! restart. The web mirror is the Game Admin window (`web/chat/chat-game-admin.js`).
@@ -61,7 +63,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     };
     ui.add_space(theme.spacing_xs);
 
-    let mut chosen = state.game_admin_clock_draft.or(current).unwrap_or(time::SIMPLIFIED_TIME_SPEED);
+    let mut chosen = shown_speed(state.game_admin_clock_draft, current);
     let mut picked = false;
     ui.horizontal_wrapped(|ui| {
         for (speed, name) in time::TIME_SPEED_PRESETS {
@@ -103,6 +105,13 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             };
         }
     });
+}
+
+/// The speed the section shows as picked: the admin's unapplied pick, else the
+/// server's speed, else, with no server to ask, the speed a new server runs at
+/// (`relay::storage::default_world_time_scale`: real time, 1x).
+fn shown_speed(draft: Option<f32>, current: Option<f32>) -> f32 {
+    draft.or(current).unwrap_or(crate::relay::storage::default_world_time_scale() as f32)
 }
 
 /// What `speed` means, in words a player can picture: how long a day of the
@@ -284,6 +293,27 @@ mod tests {
         }
     }
 
+    /// WITH NO SERVER TO ASK, THE SECTION SHOWS A NEW SERVER'S SPEED: real
+    /// time, 1x (the operator, 2026-10-04 evening: "For normal mode,
+    /// especially for my MMO server, let's have everything be real time, not
+    /// the 72x."), the relay's own default. The web window shows the same (its
+    /// CLOCK_DEFAULT, which is also what it reads a speed that is not a number
+    /// as, the way `time::clamp_time_speed` does here). An admin's unapplied
+    /// pick, and else the server's speed, come first.
+    #[test]
+    fn with_no_server_the_section_shows_a_new_servers_speed() {
+        assert_eq!(shown_speed(None, None), 1.0, "not connected, the section shows 1x");
+        assert_eq!(f64::from(shown_speed(None, None)), crate::relay::storage::default_world_time_scale(), "the speed a new server runs at");
+        assert_eq!(shown_speed(None, Some(24.0)), 24.0, "the server's speed");
+        assert_eq!(shown_speed(Some(720.0), Some(24.0)), 720.0, "the admin's unapplied pick");
+        let js = std::fs::read_to_string("web/chat/chat-game-admin.js").expect("web/chat/chat-game-admin.js");
+        let line = js.lines().find(|l| l.contains("var CLOCK_DEFAULT =")).expect("the web constant");
+        let value = line.split('=').nth(1).and_then(|r| r.split(';').next()).expect("a value");
+        let web: f32 = value.trim().parse().expect("a number");
+        assert_eq!(web, shown_speed(None, None), "web/chat/chat-game-admin.js shows {web}x with no server, this section {}x", shown_speed(None, None));
+        assert_eq!(web, time::clamp_time_speed(f32::NAN), "web/chat/chat-game-admin.js reads a speed that is not a number as {web}x, this section as {}x", time::clamp_time_speed(f32::NAN));
+    }
+
     /// NATIVE AND WEB SAY THE SAME NUMBERS (review of 2026-10-04, finding 3).
     /// The web window rounds with `Math.round` and `toFixed(1)`, a half up;
     /// Rust's `{:.0}` and `{:.1}` round a half to the even number, so at 576x
@@ -328,7 +358,7 @@ mod tests {
     }
 
     /// Picking a speed and pressing Apply, the way an admin does: the server
-    /// runs at 72x, the admin picks "A day an hour (24x)", the section says
+    /// runs at a new server's 1x, the admin picks "A day an hour (24x)", the section says
     /// what that would mean, and Apply with the link down says the server was
     /// NOT asked and keeps the choice.
     ///

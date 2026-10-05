@@ -102,25 +102,27 @@ fn split_numbered(id: &str) -> (String, Option<u32>) {
 /// Put `qty` of `key` back into the storage pool after a backpack could not
 /// take it (2026-09-25), merging into the stack it came from when that stack
 /// is still there. `origin` is the item as it was before it was taken; with
-/// none (it should not happen) it goes to "Home". Returns the notice to show.
+/// none (it should not happen) it goes to "Home". Food goes back as old as it
+/// was (2026-10-04, first-hour audit S6). Returns the notice to show.
 pub fn return_to_storage(
     pool: &mut Vec<PlacedItem>,
     key: &str,
     qty: u32,
     origin: Option<&PlacedItem>,
 ) -> String {
-    let (name, container, wear, quality) = match origin {
-        Some(o) => (o.name.clone(), o.container.clone(), o.wear, o.quality),
-        None => (key.to_string(), "Home".to_string(), 0, 0),
+    let (name, container, wear, quality, age_s) = match origin {
+        Some(o) => (o.name.clone(), o.container.clone(), o.wear, o.quality, o.age_s),
+        None => (key.to_string(), "Home".to_string(), 0, 0, 0.0),
     };
-    // Merge only with an entry worn and graded the same.
+    // Merge only with an entry worn and graded the same, at the average age.
     if let Some(p) = pool
         .iter_mut()
         .find(|p| p.key == key && p.container == container && p.wear == wear && p.quality == quality)
     {
+        p.age_s = crate::systems::inventory::blend_age(p.age_s, p.qty, age_s, qty);
         p.qty += qty;
     } else {
-        pool.push(PlacedItem { key: key.to_string(), name: name.clone(), qty, container: container.clone(), wear, quality });
+        pool.push(PlacedItem { key: key.to_string(), name: name.clone(), qty, container: container.clone(), wear, quality, age_s });
     }
     format!("Backpack full: {qty} x {name} stayed in {container}")
 }
@@ -130,7 +132,7 @@ mod return_to_storage_tests {
     use super::*;
 
     fn item(key: &str, qty: u32, container: &str) -> PlacedItem {
-        PlacedItem { key: key.into(), name: "Rope".into(), qty, container: container.into(), wear: 0, quality: 0 }
+        PlacedItem { key: key.into(), name: "Rope".into(), qty, container: container.into(), ..Default::default() }
     }
 
     /// Showcase crops carry machine instance ids; the panel gets one group per

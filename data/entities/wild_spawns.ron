@@ -32,5 +32,20 @@
         (creature: "clay_pit", count: 2, pos: (12.0, 78.0), radius: 5.0, tint: (0.58, 0.36, 0.24)),
         (creature: "salt_flat", count: 2, pos: (80.0, 40.0), radius: 5.0, tint: (0.88, 0.88, 0.84)),
         (creature: "sand_pit", count: 2, pos: (88.0, 60.0), radius: 5.0, tint: (0.80, 0.70, 0.48)),
+        // Ore nodes (2026-10-04, the first-hour audit's B5). The ore samples
+        // Initial Survey gathers and the rare ore Distant Expeditions recovers
+        // (data/quests/exploration.ron) had no source: only two creatures
+        // nothing spawns dropped them. The outcrop is in the empty east half of
+        // the fields room (x 0-40, z 73-89), the place that quest's step before
+        // sends the player; the vein is at the northeast ridge the next quest
+        // walks to (wolf_ridge in destinations.ron), inside First Street (x
+        // 65-75). Each sits wholly inside its room or zone, scatter radius and
+        // all (quest_ore_comes_from_nodes_a_player_can_walk_to in
+        // src/systems/quests/mod.rs). Three outcrops at 2 samples each cover
+        // the 5 in one visit, three veins at 1 each the 3. Appended last on
+        // purpose: a row's index turns its scatter (engine/world_load.rs), so
+        // a row inserted above would move every row below it.
+        (creature: "ore_outcrop", count: 3, pos: (32.0, 81.0), radius: 4.0, tint: (0.50, 0.32, 0.22)),
+        (creature: "rare_ore_vein", count: 3, pos: (70.0, 100.0), radius: 3.0, tint: (0.38, 0.40, 0.52)),
     ],
 )

@@ -341,15 +341,14 @@ pub fn flatten_placed_items(places: &[Place]) -> Vec<PlacedItem> {
                     name: child.label.clone(),
                     qty: child.qty.unwrap_or(1).max(1),
                     container: path.to_string(),
-                    wear: 0,
-                    quality: 0,
+                    ..Default::default()
                 });
             } else {
                 walk(child, &format!("{path}/{j}"), out);
             }
         }
         for id in &place.items {
-            out.push(PlacedItem { key: id.clone(), name: id.clone(), qty: 1, container: path.to_string(), wear: 0, quality: 0 });
+            out.push(PlacedItem { key: id.clone(), name: id.clone(), qty: 1, container: path.to_string(), ..Default::default() });
         }
     }
     let mut out = Vec::new();

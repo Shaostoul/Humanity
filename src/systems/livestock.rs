@@ -326,6 +326,100 @@ pub fn collect(h: &mut Harvestable) -> Option<u32> {
     Some((h.amount.round() as u32).max(1))
 }
 
+/// What a partial collect left lying at its source (first-hour audit
+/// 2026-10-04, Friction 7): the units of the yield the pack had no room for.
+/// The source stays ready while it holds them, and the next collect takes
+/// these before its timer starts again.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LeftBehind(pub u32);
+
+/// What pressing E at a renewable source did (`collect_into_pack`).
+#[derive(Debug, Clone, PartialEq)]
+pub enum CollectOutcome {
+    /// Still regrowing, or nothing to collect from.
+    NotReady,
+    /// `taken` units went into the pack and `left` stay at the source, ready.
+    /// `fresh`: this started a new yield (not the rest of an earlier one),
+    /// which is what earns the XP and the quest's harvest event.
+    Took { item: String, taken: u32, left: u32, fresh: bool },
+    /// Not even one fitted, so all of it stays at the source, ready. One unit
+    /// is `unit_l` litres and the pack had `free_l` litres free.
+    PackFull { item: String, unit_l: f32, free_l: f32 },
+}
+
+/// Collect what `source` yields into `player`'s pack, volume-gated (lib.rs's
+/// E bridge, the walk-up collect for animals and forage alike). As many as
+/// fit go in and the rest stays where it lay (`LeftBehind`), ready for the
+/// next press, with the source's timer held at ready until it is all taken:
+/// the pack used to take all or nothing, so two 26.1 L logs were refused
+/// with 47.5 L free (first-hour audit 2026-10-04, Friction 7). Nothing is
+/// lost either way.
+pub fn collect_into_pack(
+    world: &mut hecs::World,
+    source: hecs::Entity,
+    player: hecs::Entity,
+    items: Option<&crate::systems::inventory::ItemRegistry>,
+) -> CollectOutcome {
+    let Some((item, ready, amount)) = world.get::<&Harvestable>(source).ok().map(|h| {
+        (h.resource.clone(), h.time_since_harvest + f32::EPSILON >= h.regrow_time, (h.amount.round() as u32).max(1))
+    }) else {
+        return CollectOutcome::NotReady;
+    };
+    // The rest of an earlier yield lies here, ready whatever the timer says.
+    let left_before = world.get::<&LeftBehind>(source).ok().map(|l| l.0).filter(|n| *n > 0);
+    if !ready && left_before.is_none() {
+        return CollectOutcome::NotReady;
+    }
+    let n = left_before.unwrap_or(amount);
+    let max_stack = items.map(|r| r.max_stack_for(&item)).unwrap_or(99);
+    let unit_l = items.map(|r| r.volume_for(&item)).unwrap_or(0.0);
+    let Ok(mut pack) = world.get::<&mut crate::systems::inventory::Inventory>(player) else {
+        return CollectOutcome::PackFull { item, unit_l, free_l: 0.0 };
+    };
+    let free_l = (pack.volume_capacity_l - pack.volume_current_l).max(0.0);
+    let lost = pack.add_item_volume_gated(&item, n, max_stack, unit_l);
+    drop(pack);
+    let taken = n - lost;
+    if taken == 0 {
+        // Not even one fits: everything stays as it was.
+        return CollectOutcome::PackFull { item, unit_l, free_l };
+    }
+    if lost > 0 {
+        // The rest waits here, and the source stays ready until it is taken.
+        let _ = world.insert_one(source, LeftBehind(lost));
+        if let Ok(mut h) = world.get::<&mut Harvestable>(source) {
+            h.time_since_harvest = h.regrow_time;
+        }
+    } else {
+        // All of it taken: the next yield starts growing.
+        let _ = world.remove_one::<LeftBehind>(source);
+        if let Ok(mut h) = world.get::<&mut Harvestable>(source) {
+            h.time_since_harvest = 0.0;
+        }
+    }
+    CollectOutcome::Took { item, taken, left: lost, fresh: left_before.is_none() }
+}
+
+/// The line the player reads after E at `source_name`, by the item's name.
+pub fn collect_notice(
+    outcome: &CollectOutcome,
+    source_name: &str,
+    items: Option<&crate::systems::inventory::ItemRegistry>,
+) -> String {
+    let name = |id: &str| items.and_then(|r| r.items.get(id)).map(|d| d.name.clone()).unwrap_or_else(|| id.to_string());
+    match outcome {
+        CollectOutcome::NotReady => format!("{source_name} has nothing to collect yet"),
+        CollectOutcome::Took { item, taken, left, .. } if *left > 0 => {
+            format!("+{taken} {} from {source_name} ({left} left there: your pack is full)", name(item))
+        }
+        CollectOutcome::Took { item, taken, .. } => format!("+{taken} {} from {source_name}", name(item)),
+        CollectOutcome::PackFull { item, unit_l, free_l } if *unit_l > 0.0 => {
+            format!("Your pack is full: one {} takes {unit_l:.1} L and {free_l:.1} L is free", name(item))
+        }
+        CollectOutcome::PackFull { .. } => "Your pack is full".to_string(),
+    }
+}
+
 // ── The herd across restarts and the time away (2026-09-27) ──────────
 
 /// Which homestead animal this is, stable across restarts: the species and
@@ -625,6 +719,9 @@ mod tests {
             ("clay_pit", "clay_raw_0"),
             ("salt_flat", "salt_food_0"),
             ("sand_pit", "sand_0"),
+            // The two quests' ore (2026-10-04, the first-hour audit's B5).
+            ("ore_outcrop", "ore_sample_0"),
+            ("rare_ore_vein", "rare_ore_0"),
         ] {
             let def = reg.get(id).unwrap_or_else(|| panic!("{id} in creatures.csv"));
             assert_eq!(behavior_type_for(def), "stationary", "{id} must be stationary");
@@ -638,6 +735,67 @@ mod tests {
                 "flora spawn ready to collect"
             );
         }
+    }
+
+    /// A YIELD BIGGER THAN THE ROOM LEFT IS TAKEN IN PART (first-hour audit
+    /// 2026-10-04, Friction 7). A fallen log yields two logs of 26.1 L, and a
+    /// new player's pack has 47.5 L free (the 17.5 L kit in a 65 L pack): the
+    /// two were refused as "Your pack is full", all or nothing, so fiber for a
+    /// bed was a puzzle. Now one log goes into the pack, the other stays on the
+    /// fallen log, ready, and the line says how much was taken. With no room
+    /// for even one nothing is taken and nothing is lost; with room made the
+    /// next E takes the rest (no new XP or quest event: it is the same yield),
+    /// and only then does the log start growing its next two.
+    ///
+    /// Seen red 2026-10-04 with the all-or-nothing rule: "one of the two logs
+    /// fits / left: PackFull { item: \"wood_log_0\", unit_l: 26.1, free_l: 47.5 }".
+    #[test]
+    fn a_yield_too_big_for_the_pack_is_taken_in_part() {
+        use crate::ecs::components::Controllable;
+        use crate::systems::inventory::Inventory;
+        let reg = shipped_registry();
+        let items = shipped_items();
+        let mut world = hecs::World::new();
+        let log = spawn_creature_at(&mut world, reg.get("fallen_log").unwrap(), Some(&items), Vec3::ZERO, [1.0; 3]);
+        let mut pack = Inventory::new(36);
+        pack.volume_capacity_l = 65.0;
+        pack.volume_current_l = 17.5;
+        let player = world.spawn((pack, Controllable));
+
+        let out = collect_into_pack(&mut world, log, player, Some(&items));
+        let want = CollectOutcome::Took { item: "wood_log_0".into(), taken: 1, left: 1, fresh: true };
+        assert_eq!(out, want, "one of the two logs fits / left: {out:?}");
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("wood_log_0"), 1);
+        assert_eq!(collect_notice(&out, "Fallen Log", Some(&items)), "+1 Wood Log from Fallen Log (1 left there: your pack is full)");
+        let ready = |w: &hecs::World| w.get::<&Harvestable>(log).map(|h| h.time_since_harvest + f32::EPSILON >= h.regrow_time).unwrap();
+        assert!(ready(&world), "the other log waits on the fallen log, ready");
+
+        // No room for even one: nothing taken, nothing lost, and the line says why.
+        let full = collect_into_pack(&mut world, log, player, Some(&items));
+        assert!(matches!(full, CollectOutcome::PackFull { .. }), "{full:?}");
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("wood_log_0"), 1);
+        let said = collect_notice(&full, "Fallen Log", Some(&items));
+        assert!(said.starts_with("Your pack is full") && said.contains("Wood Log") && said.contains("26.1 L"), "{said}");
+        assert!(ready(&world));
+
+        // Room made: the next E takes the rest, the same yield, then the log regrows.
+        {
+            let mut pack = world.get::<&mut Inventory>(player).unwrap();
+            pack.remove_item("wood_log_0", 1);
+            pack.volume_current_l = 17.5;
+        }
+        let rest = collect_into_pack(&mut world, log, player, Some(&items));
+        assert_eq!(rest, CollectOutcome::Took { item: "wood_log_0".into(), taken: 1, left: 0, fresh: false });
+        assert!(!ready(&world), "the yield is all taken: the log grows its next");
+        assert_eq!(collect_into_pack(&mut world, log, player, Some(&items)), CollectOutcome::NotReady);
+
+        // A pack with room for the whole yield takes it all at once, as before.
+        let mut world = hecs::World::new();
+        let log = spawn_creature_at(&mut world, reg.get("fallen_log").unwrap(), Some(&items), Vec3::ZERO, [1.0; 3]);
+        let player = world.spawn((Inventory::new(36), Controllable));
+        let all = collect_into_pack(&mut world, log, player, Some(&items));
+        assert_eq!(all, CollectOutcome::Took { item: "wood_log_0".into(), taken: 2, left: 0, fresh: true });
+        assert_eq!(collect_notice(&all, "Fallen Log", Some(&items)), "+2 Wood Log from Fallen Log");
     }
 
     /// The shipped creatures.csv parses whole: all 92 species survive the
@@ -836,7 +994,7 @@ mod tests {
                 target: None,
             },
             Transform { position: Vec3::new(5.0, 0.0, 0.0), ..Default::default() },
-            crate::ecs::components::Dead { since: 0.0, looted: false },
+            crate::ecs::components::Dead::default(),
         ));
         // Dead wolf first: the hen ambles normally (no westward panic).
         let mut sys = LivestockSystem::new();
@@ -894,7 +1052,7 @@ mod tests {
         herd_hen(&mut world, "chicken#0", 100.0);
         herd_hen(&mut world, "chicken#1", 300.0);
         let dead = herd_hen(&mut world, "chicken#2", 0.0);
-        world.insert_one(dead, crate::ecs::components::Dead { since: 0.0, looted: false }).unwrap();
+        world.insert_one(dead, crate::ecs::components::Dead::default()).unwrap();
         let saved = herd_timers(&world);
         assert_eq!(saved, vec![("chicken#0".to_string(), 100.0), ("chicken#1".to_string(), 300.0)], "the dead left out");
 

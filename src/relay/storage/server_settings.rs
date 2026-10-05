@@ -143,10 +143,12 @@ pub struct ServerSettings {
     pub erased_accounts_cap: i64,
     /// How fast the shared world's clock runs, game seconds per real second
     /// (operator, 2026-10-04: "let's do 72x but, make sure there's admin
-    /// tools for me to adjust it from inside the app"). 72 by default, the
-    /// Simplified speed: a day in 20 real minutes. Every game in the shared
-    /// world follows it (`game_time_sync` carries it); an admin changes it
-    /// from Server Settings > ADMIN > Shared world clock, live, no restart.
+    /// tools for me to adjust it from inside the app"; that evening: "For
+    /// normal mode, especially for my MMO server, let's have everything be
+    /// real time, not the 72x."). 1 by default, real time: a day takes a real
+    /// day. Every game in the shared world follows it (`game_time_sync`
+    /// carries it); an admin changes it from Server Settings > ADMIN > Shared
+    /// world clock, live, no restart.
     #[serde(default = "default_world_time_scale")]
     pub world_time_scale: f64,
     /// Where the shared world's stores stand (the operator, 2026-10-04: "For the sake of
@@ -190,12 +192,16 @@ fn default_erased_accounts_cap() -> i64 { 100_000 }
 pub const ERASED_ACCOUNTS_TTL_DAYS_RANGE: (i64, i64) = (1, 365);
 pub const ERASED_ACCOUNTS_CAP_RANGE: (i64, i64) = (1, 1_000_000);
 
-/// The shared world's clock speed on a new server: the game's Simplified
-/// speed (`systems::time::SIMPLIFIED_TIME_SPEED`, 72), one number for both.
-/// The schema's `DEFAULT 72` (storage/mod.rs) is checked against it by
-/// `world_time_scale_defaults_to_simplified_and_round_trips`.
+/// The shared world's clock speed on a new server: real time, the game's
+/// Realistic speed (`systems::time::REALISTIC_TIME_SPEED`, 1), one number for
+/// both, so joining a server is the same pace as a new solo game (the
+/// operator, 2026-10-04 evening: "let's have everything be real time, not the
+/// 72x"). The schema's `DEFAULT 1` (storage/mod.rs, in the CREATE TABLE and in
+/// the ALTER that adds the column to an older database) is checked against it
+/// by `a_fresh_database_runs_the_shared_world_in_real_time` and
+/// `a_server_from_before_the_world_clock_upgrades_to_real_time`.
 pub fn default_world_time_scale() -> f64 {
-    f64::from(crate::systems::time::SIMPLIFIED_TIME_SPEED)
+    f64::from(crate::systems::time::REALISTIC_TIME_SPEED)
 }
 
 /// The fleet's supply on a new server, and on one whose stored value is not a mode this code
@@ -574,24 +580,27 @@ mod tests {
         assert_eq!(got.updated_by, "admin_key");
     }
 
-    /// THE SHARED WORLD'S CLOCK SPEED (operator, 2026-10-04: 72x, adjustable
-    /// in the app). A new server runs the shared world at the Simplified 72x
-    /// (the schema's DEFAULT and the code's default are one number), an
-    /// admin's value round-trips through the positional set/get SQL without
-    /// bleeding into its neighbour, and a value outside the player setting's
-    /// 1..=1000 is held to it; a value that is not a number is refused.
+    /// THE SHARED WORLD'S CLOCK SPEED (operator, 2026-10-04: adjustable in the
+    /// app; real time by default since that evening). A new server runs the
+    /// shared world at 1x (the schema's DEFAULT and the code's default are one
+    /// number), an admin's value round-trips through the positional set/get
+    /// SQL without bleeding into its neighbour, and a value outside the player
+    /// setting's 1..=1000 is held to it; a value that is not a number is
+    /// refused.
     ///
     /// Seen red 2026-10-04 with the get reading column 28 (the neighbour)
-    /// for the speed: "assertion `left == right` failed: a new server runs
-    /// the shared world at 72x, left: 1.0, right: 72.0" (retention's 0, held
-    /// to the floor of 1).
+    /// for the speed, when the default was 72x: "assertion `left == right`
+    /// failed: a new server runs the shared world at 72x, left: 1.0, right:
+    /// 72.0" (retention's 0, held to the floor of 1). The round trip below
+    /// (24x beside a retention of 90) still catches that bleed at a 1x
+    /// default, which the first assertion alone no longer can.
     #[test]
-    fn world_time_scale_defaults_to_simplified_and_round_trips() {
+    fn world_time_scale_defaults_to_real_time_and_round_trips() {
         let db = fresh_db();
         let s = db.get_server_settings().expect("get");
-        assert_eq!(s.world_time_scale, 72.0, "a new server runs the shared world at 72x");
-        assert_eq!(s.world_time_scale, default_world_time_scale(), "the schema DEFAULT is the Simplified speed");
-        assert_eq!(ServerSettings::default().world_time_scale, 72.0);
+        assert_eq!(s.world_time_scale, 1.0, "a new server runs the shared world at 1x");
+        assert_eq!(s.world_time_scale, default_world_time_scale(), "the schema DEFAULT is the code's default");
+        assert_eq!(ServerSettings::default().world_time_scale, 1.0);
 
         let mut updated = s.clone();
         updated.world_time_scale = 24.0;
@@ -608,6 +617,36 @@ mod tests {
         assert_eq!(db.get_server_settings().expect("get3").world_time_scale, 1000.0, "held to the range");
         assert_eq!(clamp_world_time_scale(0.0), Some(1.0), "never slower than real time");
         assert_eq!(clamp_world_time_scale(f64::NAN), None, "not a number: refused");
+    }
+
+    /// A FRESH DATABASE RUNS THE SHARED WORLD IN REAL TIME (the operator, 2026-10-04
+    /// evening, verbatim: "For normal mode, especially for my MMO server, let's have
+    /// everything be real time, not the 72x. That way anyone joining isn't dealing with
+    /// accelerated death."). Read raw from the row and from the schema, past
+    /// get_server_settings' clamp to 1..=1000, which would read a stored 0 or 0.5 as 1: the
+    /// row a new server writes holds exactly 1, the column's DEFAULT says 1, and the code's
+    /// default is the game's Realistic speed, one number for all three. (A server whose
+    /// database predates the column gets the ALTER's DEFAULT instead, checked by
+    /// `a_server_from_before_the_world_clock_upgrades_to_real_time`.)
+    #[test]
+    fn a_fresh_database_runs_the_shared_world_in_real_time() {
+        let db = fresh_db();
+        let stored: f64 = db
+            .with_conn(|c| c.query_row("SELECT world_time_scale FROM server_settings WHERE id = 1", [], |r| r.get(0)))
+            .expect("a new server's settings row");
+        assert_eq!(stored, 1.0, "a fresh database stores the shared world's clock at 1x");
+        let schema_default: String = db
+            .with_conn(|c| {
+                c.query_row(
+                    "SELECT dflt_value FROM pragma_table_info('server_settings') WHERE name = 'world_time_scale'",
+                    [],
+                    |r| r.get(0),
+                )
+            })
+            .expect("the column has a DEFAULT");
+        assert_eq!(schema_default.parse::<f64>().ok(), Some(1.0), "the column's DEFAULT is 1, not {schema_default}");
+        assert_eq!(default_world_time_scale(), f64::from(crate::systems::time::REALISTIC_TIME_SPEED), "the code's default is the Realistic speed");
+        assert_eq!(db.get_server_settings().expect("get").world_time_scale, 1.0);
     }
 
     /// THE FLEET'S SUPPLY SETTING (operator, 2026-10-04: "the fleet has unlimited of
@@ -639,15 +678,17 @@ mod tests {
         assert_eq!(db.get_server_settings().unwrap().fleet_supply_mode, "unlimited", "a stored value that is no mode reads as the default");
     }
 
-    /// A server whose database predates the clock setting upgrades to 72x and
-    /// keeps everything its owner had set (the BUG-046 shape: the live table
-    /// already exists without the column).
+    /// A server whose database predates the clock setting upgrades to real
+    /// time (1x, the ALTER's DEFAULT, read raw so get_server_settings' clamp
+    /// to 1..=1000 cannot hide a DEFAULT below 1) and keeps everything its
+    /// owner had set (the BUG-046 shape: the live table already exists
+    /// without the column).
     ///
     /// Seen red 2026-10-04 with the guarded ALTER switched off: "get_server_settings
     /// after the upgrade: SqlInputError { error: Error { code: Unknown,
     /// extended_code: 1 }, msg: \"no such column: world_time_scale\", ...".
     #[test]
-    fn a_server_from_before_the_world_clock_upgrades_to_72x() {
+    fn a_server_from_before_the_world_clock_upgrades_to_real_time() {
         let pid = std::process::id();
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -667,8 +708,12 @@ mod tests {
                 .expect("drop column (SQLite >= 3.35)");
         }
         let db = Storage::open(&path).expect("reopen must not fail");
+        let stored: f64 = db
+            .with_conn(|c| c.query_row("SELECT world_time_scale FROM server_settings WHERE id = 1", [], |r| r.get(0)))
+            .expect("the upgraded row has the column");
+        assert_eq!(stored, 1.0, "the upgrade stores the clock at 1x (real time)");
         let got = db.get_server_settings().expect("get_server_settings after the upgrade");
-        assert_eq!(got.world_time_scale, 72.0, "the upgrade starts the clock at 72x");
+        assert_eq!(got.world_time_scale, 1.0, "the upgrade starts the clock at 1x (real time)");
         assert_eq!(got.message_retention_days, 7, "the owner's settings are kept");
         assert_eq!(got.dm_mailbox_ttl_days, 10);
         drop(db);

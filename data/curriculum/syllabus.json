@@ -1459,14 +1459,38 @@
       "subject": "shelter",
       "title": "Heating a space",
       "summary": "Heat a building without carbon monoxide or fire.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "heating-a-home-safely"
+      ],
       "skills": [
         "fire_making",
         "shelter_building"
       ],
+      "data": [
+        "data/status_effects.csv",
+        "data/equipment.csv"
+      ],
       "sources": [
         "usfa",
-        "cdc"
+        "cpsc",
+        "cdc",
+        "epa",
+        "energy-star",
+        "building-america",
+        "doe",
+        "hhs-acf",
+        "nws",
+        "noaa-ncei",
+        "fema",
+        "dod-technical-manuals",
+        "ecfr",
+        "regional-air-agency",
+        "wa-legislature",
+        "icc-ifc",
+        "ul-standards",
+        "wa-ecology",
+        "wa-commerce"
       ],
       "locale_dependent": true,
       "hazard": "lethal"
@@ -1633,12 +1657,30 @@
       "subject": "energy",
       "title": "Fuels and their hazards",
       "summary": "Store and burn fuels knowing each one's flash point and failure mode.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "fuels-and-their-hazards"
+      ],
       "skills": [
         "fire_making"
       ],
       "data": [
-        "data/chemistry/"
+        "data/chemistry/",
+        "data/containers/content_classes.ron",
+        "data/machines/home.ron"
+      ],
+      "sources": [
+        "osha",
+        "ecfr",
+        "phmsa",
+        "niosh-pocket-guide",
+        "cameo-chemicals",
+        "cpsc",
+        "federal-register",
+        "usfa",
+        "fema",
+        "uk-hse",
+        "poison-control"
       ],
       "locale_dependent": false,
       "hazard": "lethal"
@@ -1648,9 +1690,26 @@
       "subject": "energy",
       "title": "Making and controlling fire",
       "summary": "Start, feed and extinguish fire deliberately.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "making-and-controlling-fire"
+      ],
       "skills": [
         "fire_making"
+      ],
+      "sources": [
+        "dod-technical-manuals",
+        "usfs",
+        "usfa",
+        "cpsc",
+        "nws",
+        "fema",
+        "federal-register",
+        "regional-air-agency",
+        "kitsap-county",
+        "central-kitsap-fire-rescue",
+        "wa-dnr",
+        "kitsap-daily-news"
       ],
       "locale_dependent": true,
       "hazard": "lethal"
@@ -2065,18 +2124,35 @@
       "subject": "health",
       "title": "First aid basics",
       "summary": "Act correctly in the first minutes, and know when that is all you should do.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "medicine"
       ],
       "sources": [
+        "fema",
+        "cdc",
+        "nih",
+        "national-911-program",
+        "hrsa",
+        "osha",
+        "medlineplus",
         "red-cross",
-        "cdc"
+        "wa-rcw",
+        "american-heart-association"
       ],
       "locale_dependent": false,
       "hazard": "lethal",
       "data": [
-        "data/medical.ron"
+        "data/medical.ron",
+        "data/status_effects.csv",
+        "data/items.csv",
+        "data/recipes.csv"
+      ],
+      "reading": [
+        "first-aid-until-help-arrives"
+      ],
+      "prerequisites": [
+        "bio_human"
       ]
     },
     {
@@ -2156,19 +2232,28 @@
       "subject": "health",
       "title": "Heat illness",
       "summary": "Recognise heat exhaustion and heat stroke, and act on the difference.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "medicine"
       ],
       "sources": [
         "cdc",
-        "noaa"
+        "niosh",
+        "osha",
+        "nws",
+        "fema",
+        "noaa-ncei",
+        "wa-doh"
       ],
       "locale_dependent": true,
       "hazard": "lethal",
       "data": [
         "data/medical.ron",
-        "data/locales/<id>/climate.json"
+        "data/locales/<id>/climate.json",
+        "data/status_effects.csv"
+      ],
+      "reading": [
+        "when-heat-becomes-dangerous"
       ]
     },
     {
@@ -3917,17 +4002,32 @@
       "subject": "community",
       "title": "Helping in an emergency",
       "summary": "Be useful in a disaster rather than another casualty.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "leadership",
         "medicine"
       ],
       "sources": [
         "fema",
-        "red-cross"
+        "cdc",
+        "phmsa",
+        "samhsa",
+        "wa-military-department",
+        "kitsap-county-dem"
       ],
       "locale_dependent": true,
-      "hazard": "lethal"
+      "hazard": "lethal",
+      "reading": [
+        "helping-your-neighbours-after-a-disaster"
+      ],
+      "data": [
+        "data/weather/events.ron",
+        "data/locales/<id>/hazards.json"
+      ],
+      "prerequisites": [
+        "health_first_aid",
+        "earth_hazards"
+      ]
     }
   ]
 }

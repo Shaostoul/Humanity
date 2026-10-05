@@ -2,7 +2,8 @@
 //! entry (2026-09-27): each battery bank's charge, each water tank's litres,
 //! and the contents of each machine's vessel (a genset's fuel drum, the
 //! refinery's drum, the grain silo, the pantry, the freezer, the furniture
-//! drawers).
+//! drawers). And, since 2026-10-04, the recipe each automatic machine runs, as
+//! set on its card (the smelter on coal or graphite).
 //!
 //! Before this none of it was saved. Every launch started each bank at its
 //! spawn charge (half full, `home_spawn::spawn_home_machine_entity`) and each
@@ -34,7 +35,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::ecs::components::{Battery, MachineInstanceId, WaterTank};
+use crate::ecs::components::{AutoRefine, Battery, MachineInstanceId, WaterTank};
 use crate::systems::inventory::containers::Container;
 
 /// One home machine's stored levels. A field is None when the machine has no
@@ -53,11 +54,18 @@ pub struct MachineLevels {
     /// damage). Its type and size come back from the catalog.
     #[serde(default)]
     pub vessel: Option<Container>,
+    /// The recipe the machine runs by itself (`AutoRefine`), as the player
+    /// last set it on the machine's card: the smelter's coal or graphite
+    /// (first-hour audit 2026-10-04, Friction 4). Every spawn starts a
+    /// machine on its catalog default, so without this the choice was lost
+    /// at every world entry and restart.
+    #[serde(default)]
+    pub recipe: Option<String>,
 }
 
 impl MachineLevels {
     fn is_empty(&self) -> bool {
-        self.charge_wh.is_none() && self.water_l.is_none() && self.vessel.is_none()
+        self.charge_wh.is_none() && self.water_l.is_none() && self.vessel.is_none() && self.recipe.is_none()
     }
 }
 
@@ -69,13 +77,14 @@ pub struct HeldMachineLevels(pub Vec<MachineLevels>);
 /// The levels the live machines hold now, sorted by id.
 fn live(world: &hecs::World) -> Vec<MachineLevels> {
     let mut out: Vec<MachineLevels> = world
-        .query::<(&MachineInstanceId, Option<&Battery>, Option<&WaterTank>, Option<&Container>)>()
+        .query::<(&MachineInstanceId, Option<&Battery>, Option<&WaterTank>, Option<&Container>, Option<&AutoRefine>)>()
         .iter()
-        .map(|(_e, (id, b, t, c))| MachineLevels {
+        .map(|(_e, (id, b, t, c, a))| MachineLevels {
             id: id.0.clone(),
             charge_wh: b.map(|b| b.charge_wh),
             water_l: t.map(|t| t.liters),
             vessel: c.cloned(),
+            recipe: a.map(|a| a.recipe_id.clone()),
         })
         .filter(|l| !l.is_empty())
         .collect();
@@ -100,6 +109,7 @@ fn merge(mut live: Vec<MachineLevels>, held: Vec<MachineLevels>) -> Vec<MachineL
                 if l.vessel.is_none() {
                     l.vessel = h.vessel;
                 }
+                l.recipe = l.recipe.take().or(h.recipe);
             }
             None => live.push(h),
         }
@@ -128,10 +138,21 @@ fn drop_held(world: &mut hecs::World) {
 /// may not belong in it; that is logged and dropped.
 pub fn apply(world: &mut hecs::World, saved: &[MachineLevels]) -> Vec<MachineLevels> {
     let mut left: Vec<MachineLevels> = saved.to_vec();
-    for (_e, (id, b, t, c)) in world
-        .query_mut::<(&MachineInstanceId, Option<&mut Battery>, Option<&mut WaterTank>, Option<&mut Container>)>()
-    {
+    for (_e, (id, b, t, c, a)) in world.query_mut::<(
+        &MachineInstanceId,
+        Option<&mut Battery>,
+        Option<&mut WaterTank>,
+        Option<&mut Container>,
+        Option<&mut AutoRefine>,
+    )>() {
         let Some(rec) = left.iter_mut().find(|r| r.id == id.0) else { continue };
+        // A machine that runs a recipe takes the one it ran; a record for a
+        // machine with none keeps it, held, as a vessel's contents are.
+        if let Some(a) = a {
+            if let Some(r) = rec.recipe.take() {
+                a.recipe_id = r;
+            }
+        }
         if let (Some(b), Some(wh)) = (b, rec.charge_wh) {
             if wh.is_finite() {
                 b.charge_wh = wh.clamp(0.0, b.capacity_wh);
@@ -223,6 +244,61 @@ mod tests {
                 MachineLevels { id: "gone".into(), water_l: Some(10.0), ..Default::default() },
             ]
         );
+    }
+
+    /// THE RECIPE A MACHINE WAS SWITCHED TO SURVIVES A SAVE AND WORLD ENTRY
+    /// (first-hour audit 2026-10-04, Friction 4). The smelter's card lets the
+    /// player switch it from coal to graphite, but every world entry respawns
+    /// the machines from the catalog's default recipe, and the save never had
+    /// the choice, so the smelter went back to coal and waited. Here the
+    /// smelter is switched to graphite, saved (through JSON, as the save is
+    /// written) and restored onto a fresh spawn, then carried across a world
+    /// entry's respawn; a workbench left on its default stays on it.
+    ///
+    /// Seen red 2026-10-04 on the code before the fix: "the smelter still
+    /// smelts with graphite after a restart / left: \"smelt_iron\" / right:
+    /// \"smelt_iron_graphite\"".
+    #[test]
+    fn a_machines_chosen_recipe_survives_a_save_and_world_entry() {
+        use crate::ecs::components::AutoRefine;
+        let spawn = |w: &mut hecs::World| {
+            w.spawn((MachineInstanceId("smelter_1".into()), AutoRefine { recipe_id: "smelt_iron".into(), keep: None }));
+            w.spawn((MachineInstanceId("workbench_1".into()), AutoRefine { recipe_id: "craft_hammer".into(), keep: Some(2) }));
+        };
+        let recipe = |w: &hecs::World, id: &str| {
+            w.query::<(&MachineInstanceId, &AutoRefine)>()
+                .iter()
+                .find(|(_, (m, _))| m.0 == id)
+                .map(|(_, (_, a))| a.recipe_id.clone())
+                .unwrap()
+        };
+        let mut world = hecs::World::new();
+        spawn(&mut world);
+        for (_e, (id, auto)) in world.query_mut::<(&MachineInstanceId, &mut AutoRefine)>() {
+            if id.0 == "smelter_1" {
+                auto.recipe_id = "smelt_iron_graphite".into(); // the card's pick
+            }
+        }
+        let saved: Vec<MachineLevels> = serde_json::from_str(&serde_json::to_string(&levels(&world)).unwrap()).unwrap();
+
+        // The next launch: the machines spawn on their defaults, then the save is applied.
+        let mut fresh = hecs::World::new();
+        spawn(&mut fresh);
+        restore(&mut fresh, &saved);
+        let got = recipe(&fresh, "smelter_1");
+        assert_eq!(got, "smelt_iron_graphite", "the smelter still smelts with graphite after a restart / left: {got:?} / right: \"smelt_iron_graphite\"");
+        assert_eq!(recipe(&fresh, "workbench_1"), "craft_hammer");
+
+        // World entry: take, respawn on the defaults, put back.
+        let carried = take_all(&mut fresh);
+        let old: Vec<hecs::Entity> = fresh.query::<&MachineInstanceId>().iter().map(|(e, _)| e).collect();
+        for e in old {
+            let _ = fresh.despawn(e);
+        }
+        spawn(&mut fresh);
+        assert!(apply(&mut fresh, &carried).is_empty(), "every recipe found its machine");
+        assert_eq!(recipe(&fresh, "smelter_1"), "smelt_iron_graphite", "and after world entry");
+        assert_eq!(fresh.query::<&HeldMachineLevels>().iter().count(), 0);
     }
 
     /// A vessel of another type than the one saved is not handed the old

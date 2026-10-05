@@ -1224,6 +1224,98 @@ fn mining_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
 }
 
+/// The Mining section's drone rows: the active drone (one per player) as an
+/// aligned EXPANDABLE row (v0.414): Stage | status | progress bar in the title
+/// row; expand for the manifest it's fetching + cargo on board. Its own
+/// function so the row is tested without the whole page.
+///
+/// While Keep mining is on the row carries a Stop button (first-hour audit
+/// 2026-10-04, Friction 5): the drone then relaunches after every delivery,
+/// so it is never home, the asteroid cards above ignore clicks while a drone
+/// is out, and the Keep mining box lived only in the asteroid's window, which
+/// only Maps could open. Stop turns Keep mining off (the main loop clears the
+/// standing order); the trip in the air still brings its ore home.
+pub(crate) fn draw_drone_rows(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, tree_force: Option<bool>) {
+    if state.drones.is_empty() {
+        return;
+    }
+    let keep_mining = state.auto_mine_enabled;
+    let mut stop = false;
+    for (di, drone) in state.drones.iter().enumerate() {
+        let (stage, desc) = match drone.phase.as_str() {
+            "Outbound" => ("1/3", "outbound"),
+            "Mining" => ("2/3", "mining"),
+            "Returning" => ("3/3", "returning"),
+            _ => ("done", "delivering"),
+        };
+        let target_name = state
+            .asteroids
+            .iter()
+            .find(|a| a.id == drone.target)
+            .map(|a| a.name.clone())
+            .unwrap_or_else(|| drone.target.clone());
+        widgets::expandable_row(
+            ui,
+            ("mining_drone", di),
+            false,
+            tree_force,
+            |ui| {
+                ui.label(RichText::new(format!("Drone → {target_name}")).size(theme.font_size_small).strong().color(theme.text_primary()));
+                ui.label(RichText::new(format!("· {desc} (stage {stage}) · {:.0} km", drone.distance)).size(theme.font_size_small).color(theme.text_secondary()));
+                ui.add(egui::ProgressBar::new(drone.phase_progress.clamp(0.0, 1.0)).fill(theme.accent()).desired_width(theme.status_bar_width).desired_height(theme.status_bar_height));
+                if keep_mining && widgets::compact_button(ui, theme, "Stop", widgets::ButtonVariant::Secondary) {
+                    stop = true;
+                }
+            },
+            |ui| {
+                let fetching: Vec<String> = drone
+                    .manifest
+                    .iter()
+                    .map(|(o, u)| format!("{}x {}", u, ore_short(o)))
+                    .collect();
+                ui.horizontal(|ui| {
+                    widgets::row_cell(ui, theme.cell_name_width, |ui| {
+                        ui.label(RichText::new("Fetching").size(theme.font_size_small).color(theme.text_muted()));
+                    });
+                    ui.label(RichText::new(fetching.join(", ")).size(theme.font_size_small).color(theme.text_secondary()));
+                });
+                ui.horizontal(|ui| {
+                    widgets::row_cell(ui, theme.cell_name_width, |ui| {
+                        ui.label(RichText::new("Cargo").size(theme.font_size_small).color(theme.text_muted()));
+                    });
+                    ui.label(RichText::new(format!("{} units", drone.cargo_total)).size(theme.font_size_small).color(theme.text_secondary()));
+                });
+            },
+        );
+        // What happens when this trip is home, said under the row.
+        let next = if keep_mining {
+            "Keep mining is on: after each delivery the drone flies this trip again. Stop turns it off; the trip in the air still comes home."
+        } else {
+            "The drone brings this load home and stays docked."
+        };
+        ui.label(RichText::new(next).size(theme.font_size_small).color(theme.text_muted()));
+    }
+    if stop {
+        state.auto_mine_enabled = false;
+    }
+}
+
+/// When the drone ends Keep mining by itself (a trip came back empty, or its
+/// asteroid is gone: `systems::mining`), the box is unticked to match, so the
+/// next trip is not quietly a standing order again. `store_has_order`: the
+/// standing order is still set after this frame's systems tick. The drone
+/// ended it exactly when the box is ticked and was last frame too, a trip has
+/// been launched (ticking the box re-arms the order from that trip, so a box
+/// ticked with one in hand always has an order), and the order is gone. A box
+/// ticked before any launch waits for the launch. Called by the main loop
+/// after the systems tick.
+pub(crate) fn sync_keep_mining(state: &mut GuiState, store_has_order: bool) {
+    if state.auto_mine_enabled && state.prev_auto_mine_enabled && !store_has_order && state.last_drone_order.is_some() {
+        state.auto_mine_enabled = false;
+        state.prev_auto_mine_enabled = false;
+    }
+}
+
 /// A small top-down MINING MAP: home at the centre, each asteroid a dot at its (x, z)
 /// position (labelled with name + distance), and the active drone a dot travelling
 /// along the line to its target — so you can watch the drone go off to mine and come
@@ -1736,7 +1828,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             add: false,
                             wear: it.wear,
                             quality: it.quality,
+                            age_s: it.age_s,
                         });
+                        // Food goes into storage at the age it had (first-hour audit S6).
                         state.placed_items.push(crate::systems::inventory::placed::PlacedItem {
                             key: it.item_id,
                             name: it.name,
@@ -1744,6 +1838,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             container: target,
                             wear: it.wear,
                             quality: it.quality,
+                            age_s: it.age_s,
                         });
                         if state.selected_slot == Some(i) {
                             state.selected_slot = None;
@@ -1758,6 +1853,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             add: true,
                             wear: pi.wear,
                             quality: pi.quality,
+                            age_s: pi.age_s,
                         });
                         state.placed_items.remove(idx);
                         with_placed_sel(|s| *s = None);
@@ -1808,7 +1904,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 add: false,
                                 wear: it.wear,
                                 quality: it.quality,
+                                age_s: it.age_s,
                             });
+                            // Food goes into storage at the age it had (first-hour audit S6).
                             state.placed_items.push(crate::systems::inventory::placed::PlacedItem {
                                 key: it.item_id.clone(),
                                 name: it.name.clone(),
@@ -1816,6 +1914,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 container: target,
                                 wear: it.wear,
                                 quality: it.quality,
+                                age_s: it.age_s,
                             });
                             state.selected_slot = None;
                         }
@@ -1828,6 +1927,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             quantity: pi.qty,
                             wear: pi.wear,
                             quality: pi.quality,
+                            age_s: pi.age_s,
                         };
                         let containers = crate::gui::collect_containers(&state.places);
                         let mut move_to: Option<String> = None;
@@ -1865,12 +1965,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             });
                         });
                         if take_to_backpack {
+                            // Food arrives in the backpack as old as it was in storage (S6).
                             state.pending_inventory_transfers.push(crate::systems::inventory::TransferOp {
                                 item_id: pi.key.clone(),
                                 qty: pi.qty,
                                 add: true,
                                 wear: pi.wear,
                                 quality: pi.quality,
+                                age_s: pi.age_s,
                             });
                             // Remember where it came from: a full backpack sends
                             // the rest back here (lib.rs, after the tick).
@@ -2625,55 +2727,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     }
                 }
                 ui.add_space(theme.spacing_xs);
-                if !state.drones.is_empty() {
-                    // The active drone (one per player) as an aligned EXPANDABLE row
-                    // (v0.414): Stage | status | progress bar in the title row;
-                    // expand for the manifest it's fetching + cargo on board.
-                    for (di, drone) in state.drones.iter().enumerate() {
-                        let (stage, desc) = match drone.phase.as_str() {
-                            "Outbound" => ("1/3", "outbound"),
-                            "Mining" => ("2/3", "mining"),
-                            "Returning" => ("3/3", "returning"),
-                            _ => ("done", "delivering"),
-                        };
-                        let target_name = state
-                            .asteroids
-                            .iter()
-                            .find(|a| a.id == drone.target)
-                            .map(|a| a.name.clone())
-                            .unwrap_or_else(|| drone.target.clone());
-                        widgets::expandable_row(
-                            ui,
-                            ("mining_drone", di),
-                            false,
-                            tree_force,
-                            |ui| {
-                                ui.label(RichText::new(format!("Drone → {target_name}")).size(theme.font_size_small).strong().color(theme.text_primary()));
-                                ui.label(RichText::new(format!("· {desc} (stage {stage}) · {:.0} km", drone.distance)).size(theme.font_size_small).color(theme.text_secondary()));
-                                ui.add(egui::ProgressBar::new(drone.phase_progress.clamp(0.0, 1.0)).fill(theme.accent()).desired_width(theme.status_bar_width).desired_height(theme.status_bar_height));
-                            },
-                            |ui| {
-                                let fetching: Vec<String> = drone
-                                    .manifest
-                                    .iter()
-                                    .map(|(o, u)| format!("{}x {}", u, ore_short(o)))
-                                    .collect();
-                                ui.horizontal(|ui| {
-                                    widgets::row_cell(ui, theme.cell_name_width, |ui| {
-                                        ui.label(RichText::new("Fetching").size(theme.font_size_small).color(theme.text_muted()));
-                                    });
-                                    ui.label(RichText::new(fetching.join(", ")).size(theme.font_size_small).color(theme.text_secondary()));
-                                });
-                                ui.horizontal(|ui| {
-                                    widgets::row_cell(ui, theme.cell_name_width, |ui| {
-                                        ui.label(RichText::new("Cargo").size(theme.font_size_small).color(theme.text_muted()));
-                                    });
-                                    ui.label(RichText::new(format!("{} units", drone.cargo_total)).size(theme.font_size_small).color(theme.text_secondary()));
-                                });
-                            },
-                        );
-                    }
-                }
+                draw_drone_rows(ui, theme, state, tree_force);
                 } // ── end Mining ──
 
                 // ── Vehicles (collapsible, Stage 3 v0.680) — every vehicle standing
@@ -2860,3 +2914,110 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 // TABLE now, not a tree, so the tree-node builders are no longer needed.)
 
 // detail_row moved to crate::gui::widgets::detail_row
+
+#[cfg(test)]
+mod drone_row_tests {
+    use super::*;
+    use crate::gui::screen_surface::find_text_in_shapes;
+
+    fn ctx_and_theme() -> (egui::Context, Theme) {
+        let ctx = egui::Context::default();
+        crate::gui::fonts::install_font_fallbacks(&ctx);
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        (ctx, theme)
+    }
+
+    /// One headless frame of the drone rows in a plain panel, with `events`.
+    fn frame(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, events: Vec<egui::Event>) -> egui::FullOutput {
+        let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1000.0, 400.0));
+        let input = egui::RawInput { screen_rect: Some(screen), events, ..Default::default() };
+        ctx.run(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| draw_drone_rows(ui, theme, state, None));
+        })
+    }
+
+    fn click(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, text: &str) {
+        let out = frame(ctx, theme, state, Vec::new());
+        let pos = find_text_in_shapes(&out.shapes, text).unwrap_or_else(|| panic!("{text} is drawn")).rect.center();
+        let m = egui::Modifiers::default();
+        frame(ctx, theme, state, vec![egui::Event::PointerMoved(pos)]);
+        frame(ctx, theme, state, vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: m }]);
+        frame(ctx, theme, state, vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: m }]);
+    }
+
+    fn flying(state: &mut GuiState) {
+        state.asteroids = vec![GuiAsteroid {
+            id: "m12".into(),
+            name: "Asteroid M-12 (metallic)".into(),
+            classification: "M".into(),
+            ores: vec![("iron_ore_0".into(), 40.0)],
+            position: [60.0, 12.0, -30.0],
+            distance: 68.1,
+        }];
+        state.drones = vec![GuiDrone {
+            manifest: vec![("iron_ore_0".into(), 10)],
+            phase: "Outbound".into(),
+            cargo_total: 0,
+            phase_progress: 0.4,
+            target: "m12".into(),
+            distance: 68.1,
+            pos: [24.0, 4.8, -12.0],
+        }];
+    }
+
+    /// THE DRONE'S ROW HAS A STOP BUTTON while Keep mining is on (first-hour
+    /// audit 2026-10-04, Friction 5): with a standing order the drone is
+    /// never home, the asteroid cards ignore clicks while a drone is out, and
+    /// the Keep mining box was reachable only through Maps. Stop turns Keep
+    /// mining off (the main loop then clears the standing order), the trip in
+    /// the air still brings its ore home, and the row says so. Without Keep
+    /// mining there is nothing to stop and no button.
+    ///
+    /// Seen red 2026-10-04 on the code before the button: "Stop is drawn".
+    #[test]
+    fn the_drone_row_stops_keep_mining() {
+        let (ctx, theme) = ctx_and_theme();
+        let mut gs = GuiState::default();
+        flying(&mut gs);
+        gs.auto_mine_enabled = true;
+        gs.prev_auto_mine_enabled = true;
+        click(&ctx, &theme, &mut gs, "Stop");
+        assert!(!gs.auto_mine_enabled, "Stop turns Keep mining off");
+        let out = frame(&ctx, &theme, &mut gs, Vec::new());
+        assert!(find_text_in_shapes(&out.shapes, "Stop").is_none(), "nothing left to stop");
+        assert!(find_text_in_shapes(&out.shapes, "brings this load home").is_some(), "the row says the trip in the air still comes home");
+    }
+
+    /// The box follows an order the drone ended by itself (an empty trip, or
+    /// its asteroid gone), and only that: a box ticked before any launch, or
+    /// one whose order is still set, stays ticked.
+    ///
+    /// Seen red 2026-10-04 with `sync_keep_mining` doing nothing: "the box is
+    /// unticked when the drone ended the order".
+    #[test]
+    fn keep_mining_unticks_when_the_drone_ends_the_order() {
+        let order = Some(("m12".to_string(), vec![("iron_ore_0".to_string(), 10)]));
+        let mut gs = GuiState::default();
+        gs.auto_mine_enabled = true;
+        gs.prev_auto_mine_enabled = true;
+        gs.last_drone_order = order.clone();
+        sync_keep_mining(&mut gs, true);
+        assert!(gs.auto_mine_enabled, "an order still set keeps the box ticked");
+        sync_keep_mining(&mut gs, false);
+        assert!(!gs.auto_mine_enabled && !gs.prev_auto_mine_enabled, "the box is unticked when the drone ended the order");
+
+        let mut fresh = GuiState::default();
+        fresh.auto_mine_enabled = true;
+        fresh.prev_auto_mine_enabled = true;
+        sync_keep_mining(&mut fresh, false);
+        assert!(fresh.auto_mine_enabled, "ticked before any launch: it waits for the launch");
+
+        let mut ticked_now = GuiState::default();
+        ticked_now.auto_mine_enabled = true;
+        ticked_now.prev_auto_mine_enabled = false;
+        ticked_now.last_drone_order = order;
+        sync_keep_mining(&mut ticked_now, false);
+        assert!(ticked_now.auto_mine_enabled, "ticked this frame: the main loop re-arms it");
+    }
+}

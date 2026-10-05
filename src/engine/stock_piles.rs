@@ -257,12 +257,39 @@ pub fn receive_machine_outputs(state: &mut crate::engine::state::EngineState) {
             .iter_mut()
             .find(|p| p.key == id && p.container == container && p.wear == 0 && p.quality == quality)
         {
+            // What was just made is fresh: the entry takes the average age (S6).
+            p.age_s = crate::systems::inventory::blend_age(p.age_s, p.qty, 0.0, qty);
             p.qty += qty;
         } else {
             let name = reg.and_then(|r| r.items.get(&id).map(|d| d.name.clone())).unwrap_or_else(|| id.clone());
-            pool.push(PlacedItem { key: id, name, qty, container: container.clone(), wear: 0, quality });
+            pool.push(PlacedItem { key: id, name, qty, container: container.clone(), quality, ..Default::default() });
         }
     }
+}
+
+/// Food in home storage ages (2026-10-04, first-hour audit S6): the FoodSystem counts the
+/// time the home's air has given it since the last frame into `food::STORAGE_AGING_KEY`
+/// (game seconds at room temperature, the home air's temperature zone applied), and this
+/// puts it on every food item in the pool: the Barn, the home's other places, a built chest.
+/// Before this only a backpack aged, so stored food never spoiled. Once a frame, after the
+/// tick; the first call registers the slot (nothing is owed before it exists).
+///
+/// KNOWN GAP: a chest built on a planet is aged by the home's air too; what the planet's
+/// own air does to it is not modelled per chest yet.
+pub fn age_home_storage(state: &mut crate::engine::state::EngineState) {
+    use std::sync::Mutex;
+    let key = crate::systems::food::STORAGE_AGING_KEY;
+    if state.data_store.get::<Mutex<f64>>(key).is_none() {
+        state.data_store.insert(key, Mutex::new(0.0_f64));
+        return;
+    }
+    let secs = state
+        .data_store
+        .get::<Mutex<f64>>(key)
+        .and_then(|m| m.lock().ok().map(|mut owed| std::mem::take(&mut *owed)))
+        .unwrap_or(0.0);
+    let food = crate::systems::food::consume_kinds();
+    crate::systems::inventory::placed::age_food(&mut state.gui_state.placed_items, secs, |k| food.contains_key(k));
 }
 
 /// Home storage for this tick (v0.737 for the automated machines; the build
@@ -500,7 +527,7 @@ mod tests {
     use super::*;
 
     fn item(key: &str, qty: u32) -> PlacedItem {
-        PlacedItem { key: key.into(), name: key.into(), qty, container: "Home".into(), wear: 0, quality: 0 }
+        PlacedItem { key: key.into(), name: key.into(), qty, container: "Home".into(), ..Default::default() }
     }
 
     #[test]
@@ -586,6 +613,49 @@ mod tests {
         let barn = store_path(&places, &rooms).expect("the seeded barn");
         assert!(in_storage_room(&places, &barn, &rooms));
         assert!(pool.iter().any(|p| p.key == "grain_wheat_0" && p.container == barn));
+    }
+
+    /// THE STARTING BARN HOLDS COAL FOR THE FIRST QUEST'S INGOT, AND A LITTLE
+    /// MORE (first-hour audit 2026-10-04, Friction 4). First Steps asks for an
+    /// iron ingot from the smelter, whose recipe burns coal, and a new home had
+    /// neither coal nor graphite: the smelter just waited, with nothing in the
+    /// game saying where fuel comes from. The need is computed from the data
+    /// (the smelter's own recipe, the quest's own count), so a change to either
+    /// keeps this honest.
+    ///
+    /// Seen red 2026-10-04 on the seed before the coal: "the barn's 0 coal
+    /// covers the first quest's 1 ingot and a little more".
+    #[test]
+    fn the_starting_barn_holds_coal_for_the_first_ingot() {
+        use crate::systems::quests::objectives::QuestObjective;
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let home = crate::machines::MachineHome::load(&crate::machines::home_ron_path(&root)).expect("home.ron");
+        let recipe_id = home.catalog.get("smelter").and_then(|d| d.auto_recipe.clone()).expect("the smelter runs a recipe");
+        let recipes = crate::systems::crafting::RecipeRegistry::from_csv(&std::fs::read(root.join("recipes.csv")).unwrap()).unwrap();
+        let smelt = recipes.recipes.get(&recipe_id).expect("the smelter's recipe");
+        let coal_per_batch = smelt.inputs.iter().find(|(id, _)| id == "coal_0").map(|(_, q)| *q).expect("it burns coal");
+        let ingots_per_batch = smelt.outputs.iter().find(|(id, _)| id == "iron_ingot_0").map(|(_, q)| *q).expect("it makes iron");
+        let quests = crate::systems::quests::QuestRegistry::from_ron_dir(&root.join("quests"));
+        let first_steps = quests.get("gs_first_steps").expect("First Steps");
+        let ingots: u32 = first_steps
+            .steps
+            .iter()
+            .find_map(|s: &crate::systems::quests::QuestStep| match &s.objective {
+                QuestObjective::Make { item_id, quantity } if item_id == "iron_ingot_0" => Some(*quantity),
+                _ => None,
+            })
+            .expect("First Steps makes an iron ingot");
+        let need = ingots.div_ceil(ingots_per_batch) * coal_per_batch;
+
+        let places = crate::gui::load_places(&root);
+        let pool = crate::gui::flatten_placed_items(&places);
+        let rooms = vec!["Barn".to_string()];
+        let coal: u32 = pool
+            .iter()
+            .filter(|p| p.key == "coal_0" && in_storage_room(&places, &p.container, &rooms))
+            .map(|p| p.qty)
+            .sum();
+        assert!(coal > need, "the barn's {coal} coal covers the first quest's {ingots} ingot and a little more");
     }
 
     /// The Barn's crates sit ON the rack decks the mesh bake builds: every

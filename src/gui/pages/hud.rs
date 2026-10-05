@@ -625,16 +625,16 @@ pub fn draw(
                 );
             }
             // Walk-up interaction prompt at the crosshair (v0.431): looking at a machine
-            // within reach shows [E] open/close.
+            // within reach shows [E] open/close, or what E does at a machine that is
+            // used (the home's bed: "[E] sleep in the Bed", first-hour audit F5).
             if state.npc_prompt.is_empty() && !e_builds {
                 if let Some(i) = state.targeted_machine {
                     if let Some(label) = state.machine_labels.get(i) {
-                        let verb = if state.selected_machine == Some(i) { "close" } else { "open" };
                         text_shadowed(
                             painter,
                             Pos2::new(center.x, center.y + 22.0),
                             Align2::CENTER_TOP,
-                            &format!("[E] {} {}", verb, label.name),
+                            &label.prompt(state.selected_machine == Some(i)),
                             13.0,
                             theme.accent(),
                         );

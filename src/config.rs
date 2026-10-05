@@ -333,6 +333,11 @@ pub struct AppConfig {
     /// false in GuiState, see Default impl, so they DO see the tour.
     #[serde(default = "default_true")]
     pub concept_tour_seen: bool,
+    /// The first entry into the world showed the controls hint (first-hour audit 2026-10-04,
+    /// Friction 1; gui/first_steps.rs), which is shown once ever. Absent = not yet shown, so an
+    /// existing install sees it once too (a rig's autopilot marks it shown).
+    #[serde(default)]
+    pub controls_hint_shown: bool,
     // Settings
     #[serde(default = "default_fov")]
     pub fov: f32,
@@ -1355,6 +1360,7 @@ impl AppConfig {
             context_real: true,
             completed_onboarding: state.onboarding_complete,
             concept_tour_seen: state.concept_tour_seen,
+            controls_hint_shown: state.controls_hint_shown,
             fov: state.settings.fov,
             mouse_sensitivity: state.settings.mouse_sensitivity,
             invert_y: state.settings.invert_y,
@@ -1523,6 +1529,7 @@ impl AppConfig {
         // v0.197.0: context_real removed from GuiState — apply step skipped.
         state.onboarding_complete = self.completed_onboarding;
         state.concept_tour_seen = self.concept_tour_seen;
+        state.controls_hint_shown = self.controls_hint_shown;
         state.settings.fov = self.fov;
         // Guard against a non-positive saved value (a 0.0 would freeze the camera look).
         state.settings.mouse_sensitivity = if self.mouse_sensitivity > 0.0 {
@@ -1794,6 +1801,15 @@ impl AppConfig {
         // Play opens the picker and the next Enter records one.
         state.launcher_last_character = self.default_character.clone();
         state.launcher_last_world = self.last_world.clone();
+        // The solo start a relaunch keeps (first-hour audit 2026-10-04, Blocker 1 and Friction
+        // 10). A home pairing plays SOLO, so whatever takes the player into the world after a
+        // relaunch (Esc, the hub's Enter World, Play) keeps them in their own home and the join
+        // gate out of the shared world, as Play's replay of the pairing always did
+        // (`GuiState::apply_last_pairing`). `copresence_solo` itself is never saved: the step-outs
+        // for Dev travel set it for a moment, and the pairing is the player's own choice. A
+        // server pairing is shared, and no pairing at all (a config from before pairings, a rig's
+        // fresh folder) keeps the shared default the copresence rigs rely on.
+        state.copresence_solo = self.last_world.starts_with("home:");
         state.donate_addresses = self.donate_addresses.iter().map(|a| crate::gui::DonateAddress {
             network: a.network.clone(),
             addr_type: a.addr_type.clone(),

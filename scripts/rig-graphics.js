@@ -80,6 +80,9 @@ const NOT_VISUAL = new Set([
   "context_real",
   "completed_onboarding",
   "concept_tour_seen",
+  // The once-ever controls hint (2026-10-04): the operator's "already shown" must never be
+  // mirrored into a rig, whose autopilot marks it shown itself.
+  "controls_hint_shown",
   "onboarding_quest_progress",
   "mouse_sensitivity",
   "invert_y",

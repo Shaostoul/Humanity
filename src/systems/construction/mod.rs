@@ -315,10 +315,22 @@ pub fn built_station_types_where(
 /// where only what the player carries can be used (the home's storage is in
 /// orbit; the planet-build review, 2026-09-27).
 pub fn materials_short(bp: &Blueprint, pack: impl Fn(&str) -> u32, stores: Option<&dyn Fn(&str) -> u32>) -> Option<(String, u32)> {
-    bp.materials.iter().find_map(|(id, qty)| {
-        let have = pack(id) + stores.map_or(0, |s| s(id));
-        (have < *qty).then(|| (id.clone(), qty - have))
-    })
+    materials_missing(bp, pack, stores).into_iter().next()
+}
+
+/// Every material a build of `bp` is short of, with how many more of each, in
+/// the blueprint's order; empty when there is enough. The same count as
+/// `materials_short`, which is its first entry: the build refuses on it, and
+/// the crosshair names all of them (engine::build_place, first-hour audit
+/// Friction 8).
+pub fn materials_missing(bp: &Blueprint, pack: impl Fn(&str) -> u32, stores: Option<&dyn Fn(&str) -> u32>) -> Vec<(String, u32)> {
+    bp.materials
+        .iter()
+        .filter_map(|(id, qty)| {
+            let have = pack(id) + stores.map_or(0, |s| s(id));
+            (have < *qty).then(|| (id.clone(), qty - have))
+        })
+        .collect()
 }
 
 /// Registry of all available blueprints.
