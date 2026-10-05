@@ -3664,3 +3664,31 @@ as fast as in an empty folder), but it is disk and directory growth with no end.
 (and a database's -wal and -shm) when the test ends, used by all 54 files; and a one-time
 sweep of `hum_*` files older than a day from a dev recipe, never while a test run is
 going.
+
+## BUG-160: an empty server address turns into the live server, and five rigs sent one (rigs FIXED v0.1462.0; the game OPEN, found 2026-10-05)
+
+**Seen:** v0.1462.0's screens check failed `no_builtin_data`. Its game identified on the
+live server (wss://united-humanity.us/ws), read its chat, tried to join its shared world
+and was refused its ship, although the rig had pinned the sandbox's config to a dead
+loopback port (http://127.0.0.1:9; scripts/lib/rig-gameplay.js). Two faults together:
+
+1. **The rigs (FIXED v0.1462.0).** Five rigs (boot-timing, make-clips, photograph-home,
+   probe-sweep, verify-screens) sent `{ server_url: "" }` in their autopilot request, and
+   the game applies that over the pinned config (src/engine/ipc.rs,
+   `poll_autopilot_request`). They now send no address, so the pin stands. A rig test,
+   "no rig's autopilot request sends an empty or public server address"
+   (scripts/tests/rig-gameplay.test.js), refuses either in any rig's request; the one
+   deliberate clear, verify-live-screen's "No server set" step, carries the marker
+   `rig-clears-server:`. Seen red first: run over the committed scripts, the check listed
+   all six. The screens check then passed on the same build.
+2. **The game (OPEN, for v0.1463.0).** Drawing the chat page's connect form fills an empty
+   server address with the live server's (src/gui/pages/chat/left_panel.rs, `if
+   state.server_url.is_empty() { state.server_url = "https://united-humanity.us" }`), and
+   the auto-connect then dials it. So a player who cleared their server is put back on the
+   live server just by opening Chat, without pressing anything. Drawing a page must not
+   change which server you are on: show the official server as a suggestion in the empty
+   field and use it only when the person presses Connect, with a test that draws the page
+   with no server and finds none set.
+
+Checked 2026-10-05 (read-only): no member has joined the live server since 2026-10-01, so
+today's rig visits left no rows in its member list.

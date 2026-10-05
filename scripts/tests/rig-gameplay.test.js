@@ -313,3 +313,40 @@ test("mirroring the operator's graphics into a rig never copies the play mode or
   assert.strictEqual(G.classifyKey("saved_servers"), "private");
   assert.strictEqual(G.classifyKey("server_url"), "private");
 });
+
+// THE AUTOPILOT REQUEST CANNOT UNDO THE PIN (2026-10-05, BUG-160). The game applies the
+// request's server_url over the pinned config (src/engine/ipc.rs poll_autopilot_request), and an
+// empty one does not mean no server: the chat page fills an empty address with the live
+// server's (src/gui/pages/chat/left_panel.rs) and the auto-connect then dials it. Five rigs sent
+// { server_url: "" }, and verify-screens' v0.1462.0 run identified on the live server, read its
+// chat and was refused its ship. So a rig's autopilot request names no server (the pin stands)
+// or its own relay through a variable; the one deliberate clear, verify-live-screen's "No server
+// set" step, carries the marker `rig-clears-server:`.
+//
+// RED FIRST: against the scripts as they were (git show HEAD:scripts/<name>), this check listed
+// boot-timing.js, make-clips.js, photograph-home.js, probe-sweep.js, verify-live-screen.js and
+// verify-screens.js.
+function autopilotServerProblems(name, text) {
+  const problems = [];
+  text.split(/\r?\n/).forEach((line, i) => {
+    if (!line.includes("autopilot_request.json") || line.includes("rig-clears-server:")) return;
+    const m = line.match(/server_url\s*:\s*(?:"([^"]*)"|'([^']*)')/);
+    if (!m) return; // no server_url (the pin stands), or the rig's own relay through a variable
+    const v = m[1] !== undefined ? m[1] : m[2];
+    if (v === "" || RG.namesPublicServer(v)) problems.push(`${name}:${i + 1}: ${line.trim()}`);
+  });
+  return problems;
+}
+
+test("no rig's autopilot request sends an empty or public server address", () => {
+  const dir = path.join(REPO, "scripts");
+  const problems = [];
+  for (const f of fs.readdirSync(dir).filter((f) => f.endsWith(".js"))) {
+    problems.push(...autopilotServerProblems(f, fs.readFileSync(path.join(dir, f), "utf8")));
+  }
+  assert.deepStrictEqual(problems, []);
+  // The check itself catches the two shapes the rigs used.
+  assert.strictEqual(autopilotServerProblems("x", `req("autopilot_request.json", { server_url: "" });`).length, 1);
+  assert.strictEqual(autopilotServerProblems("x", `JSON.stringify({ server_url: "https://united-humanity.us" }) // autopilot_request.json`).length, 1);
+  assert.strictEqual(autopilotServerProblems("x", `req("autopilot_request.json", { server_url: relay.httpUrl });`).length, 0);
+});

@@ -11,6 +11,13 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1462.0: room for twelve households aboard.** The mothership now has
+  twelve homestead plots along a First Street over a kilometre long, so a shared
+  server can give twelve players a home of their own; the thirteenth arrives as a
+  guest and is told so. Players near each other see each other, and the far end of
+  the street is out of sight from the Commons. Also fixed: two of the game's data
+  files (docking ports and space infrastructure) were being silently ignored.
+
 - **v0.1461.0: a real game from the first minute.** A fresh install now
   starts in Normal mode with your progress kept between sessions: things are
   used up, tools wear, and nothing is free. Your first ten minutes walk you
