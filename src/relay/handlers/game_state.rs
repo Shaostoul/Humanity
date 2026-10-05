@@ -1826,13 +1826,7 @@ mod tests {
     /// Throwaway on-disk DB with the full relay schema (mirrors the storage
     /// modules' per-test helper).
     fn make_test_storage() -> crate::relay::storage::Storage {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_gameworld_test_{pid}_{nanos}.db"));
-        crate::relay::storage::Storage::open(&path).expect("open test db")
+        crate::relay::storage::Storage::open_temp("gameworld_test")
     }
 
     /// save_to_db → restore_from_db must reconstruct the dynamic world:

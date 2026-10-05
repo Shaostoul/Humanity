@@ -376,10 +376,9 @@ mod tests {
     /// A throwaway data dir holding the tree's ship file and machine files and the SHIPPED
     /// homestead design (never the developer's own data/homes/homestead.ron, which an editor
     /// Save rewrites).
-    fn data_dir(tag: &str) -> std::path::PathBuf {
+    fn data_dir(tag: &str) -> crate::test_temp::TempPath {
         let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
-        let dir = std::env::temp_dir().join(format!("hos_own_home_{tag}_{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = crate::test_temp::path(&format!("own_home_{tag}"));
         for rel in ["blueprints/ship_structure.ron", "machines/home.ron", "machines/ship.ron"] {
             let to = dir.join(rel);
             std::fs::create_dir_all(to.parent().unwrap()).unwrap();
@@ -488,7 +487,6 @@ mod tests {
         // And the wall: the world load puts the save's design on the plot.
         let ship = crate::engine::home_plot::assemble_for_boot(&dir, &next).expect("assembles");
         assert_eq!(walls(&ship), walls_before + 1, "the wall comes back after a save and a load");
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// A DEV-MODE PLACEMENT STILL GOES TO THE DATA FILES: the operator authors the default home
@@ -516,7 +514,6 @@ mod tests {
         assert!(!text.contains("paid"), "home.ron carries no payments");
         let design = HomeDesign::load(&dir, "homestead").expect("the home design loads");
         assert_eq!(design.body.walls.len(), walls_before + 1, "the wall is in data/homes/homestead.ron");
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// The own home is the save's only outside Dev: in the Dev mode a save's own home is kept as
@@ -538,7 +535,6 @@ mod tests {
         assert!(dev.own_home.is_some(), "but keeps it, to write back into the save");
         assert!(!dev.home_machines.as_ref().unwrap().instances.iter().any(|i| i.id == id));
         assert!(design_in_effect(&dev).is_none());
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// Removing a paid machine gives its payment back, by any path (the ledger is pruned against
@@ -563,7 +559,6 @@ mod tests {
         home.remove_instance(&id);
         assert_eq!(home.take_unplaced_payments(), vec![(id.clone(), "smelter_0".to_string())]);
         assert!(home.take_unplaced_payments().is_empty(), "a payment is given back once");
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// Where a payment goes back: the backpack when it fits, else the home's storage channel.

@@ -389,11 +389,8 @@ pub fn migrate_to_per_user() -> Result<String, String> {
 mod tests {
     use super::*;
 
-    fn tmp(name: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("hos_storage_test_{name}_{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&d);
-        std::fs::create_dir_all(&d).unwrap();
-        d
+    fn tmp(name: &str) -> crate::test_temp::TempPath {
+        crate::test_temp::dir(&format!("storage_test_{name}"))
     }
 
     #[test]
@@ -522,6 +519,5 @@ mod tests {
         let saved = std::fs::read_to_string(&path).unwrap();
         assert!(!claims_shipped(&saved), "after a Save the own home claims to be the shipped default: {:?}", saved.lines().next());
         assert!(saved.starts_with("// HumanityOS home design"), "a Save keeps the own-home header: {:?}", saved.lines().next());
-        let _ = std::fs::remove_dir_all(&data);
     }
 }

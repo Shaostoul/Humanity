@@ -2250,13 +2250,10 @@ mod tests {
         }
     }
 
-    /// A unique temp path for a round-trip test (no tempfile dep in the crate).
-    fn temp_path(name: &str) -> std::path::PathBuf {
-        let n = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        std::env::temp_dir().join(format!("hos_ship_structure_{name}_{n}"))
+    /// A unique temp path for a round-trip test, deleted with whatever the test made there
+    /// when the guard is dropped (BUG-159). Nothing is created.
+    fn temp_path(name: &str) -> crate::test_temp::TempPath {
+        crate::test_temp::path(&format!("ship_structure_{name}"))
     }
 
     #[test]
@@ -2276,7 +2273,6 @@ mod tests {
         // The saved file leads with a comment header (the header-preserving save discipline).
         let text = std::fs::read_to_string(&path).unwrap();
         assert!(text.starts_with("//"), "save writes a comment header");
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -2291,7 +2287,6 @@ mod tests {
         // Serialize WITHOUT validating (save doesn't validate; load does).
         ship.save(&path).unwrap();
         assert!(ShipStructure::load(&path).is_none(), "an invalid file must not load");
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -2423,7 +2418,6 @@ mod tests {
         assert!((back.corridors[0].door_width - 1.0).abs() < 1e-6);
         assert!((back.corridors[0].door_height - 2.1).abs() < 1e-6);
         assert!(!back.corridors[0].glass_top);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -2455,7 +2449,6 @@ mod tests {
         assert_eq!(back.zones.len(), 2, "every zone kept");
         assert!(back.corridors.is_empty(), "the unresolvable corridor was pruned");
         assert!(path.exists(), "a recoverable file is never quarantined");
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -2473,7 +2466,6 @@ mod tests {
             .filter_map(|e| e.ok())
             .any(|e| e.file_name().to_string_lossy().starts_with("ship_structure.invalid-"));
         assert!(quarantined, "the bad file is preserved under ship_structure.invalid-<ts>.ron");
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -3250,7 +3242,7 @@ mod tests {
     /// header, `get_embedded`), never the checkout's data/homes/homestead.ron, the developer's
     /// own home (with one wall added there by an editor Save, `save_assembled_never_writes_the_
     /// shipped_home_default` failed "the player's own home has the new wall: left 29, right 28").
-    fn temp_data_dir(name: &str) -> std::path::PathBuf {
+    fn temp_data_dir(name: &str) -> crate::test_temp::TempPath {
         let dir = temp_path(name);
         let ship = dir.join(SHIP_FILE);
         std::fs::create_dir_all(ship.parent().unwrap()).unwrap();
@@ -3332,7 +3324,6 @@ mod tests {
         let e = ship.save_assembled(&dir, true).expect_err("an overlapping ship is not saved");
         assert!(e.contains("the ship was NOT saved") && e.contains("overlaps"), "got: {e}");
         assert_eq!(std::fs::read(&ship_path).unwrap(), before);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// The Dev Plots and Districts panel edits the ship file through these, and what it does
@@ -3392,7 +3383,6 @@ mod tests {
         assert!(id.starts_with("hangar-") && ship.districts.iter().any(|d| d.id == id));
         assert_ne!(ship.add_district("hangar", (0.0, 0.0, 0.0), (1.0, 1.0, 1.0)), id, "a fresh id each time");
         assert!(ship.remove_district(&id) && !ship.districts.iter().any(|d| d.id == id));
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// The districts draw at ship level: each non-residential district's filler, and nothing
@@ -3590,12 +3580,10 @@ mod plot_handout_tests {
     /// ship, from the copies built into the exe.
     #[test]
     fn a_relay_with_no_data_folder_hands_out_the_same_plots() {
-        let empty = std::env::temp_dir().join(format!("hum_no_data_{}", std::process::id()));
-        let _ = std::fs::create_dir_all(&empty);
+        let empty = crate::test_temp::dir("no_data");
         let built_in = ShipPlots::load(&empty).expect("the built-in copies load");
         let on_disk = ShipPlots::load(&data_dir()).expect("the data folder loads");
         assert_eq!(built_in, on_disk, "the exe's copy is the data folder's ship");
-        let _ = std::fs::remove_dir_all(&empty);
     }
 
     /// MORE HOMES ALONG FIRST STREET (2026-10-04, the operator's accepted recommendation: "add
@@ -3667,7 +3655,7 @@ mod plot_handout_tests {
     /// was moved aside as ship_structure.invalid-<time>.ron (see logs/run.log)\")".
     #[test]
     fn a_relay_whose_ship_file_does_not_load_keeps_the_built_in_ship() {
-        let dir = std::env::temp_dir().join(format!("hum_bad_ship_{}_{}", std::process::id(), line!()));
+        let dir = crate::test_temp::path("bad_ship");
         let file = dir.join(SHIP_FILE);
         std::fs::create_dir_all(file.parent().unwrap()).unwrap();
         std::fs::write(&file, "( this is not a ship").unwrap();
@@ -3677,7 +3665,6 @@ mod plot_handout_tests {
         assert!(!file.exists(), "the broken file was moved aside");
         let kept = std::fs::read_dir(file.parent().unwrap()).unwrap().filter_map(|e| e.ok()).any(|e| e.file_name().to_string_lossy().contains("invalid-"));
         assert!(kept, "and kept for recovery by hand");
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// The fingerprint: the same for the ship file and any ship assembled from it (whichever

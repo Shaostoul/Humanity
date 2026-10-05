@@ -482,13 +482,7 @@ mod tests {
         use futures::{SinkExt, StreamExt};
 
         // --- A relay with one registered name, "streamer", owned by a test key.
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path =
-            std::env::temp_dir().join(format!("hum_live_{}_{nanos}.db", std::process::id()));
-        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+        let db = crate::relay::storage::Storage::open_temp("live");
 
         let seed = [7u8; 32];
         let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
@@ -594,8 +588,6 @@ mod tests {
             frame,
             "the late viewer must receive the CACHED keyframe"
         );
-
-        let _ = std::fs::remove_file(&path);
     }
 
     /// WHEN THE PUBLISHER STOPS, THE VIEWERS ARE TOLD. Found by the
@@ -615,13 +607,7 @@ mod tests {
         use axum::routing::get;
         use futures::{SinkExt, StreamExt};
 
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path =
-            std::env::temp_dir().join(format!("hum_live_end_{}_{nanos}.db", std::process::id()));
-        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+        let db = crate::relay::storage::Storage::open_temp("live_end");
 
         let seed = [11u8; 32];
         let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
@@ -706,8 +692,6 @@ mod tests {
             Ok(true),
             "a viewer must be closed when its publisher stops, not left waiting on a dead stream"
         );
-
-        let _ = std::fs::remove_file(&path);
     }
 
     /// A key with no registered name cannot publish. The stream id is the name, so
@@ -718,13 +702,7 @@ mod tests {
         use axum::routing::get;
         use futures::{SinkExt, StreamExt};
 
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path =
-            std::env::temp_dir().join(format!("hum_live_unreg_{}_{nanos}.db", std::process::id()));
-        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+        let db = crate::relay::storage::Storage::open_temp("live_unreg");
         let state = Arc::new(RelayState::new(db));
 
         let app = axum::Router::new()
@@ -761,8 +739,6 @@ mod tests {
         let reply = sock.next().await.unwrap().unwrap().into_text().unwrap();
         let v: serde_json::Value = serde_json::from_str(&reply).unwrap();
         assert_eq!(v["ok"], false, "an unregistered key must be refused");
-
-        let _ = std::fs::remove_file(&path);
     }
 
     /// A forged signature must be refused. This is the whole authorization gate: if
@@ -772,13 +748,7 @@ mod tests {
         use axum::routing::get;
         use futures::{SinkExt, StreamExt};
 
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path =
-            std::env::temp_dir().join(format!("hum_live_forge_{}_{nanos}.db", std::process::id()));
-        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+        let db = crate::relay::storage::Storage::open_temp("live_forge");
 
         let seed = [7u8; 32];
         let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
@@ -817,8 +787,6 @@ mod tests {
         let reply = sock.next().await.unwrap().unwrap().into_text().unwrap();
         let v: serde_json::Value = serde_json::from_str(&reply).unwrap();
         assert_eq!(v["ok"], false, "a forged signature must never be accepted");
-
-        let _ = std::fs::remove_file(&path);
     }
 
     #[tokio::test]

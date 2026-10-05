@@ -71,6 +71,9 @@ pub mod boot_timing;
 /// (BUG-152). Test builds only.
 #[cfg(test)]
 pub(crate) mod test_clock;
+/// Temporary files and folders that tests delete when done (BUG-159). Test builds only.
+#[cfg(test)]
+pub(crate) mod test_temp;
 
 #[cfg(feature = "relay")]
 pub mod relay;

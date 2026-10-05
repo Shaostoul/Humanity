@@ -214,6 +214,12 @@ pub struct Storage {
     /// `erased-accounts.key`): this run uses a secret of its own, so the erases remembered now
     /// are forgotten at the next start. Reported by /health (`erase_memory`) and `just brief`.
     pub(crate) erase_secret_kept: bool,
+    /// Test builds only (BUG-159): the temporary database (or folder) this storage was opened
+    /// on by `open_temp`, `open_temp_dir` or `open_sharing`, deleted when the last holder of it
+    /// is dropped. Declared last so it is dropped after the writer and the read pool have
+    /// closed the file.
+    #[cfg(test)]
+    pub(crate) temp: Option<std::sync::Arc<crate::test_temp::TempPath>>,
 }
 
 /// Shared timestamp helper used by multiple submodules.
@@ -2368,7 +2374,47 @@ impl Storage {
 
         info!("Database opened: {}", path.display());
         let (erase_secret, erase_secret_kept) = erased_accounts::load_secret(path);
-        Ok(Self { conn: Mutex::new(conn), read_pool, erase_secret, erase_secret_kept })
+        Ok(Self {
+            conn: Mutex::new(conn),
+            read_pool,
+            erase_secret,
+            erase_secret_kept,
+            #[cfg(test)]
+            temp: None,
+        })
+    }
+
+    /// Tests only (BUG-159): a fresh database in the temp folder
+    /// (`hum_<tag>_<pid>_<nanos>_<n>.db`), deleted with its `-wal` and `-shm` files when this
+    /// storage is dropped. The guard rides inside the storage, so a relay built on it keeps
+    /// the files exactly as long as it keeps the database, whoever drops it last. A test that
+    /// reopens the same file holds a `crate::test_temp::db` guard itself and uses `open`.
+    #[cfg(test)]
+    pub(crate) fn open_temp(tag: &str) -> Self {
+        Self::open_sharing(&std::sync::Arc::new(crate::test_temp::db(tag)))
+    }
+
+    /// Tests only (BUG-159): a fresh `relay.db` in a new temp folder of its own, for a test
+    /// whose database must not share what is made beside it (the erased-accounts secret, a
+    /// backups folder). The storage keeps the folder's guard, so the folder goes when it does.
+    #[cfg(test)]
+    pub(crate) fn open_temp_dir(tag: &str) -> Self {
+        let dir = crate::test_temp::dir(tag);
+        let mut storage = Self::open(&dir.join("relay.db")).expect("open test db");
+        storage.temp = Some(std::sync::Arc::new(dir));
+        storage
+    }
+
+    /// Tests only (BUG-159): open the database at `guard`'s path and keep a share of the
+    /// guard, so the files are deleted only once the test's own handle and every storage
+    /// opened this way on it are gone. For a relay a test starts (and may restart) on one
+    /// file: the relay's tasks hold its storage past the end of the test body, until the
+    /// runtime drops them, and the files must outlive the last of them.
+    #[cfg(test)]
+    pub(crate) fn open_sharing(guard: &std::sync::Arc<crate::test_temp::TempPath>) -> Self {
+        let mut storage = Self::open(guard).expect("open test db");
+        storage.temp = Some(guard.clone());
+        storage
     }
 }
 
@@ -2465,15 +2511,8 @@ mod resilient_open_tests {
     //! (Err) rather than silently wipe or run corrupt.
     use super::*;
 
-    fn tmp_dir(tag: &str) -> std::path::PathBuf {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let dir = std::env::temp_dir().join(format!("hum_resilient_{tag}_{pid}_{nanos}"));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
+    fn tmp_dir(tag: &str) -> crate::test_temp::TempPath {
+        crate::test_temp::dir(&format!("resilient_{tag}"))
     }
 
     /// Create a real, healthy relay DB at `path` with one known message

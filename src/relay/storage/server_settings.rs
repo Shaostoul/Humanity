@@ -489,13 +489,7 @@ mod tests {
     use super::*;
 
     fn fresh_db() -> Storage {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_srvset_{pid}_{nanos}.db"));
-        Storage::open(&path).expect("open test db")
+        Storage::open_temp("srvset")
     }
 
     /// PQ Inc 3: require_pq_signatures must default OFF and round-trip
@@ -689,12 +683,7 @@ mod tests {
     /// extended_code: 1 }, msg: \"no such column: world_time_scale\", ...".
     #[test]
     fn a_server_from_before_the_world_clock_upgrades_to_real_time() {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_srvset_clock_{pid}_{nanos}.db"));
+        let path = crate::test_temp::db("srvset_clock");
         {
             let db = Storage::open(&path).expect("open");
             let mut s = db.get_server_settings().expect("get");
@@ -716,8 +705,6 @@ mod tests {
         assert_eq!(got.world_time_scale, 1.0, "the upgrade starts the clock at 1x (real time)");
         assert_eq!(got.message_retention_days, 7, "the owner's settings are kept");
         assert_eq!(got.dm_mailbox_ttl_days, 10);
-        drop(db);
-        let _ = std::fs::remove_file(&path);
     }
 
     /// The two erased-accounts settings (BUG-135, 2026-10-04) default to 30 days and 100,000
@@ -759,12 +746,7 @@ mod tests {
     /// the guarded ALTER runs the real migration path.
     #[test]
     fn upgrade_from_pre_p2p_server_settings_schema_does_not_panic() {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_srvset_upg_{pid}_{nanos}.db"));
+        let path = crate::test_temp::db("srvset_upg");
 
         // 1. Fresh DB, then simulate an operator who tuned settings
         //    BEFORE this migration existed.
@@ -805,6 +787,5 @@ mod tests {
             got.max_total_upload_mb, 4321,
             "operator's pre-migration int MUST be preserved (non-destructive upgrade)"
         );
-        let _ = std::fs::remove_file(&path);
     }
 }

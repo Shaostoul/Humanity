@@ -363,14 +363,8 @@ mod tests {
     /// under test, so none of them changes the process working directory:
     /// that is shared by every test thread, and changing it used to make
     /// any other test reading a relative path flaky while this one ran.
-    fn scratch(tag: &str) -> std::path::PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let dir = std::env::temp_dir().join(format!("hum_backup_{tag}_{}_{nanos}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
+    fn scratch(tag: &str) -> crate::test_temp::TempPath {
+        crate::test_temp::dir(&format!("backup_{tag}"))
     }
 
     /// The names in `dir` that a press of Back up now could have written.
@@ -422,9 +416,6 @@ mod tests {
         assert_eq!(n, 1, "snapshot missing the written row");
 
         assert_eq!(list_backups_in(&bdir).len(), 1, "panel list sees the snapshot");
-        drop(snap);
-        drop(db);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// Pressing Back up now MANUAL_BACKUPS_KEPT + 3 times leaves exactly
@@ -463,8 +454,6 @@ mod tests {
             "only the newest {MANUAL_BACKUPS_KEPT} manual copies remain"
         );
         assert_eq!(list_backups_in(&bdir).len(), MANUAL_BACKUPS_KEPT, "the panel lists the same count");
-        drop(db);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// Pruning manual copies never touches the scheduled snapshots in the
@@ -513,8 +502,6 @@ mod tests {
             assert_eq!(body.unwrap(), name.as_bytes(), "{name} was rewritten");
         }
         assert_eq!(manual_names(&bdir).len(), MANUAL_BACKUPS_KEPT, "manual copies still capped");
-        drop(db);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// When the clock has gone back, so a copy already in the folder is
@@ -583,8 +570,6 @@ mod tests {
             "pruning resumes once the clock passes the future-dated copies"
         );
         assert_eq!(manual_names(&bdir).len(), MANUAL_BACKUPS_KEPT);
-        drop(db);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// The copy a press just made keeps the first slot even when another
@@ -622,7 +607,6 @@ mod tests {
             ]),
             "the rest are removed, named oldest first"
         );
-        let _ = std::fs::remove_dir_all(&dir);
 
         let dir = scratch("slot0");
         for n in ["manual-1.db.enc", "manual-2.db.enc"] {
@@ -634,7 +618,6 @@ mod tests {
             "the copy just made was deleted with nothing kept: manual-2.db.enc"
         );
         assert_eq!(out, PruneOutcome::Removed(vec!["manual-1.db.enc".to_string()]));
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// The admin's confirmation names every copy the press deleted (critic's
@@ -697,7 +680,5 @@ mod tests {
             )),
             "the reply names them oldest first: {reply}"
         );
-        drop(db);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }

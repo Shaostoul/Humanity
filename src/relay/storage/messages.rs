@@ -349,13 +349,7 @@ mod anti_spam_helpers_tests {
     use super::*;
 
     fn fresh_db() -> Storage {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_anti_spam_{pid}_{nanos}.db"));
-        Storage::open(&path).expect("open test db")
+        Storage::open_temp("anti_spam")
     }
 
     #[test]
@@ -434,13 +428,7 @@ mod link_code_tests {
     use super::*;
 
     fn fresh_db() -> Storage {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_link_code_{pid}_{nanos}.db"));
-        Storage::open(&path).expect("open test db")
+        Storage::open_temp("link_code")
     }
 
     #[test]

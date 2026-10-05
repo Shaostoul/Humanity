@@ -315,13 +315,7 @@ mod tests {
     use crate::relay::core::pq_crypto::DilithiumKeypair;
 
     fn make_test_storage() -> Storage {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_trust_test_{pid}_{nanos}.db"));
-        Storage::open(&path).expect("open test db")
+        Storage::open_temp("trust_test")
     }
 
     fn make_vouch(issuer: &DilithiumKeypair, subject_did: &str, suffix: &str) -> crate::relay::core::object::Object {

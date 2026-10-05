@@ -740,11 +740,8 @@ mod tests {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("fixtures").join("media")
     }
 
-    fn scratch(name: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("hum_transcode_{name}_{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&d);
-        std::fs::create_dir_all(&d).unwrap();
-        d
+    fn scratch(name: &str) -> crate::test_temp::TempPath {
+        crate::test_temp::dir(&format!("transcode_{name}"))
     }
 
     /// The MP4 fixture (H.264 + AAC) is refused by the player's probe, and
@@ -835,7 +832,6 @@ mod tests {
         assert_ne!(cache_key(&g).unwrap(), k4);
 
         assert_eq!(cache_path_in(&d, &g).unwrap(), d.join(format!("{}.webm", cache_key(&g).unwrap())));
-        let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]
@@ -908,7 +904,6 @@ mod tests {
         // outright; whatever that finds is not this scratch file.
         let missing = d.join("nowhere").display().to_string();
         assert_ne!(find_ffmpeg(&missing), Some(d.join("nowhere")));
-        let _ = std::fs::remove_dir_all(&d);
     }
 
     /// A conversion that cannot start says so, naming the fix, and never
@@ -931,7 +926,6 @@ mod tests {
             Ingest::Failed(msg) => assert!(msg.contains("not found"), "{msg}"),
             _ => panic!("a missing file is a failure"),
         }
-        let _ = std::fs::remove_dir_all(&d);
     }
 
     /// A disc image is refused in words, naming what to do instead, rather
@@ -952,7 +946,6 @@ mod tests {
             }
             _ => panic!("a disc image is not a video stream"),
         }
-        let _ = std::fs::remove_dir_all(&d);
     }
 
     /// The chain a disc title is handed to ffmpeg as, and the key that
@@ -985,7 +978,6 @@ mod tests {
             cache_path_in_parts(&d, &[a.clone(), b.clone()]).unwrap(),
             d.join(format!("{}.webm", cache_key_parts(&[a, b]).unwrap()))
         );
-        let _ = std::fs::remove_dir_all(&d);
     }
 
     /// The real thing, when the machine has ffmpeg: the MP4 fixture is
@@ -1028,6 +1020,5 @@ mod tests {
             Ingest::Failed(m) => panic!("{m}"),
             Ingest::Direct(_) => panic!("an MP4 cannot play directly"),
         }
-        let _ = std::fs::remove_dir_all(&d);
     }
 }

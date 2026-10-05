@@ -385,8 +385,7 @@ mod tests {
         assert_eq!(ron_of(&built_in), ron_of(&shipped), "the built-in copy is data/{shipped_rel}");
 
         // My own home, edited: one wall more, saved to a data folder of my own.
-        let dir = std::env::temp_dir().join(format!("hum_neighbour_own_{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = crate::test_temp::dir("neighbour_own");
         let ship_file = dir.join(crate::ship::ship_structure::SHIP_FILE);
         std::fs::create_dir_all(ship_file.parent().unwrap()).unwrap();
         std::fs::copy(data_dir().join(crate::ship::ship_structure::SHIP_FILE), &ship_file).unwrap();
@@ -400,7 +399,6 @@ mod tests {
         assert_eq!(view.neighbours[0].plot.id, "p2");
         assert_eq!(view.neighbours[0].design.body.walls.len(), walls, "the neighbour on p2 is drawn with my wall");
         assert!(HomeDesign::built_in("no_such_kind").is_none());
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// While the home is put away (a guest), EVERY plot is a neighbour's, and nothing of the home

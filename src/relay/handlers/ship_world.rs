@@ -468,10 +468,10 @@ mod tests {
         ShipStructure::ship_for_relay(&data()).expect("the shipped ship file loads")
     }
 
-    fn temp_db(tag: &str) -> (crate::relay::storage::Storage, std::path::PathBuf) {
-        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_shipworld_{tag}_{}_{nanos}.db", std::process::id()));
-        (crate::relay::storage::Storage::open(&path).expect("open test db"), path)
+    /// A fresh database that deletes itself when the storage is dropped (BUG-159). A test
+    /// that reopens the file holds a `crate::test_temp::db` guard itself instead.
+    fn temp_db(tag: &str) -> crate::relay::storage::Storage {
+        crate::relay::storage::Storage::open_temp(&format!("shipworld_{tag}"))
     }
 
     fn fmt3(p: [f32; 3]) -> String {
@@ -707,7 +707,8 @@ mod tests {
     /// "entity 3 (engineer) still names the Pioneer's engineering".
     #[test]
     fn an_old_stored_world_upgrades_to_the_ship() {
-        let (db, path) = temp_db("upgrade");
+        let path = crate::test_temp::db("shipworld_upgrade");
+        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
         let blob = include_str!("../../../tests/fixtures/relay/pioneer_world_v9.json");
         let old: serde_json::Value = serde_json::from_str(blob).expect("the fixture parses");
         let old_time = old["game_time"].as_f64().unwrap();
@@ -745,8 +746,6 @@ mod tests {
         assert!(again.restore_from_db(&db), "the upgraded world restores");
         let crew: Vec<&str> = again.entities.values().filter(|e| e.components.get("chore_agent").is_some()).filter_map(|e| e.components["room_id"].as_str()).collect();
         assert!(!crew.is_empty() && crew.iter().all(|r| !pioneer.contains(r)), "the restored crew are the ship's: {crew:?}");
-        drop(db);
-        let _ = std::fs::remove_file(&path);
     }
 
     /// A stored world of the previous version that is not JSON at all upgrades too: only its
@@ -756,15 +755,13 @@ mod tests {
     /// is stored: "assertion failed: world.restore_from_db(&db)".
     #[test]
     fn an_unreadable_old_world_still_upgrades() {
-        let (db, path) = temp_db("upgrade_bad");
+        let db = temp_db("upgrade_bad");
         db.save_game_world(GameWorld::PREVIOUS_PERSIST_KEY, "{ not json", 12.5, 400).unwrap();
         let mut world = GameWorld::new();
         assert!(world.restore_from_db(&db));
         assert!((world.game_time - 12.5).abs() < 1e-9, "the row's clock: {}", world.game_time);
         assert!(world.next_entity_id >= 400, "the row's id mark: {}", world.next_entity_id);
         assert!(db.load_game_world(GameWorld::PREVIOUS_PERSIST_KEY).unwrap().is_none());
-        drop(db);
-        let _ = std::fs::remove_file(&path);
     }
 
     /// Every crew member who eats has its next meal still to come, and no two at the same moment
@@ -813,7 +810,8 @@ mod tests {
     /// back): "the xp they earned carried over / left: 0 / right: 100".
     #[test]
     fn an_old_stored_world_keeps_earned_progress() {
-        let (db, path) = temp_db("upgrade_progress");
+        let path = crate::test_temp::db("shipworld_upgrade_progress");
+        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
         let blob = include_str!("../../../tests/fixtures/relay/pioneer_world_v9_progress.json");
         let old: serde_json::Value = serde_json::from_str(blob).expect("the fixture parses");
         let old_time = old["game_time"].as_f64().unwrap();
@@ -839,8 +837,6 @@ mod tests {
         assert_eq!(c["current_quest"]["id"], "meet_the_crew", "{}", c["current_quest"]);
         assert_eq!((c["xp"].as_u64(), c["reputation"].as_u64()), (Some(100), Some(5)));
         assert_eq!(c["completed_quests"], serde_json::json!(["explore_ship"]));
-        drop(db);
-        let _ = std::fs::remove_file(&path);
     }
 
     /// AN UPGRADE NEVER WRITES OLDER PROGRESS OVER NEWER (the review of increment 3, finding 3's
@@ -853,7 +849,7 @@ mod tests {
     /// 100 / right: 300".
     #[test]
     fn an_upgrade_never_writes_older_progress_over_newer() {
-        let (db, path) = temp_db("upgrade_newer");
+        let db = temp_db("upgrade_newer");
         let blob = include_str!("../../../tests/fixtures/relay/pioneer_world_v9_progress.json");
         let old: serde_json::Value = serde_json::from_str(blob).unwrap();
         db.save_game_world(GameWorld::PREVIOUS_PERSIST_KEY, blob, old["game_time"].as_f64().unwrap(), old["next_entity_id"].as_u64().unwrap()).unwrap();
@@ -865,8 +861,6 @@ mod tests {
         assert_eq!(p.xp, 300, "a second upgrade put the old world's progress over what they earned since");
         assert_eq!(p.current_quest.as_deref(), Some("survey_storage"));
         assert_eq!(p.completed_quests, done);
-        drop(db);
-        let _ = std::fs::remove_file(&path);
     }
 
     /// NO TWO CREW STAND ON ONE SPOT (the review of increment 3, finding 9): every chore site is
@@ -920,7 +914,7 @@ mod tests {
     /// (10.0, 1.0, 10.0)" (the piece of furniture the edit moved).
     #[test]
     fn a_stored_world_stands_the_ship_built_things_where_the_files_put_them() {
-        let (db, path) = temp_db("restore_rebuild");
+        let db = temp_db("restore_rebuild");
         let mut world = GameWorld::new();
         // At 72x, so five real minutes hold meals (at a new world's 1x they would hold none).
         super::super::ship_stores::at_simplified_speed(&mut world);
@@ -986,8 +980,6 @@ mod tests {
                 assert_eq!(e.components.get(k), was.get(k), "{name}'s {k} carried over");
             }
         }
-        drop(db);
-        let _ = std::fs::remove_file(&path);
     }
 
     /// A RELAY WITH NO CHORES FILE STILL PUTS THE CREW TO WORK (the review of increment 3,
@@ -1004,12 +996,11 @@ mod tests {
         world.chores.clear();
         world.load_chores_at(std::path::Path::new("no-such-folder/npc/chores.ron"));
         assert_eq!(world.chores.len(), shipped, "no chores without the file: {} of {shipped}", world.chores.len());
-        let bad = std::env::temp_dir().join(format!("hum_bad_chores_{}.ron", std::process::id()));
+        let bad = crate::test_temp::file("bad_chores", "ron");
         std::fs::write(&bad, "[ this is not ron").unwrap();
         world.chores.clear();
         world.load_chores_at(&bad);
         assert_eq!(world.chores.len(), shipped, "a chores file that does not parse left {} of {shipped}", world.chores.len());
-        let _ = std::fs::remove_file(&bad);
     }
 
     /// The plot of the shipped ship with this id, as the relay hands it out.

@@ -4053,13 +4053,7 @@ mod mod_action_tests {
     use crate::relay::relay::RelayState;
 
     fn fresh_state() -> Arc<RelayState> {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_modact_{pid}_{nanos}.db"));
-        let db = Storage::open(&path).expect("open test db");
+        let db = Storage::open_temp("modact");
         Arc::new(RelayState::new(db))
     }
 
@@ -4223,13 +4217,7 @@ mod dm_mailbox_tests {
     use crate::relay::relay::RelayState;
 
     fn fresh_state() -> Arc<RelayState> {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_dmput_{pid}_{nanos}.db"));
-        let db = Storage::open(&path).expect("open test db");
+        let db = Storage::open_temp("dmput");
         Arc::new(RelayState::new(db))
     }
 
@@ -4532,13 +4520,7 @@ mod reconnect_grace_tests {
     use std::time::Duration;
 
     fn test_state(grace: Duration) -> Arc<RelayState> {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir()
-            .join(format!("hum_grace_{}_{nanos}.db", std::process::id()));
-        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+        let db = crate::relay::storage::Storage::open_temp("grace");
         let mut state = RelayState::new(db);
         state.reconnect_grace = grace;
         Arc::new(state)

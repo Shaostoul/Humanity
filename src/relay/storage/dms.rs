@@ -175,13 +175,7 @@ mod tests {
     use super::*;
 
     fn fresh_db() -> Storage {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_dms_{pid}_{nanos}.db"));
-        Storage::open(&path).expect("open test db")
+        Storage::open_temp("dms")
     }
 
     /// Deposit + fetch: rows come back oldest-first, addressed-only.
@@ -281,12 +275,7 @@ mod tests {
     /// `opens_a_pre_v0675_database_and_migrates_it` (BUG-046 discipline).
     #[test]
     fn opens_a_legacy_db_and_drops_the_dm_graph() {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_dms_legacy_{pid}_{nanos}.db"));
+        let path = crate::test_temp::db("dms_legacy");
         // Build a pre-v2 database shape by hand: the legacy table + rows.
         {
             let conn = rusqlite::Connection::open(&path).unwrap();

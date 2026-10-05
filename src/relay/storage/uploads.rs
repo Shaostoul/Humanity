@@ -177,13 +177,7 @@ mod shared_library_tests {
     use super::super::Storage;
 
     fn make_test_storage() -> Storage {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_uploads_test_{pid}_{nanos}.db"));
-        Storage::open(&path).expect("open test db")
+        Storage::open_temp("uploads_test")
     }
 
     /// Shared files are exempt from the per-user media FIFO: posting many chat
@@ -239,12 +233,7 @@ mod shared_library_tests {
     /// with exit status 3. Fresh-DB tests (all the ones above) cannot see this.
     #[test]
     fn opens_a_pre_v0675_database_and_migrates_it() {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_uploads_mig_{pid}_{nanos}.db"));
+        let path = crate::test_temp::db("uploads_mig");
 
         // Build the OLD table shape + a pre-existing row, like the live DB.
         {

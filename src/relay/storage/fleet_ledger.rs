@@ -392,10 +392,8 @@ impl Storage {
 mod tests {
     use super::*;
 
-    fn temp_db(tag: &str) -> (Storage, std::path::PathBuf) {
-        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_fleet_{tag}_{}_{nanos}.db", std::process::id()));
-        (Storage::open(&path).expect("open test db"), path)
+    fn temp_db(tag: &str) -> Storage {
+        Storage::open_temp(&format!("fleet_{tag}"))
     }
 
     fn line(kind: &str, direction: &str, value: f64) -> NewFleetEntry {
@@ -449,7 +447,7 @@ mod tests {
     /// holds only B's lines: B used 10, gave 0 / left: 50 / right: 10.0".
     #[test]
     fn one_players_ledger_holds_only_their_lines() {
-        let (db, path) = temp_db("own");
+        let db = temp_db("own");
         db.record_fleet_entry("aaaa", &line("meal", "used", 10.0)).unwrap();
         db.record_fleet_entry("aaaa", &line("item", "contributed", 30.0)).unwrap();
         db.record_fleet_entry("bbbb", &line("meal", "used", 10.0)).unwrap();
@@ -464,7 +462,6 @@ mod tests {
         let t = db.fleet_totals("aaaa").unwrap();
         assert_eq!((t.players, t.others, t.used, t.contributed), (2, 1, 20.0, 30.0));
         drop(db);
-        let _ = std::fs::remove_file(&path);
     }
 
     /// A GIVE IS RECORDED ONCE: the same give id sent twice is one line, and the second
@@ -477,7 +474,7 @@ mod tests {
     /// fleet_ledger.give_id\")))".
     #[test]
     fn a_give_is_recorded_once() {
-        let (db, path) = temp_db("give_once");
+        let db = temp_db("give_once");
         let mut give = line("item", "contributed", 6.0);
         give.item_id = "bread_0".into();
         give.quantity = 2.0;
@@ -492,7 +489,6 @@ mod tests {
         assert!(matches!(db.record_fleet_entry("bbbb", &give), Ok(Recorded::New(_))), "another player's give with the same id is theirs");
         assert_eq!(db.fleet_ledger_of("aaaa", 20).unwrap().2.len(), 1, "one line");
         drop(db);
-        let _ = std::fs::remove_file(&path);
     }
 
     /// A PER-DAY KIND (power) IS ONE LINE A DAY: reports on one real day grow that day's
@@ -502,7 +498,7 @@ mod tests {
     /// line / left: 3 / right: 1".
     #[test]
     fn a_flow_is_one_line_a_day() {
-        let (db, path) = temp_db("per_day");
+        let db = temp_db("per_day");
         let mut p = line("power_drawn", "used", 1.5);
         p.per_day = true;
         for _ in 0..3 {
@@ -517,7 +513,6 @@ mod tests {
         db.record_fleet_entry("aaaa", &line("meal", "used", 10.0)).unwrap();
         assert_eq!(db.fleet_ledger_of("aaaa", 20).unwrap().2.len(), 4, "a new day, and two meals");
         drop(db);
-        let _ = std::fs::remove_file(&path);
     }
 
     /// A HOME'S GIVES ARE ITS OWN: the game asking for the gives of home A gets A's (newest
@@ -527,7 +522,7 @@ mod tests {
     /// left: [\"g-b1\", \"g-a2\", \"g-a1\"] / right: [\"g-a2\", \"g-a1\"]".
     #[test]
     fn a_homes_gives_are_its_own() {
-        let (db, path) = temp_db("home");
+        let db = temp_db("home");
         let give = |id: &str, home: &str| NewFleetEntry {
             item_id: "bread_0".into(),
             give_id: Some(id.into()),
@@ -543,7 +538,6 @@ mod tests {
         assert_eq!(db.fleet_gives_for_home("aaaa", "home-a", 1).unwrap().len(), 1, "as many as asked for");
         assert!(db.fleet_gives_for_home("aaaa", "home-c", 10).unwrap().is_empty());
         drop(db);
-        let _ = std::fs::remove_file(&path);
     }
 
     /// A GIVE IS CORRECTED DOWN, ONCE: the game found 1 of a give's 3 loaves to take, so the
@@ -555,7 +549,7 @@ mod tests {
     /// 0.0, ... }) / right: Unchanged" (the second correction took the give to 0).
     #[test]
     fn a_give_is_corrected_down_once() {
-        let (db, path) = temp_db("adjust");
+        let db = temp_db("adjust");
         let give = NewFleetEntry { item_id: "bread_0".into(), quantity: 3.0, give_id: Some("g-1".into()), home: "h".into(), ..line("item", "contributed", 9.0) };
         db.record_fleet_entry("aaaa", &give).unwrap();
         match db.adjust_fleet_give("aaaa", "g-1", 1.0).unwrap() {
@@ -572,7 +566,6 @@ mod tests {
         db.record_fleet_entry("aaaa", &more).unwrap();
         assert!(matches!(db.adjust_fleet_give("aaaa", "g-2", 3.0).unwrap(), Adjusted::Unchanged(_)));
         drop(db);
-        let _ = std::fs::remove_file(&path);
     }
 
     /// GIVES PAST THE DAILY CAP RECORD NOTHING (finding 11 of the 2026-10-04 review): with a
@@ -585,7 +578,7 @@ mod tests {
     /// Some(\"g-4\"), home: \"h\" }) / right: OverCap".
     #[test]
     fn gives_beyond_the_daily_cap_record_nothing() {
-        let (db, path) = temp_db("cap");
+        let db = temp_db("cap");
         let give = |id: &str, day: i64| NewFleetEntry {
             item_id: "bread_0".into(),
             give_id: Some(id.into()),
@@ -605,6 +598,5 @@ mod tests {
         assert!(matches!(db.record_fleet_entry("aaaa", &give("g-5", 20_001)).unwrap(), Recorded::New(_)), "the next day takes gives again");
         assert!(matches!(db.record_fleet_entry("bbbb", &give("g-1", 20_000)).unwrap(), Recorded::New(_)), "another player has a cap of their own");
         drop(db);
-        let _ = std::fs::remove_file(&path);
     }
 }

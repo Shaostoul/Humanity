@@ -250,21 +250,11 @@ mod tests {
     //!      "erring toward the writer is always correct" enforceable.
     use crate::relay::storage::Storage;
     use r2d2::ManageConnection as _;
-    use std::path::PathBuf;
-
-    fn tmp_db(tag: &str) -> PathBuf {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        std::env::temp_dir().join(format!("hum_pool_{tag}_{pid}_{nanos}.db"))
-    }
 
     /// Invariant 1: data written on the writer is visible through the read pool.
     #[test]
     fn read_pool_sees_writer_committed_rows() {
-        let db = Storage::open(&tmp_db("read_after_write")).expect("open");
+        let db = Storage::open_temp("pool_read_after_write");
 
         // Write via the writer path (this is how all current call sites work).
         let id = db
@@ -367,7 +357,7 @@ mod tests {
         let err = slow.err().expect("the product's build gives up on connections slower than its deadline");
         assert!(err.to_string().contains("failed to build SQLite read pool"), "the error names the pool: {err}");
 
-        let path = tmp_db("product_build");
+        let path = crate::test_temp::db("pool_product_build");
         let db = Storage::open(&path).expect("open (the schema, and a pool built the test way)");
         let pool = build_by_deadline(read_pool_builder(), read_manager(&path)).expect("the product's build opens a real database");
         for (which, p) in [("the product's build", &pool), ("Storage::open in a test build", &db.read_pool)] {
@@ -384,10 +374,8 @@ mod tests {
             conn.execute("INSERT INTO dm_mailbox (to_key, content, received_day) VALUES ('y', 'x', 1)", []).is_err(),
             "and refuses to write"
         );
+        // Close everything before the guard (`path`, dropped last) deletes the files.
         drop((conn, pool, db));
-        for suffix in ["", "-wal", "-shm"] {
-            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
-        }
     }
 
     /// Invariant 2: a write through the read pool is REJECTED by SQLite.
@@ -396,7 +384,7 @@ mod tests {
     /// silently hitting a read replica.
     #[test]
     fn read_pool_rejects_writes() {
-        let db = Storage::open(&tmp_db("reject_writes")).expect("open");
+        let db = Storage::open_temp("pool_reject_writes");
 
         let result: Result<usize, rusqlite::Error> = db.with_read_conn(|conn| {
             conn.execute(
