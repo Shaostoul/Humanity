@@ -1022,8 +1022,8 @@ were read on 4 October 2026 and are cited with the date they carry.
   chest compressions alone as a reasonable course for a rescuer who cannot
   give a child or a baby breaths; the two-finger method for babies dropped
   because it did not press deep enough). Cited, not quoted: the American
-  Heart Association's
-  own pages refused our requests, so these points were read in its
+  Heart Association's own guideline pages refused our scripted requests,
+  so these points were read in its
   Heartsaver CPR AED Summary of High-Quality CPR Components for the 2025
   guidelines, as posted by Vanderbilt University Medical Center's
   resuscitation program (a file dated December 2025), and in published
