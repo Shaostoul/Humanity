@@ -12044,6 +12044,7 @@ mod native_app {
                                     category: g.category.clone(),
                                     buy_price: goods.vendor_sell_price(&g.id).unwrap_or(1),
                                     sell_price: goods.vendor_buy_price(&g.id).unwrap_or(0),
+                                    parts_price: goods.parts_price(&g.id),
                                 })
                                 .collect();
                             list.sort_by(|a, b| {

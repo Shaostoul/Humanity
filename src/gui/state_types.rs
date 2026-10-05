@@ -665,8 +665,14 @@ pub struct GuiTradeGood {
     pub category: String,
     /// What the PLAYER PAYS to buy one (vendor sell price, 1.25x base).
     pub buy_price: i64,
-    /// What the PLAYER RECEIVES selling one (vendor buy price, 0.5x base).
+    /// What the PLAYER RECEIVES selling one ungraded or standard (vendor buy
+    /// price, 0.5x base).
     pub sell_price: i64,
+    /// The least its parts cost at the vendor, which caps what a better grade
+    /// fetches (BUG-146, `TradeGoodsRegistry::parts_price`); None when nothing
+    /// the vendor sells can be made into it. The Sell tab prices each grade
+    /// with `economy::parts::graded_pay`, the function a sale settles with.
+    pub parts_price: Option<f64>,
 }
 
 /// A buildable structure blueprint for GUI display (v0.746, ladder rung 2):
