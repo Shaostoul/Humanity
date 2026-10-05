@@ -25,10 +25,11 @@ the *Navy Electricity and Electronics Training Series* (Modules 1 and 2,
 1998), and from the National Bureau of Standards' copper wire tables
 (1966). The safety material comes from the Occupational Safety and Health
 Administration (OSHA), the National Institute for Occupational Safety and
-Health (NIOSH), the Consumer Product Safety Commission (CPSC) and the
-National Weather Service. All are United States government publications,
-in the public domain. Where something is arithmetic, general physics or
-our own explanation rather than a published statement, the text says so.
+Health (NIOSH), the Consumer Product Safety Commission (CPSC), the United
+States Fire Administration and the National Weather Service. All are
+United States government publications, in the public domain. Where
+something is arithmetic, general physics, general practice or our own
+explanation rather than a published statement, the text says so.
 
 ## First: where electricity hurts people
 
@@ -73,14 +74,23 @@ sheet says to shut off the current, and if you cannot get to the switch
 quickly, to pry the person away from the circuit with something that
 does not conduct electricity, such as dry wood: "Do not touch the victim
 yourself if he or she is still in contact with an electrical circuit!"
-OSHA's booklet on electrical hazards adds that a severe shock "can cause considerably more
-damage than meets the eye," including internal bleeding and damage to
-tissues, nerves and muscles that cannot be seen, and says to seek
-emergency medical help immediately after a shock. So: unplug it or switch
-off the breaker, call 911, start CPR if the person is not breathing and
-you are trained, and have every shock checked by a doctor even if the
-person seems fine. The rest of the first aid is in [Treating
-Burns](treating_burns.md).
+OSHA's booklet on electrical hazards adds that a severe shock "can cause
+considerably more damage than meets the eye," including internal
+bleeding and damage to tissues, nerves and muscles that cannot be seen,
+and says to seek emergency medical help immediately after a shock. So:
+unplug it or switch off the breaker, call 911, start CPR if the person is
+not breathing and you are trained, and have every shock checked by a
+doctor even if the person seems fine. The rest of the first aid is in
+[Treating Burns](treating_burns.md).
+
+**A power line is different: do not go near.** All of that is for a
+circuit you can switch off. If the person is touching an overhead power
+line, or one that has come down, do not go near them or try to free them
+with anything, and keep everyone else back: OSHA's fact sheet on downed
+wires says "Never go near a downed or fallen electric power line," and
+warns that a fallen line can electrocute you if you touch it or the
+ground nearby. Call 911 and the electricity utility (applying OSHA's
+advice, written for workers, to a rescue is our reading).
 
 ## What is flowing
 
@@ -177,12 +187,14 @@ OSHA lists four things that decide how bad a shock is: the amount of
 current flowing through the body, the path it takes, how long the body
 stays in the circuit, and the current's frequency.
 
-**The amount.** OSHA and NIOSH both print the same table of what current
-does when it flows from hand to foot for one second. Both credit it to a
-1968 monograph by W. B. Kouwenhoven for the Instrument Society of America
-(NIOSH also cites a 1973 paper), so it is restated here in our own words:
+**The amount.** OSHA and NIOSH both print the same table of what a
+current lasting about one second does: OSHA's is for current flowing
+from the hand to the foot, and NIOSH's is for typical household voltages,
+with no path given. Both credit it to a 1968 monograph by W. B.
+Kouwenhoven for the Instrument Society of America (NIOSH also cites a
+1973 paper), so it is restated here in our own words:
 
-| Current, hand to foot, about one second | What it does |
+| Current for about one second (hand to foot, in OSHA's table) | What it does |
 | --- | --- |
 | Below 1 mA | Usually not felt at all |
 | 1 mA | A faint tingle |
@@ -219,10 +231,10 @@ large number of serious electrical injuries involve current passing from
 the hands to the feet, a path through both the heart and the lungs, and
 that this kind of shock is often fatal.
 
-**The frequency.** Household current in the United States alternates 60
-times a second (below). OSHA lists frequency as one of the four factors,
-and the Navy course's round numbers above are for 60 hertz current like
-that.
+**The frequency.** Household current in the United States goes through
+60 complete cycles a second (below). OSHA lists frequency as one of the
+four factors, and the Navy course's round numbers above are for 60 hertz
+current like that.
 
 ## Power: watts
 
@@ -247,12 +259,16 @@ watts / volts. All the arithmetic here is ours:
 - A circuit protected at 15 amps is meant to carry at most 15 x 120 =
   1,800 watts, so a 1,200 watt heater and a 700 watt microwave on the same
   circuit (1,900 watts) already ask more of it than that.
+- For a load that runs for hours at a time, such as a heater, plan on no
+  more than 80 percent of the rating: 12 amps, or 1,440 watts, on a 15
+  amp circuit (general practice among electricians; the game's cable
+  check uses the same 80 percent line, below).
 
 Motors are the exception to reading a label at face value. NIOSH's
 electrical manual says electric motors draw extra current as they start
 or if they stall, "requiring up to 200% of the nameplate current rating."
-A saw that binds in the cut, or a pump that seizes, can draw up to double
-what its label says.
+So a saw that binds in the cut, or a pump that seizes, draws well over
+what its label says (NIOSH: up to 200 percent of it).
 
 ## Why current heats wires
 
@@ -288,7 +304,7 @@ from the same current.
 
 ### Worked example: a long extension cord
 
-A 1,200 watt heater draws 10 A at 120 volts. Run it through a 100 foot
+Take a corded tool whose label says 10 A at 120 volts, on a 100 foot
 extension cord. The current goes out along one wire and back along the
 other, so it passes through 200 feet of copper (our arithmetic
 throughout, from the table above):
@@ -308,6 +324,12 @@ can be a fire hazard." The lost voltage matters too: NIOSH says that if a
 cord is too long the voltage drop can be enough to damage equipment,
 because many motors only operate safely in a narrow range of voltages.
 
+**Never run a space heater on an extension cord at all,** thin or
+thick. The United States Fire Administration: "Plug space heaters
+directly into wall outlets, don't use an extension cord or power strip."
+A heater can draw its full current for hours on end, the worst case for
+everything above (our explanation).
+
 The CPSC's checklist says to check the electrical rating on appliances
 and on extension cords, and NIOSH says to check the tool manufacturer's
 recommendations for the gauge and the length of cord. The published
@@ -326,10 +348,12 @@ resistance in one tiny spot, and the heat it makes stays in that spot
 (our explanation).
 
 The CPSC's booklet on aluminium wiring is that effect at the scale of a
-whole house. Aluminium branch circuits were installed in American homes
-mainly from the mid 1960s to the mid 1970s, during a copper shortage. The
-CPSC describes connections to aluminium wire deteriorating over time in
-ways that raise their resistance, and that raised resistance causing
+whole house. A shortage of copper in the mid 1960s led builders to use
+aluminium for ordinary 15 and 20 amp circuits, and the CPSC says homes
+built before 1965 are unlikely to have it, while cable installed from
+1965 to the mid 1970s, in new homes, additions and rewired circuits, may.
+The CPSC describes connections to aluminium wire deteriorating over time
+in ways that raise their resistance, and that raised resistance causing
 overheating, sometimes at hazardous levels. A national survey for the
 CPSC found homes built before 1972 and wired with aluminium were 55
 times more likely than homes wired with copper to have at least one
@@ -338,6 +362,14 @@ signs are hot faceplates on outlets or switches, flickering lights,
 circuits that do not work, and a smell of burning plastic at outlets or
 switches, and its instruction is to have a qualified electrician find the
 cause: "DO NOT TRY TO DO IT YOURSELF."
+
+Do not wait for those signs. The same booklet warns that failing
+aluminium connections "seldom provide easily detected warning signs"
+and have been reported to fail and overheat with no warning at all, so
+for aluminium wiring that has not been remediated the CPSC recommends a
+permanent repair. The repairs it approves, all of them an electrician's
+work, are in [Where Your Own Electrical Work
+Stops](where_your_electrical_work_stops.md).
 
 ## What breakers, fuses and GFCIs protect
 
@@ -480,10 +512,13 @@ Storage](batteries_and_storage.md) covers them, including fire.
 - **Measuring a live circuit.** OSHA allows only qualified persons to do
   testing work on electric circuits at work, and NIOSH lists taking
   voltage and current measurements among the tasks that put you near live
-  parts. The one test a household should learn, proving a circuit dead
-  before touching it, has its own procedure in [Working Out Why Something
-  Broke](working_out_why_something_broke.md); without a tester, or without
-  being shown how to use one, it is not yours to do.
+  parts. Even proving a circuit dead before touching it is skilled work:
+  NIOSH's lockout checklist says of that test, "This must be done by a
+  qualified person," meaning someone trained on the hazards and on the
+  equipment. Its procedure is in [Working Out Why Something
+  Broke](working_out_why_something_broke.md); without a tester rated for
+  the circuit, and the training to use it, it is not yours to do. Being
+  shown once is not training (our reading).
 - **Anything inside a panel, any new wiring, and any repair to wiring:**
   [Where Your Own Electrical Work Stops](where_your_electrical_work_stops.md)
   draws those lines, with the permits that come with them.
@@ -501,7 +536,10 @@ Storage](batteries_and_storage.md) covers them, including fire.
   dies at milliamps.
 - **"A bigger fuse will stop it blowing."** It will, by letting the wire
   overheat instead.
-- **"The white wire is safe."** Usually, until it is not. Test.
+- **"The white wire is safe."** Never assume it. A white wire carries
+  the return current whenever something on the circuit is running, and
+  a mistake can make it live, as in NIOSH's 277 volt case. Test, and
+  treat every wire as live.
 - **"The switch is off."** A switch can be wired wrongly. NIOSH tells of
   a furnace technician killed by a toggle switch that let power through
   in the "off" position. A switch is a control, not proof.
@@ -527,13 +565,15 @@ nothing in it can shock you.
   3 percent of the voltage, earns a warning up to the full rating or 5
   percent, and fails beyond either, or if the cable's voltage rating is
   below 120 volts. You can leave a run on "auto", which picks the cheapest
-  cable that passes, or pin a cable and see whether it holds. The check is
+  cable in the catalogue that passes, the superconductor included (see
+  below), or pin a cable and see whether it holds. The check is
   `check_cable` in `src/utilities.rs`, called from `src/machines.rs`.
-- **The cables are real copper.** The catalogue in
+- **The copper cables are real.** The catalogue in
   `data/utilities/conduits.ron` lists 14, 12 and 10 gauge copper at 15,
   20 and 30 amps for the home, an industrial 6 gauge at 55 amps, and a
-  room-temperature superconductor that the game treats as future
-  technology. The game's resistance figures match the National Bureau of
+  room-temperature superconductor, which its data calls a late-game
+  upgrade and which nobody has yet made in real life (general
+  knowledge). The game's resistance figures match the National Bureau of
   Standards' table above at 20 C (our comparison), and its 15 and 20 amp
   pairings for 14 and 12 gauge copper are the ones the CPSC's aluminium
   wiring booklet gives for house circuits.
@@ -564,12 +604,23 @@ a failed line in a report, never a hot or burning wire. The resistance
 never changes with temperature. Code for lightning damage exists in
 `src/systems/disasters.rs`, but it is not running in the game.
 
+Nor is the superconductor held back for later. The Construction page
+offers a button that upgrades every power run to it now, and when no
+copper cable passes a run, "auto" picks the superconductor while the
+report still says it chose copper. So a long, heavy run that no real
+wire could carry passes the check: 3,000 watts over 60 metres is one,
+where even the 6 gauge loses 3.2 percent, a warning (our arithmetic,
+following the game's rule). The picker is `cheapest_cable_for` in
+`src/utilities.rs`, and the button is in `src/gui/pages/construction.rs`.
+
 ## You own this when
 
 - You can say what volts, amps, ohms and watts each measure, and move
   between them with Ohm's law and power = volts x amps.
-- You can work out from a label how many amps a device draws, and how
-  many watts a 15 amp circuit can carry.
+- You can work out from a label how many amps a device draws, how many
+  watts a 15 amp circuit can carry, and how much of that to plan on for
+  a load that runs for hours.
+- You never run a space heater on an extension cord or power strip.
 - You can explain why wet skin turns a tingle into a deadly current, and
   why "it's only 120 volts" is wrong.
 - You know the four things that decide how bad a shock is: how much
@@ -581,7 +632,7 @@ never changes with temperature. Code for lightning damage exists in
 - You never trust a wire's colour or a switch's position in place of a
   tester.
 - You would not touch someone who is being shocked, and you know what to
-  do instead.
+  do instead, including when the person is touching a power line.
 
 ## Sources
 
@@ -627,7 +678,8 @@ read in the eCFR's text in force on 1 October 2026.
   Hazards*, OSHA 3075, 2002 (Revised) (conductors and insulators, the
   earth, air in an arc or lightning; water and skin; the four ways the
   body completes a circuit; the four factors in a shock; the table of
-  effects of current, which OSHA credits to W. B. Kouwenhoven, "Human
+  effects of current flowing from the hand to the foot for 1 second,
+  which OSHA credits to W. B. Kouwenhoven, "Human
   Safety and Electric Shock," Instrument Society of America, 1968,
   restated here; burns the most common shock-related injury and their
   three kinds; freezing, blisters and "Low voltage does not imply low
@@ -643,13 +695,19 @@ read in the eCFR's text in force on 1 October 2026.
 - Occupational Safety and Health Administration. 29 CFR 1910.334(c)(1)
   (only qualified persons may perform testing work on electric circuits
   or equipment). https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1910/subpart-S/section-1910.334
+- Occupational Safety and Health Administration. *Working Safely Around
+  Downed Electrical Wires*, Fact Sheet, DOC FS-3941, February 2018
+  (never go near a downed or fallen electric power line; a fallen line
+  can electrocute you if you touch it or the ground nearby).
+  https://www.osha.gov/sites/default/files/downed_electrical_wires.pdf
 - National Institute for Occupational Safety and Health. *Electrical
   Safety: Safety and Health for Electrical Trades, Student Manual*, DHHS
   (NIOSH) Publication 2009-113 (supersedes 2002-123), April 2009 (wet
   clothing, humidity and perspiration; plugging into grounded plumbing;
   black and red wires usually at 120 volts and white at 0; the 240 volt
   cable; the 277 volt lamp with a live white wire; the furnace switch
-  wired to let power through when off; the shock table with 15 amps as
+  wired to let power through when off; the shock table, for currents
+  lasting one second at typical household voltages, with 15 amps as
   the lowest overcurrent at which a typical fuse or breaker opens; 100 mA
   for 3 seconds against 900 mA for 0.03 seconds; a small power drill
   using 30 times the current that kills; dry and wet skin resistance,
@@ -663,7 +721,8 @@ read in the eCFR's text in force on 1 October 2026.
   overcurrent devices do not protect people, 20 mA through the chest; the
   30 amp fuse in a 20 amp circuit; GFCIs at 4 to 6 mA, a shock still
   felt, and their line-to-line limit; removing jewellery near high
-  currents; taking measurements as work near live parts; first aid;
+  currents; taking measurements as work near live parts; testing that
+  circuits are de-energized to be done by a qualified person; first aid;
   tennis shoes). Read in a copy hosted at safety.duke.edu and in the CDC's
   own PDF, fetched through a page reader because cdc.gov refuses scripted
   downloads; the wording quoted here is in both.
@@ -675,16 +734,23 @@ read in the eCFR's text in force on 1 October 2026.
   watts; warm outlets and loose connections; the wrong size of fuse; AFCIs
   and testing them monthly). https://www.cpsc.gov/s3fs-public/513.pdf
 - US Consumer Product Safety Commission. *Repairing Aluminum Wiring*,
-  Publication 516, June 2011 (aluminium branch wiring from the mid 1960s to
-  the mid 1970s; deterioration raising the resistance of connections and
-  causing overheating; homes before 1972 55 times more likely to have an
-  outlet connection reach "Fire Hazard Conditions"; the warning signs;
-  copper 14 and 12 gauge for 15 and 20 amp circuits; "DO NOT TRY TO DO IT
-  YOURSELF"). https://www.cpsc.gov/s3fs-public/516.pdf
+  Publication 516, June 2011 (a copper shortage in the mid 1960s; homes
+  before 1965 unlikely to have aluminium branch wiring, cable installed
+  from 1965 to the mid 1970s possibly aluminium; deterioration raising
+  the resistance of connections and causing overheating; homes before
+  1972 55 times more likely to have an outlet connection reach "Fire
+  Hazard Conditions"; the warning signs, and failing connections seldom
+  giving any; a permanent repair recommended for wiring not yet
+  remediated; copper 14 and 12 gauge for 15 and 20 amp circuits; "DO NOT
+  TRY TO DO IT YOURSELF"). https://www.cpsc.gov/s3fs-public/516.pdf
 - US Consumer Product Safety Commission. *What Is a GFCI?*, Publication
   099, printed with the code 092010 (as little as 0.006 amperes; designed
   to operate before the electricity can affect your heartbeat; monthly
   testing). https://www.cpsc.gov/s3fs-public/099_0.pdf
+- United States Fire Administration. *Portable Heater Fire Safety*,
+  flyer, undated (plug space heaters directly into wall outlets, never an
+  extension cord or power strip).
+  https://www.usfa.fema.gov/downloads/pdf/publications/portable_heater_fire_safety_flyer.pdf
 - National Weather Service. How Powerful Is Lightning?, undated (about
   300 million volts and 30,000 amps in a typical flash, against household
   current of 120 volts and 15 amps).
@@ -696,8 +762,9 @@ read in the eCFR's text in force on 1 October 2026.
   `src/utilities.rs`, run by the Conduits check in `src/machines.rs`
   (fixed 120 volts; the 80 percent, 3 percent and 5 percent limits) and
   shown in the Buildability section and the cable picker of the
-  Construction page (`src/gui/pages/construction.rs`). The cable
-  catalogue: `data/utilities/conduits.ron`.
+  Construction page (`src/gui/pages/construction.rs`, which also holds
+  the button that upgrades every power run to the superconductor). The
+  cable catalogue: `data/utilities/conduits.ron`.
 - The running electrical simulation: `src/systems/electrical.rs`, with the
   ship's reactor feed in `src/systems/ship_power.rs`; the HUD's Power and
   Battery lines in `src/gui/pages/hud.rs`; the life support setting in
@@ -711,13 +778,25 @@ read in the eCFR's text in force on 1 October 2026.
   [Roofs and Keeping Water Out](roofs_and_keeping_water_out.md) and
   [Reading the Weather](reading_the_weather.md).
 
-### Labelled in the text as arithmetic, general physics or our explanation, not sourced
+### Labelled in the text as arithmetic, general physics, general practice or our explanation, not sourced
 
 - Every worked calculation: electrons per second in an ampere, current
   through dry, wet and 300 ohm skin, amps from watts, the 1,800 watt
   circuit and the heater with the microwave, the extension cord, the 750
   times between a breaker and a lethal current, the 170 volt peak, the 12
-  volt battery, and the game examples.
+  volt battery, and the game examples, the 3,000 watts over 60 metres
+  included.
+- Planning on no more than 80 percent of a circuit's rating for a load
+  that runs for hours (general practice among electricians, not quoted
+  from any code), and why a heater on a cord is the worst case.
+- That a white wire carries the return current while the circuit is in
+  use (general physics); that being shown once is not training.
+- Keeping away from a person touching a fallen or overhead line and
+  calling the utility (our reading of OSHA's downed-wire fact sheet,
+  which is written for workers, applied to a rescue).
+- That nobody has yet made a room-temperature superconductor (general
+  knowledge), and how the game's auto picker falls back to it (our
+  reading of the code).
 - That heat in a wire goes with the square of the current (algebra from
   the two formulas the Navy course gives), and the reading of the copper
   table (a step of two gauges, the effect of 75 C).

@@ -90,23 +90,25 @@ OSHA's rule for portable tools requires a hand-held circular saw with a
 blade over 2 inches, a chain saw or some percussion tools to have a
 constant-pressure switch, one that shuts the power off when you let go
 (a petrol chain saw, a throttle that does the same). It requires such a
-switch on drills, angle grinders with wheels over 2 inches, belt and disc
-sanders, reciprocating saws and the larger jigsaws too, which may also
-have a lock-on button only if the same finger can turn it off in a
-single motion (29 CFR 1910.243(a)(2)). Taping or wedging a trigger down
-defeats the one device that stops the tool when your hand leaves it
-(general practice).
+switch on drills, angle grinders with wheels over 2 inches, belt sanders,
+disc sanders with discs over 2 inches, reciprocating saws, and jig,
+saber and scroll saws whose blade shanks are wider than a nominal quarter
+inch too, which may also have a lock-on button only if the same finger
+can turn it off in a single motion (29 CFR 1910.243(a)(2)). Taping or
+wedging a trigger down defeats the one device that stops the tool when
+your hand leaves it (general practice).
 
 ### A blade keeps turning after you let go
 
 Letting go of the switch does not stop the blade; it starts it slowing.
-The CPSC's proposed rule on table saws lists, among the ways people's
-hands meet a blade, an operator who "brushes debris from the table while
-the blade is still spinning after shutoff." OSHA's rule for power mowers
-allows a mower's blade up to 15 seconds to stop after the power is cut
-(29 CFR 1910.243(e)(2)(vii)). So: let go, and wait until the blade, bit
-or wheel has stopped before you lift the tool, put it down or reach
-near it (general practice).
+The CPSC's 2023 proposed rule on table saws, withdrawn on 29 September
+2025 but still a record of how injuries happened, lists among the ways
+people's hands meet a blade an operator who "brushes debris from the
+table while the blade is still spinning after shutoff." OSHA's rule for
+power mowers allows a mower's blade up to 15 seconds to stop after the
+power is cut (29 CFR 1910.243(e)(2)(vii)). So: let go, and wait until
+the blade, bit or wheel has stopped before you lift the tool, put it
+down or reach near it (general practice).
 
 ### Eyes, ears, lungs, hands
 
@@ -243,7 +245,11 @@ required. And: "Compressed air guns should never be pointed toward
 anyone." Using compressed air to blow off dust is limited at work to
 under 30 psi, with chip guarding and protective equipment (29 CFR
 1926.302(b)(4)); [Keeping Things Working](keeping_things_working.md) has
-more. Nail guns, the most common air tool at home, have their own rules,
+more. Disconnect the air before changing an attachment or clearing a jam
+(OSHA's rule to disconnect tools, above), and shut the air off at the
+supply and let the pressure out of the hose before you uncouple it, so
+that neither the hose nor the tool can whip or fire (general practice).
+Nail guns, the most common air tool at home, have their own rules,
 starting with the full sequential trigger, in [Nails, Screws and
 Bolts](nails_screws_and_bolts.md).
 
@@ -253,11 +259,14 @@ OSHA's booklet: "The most serious hazard associated with the use of
 fuel-powered tools comes from fuel vapors that can burn or explode and
 also give off dangerous exhaust fumes." Shut the engine off and let it
 cool before refuelling, keep fuel in approved containers, keep a fire
-extinguisher at hand, and remember the exhaust: the CPSC describes carbon
-monoxide as a deadly gas with no colour and no smell. Its rule for engines (outdoors only, never in
-a house, garage or shed, even with the doors open) is in [Keeping Things
-Working](keeping_things_working.md). The commonest fuel tool at home after
-the mower is the chain saw, below.
+extinguisher at hand, and remember the exhaust. The CPSC's safety alert
+on portable generators calls carbon monoxide "a poison you cannot see or
+smell", and its rule for generators is outdoors only, never in a home,
+garage, basement, crawlspace or shed, even with fans running or doors and
+windows open. The same rule fits any engine, a chain saw or a mower
+included (our extension, as in [Keeping Things
+Working](keeping_things_working.md)). The commonest fuel tool at home
+after the mower is the chain saw, below.
 
 ### Powder-actuated tools
 
@@ -321,6 +330,10 @@ never on the jack.
   the cut. OSHA's general kickback advice is to stand to the side, and
   with a hand-held saw that means beside the line of the blade, never
   behind it (our reading).
+- **Hands above the work, never under it.** Never reach under the work
+  while the saw is cutting, where the blade comes through, and never
+  hold the piece being cut off in your hand: support it instead, as
+  OSHA's control above says (general practice).
 - **Let it stop.** Release the trigger and wait for the blade to stop
   before you lift the saw out of the cut or put it down (general
   practice; see "A blade keeps turning" above).
@@ -330,12 +343,19 @@ never on the jack.
 These stationary tools are covered in [Working with
 Wood](../making/working_with_wood.md) and
 [Sharpening](../making/sharpening.md). One finding belongs here too,
-because it applies to every blade: the CPSC's analysis of table saw
-injuries found that most blade contacts were not caused by kickback at
-all. They happened when a hand got too close while feeding a small piece,
-when the operator was distracted, when a glove was caught, when the
-operator reached to regain control of a piece, and when someone brushed
-debris away while the blade was still turning.
+because it applies to every blade. In the CPSC's 2023 proposal for a
+table saw rule, its staff assessed that most blade-contact injuries were
+not related to kickback, drawing on its 2017 special study of injuries,
+figures from the Power Tool Institute (which the proposal describes as
+the industry trade group for makers of consumer table saws) and one saw
+maker's own data on its blade-stopping system. The proposal lists ways
+contact happens without kickback: a hand too close while feeding a
+small piece, a distracted operator, a glove caught by the blade,
+reaching to regain control of a piece, and brushing debris away while
+the blade is still turning. The Commission withdrew that proposal, with
+the rest of its table saw rulemaking, on 29 September 2025, saying it no
+longer intends to issue a final rule (90 FR 46541); the finding is cited
+here for what it says about injuries, not as a rule.
 
 ### Angle grinders and other abrasive wheels
 
@@ -358,6 +378,12 @@ booklet and its rule for portable abrasive wheels set out the defences:
   accelerates to full operating speed."
 - **Eyes and face, always,** and turn it off when not in use. "Never
   clamp a hand-held grinder in a vise." (All from OSHA's booklet.)
+- **Both hands, the side handle on.** A cut-off disc pinched in the cut
+  can throw the grinder back at you, so keep the side handle fitted and
+  both hands on the tool, and support the work so the cut cannot close
+  on the disc. Never grind with the flat side of a thin cut-off disc,
+  which is made to cut with its edge and can break if pushed sideways
+  (all general practice).
 - **Sparks.** A grinder throws a stream of hot sparks. Clear away
   anything that can burn from where they land, and never grind near fuel,
   solvents or sawdust (general practice).
@@ -368,12 +394,17 @@ booklet and its rule for portable abrasive wheels set out the defences:
 
 ### Jigsaws and reciprocating saws
 
-OSHA's switch rule treats the larger blades like a drill (a
-constant-pressure switch) and the smaller ones like a router (a plain
-on-off switch is allowed) (29 CFR 1910.243(a)(2)). The blade sticks out
-below and behind the work, where you cannot see it: know what is there,
-including wires and pipes in a wall, and keep the saw's shoe pressed
-against the work so the blade cannot hammer it (general practice).
+OSHA's switch rule puts every reciprocating saw, and any jig, saber or
+scroll saw whose blade shank is wider than a nominal quarter inch, with
+the drills: a constant-pressure switch, with a lock-on button allowed
+only if the same finger can release it. A jig, saber or scroll saw whose
+shank is a nominal quarter inch wide or less may have a plain on-off
+switch, like a router (29 CFR 1910.243(a)(2)(ii) and (iii)). The rule
+turns on the width of the blade shank, not on the size of the saw. The
+blade sticks out below and behind the work, where you cannot see it:
+know what is there, including wires and pipes in a wall, and keep the
+saw's shoe pressed against the work so the blade cannot hammer it
+(general practice).
 
 ### Sanders and routers
 
@@ -508,14 +539,20 @@ source; the rest is general practice.
 The game's craftsmanship is hand work, and no tool in it can hurt you.
 
 - **Hand tools for hand crafts.** A craft you make yourself at the
-  workbench, forge, anvil or electronics bench names the hand tools it
-  needs: a hammer and hand saw for carpentry, a wrench and screwdriver for
+  workbench, forge, anvil or electronics bench names the tools it needs:
+  a hammer and hand saw for carpentry, a wrench and screwdriver for
   assembly, a hammer at the forge and anvil, a soldering iron and pliers
-  at the electronics bench (`data/crafting/tools.ron`). The Crafting page
-  asks for them in your backpack. In Normal play a craft wears each tool
-  by one use; in the default Dev play mode, as in Creative, the craft
-  takes nothing from your pack and wears no tool
-  (`src/systems/crafting/mod.rs`).
+  at the electronics bench (`data/crafting/tools.ron`). In every play
+  mode the Crafting page's Craft button waits until the recipe's parts
+  are in your backpack, or in your home's storage where you can reach
+  it, and its tools are in your backpack (`src/gui/pages/crafting.rs`).
+  In Normal play the craft then uses up the parts and wears each tool by
+  one use; in the default Dev play mode, as in Creative, it uses nothing
+  up and wears no tool (`src/systems/crafting/mod.rs`). The page's "Dev:
+  stock all materials" button, shown by default in Dev, puts a full stack
+  of every recipe's parts in your backpack, but no tools; the starting
+  kit holds every tool the recipes name except the soldering iron and the
+  chisel (`data/world/player.ron`).
 - **The power tools are names only.** The item list includes an Electric
   Drill ("Corded rotary drill") and a Circular Saw ("Powered rotary
   cutting saw"), each with a durability of 200 uses (`data/items.csv`),
@@ -534,8 +571,11 @@ The game's craftsmanship is hand work, and no tool in it can hurt you.
 What the game leaves out, so you do not learn it from the game: there
 are no cuts, no kickback, no shocks, no noise and no dust, nothing needs
 a guard or protective equipment, and no tool has to be learned before it
-is used. The only tools in it are hand tools, and the only danger they
-carry is wearing out.
+is used. The only tools in it are hand tools and a soldering iron, which
+the item list describes as electric ("Electric solder-melting tip",
+`data/items.csv`) but which draws no power of its own and wears like a
+hand tool (the electronics bench it is used at does need power), and the
+only danger any of them carries is wearing out.
 
 ## You own this when
 
@@ -593,7 +633,8 @@ regulations were read in the eCFR's text in force on 1 October 2026.
   and (2) (eye and face protection, side protection); 1910.212 (machine
   guarding); 1910.243(a)(1) (portable circular saw guards, the lower
   guard returning automatically and instantly), (a)(2) (constant-pressure
-  switches and lock-on controls), (a)(3) (belt sander nip points), (c)
+  switches and lock-on controls, by kind of tool, and for jig, saber and
+  scroll saws by blade shank width), (a)(3) (belt sander nip points), (c)
   (portable abrasive wheel guards, inspection, ring test and spindle
   speed) and (e)(2)(vii) (mower blades stopping within 15 seconds);
   1910.266(e)(2)(i) (chain brakes; kickback devices never removed or
@@ -632,15 +673,31 @@ regulations were read in the eCFR's text in force on 1 October 2026.
 - US Consumer Product Safety Commission. *What Is a GFCI?*, Publication
   099, printed with the code 092010 (portable GFCIs with electric tools and
   garden equipment). https://www.cpsc.gov/s3fs-public/099_0.pdf
+- US Consumer Product Safety Commission. *Portable Generator Hazards*,
+  Safety Alert, Publication 5123, printed with the code 102021 (carbon
+  monoxide a poison you cannot see or smell; generators never run in
+  homes, garages, basements, crawlspaces or sheds, even with fans or
+  open doors and windows).
+  https://www.cpsc.gov/s3fs-public/5123_SafetyAlert_PortableGenerators_102021.pdf
 - US Consumer Product Safety Commission. *Safety Standard Addressing
   Blade-Contact Injuries on Table Saws*, supplemental notice of proposed
   rulemaking, 88 FR 74909, 1 November 2023 (the ways operators contact
   blades without kickback: feeding small pieces, distraction, a glove
   caught by the blade, reaching to regain control, brushing debris while
-  the blade still spins after shutoff; staff's assessment that most
-  blade-contact injuries are not related to kickback). Cited for its
-  account of injuries, not as a rule in force.
+  the blade still spins after shutoff; staff's assessment, from the 2017
+  special study, the Power Tool Institute's figures and one saw maker's
+  activation data, that most blade-contact injuries are not related to
+  kickback). Withdrawn on 29 September 2025, with the rest of the table
+  saw rulemaking (next entry); cited for its account of injuries only,
+  never as a rule.
   https://www.federalregister.gov/documents/2023/11/01/2023-23898/safety-standard-addressing-blade-contact-injuries-on-table-saws
+- US Consumer Product Safety Commission. *Withdrawal of Proposed
+  Regulatory Actions*, notice of withdrawal of proposed rules, 90 FR
+  46541, 29 September 2025 (the table saw rulemaking, its 2023
+  supplemental notice included, withdrawn; the Commission no longer
+  intends to issue a final rule and would publish a new proposal if it
+  took the subject up again).
+  https://www.federalregister.gov/documents/2025/09/29/2025-18810/withdrawal-of-proposed-regulatory-actions
 - USDA Forest Service, Missoula Technology and Development Center.
   *Chain Saw and Crosscut Saw Training Course: Student's Guidebook*, 2006
   Edition, 0667-2805-MTDC, December 2006 (a 16 to 32 hour course;
@@ -654,9 +711,14 @@ regulations were read in the eCFR's text in force on 1 October 2026.
 ### Inside this project
 
 - Hand tools and their wear: `data/crafting/tools.ron`, the `durability`
-  column of `data/items.csv`, and the craft rules in
+  column of `data/items.csv` (and the soldering iron's "Electric
+  solder-melting tip" description), and the craft rules in
   `src/systems/crafting/mod.rs` (no inputs taken and no tool worn in the
-  Creative and Dev modes); the Crafting page, `src/gui/pages/crafting.rs`.
+  Creative and Dev modes); the Crafting page, `src/gui/pages/crafting.rs`
+  (its Craft button needs the parts in the backpack or home storage and
+  the tools in the backpack in every mode, and its "Dev: stock all
+  materials" button stocks every recipe's parts); the starting kit,
+  `data/world/player.ron`.
 - The Electric Drill and Circular Saw rows in `data/items.csv`; the home
   outline, `data/home_outline.json`, shown on the Home page.
 - The electric stations and the sawmill: `data/machines/home.ron`; the
@@ -697,8 +759,16 @@ regulations were read in the eCFR's text in force on 1 October 2026.
   sheet; a sheet held at its ends sagging and closing on the blade; not
   pulling a turning blade back out of a cut; starting the saw clear of
   the wood.
+- Never reaching under the work or holding the offcut of a circular saw
+  cut.
 - Fitting only wheels and discs made for the grinder; clearing the
-  sparks' path; both hands on a grinder.
+  sparks' path; both hands on a grinder, the side handle on; a pinched
+  cut-off disc kicking the grinder back; never side-grinding with a
+  cut-off disc.
+- Shutting off the air and letting the pressure out of the hose before
+  uncoupling an air tool.
+- That carbon monoxide rules for generators fit any engine (our
+  extension).
 - Switching off the circuits in a wall and finding out what is behind it
   before cutting or drilling.
 - The jigsaw's shoe against the work, the blade below and behind it, and
