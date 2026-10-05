@@ -21,7 +21,26 @@ pub(crate) fn spawn_home_power_entities(world: &mut hecs::World, data_dir: &std:
         spawn_home_machine_entity(world, inst, def, &power_islands, &water_islands, None, None);
     }
     spawn_home_feed_taps(world, &home, &all, &power_islands);
-    spawn_home_air_space(world, home_metabolic_kcal(&home));
+    spawn_home_air_space(world, home_metabolic_kcal(&home), own_home_air_m3(data_dir, None));
+}
+
+/// The player's own home's air, m3 (ship homes increment 4, src/ship/ship_space.rs): its own
+/// design's box, floor to roof, where one 14,000 m3 space used to stand for every home. From the
+/// assembled ship when there is one (the home it holds is the one standing); before the world
+/// loads, from the design of the ship's default plot's kind on disk, else the copy built in.
+pub(crate) fn own_home_air_m3(data_dir: &std::path::Path, ship: Option<&crate::ship::ship_structure::ShipStructure>) -> f32 {
+    use crate::ship::ship_structure::{HomeDesign, ShipStructure};
+    if let Some(d) = ship.and_then(|s| s.home_design()) {
+        return crate::ship::ship_space::home_air_volume_m3(&d.body);
+    }
+    let kind = ShipStructure::load_ship_file(data_dir)
+        .ok()
+        .and_then(|s| s.default_plot_id().and_then(|id| s.plots.iter().find(|p| p.id == id).map(|p| p.kind.clone())))
+        .unwrap_or_else(|| "homestead".to_string());
+    HomeDesign::load(data_dir, &kind)
+        .ok()
+        .or_else(|| HomeDesign::built_in(&kind))
+        .map_or(0.0, |d| crate::ship::ship_space::home_air_volume_m3(&d.body))
 }
 
 /// Tie every power island of the home to the ship's bus (2026-09-27,
@@ -52,14 +71,15 @@ pub(crate) fn home_metabolic_kcal(home: &crate::machines::MachineHome) -> f32 {
 /// live AirStatus. Sealed (a habitat/ship hull), so it doesn't equalize with the outside (space). The
 /// HomeMachine tag means load_world's despawn-on-reenter clears it, then this re-creates it once.
 /// `metabolic_kcal_per_day` is the household's food energy, what it breathes (2026-09-26, ship life
-/// support: `home_metabolic_kcal`).
-pub(crate) fn spawn_home_air_space(world: &mut hecs::World, metabolic_kcal_per_day: f32) {
+/// support: `home_metabolic_kcal`). `volume_m3` is THIS home's own (`own_home_air_m3`, ship homes
+/// increment 4: it was 14,000 m3 whatever the home); never below 1 m3.
+pub(crate) fn spawn_home_air_space(world: &mut hecs::World, metabolic_kcal_per_day: f32, volume_m3: f32) {
     use crate::ecs::components::HomeMachine;
     use crate::systems::atmosphere::{EnclosedSpace, HomeAir};
     if world.query::<&HomeAir>().iter().next().is_some() {
         return; // already present
     }
-    world.spawn((HomeMachine, HomeAir { metabolic_kcal_per_day }, EnclosedSpace::new_sealed(14_000.0)));
+    world.spawn((HomeMachine, HomeAir { metabolic_kcal_per_day }, EnclosedSpace::new_sealed(volume_m3.max(1.0))));
 }
 
 /// Spawn ONE ECS entity for a placed home machine, attaching its power role + electrical island AND

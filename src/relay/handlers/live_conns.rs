@@ -92,8 +92,11 @@ pub async fn release_closed(state: &RelayState, key: &str, conn_id: u64) -> Opti
 /// This socket joined the game world: its close is now the identity's game
 /// departure. A later join from another socket (the game reconnecting on a
 /// fresh socket) takes the seat over, so a dying old socket leaves it alone.
-pub async fn take_game_seat(state: &RelayState, key: &str, conn_id: u64) {
-    state.live_conns.write().await.game_seat.insert(key.to_string(), conn_id);
+/// Returns the socket that held the seat before (None: none did), which tells
+/// a reconnect from a join repeated on the same socket (ship homes increment 4
+/// review, M4: move_check.rs `JoinKind`).
+pub async fn take_game_seat(state: &RelayState, key: &str, conn_id: u64) -> Option<u64> {
+    state.live_conns.write().await.game_seat.insert(key.to_string(), conn_id)
 }
 
 /// The identity left the game world some other way (`game_leave`, a despawn),
