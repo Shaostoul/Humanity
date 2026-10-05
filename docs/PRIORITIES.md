@@ -179,22 +179,27 @@ night-to-sunrise shot from Silverdale toward Mount Rainier. Earlier: the start
 tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 (2026-10-04: being built), the old plain backups deleted (2026-10-02).
 
-### RESUME HERE: where the night's work stands (updated 2026-10-05, about 05:00)
+### RESUME HERE: where the work stands (updated 2026-10-05, about 09:30)
 
-- **Released tonight:** v0.1459.0 (ship homes increment 4, BUG-148 to 151), v0.1459.1
-  (six Library guides), v0.1460.0 (the four first-hour lanes and the real-time clock,
-  delivered), v0.1460.1 (nine Library guides, 110 sourced; Drying Food's wild game fix;
-  the Dry Meat recipe heats the meat first).
-- **v0.1461.0 is being checked (main, local, DO NOT PUSH until it passes: a push
-  deploys the relay):** Normal mode by default with progress kept, rigs pinned to Dev
-  and off the live server, Normal-mode editor edits in the save (d7de98c41); the
-  scripted first ten minutes (36860ffa3); death cost by mode (1b14e7f7b, additive
-  conflicts resolved: own_home and death_pack modules, WorldSave's home and left_packs
-  fields, the two frame hooks); the controls hint and the opening's coal step
-  (0b42bbad8). Chain: scratchpad chain1461-1..4.sh (session 1c730720).
-- **Still in flight:** more plots along First Street (worktree-agent-ac4c5e7fee2ce644e,
-  resumed after the PC shutdown); the Library sweep for the Normal-mode defaults (51
-  guides named by the Normal-mode lane).
+- **Released today:** v0.1459.0 to v0.1460.1 (overnight), v0.1461.0 (Normal mode by
+  default, the scripted first ten minutes, death cost by mode), v0.1462.0 (twelve homes
+  along First Street; BUG-157; BUG-160's rig side: five rigs had been dialing the live
+  server; delivered), v0.1462.1 (the microbes, food and water illness, and keeping-food
+  guides, corrected after an independent fact check).
+- **v0.1463.0 being assembled (main stays shippable; each lane merges after review):**
+  BUG-160's game side (the chat page must not fill an empty server address with the live
+  server and dial it); the Live water card wording (the purifier makes no water; the
+  pump, rain and the air handlers' condensate do); BUG-152/158 (review said merge after
+  fixes; the fixer is applying them in worktree-agent-aa673c8967f2d0e39); BUG-159 (tests
+  leave temp files: about 186,000 hum_* files in the temp folder); BUG-153 (Campfire
+  builds a real fire), BUG-154 (the generator burns only its named fuels), BUG-155 (the
+  heater warms its room), each in its own worktree. Then the full chain (verify, rig
+  tests, relay battery, copresence, plots, screens, probe).
+- **Library:** the sanitation batch (toilets and human waste, the germs that matter,
+  preventing and spotting infection; worktree-agent-a3d1a9e4a7a3522f4) had its
+  independent fact check (17 findings, 13 safety) and is being corrected; then a patch
+  release. Remaining follow-ups on main ride with it (handwashing's archived CDC page;
+  food poisoning's real effect; cheese and butter).
 - **A gap the Normal-mode default exposes (found 2026-10-05 by the Library sweep):** in
   Normal mode NOBODY CAN LEAVE THE SHIP. The Dev page's travel and Land buttons and F9 flight are
   the only ways off it, all Dev-only, and no vehicle or route goes down. So by default a
@@ -209,10 +214,6 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   hall is about 13 minutes on foot, against the design's rule (section 2.9) of a mess hall
   within 5 minutes of every home. Wanted: a second mess hall (or a transit stop) along
   First Street. Plots are on the west side only until a home can turn to face a street.
-- **Small fix queued for v0.1463.0:** the Homes page's Live water card says "powered pumps
-  + purifiers fill the cistern" (src/gui/pages/homes.rs ~430); the shipped homes' purifier
-  fills nothing (the pump, rain on the cistern and the air handlers' condensate do). Found
-  by the microbes guides' fact check.
 - **Operator choices to confirm when convenient:** the opening's first tool is a
   fishing rod (no fishing yet) and its useful thing a storage chest; death's 60 minutes
   of play before a pack is gone.
