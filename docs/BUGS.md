@@ -3797,7 +3797,7 @@ is not modelled; the thermostat is set in data, not from a dial in the game
 (docs/design/in-app-ops.md); heaters can be placed only aboard, not in a shelter built on
 a planet (BUG-153's campfire is the planet side); and `data/hvac.ron`'s other heat makers
 (heat pump, wood stove) have no machine yet. The never-registered `HvacSystem`
-(`src/systems/hvac.rs`) is superseded by this and could be deleted.
+(`src/systems/hvac.rs`), superseded by this, was deleted the same day.
 
 ## BUG-156: trees float in the air beside the Silverdale waterfront (OPEN, found 2026-10-05)
 

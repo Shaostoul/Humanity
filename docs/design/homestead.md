@@ -215,8 +215,9 @@ zero producers or consumers today; this arc activates it with data only.
   the space heater (`data/hvac.ron`'s heat_pump, wood_stove and radiant_floor
   have no catalog counterpart), the crops' growth answering a room's
   temperature, every room keeping its own air, and the station's own climate.
-  `HvacSystem` (src/systems/hvac.rs, RoomEnvironment/HvacUnit) is still never
-  registered and is superseded by the farming air step: build on that, not on it.
+  The never-registered `HvacSystem` (src/systems/hvac.rs, with its RoomEnvironment
+  and HvacUnit components) was deleted on 2026-10-05, superseded by the farming air
+  step: build on that.
 
 ## 6. Furnishing manifest
 
@@ -312,8 +313,8 @@ visual: boot the release exe, drop `debug/screenshot_request.json`, read the PNG
    and a Store/Take works on the wardrobe.
 5. **Honest lighting power (small code).** watts on light_types.ron entries;
    switched-on PlacedLights join ElectricalSystem demand; the Home page energy
-   ledger moves when you flip the roof lights on. Also register HvacSystem here
-   if heat is wanted early.
+   ledger moves when you flip the roof lights on. (Room heat landed separately,
+   in the farming air step, 2026-10-05.)
 6. **Real models (assets).** Export per-piece GLBs (assets/models/furniture.blend
    is unexported source; the pipeline is docs/game/model-pipeline.md and
    docs/dev/adding-3d-models.md), set each catalog entry's `model`. Rooms go from
@@ -332,9 +333,9 @@ effort and blocks nothing above.
 4. Per-fixture plumbing: one aggregate home_water_use node today.
 5. Blackwater/waste chain: no septic machine; Waste utility has no consumers.
 6. PlacedLight wattage: house lighting draws no power in the sim.
-7. HVAC runtime: HvacSystem is written but never registered; hvac.ron has no
-   loader into the machine layer. (Room heat itself runs since 2026-10-05, in
-   the farming air step, `src/systems/farming/heat.rs`: see 5.3.)
+7. HVAC runtime: hvac.ron has no loader into the machine layer. Room heat runs
+   since 2026-10-05 in the farming air step, `src/systems/farming/heat.rs` (see
+   5.3); the old never-registered HvacSystem was deleted the same day.
 8. (Closed by the console-room increment.) Wall-bounded rooms are now named by
    the zone covering their centre and joined to rooms.ron through the zone's
    `room_type`; see "Room identity" in section 3. Still open: the entry, pantry,
