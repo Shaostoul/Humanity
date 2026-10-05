@@ -70,6 +70,9 @@ pub struct MoveState {
     pub last_correction_s: f64,
     /// Why (the reason a resend repeats).
     pub last_reason: &'static str,
+    /// Declared jumps (a teleporter, shutting the build editor) the player may still make now:
+    /// one comes back every `jump_every_s`, up to `jump_burst` (the review of increment 4, M5).
+    pub jumps: f32,
 }
 
 /// What to do with one position update.
@@ -104,6 +107,13 @@ pub struct MoveContext<'a> {
     pub vehicle_mps: Option<f32>,
 }
 
+/// How high over the plot's floor shutting the build editor stands a person: the eye height
+/// (lib.rs, the editor's close: the zone's floor plus 1.7 m, surface_walk::EYE_HEIGHT_M).
+const EDITOR_EYE_M: f32 = crate::surface_walk::EYE_HEIGHT_M as f32;
+
+/// How far from that height an editor close may be, metres: rounding, never a deck or a flight.
+const EDITOR_FLOOR_TOLERANCE_M: f32 = 0.25;
+
 /// How far from a transit pad's middle someone standing in it can be (a teleporter's footprint),
 /// for a link in a home, which the relay has no copy of.
 fn pad_reach_m() -> f32 {
@@ -119,14 +129,15 @@ impl MoveState {
     /// A player who has just been spawned where the relay put them: a full allowance.
     pub fn fresh(now_s: f64, rules: &MovingRules) -> Self {
         let (h, v) = Self::caps(rules, rules.on_foot_mps);
-        MoveState { at_s: now_s, bank_h: h, bank_v: v, grant_m: 0.0, seq: 0, acked: 0, last_correction_s: f64::NEG_INFINITY, last_reason: "too_fast" }
+        MoveState { at_s: now_s, bank_h: h, bank_v: v, grant_m: 0.0, seq: 0, acked: 0, last_correction_s: f64::NEG_INFINITY, last_reason: "too_fast", jumps: rules.jump_burst }
     }
 
     /// A reconnect that found the player still in the world: one move as far as they could have
     /// gone since their last accepted update (on foot, with the margin), at most
     /// `FAR_FROM_HELD_M`, the same distance a welcome lets a game keep standing where it is
-    /// (engine/home_plot.rs `stand_where_held`). A pending correction is forgiven: the welcome
-    /// tells the game where it is held.
+    /// (engine/home_plot.rs `stand_where_held`). It takes the place of the allowance for that
+    /// move, never adds to it (`check`). A pending correction is forgiven: the welcome tells the
+    /// game where it is held. Only for a reconnect (`GameWorld::moves_on_join`, `JoinKind`).
     pub fn rejoin(&mut self, now_s: f64, rules: &MovingRules) {
         let away_s = (now_s - self.at_s).max(0.0) as f32;
         self.grant_m = (rules.on_foot_mps * (1.0 + rules.jitter_margin) * away_s).min(FAR_FROM_HELD_M);
@@ -165,10 +176,18 @@ impl MoveState {
         self.at_s = now_s;
         self.bank_h = (self.bank_h + speed_h * (1.0 + r.jitter_margin) * dt).min(cap_h);
         self.bank_v = (self.bank_v + r.vertical_mps * (1.0 + r.jitter_margin) * dt).min(cap_v);
+        self.jumps = (self.jumps + dt / r.jump_every_s).min(r.jump_burst);
 
         let up_down = (ctx.to.y - ctx.held.y).abs();
-        // How far across the floor the move WALKED (a link's jump itself is free), or the reason
-        // it is not a move anyone could make.
+        // A declared jump (a teleporter, shutting the build editor) needs one in reserve: the relay
+        // cannot see a teleporter in anyone's home or an editor being open, so it limits how often
+        // anyone may say so to what a person can do (M5: 30 hops of 80 m in 2 s were taken).
+        let declared_jump = matches!(ctx.declared, Some(MoveDecl::Link { .. }) | Some(MoveDecl::Editor));
+        if declared_jump && self.jumps < 1.0 {
+            return self.correct(now_s, r.correction_gap_s, "jumps_too_often");
+        }
+        // How far across the floor the move WALKED (a link's or an editor close's jump itself is
+        // free), or the reason it is not a move anyone could make.
         let walked = match ctx.declared {
             Some(MoveDecl::Link { zone, from, to, from_at, to_at }) => {
                 let ends = if zone == crate::ship::ship_structure::HOME_ZONE_ID {
@@ -187,33 +206,50 @@ impl MoveState {
                     }
                 };
                 let (a, b, reach) = ends.expect("set above");
-                (floor_distance(ctx.held, a) + floor_distance(b, ctx.to) - 2.0 * reach).max(0.0)
+                // The shorter of the walk through the link and the walk straight across: a
+                // declaration never makes a move fail that would pass as plain walking (the
+                // review of increment 4, M3: the game keeps one declaration for its next update,
+                // so a player who bounced B to A to B while a page was open declared A to B with
+                // the relay holding them at B, and was corrected though they never moved).
+                let through = (floor_distance(ctx.held, a) + floor_distance(b, ctx.to) - 2.0 * reach).max(0.0);
+                through.min(floor_distance(ctx.held, ctx.to))
             }
             Some(MoveDecl::Editor) => {
+                // The build spot: on the player's own plot, at most `FAR_FROM_HELD_M` from where
+                // the relay holds them, and at standing height on the plot's floor, where the
+                // editor's close stands a person (lib.rs: the floor plus the eye height). The
+                // jump itself is free; the up-and-down check below still applies (M5: the
+                // editor's declaration used to skip it, and a close 500 m up was taken).
                 let far = floor_distance(ctx.held, ctx.to);
-                return match &ctx.own_plot {
-                    Some(b) if on_plot(b, ctx.to) && far <= FAR_FROM_HELD_M + r.slack_m => {
-                        self.grant_m = 0.0;
-                        Verdict::Accept
-                    }
-                    Some(b) if on_plot(b, ctx.to) => self.correct(now_s, r.correction_gap_s, "editor_too_far"),
-                    _ => self.correct(now_s, r.correction_gap_s, "editor_off_plot"),
-                };
+                match &ctx.own_plot {
+                    Some(b) if !on_plot(b, ctx.to) => return self.correct(now_s, r.correction_gap_s, "editor_off_plot"),
+                    None => return self.correct(now_s, r.correction_gap_s, "editor_off_plot"),
+                    Some(_) if far > FAR_FROM_HELD_M + r.slack_m => return self.correct(now_s, r.correction_gap_s, "editor_too_far"),
+                    Some(b) if (ctx.to.y - (b.0.y + EDITOR_EYE_M)).abs() > EDITOR_FLOOR_TOLERANCE_M => return self.correct(now_s, r.correction_gap_s, "editor_off_floor"),
+                    Some(_) => 0.0,
+                }
             }
             _ => floor_distance(ctx.held, ctx.to),
         };
-        let fits_h = walked <= self.bank_h + self.grant_m + r.slack_m;
+        // What this update may cover across the floor: the allowance, or a reconnect's grant when
+        // that is more, never the two together (the review of increment 4, M4: after 3 s away a
+        // 137.8 m first move was taken, the grant on top of the bank the same 3 s had refilled).
+        let allow_h = self.bank_h.max(self.grant_m);
+        let fits_h = walked <= allow_h + r.slack_m;
         let fits_v = up_down <= self.bank_v + r.slack_m;
         if !(fits_h && fits_v) {
             return self.correct(now_s, r.correction_gap_s, "too_fast");
         }
-        // Spend: the grant first (it is one-shot either way), then the allowance, which the slack
-        // may take below zero but no further: the slack forgives one update's rounding, it is not
-        // free distance on every update (at 15 a second, 1 m each would be 15 m/s more).
-        let over_grant = (walked - self.grant_m).max(0.0);
+        // Spend what the move used of the allowance (or the grant, one-shot either way), which the
+        // slack may take below zero but no further: the slack forgives one update's rounding, it
+        // is not free distance on every update (at 15 a second, 1 m each would be 15 m/s more).
+        // What a grant leaves over is kept only up to the usual allowance.
         self.grant_m = 0.0;
-        self.bank_h = (self.bank_h - over_grant).max(-r.slack_m);
+        self.bank_h = (allow_h - walked).max(-r.slack_m).min(cap_h);
         self.bank_v = (self.bank_v - up_down).max(-r.slack_m);
+        if declared_jump {
+            self.jumps -= 1.0;
+        }
         Verdict::Accept
     }
 
@@ -237,6 +273,8 @@ pub fn correction_sentence(reason: &str) -> &'static str {
         "link_off_plot" => "The server put you back where it last saw you: a teleporter in your home has to stand on your own plot.",
         "editor_off_plot" => "The server put you back where it last saw you: your build spot is not on your own plot, so walk there.",
         "editor_too_far" => "The server put you back where it last saw you: your build spot is more than 90 m away, so walk there.",
+        "editor_off_floor" => "The server put you back where it last saw you: shutting the build editor stands you on your plot's floor.",
+        "jumps_too_often" => "The server put you back where it last saw you: nobody can take teleporters or shut the build editor that often.",
         _ => "The server put you back where it last saw you: that move was faster than anyone can go aboard.",
     }
 }
@@ -253,15 +291,46 @@ pub fn own_plot_of(e: &super::game_state::GameEntity) -> Option<Aabb> {
     Some((o, o + v3("size")?))
 }
 
+/// How a `game_join` found the player (handle_game_join), for the speed check.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JoinKind {
+    /// Spawned afresh (a first join, after a `game_leave`, after the grace ran out, after a relay
+    /// restart): a fresh allowance at the relay's own spawn point.
+    Fresh,
+    /// Back after their socket dropped: the relay held them for the grace, or a new socket took
+    /// their game seat over. One move as far as the time away allows (`MoveState::rejoin`).
+    Reconnect,
+    /// Joined again on the socket that already holds their seat: welcomed again, and nothing
+    /// about how fast they may move changes. The review of increment 4, M4: every join that
+    /// found the player counted as a reconnect, so a modified game could repeat it on its live
+    /// socket to jump about 138 m every few seconds, or to shrug off a correction.
+    Resync,
+}
+
+impl JoinKind {
+    /// `found`: the relay still had the player in the world; `held_for_grace`: their socket had
+    /// dropped and the relay was holding them for the grace; `seat_was`: the socket that held
+    /// their game seat before this join (None: none); `conn`: this join's socket.
+    pub fn of(found: bool, held_for_grace: bool, seat_was: Option<u64>, conn: u64) -> Self {
+        match (found, held_for_grace || seat_was != Some(conn)) {
+            (false, _) => JoinKind::Fresh,
+            (true, true) => JoinKind::Reconnect,
+            (true, false) => JoinKind::Resync,
+        }
+    }
+}
+
 impl super::game_state::GameWorld {
     /// A player was just spawned (a first join, Respawn, stepping back in) where the relay put
-    /// them: a fresh allowance. Or they reconnected and the relay still held them (`rejoin`): one
-    /// move as far as they could have gone while away. handle_game_join calls it on every join.
-    pub fn moves_on_join(&mut self, player_id: u64, rejoin: bool) {
+    /// them: a fresh allowance. Or they reconnected and the relay still held them: one move as
+    /// far as they could have gone while away. Or they joined again on the socket already
+    /// holding their seat: nothing changes. handle_game_join calls it on every join.
+    pub fn moves_on_join(&mut self, player_id: u64, join: JoinKind) {
         let now = relay_now_s();
         let rules = self.rules.moving.clone();
-        match self.moves.get_mut(&player_id) {
-            Some(m) if rejoin => m.rejoin(now, &rules),
+        match (self.moves.get_mut(&player_id), join) {
+            (Some(m), JoinKind::Reconnect) => m.rejoin(now, &rules),
+            (Some(_), JoinKind::Resync) => {}
             _ => {
                 self.moves.insert(player_id, MoveState::fresh(now, &rules));
             }
@@ -527,6 +596,101 @@ mod tests {
         assert_eq!(pending.check(30.0, &ctx(&r, held, held + Vec3::new(0.5, 0.0, 0.0))), Verdict::Accept, "the welcome forgave the correction");
     }
 
+    /// A DECLARED LINK NEVER MAKES A MOVE FAIL THAT WOULD PASS AS WALKING (the review of
+    /// increment 4, M3). The game keeps one declaration for its next update, and a later one
+    /// overwrites it: a player who landed on pad B and opened a page while standing there bounced
+    /// B to A to B, sent nothing while the page was open, and the update after it said A to B
+    /// while the relay held them at B. Judged through the link, that is the walk from B to A's
+    /// pad, 44.6 m here: corrected, though the player never moved. A link's walk is now the
+    /// shorter of the walk through it and the walk straight across.
+    ///
+    /// Seen red 2026-10-04 on the code before the fix: "a 0.14 m step on pad B declared as the A to
+    /// B jump it followed was corrected: Correct { reason: \"too_fast\" }".
+    #[test]
+    fn a_declared_link_never_makes_a_walk_fail() {
+        let r = rules();
+        let link = TransitLink { zone: "commons".into(), from: "teleporter-1".into(), to: "teleporter-2".into(), from_at: Vec3::new(70.0, 0.0, 30.0), to_at: Vec3::new(90.0, 0.0, 70.0), from_yaw: 0.0, reach_m: 0.75 };
+        let links = [link.clone()];
+        let at_b = Vec3::new(90.1, 1.7, 70.0);
+        let step = Vec3::new(90.2, 1.7, 70.1);
+        let mut s = MoveState::fresh(0.0, &r);
+        s.bank_h = 0.0;
+        let v = s.check(0.0, &MoveContext { rules: &r, held: at_b, to: step, declared: Some(&link.declaration()), applied: 0, own_plot: None, links: &links, vehicle_mps: None });
+        assert_eq!(v, Verdict::Accept, "a {:.2} m step on pad B declared as the A to B jump it followed was corrected: {v:?}", at_b.distance(step));
+        // The same in the player's own home.
+        let home = MoveDecl::Link { zone: "home".into(), from: "teleporter-1".into(), to: "teleporter-2".into(), from_at: Vec3::new(22.5, 0.0, 20.0), to_at: Vec3::new(31.0, 0.0, 80.0) };
+        let at_east = Vec3::new(31.0, 1.7, 80.0);
+        let mut s = MoveState::fresh(0.0, &r);
+        s.bank_h = 0.0;
+        let v = s.check(0.0, &MoveContext { rules: &r, held: at_east, to: at_east + Vec3::new(0.1, 0.0, 0.0), declared: Some(&home), applied: 0, own_plot: Some(p1()), links: &[], vehicle_mps: None });
+        assert_eq!(v, Verdict::Accept, "a step on the home's east pad declared as the jump it followed was corrected: {v:?}");
+    }
+
+    /// A RECONNECT GETS THE TIME AWAY OR THE BANK, NEVER BOTH (the review of increment 4, M4). The
+    /// grant a reconnect earns was added on top of the allowance the time away had refilled: after
+    /// 3 s away a 137.8 m first move was taken (the most anyone could have walked is 72 m, and the
+    /// design says a reconnect moves at most 90 m); and a grant spent in full left the whole bank
+    /// for the very next update, 90 m and then 47 m at once.
+    ///
+    /// Seen red 2026-10-04 on the code before the fix: "after 3 s away a 137 m first move was
+    /// taken" (left: Accept, right: Correct { reason: "too_fast" }).
+    #[test]
+    fn a_reconnect_gets_the_time_away_or_the_bank_never_both() {
+        let r = rules();
+        let held = Vec3::new(70.0, 1.7, 100.0);
+        let mut s = MoveState::fresh(0.0, &r);
+        s.rejoin(3.0, &r);
+        let v = s.check(3.0, &ctx(&r, held, held + Vec3::new(0.0, 0.0, 137.0)));
+        assert_eq!(v, Verdict::Correct { reason: "too_fast" }, "after 3 s away a 137 m first move was taken");
+        let mut t = MoveState::fresh(0.0, &r);
+        t.rejoin(5.0, &r);
+        let there = held + Vec3::new(0.0, 0.0, 89.0);
+        assert_eq!(t.check(5.0, &ctx(&r, held, there)), Verdict::Accept, "89 m after 5 s away");
+        let v = t.check(5.0, &ctx(&r, there, there + Vec3::new(0.0, 0.0, 40.0)));
+        assert_eq!(v, Verdict::Correct { reason: "too_fast" }, "the grant spent in full left the bank for the next update: 40 m more at once was {v:?}");
+    }
+
+    /// SHUTTING THE EDITOR STANDS YOU ON YOUR PLOT'S FLOOR, AND ONLY AS OFTEN AS A PERSON CAN (the
+    /// review of increment 4, M5). The editor's declaration skipped the up-and-down check and
+    /// needed no sign of an editor at all: standing still with the update's height at 500 m on
+    /// your own plot was taken, and so were 30 hops of 80 m in 2 s, each declared as the editor's.
+    /// So were 30 forged teleporter jumps of 103 m in your own home, whose ends the relay can only
+    /// check are on your plot. Now an editor close lands at standing height on the plot's floor,
+    /// and declared jumps of either kind come no more often than a person can make them.
+    ///
+    /// Seen red 2026-10-04 on the code before the fix: "an editor close 500 m up on the plot was
+    /// Accept".
+    #[test]
+    fn declared_jumps_land_on_the_floor_no_faster_than_a_person() {
+        let r = rules();
+        let door = Vec3::new(53.5, 1.7, 40.5);
+        let judge = |s: &mut MoveState, now: f64, held: Vec3, to: Vec3, d: &MoveDecl| s.check(now, &MoveContext { rules: &r, held, to, declared: Some(d), applied: 0, own_plot: Some(p1()), links: &[], vehicle_mps: None });
+        let mut s = MoveState::fresh(0.0, &r);
+        let v = judge(&mut s, 0.0, door, Vec3::new(door.x, 500.0, door.z), &MoveDecl::Editor);
+        assert!(matches!(v, Verdict::Correct { .. }), "an editor close 500 m up on the plot was {v:?}");
+        let mut s = MoveState::fresh(0.0, &r);
+        assert_eq!(judge(&mut s, 0.0, Vec3::new(60.0, 1.7, 45.0), Vec3::new(40.0, 1.7, 30.0), &MoveDecl::Editor), Verdict::Accept, "an honest editor close");
+        // 30 hops of 80 m in 2 s, between two corners of the plot.
+        let (a, b) = (Vec3::new(2.0, 1.7, 2.0), Vec3::new(2.0, 1.7, 82.0));
+        let hops = |d: &dyn Fn(Vec3, Vec3) -> MoveDecl| {
+            let mut s = MoveState::fresh(0.0, &r);
+            let mut held = a;
+            let mut taken = 0;
+            for i in 0..30 {
+                let to = if held == a { b } else { a };
+                if judge(&mut s, f64::from(i) * 2.0 / 30.0, held, to, &d(held, to)) == Verdict::Accept {
+                    held = to;
+                    taken += 1;
+                }
+            }
+            taken
+        };
+        let editor = hops(&|_, _| MoveDecl::Editor);
+        assert!(editor <= 4, "{editor} of 30 editor hops of 80 m in 2 s were taken");
+        let forged = hops(&|from, to| MoveDecl::Link { zone: "home".into(), from: "teleporter-1".into(), to: "teleporter-2".into(), from_at: Vec3::new(from.x, 0.0, from.z), to_at: Vec3::new(to.x, 0.0, to.z) });
+        assert!(forged <= 4, "{forged} of 30 forged teleporter jumps of 80 m in 2 s were taken");
+    }
+
     /// THE RELAY'S HALF ON A WORLD: a player spawned at their door is held there; a 60 m jump is
     /// answered with a correction to the door; the update that says it applied it is taken. Seen
     /// red 2026-10-04 with `judge_move` sending no message for a correction: "a correction
@@ -536,7 +700,7 @@ mod tests {
         let mut world = GameWorld::new();
         let door = [53.5, 1.7, 40.5];
         let id = world.spawn_player("e11e0004", door);
-        world.moves_on_join(id, false);
+        world.moves_on_join(id, JoinKind::Fresh);
         let (v, msg) = world.judge_move(id, [door[0], door[1], door[2] + 60.0], &serde_json::json!({}));
         assert_eq!(v, Verdict::Correct { reason: "too_fast" });
         let msg = msg.expect("a correction message");
@@ -592,7 +756,7 @@ mod tests {
         assert!(world.moves.is_empty(), "nothing of the speed check is stored");
         let door = [53.5, 1.7, 139.5];
         let id = world.spawn_player("e11e0002", door);
-        world.moves_on_join(id, false);
+        world.moves_on_join(id, JoinKind::Fresh);
         assert_eq!(world.judge_move(id, [53.5, 1.7, 140.0], &serde_json::json!({})).0, Verdict::Accept);
         world.update_position(id, [53.5, 1.7, 140.0], [0.0, 0.0, 0.0, 1.0]);
         assert!(matches!(world.judge_move(id, [53.5, 1.7, 40.0], &serde_json::json!({})).0, Verdict::Correct { .. }));

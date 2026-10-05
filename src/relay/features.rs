@@ -2036,6 +2036,103 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// JOINING AGAIN ON THE SAME SOCKET MOVES NOBODY FURTHER (the review of increment 4, M4).
+    /// Every `game_join` that found the player still in the world counted as a reconnect: one
+    /// move as far as the time since their last update allowed, on top of the allowance the same
+    /// time had refilled, and a pending correction forgiven. A modified game could send
+    /// `game_join` again on its live socket every few seconds and jump about 138 m each time,
+    /// or shrug off a correction. Only a reconnect earns that now: the relay held the player for
+    /// the grace after their socket dropped, or a new socket took their seat. A join on the
+    /// socket that already holds it is welcomed again and changes nothing about how fast they
+    /// may move. A real reconnect still may move as far as the time away allows.
+    ///
+    /// Seen red 2026-10-04 on the code before the fix: "a 60 m move after joining again on the same
+    /// socket was taken: the relay holds them at [53.5, 1.7, 100.5]".
+    #[tokio::test]
+    async fn joining_again_on_the_same_socket_moves_nobody_further() {
+        use crate::relay::relay::RelayState;
+        let path = plots_db("join_again");
+        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+        let mut st = RelayState::new(db);
+        st.features = Features::all_enabled();
+        st.reconnect_grace = std::time::Duration::from_secs(90);
+        let state = std::sync::Arc::new(st);
+        let app = crate::relay::build_router(state.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        let (mut a, key) = bind_socket(&state, port, [110u8; 32], Some("JoinAgain"), 1).await;
+        welcome_after_join(&mut a, "JoinAgain").await;
+        let door = relay_position(&state, &key).await;
+        // 2.5 s standing still, then the same socket joins again.
+        tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
+        let w = welcome_after_join(&mut a, "JoinAgain").await;
+        assert_eq!(w["rejoin"], serde_json::json!(true), "the relay found them in the world");
+        let far = [door[0], door[1], door[2] + 60.0];
+        step_applied(&mut a, far, 0).await;
+        let c = next_game_of(&mut a, &["game_position_correction"]).await;
+        let held = relay_position(&state, &key).await;
+        assert!(c.is_some(), "a 60 m move after joining again on the same socket was taken: the relay holds them at {held:?}");
+        assert!(dist(held, door) < 1e-3, "and holds them at their door");
+
+        // A real reconnect: the socket drops, and 2.5 s later a new one joins inside the grace.
+        a.close(None).await.ok();
+        assert!(wait_until(|| async { live_count(&state, &key).await == 0 }).await, "the socket closed");
+        tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
+        let (mut b, _) = bind_socket(&state, port, [110u8; 32], Some("JoinAgain"), 1).await;
+        let w = welcome_after_join(&mut b, "JoinAgain").await;
+        assert_eq!(w["rejoin"], serde_json::json!(true), "a reconnect inside the grace");
+        step_applied(&mut b, far, 1).await;
+        let moved = wait_until(|| async { dist(relay_position(&state, &key).await, far) < 1e-3 }).await;
+        assert!(moved, "after 2.5 s away a reconnect's 60 m first move was not taken: the relay holds them at {:?}", relay_position(&state, &key).await);
+        b.close(None).await.ok();
+        server.abort();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// AN INTERACTION GOES TO THE PLAYERS WHO SEE IT, NOT TO EVERY SOCKET (the review of
+    /// increment 4, P5). `game_entity_interacted` names the player and the thing they used,
+    /// which stands within 5 m of them, so it says where they are; it went to every socket on the
+    /// server, chat-only ones included, while the design notes said nothing positional does any
+    /// more. Now it goes to the players who have the actor in view, and to the actor.
+    ///
+    /// Seen red 2026-10-04 on the code before the fix: "a socket that is only chatting was told who
+    /// used what, and so where they stand: [Object {\"action\": String(\"talk\"), \"dialog_line\":
+    /// String(\"[CB-7] Tables wiped. Resuming patrol.\"), \"entity_id\": Number(16), \"player_key\":
+    /// String(\"46d77a6b...\"), \"speaker\": String(\"CB-7\"), \"type\": String(\"game_entity_interacted\")}]".
+    #[tokio::test]
+    async fn an_interaction_goes_only_to_the_players_who_see_it() {
+        let path = plots_db("interacted");
+        let (state, port, server) = relay_on(&path).await;
+        let (mut a, a_key) = bind_socket(&state, port, [111u8; 32], Some("TalkA"), 1).await;
+        let (mut b, _) = bind_socket(&state, port, [112u8; 32], Some("SeeB"), 1).await;
+        let (mut chat, _) = bind_socket(&state, port, [113u8; 32], Some("OnlyChatC"), 1).await;
+        welcome_after_join(&mut a, "TalkA").await;
+        welcome_after_join(&mut b, "SeeB").await;
+        // Stand A beside a crew member, in the relay's own world (nothing walks there).
+        let crew = {
+            let mut w = state.game_world.write().await;
+            let (crew_id, at) = w.entities.iter().find(|(_, e)| e.components.get("chore_agent").is_some() && e.components.get("interactable").and_then(|i| i.as_bool()) == Some(true)).map(|(id, e)| (*id, e.position)).expect("a crew member");
+            let id = w.find_player_entity(&a_key).expect("A in the world");
+            w.update_position(id, [at[0] + 1.0, at[1], at[2]], [0.0, 0.0, 0.0, 1.0]);
+            w.rejudge_view(id);
+            crew_id
+        };
+        let _ = game_messages_for(&mut chat, 200).await;
+        send_json(&mut a, serde_json::json!({ "type": "game_interact", "entity_id": crew, "action": "talk" })).await;
+        let to_b = next_game_of(&mut b, &["game_entity_interacted"]).await;
+        assert!(to_b.is_some(), "the player who has them in view was not told");
+        let to_chat: Vec<Value> = game_messages_for(&mut chat, 600).await.into_iter().filter(|g| g["type"] == "game_entity_interacted").collect();
+        assert!(to_chat.is_empty(), "a socket that is only chatting was told who used what, and so where they stand: {to_chat:?}");
+        for mut s in [a, b, chat] {
+            s.close(None).await.ok();
+        }
+        server.abort();
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// Every game message a socket receives in the next `ms` milliseconds.
     async fn game_messages_for(sock: &mut TestSocket, ms: u64) -> Vec<Value> {
         use futures::StreamExt;

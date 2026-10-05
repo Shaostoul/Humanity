@@ -74,6 +74,24 @@ fn is_crew(e: &super::game_state::GameEntity) -> bool {
     e.components.get("chore_agent").is_some()
 }
 
+/// What anyone else is told of entity `e`'s components (a welcome, `game_in_view`, an AI's
+/// `game_query_entity` or `game_interact`): all of them, except where a player lives. A player's
+/// entity carries their plot (`home_plot`: id, origin and size, set on every join by
+/// ship_world.rs `set_home_plot`, and the plot their explore quest names) for the relay's own
+/// rules; nobody else is told it (the design, section 5.10: "No endpoint lists who lives
+/// where"; the review of increment 4, P7). Nothing in the game reads another player's plot: a
+/// neighbour's home is drawn from the ship file's plots (src/ship/neighbours.rs).
+pub fn components_seen_by_others(e: &super::game_state::GameEntity) -> serde_json::Value {
+    let mut c = e.components.clone();
+    if let Some(o) = c.as_object_mut() {
+        o.remove("home_plot");
+        if let Some(q) = o.get_mut("current_quest").and_then(|q| q.as_object_mut()) {
+            q.remove("home_plot");
+        }
+    }
+    c
+}
+
 impl GameWorld {
     /// Re-judge every pair `moved` (a player or a crew member) is in, after it moved or arrived:
     /// a player against every other player (both ways) and every crew member; a crew member
@@ -114,7 +132,8 @@ impl GameWorld {
     }
 
     /// The welcome's world snapshot for player `viewer`: every entity but the movers (players and
-    /// crew) out of their view; themselves always.
+    /// crew) out of their view; themselves always, with their own plot, and every other player
+    /// without theirs (`components_seen_by_others`).
     pub fn snapshot_for(&self, viewer: u64) -> Vec<EntitySnapshot> {
         self.snapshot()
             .into_iter()
@@ -122,10 +141,19 @@ impl GameWorld {
                 let mover = self.entities.get(&s.entity_id).is_some_and(|e| e.entity_type == "player" || is_crew(e));
                 !mover || s.entity_id == viewer || self.interest.sees(viewer, s.entity_id)
             })
+            .map(|mut s| {
+                if s.entity_id != viewer {
+                    if let Some(e) = self.entities.get(&s.entity_id) {
+                        s.components = components_seen_by_others(e);
+                    }
+                }
+                s
+            })
             .collect()
     }
 
-    /// One entity as the welcome's snapshot lists it, for a `game_in_view`.
+    /// One entity as the welcome's snapshot lists it, for a `game_in_view` (always about someone
+    /// else: a player never comes into their own view).
     pub fn entity_entry_json(&self, id: u64) -> Option<serde_json::Value> {
         let e = self.entities.get(&id)?;
         Some(serde_json::json!({
@@ -133,7 +161,7 @@ impl GameWorld {
             "entity_type": e.entity_type,
             "position": e.position,
             "rotation": e.rotation,
-            "components": e.components,
+            "components": components_seen_by_others(e),
         }))
     }
 
@@ -263,18 +291,95 @@ mod tests {
         assert!(crew_in(&world.snapshot_for(p)) >= 5);
     }
 
-    /// ON THE SHIPPED SHIP EVERYONE ABOARD SEES EVERYONE: with the shipped 250 m view, players at
-    /// the farthest two corners of the ship's places (p2's far corner and the Commons' far one,
-    /// about 195 m apart) are in each other's view, so nothing anyone sees changes on this ship.
+    /// ON THE SHIPPED SHIP EVERYONE ABOARD SEES EVERYONE: with the shipped view, the two places
+    /// aboard farthest apart (the farthest two corners of every zone, plot and corridor of the
+    /// relay's own ship file, measured, not picked: First Street's far end and the far corner of
+    /// p1, about 209 m) are in each other's view, and two players standing there see each other,
+    /// so nothing anyone sees changes on this ship. (The review of increment 4, R3: the test
+    /// used to stand two players at a hand-picked pair 193.6 m apart, which a view of 200 m
+    /// passed while it hid the real farthest pair.)
+    ///
     /// Seen red 2026-10-04 with the shipped file's view at 150 m: "assertion failed:
-    /// world.viewer_keys(b).contains(\"e11e00dd\") && world.viewer_keys(a).contains(\"e11e00ee\")".
+    /// world.viewer_keys(b).contains(\"e11e00dd\") && world.viewer_keys(a).contains(\"e11e00ee\")";
+    /// and, the farthest pair measured, with the view at 200 m (which the hand-picked pair
+    /// passed): "the farthest two corners aboard, zone street-1 at [75, 4, 195] and plot p1 at
+    /// [0, 0, 0], are 209.0 m apart, past the 200 m view".
     #[test]
     fn on_the_shipped_ship_everyone_aboard_sees_everyone() {
+        use crate::ship::ship_space::{tube_box, Aabb};
+        use crate::ship::ship_structure::{HomeDesign, ShipStructure};
         let mut world = GameWorld::new();
-        let a = world.spawn_player("e11e00dd", [0.5, 1.7, 187.5]);
-        let b = world.spawn_player("e11e00ee", [98.5, 1.7, 20.5]);
+        let ship = ShipStructure::load_ship_file(std::path::Path::new("data")).expect("the relay's ship file");
+        let mut boxes: Vec<(String, Aabb)> = Vec::new();
+        for z in &ship.zones {
+            let o = z.origin_vec();
+            boxes.push((format!("zone {}", z.id), (o, o + Vec3::new(z.body.width, z.body.height, z.body.depth))));
+        }
+        for p in &ship.plots {
+            boxes.push((format!("plot {}", p.id), p.aabb()));
+            if let Ok(g) = ship.plot_door_tube(p, HomeDesign::built_in_ref(&p.kind)) {
+                boxes.push((format!("plot {}'s corridor", p.id), tube_box(&g)));
+            }
+        }
+        for c in &ship.corridors {
+            if let Ok(g) = ship.corridor_geometry(c) {
+                boxes.push((format!("corridor {} to {}", c.from_zone, c.to_zone), tube_box(&g)));
+            }
+        }
+        let corners = |(lo, hi): Aabb| [0u8, 1, 2, 3, 4, 5, 6, 7].map(|i| Vec3::new(if i & 1 == 0 { lo.x } else { hi.x }, if i & 2 == 0 { lo.y } else { hi.y }, if i & 4 == 0 { lo.z } else { hi.z }));
+        let all: Vec<(String, Vec3)> = boxes.iter().flat_map(|(n, b)| corners(*b).map(|c| (n.clone(), c))).collect();
+        let (mut far, mut pair) = (0.0_f32, None);
+        for (i, (na, a)) in all.iter().enumerate() {
+            for (nb, b) in &all[i + 1..] {
+                if a.distance(*b) > far {
+                    far = a.distance(*b);
+                    pair = Some((na.clone(), *a, nb.clone(), *b));
+                }
+            }
+        }
+        let (na, a_at, nb, b_at) = pair.expect("the ship has places");
+        let view = world.rules.delivery.in_view_m;
+        assert!(far <= view, "the farthest two corners aboard, {na} at {a_at} and {nb} at {b_at}, are {far:.1} m apart, past the {view} m view");
+        // Two players standing there (at eye height over each corner's floor) see each other.
+        let a = world.spawn_player("e11e00dd", [a_at.x, 1.7, a_at.z]);
+        let b = world.spawn_player("e11e00ee", [b_at.x, 1.7, b_at.z]);
         world.rejudge_view(a);
         assert!(world.viewer_keys(b).contains("e11e00dd") && world.viewer_keys(a).contains("e11e00ee"));
         assert_eq!(world.snapshot_for(a).len(), world.snapshot().len(), "the welcome lists everything");
+    }
+
+    /// NOBODY IS TOLD WHO LIVES WHERE (the review of increment 4, P7; the design, section 5.10:
+    /// "No endpoint lists who lives where"). A player's entity carries their plot (`home_plot`:
+    /// id, origin and size, and the plot their explore quest names) for the relay's own rules, and
+    /// the welcome's snapshot and `game_in_view` sent it, with their name, to every other player.
+    /// Nothing in the game reads another player's plot (a neighbour's home is drawn from the
+    /// ship file's plots, src/ship/neighbours.rs). Now another player's entry says nothing of it;
+    /// a player's own entry keeps it.
+    ///
+    /// Seen red 2026-10-04 on the code before the fix: "a's welcome says where b lives: {...,
+    /// \"current_quest\":{... \"home_plot\":\"p2\" ...}, ..., \"home_plot\":{\"id\":\"p2\",
+    /// \"origin\":[0.0,0.0,99.0],\"size\":[55.0,3.0,89.0]}, ..., \"name\":\"Bea\", ...}".
+    #[test]
+    fn nobody_is_told_who_lives_where() {
+        let mut world = GameWorld::new();
+        let a = world.spawn_player("e11e00f1", [53.5, 1.7, 40.5]);
+        let b = world.spawn_player("e11e00f2", [53.5, 1.7, 139.5]);
+        let (p1, p2) = (world.ship_plots.plot("p1").cloned().expect("p1"), world.ship_plots.plot("p2").cloned().expect("p2"));
+        world.set_home_plot(a, Some(&p1));
+        world.set_home_plot(b, Some(&p2));
+        if let Some(o) = world.entities.get_mut(&b).and_then(|e| e.components.as_object_mut()) {
+            o.insert("name".to_string(), serde_json::json!("Bea"));
+        }
+        world.rejudge_view(a);
+        world.rejudge_view(b);
+        let says_where = |c: &serde_json::Value| c.get("home_plot").is_some_and(|p| !p.is_null()) || c.get("current_quest").and_then(|q| q.get("home_plot")).is_some_and(|p| !p.is_null());
+        let snap = world.snapshot_for(a);
+        let theirs = snap.iter().find(|s| s.entity_id == b).expect("b is in a's welcome");
+        assert!(!says_where(&theirs.components), "a's welcome says where b lives: {}", theirs.components);
+        let own = snap.iter().find(|s| s.entity_id == a).expect("a is in their own welcome");
+        assert!(own.components.get("home_plot").is_some_and(|p| p["id"] == "p1"), "a's own entry keeps their plot");
+        let came = world.entity_entry_json(b).expect("b's entry");
+        assert!(!says_where(&came["components"]), "game_in_view says where b lives: {}", came["components"]);
+        assert_eq!(came["components"]["name"], "Bea", "their name is still said");
     }
 }

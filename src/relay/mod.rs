@@ -825,11 +825,14 @@ pub async fn run_relay() {
                 let npc_events = world.tick(0.05); // 50ms = 0.05 seconds
                 // Each crew member's news to the players who have it in view (ship homes
                 // increment 4, handlers/game_interest.rs); with nobody in the world, to no one.
+                // Sent before the world is let go, in order with every move a player makes
+                // (increment 4 review, P4): a crew update sent after it could reach a player after
+                // their `game_out_of_view` for that crew member, and stand it there for good.
                 let deliveries = if world.player_count() > 0 { world.npc_deliveries(npc_events) } else { Vec::new() };
-                drop(world);
                 for (to, payload) in deliveries {
                     crate::relay::handlers::game_interest::send_to(&game_state, to, &payload);
                 }
+                drop(world);
             }
         });
     }

@@ -15,7 +15,8 @@
 //   - a reconnect that finds the player still in the world: one move as far as they could have
 //     walked while the connection was down, at most 90 m (`FAR_FROM_HELD_M`, src/ship/moves.rs);
 //   - a teleporter or other transit link, named by its id (src/ship/transit.rs);
-//   - shutting the build editor, which stands the player at their build spot on their own plot;
+//   - shutting the build editor, which stands the player at their build spot on their own plot,
+//     at standing height on its floor;
 //   - driving a vehicle, at that vehicle's own speed (data/vehicles/kits.ron, `speed_mps`), when
 //     that is faster than on foot.
 //
@@ -39,6 +40,14 @@
 //   correction_resend_s
 //                    When a player's updates still say they have not stood where they were sent
 //                    this long after a correction, it is sent again.
+//   jump_every_s     Declared jumps (a teleporter, shutting the build editor) come at most one
+//                    every this many seconds over time. The relay cannot see a teleporter in
+//                    anyone's home or an editor being open, so it limits how often anyone may say
+//                    so. A person cannot do it faster: a teleporter works again only once they
+//                    have stepped off every pad and 1.2 s have passed (engine/move_check.rs
+//                    TELEPORT_REARM_S), and the editor has to be opened and shut.
+//   jump_burst       How many declared jumps a player keeps in reserve, so two that the network
+//                    delivers together both pass.
 //
 // delivery
 //   in_view_m        Another player or crew member this close (metres, in the ship's frame) is
@@ -61,6 +70,8 @@
         slack_m: 1.0,
         correction_gap_s: 0.5,
         correction_resend_s: 2.0,
+        jump_every_s: 1.0,
+        jump_burst: 2.0,
     ),
     delivery: (
         in_view_m: 250.0,
