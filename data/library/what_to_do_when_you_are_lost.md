@@ -494,22 +494,23 @@ worth saying why.
   respawner. Nothing was lost, but the body remembers: keep fed,
   hydrated, warm, and breathing." Real life has no respawner, which is
   the whole reason this guide exists.
-- **Home is not marked, in this build.** The Maps page has a Track
-  switch for the Home Station in orbit, on by default, which is meant to
-  put a ring and a label with its distance on screen once you are more
-  than a kilometre from the station. In this build the ring is cut off at
-  the Render distance setting (Settings > Graphics, 500 metres by default
-  and 2 kilometres at most), so it shows only close to the station and
-  never from the ground. As on a real walk, nothing on screen shows the
-  way home.
+- **Home is marked.** The Maps page has a Track switch for the Home
+  Station in orbit, on by default. Once you are more than a kilometre
+  from the station, it puts a ring and a label with the distance on
+  screen, from the ground too (for example "Home Station · 38,240 km"
+  near Silverdale); when the station is out of view, the ring sits at the
+  edge of the screen on the side to turn toward, with an arrow. A real
+  walk has no such ring: only what you carry and what you noticed on the
+  way out shows you the way home.
 - **The default play mode can teleport you.** The game starts in the Dev
   play mode (Settings > Gameplay > Play mode), which includes the Dev
   page and its travel buttons, among them one to return to where you were
   before you first teleported. Its buttons that take you to a planet,
   both the travel row and the Land on surface row, leave fly mode on,
-  and once you are on the ground the line under the compass still reads
-  "WALK x1 [F9 to fly]". Press F9 twice, or untick Fly mode on the Dev
-  page, and you are really walking.
+  and the line under the compass says so: "FLY x1 - gravity on [F9 to
+  hover]". Press F9 twice (the first press turns the hover on, the
+  second turns both off and the line reads "WALK x1 [F9 to fly]"), or
+  untick Fly mode on the Dev page, and you are really walking.
 - **Waiting does cost something.** Hunger, thirst and energy fall over
   time (Settings > Gameplay > Vitals drain: at 1.0, with time at its
   default Realistic speed, thirst comes in about two days and hunger in
@@ -729,17 +730,17 @@ facts are used here and the wording is not.
 - The death screen and Respawn button: `src/gui/pages/hud.rs`. The Home
   Station Track switch (`src/gui/pages/cosmos.rs`, on by default in
   `src/gui/mod.rs`) and its ring and distance label, shown only beyond a
-  kilometre (`src/lib.rs`) and dropped by the HUD's `world_to_screen`
-  beyond the camera's far plane (`src/gui/pages/hud.rs`), which is the
-  Render distance setting, 500 metres by default and at most 2,000
-  (`src/config.rs`, applied in `src/lib.rs`; the reverse-depth
-  projection is in `src/renderer/camera.rs`). The Dev play mode and the
+  kilometre (`src/lib.rs`), placed by direction rather than through the
+  camera's depth range, and pinned to the screen's edge with an arrow
+  when the station is out of view (`marker_placement` and
+  `marker_distance` in `src/gui/pages/hud.rs`). The Dev play mode and the
   Dev page's travel, Land on surface and Return home buttons
   (`src/config.rs`, `src/gui/pages/dev.rs`); the travel and landing
   code that turns fly mode on (`src/lib.rs`), F9 and the Fly mode box
   that turn it off (`src/lib.rs`,
-  `src/gui/pages/dev.rs`), and the HUD's movement line, which reads WALK
-  whenever F9's hover is off (`src/gui/pages/hud.rs`). Vitals drain, Body
+  `src/gui/pages/dev.rs`), and the HUD's movement line, which reads FLY
+  whenever fly mode or the hover is on (`movement_line` in
+  `src/gui/pages/hud.rs`). Vitals drain, Body
   heat, Time and the other Gameplay settings (`src/gui/pages/settings.rs`,
   `src/gui/pages/settings_time.rs`); the vitals drain on the game clock
   (`src/systems/food.rs`, `src/systems/time.rs`); the body heat model, its
