@@ -5,6 +5,9 @@
 //! objectives are met, and awards item rewards on completion.
 
 pub mod objectives;
+/// The opening, played on the shipped data with the real systems (2026-10-04).
+#[cfg(all(test, feature = "native"))]
+mod opening_tests;
 
 use std::collections::HashMap;
 
@@ -90,22 +93,53 @@ impl QuestRegistry {
     }
 }
 
-// ── Travel destinations (v0.979, the Travel-objective emitter) ──────
+// ── Travel destinations (v0.979; where the player stands, 2026-10-04) ──────
 
 /// One named world destination a Travel objective can point at. Positions are
 /// XZ in the homestead-world frame (the same frame `entities/wild_spawns.ron`
 /// uses), so a destination can mark a spawn cluster, a field, or any landmark.
+/// A destination that is no fixed place (the player's own front door) names
+/// what it resolves to in `at` instead (2026-10-04).
 #[derive(Debug, Clone, Deserialize)]
 pub struct DestinationDef {
-    /// The id Travel(destination: ...) references; the emitter fires
-    /// "travel_<id>" when the player enters the radius.
+    /// The id Travel(destination: ...) references.
     pub id: String,
     /// Player-facing name (quest journal copy can reference it).
     pub label: String,
-    /// World XZ centre.
+    /// World XZ centre. Unused when `at` names where the place is.
+    #[serde(default)]
     pub pos: (f32, f32),
     /// Arrival radius in metres.
     pub radius: f32,
+    /// Where the place is when it is not a fixed point: resolved every tick
+    /// from what the game publishes (`DestinationAnchor`). None: `pos`.
+    #[serde(default)]
+    pub at: Option<DestinationAnchor>,
+}
+
+/// A destination that moves with the player's own circumstances (2026-10-04,
+/// the opening): never a fixed coordinate.
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq)]
+pub enum DestinationAnchor {
+    /// The doorstep of the player's OWN front door: `out_m` metres out of the
+    /// door, along the corridor its plot's door makes. A family home's door
+    /// opens on the Commons, a First Street plot's on the street; whichever
+    /// plot the player was given, offline or on a server, the game publishes
+    /// its door every frame (`FrontDoor`, `publish_front_door`). A guest,
+    /// whose home is put away, has no front door aboard, and the place does
+    /// not resolve.
+    OwnFrontDoor { out_m: f32 },
+}
+
+impl DestinationDef {
+    /// The centre of this place now, XZ: `pos`, or what `at` resolves to
+    /// (None when it does not resolve, so nobody stands in it).
+    pub fn centre(&self, front_door: Option<&FrontDoor>) -> Option<(f32, f32)> {
+        match self.at {
+            None => Some(self.pos),
+            Some(DestinationAnchor::OwnFrontDoor { out_m }) => front_door.map(|d| d.doorstep(out_m)),
+        }
+    }
 }
 
 /// The destination list. DataStore: `"quest_destinations"`.
@@ -121,31 +155,121 @@ impl DestinationList {
     }
 }
 
-/// Edge-triggered arrival detection, pure for tests: returns the ids of
-/// destinations the player just ENTERED this tick (fired as
-/// "travel_<id>" events by the caller), updating `inside` (the set of
-/// destinations the player currently stands in). Leaving removes the id, so
-/// walking out and back re-fires - a quest accepted after a first visit still
-/// completes on the next walk-through (quest progress only records events
-/// while the quest is active).
-pub fn travel_transitions(
+/// The ids of the destinations the player stands in now, at `player_xz`
+/// (pure, for tests). A Travel step is done while the player stands in its
+/// place and it is the step they are on (2026-10-04). It used to be an event
+/// fired on ENTERING the place and counted from the moment the quest was
+/// accepted, so the opening's last step, out of your own front door, would
+/// already have been done by anyone who looked out of the door at the start,
+/// and would have finished the moment the step before it did, wherever the
+/// player was.
+pub fn destinations_here(
     player_xz: (f32, f32),
     dests: &DestinationList,
-    inside: &mut std::collections::HashSet<String>,
-) -> Vec<String> {
-    let mut entered = Vec::new();
-    for d in &dests.destinations {
-        let dx = player_xz.0 - d.pos.0;
-        let dz = player_xz.1 - d.pos.1;
-        let in_radius = dx * dx + dz * dz <= d.radius * d.radius;
-        if in_radius && !inside.contains(&d.id) {
-            inside.insert(d.id.clone());
-            entered.push(d.id.clone());
-        } else if !in_radius {
-            inside.remove(&d.id);
+    front_door: Option<&FrontDoor>,
+) -> std::collections::HashSet<String> {
+    dests
+        .destinations
+        .iter()
+        .filter(|d| {
+            d.centre(front_door).is_some_and(|c| {
+                let (dx, dz) = (player_xz.0 - c.0, player_xz.1 - c.1);
+                dx * dx + dz * dz <= d.radius * d.radius
+            })
+        })
+        .map(|d| d.id.clone())
+        .collect()
+}
+
+// ── The player's own front door (2026-10-04, the opening) ──────────────
+
+/// The player's own front door, as the quests see it: published by the game
+/// every frame under `FRONT_DOOR_KEY` from the ship it runs, with the home on
+/// whichever plot the player was given (`front_door_of`). Ship metres, the
+/// frame "camera_position" is in.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FrontDoor {
+    /// The door, XZ: where the plot's door corridor leaves the home's shell.
+    pub door: (f32, f32),
+    /// The way out, a unit XZ direction along the corridor, away from home.
+    pub outward: (f32, f32),
+    /// What the door opens on: the label of the zone its corridor leads to
+    /// ("The Commons", "First Street").
+    pub opens_on: String,
+}
+
+impl FrontDoor {
+    /// The doorstep `out_m` metres out of the door (XZ).
+    pub fn doorstep(&self, out_m: f32) -> (f32, f32) {
+        (self.door.0 + self.outward.0 * out_m, self.door.1 + self.outward.1 * out_m)
+    }
+
+    /// What the door opens on, as it reads inside a sentence: "the Commons"
+    /// (a leading "The" lowered), "First Street".
+    pub fn opens_on_in_a_sentence(&self) -> String {
+        match self.opens_on.strip_prefix("The ") {
+            Some(rest) => format!("the {rest}"),
+            None => self.opens_on.clone(),
         }
     }
-    entered
+}
+
+/// The DataStore key of the published `FrontDoor`.
+pub const FRONT_DOOR_KEY: &str = "own_front_door";
+
+/// The front door of the home `ship` was assembled with: its plot's door
+/// corridor, from the home (`ShipStructure::assemble` checks that the
+/// corridor leaves through the design's door) to the zone it opens on. None
+/// for a ship with no home on a plot: a guest's home put away, the ship file
+/// on its own, or a corridor that does not resolve.
+pub fn front_door_of(ship: &crate::ship::ship_structure::ShipStructure) -> Option<FrontDoor> {
+    use crate::ship::ship_structure::HOME_ZONE_ID;
+    ship.home_plot()?;
+    let row = ship.corridors.iter().find(|c| c.from_zone == HOME_ZONE_ID)?;
+    let g = ship.corridor_geometry(row).ok()?;
+    let out = glam::Vec2::new(g.end_to.x - g.end_from.x, g.end_to.z - g.end_from.z).normalize_or_zero();
+    if out == glam::Vec2::ZERO {
+        return None;
+    }
+    let opens_on = ship.zones.get(g.to_zone_idx)?.label.clone();
+    Some(FrontDoor { door: (g.end_from.x, g.end_from.z), outward: (out.x, out.y), opens_on })
+}
+
+/// Publish the player's own front door for the quests (the game calls this
+/// every frame with the ship it runs), or take it away when there is none.
+pub fn publish_front_door(data: &mut DataStore, ship: Option<&crate::ship::ship_structure::ShipStructure>) {
+    match ship.and_then(front_door_of) {
+        Some(door) => {
+            if data.get::<FrontDoor>(FRONT_DOOR_KEY) != Some(&door) {
+                data.insert(FRONT_DOOR_KEY, door);
+            }
+        }
+        None => {
+            if data.contains(FRONT_DOOR_KEY) {
+                data.remove(FRONT_DOOR_KEY);
+            }
+        }
+    }
+}
+
+/// The placeholder a step's text may carry for what the player's own front
+/// door opens on (2026-10-04): "the Commons" for a family home's plot, "First
+/// Street" for a plot on the street (`step_text`).
+pub const FRONT_DOOR_OPENS_ON: &str = "{front_door_opens_on}";
+
+/// What the player reads for a step whose text is `description`: the text,
+/// with what their own front door opens on filled in (`FRONT_DOOR_OPENS_ON`),
+/// "the ship" while there is no front door to name. The HUD's quest line, the
+/// Quests page and the step and quest notices all read it from here.
+pub fn step_text(description: &str, data: &DataStore) -> String {
+    if !description.contains(FRONT_DOOR_OPENS_ON) {
+        return description.to_string();
+    }
+    let place = data
+        .get::<FrontDoor>(FRONT_DOOR_KEY)
+        .map(FrontDoor::opens_on_in_a_sentence)
+        .unwrap_or_else(|| "the ship".to_string());
+    description.replace(FRONT_DOOR_OPENS_ON, &place)
 }
 
 /// Where the player stands, as (x, z) in the frame destinations use, for the
@@ -190,17 +314,49 @@ pub fn npc_talk_key(name: &str) -> String {
     out
 }
 
-/// Push a quest-progress event key (e.g. `"craft_smelt_iron"`, `"harvest_potato"`)
-/// onto the shared `"quest_events"` DataStore channel. Action systems call this on
-/// completion; [`QuestSystem`] drains it each tick and bumps matching progress
-/// counters so count-based objectives (Craft/Harvest/…) advance. No-ops cleanly if
-/// the channel is absent (e.g. a headless/test world that never registered it).
 /// The quest event one unit of `item_id` made by a recipe reports, read by
 /// `Make` objectives (2026-10-02).
 pub fn make_event_key(item_id: &str) -> String {
     format!("make_{item_id}")
 }
 
+/// The quest event one `item_id` eaten reports (FoodSystem), read by `Eat`
+/// objectives (2026-10-04).
+pub fn eat_event_key(item_id: &str) -> String {
+    format!("{EAT_EVENT}{item_id}")
+}
+
+/// The quest event one crop of `plant_id` planted reports (FarmingSystem),
+/// read by `Plant` objectives (2026-10-04).
+pub fn plant_event_key(plant_id: &str) -> String {
+    format!("{PLANT_EVENT}{plant_id}")
+}
+
+/// The quest event a view coming on screen reports (the interface, through
+/// the game's frame), read by `View` objectives (2026-10-04).
+pub fn view_event_key(view: &str) -> String {
+    format!("view_{view}")
+}
+
+/// The prefixes of the eat and plant events: an `Eat` or `Plant` step that
+/// names no item counts every event with its prefix.
+const EAT_EVENT: &str = "eat_";
+const PLANT_EVENT: &str = "plant_";
+
+/// How many events a count step has seen: of `prefix` + `id` when it names
+/// one, else of every event with that prefix (any food, any crop).
+fn counted(progress: &HashMap<String, u32>, prefix: &str, id: Option<&str>) -> u32 {
+    match id {
+        Some(id) => progress.get(&format!("{prefix}{id}")).copied().unwrap_or(0),
+        None => progress.iter().filter(|(k, _)| k.starts_with(prefix)).map(|(_, n)| *n).sum(),
+    }
+}
+
+/// Push a quest-progress event key (e.g. `"craft_smelt_iron"`, `"harvest_potato"`)
+/// onto the shared `"quest_events"` DataStore channel. Action systems call this on
+/// completion; [`QuestSystem`] drains it each tick and bumps matching progress
+/// counters so count-based objectives (Craft/Harvest/…) advance. No-ops cleanly if
+/// the channel is absent (e.g. a headless/test world that never registered it).
 pub fn push_quest_event(data: &DataStore, key: String) {
     if let Some(lock) = data.get::<std::sync::Mutex<Vec<String>>>("quest_events") {
         if let Ok(mut events) = lock.lock() {
@@ -237,12 +393,13 @@ pub fn completion_notice(
 
 /// The line for the quests a finished one started: "New quest: Toolsmith.
 /// Forge a hammer." with the first step, or "New quests: A, B and C." for
-/// several. None when it started none.
-pub fn next_quest_notice(started: &[&QuestDef]) -> Option<String> {
+/// several. None when it started none. `text` turns a step's description into
+/// what the player reads (`step_text`).
+pub fn next_quest_notice(started: &[&QuestDef], text: impl Fn(&str) -> String) -> Option<String> {
     match started {
         [] => None,
         [one] => Some(match one.steps.first() {
-            Some(step) => format!("New quest: {}. {}.", one.name, step.description.trim_end_matches('.')),
+            Some(step) => format!("New quest: {}. {}.", one.name, text(&step.description).trim_end_matches('.')),
             None => format!("New quest: {}.", one.name),
         }),
         many => {
@@ -250,6 +407,16 @@ pub fn next_quest_notice(started: &[&QuestDef]) -> Option<String> {
             Some(format!("New quests: {}.", crate::systems::crafting::away::join_list(&names)))
         }
     }
+}
+
+/// The line when a step is done and the quest goes on (2026-10-04, the
+/// opening): "First Steps: step 1 of 8 done. Next: Eat something: press I,
+/// click a Basic Ration, then Eat." `done` counts from 1; `next` is the next
+/// step as the player reads it. The HUD's quest line changes to the next step
+/// at the same moment, and this says that it did. The last step is the quest's
+/// own notice (`completion_notice`).
+pub fn step_notice(quest: &str, done: usize, total: usize, next: &str) -> String {
+    format!("{quest}: step {done} of {total} done. Next: {}.", next.trim_end_matches('.'))
 }
 
 fn post_notice(data: &DataStore, line: String) {
@@ -321,26 +488,28 @@ pub struct PendingReward {
 // ── Quest system ────────────────────────────────────────────
 
 /// Checks active quest objectives each tick, advances steps, awards rewards.
-pub struct QuestSystem {
-    /// Destinations the player is currently standing inside (edge-trigger
-    /// state for the Travel emitter, v0.979).
-    inside_destinations: std::collections::HashSet<String>,
+pub struct QuestSystem;
+
+impl Default for QuestSystem {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl QuestSystem {
     pub fn new() -> Self {
-        Self {
-            inside_destinations: std::collections::HashSet::new(),
-        }
+        Self
     }
 
     /// Check if a single objective is met given the player's inventory, what
-    /// the home holds (`at_home`, by item id) and the progress map.
+    /// the home holds (`at_home`, by item id), the progress map and the
+    /// destinations the player stands in now (`here`, `destinations_here`).
     fn check_objective(
         objective: &QuestObjective,
         inventory: Option<&Inventory>,
         at_home: &dyn Fn(&str) -> u32,
         progress: &HashMap<String, u32>,
+        here: &std::collections::HashSet<String>,
     ) -> bool {
         match objective {
             QuestObjective::Gather { item_id, quantity } => {
@@ -370,16 +539,21 @@ impl QuestSystem {
                 let key = format!("build_{}", blueprint_id);
                 progress.get(&key).copied().unwrap_or(0) >= 1
             }
-            QuestObjective::Travel { destination } => {
-                // Track via progress counter (navigation system sets this)
-                let key = format!("travel_{}", destination);
-                progress.get(&key).copied().unwrap_or(0) >= 1
-            }
+            // Standing in the place while this is the step (2026-10-04): only
+            // the current step is ever checked, so an earlier pass does not
+            // count (`destinations_here`).
+            QuestObjective::Travel { destination } => here.contains(destination),
             QuestObjective::Talk { npc_id } => {
                 // Track via progress counter (interaction system sets this)
                 let key = format!("talk_{}", npc_id);
                 progress.get(&key).copied().unwrap_or(0) >= 1
             }
+            // What the player ate, planted and opened (2026-10-04, the
+            // opening), from the events the food and farming systems and the
+            // interface report where it really happens.
+            QuestObjective::Eat { item_id, quantity } => counted(progress, EAT_EVENT, item_id.as_deref()) >= *quantity,
+            QuestObjective::Plant { crop_id, quantity } => counted(progress, PLANT_EVENT, crop_id.as_deref()) >= *quantity,
+            QuestObjective::View { view } => progress.get(&view_event_key(view)).copied().unwrap_or(0) >= 1,
         }
     }
 }
@@ -395,19 +569,16 @@ impl System for QuestSystem {
             None => return, // No quests loaded yet
         };
 
-        // Travel emitter (v0.979): fire "travel_<id>" the moment the player
-        // steps into a destination radius (data/entities/destinations.ron).
-        // Runs before the drain below, so an arrival advances its Travel
-        // objective in the SAME tick. Where the player is comes from the
-        // walking camera (`player_xz`, 2026-10-04): the entity's Transform
-        // never moved when they walked.
-        if let Some(dests) = data.get::<DestinationList>("quest_destinations") {
-            if let Some(xz) = player_xz(world, data) {
-                for id in travel_transitions(xz, dests, &mut self.inside_destinations) {
-                    push_quest_event(data, format!("travel_{id}"));
-                }
-            }
-        }
+        // Where the player stands now, for Travel steps (2026-10-04): the
+        // destinations (data/entities/destinations.ron) they are inside this
+        // tick, the player's own front door among them when the game
+        // published one. Where the player is comes from the walking camera
+        // (`player_xz`): the entity's Transform never moved when they walked.
+        let front_door = data.get::<FrontDoor>(FRONT_DOOR_KEY);
+        let here = match (data.get::<DestinationList>("quest_destinations"), player_xz(world, data)) {
+            (Some(dests), Some(xz)) => destinations_here(xz, dests, front_door),
+            _ => std::collections::HashSet::new(),
+        };
 
         // Drain quest-progress events the action systems pushed this frame
         // ("craft_<recipe>", "harvest_<crop>", ...). Applied to every active
@@ -484,7 +655,7 @@ impl System for QuestSystem {
                 }
 
                 let step = &quest_def.steps[active.current_step];
-                if Self::check_objective(&step.objective, inventory, &at_home, &active.progress) {
+                if Self::check_objective(&step.objective, inventory, &at_home, &active.progress, &here) {
                     let next_step = active.current_step + 1;
                     if next_step >= quest_def.steps.len() {
                         // Final step completed
@@ -508,6 +679,14 @@ impl System for QuestSystem {
                     tracker.active_quests[*qi].quest_id,
                     new_step
                 );
+                // Tell the player the step is done and what is next
+                // (2026-10-04, the opening): the HUD's quest line changes at
+                // this moment, and a change nothing points at is easy to miss.
+                if let Some(def) = registry.get(&tracker.active_quests[*qi].quest_id) {
+                    if let Some(next) = def.steps.get(*new_step) {
+                        post_notice(data, step_notice(&def.name, *new_step, def.steps.len(), &step_text(&next.description, data)));
+                    }
+                }
             }
 
             // Complete quests (remove in reverse order to preserve indices)
@@ -543,7 +722,7 @@ impl System for QuestSystem {
                 post_notice(data, completion_notice(name, rewards, xp_rewards, items, skills));
             }
             started.sort_by(|a, b| a.name.cmp(&b.name)); // the registry's order is a hash map's
-            if let Some(line) = next_quest_notice(&started) {
+            if let Some(line) = next_quest_notice(&started, |d| step_text(d, data)) {
                 post_notice(data, line);
             }
 
@@ -654,29 +833,35 @@ mod quest_tests {
         assert!(reg.quests.len() >= 4, "all quest files merged, got {}", reg.quests.len());
     }
 
-    /// Travel emitter (v0.979): the edge trigger fires exactly on entry,
-    /// stays quiet while standing inside, and re-fires after leave + return
-    /// (a quest accepted after a first visit completes on the next pass).
+    /// Where the player stands (2026-10-04, replacing v0.979's edge trigger):
+    /// the destinations whose radius holds the player's XZ, a fixed place by
+    /// its `pos`, the own front door by the door the game published, and
+    /// nothing for a front door that is not published (a guest).
     #[test]
-    fn travel_transitions_edge_trigger() {
+    fn destinations_here_are_the_places_the_player_stands_in() {
         let dests = DestinationList {
-            destinations: vec![DestinationDef {
-                id: "fields".into(),
-                label: "the fields".into(),
-                pos: (10.0, 10.0),
-                radius: 5.0,
-            }],
+            destinations: vec![
+                DestinationDef { id: "fields".into(), label: "the fields".into(), pos: (10.0, 10.0), radius: 5.0, at: None },
+                DestinationDef {
+                    id: "front_door".into(),
+                    label: "your front door".into(),
+                    pos: (0.0, 0.0),
+                    radius: 1.5,
+                    at: Some(DestinationAnchor::OwnFrontDoor { out_m: 1.5 }),
+                },
+            ],
         };
-        let mut inside = std::collections::HashSet::new();
-        // Approach from outside: no fire.
-        assert!(travel_transitions((30.0, 30.0), &dests, &mut inside).is_empty());
-        // Entry fires once.
-        assert_eq!(travel_transitions((11.0, 11.0), &dests, &mut inside), vec!["fields"]);
-        // Standing inside stays quiet.
-        assert!(travel_transitions((9.0, 12.0), &dests, &mut inside).is_empty());
-        // Leave, then return: fires again.
-        assert!(travel_transitions((30.0, 30.0), &dests, &mut inside).is_empty());
-        assert_eq!(travel_transitions((10.0, 10.0), &dests, &mut inside), vec!["fields"]);
+        let door = FrontDoor { door: (55.0, 139.0), outward: (1.0, 0.0), opens_on: "First Street".into() };
+        let here = |xz| destinations_here(xz, &dests, Some(&door));
+        assert!(here((30.0, 30.0)).is_empty(), "out in the open");
+        assert_eq!(here((11.0, 11.0)), ["fields".to_string()].into_iter().collect(), "in the fields");
+        assert_eq!(here((56.5, 139.0)), ["front_door".to_string()].into_iter().collect(), "on the doorstep, 1.5 m out of the door");
+        assert!(here((53.5, 139.5)).is_empty(), "just inside the door is not out of it");
+        assert!(here((0.0, 0.0)).is_empty(), "the front door's unused pos is no place");
+        assert!(destinations_here((56.5, 139.0), &dests, None).is_empty(), "no door published, no doorstep");
+        assert_eq!(door.opens_on_in_a_sentence(), "First Street");
+        let commons = FrontDoor { opens_on: "The Commons".into(), ..door };
+        assert_eq!(commons.opens_on_in_a_sentence(), "the Commons", "\"The\" is lowered inside a sentence");
     }
 
     #[test]
@@ -765,6 +950,29 @@ mod quest_tests {
                         q.id
                     ),
                     QuestObjective::Talk { .. } => {} // relay-runtime names, see doc
+                    // An Eat item must be food the player can eat (not drink).
+                    QuestObjective::Eat { item_id, .. } => {
+                        if let Some(id) = item_id {
+                            assert!(items.contains(id), "quest {}: Eat names unknown item {id}", q.id);
+                            assert_eq!(
+                                crate::systems::food::consume_kinds().get(id),
+                                Some(&false),
+                                "quest {}: Eat names {id}, which is not eaten",
+                                q.id
+                            );
+                        }
+                    }
+                    QuestObjective::Plant { crop_id, .. } => {
+                        if let Some(id) = crop_id {
+                            assert!(plants.contains(id), "quest {}: Plant names unknown crop {id}", q.id);
+                        }
+                    }
+                    // The views the interface reports (GuiState::on_screen).
+                    QuestObjective::View { view } => assert!(
+                        ["vitals"].contains(&view.as_str()),
+                        "quest {}: View names {view}, which no page reports",
+                        q.id
+                    ),
                 }
                 // Reward items must exist too - a completed quest that grants
                 // a phantom item would vanish the reward silently.
@@ -923,30 +1131,35 @@ mod quest_tests {
         sys.tick(&mut world, 0.0, &data);
         assert!(world.get::<&QuestTracker>(player).unwrap().is_completed("q_make"), "2 of 2 ingots");
 
-        // The shipped starter quest takes the graphite route.
+        // The shipped starter quest's smelting step takes the graphite route
+        // (since 2026-10-04 it is the sixth of the opening's eight steps).
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
         let shipped = QuestRegistry::from_ron_dir(&root.join("data/quests"));
-        let steps = shipped.get("gs_first_steps").expect("gs_first_steps ships").steps.len();
+        let smelt = shipped
+            .get("gs_first_steps")
+            .expect("gs_first_steps ships")
+            .steps
+            .iter()
+            .position(|s| matches!(&s.objective, QuestObjective::Make { item_id, .. } if item_id == "iron_ingot_0"))
+            .expect("First Steps smelts an iron ingot");
         let mut data = DataStore::new();
         data.insert("quest_registry", shipped);
         data.insert("quest_events", std::sync::Mutex::new(Vec::<String>::new()));
         let mut world = hecs::World::new();
         let mut tracker = QuestTracker::default();
         tracker.accept_quest("gs_first_steps");
-        let mut inv = Inventory::new(16);
-        inv.add_item("iron_ore_0", 3, 99);
-        let player = world.spawn((tracker, inv));
+        tracker.active_quests[0].current_step = smelt;
+        let player = world.spawn((tracker, Inventory::new(16)));
         sys.tick(&mut world, 0.0, &data);
         // What crafting reports for one smelt_iron_graphite batch.
         push_quest_event(&data, "craft_smelt_iron_graphite".to_string());
         push_quest_event(&data, make_event_key("iron_ingot_0"));
         push_quest_event(&data, make_event_key("slag_0"));
-        for _ in 0..steps + 1 {
-            sys.tick(&mut world, 0.0, &data);
-        }
-        assert!(
-            world.get::<&QuestTracker>(player).unwrap().is_completed("gs_first_steps"),
-            "smelting with graphite finishes First Steps"
+        sys.tick(&mut world, 0.0, &data);
+        assert_eq!(
+            world.get::<&QuestTracker>(player).unwrap().active_quests[0].current_step,
+            smelt + 1,
+            "smelting with graphite finishes First Steps' smelting step"
         );
     }
 
@@ -1133,27 +1346,32 @@ mod quest_tests {
         std::mem::take(&mut *data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap())
     }
 
-    /// THE FIRST STEP SAYS WHERE. It read "Acquire 3 iron ore (mine it with a
+    /// THE IRON STEP SAYS WHERE. It read "Acquire 3 iron ore (mine it with a
     /// drone, or stock it)": the drone is on the Inventory page, which it never
     /// said, and "stock it" is a Dev-mode button. It now names the two places a
     /// new player gets ore, and this holds them true: the Inventory page has a
-    /// Mining section, and every shipped home places a trading post. The HUD
-    /// shows "<step> (1/2)" and cuts the line at 64 characters (hud.rs), so the
-    /// whole of it must fit there.
+    /// Mining section, and every shipped home places a trading post. (It was
+    /// the first step; since 2026-10-04 it is the fifth of the opening's, and
+    /// every step's fit in the HUD's line is held by
+    /// opening_tests::every_step_of_every_shipped_quest_fits_the_hud_line.)
     ///
     /// Red, run on the shipped quest before this: "the first step names the
     /// Inventory page's Mining section: Acquire 3 iron ore (mine it with a
     /// drone, or stock it)".
     #[test]
-    fn the_first_step_says_where_to_get_iron_ore() {
-        const HUD_STEP_CHARS: usize = 64;
+    fn the_iron_step_says_where_to_get_iron_ore() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
         let reg = QuestRegistry::from_ron_dir(&root.join("data/quests"));
         let q = reg.get("gs_first_steps").expect("First Steps ships");
-        let first = &q.steps[0].description;
-        assert!(first.contains("Inventory > Mining"), "the first step names the Inventory page's Mining section: {first}");
-        assert!(first.contains("trading post"), "the first step names the trading post: {first}");
-        assert!(!first.contains("stock"), "the first step points at no Dev-mode button: {first}");
+        let iron = &q
+            .steps
+            .iter()
+            .find(|s| matches!(&s.objective, QuestObjective::Gather { item_id, .. } if item_id == "iron_ore_0"))
+            .expect("First Steps gathers iron ore")
+            .description;
+        assert!(iron.contains("Inventory > Mining"), "the iron step names the Inventory page's Mining section: {iron}");
+        assert!(iron.contains("trading post"), "the iron step names the trading post: {iron}");
+        assert!(!iron.contains("stock"), "the iron step points at no Dev-mode button: {iron}");
         // The places it names exist.
         let inventory = std::fs::read_to_string(root.join("src/gui/pages/inventory.rs")).expect("the Inventory page source");
         assert!(inventory.contains("\"Mining\", tree_force"), "the Inventory page has a Mining section");
@@ -1161,40 +1379,59 @@ mod quest_tests {
             let home = crate::machines::MachineHome::load(&root.join("data/machines").join(file)).unwrap_or_else(|| panic!("{file} parses"));
             assert!(
                 home.all_instances().iter().any(|i| i.machine == "trading_post" && i.zone == "home"),
-                "{file} places a trading post in the home, where the first step sends the player"
+                "{file} places a trading post in the home, where the iron step sends the player"
             );
         }
-        let line = format!("{first} (1/{})", q.steps.len());
-        assert!(line.chars().count() <= HUD_STEP_CHARS, "the first step fits the HUD's quest line: {line}");
     }
 
     /// A FINISHED QUEST TELLS THE PLAYER. Completion was written only to the
     /// log, so First Steps finished, its two ingots arrived and Toolsmith began
     /// with nothing on screen to say so. It now posts on "player_notices", the
     /// channel the main loop shows as a toast: what finished and what it gave,
-    /// then the quest the data says comes next.
+    /// then the quest the data says comes next. Since 2026-10-04 a step done
+    /// on the way posts its own line too (`step_notice`).
     ///
     /// Red, run on the system before this: "finishing First Steps tells the
     /// player" (left: [], right: the two lines below).
     #[test]
     fn a_finished_quest_tells_the_player_what_it_gave_and_what_is_next() {
-        let data = shipped_quest_data();
+        let mut data = shipped_quest_data();
         let mut tracker = QuestTracker::default();
         tracker.accept_quest("gs_first_steps");
-        let mut inv = Inventory::new(16);
-        inv.add_item("iron_ore_0", 3, 99);
+        let steps = &data.get::<QuestRegistry>("quest_registry").unwrap().get("gs_first_steps").unwrap().steps;
+        let last = steps.len() - 1;
+        let smelt = steps
+            .iter()
+            .position(|s| matches!(&s.objective, QuestObjective::Make { item_id, .. } if item_id == "iron_ingot_0"))
+            .expect("First Steps smelts an iron ingot");
+        tracker.active_quests[0].current_step = smelt;
         let mut world = hecs::World::new();
-        world.spawn((tracker, inv));
+        world.spawn((tracker, Inventory::new(16)));
         let mut sys = QuestSystem::new();
-        sys.tick(&mut world, 0.0, &data); // three ore in the backpack: step 1 done
-        assert_eq!(notices(&data), Vec::<String>::new(), "a step is not a finished quest");
         push_quest_event(&data, make_event_key("iron_ingot_0"));
-        sys.tick(&mut world, 0.0, &data); // the first ingot: First Steps done
+        sys.tick(&mut world, 0.0, &data); // the ingot: a step done, the quest goes on
+        let said = notices(&data);
+        assert_eq!(said.len(), 1, "a step done says so once: {said:?}");
+        assert!(said[0].starts_with(&format!("First Steps: step {} of {} done. Next: ", smelt + 1, last + 1)), "{said:?}");
+        // The last step, out of the front door (the opening's own test walks there).
+        data.insert(
+            FRONT_DOOR_KEY,
+            FrontDoor { door: (55.0, 40.0), outward: (1.0, 0.0), opens_on: "The Commons".into() },
+        );
+        data.insert(
+            "quest_destinations",
+            DestinationList::from_ron(&std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/entities/destinations.ron")).unwrap()).unwrap(),
+        );
+        push_quest_event(&data, "build_storage_chest".to_string());
+        sys.tick(&mut world, 0.0, &data);
+        let _ = notices(&data);
+        data.insert("camera_position", glam::Vec3::new(56.5, 1.7, 40.0));
+        sys.tick(&mut world, 0.0, &data);
         assert_eq!(
             notices(&data),
             vec![
                 "Quest complete: First Steps. You received 2 Iron Ingot and 30 Metalworking XP.".to_string(),
-                "New quest: Toolsmith. Forge a hammer.".to_string(),
+                "New quest: Toolsmith. Forge a hammer: Esc > Crafting > Craft Hammer > Craft.".to_string(),
             ],
             "finishing First Steps tells the player"
         );

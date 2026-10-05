@@ -516,6 +516,17 @@ fn push_notice(data: &DataStore, msg: String) {
     }
 }
 
+/// Why a Plant button on a tower or a bed planted nothing (2026-10-04): no
+/// seed in the backpack for what it grows (`no_seed`), else every place in it
+/// was already taken (`full` says how, for the tower or the bed).
+fn nothing_planted_notice(no_seed: bool, full: &str) -> String {
+    if no_seed {
+        "Nothing planted: your backpack holds no seed for what this grows (harvesting most ripe plants gives their seed back).".to_string()
+    } else {
+        format!("Nothing planted: {full}. Harvest what is ripe to make room.")
+    }
+}
+
 /// Is this grow-area tag an outdoor FIELD? True for the field machine type
 /// ("grain_field") and for one physical field ("grain_field_1", how the
 /// showcase garden tags its crops). Until 2026-09-25 only the first form
@@ -1244,6 +1255,8 @@ impl System for FarmingSystem {
                             growing_seconds: 0.0,
                         },));
                         log::info!("[Farming] planted {plant_id} (from {seed_id})");
+                        // The player planted it (2026-10-04, the opening's Plant step).
+                        crate::systems::quests::push_quest_event(data, crate::systems::quests::plant_event_key(&plant_id));
                     }
                 } else {
                     log::debug!("[Farming] no plant def for seed {seed_id}; not planted");
@@ -1313,6 +1326,8 @@ impl System for FarmingSystem {
                         continue;
                     }
                 }
+                // The player planted it (2026-10-04, the opening's Plant step).
+                crate::systems::quests::push_quest_event(data, crate::systems::quests::plant_event_key(&plant_id));
                 let crop = CropInstance {
                     crop_def_id: plant_id,
                     growth_stage: first_stage,
@@ -1329,6 +1344,11 @@ impl System for FarmingSystem {
             }
             if planted > 0 || skipped > 0 {
                 log::info!("[Farming] planted tower: {planted} crops, {skipped} skipped (no seed)");
+            }
+            // A press that plants nothing says why (2026-10-04): it was only
+            // in the log, so a Plant button that did nothing was a mystery.
+            if planted == 0 {
+                push_notice(data, nothing_planted_notice(skipped > 0, "every cup of this tower already has a plant"));
             }
         }
 
@@ -1389,6 +1409,7 @@ impl System for FarmingSystem {
                 .map(|d| d.first_stage().to_string());
             if let Some(first_stage) = first_stage {
                 let mut planted = 0u32;
+                let mut no_seed = 0u32;
                 // A machine TYPE id ("staple_grain_tray", what the Garden
                 // panel's bed button sends) sows every plot of every machine
                 // of that type, each crop tagged with the machine it stands
@@ -1438,6 +1459,7 @@ impl System for FarmingSystem {
                             break;
                         }
                         if !had {
+                            no_seed += 1;
                             continue;
                         }
                     }
@@ -1454,8 +1476,13 @@ impl System for FarmingSystem {
                     };
                     spawn_in_remembered_soil(world, crop);
                     planted += 1;
+                    // The player planted it (2026-10-04, the opening's Plant step).
+                    crate::systems::quests::push_quest_event(data, crate::systems::quests::plant_event_key(&plant_id));
                 }
                 log::info!("[Farming] bed-planted {planted}x {plant_id} for {area_id}");
+                if planted == 0 {
+                    push_notice(data, nothing_planted_notice(no_seed > 0, "every plot of it is already growing"));
+                }
             } else {
                 log::warn!("[Farming] no plant def '{plant_id}' for bed {area_id}; not planted");
             }

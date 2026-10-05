@@ -422,7 +422,9 @@ The game has two ways to trade, and both teach something.
   receive another. You can confirm only while you are actually carrying
   what you offered, and when both sides have confirmed, each player's
   game hands over its own side. A worn tool arrives worn and a graded
-  item keeps its grade, so trading is not a free repair. The server
+  item keeps its grade, so trading is not a free repair. Food is the
+  exception: a trade carries no food's age, so it arrives fresh however
+  old it was (`src/gui/pages/trade.rs`). The server
   records the trade, but it does not hold the goods; the check that
   you still carry what you offered is the guard.
 - **What the Trade page does not show you.** It lists the other
@@ -430,13 +432,12 @@ The game has two ways to trade, and both teach something.
   will arrive with it. So in the game, as in life, ask before you
   confirm.
 
-**One setting changes what you keep.** While Settings > Gameplay >
-"Start every session from the default home" is on, which is the default
-during development, only your character carries between launches.
-Credits, and goods you bought, sold or traded, start over at the next
-launch; the game keeps a record of which trades it has already settled
-so that none is handed over twice. Turn the setting off to keep your
-goods and credits.
+**One setting changes what you keep.** Settings > Gameplay > "Start
+every session from the default home" is off by default, so your credits,
+and goods you bought, sold or traded, are kept between launches. With
+the setting on, only your character carries between launches: credits
+and goods start over at the next launch, and the game keeps a record of
+which trades it has already settled so that none is handed over twice.
 
 What the game simplifies: prices at the trading post are fixed, not set
 by supply and demand; there is no haggling, no written agreement, no

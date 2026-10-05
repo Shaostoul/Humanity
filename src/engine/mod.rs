@@ -36,6 +36,12 @@ pub mod launch_focus;
 pub mod movie;
 /// Leaving the app: the save every way out runs first (first-hour audit 2026-10-04, Blocker 5).
 pub mod quit;
+/// The character's own home (2026-10-04): the build editor's edits outside the Dev mode are kept
+/// in the character's save, never in the shared data files; what a placement paid comes back.
+pub mod own_home;
+/// The Death setting's engine half (2026-10-04): a death surfaced, the pack left where the
+/// player fell in Realistic, its prompt, E, drawing, marker and clock (systems::death_pack).
+pub mod death_pack;
 /// The game's half of the relay's speed check: corrections, declared fast moves, the rig's walk
 /// (ship homes increment 4).
 pub mod move_check;
@@ -75,6 +81,9 @@ pub mod account_erase;
 /// Built beds and chests in use: the crosshair prompt, the E press, and
 /// built chests as containers in the places tree (2026-09-27).
 pub mod built_uses;
+/// The quests' per-frame glue (2026-10-04, the opening): views that came on
+/// screen as quest events, and the player's own front door for Travel.
+pub mod quest_hooks;
 /// Placing a built piece: the ghost that follows the crosshair, R to turn
 /// it, E to build it there, Esc to stop (2026-09-27).
 pub mod build_place;

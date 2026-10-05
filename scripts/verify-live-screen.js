@@ -623,6 +623,9 @@ async function main() {
       detached: true,
       stdio: "ignore",
       env: { ...process.env, HUMANITY_NO_FOCUS: "1" },
+      // The sandbox's server is OUR relay, on this computer (lib/rig-gameplay.js: spawnGame
+      // pins it, clears every saved server, and refuses a config naming one off this computer).
+      gameplay: { server_url: SERVER_URL },
     });
     const child = game.child;
     gamePid = child.pid;

@@ -438,14 +438,18 @@ compost.
   points of waste into a 2 kg bag of Fertilizer, which the game's
   nutrient data treats as finished compost, and empties the meter. The
   same button draws off the urine collected in your home's tank. The
-  Waste meter is not saved: it starts again from empty each time you
-  launch.
+  Waste meter and the tank are saved with your game, and "Start every
+  session from the default home" is off by default, so both come back as
+  you left them at the next launch. With that setting on, each launch
+  starts with a new body and the default home, so both start empty.
 - **Composting at the Composter.** Recipes at a Composter make Fertilizer
   from sawdust with seed press cake or wheat bran, or from olive or apple
-  pomace. Under the default settings, the Dev play mode (Settings >
-  Gameplay > Play mode) does not use up the materials when you craft by
-  hand, though you still need them in your inventory to start, and while "Start every session from the default home" is on, which it
-  is by default, only your character carries between launches.
+  pomace. Under the default settings, the Normal play mode (Settings >
+  Gameplay > Play mode) uses up the materials when you craft by hand
+  (Creative, and Dev if you choose it, do not, though you still need
+  them in your inventory to start), and "Start every session from the
+  default home" is off, so the Fertilizer you make is kept between
+  launches.
 
 What the game leaves out, so you do not learn it from the game: in the
 game there is nothing that cannot be composted. Nothing ever asks you to
@@ -648,7 +652,9 @@ public domain. Web pages were read on 3 October 2026.
   `WASTE_PER_FERTILIZER` in `src/systems/food.rs`; the `unsanitary` row
   of `data/status_effects.csv`; the "Compost and draw off urine" button
   in `src/gui/pages/inventory.rs`; `fertilizer_0` in `data/items.csv` and
-  `data/garden/nutrients.ron`.
+  `data/garden/nutrients.ron`. The meter and the urine tank saved with
+  the game: `BodySave` and `urine_tank_person_days` in
+  `src/persistence.rs`, restored in `src/save_load.rs`.
 - The Composter recipes: `craft_fertilizer`, `compost_bran`,
   `compost_pomace` and `compost_apple_pomace` in `data/recipes.csv`.
 - The waste categories nothing uses yet: `data/waste_management.ron` and

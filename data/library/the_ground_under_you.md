@@ -507,12 +507,13 @@ slope debris have been added.
   unit of ore it delivers adds one point of experience to your Mining
   skill (`src/systems/mining.rs`).
 
-**Settings that change this.** While Settings > Gameplay > "Start every
-session from the default home" is on, which is the default during
-development, only your character (name, look and outfit) carries
-between launches. The asteroids start full again, and the ore you
-brought home and the Mining experience you earned are not kept. Turn
-the setting off to keep them.
+**Settings that change this.** Settings > Gameplay > "Start every session
+from the default home" is off by default, so the asteroids stay as you
+mined them, and the ore you brought home and the Mining experience you
+earned are kept between launches. With the setting on, only your
+character (name, look and outfit) carries between launches: the
+asteroids start full again, and the ore and the experience are not
+kept.
 
 ## You own this when
 

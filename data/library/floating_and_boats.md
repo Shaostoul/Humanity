@@ -533,8 +533,10 @@ buoyancy and no boating.
   feet; you go under only by holding the sprint key (Shift by default).
   Under water you move where you look, at up to about 2.5 metres a second
   at the normal speed gear with fly mode off, and your depth holds steady
-  until you swim up or down. You reach the Earth, and so its sea,
-  through the Dev page's travel or Land on surface buttons, and both
+  until you swim up or down. You reach the Earth, and so its sea, only
+  with the tools of the Dev play mode (Settings > Gameplay > Play mode),
+  so in Normal, where the game starts, the sea is out of reach. The Dev
+  page's travel and Land on surface buttons both
   leave fly mode on, and the line under the compass says so ("FLY x1 -
   gravity on [F9 to hover]"). Until you press F9 twice, or untick Fly
   mode on the Dev page, you swim at 5 metres a second.
@@ -555,17 +557,21 @@ buoyancy and no boating.
   Shelter Building level 3 and the sailboat at level 4, and like other
   assembly at the workbench they need an Adjustable Wrench and a Flat
   Screwdriver in your backpack; tools in home storage do not count. A new
-  character carries both tools but starts with no skill levels. Under the
-  default Dev play mode (Settings > Gameplay > Play mode) a craft uses up
-  none of its parts and wears no tool, but the Craft button still wants
-  the parts in your backpack or home storage and the tools in your
-  backpack, and the skill levels still apply. The default home's store
-  holds 60 planks and 10 ropes: enough for a canoe's or a rowboat's
-  planks and rope, short of the sailboat's 72 and 12, and no logs, glue,
-  nails, paint, bolts, cloth or steel. During development the Dev
-  buttons "Dev: stock all materials" on the Crafting page and "Dev: max
-  skills" on the Profile page supply the parts and the skill levels, but
-  not the tools. The stock button fills your backpack, and the home's
+  character carries both tools but starts with no skill levels. In every
+  play mode the Craft button wants the parts in your backpack or home
+  storage and the tools in your backpack, and the skill levels apply. In
+  the Normal play mode, where the game starts (Settings > Gameplay > Play
+  mode), the craft then uses up its parts and wears each tool by one use;
+  in Creative and Dev, while the Inventory page's Creative mode switch is
+  on, it uses up none and wears none. The default home's store holds 60
+  planks and 10 ropes: enough for a canoe's or a rowboat's planks and
+  rope, short of the sailboat's 72 and 12, and no logs, glue, nails,
+  paint, bolts, cloth or steel. In Normal the rest comes from what you
+  craft and from the trading post, and the skill levels from doing the
+  work. In the Dev play mode, if you choose it, the buttons "Dev: stock
+  all materials" on the Crafting page and "Dev: max skills" on the
+  Profile page supply the parts and the skill levels, but not the tools.
+  The stock button fills your backpack, and the home's
   sawmill, which saws logs into planks by itself, takes its logs from
   home storage only, never from your backpack, so the stocked logs wait
   for the raft. A boat is too big for your backpack, so it goes into your
@@ -573,11 +579,11 @@ buoyancy and no boating.
   with your own home on this ship; on a planet your home's storage is in
   orbit and does not count. No boat can be put on the water or sat in:
   none of the vehicles you can drive is a boat.
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which is the default
-  during development, only your character carries between launches, so a
-  boat you made, and any skill levels you earned, are gone the next time
-  you start the game.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so a boat you made,
+  and any skill levels you earned, are kept between launches. With the
+  setting on, only your character carries between launches, and they
+  are gone the next time you start the game.
 
 What the game leaves out, so you do not learn it from the game: weight
 and displacement, capacity, stability, capsizing, swamping, cold shock,
@@ -786,11 +792,12 @@ facts are used here and the wording is not.
   assembly at the workbench needs (`data/crafting/tools.ron`), carried by
   a new character (`data/world/player.ron`); the Crafting page's check
   for parts, tools and skill, with tools counted only in the backpack,
-  which the Dev play mode does not lift, and its "Dev: stock all
-  materials" button (`src/gui/pages/crafting.rs`), which stocks one
-  stack of every recipe input and no tools; the craft itself, which in
-  the Dev play mode uses up no parts and wears no tool
-  (`src/systems/crafting/mod.rs`); the home's sawmill, which runs Saw
+  which no play mode lifts, and its "Dev: stock all materials" button
+  (`src/gui/pages/crafting.rs`), which stocks one stack of every recipe
+  input and no tools; the craft itself, which uses up its parts and
+  wears its tools in the Normal play mode and neither in Creative or Dev
+  (`src/systems/crafting/mod.rs`); the trading post's goods
+  (`data/trade_goods.ron`); the home's sawmill, which runs Saw
   Planks by itself (`data/machines/home.ron`, `data/recipes.csv`), and
   automated machines taking their inputs from home storage only, never
   the backpack, in every play mode (`src/systems/crafting/mod.rs`); "Dev:

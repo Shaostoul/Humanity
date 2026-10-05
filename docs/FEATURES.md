@@ -2121,6 +2121,34 @@ jumping in nonzero G based on weight/mass. We can obviously carry heavier in low
   `src/gui/pages/inventory.rs` (tile), `src/gui/pages/hud.rs` (HUD line), `src/gui/pages/settings.rs` (mode).
   Web: none; movement and the in-game Status tiles exist only in the desktop app.
 
+### Death and your pack (2026-10-04)
+What dying costs, in two modes (the operator's decision on the first-hour audit: "Today the death screen says
+'Nothing was lost.' I'd keep that as the Simplified mode. In Realistic mode, your carried items would stay where you
+fell for a while, to go back for."). Either way you wake in the respawner with full health.
+- **Two modes** (Settings > Gameplay > Death): **Simplified** (the default: nothing is lost, the death screen's old
+  words) and **Realistic**: everything in the backpack stays behind as one pack where you fell; what you wear and what
+  you have equipped stay on you, and so do credits, skills, quests and home storage. Aboard it lies on the floor under
+  you; on a planet on the ground under you; from open space (outside every room) on the nearest room's floor; from deep
+  water on the nearest dry ground (a ring search, then back to the shore); from the air on the ground below; on a body
+  with no ground to walk to near you, on the ship's nearest floor. The death screen says what stayed, where, and why
+  somewhere else when it is.
+- A tracked HUD marker ("Your pack · 120 m", BUG-148's direction-placed marker, numbered when there are several) and
+  "[E] Take back your pack (14 items)" in reach: E takes back as much as the backpack's volume holds, each stack with
+  its wear, grade and food age, and leaves the rest in the pack (last in the E chain).
+- It stays for 60 minutes of PLAY, counted only in the world and alive, never while the game is closed, with a notice
+  5 minutes before and when it is gone. The save keeps every pack (`WorldSave::left_packs`), a pack in the home moves
+  with the home to another plot, and food in a pack keeps aging.
+- On a shared server the pack is yours alone (it lives in your own game and save): a lootable pack is an open
+  decision, and the design note lists what it would need.
+- Native: `src/systems/death_pack.rs` (rules, leave, take back, clock, placement; relay-safe), `src/engine/death_pack.rs`
+  (the frame: death surfaced, where you fell, prompt, E, draw, marker; tests in `death_pack_tests.rs`),
+  `src/gui/pages/hud.rs` (`death_screen_lines`, the prompt), `src/gui/pages/settings.rs` (`death_hint`, the mode),
+  `src/config.rs` (`death_realistic`), `src/save_load.rs` + `src/persistence.rs` (the save).
+  Web: none; the 3D world exists only in the desktop app.
+- Data: `data/world/death.ron` (the time, the warning, reach, facing cone, air height, wall clearance, room slack,
+  open-space distance, shore search, the pack's size and colours)
+- Design: `docs/design/death-and-your-pack.md`
+
 ### Skills/Progression
 20 skills across 5 categories, XP curves, level-up notifications. **Registered, ticks live** (`SkillSystem` is NOT in `DEFERRED_SYSTEMS` -- this "NOT registered" note was stale, corrected 2026-07-01). Note: `src/systems/skills/learning.rs`'s `Skill`/`add_practice` is a SEPARATE, unused struct with its own unresolved TODO (learning-curve level thresholds) -- it has zero callers anywhere in the tree and is not what the live, registered `SkillSystem` actually uses; treat it as dead/superseded code, not a gap in the live skill system.
 - Native: `src/systems/skills/mod.rs`
@@ -2139,9 +2167,14 @@ Disease spread by proximity, seasonal effects, population tracking. **⚠️ NOT
 - Native: `src/systems/ecology.rs`
 
 ### Quests
-Data-driven quest progression from RON files. 6 objective types. **Registered, ticks live in native single-player too** (`QuestSystem` is NOT in `DEFERRED_SYSTEMS`; this "NOT registered, native single-player doesn't work" note was stale, corrected 2026-07-01. The relay separately runs the authoritative quest chain for multiplayer -- that part remains accurate.)
-- Native: `src/systems/quests/mod.rs`
-- Data: `data/quests/*.ron`
+Data-driven quest progression from RON files. 10 objective kinds: Gather, Craft, Make, Harvest, Build, Travel, Talk, and since 2026-10-04 Eat, Plant and View. **Registered, ticks live in native single-player too** (`QuestSystem` is NOT in `DEFERRED_SYSTEMS`; this "NOT registered, native single-player doesn't work" note was stale, corrected 2026-07-01. The relay separately runs the authoritative quest chain for multiplayer -- that part remains accurate.) Each step done posts a notice naming the next step, and a finished quest one naming what it gave and the quest that starts (`step_notice`, `completion_notice`, `next_quest_notice`).
+- Native: `src/systems/quests/mod.rs`, `src/systems/quests/objectives.rs`
+- Data: `data/quests/*.ron`, `data/entities/destinations.ron`
+
+**The opening: the first ten minutes (2026-10-04).** First Steps (`gs_first_steps`, accepted at spawn) is a new player's first ten minutes, in the order the operator accepted: check your vitals (press I, Inventory > Status), eat (a Basic Ration from the starting kit), plant (Inventory > Garden > the Variety Greens and Beans tower > Plant this tower), craft a tool (Esc > Crafting > Carve Fishing Rod, a plank and a wire from the Barn at the workbench), get 3 iron ore (Inventory > Mining, or the trading post), smelt iron (Crafting > Smelt Iron, coal from the trading post, or graphite from asteroid C-3), build a Storage Chest (Crafting > Structures > Build, then E), and step out of your own front door. Then Toolsmith and Build First Habitat follow as before. Each step's line is the HUD's quest line (64 characters with its counter) and names the key, page and section as the game shows them. A player who finished the old two-step First Steps keeps it finished (same id).
+- **Eat** counts what the food system really eats from the backpack (`eat_<item>`, `FoodSystem` on the consume channel; a drink is not eating). **Plant** counts every crop the player sows, from a backpack seed, a tower design or a bed (`plant_<crop>`, `FarmingSystem`; the showcase garden is not the player). Both count any item when the step names none. **View** is a view coming on screen: the Inventory page's Status section marks "vitals" (`GuiState::on_screen`) and `src/engine/quest_hooks.rs` reports it once per opening. A Plant button that plants nothing now says why (no seed in the backpack for what it grows, or every cup or plot already taken).
+- **Travel** is done while the player stands in the place AND it is the current step (`destinations_here`): walking past a place earlier does not count. A destination can be `at: Some(OwnFrontDoor(out_m: 1.5))` instead of a fixed `pos`: the doorstep of the player's OWN front door, on whichever plot they were given (the Commons for a family plot, First Street for a street plot), published every frame from the assembled ship (`front_door_of`, `publish_front_door`, `FRONT_DOOR_KEY`). A step line can say what the door opens on with `{front_door_opens_on}` (`step_text`). A guest (no plot, the home put away) has no front door aboard, and cannot build or craft at the home's stations either, so a guest's opening waits until they hold a plot or play solo.
+- Tests: `src/systems/quests/opening_tests.rs` walks the whole opening on the shipped data with the real systems, plus one test per new kind, the HUD's 64 characters for every step of every shipped quest on every plot, the names each step quotes, and a returning player; `every_shipped_home_has_what_the_starter_quests_need` (`src/machines.rs`) checks both shipped homes have the food, the seeds, the tower, the stations and every recipe input the chain uses.
 
 ### Combat
 Damage calculation, status effects. **⚠️ `CombatSystem` NOT registered, never ticks (see the lint).**

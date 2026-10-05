@@ -5,26 +5,32 @@
 //! hub's Quit button and the updater's "Restart to Apply" (both of those last two set
 //! `GuiState::quit_requested`, src/gui/pages/main_menu.rs and settings.rs), and the GPU
 //! running out of memory. Only the close button saved. The others exited at once, so up to
-//! two minutes of play since the periodic save were lost (`save_load::maybe_periodic_save`,
+//! two minutes of play since the periodic save were lost (`save_load::periodic_save_due`,
 //! every 120 s), with any build edits since the editor's last autosave. Every way out of
 //! the frame loop now runs `save_before_exit` first, and the test below reads the loop
 //! (src/lib.rs) to keep it that way: a quit cannot be driven in a unit test.
 
 use crate::engine::state::EngineState;
 
-/// Save what the session changed, the way the window's close button always has: the active
-/// home (inventory, skills, crops, builds, the clock; only the character while "Start every
-/// session from the default home" is on, `save_load::save_active_home`) and the build edits
-/// not yet written (v0.791: quitting without the editor's Save button used to drop every
-/// wall, light, strip and corridor edit since the last click).
+/// Save what the session changed, the way the window's close button always has: the build edits
+/// not yet written (v0.791: quitting without the editor's Save button used to drop every wall,
+/// light, strip and corridor edit since the last click; in the Dev mode they go to the data
+/// files, in Normal and Creative into the character's own home, engine/own_home.rs), then the
+/// active home (inventory, skills, crops, builds, the clock and the character's own home; only
+/// the character while "Start every session from the default home" is on,
+/// `save_load::save_active_home`). The edits first, so the save carries them, and a paid
+/// machine removed in the last frame gives its item back before either.
 pub(crate) fn save_before_exit(state: &mut EngineState) {
+    crate::engine::own_home::refund_removed_machines(state);
+    crate::engine::editor::autosave_ship_structure(state, true);
+    crate::engine::own_home::refresh_own_home(&mut state.gui_state);
     crate::save_load::save_active_home(
         &state.game_world.world,
         &state.gui_state.placed_items,
         &state.data_store,
         !state.gui_state.settings.fresh_world_each_launch,
+        state.gui_state.own_home.as_ref(),
     );
-    crate::engine::editor::autosave_ship_structure(state, true);
 }
 
 #[cfg(test)]

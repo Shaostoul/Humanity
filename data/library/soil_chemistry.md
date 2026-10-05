@@ -563,19 +563,20 @@ safe to handle.
 
 - **Soil pH.** Settings > Gameplay > Soil pH is On by default. Off
   freezes every bed's pH and hides it.
-- **Play mode.** During development the game starts in the Dev play
-  mode (Settings > Gameplay > Play mode), and in Dev, as in Creative,
-  materials are free: Garden Lime, Garden Sulfur, Wood Ash, Stored
-  Urine and the Fertilizer bag (the game's name for the Composter's
-  compost) cost nothing from your pack. Switch Play mode to Normal to
-  manage a garden with what you actually have.
-- **Starting from the default home.** While Settings > Gameplay >
-  "Start every session from the default home" is on, which is also the
-  default during development, only your character (name, look and
-  outfit) carries between launches. Every bed's pH and nutrient store
-  start each session as the default home has them, so a slow
-  correction such as sulfur on a blueberry bed cannot be followed from
-  one session to the next. Turn the setting off to keep your garden.
+- **Play mode.** The game starts in the Normal play mode (Settings >
+  Gameplay > Play mode), where you manage a garden with what you
+  actually have: Garden Lime, Garden Sulfur, Wood Ash, Stored Urine and
+  the Fertilizer bag (the game's name for the Composter's compost) come
+  out of your pack. In Creative, or in Dev if you choose it, materials
+  are free while the Inventory page's Creative mode switch is on, and
+  they cost nothing.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so every bed's pH
+  and nutrient store are kept between launches, and a slow correction
+  such as sulfur on a blueberry bed can be followed from one session to
+  the next. With the setting on, only your character (name, look and
+  outfit) carries between launches, and every bed starts each session
+  as the default home has it.
 
 ## You own this when
 

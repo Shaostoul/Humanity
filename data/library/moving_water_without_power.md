@@ -548,11 +548,11 @@ frozen pipe. And nothing about the game's tanks and vessels can drown a
 child, trap you in bad air, or siphon dirty water back into the drinking
 water. In real life, every one of those is part of the job.
 
-**Starting from the default home.** While Settings > Gameplay > "Start
-every session from the default home" is on, which is the default during
-development, only your character carries between launches, so the
-cistern and everything you carry start each session as they are in the
-default home.
+**Starting from the default home.** Settings > Gameplay > "Start every
+session from the default home" is off by default, so the water in the
+cistern and everything you carry are kept between launches. With the
+setting on, only your character carries between launches, and they
+start each session as they are in the default home.
 
 ## You own this when
 

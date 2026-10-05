@@ -414,7 +414,9 @@ impl FoodSystem {
 
     /// Eat or drink one `item_id` from the first player (Inventory + Vitals +
     /// StatusEffects) who carries it, applying the food's nutrition. Items that
-    /// are not food, and non-beverages sent to Drink, are ignored.
+    /// are not food, and non-beverages sent to Drink, are ignored. True when
+    /// it was eaten or drunk (2026-10-04: the tick reports an eaten item to
+    /// the quests, the opening's "eat something" step).
     fn consume(
         &self,
         world: &mut hecs::World,
@@ -422,18 +424,18 @@ impl FoodSystem {
         how: Consume,
         fx: &MealEffects,
         returns: Option<(&str, u32)>,
-    ) {
+    ) -> bool {
         use crate::ecs::components::{StatusEffects, Vitals};
         use crate::systems::inventory::Inventory;
 
         let Some(profile) = self.profile_for(item_id) else {
             log::debug!("[Food] {how:?} request for {item_id} ignored: not food ({})", ItemProfiles::FILE);
-            return;
+            return false;
         };
         let is_beverage = profile.category == "beverage";
         if how == Consume::Drink && !is_beverage {
             log::debug!("[Food] Drink request for {item_id} ignored: '{}' is not a beverage", profile.id);
-            return;
+            return false;
         }
         let calories = profile.calories_per_100g as f32;
         let risk = profile.raw_consumption_risk;
@@ -513,8 +515,9 @@ impl FoodSystem {
                 vitals.hydration,
                 vitals.hydration_max,
             );
-            break; // first player only
+            return true; // first player only
         }
+        false
     }
 }
 
@@ -567,7 +570,13 @@ impl System for FoodSystem {
             };
             if let Some(item_id) = consumed {
                 let back = empty_of(&item_id);
-                self.consume(world, &item_id, Consume::Eat, &fx, back.as_ref().map(|(e, m)| (e.as_str(), *m)));
+                // Eaten, it counts for an Eat quest step (2026-10-04, the
+                // opening's "eat something"): reported here, where the item
+                // leaves the backpack, so a click on food the player does not
+                // carry counts nothing.
+                if self.consume(world, &item_id, Consume::Eat, &fx, back.as_ref().map(|(e, m)| (e.as_str(), *m))) {
+                    crate::systems::quests::push_quest_event(data, crate::systems::quests::eat_event_key(&item_id));
+                }
             }
             if let Some(item_id) = drank {
                 let back = empty_of(&item_id);

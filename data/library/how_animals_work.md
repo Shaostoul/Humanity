@@ -444,7 +444,7 @@ learn which animals share your ground.
 
 ## How the game models it
 
-The game keeps a creature database of 99 species, 51 of them typed as
+The game keeps a creature database of 101 species, 51 of them typed as
 animals; the others are fantasy creatures, robots and gatherable
 resource nodes such as berry bushes and clay pits. It is in
 `data/creatures.csv`.
@@ -465,22 +465,24 @@ resource nodes such as berry bushes and clay pits. It is in
   listed speed, and run directly away, at twice that pace, from any
   predator within 12 metres.
 - **Predators.** No wild predator is placed in the default world: wolves
-  were taken out of the starting area so the home stays safe. In the
-  default Dev play mode, with dev cheats on (both are the defaults during
-  development), the Dev page under Platform can spawn any species in
-  front of you, wolves included, and a spawned hunting species stalks
-  prey, the player among them.
+  were taken out of the starting area so the home stays safe. In the Dev
+  play mode, with dev cheats on, the Dev page under Platform can spawn
+  any species in front of you, wolves included, and a spawned hunting
+  species stalks prey, the player among them.
 
 **Two settings change this.**
 
 - **Play mode.** The Dev page and its spawn tool work only in the Dev
   play mode (Settings > Gameplay > Play mode) with the "Enable dev
-  cheats" switch on (Settings > Animations). Both are on by default
-  during development.
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which is also the default
-  during development, only your character carries between launches; the
-  home's animals start each session as the game data places them.
+  cheats" switch on (Settings > Animations). The switch is on by
+  default, but the game starts in the Normal play mode, so the spawn
+  tool is there only once you choose Dev.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so your progress is
+  kept between launches. The home's animals are set out each session as
+  the game data places them, and each keeps its time to its next egg,
+  milk or wool. With the setting on, only your character carries between
+  launches, and every animal starts the session with its yield ready.
 
 What the game leaves out, so you do not learn it from the game: its
 animals have no body temperature, no water or feed needs, no digestion,
@@ -604,7 +606,7 @@ documents were read on 4 October 2026.
 
 ### Inside this project
 
-- The creature database, `data/creatures.csv` (99 rows; diet, mass,
+- The creature database, `data/creatures.csv` (101 rows; diet, mass,
   speed, movement, behaviour, drops and renewable products), read by
   `src/systems/livestock.rs` (body size from mass, the amble at a third
   of listed speed, fleeing predators within 12 metres); the home's

@@ -545,16 +545,19 @@ practised in it.
 
 **Two settings change this.**
 
-- **Play mode.** During development the game starts in the Dev play mode
-  (Settings > Gameplay > Play mode). In Dev, as in Creative, crafting
-  takes no materials, so sawing planks needs no logs, but building a
-  wall from the Crafting page still takes its planks from your pack or
-  the home's storage, and on a planet only from what you carry.
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which is the default
-  during development, only your character carries between launches, so
-  what you built and the experience it earned start over at the next
-  launch. Turn the setting off to keep them.
+- **Play mode.** The game starts in the Normal play mode (Settings >
+  Gameplay > Play mode), where crafting uses up its materials, so sawing
+  planks takes logs. In Creative, or in Dev if you choose it, crafting
+  uses up no materials while the Inventory page's Creative mode switch
+  is on, so sawing planks uses up no logs, though the Crafting page
+  still wants them on hand. In every mode, building a wall from
+  the Crafting page takes its planks from your pack or the home's
+  storage, and on a planet only from what you carry.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so what you built
+  and the experience it earned are kept between launches. With the
+  setting on, only your character carries between launches, and they
+  start over at the next launch.
 
 What to practise outside the game: all of it. Frame a small shed wall
 on the ground with real 2 x 4s, check it square by its diagonals, raise

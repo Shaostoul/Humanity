@@ -1086,10 +1086,26 @@ pub struct GuiState {
     /// Normal FORCES it off every frame (the lib.rs bridge enforces survival);
     /// picking Creative/Dev presets it on, after which the Inventory page's
     /// toggle remains a live fine-tune inside those modes (testing real
-    /// consumption while in Dev is legitimate). Default true matches the
-    /// default Dev mode; AppConfig::apply_to_gui_state re-presets it from the
-    /// persisted mode at startup.
+    /// consumption while in Dev is legitimate). The default follows the
+    /// default play mode (Normal since 2026-10-04: off);
+    /// AppConfig::apply_to_gui_state re-presets it from the persisted mode at
+    /// startup.
     pub creative_mode: bool,
+    /// The character's OWN home, as their save holds it (2026-10-04,
+    /// engine/own_home.rs): the home design and the household's machines as
+    /// they built them with the build editor outside the Dev mode, kept in
+    /// their save instead of the shared data files. None = the character
+    /// lives in the default home (the data files). Loaded with the save's
+    /// progress, replaced whenever the editor keeps an edit outside Dev, and
+    /// written into every save that keeps progress; the Dev mode leaves it as
+    /// it is (it authors the data files instead).
+    pub own_home: Option<crate::persistence::SavedHome>,
+    /// The live home layout IS the character's own: it came from their save at world load, or
+    /// they changed it with the editor outside the Dev mode this session (engine/own_home.rs).
+    /// While it is, every save that keeps progress records the home as it stands
+    /// (`own_home::refresh_own_home`), so a backpack that paid for a machine is never saved
+    /// beside a home without it.
+    pub own_home_live: bool,
     /// Which section the merged Real tab shows — either a Profile section id
     /// ("body"/"identity"/"notes"/…) or a page id ("inventory"/"wallet"/
     /// "tasks"/"maps"/"market"). Drives `real::draw`'s delegate.
@@ -1396,6 +1412,15 @@ pub struct GuiState {
     /// Quest id the player clicked Accept on; the frame bridge applies it to
     /// the ECS QuestTracker.
     pub pending_accept_quest: Option<String>,
+    /// The views a quest can ask the player to open (2026-10-04, the
+    /// opening's "check your vitals"), as drawn this frame: a page adds one
+    /// through `on_screen` while it shows it ("vitals": the Inventory page's
+    /// Status section with the vitals synced). The frame glue
+    /// (engine::quest_hooks) reports each view that came on screen since the
+    /// frame before as a quest event, once, and keeps the frame before in
+    /// `prev_views_on_screen`.
+    pub views_on_screen: Vec<&'static str>,
+    pub prev_views_on_screen: Vec<&'static str>,
 
     // ── Guilds state (live from the relay's REST guild API, v0.757) ──
     pub guilds: Vec<GuiGuild>,
@@ -1836,8 +1861,9 @@ pub struct GuiState {
     /// be overridden. If I can't teleport then I can't moderate."
     pub copresence_solo: bool,
     /// Armed whenever a structure or machine edit lands (the dirty consumers set it); the engine's
-    /// 60 s autosave + the window-close flush write the home design (and, in the Dev mode, the
-    /// ship file) plus home.ron and clear it (engine::editor::save_ship_and_home).
+    /// 60 s autosave + the window-close flush keep the edits and clear it: in the Dev mode the
+    /// home design, the ship file and home.ron are written; in Normal and Creative the
+    /// character's own home goes into their save (engine/own_home.rs `keep_edits_now`).
     /// Before v0.791 the ship persisted ONLY through the explicit Save button -- quit without
     /// clicking and every wall/light/strip edit was silently lost (inventory autosaves; the ship
     /// didn't), which the operator read as "my saves aren't saving".
@@ -2764,6 +2790,9 @@ pub struct GuiState {
     /// The death screen's Respawn button; lib.rs performs the respawn
     /// (teleport to spawn, reset vitals, remove Dead) and clears it.
     pub pending_respawn: bool,
+    /// What the death cost in the Death mode chosen, the pack prompt and the rules
+    /// (2026-10-04, systems::death_pack; set by engine/death_pack.rs).
+    pub death_pack: crate::systems::death_pack::DeathPackHud,
     // v0.197.0: ai_usage_filters removed (AI Usage page deleted).
     // v0.415.0: onboarding_concepts + onboarding_core_pages removed with the
     // standalone onboarding page. NOTE (audit 2026-07-30): the claim that "the
@@ -3102,6 +3131,14 @@ impl GuiState {
             || self.selected_machine.is_some_and(|i| i < self.machine_labels.len())
     }
 
+    /// A page shows `view` this frame (2026-10-04): a quest step that asks
+    /// for it ("check your vitals") sees it (`views_on_screen`).
+    pub fn on_screen(&mut self, view: &'static str) {
+        if !self.views_on_screen.contains(&view) {
+            self.views_on_screen.push(view);
+        }
+    }
+
     /// The F10 Cloud dev sidebar is open AND expanded (2026-09-05). This is
     /// the "hold Alt" condition made sticky: lib.rs frees the OS cursor and
     /// suppresses mouse-look while it is true (reconcile_cursor + the
@@ -3373,7 +3410,10 @@ impl Default for GuiState {
             pending_take_origins: Vec::new(),
             inflight_take_origins: Vec::new(),
             tower_compat: Vec::new(),
-            creative_mode: true,
+            // Free resources only in a mode that gives them: none in the default (Normal).
+            creative_mode: crate::config::PlayMode::default().allows(crate::config::Capability::FreeResources),
+            own_home: None,
+            own_home_live: false,
             // Must be an id that EXISTS in real.rs's section_nav list, or the
             // Profile page opens with no sidebar item highlighted (the old
             // "inventory" default was removed from the list long ago).
@@ -3518,6 +3558,8 @@ impl Default for GuiState {
             quests: Vec::new(),
             quests_available: Vec::new(),
             pending_accept_quest: None,
+            views_on_screen: Vec::new(),
+            prev_views_on_screen: Vec::new(),
 
             // Guilds defaults
             guilds: Vec::new(),
@@ -4078,6 +4120,7 @@ impl Default for GuiState {
             attack_pulse_last_hit_at: 0.0,
             player_death_cause: None,
             pending_respawn: false,
+            death_pack: Default::default(),
             // v0.197.0: ai_usage_filters removed (page deleted).
             help_registry: crate::gui::widgets::help_modal::HelpRegistry::new(),
             active_help_topic: None,
@@ -4325,9 +4368,13 @@ pub struct SettingsState {
     /// mode, I don't want to diverge again so that we can make sure I always
     /// see what you build and what our default is." A save that keeps
     /// progress drifts from what a new player sees (his had 1,575 of 1,976
-    /// crops dead of thirst while a new player gets a fresh garden). ON by
-    /// default until the starting home is finished; the progress save on
-    /// disk is left untouched while it is on. Revisit at launch.
+    /// crops dead of thirst while a new player gets a fresh garden). The
+    /// progress save on disk is left untouched while it is on.
+    ///
+    /// OFF BY DEFAULT since 2026-10-04 (the operator's decision: fresh installs
+    /// play Normal with progress kept). It was on while the starting home was
+    /// built; his own config.json holds it on explicitly, and every test rig
+    /// pins it on in its sandbox (scripts/lib/rig-gameplay.js).
     pub fresh_world_each_launch: bool,
     /// Aerial perspective strength (v0.916): how strongly distant land and
     /// sea fade toward sky color. 0 = off, 1 = earthlike.
@@ -4477,14 +4524,18 @@ pub struct SettingsState {
     /// content's main colour per marker, the default), true is Full (the scheme's whole marker,
     /// main-additional-main). Saved as AppConfig::pipe_marking_full.
     pub pipe_marking_full: bool,
+    /// Death (2026-10-04, systems::death_pack): false is Simplified (the default: nothing is
+    /// lost), true is Realistic (the backpack's contents stay where you fell, in a pack to go
+    /// back for). Saved as AppConfig::death_realistic.
+    pub death_realistic: bool,
     /// Which survival bars the HUD draws (2026-09-25). See HudVitals.
     pub hud_vitals: crate::config::HudVitals,
     /// Play mode (task #50): Normal | Creative | Dev -- one ladder for every
     /// cheat/scope gate (see `crate::config::PlayMode` + `Capability` for the
     /// tested truth table). Persisted in AppConfig; edited as radios in
-    /// Settings > Gameplay; shown as a HUD tag when not Normal. Dev is the
-    /// pre-launch default (the operator IS the dev); flips to Normal at
-    /// launch.
+    /// Settings > Gameplay; shown as a HUD tag when not Normal. Normal is the
+    /// default (2026-10-04; Dev was, while the operator alone played); his
+    /// own config.json and every test rig set Dev explicitly.
     pub play_mode: crate::config::PlayMode,
     // Wallet: no Settings fields - the live selector state is
     // GuiState::wallet_network (shared by the Wallet page and Settings >
@@ -4549,7 +4600,8 @@ impl Default for SettingsState {
             days_per_year: crate::systems::time::DEFAULT_DAYS_PER_YEAR,
             pest_severity: crate::systems::farming::pests::DEFAULT_PEST_SEVERITY,
             offline_progression: true,
-            fresh_world_each_launch: true,
+            // Progress is kept between launches by default (2026-10-04).
+            fresh_world_each_launch: false,
             aerial_strength: 1.0,
             godray_intensity: 0.55,
             ssao_strength: 0.55,
@@ -4591,6 +4643,7 @@ impl Default for SettingsState {
             body_heat_realistic: false,
             carry_realistic: false,
             pipe_marking_full: false,
+            death_realistic: false,
             hud_vitals: crate::config::HudVitals::default(),
             play_mode: crate::config::PlayMode::default(),
             profile_visible: true,

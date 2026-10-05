@@ -502,18 +502,22 @@ counts towards the turnout but not towards the majority. Deciding the
 decision rule before the first disagreement is this guide's advice for
 groups, and the page builds it in.
 
-**One setting changes what you keep.** While Settings > Gameplay >
-"Start every session from the default home" is on, which is the
-default during development, only your character's name, look and
-outfit carry between launches; goods you traded start over, and the
-game remembers which trades it has already settled so that none is
-handed over twice.
+**One setting changes what you keep.** Settings > Gameplay > "Start
+every session from the default home" is off by default, so goods you
+traded are kept between launches with the rest of your progress. With
+the setting on, only your character's name, look and outfit carry
+between launches; goods you traded start over, and the game remembers
+which trades it has already settled so that none is handed over twice.
 
 What the game does not model: there are no loans, no shared ownership,
 no written contracts between players beyond the Trade page's offer,
 and no way for an agreement to be broken and disputed. The Trading and
 Leadership skills, which this topic belongs to, appear in the skill
-list, but nothing in the game levels either of them yet.
+list, but nothing a player does in the game earns either of them
+experience yet. Only the Profile page's "Dev: max skills" button raises
+them, along with every other skill, and that button shows only in the
+Dev play mode with the "Enable dev cheats" switch on. The game starts in
+the Normal play mode, where the button is not there.
 
 ## You own this when
 
@@ -649,7 +653,10 @@ and documents were read on 4 October 2026.
   `src/config.rs` and `src/save_load.rs` (`apply_identity` keeps the
   name, look and outfit, and the record of settled trades).
 - The Trading and Leadership skills: `data/skills/skills.csv`; nothing
-  in `src/` awards either of them experience.
+  in `src/` awards either of them experience, and the "Dev: max skills"
+  button (`src/gui/pages/profile.rs`, `src/systems/skills/mod.rs`) sets
+  every skill to its top level, shown in Dev play mode with dev cheats
+  on (`src/config.rs`, `cheats_enabled` in `data/gui/theme.ron`).
 - [Trading Fairly](/library#trading-fairly), [Keeping
   Records](/library#keeping-records), [Testing Water](/library#testing-water),
   [Conflict

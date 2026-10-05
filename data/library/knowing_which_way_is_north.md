@@ -562,13 +562,14 @@ compass.
   ("Magnetize a needle in a glass housing"). Crafting one is the first
   step of the "Initial Survey" quest, but carrying one shows no
   bearing. Under the default settings, two more things apply: the game
-  starts in the Dev play mode (Settings > Gameplay > Play mode), where
-  crafting does not use up its ingredients, though the Craft button
-  still wants them in your backpack or your home's storage (the Crafting
-  page's "Dev: stock all materials" button supplies them); and while
-  "Start every session
-  from the default home" is on, which it is by default, only your
-  character carries between launches, so a compass you made is gone the
+  starts in the Normal play mode (Settings > Gameplay > Play mode), where
+  making one uses up its iron ingot and glass pane (Creative, and Dev if
+  you choose it, use up nothing, though the Craft button still wants the
+  ingredients in your backpack or your home's storage, and in Dev the
+  Crafting page's "Dev: stock all materials" button supplies them); and
+  "Start every session from the default home" is off by default, so a
+  compass you made is kept between launches. With that setting on, only
+  your character carries between launches, and the compass is gone the
   next time you start the game.
 - **The Navigation skill exists, but nothing levels it yet.**
 - **The night sky is real.** The stars come from a real star catalogue,

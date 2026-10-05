@@ -533,7 +533,8 @@ nothing carries a disease to you.
 
 - **No vermin.** None of these animals is in the game's creature list
   (`data/creatures.csv`), and nothing eats your stored food. Food spoils
-  on its own clock instead, with no cold storage yet.
+  on its own clock instead, slower in the cold and slowest in the home's
+  Freezer.
 - **Diseases are listed but never given.** The game's effects data
   (`data/status_effects.csv`) has rows for plague, parasites, infection
   and flu, but nothing in the game applies them yet. The one illness you
@@ -549,12 +550,15 @@ nothing carries a disease to you.
   slugs and the rest in `data/garden/pests.ron` attack your crops, never
   you; [Pests and Disease](/library#pests-and-disease) covers them.
 
-**The default settings.** The Dev play mode (Settings > Gameplay > Play
-mode) does not change any of this; your waste rises in every mode. The
-Waste reading is not saved, so it starts again from empty each launch, and
-while "Start every session from the default home" is on, which it is by
-default during development, only your character carries over, so the
-fertiliser in your pack does not.
+**The default settings.** The play mode (Settings > Gameplay > Play
+mode; Normal, unless you choose another) does not change any of this;
+your waste rises in every mode. The Waste reading is saved with your
+body, and "Start every session from the default home" is off by
+default, so the next launch brings it back where you left it, and the
+fertiliser that was in your pack is still there. With that setting on,
+only your character carries over: each launch starts you with a new
+body, its Waste reading empty, and without the fertiliser that was in
+your pack.
 
 What the game leaves out, so you do not learn it from the game: the
 mouse in the grain bin, the maggots in the rubbish, the rain barrel full
@@ -732,8 +736,10 @@ Grouped by what kind of authority each one is. Web pages were read on
   `WASTE_RISE_PER_SEC`, `WASTE_PER_MEAL`, `UNSANITARY_THRESHOLD` and the
   spoilage code in `src/systems/food.rs`; the button in
   `src/gui/pages/inventory.rs`. Garden pests: `data/garden/pests.ron`.
-- Vitals not saved: `src/save_load.rs`. The Play mode and the "Start every
-  session from the default home" setting: `src/config.rs`.
+- The body, the Waste reading among its vitals, saved with the game:
+  `BodySave` in `src/persistence.rs` and `restore_body` in
+  `src/save_load.rs`. The Play mode and the "Start every session from the
+  default home" setting: `src/config.rs`.
 - [What Not to Compost, Burn or Pour
   Away](/library#what-not-to-compost-burn-or-pour-away), [Your First
   Compost](/library#your-first-compost), [Collecting

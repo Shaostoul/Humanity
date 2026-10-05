@@ -30,7 +30,8 @@ Home Safely](heating_a_home_safely.md), and outdoors in [Making and
 Controlling Fire](making_and_controlling_fire.md). Refuelling small
 engines and oily rags are in [Keeping Things
 Working](keeping_things_working.md), the gas water heater and fuel
-vapours in [Heating Water](heating_water.md), generators in [Where Your
+vapours in [Heating Water](heating_water.md), generators in [Choosing and
+Running a Generator](choosing_and_running_a_generator.md) and [Where Your
 Own Electrical Work Stops](where_your_electrical_work_stops.md), carbon
 monoxide alarms in [Ventilation, Damp and
 Mould](ventilation_damp_and_mould.md), and getting rid of old fuel in
@@ -580,9 +581,10 @@ hazards.
   that is the arrangement that kills people in a power cut. The game's
   data includes a table of gases with their flammable ranges
   (`data/chemistry/gases.csv`), but no game system reads it yet.
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which is the default during
-  development, only your character carries between launches, so the next
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so the fuel you
+  refined or moved stays in the home's drums between launches. With the
+  setting on, only your character carries between launches, and the next
   session starts with the default home's machines and drums as they were,
   whatever fuel you refined or moved.
 

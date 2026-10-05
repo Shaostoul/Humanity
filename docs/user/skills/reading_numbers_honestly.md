@@ -453,10 +453,11 @@ random on purpose and others are smoothed.
   at its average power draw over a day; [Estimating](estimating.md)
   shows how to check it by hand.
 
-**One setting changes this.** While Settings > Gameplay > "Start every
-session from the default home" is on, which is the default during
-development, only your character carries between launches, so the garden
-starts over at each launch. Keep your tally of harvests on paper rather
+**One setting changes this.** Settings > Gameplay > "Start every session
+from the default home" is off by default, so your garden carries over
+between launches. With the setting on, only your character carries
+between launches, and the garden starts over at each launch. Either way
+the game keeps no tally of your harvests, so keep one on paper rather
 than relying on the game to remember it.
 
 What the game does not model: the prices at the trading post are fixed,

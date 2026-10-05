@@ -82,6 +82,8 @@ pub(crate) fn note_body(state: &mut EngineState, body: &str, render_off: DVec3, 
     if state.frame_lock_body.as_deref() == Some(body) {
         state.planet_body_frame = Some(BodyFrame { body: body.to_string(), render_off, rot });
     }
+    // A pack left on this body's ground is drawn and marked in the same frame (2026-10-04).
+    crate::engine::death_pack::note_body(state, body, render_off, rot);
 }
 
 /// THE rotation taking a direction in a body's unrotated frame to render

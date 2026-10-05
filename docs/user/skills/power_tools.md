@@ -546,10 +546,12 @@ The game's craftsmanship is hand work, and no tool in it can hurt you.
   mode the Crafting page's Craft button waits until the recipe's parts
   are in your backpack, or in your home's storage where you can reach
   it, and its tools are in your backpack (`src/gui/pages/crafting.rs`).
-  In Normal play the craft then uses up the parts and wears each tool by
-  one use; in the default Dev play mode, as in Creative, it uses nothing
-  up and wears no tool (`src/systems/crafting/mod.rs`). The page's "Dev:
-  stock all materials" button, shown by default in Dev, puts a full stack
+  In the Normal play mode, where the game starts, the craft then uses up
+  the parts and wears each tool by one use; in Creative, and in Dev if
+  you choose it, it uses nothing up and wears no tool while the Inventory
+  page's Creative mode switch is on (`src/systems/crafting/mod.rs`). The
+  page's "Dev: stock all materials" button, shown only in Dev and while
+  the dev cheats switch is on, as it is by default, puts a full stack
   of every recipe's parts in your backpack, but no tools; the starting
   kit holds every tool the recipes name except the soldering iron and the
   chisel (`data/world/player.ron`).

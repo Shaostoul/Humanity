@@ -739,6 +739,38 @@ pub struct MachineHome {
     /// those rows may be edited right now (see `ShipPart`).
     #[serde(skip)]
     pub ship_part: ShipPart,
+    /// What the character gave for each machine they placed outside Creative and Dev, by
+    /// instance id: the item the build editor took (one `<type>_0`, engine::editor
+    /// `pay_for_machine`, first-hour audit 2026-10-04). Removing such a machine, by any path,
+    /// gives that item back (`take_unplaced_payments`, engine/own_home.rs), and an undo or redo
+    /// that brings one back takes it again. Travels with the layout: into every undo snapshot,
+    /// and into the character's save (`HouseholdMachines`). NEVER written to a shared data file
+    /// (`save` and `save_ship_part` leave it out): a data file is the default home, which nobody
+    /// paid for. Empty for a home nobody built on outside the free modes.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub paid: BTreeMap<String, String>,
+}
+
+/// The household's machines, as a character's save keeps them (2026-10-04, engine/own_home.rs):
+/// every row of the layout's household part (the part `MachineHome::save` writes to the home's
+/// own file, without the ship's rows), and what was paid for each. Not the catalog and not the
+/// loops: a machine's definition and the home's loop notes stay the data files', so a later
+/// change to a machine's figures reaches a character's own home too.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct HouseholdMachines {
+    #[serde(default)]
+    pub instances: Vec<MachineInstance>,
+    #[serde(default)]
+    pub arrays: Vec<MachineArray>,
+    #[serde(default)]
+    pub connections: Vec<MachineConnection>,
+    #[serde(default)]
+    pub conduit_nodes: Vec<ConduitNode>,
+    #[serde(default)]
+    pub conduit_edges: Vec<ConduitEdge>,
+    /// See `MachineHome::paid`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub paid: BTreeMap<String, String>,
 }
 
 /// The ship's share of a merged machine layout (increment 1a of
@@ -1213,6 +1245,7 @@ impl MachineHome {
             conduit_nodes: self.conduit_nodes.iter().filter(|n| ship_node(n)).cloned().collect(),
             conduit_edges: self.conduit_edges.iter().filter(|e| ship_edge(e)).cloned().collect(),
             grown: Default::default(),
+            paid: Default::default(),
         };
         (home, Some(ship))
     }
@@ -1249,8 +1282,97 @@ impl MachineHome {
     /// part here; the ship's rows stay in the ship file (`save_ship_part` writes them, from the
     /// Dev mode only), so a save from any mode can never copy the Commons into a home.
     pub fn save(&self, path: &Path) -> Result<(), String> {
-        let (home, _) = self.split_for_save(&self.ship_catalog_keys(path));
+        let (mut home, _) = self.split_for_save(&self.ship_catalog_keys(path));
+        // A data file is the default home: what a character paid for the machines they placed is
+        // theirs, kept in their save (`HouseholdMachines`), never in the shared file.
+        home.paid.clear();
         home.write_ron(path)
+    }
+
+    /// True when the row in `zone` is the SHIP's, which only the linked ship file holds (no ship
+    /// file linked: every row is the household's, as `split_for_save` has it).
+    fn is_ship_row_zone(&self, zone: &str) -> bool {
+        self.ship_machines.is_some() && Self::is_ship_zone(zone)
+    }
+
+    /// The household's part of this layout, for a character's save (engine/own_home.rs,
+    /// 2026-10-04): the rows `save` writes to the home's own file, never the ship's, and what was
+    /// paid for the ones still placed.
+    pub fn household_rows(&self) -> HouseholdMachines {
+        let (home, _) = self.split_for_save(&Default::default());
+        let paid: BTreeMap<String, String> = {
+            let placed: std::collections::HashSet<&str> = home.instances.iter().map(|i| i.id.as_str()).collect();
+            home.paid.iter().filter(|(id, _)| placed.contains(id.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect()
+        };
+        HouseholdMachines {
+            instances: home.instances,
+            arrays: home.arrays,
+            connections: home.connections,
+            conduit_nodes: home.conduit_nodes,
+            conduit_edges: home.conduit_edges,
+            paid,
+        }
+    }
+
+    /// Put a character's own household rows in place of this layout's (engine/own_home.rs): the
+    /// household's part becomes `rows`, and the ship's part (its rows, connections, loops and
+    /// conduit graph, merged in from the linked ship file) stays as loaded. A saved row in a ship
+    /// zone, or a connection or conduit edge reaching the ship's, is not the household's and is
+    /// left out, as is a payment for a machine that is not among the rows. The catalog and the
+    /// loops stay the data file's.
+    pub fn set_household_rows(&mut self, rows: HouseholdMachines) {
+        let ship_ids: std::collections::HashSet<String> =
+            if self.ship_machines.is_some() { self.ship_row_ids() } else { Default::default() };
+        let ship_nodes = self.ship_part.conduit_nodes.clone();
+        let (_, ship) = self.split_for_save(&Default::default());
+        let ship = ship.unwrap_or_else(|| MachineHome {
+            ship_machines: None,
+            ship_part: Default::default(),
+            catalog: BTreeMap::new(),
+            instances: Vec::new(),
+            arrays: Vec::new(),
+            connections: Vec::new(),
+            loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
+            grown: Default::default(),
+            paid: Default::default(),
+        });
+        let ship_end = |e: &ConduitEnd| match e {
+            ConduitEnd::Machine(id) => ship_ids.contains(id),
+            ConduitEnd::Node(id) => ship_nodes.contains(id),
+        };
+        let mut instances: Vec<MachineInstance> = rows.instances.into_iter().filter(|i| !self.is_ship_row_zone(&i.zone)).collect();
+        let mut arrays: Vec<MachineArray> = rows.arrays.into_iter().filter(|a| !self.is_ship_row_zone(&a.zone)).collect();
+        let mut connections: Vec<MachineConnection> =
+            rows.connections.into_iter().filter(|c| !ship_ids.contains(&c.from) && !ship_ids.contains(&c.to)).collect();
+        let mut conduit_nodes: Vec<ConduitNode> = rows.conduit_nodes.into_iter().filter(|n| !ship_nodes.contains(&n.id)).collect();
+        let mut conduit_edges: Vec<ConduitEdge> = rows.conduit_edges.into_iter().filter(|e| !ship_end(&e.from) && !ship_end(&e.to)).collect();
+        let placed: std::collections::HashSet<String> = instances.iter().map(|i| i.id.clone()).collect();
+        self.paid = rows.paid.into_iter().filter(|(id, _)| placed.contains(id)).collect();
+        // The household's rows first, the ship's after them, the order `load` merges them in.
+        instances.extend(ship.instances);
+        arrays.extend(ship.arrays);
+        connections.extend(ship.connections);
+        conduit_nodes.extend(ship.conduit_nodes);
+        conduit_edges.extend(ship.conduit_edges);
+        self.instances = instances;
+        self.arrays = arrays;
+        self.connections = connections;
+        self.conduit_nodes = conduit_nodes;
+        self.conduit_edges = conduit_edges;
+    }
+
+    /// The payments whose machine is no longer placed, taken out of `paid` (engine/own_home.rs
+    /// gives each item back): a machine removed by any path, the Remove button, the Delete key, a
+    /// group delete or a removed room. A paid machine is always an explicit instance (a placement
+    /// makes one), so an array cell never counts. Sorted by instance id.
+    pub fn take_unplaced_payments(&mut self) -> Vec<(String, String)> {
+        let gone: Vec<String> = {
+            let placed: std::collections::HashSet<&str> = self.instances.iter().map(|i| i.id.as_str()).collect();
+            self.paid.keys().filter(|id| !placed.contains(id.as_str())).cloned().collect()
+        };
+        gone.into_iter().filter_map(|id| self.paid.remove(&id).map(|item| (id, item))).collect()
     }
 
     /// Serialize this layout as it stands, keeping the target file's leading comment header.
@@ -2608,6 +2730,24 @@ mod tests {
     /// its station placed (smelt_iron at smelter, smelt_iron_graphite at smelter)" and
     /// "home_solo.ron: Toolsmith, step 1 (Forge a hammer): craft_hammer needs a workbench, which
     /// this home does not place".
+    ///
+    /// THE OPENING (2026-10-04): First Steps is now the first ten minutes, and the check covers
+    /// what each of its steps uses as well. An Eat step needs food in the starting kit
+    /// (data/world/player.ron; only the backpack's food has an Eat button). A Plant step needs the
+    /// tower design its line names placed in the home, growing something the kit has a seed for.
+    /// A Make or Craft step needs, besides its station, every input of that recipe to hand: in
+    /// the home's stores, in the kit, sold at a trading post the home places, or got by an earlier
+    /// step of the chain (its ore, its ingot, a quest's reward). The opening's front door is the
+    /// plot's, not the home layout's: systems::quests::opening_tests holds it for every plot.
+    ///
+    /// Red, run on the shipped files with the kit's rations taken out and the fishing rod's
+    /// recipe asking for a fishing line nothing sells (the Barn's planks and wire are sold at the
+    /// trading post too, so taking them out of the Barn leaves the rod makeable): "home.ron:
+    /// First Steps, step 2 (Eat something: press I, click a Basic Ration, then Eat): nothing in
+    /// the starting kit is eaten food" and "home.ron: First Steps, step 4 (Craft a tool: Esc >
+    /// Crafting > Carve Fishing Rod > Craft): no recipe that makes fishing_rod_0 has its station
+    /// and every input to hand (craft_fishing_rod lacks fishing_line_0)", the same for
+    /// home_solo.ron.
     #[test]
     fn every_shipped_home_has_what_the_starter_quests_need() {
         use crate::systems::quests::{QuestObjective, QuestRegistry};
@@ -2651,28 +2791,87 @@ mod tests {
         }
         assert!(chain.len() >= 2, "First Steps leads on to Toolsmith");
 
+        // What a new player carries (data/world/player.ron, the list save_load::starting_kit reads).
+        #[derive(serde::Deserialize)]
+        struct PlayerDef {
+            #[serde(default)]
+            starting_items: Vec<(String, u32)>,
+        }
+        let kit: std::collections::BTreeSet<String> =
+            ron::from_str::<PlayerDef>(&std::fs::read_to_string(root.join("data").join("world").join("player.ron")).unwrap())
+                .expect("player.ron parses")
+                .starting_items
+                .into_iter()
+                .map(|(id, _)| id)
+                .collect();
+        assert!(kit.len() > 5, "the starting kit parsed: {kit:?}");
+        // The tower designs (data/towers/aeroponic_configs.ron): which plants each grows. A tower
+        // of design X is placed as machine "aeroponic_tower_X".
+        #[derive(serde::Deserialize)]
+        struct Towers {
+            towers: Vec<Tower>,
+        }
+        #[derive(serde::Deserialize)]
+        struct Tower {
+            id: String,
+            name: String,
+            plantings: Vec<Planting>,
+        }
+        #[derive(serde::Deserialize)]
+        struct Planting {
+            plant: String,
+        }
+        let towers = ron::from_str::<Towers>(&std::fs::read_to_string(root.join("data").join("towers").join("aeroponic_configs.ron")).unwrap())
+            .expect("aeroponic_configs.ron parses")
+            .towers;
+
         let station = |r: &crate::systems::crafting::Recipe| r.required_station.as_deref().map(|s| s.strip_suffix("_0").unwrap_or(s).to_string());
         let mut problems = Vec::new();
         for file in ["home.ron", "home_solo.ron"] {
             let home = MachineHome::load(&root.join("data").join("machines").join(file)).unwrap_or_else(|| panic!("{file} parses"));
             let placed: std::collections::BTreeSet<String> = home.all_instances().into_iter().map(|i| i.machine).collect();
             let has = |s: &Option<String>| s.as_ref().map_or(true, |s| placed.contains(s));
+            // What the player has to hand: the stores, the kit, the trading post's goods, and what
+            // the chain's earlier steps and rewards give (added as the walk goes on).
+            let mut to_hand: std::collections::BTreeSet<String> = stores.union(&kit).cloned().collect();
+            if placed.contains("trading_post") {
+                to_hand.extend(goods.goods.keys().cloned());
+            }
             for q in &chain {
                 for (n, step) in q.steps.iter().enumerate() {
                     let at = format!("{file}: {}, step {} ({})", q.name, n + 1, step.description);
+                    // A recipe whose station is placed and whose every input is to hand.
+                    let can_make = |r: &crate::systems::crafting::Recipe, to_hand: &std::collections::BTreeSet<String>| {
+                        has(&station(r)) && r.inputs.iter().all(|(id, _)| to_hand.contains(id))
+                    };
+                    let lacking = |r: &crate::systems::crafting::Recipe, to_hand: &std::collections::BTreeSet<String>| {
+                        let missing: Vec<&str> = r.inputs.iter().map(|(id, _)| id.as_str()).filter(|id| !to_hand.contains(*id)).collect();
+                        match (has(&station(r)), missing.is_empty()) {
+                            (false, _) => format!("{} needs a {}", r.id, station(r).unwrap()),
+                            (true, false) => format!("{} lacks {}", r.id, missing.join(", ")),
+                            (true, true) => format!("{} can be made", r.id),
+                        }
+                    };
                     match &step.objective {
                         QuestObjective::Craft { recipe_id, .. } => {
                             let r = recipes.recipes.get(recipe_id).unwrap_or_else(|| panic!("{at}: no recipe {recipe_id}"));
                             if !has(&station(r)) {
                                 problems.push(format!("{at}: {recipe_id} needs a {}, which this home does not place", station(r).unwrap()));
+                            } else if !can_make(r, &to_hand) {
+                                problems.push(format!("{at}: {}", lacking(r, &to_hand)));
                             }
+                            to_hand.extend(r.outputs.iter().map(|(id, _)| id.clone()));
                         }
                         QuestObjective::Make { item_id, .. } => {
                             let makers = recipes.recipes_producing(item_id);
                             if !makers.iter().any(|r| has(&station(r))) {
                                 let list: Vec<String> = makers.iter().map(|r| format!("{} at {}", r.id, station(r).unwrap_or_else(|| "hand".into()))).collect();
                                 problems.push(format!("{at}: no recipe that makes {item_id} has its station placed ({})", list.join(", ")));
+                            } else if !makers.iter().any(|r| can_make(r, &to_hand)) {
+                                let why: Vec<String> = makers.iter().map(|r| lacking(r, &to_hand)).collect();
+                                problems.push(format!("{at}: no recipe that makes {item_id} has its station and every input to hand ({})", why.join("; ")));
                             }
+                            to_hand.insert(item_id.clone());
                         }
                         QuestObjective::Build { blueprint_id } => {
                             let bp = blueprints.blueprints.get(blueprint_id).unwrap_or_else(|| panic!("{at}: no blueprint {blueprint_id}"));
@@ -2683,9 +2882,39 @@ mod tests {
                                 }
                             }
                         }
+                        // Only the backpack's food has an Eat button, so the kit must hold some.
+                        QuestObjective::Eat { item_id, .. } => {
+                            let kinds = crate::systems::food::consume_kinds();
+                            let food = kit.iter().any(|id| kinds.get(id) == Some(&false) && item_id.as_ref().map_or(true, |want| want == id));
+                            if !food {
+                                problems.push(format!("{at}: nothing in the starting kit is eaten food{}", item_id.as_ref().map(|i| format!(" ({i})")).unwrap_or_default()));
+                            }
+                        }
+                        // The tower design the line names, placed here, growing a plant the kit has a seed for.
+                        QuestObjective::Plant { crop_id, .. } => {
+                            match towers.iter().find(|t| step.description.contains(&t.name)) {
+                                None => problems.push(format!("{at}: the line names no tower design")),
+                                Some(t) => {
+                                    if !placed.contains(&format!("aeroponic_tower_{}", t.id)) {
+                                        problems.push(format!("{at}: this home places no {} tower (aeroponic_tower_{})", t.name, t.id));
+                                    }
+                                    let sowable = t.plantings.iter().any(|p| {
+                                        kit.contains(&format!("seed_{}_0", p.plant)) && crop_id.as_ref().map_or(true, |c| c == &p.plant)
+                                    });
+                                    if !sowable {
+                                        problems.push(format!("{at}: the starting kit has a seed for nothing the {} tower grows", t.name));
+                                    }
+                                }
+                            }
+                        }
+                        // Gathered here, to hand from now on.
+                        QuestObjective::Gather { item_id, .. } => {
+                            to_hand.insert(item_id.clone());
+                        }
                         _ => {}
                     }
                 }
+                to_hand.extend(q.rewards.iter().map(|(id, _)| id.clone()));
             }
         }
         assert!(problems.is_empty(), "the starter quests cannot be done in every shipped home:\n  {}", problems.join("\n  "));
@@ -2810,6 +3039,7 @@ mod tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
 };
         let id = home.unique_instance_id("solar_panel");
         // The four array cells occupy _0.._3, so the next free id must be _4 (not _0).
@@ -2851,6 +3081,7 @@ mod tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
 };
         home.remove_instance("b");
         assert!(!home.instances.iter().any(|i| i.id == "b"), "instance b removed");
@@ -2900,6 +3131,7 @@ mod tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
 };
         let changed = home.remove_room("garden");
         assert!(changed, "remove_room reports it removed something");
@@ -2937,6 +3169,7 @@ mod tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
 };
         assert!(home.add_connection("a", "b", "power"), "valid connection added");
         assert!(!home.add_connection("a", "b", "power"), "exact duplicate refused");
@@ -2976,6 +3209,7 @@ mod tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
 };
         // A direct instance is already movable -> no-op.
         assert!(!home.detach_array_member("solo"), "a direct instance does not detach");
@@ -3013,6 +3247,7 @@ mod tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
 };
         assert!(home.add_connection("a", "b", "power"));
         assert!(home.add_connection("b", "c", "water"));
@@ -3043,6 +3278,7 @@ mod tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
 };
         let id = home.add_conduit_node((1.0, 0.5, 2.0), "power");
         {
@@ -3079,6 +3315,7 @@ mod tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
 };
         // placements (box mode) carry the yaw through to the renderer.
         let placed = home.placements(&std::collections::HashMap::new(), Some(&one_zone(20.0, 20.0, 4.0)));
@@ -3115,6 +3352,7 @@ mod tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
 };
         let report = home.buildability_report(4.5, MeterBasis::default());
         assert_eq!(report.worst(), CheckStatus::Fail);
@@ -3140,6 +3378,7 @@ mod tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
 };
         let meters = home.utility_meters(4.5, MeterBasis::default());
         let power = meters.iter().find(|m| m.utility == "power").expect("a power meter exists");
@@ -3183,6 +3422,7 @@ mod tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
         };
         let power = |basis: MeterBasis| home.utility_meters(4.5, basis).into_iter().find(|m| m.utility == "power").unwrap();
         let (station, realistic) = (power(MeterBasis { life_support_on_grid: false }), power(MeterBasis { life_support_on_grid: true }));
@@ -3483,6 +3723,7 @@ mod tests {
                 conduit_nodes: Vec::new(),
                 conduit_edges: Vec::new(),
                 grown: Default::default(),
+                paid: Default::default(),
             }
         };
         // One 1 kW load: 24 kWh a day against the (45.3 + 4.4) W x 24 h = 1.19 the home makes.
@@ -3575,6 +3816,7 @@ mod tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
 };
         let meters = home.utility_meters(4.5, MeterBasis::default());
         let power = meters.iter().find(|m| m.utility == "power").expect("a power meter exists");
@@ -3607,6 +3849,7 @@ mod tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
 };
         // Zero grow lights -> no report (the meter row only appears once one is placed).
         assert!(home.grow_light_report(4.5, MeterBasis::default()).is_none(), "no lights -> no report");
@@ -3876,6 +4119,7 @@ mod tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
 };
         // 1000W * 4.5h = 4500 Wh/day made vs 100W * 24h = 2400 used; night need = 100W * 19.5h =
         // 1950 Wh <= 2000 Wh battery, so every check passes.
@@ -3906,6 +4150,7 @@ mod tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
 };
         let report = home.buildability_report(4.5, MeterBasis::default());
         assert_eq!(report.worst(), CheckStatus::Warn, "tiny battery warns: {:?}", report.checks);
@@ -3927,6 +4172,7 @@ mod tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
 };
         let report = home.buildability_report(4.5, MeterBasis::default());
         assert!(report.checks.iter().any(|c| c.name == "Wiring" && c.status == CheckStatus::Fail));
@@ -3972,6 +4218,7 @@ mod tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
 }
     }
 
@@ -4420,6 +4667,7 @@ mod tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
 }
     }
 
@@ -4509,6 +4757,7 @@ mod tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
 };
         let wired = home.buildability_report(4.5, MeterBasis::default());
         let d = wired.checks.iter().find(|c| c.name == "Data links").expect("a Data links check");
@@ -4559,6 +4808,7 @@ mod tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
 };
         let circuit = home.power_circuit_check(&home.all_instances()).expect("electrical machines -> a circuit check");
         assert_eq!(circuit.status, CheckStatus::Fail, "battery-only load fails: {}", circuit.detail);
@@ -4589,6 +4839,7 @@ mod tests {
             conduit_nodes: Vec::new(),
             conduit_edges: Vec::new(),
             grown: Default::default(),
+            paid: Default::default(),
 };
         let nid = home.add_conduit_node((1.0, 1.0, 1.0), "power");
         assert!(home.add_conduit_edge(ConduitEnd::Machine("p1".into()), ConduitEnd::Node(nid.clone()), "power"));

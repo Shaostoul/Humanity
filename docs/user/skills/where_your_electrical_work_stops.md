@@ -650,10 +650,13 @@ The game lets anyone wire anything, and it cannot hurt you.
   and length (how it decides is in [Electricity and How It
   Flows](electricity_and_how_it_flows.md)). That check is the nearest the
   game comes to an inspection: a design check on a plan.
-- **Who may edit what.** In the default Dev play mode you can edit the
-  ship's own wiring as well as your home's; outside Dev, the ship's wiring
-  is shown but locked, and only your home's is yours to change
-  (`src/gui/pages/construction.rs`).
+- **Who may edit what.** The game starts in the Normal play mode
+  (Settings > Gameplay > Play mode), where, as in Creative, the ship's
+  own wiring is shown but locked and only your home's is yours to
+  change, and what you change is kept in your character's save. In the
+  Dev play mode, if you choose it, you can edit the ship's wiring as
+  well, and your changes are written into the game's data files
+  (`src/gui/pages/construction.rs`, `src/engine/own_home.rs`).
 
 What the game leaves out, so you do not learn it from the game: there are
 no permits, licences or inspections; no utility, meter or service drop;

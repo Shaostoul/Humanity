@@ -609,8 +609,9 @@ The game does not model a disaster or a neighbourhood yet.
   frightened in a way you can help with. The Leadership skill, which this
   topic belongs to, appears in the skill list (`data/skills/skills.csv`),
   but nothing in the game awards it experience; only the Profile page's
-  "Dev: max skills" button, shown in the default Dev play mode, raises it,
-  along with every other skill (`src/gui/pages/profile.rs`,
+  "Dev: max skills" button, shown only in the Dev play mode and not in
+  Normal, where the game starts, raises it, along with every other skill
+  (`src/gui/pages/profile.rs`,
   `src/systems/skills/mod.rs`). The Medicine skill rises by crafting
   medical supplies, not by helping anyone ([First Aid Until Help
   Arrives](first_aid_until_help_arrives.md) has the detail).
@@ -620,9 +621,10 @@ The game does not model a disaster or a neighbourhood yet.
   but nothing registers it either. A Fire Extinguisher appears in the item
   list and in some recipes (`data/items.csv`, `data/recipes.csv`), but the
   Inventory's Use button does nothing with it (`src/gui/pages/inventory.rs`).
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which it is by default during
-  development, only your character carries over between launches.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so your progress is
+  kept between launches. With the setting on, only your character carries
+  over between launches.
 
 What the game leaves out, so you do not learn it from the game: the
 broken street, the phones that do not get through, the people who need

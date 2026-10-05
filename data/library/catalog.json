@@ -156,6 +156,17 @@
             "beginner",
             "safety"
           ]
+        },
+        {
+          "title": "Emergency Shelter",
+          "src": "docs/user/skills/emergency_shelter.md",
+          "tags": [
+            "guide",
+            "real",
+            "beginner",
+            "shelter",
+            "safety"
+          ]
         }
       ]
     },
@@ -227,6 +238,26 @@
           ]
         },
         {
+          "title": "Water-Bath Canning",
+          "src": "docs/user/skills/water_bath_canning.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
+          "title": "Pressure Canning",
+          "src": "docs/user/skills/pressure_canning.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
           "title": "Telling Spoiled From Safe",
           "src": "docs/user/skills/telling_spoiled_from_safe.md",
           "tags": [
@@ -247,6 +278,16 @@
         {
           "title": "Fermenting Vegetables",
           "src": "docs/user/skills/fermenting_vegetables.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
+          "title": "Salting, Curing and Smoking",
+          "src": "docs/user/skills/salting_curing_and_smoking.md",
           "tags": [
             "guide",
             "real",
@@ -691,6 +732,16 @@
           ]
         },
         {
+          "title": "Choosing and Running a Generator",
+          "src": "docs/user/skills/choosing_and_running_a_generator.md",
+          "tags": [
+            "guide",
+            "real",
+            "power",
+            "safety"
+          ]
+        },
+        {
           "title": "Insulation and Heat Loss",
           "src": "docs/user/skills/insulation_and_heat_loss.md",
           "tags": [
@@ -860,6 +911,16 @@
           ]
         },
         {
+          "title": "Mental Health Under Strain",
+          "src": "docs/user/skills/mental_health_under_strain.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "safety"
+          ]
+        },
+        {
           "title": "Helping Your Neighbours After a Disaster",
           "src": "docs/user/skills/helping_your_neighbours_after_a_disaster.md",
           "tags": [
@@ -990,6 +1051,16 @@
         {
           "title": "Floating and Boats",
           "src": "docs/user/skills/floating_and_boats.md",
+          "tags": [
+            "guide",
+            "real",
+            "water",
+            "safety"
+          ]
+        },
+        {
+          "title": "Pressure in Water, Air and Steam",
+          "src": "docs/user/skills/pressure_in_water_air_and_steam.md",
           "tags": [
             "guide",
             "real",
@@ -1236,6 +1307,27 @@
             "real",
             "governance",
             "safety"
+          ]
+        },
+        {
+          "title": "Handling Conflict",
+          "src": "docs/user/skills/handling_conflict.md",
+          "tags": [
+            "guide",
+            "real",
+            "governance",
+            "safety",
+            "beginner"
+          ]
+        },
+        {
+          "title": "The Law Where You Live",
+          "src": "docs/user/skills/the_law_where_you_live.md",
+          "tags": [
+            "guide",
+            "real",
+            "governance",
+            "reference"
           ]
         },
         {

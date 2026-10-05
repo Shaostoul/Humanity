@@ -64,23 +64,6 @@ impl WindowMode {
     }
 }
 
-/// Play mode (task #50, v0.799): the one ladder every cheat/scope gate hangs
-/// off. Before this, each dev affordance had its own ad-hoc flag standing
-/// alone (`GuiState.creative_mode`, `Theme.cheats_enabled`, nothing at all for
-/// construction scope). The mode is now the master; the old flags all remain
-/// (forever-dev norm: never delete dev tooling) but the mode SETS or gates
-/// them:
-///   - `GuiState.creative_mode` (free resources): Normal forces it off every
-///     frame (lib.rs bridge); picking Creative/Dev presets it on, and inside
-///     those modes the Inventory page's toggle stays a fine-tune (testing
-///     real consumption while in Dev is legitimate).
-///   - `Theme.cheats_enabled` (the Settings dev-cheats switch): still honored
-///     as a kill-switch, but every dev tool ALSO requires PlayMode::Dev now
-///     (see `GuiState::dev_cheats_active`).
-///   - Construction editor scope: Dev edits the whole ship (all zones, zone
-///     add/remove, corridors); Normal/Creative are pinned to the HOME zone.
-///
-/// Persisted in AppConfig (`#[serde(default)]`); surfaced in Settings >
 /// How much of the survival simulation the HUD shows (2026-09-25; the
 /// playable assessment's Tier A item 2: "without it the five death causes
 /// are invisible mechanics that only frustrate"). The two-modes rule: `Off`
@@ -109,25 +92,49 @@ impl HudVitals {
     }
 }
 
-/// Gameplay as three radio buttons; shown as a HUD tag when not Normal so
-/// screenshots are honest.
+/// Play mode (task #50, v0.799): the one ladder every cheat/scope gate hangs
+/// off. Before this, each dev affordance had its own ad-hoc flag standing
+/// alone (`GuiState.creative_mode`, `Theme.cheats_enabled`, nothing at all for
+/// construction scope). The mode is now the master; the old flags all remain
+/// (forever-dev norm: never delete dev tooling) but the mode SETS or gates
+/// them:
+///   - `GuiState.creative_mode` (free resources): Normal forces it off every
+///     frame (lib.rs bridge); picking Creative/Dev presets it on, and inside
+///     those modes the Inventory page's toggle stays a fine-tune (testing
+///     real consumption while in Dev is legitimate).
+///   - `Theme.cheats_enabled` (the Settings dev-cheats switch): still honored
+///     as a kill-switch, but every dev tool ALSO requires PlayMode::Dev now
+///     (see `GuiState::dev_cheats_active`).
+///   - Construction editor scope: Dev edits the whole ship (all zones, zone
+///     add/remove, corridors); Normal/Creative are pinned to the HOME zone.
+///   - Where the build editor's edits are kept (2026-10-04,
+///     `Capability::DefaultHomeAuthoring`): Dev writes the shared data files
+///     (the default home every new player starts from); Normal and Creative
+///     keep the character's own home in their save (engine/own_home.rs).
+///
+/// Persisted in AppConfig (`#[serde(default)]`); edited as radios in Settings >
+/// Gameplay; shown as a HUD tag when not Normal so screenshots are honest.
+///
+/// THE DEFAULT IS NORMAL (2026-10-04, the operator's decision): a fresh install
+/// plays by the survival rules. Until then it was Dev, because the operator IS the
+/// dev and builds the mothership in-game; his own config.json holds "Dev"
+/// explicitly, so the flip did not touch him, and every test rig pins Dev in its
+/// sandbox (scripts/lib/rig-gameplay.js). The test
+/// `a_fresh_install_is_normal_with_progress_kept` pins the default.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum PlayMode {
     /// Survival rules: resources consume, building stays within your own
-    /// homestead zone, no dev tools, no free materials. The player default
-    /// at launch.
+    /// homestead zone, no dev tools, no free materials. The default.
+    #[default]
     Normal,
     /// Free building + free materials, still scoped to your homestead.
     /// Vitals stay on the Gameplay "Vitals drain" slider (0 pauses needs) --
     /// the mode deliberately does NOT touch that slider. No Dev tools.
     Creative,
     /// Everything: whole-ship structural editing, the Dev page (spawn +
-    /// travel/FTL), the G creature editor, all "Dev:" provisioning buttons.
-    ///
-    /// DEFAULT PRE-LAUNCH: the operator IS the dev and builds the whole
-    /// mothership in-game. Flip this default to `Normal` at launch (the
-    /// `default_is_dev_pre_launch` test below is the tripwire/reminder).
-    #[default]
+    /// travel/FTL), the G creature editor, all "Dev:" provisioning buttons,
+    /// and the build editor writing the shared data files. The operator's
+    /// mode for building the mothership and the default home in-game.
     Dev,
 }
 
@@ -153,6 +160,14 @@ pub enum Capability {
     /// corridors, and selecting non-home zones in the construction editor.
     /// The operator's multi-zone mothership is untouchable without this.
     ShipStructureEditing,
+    /// The build editor's edits to the home are written to the SHARED data
+    /// files (data/homes/<kind>.ron, data/machines/*.ron): the default home
+    /// every new player starts from, and what the operator authors in-game.
+    /// Without it a character's edits are theirs alone: kept in their save,
+    /// never in the data files (engine/own_home.rs, 2026-10-04), so a machine
+    /// placed in Normal mode is neither handed to every other character on the
+    /// install nor kept through a fresh start for free.
+    DefaultHomeAuthoring,
 }
 
 /// Pure mode -> capability mapping: the single source of truth every gate
@@ -166,8 +181,11 @@ pub fn play_mode_allows(mode: PlayMode, capability: Capability) -> bool {
         Capability::FreeResources => mode != PlayMode::Normal,
         // Dev tools + ship superstructure are Dev-only: Creative players get
         // free materials, NOT spawn/teleport or the ability to reshape the
-        // shared mothership.
-        Capability::DevTools | Capability::ShipStructureEditing => mode == PlayMode::Dev,
+        // shared mothership. Nor do they author the default home: their edits
+        // are their own home's, kept in their save.
+        Capability::DevTools | Capability::ShipStructureEditing | Capability::DefaultHomeAuthoring => {
+            mode == PlayMode::Dev
+        }
     }
 }
 
@@ -193,17 +211,20 @@ impl PlayMode {
         match self {
             PlayMode::Normal => {
                 "Survival rules. Resources are consumed, building stays within \
-                 your homestead, no cheats. The player default at launch."
+                 your homestead, no cheats, and what you build in your home is \
+                 kept in your character's save. The default."
             }
             PlayMode::Creative => {
-                "Free building and free materials within your homestead. Pair \
-                 with the Vitals drain slider below (0 pauses survival needs) \
-                 if you want vitals off. No Dev tools."
+                "Free building and free materials within your homestead, kept \
+                 in your character's save. Pair with the Vitals drain slider \
+                 below (0 pauses survival needs) if you want vitals off. No Dev \
+                 tools."
             }
             PlayMode::Dev => {
                 "Everything: whole-ship structural editing, the Dev spawn and \
-                 travel page, and every dev toggle. Pre-launch default while \
-                 the mothership is being built in-game."
+                 travel page, and every dev toggle. Build edits are written to \
+                 the game's data files, the default home every new player starts \
+                 from, instead of your save."
             }
         }
     }
@@ -630,8 +651,9 @@ pub struct AppConfig {
     #[serde(default = "default_true")]
     pub offline_progression: bool,
     /// Start every session from the default home (operator, 2026-09-25).
-    /// On by default during development; see GuiState's field.
-    #[serde(default = "default_true")]
+    /// Off by default since 2026-10-04 (progress is kept between launches);
+    /// it was on while the starting home was being built. See GuiState's field.
+    #[serde(default)]
     pub fresh_world_each_launch: bool,
     /// God-ray shaft intensity (v0.907 slider; 0 disables the pass).
     #[serde(default = "default_godray_intensity")]
@@ -784,10 +806,17 @@ pub struct AppConfig {
     /// Held in GuiState as `settings.pipe_marking_full`.
     #[serde(default)]
     pub pipe_marking_full: bool,
+    /// Death (2026-10-04, systems::death_pack, the operator's decision): false is Simplified
+    /// (nothing is lost, the death screen's old promise), true is Realistic (everything in the
+    /// backpack stays where you fell, in a pack to go back for; what you wear stays on you).
+    /// Simplified by default, the house rule for deep systems. Held in GuiState as
+    /// `settings.death_realistic`.
+    #[serde(default)]
+    pub death_realistic: bool,
     /// Play mode (task #50): Normal | Creative | Dev -- the ladder every
-    /// cheat/scope gate hangs off (see the `PlayMode` docs above). Absent in
-    /// old configs => Dev via `#[serde(default)]` (the pre-launch default;
-    /// flips to Normal at launch). Applied live: the gates read it per frame.
+    /// cheat/scope gate hangs off (see the `PlayMode` docs above). Absent =>
+    /// Normal via `#[serde(default)]` (the default since 2026-10-04; it was
+    /// Dev before). Applied live: the gates read it per frame.
     #[serde(default)]
     pub play_mode: PlayMode,
     /// Survival bars on the HUD (2026-09-25): Always | WhenLow | Off.
@@ -1461,6 +1490,7 @@ impl AppConfig {
             body_heat_realistic: state.settings.body_heat_realistic,
             carry_realistic: state.settings.carry_realistic,
             pipe_marking_full: state.settings.pipe_marking_full,
+            death_realistic: state.settings.death_realistic,
             play_mode: state.settings.play_mode,
             hud_vitals: state.settings.hud_vitals,
             // v0.488 voice input prefs (top-level GuiState, not SettingsState).
@@ -1740,6 +1770,7 @@ impl AppConfig {
         state.settings.body_heat_realistic = self.body_heat_realistic;
         state.settings.carry_realistic = self.carry_realistic;
         state.settings.pipe_marking_full = self.pipe_marking_full;
+        state.settings.death_realistic = self.death_realistic;
         // Play mode (task #50): restore the persisted mode, then PRESET the
         // creative (free resources) flag from it -- GuiState defaults that
         // flag to true (early-dev posture), so a Normal-mode player must get
@@ -1919,7 +1950,7 @@ mod play_mode_tests {
         use Capability::*;
         use PlayMode::*;
         // (mode, capability, allowed) -- the WHOLE permission surface,
-        // exhaustively: 3 modes x 4 capabilities.
+        // exhaustively: 3 modes x 5 capabilities.
         let table = [
             // Normal: survival. Only building your own home.
             (Normal, HomesteadEditing, true),
@@ -1936,6 +1967,11 @@ mod play_mode_tests {
             (Dev, FreeResources, true),
             (Dev, DevTools, true),
             (Dev, ShipStructureEditing, true),
+            // Only Dev writes the build editor's edits to the shared data files
+            // (2026-10-04); Normal and Creative keep them in the character's save.
+            (Normal, DefaultHomeAuthoring, false),
+            (Creative, DefaultHomeAuthoring, false),
+            (Dev, DefaultHomeAuthoring, true),
         ];
         for (mode, cap, want) in table {
             assert_eq!(
@@ -1948,12 +1984,62 @@ mod play_mode_tests {
         }
     }
 
+    /// A FRESH INSTALL STARTS IN NORMAL MODE, AND KEEPS ITS PROGRESS BETWEEN LAUNCHES (the
+    /// operator's decision of 2026-10-04, the first-hour audit's recommendation he accepted:
+    /// "switch fresh installs to Normal mode with progress kept, and pin Dev in the test rigs.
+    /// Your own saved settings keep Dev, so your dev workflow doesn't change."). This was the
+    /// tripwire written for the flip (`default_is_dev_pre_launch`); it now pins the default in
+    /// every place a fresh install takes its settings from: the enum, a config read from an empty
+    /// file or from one written before either field existed, and GuiState's defaults, which a
+    /// fresh install keeps as they are because there is no config.json to apply
+    /// (`AppConfig::load_if_exists`). The rigs pin their own (scripts/lib/rig-gameplay.js).
+    ///
+    /// Seen red 2026-10-05 on the defaults before the flip: "left: Dev, right: Normal" (the enum),
+    /// and with only the enum flipped, "a fresh install keeps its progress between launches".
     #[test]
-    fn default_is_dev_pre_launch() {
-        // PRE-LAUNCH ONLY: the operator is the dev. At launch this flips to
-        // Normal -- update PlayMode's #[default] AND this assertion together
-        // (this test existing is the reminder that the flip is deliberate).
-        assert_eq!(PlayMode::default(), PlayMode::Dev);
+    fn a_fresh_install_is_normal_with_progress_kept() {
+        assert_eq!(PlayMode::default(), PlayMode::Normal);
+        let empty = AppConfig::default();
+        assert_eq!(empty.play_mode, PlayMode::Normal);
+        assert!(!empty.fresh_world_each_launch, "a fresh install keeps its progress between launches");
+        // A config written before play_mode (v0.799) or the fresh-home switch existed reads the
+        // same: no compatibility default is kept for the old one (nobody plays yet, CLAUDE.md).
+        let minimal = r#"{"server_url":"","user_name":"","public_key_hex":"","completed_onboarding":false}"#;
+        let old: AppConfig = serde_json::from_str(minimal).unwrap();
+        assert_eq!(old.play_mode, PlayMode::Normal);
+        assert!(!old.fresh_world_each_launch);
+        // No config.json at all: GuiState's own defaults are what the game runs with.
+        let gui = crate::gui::GuiState::default();
+        assert_eq!(gui.settings.play_mode, PlayMode::Normal);
+        assert!(!gui.settings.fresh_world_each_launch, "GuiState keeps progress between launches by default");
+        assert!(!gui.creative_mode, "Normal mode starts with no free resources");
+    }
+
+    /// THE OPERATOR'S OWN SETUP KEEPS DEV: his config.json holds "play_mode": "Dev" and
+    /// "fresh_world_each_launch": true explicitly (read, never written, 2026-10-04), so the flip of
+    /// the defaults must leave both alone through a load (apply) and a save (from GuiState back to
+    /// the file), with the free resources Dev gives.
+    ///
+    /// Seen red 2026-10-05 by breaking the apply on purpose (apply_to_gui_state setting
+    /// `fresh_world_each_launch = false` instead of the file's value): "the fresh-home switch
+    /// comes through a load".
+    #[test]
+    fn a_config_holding_dev_and_the_default_home_keeps_them_through_a_load_and_a_save() {
+        let json = r#"{"server_url":"","user_name":"","public_key_hex":"","completed_onboarding":true,"play_mode":"Dev","fresh_world_each_launch":true}"#;
+        let cfg: AppConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(cfg.play_mode, PlayMode::Dev);
+        assert!(cfg.fresh_world_each_launch);
+        let mut gui = crate::gui::GuiState::default();
+        cfg.apply_to_gui_state(&mut gui);
+        assert_eq!(gui.settings.play_mode, PlayMode::Dev, "the Dev mode comes through a load");
+        assert!(gui.settings.fresh_world_each_launch, "the fresh-home switch comes through a load");
+        assert!(gui.creative_mode, "the Dev mode gives free resources");
+        let saved = serde_json::to_string_pretty(&AppConfig::from_gui_state(&gui)).unwrap();
+        assert!(saved.contains("\"play_mode\": \"Dev\""), "the save writes the Dev mode");
+        assert!(saved.contains("\"fresh_world_each_launch\": true"), "the save writes the fresh-home switch");
+        let back: AppConfig = serde_json::from_str(&saved).unwrap();
+        assert_eq!(back.play_mode, PlayMode::Dev);
+        assert!(back.fresh_world_each_launch);
     }
 
     #[test]
@@ -1963,11 +2049,8 @@ mod play_mode_tests {
             let back: PlayMode = serde_json::from_str(&json).unwrap();
             assert_eq!(m, back, "PlayMode must survive a config round-trip");
         }
-        // A pre-v0.799 config has no play_mode field at all: serde(default)
-        // must fill in Dev (today's behavior for the operator's install).
-        let minimal = r#"{"server_url":"","user_name":"","public_key_hex":"","completed_onboarding":false}"#;
-        let cfg: AppConfig = serde_json::from_str(minimal).unwrap();
-        assert_eq!(cfg.play_mode, PlayMode::Dev);
+        // The serialized form is the variant NAME (the operator's file says "Dev").
+        assert_eq!(serde_json::to_string(&PlayMode::Dev).unwrap(), "\"Dev\"");
     }
 
     #[test]
@@ -2108,6 +2191,23 @@ mod play_mode_tests {
         let mut fresh = crate::gui::GuiState::default();
         back.apply_to_gui_state(&mut fresh);
         assert!(fresh.settings.pipe_marking_full, "Full pipe markings stay chosen after a restart");
+    }
+
+    /// The Death mode (2026-10-04, systems::death_pack) starts Simplified and a chosen
+    /// Realistic survives a save and a load, through the GUI state, the JSON and back.
+    /// Seen red with `from_gui_state` writing `death_realistic: false`: "the death mode is
+    /// written" (the JSON held `"death_realistic":false`).
+    #[test]
+    fn the_death_mode_survives_a_save_and_a_load() {
+        let mut state = crate::gui::GuiState::default();
+        assert!(!state.settings.death_realistic, "death starts Simplified");
+        state.settings.death_realistic = true;
+        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
+        assert!(json.contains("\"death_realistic\":true"), "the death mode is written");
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        let mut fresh = crate::gui::GuiState::default();
+        back.apply_to_gui_state(&mut fresh);
+        assert!(fresh.settings.death_realistic, "Realistic death stays chosen after a restart");
     }
 
     /// The per-screen video choice and the ffmpeg path survive a save and a
@@ -2291,6 +2391,8 @@ mod pbkdf2_migration_tests {
         assert!(!c.carry_realistic);
         // Pipe markings start Simplified (2026-10-04).
         assert!(!c.pipe_marking_full);
+        // Death starts Simplified: nothing is lost (2026-10-04).
+        assert!(!c.death_realistic);
         assert_eq!(c.planet_max_subdiv, 6.0);
         // Fresh installs see the concept tour exactly once: the serde
         // default is true (pre-v0.198 configs skip it) but the no-config

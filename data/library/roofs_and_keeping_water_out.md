@@ -562,11 +562,11 @@ for the person under it.
   what does not fit there goes back to storage, with a message saying
   so.
 
-**One setting changes what you keep.** While Settings > Gameplay >
-"Start every session from the default home" is on, which is the default
-during development, only your character (name, look and outfit) carries
-between launches, so a roof you built starts the next session gone.
-Turn the setting off to keep it.
+**One setting changes what you keep.** Settings > Gameplay > "Start
+every session from the default home" is off by default, so a roof you
+built is kept between launches. With the setting on, only your
+character (name, look and outfit) carries between launches, and a roof
+you built starts the next session gone.
 
 What the game leaves out, so you do not learn it from the game: its
 roof is a flat slab with no slope, no shingles, no flashing, no

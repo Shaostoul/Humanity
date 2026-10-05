@@ -102,6 +102,10 @@ fn demo_state() -> GuiState {
     s.donate_routes = crate::gui::load_donate_routes(data);
     s.donate_methods = crate::gui::load_donate_methods(data);
     s.donate_charities = crate::gui::load_donate_charities(data);
+    // The demo state renders the way every rig runs the game: the Dev mode, with its free
+    // resources. Set explicitly since fresh installs start in Normal (2026-10-04), so the
+    // snapshots do not change with that default (scripts/lib/rig-gameplay.js pins the same).
+    s.settings.play_mode = crate::config::PlayMode::Dev;
     s.creative_mode = true;
     // Returning-user state so the main menu shows the loaded hub, not first-run onboarding.
     s.onboarding_complete = true;
@@ -945,6 +949,27 @@ fn settings_panel(
             .frame(egui::Frame::none().fill(theme.bg_primary()))
             .show(ctx, |_ui| {});
         crate::gui::pages::hud::draw(ctx, theme, state, 0.0, glam::Mat4::IDENTITY, glam::Vec3::ZERO);
+    });
+}
+
+// The death screen in the Death setting's Realistic mode (2026-10-04, engine/death_pack.rs):
+// what stayed behind in the pack, where, the key and the time, over the dimmed world. The
+// Simplified card is the one-line card it always was.
+#[test]
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_death_screen_realistic() {
+    render_page_png("death_screen_realistic", 1280, 720, |ctx, theme, state| {
+        use crate::systems::death_pack::{DeathNote, Landing};
+        state.player_death_cause = Some("hypothermia".into());
+        state.death_pack.note = Some(DeathNote::Left {
+            items: 14,
+            place_words: "on Earth".into(),
+            landing: Landing::FromDeepWater { dist_m: 230.0 },
+        });
+        egui::CentralPanel::default()
+            .frame(egui::Frame::none().fill(theme.bg_primary()))
+            .show(ctx, |_ui| {});
+        crate::gui::pages::hud::draw_death_screen(ctx, theme, state);
     });
 }
 

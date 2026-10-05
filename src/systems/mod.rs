@@ -52,6 +52,9 @@ pub mod food;
 pub mod body_heat;
 /// Sleeping in a bed: the night runs fast and the body wakes rested (2026-09-27).
 pub mod sleep;
+/// What dying costs: Simplified loses nothing, Realistic leaves the backpack's contents in a
+/// pack where the player fell, to go back for (2026-10-04, the operator's decision).
+pub mod death_pack;
 /// Fluids are litres: tap water for recipes, vessels filled at a tank.
 pub mod fluids;
 pub mod mining;

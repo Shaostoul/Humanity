@@ -774,9 +774,11 @@ spot, and little else of what this guide is about.
 - **Health, and coming back.** Your character has Health out of 100, and
   the ways it falls are listed in [How Your Body
   Works](how_your_body_works.md). When it runs out, the screen names the
-  cause and offers a Respawn button, with the words "Nothing was lost" in
-  its message (`src/gui/pages/hud.rs`). Real life has no such button, which
-  is why this guide exists.
+  cause and offers a Respawn button (`src/gui/pages/hud.rs`). Under
+  Settings > Gameplay > Death, Simplified, the default, its message says
+  "Nothing was lost"; Realistic leaves what was in your backpack where you
+  fell, in a pack you can walk back to (`data/world/death.ron`). Real life
+  has no such button, which is why this guide exists.
 - **First Aid, the ability, heals you at once.** The game's list of
   abilities includes First Aid, marked as a real ability rather than a
   fantasy one: for 15 energy it puts 35 health back immediately, and it
@@ -806,14 +808,18 @@ spot, and little else of what this guide is about.
   names (`src/systems/crafting/mod.rs`), and the medical recipes name
   Medicine. So in the game, Medicine rises by making supplies, not by
   helping anyone, and a high Medicine level says nothing about whether you
-  can do CPR (our reading). In the default Dev play mode, the Profile
-  page's "Dev: max skills" button also sets every skill, Medicine
-  included, to its maximum in one click (`src/gui/pages/profile.rs`,
+  can do CPR (our reading). The Profile page's "Dev: max skills" button,
+  which sets every skill, Medicine included, to its maximum in one click,
+  shows only in the Dev play mode (Settings > Gameplay > Play mode), not
+  in Normal, where the game starts (`src/gui/pages/profile.rs`,
   `src/systems/skills/mod.rs`).
-- **Nothing carries over.** Your health and vitals are not saved between
-  launches (`src/save_load.rs`), and while Settings > Gameplay > "Start
-  every session from the default home" is on, which it is by default during
-  development, only your character's name, look and clothes carry over.
+- **Your body carries over.** Your health, your vitals and the conditions
+  on you are saved with your game, so quitting heals nothing
+  (`src/save_load.rs`), and with Settings > Gameplay > "Start every
+  session from the default home" off, as it is by default, the next
+  launch brings them back as you left them. With that setting on, every
+  session starts with a new body, and only your character's name, look
+  and clothes carry over.
 
 What the game leaves out, so you do not learn it from the game: there is
 no CPR and no defibrillator to use, nobody chokes, faints, has a seizure or
@@ -1059,8 +1065,10 @@ were read on 4 October 2026 and are cited with the date they carry.
 
 ### Inside this project
 
-- The death screen and Respawn button: `src/gui/pages/hud.rs`. The First
-  Aid ability and the fantasy healing spells: `data/abilities.csv`, cast by
+- The death screen and Respawn button: `src/gui/pages/hud.rs`; the Death
+  setting's two modes: `data/world/death.ron` and
+  `src/systems/death_pack.rs`. The First Aid ability and the fantasy
+  healing spells: `data/abilities.csv`, cast by
   `src/systems/abilities.rs` (35 health for 15 energy, 10 seconds between
   casts; Heal and Holy Light 50 and 55 health for 30 energy, open from the
   start because a level-1 skill gate is always met), listed with a Cast
@@ -1073,7 +1081,8 @@ were read on 4 October 2026 and are cited with the date they carry.
   `data/items.csv`, the medical recipes in `data/recipes.csv`, and the
   Inventory's Use button, which does nothing for them
   (`src/gui/pages/inventory.rs`). Skill experience from crafting:
-  `src/systems/crafting/mod.rs`. Vitals not saved: `src/save_load.rs`; the
+  `src/systems/crafting/mod.rs`. The body saved with the game: `BodySave`
+  in `src/persistence.rs` and `restore_body` in `src/save_load.rs`; the
   "Start every session from the default home" setting: `src/config.rs`.
 - [How Your Body Works](how_your_body_works.md), [Bleeding and
   Wounds](bleeding_and_wounds.md), [Treating Burns](treating_burns.md),

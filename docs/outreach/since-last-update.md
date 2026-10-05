@@ -11,6 +11,44 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1461.0: a real game from the first minute.** A fresh install now
+  starts in Normal mode with your progress kept between sessions: things are
+  used up, tools wear, and nothing is free. Your first ten minutes walk you
+  through it: check your vitals, eat, plant, make a tool, bring in iron and
+  smelt it, build a chest, and step out of your own front door, with a note
+  after each step saying what is next. A new Death setting: Simplified loses
+  nothing, and Realistic leaves everything in your backpack where you fell,
+  marked on your screen, for an hour of play. Building in your own home now
+  saves into your own save, and a machine you place costs its item (and comes
+  back if you remove it).
+
+- **v0.1460.1: nine Library guides on keeping food, getting through an
+  outage, and getting along.** Water-Bath Canning, Pressure Canning, and
+  Salting, Curing and Smoking; Choosing and Running a Generator, Emergency
+  Shelter, and Pressure in Water, Air and Steam; Handling Conflict, The Law
+  Where You Live, and Mental Health Under Strain (how to help someone who may
+  be thinking about suicide, and where to call). Each was checked against its
+  sources at least twice before it shipped. Drying Food now says freezing is
+  not enough for wild game and cooks it to 165 F, and the game's Dry Meat
+  recipe now says to heat the meat first. The Library now has 110 sourced
+  guides.
+
+- **v0.1460.0: the first hour gets stakes, and the shared world runs in real
+  time.** A new player now starts alone in their own home instead of being
+  dropped into the live shared world, every way out of the game saves first,
+  and a one-time hint names the keys that matter. Your body is saved with
+  your game, so quitting no longer heals you or fills you up; stored food ages
+  wherever it is kept (the freezer slowest); the bedroom's own bed sleeps
+  you. The one-person home can now finish the first quests (it has a smelter,
+  a workbench and a trading post), quest steps that could never finish now
+  can, the first step says where to get iron, and a finished quest tells you
+  what you got and what is next. The drone stops after an empty trip and has
+  a Stop button, gathering takes what fits in your pack and leaves the rest,
+  a build you cannot afford says what is missing right where you aimed, the
+  starting Barn holds coal, and the free showcase garden only grows while
+  resources are free. On a shared server, a day is now a real day: the
+  operator's decision, so nobody joining faces accelerated hunger.
+
 - **v0.1459.1: six Library guides on heat, fire and first aid.** Heating a
   Home Safely (space heaters, a carbon monoxide alarm on every sleeping
   floor, the signs of carbon monoxide poisoning, and Washington's rule on

@@ -488,10 +488,13 @@ eggs.
   second is a real second, so that is an egg every five minutes from
   each hen, hundreds a day, where a real hen at her peak lays a little
   under one. A hen holds one egg until you collect it.
-- **Eggs spoil.** An egg in your pack spoils after 504 game hours (21
-  days), which the game's food data describes as the low end of 3 to 5
-  weeks in a refrigerator. The game has no refrigerator yet, so that one
-  figure stands for eggs kept properly (`data/food_system.ron`).
+- **Eggs spoil.** An egg spoils after 504 game hours (21 days) at room
+  temperature, in your pack or in the home's storage, which the game's
+  food data describes as the low end of 3 to 5 weeks in a refrigerator.
+  The game has no refrigerator yet, so at its room temperature an egg
+  keeps as long as a real egg would in a refrigerator, and in the home's
+  Freezer twenty times as long (`data/food_system.ron`,
+  `data/containers/types.csv`).
 - **Raw eggs can make you ill.** Eating an egg raw carries a 15 percent
   chance of food poisoning, and eating a spoiled one always poisons you.
   Cooked dishes made with eggs, such as an omelette, a cake, cookies,
@@ -502,17 +505,20 @@ eggs.
 
 **Two settings change this.**
 
-- **Play mode.** During development the game starts in the Dev play mode
-  (Settings > Gameplay > Play mode). In Dev, as in Creative, materials
-  are free while the Creative mode switch on the Inventory page is on,
-  which it is unless you turn it off, so the cooking recipes need no
-  eggs. Collecting eggs, spoilage and the risk of raw eggs work the same
-  in every mode.
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which is also the default
-  during development, only your character carries between launches. The
-  eggs you collected are gone at the next launch, and the three hens
-  start it with an egg each, ready.
+- **Play mode.** The game starts in the Normal play mode (Settings >
+  Gameplay > Play mode), where the cooking recipes use up the eggs they
+  call for. In Creative, or in Dev if you choose it, materials are free
+  while the Creative mode switch on the Inventory page is on, which it
+  is unless you turn it off, so those recipes use up no eggs, though the
+  Crafting page still wants them on hand. Collecting eggs, spoilage and
+  the risk of raw eggs work the same in every mode.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so your progress is
+  kept between launches: the eggs you collected are still in your pack
+  or the home's storage, and each hen keeps her time to her next egg.
+  With the setting on, only your character carries between launches:
+  the eggs are gone at the next launch, and the three hens start it with
+  an egg each, ready.
 
 What the game leaves out, so you do not learn it from the game: its hens
 need no feed, no water, no house, no light and no cleaning; they never

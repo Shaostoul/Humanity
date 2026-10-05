@@ -1589,6 +1589,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             );
 
             if has_vitals {
+                // The vitals are on screen (2026-10-04): the opening's first
+                // step, "check your vitals", is done by looking here.
+                state.on_screen("vitals");
                 // Body temperature + seal status as a readout line under the grid.
                 let temp = state.vitals.body_temp_c;
                 use crate::systems::body_heat::{HEAT_EXHAUSTION_C, HYPOTHERMIA_C};

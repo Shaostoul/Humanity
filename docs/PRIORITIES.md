@@ -179,39 +179,36 @@ night-to-sunrise shot from Silverdale toward Mount Rainier. Earlier: the start
 tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 (2026-10-04: being built), the old plain backups deleted (2026-10-02).
 
-### RESUME HERE: in flight at the usage cap (2026-10-05, about 01:10)
+### RESUME HERE: where the night's work stands (updated 2026-10-05, about 05:00)
 
-- **v0.1460.0 is half through its chain. DO NOT PUSH main until it passes:** a push
-  deploys the relay. main (local, unpushed) = the four first-hour lanes (quests,
-  session flow, world friction, survival) + the real-time clock lane + the seam fix
-  76b66c680. `just verify` PASSED on it. Still to run: rig-tests, verify-relay, the
-  release build, the rigs (scratchpad chain1460-2/3/4.sh; hold builds at BelowNormal
-  during rigs, BUG-152), a seam review of the five merged lanes (it was stopped
-  unread: rerun it), then release v0.1460.0 and `just deliver`.
-- **Done, merge next (v0.1461.0):** the scripted first ten minutes, branch
-  worktree-agent-aa9a3f8a6f70330a2 (eight steps; Eat, Plant and View objective kinds;
-  the own-front-door destination). Reconcile at merge: it assumes coal is bought at the
-  trading post, but the friction lane seeds 5 coal in the Barn. Operator choices to
-  confirm: the first tool is a fishing rod (no fishing yet), the useful thing a
-  storage chest.
-- **Stopped mid-work at the cap (check each worktree for uncommitted work, then
-  relaunch or finish):** more plots (worktree-agent-ac4c5e7fee2ce644e), Normal mode by
-  default with progress kept plus rigs never dialing the live server
-  (worktree-agent-a50538ab1ae2d83d8), death cost by mode
-  (worktree-agent-a467966d22b3a5718), the Library sweep of game sections after the
-  first-hour lanes (worktree-agent-ab6799dbb2c8d66e9), the conflict / law / mental
-  health guides fixer (worktree-agent-acd16cffeea6aa67a; findings in scratchpad
-  fc-community.md, crit-law.md, crit-conflict.md, crit-mental.md).
-- **Library, corrected and waiting (ship as a patch after v0.1460.0):** canning,
-  pressure canning, curing and the Drying Food Trichinella fix
-  (worktree-agent-aa41fef38bb3ee28f, head 247b933a4); generators, emergency shelter,
-  pressure (worktree-agent-a7b5df9645fc4a9c8, 77fce2f29). With them: change Dry Meat's
-  description in data/recipes.csv (it air-dries raw meat with no heat).
+- **Released tonight:** v0.1459.0 (ship homes increment 4, BUG-148 to 151), v0.1459.1
+  (six Library guides), v0.1460.0 (the four first-hour lanes and the real-time clock,
+  delivered), v0.1460.1 (nine Library guides, 110 sourced; Drying Food's wild game fix;
+  the Dry Meat recipe heats the meat first).
+- **v0.1461.0 is being checked (main, local, DO NOT PUSH until it passes: a push
+  deploys the relay):** Normal mode by default with progress kept, rigs pinned to Dev
+  and off the live server, Normal-mode editor edits in the save (d7de98c41); the
+  scripted first ten minutes (36860ffa3); death cost by mode (1b14e7f7b, additive
+  conflicts resolved: own_home and death_pack modules, WorldSave's home and left_packs
+  fields, the two frame hooks); the controls hint and the opening's coal step
+  (0b42bbad8). Chain: scratchpad chain1461-1..4.sh (session 1c730720).
+- **Still in flight:** more plots along First Street (worktree-agent-ac4c5e7fee2ce644e,
+  resumed after the PC shutdown); the Library sweep for the Normal-mode defaults (51
+  guides named by the Normal-mode lane).
+- **A gap the Normal-mode default exposes (found 2026-10-05 by the Library sweep):** in
+  Normal mode NOBODY CAN LEAVE THE SHIP. The Dev page's travel and Land buttons and F9 flight are
+  the only ways off it, all Dev-only, and no vehicle or route goes down. So by default a
+  player never meets rain, cold, a planet or building on one. Wanted: a real way down for
+  Normal play (the design's transport ship in the hangar, a shuttle or a lander, with what
+  it costs), or an honest note in the game until it exists. A design question for the
+  operator (ship-homes design section 9 already pictures missions grouping at a transport
+  ship in the hangar).
+- **Operator choices to confirm when convenient:** the opening's first tool is a
+  fishing rod (no fishing yet) and its useful thing a storage chest; death's 60 minutes
+  of play before a pack is gone.
 - **FTL reopened (operator, 2026-10-05, a proposal):** FTL, with ships built to survive
-  indefinitely if it is ever lost (docs/design/gravity-and-movement.md, the
-  interstellar section). Recommended; awaiting his answer.
-- **For the operator, when convenient:** at 1x the no-FTL decision means about 18.5
-  days to Jupiter (docs/design/gravity-and-movement.md); revisit or keep.
+  indefinitely if it is ever lost (docs/design/gravity-and-movement.md, the interstellar
+  section). Recommended; awaiting his answer.
 
 ### THE FIRST HOUR: a basic starting loop with stakes (audit 2026-10-04)
 
@@ -1138,6 +1135,15 @@ blocker:
    `get_members`, `get_member_count` and `get_member_by_key`), deliberately
    deferred: a backend flag is useless without the user-facing toggle, so build
    both in the same privacy-UI increment. Verify json1 is compiled in first.
+4. **Voice tells Google the player's IP address (found 2026-10-05).** WebRTC asks a STUN server
+   for the public address, and every client lists Google's first: native
+   src/net/webrtc.rs (~175), web web/chat/chat-voice-rooms.js (~25), and the relay's own
+   ICE list in src/relay/turn.rs (~65), which also advertises a STUN at the server's
+   port 3478 that nothing listens on (checked on the VPS: no coturn, nothing on
+   3478). Fix wanted: a small STUN binding responder inside the relay binary (the
+   stun module already builds and parses the messages), the clients told to use only
+   their own server's, and Google dropped. Needs UDP 3478 opened on the VPS firewall:
+   the operator's call (asked 2026-10-05). Until then the privacy page should say so.
 3. **Blocking a sender (found again 2026-10-04 by the conflict guide's fact
    check; recorded in `docs/accord/conformance_gaps.md`).** Nobody can stop
    another person messaging them: a friendship certificate cannot be withdrawn

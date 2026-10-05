@@ -39,7 +39,7 @@ common expensive mistake in a home garden is not misidentifying a pest.
 It is treating a problem that was never alive.
 
 The worked examples come from `data/plants.csv` and `data/creatures.csv`,
-which ship with this project: 189 crop records and 99 living creature
+which ship with this project: 189 crop records and 101 creature
 records. Where a claim rests on a record, the record id is given so you
 can go and read it. This guide also reports, in its own section near the
 end, the places where those two files **cannot** express something this
@@ -1257,7 +1257,7 @@ two of this guide. `tomato` carries `ph_min` 6.0 and `ph_max` 6.8;
 condition that produces a deficiency symptom, which is the majority
 cause of what people call disease.
 
-`data/creatures.csv` holds 99 records across 20 columns, including
+`data/creatures.csv` holds 101 records across 20 columns, including
 `diet`, `habitat_biomes`, `hostility` and `ai_behavior`. Several
 organisms this guide discusses are present: `bee` and `butterfly` as
 pollinators, `spider` as a generalist predator, `ant_worker`,
@@ -1717,7 +1717,7 @@ role resolves to WSU Extension, Kitsap County.
 ### The simulation data this guide's worked examples rest on
 
 - `data/plants.csv`, 189 crop records across 26 columns, and
-  `data/creatures.csv`, 99 creature records across 20 columns. Record
+  `data/creatures.csv`, 101 creature records across 20 columns. Record
   ids referenced above (`tomato`, `potato`, `marigold`, `snail`,
   `butterfly`, `bee`, `spider`, `ant_worker`, `earthworm`, `duck`,
   `owl`, `hawk`, `fox`, `cricket`, `rabbit`, `beetle_stag`) are entries

@@ -78,6 +78,8 @@ pub const SOLAR_BODY_SUN_RON: &str = include_str!("../data/solar_system/sun.ron"
 pub const WORLD_SOLAR_SYSTEM_RON: &str = include_str!("../data/world/solar_system.ron");
 pub const WORLD_SPAWN_RON: &str = include_str!("../data/world/spawn.ron");
 pub const WORLD_PLAYER_RON: &str = include_str!("../data/world/player.ron");
+/// What dying costs in each Death mode (2026-10-04, systems::death_pack).
+pub const WORLD_DEATH_RON: &str = include_str!("../data/world/death.ron");
 
 // ── Ship data (RON) ────────────────────────────────────────────────
 pub const SHIP_BRIDGE_RON: &str = include_str!("../data/ships/bridge.ron");
@@ -91,6 +93,11 @@ pub const QUEST_EXPLORATION_RON: &str = include_str!("../data/quests/exploration
 pub const QUEST_FARMING_RON: &str = include_str!("../data/quests/farming.ron");
 pub const QUEST_TUTORIAL_RON: &str = include_str!("../data/quests/tutorial.ron");
 pub const QUEST_GETTING_STARTED_RON: &str = include_str!("../data/quests/getting_started.ron");
+// The Travel destinations (2026-10-04): the opening's last step walks to the
+// player's own front door, one of these, so an exe shipped without data/ (a
+// fresh install extracts only what is listed here) needs them or that step
+// could never finish.
+pub const ENTITIES_DESTINATIONS_RON: &str = include_str!("../data/entities/destinations.ron");
 
 // ── Blueprint data (RON) ───────────────────────────────────────────
 pub const BLUEPRINT_BASIC_RON: &str = include_str!("../data/blueprints/basic.ron");
@@ -294,6 +301,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "world/solar_system.ron" => Some(WORLD_SOLAR_SYSTEM_RON),
         "world/spawn.ron" => Some(WORLD_SPAWN_RON),
         "world/player.ron" => Some(WORLD_PLAYER_RON),
+        "world/death.ron" => Some(WORLD_DEATH_RON),
 
         // RON — Ships
         "ships/bridge.ron" => Some(SHIP_BRIDGE_RON),
@@ -307,6 +315,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "quests/farming.ron" => Some(QUEST_FARMING_RON),
         "quests/tutorial.ron" => Some(QUEST_TUTORIAL_RON),
         "quests/getting_started.ron" => Some(QUEST_GETTING_STARTED_RON),
+        "entities/destinations.ron" => Some(ENTITIES_DESTINATIONS_RON),
 
         // RON — Blueprints
         "blueprints/basic.ron" => Some(BLUEPRINT_BASIC_RON),
@@ -470,6 +479,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "world/solar_system.ron",
     "world/spawn.ron",
     "world/player.ron",
+    "world/death.ron",
     "ships/bridge.ron",
     "ships/layout_medium.ron",
     "ships/reactor.ron",
@@ -479,6 +489,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "quests/farming.ron",
     "quests/tutorial.ron",
     "quests/getting_started.ron",
+    "entities/destinations.ron",
     "blueprints/basic.ron",
     "blueprints/construction.ron",
     "blueprints/habitat.ron",

@@ -194,6 +194,17 @@ pub fn restore(world: &mut hecs::World, saved: &[MachineLevels]) {
     }
 }
 
+/// Put the held levels onto the machines that exist now, keeping held what still has no machine:
+/// after a save is applied onto a world whose machines were then respawned from the save's own
+/// home (engine/own_home.rs `reapply_saved_home`, 2026-10-04), the machines it brought back take
+/// the levels the save had for them.
+pub fn land_held(world: &mut hecs::World) {
+    let held = held(world);
+    if !held.is_empty() {
+        restore(world, &held);
+    }
+}
+
 /// Every level to carry onto the machines world entry is about to respawn:
 /// the live machines' and the held ones, which it takes (`load_world`, before
 /// it despawns the old machine entities; `apply` puts them back after).

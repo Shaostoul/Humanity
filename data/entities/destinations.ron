@@ -1,14 +1,30 @@
 // Travel destinations (v0.979): named world places for quest Travel
-// objectives. The QuestSystem fires "travel_<id>" the moment the player
-// enters `radius` metres of `pos` (XZ, homestead-world frame - the same
-// frame entities/wild_spawns.ron uses). Leaving and returning re-fires, so
-// a quest accepted after a first visit still completes on the next
-// walk-through.
+// objectives. A Travel step is done while the player stands within `radius`
+// metres of `pos` (XZ, homestead-world frame - the same frame
+// entities/wild_spawns.ron uses) AND it is the step they are on (2026-10-04,
+// systems::quests::destinations_here): walking past a place before the step
+// that asks for it does not count, and standing in it when the step comes up
+// does.
+//
+// A place that is not a fixed point names what it resolves to in `at`
+// instead of a `pos` (2026-10-04, the opening's last step):
+//   OwnFrontDoor(out_m: m)   the doorstep `m` metres out of the player's OWN
+//                            front door, along the corridor its plot's door
+//                            makes: on the Commons for a family home's plot,
+//                            on the street for a First Street plot, whichever
+//                            plot the player was given. A guest (no plot, the
+//                            home put away) has none, so it never resolves.
 //
 // Adding a landmark = adding a row here; reference it from any quest file
 // as Travel(destination: "<id>").
 (
     destinations: [
+        // Just outside the player's own front door (the opening, data/quests/
+        // getting_started.ron). 1.5 m out with a 1.5 m radius: it spans the
+        // 3 m door corridor from the doorway outward, and the spawn just
+        // inside the door (data/homes/homestead.ron, 1.5 m in) is 3 m from
+        // its centre, so waking up there is not "stepping out".
+        (id: "front_door", label: "your front door", at: Some(OwnFrontDoor(out_m: 1.5)), radius: 1.5),
         // The outdoor crop fields just south of the house.
         (id: "outdoor_fields", label: "the outdoor fields", pos: (29.0, 63.0), radius: 10.0),
         // The berry thicket northeast of the fields (wild_spawns berry_bush cluster).

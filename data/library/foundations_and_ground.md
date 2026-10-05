@@ -553,17 +553,20 @@ The game has foundations, but not ground that matters to them.
 
 **Two settings change this.**
 
-- **Play mode.** During development the game starts in the Dev play mode
-  (Settings > Gameplay > Play mode). In Dev, as in Creative, crafting
-  takes no materials, so you can cut planks or bricks for nothing, but
-  building a foundation from the Crafting page still takes its 8 planks
-  or 12 bricks from your pack or the home's storage, and on a planet only
-  from what you carry.
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which is the default
-  during development, only your character carries between launches, so
-  what you built starts over at the next launch. Turn the setting off to
-  keep it.
+- **Play mode.** The game starts in the Normal play mode (Settings >
+  Gameplay > Play mode), where crafting uses up its materials, so planks
+  cost logs and bricks cost stone or clay. In Creative, or in Dev if you
+  choose it, crafting uses up no materials while the Inventory page's
+  Creative mode switch is on, so cutting planks or bricks costs nothing,
+  though the Crafting page still wants the logs or stone on hand. In
+  every mode, building a foundation from the Crafting page
+  takes its 8 planks or 12 bricks from your pack or the home's storage,
+  and on a planet only from what you carry.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so what you built is
+  kept between launches. With the setting on, only your character
+  carries between launches, and what you built starts over at the next
+  launch.
 
 What to practise outside the game: everything in this guide. The game's
 foundation is a level slab you can drop almost anywhere; a real one is the part

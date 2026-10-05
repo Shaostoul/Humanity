@@ -489,11 +489,14 @@ guide).
 The game cannot teach the most important thing in this guide, and it is
 worth saying why.
 
-- **Nothing is lost when you die.** If your health runs out, the game
-  shows the cause and a Respawn button with the words "You wake in the
-  respawner. Nothing was lost, but the body remembers: keep fed,
-  hydrated, warm, and breathing." Real life has no respawner, which is
-  the whole reason this guide exists.
+- **There is a respawner.** If your health runs out, the game shows the
+  cause and a Respawn button. In the Death setting's Simplified mode, the
+  default, nothing is lost: "You wake in the respawner. Nothing was lost,
+  but the body remembers: keep fed, hydrated, warm, and breathing." In
+  its Realistic mode everything in your backpack stays where you fell, in
+  a pack marked on your screen, until you walk back for it or a while of
+  play has passed. Either way you wake again. Real life has no respawner,
+  which is the whole reason this guide exists.
 - **Home is marked.** The Maps page has a Track switch for the Home
   Station in orbit, on by default. Once you are more than a kilometre
   from the station, it puts a ring and a label with the distance on
@@ -502,11 +505,13 @@ worth saying why.
   edge of the screen on the side to turn toward, with an arrow. A real
   walk has no such ring: only what you carry and what you noticed on the
   way out shows you the way home.
-- **The default play mode can teleport you.** The game starts in the Dev
-  play mode (Settings > Gameplay > Play mode), which includes the Dev
-  page and its travel buttons, among them one to return to where you were
-  before you first teleported. Its buttons that take you to a planet,
-  both the travel row and the Land on surface row, leave fly mode on,
+- **The Dev play mode can teleport you.** The game starts in the Normal
+  play mode (Settings > Gameplay > Play mode), which cannot, and only the
+  Dev play mode's tools take you off the ship. Choose Dev there and you
+  get the Dev page and its travel buttons, among them one to return to
+  where you were before you first teleported. Its buttons that take you
+  to a planet, both the travel row and the Land on surface row, leave
+  fly mode on,
   and the line under the compass says so: "FLY x1 - gravity on [F9 to
   hover]". Press F9 twice (the first press turns the hover on, the
   second turns both off and the line reads "WALK x1 [F9 to fly]"), or
@@ -534,9 +539,10 @@ worth saying why.
   item list, and some of them are parts in other recipes, but none of
   them does anything when you use it: nothing signals, nobody searches,
   and there is no 911.
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which is the default
-  during development, only your character carries between launches.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so your progress,
+  your body among it, is kept between launches. With the setting on,
+  only your character carries between launches.
 
 What the game leaves out, so you do not learn it from the game:
 searchers, phones, whistles, lightning (a Thunderstorm in its weather

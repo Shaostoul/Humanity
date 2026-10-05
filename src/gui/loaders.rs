@@ -598,6 +598,12 @@ pub fn load_garden_areas(data_dir: &std::path::Path) -> Vec<GardenArea> {
     let Some(home) = crate::machines::MachineHome::load(&path) else {
         return Vec::new();
     };
+    garden_areas_of(&home, data_dir)
+}
+
+/// `load_garden_areas` for a layout already in hand: the character's own home, applied after
+/// their save at startup (engine/own_home.rs `adopt_saved_home`, 2026-10-04).
+pub fn garden_areas_of(home: &crate::machines::MachineHome, data_dir: &std::path::Path) -> Vec<GardenArea> {
     let media = load_grow_media(data_dir);
     let is_grow = |machine: &str| home.catalog.contains_key(machine) && media.iter().any(|m| m.matches(machine));
     // v0.538: count EVERY grow machine, not just those in a literal "garden" room. The HomeStructure

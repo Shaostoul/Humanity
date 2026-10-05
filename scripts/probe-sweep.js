@@ -108,6 +108,9 @@ const { STICKY_PIN_RESETS, DIAG_RESETS, holdsStickyPin } = require("./lib/showca
 const { runFreshGate, requireBootCopy, bootRecord, otherBuildNotice } = require("./lib/src-fingerprint.js");
 // Starting the game, and what a run.log must not say (BUG-133).
 const GL = require("./lib/game-launch.js");
+// The rig's gameplay settings (the Dev mode, the default home every launch): spawnGame pins
+// them; the sweep pins them first too, so its settings record says what the game runs with.
+const RG = require("./lib/rig-gameplay.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -642,6 +645,10 @@ async function main() {
   // operator's graphics when asked, and either way records what this run runs
   // at. Must come after setupRig (the rig dir + portable.txt must exist) and
   // before spawn (the engine reads config.json once at startup).
+  // The Dev mode and the default home every launch first (lib/rig-gameplay.js; fresh installs
+  // are Normal with progress kept since 2026-10-04), so the record below holds what the game
+  // runs with. spawnGame pins them again right before the boot, whatever happens in between.
+  RG.pinSandboxGameplay(path.join(RIG, "HumanityOS.exe"), process.env, {}, log, "probe-sweep");
   const gfx = prepareGraphics();
 
   log(`launching ${path.basename(EXE_SRC)} in ${RIG}`);

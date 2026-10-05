@@ -22,7 +22,7 @@
 // server holds no inventories yet (increment 8 of the design), so it takes the
 // game's word that a gift was in the backpack, and the game's word for its home's
 // power. An unaltered game can still give the same thing twice in one way: with
-// "Start every session from the default home" on (the default during development)
+// "Start every session from the default home" on (off by default since 2026-10-04)
 // each session starts with the starter kit again, and giving the kit each session
 // counts each time. Gifts made in Creative mode are recorded but never counted.
 //

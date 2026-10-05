@@ -542,24 +542,29 @@ In the game, tools are something you make, use up and make again.
 
 **Two settings change this.**
 
-- **Play mode.** During development the game starts in the Dev play mode
-  (Settings > Gameplay > Play mode). In Dev, as in Creative, crafting
-  uses up no materials and wears no tools. The Crafting page still asks
-  for the materials and the tools to be in your backpack, and for the
-  workbench or forge to be where you are, before it lets you press
-  Craft; a recipe that needs a skill level still needs it, and the grade
-  still depends on your skill. In Dev, while the "Enable dev cheats"
-  switch is on (Settings > Animations, also on by default during
-  development), the Crafting page also shows a "Dev: stock all
-  materials" button that puts a stack of every recipe input in your
-  backpack, ingots and planks included, and the Profile page a "Dev: max
-  skills" button. To see tools wear out, switch Play mode to Normal.
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which is also the default
-  during development, only your character's name, appearance and
-  clothes carry between launches, so the tools you made, their wear and
-  the Metalworking level you earned start the next session as they were
-  in the default home. Turn the setting off to keep them.
+- **Play mode.** The game starts in the Normal play mode (Settings >
+  Gameplay > Play mode), where crafting uses up its materials and wears
+  its tools. The materials come from the home's store, from ore the
+  drone brings or the trading post sells, and from what you smelt and
+  saw yourself. In Creative, or in Dev if you choose it, crafting uses
+  up no materials and wears no tools while the Inventory page's Creative
+  mode switch is on. In every mode the Crafting page asks for the
+  materials to be in your backpack or the home's storage, the tools in
+  your backpack, and the workbench or forge to be where you are, before
+  it lets you press Craft; a recipe that needs a skill level still needs
+  it, and the grade still depends on your skill. In Dev, while the
+  "Enable dev cheats" switch is on (Settings > Animations, on by
+  default), the Crafting page also shows a "Dev: stock all materials"
+  button that puts a stack of every recipe input in your backpack,
+  ingots and planks included, and the Profile page a "Dev: max skills"
+  button.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so the tools you
+  made, their wear and the Metalworking level you earned are kept
+  between launches. With the setting on, only your character's name,
+  appearance and clothes carry between launches, and the tools, their
+  wear and your skill levels start the next session as they were in the
+  default home.
 
 What the game simplifies, so you do not learn it from the game: a tool
 is made in one step from ingots and planks, with no forging, hardening,
