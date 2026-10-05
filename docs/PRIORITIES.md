@@ -202,7 +202,9 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   Normal play (the design's transport ship in the hangar, a shuttle or a lander, with what
   it costs), or an honest note in the game until it exists. A design question for the
   operator (ship-homes design section 9 already pictures missions grouping at a transport
-  ship in the hangar).
+  ship in the hangar). PROPOSAL written 2026-10-05: docs/design/leaving-the-ship.md (a
+  scheduled fleet shuttle to a field at Silverdale, 7 to 8 hours each way at 1x; twelve
+  questions for the operator, each with a recommendation; a first increment of about a day).
 - **Operator choices to confirm when convenient:** the opening's first tool is a
   fishing rod (no fishing yet) and its useful thing a storage chest; death's 60 minutes
   of play before a pack is gone.
