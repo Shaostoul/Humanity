@@ -224,6 +224,8 @@ const {
   judgeHonestMoves,
   relayCorrections,
   turnInPlace,
+  walkYaw,
+  routeFacings,
   judgeWalks,
   padApproach,
   editorJumpTarget,
@@ -1760,16 +1762,21 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     // The game deletes the request when it takes it (engine/ipc.rs poll_showcase_request).
     for (const t0 = Date.now(); Date.now() - t0 < 10000 && fs.existsSync(path.join(DEBUG, "showcase_request.json")); ) await sleep(100);
   };
-  /** Walk the game to `p` (the showcase `walk_to` verb, increment 4) at WALK_MPS facing yaw and
-   *  pitch, and wait until it has arrived: the probe's `moves.walking` false and the camera
-   *  there. Every walk is recorded (`manifest.walks`, judged by judgeWalks), and one that never
-   *  arrives is a failed step, never silence (the review of increment 4, R4: the rig went on as if
-   *  it had, and the turn after it finished the walk with a teleport). Returns { ok, probe }. */
+  /** Walk the game to `p` (the showcase `walk_to` verb, increment 4) at WALK_MPS, ending facing
+   *  yaw and pitch, and wait until it has arrived: the probe's `moves.walking` false and the
+   *  camera there. The game walks it the way a person does (BUG-165, engine/move_check.rs
+   *  `walk_step`): it turns to face the way it goes, walks, and at `p` turns to yaw and pitch,
+   *  which is when it has arrived. A `yaw` of null ends facing the way this walk went
+   *  (`walkYaw` from where the camera stands), for the doors on a route (`walkRoute`). Every walk
+   *  is recorded (`manifest.walks`, judged by judgeWalks), and one that never arrives is a failed
+   *  step, never silence (the review of increment 4, R4: the rig went on as if it had, and the
+   *  turn after it finished the walk with a teleport). Returns { ok, probe }. */
   const walkGame = async (p, yaw, pitch, label = "walk") => {
     const from = await probe();
     const here = from && from.camera_end ? from.camera_end.pos : p;
     const far = Math.hypot(...[0, 1, 2].map((k) => p[k] - here[k]));
-    await showcase({ walk_to: `${p.join(",")},${yaw},${pitch},${WALK_MPS}` });
+    const endYaw = yaw === null ? walkYaw(here, p, from && from.camera_end ? from.camera_end.yaw : 0) : yaw;
+    await showcase({ walk_to: `${p.join(",")},${endYaw},${pitch},${WALK_MPS}` });
     const at = (pr) => pr && pr.moves && pr.moves.walking === false && pr.camera_end && Math.hypot(...[0, 1, 2].map((k) => pr.camera_end.pos[k] - p[k])) < 0.05;
     const pr = await until(at, Math.ceil((far / WALK_MPS) * 1000) + 15000);
     const ok = !!at(pr);
@@ -1779,10 +1786,12 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     return { ok, probe: pr };
   };
   /** Walk the game through `points` in order (`walkGame`), stopping at the first walk that never
-   *  arrives. Returns true when every one did. */
+   *  arrives. It reaches each door facing the way it walked there, level, and turns to yaw and
+   *  pitch only at the last point (`routeFacings`, BUG-165). Returns true when every one did. */
   const walkRoute = async (points, yaw, pitch, label = "walk") => {
-    for (const p of points) {
-      if (!(await walkGame(p, yaw, pitch, label)).ok) return false;
+    const facings = routeFacings(points.length, yaw, pitch);
+    for (const [i, p] of points.entries()) {
+      if (!(await walkGame(p, facings[i].yaw, facings[i].pitch, label)).ok) return false;
     }
     return true;
   };
@@ -2238,16 +2247,14 @@ async function runPlotsOnce(order, runStamp, cleanups) {
       const gameDoor = ownPlot && ownPlot.door ? ownPlot.door : manifest.home_things && manifest.home_things.respawn;
       const gameWalk = doorRoute(dp, gameDoor, meetCam, MEET_STEP_M);
       if (gameWalk.error) throw new Error(`no route for the game: ${gameWalk.error}`);
-      const at0 = await probe();
-      const yaw0 = at0 && at0.camera_end ? at0.camera_end.yaw : 0;
-      const pitch0 = at0 && at0.camera_end ? at0.camera_end.pitch : 0;
-      // From its door, so the walk is the one a person takes out of their home.
+      // From its door, so the walk is the one a person takes out of their home, ending facing
+      // the line the walker will walk (BUG-165: it turns there as a person does).
       const markGame = walkerOut.length;
       const gameSteps = [gameDoor, ...gameWalk.points];
-      await walkRoute(gameSteps, yaw0, pitch0, "meet");
+      await walkRoute(gameSteps, myaw, mpitch, "meet");
       await sleep(1500);
-      // At the meeting pose already: this turns it to face the line (no move; refused if the walk
-      // stopped short).
+      // At the meeting pose already, facing the line: this only stands it exactly there (no move;
+      // refused if the walk stopped short).
       await turnTo(MEET_POSE);
       await sleep(2500);
       const c1 = await probe();

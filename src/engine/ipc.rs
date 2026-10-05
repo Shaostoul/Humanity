@@ -487,12 +487,15 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         log::info!("Showcase: respawn -> the Respawn button");
     }
     // {"walk_to":"x,y,z,yaw,pitch,speed"} (2026-10-04, ship homes increment 4): walk the camera
-    // there in a straight line at that many metres a second, facing yaw and pitch, the way a
-    // person walks it; the probe's `moves.walking` stays true until it arrives. The relay's speed
-    // check corrects a jump nobody could make, which the `cam` verb's teleport is past a few
-    // metres, so verify-copresence walks the game through the ship with this instead (it moved it
-    // in 40 m teleports while the relay's rule was 100 m per update). It advances only while the
-    // game is in the shared world (engine/move_check.rs `walk_tick`). Permanent dev tooling.
+    // there in a straight line at that many metres a second, the way a person walks it with the
+    // mouse and W: it turns to face the way it goes, walks, and at the point turns to yaw and
+    // pitch (BUG-165, engine/move_check.rs `walk_step`; it used to hold yaw and pitch the whole
+    // way, so it walked backwards); the probe's `moves.walking` stays true until that last turn
+    // is done. The relay's speed check corrects a jump nobody could make, which the `cam` verb's
+    // teleport is past a few metres, so verify-copresence walks the game through the ship with
+    // this instead (it moved it in 40 m teleports while the relay's rule was 100 m per update).
+    // It advances only while the game is in the shared world (engine/move_check.rs
+    // `walk_tick`). Permanent dev tooling.
     if let Some(spec) = grab("walk_to") {
         match crate::engine::move_check::parse_walk(&spec) {
             Some(w) => {
