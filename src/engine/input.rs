@@ -60,16 +60,44 @@ pub fn escape_closes_cloud_dev(gui: &mut GuiState) -> bool {
 /// Free for any menu page, the showroom, the construction editor, while
 /// Alt is held (v0.735), while the F10 sidebar is expanded (2026-09-05, the
 /// held-Alt rule made sticky), while an in-world modal is open (chat v0.772,
-/// creature editor v0.778, talk card v0.797) and while dead (the Respawn
-/// button needs the cursor). Everything else is first-person play: grabbed.
+/// creature editor v0.778, talk card v0.797), while an in-world panel is
+/// open (the vendor window, the privacy chooser or a pinned machine card,
+/// 2026-10-04: they needed Alt held) and while dead (the Respawn button
+/// needs the cursor). Everything else is first-person play: grabbed.
 pub fn cursor_want_free(state: &EngineState) -> bool {
-    state.gui_state.active_page != GuiPage::None
-        || state.gui_state.showroom_active
-        || state.gui_state.construction_active
-        || state.alt_held
-        || state.gui_state.cloud_dev_sidebar_expanded()
-        || state.gui_state.in_world_modal_open()
-        || state.gui_state.player_death_cause.is_some()
+    cursor_free_for(&state.gui_state, state.alt_held)
+}
+
+/// `cursor_want_free` read from the flags alone, so a test needs no window
+/// (2026-10-04). Every term is described on `cursor_want_free`.
+pub fn cursor_free_for(gui: &GuiState, alt_held: bool) -> bool {
+    gui.active_page != GuiPage::None
+        || gui.showroom_active
+        || gui.construction_active
+        || alt_held
+        || gui.cloud_dev_sidebar_expanded()
+        || gui.in_world_modal_open()
+        || gui.in_world_panel_open()
+        || gui.player_death_cause.is_some()
+}
+
+/// Whether raw mouse motion turns the camera this frame: lib.rs's
+/// `DeviceEvent::MouseMotion` arm asks this and nothing else (2026-10-04).
+/// Off on a menu page, while Alt is held (v0.735: reaching for a card's
+/// button must not spin the camera), while the F10 sidebar is expanded
+/// (the Alt rule made sticky), while an in-world modal or panel is open and
+/// while dead. The showroom and the construction editor are NOT off here:
+/// their orbit camera turns only while a mouse button is held, which the
+/// camera controller decides. Anything that frees the cursor in first person
+/// must also be off here, or the camera turns under the pointer the player
+/// is aiming at a button (`a_panel_that_frees_the_cursor_also_stops_the_look`).
+pub fn mouse_look_allowed(gui: &GuiState, alt_held: bool) -> bool {
+    gui.active_page == GuiPage::None
+        && !alt_held
+        && !gui.cloud_dev_sidebar_expanded()
+        && !gui.in_world_modal_open()
+        && !gui.in_world_panel_open()
+        && gui.player_death_cause.is_none()
 }
 
 /// Read one of the F10 sidebar's flags by its `GuiState` field name, as JSON
@@ -238,5 +266,98 @@ mod tests {
         assert!(cloud_dev_flag(&gui, "cloud_dev_dither_off").unwrap().is_boolean());
         assert!(cloud_dev_flag(&gui, "cloud_dev_step_eco").unwrap().is_number());
         assert!(cloud_dev_flag(&gui, "cloud_dev_res_div").unwrap().is_number());
+    }
+
+    /// First-person play: no page, nothing open.
+    fn in_world() -> GuiState {
+        let mut g = closed();
+        g.active_page = GuiPage::None;
+        g
+    }
+
+    fn a_label() -> crate::gui::MachineLabel {
+        crate::gui::MachineLabel {
+            pos: glam::Vec3::ZERO,
+            name: "Trading post".into(),
+            stats: Vec::new(),
+            room: "room-vehicle".into(),
+            machine_id: "trading_1".into(),
+        }
+    }
+
+    /// THE WINDOWS THAT NEEDED ALT HELD (2026-10-04, the first-hour audit's
+    /// F2): the trading post's vendor window, the first-connect "Choose your
+    /// privacy" window and a pinned machine card (whose Fill, Take and Trade
+    /// buttons sit under it) all have buttons, and the captured-mouse rule
+    /// counted none of them, so the cursor stayed grabbed and the camera turned
+    /// under it until the player held Alt, which nothing on screen mentions.
+    /// Each now frees the cursor and stops mouse-look, the way a page does.
+    ///
+    /// Red, run on the rule before this (both rules with the terms they had):
+    /// "the vendor window must free the cursor", the first of the three it
+    /// checks; that rule had no term for the other two either.
+    #[test]
+    fn the_vendor_privacy_and_pinned_card_windows_free_the_cursor() {
+        let mut vendor = in_world();
+        vendor.vendor_open = true;
+        let mut privacy = in_world();
+        privacy.privacy_tier_prompt_open = true;
+        let mut pinned = in_world();
+        pinned.machine_labels.push(a_label());
+        pinned.selected_machine = Some(0);
+        for (what, g) in [("the vendor window", &vendor), ("the privacy window", &privacy), ("the pinned machine card", &pinned)] {
+            assert!(cursor_free_for(g, false), "{what} must free the cursor");
+            assert!(!mouse_look_allowed(g, false), "{what} must stop the camera turning under the pointer");
+        }
+
+        // A pin left pointing at no label draws no card, so it must not free
+        // the cursor either (a free cursor over nothing reads as a bug).
+        let mut stale = in_world();
+        stale.selected_machine = Some(3);
+        assert!(!cursor_free_for(&stale, false), "a pin with no card drawn keeps the cursor grabbed");
+        assert!(mouse_look_allowed(&stale, false));
+
+        // First-person play with none of them open: grabbed, and the mouse looks.
+        let play = in_world();
+        assert!(!cursor_free_for(&play, false));
+        assert!(mouse_look_allowed(&play, false));
+        // Alt still frees it, as before.
+        assert!(cursor_free_for(&play, true) && !mouse_look_allowed(&play, true));
+    }
+
+    /// The two rules agree: whatever frees the cursor in first person also
+    /// stops mouse-look (the showroom and the build editor are the exceptions
+    /// on purpose: their orbit camera turns only while a button is held). A
+    /// term added to one rule and not the other turns the camera under the
+    /// pointer the player is aiming at a button.
+    #[test]
+    fn a_panel_that_frees_the_cursor_also_stops_the_look() {
+        let mut cases: Vec<GuiState> = Vec::new();
+        let mut g = in_world();
+        g.chat_input_active = true;
+        cases.push(g);
+        let mut g = in_world();
+        g.player_death_cause = Some("test".into());
+        cases.push(g);
+        cases.push(expanded_in_world());
+        let mut g = in_world();
+        g.vendor_open = true;
+        cases.push(g);
+        let mut g = in_world();
+        g.privacy_tier_prompt_open = true;
+        cases.push(g);
+        let mut g = in_world();
+        g.machine_labels.push(a_label());
+        g.selected_machine = Some(0);
+        cases.push(g);
+        for (i, g) in cases.iter().enumerate() {
+            assert_eq!(cursor_free_for(g, false), !mouse_look_allowed(g, false), "case {i}: the cursor rule and the look rule disagree");
+        }
+    }
+
+    fn expanded_in_world() -> GuiState {
+        let mut g = expanded();
+        g.active_page = GuiPage::None;
+        g
     }
 }
