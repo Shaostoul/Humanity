@@ -1080,12 +1080,16 @@ mod tests {
         let profile = HullProfile::parse(&text).expect("shipped profile parses");
         let geom = hull_geom(&ship, &profile).expect("resolves around the shipped cluster");
         // Since increment 1a the cluster is longer in Z: the home (z 0..89), the Commons, and
-        // street-1 running on to z = 195, against x 0..99.
+        // street-1 running on to z = 1185 since the twelve plots of 2026-10-04 (195 before),
+        // against x 0..99.
         assert_eq!(geom.frame.axis, HullAxis::Z);
         // Every glass roof and glass corridor lid cuts a hole: the home, the Commons and the
         // street roofs, the home's corridor and the Commons-to-street corridor, and since
-        // increment 2 the neighbour's (p2's) corridor lid; a neighbour's own roof is drawn opaque.
-        assert_eq!(geom.holes.len(), 6, "home + commons + street roofs and the three corridor lids are open");
+        // increment 2 each neighbour's corridor lid (eleven since the twelve plots); a
+        // neighbour's own roof is drawn opaque.
+        let neighbours = ship.neighbour_plots().count();
+        assert_eq!(neighbours, ship.plots.len() - 1, "every plot but the home's is a neighbour's");
+        assert_eq!(geom.holes.len(), 5 + neighbours, "home + commons + street roofs, the two ship corridor lids and every neighbour's corridor lid are open");
         // The neighbour's plot (p2, z 99..188) is inside the hull too (increment 2: the hull wraps
         // every plot, whoever holds it). Seen red 2026-10-04 with the neighbours left out of
         // `hull_geom`: "the neighbour's plot p2 is sliced by the hull at long 143.5".

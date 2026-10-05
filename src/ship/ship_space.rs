@@ -253,4 +253,42 @@ mod tests {
         let kept = Vec3::from(crate::ship::ship_structure::HOME_AWAY_ORIGIN) + Vec3::new(5.0, 1.7, 5.0);
         assert_eq!(guest.at(kept), AirAt::Outside);
     }
+
+    /// EVERY PLOT IS ABOARD AND BREATHES ITS OWN AIR (the twelve plots along First Street,
+    /// 2026-10-04). With the home on any plot: that plot's whole box and its door are aboard (the
+    /// ship's box grows with its plots and its street, where the 400 m sphere of before increment
+    /// 4 would have let go of p5 to p12), the home's air is that plot's and nowhere else's, and
+    /// every other plot and First Street outside its door are the ship's air.
+    ///
+    /// Seen red 2026-10-04 on the two-plot ship file: "the twelve plots along First Street: 2";
+    /// and on the twelve-plot file with `is_aboard` put back to the sphere (`p.length() <
+    /// 400.0`): "p5's corner [55, 3, 485] is aboard".
+    #[test]
+    fn every_plot_is_aboard_and_breathes_its_own_air() {
+        let file = ShipStructure::load_ship_file(&data()).expect("the ship file loads");
+        assert!(file.plots.len() >= 12, "the twelve plots along First Street: {}", file.plots.len());
+        for p in &file.plots {
+            let ship = shipped(&p.id);
+            let (lo, hi) = p.aabb();
+            for c in [lo, hi, Vec3::new(lo.x, hi.y, hi.z), Vec3::new(hi.x, lo.y, lo.z)] {
+                assert!(ship.is_aboard(c), "{}'s corner {c} is aboard", p.id);
+            }
+            let door = ship.home_spawn_world().expect("the shipped homestead names its door");
+            assert!(ship.is_aboard(door), "{}'s door {door} is aboard", p.id);
+            let air = ship.air_spaces();
+            assert_eq!(air.home.map(|b| b.0), Some(lo), "{}: the home's air box stands on its plot", p.id);
+            assert_eq!(air.at(door), AirAt::OwnHome, "{}'s door breathes its own home's air", p.id);
+            let middle = (lo + hi) * 0.5 + Vec3::new(0.0, 1.7 - (hi.y - lo.y) * 0.5, 0.0);
+            assert_eq!(air.at(middle), AirAt::OwnHome, "{}'s middle breathes its own home's air", p.id);
+            // Out of the door, on First Street (or the Commons for p1): the ship's air.
+            let street = Vec3::new(70.0, 1.7, p.door.lat);
+            let outside = if p.door.zone == "street-1" { street } else { Vec3::new(80.0, 1.7, p.door.lat) };
+            assert_eq!(air.at(outside), AirAt::Ship, "{}: outside its door, {outside}, is the ship's air", p.id);
+            for q in file.plots.iter().filter(|q| q.id != p.id) {
+                let (qlo, qhi) = q.aabb();
+                let mid = Vec3::new((qlo.x + qhi.x) * 0.5, 1.7, (qlo.z + qhi.z) * 0.5);
+                assert_eq!(air.at(mid), AirAt::Ship, "with the home on {}, the neighbour's plot {} is the ship's air", p.id, q.id);
+            }
+        }
+    }
 }

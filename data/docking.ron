@@ -8,7 +8,7 @@
 // skill_required references skill IDs from the skills system.
 
 (
-    docking_ports: [
+    ports: [
         (
             id: "standard_port",
             name: "Standard Docking Port",
@@ -210,7 +210,7 @@
         ),
     ],
 
-    docking_procedures: [
+    procedures: [
         (
             id: "approach",
             name: "Approach Phase",

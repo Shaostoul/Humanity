@@ -943,6 +943,58 @@ function farthestFrom(places, from) {
   return places.reduce((a, b) => (Math.hypot(b[0] - from[0], b[2] - from[2]) > Math.hypot(a[0] - from[0], a[2] - from[2]) ? b : a));
 }
 
+/** The relay's view (data/ship/shared_world.ron `in_view_m`): a mover this close to a player is
+ *  sent to them (increment 4, src/relay/handlers/game_interest.rs). Metres, or null when the
+ *  file does not say. Pure. */
+function inViewM(ronText) {
+  const m = String(ronText || "").match(/\bin_view_m:\s*([-0-9.eE+]+)/);
+  const v = m ? Number(m[1]) : NaN;
+  return Number.isFinite(v) && v > 0 ? v : null;
+}
+
+/** How far inside the relay's view a far place keeps from every walker watching, metres: the
+ *  view is judged on where the relay holds each of them, a fifteenth of a second old, and the
+ *  game walking away is still in view at the far place by this much. */
+const FAR_VIEW_MARGIN_M = 25;
+
+/** Places on the floor of every shared zone of the report: `farPlaces`' corners, and the points
+ *  every `stepM` along each of a zone's four sides between them, a metre in from its walls. A
+ *  long zone (First Street, 1.1 km since the twelve plots of 2026-10-04) offers far places along
+ *  its length, not only at its ends. Pure. */
+function farPlacesAlong(report, stepM = 5) {
+  const out = [];
+  for (const pl of (report.places || []).filter((p) => p.kind === "zone")) {
+    const y = pl.min[1] + 1.7;
+    const [x0, x1, z0, z1] = [pl.min[0] + 1, pl.max[0] - 1, pl.min[2] + 1, pl.max[2] - 1];
+    const span = (a, b) => {
+      const n = Math.max(1, Math.ceil((b - a) / stepM));
+      return Array.from({ length: n + 1 }, (_, k) => a + ((b - a) * k) / n);
+    };
+    for (const x of span(x0, x1)) for (const z of [z0, z1]) out.push([x, y, z]);
+    for (const z of span(z0, z1)) for (const x of [x0, x1]) out.push([x, y, z]);
+  }
+  return out;
+}
+
+/**
+ * The far place for a leg the walkers must SEE (the twelve plots along First Street,
+ * 2026-10-04): of the shared zones' floors (`farPlacesAlong`), the one farthest from `from` that
+ * every watching position in `watchers` still has in view, within `viewM` of each (the relay's
+ * `in_view_m` less FAR_VIEW_MARGIN_M; the caller passes both ends of each walker's line).
+ * Every far leg of the rig judges what a walker logged the relay passing on: the jump must NOT
+ * reach the walker, and the walk away, Respawn and the build editor's close must. With the ship
+ * on two plots every place was within 209 m of every other, inside the view, so the farthest
+ * corner served; with First Street 1.1 km long its far end is out of every walker's view, where
+ * the relay sends them nothing at all, and a jump leaking out there would reach nobody to be
+ * caught. Null when no place is in view of them all. Pure.
+ */
+function farPlaceInView(report, from, watchers, viewM, stepM = 5) {
+  if (!Array.isArray(from) || !Number.isFinite(viewM)) return null;
+  const seen = (p) => (watchers || []).every((w) => Math.hypot(p[0] - w[0], p[2] - w[2]) <= viewM);
+  const cands = farPlacesAlong(report, stepM).filter(seen);
+  return cands.length ? farthestFrom(cands, from) : null;
+}
+
 /** The longest step the game is moved in on its way into the Commons, metres:
  *  the relay refuses any update more than 100 m from where it holds a player
  *  (the design's increment 2: "moved in steps of 90 m or less"). */
@@ -1110,18 +1162,26 @@ function judgeReboot(reboot) {
 
 // ── The guest (verify-copresence --plots --order guest, the increment 2 review, finding 2) ──
 //
-// With the shipped ship's two plots held by two scripted players, the game comes
-// in third, a guest: its home is put away off the ship (ShipStructure::
-// put_home_away), every plot is drawn as a neighbour's, it stands in the Commons,
-// and it cannot build. Until this leg no rig had a guest in it: the put-away and
-// the bring-back (rebuild, hull, room GI, collision, machines, animals, plants,
-// vehicles and built pieces carried there and back) were proven only by pure
-// planners and unit tests, and the commonest guest case (the third person to join)
-// was the review's finding 1.
+// With every plot of the shipped ship held by scripted players (the two walkers,
+// and since the twelve plots along First Street of 2026-10-04 the households that
+// take the rest), the game comes in after them, a guest: its home is put away off
+// the ship (ShipStructure::put_home_away), every plot is drawn as a neighbour's, it
+// stands in the Commons, and it cannot build. Until this leg no rig had a guest in
+// it: the put-away and the bring-back (rebuild, hull, room GI, collision, machines,
+// animals, plants, vehicles and built pieces carried there and back) were proven
+// only by pure planners and unit tests, and the commonest guest case (the third
+// person to join, on the ship of two plots there was then) was the review's
+// finding 1.
 
 /** The start of the sentence a guest reads when it presses B
  *  (engine/home_plot.rs GUEST_NO_EDITOR; a Rust test keeps the two equal). */
 const GUEST_NO_EDITOR_START = "You are a guest on this ship, with no plot of your own";
+
+/** The start of the sentence a guest reads on arriving (engine/home_plot.rs
+ *  GUEST_ARRIVAL, the first-hour audit's Blocker 1: becoming a guest used to show
+ *  nothing). The game that comes in after every plot is held must be told it; a
+ *  Rust test keeps the two equal. */
+const GUEST_ARRIVAL_START = "This server has no home plot free for you";
 
 /** True when `p` stands on a plot's ground: over a plot's box across the floor
  *  (x and z), or inside the door corridor of a plot (a door point whose `from` is
@@ -1156,12 +1216,15 @@ function homeThingsOf(things) {
  *   plots, doors   the ship's plots (probe) and door points' doors
  *   commons        the Commons place ({ min, max })
  *   defaultPlot    the ship's default plot id (a guest's home comes back there)
- *   walkers        [{ name, id, plot }]: the two scripted players holding the plots
+ *   walkers        [{ name, id, plot }]: the scripted players holding the plots (the
+ *                  two walkers, and since the twelve plots the households that took
+ *                  the rest)
  *   arrived        the probe after the guest's welcome: { lastWelcome, homePlot,
- *                  homeAway, camera, homeThings }
+ *                  homeAway, camera, homeThings, notices (on screen) }
  *   editor         after B was pressed: { open, notices }
  *   respawn        the Respawn leg, as judgeRejoin takes it (far: where the relay
- *                  held the guest at the far end of First Street)
+ *                  held the guest down First Street, as far as the walker at home
+ *                  still sees, farPlaceInView)
  *   back           after stepping out of the shared world: { homeAway, homePlot,
  *                  homeThings }
  *   again          after stepping back in: { lastWelcome, homeAway, camera }
@@ -1184,14 +1247,22 @@ function judgeGuest(guest) {
   add(
     "plots_taken",
     plotIds.length > 0 && JSON.stringify(held) === JSON.stringify(plotIds),
-    `the scripted players hold ${held.join(", ") || "nothing"}; the ship's plots are ${plotIds.join(", ") || "(unknown)"}` +
-      (JSON.stringify(held) === JSON.stringify(plotIds) ? ", so the game comes in third, with none left" : ": a plot is left, so the game is no guest"),
+    `the ${(g.walkers || []).length} scripted players hold ${held.join(", ") || "nothing"}; the ship's plots are ${plotIds.join(", ") || "(unknown)"}` +
+      (JSON.stringify(held) === JSON.stringify(plotIds) ? ", so the game comes in after them, with none left" : ": a plot is left, so the game is no guest"),
   );
   const a = g.arrived || {};
   add(
     "welcome",
     a.lastWelcome === "guest" && a.homePlot === null && a.homeAway === true,
     `its welcome did "${a.lastWelcome}", the home stands on ${a.homePlot ? a.homePlot.id || a.homePlot : "no plot"} and is ${a.homeAway ? "put away" : "NOT put away"}`,
+  );
+  // Told so on arriving, in the guest's own sentence (GUEST_ARRIVAL_START): with every plot
+  // held, the game is the household that comes in after them all. Not recorded is not a pass.
+  const toldGuest = (a.notices || []).some((n) => String(n).startsWith(GUEST_ARRIVAL_START));
+  add(
+    "told",
+    toldGuest,
+    toldGuest ? "on arriving it was told it is a guest, what that means and the way back" : `no notice told it it is a guest (on screen: ${JSON.stringify(a.notices === undefined ? null : a.notices)})`,
   );
   add("in_commons", inCommons(a.camera), `the guest's camera at ${fmt3(a.camera)} is ${inCommons(a.camera) ? "in" : "NOT in"} the Commons`);
   const respawnPoint = a.homeThings && a.homeThings.respawn;
@@ -2009,11 +2080,16 @@ module.exports = {
   routeWalls,
   farPlaces,
   farthestFrom,
+  inViewM,
+  FAR_VIEW_MARGIN_M,
+  farPlacesAlong,
+  farPlaceInView,
   judgeMeet,
   judgeReboot,
   judgeGuest,
   onPlotGround,
   GUEST_NO_EDITOR_START,
+  GUEST_ARRIVAL_START,
   MEET_MAX_STEP_M,
   REJOIN_FAR_M,
 };

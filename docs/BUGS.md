@@ -3635,11 +3635,9 @@ the length of a capture, and the steady-speed judges report the frame rate and
 refuse to judge ("contaminated" rather than FAIL) when frames run long enough to break
 the interpolation the check measures.
 
-**Seen while measuring:** the temp folder held 182,269 entries, 174,578 of them
-`hum_*` databases, WAL and SHM files and folders left behind by relay tests that never
-remove what they create (76,906 databases alone). Not the cause here (opening a file
-there took the same 42 microseconds as in an empty folder), but it grows with every
-test run.
+**Seen while measuring:** the test runs' temporary databases piling up in the temp
+folder, filed as BUG-159. Not the cause here (opening a file there took the same 42
+microseconds as in an empty folder).
 
 ## BUG-153: the Campfire ability promises a fire with warmth and light, and only heals 3 health (OPEN, found 2026-10-04)
 
@@ -3694,6 +3692,26 @@ see: arriving by teleport and arriving the way a player does have differed befor
 for anyone. First step: capture the same place after a longer settle and after walking
 in, and compare each tree's base with the terrain height under it.
 
+## BUG-157: two data files are silently ignored: their field names do not match the code that reads them (FIXED v0.1462.0, found 2026-10-05)
+
+**Seen (by the leaving-the-ship design proposal, confirmed):** `data/docking.ron` writes
+`docking_ports: [...]` and `docking_procedures: [...]`, but `src/systems/docking.rs` reads
+`ports` and `procedures`; `data/transportation.ron` writes `space: [...]`, but
+`src/systems/transportation.rs` reads `space_infrastructure`. Every one of those loader
+fields is `#[serde(default)]`, so each mismatched list loads as EMPTY with no error and no
+warning: the ports, procedures and space infrastructure written in the data never reach
+the game. Three module headers also name data files that do not exist (`data/vehicles.csv`,
+`data/ship_classes.csv`, `data/propulsion.csv`).
+
+**Fix:** the data keys renamed to the loaders' names (ports, procedures,
+space_infrastructure; no aliases, nothing else read the old names), with
+`docking::tests::the_shipped_docking_file_fills_every_list` and
+`transportation::tests::the_shipped_transportation_file_fills_every_list`, both seen red
+first (the ports and the space infrastructure arrived empty). The three module headers now
+say what loads (or that nothing does yet). Both systems are still unwired scaffolds, so
+nothing in the game changed. Still open, the class: a lint that every top-level key in a
+shipped RON file is a field its loader knows.
+
 ## BUG-158: a seek that falls back to decoding from the top shows the clip from its first frame on the way (FIXED next release, found 2026-10-05)
 
 **Seen (while fixing BUG-152):** when a seek finds no keyframe in its rewind window (a
@@ -3715,3 +3733,45 @@ last picture while the retry decodes its way to the target, then lands on it.
 seek to be the frame at the target, as the other seek tests do; seen red before the fix
 with the message above, green 3 of 3 after, and 20 of 20 loaded runs of the six seek
 tests (96 burner threads, two test processes at once) passed with it.
+
+## BUG-159: the tests leave their temporary databases and files behind (OPEN, found 2026-10-05)
+
+**Seen (by the BUG-152 fix, counted):** the system temp folder held about 182,000 entries,
+174,578 of them `hum_*` files left by test runs (76,906 SQLite databases). Fifty-four test
+files each build their own path (`std::env::temp_dir().join(format!("hum_..."))`) and
+nothing deletes it afterwards, so the pile grows with every `just verify` and every
+worktree agent's test run. It did not cause BUG-152's timeouts (opening a file there is
+as fast as in an empty folder), but it is disk and directory growth with no end.
+
+**Fix (not started):** one shared test helper that returns a path guard deleting the file
+(and a database's -wal and -shm) when the test ends, used by all 54 files; and a one-time
+sweep of `hum_*` files older than a day from a dev recipe, never while a test run is
+going.
+
+## BUG-160: an empty server address turns into the live server, and five rigs sent one (rigs FIXED v0.1462.0; the game OPEN, found 2026-10-05)
+
+**Seen:** v0.1462.0's screens check failed `no_builtin_data`. Its game identified on the
+live server (wss://united-humanity.us/ws), read its chat, tried to join its shared world
+and was refused its ship, although the rig had pinned the sandbox's config to a dead
+loopback port (http://127.0.0.1:9; scripts/lib/rig-gameplay.js). Two faults together:
+
+1. **The rigs (FIXED v0.1462.0).** Five rigs (boot-timing, make-clips, photograph-home,
+   probe-sweep, verify-screens) sent `{ server_url: "" }` in their autopilot request, and
+   the game applies that over the pinned config (src/engine/ipc.rs,
+   `poll_autopilot_request`). They now send no address, so the pin stands. A rig test,
+   "no rig's autopilot request sends an empty or public server address"
+   (scripts/tests/rig-gameplay.test.js), refuses either in any rig's request; the one
+   deliberate clear, verify-live-screen's "No server set" step, carries the marker
+   `rig-clears-server:`. Seen red first: run over the committed scripts, the check listed
+   all six. The screens check then passed on the same build.
+2. **The game (OPEN, for v0.1463.0).** Drawing the chat page's connect form fills an empty
+   server address with the live server's (src/gui/pages/chat/left_panel.rs, `if
+   state.server_url.is_empty() { state.server_url = "https://united-humanity.us" }`), and
+   the auto-connect then dials it. So a player who cleared their server is put back on the
+   live server just by opening Chat, without pressing anything. Drawing a page must not
+   change which server you are on: show the official server as a suggestion in the empty
+   field and use it only when the person presses Connect, with a test that draws the page
+   with no server and finds none set.
+
+Checked 2026-10-05 (read-only): no member has joined the live server since 2026-10-01, so
+today's rig visits left no rows in its member list.

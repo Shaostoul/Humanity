@@ -210,7 +210,7 @@ async function oneRun(n) {
   const child = game.child;
   // The autopilot request is consumed on the first frame that finds it, so it
   // can be dropped immediately: the engine polls until it appears.
-  fs.writeFileSync(path.join(DEBUG, "autopilot_request.json"), JSON.stringify({ server_url: "" }));
+  fs.writeFileSync(path.join(DEBUG, "autopilot_request.json"), JSON.stringify({})); // no server_url: the pinned one stands. An empty one let the game fill in the live server and dial it (2026-10-05, BUG-160)
 
   let timing = null;
   let earlyExit = null;
