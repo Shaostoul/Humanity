@@ -2254,14 +2254,25 @@
       "subject": "health",
       "title": "Mental health under strain",
       "summary": "Recognise and respond to psychological load, in yourself and others.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "mental-health-under-strain"
+      ],
       "skills": [
         "leadership",
         "medicine"
       ],
       "sources": [
+        "nimh",
+        "samhsa",
         "cdc",
-        "samhsa"
+        "hhs-surgeon-general",
+        "nih",
+        "va",
+        "wa-hca",
+        "kitsap-county",
+        "kitsap-911",
+        "wa-legislature"
       ],
       "locale_dependent": false,
       "hazard": "lethal"
@@ -3805,12 +3816,23 @@
       "subject": "community",
       "title": "Handling conflict",
       "summary": "De-escalate and resolve disputes before they become permanent.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "handling-conflict",
+        "conflict-resolution"
+      ],
       "skills": [
         "leadership"
       ],
-      "reading": [
-        "conflict-resolution"
+      "sources": [
+        "samhsa",
+        "fema",
+        "doj",
+        "wa-legislature",
+        "kitsap-county",
+        "kitsap-911",
+        "kitsap-drc",
+        "northwest-justice-project"
       ],
       "locale_dependent": false,
       "hazard": "serious"
@@ -3820,15 +3842,34 @@
       "subject": "community",
       "title": "The law where you live",
       "summary": "Know which rules actually bind you, from federal down to your town.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "the-law-where-you-live",
+        "us-constitution"
+      ],
       "skills": [
         "leadership"
       ],
       "data": [
         "data/laws/laws.json"
       ],
-      "reading": [
-        "us-constitution"
+      "sources": [
+        "nara",
+        "us-courts",
+        "us-code",
+        "ecfr",
+        "dol-whd",
+        "census",
+        "phmsa",
+        "bia",
+        "usagov",
+        "wa-legislature",
+        "wa-lni",
+        "wa-courts",
+        "kitsap-county",
+        "regional-air-agency",
+        "northwest-justice-project",
+        "kitsap-legal-aid"
       ],
       "locale_dependent": true,
       "hazard": "serious"

@@ -919,6 +919,16 @@
             "guide",
             "real"
           ]
+        },
+        {
+          "title": "Mental Health Under Strain",
+          "file": "mental_health_under_strain.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "safety"
+          ]
         }
       ],
       "section": "Learn"
@@ -1287,6 +1297,27 @@
             "real",
             "governance",
             "safety"
+          ]
+        },
+        {
+          "title": "Handling Conflict",
+          "file": "handling_conflict.md",
+          "tags": [
+            "guide",
+            "real",
+            "governance",
+            "safety",
+            "beginner"
+          ]
+        },
+        {
+          "title": "The Law Where You Live",
+          "file": "the_law_where_you_live.md",
+          "tags": [
+            "guide",
+            "real",
+            "governance",
+            "reference"
           ]
         },
         {
