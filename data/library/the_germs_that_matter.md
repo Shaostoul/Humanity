@@ -733,12 +733,16 @@ The game has one illness you can catch, and no germs.
   cassava at 30, stand in the data for natural poisons in the plants that
   soaking and cooking deal with, not for germs. The data file calls all of
   these game-scale judgements, not measured probabilities. Fresh cooked
-  and preserved food carries no chance. Food Poisoning lasts 90 minutes
-  and costs 3 health every 15 seconds, which from full health is enough to
-  kill you in a little over 8 minutes unless something heals you, such as
-  the Well Fed bonus of a full meal or the First Aid ability
-  (`data/food_system.ron`, `data/food/item_profiles.ron`,
-  `src/systems/food.rs`, `data/status_effects.csv`).
+  and preserved food carries no chance. Food Poisoning takes water, not
+  health: 1.5 litres a day from your Hydration, on top of the usual 2.5,
+  for two days of game time in the Realistic Illness mode, or half as
+  much for one day in Forgiving, the default, and then it passes. Drinking
+  keeps you from harm, oral rehydration solution best, and no medicine
+  ends it ([When Food or Water Makes You
+  Sick](/library#when-food-or-water-makes-you-sick) has the detail;
+  `data/food_system.ron`, `data/food/item_profiles.ron`,
+  `src/systems/food.rs`, `data/status_effects.csv`,
+  `data/medical/illnesses.ron`).
 - **All water is safe.** Every water you can drink in the game is safe.
   The abilities list includes Purify Water, but it is shown locked, with
   a note that it does nothing yet: so far only abilities that heal you or
@@ -747,9 +751,10 @@ The game has one illness you can catch, and no germs.
 - **Diseases are listed, not caught.** The game's effects data has rows
   for the common cold, flu, infection, parasites and plague, but nothing
   in the game gives them to you (`data/status_effects.csv`).
-- **No handwashing.** The Soap Bar item's Use button does nothing, and
-  nothing in the game is spread by hands, surfaces, water, flies or other
-  people (`data/items.csv`, `src/gui/pages/inventory.rs`).
+- **No handwashing.** The Soap Bar item has no Use button, since only
+  the medical items have one, and nothing in the game is spread by hands,
+  surfaces, water, flies or other people (`data/items.csv`,
+  `src/gui/pages/inventory.rs`, `data/medical/treatments.ron`).
 
 **The default settings.** The play mode (Settings > Gameplay > Play
 mode; Normal, unless you choose another) does not change any of this.
@@ -1029,12 +1034,13 @@ were read on 5 October 2026.
   Goes](/library#where-water-goes).
 - Food Poisoning, its causes and the raw-food chances:
   `src/systems/food.rs`, `data/food_system.ron`,
-  `data/food/item_profiles.ron` and `data/status_effects.csv`. Water's
-  profile: `data/food_system.ron`. The abilities and which can be cast:
-  `data/abilities.csv`, `src/systems/abilities.rs` and `src/lib.rs`. The
-  Soap Bar and the Use button:
-  `data/items.csv` and `src/gui/pages/inventory.rs`. What is saved:
-  `src/save_load.rs`.
+  `data/food/item_profiles.ron` and `data/status_effects.csv`; the water
+  it takes and the Illness modes: `data/medical/illnesses.ron` and
+  `src/systems/illness.rs`. Water's profile: `data/food_system.ron`. The
+  abilities and which can be cast: `data/abilities.csv`,
+  `src/systems/abilities.rs` and `src/lib.rs`. The Soap Bar, and which
+  items have a Use button: `data/items.csv`, `data/medical/treatments.ron`
+  and `src/gui/pages/inventory.rs`. What is saved: `src/save_load.rs`.
 - [Handwashing and Hygiene](/library#handwashing-and-hygiene), [Toilets and
   Human Waste](/library#toilets-and-human-waste), [When Food or Water Makes
   You Sick](/library#when-food-or-water-makes-you-sick), [Making Water Safe to

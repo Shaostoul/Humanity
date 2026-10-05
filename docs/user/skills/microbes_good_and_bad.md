@@ -545,11 +545,15 @@ themselves.
   Cheese recipe says it cultures the milk, but it takes only milk and
   salt, and Bake Bread takes flour, water and salt: there is no yeast or
   culture in the game (`data/recipes.csv`, `data/items.csv`).
-- **Illnesses and medicines are only listed.** The game's data includes
-  a cold, flu, an infection, parasites and plague
-  (`data/status_effects.csv`), but nothing in the game gives them to you,
-  and the Antibiotics item's Use button does nothing
-  (`src/gui/pages/inventory.rs`).
+- **Illnesses are only listed, and antibiotics treat only bacteria.**
+  The game's data includes a cold, flu, an infection, parasites and
+  plague (`data/status_effects.csv`), but nothing in the game gives them
+  to you. The Antibiotics item ends only the conditions the data marks
+  as caused by bacteria (the infection, an infected wound and plague),
+  not the cold, the flu or Food Poisoning, so with nothing like that on
+  you, its Use button keeps it in your pack and says why
+  (`data/medical/treatments.ron`, `src/systems/treatment.rs`,
+  `src/gui/pages/inventory.rs`).
 
 What the game leaves out, so you do not learn it from the game: there are
 no germs to wash off, nobody passes an illness to anyone else, no water
@@ -730,7 +734,9 @@ were read on 5 October 2026.
   and the "Fermented" cooking method nothing uses); eating, Food
   Poisoning, the
   Waste meter and composting: `src/systems/food.rs`; the illness rows:
-  `data/status_effects.csv`; the air around you aboard:
+  `data/status_effects.csv`; what Antibiotics end:
+  `data/medical/treatments.ron` and `src/systems/treatment.rs`; the air
+  around you aboard:
   `src/engine/survival_env.rs` and `src/systems/atmosphere.rs`; the play
   mode, its Dev-only tools and the time speed: `src/config.rs`,
   `src/gui/pages/dev.rs`, `src/systems/time.rs`; food saved with the

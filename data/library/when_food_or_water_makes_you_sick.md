@@ -37,7 +37,9 @@ digestive diseases institute (NIDDK), and, on a few points, the
 Environmental Protection Agency (EPA) and the Health Resources and
 Services Administration (HRSA), all US federal and in the public domain,
 and, for where to report an illness, the county's public health
-district. Where something is general practice or our own reading,
+district; the World Health Organization's packet text appears only in
+the section on how the game models it. Where something is general
+practice or our own reading,
 the text says so. None of it replaces a doctor, and the first section
 says when you need one.
 
@@ -628,23 +630,46 @@ The game has one illness that comes from food, and none from water.
   fish 25, eggs 15, fresh milk 5, raw vegetables 2 (`src/systems/food.rs`,
   `data/food_system.ron`). [Microbes, Good and
   Bad](/library#microbes-good-and-bad) explains the spoilage clock behind it.
-- **What it does.** Food Poisoning lasts an hour and a half of real time,
-  whatever the time speed, and while it lasts you lose 3 health every 15
-  seconds (`data/status_effects.csv`, `src/systems/food.rs`). With
-  nothing healing you, that would empty a full health bar of 100 in a
-  little over eight minutes (our arithmetic). The Well Fed condition that
-  a filling meal gives heals faster than that, and so does the First Aid
-  ability ([First Aid Until Help Arrives](/library#first-aid-until-help-arrives)
-  describes it). If your health does run out, the game's death rules
-  apply, and Settings > Gameplay > Death decides what you lose.
-- **No drying out from it.** The illness's description says it reduces
-  stamina and causes vomiting, but the game has no stamina to reduce and
-  nothing makes you vomit: the only status-effect modifier the game
-  applies is to speed, and this one has none (`src/lib.rs`,
-  `src/systems/status_effects.rs`). Food Poisoning takes no water from your
-  Hydration bar either, which falls only on its daily clock and when you
-  sweat (`src/systems/food.rs`). So the danger this guide is mostly
-  about, dehydration, is not part of the game's food poisoning.
+  It starts the moment you eat, not hours later. The game tells you then
+  what is happening, how long it will last and what helps, and tells you
+  again when it has passed.
+- **What it does: it dries you out.** While it lasts, Food Poisoning
+  takes water from your Hydration bar, 1.5 litres a day on top of the
+  2.5 litres a resting body loses anyway, and slows you a little; then it
+  passes by itself. Settings > Gameplay > Illness decides how hard it is:
+  Realistic runs it for two days of game time, and Forgiving, the
+  default, for one day, taking half as much water. It does no harm of its
+  own. Harm comes only if your Hydration runs out, when your health
+  drains as it does for anyone who goes without water, a full bar over
+  about a day. Drinking nothing at all, a Realistic bout empties a full
+  Hydration bar in a little over a day, while a bottle of water every six
+  hours keeps a healthy adult safe through all of it
+  (`data/medical/illnesses.ron`, `data/status_effects.csv`,
+  `src/systems/illness.rs`, `src/systems/food.rs`). If it does kill you,
+  the death screen says "dehydration from Food Poisoning".
+- **What to drink.** While you are ill, a drink of oral rehydration
+  solution puts back all of its water, plain water and most other drinks
+  three quarters of theirs, and sugary or caffeinated drinks (juice, the
+  energy drink, coffee and tea) half. That is the guidance in this guide
+  put into numbers, and the numbers are the game's own choice
+  (`data/medical/illnesses.ron`). You start with four sachets of Oral
+  Rehydration Salts, and the trading post sells more. Mix one into a
+  litre of drinking water, from your pack or the home's tap, with the
+  Crafting page's Mix Oral Rehydration Solution (Chemistry, by hand, no
+  skill needed). The litre keeps 24 hours, as the WHO's packet says, and
+  after that it counts as spoiled like any food (`data/items.csv`,
+  `data/recipes.csv`, `data/world/player.ron`, `data/trade_goods.ron`,
+  `data/food_system.ron`). There is no recipe for the salts themselves,
+  for the reason this guide gives no home recipe.
+- **Medicine does not cure it.** No medical item ends Food Poisoning.
+  Antibiotics end only the effects the game marks as caused by bacteria,
+  and if you press their Use button while you have Food Poisoning, they
+  stay in your pack and the game tells you why, and what helps instead
+  (`data/medical/treatments.ron`, `src/systems/treatment.rs`).
+- **Nobody is more at risk.** Every character is a healthy adult. The
+  game has no babies, older people or anyone already ill, so the faster,
+  more dangerous course this guide warns about for them is not in it, and
+  neither is vomiting that keeps you from drinking.
 - **No illness from water.** Drinking water carries no chance of Food
   Poisoning in the game's food data, and it keeps ten years before its
   clock calls it spoiled. The home's tanks are filled by its water pump,
@@ -670,23 +695,23 @@ The game has one illness that comes from food, and none from water.
 - **Nobody catches it from anyone.** Illness does not pass between
   people, and the game's catalogue of illnesses, from a cold to
   parasites, is not given to anyone (`data/status_effects.csv`).
-- **No treatment.** There is no oral rehydration solution, and the
-  medical items, Antibiotics included, have a Use button that does
-  nothing (`src/gui/pages/inventory.rs`). Drinking water restores
-  Hydration, but there is no doctor to call and no danger sign to watch
-  for.
+- **No doctor and no danger signs.** Your Hydration bar is the only
+  sign you get. There is no doctor to call, no hospital and no fluids
+  through a vein: drinking is the whole treatment.
 - **Under the default settings.** The game starts in the Normal play
   mode, and the raw-food chances and Food Poisoning are the same in every
-  play mode. Your health and the conditions on you are saved with your
+  play mode; the Illness setting starts at Forgiving. The illness runs on
+  the game clock, so at the default Realistic time speed its days are
+  real days, and a night asleep in a bed moves it along with the rest of
+  the night. Your health and the conditions on you are saved with your
   game, and with Settings > Gameplay > "Start every session from the
   default home" off, as it is by default, a launch brings them back as
   you left them (`src/save_load.rs`).
 
 What the game leaves out, so you do not learn it from the game: how long
-after a meal an illness starts, who is most at risk, dehydration and the
-fluids that prevent it, the danger signs, the germs that spread from
-person to person and in water, cleaning up safely, and the habits in the
-kitchen that prevent all of it.
+after a meal an illness starts, who is most at risk, the danger signs,
+the germs that spread from person to person and in water, cleaning up
+safely, and the habits in the kitchen that prevent all of it.
 
 ## You own this when
 
@@ -922,20 +947,38 @@ were read on 5 October 2026.
   number 360-728-2235, checked 5 October 2026.
   https://www.kitsappublichealth.org/concern
 
+### International (for the game's model only)
+
+- World Health Organization. *Oral Rehydration Salts: Production of the
+  New ORS*, WHO/FCH/CAH/06.1, 2006, read 5 October 2026 (the reduced
+  osmolarity salts in one sachet; its packet label, "Dissolve entire
+  content of packet in one litre of drinking water" and "DISCARD
+  REMAINING SOLUTION AFTER 24 HOURS"). Cited only for the game's sachet,
+  its recipe and how long the mixed litre keeps; the guidance above is
+  the CDC's and NIDDK's.
+  https://www.who.int/publications/i/item/WHO-FCH-CAH-06.1
+
 ### Inside this project
 
 - Food Poisoning, its causes and effects, the Hydration bar and the
   Drink button: `src/systems/food.rs`, `data/food_system.ron`,
-  `data/status_effects.csv`; the home's water, its tanks and what fills
+  `data/status_effects.csv`; the water it takes, its course in each
+  Illness mode, what each drink puts back while you are ill, and what you
+  are told: `data/medical/illnesses.ron` and `src/systems/illness.rs`;
+  the Illness setting: `src/config.rs`, `src/gui/pages/settings.rs`,
+  `src/engine/survival_env.rs`; the rehydration salts and their recipe:
+  `data/items.csv`, `data/recipes.csv`, `data/world/player.ron`,
+  `data/trade_goods.ron`; the medical items' Use button and what each item
+  does: `src/gui/pages/inventory.rs`, `data/medical/treatments.ron`,
+  `src/systems/treatment.rs`; the home's water, its tanks and what fills
   them: `data/containers/fluids.ron`, `data/machines/home.ron`,
   `src/machines.rs`, `src/engine/home_spawn.rs`,
   `src/systems/plumbing.rs`; the Purify Water recipe and its items:
   `data/recipes.csv`, `data/food/item_profiles.ron`; the status-effect
   modifiers the game applies: `src/lib.rs`,
   `src/systems/status_effects.rs`; ship life support and the reactor's
-  feed: `src/config.rs`, `src/systems/ship_power.rs`; the Use
-  button: `src/gui/pages/inventory.rs`; the body saved with the game:
-  `src/save_load.rs`.
+  feed: `src/config.rs`, `src/systems/ship_power.rs`; the body saved with
+  the game: `src/save_load.rs`.
 - [Microbes, Good and Bad](/library#microbes-good-and-bad), [Telling Spoiled
   From Safe](/library#telling-spoiled-from-safe), [Making Water Safe to
   Drink](/library#making-water-safe-to-drink), [Storing Water

@@ -619,8 +619,9 @@ The game does not model a disaster or a neighbourhood yet.
   buildings damaged by a disaster to judge. The game has a fire system
   that would spread fire and let it be put out (`src/systems/fire.rs`),
   but nothing registers it either. A Fire Extinguisher appears in the item
-  list and in some recipes (`data/items.csv`, `data/recipes.csv`), but the
-  Inventory's Use button does nothing with it (`src/gui/pages/inventory.rs`).
+  list and in some recipes (`data/items.csv`, `data/recipes.csv`), but it
+  has no Use button in the Inventory: only the medical items have one
+  (`src/gui/pages/inventory.rs`, `data/medical/treatments.ron`).
 - **Starting from the default home.** Settings > Gameplay > "Start every
   session from the default home" is off by default, so your progress is
   kept between launches. With the setting on, only your character carries
@@ -797,8 +798,9 @@ used here and the wording is not.
   Medicine skills: `data/skills/skills.csv`, with skill experience from
   crafting in `src/systems/crafting/mod.rs` and the "Dev: max skills"
   button in `src/gui/pages/profile.rs` and `src/systems/skills/mod.rs`. The Fire
-  Extinguisher: `data/items.csv`, `data/recipes.csv`; the Use button:
-  `src/gui/pages/inventory.rs`. The "Start every session from the default
+  Extinguisher: `data/items.csv`, `data/recipes.csv`; which items have a
+  Use button: `src/gui/pages/inventory.rs`, `data/medical/treatments.ron`.
+  The "Start every session from the default
   home" setting: `src/config.rs`, `src/save_load.rs`.
 - [The Hazards Your Place Actually Has](/library#the-hazards-where-you-live),
   [First Aid Until Help Arrives](/library#first-aid-until-help-arrives),
