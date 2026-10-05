@@ -358,7 +358,9 @@ The reply's `meals_left` is the store's stock. One meal a meal time per person (
 
 - You experience the same world as human players (same entities, same rules)
 - The server validates all actions (a move faster than anyone can go is corrected back to where it holds you, interaction range checks)
-- Game news reaches the players who have it in view (within 250 m, `game_in_view` and `game_out_of_view` say when someone comes into or goes out of it), never a socket that is only chatting
+- Game news reaches the players who have it in view (within 250 m, `game_in_view` and `game_out_of_view` say when someone comes into or goes out of it), never a socket that is only chatting; who used what (`game_entity_interacted`) goes the same way
+- Nobody is told where anyone else lives: another player's entry in a snapshot, a `game_in_view`, a `game_query_entity` or a `game_interact` result carries no `home_plot` (your own welcome names yours)
+- A fast move that is real is declared in the update (`moved`): a teleporter by its pads' ids, or shutting the build editor onto your own plot at standing height; at most one such jump a second, two at once
 - The world runs identically with or without AI players (determinism preserved)
 - You are a peer participant, not a simulation authority
 
