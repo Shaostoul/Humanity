@@ -343,8 +343,9 @@ pub struct GameWorld {
     /// follows it (`game_time_sync`, `engine::net_route`).
     pub game_time: f64,
     /// Game seconds per real second (the server setting `world_time_scale`,
-    /// 72 unless an admin set another). Only the clock runs at it: the crew
-    /// walk and do their chores in real seconds, so a figure never sprints.
+    /// 1, real time, unless an admin set another). Only the clock runs at it:
+    /// the crew walk and do their chores in real seconds, so a figure never
+    /// sprints at a faster speed.
     pub time_scale: f64,
     pub tick_rate: f32,
     /// The ship's rooms: its shared zones and the labelled volumes in them, from the ship file
@@ -1397,9 +1398,9 @@ impl GameWorld {
 
     /// The `game_time_sync` every game in the shared world sets its clock by
     /// (`engine::net_route`): the world's clock and how fast it runs, so a
-    /// game keeps the host's pace between two of them (they come every 5 s,
-    /// six game minutes apart at 72x). `server_time` is the relay's wall
-    /// clock, Unix seconds.
+    /// game keeps the host's pace between two of them (they come every 5 s:
+    /// five game seconds apart at the default 1x, six game minutes at 72x).
+    /// `server_time` is the relay's wall clock, Unix seconds.
     pub fn time_sync_json(&self) -> serde_json::Value {
         let server_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -2069,10 +2070,13 @@ mod tests {
 
     /// The dwell at a chore site matches the chore's declared duration_secs
     /// (within one tick of quantization), in REAL seconds: the world's clock
-    /// runs at its time scale (72x by default), the crew's work does not.
+    /// runs at its time scale (1x by default, faster if an admin sets it),
+    /// the crew's work does not. Run at 72x, where a dwell counted on the
+    /// clock would end 72 times too soon; at the 1x default the two agree.
     #[test]
     fn working_dwell_matches_chore_duration() {
         let mut world = GameWorld::new();
+        super::super::ship_stores::at_simplified_speed(&mut world);
         assert!(!world.chores.is_empty());
         let mut working_at: Option<(u64, String, f64)> = None;
         let mut completed_at: Option<f64> = None;
@@ -2106,22 +2110,33 @@ mod tests {
     }
 
     /// THE SHARED WORLD'S CLOCK RUNS AT ITS TIME SCALE (operator, 2026-10-04:
-    /// 72x). A new world's clock moves 72 game seconds for each real second
-    /// of ticks, so a 24-hour day passes in 20 real minutes; set to 24x it
-    /// moves 24, from where it was (the date never jumps); and the sync every
-    /// game sets its clock by carries both the clock and its speed.
+    /// set from the app, and real time by default since that evening). A new
+    /// world's clock moves one game second for each real second of ticks, so
+    /// a 24-hour day takes a real day; set to the Simplified 72x it moves 72,
+    /// a day in 20 real minutes; set to 24x it moves 24, from where it was
+    /// (the date never jumps); and the sync every game sets its clock by
+    /// carries both the clock and its speed.
     ///
     /// Seen red 2026-10-04 with `tick` back to `game_time += dt`: "one real
-    /// second at 72x is 72 game seconds, got 1.0000000000000002".
+    /// second at 72x is 72 game seconds, got 1.0000000000000002". At the 1x
+    /// default the two agree, which is why the 72x step is set by hand.
     #[test]
     fn the_shared_world_clock_runs_at_its_time_scale() {
         let mut world = GameWorld::new();
-        assert_eq!(world.time_scale, 72.0, "a new world runs at the Simplified 72x");
+        assert_eq!(world.time_scale, 1.0, "a new world runs in real time (1x)");
         let start = world.game_time;
         for _ in 0..20 {
             world.tick(0.05); // the relay's 20 Hz tick: one real second
         }
         let moved = world.game_time - start;
+        assert!((moved - 1.0).abs() < 1e-6, "one real second at 1x is one game second, got {moved}");
+
+        world.time_scale = 72.0;
+        let before = world.game_time;
+        for _ in 0..20 {
+            world.tick(0.05);
+        }
+        let moved = world.game_time - before;
         assert!((moved - 72.0).abs() < 1e-6, "one real second at 72x is 72 game seconds, got {moved}");
         // A day of 86,400 game seconds in 20 real minutes.
         assert!((86_400.0 / world.time_scale / 60.0 - 20.0).abs() < 1e-9);

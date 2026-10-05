@@ -316,8 +316,8 @@ pub struct HostClock {
     /// The shared world's clock, host game seconds.
     pub game_time: f64,
     /// How fast it runs, game seconds per real second: the server's
-    /// "Shared world clock" setting (72 by default, 2026-10-04), which a
-    /// joined game runs at between two words.
+    /// "Shared world clock" setting (1, real time, by default, 2026-10-04),
+    /// which a joined game runs at between two words.
     pub time_scale: f32,
 }
 /// DataStore slot (`Mutex<f64>`): every jump the clock has taken to follow
@@ -725,8 +725,9 @@ mod game_time_export_tests {
     }
 
     /// THE HOST'S SPEED COMES WITH ITS CLOCK (operator, 2026-10-04: the
-    /// shared world runs at 72x, set from the server's admin tools). A player
-    /// whose own setting is Realistic (1x) joins a world whose host says 72x:
+    /// shared world runs at the speed set from the server's admin tools, real
+    /// time unless its admin changes it). A player whose own setting is
+    /// Realistic (1x) joins a world whose admin set 72x:
     /// between two words their clock runs 72 game seconds a real second, so
     /// the next word (5 s later, 360 game seconds on) finds it already there
     /// and the jump is only the trip's delay. When the admin changes the

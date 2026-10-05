@@ -43,7 +43,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: HintDi
          hunger and thirst. Simplified (72x) puts a day in 20 minutes, a lettuce in 15 \
          hours of play. Sleeping in a bed passes the night in a few seconds either way. \
          In a server's shared world its clock applies instead, at the speed the server's \
-         admin set (72x unless they changed it).",
+         admin set (real time, 1x, unless they changed it).",
     );
     ui.horizontal_wrapped(|ui| {
         for (speed, name) in time::TIME_SPEED_PRESETS {

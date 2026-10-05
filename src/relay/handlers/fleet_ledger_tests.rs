@@ -90,6 +90,8 @@ fn the_shipped_ledger_file_prices_every_kind_the_relay_records() {
 fn an_unlimited_fleet_never_runs_dry_and_nobody_misses_a_meal() {
     let mut world = GameWorld::new();
     assert_eq!(world.fleet_supply, FleetSupply::Unlimited, "a new world's fleet is unlimited");
+    // Five game days at 72x are 24,000 ticks; at a new world's 1x, 1,728,000.
+    super::super::ship_stores::at_simplified_speed(&mut world);
     super::super::ship_stores::meals_every(&mut world, 4.0);
     world.provisions.ship_farms_meals_per_day = 0.0;
     let (store, _) = store_of(&world);
@@ -234,10 +236,17 @@ fn a_refused_give_records_nothing() {
 /// reactor's output over the window: 3.066e8 kWh recorded, cap 4.2e4". Seen red again the
 /// same day with the cap still the reactor's (finding 6): "a report of a year of power was
 /// held to one home's service over the window: 4.2e4 kWh recorded, cap 5.76e1".
+///
+/// Run at the Simplified 72x, the clock these figures were chosen for: a real minute there is
+/// 72 game minutes of a home's power. At a new world's 1x (real time since 2026-10-04) the
+/// first report's 2 kWh is more than one home's service carries in the window's 120 game
+/// seconds, 1.6 kWh, and is rightly clamped: seen 2026-10-04 when the default changed, "left:
+/// (Some(true), Some(1.6), Some(true)) / right: (Some(true), Some(2.0), Some(false))".
 #[test]
 fn power_reports_are_kept_per_day_and_held_to_one_homes_service() {
     let (db, path) = temp_db("power");
     let mut world = GameWorld::new();
+    super::super::ship_stores::at_simplified_speed(&mut world);
     let key = "e11e00b4";
     player_at_store(&mut world, key);
     let r = power_report(&mut world, &db, key, &serde_json::json!({ "drawn_wh": 2000.0, "returned_wh": 500.0 }));

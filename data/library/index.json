@@ -837,12 +837,45 @@
           ]
         },
         {
+          "title": "Making and Controlling Fire",
+          "file": "making_and_controlling_fire.md",
+          "tags": [
+            "guide",
+            "real",
+            "power",
+            "safety",
+            "beginner"
+          ]
+        },
+        {
           "title": "Firewood",
           "file": "firewood.md",
           "tags": [
             "guide",
             "real",
             "power",
+            "safety"
+          ]
+        },
+        {
+          "title": "Fuels and Their Hazards",
+          "file": "fuels_and_their_hazards.md",
+          "tags": [
+            "guide",
+            "real",
+            "power",
+            "safety"
+          ]
+        },
+        {
+          "title": "Heating a Home Safely",
+          "file": "heating_a_home_safely.md",
+          "tags": [
+            "guide",
+            "real",
+            "shelter",
+            "power",
+            "health",
             "safety"
           ]
         }
@@ -855,6 +888,17 @@
         {
           "title": "How Your Body Works",
           "file": "how_your_body_works.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "safety",
+            "beginner"
+          ]
+        },
+        {
+          "title": "First Aid Until Help Arrives",
+          "file": "first_aid_until_help_arrives.md",
           "tags": [
             "guide",
             "real",
@@ -913,6 +957,16 @@
           ]
         },
         {
+          "title": "When Heat Becomes Dangerous",
+          "file": "when_heat_becomes_dangerous.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "safety"
+          ]
+        },
+        {
           "title": "Teeth",
           "file": "teeth.md",
           "tags": [
@@ -928,6 +982,17 @@
             "real",
             "health",
             "safety"
+          ]
+        },
+        {
+          "title": "Helping Your Neighbours After a Disaster",
+          "file": "helping_your_neighbours_after_a_disaster.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "safety",
+            "governance"
           ]
         }
       ],

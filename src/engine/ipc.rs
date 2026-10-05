@@ -166,6 +166,27 @@ fn normalised_or(v: Vec3, fallback: impl FnOnce() -> Vec3) -> Vec3 {
 /// machines' food model, which reads the same crops to compute each machine's figure.
 pub(crate) use crate::systems::grow_machines::ShowcaseCfg;
 
+/// Whether the showcase may plant the garden now, or why not (`auto_seed_showcase`'s first
+/// check, kept pure so it is tested without a window). A free, ripe garden is a free resource,
+/// so it is planted only while free resources are on: a play mode that gives them (Creative and
+/// Dev) with the Inventory page's Creative toggle on, which Normal pins off (first-hour audit
+/// 2026-10-04, Missing stakes 2: it replanted the whole garden whenever it was empty, in every
+/// mode, so a Normal player never had to plant or wait for anything). The probe rigs keep their
+/// garden vantages: a rig is a Dev-mode sandbox. A garden that grows is never replanted.
+pub(crate) fn showcase_gate(
+    world: &hecs::World,
+    play_mode: crate::config::PlayMode,
+    creative: bool,
+) -> Result<(), &'static str> {
+    if !(play_mode.allows(crate::config::Capability::FreeResources) && creative) {
+        return Err("free resources are off (Normal mode, or the Creative toggle), so the garden is the player's to plant");
+    }
+    if world.query::<&crate::ecs::components::CropInstance>().iter().next().is_some() {
+        return Err("crops already present");
+    }
+    Ok(())
+}
+
 /// Perpetual showcase auto-seed (v0.863). Operator: "just preload everything
 /// with plants at different stages... a perpetual showcase." Whenever the
 /// world holds ZERO crops (fresh boot, empty save, everything harvested),
@@ -173,7 +194,8 @@ pub(crate) use crate::systems::grow_machines::ShowcaseCfg;
 /// gets its config's curated plantings (or a whole-tower override, e.g. the
 /// ntower_0 strawberry hero), each bed/field/rack gets its mapped crop.
 /// Crops persist in the save now, so this fires only on a genuinely empty
-/// garden. Called every frame; the empty check makes it ~free.
+/// garden. Called every frame; the empty check makes it ~free. Only while
+/// free resources are on (Creative and Dev): see `showcase_gate`.
 pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
     // One-shot guard diagnostics: when seeding is NOT happening, say why
     // once, so an empty garden is never a silent mystery.
@@ -183,15 +205,12 @@ pub(crate) fn auto_seed_showcase(state: &mut EngineState) {
             log::info!("[Showcase] auto-seed idle: {why}");
         }
     };
-    if state
-        .game_world
-        .world
-        .query::<&crate::ecs::components::CropInstance>()
-        .iter()
-        .next()
-        .is_some()
-    {
-        diag("crops already present");
+    if let Err(why) = showcase_gate(
+        &state.game_world.world,
+        state.gui_state.settings.play_mode,
+        state.gui_state.creative_mode,
+    ) {
+        diag(why);
         return;
     }
     if state.gui_state.home_machines.is_none() {
@@ -3323,6 +3342,9 @@ pub(crate) fn poll_autopilot_request(state: &mut EngineState) {
         state.gui_state.user_name = "Autopilot".to_string();
     }
     state.gui_state.onboarding_complete = true;
+    // A rig, not a new player: no first-entry controls hint over its captures
+    // (gui/first_steps.rs, first-hour audit 2026-10-04).
+    state.gui_state.controls_hint_shown = true;
     state.gui_state.showroom_active = false;
     state.gui_state.construction_active = false;
     let enter = req.get("enter").and_then(|v| v.as_bool()).unwrap_or(true);
@@ -4088,5 +4110,47 @@ mod drop_link_tests {
         for junk in ["", "soon", "inf", "NaN"] {
             assert_eq!(drop_link_hold(junk), None, "'{junk}' is not a hold");
         }
+    }
+}
+
+#[cfg(test)]
+mod showcase_gate_tests {
+    use super::showcase_gate;
+    use crate::config::PlayMode;
+
+    /// THE FREE SHOWCASE GARDEN IS A FREE-RESOURCES FEATURE (first-hour audit
+    /// 2026-10-04, Missing stakes 2). It replanted the whole garden, ripe crops
+    /// and all, every time it was empty, in every play mode: a Normal player
+    /// never had to plant or wait for anything. Now it plants only while free
+    /// resources are on (Creative and Dev, with the Inventory page's Creative
+    /// toggle on), which keeps the probe rigs' garden vantages: the rig is a
+    /// Dev-mode sandbox. A garden that already grows is never replanted.
+    ///
+    /// Seen red 2026-10-04 with the gate asking only whether crops grow (the
+    /// code before the fix): "Normal mode does not plant the free garden / left: Ok(())".
+    #[test]
+    fn the_showcase_garden_is_planted_only_with_free_resources() {
+        let empty = hecs::World::new();
+        let normal = showcase_gate(&empty, PlayMode::Normal, false);
+        assert!(normal.is_err(), "Normal mode does not plant the free garden / left: {normal:?}");
+        // Normal pins the Creative toggle off, but a stale one must not plant either.
+        assert!(showcase_gate(&empty, PlayMode::Normal, true).is_err());
+        assert_eq!(showcase_gate(&empty, PlayMode::Dev, true), Ok(()), "the rig's Dev sandbox plants it");
+        assert_eq!(showcase_gate(&empty, PlayMode::Creative, true), Ok(()));
+        assert!(showcase_gate(&empty, PlayMode::Dev, false).is_err(), "Dev testing real consumption plants nothing free");
+
+        let mut growing = hecs::World::new();
+        growing.spawn((crate::ecs::components::CropInstance {
+            crop_def_id: "wheat".into(),
+            growth_stage: "seed".into(),
+            planted_at: 0.0,
+            water_level: 1.0,
+            health: 100.0,
+            tower_id: None,
+            tower_slot: None,
+            health_seconds: 0.0,
+            growing_seconds: 0.0,
+        },));
+        assert_eq!(showcase_gate(&growing, PlayMode::Dev, true), Err("crops already present"));
     }
 }

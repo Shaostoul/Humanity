@@ -190,6 +190,24 @@ pub(crate) enum WelcomeHome {
 /// away, so there is nothing aboard to edit.
 pub(crate) const GUEST_NO_EDITOR: &str = "You are a guest on this ship, with no plot of your own, so your home is not aboard to build on; it comes back when you step out of the shared world or the server gives you a plot.";
 
+/// The sentence a player reads when a welcome makes them a guest (first-hour audit 2026-10-04,
+/// Blocker 1: becoming a guest showed no message, so a third player on a ship of two plots found
+/// their home, its smelter and their Barn simply gone). What it means, and the way back. It starts
+/// unlike `GUEST_NO_EDITOR` on purpose: the copresence rig knows that one by its first words.
+pub(crate) const GUEST_ARRIVAL: &str = "This server has no home plot free for you, so you are a guest on its ship: your home, with its stations and storage, is put away and you cannot build, but the ship's shared machines are open to you. Your home comes back when you leave the shared world (Characters > Your Homes) or a plot frees up.";
+
+/// Whether this welcome tells the player they are a guest (`GUEST_ARRIVAL`): when it makes them
+/// one, that is on an ARRIVAL (`is_arrival`) or after a welcome that was not a guest's
+/// (`previous`, `EngineState::last_welcome`: a plot holder whose plot was released). Not again on
+/// a reconnect or a Respawn while still a guest, and not on a welcome that only steps out to join
+/// afresh (`join_afresh`): the welcome after that join is an arrival and tells them. Pure.
+pub(crate) fn guest_notice(plan: &WelcomeHome, arriving: bool, previous: Option<&str>) -> Option<&'static str> {
+    match plan {
+        WelcomeHome::Guest { join_afresh: false, .. } if arriving || previous != Some("guest") => Some(GUEST_ARRIVAL),
+        _ => None,
+    }
+}
+
 /// What the game knows when a welcome arrives, besides the welcome: the server whose welcome
 /// last stood us where it holds us (`EngineState::home_arrived_on`), the server this welcome
 /// comes from, and where the camera stands (ship metres, the frame the game sends).
@@ -740,6 +758,9 @@ pub(crate) fn apply_welcome_home(state: &mut EngineState, welcome: &serde_json::
     // What this welcome teaches about our plot on this server, remembered so the next world load
     // builds the home there (increment 2), and what it does with the home, for the rig's probe.
     let memory = plot_memory_after(&plan, state.gui_state.ship_structure.as_ref());
+    // Whether it makes us a guest the player has not been told about (first-hour audit
+    // 2026-10-04, Blocker 1), read before this welcome's own word replaces the last one.
+    let told = guest_notice(&plan, is_arrival(state.home_arrived_on.as_deref(), &server), state.last_welcome);
     state.last_welcome = Some(match &plan {
         WelcomeHome::Refuse { .. } => "refused",
         WelcomeHome::Stay { .. } => "stay",
@@ -749,6 +770,9 @@ pub(crate) fn apply_welcome_home(state: &mut EngineState, welcome: &serde_json::
     state.last_welcome_rejoin = welcome.get("rejoin").and_then(|r| r.as_bool());
     if let Some(plot) = memory {
         remember_plot(state, &server, plot);
+    }
+    if let Some(sentence) = told {
+        state.gui_state.pending_notices.push(sentence.to_string());
     }
     match plan {
         WelcomeHome::Refuse { sentence, give_up_plot } => {
@@ -1656,6 +1680,47 @@ mod tests {
             let plan = plan_welcome(Some(&ship), &w, &again(held));
             assert!(matches!(plan, WelcomeHome::Guest { stand_at: None, join_afresh: false, .. }), "held at {held:?}: {plan:?}");
         }
+    }
+
+    /// A player who arrives as a guest (every plot of the ship taken: it has two, so the third
+    /// player ever is one) is told so in plain words, what it means and how their home comes
+    /// back (first-hour audit 2026-10-04, Blocker 1: "Becoming a guest shows no message"). Once:
+    /// not again on a reconnect or a Respawn while still a guest, nor on the welcome that only
+    /// steps out to join afresh (the welcome after that join tells them); and a plot holder who
+    /// becomes a guest is told.
+    ///
+    /// Seen red 2026-10-04 on 8e400d7ed (`guest_notice` answering None, as the game said
+    /// nothing): "a new guest is told nothing: None"; and broken on purpose the same day with
+    /// every guest welcome telling: "a guest is told again on every reconnect".
+    #[test]
+    fn a_new_guest_is_told_in_plain_words() {
+        let ship = booted();
+        let hash = ship.ship_hash();
+        let arrival = plan_welcome(Some(&ship), &welcome_at(None, &hash, Some(COMMONS.into())), &arriving(P1_DOOR));
+        assert!(matches!(arrival, WelcomeHome::Guest { join_afresh: false, .. }), "{arrival:?}");
+        let told = guest_notice(&arrival, true, None);
+        assert_eq!(told, Some(GUEST_ARRIVAL), "a new guest is told nothing: {told:?}");
+        for words in ["guest", "no home plot free", "cannot build", "put away", "Characters > Your Homes"] {
+            assert!(GUEST_ARRIVAL.contains(words), "the guest sentence does not say {words:?}: {GUEST_ARRIVAL}");
+        }
+        // The rig tells the build editor's refusal apart from this one by its first words.
+        assert!(!GUEST_ARRIVAL.starts_with(&GUEST_NO_EDITOR[..40]), "the two guest sentences start alike");
+        // Once: a reconnect (or a Respawn) while still a guest says nothing more.
+        let reconnect = plan_welcome(Some(&ship), &welcome_full(None, &hash, Some(COMMONS.into()), true), &again(COMMONS));
+        assert!(matches!(reconnect, WelcomeHome::Guest { join_afresh: false, .. }), "{reconnect:?}");
+        assert_eq!(guest_notice(&reconnect, false, Some("guest")), None, "a guest is told again on every reconnect");
+        // A plot holder whose plot was released becomes a guest on a reconnect: told.
+        assert_eq!(guest_notice(&reconnect, false, Some("stay")), Some(GUEST_ARRIVAL), "a player who just lost their plot is told nothing");
+        // Another server's welcome is an arrival, guest before or not.
+        assert_eq!(guest_notice(&reconnect, true, Some("guest")), Some(GUEST_ARRIVAL));
+        // The welcome that steps out to join afresh says nothing; the next one does.
+        let deep = Vec3::new(30.0, 1.7, 170.0);
+        let afresh = plan_welcome(Some(&ship), &welcome_full(None, &hash, Some(deep.into()), true), &again(deep));
+        assert!(matches!(afresh, WelcomeHome::Guest { join_afresh: true, .. }), "{afresh:?}");
+        assert_eq!(guest_notice(&afresh, true, None), None, "told twice across one fresh join");
+        // A plot of our own is not a guest's.
+        let own = plan_welcome(Some(&ship), &welcome_at(Some("p1"), &hash, Some(P1_DOOR.into())), &arriving(P1_DOOR));
+        assert_eq!(guest_notice(&own, true, None), None, "{own:?}");
     }
 
     /// The rig's guest leg (verify-copresence --plots --order guest) knows the build editor's

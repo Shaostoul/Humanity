@@ -19,8 +19,18 @@
 //     food). For the rows added 2026-09-25 this is the LOWER bound of the USDA
 //     FSIS FoodKeeper range for that food, which is also what the older rows
 //     match (raw meat 24 h = ground meat 1-2 days, eggs 504 h = 3-5 weeks).
-//     It is NOT a room-temperature figure: the game has no cold storage yet,
-//     so this is the one number that stands for "kept properly".
+//     It is NOT a room-temperature figure; it stands for "kept properly".
+//     HOW THE GAME USES IT (2026-10-04, first-hour audit S6, src/systems/food.rs):
+//     food ages on this clock at room temperature, the temperature_zones'
+//     baseline (multiplier 1.0), and faster or slower by the zone where it is
+//     kept: the air around it (the home's air for the backpack aboard and for
+//     home storage, the weather outside), or the zone a vessel keeps (the
+//     freezer chest keeps "frozen", data/containers/types.csv keeps_zone).
+//     It spoils once its clock passes this figure, wherever it is kept, and
+//     the clock moves with it and is saved. KNOWN GAP: for perishables this
+//     figure is a refrigerator figure, so room temperature is generous to
+//     them and the cold zone four times so; a researched room-temperature
+//     figure per profile would close it, and none exists yet.
 //   raw_consumption_risk: chance (0..1) of food poisoning when eaten as-is.
 //     These are game-scale judgements, not measured probabilities; the notes
 //     on each row say what real hazard they stand for.
@@ -43,8 +53,8 @@
 // Preservation methods multiply base shelf life. Multiple methods do NOT stack.
 // Cooking methods modify nutrition, taste, preservation, and require cooking skill.
 // Meal quality is determined by ingredients, cooking method, and cook skill level.
-// (Preservation, cooking, meal quality and temperature zones are loaded but no
-// code acts on them yet.)
+// (Preservation, cooking and meal quality are loaded but no code acts on them
+// yet. The temperature zones scale the spoilage clock, see spoilage_rate_hours.)
 //
 // Status effect IDs reference status_effects.csv.
 

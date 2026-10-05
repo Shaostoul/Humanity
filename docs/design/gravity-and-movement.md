@@ -328,26 +328,34 @@ gravity model above.
 
 **The constraint is already satisfied by in-system travel.** A brachistochrone
 (accelerate to the midpoint, flip, decelerate) at the drive's own 0.05-0.1 g
-cruise, converted into REAL hours of play at this game's clock (a game day is
-1200 real seconds, so the world runs 72x):
+cruise. This was argued on 2026-09-15 at the game's clock of that time, a game
+day in 1,200 real seconds (72x). The clock has since become real time by
+default, for a solo game (2026-09-27, decision-briefs.md Brief 6) and for a
+server's shared world (2026-10-04), with 72x kept as the Simplified speed a
+player or a server's admin can pick, so the table gives both. Distances: the
+Moon 384,400 km; Mars 0.524 AU and Jupiter 4.2 AU, each at its closest; Neptune
+29.07 AU. Recomputed 2026-10-04; the 72x columns are the figures of 2026-09-15.
 
-| Destination | at 0.1 g | at 0.05 g |
-|---|---:|---:|
-| The Moon | 0.2 real hours | 0.2 |
-| Mars, close approach | 2.2 | 3.1 |
-| Jupiter, close approach | **6.2** | 8.7 |
-| Neptune | 16.2 | 23.0 |
+| Destination | at 0.1 g, real time (1x) | at 0.05 g, 1x | at 0.1 g, 72x | at 0.05 g, 72x |
+|---|---:|---:|---:|---:|
+| The Moon | 11.0 hours | 15.6 hours | 0.2 real hours | 0.2 |
+| Mars, close approach | 6.5 days | 9.3 days | 2.2 | 3.1 |
+| Jupiter, close approach | **18.5 days** | 26.2 days | **6.2** | 8.7 |
+| Neptune | 48.7 days | 68.9 days | 16.2 | 23.0 |
 
-A Jupiter voyage costs about six real hours, under full spine gravity the whole
-way, needing no new physics at all. That is the answer to "travel must not take
-years": the problem was never travel time, it was that interstellar was the only
-destination anyone was considering.
+At 72x a Jupiter voyage costs about six real hours, under full spine gravity
+the whole way, needing no new physics at all. That was the answer to "travel
+must not take years": the problem was never travel time, it was that
+interstellar was the only destination anyone was considering. At real time the
+same voyage is about 18.5 days: still not years, but weeks of real waiting, a
+case this section was not argued at.
 
 **And even the interstellar crossing is not the problem it sounds like.** At
-0.1 g, Alpha Centauri is 12.8 ship-years, which is **1,556 real hours**. The
-longest-lived plant already shipped in `data/plants.csv` is a redwood at 7,300
-growth-days, which is **2,433 real hours**. The project has already decided that
-a longer wait than the crossing is an acceptable thing to put in a data file.
+0.1 g, Alpha Centauri is 12.8 ship-years: 12.8 real years at real time, and
+**1,556 real hours** at 72x. The longest-lived plant already shipped in
+`data/plants.csv` is a redwood at 7,300 growth-days: 20 real years at real
+time, and **2,433 real hours** at 72x. The project has already decided that a
+longer wait than the crossing is an acceptable thing to put in a data file.
 
 ### Why not blink, and why not warp
 
@@ -376,6 +384,17 @@ wrong:
   sim's name, which is exactly the placeholder the realistic-first rule forbids,
   and it would teach something false about energy in a project whose mission is
   teaching real systems.
+
+**Reopened by the operator, 2026-10-05 (a proposal, not yet a decision):** "What
+do you think about having FTL but, designing the ships to survive indefinitely in
+case the FTL engines become permanently unavailable? Y'know, just incase the
+apocalypse happens... again." Context: the clock became real time on 2026-10-04,
+so without FTL the founding crossing takes real years again, the outcome his
+original question ruled out. The orchestrator recommended adopting it: FTL as the
+fleet's fast and fragile layer (like a supply chain or a power grid), never a
+dependency, with the ship's closed loops, mining, fabrication and the Library able
+to carry everyone indefinitely without it, and an honest label in-game that FTL is
+the one deliberate fiction. Awaiting his answer.
 
 **Decision: torch-ship brachistochrone, no FTL.** Travel stays a closed-form
 function of the clock, which is the shape `src/station/orbit.rs` already has, so

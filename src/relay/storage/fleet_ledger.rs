@@ -18,11 +18,13 @@
 //! WHEN, AND HOW FINELY (the review of 2026-10-04, finding 10). `real_day` is the real date
 //! (unix days, the sealed mailbox's granularity). `game_time` is the shared world's clock
 //! ROUNDED DOWN TO THE START OF ITS GAME DAY (handlers/fleet_ledger.rs `LedgerData::line`), so
-//! two lines written in one game day carry the same time. That is still finer than a real
-//! day: at the default clock of 72 game seconds to the real second a game day is 20 real
-//! minutes, so anyone holding this file can say when a line was written to within about 20
-//! minutes (at a slower clock, less finely: at 1x a game day is a real day). It is no longer
-//! the minute and second the player ate, which the unrounded clock gave away.
+//! two lines written in one game day carry the same time. At the default clock, real time
+//! (1x), a game day is a real day, so a line says when it was written to within a day (the
+//! game day need not start when the real day does, so the two together can narrow that to
+//! the part of a day they share). A faster clock an admin sets says more: at 72 game seconds
+//! to the real second a game day is 20 real minutes, so anyone holding this file can say when
+//! a line was written to within about 20 minutes. It is never the minute and second the
+//! player ate, which the unrounded clock gave away.
 //!
 //! `give_id` is chosen by the game for each give, so a give it sends again (after a
 //! reconnect, the answer lost on the way) is recorded once: the unique index refuses the

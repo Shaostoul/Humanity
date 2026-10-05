@@ -1415,7 +1415,7 @@ fn draw_building_info(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         return;
     };
     let name = if def.label.is_empty() { tid.clone() } else { def.label.clone() };
-    ui.label(RichText::new(name).strong().size(theme.font_size_body).color(theme.text_primary()));
+    ui.label(RichText::new(&name).strong().size(theme.font_size_body).color(theme.text_primary()));
     ui.label(RichText::new(format!("{} -- {:.1} x {:.1} x {:.1} m", def.category, def.size.0, def.size.1, def.size.2))
         .size(theme.font_size_small).color(theme.text_muted()));
     ui.add_space(theme.spacing_xs);
@@ -1453,8 +1453,30 @@ fn draw_building_info(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             legend_label(ui, theme, p.utility.id(), mode, RichText::new(port_line(p)).size(theme.font_size_small));
         }
     }
+    // What a placement takes, before the click (first-hour audit 2026-10-04, Missing stakes 1).
+    if let Some(line) = held_machine_cost(state, &tid, &name) {
+        ui.add_space(theme.spacing_sm);
+        ui.label(RichText::new(line).size(theme.font_size_small).color(theme.text_secondary()));
+    }
     ui.add_space(theme.spacing_sm);
     ui.label(RichText::new("Click the floor to place. Right-click cancels.").size(theme.font_size_small).color(theme.text_muted()));
+}
+
+/// The line under a machine held for placing that says what placing it takes: one of the
+/// machine's item from the backpack or the home's storage outside Creative and Dev
+/// (`engine::editor::pay_for_machine`, which also refuses when there is none), counted from what
+/// this page can see. None in Creative and Dev, where placing is free.
+fn held_machine_cost(state: &GuiState, machine_type: &str, name: &str) -> Option<String> {
+    if state.settings.play_mode.allows(crate::config::Capability::FreeResources) {
+        return None;
+    }
+    let item = crate::machines::placement_item_id(machine_type);
+    let carried: u32 = state.inventory_items.iter().flatten().filter(|s| s.item_id == item).map(|s| s.quantity).sum();
+    let stored = if state.home_storage_here { state.home_stock.get(&item).copied().unwrap_or(0) } else { 0 };
+    Some(match carried + stored {
+        0 => format!("Normal mode: placing one uses one {name} from your backpack or home storage, and you have none."),
+        n => format!("Normal mode: placing one uses one {name} from your backpack or home storage (you have {n})."),
+    })
 }
 
 /// One human-readable line for a machine port: direction arrow + utility + label + the load/flow.
@@ -3919,6 +3941,7 @@ mod multi_select_tests {
             scrubs_co2_kg_day: 0.0,
             level_gauge: false,
             container_type: None,
+            provides: None,
             model: None,
             screen: None,
             camera: None,

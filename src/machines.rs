@@ -214,6 +214,14 @@ pub struct MachineDef {
     /// card can show live contents + fill. None = not a material container.
     #[serde(default)]
     pub container_type: Option<String>,
+    /// What this machine serves when the player presses E at it, by the names a built
+    /// piece's blueprint uses (`construction::uses::StructureUse::from_provides`; first-hour
+    /// audit F5, 2026-10-04): `Some("rest")` is somewhere to sleep, so the bedroom's bed
+    /// sleeps you exactly as a bed you built does, where E only opened its card. Only `rest`
+    /// acts at a machine (a machine's storage is used through its card). None: E opens the
+    /// card. See `engine::built_uses::machine_use`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provides: Option<String>,
     /// GLB model path (v0.734, docs/game/model-pipeline.md): rendered instead
     /// of the primitive shape when set. Resolved against the DATA dir first
     /// ("models/x.glb"), then the dev repo root ("assets/models/x.glb").
@@ -1033,6 +1041,14 @@ impl BuildabilityReport {
             CheckStatus::Pass
         }
     }
+}
+
+/// The items.csv id a machine type is placed from: `<type>_0` ("smelter" -> "smelter_0"), the
+/// convention the recipes' stations ("smelter_0") and the Structures blueprints (the "solar_panel"
+/// piece costs one "solar_panel_0") already use. Whether such an item exists is items.csv's to
+/// say; the build editor's Normal-mode placement takes one (engine::editor::pay_for_machine).
+pub fn placement_item_id(machine_type: &str) -> String {
+    format!("{machine_type}_0")
 }
 
 /// Resolve which home design file to load/save, per the operator-configurable
@@ -2571,6 +2587,110 @@ mod tests {
         }
     }
 
+    /// EVERY SHIPPED HOME HAS WHAT THE STARTER QUESTS NEED (2026-10-04, the first-hour
+    /// audit's B4). A hand craft needs its recipe's station placed in the home (the station
+    /// gate in CraftingSystem). Settings > Home Design = Solo loads home_solo.ron, which placed
+    /// no smelter and no workbench, and the only smelter a player can build, the furnace
+    /// (data/blueprints/basic.ron), takes 3 iron ingots: so First Steps' second step, an iron
+    /// ingot, could never be done in the one-person home, nor Toolsmith's hammer after it.
+    ///
+    /// The starter chain is the quest accepted at spawn (`gs_first_steps`, lib.rs) and each
+    /// quest that follows it in the data (the one naming it as `prerequisite`), until the chain
+    /// branches. For each shipped home: a Craft step's recipe has its station placed, a Make
+    /// step's item comes from a recipe whose station is placed, and every material a Build step
+    /// uses is in the home's stores (data/places/seed.json) or sold at a trading post the home
+    /// places (data/trade_goods.ron). Ore is not checked here: the drone on the Inventory page
+    /// mines it in every home, and tests/recipe_sources_lint.rs checks every quest item has a
+    /// source.
+    ///
+    /// Red, run on the shipped files before this: "home_solo.ron: First Steps, step 2 (Smelt an
+    /// iron ingot at a smelter (with coal or graphite)): no recipe that makes iron_ingot_0 has
+    /// its station placed (smelt_iron at smelter, smelt_iron_graphite at smelter)" and
+    /// "home_solo.ron: Toolsmith, step 1 (Forge a hammer): craft_hammer needs a workbench, which
+    /// this home does not place".
+    #[test]
+    fn every_shipped_home_has_what_the_starter_quests_need() {
+        use crate::systems::quests::{QuestObjective, QuestRegistry};
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let quests = QuestRegistry::from_ron_dir(&root.join("data").join("quests"));
+        let recipes = crate::systems::crafting::RecipeRegistry::from_csv(&std::fs::read(root.join("data").join("recipes.csv")).unwrap())
+            .expect("recipes.csv parses");
+        let blueprints = crate::systems::construction::BlueprintRegistry::from_ron(&std::fs::read(root.join("data").join("blueprints").join("basic.ron")).unwrap())
+            .expect("basic.ron parses");
+        let goods = crate::systems::economy::TradeGoodsRegistry::from_ron(&std::fs::read(root.join("data").join("trade_goods.ron")).unwrap())
+            .expect("trade_goods.ron parses");
+
+        // What the home's stores hold at the start: every item under the "home" entity.
+        let seed: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(root.join("data").join("places").join("seed.json")).unwrap())
+            .expect("seed.json parses");
+        fn stocked(v: &serde_json::Value, out: &mut std::collections::BTreeSet<String>) {
+            if let Some(item) = v.get("item").and_then(|i| i.as_str()) {
+                out.insert(item.to_string());
+            }
+            for c in v.get("children").and_then(|c| c.as_array()).into_iter().flatten() {
+                stocked(c, out);
+            }
+        }
+        let mut stores = std::collections::BTreeSet::new();
+        for e in seed["entities"].as_array().expect("seed.json lists entities") {
+            if e["id"] == "home" {
+                stocked(e, &mut stores);
+            }
+        }
+        assert!(stores.contains("wood_plank_0"), "the home's stores parsed: {stores:?}");
+
+        // The starter chain, in order.
+        let mut chain = vec![quests.get("gs_first_steps").expect("the starter quest ships")];
+        loop {
+            let last = chain.last().unwrap().id.clone();
+            let next: Vec<_> = quests.quests.values().filter(|q| q.prerequisite.as_deref() == Some(last.as_str())).collect();
+            if next.len() != 1 || chain.iter().any(|q| q.id == next[0].id) {
+                break;
+            }
+            chain.push(next[0]);
+        }
+        assert!(chain.len() >= 2, "First Steps leads on to Toolsmith");
+
+        let station = |r: &crate::systems::crafting::Recipe| r.required_station.as_deref().map(|s| s.strip_suffix("_0").unwrap_or(s).to_string());
+        let mut problems = Vec::new();
+        for file in ["home.ron", "home_solo.ron"] {
+            let home = MachineHome::load(&root.join("data").join("machines").join(file)).unwrap_or_else(|| panic!("{file} parses"));
+            let placed: std::collections::BTreeSet<String> = home.all_instances().into_iter().map(|i| i.machine).collect();
+            let has = |s: &Option<String>| s.as_ref().map_or(true, |s| placed.contains(s));
+            for q in &chain {
+                for (n, step) in q.steps.iter().enumerate() {
+                    let at = format!("{file}: {}, step {} ({})", q.name, n + 1, step.description);
+                    match &step.objective {
+                        QuestObjective::Craft { recipe_id, .. } => {
+                            let r = recipes.recipes.get(recipe_id).unwrap_or_else(|| panic!("{at}: no recipe {recipe_id}"));
+                            if !has(&station(r)) {
+                                problems.push(format!("{at}: {recipe_id} needs a {}, which this home does not place", station(r).unwrap()));
+                            }
+                        }
+                        QuestObjective::Make { item_id, .. } => {
+                            let makers = recipes.recipes_producing(item_id);
+                            if !makers.iter().any(|r| has(&station(r))) {
+                                let list: Vec<String> = makers.iter().map(|r| format!("{} at {}", r.id, station(r).unwrap_or_else(|| "hand".into()))).collect();
+                                problems.push(format!("{at}: no recipe that makes {item_id} has its station placed ({})", list.join(", ")));
+                            }
+                        }
+                        QuestObjective::Build { blueprint_id } => {
+                            let bp = blueprints.blueprints.get(blueprint_id).unwrap_or_else(|| panic!("{at}: no blueprint {blueprint_id}"));
+                            for (m, _) in &bp.materials {
+                                let sold = placed.contains("trading_post") && goods.get(m).is_some();
+                                if !stores.contains(m) && !sold {
+                                    problems.push(format!("{at}: {blueprint_id} uses {m}, which is not in the home's stores and no trading post here sells"));
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        assert!(problems.is_empty(), "the starter quests cannot be done in every shipped home:\n  {}", problems.join("\n  "));
+    }
+
     /// save() round-trips: the seed home.ron, saved + reloaded, preserves catalog +
     /// instances + arrays + connections. This is what makes the construction editor's
     /// machine save (and the AI's edits) safe + loadable.
@@ -2655,6 +2775,7 @@ mod tests {
             scrubs_co2_kg_day: 0.0,
             level_gauge: false,
             container_type: None,
+            provides: None,
             model: None,
             screen: None,
             camera: None,

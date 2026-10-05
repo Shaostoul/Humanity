@@ -219,6 +219,17 @@ default ships at 1 because the operator's words fix an hour at an hour
 "unless they change the setting"; making 72 the default for general play
 (the dual-mode house rule's softened default) is his call.
 
+**The shared world's default, ANSWERED 2026-10-04 by the operator** (it had
+shipped at 72x earlier that day), verbatim: "For normal mode, especially for my
+MMO server, let's have everything be real time, not the 72x. That way anyone
+joining isn't dealing with accelerated death. We'll wait until we have
+everything actually working before we accelerate everything for fast mode."
+So a server's shared world runs at 1x on a new server, the same as a new
+solo game (`relay::storage::default_world_time_scale`, the schema DEFAULT
+of `server_settings.world_time_scale`); its admin can still pick another
+speed in Server Settings > ADMIN > Shared world clock, and the Simplified
+72x preset stays in the player's own Time setting.
+
 Written 2026-09-27. Asked before as PRIORITIES "Blocked on the operator" #3;
 this is the same question laid out so it can be answered with one letter.
 Three pieces of garden work wait on it: the ship's sun reaching the crops

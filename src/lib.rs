@@ -2136,19 +2136,10 @@ mod native_app {
                     // "stay half-dead".
                 }
                 WindowEvent::CloseRequested => {
-                    // Persist the active offline home before quitting (v0.381). The
-                    // player entity exists from startup, so this captures the loaded
-                    // or modified inventory + skills, round-tripping the save.
-                    crate::save_load::save_active_home(
-                        &state.game_world.world,
-                        &state.gui_state.placed_items,
-                        &state.data_store,
-                        !state.gui_state.settings.fresh_world_each_launch,
-                    );
-                    // Flush unsaved build edits too (v0.791): quitting without the
-                    // explicit Save button used to silently drop every wall/light/
-                    // strip/corridor edit since the last click.
-                    autosave_ship_structure(state, true);
+                    // Persist the active offline home (v0.381) and flush unsaved build
+                    // edits (v0.791) before quitting: the save every way out of the
+                    // game runs first (engine/quit.rs).
+                    crate::engine::quit::save_before_exit(state);
                     event_loop.exit();
                 }
                 WindowEvent::Resized(size) => {
@@ -2744,6 +2735,8 @@ mod native_app {
                                         }
                                     }
                                 }
+                            } else if crate::engine::built_uses::use_machine(state) {
+                                // The home's bed (its def `provides: "rest"`): E sleeps, as at a built bed.
                             } else if let Some(t) = state.gui_state.targeted_machine {
                                 // Looking at a machine: toggle its card open/closed.
                                 state.gui_state.selected_machine =
@@ -6208,7 +6201,7 @@ mod native_app {
                                         if let Ok(mut h) = w.get::<&mut Health>(ent) {
                                             h.current = 0.0;
                                         }
-                                        let _ = w.insert_one(ent, Dead { since: 0.0, looted: false });
+                                        let _ = w.insert_one(ent, Dead::default());
                                         state.gui_state.close_in_world_modals();
                                         log::info!("Dev: edited creature killed via health slider");
                                     } else {
@@ -6625,6 +6618,7 @@ mod native_app {
                     // of the placed containers (v0.737; planet chests excluded).
                     crate::engine::stock_piles::take_consumed_home_stock(state, &home_stock_before);
                     crate::engine::stock_piles::receive_machine_outputs(state);
+                    crate::engine::stock_piles::age_home_storage(state); // stored food spoils too (S6)
                     // Backpack overflow from "Take to backpack" goes back to the
                     // container it came from (2026-09-25; it used to vanish).
                     let returned: Vec<(String, u32)> = state
@@ -11740,12 +11734,14 @@ mod native_app {
                     }
 
                     // ── Livestock collect bridge (v0.751, ladder rung 7) ──
-                    // E on a ready animal moves its product into the pack,
-                    // volume-gated: a full pack refuses and the yield stays
-                    // on the animal (never lost, same rule as vendor_buy).
+                    // E on a ready animal or forage moves its product into the
+                    // pack, volume-gated: what does not fit stays at the source,
+                    // ready, never lost (livestock::collect_into_pack; first-hour
+                    // audit Friction 7, 2026-10-04: as much as fits is taken).
                     if let Some(animal) = state.pending_livestock_harvest.take() {
                         let mut notice = String::new();
-                        if state.game_world.world.contains(animal) {
+                        let player = state.game_world.world.query::<&Controllable>().iter().next().map(|(e, _)| e);
+                        if let (true, Some(player)) = (state.game_world.world.contains(animal), player) {
                             let animal_name = state
                                 .game_world
                                 .world
@@ -11758,84 +11754,31 @@ mod native_app {
                                 .get::<&crate::ecs::components::Creature>(animal)
                                 .map(|c| c.def_id.clone())
                                 .unwrap_or_default();
-                            let yielded = state
-                                .game_world
-                                .world
-                                .get::<&mut crate::ecs::components::Harvestable>(animal)
-                                .ok()
-                                .and_then(|mut h| {
-                                    crate::systems::livestock::collect(&mut h)
-                                        .map(|n| (h.resource.clone(), n))
-                                });
-                            match yielded {
-                                Some((item, n)) => {
-                                    // Collect SFX (v0.983): eggs, milk, berries,
-                                    // stone - every successful [E] gather clicks.
-                                    state.pending_sfx.push((
-                                        "sfx.inventory_pickup",
-                                        "audio/ui/inventory_pickup.ogg",
-                                    ));
-                                    let mut player: Option<hecs::Entity> = None;
-                                    for (e, _c) in
-                                        state.game_world.world.query::<&Controllable>().iter()
+                            let items = state.data_store.get::<ItemRegistry>("item_registry");
+                            let outcome = crate::systems::livestock::collect_into_pack(
+                                &mut state.game_world.world,
+                                animal,
+                                player,
+                                items,
+                            );
+                            if let crate::systems::livestock::CollectOutcome::Took { fresh, .. } = &outcome {
+                                // Collect SFX (v0.983): eggs, milk, berries,
+                                // stone - every successful [E] gather clicks.
+                                state.pending_sfx.push(("sfx.inventory_pickup", "audio/ui/inventory_pickup.ogg"));
+                                // One yield earns its XP and its quest event once,
+                                // however many presses it takes to carry it off.
+                                if *fresh {
+                                    crate::systems::skills::award_skill_xp(&state.data_store, "farming", 5);
+                                    if let Some(events) =
+                                        state.data_store.get::<std::sync::Mutex<Vec<String>>>("quest_events")
                                     {
-                                        player = Some(e);
-                                        break;
-                                    }
-                                    let items =
-                                        state.data_store.get::<ItemRegistry>("item_registry");
-                                    let max_stack =
-                                        items.map(|r| r.max_stack_for(&item)).unwrap_or(99);
-                                    let unit_vol =
-                                        items.map(|r| r.volume_for(&item)).unwrap_or(0.0);
-                                    let item_name = items
-                                        .and_then(|r| r.items.get(&item))
-                                        .map(|d| d.name.clone())
-                                        .unwrap_or_else(|| item.clone());
-                                    let fit = player.and_then(|e| {
-                                        state.game_world.world.get::<&mut Inventory>(e).ok().map(
-                                            |mut inv| {
-                                                let lost = inv.add_item_volume_gated(
-                                                    &item, n, max_stack, unit_vol,
-                                                );
-                                                if lost > 0 {
-                                                    inv.remove_item(&item, n - lost);
-                                                }
-                                                lost == 0
-                                            },
-                                        )
-                                    });
-                                    if fit == Some(true) {
-                                        crate::systems::skills::award_skill_xp(
-                                            &state.data_store,
-                                            "farming",
-                                            5,
-                                        );
-                                        if let Some(events) = state
-                                            .data_store
-                                            .get::<std::sync::Mutex<Vec<String>>>("quest_events")
-                                        {
-                                            if let Ok(mut ev) = events.lock() {
-                                                ev.push(format!("harvest_{creature_id}"));
-                                            }
+                                        if let Ok(mut ev) = events.lock() {
+                                            ev.push(format!("harvest_{creature_id}"));
                                         }
-                                        notice = format!("+{n} {item_name} from {animal_name}");
-                                    } else {
-                                        // Refused: put the yield back on the animal.
-                                        if let Ok(mut h) = state
-                                            .game_world
-                                            .world
-                                            .get::<&mut crate::ecs::components::Harvestable>(animal)
-                                        {
-                                            h.time_since_harvest = h.regrow_time;
-                                        }
-                                        notice = "Your pack is full".to_string();
                                     }
-                                }
-                                None => {
-                                    notice = format!("{animal_name} has nothing to collect yet");
                                 }
                             }
+                            notice = crate::systems::livestock::collect_notice(&outcome, &animal_name, items);
                         }
                         state.gui_state.livestock_notice = notice;
                         state.gui_state.livestock_notice_at = now_s;
@@ -12425,6 +12368,7 @@ mod native_app {
                                     quantity: stack.quantity,
                                     wear: stack.wear,
                                     quality: stack.quality,
+                                    age_s: stack.age_s,
                                 }
                             })
                         }).collect();
@@ -12797,6 +12741,11 @@ mod native_app {
                         // One drone per player: the panel shows the active drone +
                         // disables Launch while one is in flight.
                         state.gui_state.drone_active = !state.gui_state.drones.is_empty();
+                        // Keep mining the drone ended by itself (a trip came back
+                        // empty, or its asteroid is gone) unticks the box to match
+                        // (first-hour audit 2026-10-04, Friction 5).
+                        let has_order = crate::systems::mining::standing_order(&state.data_store).is_some();
+                        crate::gui::pages::inventory::sync_keep_mining(&mut state.gui_state, has_order);
                         // World vehicles (Stage 3, v0.680): name + distance from the
                         // player + transit state, for the Inventory Vehicles section.
                         state.gui_state.vehicles.clear();
@@ -13835,13 +13784,14 @@ mod native_app {
                                 if let (Some(e), Some((item, qty))) = (cont_entity, contents.clone()) {
                                     let unit_vol = item_reg.map(|r| r.volume_for(&item)).unwrap_or(0.0);
                                     let max_stack = item_reg.map(|r| r.max_stack_for(&item)).unwrap_or(99);
+                                    let age = cont_snapshot.as_ref().map_or(0.0, |c| c.content_age_s); // food keeps its age (S6)
                                     let mut taken = 0u32;
                                     for (_pe, (inv, _c)) in state.game_world.world.query_mut::<(
                                         &mut crate::systems::inventory::Inventory,
                                         &crate::ecs::components::Controllable,
                                     )>() {
                                         let overflow =
-                                            inv.add_item_volume_gated(&item, qty, max_stack, unit_vol);
+                                            inv.add_item_volume_gated_aged(&item, qty, max_stack, unit_vol, 0, age);
                                         taken = qty - overflow;
                                         break;
                                     }
@@ -13911,12 +13861,17 @@ mod native_app {
                                         }
                                     }
                                     if stored > 0 {
+                                        let mut age = 0.0;
                                         for (_pe, (inv, _c)) in state.game_world.world.query_mut::<(
                                             &mut crate::systems::inventory::Inventory,
                                             &crate::ecs::components::Controllable,
                                         )>() {
-                                            inv.remove_item(&item, stored);
+                                            age = inv.remove_item_aged(&item, stored).1;
                                             break;
+                                        }
+                                        // Food goes into the vessel at the age it had (S6).
+                                        if let Ok(mut c) = state.game_world.world.get::<&mut crate::systems::inventory::containers::Container>(e) {
+                                            c.arrived_aged(stored, age);
                                         }
                                         log::info!("[Machines] stored {stored}x {item} into {mid}");
                                     }
@@ -14611,6 +14566,12 @@ mod native_app {
                                 }
                             }
                         }
+                    }
+
+                    // The controls hint on the first entry into the world, once ever, saved at
+                    // once (first-hour audit 2026-10-04, Friction 1; gui/first_steps.rs).
+                    if state.gui_state.queue_controls_hint_once(state.world_loaded) {
+                        crate::config::AppConfig::from_gui_state(&state.gui_state).save();
                     }
 
                     // Decide whether to render 3D scene or just a cleared surface
@@ -15633,12 +15594,15 @@ mod native_app {
                                     &mut state.gui_state.debug_log,
                                     &mut state.gui_state.debug_console_visible,
                                 );
-
-                                // Quit requested from main menu
-                                if state.gui_state.quit_requested {
-                                    event_loop.exit();
-                                }
                             });
+                            // Quit from the main menu hub or the updater's Restart to Apply
+                            // (first-hour audit 2026-10-04, Blocker 5): the save the close
+                            // button runs, then exit. Out here, not in the egui closure above,
+                            // because the save takes the whole state, which that closure holds.
+                            if std::mem::take(&mut state.gui_state.quit_requested) {
+                                crate::engine::quit::save_before_exit(state);
+                                event_loop.exit();
+                            }
 
                             // ── Game audio frame sync (v0.960, first CC0 sounds) ──
                             if let Some(audio) = state.audio.as_mut() {
@@ -16374,6 +16338,8 @@ mod native_app {
                         }
                         Err(wgpu::SurfaceError::OutOfMemory) => {
                             log::error!("Out of GPU memory");
+                            // The world lives on the CPU: saved on the way out (engine/quit.rs).
+                            crate::engine::quit::save_before_exit(state);
                             event_loop.exit();
                         }
                         Err(e) => {
@@ -16404,13 +16370,10 @@ mod native_app {
                 // a machine-card button must not spin the camera.
                 // Same for the expanded F10 sidebar (2026-09-05): the cursor
                 // is free to work the panel, so motion must not spin the
-                // camera - the alt_held rule, made sticky.
-                if state.gui_state.active_page == GuiPage::None
-                    && !state.alt_held
-                    && !state.gui_state.cloud_dev_sidebar_expanded()
-                    && !state.gui_state.in_world_modal_open()
-                    && state.gui_state.player_death_cause.is_none()
-                {
+                // camera - the alt_held rule, made sticky. The whole rule is
+                // engine::input::mouse_look_allowed (2026-10-04), beside the
+                // cursor rule it has to agree with.
+                if crate::engine::input::mouse_look_allowed(&state.gui_state, state.alt_held) {
                     state.controller.process_mouse_motion(delta.0, delta.1);
                     // Real mouse-look releases the probe hold's yaw/pitch
                     // pin (same rule as the keyboard: the human wins).

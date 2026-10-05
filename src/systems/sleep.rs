@@ -17,7 +17,9 @@
 //! clock is never jumped), which is why this is not one.
 //!
 //! Who asks: a built structure whose blueprint `provides: "rest"` (a bed),
-//! through `construction::uses` and the E press in `engine::built_uses`.
+//! through `construction::uses` and the E press in `engine::built_uses`, and,
+//! the same way, a home machine whose def `provides: Some("rest")` (the
+//! bedroom's bed, 2026-10-04, `built_uses::use_machine`).
 //! The FoodSystem, which owns the vitals, runs `tick` every frame.
 
 use crate::ecs::components::{Controllable, Dead, StatusEffects, Vitals};
@@ -162,8 +164,8 @@ pub fn tick(asleep: &mut Option<Asleep>, world: &mut hecs::World, data: &DataSto
 
     if let Some(place) = requested {
         // In a shared world the host's clock wins (2026-09-29): it runs at
-        // the server's speed for everyone (72x unless its admin set another,
-        // 2026-10-04), so nobody can sleep the night away there.
+        // the server's speed for everyone (real time unless its admin set
+        // another, 2026-10-04), so nobody can sleep the night away there.
         if crate::systems::time::host_clock_active(data) {
             notice(data, format!("In a shared world everyone keeps the host's time, so the night can't be slept away here. The {place} is still yours to rest in."));
             return;
@@ -250,8 +252,8 @@ mod tests {
     }
 
     /// NO SLEEPING THE NIGHT AWAY IN A SHARED WORLD (2026-09-29). The host's
-    /// clock wins there and runs at the server's speed for everyone (72x
-    /// unless its admin set another, 2026-10-04), so the bed is refused with
+    /// clock wins there and runs at the server's speed for everyone (real
+    /// time unless its admin set another, 2026-10-04), so the bed is refused with
     /// a notice and the clock is not sped up. Red check,
     /// run: dropping the host_clock_active check in tick lets the player fall
     /// asleep and fails the first assertion.

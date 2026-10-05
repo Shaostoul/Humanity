@@ -163,8 +163,9 @@ the Day 5 session (he will post on his Discord or ask a brother when it is
 ready); how to balance what NPC homesteads give the fleet against what human
 players give (his open question). ANSWERED 2026-10-04 (journal, verbatim):
 backups stay as they are; no GitHub branch protection for now (immediate deploys
-suit the dev cycle); the shared-world clock is 72x by default with an in-app
-admin control; multiplayer stays ahead of arc A ("not as important as getting
+suit the dev cycle); the shared-world clock got an in-app admin control (its
+default, 72x that morning, became real time the same night: see THE FIRST
+HOUR, decision 5); multiplayer stays ahead of arc A ("not as important as getting
 the game playable"); the net-cup lean stays; server worlds start every player
 FRESH (only appearance crosses; the mothership gateway arrives players stripped
 of upgrades); joint homes wanted later; NPCs eat from the same stores; BUG-136
@@ -177,6 +178,40 @@ until a qualified person is officially involved; the landing hero shot becomes a
 night-to-sunrise shot from Silverdale toward Mount Rainier. Earlier: the start
 tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 (2026-10-04: being built), the old plain backups deleted (2026-10-02).
+
+### RESUME HERE: in flight at the usage cap (2026-10-05, about 01:10)
+
+- **v0.1460.0 is half through its chain. DO NOT PUSH main until it passes:** a push
+  deploys the relay. main (local, unpushed) = the four first-hour lanes (quests,
+  session flow, world friction, survival) + the real-time clock lane + the seam fix
+  76b66c680. `just verify` PASSED on it. Still to run: rig-tests, verify-relay, the
+  release build, the rigs (scratchpad chain1460-2/3/4.sh; hold builds at BelowNormal
+  during rigs, BUG-152), a seam review of the five merged lanes (it was stopped
+  unread: rerun it), then release v0.1460.0 and `just deliver`.
+- **Done, merge next (v0.1461.0):** the scripted first ten minutes, branch
+  worktree-agent-aa9a3f8a6f70330a2 (eight steps; Eat, Plant and View objective kinds;
+  the own-front-door destination). Reconcile at merge: it assumes coal is bought at the
+  trading post, but the friction lane seeds 5 coal in the Barn. Operator choices to
+  confirm: the first tool is a fishing rod (no fishing yet), the useful thing a
+  storage chest.
+- **Stopped mid-work at the cap (check each worktree for uncommitted work, then
+  relaunch or finish):** more plots (worktree-agent-ac4c5e7fee2ce644e), Normal mode by
+  default with progress kept plus rigs never dialing the live server
+  (worktree-agent-a50538ab1ae2d83d8), death cost by mode
+  (worktree-agent-a467966d22b3a5718), the Library sweep of game sections after the
+  first-hour lanes (worktree-agent-ab6799dbb2c8d66e9), the conflict / law / mental
+  health guides fixer (worktree-agent-acd16cffeea6aa67a; findings in scratchpad
+  fc-community.md, crit-law.md, crit-conflict.md, crit-mental.md).
+- **Library, corrected and waiting (ship as a patch after v0.1460.0):** canning,
+  pressure canning, curing and the Drying Food Trichinella fix
+  (worktree-agent-aa41fef38bb3ee28f, head 247b933a4); generators, emergency shelter,
+  pressure (worktree-agent-a7b5df9645fc4a9c8, 77fce2f29). With them: change Dry Meat's
+  description in data/recipes.csv (it air-dries raw meat with no heat).
+- **FTL reopened (operator, 2026-10-05, a proposal):** FTL, with ships built to survive
+  indefinitely if it is ever lost (docs/design/gravity-and-movement.md, the
+  interstellar section). Recommended; awaiting his answer.
+- **For the operator, when convenient:** at 1x the no-FTL decision means about 18.5
+  days to Jupiter (docs/design/gravity-and-movement.md); revisit or keep.
 
 ### THE FIRST HOUR: a basic starting loop with stakes (audit 2026-10-04)
 
@@ -1122,6 +1157,15 @@ blocker:
 
 Real features the system promises but does not deliver on every platform. Weeks
 of work each.
+
+**Candidate (suggested to the operator by a member of the public, 2026-10-05; not yet
+decided): search from the Browser page's address bar.** Today the address bar takes URLs only.
+Suggested: Ecosia as the default engine, and privacy-first defaults like FireDragon or
+Brave. Before building: the engine list as a data file the player chooses from, and a
+dated findings document on each engine's terms for being queried from inside another
+app (the 2026-09-25 site-embed review is the pattern). The embedded Chromium for video
+platforms keeps those platforms' players and advertising intact (the 2026-09-18
+agreement), so ad-blocking defaults do not apply there.
 
 > **Cross-cutting mandate (CLAUDE.md non-negotiable rule): GUI-first
 > configurability.** Every ops and config capability must be reachable in-app,

@@ -1,5 +1,8 @@
 //! Built beds and chests in use (2026-09-27): the crosshair prompt, the E
-//! press, and the built chests kept in the Inventory page's places tree.
+//! press, and the built chests kept in the Inventory page's places tree. And
+//! the home's own machines that are used the same way (2026-10-04, first-hour
+//! audit F5): the bedroom's bed, whose def `provides: Some("rest")`, sleeps you
+//! as a built bed does (`machine_use`, `use_machine`).
 //!
 //! The rules (which structures are usable, what the look ray meets, how a
 //! chest's contents are addressed) live in `systems::construction::uses`,
@@ -172,6 +175,63 @@ mod tests {
             assert!(home.contains(t), "the home on its plot: {t} serves: {home:?}");
         }
     }
+
+    /// THE BEDROOM'S OWN BED SLEEPS YOU, AS A BED YOU BUILT DOES (first-hour audit F5,
+    /// 2026-10-04). Its card always said "sleep here", but E only opened the card: only a
+    /// built bed slept. In both shipped homes the bed's def now says `provides: Some("rest")`,
+    /// the word a built bed's blueprint uses, so its label carries the use, the crosshair
+    /// says what a built bed's says, and E asks for the night in it through the same request
+    /// (`systems::sleep::request`, by the name the label shows). Nothing else in either home
+    /// sleeps you: the court's raised beds are garden beds.
+    ///
+    /// Seen red 2026-10-04 on 1b66dd36d, with `machine_use` returning None and
+    /// `use_machine_label` false, which is what the code did (no machine was used: E opened
+    /// every machine's card, the bed's too): "home.ron: the machines E sleeps you in / left:
+    /// [] / right: [\"bed\"]".
+    #[test]
+    fn the_bedrooms_bed_sleeps_you_as_a_built_bed_does() {
+        use crate::machines::MachineHome;
+        use std::sync::Mutex;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines");
+        for file in ["home.ron", "home_solo.ron"] {
+            let home = MachineHome::load(&dir.join(file)).expect("the home parses");
+            let mut sleepers: Vec<&str> = home
+                .catalog
+                .iter()
+                .filter(|(_, d)| machine_use(d) == Some(uses::StructureUse::Sleep))
+                .map(|(k, _)| k.as_str())
+                .collect();
+            sleepers.sort();
+            assert_eq!(sleepers, vec!["bed"], "{file}: the machines E sleeps you in");
+            assert!(home.all_instances().iter().any(|i| i.machine == "bed"), "{file}: a bed is placed");
+        }
+        let home = MachineHome::load(&dir.join("home.ron")).unwrap();
+        let label = |machine: &str, name: &str| crate::gui::MachineLabel {
+            pos: Vec3::ZERO,
+            name: name.into(),
+            stats: Vec::new(),
+            room: "room-bedroom".into(),
+            machine_id: format!("{machine}_1"),
+            on_use: machine_use(&home.catalog[machine]),
+        };
+        let bed = label("bed", "Bed");
+        assert_eq!(bed.prompt(false), uses::StructureUse::Sleep.prompt("Bed"), "the crosshair says what a built bed's says");
+
+        // E at it asks for the night in the Bed, as a built bed does.
+        let mut data = crate::hot_reload::data_store::DataStore::new();
+        data.insert(crate::systems::sleep::REQUEST_SLOT, Mutex::new(None::<String>));
+        assert!(use_machine_label(&data, &bed), "E at the bed is used, not opened");
+        let asked = data.get::<Mutex<Option<String>>>(crate::systems::sleep::REQUEST_SLOT).unwrap().lock().unwrap().clone();
+        assert_eq!(asked.as_deref(), Some("Bed"), "the sleep request, by the bed's name");
+
+        // Any other machine still opens and closes its card.
+        let nightstand = label("nightstand", "Nightstand");
+        *data.get::<Mutex<Option<String>>>(crate::systems::sleep::REQUEST_SLOT).unwrap().lock().unwrap() = None;
+        assert!(!use_machine_label(&data, &nightstand), "a nightstand is opened");
+        assert_eq!(nightstand.prompt(false), "[E] open Nightstand");
+        assert_eq!(nightstand.prompt(true), "[E] close Nightstand");
+        assert!(data.get::<Mutex<Option<String>>>(crate::systems::sleep::REQUEST_SLOT).unwrap().lock().unwrap().is_none());
+    }
 }
 
 /// The usable built structure under the crosshair, when nothing else is
@@ -208,6 +268,43 @@ fn target(state: &EngineState) -> Option<(hecs::Entity, uses::StructureUse, Stri
     let s = world.get::<&Structure>(e).ok()?;
     let name = uses::display_name(&s, registry);
     Some((e, u, name))
+}
+
+/// What E does at a home machine instead of opening its card (first-hour audit F5,
+/// 2026-10-04): what its def `provides`, read the way a built piece's blueprint is read, so
+/// the home's own bed (`provides: Some("rest")` in data/machines/home.ron) sleeps you exactly
+/// as a bed you built does. Only sleeping acts at a machine: a machine's storage is used
+/// through its card, so any other use leaves E opening the card. Which machines carry it is
+/// data, so a bunk or a hammock in a home is a data edit.
+pub(crate) fn machine_use(def: &crate::machines::MachineDef) -> Option<uses::StructureUse> {
+    def.provides
+        .as_deref()
+        .and_then(uses::StructureUse::from_provides)
+        .filter(|u| *u == uses::StructureUse::Sleep)
+}
+
+/// The E press at the home machine the player looks at, when it is one that is used (the
+/// home's bed): true when it was, so the E chain in lib.rs goes no further. False for every
+/// other machine, whose card E opens.
+pub(crate) fn use_machine(state: &mut EngineState) -> bool {
+    let Some(label) = state.gui_state.targeted_machine.and_then(|t| state.gui_state.machine_labels.get(t)) else {
+        return false;
+    };
+    use_machine_label(&state.data_store, label)
+}
+
+/// `use_machine` for one machine's label: a machine that is slept in asks for the night in
+/// it, by the name its label shows, through the request a built bed makes
+/// (`systems::sleep::request`), so everything after is the built bed's (the clock runs fast
+/// through the night, the shared world refuses it).
+pub(crate) fn use_machine_label(data: &crate::hot_reload::data_store::DataStore, label: &crate::gui::MachineLabel) -> bool {
+    match label.on_use {
+        Some(uses::StructureUse::Sleep) => {
+            crate::systems::sleep::request(data, &label.name);
+            true
+        }
+        _ => false,
+    }
 }
 
 /// The E press on a built structure. A bed: lie down and sleep the night

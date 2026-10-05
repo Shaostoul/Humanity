@@ -215,6 +215,24 @@ pub(crate) fn construction_duplicate(state: &mut EngineState) {
         return;
     }
     if let Some(id) = g.construction_machine_selected.clone() {
+        // A copy is a placement too: outside Creative and Dev it takes the machine's item
+        // (first-hour audit 2026-10-04, Missing stakes 1), or Ctrl+D would place any machine
+        // in the home free. Paid only when a copy will be made: a locked ship machine or an
+        // array cell is not copied (below). Creative and Dev go on exactly as before.
+        if !g.settings.play_mode.allows(crate::config::Capability::FreeResources) {
+            let copy = g.home_machines.as_ref().filter(|h| !h.is_locked(&id)).and_then(|h| {
+                let m = h.instances.iter().find(|m| m.id == id)?;
+                let label = h.catalog.get(&m.machine).map(|d| d.label.clone()).filter(|l| !l.is_empty());
+                Some((m.machine.clone(), label.unwrap_or_else(|| m.machine.clone())))
+            });
+            if let Some((mtype, label)) = copy {
+                if let Err(why) = pay_for_editor_machine(state, &mtype, &label) {
+                    state.gui_state.pending_notices.push(why);
+                    return;
+                }
+            }
+        }
+        let g = &mut state.gui_state;
         let mut new_id = None;
         if let Some(h) = g.home_machines.as_mut() {
             // A read-only ship machine (outside the Dev mode) is not copied: the copy would be a
@@ -507,6 +525,78 @@ pub(crate) fn active_zone_id(state: &EngineState) -> String {
         .unwrap_or_else(|| "home".to_string())
 }
 
+/// The item a machine type is placed from: its `<type>_0` row in items.csv ("smelter" ->
+/// "smelter_0", "Smelter"), the same convention the recipes' stations and the Structures
+/// blueprints ("solar_panel" costs one "solar_panel_0") already use. None when items.csv has no
+/// such row: nothing can be made, bought or carried to place one.
+pub(crate) fn machine_item(machine_type: &str, items: Option<&crate::systems::inventory::ItemRegistry>) -> Option<String> {
+    let id = crate::machines::placement_item_id(machine_type);
+    items.is_some_and(|r| r.items.contains_key(&id)).then_some(id)
+}
+
+/// What placing one `machine_type` with the editor takes from the player, or why it cannot be
+/// placed, as the line the editor shows (first-hour audit 2026-10-04, Missing stakes 1). `free`:
+/// the play mode gives free resources (Creative and Dev), so nothing is taken: Ok(None). In
+/// Normal, one of the machine's item, from the backpack first, else from the home's storage
+/// (`placed`, the organize layer, without the chests built on a planet) when `storage` (it is in
+/// reach where the player is): Ok(Some(item id)) once taken. `label` is the machine's name.
+pub(crate) fn pay_for_machine(
+    world: &mut hecs::World,
+    placed: &mut Vec<crate::systems::inventory::placed::PlacedItem>,
+    storage: bool,
+    items: Option<&crate::systems::inventory::ItemRegistry>,
+    free: bool,
+    machine_type: &str,
+    label: &str,
+) -> Result<Option<String>, String> {
+    use crate::ecs::components::Controllable;
+    use crate::systems::inventory::placed::{stock_counts, take_consumed};
+    use crate::systems::inventory::Inventory;
+    if free {
+        return Ok(None);
+    }
+    let Some(item) = machine_item(machine_type, items) else {
+        return Err(format!(
+            "There is no {label} item to place one from, so in Normal mode it cannot be placed; Creative and Dev place it free."
+        ));
+    };
+    // The backpack first.
+    let player = world.query::<(&Inventory, &Controllable)>().iter().next().map(|(e, _)| e);
+    if let Some(mut pack) = player.and_then(|p| world.get::<&mut Inventory>(p).ok()) {
+        if pack.count_item(&item) > 0 {
+            pack.remove_item(&item, 1);
+            return Ok(Some(item));
+        }
+    }
+    // Then the home's storage, the same pool the machines and the build menu
+    // draw on, without what sits in a chest built on a planet.
+    if storage {
+        let away = crate::systems::construction::uses::planet_store_paths(world);
+        let have = stock_counts(placed, &away).get(&item).copied().unwrap_or(0);
+        if have > 0 {
+            let before: std::collections::HashMap<String, u32> = [(item.clone(), have)].into_iter().collect();
+            let after: std::collections::HashMap<String, u32> = [(item.clone(), have - 1)].into_iter().collect();
+            take_consumed(placed, &before, &after, &away);
+            return Ok(Some(item));
+        }
+    }
+    let name = items.and_then(|r| r.items.get(&item)).map(|d| d.name.clone()).unwrap_or(item);
+    Err(if storage {
+        format!("To place this {label}, have one {name} in your backpack or home storage: you have none.")
+    } else {
+        format!("To place this {label}, carry one {name} in your backpack: you have none, and your home storage is out of reach here.")
+    })
+}
+
+/// `pay_for_machine` for the live game: the play mode's free resources, the home's storage when
+/// it is in reach where the player stands (`HomeStore::here`), the item registry.
+fn pay_for_editor_machine(state: &mut EngineState, machine_type: &str, label: &str) -> Result<Option<String>, String> {
+    let free = state.gui_state.settings.play_mode.allows(crate::config::Capability::FreeResources);
+    let storage = crate::systems::crafting::home_store::HomeStore::here(&state.data_store).reachable();
+    let items = state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+    pay_for_machine(&mut state.game_world.world, &mut state.gui_state.placed_items, storage, items, free, machine_type, label)
+}
+
 /// Drop the currently-held palette machine where the cursor hits a room floor. Keeps the item
 /// held so you can place several; right-click or re-click the palette item to stop. Appears live
 /// via construction_machines_dirty. (v0.529; v0.538: box mode stores ABSOLUTE coords)
@@ -535,6 +625,18 @@ pub(crate) fn try_place_held_machine(state: &mut EngineState) {
         let cz = (rb.min.z + rb.max.z) * 0.5;
         (hx - cx, 0.0, hz - cz)
     };
+    let label = match state.gui_state.home_machines.as_ref().and_then(|h| h.catalog.get(&mtype)) {
+        Some(def) if !def.label.is_empty() => def.label.clone(),
+        Some(_) => mtype.clone(),
+        None => return,
+    };
+    // Outside Creative and Dev a placement takes the machine's item, and when
+    // there is none the editor says so and places nothing (first-hour audit
+    // 2026-10-04, Missing stakes 1). Creative and Dev place free, as before.
+    if let Err(why) = pay_for_editor_machine(state, &mtype, &label) {
+        state.gui_state.pending_notices.push(why);
+        return;
+    }
     if let Some(home) = state.gui_state.home_machines.as_mut() {
         if home.catalog.contains_key(&mtype) {
             let id = home.unique_instance_id(&mtype);
@@ -1999,5 +2101,66 @@ mod autosave_tests {
         assert!(arms_autosave(true, false), "an edit arms it");
         assert!(!arms_autosave(false, false));
         assert!(!arms_autosave(false, true));
+    }
+}
+
+#[cfg(test)]
+mod machine_cost_tests {
+    use super::{machine_item, pay_for_machine};
+    use crate::ecs::components::Controllable;
+    use crate::systems::inventory::placed::PlacedItem;
+    use crate::systems::inventory::{Inventory, ItemRegistry};
+
+    fn items() -> ItemRegistry {
+        ItemRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/items.csv"))).unwrap()
+    }
+
+    /// THE B EDITOR PLACES A MACHINE FROM ITS ITEM IN NORMAL MODE (first-hour audit 2026-10-04,
+    /// Missing stakes 1). It placed any machine, a smelter, a trading post, a solar panel, free in
+    /// every play mode. In Normal a placement now takes one of the machine's item, from the
+    /// backpack first, else from the home's storage while it is in reach; with none the line says
+    /// what is needed and nothing is placed, and a machine there is no item for cannot be placed
+    /// in Normal at all. Creative and Dev keep free placement, untouched (the operator builds the
+    /// ship in Dev).
+    ///
+    /// Seen red 2026-10-04 with every placement free (the code before the fix): "Normal mode with
+    /// no Smelter places nothing / left: Ok(None)".
+    #[test]
+    fn normal_mode_places_a_machine_from_its_item() {
+        let items = items();
+        assert_eq!(machine_item("smelter", Some(&items)).as_deref(), Some("smelter_0"));
+        assert_eq!(machine_item("trading_post", Some(&items)), None, "items.csv has no trading post");
+        let mut world = hecs::World::new();
+        let player = world.spawn((Inventory::new(16), Controllable));
+        let mut placed: Vec<PlacedItem> = Vec::new();
+
+        let none = pay_for_machine(&mut world, &mut placed, true, Some(&items), false, "smelter", "Smelter");
+        assert!(none.is_err(), "Normal mode with no Smelter places nothing / left: {none:?}");
+        let why = none.unwrap_err();
+        assert!(why.contains("Smelter") && why.contains("backpack") && why.contains("home storage"), "{why}");
+
+        // One carried: it comes out of the backpack.
+        world.get::<&mut Inventory>(player).unwrap().add_item("smelter_0", 1, 99);
+        assert_eq!(pay_for_machine(&mut world, &mut placed, true, Some(&items), false, "smelter", "Smelter"), Ok(Some("smelter_0".into())));
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("smelter_0"), 0, "taken from the backpack");
+
+        // Two in the Barn: one comes out of storage.
+        placed.push(PlacedItem { key: "smelter_0".into(), name: "Smelter".into(), qty: 2, container: "1/3".into(), wear: 0, quality: 0, age_s: 0.0 });
+        assert_eq!(pay_for_machine(&mut world, &mut placed, true, Some(&items), false, "smelter", "Smelter"), Ok(Some("smelter_0".into())));
+        assert_eq!(placed[0].qty, 1, "taken from the Barn");
+
+        // Storage out of reach: the Barn's smelter does not count, and nothing is taken.
+        let away = pay_for_machine(&mut world, &mut placed, false, Some(&items), false, "smelter", "Smelter");
+        assert!(away.is_err(), "{away:?}");
+        assert_eq!(placed[0].qty, 1);
+
+        // No item exists for it: refused in Normal, and the line says why.
+        let post = pay_for_machine(&mut world, &mut placed, true, Some(&items), false, "trading_post", "Trading post").unwrap_err();
+        assert!(post.contains("Trading post") && post.contains("Creative") && post.contains("Dev"), "{post}");
+
+        // Creative and Dev: free, nothing taken, whatever the machine.
+        assert_eq!(pay_for_machine(&mut world, &mut placed, true, Some(&items), true, "smelter", "Smelter"), Ok(None));
+        assert_eq!(pay_for_machine(&mut world, &mut placed, false, Some(&items), true, "trading_post", "Trading post"), Ok(None));
+        assert_eq!(placed[0].qty, 1, "nothing taken in a free mode");
     }
 }

@@ -576,11 +576,12 @@ mod tests {
     }
 
     /// NO CREW FIGURE IS EVER ON A PLOT, and the crew stay in the Commons: two REAL hours of
-    /// ticks (six game days at the shipped 72x) with a meal due every 15 game minutes, so every
-    /// eater goes to its seat in the mess hall between almost every two chores, every crew
-    /// position after every second and every position the relay sends the games
-    /// (`game_npc_update`), on no plot and inside the Commons' box. (The crew walk and work in
-    /// real seconds; only the meal clock is game time.)
+    /// ticks at the Simplified 72x, set here (six game days; a new world keeps real time since
+    /// 2026-10-04, where a meal every 15 game minutes comes every 15 real minutes) with a meal
+    /// due every 15 game minutes, so every eater goes to its seat in the mess hall between
+    /// almost every two chores, every crew position after every second and every position the
+    /// relay sends the games (`game_npc_update`), on no plot and inside the Commons' box. (The
+    /// crew walk and work in real seconds; only the meal clock is game time.)
     ///
     /// Seen red 2026-10-04 with the Pioneer put back through this code (the rooms read from
     /// data/ships/starter_fleet.ron, the previous chores each at its room's centre, the previous
@@ -589,6 +590,7 @@ mod tests {
     #[test]
     fn no_crew_figure_is_ever_on_a_plot() {
         let mut world = GameWorld::new();
+        super::super::ship_stores::at_simplified_speed(&mut world);
         super::super::ship_stores::meals_every(&mut world, 0.25);
         // The Commons' box from the ship file itself, not from the world's rooms, so a world built
         // from anything else is judged against the ship the games draw.
@@ -920,6 +922,8 @@ mod tests {
     fn a_stored_world_stands_the_ship_built_things_where_the_files_put_them() {
         let (db, path) = temp_db("restore_rebuild");
         let mut world = GameWorld::new();
+        // At 72x, so five real minutes hold meals (at a new world's 1x they would hold none).
+        super::super::ship_stores::at_simplified_speed(&mut world);
         super::super::ship_stores::meals_every(&mut world, 1.0);
         for _ in 0..(20 * 60 * 5) {
             world.tick(0.05); // five real minutes: six game hours at 72x, several meals each

@@ -531,6 +531,64 @@ fn every_recipe_is_reachable_from_base_sources() {
     );
 }
 
+/// Every item a shipped quest's Gather step asks for has a source (2026-10-04,
+/// the first-hour audit's B5). A Gather step is checked against the backpack,
+/// so an item nothing in the game hands out keeps its quest open for ever:
+/// "Initial Survey" asked for 5 ore samples and "Distant Expeditions" for 3
+/// rare ore, which only the mining automaton and the silicon crab dropped, and
+/// nothing spawns either. A source is what it is for a recipe input (the
+/// header), or any recipe's output.
+///
+/// Red, run on the shipped data before this: "ore_sample_0 (Gather in
+/// data/quests/exploration.ron)" and "rare_ore_0 (Gather in
+/// data/quests/exploration.ron)".
+#[test]
+fn every_quest_gather_item_has_a_source() {
+    let d = load();
+    let made: BTreeSet<&str> = d
+        .recipes
+        .iter()
+        .flat_map(|r| r.outputs.iter().map(|s| s.as_str()))
+        .collect();
+    let dir = project_root().join("data").join("quests");
+    let mut files: Vec<PathBuf> = fs::read_dir(&dir)
+        .unwrap_or_else(|e| panic!("read {}: {e}", dir.display()))
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|x| x == "ron"))
+        .collect();
+    files.sort();
+    let mut gathers: Vec<(String, String)> = Vec::new(); // (file, item)
+    for path in &files {
+        let rel = format!("data/quests/{}", path.file_name().unwrap().to_string_lossy());
+        let text = strip_line_comments(&read(&rel));
+        let mut rest = text.as_str();
+        while let Some(k) = rest.find("Gather(") {
+            rest = &rest[k + "Gather(".len()..];
+            let close = rest.find(')').unwrap_or(rest.len());
+            for item in quoted_after_key(&rest[..close], "item_id") {
+                gathers.push((rel.clone(), item));
+            }
+        }
+    }
+    // Non-vacuity: the quest files hold well over this many Gather steps.
+    assert!(gathers.len() >= 8, "parsed only {} Gather steps from data/quests: {gathers:?}", gathers.len());
+    let missing: Vec<String> = gathers
+        .iter()
+        .filter(|(_, item)| !made.contains(item.as_str()) && !d.base_sources.contains_key(item))
+        .map(|(file, item)| format!("  {item} (Gather in {file})"))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "\n\n[FAIL] {} quest Gather item(s) have NO source, so their quests can never be \
+         finished:\n\n{}\n\nGive each a source the realistic way: a recipe, a spawned \
+         creature or resource node (data/entities/wild_spawns.ron), the vendor, or a \
+         starting item.\n",
+        missing.len(),
+        missing.join("\n")
+    );
+}
+
 /// Item ids NPC shops sell are real items (2026-09-26): the Farming Elder
 /// sold `seed_bag_0`, and a dozen other shop lines named items that did not
 /// exist. data/tech_tree.ron is left out on purpose: the game does not read it

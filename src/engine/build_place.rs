@@ -90,7 +90,20 @@ pub(crate) fn key(state: &mut EngineState, key_name: &str, escape: bool, repeat:
             // a planet's ground), and never twice in one spot.
             let Some(p) = state.gui_state.build_placing.as_ref() else { return false };
             let Some(pose) = p.ghost.clone() else { return false };
-            if p.occupied || p.short {
+            if p.occupied {
+                return true;
+            }
+            // Too few materials: say so where the player is looking, naming
+            // what is missing, instead of sending a build the ConstructionSystem
+            // refuses where only the Crafting page shows it (first-hour audit
+            // Friction 8, 2026-10-04).
+            let (blueprint_id, on_planet) = (p.blueprint_id.clone(), p.site.is_some());
+            if let Some(why) = build_refusal(&state.game_world.world, &state.data_store, &blueprint_id, on_planet) {
+                set_placing_note(state, why);
+                return true;
+            }
+            let Some(p) = state.gui_state.build_placing.as_ref() else { return false };
+            if p.short {
                 return true;
             }
             let request = BuildRequest::new(p.blueprint_id.clone(), pose).on(p.site.clone());
@@ -247,6 +260,57 @@ fn carried_short(state: &EngineState, blueprint_id: &str) -> Option<(String, u32
     Some((name, more))
 }
 
+/// Why Interact will not build `blueprint_id` where the player stands, as the
+/// line shown at the crosshair (`set_placing_note`): every material it is short
+/// of, by the items' names, or None when there is enough. Counted the way the
+/// ConstructionSystem counts before it builds: the pack, and aboard the home's
+/// storage too while it is in reach (`HomeStore::here`); on a planet only the
+/// pack. Pure over the world and the DataStore, so it is tested without a
+/// window. (First-hour audit 2026-10-04, Friction 8.)
+pub(crate) fn build_refusal(
+    world: &hecs::World,
+    data: &crate::hot_reload::data_store::DataStore,
+    blueprint_id: &str,
+    on_planet: bool,
+) -> Option<String> {
+    use crate::ecs::components::Controllable;
+    use crate::systems::inventory::{Inventory, ItemRegistry};
+    let bp = data.get::<BlueprintRegistry>("blueprint_registry")?.get(blueprint_id)?;
+    let mut q = world.query::<(&Inventory, &Controllable)>();
+    let (_e, (pack, _)) = q.iter().next()?;
+    // Aboard, the home's storage counts while it is in reach; not for a guest,
+    // whose home is put away, and never on a planet (its storage is in orbit).
+    let away = if on_planet { None } else { crate::systems::crafting::home_store::HomeStore::here(data).not_here };
+    let storage_counts = !on_planet && away.is_none();
+    let stock = data.get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock");
+    let stored = |id: &str| stock.and_then(|m| m.lock().ok().map(|s| s.get(id).copied().unwrap_or(0))).unwrap_or(0);
+    let stores: Option<&dyn Fn(&str) -> u32> = if storage_counts { Some(&stored) } else { None };
+    let missing = crate::systems::construction::materials_missing(bp, |id| pack.count_item(id), stores);
+    if missing.is_empty() {
+        return None;
+    }
+    let items = data.get::<ItemRegistry>("item_registry");
+    let parts: Vec<String> = missing
+        .iter()
+        .map(|(id, more)| {
+            let name = items.and_then(|r| r.items.get(id)).map(|d| d.name.clone()).unwrap_or_else(|| id.clone());
+            format!("{more} more {name}")
+        })
+        .collect();
+    let list = match parts.as_slice() {
+        [] => String::new(),
+        [one] => one.clone(),
+        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+    };
+    Some(if on_planet {
+        format!("Not enough to build the {} here: carry {list} (on a planet you build from what you carry)", bp.name)
+    } else if let Some(why) = away {
+        format!("Not enough to build the {}: carry {list} ({why})", bp.name)
+    } else {
+        format!("Not enough to build the {}: {list}, counting your backpack and home storage", bp.name)
+    })
+}
+
 /// The line under the crosshair on a planet when the pack holds too little:
 /// what is missing, and why the home's storage does not count.
 pub(crate) fn short_hint(name: &str, item: &str, more: u32) -> String {
@@ -360,7 +424,7 @@ pub(crate) fn apply_take_down(
     if let Some(chan) = data.get::<std::sync::Mutex<Vec<TransferOp>>>("inventory_transfer_ops") {
         if let Ok(mut c) = chan.lock() {
             for (id, qty) in materials {
-                c.push(TransferOp { item_id: id.clone(), qty: *qty, add: true, wear: 0, quality: 0 });
+                c.push(TransferOp { item_id: id.clone(), qty: *qty, add: true, ..Default::default() });
             }
         }
     }
@@ -569,6 +633,60 @@ mod tests {
         let short = short_hint("Wood Wall", "Wood Plank", 4);
         assert!(short.contains("carry 4 more Wood Plank") && short.contains("what you carry") && !short.contains("build here"), "{short}");
     }
+
+    /// A BUILD SHORT OF MATERIALS IS REFUSED AT THE CROSSHAIR, BY NAME
+    /// (first-hour audit 2026-10-04, Friction 8). Aboard, Interact with too
+    /// few planks sent the build, the ConstructionSystem refused it, and the
+    /// reason showed only on the Crafting page, with raw item ids ("need 3x
+    /// wood_plank_0 to build Wood Wall"): in the world nothing happened. Now
+    /// the press is answered where the player looks, counted the way the build
+    /// counts: 2 planks carried and 1 in storage are 3 short of a wall's 6
+    /// aboard; on a planet only the 2 carried count; a guest's put-away home
+    /// does not count; a bed short of two things names both; and with enough
+    /// there is nothing to say.
+    ///
+    /// Seen red 2026-10-04 with `build_refusal` returning None (nothing reached
+    /// the crosshair): "a short wall is refused at the crosshair".
+    #[test]
+    fn a_short_build_is_refused_at_the_crosshair_by_name() {
+        use crate::ecs::components::Controllable;
+        use crate::systems::crafting::home_store::HOME_STORAGE_HERE;
+        use crate::systems::inventory::{Inventory, ItemRegistry};
+        use std::sync::Mutex;
+        let mut data = crate::hot_reload::data_store::DataStore::new();
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        data.insert("blueprint_registry", reg);
+        data.insert("item_registry", ItemRegistry::from_csv(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/items.csv"))).unwrap());
+        let stock: std::collections::HashMap<String, u32> = [("wood_plank_0".to_string(), 1)].into_iter().collect();
+        data.insert("home_stock", Mutex::new(stock));
+        let mut world = hecs::World::new();
+        let mut pack = Inventory::new(16);
+        pack.add_item("wood_plank_0", 2, 99);
+        let player = world.spawn((pack, Controllable));
+
+        let wall = build_refusal(&world, &data, "wood_wall", false);
+        assert_eq!(
+            wall.as_deref(),
+            Some("Not enough to build the Wood Wall: 3 more Wood Plank, counting your backpack and home storage"),
+            "a short wall is refused at the crosshair"
+        );
+        let planet = build_refusal(&world, &data, "wood_wall", true).expect("short on a planet");
+        assert_eq!(planet, "Not enough to build the Wood Wall here: carry 4 more Wood Plank (on a planet you build from what you carry)");
+        let bed = build_refusal(&world, &data, "bed", false).expect("a bed is short of two things");
+        assert_eq!(bed, "Not enough to build the Bed: 3 more Wood Plank and 4 more Fiber Bundle, counting your backpack and home storage");
+        assert!(!bed.contains("_0"), "no item ids: {bed}");
+
+        // A guest: the put-away home's storage does not count, and the line says why.
+        data.insert(HOME_STORAGE_HERE, Mutex::new(false));
+        let guest = build_refusal(&world, &data, "wood_wall", false).expect("short as a guest");
+        assert!(guest.contains("carry 4 more Wood Plank") && guest.contains("not on this ship"), "{guest}");
+        data.insert(HOME_STORAGE_HERE, Mutex::new(true));
+
+        // Enough: carried 5 and 1 stored make the wall's 6.
+        world.get::<&mut Inventory>(player).unwrap().add_item("wood_plank_0", 3, 99);
+        assert_eq!(build_refusal(&world, &data, "wood_wall", false), None, "enough planks: nothing to refuse");
+        assert!(build_refusal(&world, &data, "wood_wall", true).is_some(), "but on a planet 5 carried are 1 short");
+    }
 }
 
 #[cfg(test)]
@@ -703,7 +821,7 @@ mod take_down_tests {
         let line = apply_take_down(&mut world, &data, wall, "Wood Wall", &materials);
         assert!(!world.contains(wall), "the wall is gone");
         let ops = data.get::<std::sync::Mutex<Vec<TransferOp>>>("inventory_transfer_ops").unwrap().lock().unwrap().clone();
-        assert_eq!(ops, vec![TransferOp { item_id: "wood_plank_0".into(), qty: 6, add: true, wear: 0, quality: 0 }]);
+        assert_eq!(ops, vec![TransferOp { item_id: "wood_plank_0".into(), qty: 6, add: true, ..Default::default() }]);
         assert_eq!(line, "Took down the Wood Wall: 6 wood_plank_0 back", "no item registry here: the id stands in for the name");
     }
 
@@ -731,8 +849,7 @@ mod take_down_tests {
             name: "Wood Plank".into(),
             qty: 3,
             container: crate::systems::construction::uses::storage_path(7),
-            wear: 0,
-            quality: 0,
+            ..Default::default()
         }];
         let at_chest = Vec3::new(0.0, 0.5, -2.0);
         let refused = take_down_plan(&stores, &held, Some(&reg), at_chest, Vec3::Z, None, &[]).unwrap_err();

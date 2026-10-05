@@ -1398,6 +1398,8 @@
                     status: "ok",
                 ),
             ],
+            // E sleeps the night here, as at a bed you build (first-hour audit F5, 2026-10-04).
+            provides: Some("rest"),
             power: None,
             ports: [],
             storage: [],

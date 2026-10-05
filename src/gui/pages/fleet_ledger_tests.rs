@@ -9,7 +9,7 @@ fn ledger(standing: &str, used: f64, contributed: f64) -> FleetLedger {
 }
 
 fn bread_slot(n: u32) -> Option<crate::gui::GuiItemSlot> {
-    Some(crate::gui::GuiItemSlot { item_id: "bread_0".into(), name: "Bread".into(), quantity: n, wear: 0, quality: 0 })
+    Some(crate::gui::GuiItemSlot { item_id: "bread_0".into(), name: "Bread".into(), quantity: n, ..Default::default() })
 }
 
 /// THE HEADLINE SAYS RED OR BLACK IN PLAIN WORDS, and by how much.
