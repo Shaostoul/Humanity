@@ -3667,7 +3667,9 @@ then the region carve and DEM), now called by `build_patch_mesh`,
 `drawn_elevation_normalized` and `DrawnPatchSurface`, so the copies cannot part again.
 `DrawnPatchSurface` snapshots the published carve masks when it is built, as a patch build
 does (`with_carve` lets a test hand in its own set). Outside the regions nothing moves: the
-existing Fuji and Amazon ground gates read the same numbers before and after. After the fix
+shared function was checked bit for bit against the copies it replaced (42,129 samples over
+the globe and over Silverdale at nine depths, with and without the masks; a scratch test,
+not kept), and the existing Fuji and Amazon ground gates pass unchanged. After the fix
 (`.probe-rig/sweeps/20261005-bug156-post/`), all four arrivals (the canonical vantage, the
 two settles and the walk-in) read every on-screen tree (53, 53, 53 and 56) at -0.11 to
 -0.23 m against the drawn ground, which is the designed quarter-root-flare sink, none
