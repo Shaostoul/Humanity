@@ -11,6 +11,18 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1463.0: fires that burn, heaters that heat, and illness that makes sense.**
+  Casting Campfire builds a real stone-ring fire that burns its logs and warms you
+  when you sit near it (not through a wall, and never under a roof). The space
+  heater now warms the air of the room it stands in. Food poisoning drains your
+  body's water over a day or two instead of killing you in eight minutes, and
+  medicine finally does something when you use it. Hunger and thirst now keep
+  real time at any frame rate (before, a full stomach could stay full forever).
+  Trees and you now stand on the ground at Silverdale instead of floating above
+  it. Also: the generator burns its own fuel, no more money loops at the trading
+  post, your server choice sticks, and three new Library guides on toilets, germs
+  and infection.
+
 - **v0.1462.1: three Library guides on germs and food.** Microbes, Good and Bad (which
   germs help and which harm, and what stops them); When Food or Water Makes You Sick (what
   to do, what to drink, the danger signs that mean a doctor, with the special rules for

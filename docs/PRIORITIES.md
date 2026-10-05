@@ -181,27 +181,31 @@ night-to-sunrise shot from Silverdale toward Mount Rainier. Earlier: the start
 tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 (2026-10-04: being built), the old plain backups deleted (2026-10-02).
 
-### RESUME HERE: where the work stands (updated 2026-10-05, about 09:30)
+### RESUME HERE: where the work stands (updated 2026-10-05, about 14:00)
 
-- **Released today:** v0.1459.0 to v0.1460.1 (overnight), v0.1461.0 (Normal mode by
-  default, the scripted first ten minutes, death cost by mode), v0.1462.0 (twelve homes
-  along First Street; BUG-157; BUG-160's rig side: five rigs had been dialing the live
-  server; delivered), v0.1462.1 (the microbes, food and water illness, and keeping-food
-  guides, corrected after an independent fact check).
-- **v0.1463.0 being assembled (main stays shippable; each lane merges after review):**
-  BUG-160's game side (the chat page must not fill an empty server address with the live
-  server and dial it); the Live water card wording (the purifier makes no water; the
-  pump, rain and the air handlers' condensate do); BUG-152/158 (review said merge after
-  fixes; the fixer is applying them in worktree-agent-aa673c8967f2d0e39); BUG-159 (tests
-  leave temp files: about 186,000 hum_* files in the temp folder); BUG-153 (Campfire
-  builds a real fire), BUG-154 (the generator burns only its named fuels), BUG-155 (the
-  heater warms its room), each in its own worktree. Then the full chain (verify, rig
-  tests, relay battery, copresence, plots, screens, probe).
-- **Library:** the sanitation batch (toilets and human waste, the germs that matter,
-  preventing and spotting infection; worktree-agent-a3d1a9e4a7a3522f4) had its
-  independent fact check (17 findings, 13 safety) and is being corrected; then a patch
-  release. Remaining follow-ups on main ride with it (handwashing's archived CDC page;
-  food poisoning's real effect; cheese and butter).
+- **Released today:** v0.1459.0 to v0.1460.1 (overnight), v0.1461.0, v0.1462.0 (twelve
+  homes; BUG-157; BUG-160's rig side), v0.1462.1 (germs and food guides), v0.1463.0 (fires,
+  heaters, illness, medicine, the body's clock, the Silverdale ground, the trading post,
+  the server address, the data-folder fallback, the sanitation guides: BUG-146, 152, 153,
+  154, 155, 156, 158, 159, 160, 162, 163, 164).
+- **Increment 5 (building only on your own plot) in progress:** Waves 0 and 1 and the proof
+  rig are merged on branch `inc5-integration` (worktree .claude/worktrees/inc5-int; 3,248
+  lib tests pass there); Wave 2A (the relay's handler) and 2B (the game's net and engine)
+  are building from it. Then: merge both, run `just verify-shared-build` (calibrate its
+  wood tint from the first run), a seam review, merge inc5-integration into main, the full
+  chain, release. Briefs and handoffs: the session scratchpad's wave*-*.md files, copied
+  into docs/design/ship-homes-increment-5-plan.md's references when it lands.
+- **Follow-ups found today (not started):** BUG-161 (the copresence rig's steady-speed
+  judges fail a starved machine); BUG-163 part 2 (refresh a stale data folder on update:
+  docs/design/data-folder-updates.md, waits on the operator below); no gasoline or diesel
+  item (Refined Fuel stands in for the generator's gasoline); the refinery's drum accepts
+  any liquid; campfire light (point lights in the celestial pass); heaters aboard only, and
+  data/hvac.ron's heat pump and wood stove have no machine; inside survey regions without
+  terrain tiles the ground draws at 54 m triangles while buildings stand on the finest
+  ground (BUG-156's note); far trees should re-ground on the patch drawn under them;
+  src/systems/fire.rs takes fire damage per frame in f32 (BUG-164's note); every drink
+  gives 30 points whatever its volume; nothing applies Bleeding or infections yet; a
+  second mess hall along First Street (fold into increment 6).
 - **A gap the Normal-mode default exposes (found 2026-10-05 by the Library sweep):** in
   Normal mode NOBODY CAN LEAVE THE SHIP. The Dev page's travel and Land buttons and F9 flight are
   the only ways off it, all Dev-only, and no vehicle or route goes down. So by default a
@@ -223,7 +227,12 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   down; a released plot's pieces come down with it; household permits end within 90 days,
   renewable, and the household page is a later increment 5b; `can_edit_ship` builds the
   ship's shared spaces through the server, whole-ship editing stays offline Dev, Admin has
-  it by default.
+  it by default. Also (2026-10-05): BUG-163 part 2, when an update changes a data file a
+  player edited: A keep the edit (recommended for now), B replace it and keep the edit
+  beside it, or C move the edit into a local mod; should crops' growth answer a room's
+  temperature (recommended: yes in Realistic, no in the simplified mode; 17 crops' ranges
+  exclude the rooms' 21 C, so heaters would matter); Antibiotics' trading-post price (base
+  5 since BUG-145; the home-made recipe is gone, so it could rise).
 - **FTL reopened (operator, 2026-10-05, a proposal):** FTL, with ships built to survive
   indefinitely if it is ever lost (docs/design/gravity-and-movement.md, the interstellar
   section). Recommended; awaiting his answer.
