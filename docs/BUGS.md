@@ -3778,6 +3778,7 @@ effect, by making `heat::heaters` find no heater, and by the mutation each test 
 (0.163 C), `an_unpowered_heater_warms_nothing_and_asks_for_its_power`,
 `the_thermostat_holds_its_setpoint`, `a_heater_outside_the_grow_rooms_warms_the_home_air_the_body_reads`,
 `a_grow_rooms_heat_reaches_the_home_air_and_none_is_lost`, `the_heat_step_keeps_every_joule`,
+`the_garden_panel_says_what_each_heater_is_doing`,
 `the_greenhouse_quests_heater_warms_a_grow_rooms_air` (the quest's words, the recipe's item,
 the catalog machine, spawned the way the engine spawns it),
 `engine::survival_env::tests::indoors_the_body_feels_the_air_of_the_room_it_stands_in`, and,

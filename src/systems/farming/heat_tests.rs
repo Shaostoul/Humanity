@@ -300,6 +300,61 @@ fn the_heat_step_keeps_every_joule() {
     assert!((one - many.warmed_k).abs() < 1e-9, "{one} against {}", many.warmed_k);
 }
 
+/// A well-watered `plant` on unit `slot` of `area`, at its first stage: the
+/// Garden panel only has a line for an area with a living crop.
+fn crop(data: &DataStore, plant: &str, area: &str, slot: u32) -> crate::ecs::components::CropInstance {
+    let stage = data.get::<PlantRegistry>("plant_registry").unwrap().get(plant).unwrap().first_stage().to_string();
+    crate::ecs::components::CropInstance {
+        crop_def_id: plant.to_string(),
+        growth_stage: stage,
+        planted_at: 0.0,
+        water_level: 1.0,
+        health: 100.0,
+        tower_id: Some(area.to_string()),
+        tower_slot: Some(slot),
+        health_seconds: 0.0,
+        growing_seconds: 0.0,
+    }
+}
+
+/// THE GARDEN PANEL SAYS WHAT EACH HEATER IS DOING. The heater holding the
+/// small room at 24 C: "heater on 25% of the time, 378 W, holding the air at
+/// 24 °C"; the same heater without power: "heater off (no power), the air at
+/// 21.0 °C" once the room has cooled back; and a heater in the home's own air,
+/// which cannot reach its setpoint there, on a line of the home's own: "Home
+/// air: heater flat out, 1,500 W, the air at 20.3 °C, short of the 24 °C it is
+/// set to". Red with `heater_part` left out of the room's line (no heater
+/// words at all).
+#[test]
+fn the_garden_panel_says_what_each_heater_is_doing() {
+    let data = one_room("room-a", 2.0, 2.0);
+    let mut world = hecs::World::new();
+    let e = heater(&mut world, [1.0, 0.5, 1.0], 1500.0, 24.0, true);
+    let mut sys = FarmingSystem::new();
+    run(&mut sys, &mut world, &data, 30, 5.0);
+    world.spawn((crop(&data, "lettuce", "bed_a", 0),));
+    let line = |world: &hecs::World| humidity::GuiView::new(world, &data).areas.iter().find(|(a, _, _)| a == "bed_a").map(|l| l.1.clone()).unwrap();
+    let held = line(&world);
+    assert!(held.contains("heater on 25% of the time, 378 W, holding the air at 24 °C"), "{held}");
+    world.get::<&mut PowerConsumer>(e).unwrap().enabled = false;
+    run(&mut sys, &mut world, &data, 30, 5.0);
+    let off = line(&world);
+    assert!(off.contains("heater off (no power), the air at 21.0 °C"), "{off}");
+
+    let home_data = store(Vec::new(), Vec::new());
+    let mut home_world = hecs::World::new();
+    home_world.spawn((HomeAir { metabolic_kcal_per_day: 0.0, ..Default::default() }, EnclosedSpace::new_sealed(1000.0)));
+    heater(&mut home_world, [50.0, 0.5, 50.0], 1500.0, 24.0, true);
+    let mut home_sys = FarmingSystem::new();
+    run(&mut home_sys, &mut home_world, &home_data, 30, 5.0);
+    let view = humidity::GuiView::new(&home_world, &home_data);
+    assert!(
+        view.home.iter().any(|(l, _)| l == "Home air: heater flat out, 1,500 W, the air at 20.3 °C, short of the 24 °C it is set to"),
+        "{:?}",
+        view.home
+    );
+}
+
 /// THE QUEST'S PROMISE IS WHAT THE HEATER DOES (BUG-155). The Greenhouse
 /// Construction quest asks for the Build Heater recipe; the recipe makes a
 /// `heater_0`; that item is what places the catalog's `heater` machine in both
