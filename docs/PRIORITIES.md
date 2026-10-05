@@ -171,6 +171,37 @@ night-to-sunrise shot from Silverdale toward Mount Rainier. Earlier: the start
 tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 (2026-10-04: being built), the old plain backups deleted (2026-10-02).
 
+### THE FIRST HOUR: a basic starting loop with stakes (audit 2026-10-04)
+
+The operator asked how the basic starting gameplay loop is going. A read-only
+trace of a new player's first hour with stakes on (Normal play mode, progress
+kept) is `docs/design/first-hour-audit-2026-10-04.md`: the mechanics mostly
+exist, but out of the box there are no stakes, nothing teaches the game, and
+several things break. Ranked:
+
+- **Blockers (fix first):** B2 a player who typed a name is joined to the live
+  shared world without being asked (72x clock: thirsty in about 20 minutes, no
+  sleep; the ship has only two plots, so the third identity ever is a guest who
+  cannot build); B3 Quit from the hub or the updater skips the save; B4 the Solo
+  home has no smelter, so the first quest cannot finish; B5 quests that can
+  never finish (Travel steps read a position walking never moves; ore_sample_0
+  and rare_ore_0 come only from creatures never spawned); B1 the default "fresh
+  home" setting wipes progress every launch (a default, see the decision below).
+- **Friction:** F1 nothing teaches I, E, F1 or Alt; F2 the vendor, privacy and
+  machine-card windows need Alt held and nothing says so; F3 the quest text
+  points at a Dev-only button, completions are silent, the HUD goes blank after
+  Toolsmith; F4 machines eat the backpack (BUG-150, being fixed); F5 the
+  bedroom's bed says "sleep here" but cannot be slept in; F7 nothing planted
+  ripens in a session; F8 food poisoning can kill with no cure and no word.
+- **Missing stakes:** S1 quitting heals and refills (vitals never saved); S2
+  death costs nothing; S4 the free showcase garden replants itself in every
+  mode; S6 stored food never spoils; S7 animals have no needs; S8 the medical
+  system is never registered.
+- **Operator decisions this needs:** when the pre-launch defaults flip (Play
+  mode Dev to Normal, the fresh-home setting off) and how the rigs pin Dev;
+  what death should cost; the shape of the scripted first ten minutes; more
+  plots on the ship before a third player can have a home.
+
 ### IN FLIGHT AT THE USAGE CAP (2026-09-27 evening): resume from these branches
 
 Weekly usage reached 89%, so every agent was told to commit (WIP if not
