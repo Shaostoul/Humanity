@@ -230,7 +230,11 @@ pub fn ray_crosses_walls(eye: Vec3, dir: Vec3, t: f32, walls: &[WallSegment]) ->
 }
 
 /// Give every finished structure that has no uid (0) the next free one.
-/// Uids already given, including ones restored from a save, are kept.
+/// Uids already given, including ones restored from a save, are kept. A piece
+/// the server keeps (`shared::SharedPiece`, ship homes increment 5,
+/// 2026-10-05) stays at 0: `built:{uid}` is the player's own namespace (a
+/// chest's contents are filed under it, the save keeps it), and that piece is
+/// neither the player's own nor saved.
 pub fn assign_uids(world: &mut hecs::World) {
     let mut next = world
         .query::<&Structure>()
@@ -238,7 +242,7 @@ pub fn assign_uids(world: &mut hecs::World) {
         .map(|(_e, s)| s.uid)
         .max()
         .unwrap_or(0);
-    for (_e, s) in world.query_mut::<&mut Structure>() {
+    for (_e, s) in world.query_mut::<hecs::Without<&mut Structure, &super::shared::SharedPiece>>() {
         if s.uid == 0 {
             next += 1;
             s.uid = next;
@@ -616,6 +620,32 @@ mod tests {
         assert!(ua > 5 && uc > 5 && ua != uc, "new uids are fresh: {ua} {uc}");
         assign_uids(&mut world);
         assert_eq!((uid(&world, a), uid(&world, b), uid(&world, c)), (ua, ub, uc), "assigning again changes nothing");
+    }
+
+    /// A PIECE THE SERVER KEEPS HAS NO UID (ship homes increment 5,
+    /// 2026-10-05). `built:{uid}` is the player's own namespace (a chest's
+    /// contents are filed under it, and the save keeps it), and a piece the
+    /// server keeps (`shared::SharedPiece`) is neither the player's own nor
+    /// saved. So `assign_uids` leaves a finished shared wall at 0, the
+    /// player's own pieces get theirs as before (a restored 5 is kept, a new
+    /// chest gets 6), and the shared wall does not move the count.
+    /// Seen red 2026-10-05 on the code before: "a piece the server keeps gets
+    /// no uid: left: 7, right: 0".
+    #[test]
+    fn assign_uids_leaves_shared_pieces_at_zero() {
+        use crate::systems::construction::shared::SharedPiece;
+        let reg = shipped();
+        let mut world = hecs::World::new();
+        let bed = world.spawn(built(&reg, "bed", Vec3::Z, 5));
+        let (t, s) = built(&reg, "wood_wall", Vec3::X, 0);
+        let kept = world.spawn((t, s, SharedPiece { piece_id: 42, frame: "plot:p2".into(), mine: true }));
+        let chest = world.spawn(built(&reg, "storage_chest", Vec3::ZERO, 0));
+        assign_uids(&mut world);
+        let uid = |w: &hecs::World, e| w.get::<&Structure>(e).unwrap().uid;
+        assert_eq!(uid(&world, kept), 0, "a piece the server keeps gets no uid");
+        assert_eq!((uid(&world, bed), uid(&world, chest)), (5, 6), "the player's own pieces are numbered as before");
+        assign_uids(&mut world);
+        assert_eq!((uid(&world, bed), uid(&world, kept), uid(&world, chest)), (5, 0, 6), "assigning again changes nothing");
     }
 
     /// Built stores are addressed by uid, in uid order, and two of the same

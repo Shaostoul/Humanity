@@ -2331,7 +2331,12 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
          that capability for everyone regardless of role, your abuse / \
          emergency panic switch. Built-in roles can't be deleted and \
          their id / trust are locked, but every capability and numeric \
-         limit (chars / upload MB / uploads kept) is editable per-role.",
+         limit (chars / upload MB / uploads kept) is editable per-role. \
+         Edit ship lets a role build in the ship's shared spaces (the \
+         Commons, First Street) in the shared world; everyone builds on \
+         their own plot without it. It has no server-wide switch. The \
+         built-in Admin role starts with it, and the server's owner \
+         always has it.",
     );
     ui.add_space(theme.spacing_sm);
 
@@ -2354,7 +2359,7 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // "stairstepped". A fixed-column Grid aligns every cell by
     // construction. 2026-05-16.
     egui::Grid::new("server_roles")
-        .num_columns(12)
+        .num_columns(13)
         .spacing([theme.spacing_xl, theme.spacing_md])
         .striped(true)
         .show(ui, |ui| {
@@ -2373,6 +2378,7 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             hdr(ui, "Voice");
             hdr(ui, "Image");
             hdr(ui, "File");
+            hdr(ui, "Edit ship");
             hdr(ui, "Max chars");
             hdr(ui, "Max upMB");
             hdr(ui, "Up kept");
@@ -2395,24 +2401,27 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             // seeded it earlier this frame); the row's own Save sends the
             // same `server_settings_update` payload the Server-policy Save
             // uses. `Upload` has no server-wide master (legacy general
-            // can_upload is per-role only) so that cell is a dash.
+            // can_upload is per-role only) so that cell is a dash, and
+            // so is `Edit ship` (ship homes increment 5: per-role only).
             // Until the server's settings arrive the row shows dashes and no Save (gui/
             // connections.rs `page_draft`): toggles edited over defaults would save them.
+            // A dash is "-": the v0.364 em-dash sweep had turned the old one into ", ",
+            // which drew a stray comma in every empty cell.
             let known = state.server_settings.clone().zip(crate::gui::connections::page_draft(
                 state.server_settings_draft.as_ref(),
                 state.server_settings.as_ref(),
             ));
             if known.is_none() {
                 ui.label(RichText::new("Server master").size(theme.font_size_body).color(theme.accent()).strong());
-                for _ in 0..11 {
-                    ui.label(RichText::new(", ").size(theme.font_size_small).color(theme.text_muted()));
+                for _ in 0..12 {
+                    ui.label(RichText::new("-").size(theme.font_size_small).color(theme.text_muted()));
                 }
                 ui.end_row();
             }
             if let Some((ss_cached, mut ss_draft)) = known {
                 let dash = |ui: &mut egui::Ui| {
                     ui.label(
-                        RichText::new(", ")
+                        RichText::new("-")
                             .size(theme.font_size_small)
                             .color(theme.text_muted()),
                     );
@@ -2432,11 +2441,13 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.checkbox(&mut ss_draft.voice_channels_enabled, "");
                 ui.checkbox(&mut ss_draft.image_sharing_enabled, "");
                 ui.checkbox(&mut ss_draft.file_sharing_enabled, "");
-                // Cols 8-10 — master has no numeric limits.
+                // Col 8 — Edit ship has no server-wide switch.
+                dash(ui);
+                // Cols 9-11 — master has no numeric limits.
                 dash(ui);
                 dash(ui);
                 dash(ui);
-                // Col 11 — Save (only when the toggles differ from the
+                // Col 12 — Save (only when the toggles differ from the
                 // live server state, to avoid a no-op broadcast).
                 let ss_dirty = ss_draft != ss_cached;
                 ui.add_enabled_ui(ss_dirty, |ui| {
@@ -2444,7 +2455,7 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         pending_master_save = Some(ss_draft.clone());
                     }
                 });
-                // Col 12 — cannot delete the master.
+                // Col 13 — cannot delete the master.
                 dash(ui);
                 ui.end_row();
                 // Persist edits so next frame — and the Server-policy
@@ -2493,18 +2504,21 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.checkbox(&mut draft.can_voice, "");
                 ui.checkbox(&mut draft.can_image_share, "");
                 ui.checkbox(&mut draft.can_file_share, "");
-                // Cols 8-10 — per-role numeric limits (R4: owned by the
+                // Col 8 — Edit ship: the ship-editing rank (ship homes
+                // increment 5), building in the ship's shared spaces.
+                ui.checkbox(&mut draft.can_edit_ship, "");
+                // Cols 9-11 — per-role numeric limits (R4: owned by the
                 // role, editable on EVERY role incl. built-ins; the old
                 // base_tier column is gone — it's now just a prefill
                 // convenience in the add-role form).
                 int_input(ui, &mut draft.max_chars, 1, 1_000_000);
                 int_input(ui, &mut draft.max_upload_mb, 1, 10_000);
                 int_input(ui, &mut draft.max_uploads_kept, 1, 1_000);
-                // Col 11 — Save.
+                // Col 12 — Save.
                 if widgets::Button::primary("Save").show(ui, theme) {
                     pending_save = Some(draft.clone());
                 }
-                // Col 8 — Delete (custom only; built-ins emit a placeholder
+                // Col 13 — Delete (custom only; built-ins emit a placeholder
                 // so the striped rows stay rectangular).
                 if !is_built_in {
                     if widgets::Button::danger("Delete").show(ui, theme) {
@@ -2537,6 +2551,7 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             ui.checkbox(&mut nr.can_voice, "voice");
             ui.checkbox(&mut nr.can_image_share, "image");
             ui.checkbox(&mut nr.can_file_share, "file");
+            ui.checkbox(&mut nr.can_edit_ship, "edit ship");
             // Per-role numeric limits (R4) — directly editable.
             ui.label(RichText::new("chars").size(theme.font_size_small).color(theme.text_muted()));
             int_input(ui, &mut nr.max_chars, 1, 1_000_000);
@@ -3287,5 +3302,77 @@ fn short_key(key: &str) -> String {
         key.to_string()
     } else {
         format!("{}…{}", &key[..8], &key[key.len() - 4..])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gui::screen_surface::find_text_in_shapes;
+    use crate::relay::storage::RoleDef;
+
+    /// One headless frame of the Roles editor in a plain panel wide enough for all thirteen
+    /// columns, with `events`.
+    fn frame(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, events: Vec<egui::Event>) -> egui::FullOutput {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(2400.0, 900.0))),
+            events,
+            ..Default::default()
+        };
+        ctx.run(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| draw_roles_admin(ui, theme, state));
+        })
+    }
+
+    /// Click at `pos` the way a person does (move, press, release: egui's three frames).
+    fn click_at(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, pos: egui::Pos2) {
+        let m = egui::Modifiers::default();
+        frame(ctx, theme, state, vec![egui::Event::PointerMoved(pos)]);
+        frame(ctx, theme, state, vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: m }]);
+        frame(ctx, theme, state, vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: m }]);
+    }
+
+    /// THE SHIP-EDITING RANK IS IN THE ROLES GRID (ship homes increment 5): the grid draws an
+    /// "Edit ship" column, and ticking a role's box in it, the way an admin does, gives that role
+    /// the rank in the draft its Save sends (`role_upsert`), and ticking it again takes it away.
+    /// The "Add a custom role" form has the box too. The box has no label of its own, like every
+    /// capability box in the grid, so it is found under its column's header, in its role's row
+    /// (egui's grid puts every cell at the left of its column, centred in its row).
+    ///
+    /// Seen red 2026-10-05 with the row's checkbox left out (the header drawn): "ticking the box
+    /// gives the role the rank in its draft / left: Some(false) / right: Some(true)".
+    #[test]
+    fn the_roles_grid_has_an_edit_ship_column_whose_box_changes_the_role() {
+        let ctx = egui::Context::default();
+        crate::gui::fonts::install_font_fallbacks(&ctx);
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        let mut state = GuiState::default();
+        state.chat_roles = vec![RoleDef {
+            id: "verified".into(),
+            label: "Verified".into(),
+            color: "#4FC3F7".into(),
+            trust_level: 1,
+            built_in: true,
+            ..Default::default()
+        }];
+        // Two frames: the grid sizes its columns from the frame before.
+        frame(&ctx, &theme, &mut state, Vec::new());
+        let out = frame(&ctx, &theme, &mut state, Vec::new());
+        let column = find_text_in_shapes(&out.shapes, "Edit ship").expect("the Edit ship column is drawn").rect;
+        let row = find_text_in_shapes(&out.shapes, "Verified").expect("the role's row is drawn").rect;
+        let the_box = egui::pos2(column.left() + 7.0, row.center().y);
+
+        click_at(&ctx, &theme, &mut state, the_box);
+        let ticked = state.roles_drafts.get("verified").map(|d| d.can_edit_ship);
+        assert_eq!(ticked, Some(true), "ticking the box gives the role the rank in its draft");
+        click_at(&ctx, &theme, &mut state, the_box);
+        let ticked = state.roles_drafts.get("verified").map(|d| d.can_edit_ship);
+        assert_eq!(ticked, Some(false), "ticking it again takes the rank away");
+
+        let out = frame(&ctx, &theme, &mut state, Vec::new());
+        let add = find_text_in_shapes(&out.shapes, "edit ship").expect("the add-a-role form has the box").rect.center();
+        click_at(&ctx, &theme, &mut state, add);
+        assert!(state.new_role_draft.can_edit_ship, "ticking it in the add-a-role form gives the new role the rank");
     }
 }

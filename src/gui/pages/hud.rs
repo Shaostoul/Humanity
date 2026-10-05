@@ -264,10 +264,11 @@ pub fn draw(
             // Screenshot honesty: any non-Normal mode is labeled, ALWAYS --
             // including (especially) in a shared world, where other players'
             // screenshots must be able to tell a creative build from survival
-            // play. Dev tools currently keep working while copresence_active
-            // (the relay is the authority on shared state anyway); per-player
-            // SERVER-ENFORCED permissions are the documented follow-up once
-            // real players exist -- until then this tag is the honesty layer.
+            // play. In a shared world the Dev mode no longer edits the ship's
+            // structure or builds outside its own plot (config::ship_editing_for,
+            // ship homes increment 5) and its travel steps out of the world; the
+            // free materials and local dev tools it keeps there are what this
+            // tag owns up to.
             if state.settings.play_mode != crate::config::PlayMode::Normal {
                 let tag = match state.settings.play_mode {
                     crate::config::PlayMode::Dev => "DEV",

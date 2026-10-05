@@ -446,6 +446,7 @@ impl RelayState {
             game_world.time_scale = s.world_time_scale;
             game_world.fleet_supply = super::handlers::ship_stores::FleetSupply::from_setting(&s.fleet_supply_mode);
         }
+        super::handlers::shared_build::load_pieces(&mut game_world, &db); // the pieces built in its shared world (increment 5)
         Self {
             peers: RwLock::new(HashMap::new()),
             live_conns: RwLock::new(Default::default()),
@@ -3608,6 +3609,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             // The fleet ledger (2026-10-04): your own ledger, gives and their corrections, power reports, admin totals.
                             Some(kind @ ("game_fleet_ledger_request" | "game_fleet_give" | "game_fleet_gives_request" | "game_fleet_give_adjust" | "game_fleet_power" | "game_fleet_totals_request")) => {
                                 super::handlers::fleet_ledger::handle(&state_clone, &my_key_for_recv, kind, &raw).await;
+                                continue;
+                            }
+                            // Building in the shared world (ship homes increment 5): pieces built, taken down, a frame's list asked for again.
+                            Some(kind @ ("game_build" | "game_unbuild" | "game_pieces_request")) => {
+                                super::handlers::shared_build::handle(&state_clone, &my_key_for_recv, kind, &raw).await;
                                 continue;
                             }
                             _ => {} // Fall through to normal RelayMessage handling

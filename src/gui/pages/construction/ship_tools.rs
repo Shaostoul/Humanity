@@ -19,14 +19,13 @@ pub(super) fn draw_ship_zone_selector(ui: &mut egui::Ui, theme: &Theme, state: &
     };
     state.construction_zone = state.construction_zone.min(n_zones.saturating_sub(1));
     // PLAY-MODE SCOPE (task #50): only the Dev play mode may touch the ship's
-    // superstructure. Outside Dev the editor is PINNED to the HOME zone -- no
-    // zone dropdown, no add/delete, no label/purpose/origin edits -- so the
-    // operator's multi-zone mothership is untouchable while every tool below
-    // (walls, openings, lights, machines) still works on your own homestead.
-    let ship_scope = state
-        .settings
-        .play_mode
-        .allows(crate::config::Capability::ShipStructureEditing);
+    // superstructure, and only offline (ship homes increment 5: in a shared world
+    // the ship is the server's, `config::ship_editing_for`). Otherwise the editor
+    // is PINNED to the HOME zone -- no zone dropdown, no add/delete, no
+    // label/purpose/origin edits -- so the multi-zone mothership is untouchable
+    // while every tool below (walls, openings, lights, machines) still works on
+    // your own homestead. The line under it says why (`pinned_zone_hint`).
+    let ship_scope = crate::config::ship_editing_for(state);
     // Owned display strings so the ship borrow ends before the mutations below.
     let zone_names: Vec<String> = state
         .ship_structure
@@ -58,12 +57,9 @@ pub(super) fn draw_ship_zone_selector(ui: &mut egui::Ui, theme: &Theme, state: &
             );
         });
         ui.label(
-            RichText::new(
-                "Editing is scoped to your homestead. The Dev play mode \
-                 (Settings > Gameplay) unlocks whole-ship editing.",
-            )
-            .size(theme.font_size_small)
-            .color(theme.text_muted()),
+            RichText::new(pinned_zone_hint(state.settings.play_mode, state.copresence_active))
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
         );
     } else {
     ui.horizontal(|ui| {
@@ -195,6 +191,22 @@ pub(super) fn draw_ship_zone_selector(ui: &mut egui::Ui, theme: &Theme, state: &
     ui.add_space(theme.spacing_xs);
 }
 
+/// Why the zone selector is pinned to the home, in the line under it. In a shared world even the
+/// Dev mode is (ship homes increment 5, 2026-10-05, `config::ship_editing_allowed`), because the
+/// ship is the server's: the line says so and where whole-ship editing still works. Otherwise only
+/// the Dev mode unlocks the whole ship, offline.
+fn pinned_zone_hint(mode: crate::config::PlayMode, in_shared_world: bool) -> &'static str {
+    if in_shared_world && crate::config::ship_editing_allowed(mode, false) {
+        "In a shared world the ship belongs to the server, so even the Dev mode edits only your \
+         homestead here: a ship changed here would no longer match the server's, and the server \
+         turns away a game whose ship is not its own. Whole-ship editing works offline \
+         (Characters > Your Homes)."
+    } else {
+        "Editing is scoped to your homestead. The Dev play mode (Settings > Gameplay) unlocks \
+         whole-ship editing while you play offline."
+    }
+}
+
 /// CORRIDORS section (ship-superstructure increment B), directly under the zone selector: lists the
 /// ship's corridors (each with a delete X and, when broken, the honest reason it cannot generate)
 /// and an "Add corridor" flow -- pick zone A and zone B, drag the world `lat` centreline (or hit
@@ -207,15 +219,12 @@ pub(super) fn draw_ship_zone_selector(ui: &mut egui::Ui, theme: &Theme, state: &
 pub(super) fn draw_corridor_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     use crate::ship::ship_structure::ShipCorridor;
     // PLAY-MODE SCOPE (task #50): corridors are whole-ship superstructure --
-    // outside the Dev play mode they are read-only world geometry, not
-    // editable rows. The section vanishes entirely (rather than disabling
-    // piecemeal) so the homestead editor stays uncluttered for players; the
-    // zone selector above already explains how to unlock whole-ship editing.
-    if !state
-        .settings
-        .play_mode
-        .allows(crate::config::Capability::ShipStructureEditing)
-    {
+    // outside the Dev play mode, and in a shared world even in it
+    // (`config::ship_editing_for`, ship homes increment 5), they are read-only
+    // world geometry, not editable rows. The section vanishes entirely (rather
+    // than disabling piecemeal) so the homestead editor stays uncluttered for
+    // players; the zone selector above already says why.
+    if !crate::config::ship_editing_for(state) {
         return;
     }
     let Some(ship) = state.ship_structure.as_ref() else {
@@ -426,8 +435,9 @@ pub(super) fn draw_corridor_section(ui: &mut egui::Ui, theme: &Theme, state: &mu
     ui.add_space(theme.spacing_xs);
 }
 
-/// PLOTS and DISTRICTS (increment 1a of docs/design/ship-homes-and-logistics.md, Dev mode
-/// only): the ship-file records that have no zone of their own, so the zone tools cannot reach
+/// PLOTS and DISTRICTS (increment 1a of docs/design/ship-homes-and-logistics.md, Dev mode only,
+/// and offline only since increment 5: `config::ship_editing_for`): the ship-file records that
+/// have no zone of their own, so the zone tools cannot reach
 /// them. Plots: move one (its door and, for your own plot, your home with its corridor,
 /// machines and spawn move with it: `ShipStructure::move_plot`), resize it, point its door at
 /// another shared zone and size its corridor, pick the plot offline play uses, add one beyond another, remove one
@@ -437,7 +447,7 @@ pub(super) fn draw_corridor_section(ui: &mut egui::Ui, theme: &Theme, state: &mu
 /// data/blueprints/ship_structure.ron. Deferred actions, so no ship borrow is held across the
 /// egui closures.
 pub(super) fn draw_plots_and_districts(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    if !state.settings.play_mode.allows(crate::config::Capability::ShipStructureEditing) {
+    if !crate::config::ship_editing_for(state) {
         return;
     }
     let Some(ship) = state.ship_structure.as_ref() else { return };
@@ -754,5 +764,79 @@ mod tests {
         click(&ctx, &theme, &mut state, "Districts (13)");
         let out = frame(&ctx, &theme, &mut state, Vec::new());
         assert!(find_text_in_shapes(&out.shapes, "res-1").is_some(), "the districts are listed");
+    }
+
+    /// One headless frame of the zone selector in a plain panel.
+    fn selector_frame(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) -> egui::FullOutput {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(900.0, 600.0))),
+            ..Default::default()
+        };
+        ctx.run(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| draw_ship_zone_selector(ui, theme, state));
+        })
+    }
+
+    /// IN A SHARED WORLD THE ZONE SELECTOR IS PINNED TO THE HOME, EVEN IN DEV, AND SAYS WHY (ship
+    /// homes increment 5, 2026-10-05). Offline the Dev mode gets the whole-ship tools: the zone
+    /// combo and "Add zone" are drawn, and it may pick the Commons. Joined to a shared world
+    /// (`copresence_active`) the same Dev session gets neither, the editor goes back to the home,
+    /// and the line under it says the ship is the server's and where whole-ship editing still
+    /// works (offline, Characters > Your Homes). A Normal player there still reads how the Dev
+    /// mode unlocks it.
+    ///
+    /// Seen red 2026-10-05 on the selector as it was (its scope asking the play mode alone): "in
+    /// a shared world the Dev mode was given the whole-ship zone tools".
+    #[test]
+    fn the_zone_selector_is_pinned_in_a_shared_world_and_says_why() {
+        let ctx = egui::Context::default();
+        crate::gui::fonts::install_font_fallbacks(&ctx);
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let mut state = GuiState::default();
+        state.ship_structure = Some(crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, None).expect("assembles"));
+        let ship = state.ship_structure.as_ref().unwrap();
+        let home = ship.home_zone_index();
+        let commons = ship.zones.iter().position(|z| z.id == "commons").expect("the Commons");
+        state.settings.play_mode = crate::config::PlayMode::Dev;
+
+        let out = selector_frame(&ctx, &theme, &mut state);
+        assert!(find_text_in_shapes(&out.shapes, "Add zone").is_some(), "offline, the Dev mode has the whole-ship zone tools");
+        state.construction_zone = commons; // picked offline, from the combo
+
+        state.copresence_active = true;
+        let out = selector_frame(&ctx, &theme, &mut state);
+        assert!(find_text_in_shapes(&out.shapes, "Add zone").is_none(), "in a shared world the Dev mode was given the whole-ship zone tools");
+        assert_eq!(state.construction_zone, home, "in a shared world the editor goes back to the home");
+        assert!(find_text_in_shapes(&out.shapes, "the ship belongs to the server").is_some(), "the line under it says why");
+        assert!(find_text_in_shapes(&out.shapes, "Characters > Your Homes").is_some(), "and where whole-ship editing still works");
+
+        state.settings.play_mode = crate::config::PlayMode::Normal;
+        let out = selector_frame(&ctx, &theme, &mut state);
+        assert!(find_text_in_shapes(&out.shapes, "The Dev play mode").is_some(), "a Normal player reads how the Dev mode unlocks it");
+    }
+
+    /// THE SHIP'S OWN MACHINES ARE READ-ONLY IN A SHARED WORLD, EVEN IN DEV (ship homes increment
+    /// 5, 2026-10-05): the build editor's lock on them (construction.rs `sync_ship_machine_lock`)
+    /// follows `config::ship_editing_for`, as the zone tools above do. Offline the Dev mode edits
+    /// the Commons' fish tank; joined, it is locked, and a selection made offline is let go.
+    ///
+    /// Seen red 2026-10-05 with the lock still asking the play mode alone: "in a shared world the
+    /// Dev mode was let edit the ship's machines".
+    #[test]
+    fn the_ships_machines_are_read_only_in_a_shared_world_even_in_dev() {
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let mut state = GuiState::default();
+        state.settings.play_mode = crate::config::PlayMode::Dev;
+        state.home_machines = crate::machines::MachineHome::load(&data.join("machines").join("home.ron"));
+        let locked = |s: &GuiState| s.home_machines.as_ref().expect("the machines load").is_locked("aqua_c1");
+        super::super::sync_ship_machine_lock(&mut state);
+        assert!(!locked(&state), "offline, the Dev mode edits the Commons' fish tank");
+        state.construction_machine_selected = Some("aqua_c1".into());
+        state.copresence_active = true;
+        super::super::sync_ship_machine_lock(&mut state);
+        assert!(locked(&state), "in a shared world the Dev mode was let edit the ship's machines");
+        assert_eq!(state.construction_machine_selected, None, "a ship machine picked offline is let go");
     }
 }

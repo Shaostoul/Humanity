@@ -286,9 +286,32 @@ pub(crate) fn ghost(state: &EngineState, blueprint_id: &str, quarter_turns: u8) 
         }
         (at, Some(site))
     };
-    let pose = placement::placement_pose(bp, at, quarter_turns, world, reg, site.as_ref());
+    let pose = if site.is_none() {
+        aboard_pose(state, bp, at, quarter_turns)
+    } else {
+        placement::placement_pose(bp, at, quarter_turns, world, reg, site.as_ref())
+    };
     let occupied = placement::occupied(world, &pose, site.as_ref());
     Ok(Ghost { above_floor: pose.position.y - at.y, pose, site, occupied })
+}
+
+/// Where `bp` is built aboard when aimed at the floor point `at` (ship metres) with
+/// `quarter_turns` turns: the placement's pose (`placement::placement_pose`), except for a piece
+/// that will be kept by the server (ship homes increment 5, `shared_build::will_be_shared`), which
+/// rests on and levels to only pieces the server keeps (`placement::shared_pieces`). Everyone near
+/// sees a shared piece, and never this player's own foundation under it, so on a private one it
+/// would hang in the air for them. Which it is depends only on x and z (the frame the piece stands
+/// in, and the whole footprint inside it), which resting does not move, so the plain pose decides.
+pub(crate) fn aboard_pose(state: &EngineState, bp: &crate::systems::construction::Blueprint, at: Vec3, quarter_turns: u8) -> Transform {
+    let world = &state.game_world.world;
+    let Some(reg) = state.data_store.get::<BlueprintRegistry>("blueprint_registry") else {
+        return placement::placement_pose(bp, at, quarter_turns, world, &BlueprintRegistry::new(), None);
+    };
+    let pose = placement::placement_pose(bp, at, quarter_turns, world, reg, None);
+    if crate::engine::shared_build::will_be_shared(&state.gui_state, &state.data_store, state.shared_build.ranks, bp, &pose) {
+        return placement::placement_pose_where(bp, at, quarter_turns, world, reg, None, placement::shared_pieces);
+    }
+    pose
 }
 
 /// The player in one frame: where the shelter test and the look ray run.
