@@ -1613,7 +1613,11 @@ Restore and "Snapshot now" (v0.1442.0, BUG-129).
   real ore (`mining::advance_away`); each animal's egg, milk or wool timer
   moves on to one yield waiting (`livestock::timers_after_away`). Nothing
   dies or is used up without the player's say. A character select now
-  restores the Barn with the save (`save_load::after_resume`).
+  restores the Barn with the save (`save_load::after_resume`). The power the
+  time away charges a space heater is what its thermostat was running it at
+  when the game was saved (2026-10-05, `WorldSave.heater_draw_w`), not the
+  Usage meter's full draw: about 182 W in a fruiting tent, 1,500 W where it
+  never reaches 24 C.
 
 ### Data-Driven Tools (v0.90.7)
 tools.rs loads tool catalog from external JSON instead of hardcoded data.
@@ -2794,8 +2798,10 @@ infrastructure"). Directly below the closed-loop summary, a visually distinct ou
 five loops no single homestead can close: electronics/semiconductors, metal from raw ore,
 medicine synthesis, equipment replacement, and raw chemistry inputs. Each is an expandable row:
 collapsed shows title + a "traded" tag; expanded gives a plain-language body naming the game
-recipe that abstracts the gap away (manufacture_cpu, smelt_steel, craft_antibiotics, ...) plus
-a "provided by" trade line. Intro + footer carry the non-defeatist framing: these gaps ARE why
+recipe that abstracts the gap away (manufacture_cpu, smelt_steel, ...) plus a "provided by"
+trade line. Medicine names the opposite: since 2026-10-05 no recipe makes antibiotics (the
+old craft_antibiotics cultured them from water, flour and sugar), and the trading post sells
+them. Intro + footer carry the non-defeatist framing: these gaps ARE why
 civilization exists. Data-driven (infinite-of-X): categories live in the RON, not code.
 - Native: `src/gui/pages/homes.rs` (`CannotCloseEntry`, `CannotCloseData`, `load_cannot_close`, the panel in `draw_design`)
 - Data: `data/self_sufficiency/cannot_close.ron` (distilled from `docs/design/homestead-solo-design.md` section 8)

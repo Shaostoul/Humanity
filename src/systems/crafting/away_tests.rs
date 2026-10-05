@@ -281,7 +281,7 @@ fn the_shipped_homes_have_no_power_to_spare_while_away() {
     for file in ["home.ron", "home_solo.ron"] {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join(file);
         let home = crate::machines::MachineHome::load(&path).expect("parses");
-        let [station, realistic] = away::day_power_balance(&home);
+        let [station, realistic] = away::day_power_balance(&home, &Default::default());
         assert!(
             station < 0.0 && realistic < station,
             "{file}: {station} W, {realistic} W; if a home now makes power to spare, update docs/design/offline-progression.md (Power)"

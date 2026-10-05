@@ -3495,6 +3495,65 @@ Counted at nothing, three recipes would come out ahead at standard grade
 play depends on what refilling the tanks costs, which is modelled as a
 closed loop (`systems::life_support`), and was not looked into here.
 
+**Review fixes (2026-10-05, the second seam review of the day's merges): it
+is a loop, and the walk now sees it.** Refilling the tanks costs the player's
+credits nothing. The tanks are filled by the home's own well pump (2 L a
+minute on 10 W), its rain catchment and its air handlers' condensate
+(`data/machines/home.ron`); the power that runs them comes from the home's
+panels or, past those, the ship's reactor, which the fleet ledger meters as
+worth on its own balance (`data/ship/fleet_ledger.ron`, 1.5 CR a kWh, about
+0.0001 CR for the 0.08 Wh the pump spends on a litre), never against the
+player's credits, and the ledger lists no water at all. A hand craft at home
+and an automated machine both draw tap water from the tanks when the
+backpack has none (`crafting::plan_inputs`, `fluids::draw_from_tanks`). So
+the walk now prices it that way: the `tap` items of
+`data/containers/fluids.ron` start at nothing (`parts::tap_water`,
+`parts::cheapest_costs`), in the game's parts prices
+(`TradeGoodsRegistry::with_parts_prices`, which reads the same file the
+crafts do, disk first) and in both loop checks. Priced so, on the recipes as
+they stood, `no_grade_sells_back_for_more_than_its_parts_cost` found 19
+(recipe, grade) loops and BUG-145's `no_recipe_resells_for_more_than_its_inputs_cost`
+three recipes: `cook_honey` (a litre of tap water into a jar of honey that
+sells for 2, made from nothing), `craft_antibiotics` (flour and sugar, 6.67
+at the cheapest, and three litres into five antibiotics that sell for 10)
+and `craft_healing_potion` (through honey made from water: 6 of seeds into a
+medkit that sells for 7). Both checks now pass with tap water free; each
+names the red run in its doc comment. A third,
+`parts::tests::the_games_parts_prices_count_tap_water_as_a_craft_gets_it`,
+holds the game's own parts prices (the registry `engine::registries` builds)
+to the walk with tap water free, because the loop check prices its own walk:
+with the tap items left out of `with_parts_prices` the loop check stayed
+green, and this one was red ("bandage_0: the game's parts price is not the
+walk's with tap water free (left: Some(0.4), right: Some(0.25))").
+
+The two recipes are now real rather than repriced:
+- **Honey comes out of honeycomb.** `cook_honey` is now "Crush and Strain
+  Honey": one `honeycomb_0` (new: the capped comb of one deep Langstroth
+  frame, 3.05 kg, "Each deep frame can hold 6 pounds of extractable honey",
+  Howland Blackiston, with about 327 g of wax, Jamie Ellis's 0.37 g a square
+  centimetre of comb, American Bee Journal, July 2025) gives five 0.5 kg jars
+  of honey and one block of beeswax, by hand with a utility knife to cut the
+  comb out (Keeping Backyard Bees' crush-and-strain list: a long serrated
+  knife, a potato masher, two buckets, a strainer; the game has none of the
+  last three to name). Beeswax joins the byproduct lint, which holds the
+  recipe to its mass (2.8 kg out of 3.05 in). No hive in the game fills
+  frames yet, so the trading post sells honeycomb at the honey and wax it
+  holds (base 29: it sells for 37, and what it makes sells back for 12).
+- **No recipe makes antibiotics.** `craft_antibiotics` (Culture
+  Antibiotics) is gone: nothing cultured at a chemistry set from flour and
+  sugar is an antibiotic, which an industry makes and a prescription gives.
+  The trading post sells them, and `craft_medkit_full` packs bought ones. The
+  Home page's "What one home cannot close" medicine entry
+  (`data/self_sufficiency/cannot_close.ron`) and the Library's Preventing and
+  Spotting Infection now say so. Their base value stays 5, which BUG-145 cut
+  from 20 only to stop this recipe looping; with no recipe it could rise
+  again, a pricing call left open.
+`craft_healing_potion` no longer loops once honey costs what it does (13 of
+inputs against 7), though it is still not a real recipe (wheat seeds, honey
+and water into a medkit); it is left for a pass over the medicine recipes,
+with `craft_painkillers` (water, coal and salt into ten painkillers) and
+`craft_stim_pack`, neither of which loops.
+
 ## BUG-147: the big vehicles cannot be hand-crafted from the backpack (FIXED v0.1457.0, found 2026-10-04)
 
 **Seen:** after the vehicle bills of materials (BUG-145) became realistic. A
@@ -3929,6 +3988,53 @@ is not modelled; the thermostat is set in data, not from a dial in the game
 a planet (BUG-153's campfire is the planet side); and `data/hvac.ron`'s other heat makers
 (heat pump, wood stove) have no machine yet. The never-registered `HvacSystem`
 (`src/systems/hvac.rs`), superseded by this, was deleted the same day.
+
+**Review fixes (2026-10-05, the second seam review of the day's merges):**
+- *The time away charged a placed heater its full 1,500 W every hour.* While the player
+  is away the power ledger charges the home's machines the Usage meter's day averages
+  (`crafting::away::day_power_balance`), and the meter cannot see the air a heater stands
+  in, so it charged every heater its full draw: 36 kWh a day, even in a fruiting tent,
+  where its thermostat runs it about an eighth of the time. A static `average_watts` like
+  the other controller-driven machines' would be right in one kind of place only (the
+  heater runs flat out in every grow room and in the home's own air, an eighth of the time
+  in a tent), so the heater is metered by its thermostat instead: the save keeps what each
+  heater was drawing, its watts for the share of the time its thermostat ran it
+  (`WorldSave::heater_draw_w`, by machine instance id, from `crafting::away::heater_draws`),
+  and the time away charges each heater that in place of the meter's figure: about 182 W
+  in a mushroom rack's fruiting tent (it loses about 61 W a degree held 3 C over its 21 C:
+  53.1 through its walls and top, 7.6 with its fresh air), the full 1,500 W in a grow room
+  or the home's own air, which it never warms to 24 C. A heater with no saved draw (placed
+  since the save, or a save from before this) keeps the meter's full draw, and so does one
+  saved before the air step measured it. The Construction page's Usage meter still charges
+  the full draw: it is a design-time meter with no air to read. Test:
+  `farming::heat_tests::the_time_away_charges_a_heater_what_its_thermostat_ran_it_at`: two
+  of the shipped heaters, spawned as the engine spawns them, one in the shipped fruiting
+  tent and one in a greenhouse-sized grow room, run by the farming tick, saved through JSON
+  and resumed an hour later (`resume_home`) with the shipped family home; the time away's
+  balance is better than the meter's by the tent heater's unused 1,318 W in both life
+  support modes. Seen red with the saved draws ignored, the code before this in effect:
+  "Station-supplied: the time away charges the heaters 0.0 W less than their full draw,
+  not the tent heater's unused 1317.8 W"; and with the save not keeping them: "the save
+  has heater_tent's draw: {}".
+- *The add-up test could not fail for the real path.*
+  `engine::survival_env::tests::a_heaters_warm_air_and_a_fires_warmth_add_up` built its
+  own context from `indoor_air` and `warmed_by_fires`, a combination `publish` never made:
+  its inside-the-home branch had no fire term. That branch is now
+  `survival_env::inside_home_context`, which puts the warmth of any fire the player can see
+  (`fire_warmth`, which is 0 aboard today) on top of the air where they stand, so a fire
+  that ever burns aboard adds to a heater's air instead of being dropped; and the test
+  calls it. Seen red on the branch as it was, moved there unchanged: "the fire's warmth on
+  top of the heater's air (left: 22.05, right: 42.179012)". Also red with
+  `warmed_by_fires` taking the radiant temperature from a fixed 21 C (left: 41.318604).
+- *Heat and How It Moves* said a heater warms "the air of the room it stands in", a few
+  degrees in a small room. That is true only in a grow room or a fruiting tent, the only
+  airs the game keeps apart; it now says which airs those are and what one heater does in
+  each (an eighth of the time in a tent at 24 C; flat out and about 1 C in a 300 m3 grow
+  room, 0.16 C in the greenhouse; a few hundredths of a degree on the home's whole air from
+  a bedroom or the kitchen), as Heating a Home Safely already did. The heater's own card
+  (its `air` stat in `data/machines/home.ron` and `home_solo.ron`) said the same thing and
+  now reads "warms the air it stands in, a grow room's or a tent's, else the whole home's,
+  up to 24 C".
 
 ## BUG-156: trees float in the air beside the Silverdale waterfront (FIXED 2026-10-05, found 2026-10-05)
 

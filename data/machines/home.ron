@@ -286,12 +286,21 @@
                 ),
                 (
                     kind: "air",
-                    value: "warms the air of the room it stands in, up to 24 C",
+                    value: "warms the air it stands in, a grow room's or a tent's, else the whole home's, up to 24 C",
                     status: "ok",
                 ),
             ],
-            // No average_watts: how much of the day it runs depends on the room
-            // it stands in, so the static power meter charges it its full draw.
+            // No average_watts: how much of the day it runs depends on the air
+            // it stands in, which the static power meter cannot see, so the
+            // meter charges it its full draw. The time away charges it instead
+            // the draw its thermostat was running it at when the game was saved
+            // (2026-10-05, crafting::away::day_power_balance, the save's
+            // heater_draw_w): about 182 W in a mushroom rack's fruiting tent,
+            // which it holds at 24 C an eighth of the time (humidity.ron, THE
+            // HEAT), and its full 1,500 W in a grow room or the home's own air,
+            // which it never warms to 24 C. src/systems/farming/heat_tests.rs
+            // (the_time_away_charges_a_heater_what_its_thermostat_ran_it_at)
+            // measures both.
             // Priority 4, shed before the air handlers, with the garden's fans.
             power: Some(Consumer(
                 watts: 1500.0,

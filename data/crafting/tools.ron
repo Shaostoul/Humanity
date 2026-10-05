@@ -54,5 +54,8 @@
         "cook_jerky": ["knife_utility_0"],
         "bake_pie": ["knife_utility_0"],
         "cook_dried_fruit": ["knife_utility_0"],
+        // Crush and strain honey: a long knife cuts the comb out of the frame
+        // (2026-10-05; data/recipes.csv, cook_honey, quotes the source).
+        "cook_honey": ["knife_utility_0"],
     },
 )

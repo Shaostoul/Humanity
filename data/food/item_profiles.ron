@@ -235,6 +235,7 @@
         ("fruit_olive_0", "olives straight from the tree are too bitter to eat; they are cured in brine or pressed for oil first (pressing exists: press_oil_olive; curing does not yet)"),
         ("whey_0", "the liquid left from cheese making; used here in baking (cook_bread_whey), drinking it is not modelled yet"),
         ("apple_pomace_0", "the pressed skins, cores and pulp left from juicing; composted here (compost_apple_pomace), not eaten"),
+        ("beeswax_0", "the wax of crushed and strained honeycomb (cook_honey), a block for candles (craft_candle); wax is not food"),
 
         // --- Grain that must be milled or dehulled first ---
         ("grain_rice_0", "paddy rice is still in its hull, which is not eaten; mill it into white rice (mill_rice) and cook that"),

@@ -574,6 +574,13 @@ towel_0,Towel,tool,hygiene,cotton,0.4,5,80,Absorbent body-drying cloth,solid,0.7
 #
 # === SPECIALTY MATERIALS ===
 beeswax_0,Beeswax,material,raw,plant_fiber,0.3,20,0,Natural hive wax block,solid,0.42
+# Honeycomb (2026-10-05, the review of BUG-146): the capped comb of one deep Langstroth frame, cut out of
+# the frame, which cook_honey crushes and strains (data/recipes.csv quotes the sources). weight_kg 3.05: the
+# 6 lb (2.72 kg) of honey a deep frame holds and the 0.33 kg of wax its comb is made of. volume_l 2.4: the
+# comb's 883 cm2 a face across the frame's 1-1/16 inch (2.7 cm) width (Blackiston, the same page: "Deep
+# frames are 19 inches x 1-1/16 inches x 9-1/8 inches"). No hive in the game fills frames yet, so the
+# trading post sells it (data/trade_goods.ron). Not filed as food: it is crushed and strained before eating.
+honeycomb_0,Honeycomb,material,raw,wax,3.05,10,0,The capped comb of one deep hive frame: about 6 lb of honey sealed in wax. Crush and strain it for honey and beeswax,food,2.4
 animal_fat_0,Animal Fat,material,raw,tallow,0.5,20,0,Rendered tallow chunk,solid,0.69
 salt_block_0,Salt Block,material,mineral,salt,2.0,10,0,Compressed mineral salt slab,solid,1.54
 # Garden plant seeds for the curated towers (v0.398): one seed item per
