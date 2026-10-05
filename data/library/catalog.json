@@ -137,6 +137,25 @@
             "real",
             "safety"
           ]
+        },
+        {
+          "title": "Navigating Without Instruments",
+          "src": "docs/user/skills/navigating_without_instruments.md",
+          "tags": [
+            "guide",
+            "real",
+            "safety"
+          ]
+        },
+        {
+          "title": "What to Do When You Are Lost",
+          "src": "docs/user/skills/what_to_do_when_you_are_lost.md",
+          "tags": [
+            "guide",
+            "real",
+            "beginner",
+            "safety"
+          ]
         }
       ]
     },
@@ -630,6 +649,17 @@
           ]
         },
         {
+          "title": "Where Your Own Electrical Work Stops",
+          "src": "docs/user/skills/where_your_electrical_work_stops.md",
+          "tags": [
+            "guide",
+            "real",
+            "power",
+            "shelter",
+            "safety"
+          ]
+        },
+        {
           "title": "Your First Solar Power",
           "src": "docs/user/skills/first_solar_power.md",
           "tags": [
@@ -882,6 +912,27 @@
           ]
         },
         {
+          "title": "Electricity and How It Flows",
+          "src": "docs/user/skills/electricity_and_how_it_flows.md",
+          "tags": [
+            "guide",
+            "real",
+            "power",
+            "technical",
+            "safety"
+          ]
+        },
+        {
+          "title": "Floating and Boats",
+          "src": "docs/user/skills/floating_and_boats.md",
+          "tags": [
+            "guide",
+            "real",
+            "water",
+            "safety"
+          ]
+        },
+        {
           "title": "Sharpening",
           "src": "docs/user/making/sharpening.md",
           "tags": [
@@ -898,6 +949,16 @@
             "guide",
             "real",
             "technical"
+          ]
+        },
+        {
+          "title": "Power Tools",
+          "src": "docs/user/skills/power_tools.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "safety"
           ]
         },
         {

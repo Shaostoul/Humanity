@@ -1556,9 +1556,27 @@
       "subject": "energy",
       "title": "Where amateur electrical work stops",
       "summary": "Know exactly which electrical work is safe to do and which kills people.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "where-your-electrical-work-stops"
+      ],
       "skills": [
         "engineering"
+      ],
+      "data": [
+        "data/utilities/conduits.ron",
+        "data/machines/home.ron"
+      ],
+      "sources": [
+        "osha",
+        "ecfr",
+        "niosh",
+        "cpsc",
+        "fema",
+        "dod-technical-manuals",
+        "wa-lni",
+        "state-electrical-authority",
+        "iaei-magazine"
       ],
       "locale_dependent": true,
       "hazard": "lethal"
@@ -2481,9 +2499,26 @@
       "subject": "physics",
       "title": "Electricity, physically",
       "summary": "Understand current, resistance and why electricity hurts people.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "electricity-and-how-it-flows"
+      ],
       "skills": [
         "engineering"
+      ],
+      "data": [
+        "data/utilities/conduits.ron",
+        "data/machines/home.ron"
+      ],
+      "sources": [
+        "dod-technical-manuals",
+        "nist",
+        "osha",
+        "ecfr",
+        "niosh",
+        "cpsc",
+        "nws",
+        "usfa"
       ],
       "locale_dependent": false,
       "hazard": "lethal"
@@ -2550,10 +2585,31 @@
       "subject": "physics",
       "title": "Floating and boats",
       "summary": "Understand buoyancy, stability and why boats capsize.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "floating-and-boats"
+      ],
       "skills": [
         "engineering",
         "navigation"
+      ],
+      "data": [
+        "data/items.csv",
+        "data/recipes.csv",
+        "data/crafting/tools.ron",
+        "data/world/player.ron",
+        "data/places/seed.json",
+        "data/machines/home.ron"
+      ],
+      "sources": [
+        "uscg",
+        "ecfr",
+        "nws",
+        "usgs",
+        "noaa-coops",
+        "fpl-wood-handbook",
+        "dod-technical-manuals",
+        "wa-state-parks"
       ],
       "locale_dependent": true,
       "hazard": "lethal"
@@ -3251,9 +3307,30 @@
       "subject": "navigation",
       "title": "Navigating without instruments",
       "summary": "Track position by pace, time and bearing.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "navigating-without-instruments"
+      ],
       "skills": [
         "navigation"
+      ],
+      "data": [
+        "data/sounds.toml",
+        "data/maps/regions/silverdale.bin",
+        "data/stars.csv",
+        "data/constellations.json",
+        "data/world/spawn.ron",
+        "data/status_effects.csv",
+        "data/equipment.csv"
+      ],
+      "sources": [
+        "dod-technical-manuals",
+        "nga-bowditch",
+        "usfs",
+        "nps",
+        "nws",
+        "uscg",
+        "peer-reviewed-literature"
       ],
       "locale_dependent": false,
       "hazard": "lethal"
@@ -3289,9 +3366,31 @@
       "subject": "navigation",
       "title": "What to do when lost",
       "summary": "Act so that you are found, instead of making it worse.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "what-to-do-when-you-are-lost"
+      ],
       "skills": [
         "navigation"
+      ],
+      "data": [
+        "data/status_effects.csv",
+        "data/equipment.csv",
+        "data/weather/events.ron"
+      ],
+      "sources": [
+        "usfs",
+        "nps",
+        "national-911-program",
+        "noaa-sarsat",
+        "faa",
+        "uscg",
+        "dod-technical-manuals",
+        "cdc",
+        "nws",
+        "census",
+        "peer-reviewed-literature",
+        "wa-military-department"
       ],
       "locale_dependent": true,
       "hazard": "lethal"
@@ -3351,10 +3450,26 @@
       "subject": "tools",
       "title": "Power tools and their hazards",
       "summary": "Use powered tools with the specific respect each one demands.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "power-tools"
+      ],
       "skills": [
         "woodworking",
         "engineering"
+      ],
+      "data": [
+        "data/items.csv",
+        "data/crafting/tools.ron",
+        "data/machines/home.ron"
+      ],
+      "sources": [
+        "osha",
+        "ecfr",
+        "niosh",
+        "cpsc",
+        "federal-register",
+        "usfs"
       ],
       "locale_dependent": false,
       "hazard": "lethal"

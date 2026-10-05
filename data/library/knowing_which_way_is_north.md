@@ -563,7 +563,9 @@ compass.
   step of the "Initial Survey" quest, but carrying one shows no
   bearing. Under the default settings, two more things apply: the game
   starts in the Dev play mode (Settings > Gameplay > Play mode), where
-  materials are free, so the recipe needs neither ingredient; and while
+  crafting does not use up its ingredients, though the Craft button
+  still wants them in your backpack or your home's storage (the Crafting
+  page's "Dev: stock all materials" button supplies them); and while
   "Start every session
   from the default home" is on, which it is by default, only your
   character carries between launches, so a compass you made is gone the

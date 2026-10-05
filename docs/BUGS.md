@@ -3462,3 +3462,48 @@ confirmed trade offer is still not reserved from crafting (backpack-first
 can spend offered items, which withdraws the confirmation, BUG-114's guard).
 The `assemble_*` kit recipes have the same toy bills of materials (a 1497 kg
 car from 81 kg of parts) and are not yet covered by the weight test.
+
+## BUG-148: the home marker never shows from the ground: it is cut off at the render distance (OPEN, found 2026-10-04)
+
+**Seen (by reading the code, during the fact check of the navigation guides):** the
+tracked Home Station ring, which is meant to show the way and the distance to your
+home in orbit, is projected with the gameplay camera. That camera's far plane is the
+Render distance setting, 500 m by default and 2,000 m at most (config.rs ~996, ~1573,
+applied at boot, lib.rs ~1726 and ~16389), and it uses reverse depth (camera.rs ~493),
+so anything past the far plane gets a negative depth, which hud.rs ~1119-1120 rejects.
+The station is about 36,000 km up, so from the ground the ring never appears and
+nothing shows the way home.
+
+**Fix (not started):** project a tracked marker by direction, not through the depth
+range: a waypoint is drawn wherever it is, clamped to the screen edge when it is behind
+or off screen, with its distance in words. A test projects a point 36,000 km away and
+expects a marker.
+
+## BUG-149: the Dev page's Land and Travel leave fly mode on while the HUD reads WALK (OPEN, found 2026-10-04)
+
+**Seen (code reading, the same fact check):** the Dev page's Land and Travel buttons set
+fly mode on (lib.rs ~5965-5966, ~6082-6083) and lib.rs ~3571 keeps it on every frame,
+while the HUD still reads "WALK x1 [F9 to fly]" (hud.rs ~374-387). With fly mode on: no
+footsteps (the stride meter needs it off, lib.rs ~15693-15695), the weather never reaches
+body heat (survival_env.rs ~178-181 uses the indoor default), and swimming runs at 5 m/s
+instead of about 2.5 (lib.rs ~4830-4831 is the swim cap; walking is 5 m/s either way).
+A player who lands believes they are walking. (The speed detail was corrected the same day
+by the fixer of the navigation guides: the first version said walking.)
+
+**Fix (not started):** either land the player in walk mode, or make the HUD say what is
+true (FLY) whenever fly mode is on, with a test on the HUD text for each state.
+
+## BUG-150: the home's machines take the player's carried items: the sawmill eats stocked logs (OPEN, found 2026-10-04)
+
+**Seen (code reading, the same fact check):** automated machines take their real inputs
+from the backpack first, even in Dev mode (crafting/mod.rs ~1012-1025, ~1186-1196). The
+home's sawmill runs Saw Planks by itself, 2 logs every 5 s (home.ron ~2023-2039 and
+~3465, recipes.csv ~68), so the 10 logs the Crafting page's "Dev: stock all materials"
+adds are gone within about 10 s, before a player can craft the raft that needs 6 of them.
+In real life a machine takes what is put into it or what is in the store it is fed from,
+never what is in your pockets.
+
+**Fix (not started):** automated machines draw from home storage only (the store they are
+plumbed to), never the backpack, with a test. Related, smaller: "Dev: stock all
+materials" supplies no tools, and since BUG-147 a craft's parts come from home storage
+but its tools must still be carried.

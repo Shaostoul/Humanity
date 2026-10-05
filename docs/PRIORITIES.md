@@ -230,6 +230,11 @@ aquifer behind it; the wind turbine makes a constant 4.4 W with no wind
 model, and there is no water power; only food carried in an inventory
 spoils (the Freezer and pantry do not age food, the food data's temperature
 zones are unused, and the spoilage clock is not saved between launches).
+And: cable sizing (`cheapest_cable_for`) falls back to a superconductor, a
+material that does not exist, whenever no copper cable passes, so a long
+heavy power run "passes" (3,000 W over 60 m picks it), and the Construction
+page offers "Upgrade N power run(s) to superconductor" today; the lightning
+code in `disasters.rs` is never registered, so it never runs.
 
 ### 1. Environment regions: the rest of the arc BUG-080 opened
 
