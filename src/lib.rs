@@ -2735,6 +2735,8 @@ mod native_app {
                                         }
                                     }
                                 }
+                            } else if crate::engine::built_uses::use_machine(state) {
+                                // The home's bed (its def `provides: "rest"`): E sleeps, as at a built bed.
                             } else if let Some(t) = state.gui_state.targeted_machine {
                                 // Looking at a machine: toggle its card open/closed.
                                 state.gui_state.selected_machine =
@@ -6199,7 +6201,7 @@ mod native_app {
                                         if let Ok(mut h) = w.get::<&mut Health>(ent) {
                                             h.current = 0.0;
                                         }
-                                        let _ = w.insert_one(ent, Dead { since: 0.0, looted: false });
+                                        let _ = w.insert_one(ent, Dead::default());
                                         state.gui_state.close_in_world_modals();
                                         log::info!("Dev: edited creature killed via health slider");
                                     } else {
@@ -6616,6 +6618,7 @@ mod native_app {
                     // of the placed containers (v0.737; planet chests excluded).
                     crate::engine::stock_piles::take_consumed_home_stock(state, &home_stock_before);
                     crate::engine::stock_piles::receive_machine_outputs(state);
+                    crate::engine::stock_piles::age_home_storage(state); // stored food spoils too (S6)
                     // Backpack overflow from "Take to backpack" goes back to the
                     // container it came from (2026-09-25; it used to vanish).
                     let returned: Vec<(String, u32)> = state
@@ -12365,6 +12368,7 @@ mod native_app {
                                     quantity: stack.quantity,
                                     wear: stack.wear,
                                     quality: stack.quality,
+                                    age_s: stack.age_s,
                                 }
                             })
                         }).collect();
@@ -13780,13 +13784,14 @@ mod native_app {
                                 if let (Some(e), Some((item, qty))) = (cont_entity, contents.clone()) {
                                     let unit_vol = item_reg.map(|r| r.volume_for(&item)).unwrap_or(0.0);
                                     let max_stack = item_reg.map(|r| r.max_stack_for(&item)).unwrap_or(99);
+                                    let age = cont_snapshot.as_ref().map_or(0.0, |c| c.content_age_s); // food keeps its age (S6)
                                     let mut taken = 0u32;
                                     for (_pe, (inv, _c)) in state.game_world.world.query_mut::<(
                                         &mut crate::systems::inventory::Inventory,
                                         &crate::ecs::components::Controllable,
                                     )>() {
                                         let overflow =
-                                            inv.add_item_volume_gated(&item, qty, max_stack, unit_vol);
+                                            inv.add_item_volume_gated_aged(&item, qty, max_stack, unit_vol, 0, age);
                                         taken = qty - overflow;
                                         break;
                                     }
@@ -13856,12 +13861,17 @@ mod native_app {
                                         }
                                     }
                                     if stored > 0 {
+                                        let mut age = 0.0;
                                         for (_pe, (inv, _c)) in state.game_world.world.query_mut::<(
                                             &mut crate::systems::inventory::Inventory,
                                             &crate::ecs::components::Controllable,
                                         )>() {
-                                            inv.remove_item(&item, stored);
+                                            age = inv.remove_item_aged(&item, stored).1;
                                             break;
+                                        }
+                                        // Food goes into the vessel at the age it had (S6).
+                                        if let Ok(mut c) = state.game_world.world.get::<&mut crate::systems::inventory::containers::Container>(e) {
+                                            c.arrived_aged(stored, age);
                                         }
                                         log::info!("[Machines] stored {stored}x {item} into {mid}");
                                     }

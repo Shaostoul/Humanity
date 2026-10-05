@@ -167,21 +167,27 @@ impl System for CombatSystem {
         // ── Trigger death: insert Dead, roll loot into the loot_drops channel ──
         let mut rng = rand::thread_rng();
         for (entity, source_name, source_is_player, killing_type) in deaths_to_handle {
-            // Insert Dead marker (no-op if already present).
-            let _ = world.insert_one(entity, Dead::default());
+            let is_player = world.get::<&crate::ecs::components::Controllable>(entity).is_ok();
+            let cause = match &source_name {
+                Some(n) => format!("killed by a {n}"),
+                None => "killed in combat".to_string(),
+            };
+            // Insert Dead marker (no-op if already present). A player's carries
+            // the cause, which the save keeps with the body (first-hour audit S1).
+            let _ = world.insert_one(
+                entity,
+                Dead { cause: if is_player { cause.clone() } else { String::new() }, ..Default::default() },
+            );
 
             // A dead PLAYER publishes its cause for the death screen (the
             // same slot FoodSystem's environmental deaths use). (v0.761)
-            if world.get::<&crate::ecs::components::Controllable>(entity).is_ok() {
+            if is_player {
                 if let Some(slot) =
                     data.get::<std::sync::Mutex<Option<String>>>("player_death")
                 {
                     if let Ok(mut s) = slot.lock() {
                         if s.is_none() {
-                            *s = Some(match &source_name {
-                                Some(n) => format!("killed by a {n}"),
-                                None => "killed in combat".to_string(),
-                            });
+                            *s = Some(cause);
                         }
                     }
                 }
