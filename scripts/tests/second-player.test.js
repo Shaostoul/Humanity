@@ -456,3 +456,273 @@ test("--forwarded-for takes an address and only an address", () => {
     assert.throws(() => sp.parseOptions(["--forwarded-for", bad]), /--forwarded-for must be an address/, JSON.stringify(bad));
   }
 });
+
+// ── Building in the shared world (ship homes increment 5, 2026-10-05) ──────────────────────────
+// verify-copresence --build has scripted players build and take down pieces through the relay, so
+// the walker sends `game_build` / `game_unbuild` exactly as the contract has them
+// (src/systems/construction/shared.rs `ToRelay`), with a pose the relay's own checks pass: on the
+// metre grid, a whole quarter turn as the game's placement makes it, and the blueprint's own size.
+
+const REPO = path.join(__dirname, "..", "..");
+const SHARED_RS = fs.readFileSync(path.join(REPO, "src", "systems", "construction", "shared.rs"), "utf8");
+/** The field names of one variant of the wire enums in shared.rs, by its serde type string. */
+function contractFields(typeName) {
+  const at = SHARED_RS.indexOf(`#[serde(rename = "${typeName}")]`);
+  assert.ok(at >= 0, `shared.rs names a ${typeName} message`);
+  const open = SHARED_RS.indexOf("{", at);
+  const close = SHARED_RS.indexOf("}", open);
+  // Field names at the start of a line inside the variant's braces (doc comments and serde
+  // attributes are skipped by the pattern).
+  return [...SHARED_RS.slice(open + 1, close).matchAll(/^\s*([a-z_]+):/gm)].map((m) => m[1]);
+}
+
+// The walker's input commands (a rig writes them, one a line) and the messages they send.
+// Red first, 2026-10-05, before the commands existed: "TypeError: sp.parseCommand is not a function".
+test("build and unbuild commands parse", () => {
+  assert.deepEqual(sp.parseCommand("build wood_foundation@plot:p1:48,0,36,0"), {
+    kind: "build",
+    blueprint: "wood_foundation",
+    frame: "plot:p1",
+    local: [48, 0, 36],
+    turns: 0,
+    permit: null,
+  });
+  const wall = sp.parseCommand("  build wood_wall@zone:commons:11,0.2,50,1  ");
+  assert.deepEqual([wall.frame, wall.local, wall.turns], ["zone:commons", [11, 0.2, 50], 1]);
+  assert.deepEqual(sp.parseCommand("unbuild 12"), { kind: "unbuild", pieceId: 12, permit: null });
+  assert.deepEqual(sp.parseCommand("stop"), { kind: "stop" });
+  assert.equal(sp.parseCommand("   "), null, "an empty line is no command");
+  assert.deepEqual(sp.parseCommand("permit p1 did:hum:4dQe1bVHyiHm1Vh8rWbx2F 30"), { kind: "permit", plot: "p1", grantee: "did:hum:4dQe1bVHyiHm1Vh8rWbx2F", days: 30 });
+  // A permit rides along as the JSON the walker that minted it logged.
+  const permit = { issuer: "ab12", server: "did:hum:srv", plot: "p1", grantee: "did:hum:x", expiry: 1900000000, sig: "c2ln" };
+  assert.deepEqual(sp.parseCommand(`build wood_wall@plot:p1:46,0.2,36,1 permit ${JSON.stringify(permit)}`).permit, permit);
+  assert.deepEqual(sp.parseCommand(`unbuild 7 permit ${JSON.stringify(permit)}`), { kind: "unbuild", pieceId: 7, permit });
+  for (const [bad, why] of [
+    ["build wood_wall@plot:p1:46,0.2,36", /build wants/],
+    ["build wood_wall@plot:p1:46,0.2,36,4", /turns must be 0, 1, 2 or 3/],
+    ["build wood_wall@plot:p1:46,x,36,1", /build wants/],
+    ["build Wood Wall@plot:p1:46,0,36,1", /build wants/],
+    ["build wood_wall@site:moon:1,0,1,0", /frame must be plot:<id> or zone:<id>/],
+    ["build wood_wall@p1:1,0,1,0", /frame must be plot:<id> or zone:<id>/],
+    ["unbuild x", /unbuild wants a piece number/],
+    ["unbuild 0", /unbuild wants a piece number/],
+    ["build wood_wall@plot:p1:1,0,1,0 permit {not json", /permit must be/],
+    ['build wood_wall@plot:p1:1,0,1,0 permit {"issuer":"ab"}', /permit must be/],
+    // A permit that names no server (the words before Wave 0's 6e0174cd7) is not one.
+    [`unbuild 7 permit ${JSON.stringify({ ...permit, server: undefined })}`, /permit must be/],
+    ["permit plot:p1 did:hum:x 30", /permit wants/],
+    ["permit p1 did:hum:x 91", /at most 90 days/],
+    ["dance", /unknown command/],
+  ]) {
+    assert.throws(() => sp.parseCommand(bad), why, bad);
+  }
+
+  // The messages: exactly the contract's fields (shared.rs ToRelay), the pose as given, the turn
+  // as the game's placement makes it, the size the blueprint's own.
+  const blueprints = sp.readBlueprints(fs.readFileSync(path.join(REPO, "data", "blueprints", "basic.ron"), "utf8"));
+  const msg = sp.buildMessage(sp.parseCommand("build wood_wall@plot:p1:46,0.2,36,1"), 7, blueprints);
+  assert.deepEqual(Object.keys(msg).filter((k) => k !== "type").sort(), contractFields("game_build").filter((k) => k !== "permit").sort());
+  assert.equal(msg.type, "game_build");
+  assert.equal(msg.req_id, 7);
+  assert.equal(msg.blueprint_id, "wood_wall");
+  assert.deepEqual(msg.position, [46, 0.2, 36]);
+  assert.deepEqual(msg.rotation, sp.quarterTurn(1));
+  assert.deepEqual(msg.scale, [4, 3, 0.2], "the wall's own size, read from basic.ron");
+  assert.deepEqual(sp.buildMessage(sp.parseCommand(`build wood_wall@plot:p1:46,0.2,36,1 permit ${JSON.stringify(permit)}`), 8, blueprints).permit, permit);
+  assert.throws(() => sp.buildMessage(sp.parseCommand("build moon_base@plot:p1:1,0,1,0"), 9, blueprints), /no blueprint "moon_base"/);
+  const un = sp.unbuildMessage(sp.parseCommand("unbuild 12"), 10);
+  assert.deepEqual(Object.keys(un).filter((k) => k !== "type").sort(), contractFields("game_unbuild").filter((k) => k !== "permit").sort());
+  assert.deepEqual(un, { type: "game_unbuild", req_id: 10, piece_id: 12 });
+});
+
+// THE TURN IS THE GAME'S OWN (src/systems/construction/placement.rs `quarter_turn`): the relay
+// refuses a turn more than half a degree off a whole quarter, and keeps the one the placement
+// makes, so a scripted build turned the other way round would come back as a different turn.
+// Red first, 2026-10-05, before the function existed: "TypeError: sp.quarterTurn is not a function".
+test("quarter turns match placement::quarter_turn", () => {
+  const src = fs.readFileSync(path.join(REPO, "src", "systems", "construction", "placement.rs"), "utf8");
+  assert.match(
+    src,
+    /pub fn quarter_turn\(quarter_turns: u8\) -> Quat \{\s*Quat::from_rotation_y\(f32::from\(quarter_turns % 4\) \* std::f32::consts::FRAC_PI_2\)\s*\}/,
+    "placement::quarter_turn is still a turn of (quarter_turns % 4) x 90 degrees about +Y; if it changed, change sp.quarterTurn with it",
+  );
+  // glam's Quat::from_rotation_y(a) is (0, sin(a/2), 0, cos(a/2)), all in f32.
+  const f = Math.fround;
+  for (let t = 0; t < 8; t++) {
+    const a = f(f(t % 4) * f(Math.PI / 2));
+    const want = [0, f(Math.sin(f(a * 0.5))), 0, f(Math.cos(f(a * 0.5)))];
+    const got = sp.quarterTurn(t);
+    assert.equal(got.length, 4);
+    got.forEach((v, i) => assert.ok(Math.abs(v - want[i]) <= 1e-7, `quarterTurn(${t})[${i}] = ${v}, glam gives ${want[i]}`));
+    assert.equal(sp.turnOf(got), t % 4, `turnOf reads quarterTurn(${t}) back as ${t % 4}`);
+    assert.equal(sp.turnOf(got.map((v) => -v)), t % 4, "and the same turn written the other sign round");
+  }
+  // The way glam turns things: a quarter turn takes +X to -Z (a camera at yaw +90 degrees looks
+  // along +X, renderer/camera.rs), so a wall turned once runs along z.
+  const rotate = (q, v) => {
+    const [x, y, z, w] = q;
+    const t = [2 * (y * v[2] - z * v[1]), 2 * (z * v[0] - x * v[2]), 2 * (x * v[1] - y * v[0])];
+    return [v[0] + w * t[0] + (y * t[2] - z * t[1]), v[1] + w * t[1] + (z * t[0] - x * t[2]), v[2] + w * t[2] + (x * t[1] - y * t[0])];
+  };
+  const xTurned = rotate(sp.quarterTurn(1), [1, 0, 0]);
+  assert.ok(Math.abs(xTurned[0]) < 1e-6 && Math.abs(xTurned[2] + 1) < 1e-6, `one quarter turn takes +X to -Z, got ${xTurned}`);
+});
+
+// THE SIZE IS THE BLUEPRINT'S OWN (the relay refuses a footprint more than a millimetre off it, and
+// a height levelling could not make): read from the data the relay reads, data/blueprints/basic.ron,
+// never a copy in this script. Red first, 2026-10-05, before the reader existed:
+// "TypeError: sp.readBlueprints is not a function".
+test("sizes read from basic.ron", () => {
+  const text = fs.readFileSync(path.join(REPO, "data", "blueprints", "basic.ron"), "utf8");
+  const bps = sp.readBlueprints(text);
+  const entries = text.split(/\r?\n/).filter((l) => !/^\s*\/\//.test(l) && l.includes('(id: "')).length;
+  assert.equal(bps.size, entries, `every blueprint in basic.ron is read (${bps.size} of ${entries})`);
+  const foundation = bps.get("wood_foundation");
+  assert.deepEqual(foundation.size, [4, 0.2, 4]);
+  assert.equal(foundation.build_time, 5);
+  assert.deepEqual(foundation.materials, [["wood_plank_0", 8]]);
+  assert.equal(foundation.name, "Wood Foundation");
+  assert.equal(foundation.shared, true);
+  assert.deepEqual(bps.get("wood_wall").size, [4, 3, 0.2]);
+  assert.deepEqual(bps.get("wood_wall_window").materials, [["wood_plank_0", 7], ["glass_pane_0", 1]]);
+  assert.equal(bps.get("campfire").shared, false, "a piece with no shared field is not shared");
+  // Every blueprint the file marks shared, and only those.
+  const sharedInText = [...text.matchAll(/\(id: "([a-z0-9_]+)"[^\n]*\bshared: true/g)].map((m) => m[1]).sort();
+  assert.deepEqual([...bps.values()].filter((b) => b.shared).map((b) => b.id).sort(), sharedInText);
+  assert.equal(sharedInText.length, 7, "the seven shell pieces of increment 5");
+  // A comment never counts as a blueprint, whatever brackets it holds.
+  const tricky = sp.readBlueprints('[\n  // (id: "ghost", size: (9.0, 9.0, 9.0)) and a ) or two (\n  (id: "a", name: "A (x)", size: (1.0, 2.0, 3.0), build_time: 2.5, materials: [("p", 2)], shared: true), // (id: "b")\n]');
+  assert.deepEqual([...tricky.keys()], ["a"]);
+  assert.deepEqual(tricky.get("a").size, [1, 2, 3]);
+  assert.equal(tricky.get("a").name, "A (x)");
+});
+
+// THE PERMIT'S SIGNED WORDS ARE THE RELAY'S (src/relay/core/pq_crypto.rs `plot_permit_preimage`),
+// read from the Rust test that pins them, so a change there fails here until this script follows.
+// A permit the walker mints verifies with the issuer's key over those words, names the server it
+// is good on (the relay's own did:hum, /api/server-info `server_did`), and its fields are the
+// contract's (shared.rs `Permit`). Red first, 2026-10-05, before the function existed:
+// "TypeError: sp.permitPreimage is not a function". Red again the same day, when Wave 0's
+// 6e0174cd7 put the server into the relay's words, against the three-field preimage:
+//   AssertionError [ERR_ASSERTION]: permitPreimage("did:hum:srv", "p3", "did:hum:abc", 0)
+//     actual: 'hum/permit/v1\ndid:hum:srv\np3\ndid:hum:abc',
+//     expected: 'hum/permit/v1\ndid:hum:srv\np3\ndid:hum:abc\n0'
+test("permitPreimage equals the Rust KAT string", async () => {
+  const rust = fs.readFileSync(path.join(REPO, "src", "relay", "core", "pq_crypto.rs"), "utf8");
+  const pins = [...rust.matchAll(/assert_eq!\(\s*plot_permit_preimage\(([^)]*)\)\s*,\s*"((?:[^"\\]|\\.)*)"\s*\)/g)];
+  assert.ok(pins.length >= 1, "pq_crypto.rs pins plot_permit_preimage with a literal");
+  const unescape = (s) => s.replace(/\\(.)/g, (_, c) => ({ n: "\n", t: "\t", r: "\r", "\\": "\\", '"': '"' })[c] ?? c);
+  for (const [, argText, expected] of pins) {
+    const args = argText.split(",").map((a) => a.trim()).map((a) => (a.startsWith('"') ? unescape(a.slice(1, -1)) : Number(a)));
+    assert.ok(args.every((a) => typeof a === "string" || Number.isFinite(a)), `the pinned call's arguments are literals: ${argText}`);
+    assert.equal(sp.permitPreimage(...args), unescape(expected), `permitPreimage(${argText})`);
+  }
+  // The fields a permit carries on the wire.
+  const at = SHARED_RS.indexOf("pub struct Permit {");
+  const fields = [...SHARED_RS.slice(at, SHARED_RS.indexOf("\n}", at)).matchAll(/^\s*pub ([a-z_]+):/gm)].map((m) => m[1]);
+  const noble = await sp.loadNoble();
+  const issuer = sp.deriveIdentity(noble, sp.masterSeedFrom(noble, "permit issuer", "TestBotIssuer"));
+  const expiry = 1900000000;
+  const server = "did:hum:7Xq1server2DidHere3Abc";
+  const permit = sp.mintPermit(issuer, { server, plot: "p1", grantee: "did:hum:4dQe1bVHyiHm1Vh8rWbx2F", expiry });
+  assert.deepEqual(Object.keys(permit).sort(), fields.sort(), "the permit's fields are the contract's");
+  assert.equal(permit.issuer, issuer.publicKeyHex);
+  assert.equal(permit.server, server);
+  const words = (srv, plot) => new TextEncoder().encode(sp.permitPreimage(srv, plot, permit.grantee, expiry));
+  const pk = new Uint8Array(Buffer.from(issuer.publicKeyHex, "hex"));
+  const sig = new Uint8Array(Buffer.from(permit.sig, "base64"));
+  assert.ok(noble.ml_dsa65.verify(sig, words(server, "p1"), pk), "the issuer's signature over the permit's words");
+  assert.ok(!noble.ml_dsa65.verify(sig, words(server, "p2"), pk), "and not over another plot's");
+  assert.ok(!noble.ml_dsa65.verify(sig, words("did:hum:another", "p1"), pk), "nor over the same plot on another server");
+  assert.throws(() => sp.mintPermit(issuer, { plot: "p1", grantee: permit.grantee, expiry }), /needs the server's did:hum/, "no permit without the server it is good on");
+  // The server's did:hum, read where the relay shows it (/api/server-info `server_did`), from a
+  // stand-in served by this process (no relay booted).
+  const http = require("node:http");
+  let answer = { name: "x", server_did: server };
+  const stand = http.createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    res.end(req.url === "/api/server-info" ? JSON.stringify(answer) : "{}");
+  });
+  await new Promise((r) => stand.listen(0, "127.0.0.1", r));
+  try {
+    const url = `ws://127.0.0.1:${stand.address().port}/ws`;
+    assert.equal(await sp.fetchServerDid(url), server, "the relay's own did:hum");
+    answer = { name: "x", server_did: "" };
+    assert.equal(await sp.fetchServerDid(url), null, "a relay that names none");
+    answer = { name: "x" };
+    assert.equal(await sp.fetchServerDid(url), null, "a relay from before servers had a DID");
+  } finally {
+    stand.close();
+  }
+  // The walker's lines a rig reads for the two ids (its own, the server's).
+  assert.equal(`second-player: identity: ${server}`.match(sp.DID_RE)[1], server);
+  assert.equal(`second-player: server: ${server}`.match(sp.SERVER_DID_RE)[1], server);
+  assert.equal(`second-player: server: ${server}`.match(sp.DID_RE), null, "the server's line is never read as the walker's own");
+  // The grantee is named by its did:hum, as the relay holds plots (relay/core/did.rs: base58 of the
+  // first 16 bytes of BLAKE3 of the Dilithium key, Bitcoin's alphabet).
+  assert.equal(sp.base58(Buffer.from("hello world")), "StV1DL6CwTryKyV", "Bitcoin's base58");
+  assert.equal(sp.base58([0, 0, 1]), "112", "each leading zero byte is a 1");
+  const did = sp.didFor(noble, issuer.publicKeyHex);
+  assert.match(did, /^did:hum:[1-9A-HJ-NP-Za-km-z]{11,22}$/);
+  const fp = noble.blake3(new Uint8Array(Buffer.from(issuer.publicKeyHex, "hex"))).slice(0, 16);
+  assert.equal(did, `did:hum:${sp.base58(fp)}`);
+});
+
+// THE LINES A RIG READS (verify-copresence --build): what the relay told this walker about pieces,
+// one line each, found with the patterns this module exports, so the rig and the walker share one
+// copy of each (as CORRECTED_RE does). Red first, 2026-10-05, before the logger existed:
+// "TypeError: sp.logBuilds is not a function".
+test("the build lines are logged in the patterns the rig reads", () => {
+  const listeners = [];
+  const client = { onGame: (fn) => (listeners.push(fn), () => listeners.splice(listeners.indexOf(fn), 1)) };
+  const lines = [];
+  const stop = sp.logBuilds(client, (s) => lines.push(`second-player: ${s}`));
+  const emit = (g) => listeners.forEach((fn) => fn(g));
+  const piece = (id, extra = {}) => ({ piece_id: id, blueprint_id: "wood_wall", position: [46, 0.2, 36], rotation: sp.quarterTurn(1), scale: [4, 3, 0.2], placed_at: 1759680000.25, ...extra });
+  emit({ type: "game_built", frame: "plot:p1", seq: 3, server_time: 1759680000.3, piece: piece(7, { mine: true }), req_id: 2 });
+  emit({ type: "game_built", frame: "plot:p2", seq: 1, server_time: 1759680001, piece: piece(9) });
+  emit({ type: "game_unbuilt", frame: "plot:p2", seq: 2, piece_id: 9 });
+  emit({ type: "game_unbuilt", frame: "plot:p1", seq: 4, piece_id: 7, req_id: 3 });
+  emit({ type: "game_build_refused", req_id: 4, action: "build", reason: "not_allowed", why: "not_your_plot", message: "Wood Wall not built: this is someone else's plot." });
+  emit({ type: "game_build_refused", req_id: 5, action: "unbuild", reason: "no_such_piece", message: "Piece not taken down: it is already gone." });
+  emit({ type: "game_pieces", frame: "zone:commons", seq: 6, server_time: 1759680002, part: 1, parts: 1, pieces: [piece(11, { mine: true })] });
+  emit({ type: "game_frame_out_of_view", frame: "plot:p4" });
+  stop();
+  emit({ type: "game_unbuilt", frame: "plot:p1", seq: 5, piece_id: 8 });
+  const find = (re) => lines.map((l) => l.match(re)).filter(Boolean);
+  const built = find(sp.BUILT_RE);
+  assert.equal(built.length, 1, `one own build: ${lines.join(" | ")}`);
+  assert.deepEqual(built[0].slice(1), ["7", "wood_wall", "plot:p1", "46.000", "0.200", "36.000", "1", "2", "3", "1759680000.250"]);
+  const saw = find(sp.SAW_BUILT_RE);
+  assert.deepEqual(saw.map((m) => m.slice(1)), [["9", "wood_wall", "plot:p2", "46.000", "0.200", "36.000", "1", "1"]], "someone else's build is a saw line, never a built one");
+  assert.deepEqual(find(sp.SAW_UNBUILT_RE).map((m) => m.slice(1)), [["9", "plot:p2", "2"]]);
+  assert.deepEqual(find(sp.TOOK_DOWN_RE).map((m) => m.slice(1)), [["7", "plot:p1", "3", "4"]]);
+  const refused = find(sp.REFUSED_RE).map((m) => m.slice(1, 5));
+  assert.deepEqual(refused, [["build", "not_allowed", "not_your_plot", "4"], ["unbuild", "no_such_piece", undefined, "5"]]);
+  assert.deepEqual(find(sp.SNAPSHOT_PIECE_RE).map((m) => [m[1], m[3], m[8]]), [["11", "zone:commons", " (mine)"]]);
+  assert.ok(lines.some((l) => l.includes("frame out of view: plot:p4")));
+  assert.ok(!lines.some((l) => l.includes("piece 8")), "nothing after the logger stopped");
+  // The welcome's ranks, as the walker logs them on joining.
+  assert.equal(sp.ranksLine({ ranks: { can_edit_ship: true, take_down_any: false } }), 'ranks {"can_edit_ship":true,"take_down_any":false}');
+  assert.match(sp.ranksLine({}), /^ranks missing/);
+  assert.deepEqual(JSON.parse(sp.ranksLine({ ranks: { can_edit_ship: true } }).match(sp.RANKS_RE)[1]), { can_edit_ship: true });
+});
+
+// A builder stands still where the relay put it (--path still): it never walks off its plot, and
+// every update it sends is the same place, standing still. Red first, 2026-10-05: "--path must be
+// circle or line".
+test("--path still stands where the relay put it", () => {
+  const o = sp.parseOptions(["--path", "still"]);
+  assert.equal(o.path, "still");
+  const welcome = { player_id: 9, home_plot: { id: "p1" }, world_snapshot: [{ entity_id: 9, entity_type: "player", position: [27.5, 1.7, 44.5] }, { entity_id: 4, entity_type: "player", position: [80, 1.7, 60] }] };
+  const { center, start } = sp.chooseCenter({ ...o, center: "auto" }, welcome);
+  assert.deepEqual(center, start);
+  const guest = sp.chooseCenter({ ...o, center: "auto" }, { ...welcome, home_plot: null });
+  assert.deepEqual(guest.center, [27.5, 1.7, 44.5], "a guest standing still stands where it was put, never beside someone else");
+  const walk = sp.makeWalk({ path: "still", axis: "x", center, radius: 4, speed: 1.4 }, start, 0);
+  for (let i = 1; i <= 30; i++) {
+    const { msg } = walk.next(i / 15);
+    assert.deepEqual(msg.position, start);
+    assert.deepEqual(msg.velocity, [0, 0, 0]);
+  }
+});

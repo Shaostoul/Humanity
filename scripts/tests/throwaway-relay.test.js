@@ -141,12 +141,14 @@ const { spawn } = require("node:child_process");
 // startRelay needs the judged exe's hash (BUG-133); "the exe" here is this file.
 const THIS_SHA = require("node:crypto").createHash("sha256").update(fs.readFileSync(__filename)).digest("hex");
 
+// Its /health also says which admin keys reached it (ADMIN_KEYS, as the real relay reads them at
+// startup, src/relay/mod.rs), so a test can see what the relay process itself was given.
 const STAND_IN_RELAY = `
 const http = require("node:http");
 http
   .createServer((req, res) => {
     res.setHeader("content-type", "application/json");
-    res.end(JSON.stringify({ status: "ok" }));
+    res.end(JSON.stringify({ status: "ok", admin_keys: process.env.ADMIN_KEYS ?? null }));
   })
   .listen(Number(process.env.PORT), process.env.BIND_ADDRESS);
 `;
@@ -407,5 +409,88 @@ test("the relay's folder holds this tree's data/, and the tree's data/ is never 
     } catch {}
     fs.rmSync(src, { recursive: true, force: true });
     fs.rmSync(outside, { recursive: true, force: true });
+  }
+});
+
+// ── An explicit environment for the relay (ship homes increment 5, 2026-10-05) ──
+// verify-copresence --build needs a rank holder: the relay makes every key in ADMIN_KEYS an admin
+// at startup (src/relay/mod.rs), and the built-in Admin role holds the ship-editing rank. relayEnv
+// drops the SHELL's ADMIN_KEYS on purpose (a developer's own key must never make a stranger on a
+// throwaway relay an admin, and a rig must not depend on what its shell happens to hold), so a rig
+// names its admin itself: startRelay({ env: { ADMIN_KEYS } }). What it may not name: the port,
+// the database and the listen address, which are what make it a throwaway loopback relay.
+// Red first, 2026-10-05, against the lib before the option:
+//   AssertionError [ERR_ASSERTION]: an explicit ADMIN_KEYS goes into the relay's environment
+//   + actual - expected
+//   + undefined
+//   - 'rig-admin-key'
+test("an explicit admin key reaches the relay, the shell's does not", async () => {
+  const before = process.env.ADMIN_KEYS;
+  process.env.ADMIN_KEYS = "shell-admin-key"; // a developer's shell holding their own admin key
+  try {
+    const plain = TR.relayEnv(43210, "x/relay.db");
+    assert.strictEqual(plain.ADMIN_KEYS, undefined, "the shell's ADMIN_KEYS never reaches a throwaway relay");
+    const named = TR.relayEnv(43210, "x/relay.db", { ADMIN_KEYS: "rig-admin-key" });
+    assert.strictEqual(named.ADMIN_KEYS, "rig-admin-key", "an explicit ADMIN_KEYS goes into the relay's environment");
+    assert.strictEqual(named.BIND_ADDRESS, "127.0.0.1", "and the relay still listens on loopback only");
+
+    // Through startRelay, to the relay process itself (the stand-in reports what it was given).
+    const seen = {};
+    const h = await TR.startRelay({
+      sourceExe: __filename,
+      expectSha256: THIS_SHA,
+      prefix: "throwaway-relay-selftest-",
+      healthTimeoutMs: 20000,
+      spawnProcess: standIn(seen),
+      env: { ADMIN_KEYS: "rig-admin-key" },
+    });
+    try {
+      assert.ok(h.health, `the stand-in relay answered /health (log: ${h.logText()})`);
+      assert.strictEqual(h.health.admin_keys, "rig-admin-key", `the rig's admin key reached the relay (it was given ${JSON.stringify(h.health.admin_keys)})`);
+    } finally {
+      await h.stop();
+    }
+    const none = await TR.startRelay({
+      sourceExe: __filename,
+      expectSha256: THIS_SHA,
+      prefix: "throwaway-relay-selftest-",
+      healthTimeoutMs: 20000,
+      spawnProcess: standIn({}),
+    });
+    try {
+      assert.strictEqual(none.health.admin_keys, null, `with none named, the relay is given no admin key at all, never the shell's (it was given ${JSON.stringify(none.health.admin_keys)})`);
+    } finally {
+      await none.stop();
+    }
+
+    // What makes it a throwaway loopback relay cannot be named, in any case of letters, and a
+    // refused env starts nothing.
+    for (const k of ["BIND_ADDRESS", "PORT", "DATABASE_PATH", "bind_address"]) {
+      const s = {};
+      let err = null;
+      try {
+        const x = await TR.startRelay({
+          sourceExe: __filename,
+          expectSha256: THIS_SHA,
+          prefix: "throwaway-relay-selftest-",
+          healthTimeoutMs: 20000,
+          spawnProcess: standIn(s),
+          env: { [k]: "0.0.0.0" },
+        });
+        await x.stop();
+      } catch (e) {
+        err = e;
+      }
+      if (s.child) {
+        s.child.kill();
+        await exitedOrGone(s.child);
+      }
+      assert.ok(err, `env may not set ${k} (startRelay resolved instead)`);
+      assert.match(err.message, /sets .* itself/);
+      assert.ok(!s.child, `nothing was started for an env setting ${k}`);
+    }
+  } finally {
+    if (before === undefined) delete process.env.ADMIN_KEYS;
+    else process.env.ADMIN_KEYS = before;
   }
 });
