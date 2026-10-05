@@ -87,6 +87,9 @@ pub mod quest_hooks;
 /// Placing a built piece: the ghost that follows the crosshair, R to turn
 /// it, E to build it there, Esc to stop (2026-09-27).
 pub mod build_place;
+/// The pieces the server keeps, the game's side (ship homes increment 5): the gate before
+/// anything is spent, sending builds and take-downs, and applying what the relay says.
+pub mod shared_build;
 /// Building on a planet's ground as well as aboard (2026-09-27, BUG-102):
 /// the frame the player builds, shelters and looks in, the ground under the
 /// crosshair, and drawing built pieces where they stand.

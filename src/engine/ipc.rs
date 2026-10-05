@@ -84,6 +84,35 @@ pub(crate) fn drop_link_hold(raw: &str) -> Option<f32> {
     Some(hold.clamp(crate::net::ws_client::RECONNECT_DELAY_INITIAL_SECS, DROP_LINK_MAX_HOLD_SECS))
 }
 
+/// What the showcase `place` verb asks for (ship homes increment 5): a blueprint, a floor point in
+/// ship metres, and its quarter turns.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct PlaceSpec {
+    pub blueprint: String,
+    pub x: f32,
+    pub z: f32,
+    pub turns: u8,
+}
+
+/// Read a `place` verb's value, `"<blueprint>@<x>,<z>,<turns>"` (`wood_foundation@48,135,0`): a
+/// blueprint id, two finite numbers and a turn from 0 to 3. None for anything else, so a typo
+/// builds nothing.
+pub(crate) fn parse_place(raw: &str) -> Option<PlaceSpec> {
+    let (blueprint, rest) = raw.trim().split_once('@')?;
+    let blueprint = blueprint.trim();
+    let parts: Vec<&str> = rest.split(',').map(str::trim).collect();
+    let [x, z, turns] = parts.as_slice() else { return None };
+    let x = x.parse::<f32>().ok().filter(|v| v.is_finite())?;
+    let z = z.parse::<f32>().ok().filter(|v| v.is_finite())?;
+    let turns = turns.parse::<u8>().ok().filter(|t| *t < 4)?;
+    (!blueprint.is_empty()).then(|| PlaceSpec { blueprint: blueprint.to_string(), x, z, turns })
+}
+
+/// Read a `take_down` verb's value: the relay's id of a piece the server keeps.
+pub(crate) fn parse_take_down(raw: &str) -> Option<u64> {
+    raw.trim().parse::<u64>().ok()
+}
+
 /// What a showcase `hull` pin asks for: "0" hides the ship's hull, "1" shows it (the H key's
 /// toggle, `GuiState::show_hull`). None for anything else, so a typo leaves the hull as it is.
 pub(crate) fn hull_pin(raw: &str) -> Option<bool> {
@@ -499,6 +528,44 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             if want { "open" } else { "shut" },
             if state.gui_state.construction_active { "open" } else { "shut" }
         );
+    }
+    // {"stock":"1"} (ship homes increment 5, 2026-10-05): the Crafting page's "Dev: stock all
+    // materials" (a stack of every recipe input into the pack), under the button's own rule, the
+    // Dev mode with dev cheats on. verify-copresence --build stocks the game before it places.
+    // Permanent dev tooling.
+    if grab("stock").as_deref() == Some("1") {
+        if state.gui_state.dev_cheats_active(&state.theme) {
+            state.gui_state.dev_stock_materials = true;
+            log::info!("Showcase: stock -> a stack of every recipe input into the pack");
+        } else {
+            log::warn!("Showcase: stock refused: like the Crafting page's button, it is the Dev mode's, with dev cheats on");
+        }
+    }
+    // {"place":"<blueprint>@<x>,<z>,<turns>"} (ship homes increment 5): what E does with that
+    // piece in hand aimed at that floor point (ship metres), through E's own gate
+    // (engine/build_place.rs `place_at`): kept by the server on the player's own plot, refused at
+    // the crosshair elsewhere (the sentence goes up as a notice), nothing left in hand after it.
+    // Permanent dev tooling.
+    if let Some(spec) = grab("place") {
+        match parse_place(&spec) {
+            Some(p) => {
+                let note = crate::engine::build_place::place_at(state, &p.blueprint, p.x, p.z, p.turns);
+                log::info!("Showcase: place -> {note}");
+            }
+            None => log::warn!("Showcase: place wants \"<blueprint>@<x>,<z>,<turns>\" with turns 0 to 3, not {spec:?}"),
+        }
+    }
+    // {"take_down":"<piece_id>"} (ship homes increment 5): what F does at that piece the server
+    // keeps (engine/build_place.rs `take_down_piece`): asked of the relay when it would allow it,
+    // the reason on screen when not. Permanent dev tooling.
+    if let Some(spec) = grab("take_down") {
+        match parse_take_down(&spec) {
+            Some(id) => {
+                let note = crate::engine::build_place::take_down_piece(state, id);
+                log::info!("Showcase: take_down -> {note}");
+            }
+            None => log::warn!("Showcase: take_down wants the id of a piece the server keeps, not {spec:?}"),
+        }
     }
     // Optional "time":"9.5" sets the game clock to that hour of the
     // current day (dev/screenshot control: dawn shots without waiting
@@ -3575,7 +3642,9 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         let c = &state.camera;
         let players = remote_players_json(&state.game_world.world);
         let crew = remote_crew_json(&state.game_world.world);
-        rec.rows += players.len() + crew.len();
+        // The pieces the server keeps, with their boxes on the screen (ship homes increment 5).
+        let shared = crate::engine::shared_build::recorder_rows(state);
+        rec.rows += players.len() + crew.len() + shared.len();
         // The computer's own clock, ms since 1970: a rig compares it with
         // when its walker did things, independent of the frame clock above.
         let epoch_ms = std::time::SystemTime::now()
@@ -3592,6 +3661,9 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
             "players": players,
             // The crew as drawn this frame (increment 3).
             "crew": crew,
+            // Every piece the server keeps in this world this frame, its screen rect in the
+            // window's pixels or null behind the camera (scripts/lib/shared-build-judge.js).
+            "shared": shared,
         }));
     } else {
         rec.truncated = true;
@@ -3604,6 +3676,7 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
     // so a rig can check the camera and the other players against the plots
     // (scripts/verify-copresence.js --plots).
     let (home_plot, ship_plots) = crate::engine::home_plot::probe_json(state.gui_state.ship_structure.as_ref());
+    let (screen_w, screen_h) = state.renderer.viewport_size();
     let done = serde_json::json!({
         "ok": true,
         "seconds": rec.seconds,
@@ -3646,6 +3719,11 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         // walks onto the home's own west pad and judges where it lands (the increment 4 review, R1).
         "transit": crate::engine::move_check::transit_probe_json(state),
         "aboard_ship": state.aboard_bounds.is_some_and(|b| crate::ship::ship_space::in_box(&b, state.camera.position)),
+        // Increment 5: the pieces the server keeps as this game has them, what this player may
+        // build, what waits for the relay (engine/shared_build.rs `probe_json`), and the window's
+        // size in pixels, the space of every frame's `shared` rects and of a screenshot.
+        "shared_build": crate::engine::shared_build::probe_json(state),
+        "screen_px": [screen_w, screen_h],
         "camera_start": rec.camera_start,
         "camera_end": camera_json(state),
         "frames": rec.frames,
@@ -4201,5 +4279,120 @@ mod showcase_gate_tests {
             growing_seconds: 0.0,
         },));
         assert_eq!(showcase_gate(&growing, PlayMode::Dev, true), Err("crops already present"));
+    }
+}
+
+#[cfg(test)]
+mod shared_build_ipc_tests {
+    //! The dev IPC's side of the pieces the server keeps (ship homes increment 5, 2026-10-05):
+    //! the showcase verbs scripts/verify-copresence.js --build sends, and what the recorder
+    //! reports for scripts/lib/shared-build-judge.js.
+    use super::*;
+    use crate::engine::shared_build::{piece_rows, spawn_piece, ScreenView};
+    use crate::ship::build_frames::BuildFrames;
+    use crate::systems::construction::shared::Piece;
+    use crate::systems::construction::BlueprintRegistry;
+    use glam::Mat4;
+
+    /// The body of `fn name` in this file, up to the first line that is a lone `}` (line endings
+    /// as git checks the file out on Windows or Linux).
+    fn body_of(name: &str) -> String {
+        let src = include_str!("ipc.rs").replace("\r\n", "\n");
+        let start = src.find(&format!("pub(crate) fn {name}(")).unwrap_or_else(|| panic!("fn {name} in ipc.rs"));
+        src[start..start + src[start..].find("\n}\n").expect("its end")].to_string()
+    }
+
+    /// THE SHARED-BUILD VERBS PARSE, AND THE SHOWCASE POLL READS THEM. `place` takes a blueprint, a
+    /// floor point in ship metres and a turn from 0 to 3, spaces allowed, and refuses anything else
+    /// (a missing number, a fifth turn, no blueprint, junk, an infinity); `take_down` takes a piece
+    /// id; the request bodies exactly as verify-copresence writes them reach each verb by its key;
+    /// and `poll_showcase_request` reads all three.
+    ///
+    /// Seen red 2026-10-05 before the verbs (the three blocks not yet in `poll_showcase_request`):
+    /// "the showcase poll never reads grab(\"stock\")".
+    #[test]
+    fn place_take_down_and_stock_verbs_parse() {
+        let spec = |b: &str, x: f32, z: f32, turns: u8| Some(PlaceSpec { blueprint: b.into(), x, z, turns });
+        assert_eq!(parse_place("wood_foundation@48,135,0"), spec("wood_foundation", 48.0, 135.0, 0));
+        assert_eq!(parse_place(" wood_wall @ 30.5 , -2 , 3 "), spec("wood_wall", 30.5, -2.0, 3));
+        for bad in ["wood_wall@1,2", "wood_wall@1,2,4", "@1,2,0", "wood_wall@x,2,0", "wood_wall@1,2,0,1", "wood_wall@inf,2,0", "wood_wall", ""] {
+            assert_eq!(parse_place(bad), None, "{bad:?}");
+        }
+        assert_eq!(parse_take_down("12"), Some(12));
+        assert_eq!(parse_take_down(" 7 "), Some(7));
+        for bad in ["-1", "seven", "", "1.5"] {
+            assert_eq!(parse_take_down(bad), None, "{bad:?}");
+        }
+        assert_eq!(showcase_value(r#"{"place":"wood_foundation@48,135,0"}"#, "place").as_deref(), Some("wood_foundation@48,135,0"));
+        assert_eq!(showcase_value(r#"{"take_down":"12"}"#, "take_down").as_deref(), Some("12"));
+        assert_eq!(showcase_value(r#"{"stock":"1"}"#, "stock").as_deref(), Some("1"));
+        assert_eq!(showcase_value(r#"{"tower":"a","plant":"b"}"#, "place"), None, "plant is not place");
+        let poll = body_of("poll_showcase_request");
+        for verb in ["grab(\"stock\")", "grab(\"place\")", "grab(\"take_down\")"] {
+            assert!(poll.contains(verb), "the showcase poll never reads {verb}");
+        }
+    }
+
+    /// THE RECORDER REPORTS THE PIECES THE SERVER KEEPS, the rows the judge reads. In the Commons
+    /// (corner (65, 0, 20)): a wall finished 6 m in front of a camera at the meeting pose looking
+    /// at it, a foundation 2 s into its 5 s, and a wall behind the camera. Each row has exactly the
+    /// fields the judge reads (and its screen rect, which the probe leaves out): where it is drawn
+    /// from in ship metres, its turn and size, whose, finished or not, how far grown. The wall in
+    /// front lies wholly inside a 1280 x 720 view and covers its middle; the one behind has no
+    /// rect. And the recorder puts the rows into every frame, and the probe's `shared_build` and
+    /// `screen_px` into its done JSON.
+    ///
+    /// Seen red 2026-10-05 before the recorder reported them (`"shared"` not yet in each recorded
+    /// frame): "the recorder never writes \"shared\": shared".
+    #[test]
+    fn the_recorder_reports_shared_pieces() {
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let frames = BuildFrames::of_ship(&crate::ship::ship_structure::ShipStructure::ship_for_relay(&dir).unwrap());
+        let commons = frames.get("zone:commons").unwrap();
+        let t = 1_759_500_000.0;
+        let at = |id: u64, bp: &str, local: [f32; 3], placed_at: f64| Piece {
+            piece_id: id,
+            blueprint_id: bp.into(),
+            position: local,
+            rotation: [0.0, 0.0, 0.0, 1.0],
+            scale: reg.get(bp).unwrap().size,
+            placed_at,
+            mine: id == 32,
+        };
+        let mut world = hecs::World::new();
+        spawn_piece(&mut world, Some(&reg), commons, &at(31, "wood_wall", [11.0, 0.0, 50.0], t - 100.0), t);
+        spawn_piece(&mut world, Some(&reg), commons, &at(32, "wood_foundation", [5.0, 0.0, 45.0], t - 2.0), t);
+        spawn_piece(&mut world, Some(&reg), commons, &at(33, "wood_wall", [11.0, 0.0, 10.0], t - 100.0), t);
+        // The meeting pose (76, 1.7, 64), looking along +z at the wall at z 70.
+        let eye = Vec3::new(76.0, 1.7, 64.0);
+        let view = ScreenView {
+            view_proj: Mat4::perspective_rh(70f32.to_radians(), 1280.0 / 720.0, 0.05, 1000.0) * Mat4::look_at_rh(eye, eye + Vec3::Z, Vec3::Y),
+            size: [1280.0, 720.0],
+            offset: Vec3::ZERO,
+        };
+        let rows = piece_rows(&world, Some(&reg), Some(&view));
+        assert_eq!(rows.len(), 3);
+        let mut keys: Vec<&str> = rows[0].as_object().unwrap().keys().map(|k| k.as_str()).collect();
+        keys.sort_unstable();
+        assert_eq!(keys, ["blueprint_id", "built", "frame", "mine", "piece_id", "pos", "progress", "rect", "rot", "scale"]);
+        let (wall, slab, behind) = (&rows[0], &rows[1], &rows[2]);
+        assert_eq!((wall["piece_id"].as_u64(), wall["frame"].as_str(), wall["blueprint_id"].as_str()), (Some(31), Some("zone:commons"), Some("wood_wall")));
+        assert_eq!(wall["pos"], serde_json::json!([76.0, 0.0, 70.0]), "ship metres: the Commons' corner added");
+        assert_eq!(wall["rot"], serde_json::json!([0.0, 0.0, 0.0, 1.0]));
+        assert_eq!((wall["built"].as_bool(), wall["mine"].as_bool(), wall["progress"].as_f64()), (Some(true), Some(false), Some(4.0)));
+        let r: Vec<f64> = wall["rect"].as_array().expect("in front: a rect").iter().map(|v| v.as_f64().unwrap()).collect();
+        assert!(r[0] >= 0.0 && r[1] >= 0.0 && r[2] <= 1280.0 && r[3] <= 720.0 && r[0] < r[2] && r[1] < r[3], "wholly in view: {r:?}");
+        assert!(r[0] < 640.0 && 640.0 < r[2] && r[1] < 360.0 && 360.0 < r[3], "over the middle of the view: {r:?}");
+        assert_eq!((slab["built"].as_bool(), slab["mine"].as_bool()), (Some(false), Some(true)));
+        assert!((slab["progress"].as_f64().unwrap() - 2.0).abs() < 1e-3, "2 s grown: {}", slab["progress"]);
+        assert!(behind["rect"].is_null(), "behind the camera: no rect, {}", behind["rect"]);
+        let probe = piece_rows(&world, Some(&reg), None);
+        assert!(probe[0].get("rect").is_none(), "the probe's rows carry no rect");
+
+        let rec = body_of("poll_remote_players_request");
+        for wired in ["\"shared\": shared", "\"shared_build\": crate::engine::shared_build::probe_json(state)", "\"screen_px\": [screen_w, screen_h]"] {
+            assert!(rec.contains(wired), "the recorder never writes {wired}");
+        }
     }
 }
