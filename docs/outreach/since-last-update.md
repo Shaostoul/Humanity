@@ -11,6 +11,19 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1459.1: six Library guides on heat, fire and first aid.** Heating a
+  Home Safely (space heaters, a carbon monoxide alarm on every sleeping
+  floor, the signs of carbon monoxide poisoning, and Washington's rule on
+  portable kerosene and propane heaters indoors), Making and Controlling
+  Fire (putting a fire out properly, "once out, stay out", burn bans),
+  Fuels and Their Hazards (storing gasoline and propane, what to do if you
+  smell gas), First Aid Until Help Arrives (CPR for adults, children and
+  babies, choking, bleeding, seizures, low blood sugar), When Heat Becomes
+  Dangerous (heat exhaustion against heat stroke, and how to cool someone)
+  and Helping Your Neighbours After a Disaster (damaged buildings, gas
+  leaks, CERT). Each was checked twice against its sources before it
+  shipped. The Library now has 101 sourced guides.
+
 - **v0.1459.0: getting around the ship, and a HUD that tells the truth.** On
   a shared server, the server now checks how far each player moves. A move
   that is too big puts the player back where the server last had them,
