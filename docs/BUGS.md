@@ -3989,6 +3989,53 @@ a planet (BUG-153's campfire is the planet side); and `data/hvac.ron`'s other he
 (heat pump, wood stove) have no machine yet. The never-registered `HvacSystem`
 (`src/systems/hvac.rs`), superseded by this, was deleted the same day.
 
+**Review fixes (2026-10-05, the second seam review of the day's merges):**
+- *The time away charged a placed heater its full 1,500 W every hour.* While the player
+  is away the power ledger charges the home's machines the Usage meter's day averages
+  (`crafting::away::day_power_balance`), and the meter cannot see the air a heater stands
+  in, so it charged every heater its full draw: 36 kWh a day, even in a fruiting tent,
+  where its thermostat runs it about an eighth of the time. A static `average_watts` like
+  the other controller-driven machines' would be right in one kind of place only (the
+  heater runs flat out in every grow room and in the home's own air, an eighth of the time
+  in a tent), so the heater is metered by its thermostat instead: the save keeps what each
+  heater was drawing, its watts for the share of the time its thermostat ran it
+  (`WorldSave::heater_draw_w`, by machine instance id, from `crafting::away::heater_draws`),
+  and the time away charges each heater that in place of the meter's figure: about 182 W
+  in a mushroom rack's fruiting tent (it loses about 61 W a degree held 3 C over its 21 C:
+  53.1 through its walls and top, 7.6 with its fresh air), the full 1,500 W in a grow room
+  or the home's own air, which it never warms to 24 C. A heater with no saved draw (placed
+  since the save, or a save from before this) keeps the meter's full draw, and so does one
+  saved before the air step measured it. The Construction page's Usage meter still charges
+  the full draw: it is a design-time meter with no air to read. Test:
+  `farming::heat_tests::the_time_away_charges_a_heater_what_its_thermostat_ran_it_at`: two
+  of the shipped heaters, spawned as the engine spawns them, one in the shipped fruiting
+  tent and one in a greenhouse-sized grow room, run by the farming tick, saved through JSON
+  and resumed an hour later (`resume_home`) with the shipped family home; the time away's
+  balance is better than the meter's by the tent heater's unused 1,318 W in both life
+  support modes. Seen red with the saved draws ignored, the code before this in effect:
+  "Station-supplied: the time away charges the heaters 0.0 W less than their full draw,
+  not the tent heater's unused 1317.8 W"; and with the save not keeping them: "the save
+  has heater_tent's draw: {}".
+- *The add-up test could not fail for the real path.*
+  `engine::survival_env::tests::a_heaters_warm_air_and_a_fires_warmth_add_up` built its
+  own context from `indoor_air` and `warmed_by_fires`, a combination `publish` never made:
+  its inside-the-home branch had no fire term. That branch is now
+  `survival_env::inside_home_context`, which puts the warmth of any fire the player can see
+  (`fire_warmth`, which is 0 aboard today) on top of the air where they stand, so a fire
+  that ever burns aboard adds to a heater's air instead of being dropped; and the test
+  calls it. Seen red on the branch as it was, moved there unchanged: "the fire's warmth on
+  top of the heater's air (left: 22.05, right: 42.179012)". Also red with
+  `warmed_by_fires` taking the radiant temperature from a fixed 21 C (left: 41.318604).
+- *Heat and How It Moves* said a heater warms "the air of the room it stands in", a few
+  degrees in a small room. That is true only in a grow room or a fruiting tent, the only
+  airs the game keeps apart; it now says which airs those are and what one heater does in
+  each (an eighth of the time in a tent at 24 C; flat out and about 1 C in a 300 m3 grow
+  room, 0.16 C in the greenhouse; a few hundredths of a degree on the home's whole air from
+  a bedroom or the kitchen), as Heating a Home Safely already did. The heater's own card
+  (its `air` stat in `data/machines/home.ron` and `home_solo.ron`) said the same thing and
+  now reads "warms the air it stands in, a grow room's or a tent's, else the whole home's,
+  up to 24 C".
+
 ## BUG-156: trees float in the air beside the Silverdale waterfront (OPEN, found 2026-10-05)
 
 **Seen:** in v0.1459.0's probe capture of the new vantage `silverdale-home-marker`

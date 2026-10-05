@@ -297,6 +297,9 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     // tank's litres, each vessel's contents, with any saved contents still
     // held for world entry (systems::machine_levels).
     save.machine_levels = crate::systems::machine_levels::levels(world);
+    // What each space heater's thermostat was running it at (the review of
+    // BUG-155, 2026-10-05), which the time away charges it.
+    save.heater_draw_w = crate::systems::crafting::away::heater_draws(world);
     // The relay trades this backpack has settled (2026-10-02), in the same
     // save as the backpack they changed.
     save.settled_trades = settled_trades(world);
@@ -1226,7 +1229,7 @@ pub fn resume_home(
             .filter(|c| c.auto)
             .filter_map(|c| c.machine_id.clone().map(|id| (id, f64::from(c.time_remaining))))
             .collect(),
-        power_balance_w: home.map_or([0.0; 2], crate::systems::crafting::away::day_power_balance),
+        power_balance_w: home.map_or([0.0; 2], |h| crate::systems::crafting::away::day_power_balance(h, &save.heater_draw_w)),
         hauls,
     });
     crate::systems::crafting::away::hand_over(data, work);

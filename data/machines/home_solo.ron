@@ -868,10 +868,13 @@
             // comment quotes its sources: the Lasko 754200's 1,500 W ceramic element, all of it
             // heat, cycled by its thermostat, set to 24 C (a GAME CHOICE, 75 F, the middle of
             // UGA Bulletin 792's 70 to 80 F days). Not placed in the seed design: one heater
-            // flat out is 36 kWh a day, about eight times the 4.45 this home makes.
+            // flat out is 36 kWh a day, about eight times the 4.45 this home makes. No
+            // average_watts, as in home.ron: the static meter charges its full draw, and the
+            // time away the draw its thermostat was running it at when the game was saved
+            // (about 182 W in a fruiting tent, 1,500 W in a grow room or the home's own air).
             heats_w: 1500.0,
             heat_setpoint_c: 24.0,
-            stats: [(kind: "power", value: "1,500 W while it heats, none once its air is at 24 C", status: "warn"), (kind: "air", value: "warms the air of the room it stands in, up to 24 C", status: "ok")],
+            stats: [(kind: "power", value: "1,500 W while it heats, none once its air is at 24 C", status: "warn"), (kind: "air", value: "warms the air it stands in, a grow room's or a tent's, else the whole home's, up to 24 C", status: "ok")],
             power: Some(Consumer(watts: 1500.0, priority: 4)),
         ),
         "composter": (

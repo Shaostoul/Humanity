@@ -1608,7 +1608,11 @@ Restore and "Snapshot now" (v0.1442.0, BUG-129).
   real ore (`mining::advance_away`); each animal's egg, milk or wool timer
   moves on to one yield waiting (`livestock::timers_after_away`). Nothing
   dies or is used up without the player's say. A character select now
-  restores the Barn with the save (`save_load::after_resume`).
+  restores the Barn with the save (`save_load::after_resume`). The power the
+  time away charges a space heater is what its thermostat was running it at
+  when the game was saved (2026-10-05, `WorldSave.heater_draw_w`), not the
+  Usage meter's full draw: about 182 W in a fruiting tent, 1,500 W where it
+  never reaches 24 C.
 
 ### Data-Driven Tools (v0.90.7)
 tools.rs loads tool catalog from external JSON instead of hardcoded data.
