@@ -192,9 +192,16 @@ several things break. Ranked:
   points at a Dev-only button, completions are silent, the HUD goes blank after
   Toolsmith; F4 machines eat the backpack (BUG-150, being fixed); F5 the
   bedroom's bed says "sleep here" but cannot be slept in; F7 nothing planted
-  ripens in a session; F8 food poisoning can kill with no cure and no word.
+  ripens in a session; F8 food poisoning can kill with no cure and no word;
+  "Keep mining" traps the drone in endless empty trips with no Stop; logs are
+  refused as "pack is full" with 47 L free (each log is 26 L); building with
+  too few materials does nothing in the world and says why only on the
+  Crafting page; the smelter's fuel choice is lost on every load; the
+  character picker's hint ("Gear and skills stay in the world you earn them
+  in") is false.
 - **Missing stakes:** S1 quitting heals and refills (vitals never saved); S2
-  death costs nothing; S4 the free showcase garden replants itself in every
+  death costs nothing; the B editor places any machine for free even in
+  Normal, and writes it into the data files rather than the save; S4 the free showcase garden replants itself in every
   mode; S6 stored food never spoils; S7 animals have no needs; S8 the medical
   system is never registered.
 - **Operator decisions this needs:** when the pre-launch defaults flip (Play

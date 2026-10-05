@@ -4,271 +4,255 @@
 > towards a basic starting gameplay loop?" (2026-10-04). Scenario: a new player in
 > Play mode Normal with "Start every session from the default home" OFF, single
 > player, then what changes on a shared server. Every claim carries file:line as of
-> v0.1458.1; lines drift. It is the evidence base for the first-hour arc in
-> docs/PRIORITIES.md. Reproduced as the auditor wrote it.
+> v0.1458.1; lines drift. This is the auditor's final report, after three read-only
+> sub-audits (quests; tools, drone, smelting and building; the shared server), and it
+> replaces a shorter first version. It is the evidence base for the first-hour arc
+> in docs/PRIORITIES.md. Reproduced as the auditor wrote it.
 
-HumanityOS: a new player's first hour with stakes on. Read-only code audit, 2026-10-04.
+New-player first-hour audit of HumanityOS, play mode Normal, progress kept between launches
 
-Scope: I read code and data only. Nothing was edited, built or booted. Two parallel tracers covered quests and the shared server. A third, covering tools, drone, smelting and building, never reported back, so I traced those myself. I re-read every load-bearing line the tracers cited before using it. Paths are relative to C:\Humanity. I did not check runtime state, such as whether the live server's plots are already taken.
+I only read code and data. Nothing was edited, built or booted. Paths are under C:\Humanity\ (so src\lib.rs means C:\Humanity\src\lib.rs).
 
-FOUR THINGS FRAME EVERYTHING
-- **The defaults are the opposite of this scenario.**
-  - Play mode defaults to Dev (src/config.rs:127-131), where nothing is used up (config.rs:166).
-  - "Start every session from the default home" defaults ON (src/gui/mod.rs:4528, src/config.rs:627-630).
-  - A player who never opens Settings > Gameplay has no stakes, and loses all progress every launch.
-- **The first session is usually not single player.**
-  - If the player typed a display name and is online, the app connects to united-humanity.us by itself (src/gui/connections.rs:293-303, src/lib.rs:14275-14307). The default URL is set at src/gui/mod.rs:3222, and "Skip (stay offline)" keeps it (src/gui/pages/main_menu.rs:317-319).
-  - Entering the world then joins the shared world (src/lib.rs:6739-6792), because the "solo" flag defaults to false and is never saved (src/gui/mod.rs:3732).
-  - Only choosing the home row in the Characters picker sets solo (src/lib.rs:7287-7288).
-- **In true single player at the default 1x clock, nothing can hurt the player in the first hour.** Anything that could hurt them later is undone by dying, quitting or relaunching.
-- **The quest line is completable in a few minutes, but nothing tells the player where to go.** After the second quest it falls silent.
+I traced the core path myself. Three read-only sub-audits ran alongside: one on quests, one on tools, drone, smelting and building, and one on the shared server. I re-read the code behind every claim of theirs used below and corrected one of them: the stuck drone in Friction 5 does have an escape.
 
-1. THE JOURNEY
+## Headlines
+- **The first session is not single player by default.** It silently joins the public shared world (72x clock), and may arrive as a guest with no home.
+- **First Steps is done in about five minutes with the stated settings, but almost nothing in hour one is at risk.** A ripe garden appears for free, the B editor places any machine for free, the drone is free, and both death and relaunch refill you.
+- **The defaults a real downloader gets remove progress and stakes entirely.** Play mode is Dev, and "start every session from the default home" is on.
+- All seven known gaps are confirmed. The home marker is broader than reported: it never draws anywhere, not just from the ground.
 
-**1. First boot.**
-- Storage chooser, then Welcome (main_menu.rs:50-55, 67-122, 147-184).
-- "Skip setup (offline mode)" finishes with no identity (main_menu.rs:175-179). That is the only truly offline path, because there is no auto-connect without a key (connections.rs:302).
-- Discoverable: yes.
+## 1. The journey, step by step
 
-**2. Server step.**
-- "Connect" only probes the server's /health address (main_menu.rs:293-310).
-- "Skip (stay offline)" just moves on (main_menu.rs:317-319).
+1. **Storage chooser.** Code: main_menu.rs:50-55, 67-122. Discoverable: yes. Persists: the choice.
 
-**3. Identity.**
-- Display name, then "Generate New Identity" shows the 24 words in place and opens the passphrase prompt (main_menu.rs:453-537; lib.rs:15462-15465).
-- Finish is blocked without an identity (main_menu.rs:625-636).
+2. **Welcome.** Code: main_menu.rs:147-184.
+   - "Skip setup (offline mode)" completes onboarding with no identity at all (:175-179). Without an identity the app never connects (connections.rs:302).
 
-**4. "Enter HumanityOS".**
-- This puts the player in the 3D world (main_menu.rs:669-678).
-- The only instructions anywhere are "Press Escape anytime to open the menu. Press Enter to toggle chat." (main_menu.rs:681-684).
-- Nothing mentions I (inventory), E (use), F1 (key list) or Alt (free the mouse).
+3. **Server step.** "Skip (stay offline)" only moves to the next page (main_menu.rs:317-319). The server address stays https://united-humanity.us (gui\mod.rs:3222).
 
-**5. Spawn.**
-- The home is assembled onto plot p1 (src/engine/world_load.rs:117-131).
-- The player stands at the home's authored spawn, (53.5, 40.5) (data/homes/homestead.ron:1414), inside the Entry room (homestead.ron:1566-1573), just inside the front door, facing west (world_load.rs:211-214).
-- data/world/spawn.ron, which says "bedroom", is dead data: only the embed list references it (src/embedded_data.rs:79, 295, 471).
-- data/player.toml is dead too (embedded_data.rs:52, 276, 459).
-- From data/world/player.ron, only starting_items is read (src/save_load.rs:596-611).
-- What the player has:
-  - Starter kit (player.ron:21-41): 35 seeds, 4 purified water, 2 empty bottles, 3 rations, 8 hand tools.
-  - Health 100 (src/ecs/components.rs:66-73).
-  - Food 80, Water 80, Energy 100 (components.rs:122-139).
-  - 10,000 credits (components.rs:1007-1010).
-  - The Barn holds 400 wheat, 200 oats, 200 corn, 100 rice, 100 flour, 100 seed potatoes, 40 fertilizer and 60 planks (data/places/seed.json:111-127).
-  - 3 chickens, 2 goats and 2 sheep (data/entities/livestock.ron:13-15).
-  - The whole garden is pre-planted for free at staggered stages, some already ripe (src/engine/ipc.rs:169-294; data/world/showcase.ron:8-9).
-- Discoverable: the room card says "Entry ... Here: Personal Storage / Review Tasks". That card is text only (src/gui/pages/hud.rs:438-473; data/rooms.ron:153-156).
+4. **Identity.** Display name, Generate New Identity, the 24 words, then a passphrase.
+   - Code: main_menu.rs:432-536; passphrase modal at lib.rs:15462-15465. You cannot finish without an identity (:625-636).
+   - Discoverable: yes; the guidance is good and in place.
 
-**6. First seconds online.**
-- A "Choose your privacy" window appears in the middle of the 3D view (lib.rs:15377-15391; src/gui/pages/privacy.rs:201-236). It has no close button.
-- The mouse stays captured for looking around (src/engine/input.rs:65-73 does not count this window), so the player must hold Alt or press Esc to click it.
+5. **"Enter HumanityOS"** takes you to the 3D world, or to Chat if the server probe succeeded (main_menu.rs:669-678).
+   - The only tips: "Press Escape anytime to open the menu. Press Enter to toggle chat." (:681-684). Nothing about I, E, F1 or Alt.
 
-**7. HUD.**
-- Shows the health bar, "10000 CR" and the quest (hud.rs:101-155).
-- No survival bars at the start. The default "When low" mode shows a need only below half (hud.rs:1160-1201; config.rs:89-99). At 1x, Energy is the first to appear, after about 10.7 hours (src/systems/food.rs:181).
-- No help button in the world (src/gui/pages/keymap.rs:245-258). F1 lists the keys (data/keymaps.ron:25-57), but nothing on screen says F1 exists.
+6. **Spawn.** You stand just inside the front door, in the Entry room, facing west.
+   - Code: homestead.ron:52 (door), :1414 (spawn), :1566-1573 (Entry); world_load.rs:211-214.
+   - data\world\spawn.ron says "bedroom" (:6-7), but nothing reads it; it is only embedded (embedded_data.rs:79, 295, 471).
+   - Starting state:
+     - Health 100/100 (components.rs:66-73).
+     - Food 80, Water 80, Energy 100 (components.rs:122-139).
+     - 10,000 CR (components.rs:1007-1011).
+     - Kit of 35 seeds, 4 waters, 2 empty bottles, 3 rations and 8 hand tools (player.ron:21-41). It fills 17.5 L of the 65 L pack (inventory\mod.rs:181-184).
+     - The Barn holds 400 wheat, 200 oats, 200 corn, 100 rice, 100 flour, 60 planks, 40 fertilizer and 100 seed potatoes (seed.json:111-128).
+     - The Garage holds 58 climbing-kit items that are labels only and do nothing (loaders.rs:335-353).
+   - Two files are never read:
+     - data\player.toml (hunger 50, thirst 50, :15-20).
+     - player.ron's health and speed fields. Only `starting_items` is read (save_load.rs:596-611).
 
-**8. Quest "First Steps", step 1: "Acquire 3 iron ore (mine it with a drone, or stock it) (1/2)".**
-- Accepted automatically (lib.rs:1366-1367; data/quests/getting_started.ron:26-27). It counts the backpack only (src/systems/quests/mod.rs:273-278).
-- **Drone route:**
-  - Press I, open Mining, click an asteroid, set up to 10 units, press "Launch drone" (src/gui/pages/inventory.rs:1150-1207).
-  - Free in every mode: no item, power, fuel or hangar check, and one drone at a time (src/systems/mining.rs:79-93, 190-235, 356-357).
-  - A trip takes about 16 seconds (components.rs:1437-1443). The ore lands in the backpack (mining.rs:263-303).
-  - Ore is finite: 185 iron across three asteroids (lib.rs:1404-1447).
-- **Vendor route:** E on the home trading post (data/machines/home.ron:3814), hold Alt, "Trade". Iron ore costs 7 credits (data/trade_goods.ron:7-9, 72).
-- "Or stock it" means a Dev-only button (src/gui/pages/crafting.rs:305-309), so in Normal that half of the hint points nowhere.
-- Discoverable: barely; nothing says the drone lives on the Inventory page. Completable: yes, in about a minute. Persists: yes.
+7. **A few seconds later, if a name was typed and you are online:**
+   - The app connects to united-humanity.us on its own (connections.rs:293-303; lib.rs:14275-14307).
+   - `copresence_solo` defaults to false and is never saved (gui\mod.rs:3732), so the join gate puts you in the shared world (lib.rs:6739-6792; home_plot.rs:229-240).
+   - The host's clock takes over (time.rs:539-564) at 72x by default (relay\storage\mod.rs:1107). If the server refuses the join because your ship file differs from its own, a "Not in the shared world" note stays on the HUD instead (hud.rs:184-191).
+   - A "Choose your privacy" window opens mid-screen with no close button (privacy.rs:201-236; lib.rs:15383-15391). The mouse stays captured because `cursor_want_free` has no term for it (engine\input.rs:65-73). Only Esc or holding Alt makes it clickable.
+   - Real single player needs one of: picking "My Homestead" in the Characters picker (lib.rs:7287-7288), an empty display name, or no network.
 
-**9. Step 2: "Smelt an iron ingot at a smelter (with coal or graphite)".**
-- It counts any craft that makes an ingot (src/systems/crafting/mod.rs:791-803).
-- By hand: Crafting page, "Smelt Iron (graphite)", which takes 2 ore + 1 graphite (graphite comes from asteroid C-3) (data/recipes.csv:643).
-  - It is free-tier (crafting/mod.rs:805-831), and hand crafts aboard also draw from the Barn (src/engine/built_uses.rs:72-81).
-- The home smelter also smelts by itself whenever 2 ore and 1 coal are anywhere (home.ron:2088; crafting/mod.rs:1083-1214). Coal costs 4 credits (trade_goods.ron:67).
-- Reward: 2 ingots and 30 XP (getting_started.ron:34-39). Completion is only written to the log; the player sees nothing (quests/mod.rs:431).
+8. **HUD.**
+   - Health bar and "10000 CR" (hud.rs:101-127).
+   - No survival bars, because the default is "When low" (config.rs:89-99; hud.rs:1160-1201). At 1x the first bar, Energy, appears after about 10.7 h; Water after about 14.4 h (food.rs:144-147, 181).
+   - Quest line "First Steps / Acquire 3 iron ore (mine it with a drone, or stock it) (1/2)" (hud.rs:144-155; getting_started.ron:26-27).
+   - Room card "Entry ... Here: Personal Storage / Review Tasks". It is text only (hud.rs:438-473; rooms.ron:153-156).
+   - The public chat feed is on by default (gui\mod.rs:3148).
+   - There is no help button in the world (keymap.rs:249-258). F1 lists the keys (keymaps.ron:25-57), but nothing says to press it.
 
-**10. "Toolsmith" ("Forge a hammer").**
-- It completes itself. The home's three workbenches build hammers whenever fewer than 2 exist (home.ron:2568-2569; instances at 3305, 3313, 3927).
-- They take ingots from the backpack first (crafting/mod.rs:1186-1214). So the player's 3 ingots, quest reward included, become hammers, and the quest finishes with no notice.
-- After that the HUD quest line is blank. "Build First Habitat" must be found and accepted on the Quests page (src/gui/pages/quests.rs:104-140; lib.rs:12599-12619).
+9. **Using things.** E opens a machine's card (hud.rs:623-639).
+   - The card's buttons (Fill bottle, Take, Store, Trade) can only be clicked while holding Alt (hud.rs:1470-1598; engine\input.rs:65-73).
+   - Alt is mentioned only in the F1 list (keymaps.ron:46).
 
-**11. Eating and drinking.**
-- Press I, choose a backpack item, press Eat or Drink (inventory.rs:936-985; food.rs:354-456).
-- Values:
-  - A ration gives +30 food.
-  - Water gives +30 water.
-  - A raw vegetable gives +3.75 food, with a 2% chance of food poisoning (data/food_system.ron:106-117, 542-555, 931-944).
-  - Barn grain has a 5% chance (food_system.ron:156-165).
-- Barn food must be moved into the backpack before it can be eaten (inventory.rs:936-941).
-- At 1x, water falls about 2 points an hour and food about 0.6 (food.rs:144-147), so eating is never needed in the first hour.
+10. **Quest step 1: get 3 iron ore.**
+    - Drone: Inventory (I) > Mining > asteroid card > Launch drone (inventory.rs:2587-2626, 1121-1225).
+      - It is free (no item, power or fuel), one at a time, about 16 s per trip, and ore lands in the backpack (mining.rs:76-94, 190-235, 263-303, 356-357; components.rs:1437-1443).
+    - Vendor: the trading post in the vehicle bay (home.ron:3812-3816) > hold Alt > Trade. Iron ore is 7 CR (trade_goods.ron:72).
+    - The step counts only what is in the backpack (quests\mod.rs:273-278).
+    - Discoverable: partly. "Or stock it" means the Dev-only stock button (crafting.rs:305-309), and nothing says where the drone is.
+    - Completable: yes. Persists: ore, asteroids as mined, a drone in flight (save_load.rs:132-141, 267-278).
 
-**12. Garden.**
-- The showcase crops are ripe on arrival. "Harvest N ready" (inventory.rs:2191-2198) gives produce plus 2 seeds each (src/systems/farming/mod.rs:1779-1799).
-- Their own seeds take real days: lettuce 45, bean 60, tomato 70, carrot 75, potato 90, wheat 120 (data/plants.csv:138-145). The default clock is real time (src/systems/time.rs:191-195). At the "Simplified" 72x preset (time.rs:196-207), lettuce takes 15 hours.
-- The backpack "Plant" button makes a crop that belongs to no bed:
-  - It is never drawn in the world (src/engine/home_meshes.rs:973).
-  - It is never irrigated, so it dies about 10 game hours later unless hand-watered (farming/mod.rs:1209-1245, 489-498, 2191-2199).
+11. **Quest step 2: smelt an iron ingot.**
+    - The smelter auto-runs the coal recipe (home.ron:2067-2091; recipes.csv:20).
+    - No coal or graphite at start (player.ron:21-41; seed.json:111-128), so it just waits.
+    - Coal: 4 CR from the vendor (trade_goods.ron:67).
+    - Graphite: only asteroid C-3 (lib.rs:1438-1447), then hand-craft "Smelt Iron (graphite)" (recipes.csv:643).
+    - Any ingot counts, including one made automatically (crafting\mod.rs:791-803; quests\mod.rs:361-374).
+    - Reward: 2 ingots and 30 XP (getting_started.ron:34-39). There is no completion message; it only goes to the log (quests\mod.rs:425-432).
+    - Completable: yes in the Family home, never in the Solo home (Blocker 3).
 
-**13. Building.**
-- Crafting page, Structures, Build, then a ghost of the piece appears; E builds it.
-- Materials are real: backpack first, then the Barn (src/systems/construction/mod.rs:435-508).
-- The crosshair hints are good (src/engine/build_place.rs:220-280).
-- Separately, B opens the construction editor. It places any home machine for free in every mode (src/engine/editor.rs:504-544; config.rs:164) and writes the result into the data files, not the save (editor.rs:265-301).
+12. **"Toolsmith: Forge a hammer" completes itself.**
+    - Three workbenches auto-craft hammers until 2 are on hand (home.ron:2552-2572; instances at 3304-3316 and 3926-3927).
+    - They take ingots from the backpack first and planks from the Barn (crafting\mod.rs:1083-1233). The kit holds 1 hammer.
+    - So the next ingots, up to three and including the reward, become hammers, and the automatic craft fires the quest event (crafting\mod.rs:795).
+    - The chain then ends. Other quests need Accept on the Quests page (lib.rs:12599-12632; quests.rs:104-140).
 
-**14. Sleeping.**
-- Only a BUILT bed works (src/systems/sleep.rs:19-21; built_uses.rs:238). It costs 6 planks + 4 fiber (data/blueprints/basic.ron:46).
-- The bedroom's furnished bed card says "sleep here" (home.ron:1388-1400, 2764), but E only opens the card.
-- Fiber comes from logs (recipes.csv:118). The home sawmill turns any 2 logs in the backpack into planks first (home.ron:2039).
-- "Short rest" is in the Inventory status section (inventory.rs:1538; sleep.rs:97-117).
-- Not needed in the first hour at 1x.
+13. **Eating and drinking.** Inventory > click the item > Eat or Drink (inventory.rs:936-985).
+    - Only backpack items get the buttons (:937-941), so Barn food must be moved into the backpack first.
+    - A ration gives +30 food and a water +30 water (food.rs:155-160, 374-423).
+    - Not needed in hour one at 1x: water drops about 2 points an hour (food.rs:147).
+    - Food poisoning risk:
+      - Each raw bite has a 2-5% chance (food_system.ron:117, 165; food.rs:431-437).
+      - It drains 0.2 HP/s for 90 minutes, and there is no cure (status_effects.csv:76).
+      - The only healing in the game is "well fed": 1 HP/s for 30 minutes after a filling meal (status_effects.csv:33; food.rs:441-444, 792-819).
+      - So one unlucky bite kills you about 38 minutes later unless you eat again.
 
-**15. Saving.**
-- The game saves every 120 seconds (lib.rs:6846-6855; save_load.rs:845-864) and when the window is closed (lib.rs:2134-2148).
-- The hub's Quit button and the updater's restart exit without saving (main_menu.rs:721-723; settings.rs:4602; lib.rs:15663-15665).
+14. **Garden.**
+    - On entry the whole garden is planted for you, free, at staggered stages including ripe (ipc.rs:169-294; called every frame from hot_reload\mod.rs:92-95; showcase.ron:9).
+    - "Harvest N ready" gives produce plus 2 seeds per plant (inventory.rs:2191-2197; farming\mod.rs:1779-1799).
+    - The backpack's Plant button makes a "loose" crop with no bed (farming\mod.rs:1209-1252). It is never drawn (home_meshes.rs:973), gets no automatic watering, and dies about 10 game hours after its last hand-watering (farming\mod.rs:489-498, 2191-2199).
+    - At the default 1x speed (time.rs:191-195), lettuce takes 45 real days (plants.csv:142); potato 90 and wheat 120 (plants.csv:140-141).
+    - Persists: crops, aged by the time you were away (save_load.rs:943-985).
 
-**16. Relaunch.**
-- The player lands on the Humanity page, not in the world (lib.rs:1757-1764; gui/mod.rs:3230).
-- "Play" with no saved pairing opens the character picker (src/gui/pages/escape_menu.rs:612-630). Esc goes straight into the world as shared (lib.rs:2520-2526).
-- Restored when progress is kept (lib.rs:1683-1712; save_load.rs:358-591): backpack, skills, credits, quests, crops (aged by the time away; save_load.rs:943-985), builds, storage, machine levels, asteroids, drone, animal timers, clock.
-- Lost on every relaunch:
-  - health, all vitals, status effects and position (save_load.rs:15-18, 355-357; persistence.rs:19-21 fields are never written);
-  - spoilage timers (food.rs:279-280);
-  - the waste meter and urine tank (food.rs:221-223, 283-286).
-- The player always returns at full health, Food 80, Water 80, at the front door.
+15. **Animals.** 3 chickens, 2 goats and 2 sheep (entities\livestock.ron:13-15).
+    - Press E for an egg every 300 game seconds, milk every 400, wool every 600 (creatures.csv:29, 32-33).
+    - They need nothing (livestock.rs:467-487).
 
-2. RANKED LISTS
+16. **Building.**
+    - Crafting > Structures > Build, then E. Materials come from the backpack, then the Barn (construction\mod.rs:435-508).
+    - With too few materials, E silently does nothing in the world. The reason shows only on the Crafting page, in green, with raw ids (build_place.rs:149-153; construction\mod.rs:477-489; crafting.rs:339-345).
+    - The B editor places any machine (smelter, trading post, solar) for free in Normal (editor.rs:504-544; config.rs:164).
+    - Persists: blueprint builds go in the save (save_load.rs:213-261). Editor edits are written into the data files themselves (editor.rs:265-302), so they outlive every save.
 
-**BLOCKERS**
+17. **Sleep.**
+    - Only a bed you built works (built_uses.rs:182-210, 238). The home's own "Bed" is a machine card you cannot lie in (home.ron:1388-1400, 2764).
+    - A bed costs 6 planks and 4 fiber (basic.ron:46). Fiber comes from a log or from flax (recipes.csv:118, 648), and neither is in the kit or the Barn.
+    - "Short rest" is a 10-minute nap (inventory.rs:1538; sleep.rs:97-117).
+    - Not needed in hour one: fatigue starts after about 16 h (food.rs:179-183).
 
-**B1. The default "fresh home" setting wipes progress on every launch.**
-- Evidence: gui/mod.rs:4528; lib.rs:1683-1689; save_load.rs:697-705. With it on, quests restart too (save_load.rs:646-663).
-- Smallest fix: default it off, and keep it on only in the operator's config.
+18. **What can hurt you in hour one** (single player, 1x):
+    - No hunger, thirst, cold or air danger indoors (survival_env.rs:183-209). Hostile wildlife is off by default (gui\mod.rs:4565).
+    - Possible deaths: the raw-bite poisoning above, or about 52 s of vacuum outside the sealed rooms (food.rs:186-191; survival_env.rs:210-249). I did not confirm a walkable way out of the sealed rooms.
+    - Death costs nothing (lib.rs:12381-12436).
 
-**B2. Unasked auto-join to the live shared world.**
-- Evidence: connections.rs:293-303; lib.rs:6739-6792; gui/mod.rs:3732.
-- Consequences:
-  - The host clock runs at 72x (src/relay/storage/mod.rs:1107; time.rs:546-564). Water empties about 32 real minutes after the starting 80 and you are fatigued after about 13 (food.rs:144-147, 181), from my arithmetic.
-  - Sleeping is refused there (sleep.rs:163-170).
-  - The ship has only two plots (data/blueprints/ship_structure.ron:996-1026). Nothing frees a plot (src/relay/storage/plots.rs:88-95), so once two identities have ever joined, every newcomer is a guest whose home is put away and who cannot build (src/engine/home_plot.rs:155).
-- Smallest fix: onboarding's Enter sets solo, or records a "home:" pairing, unless the player picked a server; save the solo intent.
+19. **Saving.**
+    - Every 120 s (lib.rs:6849-6855) and when the window closes (lib.rs:2134-2148).
+    - The hub's Quit button and the updater restart exit without saving (main_menu.rs:721-723; settings.rs:4602; lib.rs:15663-15665).
 
-**B3. Quit from the hub or the updater skips the save.**
-- Evidence: lib.rs:15663-15665.
-- Smallest fix: call save_active_home before exiting there.
+20. **Relaunch.**
+    - You land on the Humanity page, not in the world (lib.rs:1757-1764).
+    - "Play" opens the Characters picker the first time, because onboarding recorded no last choice (gui\mod.rs:2943-2966).
+    - Esc drops you straight back into the shared world (lib.rs:2520-2527).
+    - Kept: backpack, Barn, skills, wallet, quests, crops, builds, asteroids, drone, machine levels, crafts in progress, clock (save_load.rs:115-294, 358-591).
+    - Reset:
+      - health (to 100), food and water (to 80), energy, oxygen, body temperature and waste;
+      - all status effects, including poisoning;
+      - spoilage timers and the urine tank;
+      - death state and position;
+      - any smelter recipe switch.
+    - Sources for the resets: lib.rs:1375-1389; persistence.rs:21 (written nowhere); food.rs:221-223, 279-286; home_spawn.rs:275-280; machine_levels.rs:43-56.
 
-**B4. Solo home soft-lock.**
-- Evidence: Settings > Home Design = Solo (settings.rs:3683-3692) loads data/machines/home_solo.ron, which has no smelter, workbench or trading post. The only buildable smelter needs 3 iron ingots (basic.ron:19). First Steps step 2 is then impossible.
-- Smallest fix: add a smelter to home_solo.ron.
+## Known gaps: all confirmed
+- **Health and vitals are never saved.** The save's player_health field is never written or read (persistence.rs:21; save_load.rs:15-18, 355-357). Each launch spawns fresh defaults (lib.rs:1379-1382).
+- **data\medical.ron is never applied.** MedicalSystem is never registered (lib.rs:1062-1363). It keeps the file as raw RON values nothing reads (medical.rs:24-52), and `apply_condition` is never called.
+- **Stored food never spoils, and the spoilage clock is not saved.**
+  - Spoilage scans only ECS inventories (food.rs:857-918), and only the player has one (lib.rs:1371).
+  - Home storage is a GUI list (save_load.rs:709).
+  - The timer is kept in memory per slot (food.rs:246-255, 279-280). Moving a stack to another slot, stashing it and taking it back, or relaunching all reset it.
+- **Farm animals have no needs** (livestock.rs:467-487).
+- **The home marker never shows from the ground, nor anywhere else.**
+  - It is added only beyond 1 km (lib.rs:3482-3490).
+  - The HUD drops any point beyond the camera's far plane (hud.rs:1113-1121; reverse-Z camera, camera.rs:493).
+  - The far plane is Render Distance: 500 m by default, 2,000 m at most (lib.rs:16390; gui\mod.rs:4496; settings.rs:2749).
+- **Dev travel leaves fly mode on while the HUD reads WALK** (Dev mode only).
+  - Travel sets the fly flags but not `dev_hover` (lib.rs:5965-5966, 6082-6083). The HUD reads `dev_hover` (hud.rs:374-387).
+  - Fly mode suspends vacuum and cold harm (survival_env.rs:178-181).
+  - Normal mode forces fly off (lib.rs:3560-3561). But if you travel in Dev (the default mode) and then switch to Normal, you are stranded away from home: Return home is only on the Dev page (dev.rs:330; lib.rs:5881).
+- **The sawmill takes logs from the backpack**, though the Barn is also used.
+  - It takes from the backpack first, then the Barn (crafting\mod.rs:1186-1213).
+  - It has no stock limit and no "player is home" check (home.ron:2023-2042; crafting\mod.rs:1037-1233).
+  - So any 2 logs you carry become planks, sawdust, slabs and bark within 5 s (recipes.csv:68).
 
-**B5. Accepted quests that can never finish.**
-- "ore_sample_0 ×5" and "rare_ore_0 ×3" (data/quests/exploration.ron:27, 67) come only from creatures that are never spawned (data/creatures.csv:92, 124; data/entities/wild_spawns.ron:15-34).
-- Travel steps read the player's position from a record that walking never moves (quests/mod.rs:327-341; src/systems/player.rs:35-38, where "physics_world" is never inserted).
-- Smallest fix: copy the camera position into the player's position every frame; give ore_sample_0 a source.
+## 2. Ranked lists
 
-**B6. Dev-only: Dev travel then switching to Normal strands the player.**
-- Evidence: "Return home" exists only on the Dev page (src/gui/pages/dev.rs:330), which Normal hides (dev.rs:74), and is the only reset (lib.rs:5881). Relaunching fixes it.
+### BLOCKERS
+1. **The first session silently joins the shared world** (step 7).
+   - The ship has exactly two home plots. They are first come, first served, and never freed automatically (ship_structure.ron:996-1026; relay\storage\plots.rs:89-95).
+   - From the third player who ever joins onward, you are a guest:
+     - no building and no B editor (home_plot.rs:155; editor.rs:1878-1884);
+     - no home stations or home storage (built_uses.rs:30-37);
+     - the Commons has no smelter or water tank (machines\ship.ron).
+   - So step 2 is impossible there, on a 72x clock. Becoming a guest shows no message (home_plot.rs:478-486, 747).
+   - Whether the live server's two plots are already taken is runtime state I cannot see.
+   - **Fix:** make onboarding's Enter (and Skip offline) set `copresence_solo = true` and record a "home" pairing (`record_pairing`, gui\mod.rs:2924-2937). Also save `copresence_solo` in AppConfig.
+2. **The shipped defaults erase progress and stakes.**
+   - "Start every session from the default home" is on (gui\mod.rs:4528; config.rs:627-630). Each relaunch keeps only name and look (lib.rs:1683-1689; save_load.rs:613-638, 697-705).
+   - Play mode defaults to Dev, which turns free resources on (config.rs:127-131, 161-172).
+   - **Fix:** flip both defaults, or ask on first run.
+3. **The Solo home design can never finish First Steps.**
+   - data\machines\home_solo.ron has no smelter, workbench, trading post or ship machines, and its catalog has no smelter to place in the B editor.
+   - The only buildable smelter, the Furnace, costs 3 iron ingots (basic.ron:19).
+   - **Fix:** add a smelter and a trading post to home_solo.ron, or make the Furnace stone-only.
+4. **Past hour one, two quest chains are dead.**
+   - `exploration_first_survey` needs 5 `ore_sample_0`, which only drops from a creature nothing spawns (exploration.ron:27; creatures.csv:124; wild_spawns.ron:15-34). That also locks its child quest.
+   - Travel steps read the player's position from a component that walking never updates (quests\mod.rs:323-341; player.rs:35-38; "physics_world" is never inserted).
+   - **Fix:** give `ore_sample_0` a source, and copy the camera position into the player's position each frame.
+5. **Two quit paths skip the save**, so up to 2 minutes are lost (main_menu.rs:721-723; settings.rs:4602; lib.rs:15663-15665).
+   - **Fix:** run the same save as window close (lib.rs:2134-2148) before exiting.
 
-**FRICTION**
+### FRICTION
+1. **No in-game guidance.**
+   - The only tips are Esc and Enter (main_menu.rs:681-684), and there is no help button in the world.
+   - The Quests page repeats the step text without saying where to go (quests.rs:78-102).
+   - Quest completion is silent (quests\mod.rs:425-432).
+   - **Fix:** name the place in each step ("Inventory > Mining"), and show a toast when a step or quest completes.
+2. **Alt is needed for every in-world button**: Fill, Take, Trade, the vendor and the privacy window (engine\input.rs:65-73; hud.rs:1470-1598).
+   - **Fix:** add `vendor_open` and `privacy_tier_prompt_open` to `cursor_want_free`, and print "hold Alt to use" under the card.
+3. **The quest hint points at a Dev-only button** (getting_started.ron:26; crafting.rs:305-309).
+   - **Fix:** reword it to mention Inventory > Mining and the trading post.
+4. **Smelting fuel is never explained.**
+   - There is no coal or graphite at start, and the smelter just waits.
+   - Switching the smelter to graphite is lost on every world load (home_spawn.rs:275-280; machine_levels.rs:43-56).
+   - **Fix:** put a few coal in the Barn, and save each machine's recipe choice.
+5. **"Keep mining" traps the drone.**
+   - Once the chosen ore runs out, the asteroid survives (it is removed only when every ore is gone, mining.rs:306-317), and empty trips relaunch forever (mining.rs:96-125, 219-231).
+   - The asteroid cards ignore clicks while a drone is out (inventory.rs:2612). The checkbox (inventory.rs:1181-1186) is reachable only via Maps > the asteroid marker (cosmos.rs:1618-1620; inventory.rs:1297-1298).
+   - The order is also saved (save_load.rs:721, 1060).
+   - **Fix:** end the order when a trip comes back empty, and put a Stop button on the drone row.
+6. **The workbenches eat your first ingots, the quest reward included** (home.ron:2568-2569; crafting\mod.rs:1083-1233).
+   - **Fix:** automatic machines draw only from the Barn, not the backpack.
+7. **Two logs from a fallen log are refused as "Your pack is full" with 47.5 L free**, because each log is 26.1 L (lib.rs:11820-11858; items.csv:210). Logs you do carry get sawn. Fiber for a bed is therefore a puzzle.
+   - **Fix:** accept part of a forage yield, and give the sawmill a stock limit.
+8. **Building with too few materials gives no feedback in the world** (build_place.rs:149-153, 385-387).
+   - **Fix:** send the refusal through `set_placing_note`, with item names.
+9. **The home's bed cannot be slept in** (built_uses.rs:182-210).
+   - **Fix:** make it a sleep target.
+10. **Relaunch lands on the Humanity page**; Play opens a picker the first time; Esc puts you in the shared world (lib.rs:1757-1764, 2520-2527).
+11. **Planting your own seed makes an invisible, unwatered crop**, and the fastest takes 45 real days.
+12. **Contradictory dead data:** spawn.ron, player.toml, the label-only climbing kit, and a second, unrelated "First Steps" in data\onboarding\quests.json:7.
 
-**F1. Nothing teaches the game.**
-- Evidence: onboarding mentions only Esc and Enter (main_menu.rs:681-684); no help button in the world (keymap.rs:245-258); data/help/topics.json has no gameplay topic; no tutorial.
-- Smallest fix: a first-entry notice naming I, E, F1 and Alt.
+### MISSING STAKES
+1. **The B editor places any machine free in Normal and saves it into the data files** (editor.rs:504-544, 265-302).
+   - **Fix:** require and consume the machine's item outside Creative and Dev.
+2. **A free garden that refills itself** in every play mode (ipc.rs:169-294).
+   - **Fix:** gate it on free resources, or run it once for a new save only.
+3. **Quitting heals:** health, vitals and effects are not saved.
+   - **Fix:** add them to the save.
+4. **Death is free:** full health, food, water and energy raised to at least 60, effects cleared, nothing dropped (lib.rs:12381-12436).
+   - **Fix:** any cost.
+5. **The drone is free and unlimited** (mining.rs:356-357).
+6. **Animals need nothing and lay an egg every 5 minutes.**
+7. **Stored food never spoils, and the carried-food clock resets.**
+8. **No medicine and no natural regeneration** (medical.rs; status_effects.csv:76).
+9. **At 1x nothing needs attention for over 10 hours.** The Barn holds years of grain, and 10,000 CR buys anything.
 
-**F2. Clickable panels need Alt held, and nothing on screen says so.**
-- Machine-card buttons (Fill, Take, Trade), the vendor window and the privacy window all need Alt held, because the captured-mouse rule ignores them (engine/input.rs:65-73; hud.rs:1470-1598). Only F1 mentions Alt (keymaps.ron:46).
-- Smallest fix: add the vendor window, the privacy prompt and a pinned card to that rule.
+### On a shared server instead
+- You get a plot or become a guest (above).
+- Your backpack, skills and quests are your local save's. The relay holds a fresh empty entity (relay\handlers\game_state.rs:729-763). What you do there is written into your offline save.
+- **72x clock, with real stakes:**
+  - the Water bar appears at about 12 minutes, the empty point at 32, and death at about 52 without drinking;
+  - you become fatigued at about 13 minutes;
+  - sleep is refused in a shared world (sleep.rs:164-170).
+  - Death is still free.
+- **Fleet supply is unlimited by default** (ship_stores.rs:40, 174-179). You get one meal per 8 game hours, about 6.7 real minutes, at the mess-hall store (food\ship_stores.ron:58-68). The store has no object in the world.
+- **The desktop app ignores relay quests** (net_route.rs:6-10, 224).
+- **The picker's hint is wrong.** It says "Gear and skills stay in the world you earn them in" (showroom.rs:264-265), which the code does not do.
 
-**F3. Quest text and feedback.**
-- The step text sends players to a Dev-only button and never names a place (getting_started.ron:27).
-- The HUD shows no counts (hud.rs:144-155). Completions are silent (quests/mod.rs:431). The HUD goes blank after Toolsmith.
-- Smallest fix: say "Inventory > Mining, or the trading post"; post a notice on completion; accept "Build First Habitat" automatically.
-
-**F4. Automated machines take from the backpack before the Barn.**
-- Evidence: crafting/mod.rs:1186-1214.
-- The workbenches eat the quest's reward ingots; the sawmill eats logs bought for fiber; the smelter takes ore in pairs once coal is around.
-- Smallest fix: automated machines draw from home storage only.
-
-**F5. The bedroom bed cannot be slept in, though its card says "sleep here".**
-- Evidence: home.ron:1388-1400 versus built_uses.rs:238.
-- Smallest fix: route E on the home's bed machine to sleep.
-
-**F6. Relaunch flow.**
-- Evidence: Humanity page first, then a picker (lib.rs:1757-1764); Esc bypasses the picker and goes shared (lib.rs:2520-2526).
-
-**F7. Nothing a new player plants ripens in a session.**
-- Evidence: real-time clock (time.rs:191-195). The backpack "Plant" crop is invisible and goes unwatered (home_meshes.rs:973; farming/mod.rs:2191-2199).
-
-**F8. The only first-hour indoor death is food poisoning, and its cure is undocumented.**
-- Evidence: 2% chance per raw vegetable; 0.2 HP/s for 90 minutes (data/status_effects.csv:76; food_system.ron:117).
-- Health never regenerates except through "well fed", +1 HP/s for 30 minutes after a meal that leaves food at 70 or more (status_effects.csv:33; food.rs:438-444, 786-826).
-- So a poisoned player dies about 38 minutes after eating unless they eat again. Nothing says so, and there is no medicine.
-
-**F9. Misleading names.**
-- Two different "First Steps": the HUD quest (getting_started.ron:21-22) and the Tasks page checklist (data/onboarding/quests.json:6-7).
-- The picker hint "Gear and skills stay in the world you earn them in." is false; solo and server share one save (src/gui/pages/showroom.rs:262-267; save_load.rs:89-93).
-
-**F10. Server confusions.**
-- No arrival message.
-- Relay quests are ignored by the desktop app (src/engine/net_route.rs:6-10, 224).
-- The fleet store is invisible in the world.
-- A game ban only shows on an admin status line, and the HUD keeps saying "Shared world" (net_route.rs:208-215).
-
-**MISSING STAKES**
-
-**S1. Quitting heals and refills.**
-- Evidence: vitals, health and effects are never saved (save_load.rs:15-18, 355-357; lib.rs:1375-1389).
-- Smallest fix: add them to the save.
-
-**S2. Death costs nothing.**
-- Respawn gives full health and refills needs to 60 (lib.rs:12381-12436). The death screen says "Nothing was lost" (hud.rs:51-53).
-
-**S3. The B editor is free in Normal and persists outside the save.**
-- Evidence: editor.rs:504-544, 265-301.
-- Smallest fix: in Normal, consume the machine's item when it is placed.
-
-**S4. The free garden refills itself.**
-- The showcase replants the whole garden for free whenever it is empty, in every play mode (ipc.rs:177-196; src/hot_reload/mod.rs:92-95).
-- Smallest fix: gate it to Dev, or to a brand-new world only.
-
-**S5. Free resources.**
-- The drone has no cost (mining.rs:356-357).
-- 10,000 credits against 7-credit ore (trade_goods.ron:72).
-- A year's grain sits in the Barn (seed.json:115).
-
-**S6. Stored food never spoils.**
-- Only an inventory on an entity is aged (food.rs:847-919), and only the player has one (lib.rs:1371).
-- Timers are not saved and reset when a stack moves to another slot (food.rs:246-255, 279-280).
-
-**S7. Animals have no needs, and a hen lays an egg every 5 real minutes at 1x.**
-- Evidence: src/systems/livestock.rs:467-487; creatures.csv:29.
-
-**S8. No treatment system.**
-- data/medical.ron is never applied: MedicalSystem is never registered (src/systems/medical.rs:38-104 against the registration list at lib.rs:1062-1363), and apply_condition has no callers.
-
-KNOWN GAPS: CONFIRM OR REFUTE
-
-1. **Health and vitals never saved: CONFIRMED** (S1).
-2. **medical.ron never applied: CONFIRMED** (S8).
-3. **Stored food never spoils, and the spoilage clock is not saved: CONFIRMED.** Moving a stack to another slot also resets it (S6).
-4. **Farm animals have no needs: CONFIRMED** (S7).
-5. **Home marker never shows from the ground: CONFIRMED, and broader: it never shows anywhere at default settings.**
-   - The marker is only added beyond 1 km (lib.rs:3482-3490).
-   - The HUD drops anything past the camera's far plane (hud.rs:1113-1121).
-   - The far plane is the render distance: 500 m by default, 2000 m maximum (lib.rs:16390; settings.rs:2749).
-6. **Dev travel leaves fly mode on while the HUD reads WALK: CONFIRMED, Dev mode only.**
-   - Travel sets fly mode on (lib.rs:5965-5966, 6082-6083), but the HUD reads the separate hover flag (hud.rs:374-387).
-   - In Normal, fly mode is forced off every frame (lib.rs:3560-3571).
-7. **The sawmill takes logs from the backpack: CONFIRMED** (home.ron:2039; crafting/mod.rs:1186-1214). The same rule applies to every automated machine.
-
-IF THEY JOIN A SHARED SERVER INSTEAD (server tracer, key lines spot-checked)
-- **Fresh only on the server's side.** The relay starts each join empty: health 100, nothing carried (src/relay/handlers/game_state.rs:729-763).
-- **One local save for both.** The game keeps one save and plays the server session with the same backpack and home (save_load.rs:89-93). Server results flow back into that save.
-- **Plots.**
-  - A holder spawns at their own door.
-  - Plot 1's door opens onto the Commons.
-  - Guests spawn in the Commons.
-- **Crew** live on the relay and exist only there.
-- **Fleet supply is unlimited by default.** It still gives one meal per 8 game hours (data/food/ship_stores.ron:68). The per-player ledger records meals and power used against items and power given.
-- **No server tutorial.** Nothing exists for a newcomer on a server (the tracer searched data/onboarding, data/help and data/quests).
-
-3. THE FIRST TEN MINUTES, PLAINLY
-You wake inside the front door of a large orbiting homestead that is already built and stocked. You carry seeds, water, three ration packs, hand tools and 10,000 credits, and the barn and garden hold more food than you could eat in a year. The screen gives you one job, "Acquire 3 iron ore", but never says where. If you press I and find Mining, a free drone fetches it in about 15 seconds, then one click smelts it, and the next quest finishes on its own while the home's workbenches quietly turn your new iron into hammers. Hunger, thirst and tiredness are real but move at real-world speed, so nothing appears on screen for about ten hours, and nothing you plant will ripen for at least 45 days. Indoors nothing can hurt you except a small chance of food poisoning from raw vegetables, and dying, quitting or relaunching all return you to full health with nothing lost. If you typed a name and are online, those ten minutes actually happen in the shared world at 72x speed: you get thirsty in about 20 minutes and cannot sleep there.
+## 3. The first ten minutes, plainly
+You pick a name, write down 24 words, press Enter, and wake up just inside the front door of a huge, fully built home on a space station, with full health, 10,000 credits, seeds, hand tools, three rations and four bottles of water. The only instruction on screen is a quest line, "First Steps: Acquire 3 iron ore (mine it with a drone, or stock it)"; nothing tells you that I opens your inventory, E uses things, or that you must hold Alt to click the boxes that pop up. If you typed a name and are online, the game quietly puts you on the public shared server, where time runs 72 times faster, and shows a privacy window you cannot click until you press Esc. If you find the Mining tab, a free drone brings ore in about 16 seconds, and with graphite from asteroid C-3 or coal from the trading post you smelt an ingot and finish the quest; the workbenches then quietly turn your new ingots into hammers, which finishes the next quest by itself, and after that nothing tells you what to do. Playing alone at normal speed, nothing gets hungry, thirsty or tired all hour, the garden is already full of ripe food you never planted, the chickens lay an egg every five minutes without being fed, and pressing B lets you place any machine for free. Your own seeds would take 45 real days to grow, and if you die, or simply quit and start again, you come back at full health with nothing lost.
