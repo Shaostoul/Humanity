@@ -42,10 +42,11 @@ text says so.
 A boiling-water canner is for acid foods only. The USDA guide says it in
 one line: "Low-acid foods must be processed in a pressure canner to be
 free of botulism risks." Green beans, corn, potatoes, carrots, meat, fish
-and soup in a water bath are not a shortcut, however long they boil. The
-next section says exactly which foods qualify, and [Why Canning Has
-Rules](/library#why-canning-has-rules) explains why boiling for longer does not
-make the others safe.
+and soup in a water bath are not a shortcut. The CDC's warning is
+specific: "Do not use a boiling water canner for low-acid foods because it
+will not protect against botulism." The next section says exactly which
+foods qualify, and [Why Canning Has Rules](/library#why-canning-has-rules)
+explains why boiling for longer does not make the others safe.
 
 ### A recipe nobody tested
 
@@ -113,13 +114,13 @@ pear recipes measure it as bottled lemon juice (or, for figs, citric
 acid), and the amounts for tomatoes are in [Keeping What You
 Grew](/library#keeping-what-you-grew).
 
-**Mixtures, only by a tested recipe.** Salsa, chutney, relish and some
-pie fillings mix acid fruit with low-acid foods such as onions and
-peppers. The USDA guide warns that most mixtures of low-acid and acid
-foods sit above pH 4.6 unless the recipe adds enough lemon juice, citric
-acid or vinegar to make them acid foods. That is why a salsa from a
-tested recipe is safe and the same salsa with an extra onion is not (our
-reading).
+**Mixtures, only by a tested recipe.** Salsa, chutney and relish mix
+acid fruit or tomatoes with low-acid foods such as onions and peppers.
+The USDA guide warns that most mixtures of low-acid and acid foods sit
+above pH 4.6 unless the recipe adds enough lemon juice, citric acid or
+vinegar to make them acid foods. That is why a salsa from a tested recipe
+can be canned and the same salsa with an extra onion is an untested one
+(our reading).
 
 **Not at all, because nobody has tested a process.** The USDA's fruit
 guide covers fruit purees, but not purees of bananas, Asian pears, figs,
@@ -649,7 +650,9 @@ were read on 4 October 2026.
 - Centers for Disease Control and Prevention. Home-Canned Foods, page
   dated 25 April 2024 ("Use only recipes and cookbooks that follow the
   steps in the USDA guide."; "Do not use other recipes, even if you got
-  them from a trusted friend or family member."; "If your recipe is old,
+  them from a trusted friend or family member."; "Do not use a boiling
+  water canner for low-acid foods because it will not protect against
+  botulism."; "If your recipe is old,
   be sure to use current processing times and pressures."; the four signs
   of contamination; "Do not eat food if you do not know whether safe
   canning guidelines were followed."; "If in doubt, throw it out! Never

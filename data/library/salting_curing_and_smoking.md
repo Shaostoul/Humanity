@@ -375,10 +375,14 @@ oven for backup.
    that small smokers often cannot get hot enough: if yours cannot reach an air
    temperature of 200 to 225 F, move the fish to the oven within 2 hours
    of smoking, and hold the thickest piece at 160 F for 30 minutes there.
-7. **Cool and store.** Let it cool, wrap it in paper towel or cloth
-   rather than plastic so it does not sweat and grow mould, and refrigerate
-   it at 38 F or below. Eat it within 2 weeks, or wrap it tightly and
-   freeze it, where the guide says it keeps up to a year.
+7. **Cool and store.** Let it cool, and get it into the refrigerator
+   within 2 hours (1 hour on a day above 90 F), the limit the USDA's Food
+   Safety and Inspection Service sets for any perishable food out of the
+   refrigerator ([Cold Storage Without a
+   Fridge](/library#cold-storage-without-a-fridge)). Wrap it in paper
+   towel or cloth rather than plastic so it does not sweat and grow mould,
+   and keep it at 38 F or below. Eat it within 2 weeks, or wrap it tightly
+   and freeze it, where the guide says it keeps up to a year.
 
 Your refrigerator thermometer reads 37 F, so the fridge is cold enough.
 Had it read above 40 F, the guide's rule is to keep the fish frozen
@@ -499,6 +503,10 @@ were read on 4 October 2026.
   days or freeze). Read through a page reader, because the site refuses
   scripted downloads.
   https://www.fsis.usda.gov/food-safety/safe-food-handling-and-preparation/food-safety-basics/smoking-meat-and-poultry
+- USDA Food Safety and Inspection Service. Danger Zone (40 F to 140 F),
+  last updated 28 June 2023 (never more than 2 hours out of refrigeration,
+  1 hour above 90 F). Read through a page reader.
+  https://www.fsis.usda.gov/food-safety/safe-food-handling-and-preparation/food-safety-basics/danger-zone-40f-140f
 - USDA Food Safety and Inspection Service. Hams and Food Safety, last
   updated 15 January 2025 (the definition of curing; nitrite's colour and
   flavour; "Nitrite and salt inhibit the growth of Clostridium botulinum,
