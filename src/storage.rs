@@ -177,6 +177,13 @@ pub fn writable_data_dir() -> Option<PathBuf> {
 /// root is unresolvable — reads fall back to the embedded copies either way).
 /// This is what enables file-based modding without ever littering a folder
 /// the user didn't choose (pre-v0.706 this dumped ~70 files beside the exe).
+///
+/// ONCE: nothing refreshes the folder after an update (the updater replaces only
+/// the exe), so it holds the files of the version that first ran. A file this
+/// version cannot read is set aside for its built-in copy at load time
+/// (`embedded_data::load_data_or_embedded`, BUG-163); a file it can read is used
+/// however old it is. Keeping the folder current is designed in
+/// docs/design/data-folder-updates.md, not built.
 pub fn extract_data_if_needed() {
     let data_dir = match writable_data_dir() {
         Some(d) => d,
@@ -201,7 +208,7 @@ pub fn extract_data_if_needed() {
 /// this can no longer drift the way the old hand list did (it had missed
 /// star_systems/sol.json + index.json and still extracted the stale
 /// solar_system/bodies.json alias). Runtime files with NO embedded copy
-/// (status_effects.csv, containers/, machines/, ...) are the tracked
+/// (food/crop_nutrition.ron, world/showcase.ron, ...) are the tracked
 /// distributed-build-completeness follow-up.
 fn extract_embedded_to(data_dir: &Path) {
     for relative_path in crate::embedded_data::EMBEDDED_KEYS {

@@ -181,6 +181,13 @@ pub const WILD_SPAWNS_RON: &str = include_str!("../data/entities/wild_spawns.ron
 pub const WEATHER_EVENTS_RON: &str = include_str!("../data/weather/events.ron");
 /// Environment Layer 1, each world's climate (systems::env_layer1, 2026-09-27).
 pub const CLIMATE_RON: &str = include_str!("../data/environment/climate.ron");
+/// The environment region kinds (renderer::env_regions) and the craft quality
+/// grades (systems::crafting::quality): the last two registries
+/// `engine::registries` loads that had no built-in copy, so an installed game
+/// whose data folder predates them (the operator's, written 2026-07-11) ran with
+/// no regions and every craft ungraded (BUG-163).
+pub const REGION_KINDS_RON: &str = include_str!("../data/environment/region_kinds.ron");
+pub const MANUFACTURING_RON: &str = include_str!("../data/manufacturing.ron");
 pub const ABILITIES_CSV: &str = include_str!("../data/abilities.csv");
 pub const PROPOSAL_TYPES_RON: &str = include_str!("../data/governance/proposal_types.ron");
 
@@ -258,6 +265,8 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "entities/wild_spawns.ron" => Some(WILD_SPAWNS_RON),
         "weather/events.ron" => Some(WEATHER_EVENTS_RON),
         "environment/climate.ron" => Some(CLIMATE_RON),
+        "environment/region_kinds.ron" => Some(REGION_KINDS_RON),
+        "manufacturing.ron" => Some(MANUFACTURING_RON),
         "abilities.csv" => Some(ABILITIES_CSV),
         "governance/proposal_types.ron" => Some(PROPOSAL_TYPES_RON),
 
@@ -390,9 +399,12 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
 }
 
 /// Read a data file from `data_dir`, falling back to the embedded copy when
-/// the disk file is absent/unreadable (v0.744). This is THE loader entry
-/// point for gameplay data: disk-first keeps modding working, the fallback
-/// keeps a zero-file fresh install complete.
+/// the disk file is absent/unreadable (v0.744): disk-first keeps modding
+/// working, the fallback keeps a zero-file fresh install complete.
+///
+/// For a file the caller then PARSES, use `load_data_or_embedded` instead.
+/// This hands back the disk text whatever is in it, so a file this version
+/// cannot read is not caught here (BUG-163).
 pub fn read_data_or_embedded(data_dir: &std::path::Path, rel: &str) -> Option<String> {
     match std::fs::read_to_string(data_dir.join(rel)) {
         Ok(s) => Some(s),
@@ -402,6 +414,70 @@ pub fn read_data_or_embedded(data_dir: &std::path::Path, rel: &str) -> Option<St
             Some(built_in.to_string())
         }
     }
+}
+
+/// Build data/<rel> with `build`: the data folder's copy when THIS VERSION CAN
+/// READ ALL OF IT, otherwise the copy built into this exe (BUG-163). THE loader
+/// for a data file that is parsed; every registry goes through it.
+///
+/// Why: an installed game writes its data folder once, on its first run, and an
+/// update replaces only the exe, so the folder can hold files older than the
+/// game reading them (docs/design/data-folder-updates.md). A folder written
+/// before 2026-10-05 still had status_effects.csv's `dispel_type` column; the
+/// status effect rows now refuse a column they do not declare, the CSV parser
+/// skipped each refused row and went on, and the registry loaded EMPTY (no
+/// slowdowns, no Well Fed healing, no illness, no medicine), with a warning per
+/// row and nothing else.
+///
+/// The rule:
+/// - The disk copy is built inside `assets::loader::refusing_rows`, so a single
+///   CSV row this version cannot read refuses the file. When it builds, it is
+///   used: a modded file wins, whatever it changes, adds or leaves out.
+/// - Otherwise (missing, unreadable, a row refused, does not parse) the built-in
+///   copy is used, and `note_builtin_copy` says which file and why in ONE line
+///   (a rig refuses that run, BUG-133).
+/// - With no built-in copy, what this version can read of the disk copy is used
+///   (a CSV's readable rows, each skipped row logged), as before.
+///
+/// Err only when there is nothing to use: it names the file and why, and the
+/// caller logs it with what that means for play.
+pub fn load_data_or_embedded<T>(
+    data_dir: &std::path::Path,
+    rel: &str,
+    build: impl Fn(&[u8]) -> Result<T, String>,
+) -> Result<T, String> {
+    let path = data_dir.join(rel);
+    let (why, refused) = match std::fs::read(&path) {
+        Ok(bytes) => match crate::assets::loader::refusing_rows(|| build(&bytes)) {
+            Ok(value) => return Ok(value),
+            Err(e) => (format!("this version cannot read {}: {e}", path.display()), Some(bytes)),
+        },
+        Err(e) => (format!("{} could not be read ({e})", path.display()), None),
+    };
+    if let Some(built_in) = get_embedded(rel) {
+        note_builtin_copy(rel, &why);
+        return build(built_in.as_bytes())
+            .map_err(|e| format!("data/{rel}: {why}, and the copy built into the exe does not load either ({e})"));
+    }
+    // Nothing built in to fall back to: what can be read of it beats nothing.
+    match refused.map(|bytes| build(&bytes)) {
+        Some(Ok(value)) => {
+            log::warn!("data/{rel}: {why}; the exe has no copy of its own, so what can be read of it is used");
+            Ok(value)
+        }
+        _ => Err(format!("data/{rel}: {why}, and the exe has no copy of its own")),
+    }
+}
+
+/// `load_data_or_embedded` for a parser that takes text.
+pub fn load_text_or_embedded<T>(
+    data_dir: &std::path::Path,
+    rel: &str,
+    build: impl Fn(&str) -> Result<T, String>,
+) -> Result<T, String> {
+    load_data_or_embedded(data_dir, rel, |bytes| {
+        build(std::str::from_utf8(bytes).map_err(|e| format!("it is not UTF-8 text ({e})"))?)
+    })
 }
 
 /// What every loader writes to the log when it serves the copy of a data file
@@ -551,6 +627,8 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "entities/wild_spawns.ron",
     "weather/events.ron",
     "environment/climate.ron",
+    "environment/region_kinds.ron",
+    "manufacturing.ron",
     "abilities.csv",
     "governance/proposal_types.ron",
 ];
@@ -558,6 +636,83 @@ pub const EMBEDDED_KEYS: &[&str] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── load_data_or_embedded (BUG-163) ──
+
+    /// A data folder holding `files` (path under it, text). The guard deletes it.
+    fn folder(files: &[(&str, &str)]) -> crate::test_temp::TempPath {
+        let dir = crate::test_temp::dir("load_data");
+        for (rel, text) in files {
+            let path = dir.join(rel);
+            std::fs::create_dir_all(path.parent().expect("a parent")).expect("make the folder");
+            std::fs::write(path, text).expect("write the file");
+        }
+        dir
+    }
+
+    /// A parse that asks only whether the text is RON.
+    fn any_ron(bytes: &[u8]) -> Result<ron::Value, String> {
+        crate::assets::loader::parse_ron(bytes)
+    }
+
+    /// One row of a test CSV that has no built-in copy.
+    #[derive(Debug, serde::Deserialize)]
+    struct Row {
+        id: String,
+        n: f32,
+    }
+
+    #[test]
+    fn a_disk_copy_this_version_reads_wins_over_the_built_in_one() {
+        let dir = folder(&[("vehicles/kits.ron", "[]")]);
+        let (kits, lines) = crate::test_log::capture(|| load_data_or_embedded(&dir, "vehicles/kits.ron", any_ron));
+        assert_eq!(kits.expect("loads"), ron::Value::Seq(Vec::new()), "the disk copy, not the built-in one");
+        assert!(lines.is_empty(), "nothing to say: {lines:#?}");
+    }
+
+    #[test]
+    fn a_disk_copy_that_does_not_parse_gives_the_built_in_one_and_says_so_once() {
+        let dir = folder(&[("vehicles/kits.ron", "[ (kit_item: ")]);
+        let (kits, lines) = crate::test_log::capture(|| load_data_or_embedded(&dir, "vehicles/kits.ron", any_ron));
+        assert_eq!(kits.expect("loads"), any_ron(VEHICLE_KITS_RON.as_bytes()).expect("the built-in copy parses"));
+        assert_eq!(lines.len(), 1, "{lines:#?}");
+        assert!(lines[0].contains(BUILTIN_COPY_MARKER), "{}", lines[0]);
+        assert!(lines[0].contains("data/vehicles/kits.ron: this version cannot read"), "{}", lines[0]);
+    }
+
+    #[test]
+    fn a_missing_disk_copy_gives_the_built_in_one() {
+        let dir = folder(&[]);
+        let (kits, lines) = crate::test_log::capture(|| load_data_or_embedded(&dir, "vehicles/kits.ron", any_ron));
+        assert_eq!(kits.expect("loads"), any_ron(VEHICLE_KITS_RON.as_bytes()).expect("the built-in copy parses"));
+        assert!(lines.len() == 1 && lines[0].contains("could not be read"), "{lines:#?}");
+    }
+
+    /// A file the exe has no copy of keeps the old leniency: the rows that can be read.
+    #[test]
+    fn with_no_built_in_copy_a_csv_keeps_the_rows_it_can_read() {
+        let dir = folder(&[("mine.csv", "id,n\na,1\nb,two\n")]);
+        let (rows, lines) =
+            crate::test_log::capture(|| load_data_or_embedded(&dir, "mine.csv", crate::assets::loader::parse_csv::<Row>));
+        let rows = rows.expect("the rows that can be read");
+        assert_eq!(rows.len(), 1);
+        assert_eq!((rows[0].id.as_str(), rows[0].n), ("a", 1.0));
+        assert!(lines.iter().any(|l| l.contains("data/mine.csv") && l.contains("line 3 (b)")), "{lines:#?}");
+    }
+
+    #[test]
+    fn with_no_built_in_copy_a_missing_file_is_an_error_naming_it() {
+        let dir = folder(&[]);
+        let e = load_data_or_embedded(&dir, "mine.ron", any_ron).expect_err("nothing to use");
+        assert!(e.starts_with("data/mine.ron: ") && e.ends_with("no copy of its own"), "{e}");
+    }
+
+    #[test]
+    fn a_text_parser_gets_the_same_rule() {
+        let dir = folder(&[("vehicles/kits.ron", "not ron")]);
+        let kits = load_text_or_embedded(&dir, "vehicles/kits.ron", |t| ron::from_str::<ron::Value>(t).map_err(|e| e.to_string()));
+        assert_eq!(kits.expect("loads"), any_ron(VEHICLE_KITS_RON.as_bytes()).expect("the built-in copy parses"));
+    }
 
     /// EMBEDDED_KEYS and the get_embedded match must never drift: every
     /// enumerated key resolves, and every key resolves to non-empty content.

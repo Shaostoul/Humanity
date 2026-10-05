@@ -187,21 +187,16 @@ pub struct HomeOutline {
     pub footer: String,
 }
 
-/// Pure loader (unit-tested below): parse data/home_outline.json. Missing or
-/// malformed file yields empty data (the panel hides; the page still works).
+/// Pure loader (unit-tested below): parse data/home_outline.json, the built-in
+/// copy when the data folder's is missing or this version cannot read it
+/// (BUG-163). When neither loads the data is empty (the panel hides; the page
+/// still works).
 pub fn load_home_outline(data_dir: &std::path::Path) -> HomeOutline {
-    let path = data_dir.join("home_outline.json");
-    let text = match crate::embedded_data::read_data_or_embedded(data_dir, "home_outline.json") {
-        Some(t) => t,
-        None => return HomeOutline::default(),
-    };
-    match serde_json::from_str::<HomeOutline>(&text) {
-        Ok(d) => d,
-        Err(e) => {
-            eprintln!("load_home_outline: failed to parse {}: {e}", path.display());
+    crate::embedded_data::load_data_or_embedded(data_dir, "home_outline.json", crate::assets::loader::parse_json::<HomeOutline>)
+        .unwrap_or_else(|e| {
+            log::warn!("{e}; the home outline panel is hidden");
             HomeOutline::default()
-        }
-    }
+        })
 }
 
 fn home_outline() -> &'static HomeOutline {

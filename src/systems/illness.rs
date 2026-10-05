@@ -134,16 +134,13 @@ impl Illnesses {
     /// Path of the file, relative to the data directory.
     pub const FILE: &'static str = "medical/illnesses.ron";
 
-    /// Disk first (modding), the copy built into the game as the fallback. A missing or
-    /// unparseable file leaves no illness data, which means an illness takes no water: loud in
-    /// the log, never a crash.
+    /// Disk first (modding), the copy built into the game when the disk copy is missing or
+    /// this version cannot read it (BUG-163, `embedded_data::load_text_or_embedded`). With
+    /// neither there is no illness data, which means an illness takes no water: loud in the
+    /// log, never a crash.
     pub fn load(data_dir: &Path) -> Self {
-        let Some(text) = crate::embedded_data::read_data_or_embedded(data_dir, Self::FILE) else {
-            log::warn!("{} not found on disk or embedded: illnesses take no water", Self::FILE);
-            return Self::default();
-        };
-        Self::from_ron(&text).unwrap_or_else(|e| {
-            log::warn!("Failed to parse {}: {e}. Illnesses take no water until it is fixed", Self::FILE);
+        crate::embedded_data::load_text_or_embedded(data_dir, Self::FILE, Self::from_ron).unwrap_or_else(|e| {
+            log::warn!("{e}; illnesses take no water until it is fixed");
             Self::default()
         })
     }
@@ -243,18 +240,28 @@ pub fn duration_words(s: f32) -> String {
 /// hint, which has no DataStore.
 fn shipped() -> &'static (Illnesses, Option<StatusEffectRegistry>) {
     static SHIPPED: std::sync::OnceLock<(Illnesses, Option<StatusEffectRegistry>)> = std::sync::OnceLock::new();
-    SHIPPED.get_or_init(|| {
-        let dir = crate::data_dir();
-        let effects = crate::embedded_data::read_data_or_embedded(&dir, "status_effects.csv")
-            .and_then(|t| StatusEffectRegistry::from_csv(t.as_bytes()).ok());
-        (Illnesses::load(&dir), effects)
-    })
+    SHIPPED.get_or_init(|| hint_data(&crate::data_dir()))
+}
+
+/// The illnesses and the status effects as the game loads them, by the rule every registry
+/// loads by (BUG-163): a data folder's status_effects.csv this version cannot read gives the
+/// built-in copy, not an empty table, so the hint never says "about an hour" for want of the
+/// illness's course.
+fn hint_data(dir: &Path) -> (Illnesses, Option<StatusEffectRegistry>) {
+    let effects = crate::embedded_data::load_data_or_embedded(dir, "status_effects.csv", StatusEffectRegistry::from_csv)
+        .map_err(|e| log::warn!("{e}; the illness hint has no course to name"))
+        .ok();
+    (Illnesses::load(dir), effects)
 }
 
 /// Settings > Gameplay > Illness's hint (2026-10-05): what each mode does, with the numbers
 /// read from the data it describes, so the two cannot drift.
 pub fn mode_hint() -> String {
-    let (ill, effects) = shipped();
+    hint_text(shipped())
+}
+
+/// The hint's words, from the data `hint_data` loaded.
+fn hint_text((ill, effects): &(Illnesses, Option<StatusEffectRegistry>)) -> String {
     let Some(i) = ill.illnesses.first() else {
         return "No illness data is loaded, so illnesses take no water in either mode.".to_string();
     };
@@ -325,6 +332,23 @@ mod tests {
         for part in ["Food Poisoning", "about 2 days", "1.5 L", "about a day", "0.75 L", "2.5 L"] {
             assert!(hint.contains(part), "the hint names {part:?}: {hint}");
         }
+    }
+
+    /// BUG-163: the hint loads its data the way the game does, so a data folder whose
+    /// status_effects.csv this version cannot read (one written before 2026-10-05 still has
+    /// the `dispel_type` column) gives the built-in course, never "about an hour" for want of
+    /// one.
+    ///
+    /// Seen red with the old read (the folder's file used whatever was in it):
+    ///   the hint names the course: Illness from spoiled or raw food (food_poisoning). ...
+    ///   Realistic: it lasts about an hour ... Forgiving: about an hour and 0.75 L a day. ...
+    #[test]
+    fn the_settings_hint_names_the_course_with_a_data_folder_older_than_the_game() {
+        let dir = crate::test_temp::dir("illness_hint");
+        let stale = crate::systems::status_effects::with_old_dispel_type_column(crate::embedded_data::STATUS_EFFECTS_CSV);
+        std::fs::write(dir.join("status_effects.csv"), stale).expect("write the file");
+        let hint = hint_text(&hint_data(&dir));
+        assert!(hint.contains("about 2 days"), "the hint names the course: {hint}");
     }
 
     #[test]

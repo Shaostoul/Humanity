@@ -31,8 +31,9 @@
 //     its own (a `use m::{.., X}`, a `use m::*` and a `use m::X as Y` all reach a
 //     bare name; a `pub use` re-export is refused as a problem, not followed);
 //   - an embedded_data.rs const is also read through get_embedded("<its path>"),
-//     both by the get_embedded table (which read_data_or_embedded consults only
-//     AFTER the disk read fails: checked on that fn's body, in order) and by any
+//     both by the get_embedded table (which read_data_or_embedded and
+//     load_data_or_embedded, every fn in embedded_data.rs that calls it, consult
+//     only AFTER the disk read: checked on each fn's body, in order) and by any
 //     direct get_embedded("<path>") call.
 // A read counts as disk-first when the fn it sits in
 //   (a) reads the disk BEFORE it (fs::read, fs::read_to_string, File::open,
@@ -568,28 +569,37 @@ function analyse(root = REPO, opts = {}) {
   const ed = files.get(ED);
   const tableKey = new Map(); // "items.csv" -> NAME
   let diskFirstTable = false;
+  let tableReaders = [];
   if (ed) {
     const ge = ed.fns.find((f) => f.name === "get_embedded");
     if (ge) for (const m of ed.noComments.slice(ge.open, ge.close).matchAll(/"([^"]+)"\s*=>\s*Some\(\s*([A-Z0-9_]+)\s*\)/g)) tableKey.set(m[1], m[2]);
-    const rd = ed.fns.find((f) => f.name === "read_data_or_embedded");
-    if (rd) {
+    // Every fn here that serves the table at run time: read_data_or_embedded, and
+    // load_data_or_embedded (BUG-163), which also serves it when the disk copy cannot be
+    // read in full. The table counts as disk first only when EACH of them reads the disk
+    // before consulting it and says so with the note.
+    tableReaders = ed.fns.filter(
+      (f) => f.name !== "get_embedded" && !isTest(ed, f.open) && /\bget_embedded\s*\(/.test(ed.codeOnly.slice(f.open, f.close))
+    );
+    diskFirstTable = tableReaders.length > 0;
+    for (const rd of tableReaders) {
       const body = ed.codeOnly.slice(rd.open, rd.close);
       const disk = body.search(DISK_READ);
       const emb = body.search(/\bget_embedded\s*\(/);
       const ordered = disk >= 0 && emb > disk;
       const noted = notesIn(ed, rd).length > 0;
-      diskFirstTable = ordered && noted;
+      if (!ordered || !noted) diskFirstTable = false;
       if (!ordered) {
-        problems.push(`${ED}: read_data_or_embedded does not read the disk before calling get_embedded, so the embedded table cannot count as a disk-first fallback`);
+        problems.push(`${ED}: ${rd.name} does not read the disk before calling get_embedded, so the embedded table cannot count as a disk-first fallback`);
       }
       if (!noted) {
         problems.push(
-          `${ED}: read_data_or_embedded never calls ${NOTE_FN} when it serves the built-in copy, so a run that used one ` +
+          `${ED}: ${rd.name} never calls ${NOTE_FN} when it serves the built-in copy, so a run that used one ` +
             "cannot be caught (the rigs refuse a run whose log has the note)"
         );
       }
     }
   }
+  const readerNames = tableReaders.map((f) => f.name).join(" and ") || "read_data_or_embedded";
 
   // ── Readers of each module-level const: every reference outside test code ──
   for (const c of constDefs) {
@@ -600,16 +610,16 @@ function analyse(root = REPO, opts = {}) {
       e.reads.push({
         file: ED,
         line: def.lineOf(c.offset),
-        fn: "read_data_or_embedded",
+        fn: readerNames,
         via: diskFirstTable
-          ? `embedded_data::${c.name}, served by get_embedded("${rel}") after a disk miss (read_data_or_embedded notes it)`
+          ? `embedded_data::${c.name}, served by get_embedded("${rel}") after a disk miss (${readerNames} note it)`
           : `embedded_data::${c.name} through get_embedded("${rel}"), whose reader does not try the disk first and say so`,
         disk_read_line: diskFirstTable ? true : null,
         noted: diskFirstTable,
         disk_first: diskFirstTable,
         reviewed: null,
         key: `${ED}::get_embedded`,
-        why: diskFirstTable ? "" : "read_data_or_embedded is not disk-first with a note (see PROBLEMS)",
+        why: diskFirstTable ? "" : `${readerNames} is not disk-first with a note (see PROBLEMS)`,
       });
     }
     // The module names the const is reached through: its file's, and any inline

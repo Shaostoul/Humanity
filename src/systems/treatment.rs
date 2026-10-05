@@ -58,16 +58,13 @@ impl Treatments {
     /// Path of the file, relative to the data directory.
     pub const FILE: &'static str = "medical/treatments.ron";
 
-    /// Disk first (modding), the copy built into the game as the fallback. A missing or
-    /// unparseable file leaves no treatments, so no item shows a Use button: loud in the log,
-    /// never a crash.
+    /// Disk first (modding), the copy built into the game when the disk copy is missing or
+    /// this version cannot read it (BUG-163, `embedded_data::load_text_or_embedded`). With
+    /// neither there are no treatments, so no item shows a Use button: loud in the log, never
+    /// a crash.
     pub fn load(data_dir: &Path) -> Self {
-        let Some(text) = crate::embedded_data::read_data_or_embedded(data_dir, Self::FILE) else {
-            log::warn!("{} not found on disk or embedded: no medical item can be used", Self::FILE);
-            return Self::default();
-        };
-        Self::from_ron(&text).unwrap_or_else(|e| {
-            log::warn!("Failed to parse {}: {e}. No medical item can be used until it is fixed", Self::FILE);
+        crate::embedded_data::load_text_or_embedded(data_dir, Self::FILE, Self::from_ron).unwrap_or_else(|e| {
+            log::warn!("{e}; no medical item can be used until it is fixed");
             Self::default()
         })
     }

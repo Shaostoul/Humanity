@@ -110,10 +110,15 @@ restart, or leaving and re-entering your world, is all it takes for your quest
 to appear.
 
 If a file has a mistake in it, the game does not crash. It writes a note in
-its log, skips that file, and keeps loading everything else.
+its log (`run.log` in `%APPDATA%\HumanityOS\logs`) and keeps loading everything
+else. A quest file of your own that it cannot read is skipped. One of the
+game's own quest files that it cannot read (because you edited it, or because
+it was written by an older version of the game) is set aside for that run, and
+the copy built into the game is used in its place.
 
-For the curious: the code that does this is `QuestRegistry::from_ron_dir` in
-`src/systems/quests/mod.rs`. It reads every `*.ron` file in `data/quests/`,
+For the curious: the code that does this is `QuestRegistry::load` in
+`src/systems/quests/mod.rs`. It reads each of the game's own quest files from
+`data/quests/` (or its built-in copy), then every other `*.ron` file there,
 parses each one as a list of quest definitions, and merges them all into one
 registry keyed by quest id. It runs at app startup and again on every world
 load.
@@ -126,8 +131,10 @@ load.
   line has a problem. Most problems are a missing comma, a missing quote, or
   an unmatched parenthesis.
 - **The rest of the game is fine but your quest is missing.** The game skipped
-  your file because of a formatting mistake. It never crashes over a broken
-  quest file, it just ignores it. Fix the punctuation and restart.
+  your file because of a formatting mistake (or, if you added your quest to one
+  of the game's own quest files, it used its built-in copy of that file). It
+  never crashes over a broken quest file. The log line names the file and the
+  place it could not read; fix the punctuation and restart.
 - **The quest appears but a step never completes.** Check that the item id or
   recipe id in the objective really exists in `data/items.csv` or
   `data/recipes.csv`, and that you did not use a `Travel` objective.

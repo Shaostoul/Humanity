@@ -46,7 +46,7 @@ One path to leave alone for now: `data/entities/decorations.ron` exists, but it 
 
 ## Seeing it in the game
 
-The game reads `items.csv` once, when it starts up. (For the curious: the loading code lives in `src/engine/registries.rs`, in a function called `load_data_registries`, which hands the file to the item registry in `src/systems/inventory`. It prefers the file on disk; a backup copy baked into the program via `src/embedded_data.rs` is only used if the disk file is missing.)
+The game reads `items.csv` once, when it starts up. (For the curious: the loading code lives in `src/engine/registries.rs`, in a function called `load_data_registries`, which hands the file to the item registry in `src/systems/inventory`. It prefers the file on disk; a backup copy baked into the program via `src/embedded_data.rs` is used only if the disk file is missing or has a line the game cannot read, and then the game's log, `run.log` in `%APPDATA%\HumanityOS\logs`, names that line in a line containing `[built-in data copy] data/items.csv`.)
 
 The game watches the `data` folder while it runs, but items are NOT among the
 files it rebuilds live. The watcher drops its cached copy of the file, and the
