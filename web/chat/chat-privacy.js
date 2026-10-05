@@ -243,10 +243,11 @@ async function eraseMemoryDays() {
 
 async function deleteMyAccount() {
   const remembered = eraseMemorySentence(await eraseMemoryDays());
-  if (!await holdConfirm('Erase your entire account on this server (messages, uploads, profile, mailbox, membership, your progress in the shared world, and your home\'s plot on the ship)? This is permanent. Data on your own devices stays.' + (remembered ? ' ' + remembered : ''), { seconds: 5, confirmLabel: 'Hold to erase account' })) return;
+  if (!await holdConfirm('Erase your entire account on this server (messages, uploads, profile, mailbox, membership, your progress in the shared world, what you built in the shared world, and your home\'s plot on the ship)? This is permanent. Data on your own devices stays.' + (remembered ? ' ' + remembered : ''), { seconds: 5, confirmLabel: 'Hold to erase account' })) return;
   const typed = prompt(
     'This ERASES your account on this server: messages, uploads, profile, '
-    + 'mailbox, membership, your progress in the shared world, and your home\'s plot on the ship '
+    + 'mailbox, membership, your progress in the shared world, what you built in the shared world, '
+    + 'and your home\'s plot on the ship '
     + '(it goes to the next player; if you come back you get a free plot or a guest place), '
     + 'permanently. Data on your own devices stays.\n\n'
     + (remembered ? remembered + '\n\n' : '')
