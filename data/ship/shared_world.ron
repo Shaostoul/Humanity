@@ -1,0 +1,80 @@
+// MOVING ABOARD THE SHARED SHIP, AND WHO HEARS ABOUT IT (increment 4 of
+// docs/design/ship-homes-and-logistics.md, "getting around at ship scale"; read by src/ship/moves.rs,
+// disk first, the copy built into the exe only when this file is missing or does not parse).
+//
+// The relay holds every player where their last accepted move left them. Each position update a
+// game sends is checked against how far a person can really go in the time since
+// (src/relay/handlers/move_check.rs). A move faster than that is answered with a CORRECTION: the
+// game is told where the relay holds it and stands the player back there. It is never simply
+// refused, because a game whose moves are all refused stands frozen on everyone else's screen.
+//
+// The moves that are fast but real are told apart, not allowed for by a bigger number:
+//   - arriving (the welcome stands the player where the relay put them: their door, the
+//     Commons, the spot a reconnect kept), Respawn and stepping out and back in (the relay spawns
+//     them afresh), which the relay itself decides;
+//   - a reconnect that finds the player still in the world: one move as far as they could have
+//     walked while the connection was down, at most 90 m (`FAR_FROM_HELD_M`, src/ship/moves.rs);
+//   - a teleporter or other transit link, named by its id (src/ship/transit.rs);
+//   - shutting the build editor, which stands the player at their build spot on their own plot,
+//     at standing height on its floor;
+//   - driving a vehicle, at that vehicle's own speed (data/vehicles/kits.ron, `speed_mps`), when
+//     that is faster than on foot.
+//
+// moving
+//   on_foot_mps      The fastest a person goes on foot, metres a second across the floor, every
+//                    boost included: the walk (5 m/s) times the sprint (1.9) times the speed
+//                    buffs of data/status_effects.csv at their most stacks (Speed Boost 1.3 three
+//                    times, Well Nourished 1.1) times the fastest boots (1.05): 24.1. A test
+//                    (moves.rs `the_on_foot_limit_covers_the_fastest_legitimate_walk`) fails when
+//                    a new buff or a faster walk passes it.
+//   vertical_mps     The fastest up or down: a jump leaves at 5 m/s, a ladder climbs at 3 m/s, an
+//                    elevator car rides slower still, and a fall from the Commons' 8 m ceiling,
+//                    the tallest zone, lands at 12.5 m/s.
+//   jitter_margin    How much faster than the limits above the allowance builds up, as a share
+//                    (0.25 = a quarter): updates that set off together can arrive at uneven gaps.
+//   banked_s         How many seconds of unused allowance a player keeps: updates held up by the
+//                    network arrive in a burst, each one carrying the walk of the time it waited.
+//   slack_m          A fixed allowance on every move, metres: rounding, and getting into a cab.
+//   correction_gap_s The least time between two corrections to one player: updates already on
+//                    their way when the first was sent are dropped quietly instead.
+//   correction_resend_s
+//                    When a player's updates still say they have not stood where they were sent
+//                    this long after a correction, it is sent again.
+//   jump_every_s     Declared jumps (a teleporter, shutting the build editor) come at most one
+//                    every this many seconds over time. The relay cannot see a teleporter in
+//                    anyone's home or an editor being open, so it limits how often anyone may say
+//                    so. A person cannot do it faster: a teleporter works again only once they
+//                    have stepped off every pad and 1.2 s have passed (engine/move_check.rs
+//                    TELEPORT_REARM_S), and the editor has to be opened and shut.
+//   jump_burst       How many declared jumps a player keeps in reserve, so two that the network
+//                    delivers together both pass.
+//
+// delivery
+//   in_view_m        Another player or crew member this close (metres, in the ship's frame) is
+//                    in view: their moves are delivered, and the game draws them.
+//   out_of_view_m    Farther than this, they go out of view: the game is told to stop drawing
+//                    them and is sent nothing more about them until they are in view again. The
+//                    gap between the two keeps someone walking along the edge from flickering in
+//                    and out. Game messages only ever go to players in the shared world, never to
+//                    a socket that is only chatting.
+//
+// Every number above is a game rule chosen for this increment from the movement code, not a
+// sourced figure. On the first test ship every place is within 210 m of every other, so with
+// these radii everyone aboard sees everyone; a bigger ship is where they start to matter.
+(
+    moving: (
+        on_foot_mps: 25.0,
+        vertical_mps: 20.0,
+        jitter_margin: 0.25,
+        banked_s: 1.5,
+        slack_m: 1.0,
+        correction_gap_s: 0.5,
+        correction_resend_s: 2.0,
+        jump_every_s: 1.0,
+        jump_burst: 2.0,
+    ),
+    delivery: (
+        in_view_m: 250.0,
+        out_of_view_m: 300.0,
+    ),
+)

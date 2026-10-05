@@ -34,6 +34,11 @@ pub mod launch_focus;
 /// Movie mode: record the live view to video, frame-exact, for the clip
 /// maker (scripts/make-clips.js, 2026-09-30).
 pub mod movie;
+/// Leaving the app: the save every way out runs first (first-hour audit 2026-10-04, Blocker 5).
+pub mod quit;
+/// The game's half of the relay's speed check: corrections, declared fast moves, the rig's walk
+/// (ship homes increment 4).
+pub mod move_check;
 /// How a mushroom crop is drawn: its fruiting blocks or cased bed, and the
 /// mushrooms on them by stage (2026-09-27).
 pub mod fungus_mesh;

@@ -1160,6 +1160,55 @@ fn snapshot_toast() {
     });
 }
 
+/// A long notice stays on the window (first-hour audit 2026-10-04). A toast's text never
+/// wrapped, so a notice longer than the window ran off both edges and could not be read: the
+/// guest notice, and before it the shared world's refusal sentences (engine/home_plot.rs
+/// `refuse_shared_world`). Each toast now wraps inside the window and stands above the one
+/// below by its real height. GPU-free: the toasts' laid-out rects, from egui's memory.
+///
+/// Seen red 2026-10-04 on 8e400d7ed (no wrap, a fixed 40 point step): "toast 0 runs off the
+/// window: [[-520.2 269.0] - [1800.2 312.0]] on [[0.0 0.0] - [1280.0 360.0]]".
+#[test]
+fn a_long_notice_wraps_inside_the_window() {
+    let ctx = snapshot_ctx();
+    let theme = load_theme();
+    theme.apply_to_egui(&ctx);
+    let mut state = GuiState::default();
+    state.pending_notices.push(crate::engine::home_plot::GUEST_ARRIVAL.to_string());
+    state.pending_notices.push(super::first_steps::controls_hint(&state.keybinds));
+    let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 360.0));
+    for _ in 0..3 {
+        let input = egui::RawInput { screen_rect: Some(screen), ..Default::default() };
+        ctx.run(input, |ctx| crate::gui::widgets::draw_toasts(ctx, &theme, &mut state));
+    }
+    let rects: Vec<egui::Rect> = (0..2)
+        .map(|i| ctx.memory(|m| m.area_rect(egui::Id::new(("hos_toast", i)))).expect("the toast was laid out"))
+        .collect();
+    for (i, r) in rects.iter().enumerate() {
+        assert!(screen.contains_rect(*r), "toast {i} runs off the window: {r:?} on {screen:?}");
+    }
+    assert!(!rects[0].intersects(rects[1]), "the toasts overlap: {rects:?}");
+    assert!(rects[0].height() > rects[1].height() + 10.0, "the long notice is still one line: {rects:?}");
+}
+
+/// The two notices a new player's first session can show (first-hour audit 2026-10-04): the
+/// controls hint on the first entry into the world (gui/first_steps.rs) and, on a shared
+/// server with every plot taken, the guest notice (engine/home_plot.rs `GUEST_ARRIVAL`). Both
+/// ride the long-lived notice toast; this shows how they read on a 1280 px window.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_first_steps_notices() {
+    render_page_png("first_steps_notices", 1280, 360, |ctx, theme, state| {
+        // First frame only, as `snapshot_toast` does: the closure runs once per frame.
+        if state.toasts.is_empty() {
+            let now = ctx.input(|i| i.time);
+            state.notice(crate::engine::home_plot::GUEST_ARRIVAL, now);
+            state.notice(super::first_steps::controls_hint(&state.keybinds), now);
+        }
+        crate::gui::widgets::draw_toasts(ctx, theme, state);
+    });
+}
+
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_markdown_features() {
@@ -1238,6 +1287,21 @@ fn snapshot_onboarding_identity() {
         state.user_name = "Explorer".to_string();
         state.private_key_bytes = Some(vec![7u8; 32]);
         state.settings.seed_phrase_visible = true;
+        crate::gui::pages::main_menu::draw(ctx, theme, state);
+    });
+}
+
+/// The last onboarding page (first-hour audit 2026-10-04, Blocker 1): it says where Enter puts
+/// the player, their own home and alone unless they connected to a server on the server step,
+/// and where the shared world is (Characters, then a server).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_onboarding_ready() {
+    render_page_png("onboarding_ready", 1280, 900, |ctx, theme, state| {
+        state.onboarding_complete = false;
+        state.onboarding_step = 3;
+        state.user_name = "Explorer".to_string();
+        state.server_connected = false;
         crate::gui::pages::main_menu::draw(ctx, theme, state);
     });
 }
