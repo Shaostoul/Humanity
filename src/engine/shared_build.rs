@@ -21,7 +21,8 @@
 //!   left the player's view is forgotten; a refusal gives back exactly what was spent and says why.
 //! - TAKING DOWN ([`take_down_gate`]): F on a piece the server keeps asks the relay, and the piece
 //!   stays until the relay says it came down; then its materials come back to whoever took it
-//!   down (the operator's decision of 2026-10-05).
+//!   down (the operator's decision of 2026-10-05), once, the way F's take-down of the player's own
+//!   piece gives them back: into the backpack, and what it has no room for into home storage.
 //!
 //! A PIECE IS DRAWN ONLY WHEN THE RELAY SAYS IT IS KEPT. The player's own build never puts up a
 //! scaffold here: the relay's `game_built` does, for the builder exactly as for everyone near, so
@@ -1009,6 +1010,16 @@ pub(crate) fn pack_counts(world: &hecs::World) -> BTreeMap<String, u32> {
     out
 }
 
+/// Home storage, item by item (the probe's `storage`): what the automated machines, the build
+/// menu and hand crafts count as the home's (`placed::stock_counts`; a store built on a planet is
+/// not the home's). A build pays from it once the backpack runs short, and what a take-down gives
+/// back lands in it when the backpack has no room (the "Take to backpack" channel sends what does
+/// not fit back to storage, lib.rs), so what came back is the backpack's and this together.
+pub(crate) fn storage_counts(world: &hecs::World, placed: &[crate::systems::inventory::placed::PlacedItem]) -> BTreeMap<String, u32> {
+    let away = crate::systems::construction::uses::planet_store_paths(world);
+    crate::systems::inventory::placed::stock_counts(placed, &away).into_iter().filter(|(_, n)| *n > 0).collect()
+}
+
 /// This frame's pieces with their screen boxes, for each recorded frame (engine/ipc.rs).
 pub(crate) fn recorder_rows(state: &EngineState) -> Vec<serde_json::Value> {
     let (w, h) = state.renderer.viewport_size();
@@ -1019,8 +1030,8 @@ pub(crate) fn recorder_rows(state: &EngineState) -> Vec<serde_json::Value> {
 /// The probe's `shared_build` (engine/ipc.rs's recorder, done JSON): what the last welcome said
 /// this player may do, whether the ship is theirs to edit (`config::ship_editing_for`), every piece
 /// the server keeps in this world, how many constructions the save would hold now (shared pieces
-/// never among them), the backpack, what waits for the relay, the placing line under the
-/// crosshair, the zone the build editor edits, and every frame's `seq`.
+/// never among them), the backpack and home storage, what waits for the relay, the placing line
+/// under the crosshair, the zone the build editor edits, and every frame's `seq`.
 pub(crate) fn probe_json(state: &EngineState) -> serde_json::Value {
     let gui = &state.gui_state;
     let world = &state.game_world.world;
@@ -1032,6 +1043,7 @@ pub(crate) fn probe_json(state: &EngineState) -> serde_json::Value {
         "pieces": piece_rows(world, state.data_store.get::<BlueprintRegistry>("blueprint_registry"), None),
         "save_constructions": crate::save_load::extract_world_save(world).constructions.len(),
         "pack": pack_counts(world),
+        "storage": storage_counts(world, &gui.placed_items),
         "pending": { "builds": builds, "unbuilds": unbuilds, "intents": queued + in_channel },
         "hint": gui.build_placing.as_ref().map(|p| p.hint.clone()),
         "editor_zone": gui.ship_structure.as_ref().and_then(|s| s.zones.get(gui.construction_zone)).map(|z| z.id.clone()),

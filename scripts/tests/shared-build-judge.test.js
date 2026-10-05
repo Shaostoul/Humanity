@@ -148,7 +148,20 @@ function goodRun() {
         relay_lines: ["Game: take-down refused (not_allowed/not_your_plot)"],
         still_drawn: true,
       },
-      ours: { piece_id: 3, blueprint: "wood_foundation", epoch_ms: T2, seen_by_walker: { epoch_ms: T2 + 300, piece_id: 3 }, gone: true, pack_before: pack(91), pack_after: pack(99), pack_later: pack(99), relay_lines: ["Game: took down piece 3 on plot:p2"] },
+      ours: {
+        piece_id: 3,
+        blueprint: "wood_foundation",
+        epoch_ms: T2,
+        seen_by_walker: { epoch_ms: T2 + 300, piece_id: 3 },
+        gone: true,
+        pack_before: pack(91),
+        pack_after: pack(99),
+        pack_later: pack(99),
+        store_before: pack(5),
+        store_after: pack(5),
+        store_later: pack(5),
+        relay_lines: ["Game: took down piece 3 on plot:p2"],
+      },
     },
     zone: {
       parked: { ok: true, detail: "at (76.00, 1.70, 64.00) yaw 3.142, holding still, in the shared world" },
@@ -316,6 +329,8 @@ const CASES = [
   ["the game still has the piece it took down", (r) => (r.take_down.ours.gone = false), "our_take_down_reaches_them"],
   ["the planks given back twice", (r) => (r.take_down.ours.pack_later = { wood_plank_0: 107 }), "our_take_down_refunds_once"],
   ["nothing given back", (r) => (r.take_down.ours.pack_after = { wood_plank_0: 91 }), "our_take_down_refunds_once"],
+  ["the planks given back twice, into the backpack and into home storage", (r) => Object.assign(r.take_down.ours, { store_after: { wood_plank_0: 13 }, store_later: { wood_plank_0: 13 } }), "our_take_down_refunds_once"],
+  ["home storage never counted (a game whose probe reports only the backpack)", (r) => (r.take_down.ours.store_before = undefined), "our_take_down_refunds_once"],
   // 7: the ship's shared spaces.
   ["the game never stood in the Commons", (r) => (r.zone.parked = { ok: false, detail: "stopped short" }), "zone_camera_parked"],
   ["no rank sentence on the game's screen", (r) => (r.zone.game_place.notices = ["Placing Wood Foundation: this is someone else's plot; you build only on your own plot"]), "zone_refused_without_rank"],
@@ -366,6 +381,39 @@ test("each broken run FAILS its own check and no other", () => {
   const takesOthersAlong = ["theirs_built"];
   assert.deepEqual(ALL_IDS.filter((id) => !alone.has(id) && !takesOthersAlong.includes(id)), [], "every check has a broken run that fails it and nothing else");
   assert.equal(J.judgeSharedBuild(null, {}).pass, false, "a run nobody recorded fails");
+});
+
+// WHAT COMES BACK IS COUNTED WHERE THE GAME PUTS IT. A take-down's materials come back through the
+// "Take to backpack" channel, so what the backpack has no room for lands in home storage
+// (src/engine/shared_build.rs `took_down`, as F gives back a piece of the player's own,
+// build_place.rs `apply_take_down`). The rig fills the backpack far past its 65 L ("stock all
+// materials": a stack of every recipe input), and a Wood Foundation's 8 planks are 65.4 L, more
+// than even an empty backpack holds, so the planks of the game's own foundation land in home
+// storage. The first --build run (2026-10-05) read the backpack alone: "wood_plank_0: 12 before, 12
+// once it came down, 12 a few seconds later (the piece gives back 8): NOT given back exactly once".
+// The judge counts the backpack and home storage together (the probe's `pack` and `storage`), and
+// says where the planks landed.
+//
+// Seen red 2026-10-05 against the judge that read the backpack alone:
+//   AssertionError [ERR_ASSERTION]: all into home storage (the rig's stocked backpack):
+//   wood_plank_0: 12 before, 12 once it came down, 12 a few seconds later (the piece gives back
+//   8): NOT given back exactly once
+test("what comes back is counted in the backpack and home storage together", () => {
+  const counts = (ns) => ns.map((n) => ({ wood_plank_0: n }));
+  for (const [what, packs, stores, said] of [
+    ["all into home storage (the rig's stocked backpack)", [12, 12, 12], [0, 8, 8], "12 + 0 before, 12 + 8 once it came down, 12 + 8 a few seconds later (the piece gives back 8: 0 into the backpack, 8 into home storage)"],
+    ["7 into an empty backpack, 1 into home storage", [0, 7, 7], [3, 4, 4], "(the piece gives back 8: 7 into the backpack, 1 into home storage)"],
+    ["all into a backpack with room", [91, 99, 99], [5, 5, 5], "(the piece gives back 8: 8 into the backpack, 0 into home storage)"],
+  ]) {
+    const r = doctored((run) => {
+      const [pb, pa, pl] = counts(packs);
+      const [sb, sa, sl] = counts(stores);
+      Object.assign(run.take_down.ours, { pack_before: pb, pack_after: pa, pack_later: pl, store_before: sb, store_after: sa, store_later: sl });
+    });
+    const c = r.checks.find((x) => x.id === "our_take_down_refunds_once");
+    assert.ok(c.ok, `${what}: ${c.detail}`);
+    assert.ok(c.detail.includes(said), `${what}: the detail says where they landed: ${c.detail}`);
+  }
 });
 
 test("nothing recorded fails every check that has evidence to read", () => {

@@ -166,11 +166,12 @@
 // refused by the relay as someone else's plot and never drawn; the game's place inside the
 // builder's plot refused on its own screen, nothing spent or sent); WHO TAKES DOWN (the builder
 // cannot take the game's piece down; the game can, the `take_down` verb, and the planks come back
-// once); THE SHIP'S SHARED SPACES (the game walks into the Commons, where its place and the
-// builder's build are refused for the rank and the rank holder's wall is drawn in front of the
-// camera and counted in a picture); DEV ONLY OFFLINE (no ship editing while joined; out of the
-// shared world, ship editing and no shared piece; back in, the same pieces by the same ids,
-// finished). Evidence in runs/<stamp>-build/.
+// once, counted in the backpack and home storage together, since what the stocked backpack has no
+// room for lands in storage); THE SHIP'S SHARED SPACES (the game walks into the Commons, where its
+// place and the builder's build are refused for the rank and the rank holder's wall is drawn in
+// front of the camera and counted in a picture); DEV ONLY OFFLINE (no ship editing while joined;
+// out of the shared world, ship editing and no shared piece; back in, the same pieces by the same
+// ids, finished). Evidence in runs/<stamp>-build/.
 //
 // HOW THE GAME COMES IN (--entry, round 4 of the 1b review): a returning
 // player's game identifies on the main menu (its auto-connect) and only then
@@ -3235,6 +3236,17 @@ async function runBuildOnce(runStamp, cleanups) {
     for (const [item] of bp.materials) o[item] = Number.isFinite(Number(pack[item])) ? Number(pack[item]) : 0;
     return o;
   };
+  /** The same counts in home storage (the probe's `storage`), or null when the probe reports none:
+   *  what a take-down gives back lands there when the backpack has no room, and the stocked
+   *  backpack has none (src/engine/shared_build.rs `storage_counts`). */
+  const storeOf = (p, blueprint) => {
+    const store = sharedOf(p).storage;
+    const bp = manifest.blueprints && manifest.blueprints[blueprint];
+    if (!store || typeof store !== "object" || !bp) return null;
+    const o = {};
+    for (const [item] of bp.materials) o[item] = Number.isFinite(Number(store[item])) ? Number(store[item]) : 0;
+    return o;
+  };
   /** The frame `id`'s box from the game's door points, and a point `local` metres from its corner
    *  in ship metres. */
   const boxOf = (id) => (manifest.frames || []).find((f) => f.id === id) || null;
@@ -3474,6 +3486,9 @@ async function runBuildOnce(runStamp, cleanups) {
         pack_before: packOf(before, BUILD_OURS.blueprint),
         pack_after: packOf(after, BUILD_OURS.blueprint),
         pack_later: packOf(later, BUILD_OURS.blueprint),
+        store_before: storeOf(before, BUILD_OURS.blueprint),
+        store_after: storeOf(after, BUILD_OURS.blueprint),
+        store_later: storeOf(later, BUILD_OURS.blueprint),
         relay_lines: relayLinesSince(rMark2),
       };
       step("our_take", !!saw, `the game took down piece ${ourId}: ${saw ? `${A.name} saw it: ${saw.hit.line}` : `${A.name} never saw it come down`}`);
