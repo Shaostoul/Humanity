@@ -31,9 +31,8 @@ Its sources are the US Department of Agriculture's Complete Guide to Home
 Canning and the Centers for Disease Control and Prevention (CDC), both US
 federal and public domain, and, restated in our own words, the National
 Center for Home Food Preservation (NCHFP) at the University of Georgia
-and the extension services of Kansas State and Washington State
-universities. Where something is general practice or our reading, the
-text says so.
+and Kansas State University's extension service. Where something is
+general practice or our reading, the text says so.
 
 ## First, where water-bath canning can hurt you
 
@@ -65,7 +64,8 @@ the neck and kept upright, and cool them on racks or towels. Lift the
 canner's lid so the steam rises away from your face, keep children and
 pets out of the kitchen while it is on, and never set a hot jar on a cold
 or wet surface (general practice). Check every jar for chips and cracks
-before you fill it: the USDA guide warns that scratches in glass that look
+before you fill it (general practice): the USDA guide, writing about
+reused mayonnaise jars, warns that scratches in glass that look
 insignificant can crack a jar in the canner.
 
 ### A jar that has gone wrong
@@ -239,7 +239,10 @@ water or unsweetened juice instead.
   that a flat-bottomed stockpot with a lid and a rack in the bottom will
   do the job. On a smooth glass cooktop, follow the cooktop maker's advice:
   Kansas State warns that some cooktops switch a burner off when it gets
-  too hot, which can leave the food under-processed.
+  too hot, which can leave the food under-processed. It also says that on
+  these cooktops the canner's bottom must be completely flat and no more
+  than an inch wider than the burner, and that some water-bath canners are
+  not recommended on them at all, because their bottoms are not flat.
 - **Home-canning jars.** Regular or wide-mouth Mason-type jars are the
   USDA's best choice, and with care they can be used again and again
   with a new lid each time. Commercial mayonnaise or salad dressing jars
@@ -263,13 +266,14 @@ jars in ovens, microwaves or dishwashers, which do not prevent all risks
 of spoilage; canning powders, which it calls useless; and paraffin wax.
 The 2015 USDA guide did not recommend steam canners, because their
 processing times were still being researched. Kansas State's 2026 guide
-reports later University of Wisconsin research and says an atmospheric
-steam canner may be used for acid foods as long as strict conditions are
-met, among them a tested boiling-water recipe whose time, after the
-altitude adjustment, is 45 minutes or less. This guide covers the
-boiling-water canner only. If you own a steam canner, use it by your
-extension service's current guidance (our reading). An electric multicooker with a canning button is not a
-canner of either kind ([Pressure Canning](pressure_canning.md)).
+reports University of Wisconsin research published in 2015 and says an
+atmospheric steam canner may be used for acid foods as long as strict
+conditions are met, among them a tested boiling-water recipe whose time,
+after the altitude adjustment, is 45 minutes or less. This guide covers
+the boiling-water canner only. If you own a steam canner, use it by your
+extension service's current guidance (our reading). An electric
+multicooker with a canning button is not a canner of either kind
+([Pressure Canning](pressure_canning.md)).
 
 ## Step by step
 
@@ -279,8 +283,8 @@ recipe you follow adds its own preparation, headspace and time.
 1. **Choose the recipe and read all of it.** Find your jar size, your
    pack and the time in your altitude column before you start.
 2. **Check and wash the jars.** Look and feel for chips and cracks on the
-   rims. Wash the jars in hot water with detergent and rinse them well, or
-   run them through a dishwasher (USDA).
+   rims (general practice). Wash the jars in hot water with detergent and
+   rinse them well, or run them through a dishwasher (USDA).
 3. **Keep the jars hot.** Stand them in water in the canner or a large
    stockpot, bring it to a simmer (180 F) and leave them there until you
    fill them (USDA). Washing and heating do not sterilise jars, and they
@@ -573,6 +577,9 @@ The game does not model water-bath canning.
   potatoes and carrots into Canned Food at the home's Stove. In real life
   those are low-acid vegetables for a pressure canner, and [Pressure
   Canning](pressure_canning.md) describes what the game does with them.
+  The food data also has a general canning row, making food keep a
+  hundred times as long, that draws no line between acid and low-acid
+  food; no code acts on it yet (`data/food_system.ron`).
 
 What the game leaves out, so you do not learn it from the game: the
 difference between acid and low-acid food, every step in this guide, and
@@ -620,8 +627,10 @@ were read on 4 October 2026.
   altitude and 1,000 feet; open-kettle, oven, microwave and dishwasher
   processing, canning powders and steam canners not recommended; hot
   packing preferred; headspace; jars, lids, lid gaskets good for 5 years,
-  jars with wire bails and zinc caps; washing, keeping jars hot at 180 F
-  and sterilising for 10 minutes plus 1 minute per 1,000 feet; freeing air
+  jars with wire bails and zinc caps; mayonnaise-type jars, and scratches
+  in their glass that can crack them in a canner; washing, keeping jars
+  hot at 180 F and sterilising for 10 minutes plus 1 minute per 1,000
+  feet; freeing air
   bubbles with a plastic spatula; band tightness; the boiling-water canner
   and its ten steps, including "If the water stops boiling at any time
   during the process, bring the water back to a vigorous boil and begin
@@ -671,10 +680,13 @@ were read on 4 October 2026.
 - Blakeslee, K. *How-to Guide to Water Bath Canning and Steam Canning*,
   MF3241rev. Kansas State University Research and Extension, March 2026
   (a flat-bottomed stockpot with a lid and a rack as a canner; smooth
-  cooktops that cut out when hot and can leave food under-processed; the
-  conditions for an atmospheric steam canner from University of Wisconsin
-  research, including acid foods only, a tested boiling-water recipe and a
-  time of 45 minutes or less after the altitude adjustment).
+  cooktops that cut out when hot and can leave food under-processed, and
+  on them a completely flat canner bottom no more than an inch wider than
+  the burner, some canners not recommended at all; the conditions for an
+  atmospheric steam canner from University of Wisconsin research
+  published in Food Protection Trends, volume 35, in 2015, including acid
+  foods only, a tested boiling-water recipe and a time of 45 minutes or
+  less after the altitude adjustment).
   https://bookstore.ksre.ksu.edu/download/how-to-guide-to-water-bath-canning-and-steam-canning_MF3241
 
 ### Inside this project
@@ -685,7 +697,8 @@ were read on 4 October 2026.
   Washington](../locale/silverdale_wa.md).
 - The game's items and recipes: `data/items.csv` (Apple, Tomato, Canned
   Food) and `data/recipes.csv` (Dry Fruit, Press Juice, Bake Pie, Bake
-  Pizza, Make Salad, Can Food).
+  Pizza, Make Salad, Can Food); the canning row no code reads yet:
+  `data/food_system.ron`.
 - [Why Canning Has Rules](why_canning_has_rules.md), [Keeping What You
   Grew](keeping_what_you_grew.md), [Pressure
   Canning](pressure_canning.md), [Fermenting
@@ -696,6 +709,7 @@ were read on 4 October 2026.
 
 - Lifting the canner lid away from your face, keeping children and pets
   out of the kitchen, and not setting hot jars on cold or wet surfaces.
+- Checking every jar for chips and cracks on the rim before filling it.
 - That extension offices answer canning questions; asking them before
   preserving something no tested recipe covers; looking up your own
   elevation outside Silverdale; that selling preserved food is regulated.

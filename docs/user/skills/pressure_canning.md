@@ -58,9 +58,16 @@ water. The USDA's rules for living with it:
   may result in unsafe food, and that cooling it with cold running water
   or opening the vent port before it is fully depressurized makes jars
   lose liquid and seals fail.
-- When it has cooled, take off the weight or open the petcock, wait 10
-  minutes, then unfasten the lid. In the USDA's words: "Lift the lid away
-  from you so that the steam does not burn your face."
+- When it has cooled, first make sure the pressure is gone: on a newer
+  canner the vent lock (a small pin in the lid that rises with the
+  pressure and locks the cover) has dropped, and on a dial-gauge canner
+  the dial reads zero (USDA, NCHFP). Even then, tilt the weight slightly
+  before lifting it off, and if steam still comes out, wait; never force
+  the lid while the cover lock has not released (NCHFP). Then take off the
+  weight, or open the petcock (the small valve that opens the vent on
+  some older canners, USDA), wait 10 minutes, and unfasten the lid. In the
+  USDA's words: "Lift the lid away from you so that the steam does not
+  burn your face."
 - Look after the gasket, the rubber ring that seals the lid. The USDA
   guide says nicked or dried gaskets let steam leak; clean them as the
   canner maker directs.
@@ -73,7 +80,9 @@ water. The USDA's rules for living with it:
 - Keep it on a burner it can take. NCHFP warns that a burner putting out
   too much heat can damage a canner, advises against an outdoor LP gas
   burner or a gas range burner over 12,000 BTU in general, and says to
-  check the canner maker's directions.
+  check the canner maker's directions. (BTU, British thermal units, is the
+  burner's heat rating; the range's manual or maker can give you yours,
+  general practice.)
 
 Read your own canner's manual before you use it, and keep children and
 pets out of the kitchen while it is on (general practice).
@@ -116,8 +125,11 @@ tested process the answer is not to can it:
 - **Purees and mashes.** The USDA: "Do not attempt to can pureed
   vegetables, red meats, or poultry meats, because proper processing times
   for pureed foods have not been determined for home use." Can them in
-  pieces and puree them when you serve them. Pumpkin and winter squash go
-  in as 1-inch cubes, with the guide's own caution: "Do not mash or
+  pieces and puree them when you serve them; the USDA then has you bring
+  the puree to a boil, simmer it for 10 minutes, cool and serve it, and
+  keep what is left in the refrigerator, using it within 2 days for best
+  quality. Pumpkin and winter squash go in as 1-inch cubes, with the
+  guide's own caution: "Do not mash or
   puree."
 - **Thickened food.** The USDA's caution for soups: "Do not add noodles or
   other pasta, rice, flour, cream, milk or other thickening agents to home
@@ -188,10 +200,11 @@ nine pints; the smallest that counts as a canner holds four quart jars
   corrected for, and the USDA's rule for the rest is: "Replace gauges
   that differ by more than 2 pounds." Many county extension offices test
   gauges. WSU Extension Kitsap County, the office for Silverdale, tests
-  dial gauges at its office by appointment, at $10 a canner when its page
-  was read; it says dial gauges should be tested every year, including
-  before a new gauge is first used, and that weighted gauges do not need
-  testing.
+  dial gauges at its office in Bremerton by appointment (360-228-7300),
+  for $10 a canner according to its page for a free testing event on 15
+  August 2026, read 4 October 2026; it says dial gauges should be tested
+  every year, including before a new gauge is first used, and that
+  weighted gauges do not need testing.
 
 ### Jars and lids
 
@@ -212,8 +225,8 @@ pressure.
    altitude column.
 2. **Check the canner.** The gasket clean and not nicked or dried out, the
    safety fuse intact, the vent port clear, and a dial gauge tested this
-   year (the USDA's gasket, fuse and gauge rules; a clear vent port is
-   general practice).
+   year (the USDA's gasket, fuse and gauge rules; a clear vent port,
+   NCHFP).
 3. **Wash the jars and keep them hot**, as for a water bath. Prepare the
    lids as the lid maker directs.
 4. **Put 2 to 3 inches of hot water in the canner.** Some recipes call for
@@ -248,8 +261,12 @@ pressure.
     The USDA: "Do not force-cool the canner." An older heavy-walled
     canner without a dial gauge takes about 30 minutes with pints and 45
     with quarts; a newer canner is depressurized when its vent lock
-    piston drops (USDA).
-12. **Open it.** Take off the weight or open the petcock. Wait 10
+    drops back to its normal position (USDA).
+12. **Open it.** First make sure the pressure is gone: the vent lock has
+    dropped, and on a dial-gauge canner the dial reads zero. Tilt the
+    weight slightly before lifting it off, and if steam still comes out,
+    wait; never force the lid while the cover lock has not released
+    (NCHFP). Then take off the weight or open the petcock, wait 10
     minutes, unfasten the lid, and lift it away from you (USDA).
 13. **Take out the jars** with the jar lifter, upright, onto a towel with
     at least an inch between them, and leave them for 12 to 24 hours at
@@ -359,9 +376,9 @@ harvest for best quality.
    pressure has dropped. You turn the heat up until the weight jiggles
    again, and start the full 25 minutes over from zero.
 8. **Cool.** Heat off. Leave the canner alone until it is fully
-   depressurized and its vent lock piston has dropped. Take off the
-   weight, wait 10 minutes, unfasten the lid and lift it away from your
-   face.
+   depressurized and its vent lock has dropped. Tilt the weight to check
+   that no steam comes out, then take it off, wait 10 minutes, unfasten
+   the lid and lift it away from your face.
 9. **Out.** Jars onto a towel, an inch apart, for 12 to 24 hours. Next
    day, test the seals, take off the bands, wash, label and date the jars,
    and store them somewhere cool and dark.
@@ -379,7 +396,8 @@ USDA guide, and a few rules worth knowing before you start (USDA, Guides
   animals.
 - **Fish.** Ice fish after the catch, gut it at once and can it within 2
   days; for fatty fish such as salmon, the guide's caution is to bleed and
-  gut it within 2 hours of catching and keep it on ice. Fish in quart jars
+  gut it immediately after catching, never more than 2 hours after, and
+  keep it on ice until you can it. Fish in quart jars
   has a canner procedure of its own, with more water and a longer heating
   and venting time than usual: follow it exactly. [Fishing](fishing.md)
   covers the hours between the water and the kitchen.
@@ -434,8 +452,11 @@ The game makes canned food, but not by pressure canning.
   in-game description reads "Pressure-seal preserved meals". Cook Soup
   turns two Potatoes, a Carrot, a Purified Water and a Salt into two
   Canned Food, and Cook Stew turns two Potatoes, an Onion, a Jerky and a
-  Purified Water into three (`data/recipes.csv`). All three are made at
-  the home's Stove, which stands in the default home's kitchen
+  Purified Water into three (`data/recipes.csv`). The page lists the parts
+  by their item ids, so the vegetables appear there as Vegetable Potato,
+  Vegetable Carrot and Vegetable Onion, Salt as Salt Food and Purified
+  Water as Water Purified (`src/gui/pages/crafting.rs`). All three are
+  made at the home's Stove, which stands in the default home's kitchen
   (`data/machines/home.ron`), and all three need a Utility Knife in your
   backpack, which the Crafting page lists as Knife Utility
   (`data/crafting/tools.ron`). Can Food and Cook Stew need Cooking level
@@ -464,6 +485,10 @@ The game makes canned food, but not by pressure canning.
   where home canners use glass jars: the USDA guide says metal cans need
   special sealing equipment and can be used only once.
 
+The food data also lists canning as a preservation method that makes food
+keep a hundred times as long and needs Cooking level 4, but no code acts
+on that row yet (`data/food_system.ron`).
+
 What the game leaves out, so you do not learn it from the game: there is
 no pressure canner, gauge, vent, weight, headspace or processing time,
 and no recipe changes with altitude, so nothing can be under-processed.
@@ -480,14 +505,16 @@ Botulism is not in the game either: a record for its toxin sits in
   a dial gauge tested every year.
 - You vent for 10 minutes every time, start timing only at pressure, and
   start again from zero if the pressure drops.
-- You let the canner cool by itself, wait 10 minutes after taking off the
-  weight, and lift the lid away from your face.
+- You let the canner cool by itself, check that the pressure is gone
+  before taking off the weight, wait 10 minutes after taking it off, and
+  lift the lid away from your face.
 - You know your altitude, and the pressure and time it gives for your
   gauge and your recipe.
 - You do not can purees, mashes, thickened soups, dairy or anything with
   no tested process.
 - You throw out a batch you know went wrong, and boil every jar of
-  low-acid food for 10 minutes before eating it.
+  low-acid food before eating it: 10 minutes below 1,000 feet, and 1
+  minute more for each additional 1,000 feet.
 
 ## Sources
 
@@ -517,7 +544,8 @@ were read on 4 October 2026.
   canner sizes and the four-quart minimum, pressure saucepans not
   recommended; "Low-acid foods must be processed in a pressure canner to be
   free of botulism risks." and the boiling-water canner being faster for
-  acid foods; the parts of a modern canner; "Pressure does not destroy
+  acid foods; the parts of a modern canner, and the petcock or
+  counterweight on the vent of older ones; "Pressure does not destroy
   microorganisms, but high temperatures applied for an adequate period of
   time do kill microorganisms."; 10.5 pounds giving 240 F at sea level;
   the two serious errors, and "To be safe, all types of pressure canners
@@ -528,8 +556,10 @@ were read on 4 October 2026.
   fuses, UL approval, replacement parts ordered by model number; no
   pressures above 15 pounds with new equipment; the eight steps for using
   a pressure canner, including restarting the time when the pressure
-  drops, forced cooling, "Do not force-cool the canner." and "Lift the lid
-  away from you so that the steam does not burn your face."; "The food may
+  drops, forced cooling, the vent lock piston of a newer canner dropping
+  to its normal position once it is depressurized, "Do not force-cool the
+  canner." and "Lift the lid away from you so that the steam does not
+  burn your face."; "The food may
   spoil if you fail to select the proper process times for specific
   altitudes, fail to exhaust canners properly, process at lower pressure
   than specified, process for fewer minutes than specified, or cool the
@@ -538,7 +568,9 @@ were read on 4 October 2026.
   metal containers needing special sealing equipment and used only once;
   "Do not attempt to can pureed vegetables, red meats, or poultry meats,
   because proper processing times for pureed foods have not been
-  determined for home use."; the food index, which has no dairy process).
+  determined for home use.", and pureeing at serving time, boiling and
+  simmering the puree 10 minutes, and refrigerating what is left for use
+  within 2 days; the food index, which has no dairy process).
   https://nchfp.uga.edu/papers/guide/GUIDE01_HomeCan_rev0715.pdf
 - USDA guide, Guide 4, Selecting, Preparing, and Canning Vegetables and
   Vegetable Products (snap and Italian beans: quantities, quality, raw and
@@ -549,9 +581,10 @@ were read on 4 October 2026.
   rehydrated, longer times with seafood).
   https://nchfp.uga.edu/papers/guide/GUIDE04_HomeCan_rev0715.pdf
 - USDA guide, Guide 5, Preparing and Canning Poultry, Red Meats, and
-  Seafoods (bleeding and gutting fatty fish within 2 hours of catching and
-  keeping it on ice; the separate canner procedure for fish in quart jars;
-  the smoked fish process).
+  Seafoods (bleeding and gutting fatty fish immediately after catching,
+  never more than 2 hours after, and keeping it on ice until canning; the
+  separate canner procedure for fish in quart jars; the smoked fish
+  process).
   https://nchfp.uga.edu/papers/guide/GUIDE05_HomeCan_rev0715.pdf
 - Centers for Disease Control and Prevention. Home-Canned Foods, page
   dated 25 April 2024 ("Home-canned vegetables, which are low-acid foods,
@@ -571,9 +604,13 @@ were read on 4 October 2026.
   for Home Food Preservation, University of Georgia Cooperative
   Extension, 2014 revision (the canner water at 180 F for a hot pack
   without boiling and 140 F for a raw pack; the four-quart minimum for
-  USDA processes; a burner putting out too much heat damaging a canner,
-  and in general no outdoor LP gas burner or gas range burner over 12,000
-  BTU; checking the maker's directions).
+  USDA processes; vent pipes kept clear of trapped material and mineral
+  deposits; a burner putting out too much heat damaging a canner, and in
+  general no outdoor LP gas burner or gas range burner over 12,000 BTU;
+  checking the maker's directions; even at zero on the dial, tilting the
+  weight to check that no steam escapes before lifting it off, and never
+  forcing the lid open while the cover lock has not released). Read 4
+  October 2026, and again on 5 October 2026.
   https://nchfp.uga.edu/how/can/general-canning-information/using-pressure-canners/
 - National Center for Home Food Preservation. Canning in Electric
   Multi-Cookers, newsflash, 1 February 2019 (USDA processes not
@@ -582,10 +619,12 @@ were read on 4 October 2026.
   is what matters; faster cooling could under-process the food).
   https://nchfp.uga.edu/newsflash/canning-in-electric-multi-cookers
 - Washington State University Extension, Kitsap County. Dial Gauge
-  Pressure Canner Testing Event, event page for 15 August 2026, undated
-  (dial gauges tested every year, including before a new gauge is first
-  used; weighted gauges need no testing; testing at the WSU Kitsap
-  Extension office by appointment for $10 a canner).
+  Pressure Canner Testing Event, event page for 15 August 2026, undated,
+  marked as past when read again on 5 October 2026 (dial gauges tested
+  every year, including before a new gauge is first used; weighted gauges
+  need no testing; testing at the WSU Kitsap Extension office by
+  appointment for $10 a canner, free at the event; the office at 345 6th
+  Street, Suite 550, Bremerton, telephone 360-228-7300).
   https://extension.wsu.edu/kitsap/event/dial-gauge-pressure-canner-testing-event/
 
 ### Inside this project
@@ -603,7 +642,8 @@ were read on 4 October 2026.
   `src/gui/pages/crafting.rs`; the craft rules, the skill gate from level
   2, and the skill experience a craft earns: `src/systems/crafting/mod.rs`;
   the "Dev: max skills" button: `src/gui/pages/profile.rs`. The unread
-  toxin record: `data/chemistry/toxins.csv`.
+  toxin record: `data/chemistry/toxins.csv`. The canning row no code reads
+  yet: `data/food_system.ron`.
 - [Water-Bath Canning](water_bath_canning.md), [Why Canning Has
   Rules](why_canning_has_rules.md), [Keeping What You
   Grew](keeping_what_you_grew.md), [Fishing](fishing.md), [Salting, Curing
@@ -613,8 +653,9 @@ were read on 4 October 2026.
 ### Labelled in the text as general practice or our reading, not sourced
 
 - Reading the canner's manual first, keeping children and pets out of the
-  kitchen, checking that the vent port is clear, never improvising a
-  repair to a gauge, gasket or fuse, and not using a damaged canner.
+  kitchen, never improvising a repair to a gauge, gasket or fuse, and not
+  using a damaged canner.
+- Where to find a burner's BTU rating.
 - That a batch known to have gone wrong is thrown out, read from the
   USDA's and the CDC's statements together.
 - That you can rarely be sure of all eight of the USDA's conditions,

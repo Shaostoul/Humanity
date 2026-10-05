@@ -27,7 +27,9 @@ The USDA Food Safety and Inspection Service (FSIS) tells home jerky makers to
 "heat meat to 160°F and poultry to 165°F before the dehydrating process," and
 gives the reason in the next sentence: "This step assures that any bacteria
 present will be destroyed by wet heat." That is 71 C for meat and 74 C for
-poultry. A dehydrator running at 130 to 140 F (54 to 60 C) dries meat; it does
+poultry. Wild game needs 165 F (74 C) as well, because of a parasite that
+freezing may not kill (CDC; step 1 of the jerky method below). A dehydrator
+running at 130 to 140 F (54 to 60 C) dries meat; it does
 not reliably make it safe. The jerky section below explains why, and gives the
 two tested ways to do it.
 
@@ -294,11 +296,24 @@ case hardening it (a hard, dry surface sealing moisture into the middle):
 
 From NCHFP's tested method, with FSIS's handling rules:
 
-1. **If the meat is pork or wild game, freeze it first.** These can carry the
-   trichinella parasite, which causes trichinosis. NCHFP's treatment: freeze
-   a piece 6 inches (15 cm) thick or less at 0 F (-18 C) or below for at least
-   30 days, before slicing and marinating. It warns that freezing does not
-   get rid of bacteria; it only deals with the parasite.
+1. **If the meat is pork, freeze it first. If it is wild game, freezing is
+   not enough.** Pork and wild game can carry *Trichinella*, the worm that
+   causes trichinellosis (trichinosis). For pork, NCHFP's treatment is to
+   freeze a piece 6 inches (15 cm) thick or less at 0 F (-18 C) or below for
+   at least 30 days before slicing and marinating; it warns that freezing
+   does not get rid of bacteria. Wild game is different. The CDC: "Freezing
+   wild game meats may not effectively kill all worms because some worms
+   that infect wild game are freeze-resistant." It names bear, wild boar,
+   wildcat, fox, wolf, seal and walrus among the meats at risk, and its
+   outbreak reports say wild game has to reach 165 F (74 C) inside, checked
+   with a meat thermometer. That is hotter than the 160 F the jerky methods
+   below are built to reach, and in 2024 a North Carolina outbreak came from
+   bear jerky made by marinating and drying alone, with no heating step
+   (CDC, in its journal *Emerging Infectious Diseases*, 2026). This guide's
+   reading of the CDC reports: do not make jerky from the meats on the
+   CDC's list, and cook them to 165 F instead; for other wild game,
+   venison included, the heating step (step 5) has to bring the strips to
+   165 F, not 160 F, checked in several strips with a thermometer.
 2. **Keep the raw meat cold and clean.** FSIS: keep meat and poultry at 40 F
    (4 C) or slightly below; use or freeze ground beef and poultry within 2
    days and whole red meats within 3 to 5 days; thaw frozen meat in the
@@ -310,7 +325,8 @@ From NCHFP's tested method, with FSIS's handling rules:
    gives chewy jerky; across the grain gives more tender, brittle jerky.
 4. **Marinate in the refrigerator**, for 1 to 2 hours or overnight. Never
    reuse the marinade.
-5. **Heat the strips to 160 F**, by one of the two ways above.
+5. **Heat the strips to 160 F**, or 165 F for wild game (step 1), by one of
+   the two ways above.
 6. **Dry.** Drain the strips on clean towels, lay them on dehydrator trays or
    on racks set over baking sheets, close together but not touching, and dry
    at 140 F (60 C). Start checking after 3 hours. The jerky is done when a
@@ -333,6 +349,8 @@ carcasses are usually left at air temperature where beef would be chilled
 quickly. NCHFP's advice: if the gut contents touched the meat or the hunter's
 hands during dressing, do not make jerky from that meat, and use it only in
 dishes where it will be cooked thoroughly; and chill deer carcasses quickly.
+And for *Trichinella*, go back to step 1: freezing is not enough, and wild
+game has to reach 165 F (CDC).
 
 **Never sun-dry meat.** FSIS: "Sun drying is not recommended for making meat
 jerky due to a lack of a steady heat source and the potential for
@@ -592,13 +610,17 @@ The simulation has dried food, but not yet the drying.
 
 - **Dried fruit** is made by the "Dry Fruit" recipe, which turns three apples
   and two bananas into four portions of dried fruit in an oven, with no skill
-  required (`data/recipes.csv`, `cook_dried_fruit`).
-- **Jerky and dried meat** are made by "Make Jerky" (two dried meat, one salt
-  and one spice mix into four jerky, at a stove) and "Dry Meat" (three jerky
-  and one salt into four dried meat). Neither recipe starts from raw meat, so
-  in the game the pair comes into the world by trade: the food vendor sells
-  dried meat (`data/npcs.ron`), and it is listed as a trade good
-  (`data/trade_goods.ron`).
+  required but a utility knife in the backpack (`data/recipes.csv`,
+  `cook_dried_fruit`; `data/crafting/tools.ron`).
+- **Jerky and dried meat** are made at the home's stove by "Make Jerky" (two
+  raw mutton, one salt and one spice mix into four jerky, with a utility
+  knife in the backpack) and "Dry Meat" (two raw mutton and one salt into
+  four dried meat, no tool), both level-1 cooking recipes, which anyone can
+  make (`data/recipes.csv`, `cook_jerky` and `cook_dried_meat`;
+  `data/crafting/tools.ron`). Make Jerky's description names the FSIS step,
+  "heat to 160 F then dry", but the craft has no heating step. The food
+  vendor also sells dried meat (`data/npcs.ron`), and it is listed as a
+  trade good (`data/trade_goods.ron`).
 - **How long they keep** comes from the USDA's FoodKeeper figures, taken at
   the low end: jerky and dried meat keep 30 days (FoodKeeper gives home-made
   jerky 1 to 2 months), and dried fruit 30 days (FoodKeeper's figure for an
@@ -613,8 +635,10 @@ The simulation has dried food, but not yet the drying.
 What the game simplifies, so you do not learn it from the game: there is no
 dehydrator, drying rack or sun drying, and no temperature, humidity or time to
 get right; nothing can be under-dried, case-hardened or mouldy; there is no
-acid dip or blanching; the jerky recipe has no heating step and no raw meat,
-so the rule this guide is built around does not exist in the game yet;
+acid dip or blanching; the jerky recipe starts from raw mutton and its
+description names the 160 F step, but nothing in the craft heats the meat or
+checks a temperature, so the rule this guide is built around exists in the
+game only as a line of text;
 storage temperature does not change how long food keeps; and dried fruit
 spoils on the opened-package clock, where properly stored dried fruit really
 keeps six months to a year.
@@ -638,6 +662,36 @@ own words.
 - Centers for Disease Control and Prevention. Preventing Botulism, reviewed 6
   May 2024 (home-made oils with garlic or herbs refrigerated and thrown away
   after 4 days). https://www.cdc.gov/botulism/prevention/index.html
+- Centers for Disease Control and Prevention. How to Prevent
+  Trichinellosis, dated 12 March 2024 ("Freezing wild game meats may not
+  effectively kill all worms because some worms that infect wild game are
+  freeze-resistant."; bear, wild boar, wildcat, fox, wolf, seal and walrus
+  among the meats at risk). Read 5 October 2026 through a page reader.
+  https://www.cdc.gov/trichinellosis/prevention/index.html
+- Cash-Goldwasser S, et al. Outbreak of Human Trichinellosis, Arizona,
+  Minnesota, and South Dakota, 2022. *Morbidity and Mortality Weekly
+  Report* 73(20):456-459, 23 May 2024, CDC (wild game meat cooked to 165 F
+  (74 C) inside, checked with a meat thermometer; bear meat frozen on an
+  outfitter's advice that still made people ill, and live larvae in it
+  after 110 days in a household freezer). Read 5 October 2026 through its
+  PubMed Central copy (https://pmc.ncbi.nlm.nih.gov/articles/PMC11115436/).
+  https://www.cdc.gov/mmwr/volumes/73/wr/mm7320a2.htm
+- Gowler CD, et al. Notes from the Field: Suspected Outbreak of
+  Trichinellosis Associated with Undercooked Bear Meat, North Carolina,
+  November 2023. *Morbidity and Mortality Weekly Report* 73(40):906-907,
+  10 October 2024, CDC (wild game cooked to 165 F (74 C); freezing possibly
+  not enough). Read 5 October 2026 through its PubMed Central copy
+  (https://pmc.ncbi.nlm.nih.gov/articles/PMC11466378/).
+  https://www.cdc.gov/mmwr/volumes/73/wr/mm7340a4.htm
+- Gowler CD, et al. Trichinellosis Outbreak Linked to Undercooked Bear
+  Jerky, North Carolina, USA, 2024. *Emerging Infectious Diseases*
+  32(7):1046-1050, July 2026, CDC (three people ill from bear jerky made by
+  marinating and drying alone, which likely never reached 165 F inside;
+  freezing wild game before making jerky, as NCHFP suggests, possibly not
+  enough, and freezing alone not to be relied on; cooking to 165 F checked
+  with a meat thermometer as the best way to kill every species of the
+  worm). Read 5 October 2026.
+  https://wwwnc.cdc.gov/eid/article/32/7/26-0062_article
 
 ### University extension publications (copyrighted; cited as the authority, restated here in our own words)
 
@@ -656,8 +710,10 @@ own words.
   https://nchfp.uga.edu/how/dry/drying-general/packaging-and-storing-dried-foods/ ;
   Herbs (harvest, dehydrator temperatures and times, air drying methods,
   strength of dried herbs), https://nchfp.uga.edu/how/dry/recipes/herbs/ ;
-  Jerky (trichinella freezing, heating in marinade or in the oven after
-  drying, slicing, drying, ground meat, wild game, storage),
+  Jerky (freezing pork or wild game against trichinella, which this guide
+  keeps for pork only, following the CDC sources above; heating in
+  marinade or in the oven after drying, slicing, drying, ground meat, wild
+  game, storage),
   https://nchfp.uga.edu/how/dry/recipes/jerky/ . All read 27 September 2026.
 - Kendall, P. and Sofos, J. Drying Fruits. Colorado State University
   Extension, published August 1994, reviewed August 2025 (choosing fruit, the
@@ -692,7 +748,9 @@ own words.
 
 ### Inside this project
 
-- `data/recipes.csv`: the Dry Fruit, Make Jerky and Dry Meat recipes.
+- `data/recipes.csv`: the Dry Fruit, Make Jerky and Dry Meat recipes;
+  `data/crafting/tools.ron`: the knife Dry Fruit and Make Jerky need;
+  `data/npcs.ron` and `data/trade_goods.ron`: dried meat sold and traded.
 - `data/food_system.ron`: how long jerky and dried fruit keep, with their
   FoodKeeper sources, and the drying rows no code reads yet.
 - `data/food/item_profiles.ron`: which items are jerky and dried fruit.

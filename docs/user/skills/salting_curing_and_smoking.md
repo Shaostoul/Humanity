@@ -18,8 +18,9 @@ worked example is hot-smoked salmon in Silverdale, Washington, where the
 simulation is set.
 
 It leans on other guides rather than repeating them. [Drying
-Food](drying_food.md) covers jerky, whose one rule is to heat the meat to
-160 F before you dry it. [Why Canning Has Rules](why_canning_has_rules.md)
+Food](drying_food.md) covers jerky, whose rule is to heat meat to 160 F
+and poultry to 165 F before you dry it (for wild game, see *Trichinella*
+below). [Why Canning Has Rules](why_canning_has_rules.md)
 explains water activity, which is the reason salt preserves at all, and
 the organism behind botulism. [Fermenting
 Vegetables](fermenting_vegetables.md) is salt's other job, steering a
@@ -99,15 +100,29 @@ effectively kill all worms because some worms that infect wild game are
 freeze-resistant." It names bear, wild boar, wildcat, fox, wolf, seal and
 walrus among the meats at risk. So cook cured or smoked pork to a safe
 internal temperature unless a tested method includes a step against the
-parasite, and always cook wild game (our reading of the CDC page). Fish has parasites of its own, and salting, brining and
-cold smoking do not deal with them ([Fishing](fishing.md)).
+parasite (our reading of the CDC page).
+
+Wild game needs more heat than that. The CDC's outbreak reports say wild
+game meat has to reach 165 F (74 C) inside to kill the worms, checked with
+a meat thermometer rather than judged by colour, and that freezing might
+not be enough; in their words, "adequate cooking is the only reliable way
+to kill Trichinella parasites". In one 2022 outbreak a hunting outfitter
+had told a family to freeze their bear meat. It was frozen for 45 days,
+grilled and at first served rare, and six of the people who shared the
+meal fell ill, two of whom had eaten only the vegetables cooked with it;
+worms in the same meat were still alive after 110 days in a household
+freezer (CDC, MMWR 2024).
+
+Fish has parasites of its own, and salting, brining and cold smoking do
+not deal with them ([Fishing](fishing.md)).
 
 ### Cold-smoked fish and dry sausages are raw food
 
 Cold-smoked fish is cured and smoked below about 80 to 90 F, so it is
-never pasteurized and has to be handled carefully (PNW 238). Many dry
-sausages, pepperoni among them, are fermented and dried rather than
-cooked, and the USDA's Food Safety and Inspection Service records that a
+never heated enough to kill germs (pasteurized) and has to be handled
+carefully (PNW 238). Many dry sausages, pepperoni among them, are
+fermented and dried rather than cooked, and the USDA's Food Safety and
+Inspection Service records that a
 dangerous strain of *E. coli* can survive dry fermenting: in 1994
 children fell ill from dry cured salami, after which FSIS wrote specific
 processing rules for dry sausages. The CDC advises people at higher risk
@@ -115,7 +130,11 @@ from *Listeria* (pregnant women, newborns, people 65 or older and anyone
 with a weakened immune system) to avoid refrigerated smoked fish and
 unheated fermented or dry sausages, and to choose shelf-stable smoked
 fish, smoked fish cooked in a dish, or sausages reheated to 165 F or
-until steaming hot. This guide does not teach cold smoking, dry-cured
+until steaming hot. That list names refrigerated smoked fish without
+saying hot- or cold-smoked. The CDC's page on how *Listeria* spreads
+describes the cold-smoked kind, but this guide reads the list as it is
+written, so it covers the hot-smoked salmon in the worked example below
+too (our reading). This guide does not teach cold smoking, dry-cured
 hams or dry sausages ("Know where your own work stops", below).
 
 ### A smoker is a fire
@@ -133,9 +152,10 @@ The USDA's Food Safety and Inspection Service adds where outdoors, for a
 charcoal smoker: a well-lit, well-ventilated place away from trees,
 shrubbery and buildings, lit only with approved fire starters and never
 with gasoline or paint thinner. And, for any smoker, what to smoke in:
-"Don't smoke foods in makeshift containers such as galvanized steel cans
-or other materials not intended for cooking. Chemical residue
-contamination can result."
+"Cook food in smokers made of materials approved for contact with meat
+and poultry. Don't smoke foods in makeshift containers such as
+galvanized steel cans or other materials not intended for cooking.
+Chemical residue contamination can result."
 
 ### Botulism, which salt, nitrite and cold hold back together
 
@@ -184,8 +204,8 @@ Rules](why_canning_has_rules.md)).
 ## What curing adds: nitrite
 
 The USDA's Food Safety and Inspection Service, in its page on hams,
-defines curing as adding salt, nitrate or nitrite, and often sugar and
-seasonings, to pork for preservation, colour and flavour. Nitrate and
+defines curing as adding salt, nitrate or nitrite, and sometimes sugar
+and seasonings, to pork for preservation, colour and flavour. Nitrate and
 nitrite give cured pork its pink colour and its cured taste, and nitrite,
 with salt, holds back the organism that causes botulism (FSIS). The same
 page names saltpeter among the nitrates; nitrate works more slowly than
@@ -221,8 +241,8 @@ cure, for 5 pounds of pork belly:
   flavour. The guide adds: check the curing salt maker's instructions to
   confirm the amount for 5 pounds of meat.
 - Coat the belly, put it in a 2-gallon zipper bag, and cure it **in the
-  refrigerator, at 40 F**, for 5 to 7 days, turning the bag every day.
-  It is ready when it feels firm.
+  refrigerator, at 40 F or below**, for 5 to 7 days, turning the bag every
+  day. It is ready when it feels firm.
 - Rinse it well under cold running water to take off the surface salt
   (rinsing does not take the cure out of the middle), and pat it dry. It
   can wait, uncovered in the refrigerator, for up to 24 hours.
@@ -301,18 +321,23 @@ beginner's method, and this guide does not teach it (our reading).
 3. **Measure the salt and the cure exactly**, for the weight of meat in
    the recipe, using the cure the recipe names. Check the cure maker's
    instructions too (PNW 784).
-4. **Cure in the refrigerator**, at 40 F, for the tested time (PNW 784).
+4. **Cure in the refrigerator**, at 40 F or below, for the tested time
+   (PNW 784; FSIS).
 5. **Thaw completely, in the refrigerator, before smoking** (FSIS).
 6. **Use thermometers**: one in the smoker and one in the food (FSIS).
 7. **Cook to the safe internal temperature** for what you are smoking:
-   145 F and a 3-minute rest for whole cuts, 160 F for ground meat, 165 F
-   for poultry (FSIS), 160 F for bacon (PNW 784), and 160 F for 30
-   minutes for fish, 150 F at the least (PNW 238).
+   145 F and a 3-minute rest for beef, pork, lamb and veal steaks, chops
+   and roasts, 160 F for ground beef, pork, lamb and veal, 165 F for
+   poultry (FSIS), 165 F for any wild game, whole or ground (CDC), 160 F
+   for bacon (PNW 784), and 160 F for 30 minutes for fish, 150 F at the
+   least (PNW 238).
 8. **Chill promptly and store cold**: within 2 hours of leaving the
    smoker, and eaten within 4 days, for meat and poultry (FSIS); within 7
    days for home-cured bacon (PNW 784); within 2 weeks at 38 F or below
    for smoked fish (PNW 238). Freeze anything you will keep longer.
-9. **Cook pork and wild game** that might carry *Trichinella* (CDC).
+9. **Cook wild game to 165 F**, checked with a thermometer, and pork to
+   its safe temperature: curing, smoking and drying do not reliably kill
+   *Trichinella* (CDC).
 10. **Keep the cure labelled, separate and out of children's reach**
     (CDC, HRSA).
 11. **Keep the smoker outside**, away from the house, and never use it in
@@ -354,12 +379,17 @@ oven for backup.
    temperature between cleaning and smoking.
 2. **Cut it evenly.** Cut the fillets into pieces of the same size and
    thickness, so that they all take up salt alike.
-3. **Brine it.** Dissolve 1 cup of salt in 7 cups of water, which the
-   guide says will salt 2 to 3 pounds of fish. Use salt without iodine or
-   anti-caking agent. Lay the pieces in the brine without overlapping, so
-   the salt reaches every surface, and keep them in the refrigerator, as
-   the guide does with its herring. One hour works for most fish; thinner,
-   leaner or skinned pieces need less.
+3. **Brine it.** Dissolve 1 cup of canning or pickling salt (table salt
+   without iodine or anti-caking agent) in 7 cups of water, which the
+   guide says will salt 2 to 3 pounds of fish. Do not measure flaked or
+   kosher salt by the cup: it is lighter, so a cup of it makes a weaker
+   brine (general practice, following the USDA's warning that flake salt
+   varies in density). If you weigh the salt instead, the guide's figure
+   of 1.57 pounds of salt per gallon of water comes to about 11 ounces
+   (310 g) for these 7 cups (our arithmetic). Lay the pieces in the brine
+   without overlapping, so the salt reaches every surface, and keep them
+   in the refrigerator, as the guide does with its herring. One hour works
+   for most fish; thinner, leaner or skinned pieces need less.
 4. **Rinse and dry.** Rinse the surface, set the pieces flesh side up on
    a greased rack in a cool place, and leave them until a pellicle forms,
    a shiny, slightly tacky skin on the cut surface: at least an hour.
@@ -372,9 +402,11 @@ oven for backup.
 6. **Cook.** Turn up the heat until the thickest piece reaches 160 F on
    the thermometer, pushed into it through a hole in the smoker wall so
    the door stays shut, and hold it there for 30 minutes. The guide warns
-   that small smokers often cannot get hot enough: if yours cannot reach an air
-   temperature of 200 to 225 F, move the fish to the oven within 2 hours
-   of smoking, and hold the thickest piece at 160 F for 30 minutes there.
+   that small smokers often cannot get hot enough: if yours cannot reach an
+   air temperature of 200 to 225 F, move the fish within 2 hours of smoking
+   to an oven set to 200 to 225 F, the air temperature the guide asks of
+   the smoker (our reading of its chart), and hold the thickest piece at
+   160 F for 30 minutes there.
 7. **Cool and store.** Let it cool, and get it into the refrigerator
    within 2 hours (1 hour on a day above 90 F), the limit the USDA's Food
    Safety and Inspection Service sets for any perishable food out of the
@@ -382,7 +414,10 @@ oven for backup.
    Fridge](cold_storage_without_a_fridge.md)). Wrap it in paper
    towel or cloth rather than plastic so it does not sweat and grow mould,
    and keep it at 38 F or below. Eat it within 2 weeks, or wrap it tightly
-   and freeze it, where the guide says it keeps up to a year.
+   and freeze it, where the guide says it keeps up to a year. If anyone
+   eating it is pregnant, 65 or older, or has a weakened immune system,
+   serve their share cooked into a hot dish, such as a casserole, rather
+   than cold from the refrigerator (CDC).
 
 Your refrigerator thermometer reads 37 F, so the fridge is cold enough.
 Had it read above 40 F, the guide's rule is to keep the fish frozen
@@ -398,15 +433,15 @@ instead.
   must be followed or the product heat-treated. A home cook has no way to
   check the result, so these are for a class and a tested method, not a
   first attempt (our reading).
-- **Wild game for curing or smoking** is cooked to a safe temperature,
-  because neither curing, smoking, drying nor freezing reliably deals with
-  its *Trichinella* (CDC).
+- **Wild game for curing or smoking** is cooked to 165 F (CDC), because
+  neither curing, smoking, drying nor freezing reliably deals with its
+  *Trichinella*.
 - **Selling cured or smoked meat** is regulated. FSIS inspects sausages
   sold across state lines, and a state's health or agriculture department
   may govern sausage made in a shop; ask before you sell any (general
   practice for the asking).
 - **Anyone at higher risk from *Listeria*** follows the CDC's advice on
-  smoked fish and dry sausages above.
+  smoked fish, home hot-smoked fish included, and dry sausages above.
 
 ## Traps
 
@@ -417,15 +452,20 @@ instead.
 - **"A bit more cure for safety."** Nitrite is measured, never guessed.
 - **"Pour the cure into the salt shaker."** That is how five people ended
   up in hospital in 2002.
-- **"Curing kills the worms."** Not reliably, says the CDC. Cook pork and
-  wild game.
+- **"Curing kills the worms."** Not reliably, says the CDC. Cook pork to
+  its safe temperature and wild game to 165 F.
+- **"I froze the bear meat, so it's safe."** Not reliably, says the CDC:
+  some of the worms in wild game survive freezing. Cook it to 165 F.
 - **"The bacon can cure in the garage; it's cold out."** Cure in the
-  refrigerator, at 40 F.
+  refrigerator, at 40 F or below.
 - **"The smoker says 225, so the fish is done."** The food thermometer
   decides, in the thickest piece, held for 30 minutes.
 - **"It's raining; I'll run the smoker in the garage."** Never in a
   closed space.
-- **"A clean trash can makes a fine smoker."** Not a galvanized one.
+- **"A clean trash can makes a fine smoker."** No. FSIS says to smoke
+  only in a smoker made of materials approved for contact with meat and
+  poultry, never in a galvanized can or anything else not made for
+  cooking.
 
 ## How the game models it
 
@@ -435,9 +475,11 @@ The game has salt-cured meat, but no curing salt and no smoking.
   two Raw Mutton, one Salt and one Spice Mix into four Jerky, and Dry Meat
   turns two Raw Mutton and one Salt into four Dried Meat, an item the game
   describes as "Salt-cured preserved meat" (`data/recipes.csv`,
-  `data/items.csv`). Both are made at the home's Stove, which stands in
-  the default home's kitchen (`data/machines/home.ron`), and both are
-  level-1 Cooking recipes, which anyone can make. Make Jerky needs a
+  `data/items.csv`). The page lists the parts by their item ids, so Salt
+  appears there as Salt Food (`src/gui/pages/crafting.rs`). Both are made
+  at the home's Stove, which stands in the default home's kitchen
+  (`data/machines/home.ron`), and both are level-1 Cooking recipes, which
+  anyone can make. Make Jerky needs a
   Utility Knife in your backpack (the Crafting page lists it as Knife
   Utility); Dry Meat needs no tool (`data/crafting/tools.ron`). Make
   Jerky's description quotes the Food Safety and Inspection Service's
@@ -456,7 +498,13 @@ The game has salt-cured meat, but no curing salt and no smoking.
   Saltpeter, which it describes as, among other things, "a meat cure",
   but no recipe uses it (`data/items.csv`, `data/recipes.csv`).
 - **No smoking.** There is no smoker or smokehouse, no recipe smokes meat
-  or fish, and no recipe uses Raw Fish at all (`data/recipes.csv`).
+  or fish, and no recipe uses Raw Fish at all (`data/recipes.csv`). The
+  food data does list salting and smoking as preservation methods, with
+  salting making food keep fifteen times as long and smoking ten times,
+  smoking needing a "smokehouse" that does not exist. No code acts on
+  those rows yet (`data/food_system.ron`), and PNW 238 says the opposite
+  of the smoking row: smoke itself is not an effective preservative under
+  most conditions.
 
 What the game leaves out, so you do not learn it from the game: curing
 salt and how carefully it must be measured, smoke and fire, thermometers
@@ -471,15 +519,17 @@ toxin sits in `data/chemistry/toxins.csv`, but no game code reads it.
 - You keep curing salt in its own labelled container, out of children's
   reach, and measure it exactly by a tested recipe.
 - You know Prague Powder #1 from #2, and either from Himalayan salt.
-- You cure in the refrigerator, at 40 F, for the tested time.
+- You cure in the refrigerator, at 40 F or below, for the tested time.
 - You can say why smoke is not a preservative, and you use two
   thermometers every time you smoke.
-- You know the safe internal temperatures: 145 F and a rest, 160 F, 165
-  F, and 160 F for 30 minutes for fish.
+- You know the safe internal temperatures: 145 F and a rest for whole
+  cuts of beef, pork, lamb and veal, 160 F for ground beef, pork, lamb and
+  veal and for bacon, 165 F for poultry and for wild game, and 160 F for
+  30 minutes for fish.
 - You refrigerate smoked food within 2 hours and know how long each kind
   keeps.
-- You cook pork and wild game, and you know why cold-smoked fish and dry
-  sausages are not beginner's food.
+- You cook pork to its safe temperature and wild game to 165 F, and you
+  know why cold-smoked fish and dry sausages are not beginner's food.
 - You run a smoker only outdoors, away from buildings.
 
 ## Sources
@@ -504,8 +554,9 @@ were read on 4 October 2026.
   scripted downloads.
   https://www.fsis.usda.gov/food-safety/safe-food-handling-and-preparation/food-safety-basics/smoking-meat-and-poultry
 - USDA Food Safety and Inspection Service. Danger Zone (40 F to 140 F),
-  last updated 28 June 2023 (never more than 2 hours out of refrigeration,
-  1 hour above 90 F). Read through a page reader.
+  last updated 28 June 2023 (cold food kept at or below 40 F; never more
+  than 2 hours out of refrigeration, 1 hour above 90 F). Read through a
+  page reader.
   https://www.fsis.usda.gov/food-safety/safe-food-handling-and-preparation/food-safety-basics/danger-zone-40f-140f
 - USDA Food Safety and Inspection Service. Hams and Food Safety, last
   updated 15 January 2025 (the definition of curing; nitrite's colour and
@@ -526,10 +577,14 @@ were read on 4 October 2026.
   https://www.fsis.usda.gov/food-safety/safe-food-handling-and-preparation/meat-catfish/sausages-and-food-safety
 - USDA, National Institute of Food and Agriculture. *Complete Guide to
   Home Canning*, Agriculture Information Bulletin No. 539, December 2009,
-  revised 2015, Guide 5, Preparing and Canning Poultry, Red Meats, and
+  revised 2015. Guide 1, Principles of Home Canning (canning salt, also
+  called pickling salt, as table salt without the anti-caking or iodine
+  additives; flake salt varying in density, so not recommended for
+  pickling), and Guide 5, Preparing and Canning Poultry, Red Meats, and
   Seafoods (the tested process for canning smoked fish, and its note that
-  smoking fish should be done by tested methods). The PDF was downloaded
-  and its text extracted locally.
+  smoking fish should be done by tested methods). The PDFs were downloaded
+  and their text extracted locally.
+  https://nchfp.uga.edu/papers/guide/GUIDE01_HomeCan_rev0715.pdf and
   https://nchfp.uga.edu/papers/guide/GUIDE05_HomeCan_rev0715.pdf
 - Centers for Disease Control and Prevention. How to Prevent
   Trichinellosis, dated 12 March 2024 ("Curing (salting), drying, smoking,
@@ -539,11 +594,41 @@ were read on 4 October 2026.
   infect wild game are freeze-resistant."; bear, wild boar, wildcat, fox,
   wolf, seal and walrus). Read through a page reader.
   https://www.cdc.gov/trichinellosis/prevention/index.html
+- Cash-Goldwasser S, et al. Outbreak of Human Trichinellosis, Arizona,
+  Minnesota, and South Dakota, 2022. *Morbidity and Mortality Weekly
+  Report* 73(20):456-459, 23 May 2024, Centers for Disease Control and
+  Prevention (wild game meat cooked to 165 F (74 C) inside, checked with a
+  meat thermometer, colour being no guide; "adequate cooking is the only
+  reliable way to kill Trichinella parasites"; the outfitter's advice to
+  freeze the bear meat, 45 days in a household freezer, the meat served
+  rare, six people ill, two of them having eaten only the vegetables
+  cooked with it; live larvae in the same meat after 110 days frozen).
+  Read 5 October 2026 through its PubMed Central copy
+  (https://pmc.ncbi.nlm.nih.gov/articles/PMC11115436/), because cdc.gov
+  refused the download. https://www.cdc.gov/mmwr/volumes/73/wr/mm7320a2.htm
+- Gowler CD, et al. Notes from the Field: Suspected Outbreak of
+  Trichinellosis Associated with Undercooked Bear Meat, North Carolina,
+  November 2023. *Morbidity and Mortality Weekly Report* 73(40):906-907,
+  10 October 2024, Centers for Disease Control and Prevention (wild game
+  meat cooked to 165 F (74 C) to kill the worms, and freezing possibly not
+  enough). Read 5 October 2026 through its PubMed Central copy
+  (https://pmc.ncbi.nlm.nih.gov/articles/PMC11466378/).
+  https://www.cdc.gov/mmwr/volumes/73/wr/mm7340a4.htm
 - Centers for Disease Control and Prevention. Preventing Listeria
-  Infection, updated 31 January 2025 (who is at higher risk; refrigerated
-  smoked fish and unheated fermented or dry sausages to avoid, and the
-  safer choices). Read through a page reader.
+  Infection, updated 31 January 2025 (who is at higher risk: pregnant
+  women, newborns, people 65 or older and people with a weakened immune
+  system; refrigerated smoked fish, named without saying hot- or
+  cold-smoked, and unheated fermented or dry sausages to avoid; the safer
+  choices, among them smoked fish in sealed packages that need no
+  refrigeration before opening, or cooked in a casserole or other dish).
+  Read through a page reader, and again on 5 October 2026.
   https://www.cdc.gov/listeria/prevention/index.html
+- Centers for Disease Control and Prevention. Its page on how *Listeria*
+  spreads through pate, meat spreads and cold-smoked fish, published 14
+  August 2024 (cold smoking not killing *Listeria*; shelf-stable or cooked
+  smoked fish as the safer choices; cooking smoked fish killing any germs
+  in it). Read 5 October 2026 through a page reader.
+  https://www.cdc.gov/listeria/causes/meat-fish.html
 - Centers for Disease Control and Prevention. Carbon Monoxide Poisoning
   Basics, updated 12 January 2026 ("Never burn charcoal indoors."; the
   common symptoms; people asleep dying before they have symptoms; never
@@ -577,12 +662,14 @@ were read on 4 October 2026.
   and unpasteurized; fish smoked without proper salting and cooking able
   to cause illness, even fatal, botulism the most notorious; good-quality
   fish, no more than 2 hours at room temperature before smoking, even
-  pieces; the 1-to-7 brine, 1 cup of salt to 7 cups of water for 2 to 3
-  pounds, one hour in most cases, herring brined in the refrigerator,
-  non-iodized salt without anti-caking agent, no overlapping; the
+  pieces; the 1-to-7 brine of table salt, non-iodized and without
+  anti-caking agent, 1 cup of salt to 7 cups of water for 2 to 3 pounds,
+  or 1.57 pounds of salt per gallon of water by weight, one hour in most
+  cases, herring brined in the refrigerator, no overlapping; the
   pellicle; up to 2 hours of smoke at around 90 F, then cooking; a
   thermometer through the smoker wall; finishing in the oven within 2
-  hours when the smoker cannot reach 200 to 225 F; smoke itself not an
+  hours when the smoker cannot reach 200 to 225 F, and the chart of the
+  process with its oven elements on at 200 to 225 F; smoke itself not an
   effective preservative; the woods to use and the conifers not to;
   wrapping in cloth or paper towel against sweating; 2 weeks in the
   refrigerator, then freezing, up to a year; keeping fish frozen when the
@@ -592,9 +679,11 @@ were read on 4 October 2026.
   and https://wpcdn.web.wsu.edu/wp-ecommerce/uploads/sites/2/product-4432-sku-PNW238-D.pdf
 - Rasco, B., Raab, C. and McCurdy, S. *Canning Smoked Fish at Home*, PNW
   450. Pacific Northwest Extension, published March 1993, revised February
-  2014 (the light smoking before canning; lightly smoked fish not cooked
-  and not to be tasted; pairing with the USDA canning process).
-  https://objects.lib.uidaho.edu/uiext/uiext32324.pdf
+  2014, reviewed 2026 according to Oregon State's catalogue (the light
+  smoking before canning; lightly smoked fish not cooked and not to be
+  tasted; pairing with the USDA canning process).
+  https://objects.lib.uidaho.edu/uiext/uiext32324.pdf and
+  https://extension.oregonstate.edu/catalog/pnw-450-canning-smoked-fish-home
 - Waite-Cusic, J. and Hibbard-Swanson, J. *Making Cured Bacon at Home*,
   PNW 784. Pacific Northwest Extension, Oregon State University, August
   2025 (curing as thousands of years old; salt lowering water activity
@@ -622,7 +711,8 @@ were read on 4 October 2026.
   Crafting page's checks and its "Dev: stock all materials" button:
   `src/gui/pages/crafting.rs`; the craft rules and the skill gate from
   level 2: `src/systems/crafting/mod.rs`. The unread toxin record:
-  `data/chemistry/toxins.csv`.
+  `data/chemistry/toxins.csv`. The salting and smoking rows no code reads
+  yet: `data/food_system.ron`.
 - The red alder record in `data/locales/silverdale_wa/species.json`.
 - [Drying Food](drying_food.md), [Why Canning Has
   Rules](why_canning_has_rules.md), [Fermenting
@@ -637,10 +727,18 @@ were read on 4 October 2026.
   reach, read from HRSA's general poison advice; measuring it for every
   batch and never adding extra; calling 911 for someone short of breath,
   turning bluish, confused or collapsing, read from the CDC report.
-- That wild game for curing or smoking simply gets cooked, read from the
-  CDC page.
+- That cured or smoked pork is cooked to a safe temperature unless a
+  tested method includes a step against *Trichinella*, read from the CDC
+  page.
 - Running a smoker only outdoors, never in a garage, basement or shed,
   read from the CDC's rules for charcoal and generators.
+- Not measuring flaked or kosher salt for the fish brine by the cup, read
+  from the USDA's warning about flake salt in pickling; the weight of salt
+  for 7 cups of brine, our arithmetic from PNW 238's figure per gallon.
+- Setting the kitchen oven to 200 to 225 F to finish the fish, read from
+  PNW 238's chart.
+- That the CDC's advice on refrigerated smoked fish covers home
+  hot-smoked fish as well as cold-smoked.
 - That a cut surface of a dry-cured ham is a different food from the
   rind; that without salt or nitrite the cold has to do all the work.
 - That cold smoking is not a beginner's method.
