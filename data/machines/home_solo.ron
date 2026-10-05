@@ -1026,6 +1026,18 @@
             auto_recipe: Some("craft_hammer"),
             auto_keep: Some(2),
         ),
+        // THE TRADING POST (2026-10-04, the first-hour audit's F3). The first quest sends a
+        // new player for ore to "Inventory > Mining, or the trading post", and the quests
+        // after it need goods this home cannot make: Build First Habitat's window takes a
+        // glass pane, and the smelter's own recipe burns coal. A one-person home trading for
+        // what it cannot make is the lesson of homestead-solo-design.md section 8. The same
+        // machine as home.ron's, where the family home stands it, in the vehicle bay.
+        "trading_post": (
+            shape: "box", size: (1.6, 1.1, 0.8), color: (0.55, 0.42, 0.25),
+            label: "Trading post",
+            category: "Logistics",
+            stats: [(kind: "trade", value: "buys + sells goods", status: "ok")],
+        ),
     },
 
     // Placed instances, one-person BOM from homestead-solo-design.md sections 1-5:
@@ -1632,8 +1644,8 @@
             rotation: 0.0,
             zone: "home",
         ),
-        // The first quests' stations (2026-10-04, see the catalog), at the spots home.ron
-        // gives its smelter_1 and workbench_1.
+        // The first quests' stations and the trading post (2026-10-04, see the catalog), at
+        // the spots home.ron gives its smelter_1, workbench_1 and trading_1.
         (
             id: "smelter_1",
             machine: "smelter",
@@ -1648,6 +1660,14 @@
             room: "room-workshop",
             offset: (22.0, 0.0, 32.0),
             rotation: 0.0,
+            zone: "home",
+        ),
+        (
+            id: "trading_1",
+            machine: "trading_post",
+            room: "room-vehicle",
+            offset: (50.0, 0.0, 18.6),
+            rotation: 180.0,
             zone: "home",
         ),
     ],

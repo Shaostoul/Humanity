@@ -29,7 +29,11 @@
             ("concrete_block_0", 20),
             ("toolbox_0", 1),
         ],
-        prerequisite: None,
+        // Follows Toolsmith (2026-10-04, the first-hour audit's F3): it had no
+        // prerequisite, so the chaining never reached it, the HUD's quest line went
+        // blank after the hammer and a new player had to find it on the Quests page.
+        // Now finishing Toolsmith accepts it (data/quests/getting_started.ron).
+        prerequisite: Some("gs_toolsmith"),
     ),
 
     (

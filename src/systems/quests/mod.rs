@@ -209,6 +209,57 @@ pub fn push_quest_event(data: &DataStore, key: String) {
     }
 }
 
+// ── Telling the player (2026-10-04, the first-hour audit's F3) ──────
+//
+// A finished quest was written only to the log: the rewards arrived and the
+// next quest began with nothing on screen. These lines go on "player_notices",
+// the channel the main loop shows as a toast that stays up long enough to read.
+
+/// "Quest complete: First Steps. You received 2 Iron Ingot and 30 Metalworking
+/// XP." Names come from the item and skill registries, falling back to the id.
+pub fn completion_notice(
+    name: &str,
+    rewards: &[(String, u32)],
+    xp_rewards: &[(String, u32)],
+    items: Option<&crate::systems::inventory::ItemRegistry>,
+    skills: Option<&crate::systems::skills::SkillRegistry>,
+) -> String {
+    let item = |id: &str| items.and_then(|r| r.items.get(id)).map(|d| d.name.clone()).unwrap_or_else(|| id.to_string());
+    let skill = |id: &str| skills.and_then(|r| r.get(id)).map(|d| d.name.clone()).unwrap_or_else(|| id.replace('_', " "));
+    let mut got: Vec<String> = rewards.iter().map(|(id, q)| format!("{q} {}", item(id))).collect();
+    got.extend(xp_rewards.iter().map(|(id, xp)| format!("{xp} {} XP", skill(id))));
+    if got.is_empty() {
+        format!("Quest complete: {name}.")
+    } else {
+        format!("Quest complete: {name}. You received {}.", crate::systems::crafting::away::join_list(&got))
+    }
+}
+
+/// The line for the quests a finished one started: "New quest: Toolsmith.
+/// Forge a hammer." with the first step, or "New quests: A, B and C." for
+/// several. None when it started none.
+pub fn next_quest_notice(started: &[&QuestDef]) -> Option<String> {
+    match started {
+        [] => None,
+        [one] => Some(match one.steps.first() {
+            Some(step) => format!("New quest: {}. {}.", one.name, step.description.trim_end_matches('.')),
+            None => format!("New quest: {}.", one.name),
+        }),
+        many => {
+            let names: Vec<String> = many.iter().map(|q| q.name.clone()).collect();
+            Some(format!("New quests: {}.", crate::systems::crafting::away::join_list(&names)))
+        }
+    }
+}
+
+fn post_notice(data: &DataStore, line: String) {
+    if let Some(slot) = data.get::<std::sync::Mutex<Vec<String>>>("player_notices") {
+        if let Ok(mut n) = slot.lock() {
+            n.push(line);
+        }
+    }
+}
+
 // ── Player quest state (ECS component) ──────────────────────
 
 /// Tracks a single active quest's progress for a player entity.
@@ -447,6 +498,7 @@ impl System for QuestSystem {
 
             // Prerequisite chaining: completing a quest auto-accepts any quest whose
             // prerequisite it satisfies (and that isn't already active or completed).
+            let mut started: Vec<&QuestDef> = Vec::new();
             for (completed_id, _, _) in &completed_this_tick {
                 for def in registry.quests.values() {
                     if def.prerequisite.as_deref() == Some(completed_id.as_str())
@@ -454,8 +506,22 @@ impl System for QuestSystem {
                         && !tracker.is_completed(&def.id)
                     {
                         tracker.accept_quest(&def.id);
+                        started.push(def);
                     }
                 }
+            }
+
+            // Tell the player (2026-10-04, F3): what finished and what it gave,
+            // then what started. Only the player carries a QuestTracker.
+            let items = data.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+            let skills = data.get::<crate::systems::skills::SkillRegistry>("skill_registry");
+            for (completed_id, rewards, xp_rewards) in &completed_this_tick {
+                let name = registry.get(completed_id).map_or(completed_id.as_str(), |d| d.name.as_str());
+                post_notice(data, completion_notice(name, rewards, xp_rewards, items, skills));
+            }
+            started.sort_by(|a, b| a.name.cmp(&b.name)); // the registry's order is a hash map's
+            if let Some(line) = next_quest_notice(&started) {
+                post_notice(data, line);
             }
 
             if events_applied
@@ -973,5 +1039,121 @@ mod quest_tests {
                 );
             }
         }
+    }
+
+    // ── The starter quests say where and what next (2026-10-04, the
+    //    first-hour audit's F3) ──
+
+    /// The shipped quests, items and skills, and the event and notice
+    /// channels the game registers.
+    fn shipped_quest_data() -> DataStore {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut data = DataStore::new();
+        data.insert("quest_registry", QuestRegistry::from_ron_dir(&root.join("data/quests")));
+        data.insert(
+            "item_registry",
+            crate::systems::inventory::ItemRegistry::from_csv(&std::fs::read(root.join("data/items.csv")).unwrap()).unwrap(),
+        );
+        data.insert(
+            "skill_registry",
+            crate::systems::skills::SkillRegistry::from_csv(&std::fs::read(root.join("data/skills/skills.csv")).unwrap()).unwrap(),
+        );
+        data.insert("quest_events", std::sync::Mutex::new(Vec::<String>::new()));
+        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        data
+    }
+
+    fn notices(data: &DataStore) -> Vec<String> {
+        std::mem::take(&mut *data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap())
+    }
+
+    /// THE FIRST STEP SAYS WHERE. It read "Acquire 3 iron ore (mine it with a
+    /// drone, or stock it)": the drone is on the Inventory page, which it never
+    /// said, and "stock it" is a Dev-mode button. It now names the two places a
+    /// new player gets ore, and this holds them true: the Inventory page has a
+    /// Mining section, and every shipped home places a trading post. The HUD
+    /// shows "<step> (1/2)" and cuts the line at 64 characters (hud.rs), so the
+    /// whole of it must fit there.
+    ///
+    /// Red, run on the shipped quest before this: "the first step names the
+    /// Inventory page's Mining section: Acquire 3 iron ore (mine it with a
+    /// drone, or stock it)".
+    #[test]
+    fn the_first_step_says_where_to_get_iron_ore() {
+        const HUD_STEP_CHARS: usize = 64;
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let reg = QuestRegistry::from_ron_dir(&root.join("data/quests"));
+        let q = reg.get("gs_first_steps").expect("First Steps ships");
+        let first = &q.steps[0].description;
+        assert!(first.contains("Inventory > Mining"), "the first step names the Inventory page's Mining section: {first}");
+        assert!(first.contains("trading post"), "the first step names the trading post: {first}");
+        assert!(!first.contains("stock"), "the first step points at no Dev-mode button: {first}");
+        // The places it names exist.
+        let inventory = std::fs::read_to_string(root.join("src/gui/pages/inventory.rs")).expect("the Inventory page source");
+        assert!(inventory.contains("\"Mining\", tree_force"), "the Inventory page has a Mining section");
+        for file in ["home.ron", "home_solo.ron"] {
+            let home = crate::machines::MachineHome::load(&root.join("data/machines").join(file)).unwrap_or_else(|| panic!("{file} parses"));
+            assert!(
+                home.all_instances().iter().any(|i| i.machine == "trading_post" && i.zone == "home"),
+                "{file} places a trading post in the home, where the first step sends the player"
+            );
+        }
+        let line = format!("{first} (1/{})", q.steps.len());
+        assert!(line.chars().count() <= HUD_STEP_CHARS, "the first step fits the HUD's quest line: {line}");
+    }
+
+    /// A FINISHED QUEST TELLS THE PLAYER. Completion was written only to the
+    /// log, so First Steps finished, its two ingots arrived and Toolsmith began
+    /// with nothing on screen to say so. It now posts on "player_notices", the
+    /// channel the main loop shows as a toast: what finished and what it gave,
+    /// then the quest the data says comes next.
+    ///
+    /// Red, run on the system before this: "finishing First Steps tells the
+    /// player" (left: [], right: the two lines below).
+    #[test]
+    fn a_finished_quest_tells_the_player_what_it_gave_and_what_is_next() {
+        let data = shipped_quest_data();
+        let mut tracker = QuestTracker::default();
+        tracker.accept_quest("gs_first_steps");
+        let mut inv = Inventory::new(16);
+        inv.add_item("iron_ore_0", 3, 99);
+        let mut world = hecs::World::new();
+        world.spawn((tracker, inv));
+        let mut sys = QuestSystem::new();
+        sys.tick(&mut world, 0.0, &data); // three ore in the backpack: step 1 done
+        assert_eq!(notices(&data), Vec::<String>::new(), "a step is not a finished quest");
+        push_quest_event(&data, make_event_key("iron_ingot_0"));
+        sys.tick(&mut world, 0.0, &data); // the first ingot: First Steps done
+        assert_eq!(
+            notices(&data),
+            vec![
+                "Quest complete: First Steps. You received 2 Iron Ingot and 30 Metalworking XP.".to_string(),
+                "New quest: Toolsmith. Forge a hammer.".to_string(),
+            ],
+            "finishing First Steps tells the player"
+        );
+    }
+
+    /// THE STARTER QUESTS RUN ON. After Toolsmith the HUD's quest line went
+    /// blank: Build First Habitat named no prerequisite, so the chaining never
+    /// reached it and a new player had to find it on the Quests page. The data
+    /// now says it follows Toolsmith, and the chaining accepts it the moment
+    /// Toolsmith is done.
+    ///
+    /// Red, run on the shipped quests before this: "finishing Toolsmith
+    /// accepts Build First Habitat".
+    #[test]
+    fn finishing_toolsmith_starts_build_first_habitat() {
+        let data = shipped_quest_data();
+        let mut tracker = QuestTracker::default();
+        tracker.accept_quest("gs_toolsmith");
+        let mut world = hecs::World::new();
+        let player = world.spawn((tracker, Inventory::new(16)));
+        let mut sys = QuestSystem::new();
+        push_quest_event(&data, "craft_craft_hammer".to_string());
+        sys.tick(&mut world, 0.0, &data);
+        let t = world.get::<&QuestTracker>(player).unwrap();
+        assert!(t.is_completed("gs_toolsmith"), "the hammer finishes Toolsmith");
+        assert!(t.is_active("tutorial_first_habitat"), "finishing Toolsmith accepts Build First Habitat");
     }
 }
