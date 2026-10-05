@@ -97,5 +97,4 @@ high_g,High Gravity,environmental,0,false,1,0,speed:0.5:multiply,0,crush,0,space
 sunlight_warmth,Sunlight Warmth,environmental,0,false,1,10,none:0:none,0,none,2,temperature|comfort,Gently restores health while basking in warm sunlight
 fresh_air,Fresh Air,environmental,0,false,1,15,stamina_regen:1.25:multiply,0,none,1,atmosphere|positive,Boosts stamina regeneration by 25% in clean open air
 hot_spring_comfort,Hot Spring Comfort,environmental,0,false,1,5,none:0:none,0,none,4,water|relaxation,Rapidly restores health while soaking in natural hot springs
-campfire_warmth,Campfire Warmth,environmental,0,false,1,10,cold_resist:0.5:multiply,0,none,2,fire|comfort,Provides cold resistance and gentle healing near a campfire
 music_inspiration,Music Inspiration,environmental,0,false,1,0,craft_speed:1.2:multiply,0,none,0,social|creativity,Increases crafting speed by 20% when listening to music

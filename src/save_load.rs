@@ -229,12 +229,13 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     // gone after a restart even though its materials had been consumed.
     // A piece built on a planet carries its build site (2026-09-27): the
     // pose is then site-local, and the site says which body and where.
-    use crate::systems::construction::{Construction, DoorOpen, PlanetSite, Structure};
+    use crate::systems::construction::{fires::FireFuel, Construction, DoorOpen, PlanetSite, Structure};
     let pose = |t: &crate::ecs::components::Transform| {
         (t.position.to_array(), t.rotation.to_array(), t.scale.to_array())
     };
-    for (_e, (s, t, site, open, mark)) in world
-        .query::<(&Structure, &crate::ecs::components::Transform, Option<&PlanetSite>, Option<&DoorOpen>, Option<&NotTheHomes>)>()
+    // A built fire keeps its fuel (BUG-153, 2026-10-05).
+    for (_e, (s, t, site, open, mark, fire)) in world
+        .query::<(&Structure, &crate::ecs::components::Transform, Option<&PlanetSite>, Option<&DoorOpen>, Option<&NotTheHomes>, Option<&FireFuel>)>()
         .iter()
     {
         let (position, rotation, scale) = pose(t);
@@ -251,6 +252,7 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
             open: open.is_some(),
             site: site.cloned(),
             outside_home: still_not_the_homes(mark, t.position),
+            fire_s: fire.map(|f| f.seconds_left),
         });
     }
     for (_e, (c, t, site, mark)) in world
@@ -271,6 +273,7 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
             open: false,
             site: site.cloned(),
             outside_home: still_not_the_homes(mark, t.position),
+            fire_s: None,
         });
     }
     // The herd's yield timers, the asteroids as mined down, and the drone in
@@ -613,6 +616,10 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
         // A door that was left open is open again.
         if b.open && b.building.is_none() {
             let _ = world.insert_one(piece, crate::systems::construction::DoorOpen);
+        }
+        // A built fire comes back with the fuel it had (BUG-153).
+        if let (Some(fire_s), None) = (b.fire_s, b.building) {
+            let _ = world.insert_one(piece, crate::systems::construction::fires::FireFuel { seconds_left: fire_s.max(0.0) });
         }
         // Not the home's, though it stands where the home stood (ship homes 1b, round 4).
         if b.outside_home {
@@ -988,6 +995,10 @@ pub struct Resumed {
 /// - LIVESTOCK (2026-09-27, in `resume_home`): each animal's yield timer
 ///   moves on by the time away, to one yield waiting, as when you are home
 ///   and do not collect (`livestock::timers_after_away`).
+/// - FIRES (2026-10-05, BUG-153): a campfire left burning burns its fuel
+///   down by the time away (`construction::fires::burn`), so it is out when
+///   the player comes back the next day. Its logs were spent when they went
+///   on the fire.
 ///
 /// Deliberately not advanced: the body (saved since 2026-10-04, first-hour
 /// audit S1, and put back exactly as it was left: the time away costs no
@@ -1054,6 +1065,10 @@ pub fn catch_up_world(
             c.progress = (c.progress as f64 + away_secs).min(c.build_time as f64) as f32;
             builds_advanced += 1;
         }
+        // FIRES (BUG-153): a campfire left burning burns down while the game
+        // is closed, as it would in life. Its fuel was spent when it went on
+        // the fire, so this only takes away burning the player paid for.
+        crate::systems::construction::fires::burn(world, away_secs.min(f64::from(f32::MAX)) as f32);
     }
     let crafts_advanced = if away_secs > 0.0 { save.crafts.len() } else { 0 };
     Resumed { clock, away_secs, crops_aged, builds_advanced, crafts_advanced, ..Default::default() }
@@ -1998,6 +2013,41 @@ mod tests {
         assert!(!old.open, "a record from before doors loads shut");
     }
 
+    /// A BUILT FIRE KEEPS ITS FUEL ACROSS A SAVE AND BURNS DOWN WHILE AWAY
+    /// (BUG-153, 2026-10-05). A campfire with 50 minutes of burning left comes
+    /// back from the save (through JSON) with 50 minutes, a wall beside it
+    /// comes back with no fuel at all, and 20 minutes away leaves 30; a day
+    /// away leaves it out. Red check, run: writing `fire_s: None` for every
+    /// structure brings the campfire back with no fuel and the first
+    /// assertion fails.
+    #[test]
+    fn a_fire_keeps_its_fuel_across_a_save_and_burns_down_while_away() {
+        use crate::systems::construction::{fires::FireFuel, Structure};
+        let piece = |id: &str, uid: u32| Structure { blueprint_id: id.to_string(), health: 30.0, max_health: 30.0, provides: None, uid };
+        let tf = |x: f32| crate::ecs::components::Transform { position: glam::Vec3::new(x, 0.0, 0.0), ..Default::default() };
+        let mut world = hecs::World::new();
+        world.spawn((tf(0.0), piece("campfire", 1), FireFuel { seconds_left: 3000.0 }));
+        world.spawn((tf(8.0), piece("wood_wall", 2)));
+        let json = serde_json::to_string(&extract_world_save(&world)).unwrap();
+        let mut back: WorldSave = serde_json::from_str(&json).unwrap();
+        back.timestamp = 1_000;
+        let fuel = |w: &hecs::World| {
+            let mut f: Vec<(u32, Option<f32>)> =
+                w.query::<(&Structure, Option<&FireFuel>)>().iter().map(|(_e, (s, f))| (s.uid, f.map(|f| f.seconds_left))).collect();
+            f.sort_by_key(|(uid, _)| *uid);
+            f
+        };
+        let mut fresh = hecs::World::new();
+        apply_save_to_world(&mut fresh, &back);
+        assert_eq!(fuel(&fresh), vec![(1, Some(3000.0)), (2, None)], "the fire's fuel comes back, the wall has none");
+        catch_up_world(&mut fresh, &back, true, 1.0, 1_000 + 1_200);
+        assert_eq!(fuel(&fresh), vec![(1, Some(1800.0)), (2, None)], "20 minutes away burned 20 minutes");
+        let mut fresh = hecs::World::new();
+        apply_save_to_world(&mut fresh, &back);
+        catch_up_world(&mut fresh, &back, true, 1.0, 1_000 + 86_400);
+        assert_eq!(fuel(&fresh), vec![(1, Some(0.0)), (2, None)], "a day away: out");
+    }
+
     /// A wall the player turned is built turned, saved turned, and comes back
     /// turned (2026-09-27). The whole path: a build request with a quarter
     /// turn through the ConstructionSystem (materials, the timed build,
@@ -2186,6 +2236,7 @@ mod tests {
             open: false,
             site: None,
             outside_home: false,
+            fire_s: None,
         }];
         let mut world = hecs::World::new();
         apply_save_to_world(&mut world, &save);

@@ -16,7 +16,12 @@
                 objective: Build(blueprint_id: "wood_wall_window"),
             ),
             (
-                description: "Build a heater for temperature regulation",
+                // Crafted, the heater is a machine: placed in a grow room and
+                // powered, its thermostat warms that room's air to 24 C
+                // (data/machines/home.ron `heater`, src/systems/farming/heat.rs;
+                // BUG-155: until 2026-10-05 this step promised "temperature
+                // regulation" from a heater that warmed nothing).
+                description: "Build a space heater to warm a grow room's air",
                 objective: Craft(recipe_id: "build_heater", quantity: 1),
             ),
         ],

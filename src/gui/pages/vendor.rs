@@ -1,6 +1,9 @@
 //! Vendor modal (v0.747, closure ladder rung 3): the trading post's buy/sell
 //! window. Opened from the trading post machine's walk-up card; prices come
 //! from data/trade_goods.ron (player pays 1.25x base, receives 0.5x base).
+//! A graded good's price is its grade's multiple, capped by what its parts
+//! cost at the post (BUG-146, `economy::parts::graded_pay`, the same function
+//! a sale settles with, so the listed price is the price paid).
 //! Transactions settle in lib.rs's frame bridge via economy::vendor_buy/sell
 //! against the ECS inventory + Wallet, so this page only reads GuiState and
 //! records intents (the same pattern as every other page).
@@ -64,23 +67,34 @@ pub fn draw_vendor_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
 
             if sell_tab {
                 // SELL: backpack items the vendor trades, at the receive price.
-                // Each stack at its grade's price (2026-09-26); defective goods
-                // are listed with no price and cannot be sold.
+                // Each stack at its grade's price (2026-09-26), capped above
+                // standard by what its parts cost here (BUG-146); defective
+                // goods are listed with no price and cannot be sold.
                 let sellable: Vec<(String, String, u32, i64, u8)> = state
                     .inventory_items
                     .iter()
                     .flatten()
                     .filter_map(|it| {
                         state.vendor_goods.iter().find(|g| g.id == it.item_id).map(|g| {
-                            let m = state.quality_levels.price_multiplier(it.quality) as f64;
+                            let m = state.quality_levels.price_multiplier(it.quality);
+                            let price = crate::systems::economy::parts::graded_pay(g.sell_price, g.parts_price, m).unwrap_or(0);
                             let name = match state.quality_levels.name(it.quality) {
                                 Some(grade) => format!("{} ({grade})", it.name),
                                 None => it.name.clone(),
                             };
-                            (it.item_id.clone(), name, it.quantity, (g.sell_price as f64 * m).floor() as i64, it.quality)
+                            (it.item_id.clone(), name, it.quantity, price, it.quality)
                         })
                     })
                     .collect();
+                // Why a fine piece fetches less than its grade's multiple
+                // here: said where the prices are, not left to a guide.
+                ui.label(
+                    RichText::new(
+                        "A better grade fetches more, but never more than its parts cost at this post. Other players may pay more on the Trade page.",
+                    )
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+                );
                 ScrollArea::vertical().id_salt("vendor_sell").show(ui, |ui| {
                     if sellable.is_empty() {
                         ui.label(

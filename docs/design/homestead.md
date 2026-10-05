@@ -203,12 +203,21 @@ zero producers or consumers today; this arc activates it with data only.
 - **Air is live.** AtmosphereSystem ticks the home's sealed space and publishes
   the O2/CO2/pressure readout (Home page "Live air" card); the air_recycler is
   the priority-1 shed-last load. The house needs nothing new here.
-- **Heat is not simulated yet.** `HvacSystem` (src/systems/hvac.rs, with
-  RoomEnvironment/HvacUnit components) exists but is never registered, and
-  `data/hvac.ron` (heat_pump, wood_stove, radiant_floor, thermostat...) is
-  reference data with no machine-catalog counterpart. Defer: when heat becomes a
-  loop, register HvacSystem and give utility + common rooms a heat_pump and
-  wood_stove machine entry. Not a blocker for any increment below.
+- **Heat: one heater, the air it stands in (2026-10-05, BUG-155).** The
+  catalog's `heater` (a 1,500 W electric space heater on a 24 C thermostat,
+  placed from the crafted `heater_0`) warms the air it stands in: a grow room's
+  or tent's own, else the home's own air, by a linear heat balance stepped with
+  the airs' water and gases in the farming tick (`src/systems/farming/heat.rs`;
+  numbers and sources in `data/garden/humidity.ron`, THE HEAT). Each air sits at
+  its own temperature (the station holds it there for nothing) plus what heaters
+  add, and everything that reads that air reads the sum: humidity, CO2, pests,
+  the body heat model, food spoilage. Not yet: heat-making machines other than
+  the space heater (`data/hvac.ron`'s heat_pump, wood_stove and radiant_floor
+  have no catalog counterpart), the crops' growth answering a room's
+  temperature, every room keeping its own air, and the station's own climate.
+  The never-registered `HvacSystem` (src/systems/hvac.rs, with its RoomEnvironment
+  and HvacUnit components) was deleted on 2026-10-05, superseded by the farming air
+  step: build on that.
 
 ## 6. Furnishing manifest
 
@@ -304,8 +313,8 @@ visual: boot the release exe, drop `debug/screenshot_request.json`, read the PNG
    and a Store/Take works on the wardrobe.
 5. **Honest lighting power (small code).** watts on light_types.ron entries;
    switched-on PlacedLights join ElectricalSystem demand; the Home page energy
-   ledger moves when you flip the roof lights on. Also register HvacSystem here
-   if heat is wanted early.
+   ledger moves when you flip the roof lights on. (Room heat landed separately,
+   in the farming air step, 2026-10-05.)
 6. **Real models (assets).** Export per-piece GLBs (assets/models/furniture.blend
    is unexported source; the pipeline is docs/game/model-pipeline.md and
    docs/dev/adding-3d-models.md), set each catalog entry's `model`. Rooms go from
@@ -324,8 +333,9 @@ effort and blocks nothing above.
 4. Per-fixture plumbing: one aggregate home_water_use node today.
 5. Blackwater/waste chain: no septic machine; Waste utility has no consumers.
 6. PlacedLight wattage: house lighting draws no power in the sim.
-7. HVAC runtime: HvacSystem is written but never registered; hvac.ron has no
-   loader into the machine layer.
+7. HVAC runtime: hvac.ron has no loader into the machine layer. Room heat runs
+   since 2026-10-05 in the farming air step, `src/systems/farming/heat.rs` (see
+   5.3); the old never-registered HvacSystem was deleted the same day.
 8. (Closed by the console-room increment.) Wall-bounded rooms are now named by
    the zone covering their centre and joined to rooms.ron through the zone's
    `room_type`; see "Room identity" in section 3. Still open: the entry, pantry,

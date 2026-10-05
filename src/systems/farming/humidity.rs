@@ -71,6 +71,15 @@
 //! cap on a crop outside its plants.csv humidity window (`health_ceiling`),
 //! never below the house floor: gentle for a green crop, steep for a fungus
 //! (plants.csv `needs_light` false) below its fruiting range.
+//!
+//! THE HEAT (2026-10-05, BUG-155, farming::heat, humidity.ron THE HEAT): a
+//! space heater standing in a room warms its air, which is then at
+//! `room_temp_c` plus that warmth (`room_temp_at`), and everything above that
+//! reads a room's temperature reads it there: what saturated air holds, and so
+//! its relative humidity and every humidity setpoint, its carbon dioxide's ppm
+//! and its coils. The step below steps each air's warmth with its water and
+//! gases, and passes a room's heat on to the air around it as it does its
+//! vapour.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -137,6 +146,12 @@ pub struct HumidityData {
     /// bed), and its own CO2 limit where sourced (humidity.ron, THE FUNGI'S
     /// BREATH).
     pub fungi: Vec<FungusBreath>,
+    /// THE HEAT (2026-10-05, BUG-155, farming::heat): air's specific heat,
+    /// J/(kg K); the walls' and ceiling's heat loss, W/(m2 K); and the storey
+    /// the home's own air is taken to stand in, m.
+    pub air_specific_heat_j_kg_k: f64,
+    pub envelope_u_w_m2_k: f64,
+    pub home_storey_m: f64,
 }
 
 /// One fungus's breath (2026-09-27): grams of carbon dioxide an hour from each
@@ -510,6 +525,11 @@ pub struct AirMap {
     /// Its oxygen, g/m3 (with the life-support data; 0 without).
     pub home_o2: f64,
     pub home_temp_c: f64,
+    /// Its own temperature, C, with no heater warming it (its air space's own,
+    /// `HomeAir::own_temp_k`), and how far its heaters have warmed it, K
+    /// (`HomeAirState::warmed_k`, 2026-10-05): `home_temp_c` is the two added.
+    pub home_own_c: f64,
+    pub home_warmed_k: f64,
     pub home_volume_m3: f64,
     pub home_kcal: f64,
     pub modules: f64,
@@ -551,10 +571,24 @@ impl AirMap {
             .query::<(&HomeAir, &EnclosedSpace)>()
             .iter()
             .next()
-            .map(|(_, (h, s))| (s.atmosphere.clone(), s.volume_m3, h.metabolic_kcal_per_day));
+            .map(|(_, (h, s))| (s.atmosphere.clone(), s.volume_m3, h.metabolic_kcal_per_day, h.own_temp_k));
         map.home_known = home.is_some();
-        let (atmo, volume, kcal) = home.unwrap_or_else(|| (Atmosphere::default(), 0.0, 0.0));
+        let (atmo, volume, kcal, own_k) = home.unwrap_or_else(|| (Atmosphere::default(), 0.0, 0.0, 0.0));
         map.home_temp_c = f64::from(atmo.temperature_k) - 273.15;
+        // Its own temperature, and its heaters' warmth as the air step last
+        // left it (2026-10-05, BUG-155): a space the farming tick has not
+        // written yet is at its own temperature, and a loaded save's space
+        // starts fresh, so the saved warmth is the one to trust.
+        map.home_own_c = if own_k > 0.0 { f64::from(own_k) - 273.15 } else { map.home_temp_c };
+        if map.home_known {
+            map.home_warmed_k = world
+                .query::<&SoilMemory>()
+                .iter()
+                .next()
+                .map_or(0.0, |(_, m)| m.home_air.warmed_k)
+                .max(0.0);
+            map.home_temp_c = map.home_own_c + map.home_warmed_k;
+        }
         map.home_rh = f64::from(atmo.humidity).clamp(0.0, 1.0);
         map.home_vapour = d.vapour_at(map.home_rh, map.home_temp_c);
         map.home_co2 = f64::from(atmo.gas_percent("CO2")).max(0.0) / 100.0
@@ -652,10 +686,25 @@ impl AirMap {
         }
         match self.room_of(area) {
             Some(r) => {
-                let v = state.get(&r.id).map_or(self.home_vapour, |a| a.vapour_g_m3);
-                d.rh_of(v, d.room_temp_c).min(1.0)
+                let a = state.get(&r.id);
+                let v = a.map_or(self.home_vapour, |a| a.vapour_g_m3);
+                d.rh_of(v, room_temp_at(d, a.map_or(0.0, |a| a.warmed_k))).min(1.0)
             }
             None => self.home_rh,
+        }
+    }
+
+    /// How far heaters have warmed the air the crops of `area` grow in, K
+    /// (2026-10-05, BUG-155, farming::heat): their grow room's or tent's own
+    /// warmth, or the home's own air's for an indoor crop in no grow room. 0 for
+    /// an outdoor field, whose air is the weather's.
+    pub fn warmed_k_for(&self, area: &str, state: &HashMap<String, RoomAir>) -> f64 {
+        if super::is_field_area(area) {
+            return 0.0;
+        }
+        match self.room_of(area) {
+            Some(r) => state.get(&r.id).map_or(0.0, |a| a.warmed_k.max(0.0)),
+            None => self.home_warmed_k,
         }
     }
 
@@ -671,9 +720,8 @@ impl AirMap {
         match self.room_of(area) {
             Some(r) => state
                 .get(&r.id)
-                .map(|a| a.co2_g_m3)
-                .filter(|c| *c > 0.0)
-                .map(|c| crate::systems::life_support::co2_ppm(d, c, d.room_temp_c)),
+                .filter(|a| a.co2_g_m3 > 0.0)
+                .map(|a| crate::systems::life_support::co2_ppm(d, a.co2_g_m3, room_temp_at(d, a.warmed_k))),
             None => (self.home_known && self.home_co2 > 0.0)
                 .then(|| crate::systems::life_support::co2_ppm(d, self.home_co2, self.home_temp_c)),
         }
@@ -692,8 +740,9 @@ impl AirMap {
         known.then(|| self.rh_for(d, area, state))
     }
 
-    /// The room a fan at `pos` stands in, as an index into `rooms`.
-    fn room_at(&self, pos: [f32; 3]) -> Option<usize> {
+    /// The room a fan (or any air machine) at `pos` stands in, as an index
+    /// into `rooms`: the smallest that holds it.
+    pub fn room_at(&self, pos: [f32; 3]) -> Option<usize> {
         self.rooms
             .iter()
             .enumerate()
@@ -808,14 +857,41 @@ fn life_units(world: &hecs::World, map: &AirMap) -> (Vec<life_support::Unit>, Ve
 
 /// The vapour the fans of a room hold it under, g/m3: `fan_setpoint_rh`, or,
 /// in a room a humidifier holds, `humidified_fan_margin_rh` above the
-/// humidifier's setpoint, so the two never work against each other.
-fn fan_set(d: &HumidityData, humidified: bool) -> f64 {
+/// humidifier's setpoint, so the two never work against each other. `sat` is
+/// what saturated air holds at the room's temperature (a warmed room holds
+/// more, 2026-10-05).
+fn fan_set(d: &HumidityData, humidified: bool, sat: f64) -> f64 {
     let rh = if humidified {
         d.fan_setpoint_rh.max(d.humidifier_setpoint_rh + d.humidified_fan_margin_rh)
     } else {
         d.fan_setpoint_rh
     };
-    rh.clamp(0.0, 1.0) * d.room_saturation()
+    rh.clamp(0.0, 1.0) * sat
+}
+
+/// A grow room's or tent's temperature, C, when its heaters have warmed it
+/// `warmed_k` above the rooms' own (2026-10-05, BUG-155, farming::heat).
+pub fn room_temp_at(d: &HumidityData, warmed_k: f64) -> f64 {
+    d.room_temp_c + if warmed_k.is_finite() { warmed_k.max(0.0) } else { 0.0 }
+}
+
+/// The air a person standing at `pos` breathes when it is a grow room's own
+/// (2026-10-05, BUG-155): its temperature (C, its heaters' warmth included)
+/// and its relative humidity (0..1), from the smallest published room around
+/// `pos` that the farming tick keeps air for. None anywhere else (the home's
+/// own air is then the one), and before the rooms or their air are known.
+pub fn grow_room_air_at(world: &hecs::World, data: &DataStore, pos: [f32; 3]) -> Option<(f64, f64)> {
+    let d = data.get::<HumidityData>(DATA_KEY)?;
+    let boxes = data.get::<Mutex<Vec<GrowRoom>>>(ROOMS_KEY)?.lock().ok()?;
+    let mut q = world.query::<&SoilMemory>();
+    let (_, mem) = q.iter().next()?;
+    let room = boxes
+        .iter()
+        .filter(|r| r.contains(pos) && mem.rooms.contains_key(&r.id))
+        .min_by(|a, b| a.volume_m3().total_cmp(&b.volume_m3()))?;
+    let st = mem.rooms.get(&room.id)?;
+    let t = room_temp_at(d, st.warmed_k);
+    Some((t, d.rh_of(st.vapour_g_m3, t).min(1.0)))
 }
 
 /// The diseases whose Humidity window holds `rh`, by name (for the notice).
@@ -938,9 +1014,11 @@ pub fn step_rooms(
     let fans = room_fans(world, map);
     let hums = room_humidifiers(world, map);
     let (handlers, scrubbers) = life_units(world, map);
-    let sat = d.room_saturation();
-    let t_room = d.room_temp_c;
-    let hum_set = d.humidifier_setpoint_rh.clamp(0.0, 1.0) * sat;
+    // The space heaters (2026-10-05, BUG-155, farming::heat), by the air they
+    // stand in. Each room's temperature is its own (`room_temp_c`) plus what
+    // they have warmed it by, read at each slice's start below: its humidity,
+    // its carbon dioxide and its coils all follow it.
+    let heaters = super::heat::heaters(world, map);
     // The home's own air: its live state when the model runs it, else the
     // map's (an Earth-like default without a home air space).
     let runs_home = life.is_some() && map.home_known;
@@ -981,18 +1059,32 @@ pub fn step_rooms(
     let mut handler_req = vec![0.0f64; n_rooms];
     let mut scrubber_share = vec![0.0f64; n_rooms];
     let mut scrubber_req = vec![0.0f64; n_rooms];
+    // Each air's heaters' share of the time on, and what a shed one asks for
+    // (the home's own air's apart).
+    let mut heat_duty = vec![0.0f64; n_rooms];
+    let mut heat_req = vec![0.0f64; n_rooms];
+    let (mut home_heat_duty, mut home_heat_req) = (0.0f64, 0.0f64);
     for slice in 0..slices {
         let last = slice + 1 == slices;
         let (home_v, home_c) = if runs_home { (home.vapour_g_m3, home.co2_g_m3) } else { (map.home_vapour, map.home_co2) };
         let mut vented_v = vec![0.0f64; n_rooms];
         let mut vented_c = vec![0.0f64; n_rooms];
         let mut home_in = life_support::HomeInputs::default();
+        // The heat each air passed the air around it this slice, J: a tent's to
+        // its room, a room's to the home's own air (farming::heat).
+        let mut heat_in_j = vec![0.0f64; n_rooms];
+        let mut home_heat_in_j = 0.0f64;
+        // The home's own air's warmth at the slice's start, what a room's warmth
+        // relaxes toward (none without a home air space).
+        let home_k = if map.home_known { home.warmed_k.max(0.0) } else { 0.0 };
         for &i in &order {
             let room = &map.rooms[i];
             let volume = room.volume_m3().max(0.01);
             let parent_air = map.parent[i].and_then(|p| state.get(&map.rooms[p].id).copied());
             let outside = parent_air.map_or(home_v, |a| a.vapour_g_m3);
             let outside_c = parent_air.map(|a| a.co2_g_m3).filter(|c| *c > 0.0).unwrap_or(home_c);
+            // The warmth of the air around it: its tent's room's, or the home's.
+            let around_k = parent_air.map_or(home_k, |a| a.warmed_k);
             let breath_g_h = litres[i] * d.vapour_share.max(0.0) * 1000.0 / 24.0;
             let source = (breath_g_h + if sh > 0.0 { vented_v[i] / sh } else { 0.0 }) / volume;
             // Its fans, each air changes an hour at full speed: the humidity
@@ -1022,6 +1114,12 @@ pub fn step_rooms(
             if st.co2_g_m3 <= 0.0 {
                 st.co2_g_m3 = outside_c;
             }
+            // Its temperature at the slice's start: the rooms' own, plus what its
+            // heaters have warmed it by (2026-10-05, BUG-155). What saturated air
+            // holds there, and so every humidity setpoint, follows it.
+            let t_room = room_temp_at(d, st.warmed_k);
+            let sat = d.vapour_at(1.0, t_room);
+            let hum_set = d.humidifier_setpoint_rh.clamp(0.0, 1.0) * sat;
             let base = room.air_changes_per_hour.unwrap_or(d.base_air_changes_per_hour).max(0.0);
             // Its carbon dioxide's sources at the slice's start (with the
             // life-support data): what its tents vented into it, its fungi's
@@ -1051,8 +1149,8 @@ pub fn step_rooms(
                 _ => (0.0, 0.0),
             };
             let base_c = base + dt_c * cfan_max;
-            let s = fan_speed(st.vapour_g_m3, source, base_c, fan_max, outside, fan_set(d, humidified));
-            let s_req = fan_speed(st.vapour_g_m3, source, base_c, fan_max_all, outside, fan_set(d, humidified));
+            let s = fan_speed(st.vapour_g_m3, source, base_c, fan_max, outside, fan_set(d, humidified, sat));
+            let s_req = fan_speed(st.vapour_g_m3, source, base_c, fan_max_all, outside, fan_set(d, humidified, sat));
             let n = base_c + s * fan_max;
             // Its air handlers: their coil, the setpoint they hold (above a
             // humidifier's, like the fans, where one holds the room), their pull.
@@ -1163,13 +1261,42 @@ pub fn step_rooms(
                 st.scrubber = csh;
                 scrubber_share[i] = csh;
             }
+            // Its warmth (2026-10-05, BUG-155, farming::heat): its heaters on
+            // their thermostat and the heat its tents passed it, given to the air
+            // around it through its walls and ceiling and with the air it
+            // exchanges (`n`, the changes its water just used), and taken by its
+            // air handlers' coils (`a`, the air they moved).
+            let cap = super::heat::heat_capacity_j_m3_k(d, d.room_temp_c);
+            let (q, q_all, set_c) = super::heat::heat_in(&heaters, Some(i));
+            let w = super::heat::step(
+                &super::heat::AirHeat {
+                    warmed_k: st.warmed_k,
+                    capacity_j_k: cap * volume,
+                    around_w_k: super::heat::conductance_w_k(d, super::heat::envelope_m2(room), n, volume, cap),
+                    around_k,
+                    coil_w_k: cap * a * volume / 3600.0,
+                    in_w: if sh > 0.0 { heat_in_j[i] / (sh * 3600.0) } else { 0.0 },
+                    heat_w: q,
+                    heat_all_w: q_all,
+                    set_k: set_c.map(|c| c - d.room_temp_c),
+                },
+                sh,
+            );
+            st.warmed_k = w.warmed_k;
+            st.heater = w.duty;
+            heat_duty[i] = w.duty;
+            heat_req[i] = w.duty_req;
+            match map.parent[i] {
+                Some(p) => heat_in_j[p] += w.passed_j,
+                None => home_heat_in_j += w.passed_j,
+            }
             if last {
                 out.humidifier_l_day += st.humidifier_l_day;
                 let hq: f64 = handlers.iter().filter(|u| u.room == Some(i) && u.powered).map(|u| u.capacity).sum();
                 for u in handlers.iter().filter(|u| u.room == Some(i) && u.powered) {
                     out.condensate_by_entity.insert(u.entity, if hq > 0.0 { st.condensate_l_day * u.capacity / hq } else { 0.0 });
                 }
-                let rh = d.rh_of(st.vapour_g_m3, d.room_temp_c);
+                let rh = d.rh_of(st.vapour_g_m3, room_temp_at(d, st.warmed_k));
                 if humidified {
                     // The damp is meant here (a mushroom room): no disease notice.
                 } else if rh >= d.notice_above_rh && !st.told {
@@ -1188,10 +1315,11 @@ pub fn step_rooms(
                 }
             }
         }
-        // The home's own air takes in what the rooms passed it and steps.
+        // The home's own air takes in what the rooms passed it and steps, at
+        // its temperature this slice (its own, plus its heaters' warmth).
         if let (Some(ld), true) = (life, runs_home) {
             home_in.volume_m3 = map.home_volume_m3;
-            home_in.temp_c = map.home_temp_c;
+            home_in.temp_c = map.home_own_c + home_k;
             home_in.kcal_per_day = map.home_kcal;
             home_in.modules = map.modules;
             home_in.breathed_l_day = home_litres;
@@ -1201,6 +1329,46 @@ pub fn step_rooms(
             if last {
                 out.condensate_by_entity.extend(ho.condensate_by_entity);
             }
+        }
+        // The home's own air's warmth (2026-10-05, BUG-155, farming::heat): its
+        // heaters on their thermostat and the heat the grow rooms passed it,
+        // given to the station around the home through its walls and roof, and
+        // taken by its own air handlers' coils (the air they moved this slice).
+        if map.home_known {
+            let volume = map.home_volume_m3.max(0.0);
+            let cap = super::heat::heat_capacity_j_m3_k(d, map.home_own_c);
+            let coil_m3_h = if runs_home { home.air_handler * home_handlers.iter().filter(|u| u.powered).map(|u| u.capacity).sum::<f64>() } else { 0.0 };
+            let (q, q_all, set_c) = super::heat::heat_in(&heaters, None);
+            let w = super::heat::step(
+                &super::heat::AirHeat {
+                    warmed_k: home.warmed_k,
+                    capacity_j_k: cap * volume,
+                    around_w_k: super::heat::conductance_w_k(d, super::heat::home_envelope_m2(volume, d.home_storey_m), 0.0, volume, cap),
+                    around_k: 0.0,
+                    coil_w_k: cap * coil_m3_h / 3600.0,
+                    in_w: if sh > 0.0 { home_heat_in_j / (sh * 3600.0) } else { 0.0 },
+                    heat_w: q,
+                    heat_all_w: q_all,
+                    set_k: set_c.map(|c| c - map.home_own_c),
+                },
+                sh,
+            );
+            home.warmed_k = w.warmed_k;
+            home.heater = w.duty;
+            home_heat_duty = w.duty;
+            home_heat_req = w.duty_req;
+        }
+    }
+    // Each heater draws its watts for the share of the time its thermostat
+    // runs it (humidity.ron, THE HEAT); one in an air the game does not keep
+    // (no home air space) does not run.
+    for h in &heaters {
+        if let Ok(mut pc) = world.get::<&mut PowerConsumer>(h.entity) {
+            let (on, req) = match h.room {
+                Some(i) => (heat_duty[i], heat_req[i]),
+                None => (home_heat_duty, home_heat_req),
+            };
+            pc.draw_watts = (h.watts * if h.powered { on } else { req }) as f32;
         }
     }
     // Every machine's draw is written every step, powered or not
@@ -1275,7 +1443,9 @@ pub fn ventilate(world: &mut hecs::World, data: &DataStore, d: &HumidityData, ar
     let st = mem.rooms.entry(room.id.clone()).or_insert(RoomAir { vapour_g_m3: outside, ..Default::default() });
     let before = st.vapour_g_m3;
     st.vapour_g_m3 = outside + (before - outside) * (-air_changes.max(0.0)).exp();
-    let (rh0, rh1) = (d.rh_of(before, d.room_temp_c).min(1.0), d.rh_of(st.vapour_g_m3, d.room_temp_c).min(1.0));
+    // At the room's own temperature, its heaters' warmth included (2026-10-05).
+    let t_room = room_temp_at(d, st.warmed_k);
+    let (rh0, rh1) = (d.rh_of(before, t_room).min(1.0), d.rh_of(st.vapour_g_m3, t_room).min(1.0));
     // How long until the crops breathe it back: to the disease line, or to
     // where it was if that was lower, at the air change it has now.
     let source = st.breathed_l_day * d.vapour_share.max(0.0) * 1000.0 / 24.0 / volume;
@@ -1287,7 +1457,7 @@ pub fn ventilate(world: &mut hecs::World, data: &DataStore, d: &HumidityData, ar
     let n = room.air_changes_per_hour.unwrap_or(d.base_air_changes_per_hour).max(0.0)
         + st.fan_speed * fan_max(false)
         + st.co2_fan * fan_max(true);
-    let target = before.min(d.notice_above_rh * d.room_saturation());
+    let target = before.min(d.notice_above_rh * d.vapour_at(1.0, t_room));
     let back = if n > 1e-12 {
         let eq = outside + source / n;
         (eq > target && st.vapour_g_m3 < target).then(|| ((st.vapour_g_m3 - eq) / (target - eq)).ln() / n)
@@ -1298,7 +1468,7 @@ pub fn ventilate(world: &mut hecs::World, data: &DataStore, d: &HumidityData, ar
         Some(h) => format!(
             " Its crops breathe out {:.0} L of water a day, so it is back to {:.0}% in about {}. An exhaust fan does this all the time.",
             st.breathed_l_day,
-            d.rh_of(target, d.room_temp_c).min(1.0) * 100.0,
+            d.rh_of(target, t_room).min(1.0) * 100.0,
             hours_word(h)
         ),
         None => " At this air change it stays drier than that.".to_string(),
@@ -1432,6 +1602,33 @@ fn home_lines(
     lines
 }
 
+/// The Garden panel's words for the space heaters of one air (2026-10-05,
+/// BUG-155, farming::heat), `room` an index into the map's rooms or None for
+/// the home's own air: whether they have power, how much of the time their
+/// thermostat runs them, and the air's temperature (`temp_c`, warmed
+/// `warmed_k` above its own). None where no heater stands and nothing has
+/// warmed the air: a room at its own temperature has nothing new to say.
+fn heater_part(heaters: &[super::heat::Heater], room: Option<usize>, duty: f64, temp_c: f64, warmed_k: f64) -> Option<String> {
+    let here: Vec<&super::heat::Heater> = heaters.iter().filter(|h| h.room == room).collect();
+    if here.is_empty() {
+        return (warmed_k > 0.05).then(|| format!("the air warmed to {temp_c:.1} °C"));
+    }
+    let name = if here.len() > 1 { "heaters" } else { "heater" };
+    let set = here.iter().map(|h| h.setpoint_c).fold(f64::NEG_INFINITY, f64::max);
+    if !here.iter().any(|h| h.powered) {
+        return Some(format!("{name} off (no power), the air at {temp_c:.1} °C"));
+    }
+    if duty <= 0.0 {
+        return Some(format!("{name} idle, the air at {temp_c:.1} °C (it heats below {set:.0} °C)"));
+    }
+    let w: f64 = here.iter().filter(|h| h.powered).map(|h| h.watts * duty).sum();
+    Some(if duty >= 0.999 && temp_c < set - 0.05 {
+        format!("{name} flat out, {} W, the air at {temp_c:.1} °C, short of the {set:.0} °C it is set to", thousands(w))
+    } else {
+        format!("{name} on {:.0}% of the time, {} W, holding the air at {set:.0} °C", duty * 100.0, thousands(w))
+    })
+}
+
 /// The Garden panel's humidity (built once a frame in lib.rs): a line per
 /// grow area, and the crop card's "Humidity" row.
 #[derive(Debug, Clone, Default)]
@@ -1468,6 +1665,7 @@ impl GuiView {
         let hums = room_humidifiers(world, &map);
         let life = data.get::<LifeSupportData>(life_support::DATA_KEY);
         let (handlers, scrubbers) = life_units(world, &map);
+        let heaters = super::heat::heaters(world, &map);
         // Who powers the air machines (Settings: Ship life support).
         let watts_word = |w: f64| format!("{w:.0} W");
         let mut tags: Vec<String> = world
@@ -1569,7 +1767,7 @@ impl GuiView {
                             });
                         }
                         if st.co2_g_m3 > 0.0 {
-                            let ppm = life_support::co2_ppm(d, st.co2_g_m3, d.room_temp_c);
+                            let ppm = life_support::co2_ppm(d, st.co2_g_m3, room_temp_at(d, st.warmed_k));
                             let mut co2 = format!("CO2 {} ppm", thousands(ppm));
                             if room.substrate_kg > 0.0 && ppm > d.fruiting_co2_limit_ppm {
                                 co2_warn = true;
@@ -1583,6 +1781,11 @@ impl GuiView {
                             parts.push(co2);
                         }
                     }
+                    // Its space heaters and its temperature (2026-10-05, BUG-155,
+                    // farming::heat), whenever a heater stands in it or has warmed it.
+                    if let Some(h) = heater_part(&heaters, Some(i), st.heater, room_temp_at(d, st.warmed_k), st.warmed_k) {
+                        parts.push(h);
+                    }
                     format!(
                         "Air {} humidity in the {} ({:.0} L a day breathed out): {}",
                         pct(rh),
@@ -1594,9 +1797,10 @@ impl GuiView {
                     format!("Home air {} humidity", pct(rh))
                 };
                 // A humidified room is damp on purpose: warn only when its
-                // humidifier cannot run, or the air is past its fans' line.
+                // humidifier cannot run, or the air is past its fans' line
+                // (both sides at the same saturation, so the room's warmth cancels).
                 let level = match humidified {
-                    Some(running) => u8::from(!running || rh * d.room_saturation() > fan_set(d, true)),
+                    Some(running) => u8::from(!running || rh * d.room_saturation() > fan_set(d, true, d.room_saturation())),
                     None if rh >= d.notice_above_rh => 2,
                     None if rh > d.fan_setpoint_rh => 1,
                     None => 0,
@@ -1604,10 +1808,18 @@ impl GuiView {
                 (area, line, level.max(u8::from(co2_warn)))
             })
             .collect();
-        let home = match (life, map.home_known) {
+        let mut home = match (life, map.home_known) {
             (Some(ld), true) => home_lines(world, data, d, ld, &map, &handlers, &scrubbers),
             _ => Vec::new(),
         };
+        // The heaters in the home's own air (2026-10-05, BUG-155): a line of
+        // their own, so the home's air line keeps its shape.
+        if map.home_known {
+            let h = world.query::<&SoilMemory>().iter().next().map(|(_, m)| (m.home_air.heater, m.home_air.warmed_k)).unwrap_or_default();
+            if let Some(part) = heater_part(&heaters, None, h.0, map.home_temp_c, h.1) {
+                home.push((format!("Home air: {part}"), 0));
+            }
+        }
         let severity = data
             .get::<Mutex<f32>>("garden_pest_severity")
             .and_then(|m| m.lock().ok().map(|v| *v))

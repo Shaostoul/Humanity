@@ -113,7 +113,7 @@ fn greenhouse(home_m3: f32) -> (DataStore, hecs::World, hecs::Entity) {
     let mut data = store(rooms, plots);
     data.insert(units::PLOT_AREA_KEY, HashMap::from([("bed_a".to_string(), 10.0_f32)]));
     let mut world = hecs::World::new();
-    world.spawn((HomeAir { metabolic_kcal_per_day: 0.0 }, EnclosedSpace::new_sealed(home_m3)));
+    world.spawn((HomeAir { metabolic_kcal_per_day: 0.0, ..Default::default() }, EnclosedSpace::new_sealed(home_m3)));
     for slot in 0..4 {
         world.spawn((crop(&data, "lettuce", "bed_a", slot, 0.0),));
     }
@@ -379,7 +379,7 @@ fn a_short_island_keeps_the_scrubber_before_an_optional_load() {
     data.insert("power_status", Mutex::new(PowerStatus::default()));
     data.insert(life_support::MODE_KEY, Mutex::new(true)); // Realistic
     let mut world = hecs::World::new();
-    world.spawn((HomeAir { metabolic_kcal_per_day: 6600.0 }, EnclosedSpace::new_sealed(1000.0)));
+    world.spawn((HomeAir { metabolic_kcal_per_day: 6600.0, ..Default::default() }, EnclosedSpace::new_sealed(1000.0)));
     let s = machine(&mut world, [0.0, 0.0, 0.0]);
     world.insert(s, (Co2Scrubber { rated_kg_day: 4.74, watts: 860.0 }, PowerConsumer { draw_watts: 860.0, priority: 1, enabled: true })).unwrap();
     world.spawn((PowerGenerator { output_watts: 900.0, fuel_per_second: 0.0, active: true },));
@@ -413,7 +413,7 @@ fn the_household_breathes_and_the_scrubber_answers() {
     let (ld, d) = (life(), air());
     let data = store(Vec::new(), Vec::new());
     let mut world = hecs::World::new();
-    world.spawn((HomeAir { metabolic_kcal_per_day: 6600.0 }, EnclosedSpace::new_sealed(1000.0)));
+    world.spawn((HomeAir { metabolic_kcal_per_day: 6600.0, ..Default::default() }, EnclosedSpace::new_sealed(1000.0)));
     let s = machine(&mut world, [0.0, 0.0, 0.0]);
     world.insert(s, (Co2Scrubber { rated_kg_day: 4.74, watts: 860.0 }, PowerConsumer { draw_watts: 0.0, priority: 1, enabled: true })).unwrap();
     world.spawn((Irrigator,));

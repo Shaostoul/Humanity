@@ -313,6 +313,14 @@
     // skill, the assembly config's error rate, and randomness.
     // score = clamp(skill_factor * (1.0 - error_rate) + random(-0.1, 0.1), 0.0, 1.0)
     // The score falls into one of these thresholds.
+    //
+    // price_multiplier at the trading post (BUG-146, 2026-10-05): a grade
+    // below standard fetches its multiple of the standard price. A grade above
+    // it fetches its multiple too, but never more than the good's parts cost
+    // at the post: at most the parts' price less the standard good's shortfall
+    // divided by the multiple (src/systems/economy/parts.rs). Paid on the
+    // whole price, a masterwork made from bought parts sold back for more than
+    // the parts cost, an endless money loop. Other players' prices are free.
 
     quality_levels: [
         (

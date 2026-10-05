@@ -3942,6 +3942,8 @@ mod multi_select_tests {
             humidifies_l_h: 0.0,
             dehumidifies_m3_h: 0.0,
             scrubs_co2_kg_day: 0.0,
+            heats_w: 0.0,
+            heat_setpoint_c: 0.0,
             level_gauge: false,
             container_type: None,
             provides: None,

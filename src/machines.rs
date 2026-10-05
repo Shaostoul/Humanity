@@ -215,6 +215,20 @@ pub struct MachineDef {
     /// Spawns a `Co2Scrubber`; needs a `Consumer` role.
     #[serde(default)]
     pub scrubs_co2_kg_day: f32,
+    /// This machine is a space heater (2026-10-05, BUG-155): while it is
+    /// powered it puts up to this many watts of heat into the air it stands in
+    /// (a grow room's or a fruiting tent's, else the home's own air), as much
+    /// as its thermostat needs to hold that air at `heat_setpoint_c`
+    /// (farming::heat, data/garden/humidity.ron THE HEAT). An electric
+    /// resistance heater turns all it draws into heat, so this equals its
+    /// Consumer watts (a data test holds it). 0 = not a heater. Spawns a
+    /// `SpaceHeater`; needs a `Consumer` power role.
+    #[serde(default)]
+    pub heats_w: f32,
+    /// With `heats_w`: the temperature, C, its thermostat holds the air at;
+    /// it does not run while the air is at or above it.
+    #[serde(default)]
+    pub heat_setpoint_c: f32,
     /// Typed-container archetype id from `data/containers/types.csv` (v0.728,
     /// "containers show contents"): a grain silo IS a `grain_silo_bin`, the
     /// fuel refinery a `steel_fuel_drum`. Spawns a `Container` ECS component
@@ -3020,6 +3034,8 @@ mod tests {
             humidifies_l_h: 0.0,
             dehumidifies_m3_h: 0.0,
             scrubs_co2_kg_day: 0.0,
+            heats_w: 0.0,
+            heat_setpoint_c: 0.0,
             level_gauge: false,
             container_type: None,
             provides: None,

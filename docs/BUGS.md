@@ -3397,7 +3397,7 @@ still below real-world prices on the project's own wage scale.
 **Left:** quality grades still loop (BUG-146), and the big vehicles can no
 longer be hand-crafted from the backpack (BUG-147).
 
-## BUG-146: a better craft grade still makes a money loop at the vendor (OPEN, found 2026-10-04)
+## BUG-146: a better craft grade still makes a money loop at the vendor (FIXED (merging in v0.1463.0), found 2026-10-04)
 
 **Seen:** while fixing BUG-145. The vendor pays 0.5x a good's price times its
 craft grade (`data/manufacturing.ron`: good 1.5, excellent 2.5, masterwork
@@ -3413,6 +3413,86 @@ a vendor that buys any quantity at a fixed price. The fix belongs in how the
 vendor values grade and quantity (a price that responds to how much of a
 good it already holds, or grade paid on labour rather than on the whole
 price), not in lowering every price below 0.4x its parts.
+
+**Fix:** the trading post pays a better grade its multiple of the standard
+price only up to a ceiling set by what the good's parts cost there
+(`src/systems/economy/parts.rs`). At a grade whose multiple is m it pays
+the smaller of m times the standard price and the parts' price less the
+standard good's shortfall divided by m. Made from parts bought at the post,
+a standard good comes back (parts minus standard) short of what the parts
+cost; a good one comes back two thirds of that short, an excellent one two
+fifths, a masterwork one fifth. So no grade sells back for more than its
+parts cost; wherever the parts cost more than a standard good fetches,
+every grade fetches more than the one below it; and where the parts cost
+far more than the good sells for (most hand tools) a grade is paid its full
+multiple. A hammer (parts 16.50 at the post) now fetches 2, 7, 10, 12 and 14
+from poor to masterwork, where a masterwork fetched 35; a motorcycle (parts
+1560.79) 500, 1250, 1353, 1436 and 1498. Poor and defective are unchanged.
+
+The parts price is the least it takes to make the good from goods the post
+sells, over every recipe that makes it, with each input at its cheapest
+(the BUG-145 walk, moved from its test into `parts::cheapest_costs` so the
+game and the checks share one). It is worked out once when the data loads
+(`engine::registries`, `TradeGoodsRegistry::with_parts_prices`). A sale
+settles through `TradeGoodsRegistry::vendor_buy_price_graded`, and the
+trading post window lists the same price (`GuiTradeGood::parts_price`, both
+through `parts::graded_pay`; filling that field in the vendor catalog is the
+one `src/lib.rs` line, the catalog being built nowhere else), with a line
+saying a better grade never fetches more than its parts cost there. The
+grade multiples stay the data's (`data/manufacturing.ron`, whose notes now
+say how the post uses them); the rule added no new number.
+
+Why not the two suggestions above: a stock-driven price still pays the
+first sales in full (a masterwork vehicle's first sale paid about four
+times its parts), so it bounds the loop without closing it; and a bonus on
+the labour share pays nothing for most hand-made goods, which are priced
+below their parts, while still looping on the vehicles, priced up to twice
+theirs. Keeping its bids under its own asking price for the parts is the
+rule any dealer that both buys and sells has to keep, and it needs no
+memory of the post's stock, so nothing new is saved per game; a demand
+curve could sit on top of it later. The economy has no realism modes to
+pair it with; Creative and Dev crafting take no inputs, so selling what
+they make stays free money by those modes' design, as before.
+
+**Tests** (in `src/systems/economy/parts.rs` unless named):
+- `no_grade_sells_back_for_more_than_its_parts_cost`: for all 350 recipes
+  whose inputs the post sells or can be made from them (78 of them make a
+  graded good it buys) and every grade, ungraded and the six of
+  `data/manufacturing.ron`, a player with credits for 50 rounds buys the
+  parts at the cheapest, makes the recipe, sells all it makes back through
+  `vendor_sell` and goes round again while they can pay; their balance may
+  never rise above where it started. A recipe's other outputs are credited
+  at the most the post pays for them at any grade, so a graded by-product
+  could not hide a loop. Seen red with `vendor_sell`'s old body: 133
+  (recipe, grade) loops, 25 at Good, 43 at Excellent and 65 at Masterwork,
+  among them all twelve vehicle recipes at Excellent and Masterwork and ten
+  at Good (a light mech from 74,960.55 of parts sold for 300,000 at
+  Masterwork).
+- `a_masterwork_still_fetches_more_than_a_standard_good`: a masterwork
+  hammer sold through `vendor_sell` fetches more than a standard one; for
+  all 87 durable goods the post trades each grade from poor up fetches at
+  least what the grade below does, and the 80 whose parts leave room fetch
+  a masterwork premium. It cannot fail on the old pricing (a masterwork
+  paid five times standard), so it was seen red on a variant that paid no
+  premium ("a masterwork Hammer fetches 7, no more than a standard one
+  (7)"), with the loop check green there: neither check can be met by
+  giving up the other.
+- `engine::registries::tests::the_loaded_trading_post_caps_a_grade_by_its_parts`:
+  the game's own loader gives the trading post its parts prices. Seen red
+  with them left out of the load ("the game's trading post has no parts
+  price for the hammer").
+- `the_grade_rule_on_hand_numbers` pins the rule on the hammer's numbers;
+  `systems::economy::tests::a_sale_is_priced_by_grade` now checks a sale
+  against the graded price (seen red on the old body: a masterwork paid
+  35, not 14). BUG-145's checks pass on the moved walk.
+
+**Noticed on the way, not checked:** the BUG-145 walk prices tap water as
+bought (2 credits a litre), but a craft draws it from the home's tanks.
+Counted at nothing, three recipes would come out ahead at standard grade
+(`cook_honey`, a litre of water into honey that sells for 2;
+`craft_antibiotics`; `craft_healing_potion`). Whether that is a loop in
+play depends on what refilling the tanks costs, which is modelled as a
+closed loop (`systems::life_support`), and was not looked into here.
 
 ## BUG-147: the big vehicles cannot be hand-crafted from the backpack (FIXED v0.1457.0, found 2026-10-04)
 
@@ -3660,7 +3740,7 @@ cargo tests, and this fix does not touch them: BUG-161, OPEN.
 folder, filed as BUG-159. Not the cause here (opening a file there took the same 42
 microseconds as in an empty folder).
 
-## BUG-153: the Campfire ability promises a fire with warmth and light, and only heals 3 health (OPEN, found 2026-10-04)
+## BUG-153: the Campfire ability promises a fire with warmth and light, and only heals 3 health (PARTLY FIXED (merging in v0.1463.0), found 2026-10-04)
 
 **Seen (code reading, by the check of the heat, fire and fuel guides; confirmed by the
 orchestrator):** `data/abilities.csv` row `campfire` is described as "Build a campfire that
@@ -3670,9 +3750,45 @@ provides warmth light and slow healing". It is a non-offensive ability, so casti
 and the `campfire_warmth` status effect (`data/status_effects.csv`) is applied by no code.
 For a new character it sorts first among castable abilities, so it sits in hotbar slot 1.
 
-**Fix (not started):** either make it place a real fire the body heat model and the light
-system see (and that can spread or go out, as the fire guide teaches), or describe what it
-does today. A test casts it and checks what the description promises.
+**Fixed (2026-10-05):** the ability now builds a real campfire, and the fire is a heat
+source the body heat model sees. Step by step:
+
+1. The engine works out where it goes when the cast is pressed: the spot a piece in hand
+   would be placed at (`engine::build_place::publish_cast_spot`, the same
+   `planet_build::ghost`), handed to the ability system in `abilities::BUILD_SPOT_SLOT`.
+   An ability row names what it builds in the new `builds` column of `data/abilities.csv`.
+2. The cast goes through the one build path every piece takes, now
+   `construction::begin_build` (moved out of the ConstructionSystem's tick): the
+   `campfire` blueprint (`data/blueprints/basic.ron`, 6 Raw Stone and 3 Wood Logs, as
+   `data/structures.csv` always listed it) is refused with the reason, and nothing spent,
+   aboard the ship, under a built roof, where there is no air to burn, or without the
+   materials; otherwise its materials leave the pack and its scaffold goes up. Only then
+   are the 15 energy spent and the cooldown started. No heal: `healing_base` is 0.
+3. Finished, it is lit with its own three logs (2 h), burns them down on the game clock,
+   and goes out; E at it puts another log from the pack on (it holds four) and relights
+   it when out (`src/systems/construction/fires.rs`). Its fuel is saved with it and burns
+   down while the game is closed.
+4. While it burns it radiates 16 kW (a Forest Service campground fire ring's burn rate,
+   NIST's effective heat of combustion and radiative fraction for wood; the sources are
+   in the module's doc), falling off as the inverse square, and `engine::survival_env`
+   adds it to the mean radiant temperature of a person near it. On a clear, calm 0 C
+   night that is about 16 C at 1.5 m and nothing at 20 m; an out fire gives nothing.
+5. The dead `campfire_warmth` effect is deleted, and the description says what it does.
+
+Tests, each seen red on the code before the fix:
+`the_campfire_ability_builds_a_campfire_outdoors_from_the_pack`,
+`a_campfire_cast_that_cannot_build_spends_nothing` (`src/systems/abilities.rs`);
+`a_campfire_by_a_cold_night_keeps_a_body_warmer_than_one_20_m_away` and
+`an_out_campfire_gives_no_heat` (`src/engine/survival_env.rs`); with the fire's own
+burning, fuel, take-down and warmth tests in `fires.rs`.
+
+**Still open:** the campfire gives NO LIGHT. The renderer's point lights are not
+evaluated in the celestial pass, where a planet's ground and everything built on it is
+drawn (that pass's light count is 0 by design since v0.1155, `80-fragment-shared.wgsl`),
+so a campfire light needs renderer work, not a data entry. Also not modelled: smoke,
+sparks or spreading, carbon monoxide, and needing a light (tinder, a match, the Campfire
+Kit) to start or relight it. In the Normal play mode nobody leaves the ship, so there the
+ability is always refused; it can be used only where the Dev travel tools reach a planet.
 
 ## BUG-154: the backup generator runs on Paint, Glue or Crude Oil (FIXED (merging in v0.1463.0), found 2026-10-04)
 
@@ -3708,17 +3824,60 @@ the old rule by design; it, the shipped-generator test and
 `backstop_genset_runs_when_needed_and_burns_its_drum_dry` were seen red against a rule that
 burns nothing, so the Paint test cannot pass merely because no genset runs.
 
-## BUG-155: the greenhouse quest asks for a heater that does nothing (OPEN, found 2026-10-04)
+## BUG-155: the greenhouse quest asks for a heater that does nothing (FIXED (merging in v0.1463.0), found 2026-10-04)
 
 **Seen (the same check, confirmed):** the Greenhouse Construction quest's step reads
 "Build a heater for temperature regulation" (`data/quests/farming.ron`, objective
 `Craft(recipe_id: "build_heater")`), but no system gives a built heater any effect: it
 warms neither the air, the plants nor the player. The heating guide says plainly that the
-heater does nothing; the quest says the opposite.
+heater does nothing; the quest says the opposite. Worse than "does nothing": no machine
+catalog had a `heater`, so the crafted `heater_0` could not even be placed.
 
-**Fix (not started):** give the heater a real effect on the room's air temperature (the
-greenhouse's plants and the body heat model read it), or change the quest step until it
-does. Either way a test pins the quest's promise to what the heater does.
+**Fix (ba1ee5e0b):** the catalogs (`data/machines/home.ron`, `home_solo.ron`) carry a
+`heater` machine, placed from `heater_0` like every machine: a 1,500 W electric ceramic
+heater (the Lasko 754200), all of its draw heat, on a thermostat at 24 C (a game choice,
+the middle of UGA Bulletin 792's 70 to 80 F days), heating only while the electrical sim
+powers it and drawing its watts for the share of the time it runs. Its heat goes into the
+air it stands in, a grow room's or fruiting tent's own, else the home's own air, through a
+linear heat balance stepped with the airs' water and gases in the farming tick
+(`src/systems/farming/heat.rs`; numbers and sources in `data/garden/humidity.ron`, THE
+HEAT): `C dtheta/dt = Q - G (theta - theta_around) - G_coil theta`, with G = U x walls and
+ceiling (U 6.24 W/(m2 K), single glass, UGA B792's R 0.91, a labelled game choice for every
+grow room) plus the room's air changes x its heat capacity (FAO-56's cp), and an air
+handler's coil taking the warmth of the air it moves. A room's heat passes on to the home's
+own air, which loses it through its walls and roof. Each air sits at its own temperature
+(the station holds it there) plus what heaters add, and what reads that air reads the sum:
+a grow room's humidity, every humidity setpoint, its CO2 and its pests; the home's air
+space, so the body heat model inside the home and food spoilage; and the body feels a grow
+room's own air where the player stands in one (`engine::survival_env::indoor_air`). The
+Garden panel says what each heater is doing. The quest step now reads "Build a space heater
+to warm a grow room's air". Tests, each seen red first (on the code before this, in
+effect, by making `heat::heaters` find no heater, and by the mutation each test names):
+`farming::heat_tests::a_powered_heater_warms_its_room_to_the_steady_state_worked_by_hand`
+(300 m3: 1.054 C over, by hand), `one_heater_barely_warms_a_greenhouse_the_size_of_the_family_homes`
+(0.163 C), `an_unpowered_heater_warms_nothing_and_asks_for_its_power`,
+`the_thermostat_holds_its_setpoint`, `a_heater_outside_the_grow_rooms_warms_the_home_air_the_body_reads`,
+`a_grow_rooms_heat_reaches_the_home_air_and_none_is_lost`, `the_heat_step_keeps_every_joule`,
+`the_garden_panel_says_what_each_heater_is_doing`,
+`the_greenhouse_quests_heater_warms_a_grow_rooms_air` (the quest's words, the recipe's item,
+the catalog machine, spawned the way the engine spawns it),
+`engine::survival_env::tests::indoors_the_body_feels_the_air_of_the_room_it_stands_in`, and,
+with BUG-153's campfire merged, `a_heaters_warm_air_and_a_fires_warmth_add_up`: a heater
+warms the air and a fire the surroundings, from that air, so the two add up and neither
+replaces the other (seen red with the fire's warmth taken from a fixed 21 C).
+
+**Still open:** the crops' growth does not answer an indoor room's temperature (indoors
+they still grow as if every room were inside their range, so the heater warms the plants'
+air, their humidity and their pests, but not their growth rate; a design call, because 17
+crops' windows exclude the rooms' 21 C); only the air stores heat, so a heated room warms
+and cools in minutes; every grow room is taken as single glass rather than its real walls;
+rooms with no grow machine share the home's one air, so a heater in a bedroom warms the
+whole home by a few hundredths of a degree; a heater's radiant warmth on a body beside it
+is not modelled; the thermostat is set in data, not from a dial in the game
+(docs/design/in-app-ops.md); heaters can be placed only aboard, not in a shelter built on
+a planet (BUG-153's campfire is the planet side); and `data/hvac.ron`'s other heat makers
+(heat pump, wood stove) have no machine yet. The never-registered `HvacSystem`
+(`src/systems/hvac.rs`), superseded by this, was deleted the same day.
 
 ## BUG-156: trees float in the air beside the Silverdale waterfront (OPEN, found 2026-10-05)
 

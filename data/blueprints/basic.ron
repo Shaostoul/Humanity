@@ -44,4 +44,21 @@
     (id: "solar_panel", name: "Solar Panel", category: "machine", materials: [("solar_panel_0", 1)], build_time: 5.0, size: (1.7, 0.05, 1.0), snap_to: [], health: 80.0, provides: Some("power"), generates: Some(Solar(peak_watts: 400.0, average_watts: Some(45.3)))),
     (id: "storage_chest", name: "Storage Chest", category: "furniture", materials: [("wood_plank_0", 8)], build_time: 3.0, size: (1.0, 0.8, 0.6), snap_to: ["foundation"], mount: OnTop, health: 80.0, provides: Some("storage")),
     (id: "bed", name: "Bed", category: "furniture", materials: [("wood_plank_0", 6), ("fiber_bundle_0", 4)], build_time: 4.0, size: (1.0, 0.6, 2.0), snap_to: ["foundation"], mount: OnTop, health: 60.0, provides: Some("rest")),
+    // A CAMPFIRE (BUG-153, 2026-10-05): a ring of stones with logs in it, as
+    // data/structures.csv always listed it (stone:6|log:3, 1.0 x 0.6 x 1.0 m, 30 hp,
+    // outdoor_only). The Campfire ability builds it in front of the player; the
+    // Crafting page places it by hand. outdoors_only: never aboard the ship, under a
+    // built roof, or where there is no air to burn (construction::outdoors_refusal).
+    // burns: it is a fire (src/systems/construction/fires.rs, whose doc has every source):
+    // - seconds_per_fuel 2400: the US Forest Service's campground fire ring burned 11 kg
+    //   of split firewood in 55 minutes of typical recreational use (Urbanski 2021, for
+    //   the Minnesota Pollution Control Agency), so an 8 kg Wood Log lasts 40 minutes.
+    // - radiant_watts 16000: that fire's 10.4 kg of dry wood an hour (at 15 percent
+    //   moisture) x NIST's 17.5 MJ/kg effective heat of combustion is 51 kW, and NIST's
+    //   average radiative fraction for wood and plant fuels, 0.32, is 16 kW of it
+    //   radiated (NIST TN 2314, April 2025).
+    // - holds 4: A GAME CHOICE, about what a ring a metre across takes stacked.
+    // The build's own three logs are its first load. Taken down, it gives back its
+    // stones and only the logs it has not burned.
+    (id: "campfire", name: "Campfire", category: "fire", materials: [("stone_raw_0", 6), ("wood_log_0", 3)], build_time: 5.0, size: (1.0, 0.6, 1.0), snap_to: [], health: 30.0, provides: Some("heat"), outdoors_only: true, burns: Some((fuel: "wood_log_0", seconds_per_fuel: 2400.0, holds: 4, radiant_watts: 16000.0))),
 ]

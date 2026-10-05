@@ -172,10 +172,12 @@
     dry_air_gas_constant: 287.0,
     vapour_weight_ratio: 0.622,
 
-    // The grow rooms' temperature, °C. A GAME CHOICE, the same 21 °C the pests
-    // take for the climate-controlled rooms (data/garden/pests.ron
-    // indoor_temp_c; a test keeps the two equal): the HVAC sim runs per room
-    // and does not reach the grow rooms yet.
+    // The grow rooms' own temperature, °C: where the station holds them with
+    // nothing else warming them. A GAME CHOICE, the same 21 °C the pests take
+    // for the climate-controlled rooms (data/garden/pests.ron indoor_temp_c; a
+    // test keeps the two equal). Since 2026-10-05 a space heater standing in a
+    // room warms it above this (THE HEAT, at the end), and the room's humidity,
+    // carbon dioxide and pests are read at the warmer temperature.
     room_temp_c: 21.0,
 
     // -- WHERE THE WATER GOES ----------------------------------------------------
@@ -558,4 +560,96 @@
     // and the setpoint's reasoning; the balance they hold is measured by
     // src/systems/farming/life_support_tests.rs and quoted in
     // docs/design/ship-life-support.md.
+
+    // -- THE HEAT: A HEATER IN A ROOM (2026-10-05, BUG-155) ----------------------------
+    //
+    // Until this a heater the player built warmed nothing: the grow rooms sat at
+    // room_temp_c and the home's own air at the temperature its air space was made
+    // at (about 20 C), and nothing could change either. Now a space heater placed
+    // in a room and powered (a machine with `heats_w` and `heat_setpoint_c`,
+    // data/machines/home.ron) puts its watts into the air it stands in: a grow
+    // room's or a fruiting tent's own air, or, in any other room, the home's own
+    // air, which is one air for the whole home, as its water and its gases are.
+    // src/systems/farming/heat.rs is the model; src/systems/farming/heat_tests.rs
+    // measures what follows.
+    //
+    // THE BALANCE, per air, in theta: how far the heaters have warmed it above
+    // its own temperature (K).
+    //
+    //   C dtheta/dt = Q - G (theta - theta_around) - G_coil theta
+    //
+    //   C         the air's heat capacity: its volume, times its density (P / (R T)
+    //             at its own temperature, with the gas constant and pressure
+    //             above), times air_specific_heat_j_kg_k.
+    //   Q         its heaters' watts for the share of the time their thermostat
+    //             runs them, and what the tents in a room, or the grow rooms of
+    //             the home, pass it.
+    //   G         how fast it gives heat to the air around it (a tent's room, a
+    //             grow room's home air; the home's own air gives it to the
+    //             station around the home): through its walls and ceiling,
+    //             envelope_u_w_m2_k times their area, and with the air it
+    //             exchanges, its air changes an hour (its leakage,
+    //             base_air_changes_per_hour above, and its fans) times C / 3600.
+    //             The home's own air exchanges none: the half kilogram a day it
+    //             leaks overboard (data/life_support.ron) carries a few
+    //             milliwatts a degree, and is left out.
+    //   G_coil    an air handler's cold coil cools the air it moves: the air it
+    //             moves an hour times C per m3 / 3600. That heat goes to the
+    //             station's cooling loop with the rest of the coil's.
+    //
+    // It is linear, so it is solved exactly over each step (the air's other
+    // balances use the same solver, life_support::relax), and an air settles at
+    // theta = Q / G above the air around it. Because it is linear, a heater's heat
+    // comes on top of whatever holds each air at its own temperature now (the
+    // station's climate, the sun through the glass, the crops' and humidifiers'
+    // evaporation, the lights, the people), none of which is modelled, and none of
+    // which the heater changes. A warmer air holds more water before it is
+    // saturated, so the same vapour reads as a lower humidity there, and every
+    // controller and crop that reads a room's humidity sees that.
+    //
+    // THE THERMOSTAT. A heater runs flat out while the air it stands in is under
+    // its `heat_setpoint_c`, for the share of the time that holds the air there
+    // once it gets there, and not at all above it, drawing its watts for that
+    // share. Several heaters in one air share one thermostat, set at the highest
+    // of theirs.
+    //
+    // air_specific_heat_j_kg_k 1013: FAO-56 Chapter 3, equation 8, "cp specific
+    // heat at constant pressure, 1.013 10-3 [MJ kg-1 °C-1]". With the density at
+    // the rooms' 21 C (1.200 kg per m3), a cubic metre of air takes 1,216 J to
+    // warm by a degree. (UGA B792's formula for the heat air leaks carry, "Q =
+    // 0.02 V C (Ti – To)", in Btu an hour for V in cubic feet, works out at about
+    // 1,340.)
+    //
+    // envelope_u_w_m2_k 6.24: A GAME CHOICE on a sourced number. Every grow room
+    // and tent is taken to lose heat through its walls and ceiling the way single
+    // glass does, a greenhouse's covering. UGA B792's conduction formula is "Q = A
+    // (Ti – To)/R", with "A = Area of greenhouse surface, sq ft", and its Table 1
+    // gives "Glass, single layer" an R-Value of 0.91 (Btu an hour, square feet and
+    // degrees Fahrenheit): a U of 1 / 0.91 = 1.10 Btu/(h ft2 F), 6.24 W/(m2 K) at
+    // NIST SP 811's "5.678 263 E+00" W/(m2 K) for each "BtuIT/(h · ft2 · °F)"
+    // (Appendix B.9, updated 18 August 2025). The floor is not counted, as UGA's
+    // area is the covering. The home's rooms are not all glass
+    // (data/homes/homestead.ron has steel, concrete and wood walls too), so this
+    // loses more heat than they would: each room's own walls are a later step.
+    //
+    // home_storey_m 3.0: the home's own air has no box of its own (it is the home
+    // less its grow rooms), so its walls and roof are taken as those of one storey
+    // this high holding its volume on a square floor. 3.0 is the shipped
+    // homestead's height (data/homes/homestead.ron, `height: 3.0`).
+    //
+    // WHAT ONE HEATER DOES: the 1,500 W heater in data/machines, its thermostat at
+    // 24 C. In a 300 m3 room (10 x 3 x 10 m) the walls and ceiling lose 1,373 W
+    // for each degree it is warmer and its leakage 51 W, so flat out the heater
+    // holds the room 1.05 C over the air around it and never reaches 24 C. In a
+    // room the size of the family home's greenhouse (45 x 3 x 22 m, 2,970 m3)
+    // it adds 0.163 C. src/systems/farming/heat_tests.rs measures both, and the
+    // thermostat holding 24 C in a small room. The same arithmetic gives the rest:
+    // in the family home's own air (about 10,500 m3, so about 4,200 m2 of walls
+    // and roof), about 0.05 C; and in a mushroom rack's 1.73 m3 fruiting tent,
+    // which loses about 61 W a degree (its walls and top 53, its fresh air 8),
+    // it would run the tent about 25 C over its room if its thermostat did not
+    // stop it at 24 C, which it holds by running about an eighth of the time.
+    air_specific_heat_j_kg_k: 1013.0,
+    envelope_u_w_m2_k: 6.24,
+    home_storey_m: 3.0,
 )

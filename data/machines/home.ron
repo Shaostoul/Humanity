@@ -248,6 +248,61 @@
             container_type: None,
             model: None,
         ),
+        "heater": (
+            shape: "box",
+            size: (0.178, 0.234, 0.152),
+            color: (0.78, 0.79, 0.8),
+            label: "Space heater",
+            category: "Life support",
+            // An electric ceramic space heater with a thermostat (2026-10-05,
+            // BUG-155), what the Build Heater recipe makes (data/recipes.csv,
+            // "Assemble an electric space heater"): the Lasko 754200 (lasko.com,
+            // read 2026-10-05, no page date: "A powerful 1500-watt ceramic heating
+            // element", "Choose 1500-watt high heat, 900-watt low heat, or switch
+            // to fan-only mode", "The adjustable thermostat offers 11 temperature
+            // settings", 9.2 x 7.00 x 6.00 in). An electric resistance heater
+            // turns all it draws into heat (Wikipedia, "Electric heating", last
+            // edited 29 September 2025: "For an electrical energy customer the
+            // efficiency of electric space heating is 100% because all purchased
+            // energy is converted to heat"), so `heats_w` is its 1,500 W. While
+            // powered it warms the air it stands in, a grow room's or a fruiting
+            // tent's own, else the home's own air, on its high setting, cycled by
+            // its thermostat (data/garden/humidity.ron, THE HEAT, has the
+            // balance; src/systems/farming/heat.rs the model).
+            // heat_setpoint_c 24: A GAME CHOICE for a dial whose 11 settings carry
+            // no degrees: 75 F, the middle of the University of Georgia's "Most
+            // plants require day temperatures of 70 to 80 °F" (Bulletin 792,
+            // cited in humidity.ron). The grow rooms sit at 21 C, so it runs in
+            // any of them. One heater cannot warm a big room much: in the family
+            // greenhouse (2,970 m3 under 990 m2 of roof) it adds 0.16 C and never
+            // reaches 24 C, so it runs flat out, 36 kWh a day.
+            heats_w: 1500.0,
+            heat_setpoint_c: 24.0,
+            stats: [
+                (
+                    kind: "power",
+                    value: "1,500 W while it heats, none once its air is at 24 C",
+                    status: "warn",
+                ),
+                (
+                    kind: "air",
+                    value: "warms the air of the room it stands in, up to 24 C",
+                    status: "ok",
+                ),
+            ],
+            // No average_watts: how much of the day it runs depends on the room
+            // it stands in, so the static power meter charges it its full draw.
+            // Priority 4, shed before the air handlers, with the garden's fans.
+            power: Some(Consumer(
+                watts: 1500.0,
+                priority: 4,
+            )),
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
         "anvil_station": (
             shape: "box",
             size: (0.9, 0.8, 0.5),

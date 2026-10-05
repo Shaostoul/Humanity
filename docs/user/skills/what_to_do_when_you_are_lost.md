@@ -522,10 +522,11 @@ worth saying why.
   about a week; the drain runs on the game's clock, so a faster time
   speed in Settings > Gameplay > Time empties them sooner), and low
   energy makes you fatigued and slower. Once fly mode is off, your body
-  heat is modelled from the weather, your clothes and any shelter you
-  have built: wind, rain and wet clothes pull heat out, a roof you built
-  keeps the rain off, and under a roof, walls on the windward side keep
-  the wind off. Natural cover such as a tree or a hollow does not count.
+  heat is modelled from the weather, your clothes, any shelter you have
+  built and any campfire you have built and keep burning: wind, rain and
+  wet clothes pull heat out, a roof you built keeps the rain off, under a
+  roof walls on the windward side keep the wind off, and a fire warms you
+  the nearer you stand. Natural cover such as a tree or a hollow does not count.
   While fly mode is on, the weather does not reach your body at all.
   Under the default Body heat setting, Forgiving, the temperature shown
   swings half as far from normal as under Realistic, and cold does harm

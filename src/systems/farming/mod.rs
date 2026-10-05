@@ -15,6 +15,9 @@ pub mod automation;
 pub mod units;
 pub mod picking;
 pub mod humidity;
+pub mod heat;
+#[cfg(test)]
+mod heat_tests;
 #[cfg(test)]
 mod humidity_tests;
 #[cfg(test)]
@@ -2034,8 +2037,10 @@ impl System for FarmingSystem {
                 let need_n = need_for(&c.crop_def_id, unit_plants(c)).n;
                 let cond = pests::CropConditions {
                     outdoors,
-                    // Warmer under a row cover (pests::cover_warming, 2026-09-27).
-                    temp_c: (if outdoors { f64::from(weather_temp) } else { pest_data.indoor_temp_c })
+                    // Warmer under a row cover (pests::cover_warming, 2026-09-27),
+                    // and indoors in air a heater has warmed (2026-10-05, BUG-155,
+                    // farming::heat): the rooms' own temperature plus that warmth.
+                    temp_c: (if outdoors { f64::from(weather_temp) } else { pest_data.indoor_temp_c + air_map.warmed_k_for(area, &room_air) })
                         + pests::cover_warming(pest_data, area_pests.get(area), outdoors && sun_up, pest_severity),
                     water_stressed: c.water_level < WATER_STRESS_THRESHOLD,
                     excess_n: s.map_or(false, |s| need_n > 0.0 && s.store.n > pest_data.excess_n_seasons * need_n),
@@ -2541,7 +2546,9 @@ impl System for FarmingSystem {
         // The home's own air goes into its air space, where the atmosphere
         // system judges it (breathable, toxic) and the Air readout shows it.
         if let (Some(l), true) = (life, air_map.home_known) {
-            let t_c = air_map.home_temp_c;
+            // At its temperature as the step left it: its own plus its heaters'
+            // warmth (2026-10-05, BUG-155), the one written into the space below.
+            let t_c = air_map.home_own_c + home_air.warmed_k.max(0.0);
             let rh = air_data.rh_of(home_air.vapour_g_m3, t_c).clamp(0.0, 1.0);
             let o2 = home_air.o2_g_m3 / crate::systems::life_support::pure_g_m3(air_data, l.o2_molar_mass, t_c).max(1e-9) * 100.0;
             let co2 = crate::systems::life_support::co2_ppm(air_data, home_air.co2_g_m3, t_c) / 1e4;
@@ -2549,6 +2556,18 @@ impl System for FarmingSystem {
                 sp.atmosphere.humidity = rh as f32;
                 sp.atmosphere.composition.insert("O2".to_string(), o2 as f32);
                 sp.atmosphere.composition.insert("CO2".to_string(), co2 as f32);
+            }
+        }
+        // Its temperature too (2026-10-05, BUG-155, farming::heat): its own,
+        // recorded the first time the space is seen, plus what its heaters and
+        // the grow rooms around them have warmed it by. The body heat model
+        // reads it inside the home, and the Air readout shows it.
+        if air_map.home_known {
+            for (_, (h, sp)) in world.query_mut::<(&mut crate::systems::atmosphere::HomeAir, &mut crate::systems::atmosphere::EnclosedSpace)>() {
+                if !(h.own_temp_k > 0.0) {
+                    h.own_temp_k = sp.atmosphere.temperature_k;
+                }
+                sp.atmosphere.temperature_k = (f64::from(h.own_temp_k) + home_air.warmed_k.max(0.0)) as f32;
             }
         }
         // The banked organic N, the pests and the air go back where they live.

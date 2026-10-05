@@ -42,7 +42,6 @@ pub mod disasters;
 pub mod electrical;
 pub mod plumbing;
 pub mod solar;
-pub mod hvac;
 pub mod fire;
 pub mod medical;
 pub mod status_effects;

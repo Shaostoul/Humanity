@@ -383,7 +383,9 @@ practice from the physics above:
 ## How the game models it
 
 The game models one kind of heat in real detail: the heat of your own
-body.
+body, and what the weather, your clothes, a shelter and a campfire do to
+it. It models one more simply: a heater's heat in the air of a room
+aboard.
 
 - **Your body's heat balance.** The body heat system is based on a
   published model of human temperature regulation, the two-node model
@@ -409,9 +411,29 @@ body.
   feel at least 2 C warmer or colder than the thermometer says, the
   weather line on the HUD adds what it feels like, such as "feels 35C"
   in the noon sun.
+- **A campfire.** A campfire you build on a planet's ground radiates heat
+  the way the sun does, and your body takes it the same way: as warmer
+  surroundings, falling with the square of the distance from the fire.
+  Standing 1.5 m from one on a clear, calm 0 C night, your surroundings
+  feel like about 16 C instead of minus 11; at 20 m it makes no
+  difference, and a fire that has gone out warms nothing. In life the
+  warmth lands on the side of you facing the fire; the game's body has
+  one skin, so it spreads it all round (`src/systems/construction/fires.rs`;
+  [Making and Controlling Fire](/library#making-and-controlling-fire) has the
+  rest).
 - **Indoors aboard.** Inside your home aboard the station the air is
   sealed and still, at the home's own temperature, and the weather line
-  says so: "Indoors", with the temperature and "still air".
+  says so: "Indoors", with the temperature and "still air". In a grow
+  room it is that room's own air, warmer or damper than the rest.
+- **A heater warms the room it stands in.** A space heater you build and
+  place aboard puts its 1,500 W into the air of the room it stands in, and
+  that air settles where the heater's watts and the heat the room loses
+  balance: by conduction through its walls and ceiling, and by convection
+  with the air it trades with the rest of the home
+  (`src/systems/farming/heat.rs`). In a small room that is a few degrees,
+  held at 24 C by its thermostat; in a big glass greenhouse a fraction of
+  one. Your body feels it when you stand there. [Heating a Home
+  Safely](/library#heating-a-home-safely) has the numbers.
 - **Two modes.** Settings > Gameplay > Body heat. Forgiving, the default,
   runs the same physics but your temperature swings half as far from
   normal, so harm waits until the real balance would have you below about
@@ -426,9 +448,10 @@ body.
   them; only the developer flying mode, a tool of the Dev play mode,
   switches it off.
 
-What the game leaves out, so you do not learn it from the game: nothing
-in the game conducts heat through a solid, so there are no hot handles
-and no metal that feels colder than wood; there are no scalds, no steam,
+What the game leaves out, so you do not learn it from the game: apart
+from a heated room losing heat through its walls, nothing in the game
+conducts heat through a solid, so there are no hot handles and no metal
+that feels colder than wood; there are no scalds, no steam,
 no grease fires and no superheated water; heaters set nothing alight;
 and a parked vehicle never heats up in the sun. The body heat model is
 the honest part. The rest of the heat in this guide is yours to learn
@@ -566,6 +589,11 @@ public domain. Web pages and documents were read on 3 and 4 October 2026.
   > Body heat (`src/gui/pages/settings.rs`). The HUD's weather, "feels"
   and shelter lines: `src/gui/pages/hud.rs`; shelter: 
   `src/systems/construction/uses.rs`.
+- A heater's heat in a room: `src/systems/farming/heat.rs` (the balance of
+  each air the home keeps), its numbers and sources in
+  `data/garden/humidity.ron` (THE HEAT), the heater in
+  `data/machines/home.ron` (`heater`), and its tests in
+  `src/systems/farming/heat_tests.rs`.
 - [Insulation and Heat Loss](/library#insulation-and-heat-loss), [Heating
   Water](/library#heating-water), [Firewood](/library#firewood), [Cold and
   Hypothermia](/library#cold-and-hypothermia), [Treating

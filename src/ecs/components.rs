@@ -642,6 +642,16 @@ pub struct RoomAir {
     pub co2_uptake_g_day: f64,
     #[serde(default)]
     pub co2_out_g_day: f64,
+    /// How far its heaters have warmed it above the rooms' own temperature,
+    /// K (2026-10-05, BUG-155, `farming::heat`): 0 with no heater, the room
+    /// then at `HumidityData::room_temp_c` exactly. Its air's temperature is
+    /// that plus this.
+    #[serde(default)]
+    pub warmed_k: f64,
+    /// Its heaters' share of the time their thermostat has them on, 0..1, at
+    /// the last step.
+    #[serde(default)]
+    pub heater: f64,
 }
 
 /// Litres the home's air side has moved since the save began, each on the
@@ -711,6 +721,15 @@ pub struct HomeAirState {
     /// The water ledger of the whole air (the grow rooms and this).
     #[serde(default)]
     pub ledger: AirWaterLedger,
+    /// How far heaters have warmed it above its own temperature, K
+    /// (2026-10-05, BUG-155, `farming::heat`): the heaters standing in it and
+    /// the heat the grow rooms pass it. 0 with no heater anywhere.
+    #[serde(default)]
+    pub warmed_k: f64,
+    /// Its own heaters' share of the time their thermostat has them on, 0..1,
+    /// at the last step.
+    #[serde(default)]
+    pub heater: f64,
 }
 
 /// One soil unit's pH (2026-09-26): what it is now, and what is still
@@ -913,34 +932,6 @@ impl Default for ProductionFacility {
 // The live water components (WaterTank, WaterProducer, WaterConsumer, PlumbingCircuit) live further
 // down next to PowerCircuit (v0.608). The old distance-based WaterTank/WaterFixture scaffold was
 // replaced by the island-coupled PlumbingSystem.
-
-// ── HVAC & Room Environment ─────────────────────────────────
-
-/// Per-room atmospheric state. `HvacSystem` mutates this each tick based on
-/// nearby HVAC units, room occupancy (CO2 emission), and outside conditions.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RoomEnvironment {
-    pub temp_c: f32,
-    pub humidity: f32,    // 0.0 to 1.0
-    pub co2_ppm: f32,     // healthy < 1000, drowsy > 1500, dangerous > 5000
-}
-
-impl Default for RoomEnvironment {
-    fn default() -> Self {
-        Self { temp_c: 20.0, humidity: 0.45, co2_ppm: 420.0 }
-    }
-}
-
-/// An HVAC unit. Heats, cools, or vents; affects nearby `RoomEnvironment`s
-/// each tick. `mode` is "heat" / "cool" / "vent" / "off".
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HvacUnit {
-    pub mode: String,
-    /// Target temperature in Celsius for heat/cool modes.
-    pub target_temp: f32,
-    /// Output power (kW). Higher = faster temperature change + faster ventilation.
-    pub power_kw: f32,
-}
 
 // ── Fire ────────────────────────────────────────────────────
 
@@ -1251,6 +1242,20 @@ pub struct Ventilator {
 pub struct Humidifier {
     pub output_l_h: f32,
     pub watts: f32,
+}
+
+/// A space heater (2026-10-05, BUG-155, `MachineDef::heats_w`): while its
+/// `PowerConsumer` is enabled it puts up to `heat_w` watts of heat into the
+/// air its `Transform` stands in (a grow room's or a fruiting tent's, else the
+/// home's own air). Its thermostat runs it for the share of the time that
+/// holds that air at `setpoint_c`, and off above it (`farming::heat`); it
+/// draws `watts` for that share. An electric resistance heater turns every
+/// watt it draws into heat, so its `heat_w` is its `watts`.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct SpaceHeater {
+    pub heat_w: f32,
+    pub watts: f32,
+    pub setpoint_c: f32,
 }
 
 /// An air handler (2026-09-26, `MachineDef::dehumidifies_m3_h`, ship life

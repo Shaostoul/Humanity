@@ -2,7 +2,9 @@
 //! press, and the built chests kept in the Inventory page's places tree. And
 //! the home's own machines that are used the same way (2026-10-04, first-hour
 //! audit F5): the bedroom's bed, whose def `provides: Some("rest")`, sleeps you
-//! as a built bed does (`machine_use`, `use_machine`).
+//! as a built bed does (`machine_use`, `use_machine`). And a built fire
+//! (BUG-153, 2026-10-05): its line says how it is burning, and E puts a log
+//! from the pack on it (`construction::fires`).
 //!
 //! The rules (which structures are usable, what the look ray meets, how a
 //! chest's contents are addressed) live in `systems::construction::uses`,
@@ -25,9 +27,17 @@ pub(crate) fn frame(state: &mut EngineState) {
         state.data_store.get::<BlueprintRegistry>("blueprint_registry"),
     );
     crate::gui::sync_built_stores(&mut state.gui_state.places, &stores);
-    state.gui_state.structure_prompt = target(state)
-        .map(|(_e, u, name)| u.prompt(&name))
-        .unwrap_or_default();
+    // A fire's line names its fuel and how it is burning (BUG-153).
+    let prompt = target(state).map(|(e, u, name)| match u {
+        uses::StructureUse::Tend => crate::systems::construction::fires::tend_prompt(
+            &state.game_world.world,
+            state.data_store.get::<BlueprintRegistry>("blueprint_registry"),
+            state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry"),
+            e,
+        ),
+        _ => u.prompt(&name),
+    });
+    state.gui_state.structure_prompt = prompt.unwrap_or_default();
 }
 
 /// Once per frame: the crafting stations WHERE THE PLAYER IS, for
@@ -333,6 +343,16 @@ pub(crate) fn activate(state: &mut EngineState) -> bool {
             }
         }
         uses::StructureUse::Sleep => crate::systems::sleep::request(&state.data_store, &name),
+        // A fire (BUG-153): put a log from the pack on it, or say why not.
+        uses::StructureUse::Tend => {
+            let msg = crate::systems::construction::fires::add_fuel(
+                &mut state.game_world.world,
+                state.data_store.get::<BlueprintRegistry>("blueprint_registry"),
+                state.data_store.get::<crate::systems::inventory::ItemRegistry>("item_registry"),
+                e,
+            );
+            state.gui_state.pending_notices.push(msg);
+        }
         uses::StructureUse::Store => {
             state.gui_state.active_page = crate::gui::GuiPage::Inventory;
             // Opening a page mid-walk swallows the key releases: clear held

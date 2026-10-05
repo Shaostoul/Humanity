@@ -161,9 +161,18 @@ pub struct IgnitionSource;
 /// a v0.618 stand-in that drained 0.012 percentage points of oxygen a second for three people and
 /// made it back with a 25 W "recycler": a household really uses about 2 kg of oxygen a day out of the
 /// several tonnes a sealed home holds, so a power cut costs days, not minutes.
+///
+/// Heaters (2026-10-05, BUG-155, `farming::heat`): the space's temperature is its own plus what the
+/// heaters standing in the home's own air, and the heat the grow rooms pass it, have warmed it by
+/// (`HomeAirState::warmed_k`, saved with the rest of the home's air). `own_temp_k` is that own
+/// temperature, K: the farming tick records it the first time it sees the space (0 until then, and
+/// in a space made fresh by a load or by re-entering the world, which starts at its own
+/// temperature), and from then on writes the space's temperature as this plus the warmth, so the
+/// two never drift apart.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct HomeAir {
     pub metabolic_kcal_per_day: f32,
+    pub own_temp_k: f32,
 }
 
 /// Live air readout, published to the DataStore each tick (key `air_status`) so the GUI can show the

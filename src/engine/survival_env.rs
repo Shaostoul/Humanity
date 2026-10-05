@@ -6,7 +6,8 @@
 //! built (`construction::uses::shelter_at`, 2026-09-27)? And what does the body heat model
 //! (`systems::body_heat`) need to know about where they stand: the air's
 //! temperature, humidity and pressure, the wind, anything falling on them,
-//! and what they are doing. FoodSystem reads the result from the DataStore
+//! what they are doing, and the warmth of any campfire burning near them
+//! (BUG-153, 2026-10-05: `warmed_by_fires`). FoodSystem reads the result from the DataStore
 //! ("environment_context") to drive oxygen and the core temperature, and the
 //! Settings > Gameplay > Body heat mode rides beside it (`body_heat::MODE_KEY`),
 //! as does the Illness mode (`illness::MODE_KEY`, BUG-162).
@@ -125,6 +126,39 @@ pub(crate) fn outside_context(
     }
 }
 
+/// The context with the warmth of the fires near the player added
+/// (BUG-153, 2026-10-05): `absorbed_w_m2` is what their body takes from every
+/// burning fire (`construction::fires::warmth_at`), put into the mean radiant
+/// temperature (`body_heat::radiant_with_source_c`) on top of the open sky's,
+/// or of the air's where a roof hides the sky. Nothing absorbed, nothing
+/// changed. Pure, so the chain is tested.
+pub(crate) fn warmed_by_fires(mut ctx: EnvironmentContext, absorbed_w_m2: f64) -> EnvironmentContext {
+    if absorbed_w_m2 > 0.0 {
+        let surroundings = ctx.radiant_temp_c.unwrap_or(ctx.ambient_temp_c);
+        ctx.radiant_temp_c = Some(body_heat::radiant_with_source_c(surroundings, absorbed_w_m2));
+    }
+    ctx
+}
+
+/// The heat the player's body takes from the burning fires on the body they
+/// stand on, W per square metre of its radiating area (BUG-153). Fires stand
+/// only on a planet's ground, so aboard there is none. Their middle is a
+/// standing body's (`fires::BODY_MIDDLE_M` above the feet, under the eye at
+/// the frame lock's anchor), in the body's frame in f64, which is where every
+/// fire's place is taken too (`fires::warmth_at`).
+fn fire_warmth(state: &EngineState) -> f64 {
+    use crate::systems::construction::fires;
+    if state.aboard_station {
+        return 0.0;
+    }
+    let Some(body) = state.frame_lock_body.as_deref() else { return 0.0 };
+    let eye = state.frame_lock_anchor;
+    let up = eye.normalize_or_zero();
+    let middle = eye - up * (crate::surface_walk::EYE_HEIGHT_M - fires::BODY_MIDDLE_M);
+    let registry = state.data_store.get::<crate::systems::construction::BlueprintRegistry>("blueprint_registry");
+    fires::warmth_at(&state.game_world.world, registry, body, middle, up)
+}
+
 /// Once per frame: publish the survival context, the body heat mode and the
 /// illness mode (BUG-162, `systems::illness`).
 pub(crate) fn publish(state: &mut EngineState) {
@@ -200,12 +234,21 @@ pub(crate) fn publish(state: &mut EngineState) {
                     .map(|a| a.breathable)
                     .unwrap_or(true);
                 let home = home_air(&state.game_world.world);
+                // The air where they stand (2026-10-05, BUG-155): a grow room's
+                // own when they stand in one (its heaters' warmth and its damp
+                // with it), else the home's own air, warmed by any heater in it.
+                // A heater warms the AIR; a fire warms the SURROUNDINGS, from
+                // that air (`warmed_by_fires`, BUG-153), so were a fire ever to
+                // burn aboard the two would add up, not replace each other
+                // (`a_heaters_warm_air_and_a_fires_warmth_add_up`).
+                let grow_room = crate::systems::farming::humidity::grow_room_air_at(&state.game_world.world, &state.data_store, pos.to_array());
                 let base = EnvironmentContext::default();
+                let (air_c, rh, kpa) = indoor_air(home, grow_room, &base);
                 EnvironmentContext {
                     oxygenated: breathable,
-                    ambient_temp_c: home.map_or(base.ambient_temp_c, |h| h.0),
-                    relative_humidity: home.map_or(base.relative_humidity, |h| h.1),
-                    pressure_kpa: home.map_or(base.pressure_kpa, |h| h.2),
+                    ambient_temp_c: air_c,
+                    relative_humidity: rh,
+                    pressure_kpa: kpa,
                     activity_met: activity,
                     // A sealed hull stops vacuum, not acceleration.
                     g_load: felt_g_now,
@@ -256,7 +299,9 @@ pub(crate) fn publish(state: &mut EngineState) {
                         crate::systems::solar::sun_factor(crate::systems::weather::local_solar_hour(&gt, &env, home_lon))
                     });
                 sheltered_air = air;
-                outside_context(air, outside_breathable, shelter, activity, felt_g_now)
+                // A campfire's warmth (BUG-153): the fires burning near
+                // the player, on top of the open sky's.
+                warmed_by_fires(outside_context(air, outside_breathable, shelter, activity, felt_g_now), fire_warmth(state))
             }
             Whereabouts::NoHome => EnvironmentContext::default(),
         }
@@ -318,9 +363,24 @@ pub(crate) fn refresh_ship_spaces(state: &mut EngineState) {
     state.aboard_bounds = ship.and_then(|s| s.aboard_bounds());
 }
 
+/// The air a body feels inside the home (2026-10-05, BUG-155): temperature
+/// (C), relative humidity (0 to 1) and pressure (kPa). A grow room's own air
+/// (`farming::humidity::grow_room_air_at`) where the player stands in one, at
+/// the home's pressure; else the home's own air (`home_air`); else the
+/// context's defaults, before anything is spawned. Pure, so it can be tested.
+pub(crate) fn indoor_air(home: Option<(f32, f32, f32)>, grow_room: Option<(f64, f64)>, base: &EnvironmentContext) -> (f32, f32, f32) {
+    let kpa = home.map_or(base.pressure_kpa, |h| h.2);
+    match (grow_room, home) {
+        (Some((t, rh)), _) => (t as f32, (rh as f32).clamp(0.0, 1.0), kpa),
+        (None, Some(h)) => (h.0, h.1, kpa),
+        (None, None) => (base.ambient_temp_c, base.relative_humidity, kpa),
+    }
+}
+
 /// THE home's air: temperature (C), relative humidity (0 to 1) and pressure
 /// (kPa), from its enclosed space (`atmosphere::HomeAir`). None before the
-/// home is spawned.
+/// home is spawned. Its temperature carries what heaters have warmed it by
+/// (the farming tick writes it, `farming::heat`).
 fn home_air(world: &hecs::World) -> Option<(f32, f32, f32)> {
     use crate::systems::atmosphere::{EnclosedSpace, HomeAir};
     world.query::<(&HomeAir, &EnclosedSpace)>().iter().next().map(|(_, (_, s))| {
@@ -336,6 +396,65 @@ mod tests {
     use crate::systems::body_environment::BodyEnvironment;
     use crate::systems::weather::WeatherSystem;
     use crate::ecs::systems::System;
+
+    /// THE AIR A BODY FEELS INSIDE THE HOME IS THE ROOM'S IT STANDS IN
+    /// (2026-10-05, BUG-155): a grow room's own air where the player stands in
+    /// one (a greenhouse a heater has warmed to 22.05 C, at its own 62%), else
+    /// the home's own air (whose temperature carries any heater's warmth in it,
+    /// farming::heat), else the context's defaults; the pressure is the home's.
+    /// Red before this: the greenhouse's air was never read, so the player in a
+    /// heated greenhouse felt the house's 19.85 C.
+    #[test]
+    fn indoors_the_body_feels_the_air_of_the_room_it_stands_in() {
+        let base = EnvironmentContext::default();
+        let home = Some((19.85_f32, 0.5_f32, 101.3_f32));
+        assert_eq!(indoor_air(home, Some((22.05, 0.62)), &base), (22.05, 0.62, 101.3));
+        assert_eq!(indoor_air(home, None, &base), (19.85, 0.5, 101.3));
+        assert_eq!(indoor_air(None, None, &base), (base.ambient_temp_c, base.relative_humidity, base.pressure_kpa));
+    }
+
+    /// A HEATER'S WARM AIR AND A FIRE'S WARMTH ADD UP (BUG-155 with BUG-153,
+    /// 2026-10-05). A heater warms the AIR the body is in (`indoor_air`, the
+    /// ambient temperature); a fire warms its SURROUNDINGS (`warmed_by_fires`,
+    /// the mean radiant temperature), starting from that air when nothing else
+    /// sets them. So neither replaces the other: the fire's warmth goes on top
+    /// of the air the heater warmed. No fire burns aboard and no heater stands
+    /// outside today, so the two never meet in one frame; this holds the
+    /// contract for the day they do. In a greenhouse a heater has warmed to
+    /// 22.05 C with a campfire's 130 W/m2 (about what a body takes 1.5 m from
+    /// one), the body keeps the heater's air, its surroundings are warmer than
+    /// with the fire alone, and after an hour its skin is warmer than with
+    /// either alone. Red with `warmed_by_fires` setting the radiant temperature
+    /// from the rooms' fixed 21 C instead of the context's air: the heater's
+    /// warmth was lost under the fire's.
+    #[test]
+    fn a_heaters_warm_air_and_a_fires_warmth_add_up() {
+        let base = EnvironmentContext::default();
+        let home = Some((19.85_f32, 0.5_f32, 101.3_f32));
+        let indoors = |grow_room: Option<(f64, f64)>| {
+            let (air_c, rh, kpa) = indoor_air(home, grow_room, &base);
+            EnvironmentContext { ambient_temp_c: air_c, relative_humidity: rh, pressure_kpa: kpa, ..base }
+        };
+        let flux = 130.0;
+        let neither = indoors(None);
+        let heater = indoors(Some((22.05, 0.5)));
+        let fire = warmed_by_fires(indoors(None), flux);
+        let both = warmed_by_fires(indoors(Some((22.05, 0.5))), flux);
+        assert_eq!(both.ambient_temp_c, 22.05, "the fire leaves the heater's air alone");
+        let radiant = |c: &EnvironmentContext| c.radiant_temp_c.unwrap_or(c.ambient_temp_c);
+        assert_eq!(radiant(&both), body_heat::radiant_with_source_c(22.05, flux), "the fire's warmth on top of the heater's air");
+        assert!(radiant(&both) > radiant(&fire) && radiant(&both) > radiant(&heater), "surroundings {} with both, {} fire, {} heater", radiant(&both), radiant(&fire), radiant(&heater));
+        let skin_after_an_hour = |c: &EnvironmentContext| {
+            let ex = body_heat::Exposure::from_context(c);
+            let mut body = body_heat::BodyHeat::new(body_heat::CORE_NEUTRAL_C);
+            for _ in 0..60 {
+                body.step(&ex, body_heat::BASE_OUTFIT_CLO, body_heat::MET_STANDING, 60.0);
+            }
+            body.skin_c
+        };
+        let (b, f, h, n) = (skin_after_an_hour(&both), skin_after_an_hour(&fire), skin_after_an_hour(&heater), skin_after_an_hour(&neither));
+        assert!(b > f && b > h && h > n, "skin after an hour: both {b:.3}, fire {f:.3}, heater {h:.3}, neither {n:.3}");
+    }
 
     /// INSIDE THE HOME REQUIRES ABOARD (the review's missing test). The same
     /// camera position inside the home's box is the home's air aboard and
@@ -707,6 +826,132 @@ mod tests {
             shade.core_c,
             shade.skin_c
         );
+    }
+
+    // ── BUG-153: a campfire's warmth reaches the body ─────────────────
+
+    /// A clear, calm 0 C night with the sun down: the cold case a campfire is for.
+    const CLEAR_FREEZING_NIGHT: ExposedAir = ExposedAir {
+        temp_c: 0.0,
+        relative_humidity: 0.7,
+        wind_m_s: 0.0,
+        precipitation: 0.0,
+        pressure_kpa: SEA_LEVEL_KPA,
+        upwind: Vec3::ZERO,
+        cloud: 0.0,
+        sun_sin: Some(0.0),
+    };
+
+    /// A finished campfire at the origin of a build site on Earth's ground,
+    /// with `fuel_s` of burning left, as the ConstructionSystem leaves one.
+    fn campfire_site(fuel_s: f32) -> (hecs::World, crate::systems::construction::BlueprintRegistry, crate::systems::construction::PlanetSite) {
+        use crate::ecs::components::Transform;
+        use crate::systems::construction::{fires::FireFuel, BlueprintRegistry, PlanetSite, Structure};
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/blueprints/basic.ron"))).unwrap();
+        let site = PlanetSite { body: "earth".into(), origin: glam::DVec3::new(0.0, 6_371_000.0, 0.0) };
+        let bp = reg.get("campfire").expect("campfire in basic.ron");
+        let mut world = hecs::World::new();
+        world.spawn((
+            Transform { position: Vec3::ZERO, rotation: glam::Quat::IDENTITY, scale: Vec3::from_array(bp.size) },
+            Structure { blueprint_id: "campfire".into(), health: bp.health, max_health: bp.health, provides: bp.provides.clone(), uid: 1 },
+            site.clone(),
+            FireFuel { seconds_left: fuel_s },
+        ));
+        (world, reg, site)
+    }
+
+    /// What a person standing `x` metres from the fire's centre is exposed to
+    /// on the clear freezing night: their middle in the site, the warmth they
+    /// take from the fires (`fires::warmth_at`), the open context and the
+    /// fires' warmth on it (`warmed_by_fires`), as the body model reads it.
+    fn by_the_fire(world: &hecs::World, reg: &crate::systems::construction::BlueprintRegistry, site: &crate::systems::construction::PlanetSite, x: f32) -> (f64, body_heat::Exposure) {
+        use crate::systems::construction::fires;
+        let middle = site.to_body(Vec3::new(x, fires::BODY_MIDDLE_M as f32, 0.0));
+        let warmth = fires::warmth_at(world, Some(reg), "earth", middle, site.origin.normalize());
+        let ctx = outside_context(CLEAR_FREEZING_NIGHT, true, uses::ShelterCheck::default(), body_heat::MET_STANDING, 1.0);
+        (warmth, body_heat::Exposure::from_context(&warmed_by_fires(ctx, warmth)))
+    }
+
+    /// A body in the everyday outfit standing for `hours` in `ex`.
+    fn standing_for(ex: &body_heat::Exposure, hours: u32) -> body_heat::BodyHeat {
+        let mut body = body_heat::BodyHeat::new(body_heat::CORE_NEUTRAL_C);
+        for _ in 0..hours * 60 {
+            body.step(ex, body_heat::BASE_OUTFIT_CLO, body_heat::MET_STANDING, 60.0);
+        }
+        body
+    }
+
+    /// BUG-153. A CAMPFIRE ON A COLD NIGHT KEEPS A BODY WARMER THAN ONE 20 M
+    /// AWAY. A clear, calm 0 C night, standing in the everyday outfit: 1.5 m
+    /// from a burning campfire's centre the surroundings the body feels are
+    /// about 16 C (the open sky's are -11 C), and after an hour the core is
+    /// warmer, the skin much warmer and the body shivers less than 20 m away,
+    /// where the fire moves the surroundings by under half a degree. Half a
+    /// metre from the ring (1 m from its centre) the body keeps a normal core
+    /// through the whole night without shivering enough to show, while 20 m
+    /// away it shivers hard all night: the fire keeps a person in ordinary
+    /// clothes warm on a freezing night, from close enough. The whole chain: a
+    /// finished campfire in a build site, `fires::warmth_at` at the person's
+    /// middle, `outside_context`, `warmed_by_fires`, `Exposure::from_context`,
+    /// the body model. Seen red 2026-10-05 with `warmed_by_fires` passing the
+    /// context through unchanged, which is the code before the fix (no fire
+    /// term anywhere): the 1.5 m and 20 m bodies were the same.
+    #[test]
+    fn a_campfire_by_a_cold_night_keeps_a_body_warmer_than_one_20_m_away() {
+        let (world, reg, site) = campfire_site(2.0 * 3600.0);
+        let open = body_heat::Exposure::from_context(&outside_context(
+            CLEAR_FREEZING_NIGHT,
+            true,
+            uses::ShelterCheck::default(),
+            body_heat::MET_STANDING,
+            1.0,
+        ));
+        let (_, near) = by_the_fire(&world, &reg, &site, 1.5);
+        let (_, close) = by_the_fire(&world, &reg, &site, 1.0);
+        let (_, far) = by_the_fire(&world, &reg, &site, 20.0);
+        assert!(open.radiant_c < -10.0, "the clear night sky: {} C", open.radiant_c);
+        assert!(near.radiant_c > 12.0, "1.5 m from the fire: {} C", near.radiant_c);
+        assert!((far.radiant_c - open.radiant_c).abs() < 0.5, "20 m away: {} C against the open {} C", far.radiant_c, open.radiant_c);
+
+        let (near_1h, far_1h) = (standing_for(&near, 1), standing_for(&far, 1));
+        assert!(
+            near_1h.core_c > far_1h.core_c + 0.05,
+            "after an hour, core {:.3} C at 1.5 m and {:.3} C at 20 m",
+            near_1h.core_c,
+            far_1h.core_c
+        );
+        assert!(near_1h.skin_c > far_1h.skin_c + 2.0, "skin {:.2} C at 1.5 m, {:.2} C at 20 m", near_1h.skin_c, far_1h.skin_c);
+        assert!(near_1h.shiver_w_m2 < far_1h.shiver_w_m2, "shivering {:.1} W/m2 at 1.5 m, {:.1} at 20 m", near_1h.shiver_w_m2, far_1h.shiver_w_m2);
+
+        let (close_night, far_night) = (standing_for(&close, 8), standing_for(&far, 8));
+        assert!(
+            !close_night.is_shivering() && close_night.core_c > 36.6,
+            "8 h half a metre from the ring: core {:.2} C, shivering {:.1} W/m2",
+            close_night.core_c,
+            close_night.shiver_w_m2
+        );
+        assert!(far_night.is_shivering(), "8 h at 20 m: shivering {:.1} W/m2", far_night.shiver_w_m2);
+    }
+
+    /// BUG-153. AN OUT CAMPFIRE GIVES NO HEAT. The same freezing night beside
+    /// the same campfire with its fuel burnt out: the fire gives nothing, the
+    /// surroundings are exactly the open sky's, and the body after an hour is
+    /// exactly the one with no fire at all. Seen red 2026-10-05 with
+    /// `fires::warmth_at` counting every fire, burning or not.
+    #[test]
+    fn an_out_campfire_gives_no_heat() {
+        let (world, reg, site) = campfire_site(0.0);
+        let (warmth, ex) = by_the_fire(&world, &reg, &site, 1.5);
+        assert_eq!(warmth, 0.0, "an out fire radiates nothing");
+        let open = body_heat::Exposure::from_context(&outside_context(
+            CLEAR_FREEZING_NIGHT,
+            true,
+            uses::ShelterCheck::default(),
+            body_heat::MET_STANDING,
+            1.0,
+        ));
+        assert_eq!(ex, open, "beside an out fire, the open night");
+        assert_eq!(standing_for(&ex, 1), standing_for(&open, 1));
     }
 
     #[test]

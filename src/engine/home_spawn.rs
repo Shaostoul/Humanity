@@ -99,7 +99,7 @@ pub(crate) fn spawn_home_air_space(world: &mut hecs::World, metabolic_kcal_per_d
     if world.query::<&HomeAir>().iter().next().is_some() {
         return; // already present
     }
-    world.spawn((HomeMachine, HomeAir { metabolic_kcal_per_day }, EnclosedSpace::new_sealed(volume_m3.max(1.0))));
+    world.spawn((HomeMachine, HomeAir { metabolic_kcal_per_day, own_temp_k: 0.0 }, EnclosedSpace::new_sealed(volume_m3.max(1.0))));
 }
 
 /// Spawn ONE ECS entity for a placed home machine, attaching its power role + electrical island AND
@@ -141,6 +141,7 @@ pub(crate) fn spawn_home_machine_entity(
         && def.humidifies_l_h <= 0.0
         && def.dehumidifies_m3_h <= 0.0
         && def.scrubs_co2_kg_day <= 0.0
+        && def.heats_w <= 0.0
     {
         return;
     }
@@ -319,6 +320,19 @@ pub(crate) fn spawn_home_machine_entity(
             _ => 0.0,
         };
         let _ = world.insert_one(e, crate::ecs::components::Co2Scrubber { rated_kg_day: def.scrubs_co2_kg_day, watts });
+    }
+    // Space heater (2026-10-05, BUG-155): FarmingSystem's air step runs it on its thermostat to warm
+    // the air around this entity's Transform (a grow room's or a fruiting tent's, else the home's
+    // own), drawing its Consumer watts for the share of the time it runs (farming::heat).
+    if def.heats_w > 0.0 {
+        let watts = match &def.power {
+            Some(MachinePower::Consumer { watts, .. }) => *watts,
+            _ => 0.0,
+        };
+        let _ = world.insert_one(
+            e,
+            crate::ecs::components::SpaceHeater { heat_w: def.heats_w, watts, setpoint_c: def.heat_setpoint_c },
+        );
     }
     // Economy automation (v0.663): a machine with an `auto_recipe` continuously
     // runs that recipe against the home inventory (CraftingSystem's AutoRefine

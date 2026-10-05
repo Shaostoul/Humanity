@@ -118,7 +118,9 @@ every load-bearing claim checked by an adversarial verifier
   "aboard" is inside the ship's bounds; delivery by view, in at 250 m and out
   at 300 m; each home has its own air; nobody is told who lives on which
   plot). Three reviews, 21 findings fixed; its new rig legs found BUG-151.
-  NEXT: increment 5, building only on your own plot (design doc section 7:
+  NEXT: increment 5, building only on your own plot, IN PROGRESS 2026-10-05 (build plan:
+  docs/design/ship-homes-increment-5-plan.md; Wave 0, the contract, building; then Waves 1 to 3)
+  (design doc section 7:
   `may_build`/`may_remove`, the permit certificate, ShipStructureEditing off
   while joined unless the relay grants `can_edit_ship`, through the ALTER
   block per BUG-046). Left for later (design doc section 7): a Dev move of the plot
@@ -216,7 +218,12 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   First Street. Plots are on the west side only until a home can turn to face a street.
 - **Operator choices to confirm when convenient:** the opening's first tool is a
   fishing rod (no fishing yet) and its useful thing a storage chest; death's 60 minutes
-  of play before a pack is gone.
+  of play before a pack is gone. Increment 5's four questions, answered with the plan's
+  recommendations (2026-10-05): materials from a piece taken down go to whoever takes it
+  down; a released plot's pieces come down with it; household permits end within 90 days,
+  renewable, and the household page is a later increment 5b; `can_edit_ship` builds the
+  ship's shared spaces through the server, whole-ship editing stays offline Dev, Admin has
+  it by default.
 - **FTL reopened (operator, 2026-10-05, a proposal):** FTL, with ships built to survive
   indefinitely if it is ever lost (docs/design/gravity-and-movement.md, the interstellar
   section). Recommended; awaiting his answer.
@@ -316,9 +323,11 @@ than its inputs cost at standard grade, and vehicles carry real bills of
 materials (v0.1455.0), and a hand craft draws on the home's storage
 (BUG-147, v0.1457.0). Still to do from that: the right station per vehicle
 class (everything is built at `workbench_0`), and the `assemble_*` kit
-recipes given real bills of materials too. Open in `docs/BUGS.md`: BUG-146, a
-better craft grade still loops at the vendor (the fix is a vendor price that
-responds to how much of a good it already holds, not lower prices). Smaller:
+recipes given real bills of materials too. BUG-146 (a better craft grade
+looped at the vendor) is fixed, merging in v0.1463.0: a grade's price is
+capped by what its parts cost at the post (`src/systems/economy/parts.rs`);
+a price that falls with the post's stock was not enough on its own, since
+the first sales still paid in full, but could sit on top later. Smaller:
 `craft_optical_fiber` makes copper wire (no optical fibre item), sterile
 bandages yield 8 against 5 plain, several item weights differ between
 items.csv and trade_goods.ron, and herbal_tea_0 and brass_key_0 are named
