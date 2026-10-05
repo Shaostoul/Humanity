@@ -113,8 +113,16 @@ triangle):
 The side you choose matters. Water on wood and paper is right. Water on
 a pan of burning fat or on burning liquid fuel spreads it: [Heat and How
 It Moves](/library#heat-and-how-it-moves) explains the pan fire, and the CPSC's
-kerosene heater warning says not to put water on that fire either. Fire
-extinguishers are labelled for the kind of fire they suit. The USFA
+kerosene heater warning says not to put water on that fire either. Nor
+does water go on anything electrical that still has power: water
+conducts electricity, which is why the extinguishers for plugged-in
+equipment use an agent that does not (our reading of the USFA's classes
+below), and why the CPSC keeps electric heaters away from water "To
+prevent electrical shocks and electrocutions". For a burning appliance,
+use an extinguisher only if the USFA's checklist (below, under "When it
+gets away") allows it; otherwise get out and call 911.
+
+Fire extinguishers are labelled for the kind of fire they suit. The USFA
 lists five kinds: class A for ordinary materials like cloth, wood and
 paper; class B for flammable liquids such as grease, gasoline, oil and
 oil-based paint; class C for electrical equipment, using an agent that
@@ -332,6 +340,17 @@ Indoors, the clock is the danger.
   and use your second way out. Sleep with the bedroom door closed. If you
   cannot get out, close the door, cover the cracks and vents, call 911,
   and signal at a window with a light-coloured cloth or a flashlight.
+- **Once out, stay out.** The USFA's escape pictograph says to get out
+  and stay out, and go to your outside meeting place: "Never go back
+  inside." Ready.gov: "If you can't get to someone needing assistance,
+  leave the home and call 9-1-1 or the fire department. Tell the
+  emergency operator where the person is located." If pets are trapped
+  inside, tell firefighters right away (Ready.gov), and tell the fire
+  department if anyone is still inside (the USFA's escape plan page).
+  Firefighters have the gear to go in and you do not (our reading).
+  After the fire, Ready.gov says to check with the fire department that
+  your home is safe to enter, and not to reconnect the utilities
+  yourself.
 - **A plan before you need one.** The USFA: draw a map of your home with
   all doors and windows, find two ways out of every room, choose an
   outside meeting place in front of the home, and practise the drill with
@@ -368,22 +387,25 @@ warning to keep sleeves and dangling clothing away from the cooktop.
 
 ## Burning yard waste and brush
 
-Around Puget Sound this is now the exception, not the rule. Central
-Kitsap Fire & Rescue explains the history: the state's outdoor burning
-rule (chapter 173-425 of the Washington Administrative Code), adopted
-by the Department of Ecology on 13 April 2000, ended outdoor burning in
-urban growth areas and other high-density areas after 31 December 2000,
-and land clearing burning has not been allowed in Kitsap County since 1
-September 2009 (all restated). The Puget Sound Clean Air Agency says that
-burning yard waste is never allowed in the urbanized areas of its four
-counties, that land-clearing fires are banned across all four, and that
-burning trash, using a burn barrel and smoking out your neighbour are
-always illegal; it puts fines for illegal fires at typically $1,000 or
-more, plus the cost of the fire department's response (restated).
+As of October 2026, around Puget Sound this is the exception, not the
+rule. Central Kitsap Fire & Rescue explains the history: the Department
+of Ecology adopted the state's outdoor burning rule (chapter 173-425 of
+the Washington Administrative Code) on 13 April 2000, the state's
+revised Clean Air Act ended outdoor burning in urban growth areas and
+other high-density areas after 31 December 2000, and land clearing
+burning has not been allowed in Kitsap County since 1 September 2009
+(all restated, read 4 October 2026). The Puget Sound Clean Air Agency
+says that burning yard waste is never allowed in the urbanized areas of
+its four counties, that land-clearing fires are banned across all four,
+and that burning trash, using a burn barrel and smoking out your
+neighbour are always illegal; it puts fines for illegal fires at
+typically $1,000 or more, plus the cost of the fire department's
+response (restated).
 
 Where residential burning is still allowed, it needs a permit from the
 local fire district, and comes with conditions. Central Kitsap Fire &
-Rescue's, for its area outside the no-burn zone, include (restated): only
+Rescue's, for its area outside the no-burn zone, include (restated, as
+read on 4 October 2026): only
 natural vegetation grown on that property, such as leaves, clippings and
 prunings; a small pile no bigger than 4 by 4 by 3 feet, or a large one
 no bigger than 10 by 10 by 7 feet; the pile at least 10 times its own
@@ -391,9 +413,20 @@ diameter from any structure (for a large pile, up to 50 feet) and at
 least 25 feet from anything combustible; lit no earlier than sunrise and
 not fed after sunset; one pile at a time; and the permit kept on site.
 
-Where you may not burn, the clean alternatives are compost, chipping and
-yard waste collection (general practice); [Your First
-Compost](/library#your-first-compost) covers the first.
+That may change. The Puget Sound Clean Air Agency is drafting a rule on
+residential yard waste burning across its four counties: state law says
+that where people have reasonable alternatives, such as yard waste
+collection or a drop-off site, the burning must be prohibited, and the
+agency has found such alternatives available across the whole region.
+If the prohibition is adopted, residential yard waste burning would no
+longer be allowed; until then the current rules stay in force (read 4
+October 2026, restated). Check the agency's page before you plan a
+permitted burn.
+
+Where you may not burn, the alternatives the clean air agency names are
+curbside yard waste collection, drop-off sites, and composting, brush
+piles or mulching at home (restated); [Your First
+Compost](/library#your-first-compost) covers composting.
 
 ## Worked example: a back-yard fire pit in Silverdale
 
@@ -429,8 +462,10 @@ Silverdale wants a fire in the back yard.
    cooking, camp and bonfires no bigger than 3 feet, at least 25 feet from
    any structure, of charcoal or dry firewood only, in a designated fire
    pit, and no milled lumber, treated or untreated (all restated). The
-   clean air agency adds a height limit of 2 feet and allows manufactured
-   firelogs too.
+   clean air agency adds a height limit of 2 feet. Its list of fuels also
+   includes manufactured firelogs, but Central Kitsap Fire & Rescue's
+   list for this zone does not, so here it is charcoal or dry firewood
+   only (our reading: follow the narrower rule).
 3. **The spot.** Their steel fire pit sits on gravel 30 feet from the
    house, the shed and the fence, under open sky. The woodpile is on the
    far side of the yard.
@@ -485,8 +520,10 @@ Silverdale wants a fire in the back yard.
   Agency's counties a burn barrel is always illegal.
 - **"It's only scrap wood."** Pallets and offcuts are milled lumber, and
   painted or treated wood gives off poisons.
-- **"Throw water on it."** Not on a pan of burning fat, and not on burning
-  fuel.
+- **"Throw water on it."** Not on a pan of burning fat, not on burning
+  fuel, and not on anything electrical that still has power.
+- **"I'll just run back in for the dog."** Once out, stay out: tell the
+  firefighters where the pet is (Ready.gov, USFA).
 - **"I'll get the extinguisher" when the fire is already bigger than a
   wastebasket.** Get out and call 911.
 
@@ -495,21 +532,34 @@ Silverdale wants a fire in the back yard.
 The game does not model fire yet, and it is worth saying exactly how far
 that goes.
 
-- **A skill with no way to level it.** The skill list has Fire Making, up
-  to level 15, but nothing in the game awards it any experience: no
-  recipe, ability or quest names it (`data/skills/skills.csv`; a search of
-  the game's data and code finds it nowhere else that counts).
-- **A kit with nothing to light.** The item list has a Campfire Kit,
+- **A skill nothing trains.** The skill list has Fire Making, up to level
+  15, but nothing you do in the game earns it experience: no recipe,
+  ability or quest names it (`data/skills/skills.csv`; a search of the
+  game's data and code finds it nowhere else that counts). Only the
+  Profile page's "Dev: max skills" button, shown by default during
+  development, raises it, along with every other skill
+  (`src/gui/pages/profile.rs`, `src/systems/skills/mod.rs`).
+- **A campfire that is not a fire.** The item list has a Campfire Kit,
   "Tinder flint and starter bundle", and decorative Candles and Handheld
   Torches, but there is no campfire to build and no flame to light
-  (`data/items.csv`).
+  (`data/items.csv`). The Abilities list does have a Campfire ability,
+  described as building a campfire for warmth, light and slow healing,
+  and for a new character it sits in the first slot of the hotbar, so
+  the 1 key casts it. Casting it costs 15 energy and restores 3 health at
+  once, and that is all: nothing burns, lights or warms
+  (`data/abilities.csv`, `src/systems/abilities.rs`). That is a known
+  bug, BUG-153.
 - **Charcoal without a fire.** The Make Charcoal recipe turns three wood
   logs into four Coal (the game's charcoal) in a kiln, and the home has a
   kiln in its forge room; recipes at the smelter, kiln and forge list
   charcoal among their ingredients (`data/recipes.csv`,
   `data/machines/home.ron`). In the default Dev play mode the Crafting
-  page still asks for those ingredients but uses none of them up. No flame
-  or smoke is involved either way.
+  page still asks for those ingredients but uses none of them up. The
+  home's smelter is different: it runs Smelt Iron by itself, and a
+  machine that runs by itself always uses up real ingredients, its
+  charcoal included, taken from home storage and never from your
+  backpack (`src/systems/crafting/mod.rs`). No flame or smoke is involved
+  either way.
 - **Nothing burns.** The code has a fire system that would let fires
   spread and do harm (`src/systems/fire.rs`), but nothing registers it, so
   in the game nothing catches fire, spreads fire or has to be put out. The
@@ -518,7 +568,8 @@ that goes.
 - **No burn bans, smoke or wind-blown sparks.** There are no fire
   restrictions, no smoke and no wildfire.
 - **Warmth without fire.** Out on a planet, built shelter keeps wind and
-  rain off your body but no fire warms you; [Heating a Home
+  rain off your body, and a roof hides the cold night sky, but no fire
+  warms you, not even the Campfire ability; [Heating a Home
   Safely](/library#heating-a-home-safely) describes the body heat model and its
   default settings.
 
@@ -544,7 +595,10 @@ you meant it to.
 - You know the USFA's extinguisher checklist and PASS, and that the
   default answer indoors is to get out and call 911.
 - Your household has practised its fire escape plan, with two ways out of
-  every room.
+  every room and a meeting place outside, and everyone knows that once
+  out, nobody goes back in.
+- You never put water on burning fat, burning fuel or anything electrical
+  that still has power.
 - You know what you may and may not burn where you live, and who issues
   permits there.
 
@@ -592,14 +646,21 @@ October 2026.
   of sight and reach; fireworks).
   https://www.usfa.fema.gov/prevention/outdoor-fires/
 - US Fire Administration. Choosing and Using Fire Extinguishers, page last
-  reviewed 1 April 2023 (the five classes; multipurpose A-B-C; the
-  checklist; PASS; fire department training).
+  reviewed 1 April 2023 (the five classes, class C using an agent that
+  does not conduct electricity; multipurpose A-B-C; the checklist; PASS;
+  fire department training).
   https://www.usfa.fema.gov/prevention/home-fires/prepare-for-fire/fire-extinguishers/
+- US Fire Administration. Pictograph: Practice Feeling The Door, page
+  last reviewed 8 September 2021 (get out and stay out; "Never go back
+  inside."; go to your outside meeting place).
+  https://www.usfa.fema.gov/gallery/pictographs/pictograph13.html
 - US Fire Administration. Learn About Fire, page last reviewed 12
   September 2024 (less than 2 minutes to escape; smoke and toxic gases
   kill more people than flames), and Home Fire Escape Plans, page last
   reviewed 10 April 2025 (the map, two ways out, a meeting place, the
-  drill). https://www.usfa.fema.gov/prevention/home-fires/learn-about-fire/
+  drill; staying at the meeting place and telling the fire department if
+  someone is trapped, in its advice for high-rise residents).
+  https://www.usfa.fema.gov/prevention/home-fires/learn-about-fire/
   and https://www.usfa.fema.gov/prevention/home-fires/prepare-for-fire/home-fire-escape-plans/
 - US Fire Administration. Candle Fire Safety, page last reviewed 1 April
   2023 (12 inches; stable holders; blow them out; none in bedrooms,
@@ -614,6 +675,11 @@ October 2026.
 - US Consumer Product Safety Commission. *CPSC Stresses Kerosene Heater
   Safety*, Safety Alert, Publication 5052, revised April 2011 (do not put
   water on a kerosene heater fire). https://www.cpsc.gov/s3fs-public/5052.pdf
+- US Consumer Product Safety Commission. *Reducing Fire Hazards for
+  Portable Electric Heaters*, Publication 098, printed with the codes
+  012011 and 012013 (electric heaters kept away from water to prevent
+  electrical shocks and electrocutions).
+  https://www.cpsc.gov/s3fs-public/heaters.pdf
 - US Consumer Product Safety Commission. *Gas Grill* fact sheet,
   Publication 467, revised January 2013 (at least 10 feet from the house
   or any building). https://www.cpsc.gov/s3fs-public/GasGrill_factsheet_2013.pdf
@@ -631,8 +697,12 @@ October 2026.
 - Federal Emergency Management Agency, Ready.gov. Home Fires, last updated
   26 February 2026 (fire as a tool, not a toy; less than 30 seconds; crawl
   low; feeling doors; sleeping with the door closed; if you cannot get
-  out; stop, drop and roll with the face covered; matches and lighters
-  preferably locked away). https://www.ready.gov/home-fires
+  to someone, leave, call 911 and tell the operator where the person is;
+  trapped pets, tell firefighters right away; if you cannot get out;
+  stop, drop and roll with the face covered; after a fire, check with the
+  fire department that the home is safe to enter and do not reconnect
+  utilities yourself; matches and lighters preferably locked away).
+  https://www.ready.gov/home-fires
 
 ### Washington State and local (cited as the authority, restated in our own words)
 
@@ -649,6 +719,16 @@ not.
   the local fire department, attended, landowner's permission, never
   during an air quality burn ban; air quality versus fire safety burn
   bans). https://www.pscleanair.gov/328/Outdoor-Burning
+- Puget Sound Clean Air Agency. Upcoming Rulemaking for Residential Yard
+  Waste Burning, undated (it names the agency's September 2026 board
+  meeting), read 4 October 2026 (changes under consideration and the
+  current rules still in effect; state law requiring a prohibition
+  where reasonable alternatives exist, and such alternatives found for
+  the entire region; already prohibited in urban growth areas; if a
+  prohibition is adopted, residential yard waste burning no longer
+  allowed; the alternatives: curbside collection, drop-off locations,
+  and composting, log and brush piling or mulching at home).
+  https://www.pscleanair.gov/723/Upcoming-Rulemaking-for-Residential-Yard
 - Kitsap County. Kitsap County Fire Marshal Announces Lifting of Stage 1
   Burn Ban, news release, 29 September 2026 (lifted at 8 a.m. on 1 October
   2026; heavier fuels still dry; the rules for general outdoor burning;
@@ -659,9 +739,10 @@ not.
   or less, 25 feet from structures, charcoal or dry firewood, no milled
   lumber, a designated pit; small and large residential fire permits and
   their sizes, distances and hours; conditions for all outdoor fires; the
-  state's outdoor burning rule of 13 April 2000, the end of burning in
-  urban growth areas after 31 December 2000, and no land clearing burning
-  in Kitsap County from 1 September 2009).
+  state's outdoor burning rule adopted on 13 April 2000, the revised
+  Clean Air Act ending burning in urban growth areas after 31 December
+  2000, and no land clearing burning in Kitsap County from 1 September
+  2009).
   https://www.ckfr.org/information/public-safety/burn-ban/ckfr-outdoor-burning-information/
 - Washington State Department of Natural Resources. Burn Restrictions,
   undated (human activities the main cause of wildfires; a burn
@@ -677,11 +758,20 @@ not.
 
 - The Fire Making skill (`data/skills/skills.csv`) and the experience
   calls in the code (`src/systems/skills/mod.rs` and its callers); the
-  Campfire Kit, Candle, Handheld Torch, Coal, Fire Extinguisher and Smoke
-  Detector items (`data/items.csv`); the Make Charcoal and other recipes
-  (`data/recipes.csv`); the home's kiln (`data/machines/home.ron`); the
-  unregistered fire system (`src/systems/fire.rs`, absent from the system
-  list in `src/lib.rs`).
+  Profile page's "Dev: max skills" button (`src/gui/pages/profile.rs`,
+  shown while `dev_cheats_active` in `src/gui/mod.rs` holds, which the
+  default Dev play mode and cheats setting make true), which sets every
+  skill to its maximum (`src/systems/skills/mod.rs`); the Campfire
+  ability and what casting it does (`data/abilities.csv`,
+  `src/systems/abilities.rs`) and its place on the hotbar (sorted in
+  `src/lib.rs`, drawn in `src/gui/pages/hud.rs`); the Campfire Kit,
+  Candle, Handheld Torch, Coal, Fire Extinguisher and Smoke Detector
+  items (`data/items.csv`); the Make Charcoal and other recipes
+  (`data/recipes.csv`); the home's kiln and smelter, and the smelter's
+  Smelt Iron (`data/machines/home.ron`); machines that run by themselves
+  using real ingredients from home storage only
+  (`src/systems/crafting/mod.rs`); the unregistered fire system
+  (`src/systems/fire.rs`, absent from the system list in `src/lib.rs`).
 - [Firewood](/library#firewood), [Heating a Home Safely](/library#heating-a-home-safely),
   [Fuels and Their Hazards](/library#fuels-and-their-hazards), [Fire Performance
   Fuels](/library#fire-performance-fuels), [Heat and How It
@@ -698,7 +788,8 @@ not.
 
 - That the log does not burn but the gas does, read from the survival
   manual, and why a shaving lights before a log; the side of the fire
-  triangle each method takes away.
+  triangle each method takes away; that water conducts electricity, read
+  from the USFA's class C extinguishers.
 - Leaving river stones and soaked rocks alone; a home fire pit on bare
   ground, gravel or stone.
 - The examples of tinder and the sizes of kindling; having kindling and
@@ -712,8 +803,8 @@ not.
   fire underground; checking a fire pit again in the morning.
 - Getting away from a fire bigger than your water and shovel; practising
   with a real extinguisher; a roaring chimney meaning get out and call
-  911.
-- Compost, chipping and yard waste collection as the alternatives to
-  burning.
+  911; that firefighters have the gear to go back in and you do not.
+- Following the fire district's narrower list of recreational fuels
+  over the clean air agency's.
 - The worked family's yard, fire pit, wood and evening are made up to
   illustrate the steps.

@@ -105,7 +105,7 @@ The figures for the common fuels:
 | Diesel | 125 F (52 C), CAMEO | Hard to light with a match when cool; burns readily once heated or soaked into a wick |
 | No. 2 fuel oil (heating oil) | 136 F (58 C), CAMEO | As for diesel |
 
-(The Celsius figures are our conversion of CAMEO's Fahrenheit.)
+(The Celsius figures are our conversion of the Fahrenheit ones.)
 
 Heat takes the margin away. OSHA's rule for workplaces makes a liquid
 that is heated to within 30 F of its flash point be handled as though it
@@ -261,7 +261,8 @@ hazard: liquid escaping from a cylinder chills as it evaporates and can
 cause frostbite.
 
 The CPSC's gas grill fact sheet sets out the rules for the LP gas
-cylinders used with grills:
+cylinders used with grills (LP gas is liquefied petroleum gas, which the
+fact sheet calls liquid propane):
 
 - **Storing:** always upright; "Never use or store an LP gas container
   indoors."; never store a spare cylinder under or near the grill; never
@@ -350,8 +351,9 @@ that looks like a drink to a child, and the flash point of each.
 Put together from the rules above, a household's fuel store looks like
 this (our summary of the sources):
 
-- **A detached shed or an outdoor cabinet,** not the house, the basement,
-  or an attached garage with a gas water heater in it (CPSC, USFA).
+- **A detached shed or an outdoor cabinet,** away from the house: not
+  the house, the basement or a garage, and never beside a gas water
+  heater or anything else with a flame (USFA, CPSC).
 - **Shaded and ventilated,** away from the sun and from anything with a
   flame, a pilot light or a motor that sparks (USFA, CPSC).
 - **Each fuel in its own proper container,** closed and labelled:
@@ -413,7 +415,10 @@ blowing or hissing noise, open a window and get everyone out quickly;
 turn off the gas at the outside main valve if you can; and call the gas
 company from a neighbour's home. Getting everyone out comes first; if the
 smell is strong, do not stop for the appliances or the window (our
-reading of the two together).
+reading of the two together). Then stay out yourself until the gas
+company or the fire department says the house is safe (our reading of
+PHMSA's warning to keep everyone out of the leak area). If the gas was
+turned off, only a qualified professional turns it back on (Ready.gov).
 
 A propane leak gets the same response (our reading of PHMSA's advice,
 which is written for natural gas), with one difference: propane sinks, so
@@ -488,8 +493,9 @@ recommendation for a household, built on the sources given with each.
 - **A grill or appliance that still leaks after you tighten it:** close
   the cylinder valve and take it to the dealer or a qualified repair
   person (CPSC).
-- **Any smell of gas indoors:** out, and call 911 or the gas company from
-  away from the house (PHMSA, Ready.gov).
+- **Any smell of gas indoors:** out, call 911 or the gas company from
+  away from the house, and back in only when they say so (PHMSA,
+  Ready.gov; staying out until then is our reading).
 - **A spill you cannot control,** or one you do not know how to clean up:
   the fire department (USFA).
 - **Any fuel fire bigger than a wastebasket:** 911 (USFA's checklist).
@@ -526,16 +532,27 @@ recommendation for a household, built on the sources given with each.
 
 ## How the game models it
 
-The game has one fuel and models what it can be stored in, and how much
-a generator burns. It models none of the hazards.
+The game has fuels to make and burn, and models what a liquid fuel can
+be stored in and how much a generator burns. It models none of the
+hazards.
 
 - **Refined Fuel.** The home has a fuel refinery in its forge room that
   turns crude oil into Refined Fuel (its recipe: two crude oil into two
-  Refined Fuel, 30 seconds, Engineering level 2), and both the refinery
-  and the home's backup generator hold fuel in their own 200 litre drums
-  (`data/recipes.csv`, `data/machines/home.ron`). You move it from one to
-  the other through your backpack, with the Take and Store buttons on
-  each machine's card.
+  Refined Fuel, 30 seconds). It runs by itself, takes its crude oil from
+  home storage only, never from your backpack, and fills its own 200
+  litre drum. The recipe asks for Engineering level 2, but a machine
+  that runs by itself skips that check: owning the machine is enough
+  (`data/recipes.csv`, `data/machines/home.ron`,
+  `src/systems/crafting/mod.rs`). The home's backup generator has a 200
+  litre drum of its own, and you move fuel from one drum to the other
+  through your backpack, with the Take and Store buttons on each
+  machine's card.
+- **Charcoal.** Coal, the game's charcoal, is listed as a fuel too, and
+  recipes at the smelter, kiln and forge use it up, several of them
+  leaving wood ash (`data/items.csv`, `data/recipes.csv`); [Making and
+  Controlling Fire](making_and_controlling_fire.md) has more. It is not
+  in the flammable class, so it never goes in a drum and the generator
+  cannot burn it.
 - **Containers remember.** The game sorts what a container may hold by
   class, and fuel, oil and solvents are the "flammable" class, needing a
   sealed vessel. A container that has once held fuel can never hold food
@@ -544,14 +561,19 @@ a generator burns. It models none of the hazards.
   (`data/containers/content_classes.ron`,
   `src/systems/inventory/containers.rs`, `src/lib.rs`). That is the real
   rule too: see [Storing Water Safely](storing_water_safely.md).
-- **A generator that burns fuel by the litre.** The backup generator is
+- **A generator that burns anything flammable.** The backup generator is
   modelled on a 1.8 kilowatt inverter set burning 1.125 litres an hour
   while it runs, and it runs only when its circuit is short of power and
   the batteries on that circuit are below a quarter full, or there are
-  none (`data/machines/home.ron`, `src/systems/electrical.rs`). In the default
-  Station-supplied power mode, a circuit with a feed from the ship counts
-  the ship's reactor as its supply, so a backup generator on such a
-  circuit never needs to run.
+  none (`data/machines/home.ron`, `src/systems/electrical.rs`). It burns
+  whatever flammable-class item is in its drum: Refined Fuel, but also
+  Crude Oil, Glue and Paint, which its Store button offers too, so in
+  this build a can of paint can run the house (`data/items.csv`). That is
+  a known bug, BUG-154; a real generator runs only on the fuel its engine
+  was made for (general knowledge). Under Settings > Gameplay > "Ship
+  life support", the default, Station-supplied, ties a circuit with a
+  feed from the ship to the ship's reactor, which counts as its supply,
+  so a backup generator on such a circuit never needs to run.
 - **No hazards at all.** There are no flash points, vapour, spills,
   leaks, static, fuel fires or carbon monoxide. The generator and its drum
   sit indoors, in the home's plant room, and make no exhaust; in real life
@@ -583,8 +605,9 @@ child who drinks from the jug, and the generator that has to run outside.
 - You know where your gas shutoff is, and that once it is off only a
   qualified professional, usually the gas company, turns it back on.
 - You would never light charcoal indoors, or pour liquid fuel on a fire.
-- If you smell gas, you get everyone out without touching a switch, and
-  call from outside.
+- If you smell gas, you get everyone out without touching a switch, call
+  from outside, and nobody goes back in until the gas company or the
+  fire department says so.
 - You know where your nearest household hazardous waste collection is,
   and to call 811 before you dig.
 
@@ -613,7 +636,8 @@ October 2026.
   https://www.ecfr.gov/current/title-49/subtitle-B/chapter-I/subchapter-D/part-192/subpart-L/section-192.625
 - Pipeline and Hazardous Materials Safety Administration. Recognizing and
   Responding to Pipeline Emergencies, undated (the rotten egg smell; the
-  do and do not lists), and Call Before You Dig!, undated (every digging
+  do and do not lists, including warning others against entering the
+  leak area), and Call Before You Dig!, undated (every digging
   project; 811; free marking).
   https://primis.phmsa.dot.gov/stakeholder-comms/emergencyresponse/ and
   https://primis.phmsa.dot.gov/stakeholder-comms/cbyd/
@@ -732,12 +756,19 @@ October 2026.
 - The Refine Fuel and Make Fuel Drum recipes (`data/recipes.csv`); the
   fuel refinery and the backup generator, their drums and the
   generator's 1.8 kW and 1.125 litres an hour (`data/machines/home.ron`);
-  the backstop rule and the fed circuit (`src/systems/electrical.rs`);
-  the flammable class and the container's memory
-  (`data/containers/content_classes.ron`,
-  `src/systems/inventory/containers.rs`); the Take and Store buttons
-  (`src/lib.rs`); the gases table (`data/chemistry/gases.csv`, listed only
-  among the files the game ships, `src/embedded_data.rs`).
+  the refinery running by itself on crude oil from home storage only,
+  skipping the skill check (`src/systems/crafting/mod.rs`); Coal, Crude
+  Oil, Refined Fuel, Glue and Paint and their content classes
+  (`data/items.csv`), and the recipes that use Coal up
+  (`data/recipes.csv`); the backstop rule, the fed circuit and the
+  generator burning any flammable-class item in its drum
+  (`src/systems/electrical.rs`); the Ship life support setting
+  (`src/gui/pages/settings.rs`); the flammable class and the container's
+  memory (`data/containers/content_classes.ron`,
+  `src/systems/inventory/containers.rs`), with the warning line built in
+  `src/lib.rs`; the Take and Store buttons (`src/gui/pages/hud.rs`); the
+  gases table (`data/chemistry/gases.csv`, listed only among the files
+  the game ships, `src/embedded_data.rs`).
 - [Fire Performance Fuels](../making/fire_performance_fuels.md),
   [Firewood](firewood.md), [Heating a Home Safely](heating_a_home_safely.md),
   [Making and Controlling Fire](making_and_controlling_fire.md), [Keeping
@@ -766,11 +797,15 @@ October 2026.
   gas.
 - The shape of a household fuel store, keeping only a season's fuel, and
   an extinguisher by the store.
-- Soaking up spills, keeping sparks away until vapour clears, and getting
-  everyone out of a gas leak before seeing to appliances or windows.
+- Soaking up spills, keeping sparks away until vapour clears, getting
+  everyone out of a gas leak before seeing to appliances or windows, and
+  staying out until the gas company or the fire department says the
+  house is safe.
 - A propane leak handled as for natural gas, and never going down into a
   low space to find it.
 - That a fuel fire is rarely small for long; getting away from a propane
   cylinder in a fire.
+- That a real generator runs only on the fuel its engine was made for
+  (general knowledge).
 - The worked household's fuel, house, shed and choices are made up to
   illustrate the steps.

@@ -49,10 +49,11 @@ Safety Commission (CPSC), the CDC, the Environmental Protection Agency
 Building America Solution Center, the National Weather Service, NOAA's
 storm records, the Federal Emergency Management Agency's Ready.gov, the
 Department of Health and Human Services and the Army's survival manual,
-all US federal and in the public domain. For the worked example it also
-uses Washington State law and Washington agencies, restated in our own
-words. Where something is general practice or our own reading rather
-than a published rule, the text says so.
+all US federal and in the public domain. For the local rules it also
+uses Washington State law and agencies, the Puget Sound Clean Air Agency
+and the International Fire Code that Washington adopts, all restated in
+our own words. Where something is general practice or our own reading
+rather than a published rule, the text says so.
 
 ## First: the rules for every heater
 
@@ -99,12 +100,26 @@ These hold whatever heats your home, and they are not negotiable.
    qualified technician every year, and ENERGY STAR suggests doing the
    heating system's check-up in the autumn, before the contractors get
    busy.
-8. **If the CO alarm sounds, everyone goes outside first.** Then call
-   911 or the fire department from outside or from a neighbour's home.
-   The CPSC's leaflet says to get fresh air immediately, call for help
-   from a neighbour's home, and let the fire department decide when it is
-   safe to go back in. Do not go back in to find the cause. [Ventilation,
-   Damp and Mould](/library#ventilation-damp-and-mould) says the same.
+8. **If the CO alarm sounds, everyone goes outside first.** The CPSC's
+   carbon monoxide questions and answers say never to ignore the alarm:
+   move outside to fresh air at once, call 911, the fire department or
+   your emergency services, and do not go back in until the responders
+   say you may (restated). Do not go back in to find the cause. If the
+   cause turns out to be an appliance, the CPSC says not to use it again
+   until trained people have serviced it (restated). [Ventilation, Damp
+   and Mould](/library#ventilation-damp-and-mould) says the same.
+9. **Know the signs of poisoning, and act on them even without an
+   alarm.** The CDC lists headache, dizziness, weakness, upset stomach,
+   vomiting, chest pain and confusion, and warns that people who are
+   asleep, drunk or under the influence of other substances can die
+   before they feel anything (restated), which is why the alarm matters.
+   The CPSC's leaflet adds two clues: "The initial symptoms of CO
+   poisoning are similar to the flu (but without the fever)", and they
+   ease or go away when you are away from home. If you suspect poisoning,
+   its advice is to get fresh air at once, leave the home and call for
+   help from a neighbour's home, and "Get medical attention immediately
+   and inform medical staff that CO poisoning is suspected." The fire
+   department then decides when it is safe to go back in (CPSC).
 
 ## Know what heats your home
 
@@ -143,10 +158,12 @@ reading). Your part:
   loose masonry on a chimney, and moisture on the inside of windows. It
   adds problems you will notice in use: less hot water than usual, a
   furnace that cannot heat the house or runs all the time, and an
-  unfamiliar or burning smell. The EPA adds one more: "A persistent
-  yellow-tipped flame is generally an indication of maladjustment and
-  increased pollutant emissions." Writing about gas ranges, it says to ask
-  the gas company to adjust the burner so that the flame tip is blue.
+  unfamiliar or burning smell. The EPA, writing about unvented space
+  heaters and gas ranges, adds one more: "A persistent yellow-tipped
+  flame is generally an indication of maladjustment and increased
+  pollutant emissions." For a range, it says to ask the gas company to
+  adjust the burner so that the flame tip is blue. A furnace burner whose
+  flame you can see deserves the same look (our reading).
   The CPSC's leaflet says what to do about any of these: "Only a trained
   service technician can detect hidden problems and correct these
   conditions!"
@@ -195,7 +212,10 @@ The rules, from the USFA's *Heater Fire Safety* card and the CPSC's
   because that can cause overheating. [Electricity and How It
   Flows](/library#electricity-and-how-it-flows) works through the arithmetic: a
   1,200 watt heater draws 10 amps, most of the 12 amps a 15 amp circuit
-  should be asked to carry for hours at a time.
+  should be asked to carry for hours at a time. Check the watts on your
+  own heater's label: many are rated 1,500 watts on their high setting
+  (general knowledge), which is 12.5 amps (1,500 divided by 120 volts),
+  past that 12 amp line on its own (our arithmetic).
 - **A loose or hot plug means stop.** The CPSC: the plug must fit tightly
   in the outlet; during use, check whether the plug, cord, outlet or
   faceplate is hot, and if it is, stop using the heater and have an
@@ -249,10 +269,27 @@ circulatory problems. Its rules:
   manual shut-off switch if it has one, and if that does not put the fire
   out, leave the house and call the fire department. Its warning label
   adds: do not try to smother the fire or put water on it.
-- **Local rules.** The label the CPSC reproduces ends: "Follow All
-  Applicable Code Requirements When Using Heater." Ask your fire
-  department whether your city or county limits kerosene heaters indoors
-  (our caution).
+- **Local rules.** The label the CPSC reproduces says: "Follow All
+  Applicable Code Requirements When Using Heater." In Washington the fire
+  code is the 2021 International Fire Code, in force in every city and
+  county since 15 March 2024, and the state's changes to it leave its
+  rule on portable unvented heaters as written (WAC 51-54A-003, -0605 and
+  -008, read 4 October 2026). That rule, section 605.5, forbids portable
+  unvented fuel-burning heaters in places of assembly, schools,
+  institutions such as hospitals and care homes, and residential
+  buildings (the code's groups A, E, I and R-1 to R-4, as its chapter 2
+  defines them), and in ambulatory care facilities. It makes two
+  exceptions: portable outdoor gas heaters, such as patio heaters, under
+  rules of their own, and, in a house or a duplex (the code's one- and
+  two-family dwellings), a portable unvented heater listed to UL 647,
+  the standard for unvented kerosene heaters, run and maintained as its
+  maker says. Section 605.5.1 keeps any unvented fuel-burning heater out of
+  bedrooms, bathrooms, toilet rooms and storage closets, and from taking
+  its air from them. (All restated from the code's text as the City of
+  Seattle publishes it in its 2021 Seattle Fire Code, where neither
+  section carries a Washington or a Seattle change.) Ask your fire
+  department what your city or county adds, and how it applies the rule
+  to your home (our caution).
 
 ### Unvented gas and propane heaters
 
@@ -265,14 +302,22 @@ Mould](/library#ventilation-damp-and-mould) gives Building America's advice not
 to install unvented combustion appliances in the living space at all,
 notes that the National Fuel Gas Code forbids vent-free heaters in
 bathrooms and bedrooms, and explains the gallon of water such a heater
-puts into the room for every 100,000 Btu it burns. The CDC also says not
-to use portable flameless chemical heaters indoors: no flame does not
-mean no fuel being burned (our reading of its advice).
+puts into the room for every 100,000 Btu (British thermal units, a
+measure of heat) it burns. The CDC also says not to use portable
+flameless chemical heaters indoors: no flame does not mean no fuel being
+burned (our reading of its advice).
+
+In Washington the law goes further for portable ones. The fire code's
+exception for a house names only heaters listed to UL 647, the kerosene
+heater standard, so as we read it a portable unvented propane heater
+used indoors is not covered by it; see Local rules under Kerosene
+heaters above, and ask your fire department.
 
 A propane cylinder belongs outside the house. The CPSC's grill fact sheet
-says never to use or store an LP gas container indoors. [Fuels and Their
-Hazards](/library#fuels-and-their-hazards) explains why propane that leaks
-sinks and gathers low.
+says never to use or store an LP gas container indoors (LP gas is
+liquefied petroleum gas, which the fact sheet calls liquid propane).
+[Fuels and Their Hazards](/library#fuels-and-their-hazards) explains why
+propane that leaks sinks and gathers low.
 
 The best answer, if you are choosing a heater, is one that cannot put
 exhaust into the room at all: a direct-vent, sealed-combustion heater
@@ -444,7 +489,8 @@ The project's canonical place is Silverdale, on the Kitsap Peninsula (see
 mild and wet rather than hard: at the Bremerton weather station, the
 nearest with a full record, the average December low is 1.7 C and the
 record low is -13.9 C (`data/locales/silverdale_wa/climate.json`, from
-NOAA normals). The danger here is not usually the cold. It is the outage,
+NOAA's 1991-2020 normals and its daily records). The danger here is not
+usually the cold. It is the outage,
 and what people do about it.
 
 **What happened in December 2006.** NOAA's storm record describes a
@@ -471,8 +517,9 @@ single-family houses already lived in before 26 July 2009 were left out,
 but when such a house is sold, the seller must put in alarms that meet
 the building code before the buyer moves in. In a rented home, the law
 makes keeping the alarm working, batteries included, the tenant's job
-(all restated). Whatever the law requires of your house, the alarm is
-what keeps you alive; put one on every level (rule 6).
+(all restated; the statute as read on 4 October 2026). Whatever the law
+requires of your house, the alarm is what keeps you alive; put one on
+every level (rule 6).
 
 **The household.** This part is an illustration with made-up details.
 It is a December evening in a two-storey house near Silverdale with a gas
@@ -489,18 +536,28 @@ outage map says the next day at the earliest.
    living room, where the stove is, stays open to the hall so the stove
    gets its air. Everyone eats and drinks something warm.
 3. **The wood stove.** It was swept in September, the wood is dry, and
-   it burns hot with the screen closed, nothing within 3 feet. If the
-   Puget Sound Clean Air Agency had called an air quality burn ban, its
-   rules and the exemption for a home whose only adequate heat is wood
-   would decide whether it could be lit at all; [Firewood](/library#firewood)
-   explains both.
+   it burns hot with its door closed, nothing within 3 feet. Had the
+   Puget Sound Clean Air Agency called an air quality burn ban (those
+   come in cold, calm, clear weather rather than in a windstorm), a
+   Stage 1 ban would still allow this certified stove as long as its
+   chimney showed no visible smoke, and a Stage 2 ban would not allow it.
+   The agency's exemption for a home whose only adequate heat is wood
+   must be applied for and approved before a ban, and the agency counts
+   a heating system that is simply not working, like this furnace in a
+   power cut, as adequate heat, so the exemption would not cover this
+   house (Puget Sound Clean Air Agency, read 4 October 2026, restated;
+   applying it to this house is our reading). [Firewood](/library#firewood)
+   has more on burn bans.
 4. **Light.** Flashlights and a battery lantern, no candles.
 5. **The neighbour's generator.** It runs in the open, more than 20 feet
    from any window or door, with its exhaust pointing away from both
    houses.
-6. **Alarms.** The carbon monoxide alarm outside the bedrooms has a
-   battery, so it works without mains power. If it sounds, everyone goes
-   outside and calls 911 from there.
+6. **Alarms.** Their carbon monoxide alarms run on batteries, so they
+   work without mains power, and there is one on each floor (rule 6).
+   Tonight everyone sleeps in the living room beside the stove, so the
+   alarm from outside the bedrooms comes down with the sleeping bags and
+   goes in the living room (our reading of rule 6). If an alarm sounds,
+   everyone goes outside and calls 911 from there (rule 8).
 7. **If it gets too cold,** they check with Kitsap County's emergency
    information for a warming centre and go, taking the elderly neighbour
    with them (general practice; Ready.gov says to go to a community
@@ -510,13 +567,15 @@ outage map says the next day at the earliest.
 community action agencies and local partners; you apply by appointment
 with the provider for your area, once in each program year, which runs
 from 1 October to 30 September (Washington State Department of Commerce,
-restated). Its map of providers is the place to start.
+read 4 October 2026, restated). Its map of providers is the place to
+start.
 
 **A new stove.** The Department of Ecology says it is illegal in
 Washington to sell an uncertified wood stove, that a stove you install
 must be certified, and that installation rules come from your local
-building permit department (restated). Ask your city's or county's
-building department what it needs before you buy (our caution).
+building permit department (read 4 October 2026, restated). Ask your
+city's or county's building department what it needs before you buy
+(our caution).
 
 ## Where your own work stops
 
@@ -528,8 +587,8 @@ sources given with each.
   fuel,** and anything to do with gas or oil lines. The CPSC: "Most
   appliances should be installed by professionals," and never install or
   service combustion appliances without the proper knowledge, skills and
-  tools. That includes burners, heat exchangers and vent pipes (ENERGY
-  STAR's contractor checklist).
+  tools. That includes burners and heat exchangers (ENERGY STAR's
+  contractor checklist) and chimneys and vents (the CPSC's leaflet).
 - **Chimneys and stoves:** the yearly inspection and cleaning by a
   professional (USFA), and installation under a building permit
   (Washington's Department of Ecology, restated).
@@ -541,7 +600,10 @@ sources given with each.
   been shut off, only a qualified professional turns it back on
   (Ready.gov).
 - **A carbon monoxide alarm sounding:** out, 911, and back in only when
-  the fire department says so (CPSC).
+  the responders say so (CPSC).
+- **Anyone with the signs of carbon monoxide poisoning:** fresh air,
+  911, and medical attention at once, telling the medical staff that
+  carbon monoxide is suspected (CPSC).
 - **A new circuit or outlet for a heater:** a licensed electrician, as
   [Where Your Own Electrical Work Stops](/library#where-your-electrical-work-stops)
   explains.
@@ -568,8 +630,12 @@ sources given with each.
 - **"A power strip is fine, it has a switch."** The USFA: never an
   extension cord or a power strip for a space heater.
 - **"The alarm keeps beeping, it must be faulty."** A sounding alarm means
-  out first and questions later. A chirp is usually a low battery or an
-  old alarm; replace it the same day (general practice).
+  out first and questions later; the CPSC says never to ignore one. A
+  chirp is usually a low battery or an old alarm; replace it the same
+  day (general practice).
+- **"It's just the flu."** Flu-like symptoms without a fever, easing when
+  you leave the house, are the CPSC's clues to carbon monoxide poisoning.
+  Fresh air first, then 911 (rule 9).
 - **"I'll keep the kerosene in the old gas can."** The CPSC says even a
   small amount of gasoline mixed into kerosene can substantially increase
   the risk of a fire or an explosion.
@@ -583,28 +649,43 @@ sources given with each.
 The game models being cold. It does not model heating, and it does not
 model what heating does to people.
 
-- **Inside the home, nothing heats anything.** Sessions start in the home
+- **Inside the home, nothing heats the air.** Sessions start in the home
   aboard the station in orbit, and the air there stays at about 20 C with
   nothing burning or running to hold it (`src/systems/atmosphere.rs`,
-  `src/engine/survival_env.rs`). The code has a room heating system
-  (`src/systems/hvac.rs`) that nothing registers, so it never runs.
+  `src/engine/survival_env.rs`); the ship's shared spaces, such as the
+  Commons, are a fixed 21 C (`src/ecs/components.rs`). The home's
+  electric water heater draws power for the hot water its fixtures use,
+  but it warms no room (`data/machines/home.ron`). The code has a room
+  heating system (`src/systems/hvac.rs`) that nothing registers, so it
+  never runs.
 - **A heater you can make, that heats nothing.** The Crafting page has a
   Build Heater recipe for an "Electric space heater" (two steel ingots,
   three wire and a copper ingot at a workbench, Engineering level 2), and
   heaters are parts in some ship and station recipes, but no game system
-  gives a heater any effect (`data/recipes.csv`, `data/items.csv`).
-- **Shelter keeps the weather off but adds no warmth.** On a planet, your
+  gives a heater any effect (`data/recipes.csv`, `data/items.csv`). The
+  Greenhouse Construction quest still asks you to build one "for
+  temperature regulation" (`data/quests/farming.ron`); the heater you
+  build warms neither the air, the plants nor you. That is a known bug,
+  BUG-155.
+- **Shelter keeps the weather off but makes no heat.** On a planet, your
   body heat is modelled from the weather, your clothes and any shelter you
   have built: a roof keeps the rain off and, under it, walls on the
-  windward side keep the wind off, but the air under it is as cold as the
-  air outside (`src/systems/body_heat.rs`, `src/engine/survival_env.rs`;
-  a test there notes that on a 5 C day a shelter with no fire is still 5 C
-  inside).
-  While fly mode is on, the weather does not reach your body at all, and
-  the Dev page's Land and Travel buttons leave fly mode on even though the
-  line under the compass reads WALK. Under the default Body heat setting,
-  Forgiving, cold does much less harm than under Realistic, and
-  Hypothermia halves your movement (`data/status_effects.csv`).
+  windward side keep the wind off (`src/systems/construction/uses.rs`).
+  A roof also hides the sky. In the open your body loses heat to a clear
+  night sky that is colder than the air, and takes heat from the sun at
+  noon; under a roof both are gone, so a clear night is a little less
+  cold under one and a sunny noon a little less hot. But the air under a
+  roof is as cold as the air outside (`src/systems/body_heat.rs`,
+  `src/engine/survival_env.rs`; its tests note that on a 5 C day a
+  shelter with no fire is still 5 C inside, and that on a clear 10 C
+  night the skin ends about 1.9 C warmer under a roof).
+  While fly mode is on, the weather does not reach your body at all. The
+  Dev page's Land and Travel buttons leave fly mode on, and the line
+  under the compass says so ("FLY x1 - gravity on [F9 to hover]"); press
+  F9 twice, or untick Fly mode on the Dev page, and the weather reaches
+  you. Under the default Body heat setting, Forgiving, cold does much less
+  harm than under Realistic, and Hypothermia halves your movement
+  (`data/status_effects.csv`).
 - **No carbon monoxide anywhere.** The air system can call air toxic when
   carbon monoxide passes 50 parts per million, but nothing in the game
   makes any (`src/systems/atmosphere.rs`). The home's backup generator
@@ -640,8 +721,9 @@ every hour the power is out.
   outside with the heater off and cold.
 - Your furnace, boiler, stove and chimney are checked every year by a
   professional, and you change the furnace filter yourself.
-- You know the visible clues of a carbon monoxide problem, and what to do
-  if the alarm sounds.
+- You know the visible clues of a carbon monoxide problem, the signs of
+  poisoning, and what to do if the alarm sounds or someone has the
+  signs.
 - You have a plan for a long outage: one warm room, flashlights not
   candles, the generator outdoors, and where the nearest warming centre
   is.
@@ -708,9 +790,20 @@ October 2026, and Washington's statute on the same day.
   vehicles or garages; never an unvented gas appliance in a closed room
   or a room where you sleep; never foil on the bottom of a gas oven;
   never a car left running in a garage; never install or service
-  combustion appliances without the knowledge, skills and tools; leave,
-  call from a neighbour's home, and let the fire department decide when
-  to go back in. https://www.cpsc.gov/s3fs-public/464.pdf
+  combustion appliances without the knowledge, skills and tools; the
+  first symptoms like flu without the fever, and symptoms that ease away
+  from home; if you suspect poisoning, fresh air, leave, call from a
+  neighbour's home, get medical attention immediately and tell the
+  medical staff carbon monoxide is suspected, and let the fire
+  department decide when to go back in.
+  https://www.cpsc.gov/s3fs-public/464.pdf
+- US Consumer Product Safety Commission. Carbon Monoxide Questions and
+  Answers, undated (never ignore a sounding alarm; move outside to fresh
+  air; call 911, the fire department or emergency services; do not go
+  back in until the responders say so; an appliance found to be the
+  source not used until trained people have serviced it). Read through
+  a page summary, because cpsc.gov refuses scripted downloads.
+  https://www.cpsc.gov/Safety-Education/Safety-Education-Centers/Carbon-Monoxide-Information-Center/Carbon-Monoxide-Questions-and-Answers
 - US Consumer Product Safety Commission. *Reducing Fire Hazards for
   Portable Electric Heaters*, Publication 098, printed with the codes
   012011 and 012013 (about 1,200 fires a year from 2008 to 2010; never a
@@ -746,19 +839,25 @@ October 2026, and Washington's statute on the same day.
   reason).
   https://www.ecfr.gov/current/title-16/chapter-II/subchapter-C/part-1500/section-1500.14
 - Centers for Disease Control and Prevention. Carbon Monoxide Poisoning
-  Basics, last updated 12 January 2026 (more than 400 deaths a year;
-  battery or battery-backup detectors near every sleeping area, checked at
-  the clock changes and replaced per the maker or every 5 years; yearly
-  service of heating systems and water heaters; nothing burned on an
-  unvented stove or fireplace; never a gas oven for heat, charcoal or a
-  camp stove indoors, or flameless chemical heaters indoors). Read through
-  a page summary, because cdc.gov refuses scripted downloads.
+  Basics, last updated 12 January 2026 (more than 400 deaths a year; the
+  most common symptoms, headache, dizziness, weakness, upset stomach,
+  vomiting, chest pain and confusion; people who are sleeping, drunk or
+  under the influence of other substances dying before they have
+  symptoms; battery or battery-backup detectors near every sleeping
+  area, checked at the clock changes and replaced per the maker or every
+  5 years; yearly service of heating systems and water heaters; nothing
+  burned on an unvented stove or fireplace; never a gas oven for heat,
+  charcoal or a camp stove indoors, or flameless chemical heaters
+  indoors). Read through a page summary, because cdc.gov refuses
+  scripted downloads; the symptoms and the warning about sleepers were
+  checked again on 4 October 2026.
   https://www.cdc.gov/carbon-monoxide/about/index.html
 - Environmental Protection Agency. Sources of Combustion Products, last
   updated 17 December 2025 (unvented kerosene and gas space heaters: the
   proper fuel, a door open to the rest of the house and a window open
-  slightly; a persistent yellow-tipped flame; the gas company to adjust
-  a burner; the gas fireplace flue open; old wood stove door gaskets and
+  slightly, a persistent yellow-tipped flame; gas ranges: a yellow tip
+  as a sign of improper adjustment, the gas company to adjust the
+  burner; the gas fireplace flue open; old wood stove door gaskets and
   asbestos). https://www.epa.gov/indoor-air-quality-iaq/sources-combustion-products
 - Environmental Protection Agency, ENERGY STAR. Maintenance Checklist,
   undated (annual pre-season check-ups, the heating system in the fall;
@@ -817,10 +916,11 @@ October 2026, and Washington's statute on the same day.
   ventilated shelter).
   https://archive.org/download/MManuals/UsMarineCorps-Survival-Mcrp3-02f.pdf
 
-### Washington State (cited as the authority, restated in our own words)
+### Washington State and local (cited as the authority, restated in our own words)
 
-Washington does not place its state works in the public domain, so the
-facts are used here and the wording is not.
+Washington does not place its state works in the public domain, and the
+clean air agency's pages are not public domain either, so the facts are
+used here and the wording is not.
 
 - Revised Code of Washington 19.27.530, carbon monoxide alarms, with its
   2009 statement of intent (the December 2006 storms; residential
@@ -828,6 +928,27 @@ facts are used here and the wording is not.
   2013; the owner-occupied single-family exemption and the seller's duty
   on sale; the tenant maintains the alarm and its batteries).
   https://app.leg.wa.gov/RCW/default.aspx?cite=19.27.530
+- Washington Administrative Code 51-54A-003, 51-54A-0605 and
+  51-54A-008, read 4 October 2026 (the 2021 International Fire Code
+  adopted by reference; the state's changes to its section 605, which
+  touch only fuel oil storage tanks; the code in force in all counties
+  and cities from 15 March 2024).
+  https://app.leg.wa.gov/WAC/default.aspx?cite=51-54A-003 ,
+  https://app.leg.wa.gov/WAC/default.aspx?cite=51-54A-0605 and
+  https://app.leg.wa.gov/WAC/default.aspx?cite=51-54A-008
+- Puget Sound Clean Air Agency. Air Quality Burn Bans and Burn Ban
+  Exemption: No Other Source of Heat, question and answer pages,
+  undated, read 4 October 2026 (Stage 1: no fireplaces or uncertified
+  stoves without an approved exemption, and no visible smoke even from a
+  certified stove; Stage 2: no wood stove, certified or not, without an
+  approved exemption; adequate heat judged on the whole heating system,
+  including parts disconnected, damaged or simply not working; the
+  exemption applied for and approved before it is used during a ban);
+  and Outdoor Burning, undated (air quality burn bans usually in cold,
+  calm, clear weather in autumn and winter).
+  https://pscleanair.gov/m/faq?cat=19 ,
+  https://pscleanair.gov/m/faq?cat=18 and
+  https://www.pscleanair.gov/328/Outdoor-Burning
 - Washington State Department of Ecology. Wood stove info, undated
   (certified stoves; never install a non-certified stove; installation
   regulated by the local building permit department; selling an
@@ -839,19 +960,43 @@ facts are used here and the wording is not.
   program year, 1 October to 30 September).
   https://www.commerce.wa.gov/community-opportunities/liheap/
 
+### Codes and standards (cited as the authority, restated in our own words)
+
+- International Code Council. 2021 International Fire Code, section
+  605.5, portable unvented heaters, and section 605.5.1, prohibited
+  locations, with the occupancy groups its chapter 2 defines. Read on 4
+  October 2026 in the City of Seattle's published 2021 Seattle Fire Code,
+  chapters 2 and 6, which mark Washington's changes W and Seattle's S;
+  neither section 605.5 nor 605.5.1 carries a mark. The ICC's own
+  reading room refused scripted access.
+  https://www.seattle.gov/documents/Departments/SDCI/Codes/SeattleFireCode/2021SFCChapter6.pdf
+  and https://www.seattle.gov/documents/Departments/SDCI/Codes/SeattleFireCode/2021SFCChapter2.pdf
+- UL Standards & Engagement. UL 647, Standard for Unvented
+  Kerosene-Fired Room Heaters and Portable Heaters, edition 2, published
+  3 May 1993 and last revised 16 April 2010, as its catalogue lists it,
+  read 4 October 2026 (the title only).
+  https://www.shopulstandards.com/ProductDetail.aspx?productid=UL647
+
 ### Inside this project
 
 - The home's air held at about 20 C (`src/systems/atmosphere.rs`, its
-  default of 293 K, and `src/engine/survival_env.rs`); the unregistered
-  room heating system (`src/systems/hvac.rs`); the Build Heater recipe
-  and the Heater, Smoke Detector and Fire Extinguisher items
-  (`data/recipes.csv`, `data/items.csv`); the body heat model, built
-  shelter and the 5 C test (`src/systems/body_heat.rs`,
-  `src/engine/survival_env.rs`); the Hypothermia condition
+  default of 293 K, and `src/engine/survival_env.rs`), and the ship's
+  shared spaces at the default 21 C (`src/ecs/components.rs`); the
+  unregistered room heating system (`src/systems/hvac.rs`); the home's
+  electric water heater (`data/machines/home.ron`); the Build Heater
+  recipe and the Heater, Smoke Detector and Fire Extinguisher items
+  (`data/recipes.csv`, `data/items.csv`); the Greenhouse Construction
+  quest's heater step (`data/quests/farming.ron`); the body heat model,
+  the built shelter's roof and walls, the sky hidden by a roof, and the
+  5 C, clear night and noon tests (`src/systems/body_heat.rs`,
+  `src/systems/construction/uses.rs`, `src/engine/survival_env.rs`); fly
+  mode keeping the weather off the body (`src/engine/survival_env.rs`)
+  and the HUD's movement line reading FLY (`movement_line` in
+  `src/gui/pages/hud.rs`); the Hypothermia condition
   (`data/status_effects.csv`); the 50 ppm carbon monoxide threshold
   (`src/systems/atmosphere.rs`); the backup generator and its drum in the
-  plant room (`data/machines/home.ron`); the climate figures
-  (`data/locales/silverdale_wa/climate.json`).
+  plant room (`data/machines/home.ron`); the climate figures and their
+  NOAA sources (`data/locales/silverdale_wa/climate.json`).
 - [Firewood](/library#firewood), [Ventilation, Damp and
   Mould](/library#ventilation-damp-and-mould), [Insulation and Heat
   Loss](/library#insulation-and-heat-loss), [Fuels and Their
@@ -869,11 +1014,15 @@ facts are used here and the wording is not.
 - That heat pumps and electric heaters make no carbon monoxide in the
   house; that a baseboard heater with a sofa against it counts under the
   3 foot rule; that no flame does not mean no fuel being burned; that a
-  whole, clear vent sends a furnace's carbon monoxide outdoors.
+  whole, clear vent sends a furnace's carbon monoxide outdoors; that a
+  visible furnace flame deserves the EPA's yellow-flame look.
+- That many space heaters are rated 1,500 watts on high (general
+  knowledge), and the 12.5 amps that works out to (our arithmetic).
+- That the fire code's house exception, naming only UL 647, leaves out
+  portable propane heaters; asking the fire department what your city
+  or county adds and how it applies the rule to your home.
 - That many of the risky choices start with a heating bill nobody can
   pay.
-- Asking the fire department whether kerosene heaters are limited where
-  you live.
 - One warm room on the sheltered side; leaving the room with the fire in
   it unsealed and a carbon monoxide alarm where everyone sleeps; going
   somewhere warm early with infants, older adults and the ill; an
@@ -882,8 +1031,11 @@ facts are used here and the wording is not.
   mechanism again.
 - Replacing a chirping alarm the same day.
 - That a gas furnace stops when the power fails (general knowledge);
-  checking for a warming centre and taking a neighbour with you; asking
-  the building department before buying a stove.
+  bringing the bedroom alarm down to the room where everyone sleeps;
+  that the clean air agency's exemption would not cover the worked
+  household, applied from its rules; checking for a warming centre and
+  taking a neighbour with you; asking the building department before
+  buying a stove.
 - The worked household's house, evening, heating and choices are made up
   to illustrate the steps.
 - Getting everyone out and calling 911 for a heater fire you cannot stop
