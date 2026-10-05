@@ -271,6 +271,17 @@
             "beginner",
             "safety"
           ]
+        },
+        {
+          "title": "Emergency Shelter",
+          "file": "emergency_shelter.md",
+          "tags": [
+            "guide",
+            "real",
+            "beginner",
+            "shelter",
+            "safety"
+          ]
         }
       ],
       "section": "Learn"
@@ -836,6 +847,16 @@
           ]
         },
         {
+          "title": "Choosing and Running a Generator",
+          "file": "choosing_and_running_a_generator.md",
+          "tags": [
+            "guide",
+            "real",
+            "power",
+            "safety"
+          ]
+        },
+        {
           "title": "Insulation and Heat Loss",
           "file": "insulation_and_heat_loss.md",
           "tags": [
@@ -1136,6 +1157,16 @@
         {
           "title": "Floating and Boats",
           "file": "floating_and_boats.md",
+          "tags": [
+            "guide",
+            "real",
+            "water",
+            "safety"
+          ]
+        },
+        {
+          "title": "Pressure in Water, Air and Steam",
+          "file": "pressure_in_water_air_and_steam.md",
           "tags": [
             "guide",
             "real",

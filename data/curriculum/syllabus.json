@@ -1292,9 +1292,30 @@
       "subject": "shelter",
       "title": "Emergency shelter",
       "summary": "Get out of the weather tonight with what you have.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "emergency-shelter"
+      ],
       "skills": [
         "shelter_building"
+      ],
+      "data": [
+        "data/blueprints/basic.ron",
+        "data/equipment.csv"
+      ],
+      "sources": [
+        "nws",
+        "noaa-ncei",
+        "fema",
+        "cdc",
+        "cpsc",
+        "usfa",
+        "nps",
+        "dod-technical-manuals",
+        "nih",
+        "icc-ifc",
+        "wa-legislature",
+        "kitsap-county-dem"
       ],
       "locale_dependent": true,
       "hazard": "lethal"
@@ -1645,13 +1666,27 @@
       "subject": "energy",
       "title": "Generators and fuel",
       "summary": "Run a generator without carbon monoxide poisoning or backfeeding the grid.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "choosing-and-running-a-generator"
+      ],
       "skills": [
         "engineering"
       ],
+      "data": [
+        "data/machines/home.ron",
+        "data/machines/home_solo.ron"
+      ],
       "sources": [
+        "cpsc",
+        "osha",
         "cdc",
-        "usfa"
+        "fema",
+        "noaa-ncei",
+        "eweb",
+        "clark-public-utilities",
+        "wa-lni",
+        "state-electrical-authority"
       ],
       "locale_dependent": false,
       "hazard": "lethal"
@@ -2607,9 +2642,33 @@
       "subject": "physics",
       "title": "Pressure and fluids",
       "summary": "Understand pressure in water, air and steam, and why vessels fail.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "pressure-in-water-air-and-steam"
+      ],
       "skills": [
         "engineering"
+      ],
+      "data": [
+        "data/environment/climate.ron"
+      ],
+      "sources": [
+        "doe",
+        "noaa",
+        "nist",
+        "osha",
+        "ecfr",
+        "nhtsa",
+        "cpsc",
+        "usda-canning-guide",
+        "csb",
+        "nws",
+        "cdc",
+        "fema",
+        "dod-technical-manuals",
+        "icc-irc",
+        "hud-rrig",
+        "wa-legislature"
       ],
       "locale_dependent": false,
       "hazard": "lethal"
