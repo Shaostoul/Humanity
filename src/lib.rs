@@ -11740,12 +11740,14 @@ mod native_app {
                     }
 
                     // ── Livestock collect bridge (v0.751, ladder rung 7) ──
-                    // E on a ready animal moves its product into the pack,
-                    // volume-gated: a full pack refuses and the yield stays
-                    // on the animal (never lost, same rule as vendor_buy).
+                    // E on a ready animal or forage moves its product into the
+                    // pack, volume-gated: what does not fit stays at the source,
+                    // ready, never lost (livestock::collect_into_pack; first-hour
+                    // audit Friction 7, 2026-10-04: as much as fits is taken).
                     if let Some(animal) = state.pending_livestock_harvest.take() {
                         let mut notice = String::new();
-                        if state.game_world.world.contains(animal) {
+                        let player = state.game_world.world.query::<&Controllable>().iter().next().map(|(e, _)| e);
+                        if let (true, Some(player)) = (state.game_world.world.contains(animal), player) {
                             let animal_name = state
                                 .game_world
                                 .world
@@ -11758,84 +11760,31 @@ mod native_app {
                                 .get::<&crate::ecs::components::Creature>(animal)
                                 .map(|c| c.def_id.clone())
                                 .unwrap_or_default();
-                            let yielded = state
-                                .game_world
-                                .world
-                                .get::<&mut crate::ecs::components::Harvestable>(animal)
-                                .ok()
-                                .and_then(|mut h| {
-                                    crate::systems::livestock::collect(&mut h)
-                                        .map(|n| (h.resource.clone(), n))
-                                });
-                            match yielded {
-                                Some((item, n)) => {
-                                    // Collect SFX (v0.983): eggs, milk, berries,
-                                    // stone - every successful [E] gather clicks.
-                                    state.pending_sfx.push((
-                                        "sfx.inventory_pickup",
-                                        "audio/ui/inventory_pickup.ogg",
-                                    ));
-                                    let mut player: Option<hecs::Entity> = None;
-                                    for (e, _c) in
-                                        state.game_world.world.query::<&Controllable>().iter()
+                            let items = state.data_store.get::<ItemRegistry>("item_registry");
+                            let outcome = crate::systems::livestock::collect_into_pack(
+                                &mut state.game_world.world,
+                                animal,
+                                player,
+                                items,
+                            );
+                            if let crate::systems::livestock::CollectOutcome::Took { fresh, .. } = &outcome {
+                                // Collect SFX (v0.983): eggs, milk, berries,
+                                // stone - every successful [E] gather clicks.
+                                state.pending_sfx.push(("sfx.inventory_pickup", "audio/ui/inventory_pickup.ogg"));
+                                // One yield earns its XP and its quest event once,
+                                // however many presses it takes to carry it off.
+                                if *fresh {
+                                    crate::systems::skills::award_skill_xp(&state.data_store, "farming", 5);
+                                    if let Some(events) =
+                                        state.data_store.get::<std::sync::Mutex<Vec<String>>>("quest_events")
                                     {
-                                        player = Some(e);
-                                        break;
-                                    }
-                                    let items =
-                                        state.data_store.get::<ItemRegistry>("item_registry");
-                                    let max_stack =
-                                        items.map(|r| r.max_stack_for(&item)).unwrap_or(99);
-                                    let unit_vol =
-                                        items.map(|r| r.volume_for(&item)).unwrap_or(0.0);
-                                    let item_name = items
-                                        .and_then(|r| r.items.get(&item))
-                                        .map(|d| d.name.clone())
-                                        .unwrap_or_else(|| item.clone());
-                                    let fit = player.and_then(|e| {
-                                        state.game_world.world.get::<&mut Inventory>(e).ok().map(
-                                            |mut inv| {
-                                                let lost = inv.add_item_volume_gated(
-                                                    &item, n, max_stack, unit_vol,
-                                                );
-                                                if lost > 0 {
-                                                    inv.remove_item(&item, n - lost);
-                                                }
-                                                lost == 0
-                                            },
-                                        )
-                                    });
-                                    if fit == Some(true) {
-                                        crate::systems::skills::award_skill_xp(
-                                            &state.data_store,
-                                            "farming",
-                                            5,
-                                        );
-                                        if let Some(events) = state
-                                            .data_store
-                                            .get::<std::sync::Mutex<Vec<String>>>("quest_events")
-                                        {
-                                            if let Ok(mut ev) = events.lock() {
-                                                ev.push(format!("harvest_{creature_id}"));
-                                            }
+                                        if let Ok(mut ev) = events.lock() {
+                                            ev.push(format!("harvest_{creature_id}"));
                                         }
-                                        notice = format!("+{n} {item_name} from {animal_name}");
-                                    } else {
-                                        // Refused: put the yield back on the animal.
-                                        if let Ok(mut h) = state
-                                            .game_world
-                                            .world
-                                            .get::<&mut crate::ecs::components::Harvestable>(animal)
-                                        {
-                                            h.time_since_harvest = h.regrow_time;
-                                        }
-                                        notice = "Your pack is full".to_string();
                                     }
-                                }
-                                None => {
-                                    notice = format!("{animal_name} has nothing to collect yet");
                                 }
                             }
+                            notice = crate::systems::livestock::collect_notice(&outcome, &animal_name, items);
                         }
                         state.gui_state.livestock_notice = notice;
                         state.gui_state.livestock_notice_at = now_s;
