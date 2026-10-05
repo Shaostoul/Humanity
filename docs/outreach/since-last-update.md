@@ -11,6 +11,15 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1458.0: the fleet never runs out, and you can see what you use and
+  give.** On a shared server the fleet's stores are unlimited for now, so
+  nobody misses a meal. Every meal you take and the ship's power your home
+  draws are counted as used, and anything you give the fleet at a ship store
+  is counted as given, each at its value in credits. Inventory > The fleet
+  shows whether you are in the black or in the red. Only you see your own
+  ledger. A server admin can switch to a realistic mode where stores can run
+  out.
+
 - **v0.1457.3: three Library guides on water, power and keeping food
   cold.** Wells and Groundwater (never going down a well, what to do with a
   well after a flood, setbacks from a septic system), Water and Wind Power
