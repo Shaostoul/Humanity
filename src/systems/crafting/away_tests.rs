@@ -82,21 +82,24 @@ fn the_mill_catches_up_to_its_keep_target_and_rests() {
     assert!(away::take(&data).is_none(), "taken once");
 }
 
-/// A week away makes no more than the stock could supply: two batches of
-/// inputs make two ingots, the backpack spent before home storage, and
-/// nothing more however long the absence. Seen red by skipping the input
-/// check in `away_start` (it made ingots from nothing).
+/// A week away makes no more than the stock could supply: home storage's 5
+/// ore make two ingots and its last 1 stays, nothing more however long the
+/// absence, and the 3 ore in the backpack are left alone (BUG-150: a machine
+/// takes from the store it is fed from, never from the player's pockets).
+/// Seen red by skipping the input check in `away_start` (it made ingots from
+/// nothing); and, for the backpack, before BUG-150's fix: "the backpack is
+/// left alone" (left: 0, right: 3), when the backpack was spent first.
 #[test]
 fn a_long_absence_makes_only_what_the_stock_could_supply() {
-    let (data, mut world, player) = home("smelt,Smelt,refining,ore_0:2,ingot_0:1,30,,,0,test\n", &[("ore_0", 1)]);
+    let (data, mut world, player) = home("smelt,Smelt,refining,ore_0:2,ingot_0:1,30,,,0,test\n", &[("ore_0", 5)]);
     world.get::<&mut Inventory>(player).unwrap().add_item("ore_0", 3, 99);
     machine(&mut world, "smelter_1", "smelt", None);
     away::hand_over(&data, Some(away_for(7.0 * 86_400.0)));
     let mut sys = CraftingSystem::new();
     sys.tick(&mut world, 0.0, &data);
+    assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("ore_0"), 3, "the backpack is left alone");
     assert_eq!(filed(&data, "ingot_0"), 2);
-    assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("ore_0"), 0, "the backpack first");
-    assert_eq!(stored(&data, "ore_0"), 0);
+    assert_eq!(stored(&data, "ore_0"), 1, "the odd one stays in home storage");
     assert!(sys.active_crafts.is_empty());
 }
 
@@ -140,25 +143,42 @@ fn a_machine_resting_at_its_keep_target_resumes_when_its_product_is_taken() {
     assert_eq!(sys.active_crafts.len(), 2, "both at work when the player returns");
 }
 
-/// Drone ore in the backpack is only there from the moment it landed: ore
-/// landing 5 s before the end of an hour starts one 10 s batch, which the
-/// player finds still running (5 s to go), not two finished ingots. Seen red
-/// with the hauls left out of the ledger (2 ingots, made from the start).
+/// Drone ore is in home storage only from the moment it landed: ore landing
+/// 5 s before the end of an hour starts one 10 s batch, which the player
+/// finds still running (5 s to go), not two finished ingots. Since BUG-150
+/// the drone unloads into home storage (`mining::deliver_haul` files the
+/// haul), so when the machines run the haul is either already put away in
+/// the Barn or still on the channel waiting to be; both are covered. Seen
+/// red with the hauls left out of the ledger (2 ingots, made from the
+/// start); and, once the haul moved to home storage, with the ore not yet
+/// landed subtracted from the backpack instead of from home storage:
+/// "nothing finished before the time ran out (put away: true)" (left: 2,
+/// right: 0).
 #[test]
 fn drone_ore_is_used_only_from_the_moment_it_landed() {
-    let (data, mut world, player) = home("smelt,Smelt,refining,ore_0:2,ingot_0:1,10,,,0,test\n", &[]);
-    world.get::<&mut Inventory>(player).unwrap().add_item("ore_0", 4, 99);
-    machine(&mut world, "smelter_1", "smelt", None);
-    let mut work = away_for(3600.0);
-    work.hauls = vec![(3595.0, vec![("ore_0".to_string(), 4)])];
-    away::hand_over(&data, Some(work));
-    let mut sys = CraftingSystem::new();
-    sys.tick(&mut world, 0.0, &data);
-    assert_eq!(filed(&data, "ingot_0"), 0, "nothing finished before the time ran out");
-    assert_eq!(sys.active_crafts.len(), 1, "one batch in flight at login");
-    assert!((sys.active_crafts[0].time_remaining - 5.0).abs() < 1e-3, "{}", sys.active_crafts[0].time_remaining);
-    assert_eq!(sys.active_crafts[0].machine_id.as_deref(), Some("smelter_1"));
-    assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("ore_0"), 2, "its inputs spent, the rest waits");
+    for put_away in [true, false] {
+        let stock: &[(&str, u32)] = if put_away { &[("ore_0", 4)] } else { &[] };
+        let (data, mut world, player) = home("smelt,Smelt,refining,ore_0:2,ingot_0:1,10,,,0,test\n", stock);
+        if !put_away {
+            data.get::<Mutex<Vec<(String, u32)>>>("home_stock_outputs").unwrap().lock().unwrap().push(("ore_0".into(), 4));
+        }
+        machine(&mut world, "smelter_1", "smelt", None);
+        let mut work = away_for(3600.0);
+        work.hauls = vec![(3595.0, vec![("ore_0".to_string(), 4)])];
+        away::hand_over(&data, Some(work));
+        let mut sys = CraftingSystem::new();
+        sys.tick(&mut world, 0.0, &data);
+        assert_eq!(filed(&data, "ingot_0"), 0, "nothing finished before the time ran out (put away: {put_away})");
+        assert_eq!(sys.active_crafts.len(), 1, "one batch in flight at login (put away: {put_away})");
+        assert!((sys.active_crafts[0].time_remaining - 5.0).abs() < 1e-3, "{}", sys.active_crafts[0].time_remaining);
+        assert_eq!(sys.active_crafts[0].machine_id.as_deref(), Some("smelter_1"));
+        assert_eq!(
+            stored(&data, "ore_0") + filed(&data, "ore_0"),
+            2,
+            "its inputs spent, the rest waits in home storage (put away: {put_away})"
+        );
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("ore_0"), 0, "never in the backpack");
+    }
 }
 
 fn electric_mill(world: &mut hecs::World) {
