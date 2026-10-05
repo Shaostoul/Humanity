@@ -205,6 +205,10 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   ship in the hangar). PROPOSAL written 2026-10-05: docs/design/leaving-the-ship.md (a
   scheduled fleet shuttle to a field at Silverdale, 7 to 8 hours each way at 1x; twelve
   questions for the operator, each with a recommendation; a first increment of about a day).
+- **Twelve plots merged (v0.1462.0): the far homes are far.** From p12's door to the mess
+  hall is about 13 minutes on foot, against the design's rule (section 2.9) of a mess hall
+  within 5 minutes of every home. Wanted: a second mess hall (or a transit stop) along
+  First Street. Plots are on the west side only until a home can turn to face a street.
 - **Operator choices to confirm when convenient:** the opening's first tool is a
   fishing rod (no fishing yet) and its useful thing a storage chest; death's 60 minutes
   of play before a pack is gone.
