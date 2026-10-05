@@ -122,7 +122,7 @@ Relay to client:
 - `game_frame_out_of_view {type, frame}`.
 - `game_build_refused {type, req_id, action: "build"|"unbuild"|"pieces", reason, why?, message}`.
 - Welcome gains `ranks: {can_edit_ship: bool, take_down_any: bool}` (admin/owner for the latter).
-Reason codes: `not_in_game`, `rate_limited`, `bad_shape`, `bad_frame`, `unknown_blueprint`, `not_shared`, `off_grid`, `bad_turn`, `bad_scale`, `out_of_bounds`, `outside_frame`, `not_allowed` (+ `why`: `not_your_plot`, `not_your_piece`, `guest`, `permit_expired`, `permit_not_from_holder`, `permit_bad`, `ship_rank`), `occupied`, `frame_full`, `owner_full`, `world_full`, `no_such_piece`, `storage_error`. `seq` is per frame, in memory, restarts at 0 with the relay (every rejoin gets fresh snapshots).
+Reason codes: `not_in_game`, `rate_limited`, `bad_shape`, `bad_frame`, `unknown_blueprint`, `not_shared`, `off_grid`, `bad_turn`, `bad_scale`, `out_of_bounds`, `outside_frame`, `not_allowed` (+ `why`: `not_your_plot`, `not_your_piece`, `guest`, `permit_expired`, `permit_not_from_holder`, `permit_bad`, `permit_too_long`, `ship_rank`), `occupied`, `frame_full`, `owner_full`, `world_full`, `no_such_piece`, `storage_error`. `seq` is per frame, in memory, restarts at 0 with the relay (every rejoin gets fresh snapshots).
 
 ### 3.3 Relay side
 Storage (new src/relay/storage/world_pieces.rs; table in storage/mod.rs right after game_plots :728, own batch, every column in its CREATE, no index needed at these sizes):
@@ -146,7 +146,7 @@ In memory: `PieceBook` on GameWorld (`pieces`, init in `new()`, frames and bluep
 
 Interest: per player a set of frames in view, judged by floor distance to the frame's box against `rules.delivery.in_view_m`/`out_of_view_m` (250/300, data/ship/shared_world.ron). On join (after :3149): clear the set, judge, send each in-view frame's snapshot. On each accepted move (after :3355): new frames get a snapshot, lost frames get `game_frame_out_of_view`, sent before the lock drops. On despawn: forget the set (game_state.rs:1130-1139). On the shipped ship a player at p1's door has p1, p2, p3, the Commons and First Street in view; p4 (256.5 m) is out.
 
-Releases and erase: when a plot is given back (admin release, give-up, erase) every piece on it is taken down (memory, DB, `game_unbuilt` to viewers) and the admin notice says how many (subject to §6 Q2). Erase also deletes every piece the account placed anywhere: memory in `leave_world_for_erase`, rows in `delete_account` (counted as `world_pieces` in the receipt; the plot's pieces taken down earlier are added to the receipt like `ship_plots` at msg_handlers.rs:1856-1862). Export lists the account's pieces.
+Releases and erase: when a plot is given back (admin release, give-up, erase) every piece on it is taken down (memory, DB, and as built each viewer is sent the frame's new list, one message each rather than a `game_unbuilt` per piece, which could overrun the relay's 256-message send queue) and the admin notice says how many (subject to §6 Q2). Erase also deletes every piece the account placed anywhere: memory in `leave_world_for_erase`, rows in `delete_account` (counted as `world_pieces` in the receipt; the plot's pieces taken down earlier are added to the receipt like `ship_plots` at msg_handlers.rs:1856-1862). Export lists the account's pieces.
 
 Logs for the rig, never a key: `Game: built piece {id} {bp} on {frame}`, `Game: build refused ({reason}/{why}) on {frame}`, `Game: took down piece {id} on {frame}`, `Game: take-down refused ({reason}/{why})`.
 

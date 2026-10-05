@@ -170,9 +170,12 @@ The stored-data classes removed or bounded after the sealed-sender cutover:
   - ERASE is `account_delete` with typed-name confirmation: messages, uploads
     and their files on disk, profile, mailbox, vault, push subscriptions,
     listings, reviews, tasks, reactions, codes, membership, registered name,
-    your progress in the shared world (quest, XP, reputation there), and your
-    home's plot on the ship (it goes to the next player; if you come back you
-    get a free plot or a guest place). If you are in the shared world when you
+    your progress in the shared world (quest, XP, reputation there), what you
+    built in the shared world (every piece you put up, wherever it stands;
+    your export lists them), and your home's plot on the ship (it goes to the
+    next player; if you come back you get a free plot or a guest place; what
+    stood on it comes down with it, whoever built it, so the next household
+    does not move in among a stranger's walls). If you are in the shared world when you
     erase, you leave it in the same step the plot is freed, so nobody is handed
     a plot you still stand on; the server's stored copy of the world loses your
     figure in that step too, so a crash straight after cannot bring your
