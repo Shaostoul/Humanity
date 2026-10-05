@@ -30,9 +30,11 @@ and Technology, the Occupational Safety and Health Administration
 (OSHA), the National Highway Traffic Safety Administration, the
 Consumer Product Safety Commission (CPSC), the USDA's canning guide, the
 Chemical Safety Board, the Centers for Disease Control and Prevention
-(CDC), the National Weather Service, and the Army's and the Navy's
-manuals, all US federal and in the public domain; and, restated in our
-own words, the International Residential Code and a HUD inspection guide.
+(CDC), the National Weather Service, the Federal Emergency Management
+Agency's Ready.gov site, and the Army's and the Navy's manuals, all US
+federal and in the public domain; and, restated in our own words, the
+International Residential Code, Washington's building code rules and a
+HUD inspection guide.
 OSHA's rules bind employers, not households; they are used here because
 they set out plainly what keeps people safe around pressure (our
 reading). Where something is general practice or our own reading, the
@@ -78,8 +80,11 @@ A canner held at 10.5 psi, with a lid opening about 10 inches across
 (an illustrative size): the opening's area is about 3.14 x 5 x 5 = 78.5
 square inches, so the steam pushes on the lid with 10.5 x 78.5, about 820
 pounds of force (our arithmetic). Even 1 psi left inside is about 80
-pounds trying to lift the lid. That is why a canner's or a cooker's lid
-locks while there is pressure inside, and why you never force it.
+pounds trying to lift the lid. That is why a modern canner's or cooker's
+lid locks while there is pressure inside, and why you never force it. An
+older canner may have no lock at all, so nothing stops its lid being
+opened under pressure except you (the USDA's rules for that are under
+Pressure canners, below).
 
 ### The units
 
@@ -195,8 +200,18 @@ a way of controlling thermal expansion where a pressure-reducing valve,
 check valve or backflow preventer is fitted with a storage water heater
 (all restated). The code in force where you live is the one your city or
 county adopted, which may differ, so ask the building department before
-you change anything (our caution). A plumber can measure your pressure
-with a gauge on an outside tap (general practice).
+you change anything (our caution).
+
+Washington, where the simulation is set, is one of those places. It
+adopts the 2021 International Residential Code without its plumbing
+chapters, and its plumbing code is the 2021 Uniform Plumbing Code,
+published by the International Association of Plumbing and Mechanical
+Officials (Washington Administrative Code 51-51-003 and 51-56-003, both
+read 5 October 2026). That code has its own sections on excessive water
+pressure, expansion tanks and water hammer; their text was not read for
+this guide, so the limits above are the residential code's, not
+necessarily Washington's. A plumber can measure your pressure with a
+gauge on an outside tap (general practice).
 
 Know where your main shutoff valve is. Ready.gov says everyone in the
 household should learn how to shut off the main water valve to the
@@ -268,9 +283,9 @@ the setting for your car (our reading).
 cold, meaning it has not been driven on for at least three hours." And:
 "To get an accurate tire pressure reading, you must measure tire pressure
 when the tires are cold or compensate for the extra pressure in warm
-tires." It says to check every tyre, including the spare, and, if one is
-too high, to let air out slowly by pressing the valve stem with the edge
-of the gauge.
+tires." It says to check every tyre, including the spare, at least once a
+month, and, if one is too high, to let air out slowly by pressing the
+valve stem with the edge of the gauge.
 
 **Worked example** (our arithmetic, from the handbook's laws). A tyre set
 to 35 psi on a 50 F morning holds 49.7 psi absolute at a temperature of
@@ -301,12 +316,13 @@ with lethal force (our reading).
 A home air compressor stores air in a tank, which OSHA's rules call an
 air receiver. For workplaces they require a drain valve at the lowest
 point, opened often enough to keep oil and water from building up; a
-pressure gauge you can see; and spring-loaded safety valves that keep the
-pressure within 10 percent of what the tank is rated for. Two of those
-rules, in OSHA's words: "No valve of any type shall be placed between the
-air receiver and its safety valve or valves." And: "All safety valves
-shall be tested frequently and at regular intervals to determine whether
-they are in good operating condition."
+pressure gauge you can see; and spring-loaded safety valves big enough to
+stop the pressure rising more than 10 percent above the tank's maximum
+allowable working pressure. Two of those rules, in OSHA's words: "No
+valve of any type shall be placed between the air receiver and its safety
+valve or valves." And: "All safety valves shall be tested frequently and
+at regular intervals to determine whether they are in good operating
+condition."
 
 At home (general practice, from those rules): drain the tank after use,
 because the water that collects in it rusts it from the inside where you
@@ -334,13 +350,23 @@ cutting gives the habits that keep them from becoming missiles or fires
 - Fuel gas cylinders stand valve end up when in use, and "shall not be
   placed in a location where they would be subject to open flame, hot
   metal, or other sources of artificial heat."
-- When opening a valve, "The person cracking the valve shall stand to one
-  side of the outlet, not in front of it."
-- "No damaged or defective cylinder shall be used", and only the owner or
-  someone the owner authorises refills a cylinder.
+- Before a regulator is fitted to a welding cylinder, its valve is
+  "cracked", opened for a moment to blow dirt out of it, and "The person
+  cracking the valve shall stand to one side of the outlet, not in front
+  of it." The same rule forbids cracking a fuel gas cylinder where the gas
+  could reach welding work, sparks, a flame or anything else that could
+  light it. A household has no reason to crack a propane cylinder at all:
+  open its valve only with the regulator or appliance connected, standing
+  to one side, and never let propane out on purpose (general practice).
+- "No damaged or defective cylinder shall be used."
+- Only the cylinder's owner, or someone the owner authorises, may refill
+  it. For a household that means a propane supplier refills or exchanges
+  a barbecue cylinder: never refill one yourself, and never refill a
+  disposable camping cylinder at all (general practice).
 - A cylinder frozen in place is freed with warm water, never boiling.
 
-Where and how to store fuel cylinders is in *Fuels and Their Hazards*.
+Where and how to store fuel cylinders is in [Fuels and Their
+Hazards](/library#fuels-and-their-hazards).
 
 **A cylinder in a fire: get far away.** Propane is stored as a liquid
 under pressure, and heat raises that pressure (our reading of the gas
@@ -348,25 +374,32 @@ laws above and the investigation below). The US Chemical Safety and
 Hazard Investigation Board investigated a farm propane tank that burst
 in a fire in Albert City, Iowa, in 1998. It calls this kind of explosion
 a BLEVE, a boiling liquid expanding vapour explosion: "A BLEVE can occur
-when a pressure vessel containing a flammable liquid, like a propane
-tank, is exposed to fire." Its account: once the leaking propane
-caught fire under the tank, "As the propane boiled, the pressure inside
-the tank increased because of the expanding vapors"; about 10 minutes
-after the fire started the relief valves opened, with a noise the
-firefighters compared to a jet engine; and in the end the steel above the
+when a flammable liquid inside a container is exposed to fire." Its
+account: once the leaking propane caught fire under the tank, "As the
+propane boiled, the pressure inside the tank increased because of the
+expanding vapors"; about 10 minutes after the fire started the relief
+valves opened, with a noise the firefighters said was like standing next
+to a jet plane at full throttle; and in the end the steel above the
 liquid, with nothing inside to cool it, grew too hot to hold and tore.
-The board's timeline puts the ignition at 11:05 pm, the firefighters'
-arrival at 11:21 and the explosion at 11:28. Its finding about the
-firefighters: "In this incident, flying tank fragments from the explosion
-killed two fire fighters located approximately 100 feet from the side of
-the tank." A relief valve venting does not mean the danger is over: the
-tank burst seven minutes after the firefighters arrived to find flames
-roaring from its valves.
+The board's timeline puts the ignition at about 11:05 pm (an estimate
+from witnesses' accounts), the firefighters' arrival at 11:21 and the
+explosion at 11:28. Its finding about the firefighters: "In this
+incident, flying tank fragments from the explosion killed two fire
+fighters located approximately 100 feet from the side of the tank."
+Their training had taught them that the sides of a tank were safe, and
+the board found they "did not adequately recognize the potential for a
+BLEVE and that a BLEVE can scatter tank fragments in all directions." A
+relief valve venting does not mean the danger is over: the tank burst
+seven minutes after the firefighters arrived to find flames roaring from
+its valves.
 
 For a household the lesson is short (our reading): if a propane cylinder
 or tank is in a fire or roaring from its valve, get everyone well away,
-farther than seems reasonable, call 911, and do not go back to turn it
-off or cool it.
+in every direction, the sides included, farther than seems reasonable.
+The firefighting guidance the board cites says that for a burning
+propane tank with no steady water supply, firefighters themselves pull
+back half a mile all round. Call 911, and do not go back to turn it off
+or cool it.
 
 ### Aerosol cans and lighters
 
@@ -374,9 +407,12 @@ The CPSC's regulation for the warning on a pressurised can includes:
 "Do not puncture or incinerate container." It goes on to say not to
 expose the can to heat or store it above 120 F. The National Weather
 Service says a dark dashboard or seat in a parked car can reach 180 to
-over 200 F. So a can or a lighter left on the dashboard in summer is past
-its own label's limit (our reading of the two together). Never put a
-can, full or "empty", on a fire (general practice; the label above).
+over 200 F. So an aerosol can left on the dashboard in summer is past its
+own label's limit (our reading of the two together). A butane lighter
+has no such label in the sources here, but it too holds liquid gas under
+pressure, and a hot dashboard is no place for it either (our reading).
+Never put a can, full or "empty", on a fire (general practice; the label
+above).
 
 ## Steam: why a closed container that is heated can burst
 
@@ -411,11 +447,12 @@ Things that have burst that way, and the rule for each:
 
 A pressure cooker raises the boiling point so food cooks hotter. The
 danger is opening it, or letting it vent, while it still holds pressure.
-The CPSC recalled about 930,000 electric pressure cookers in 2023
-because wrong fill lines inside their pots let people overfill them, and
-hot food and liquid could then be ejected when the cooker was vented
-quickly or opened under pressure; the seller had 31 reports of contents
-expelled under pressure, 17 with burns. The CPSC's advice for every user:
+In 2023 Best Buy, with the CPSC, recalled about 930,000 Insignia electric
+pressure cookers because wrong fill lines inside their pots let people
+overfill them, and hot food and liquid could then be ejected when the
+cooker was vented quickly or opened under pressure; Best Buy had 31
+reports of contents expelled under pressure, 17 with burns. The recall
+notice's advice for every user:
 "Consumers should always check that the inner pot is not filled beyond
 two-thirds capacity when pressure cooking, that the lid is fully locked
 before pressure cooking is started, and that the floating locking valve
@@ -423,28 +460,43 @@ has dropped before attempting to open the lid when pressure cooking."
 
 ### Pressure canners
 
-A canner is a bigger pressure cooker with a gauge, used for food that
-must be heated past boiling (the reason is in [Why Canning Has
-Rules](/library#why-canning-has-rules)). The USDA's canning guide is clear about
-what the pressure is for: "Pressure does not destroy microorganisms, but
-high temperatures applied for an adequate period of time do kill
-microorganisms." At sea level, it says, a canner at 10.5 psi on the gauge
-reaches 240 F inside. Its rules for the vessel:
+A pressure canner is a large pot whose lid fastens shut, with a jar rack,
+a gauge and safety devices, made for food that must be heated past
+boiling (the reason is in [Why Canning Has
+Rules](/library#why-canning-has-rules)). A pressure cooker is not a canner.
+The USDA's canning guide: "Pressure saucepans with smaller volume
+capacities are not recommended for use in canning." And: "The minimum
+volume of canner that can be used is one that will hold 4 quart jars
+sitting upright on the rack." [Keeping What You
+Grew](/library#keeping-what-you-grew) explains why an electric multicooker is
+not used for canning either, even one with a canning button.
+
+The USDA guide is clear about what the pressure is for: "Pressure does
+not destroy microorganisms, but high temperatures applied for an
+adequate period of time do kill microorganisms." At sea level, it says,
+a canner at 10.5 psi on the gauge reaches 240 F inside. Its rules for the
+vessel:
 
 - **Vent it.** "Air trapped in a canner lowers the temperature obtained at
   5, 10, or 15 pounds of pressure and results in under processing." So:
   "To be safe, all types of pressure canners must be vented 10 minutes
   before they are pressurized."
 - **Check the gauge.** "Check dial gauges for accuracy before use each
-  year." Many county extension offices can test one, it says.
+  year." Many county extension offices can test one, it says, and:
+  "Replace gauges that differ by more than 2 pounds."
 - **Look after the gasket and the safety fuse.** "Nicked or dried gaskets
   will allow steam leaks during pressurization of canners." And: "Lid
   safety fuses are thin metal inserts or rubber plugs designed to relieve
   excessive pressure from the canner. Do not pick at or scratch fuses
-  while cleaning lids." It recommends canners approved by Underwriters
-  Laboratories.
+  while cleaning lids." And: "Use only canners that have the
+  Underwriter's Laboratory (UL) approval to ensure their safety."
 - **Let it cool by itself.** "Do not force-cool the canner." Newer canners
-  are depressurised when their vent lock piston drops.
+  are depressurised when their vent lock piston drops to its normal
+  position, the guide says. Older heavy-walled canners may have no vent
+  lock, and for those the timing is the safeguard: "Depressurization of
+  older models without dial gauges should be timed. Standard-size
+  heavy-walled canners require about 30 minutes when loaded with pints
+  and 45 minutes with quarts."
 - **Open it away from you.** After it is depressurised, take the weight
   off or open the petcock, then: "Wait 10 minutes, unfasten the lid, and
   remove it carefully. Lift the lid away from you so that the steam does
@@ -462,14 +514,17 @@ change occurs. You can feel an increase of pressure on your eardrums." At
 surface (NOAA's one atmosphere per 33 feet, our arithmetic).
 
 **Ears.** The Navy's diving manual: "Middle ear squeeze is the most common
-type of barotrauma." The water presses the eardrum inward, and unless air
-reaches the space behind it through the tube from the back of the nose,
-the eardrum stretches, bleeds and can tear. Its advice: clear early and
-often on the way down; "Many divers can clear by yawning, swallowing, or
-moving the jaw around"; "Never do a forceful Valsalva maneuver during
-descent" (forcing air up by blowing hard against a pinched nose); and if it
-hurts, "Simply stopping the descent and ascending a few feet usually
-brings about immediate relief." It adds: "Divers who cannot clear their
+type of barotrauma" (barotrauma is injury from a difference in
+pressure). The water presses the eardrum inward, and unless air reaches
+the space behind it through the tube from the back of the nose, the
+eardrum stretches, bleeds and can tear. Its advice: clear early and often
+on the way down; "Many divers can clear by yawning, swallowing, or moving
+the jaw around"; "Never do a forceful Valsalva maneuver during descent"
+(forcing air up by blowing hard against a pinched nose); and if it hurts,
+"Simply stopping the descent and ascending a few feet usually brings
+about immediate relief." If gentle clearing still does not work, the
+manual's rule is to end the dive: "If clearing cannot be accomplished as
+described above, abort the dive." It adds: "Divers who cannot clear their
 ears on the surface should not dive." A head cold can block the tube,
 and the manual says a partly blocked tube makes a squeeze more likely. A
 torn eardrum needs a doctor: the manual sends suspected tears to medical
@@ -509,10 +564,14 @@ guide (general practice).
 - **A dented, rusted or leaking compressor tank or gas cylinder:** stop
   using it; return a cylinder to its supplier. Never weld, heat or patch a
   pressure vessel (general practice).
-- **A cylinder or tank in a fire, or venting with a roar:** get away and
-  call 911.
+- **A cylinder or tank in a fire, or venting with a roar:** get away in
+  every direction and call 911.
+- **Refilling a propane cylinder:** a propane supplier refills or
+  exchanges it; a disposable camping cylinder is never refilled (general
+  practice).
 - **A pressure canner's dial gauge:** tested every year, at an extension
-  office or by the maker (USDA).
+  office or by the maker, and replaced if it is more than 2 pounds out
+  (USDA).
 - **Breathing from a tank underwater:** a certified course first.
 
 Yours to do: knowing gauge from absolute pressure, checking tyres cold
@@ -537,10 +596,23 @@ cooker or canner under pressure, and clearing your ears early.
   explode.
 - **"The propane's venting, so it's safe now."** The Iowa tank burst while
   its valves were venting.
+- **"The side of the tank is the safe place to stand."** That is what the
+  Iowa firefighters had been taught. The board found that a BLEVE can
+  scatter fragments in all directions.
 - **"I'll hold my breath and see how far I can swim underwater."** That
   is how swimmers black out and drown.
 - **"Can't clear my ears, but I'll push on down."** Stop, go up a few
-  feet, and try again gently.
+  feet, and try again gently; if they still will not clear, end the dive
+  (Navy).
+- **"It's a pressure cooker, so it'll do for canning."** The USDA says
+  pressure saucepans smaller than a canner that holds four quart jars are
+  not for canning.
+- **"It's an old canner, but the lid comes off easily."** An old canner
+  may have no lock to stop you. Let it depressurise as the USDA says,
+  timed if it has no dial gauge, before you open it.
+- **"Just a quick blast to clear the propane valve."** Never let propane
+  out on purpose. Open the valve only with the regulator or appliance
+  connected.
 
 ## How the game models it
 
@@ -578,21 +650,26 @@ heat.
   water in a full, closed system needs a relief valve and room to expand.
 - You know how a well's pressure tank works and that it holds pressure
   with the power off.
-- You set tyres cold to the door label and can work out how heat raises
-  their pressure.
-- You keep cylinders upright, secured, capped and away from heat, and you
-  would get far away from one in a fire.
+- You check tyres at least once a month, set them cold to the door label,
+  and can work out how heat raises their pressure.
+- You keep cylinders upright, secured, capped and away from heat, never
+  let propane out on purpose, and would get far away from one in a fire,
+  in every direction.
 - You never heat anything sealed, from a can to a wet stone.
-- You never open a cooker or canner under pressure, and you vent, gauge
-  and cool a canner as the USDA says.
-- You clear your ears early, never hyperventilate before swimming
-  underwater, and know never to hold your breath coming up from a tank.
+- You never open a cooker or canner under pressure, you would preserve
+  low-acid food only in a real pressure canner and never in a pressure
+  cooker, and you vent, gauge and cool a canner as the USDA says, timing
+  an old one that has no lock.
+- You clear your ears early, end the dive if they will not clear, never
+  hyperventilate before swimming underwater, and know never to hold your
+  breath coming up from a tank.
 
 ## Sources
 
 Grouped by what kind of authority each one is. Web pages and documents
-were read on 4 October 2026; regulations were read in the eCFR the same
-day.
+were read on 4 October 2026, and regulations in the eCFR the same day;
+Washington's code rules, and the residential code's section numbers a
+second time, were read on 5 October 2026.
 
 ### United States government (public domain)
 
@@ -623,57 +700,77 @@ day.
   alphabetically (created 1 February 2016, updated 18 August 2025) (the
   standard atmosphere, 101.325 kPa; the bar, 100 kPa).
   https://www.nist.gov/pml/special-publication-811/nist-guide-si-appendix-b-conversion-factors/nist-guide-si-appendix-b8
-- National Highway Traffic Safety Administration. *Tires* (TireWise),
-  undated (511 deaths in tyre-related crashes in 2024; poor maintenance
-  leading to flats, blowouts and tread separation; the pressure on the
-  door label or in the manual, not on the tyre; cold meaning not driven
-  for at least three hours; measuring cold; checking every tyre and the
-  spare; letting air out at the valve stem).
-  https://www.nhtsa.gov/vehicle-safety/tires
+- National Highway Traffic Safety Administration. *Tire Safety Ratings
+  and Awareness* (TireWise), undated (511 deaths in tyre-related crashes
+  in 2024; poor maintenance leading to flats, blowouts and tread
+  separation; the pressure on the door label or in the manual, not on the
+  tyre; cold meaning not driven for at least three hours; measuring cold;
+  checking every tyre and the spare at least once a month; letting air out
+  at the valve stem). https://www.nhtsa.gov/vehicle-safety/tires
 - Occupational Safety and Health Administration. 29 CFR 1910.169, Air
   receivers (drain at the lowest point, drained frequently; a gauge and
-  spring-loaded safety valves holding the pressure within 10 percent of
-  the rating; no valve between the receiver and its safety valves; safety
-  valves tested frequently). 29 CFR 1910.177, Servicing multi-piece and
-  single piece rim wheels (scope: large vehicles, not automobiles or LT
-  tyres; restraining devices; the trajectory and a hose long enough to
-  stand outside it; deflating by removing the valve core; no hammering
-  under pressure; no heat applied to multi-piece wheels). 29 CFR
-  1926.350, Gas welding and cutting (valve caps; no dropping or striking;
-  secured upright; valve end up; no heat or flame; standing to one side
-  when cracking a valve; no damaged cylinders; refilling only by the
-  owner or with the owner's authority; warm, not boiling, water to thaw).
-  https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1910
-  and https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1926/subpart-J/section-1926.350
+  spring-loaded safety valves with the capacity to stop the pressure
+  exceeding the maximum allowable working pressure by more than 10
+  percent; no valve between the receiver and its safety valves; safety
+  valves tested frequently).
+  https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1910/subpart-M/section-1910.169
+  29 CFR 1910.177, Servicing multi-piece and single piece rim wheels
+  (scope: large vehicles, not automobiles or LT tyres; restraining
+  devices; the trajectory and a hose long enough to stand outside it;
+  deflating by removing the valve core; no hammering under pressure; no
+  heat applied to multi-piece wheels).
+  https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1910/subpart-N/section-1910.177
+  29 CFR 1926.350, Gas welding and cutting (valve caps; no dropping or
+  striking; secured upright; valve end up; no heat or flame; cracking a
+  valve to clear it before a regulator is fitted, standing to one side,
+  and never cracking a fuel gas cylinder where the gas could reach a
+  spark or flame; no damaged cylinders; refilling only by the owner or
+  with the owner's authority; warm, not boiling, water to thaw).
+  https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XVII/part-1926/subpart-J/section-1926.350
 - US Consumer Product Safety Commission. 16 CFR 1500.130, Self-pressurized
   containers: labeling (do not puncture or incinerate; no heat or storage
   above 120 F). https://www.ecfr.gov/current/title-16/chapter-II/subchapter-C/part-1500/section-1500.130
   And *Best Buy Recalls Insignia Pressure Cookers Due to Burn Hazard*,
-  recall 24-013, recall date 26 October 2023, updated 25 March 2025
-  (about 930,000 units; wrong fill markings; contents ejected on quick
-  release or when opened under pressure; 31 incidents, 17 burn injuries;
-  two-thirds full, lid locked, locking valve dropped before opening).
+  recall 24-013, a recall by the importer, Best Buy, announced with the
+  CPSC, recall date 26 October 2023, updated 25 March 2025 (about 930,000
+  units; wrong fill markings; contents ejected on quick release or when
+  opened under pressure; 31 incidents, 17 burn injuries; two-thirds full,
+  lid locked, locking valve dropped before opening).
   https://www.cpsc.gov/Recalls/2024/Best-Buy-Recalls-Insignia-Pressure-Cookers-Due-to-Burn-Hazard
 - United States Department of Agriculture. *Complete Guide to Home
   Canning*, Agriculture Information Bulletin 539, Guide 1, Principles of
-  Home Canning (file revised July 2015) (pressure does not destroy
-  microorganisms, temperature does; 10.5 psi on the gauge giving 240 F at
-  sea level; trapped air lowering the temperature; venting 10 minutes;
-  dial gauges checked every year, at extension offices; gaskets; safety
-  fuses; UL approval; no force-cooling; the vent lock piston; waiting 10
-  minutes and lifting the lid away from you).
+  Home Canning (file revised July 2015) (pressure saucepans with smaller
+  capacities not recommended for canning, and the smallest canner one
+  that holds 4 quart jars upright on its rack; canners made before the
+  1970s heavy-walled with clamp-on or turn-on lids, modern ones with a
+  vent and cover lock; pressure does not destroy microorganisms,
+  temperature does; 10.5 psi on the gauge giving 240 F at sea level;
+  trapped air lowering the temperature; venting 10 minutes; dial gauges
+  checked every year, at extension offices, and replaced if more than 2
+  pounds out; gaskets; safety fuses; only UL-approved canners; no
+  force-cooling; the vent lock piston on newer canners, and about 30
+  minutes for pints and 45 for quarts in older heavy-walled canners
+  without dial gauges; waiting 10 minutes and lifting the lid away from
+  you).
   https://nchfp.uga.edu/papers/guide/GUIDE01_HomeCan_rev0715.pdf
 - US Chemical Safety and Hazard Investigation Board. *Investigation
   Report: Propane Tank Explosion, Herrig Brothers Feather Creek Farm,
   Albert City, Iowa, April 9, 1998*, Report No. 98-007-I-IA, adopted by
-  the Board on 23 June 1999 (a BLEVE in a propane tank exposed to fire; the
-  pressure rising
-  as the propane boiled; the relief valves opening about 10 minutes into
-  the fire, their noise like a jet plane in the firefighters' words; the
-  overheated wall above the liquid failing; ignition at 11:05 pm,
+  the Board on 23 June 1999 (a BLEVE when a flammable liquid inside a
+  container is exposed to fire, in the Board's own words in section
+  3.3.1; the pressure rising as the propane boiled; the relief valves
+  opening about 10 minutes into the fire, their noise like a jet plane in
+  the firefighters' words; the overheated wall above the liquid failing;
+  ignition at about 11:05 pm, an estimate from witnesses' accounts,
   firefighters arriving at 11:21 and the explosion at 11:28; fragments in
   all directions; two firefighters killed about 100 feet from the side of
-  the tank). Its description of a BLEVE quoted from a textbook is not used.
+  the tank, their training having taught them the sides were safe; the
+  firefighting training guideline the report cites, to withdraw half a
+  mile in all directions from a burning propane tank when no continuous
+  water supply is available). The textbook passages it quotes about
+  BLEVEs, in its footnote 1 and after its own definition in section
+  3.3.1, are not used, and the training guideline is restated, not
+  quoted.
   https://www.csb.gov/assets/1/20/Final_Herrig.pdf
 - National Weather Service. *Children, Pets and Vehicles*, undated (a dark
   dashboard or seat at 180 to over 200 F).
@@ -690,8 +787,9 @@ day.
 - Naval Sea Systems Command. *U.S. Navy Diving Manual*, Revision 7,
   SS521-AG-PRO-010, 1 December 2016, Distribution Statement A (middle ear
   squeeze, clearing, the forceful Valsalva warning, stopping and going up
-  a few feet, not diving if you cannot clear on the surface, a partly
-  blocked tube; hyperventilation and breath-hold blackout in pools;
+  a few feet, aborting the dive if clearing still fails, not diving if
+  you cannot clear on the surface, a partly blocked tube; hyperventilation
+  and breath-hold blackout in pools;
   arterial gas embolism from gas breathed under pressure and held on
   ascent; never holding the breath during ascent). Read in a copy hosted
   by Arizona State University's research compliance office; its Change
@@ -712,8 +810,24 @@ day.
   controlling thermal expansion where a pressure-reducing valve, check
   valve or backflow preventer is fitted with storage water heating) and
   P2903.5 (water-hammer arrestors where quick-closing valves are used).
-  Read on the code council's public website.
+  Read on the code council's public website on 4 October 2026; the
+  section numbers were checked again on 5 October 2026 in two 2021
+  adoptions shown on UpCodes, South Carolina's (no local change marked)
+  and Denver's, which both print P2903.3.1 as pumps for drinking water
+  and P2903.3.2 as the maximum pressure.
   https://codes.iccsafe.org/content/IRC2021P2/chapter-29-water-supply-and-distribution
+- Washington State Legislature, the Washington Administrative Code,
+  rules of the State Building Code Council. WAC 51-51-003 (the 2021
+  International Residential Code adopted in Washington except its
+  chapter 11 and chapters 25 to 43, with plumbing regulated by chapter
+  51-56 WAC) and
+  51-56-003 (the 2021 Uniform Plumbing Code, published by the
+  International Association of Plumbing and Mechanical Officials, adopted
+  by reference with the state's changes), both in force since March
+  2024, read 5 October 2026. The Uniform Plumbing Code's own text was not
+  read.
+  https://app.leg.wa.gov/WAC/default.aspx?cite=51-51-003 and
+  https://app.leg.wa.gov/WAC/default.aspx?cite=51-56-003
 - US Department of Housing and Urban Development. *Residential
   Rehabilitation Inspection Guide*, February 2000, prepared by the
   National Institute of Building Sciences (the well pressure tank and
@@ -743,7 +857,8 @@ day.
   Groundwater](/library#wells-and-groundwater), [Working Out Why Something
   Broke](/library#working-out-why-something-broke), [The Hazards Where You
   Live](/library#the-hazards-where-you-live), [Treating
-  Burns](/library#treating-burns) and [Knowing Which Way Is
+  Burns](/library#treating-burns), [Fuels and Their
+  Hazards](/library#fuels-and-their-hazards) and [Knowing Which Way Is
   North](/library#knowing-which-way-is-north).
 
 ### Labelled in the text as general practice, arithmetic or our reading, not sourced
@@ -755,15 +870,21 @@ day.
   difference in pressure, why water's stiffness explains water hammer and
   heating damage, the tie between the handbook and the code's expansion
   control, the tyre's moulded number as its limit, the danger of
-  split rims, propane's pressure rising with heat, a can on a hot
-  dashboard, sealed water heated becoming a bomb, the household lesson
-  from the Iowa explosion, and a head cold blocking the ear's tube, are
+  split rims, propane's pressure rising with heat, an aerosol can or a
+  butane lighter on a hot dashboard, sealed water heated becoming a bomb,
+  the household lesson from the Iowa explosion (getting away in every
+  direction, and the half mile as a measure of how far firefighters
+  themselves pull back), that the limits of the residential code are not
+  necessarily Washington's, and a head cold blocking the ear's tube, are
   our readings; the opening list of how pressure hurts people is our
   summary of the sections that follow it.
 - Closing valves smoothly, measuring pressure at an outside tap, the well
   tank rules, a pump that starts too often wearing out, the compressor
-  habits, dense dry stones, never heating sealed food containers or cans,
-  never playing breath-holding games, and learning scuba from a certified
-  instructor, are general practice.
+  habits, never cracking or venting a propane valve on purpose and
+  opening it only with the regulator or appliance connected, a propane
+  supplier refilling or exchanging a household cylinder and a disposable
+  one never refilled, dense dry stones, never heating sealed food
+  containers or cans, never playing breath-holding games, and learning
+  scuba from a certified instructor, are general practice.
 - That OSHA's workplace rules describe what keeps households safe too is
   our reading.

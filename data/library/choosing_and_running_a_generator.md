@@ -12,18 +12,21 @@ putting it where its exhaust cannot reach anyone, connecting it without
 sending power back down the street, and running it through rain, night
 and refuelling without hurting yourself.
 
-It sits beside four other guides and does not repeat them.
+It sits beside several other guides and does not repeat them.
 [Where Your Own Electrical Work Stops](/library#where-your-electrical-work-stops)
-has the Consumer Product Safety Commission's full warning about
-generators and carbon monoxide at the panel, and the line between what a
-household may do to its wiring and what belongs to an electrician.
+has the Consumer Product Safety Commission's generator warnings,
+including the danger label required on every portable generator made or
+imported since May 2007, and the line between what a household may do to
+its wiring and what belongs to an electrician.
 [Electricity and How It Flows](/library#electricity-and-how-it-flows) explains
 watts, volts and amps and why a cord can overheat. [Ventilation, Damp and
 Mould](/library#ventilation-damp-and-mould) covers carbon monoxide alarms and
 where they go. [Sound and Hearing](/library#sound-and-hearing) works out how far
 away a generator has to be before its noise stops being a problem.
-Storing the fuel is the subject of its own guide, *Fuels and Their
-Hazards*; this one says only where fuel must never be kept.
+Storing the fuel is the subject of its own guide, [Fuels and Their
+Hazards](/library#fuels-and-their-hazards); this one says only where fuel must
+never be kept. Heating the house without power, and doing it safely, is
+in [Heating a Home Safely](/library#heating-a-home-safely).
 
 Its sources are the Consumer Product Safety Commission (CPSC), the
 Occupational Safety and Health Administration (OSHA), the Centers for
@@ -175,9 +178,13 @@ figure: 2,200, for the refrigerator or the freezer. Starting total: 3,760
 watts. So this household needs a generator rated for at least about
 1,600 watts running and 3,800 watts starting, plus a margin.
 
-Add a 1,000 watt microwave and the running total becomes 2,560 watts.
-Use the microwave only while the freezer is switched off, or buy bigger
-(general practice).
+Add a 1,000 watt microwave and the running total becomes 2,560 watts,
+and the starting total 4,760. Either buy a generator that big, or use the
+microwave only while the refrigerator and the freezer are both switched
+off: then the load is 1,160 watts, with no motor to start (our
+arithmetic). Switching off the freezer alone is not enough, because the
+refrigerator starting on top of the microwave still asks for 4,060 watts,
+more than the 3,800 sized above (our arithmetic).
 
 **Through a transfer switch** (wired in properly by an electrician,
 below): add the gas furnace's fan blower (700 running, 1,400 extra to
@@ -258,20 +265,23 @@ and far away from windows, doors and vents", each one checked for cuts
 and tears along its whole length, with all three prongs on the plug, and
 "Make sure the wattage rating for each cord exceeds the total wattage of
 all appliances connected to it." It adds: "Protect the cord from getting
-pinched or crushed if it passes through a window or doorway." With the
-generator 20 feet out, a 25-foot cord is about the shortest that reaches
-a doorway (our arithmetic). A door or window held open for a cord is an
-opening the exhaust can find, so bring the cord in on the side of the
-house away from the exhaust and close the gap round it as far as it will
-go (our reading of the CPSC's rule to close windows near the
-generator). How a cord's gauge sets what it can carry is in [Electricity
-and How It Flows](/library#electricity-and-how-it-flows).
+pinched or crushed if it passes through a window or doorway." A door or
+window held open for a cord is an opening the exhaust can find, so bring
+the cord in on a side of the house away from the exhaust, not through the
+nearest door, and close the gap round it as far as it will go (our
+reading of the CPSC's rule to close windows near the generator). With
+the generator 20 feet out, a 25-foot cord barely reaches the nearest
+wall; reaching round to the far side of the house usually takes 50 feet
+or more (our estimate). A longer cord loses more voltage and makes more
+heat for the same load, so it needs a heavier gauge: [Electricity and How
+It Flows](/library#electricity-and-how-it-flows) works a long-cord example.
 
 **Ground fault protection.** OSHA's fact sheet says to use GFCIs,
 "especially where electrical equipment is used in or around wet or damp
-locations"; many generators have them on their outlets, and portable ones
-can go on a cord (OSHA; the GFCI itself is explained in [Where Your Own
-Electrical Work Stops](/library#where-your-electrical-work-stops)). OSHA also
+locations", and notes that GFCIs and extension cords with GFCI protection
+built in are sold at hardware stores. Many generators have them on their
+outlets (general practice). The GFCI itself is explained in [Where Your
+Own Electrical Work Stops](/library#where-your-electrical-work-stops). OSHA also
 says to make sure a generator is properly grounded and to follow the
 maker's instructions for how; a generator that supplies only cords
 plugged into its own outlets is treated differently from one connected to
@@ -413,10 +423,15 @@ sources say how, and they do not quite agree, so here are all three:
 What none of them allows is moving it into the garage, the porch or the
 carport to keep it dry. An open canopy means open: walls and closed sides
 trap the exhaust, which is the reason for being outside at all (our
-reading). Never handle the generator's electrical parts while you are
-wet or standing in water (OSHA), and never use a generator, or anything
-else electrical, that has been under water until it has been dried and
-properly evaluated (OSHA; CPSC).
+reading). Use the cover the generator's manual allows, or wait for the
+rain to pass. A home-made roof of plywood or plastic sits over a hot
+engine and muffler, and the tent the CPSC names is a non-combustible one
+made for the purpose, not whatever is to hand (our reading). Never handle
+the generator's electrical parts while you are wet or standing in water
+(OSHA). Electrical equipment that has been under water must be
+"thoroughly dried out and properly evaluated" before it is used (OSHA);
+what a flood means for the house's own wiring and gas controls is in the
+section on where your own work stops, below.
 
 ### Refuelling
 
@@ -428,8 +443,12 @@ the touch, not stopped for a minute (our reading). Fill it outdoors,
 with nothing burning nearby (general practice), and if you spill, wipe it
 up before you restart (general practice).
 
-Fuel for it is stored outside living areas, never in the home (CPSC);
-how to store it is in *Fuels and Their Hazards*.
+Fuel for it is never stored in the home. The CPSC's safety alert says
+gasoline, propane, kerosene and other flammable liquids "should be stored
+outside of living areas in properly-labeled, non-glass safety
+containers", and adds: "Do not store them near a fuel-burning appliance,
+such as a natural gas water heater in a garage." How to store it is in
+[Fuels and Their Hazards](/library#fuels-and-their-hazards).
 
 ### At night
 
@@ -438,9 +457,23 @@ notice the symptoms (our reading of the CDC's warning above). If it runs
 overnight, the alarms must be working, the generator must be where you
 put it in daylight and not moved closer for convenience, and the windows
 on its side of the house shut (general practice, from the CPSC's rules
-above). Switching it off at bedtime, with the refrigerator and freezer
-kept shut, removes the risk for the night (our reading of Ready.gov's
-four and 48 hours).
+above). Switching it off at bedtime removes the generator's carbon
+monoxide risk for the night (our reading), but it costs the refrigerator
+its cold.
+
+A night is about twice the four hours Ready.gov gives a closed
+refrigerator, so by morning the refrigerator may be at 40 F or more. A
+full freezer, with its 48 hours, has time to spare (our reading of
+Ready.gov's figures above). So before bed, move the food that spoils
+first, such as meat, milk and leftovers, into the freezer or into a
+cooler with ice, which Ready.gov suggests ("Use coolers with ice if
+necessary"), and keep every door shut (general practice). Medicine that
+must stay cold goes in the cooler too; Ready.gov says to ask your medical
+provider how long yours can be kept warmer. In the morning, read the
+refrigerator thermometer before anything else and apply Ready.gov's rule
+above: anything that has been at 40 F or higher for two hours or more is
+thrown away, and when nobody can say how long it has been that warm,
+Ready.gov's answer is "When in doubt, throw it out!"
 
 ### When the mains come back
 
@@ -476,27 +509,43 @@ floors. A December storm takes the power out in the evening.
 1. **Where.** Not the carport, which is tempting because it is dry. The
    generator goes on the gravel at the back of the lot, 30 feet from the
    house and from the neighbour's bedroom window, exhaust pointed away,
-   under a sheet of plywood on posts, high enough to leave OSHA's 3 to 4
-   feet of clear space above it, with all four sides open (the CPSC's
-   open canopy, our layout).
+   with OSHA's 3 to 4 feet of clear space around and above it. It is
+   raining, and its manual allows a non-combustible generator tent made
+   for that model, so it runs under one; had the manual said to wait for
+   the rain to pass, the household would have waited (the CPSC's advice
+   to follow the maker's instructions for bad weather; our example). The
+   cords come in on the far side of the house, away from the exhaust.
 2. **What.** The refrigerator and the chest freezer, and the lamps,
    phone chargers and laptop on the second cord: 1,560 watts running by
    the table above, and 3,760 watts at the moment a refrigerator starts,
-   both inside the generator's two ratings. The furnace cannot be plugged
-   in, so the house is kept warm by closing off rooms and dressing warmly
-   (see [Emergency Shelter](/library#emergency-shelter)).
-3. **When.** It runs the refrigerator and freezer through the evening,
-   then the household switches it off at bedtime, refrigerator and
-   freezer shut, and starts it again in the morning. The fridge
-   thermometer reads under 40 F both times (our example).
+   both inside the generator's two ratings. The margin is small: if both
+   compressors started at the same moment, the generator would be asked
+   for 5,960 watts and could trip, which is the reason for the margin
+   above (our arithmetic). The furnace cannot be plugged in, so the house
+   is kept warm by closing off rooms and dressing warmly (see [Emergency
+   Shelter](/library#emergency-shelter)).
+3. **When.** It runs the refrigerator and freezer through the evening.
+   At bedtime the household moves the meat, the milk and the leftovers
+   into the chest freezer and a cooler with ice, switches the generator
+   off, and keeps every door shut. First thing in the morning, before the
+   generator starts again, someone reads the refrigerator thermometer.
+   After a night that long it may well read 40 F or more, and then
+   whatever easily spoiled food was left in the refrigerator goes,
+   because nobody can say how long it was that warm (Ready.gov's rule,
+   above; our example).
 4. **Refuelling.** Once a day, generator off, an hour to cool, filled in
    daylight.
 5. **Afterwards.** The household asks a licensed electrical contractor
    about an inlet and transfer switch so the furnace fan and the well
-   pump can run next time. The contractor pulls the permit from the
-   Department of Labor and Industries, which inspects electrical work
-   around Silverdale (see [Where Your Own Electrical Work
-   Stops](/library#where-your-electrical-work-stops)).
+   pump can run next time. With those two loads added, the arithmetic
+   above gives 5,460 starting watts, more than this generator's 4,000, so
+   they would have to take turns with the refrigerator and the freezer,
+   or the household buys a bigger generator (our arithmetic). The
+   contractor pulls the permit from the Department of Labor and
+   Industries, which issues the permits and inspects electrical work
+   around Silverdale: its list of the cities that do their own, read 4
+   October 2026, names none in Kitsap County (see [Where Your Own
+   Electrical Work Stops](/library#where-your-electrical-work-stops)).
 
 ## Know where your own work stops
 
@@ -507,10 +556,13 @@ floors. A December storm takes the power out in the evening.
 - **A standby generator's gas supply:** a licensed gas fitter, under a
   permit (general practice).
 - **Anything that has been flooded:** OSHA says equipment that has been
-  under water must be dried and properly evaluated before use, and the
-  CPSC says to have a professional or the gas or electric company check
-  wiring, breakers and gas controls that have been under water before
-  appliances are used.
+  under water must be thoroughly dried and properly evaluated before use.
+  For a flooded house, the CPSC says not to touch wet appliances that are
+  still plugged in, and, before any appliance is used, to have a
+  professional or the gas or electric company evaluate the home and
+  replace every gas control valve, all the electrical wiring, and every
+  circuit breaker and fuse that has been under water. Replaced, not
+  checked.
 - **Repairs to the generator's electrical parts:** the maker's service
   agent (general practice).
 - **A CO alarm sounding, or anyone ill:** outside, then 911.
@@ -530,10 +582,20 @@ cords, the alarms, refuelling cold, and deciding what runs when.
 - **"It has a CO shut-off, so it's fine anywhere."** It senses the air
   around the generator, not the air in your bedroom.
 - **"A double-ended cord into the dryer outlet will run the whole
-  house."** That is backfeeding, and it can kill a line worker miles away.
+  house."** That is backfeeding, and it can kill a line worker a long way
+  down the line.
 - **"Topping it up while it runs saves time."** Fuel on a hot engine can
   ignite.
-- **"I'll bring it in out of the rain."** Use an open canopy, or wait.
+- **"I'll bring it in out of the rain."** Use a cover its manual allows,
+  with no walls round it, or wait.
+- **"I'll knock up a little plywood roof over it."** That is a wooden roof
+  over a hot engine. Use the non-combustible tent the manual allows, or
+  wait.
+- **"The fridge was off all night, but it still feels cold."** Read the
+  thermometer. At 40 F or more for two hours, the food goes.
+- **"The microwave's only a minute."** The refrigerator can start during
+  that minute. Switch both the refrigerator and the freezer off first, or
+  buy bigger.
 - **"Bigger is always better."** A generator far bigger than the loads
   burns more fuel and is harder to move; one too small trips or
   overheats. Size it by the list (general practice).
@@ -591,12 +653,19 @@ no hot engine, and no fire risk in its fuel.
   biggest starting surge, plus a margin.
 - You run the refrigerator and freezer in turns with a thermometer, and
   heat the house without an electric heater on the generator.
+- If you switch it off for the night, you move the food that spoils first
+  into the freezer or a cooler with ice, and read the thermometer before
+  anything else in the morning.
 - You use heavy-duty outdoor cords rated above their load, and never a
   cord into a wall outlet.
 - You know a transfer switch or interlock is an electrician's job under a
   permit.
-- You refuel only with the engine off and cool, and keep it dry under an
-  open canopy, never by moving it indoors.
+- You refuel only with the engine off and cool, and keep it dry under a
+  cover its manual allows, or wait out the rain, never by moving it
+  indoors.
+- You would not touch a wet appliance that is still plugged in, and after
+  a flood you would have a professional or the utility replace what was
+  under water before anything is used.
 
 ## Sources
 
@@ -617,8 +686,9 @@ were read on 4 October 2026; the Washington rule was read the same day.
   canopy-like structure on a dry surface; heavy-duty outdoor cords long
   enough, rated above the load, checked, three prongs, protected through
   a window or door; never backfeed, and backfeeding bypassing household
-  circuit protection; fuel never stored in the home; turn it off and let
-  it cool before refuelling).
+  circuit protection; fuel never stored in the home, stored outside living
+  areas in labelled, non-glass safety containers and not near a
+  fuel-burning appliance; turn it off and let it cool before refuelling).
   https://www.cpsc.gov/s3fs-public/5123_SafetyAlert_PortableGenerators_102021.pdf
 - US Consumer Product Safety Commission. *As Winter Storms Threaten
   Millions in the U.S., CPSC Issues Safety Tips to Help Families Prevent
@@ -637,15 +707,17 @@ were read on 4 October 2026; the Washington rule was read the same day.
   Monoxide Poisoning and Fires*, news release 25-086, 3 January 2025 (the
   CO shut-off feature; the estimated 87 and 100 percent reductions for
   models certified to PGMA G300-2018 and UL 2201; UL 2201 models with
-  reduced emissions; wet appliances and a professional or the utility to
-  check flooded wiring and gas controls).
+  reduced emissions; wet appliances still plugged in left untouched; a
+  professional or the utility to evaluate the home and replace flooded
+  gas control valves, wiring, circuit breakers and fuses).
   https://www.cpsc.gov/Newsroom/News-Releases/2025/As-Winter-Weather-Impacts-Millions-CPSC-Issues-Safety-Tips-to-Help-Families-Prevent-Carbon-Monoxide-Poisoning-and-Fires
 - Occupational Safety and Health Administration. *Using Portable
   Generators Safely*, Fact Sheet, printed with the code DTSEM FS-3286
   09/2005 (the hazards, noise and vibration among them; never attached to
   a structure's wiring without a transfer switch installed by a qualified
   electrician; energising wiring for great distances; cords; not
-  overloading; GFCIs in wet or damp locations; grounding per the maker;
+  overloading; GFCIs in wet or damp locations, and GFCIs and GFCI cords
+  sold at hardware stores; grounding per the maker;
   kept dry, a canopy if needed, never handled wet; submerged equipment
   dried and evaluated; never indoors, open windows not enough; 3 to 4
   feet of clear space; CO symptoms and not re-entering until trained
@@ -671,9 +743,11 @@ were read on 4 October 2026; the Washington rule was read the same day.
   updated 4 June 2026 (generators and fuel at least 20 feet from windows,
   doors and attached garages; kept dry; heavy-duty extension cords;
   cooled before refuelling; the refrigerator about four hours and a full
-  freezer about 48; food at 40 F or higher for two hours or more thrown
-  away; the medical device plan; disconnecting appliances before the
-  power returns). https://www.ready.gov/power-outages
+  freezer about 48; coolers with ice and a thermometer; food at 40 F or
+  higher for two hours or more thrown away, and when in doubt, thrown
+  out; the medical plan for powered devices and refrigerated medicines,
+  and how long a medicine keeps warmer; disconnecting appliances before
+  the power returns). https://www.ready.gov/power-outages
   *Evacuation*, last updated 20 March 2026 (never connect a generator to
   the home's electrical system). https://www.ready.gov/evacuation
 - Federal Emergency Management Agency. *Be Prepared for a Power Outage*,
@@ -699,14 +773,21 @@ were read on 4 October 2026; the Washington rule was read the same day.
   only, to be checked with a seller, maker, contractor or electrician).
   https://www.eweb.org/documents/emergency-preparedness/generator-sizing-considerations.pdf
 - Clark Public Utilities (Washington). *Install a Generator*, undated (a
-  permanent generator wired in by a licensed electrician; a "break before
-  make" transfer switch that disconnects the utility before the generator
-  supplies the house; an electrical permit before installation).
+  permanent generator wired in by a licensed electrician; a
+  break-before-make transfer switch that disconnects the utility before
+  the generator supplies the house; an electrical permit before
+  installation).
   https://clarkpublicutilities.com/building-remodeling/home-or-building-owners/install-a-generator/
 - Washington Administrative Code 296-46B-702, Optional standby systems
   (the sign the national electrical code requires, also at the meter base
   unless it is within sight of the required sign and within five feet).
   https://app.leg.wa.gov/WAC/default.aspx?cite=296-46B-702
+- Washington State Department of Labor and Industries. *City Electrical
+  Permits & Inspections*, undated, read 4 October 2026 (the cities, and
+  Tacoma Power's area, that issue their own electrical permits and do
+  their own inspections, none of them in Kitsap County; everywhere else
+  the permit comes from L&I).
+  https://lni.wa.gov/licensing-permits/electrical/electrical-permits-fees-and-inspections/city-electrical-permits-inspections
 
 ### Inside this project
 
@@ -726,7 +807,9 @@ were read on 4 October 2026; the Washington rule was read the same day.
   Advantage](/library#force-levers-and-mechanical-advantage), [Keeping Things
   Working](/library#keeping-things-working), [Batteries and
   Storage](/library#batteries-and-storage), [Emergency
-  Shelter](/library#emergency-shelter), [The Hazards Where You
+  Shelter](/library#emergency-shelter), [Fuels and Their
+  Hazards](/library#fuels-and-their-hazards), [Heating a Home
+  Safely](/library#heating-a-home-safely), [The Hazards Where You
   Live](/library#the-hazards-where-you-live) and [Silverdale,
   Washington](/library#silverdale-wa).
 
@@ -736,27 +819,35 @@ were read on 4 October 2026; the Washington rule was read the same day.
   CO shut-off acts on the air around the generator and not in the house,
   that 20 feet is a minimum, that "other buildings" includes a
   neighbour's, that a door or window held open for a cord lets exhaust
-  in, that walls on a canopy trap exhaust, that cool means cool to the
-  touch, and that night is the most dangerous time, are our readings of
-  the CPSC, CDC and OSHA material; that heat loads exceed a small
-  generator is our comparison.
+  in, that walls on a canopy trap exhaust, that a home-made wooden or
+  plastic roof is not the non-combustible tent the CPSC names, that cool
+  means cool to the touch, and that night is the most dangerous time, are
+  our readings of the CPSC, CDC and OSHA material; that heat loads exceed
+  a small generator is our comparison.
 - The descriptions of inverter and standby generators, the two ratings on
-  a label, licensed gas fitters and electricians for standby units, and
-  CO alarms beside a standby unit are general practice.
+  a label, licensed gas fitters and electricians for standby units, CO
+  alarms beside a standby unit, and GFCIs on many generators' outlets are
+  general practice.
 - That compressor motors can ask for more than NIOSH's general figure at
   start rests on the Eugene Water & Electric Board's table; looking up a
   starting figure in the manual is general practice. That the sizing
   method assumes one motor starting at a time, and the margin, are our
   reading.
-- The worked sizing example's arithmetic is ours; the 25-foot cord is our
-  arithmetic.
+- The worked sizing example's arithmetic is ours, including the
+  microwave's 2,560, 4,760, 4,060 and 1,160 watts, the 5,960 watts of two
+  compressors starting together, and the 5,460 starting watts that put
+  the furnace fan and well pump beyond the example's generator; the
+  25-foot cord is our arithmetic and the 50 feet to the far side of a
+  house our estimate.
 - That an electric heater on a generator breaks the wall-outlet rule, and
   heating by layers and one room instead, are our reading.
 - Running the refrigerator and freezer in turns, switching off at bedtime,
-  starting the biggest motor first, a test run before the outage, a
-  written load list, refuelling outdoors and wiping spills, and the steps
-  when the mains return, are general practice or our reading of
-  Ready.gov's hours.
+  that a refrigerator may pass 40 F in a night while a full freezer comes
+  through, moving the food that spoils first into the freezer or a cooler
+  and keeping the doors shut, starting the biggest motor first, a test run
+  before the outage, a written load list, refuelling outdoors and wiping
+  spills, and the steps when the mains return, are general practice or
+  our reading of Ready.gov's hours.
 - How a transfer switch and an interlock work, the inlet box, and that the
   pole transformer steps the voltage back up, are our explanation;
   live pins on a double-plug cord are general practice.

@@ -1276,7 +1276,11 @@
         "cpsc",
         "usfa",
         "nps",
-        "dod-technical-manuals"
+        "dod-technical-manuals",
+        "nih",
+        "icc-ifc",
+        "wa-legislature",
+        "kitsap-county-dem"
       ],
       "locale_dependent": true,
       "hazard": "lethal"
@@ -2628,7 +2632,8 @@
         "fema",
         "dod-technical-manuals",
         "icc-irc",
-        "hud-rrig"
+        "hud-rrig",
+        "wa-legislature"
       ],
       "locale_dependent": false,
       "hazard": "lethal"

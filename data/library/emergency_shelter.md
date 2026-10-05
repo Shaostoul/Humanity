@@ -20,8 +20,9 @@ how to spot hypothermia and what to do for it. [What to Do When You Are
 Lost](/library#what-to-do-when-you-are-lost) covers being lost outdoors,
 calling for help and where to wait. [The Hazards Where You
 Live](/library#the-hazards-where-you-live) covers which disasters a place
-actually has and what to keep in the house for them. [Choosing and
-Running a Generator](/library#choosing-and-running-a-generator),
+actually has and what to keep in the house for them. [Heating a Home
+Safely](/library#heating-a-home-safely), [Choosing and Running a
+Generator](/library#choosing-and-running-a-generator),
 [Firewood](/library#firewood) and [Ventilation, Damp and
 Mould](/library#ventilation-damp-and-mould) cover the heat sources and the
 carbon monoxide that comes with them. [Heat and How It
@@ -30,11 +31,14 @@ Loss](/library#insulation-and-heat-loss) explain the physics.
 
 Its sources are the National Weather Service (NWS) and NOAA's storm
 records, the Federal Emergency Management Agency (FEMA) and its Ready.gov
-site, the Centers for Disease Control and Prevention (CDC), the Consumer
-Product Safety Commission (CPSC), the US Fire Administration (USFA), the
-National Park Service and the Army's survival manual, all US federal and
-in the public domain. Where something is general practice or our own
-reading, the text says so.
+site, the Centers for Disease Control and Prevention (CDC), the National
+Institutes of Health's Safe to Sleep campaign, the Consumer Product
+Safety Commission (CPSC), the US Fire Administration (USFA), the National
+Park Service and the Army's survival manual, all US federal and in the
+public domain; and, restated in our own words, Kitsap County's emergency
+management pages and the project's dated findings on Washington's fire
+code. Where something is general practice or our own reading, the text
+says so.
 
 ## Tonight, right now
 
@@ -45,7 +49,9 @@ reading, the text says so.
    when you are told to (below).
 3. **Put on every layer you have, loose, and get something between you
    and the ground.**
-4. **Make the space small.** One room, one car, one small shelter.
+4. **Make the space small.** One room, one car, one small shelter. A
+   baby still sleeps on its own firm, flat surface, not in the shared
+   bed (below).
 5. **Heat only with things made to be used indoors, and never anything
    that burns fuel without a flue, in a closed space.** Carbon monoxide
    kills sleeping people without waking them (below).
@@ -138,6 +144,13 @@ Lost](/library#what-to-do-when-you-are-lost).
 - **When a carbon monoxide alarm sounds,** or several people feel ill at
   once: outside, then 911 (the CPSC; see [Choosing and Running a
   Generator](/library#choosing-and-running-a-generator)).
+- **When someone depends on a powered medical device or refrigerated
+  medicine,** and the outage will outlast its battery or its cooler: go
+  early, to somewhere with power. Ready.gov: "Have alternate plans for
+  refrigerating medicines or using power-dependent medical devices." It
+  also says that if the power is out for more than a day, medicine that
+  should be refrigerated is thrown away unless its label says otherwise,
+  and to ask a doctor or pharmacist at once for a new supply.
 - **When the house cannot be kept warm enough** for the people in it,
   above all for babies, the old and the sick (below). FEMA's power outage
   sheet: "Consider spending the coldest parts of the day in a location
@@ -178,6 +191,15 @@ for your community's warning system and that NOAA Weather Radio also
 gives emergency alerts, and the Weather Service says to keep listening to
 radio and television, NOAA Weather Radio included, during a flood.
 
+In Kitsap County the community warning system is KitsapALERT, run by the
+county's Department of Emergency Management: anyone who lives or works
+in the county can sign up for its messages by text, phone call or email,
+and it is used only when there is an immediate threat to life and
+property. The same department's website is where it announces its severe
+weather shelters, which give overnight beds during severe weather
+between 1 November and 31 March, to single adults, families with
+children and teenagers (both pages read 5 October 2026).
+
 **Pets.** Ready.gov: "All shelters accept service animals, but many
 public shelters and hotels do not allow pets inside." Its evacuation page
 says most public shelters allow only service animals, so find a place
@@ -202,8 +224,25 @@ heat goes out:
 Choose one room that everyone shares, small, on the side of the house out
 of the wind, with few outside walls and windows (general practice; why
 walls and windows lose heat is in [Insulation and Heat
-Loss](/library#insulation-and-heat-loss)). Sleep together in it, on mattresses
-or pads rather than on a cold floor, with hats on (general practice).
+Loss](/library#insulation-and-heat-loss)). The adults and older children sleep
+together in it, on mattresses or pads rather than on a cold floor, with
+hats on (general practice).
+
+**A baby sleeps on its own surface, even on a cold night.** A baby does
+not share the mattress, the sleeping bags or the hats. The safe-sleep
+advice of the CDC and of the National Institutes of Health's Safe to
+Sleep campaign is that a baby sleeps on its back, on its own firm, flat
+surface, such as a crib, a bassinet or a portable play yard (a travel
+cot), in the same room as the adults but not in their bed, with nothing
+soft in it. The CDC: "Keep soft bedding out of your baby's sleep area.
+This includes blankets, pillows, bumper pads, and soft toys." And: "Do
+not cover your baby's head or allow your baby to get too hot." Safe to
+Sleep says a baby's hat comes off indoors, and puts the warmth on the
+baby instead: "Dress baby in a wearable blanket or an extra layer of
+clothing to keep them warm without adding items to the sleep area." The
+CDC counts babies sleeping in cold rooms among the people at high risk of
+hypothermia, so a room too cold for a baby dressed that way is a room
+too cold to stay in (our reading; the reasons to go are above).
 
 **Heat it only with things made for it.**
 
@@ -224,6 +263,19 @@ or pads rather than on a cold floor, with hats on (general practice).
   plugged straight into a wall outlet, never a power strip, with children
   and pets kept back. The US Fire Administration: "Turn space heaters off
   when leaving the room or going to bed."
+- **Kerosene and propane space heaters** have no flue, so whatever they
+  burn stays in the room (our reading). In Washington the fire code lets
+  a household run a portable heater of that kind indoors only if it is
+  listed to UL 647, the standard for unvented kerosene heaters, only in a
+  house or a duplex, and never in a bedroom, a bathroom, a toilet room or
+  a storage closet; as we read it, a portable propane heater is not
+  covered at all ([the project's dated findings on the
+  rule](https://github.com/Shaostoul/Humanity/blob/main/docs/reference/findings/2026-10-04-portable-unvented-heaters-washington.md),
+  researched 4 October 2026). The one room everyone is sleeping in, shut
+  up against the cold, is no place for one either (our reading), and the
+  CPSC says: "NEVER leave a portable heater running unattended in a
+  confined space". How to run a kerosene heater where one is allowed is
+  in [Heating a Home Safely](/library#heating-a-home-safely).
 - **Carbon monoxide alarms, working, with batteries.** The CPSC: on each
   level and outside separate sleeping areas, tested monthly; and clear the
   snow from the outside vents of the furnace and other fuel-burning
@@ -275,10 +327,10 @@ have the exhaust checked every year.
 Keep moving a little: the Weather Service's advice for anyone caught
 outside in a winter storm, which holds in a car too (our reading), is to
 move arms, legs, fingers and toes vigorously from time to time to keep
-blood circulating and stay warm, without working up a sweat. Use the blankets, sit on something, huddle together, and keep your
-phone warm and mostly off; [What to Do When You Are
-Lost](/library#what-to-do-when-you-are-lost) covers calling for help and saving
-the battery (general practice).
+blood circulating and stay warm, without working up a sweat. Use the
+blankets, sit on something, huddle together, and keep your phone warm and
+mostly off; [What to Do When You Are Lost](/library#what-to-do-when-you-are-lost)
+covers calling for help and saving the battery (general practice).
 
 **Carry what a night in the car needs.** Ready.gov's car kit: "jumper
 cables, sand, a flashlight, warm clothes, blankets, bottled water and
@@ -291,9 +343,12 @@ container.
 ### In water: never drive in
 
 The National Weather Service: "It is NEVER safe to drive or walk into
-flood waters." Ready.gov: "Do not drive into flooded areas." If you are
-caught anyway, the Weather Service says to move to the highest possible
-point and call 911.
+flood waters." Ready.gov: "Do not drive into flooded areas." Turn round
+before the water, every time. The Weather Service's advice for anyone
+trapped by moving water is to move to the highest possible point and call
+911 if possible; that is its general flood advice, not a method for
+getting out of a car that is already in the water, which this guide does
+not cover (our note).
 
 ### In heat: never stay in a parked car
 
@@ -316,8 +371,9 @@ adds how to make the shelter itself.
 **Carry one.** The National Park Service's ten essentials include
 emergency shelter, and it names the options: "A tent, tarp, bivy sack, or
 emergency space blanket are all lightweight options for emergency
-shelter." It also says to pack an extra layer for the worst conditions
-you could meet.
+shelter." (A bivy sack is a light waterproof bag to sleep in, or to go
+over a sleeping bag.) It also says to pack an extra layer for the worst
+conditions you could meet.
 
 **When there is no shelter nearby,** the National Weather Service's
 winter advice: "Build a lean-to, windbreak or snow cave for protection
@@ -423,18 +479,24 @@ and hypothermia.
 
 ## Keeping each other alive overnight
 
-- **Share warmth.** People lying close together, out of the wind and off
-  the ground, lose less heat than people apart (general practice); for
-  someone already too cold, [Cold and
+- **Share warmth.** Adults and older children lying close together, out
+  of the wind and off the ground, lose less heat than people apart
+  (general practice); never a baby, who sleeps on its own surface (above).
+  For someone already too cold, [Cold and
   Hypothermia](/library#cold-and-hypothermia) gives the CDC's skin-to-skin
-  method.
+  method; for a baby, that means an adult who stays awake holding the
+  baby, not an adult and a baby asleep together (our reading of the
+  safe-sleep advice above).
 - **Watch the quiet ones.** Hypothermia makes people deny it; the signs
   to watch for, the "umbles", are in that guide.
 - **Take turns awake** if there is a fire, a stove or an engine running,
   so that someone is watching the flame, the exhaust and the people (our
   reading of the survival manual's carbon monoxide warning).
 - **Eat and drink.** Food is fuel for the body's own heat, as the Weather
-  Service's list says, and cold air is dry.
+  Service's list says, and cold air is dry: it says to drink plenty of
+  water and other drinks without caffeine or alcohol. Alcohol makes the
+  cold more dangerous, not less; [Cold and
+  Hypothermia](/library#cold-and-hypothermia) explains why.
 
 ## Worked example: a December storm near Silverdale
 
@@ -451,35 +513,52 @@ by a gas furnace, which needs electricity for its fan.
 1. **The first evening.** They stay. The kitchen is the warmest room, on
    the sheltered side, with one window: they hang a blanket over the
    doorway, roll a towel against the outside door, close the curtains,
-   and bring mattresses and sleeping bags in. Everyone wears hats. Light
-   is flashlights and a battery lantern; the candles stay in the drawer.
-   The CO alarms have batteries, and someone tests them.
+   and bring mattresses and sleeping bags in for the adults, and the
+   baby's travel cot. The baby sleeps in it on her back, in an extra
+   layer and a wearable blanket, with her head uncovered and nothing else
+   in the cot; the adults and the grandmother wear hats. Light is
+   flashlights and a battery lantern; the candles stay in the drawer. The
+   CO alarms have batteries, and someone tests them.
 2. **What they do not do.** They do not light the gas oven, bring the
    barbecue in out of the rain, or run the car in the attached garage to
    warm up the baby. Barbecues and generators used indoors or improperly
    are what NOAA's record says killed eight people in the Seattle and
    Bremerton zone after the 2006 storm, and the oven and the car make the
    same gas (the CDC, above).
-3. **The second morning.** The kitchen is down to about 13 C. The adults
-   are fine; the grandmother is quiet and shivering and the baby is cold
-   to the touch. That is the point at which staying has become the danger
-   (our reading of FEMA's sheet and of [Cold and
-   Hypothermia](/library#cold-and-hypothermia)).
+3. **The second morning.** The kitchen is down to about 13 C and still
+   falling, and the power may be out for days. Nobody is ill yet, and
+   that is the time to go: with a baby and a grandmother in the house,
+   waiting for signs of cold means waiting too long (our reading of
+   FEMA's sheet and of [Cold and Hypothermia](/library#cold-and-hypothermia)).
+   Had the baby's skin been bright red and cold, or her energy very low,
+   or had the grandmother been confused, drowsy or no longer shivering,
+   they would have called 911 at once instead, because those are signs
+   of hypothermia that guide lists, and warmed the baby skin to skin
+   under loose blankets while they waited, held by an adult who stays
+   awake.
 4. **Where to go.** They text SHELTER and their ZIP code to 43362,
-   listen to local radio, and learn from the county's announcements that
-   a warming centre is open in Silverdale for the day. They leave a note
-   on the door saying where they have gone, check on the neighbour next
-   door, who is alone, and take her with them.
+   listen to local radio, and check the website of the county's
+   Department of Emergency Management, which is where it announces its
+   severe weather shelters. In this example a warming centre is open in
+   Silverdale for the day. They leave a note on the door saying where
+   they have gone, check on the neighbour next door, who is alone, and
+   take her with them.
 5. **The drive.** It is half a mile on roads they know, with no water
    across them. Had a road been flooded, they would have turned back.
 6. **That night.** A friend in another part of the county still has
    power, and they spend the night there rather than going home to a cold
-   house.
+   house. Had there been no friend to go to, they would have checked
+   whether one of the county's severe weather shelters was opening for
+   the night.
 
 ## Know where your own effort stops
 
-- **Someone confused, drowsy or no longer shivering in the cold:** call
-  911 ([Cold and Hypothermia](/library#cold-and-hypothermia)).
+- **Someone confused, drowsy or no longer shivering in the cold, or a
+  baby with bright red, cold skin or very low energy:** call 911 ([Cold
+  and Hypothermia](/library#cold-and-hypothermia)).
+- **Someone whose powered medical device or refrigerated medicine will
+  run out:** go early to somewhere with power, and ask their doctor or
+  pharmacist (Ready.gov).
 - **A carbon monoxide alarm, or several people ill at once:** everyone
   outside, then 911.
 - **The smell or sound of gas:** leave, then call the gas company from
@@ -512,6 +591,11 @@ ground, safe heat and light, checking on others, and leaving word.
   keep the ground's cold off. Pile insulation under you.
 - **"The baby's asleep, so she's fine."** Babies show cold differently;
   see [Cold and Hypothermia](/library#cold-and-hypothermia).
+- **"The baby will be warmest in the bed between us, with a hat on."** A
+  baby sleeps on its own firm, flat surface, head uncovered, warmed by a
+  wearable blanket or an extra layer (CDC; Safe to Sleep).
+- **"We'll wait and see if the baby gets cold."** With a baby or an old
+  person in a cooling house, go before anyone shows signs of cold.
 
 ## How the game models it
 
@@ -553,10 +637,16 @@ start of it.
 - You can name what kills people on a first night, and how much of it is
   what people do about the cold.
 - You decide early whether to stay or go, and you know the reasons to go:
-  an order, rising water, gas, a carbon monoxide alarm, a house too cold
-  for the people in it.
+  an order, rising water, gas, a carbon monoxide alarm, a medical device
+  or a medicine that will run out before the power comes back, a house
+  too cold for the people in it.
+- You would put a baby to sleep on its own firm, flat surface, on its
+  back, with nothing soft in it and its head uncovered, warmed by a
+  wearable blanket or an extra layer, and you would leave before a baby
+  or an old person showed signs of cold.
 - You know how to find a warming centre or a public shelter, and that most
-  will not take pets.
+  will not take pets, and you have signed up for your county's warning
+  system.
 - You can shrink a cold house to one room and keep it warm without a gas
   oven, charcoal, a camp stove or a generator nearby.
 - You light with flashlights and keep heaters 3 feet from anything that
@@ -573,7 +663,8 @@ start of it.
 ## Sources
 
 Grouped by what kind of authority each one is. Web pages and documents
-were read on 4 October 2026.
+were read on 4 October 2026, except the safe-sleep pages and Kitsap
+County's, read on 5 October 2026.
 
 ### United States government (public domain)
 
@@ -585,7 +676,8 @@ were read on 4 October 2026.
   route; stay in the vehicle and why; the motor 10 minutes an hour, the
   window open a little, the exhaust pipe clear; the dome light, a bright
   cloth, the raised hood. Inside: fire safeguards and ventilation; the
-  list for when the heat goes out).
+  list for when the heat goes out, with plenty of water and other drinks
+  without caffeine or alcohol).
   https://www.weather.gov/safety/winter-during
 - National Weather Service. *Prepare! Don't Let a Winter Storm Take You by
   Surprise*, undated (more than 5,000 killed and 418,000 injured each year
@@ -632,10 +724,13 @@ were read on 4 October 2026.
   app; most public shelters only for service animals).
   https://www.ready.gov/evacuation *Power Outages*, last updated 4 June
   2026 (heating and cooling locations; a community location with power;
-  no gas stove or oven for heat; a flashlight for everyone).
-  https://www.ready.gov/power-outages *Heat*, last updated 16 July 2026
-  (never people or pets in a closed car on a warm day; a cooling centre).
-  https://www.ready.gov/heat
+  no gas stove or oven for heat; a flashlight for everyone; alternate
+  plans for refrigerated medicines and power-dependent medical devices;
+  refrigerated medicine discarded after more than a day without power
+  unless its label says otherwise, and a doctor or pharmacist asked for a
+  new supply). https://www.ready.gov/power-outages *Extreme Heat*, last
+  updated 16 July 2026 (never people or pets in a closed car on a warm
+  day; a cooling centre). https://www.ready.gov/heat
 - Federal Emergency Management Agency. *Be Prepared for a Power Outage*,
   FEMA V-1008, December 2023 (the coldest part of the day somewhere with
   heat; no vehicle running in a garage, and a vehicle used for warmth run
@@ -651,16 +746,37 @@ were read on 4 October 2026.
   browser. https://www.cdc.gov/carbon-monoxide/about/index.html
 - Centers for Disease Control and Prevention. *Avoid, Spot, Treat:
   Frostbite and Hypothermia*, publication CS253565-A (hypothermia above 40
-  F in a person who is wet and chilled), as cited in [Cold and
-  Hypothermia](/library#cold-and-hypothermia).
+  F in a person who is wet and chilled; babies sleeping in cold rooms
+  among those at high risk; the signs in infants, bright red, cold skin
+  and very low energy; medical attention at once below 95 F), as cited in
+  [Cold and Hypothermia](/library#cold-and-hypothermia).
   https://www.cdc.gov/winter-weather/media/pdf/avoid-spot-treat-frostbite.pdf
+- Centers for Disease Control and Prevention. *Providing Care for Babies
+  to Sleep Safely*, dated 17 September 2024, read 5 October 2026 (on the
+  back, on a firm, flat surface such as a crib mattress with a fitted
+  sheet; the baby's sleep area in the room where the parents sleep; soft
+  bedding, blankets, pillows, bumper pads and soft toys kept out of it;
+  the baby's head not covered and the baby not allowed to get too hot).
+  Fetched with browser request headers, because cdc.gov refuses a bare
+  scripted download.
+  https://www.cdc.gov/sudden-infant-death/sleep-safely/index.html
+- National Institutes of Health, Eunice Kennedy Shriver National
+  Institute of Child Health and Human Development, Safe to Sleep campaign.
+  *Ways to Reduce Baby's Risk*, undated, read 5 October 2026 (back to
+  sleep; a firm, flat, level surface; the baby's own sleep space, a crib,
+  bassinet or portable play yard, in the parents' room and separate from
+  their bed; the risks of sharing an adult bed, couch or armchair; nothing
+  soft in the sleep area; a baby's hat off indoors, head and face
+  uncovered; a wearable blanket or an extra layer of clothing for warmth).
+  https://safetosleep.nichd.nih.gov/reduce-risk/reduce
 - US Consumer Product Safety Commission. *As Winter Storms Threaten
   Millions in the U.S., CPSC Issues Safety Tips to Help Families Prevent
   Carbon Monoxide Poisoning and Fires*, news release 26-149, 12 December
   2025 (alarms on each level and outside sleeping areas, tested monthly;
   snow cleared from appliance vents; portable heaters 3 feet from things
-  that burn, stable, on a wall outlet; flashlights instead of candles; no
-  charcoal indoors or in a garage; leaving at once for a gas leak).
+  that burn, stable, on a wall outlet, and never left running unattended
+  in a confined space; flashlights instead of candles; no charcoal
+  indoors or in a garage; leaving at once for a gas leak).
   https://www.cpsc.gov/Newsroom/News-Releases/2026/As-Winter-Storms-Threaten-Millions-in-the-US-CPSC-Issues-Safety-Tips-to-Help-Families-Prevent-Carbon-Monoxide-Poisoning-and-Fires
 - US Fire Administration. *Heating fire safety*, page last reviewed 4 May
   2023 (portable heaters 3 percent of home heating fires in 2017 to 2019
@@ -686,8 +802,42 @@ were read on 4 October 2026.
   guide does not use.
   https://archive.org/download/MManuals/UsMarineCorps-Survival-Mcrp3-02f.pdf
 
+### State and local (cited as the authority, restated in our own words)
+
+- Kitsap County Department of Emergency Management. *Cooling Centers &
+  Severe Weather Shelters*, page updated 23 June 2026, read 5 October 2026
+  (severe weather shelters with overnight beds during severe weather
+  between 1 November and 31 March, for single adults, parents with
+  children, families and teens, staffed with the county's Health and
+  Human Services; openings posted on the department's website).
+  https://www.kitsapdem.com/programs/severe-weather-shelter/
+  *KitsapALERT: Our Community Warning System*, page updated 23 June 2025,
+  read 5 October 2026 (for everyone who lives or works in Kitsap County;
+  messages by text, phone call or email; used only when there is an
+  immediate threat to life and property).
+  https://www.kitsapdem.com/programs/kitsapalert/
+- Washington State Legislature, Washington Administrative Code 51-54A-003,
+  -0605 and -008 (the 2021 International Fire Code adopted statewide from
+  15 March 2024, with no change to its rule on portable unvented
+  heaters), and the International Code Council's *2021 International
+  Fire Code*, sections 605.5 and 605.5.1, as the City of Seattle
+  publishes them (the rule and its exception for heaters listed to UL 647
+  in one- and two-family dwellings; no bedrooms, bathrooms, toilet rooms
+  or storage closets). Both read 4 October 2026 for the project's dated
+  findings, listed under Inside this project, below.
+  https://app.leg.wa.gov/WAC/default.aspx?cite=51-54A-003 and
+  https://www.seattle.gov/documents/Departments/SDCI/Codes/SeattleFireCode/2021SFCChapter6.pdf
+
 ### Inside this project
 
+- The project's dated findings, *May a Washington household heat with a
+  portable kerosene or propane heater indoors?*, researched 4 October
+  2026 (Washington's adoption of the 2021 International Fire Code;
+  section 605.5's rule against portable unvented fuel-fired heaters in
+  homes, and its exception for heaters listed to UL 647 in one- and
+  two-family dwellings; section 605.5.1 keeping them out of bedrooms,
+  bathrooms, toilet rooms and storage closets; with the sources it read):
+  [2026-10-04-portable-unvented-heaters-washington](https://github.com/Shaostoul/Humanity/blob/main/docs/reference/findings/2026-10-04-portable-unvented-heaters-washington.md).
 - The body heat model, its weather, clothing, wet, sky and shelter inputs,
   and fly mode suspending it: `src/systems/body_heat.rs` and
   `src/engine/survival_env.rs`. The shelter test and the HUD line:
@@ -699,7 +849,8 @@ were read on 4 October 2026.
   Are Lost](/library#what-to-do-when-you-are-lost), [The Hazards Where You
   Live](/library#the-hazards-where-you-live), [Choosing and Running a
   Generator](/library#choosing-and-running-a-generator),
-  [Firewood](/library#firewood), [Ventilation, Damp and
+  [Firewood](/library#firewood), [Heating a Home
+  Safely](/library#heating-a-home-safely), [Ventilation, Damp and
   Mould](/library#ventilation-damp-and-mould), [Heat and How It
   Moves](/library#heat-and-how-it-moves), [Insulation and Heat
   Loss](/library#insulation-and-heat-loss), [Where Your Own Electrical Work
@@ -716,16 +867,29 @@ were read on 4 October 2026.
   Service's advice to keep moving holds in a car, and that people at
   higher risk may not show or say it, are our readings of the sources
   above.
-- Choosing one small room on the sheltered side, sleeping together on
-  mattresses or pads with hats on, asking when a warming centre closes,
-  checking the exhaust pipe before each start and switching the engine
-  off before anyone sleeps, keeping a phone warm and mostly off,
-  huddling, sitting on something,
-  piling insulation thick and dry, the makeshift insulation list,
-  starting a debris hut long before dark, and getting everyone out of a
-  fire you cannot put out at once, are general practice.
+- Choosing one small room on the sheltered side, adults and older
+  children sleeping together on mattresses or pads with hats on, asking
+  when a warming centre closes, checking the exhaust pipe before each
+  start and switching the engine off before anyone sleeps, keeping a
+  phone warm and mostly off, huddling, sitting on something, piling
+  insulation thick and dry, the makeshift insulation list, starting a
+  debris hut long before dark, and getting everyone out of a fire you
+  cannot put out at once, are general practice; the bivy sack's
+  description is ours.
 - That the ground's cold is the one people forget, that a lean-to or
   windbreak is a safer first choice than a snow cave for the untrained,
   and taking turns awake beside a flame or engine, are our reading.
+- That a room too cold for a baby dressed for safe sleep is too cold to
+  stay in, that skin-to-skin warming of a baby means an adult who stays
+  awake, that with a baby or an old person in the house the time to go is
+  before anyone shows signs of cold, that whatever a flueless heater
+  burns stays in the room, that a portable propane heater is not covered
+  by Washington's exception and that the shared sleeping room is no place
+  for one, and that the Weather Service's advice for anyone trapped by
+  moving water is not a method for getting out of a car, are our reading
+  of the CDC, Safe to Sleep, FEMA, the dated findings and the Weather
+  Service.
 - The household, the house, the temperatures, the warming centre and the
-  route in the worked example are made up to illustrate the rules.
+  route in the worked example are made up to illustrate the rules; the
+  county's warning system and its severe weather shelters are real (State
+  and local, above).
