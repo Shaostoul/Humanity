@@ -90,8 +90,9 @@ pub(crate) fn poll_and_apply(state: &mut crate::engine::state::EngineState) {
         state.plant_mesh_sig = 0;
     }
     // Perpetual showcase (v0.863): an empty garden replants itself at
-    // staggered stages, then the plant meshes regenerate whenever growth
-    // actually moved.
+    // staggered stages while free resources are on (Creative and Dev; the
+    // first-hour audit's Missing stakes 2), then the plant meshes regenerate
+    // whenever growth actually moved.
     crate::engine::ipc::auto_seed_showcase(state);
     crate::engine::home_meshes::rebuild_plant_meshes(state);
     // Hull-profile hot-reload (v0.770): saving
