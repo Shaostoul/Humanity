@@ -36,6 +36,9 @@ pub mod launch_focus;
 pub mod movie;
 /// Leaving the app: the save every way out runs first (first-hour audit 2026-10-04, Blocker 5).
 pub mod quit;
+/// The Death setting's engine half (2026-10-04): a death surfaced, the pack left where the
+/// player fell in Realistic, its prompt, E, drawing, marker and clock (systems::death_pack).
+pub mod death_pack;
 /// The game's half of the relay's speed check: corrections, declared fast moves, the rig's walk
 /// (ship homes increment 4).
 pub mod move_check;

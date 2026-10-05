@@ -182,6 +182,11 @@ pub struct WorldSave {
     /// 0 in a save from before it: the tank starts empty.
     #[serde(default)]
     pub urine_tank_person_days: f64,
+    /// The packs left where the player fell in the Death setting's Realistic mode (2026-10-04,
+    /// systems::death_pack): what each holds, where it lies, and the play time it has counted,
+    /// which the time the game was closed never adds to. Empty in a save from before them.
+    #[serde(default)]
+    pub left_packs: Vec<crate::systems::death_pack::LeftPack>,
 }
 
 /// The player's body in a save (first-hour audit S1, 2026-10-04). Put back exactly as it was
@@ -287,6 +292,7 @@ impl WorldSave {
             home_plot_box: None,
             body: None,
             urine_tank_person_days: 0.0,
+            left_packs: Vec::new(),
         }
     }
 }
@@ -964,6 +970,7 @@ mod tests {
             home_plot_box: None,
             body: None,
             urine_tank_person_days: 0.0,
+            left_packs: Vec::new(),
         }
     }
 

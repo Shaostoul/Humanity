@@ -1153,6 +1153,9 @@ pub(crate) fn carry_built_pieces(world: &mut hecs::World, from: PlotBox, delta: 
             }
         }
     }
+    // A pack left where the player fell in the home goes with the home, as a chest built in it
+    // does (2026-10-04, systems::death_pack).
+    crate::systems::death_pack::carry_aboard(world, |p| over_plot(p, from), delta);
     (pieces, vehicles)
 }
 

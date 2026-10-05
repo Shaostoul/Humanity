@@ -948,6 +948,27 @@ fn settings_panel(
     });
 }
 
+// The death screen in the Death setting's Realistic mode (2026-10-04, engine/death_pack.rs):
+// what stayed behind in the pack, where, the key and the time, over the dimmed world. The
+// Simplified card is the one-line card it always was.
+#[test]
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_death_screen_realistic() {
+    render_page_png("death_screen_realistic", 1280, 720, |ctx, theme, state| {
+        use crate::systems::death_pack::{DeathNote, Landing};
+        state.player_death_cause = Some("hypothermia".into());
+        state.death_pack.note = Some(DeathNote::Left {
+            items: 14,
+            place_words: "on Earth".into(),
+            landing: Landing::FromDeepWater { dist_m: 230.0 },
+        });
+        egui::CentralPanel::default()
+            .frame(egui::Frame::none().fill(theme.bg_primary()))
+            .show(ctx, |_ui| {});
+        crate::gui::pages::hud::draw_death_screen(ctx, theme, state);
+    });
+}
+
 #[test]
     #[ignore = "GPU snapshot; run via `just snapshots`"]
     fn snapshot_audio_settings() {

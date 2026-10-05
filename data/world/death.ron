@@ -1,0 +1,60 @@
+// What dying costs (operator decision, 2026-10-04; docs/design/death-and-your-pack.md).
+//
+// Settings > Gameplay > Death picks the mode (the dual-mode house rule: full realism and a
+// simplified mode, the simplified one by default):
+//   Simplified (the default): you wake in the respawner with everything you carried. Nothing
+//     is lost.
+//   Realistic: everything in your backpack stays where you fell, in a pack you can walk back
+//     to. What you wear stays on you. Press E at the pack to take back as much as fits.
+//
+// Every number the Realistic mode plays by lives here; the code holds none of them
+// (src/systems/death_pack.rs reads this file, the copy built into the exe if it is missing
+// or does not parse). Read at startup: change it and restart the game.
+(
+    // How long a pack stays where you fell, in minutes of PLAY: counted only while you are in
+    // the world and alive. Time with the game closed never counts, so quitting never loses it.
+    keep_minutes_of_play: 60.0,
+    // A notice this many minutes of play before a pack is gone (0 for no warning).
+    warn_minutes_left: 5.0,
+    // How close you must be to take a pack back with E, metres from your eyes (standing over
+    // a pack on the floor, your eyes are about 1.7 m from it)...
+    reach_m: 3.0,
+    // ...and how directly you must face it: the cosine of the widest angle between where you
+    // look and the pack (0.7 is about 45 degrees).
+    facing_cos: 0.7,
+    // Higher than this over the ground when you died, in metres, you were in the air: the pack
+    // falls to the ground below you, and the death screen says how far it fell.
+    air_m: 3.0,
+    // Aboard, a pack is set at least this far in from a room's walls, in metres.
+    wall_clearance_m: 0.4,
+    // Aboard, feet up to this many metres under a room's floor or over its ceiling still count
+    // as standing in that room (a stair top between two storeys, a floor's rounding).
+    room_slack_m: 0.5,
+    // Aboard, dying outside every room by more than this many metres is dying in open space
+    // (out on the hull, or off it): the pack lies on the nearest floor, and the death screen
+    // says so and how far. Closer than this is a doorway or a wall's width, where people do
+    // walk, and the pack lies on the nearest floor as where you fell.
+    open_space_m: 2.0,
+    // On a planet, a death over deep water: the pack lands on the nearest dry ground. The
+    // search walks out from where you fell in rings, the first `first_ring_m` out, each one
+    // `ring_growth` times wider than the last, `bearings` directions round each ring, out to
+    // `max_m` (3,000 km reaches land from anywhere in Earth's oceans: the farthest point from
+    // land is about 2,700 km from it). From the first dry ground it finds it walks back to the
+    // shore and then `onto_land_m` past it, so the pack is not left at the water's edge. With
+    // no dry ground anywhere in the search (a world of water), or on a body with no known
+    // ground at all, the pack goes to the ship's nearest floor, and the death screen says why.
+    shore: (
+        first_ring_m: 20.0,
+        ring_growth: 1.5,
+        bearings: 32,
+        max_m: 3000000.0,
+        onto_land_m: 3.0,
+    ),
+    // How a pack looks where it lies: the main bag's width, height and depth in metres, and
+    // its colours (linear RGB, 0 to 1) for the canvas and for the straps and lid trim.
+    look: (
+        size_m: (0.34, 0.5, 0.22),
+        canvas: (0.27, 0.3, 0.2),
+        straps: (0.1, 0.1, 0.09),
+    ),
+)

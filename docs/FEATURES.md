@@ -2120,6 +2120,34 @@ jumping in nonzero G based on weight/mass. We can obviously carry heavier in low
   `src/gui/pages/inventory.rs` (tile), `src/gui/pages/hud.rs` (HUD line), `src/gui/pages/settings.rs` (mode).
   Web: none; movement and the in-game Status tiles exist only in the desktop app.
 
+### Death and your pack (2026-10-04)
+What dying costs, in two modes (the operator's decision on the first-hour audit: "Today the death screen says
+'Nothing was lost.' I'd keep that as the Simplified mode. In Realistic mode, your carried items would stay where you
+fell for a while, to go back for."). Either way you wake in the respawner with full health.
+- **Two modes** (Settings > Gameplay > Death): **Simplified** (the default: nothing is lost, the death screen's old
+  words) and **Realistic**: everything in the backpack stays behind as one pack where you fell; what you wear and what
+  you have equipped stay on you, and so do credits, skills, quests and home storage. Aboard it lies on the floor under
+  you; on a planet on the ground under you; from open space (outside every room) on the nearest room's floor; from deep
+  water on the nearest dry ground (a ring search, then back to the shore); from the air on the ground below; on a body
+  with no ground to walk to near you, on the ship's nearest floor. The death screen says what stayed, where, and why
+  somewhere else when it is.
+- A tracked HUD marker ("Your pack · 120 m", BUG-148's direction-placed marker, numbered when there are several) and
+  "[E] Take back your pack (14 items)" in reach: E takes back as much as the backpack's volume holds, each stack with
+  its wear, grade and food age, and leaves the rest in the pack (last in the E chain).
+- It stays for 60 minutes of PLAY, counted only in the world and alive, never while the game is closed, with a notice
+  5 minutes before and when it is gone. The save keeps every pack (`WorldSave::left_packs`), a pack in the home moves
+  with the home to another plot, and food in a pack keeps aging.
+- On a shared server the pack is yours alone (it lives in your own game and save): a lootable pack is an open
+  decision, and the design note lists what it would need.
+- Native: `src/systems/death_pack.rs` (rules, leave, take back, clock, placement; relay-safe), `src/engine/death_pack.rs`
+  (the frame: death surfaced, where you fell, prompt, E, draw, marker; tests in `death_pack_tests.rs`),
+  `src/gui/pages/hud.rs` (`death_screen_lines`, the prompt), `src/gui/pages/settings.rs` (`death_hint`, the mode),
+  `src/config.rs` (`death_realistic`), `src/save_load.rs` + `src/persistence.rs` (the save).
+  Web: none; the 3D world exists only in the desktop app.
+- Data: `data/world/death.ron` (the time, the warning, reach, facing cone, air height, wall clearance, room slack,
+  open-space distance, shore search, the pack's size and colours)
+- Design: `docs/design/death-and-your-pack.md`
+
 ### Skills/Progression
 20 skills across 5 categories, XP curves, level-up notifications. **Registered, ticks live** (`SkillSystem` is NOT in `DEFERRED_SYSTEMS` -- this "NOT registered" note was stale, corrected 2026-07-01). Note: `src/systems/skills/learning.rs`'s `Skill`/`add_practice` is a SEPARATE, unused struct with its own unresolved TODO (learning-curve level thresholds) -- it has zero callers anywhere in the tree and is not what the live, registered `SkillSystem` actually uses; treat it as dead/superseded code, not a gap in the live skill system.
 - Native: `src/systems/skills/mod.rs`

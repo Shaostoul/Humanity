@@ -489,11 +489,14 @@ guide).
 The game cannot teach the most important thing in this guide, and it is
 worth saying why.
 
-- **Nothing is lost when you die.** If your health runs out, the game
-  shows the cause and a Respawn button with the words "You wake in the
-  respawner. Nothing was lost, but the body remembers: keep fed,
-  hydrated, warm, and breathing." Real life has no respawner, which is
-  the whole reason this guide exists.
+- **There is a respawner.** If your health runs out, the game shows the
+  cause and a Respawn button. In the Death setting's Simplified mode, the
+  default, nothing is lost: "You wake in the respawner. Nothing was lost,
+  but the body remembers: keep fed, hydrated, warm, and breathing." In
+  its Realistic mode everything in your backpack stays where you fell, in
+  a pack marked on your screen, until you walk back for it or a while of
+  play has passed. Either way you wake again. Real life has no respawner,
+  which is the whole reason this guide exists.
 - **Home is marked.** The Maps page has a Track switch for the Home
   Station in orbit, on by default. Once you are more than a kilometre
   from the station, it puts a ring and a label with the distance on

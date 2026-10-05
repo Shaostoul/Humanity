@@ -2014,6 +2014,7 @@ mod native_app {
                 ship_air: Default::default(),
                 aboard_bounds: None,
                 moves: Default::default(),
+                death_packs: Default::default(),
                 screenshot_counter: 0,
                 ship_world_pos: glam::DVec3::ZERO,
                 dev_travel_home: None,
@@ -2747,6 +2748,8 @@ mod native_app {
                                     };
                             } else if crate::engine::built_uses::activate(state) {
                                 // A built bed (sleep) or chest (open): engine/built_uses.rs.
+                            } else if crate::engine::death_pack::activate(state) {
+                                // A pack left where you fell: take back what fits (engine/death_pack.rs).
                             } else if state.gui_state.selected_machine.is_some() {
                                 // Not looking at any machine but a card is pinned: E closes it
                                 // (so "[E] close" works from anywhere, not just at the machine).
@@ -5698,6 +5701,8 @@ mod native_app {
                     }
                     // Built beds and chests: prompt + chests in the places tree (2026-09-27).
                     crate::engine::built_uses::frame(state);
+                    // A pack left where you fell, in reach: its prompt (2026-10-04).
+                    crate::engine::death_pack::frame(state);
 
                     // Per-body environment snapshot (artificial-planet
                     // increment 4): publish which world the player is on so
@@ -6619,6 +6624,9 @@ mod native_app {
                     crate::engine::stock_piles::take_consumed_home_stock(state, &home_stock_before);
                     crate::engine::stock_piles::receive_machine_outputs(state);
                     crate::engine::stock_piles::age_home_storage(state); // stored food spoils too (S6)
+                    // A death the tick recorded, and the packs Realistic deaths leave (before the
+                    // periodic save below, so no save holds a death with a full backpack).
+                    crate::engine::death_pack::after_tick(state, dt);
                     // Backpack overflow from "Take to backpack" goes back to the
                     // container it came from (2026-09-25; it used to vanish).
                     let returned: Vec<(String, u32)> = state
@@ -12285,21 +12293,12 @@ mod native_app {
                     }
 
                     // ── Death & recovery (v0.745, loop-map rung 1) ──
-                    // Surface a death recorded by FoodSystem as the death screen.
-                    if let Some(slot) = state
-                        .data_store
-                        .get::<std::sync::Mutex<Option<String>>>("player_death")
-                    {
-                        if let Ok(mut s) = slot.lock() {
-                            if let Some(cause) = s.take() {
-                                state.gui_state.player_death_cause = Some(cause);
-                            }
-                        }
-                    }
+                    // A death the systems record is surfaced right after their tick, with
+                    // what it cost in the Death mode chosen (engine/death_pack.rs after_tick).
                     // The Respawn button: back to the spawn room (the fibonacci
                     // design's respawner/medbay), full health, survivable vitals,
-                    // effects cleared, Dead removed. Nothing is dropped or lost
-                    // pre-launch; the penalty conversation is a later tune.
+                    // effects cleared, Dead removed. What the death cost was settled
+                    // when it happened (Realistic leaves the backpack in a pack).
                     if state.gui_state.pending_respawn {
                         state.gui_state.pending_respawn = false;
                         state.gui_state.player_death_cause = None;
@@ -12945,6 +12944,10 @@ mod native_app {
                     // `planet_ghost` (the piece in hand on a planet) is already in render
                     // space, so it joins the scene list AFTER the station shift below.
                     let mut planet_ghost: Vec<RenderObject> = Vec::new();
+                    // Packs left where the player fell, and their HUD markers (engine/death_pack.rs).
+                    if !showroom {
+                        crate::engine::death_pack::push_render_objects(state, &mut all_objects, &mut celestial_objects);
+                    }
                     crate::engine::planet_build::push_render_objects(
                         state,
                         &mut all_objects,

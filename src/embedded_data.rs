@@ -78,6 +78,8 @@ pub const SOLAR_BODY_SUN_RON: &str = include_str!("../data/solar_system/sun.ron"
 pub const WORLD_SOLAR_SYSTEM_RON: &str = include_str!("../data/world/solar_system.ron");
 pub const WORLD_SPAWN_RON: &str = include_str!("../data/world/spawn.ron");
 pub const WORLD_PLAYER_RON: &str = include_str!("../data/world/player.ron");
+/// What dying costs in each Death mode (2026-10-04, systems::death_pack).
+pub const WORLD_DEATH_RON: &str = include_str!("../data/world/death.ron");
 
 // ── Ship data (RON) ────────────────────────────────────────────────
 pub const SHIP_BRIDGE_RON: &str = include_str!("../data/ships/bridge.ron");
@@ -294,6 +296,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "world/solar_system.ron" => Some(WORLD_SOLAR_SYSTEM_RON),
         "world/spawn.ron" => Some(WORLD_SPAWN_RON),
         "world/player.ron" => Some(WORLD_PLAYER_RON),
+        "world/death.ron" => Some(WORLD_DEATH_RON),
 
         // RON — Ships
         "ships/bridge.ron" => Some(SHIP_BRIDGE_RON),
@@ -470,6 +473,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "world/solar_system.ron",
     "world/spawn.ron",
     "world/player.ron",
+    "world/death.ron",
     "ships/bridge.ron",
     "ships/layout_medium.ron",
     "ships/reactor.ron",

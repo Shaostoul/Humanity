@@ -839,6 +839,9 @@ pub(crate) struct EngineState {
     pub(crate) aboard_bounds: Option<crate::ship::ship_space::Aabb>,
     /// The game's half of the relay's speed check (engine/move_check.rs).
     pub(crate) moves: crate::engine::move_check::ClientMoves,
+    /// The packs left where the player fell: this frame's body frames, the mesh and the
+    /// materials they are drawn with (engine/death_pack.rs, 2026-10-04).
+    pub(crate) death_packs: crate::engine::death_pack::PackEngine,
     /// Live screenshot command counter (v0.639): monotonic per session, names
     /// `debug/screenshot_N.png` so repeated requests never collide.
     pub(crate) screenshot_counter: u32,

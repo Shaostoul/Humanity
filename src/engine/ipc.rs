@@ -435,6 +435,14 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.gui_state.ws_reconnect_delay = hold;
         log::info!("Showcase: drop_link -> the connection dropped (no game_leave); reconnecting in {hold} s");
     }
+    // {"die":"<cause>"} (2026-10-04, the Death setting): the player dies of that cause, through
+    // the slot every death goes through, so the death screen comes up and, in Realistic, the
+    // backpack is left in a pack where they stand (engine/death_pack.rs). With the respawn
+    // verb below, a rig can die, respawn and walk back to the pack. Permanent dev tooling.
+    if let Some(cause) = grab("die") {
+        let note = crate::engine::death_pack::dev_die(state, &cause);
+        log::info!("Showcase: die -> {note}");
+    }
     // {"respawn":"1"} (2026-10-03, ship homes 1b, the third review): press the death screen's
     // Respawn button (`pending_respawn`): the player goes to their Respawn point, and in the
     // shared world steps out and joins again so the relay stands them there too
