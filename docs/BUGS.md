@@ -4796,3 +4796,54 @@ along -z and 23 degrees down), all three seen red on main (0f8b30944):
 **Rig legs to rerun:** `verify-copresence --plots`: every leg that walks the game (meet, the
 crew look, guest_far, the jump's nudge, the teleporter's step off, walk_away, editorjump,
 walk_away2). Not booted here.
+
+## BUG-166: crew figures turn in a snap, and one that stops can snap back to an old facing (FIXED next release, found 2026-10-05)
+
+**Reported as** every crew figure facing +z whichever way it walks: the relay's chore AI
+moves crew members (`step_toward`, `src/relay/handlers/game_state.rs`) and never sets their
+rotation. **Checked:** the game already turned each crew figure along its path, at each relay
+update (the NpcUpdate arm of `src/net/sync.rs`, since 2026-07-01), so a crew member walking
++x or -z was drawn facing it. A new test of that is green on main. What was wrong:
+- An update that did not move the figure kept its last turn and started it again. The relay
+  repeats where a crew member stands in its arrival, chore-done and next-chore updates, so a
+  figure whose walk lasted one update (a chore half a metre from the last) snapped back to the
+  facing it had before that walk, then turned again.
+- Every turn took the half second of the position's interpolation, whatever its size: a turn
+  back went at 540 degrees a second at its middle, a turn of ten degrees at 30 degrees a second.
+
+**Fix (2026-10-05):** each crew figure faces the way it is DRAWN walking, worked out every
+frame from its own motion (`RemoteNpc::heading`, the floor direction of the step it is drawn
+across, and `RemoteNpc::facing`, turning toward it with `turning::BODY`: at most 360 degrees a
+second, reached in a fifth of a second, a half turn in about 0.7 s). Standing still it keeps
+the way it last walked. Facing is cosmetic, so it stays on each screen and is never sent: the
+wire is unchanged, the relay still sends where a crew member is.
+
+**Tests** (`src/net/sync.rs`, a crew member walked the way the relay walks one, an update
+every half second at 1.1 m/s, drawn at 60 frames a second, its facing read off the figure
+`crew_figure_parts` builds):
+- `a_crew_figure_faces_the_way_it_walks`: walking east it faces east, walking north (-z)
+  north. Green on main too (above), kept as the guard.
+- `a_crew_member_that_stops_keeps_its_last_facing`, seen red on main (0f8b30944): "0.52 s in,
+  standing still, the figure faced 89.7 degrees away from east, the way it last walked".
+- `a_crew_figure_turns_round_smoothly`, seen red on main: "2.25 s in the figure turned at 539
+  degrees a second; a person turns on the spot at 360".
+
+**Other players' figures, checked for the same fault:** a player's figure faces the yaw their
+client sends (`player_face`), their camera's. A person walking with W walks the way they look,
+so they are drawn facing forward; walking back with S or sideways with A and D they are drawn
+moving backwards or sideways, because they are (there is no walking animation yet to show a
+step back or aside). Driving goes where the driver looks. The one path that drew a walking
+player facing the wrong way was the rig's own walk, BUG-165 above, now fixed. The scripted
+second player (`scripts/second-player.js`) faces its own velocity (`facingQuat`), so it never
+walks backwards, but it turns in one update: at each end of its line, and at each corner of
+its route, its figure turns round in the 1/15 s between two updates. That is the same snap as
+the crew's, left as it was (it is the rig's walker, and no judge reads its facing); the fix
+would turn its facing toward its velocity with the same limits.
+
+**Rig legs to rerun:** `verify-copresence --plots`, the crew look (`crew_seen` counts the amber
+body under a name in crew.png, and the figures now stand turned along their walks); the other
+crew judges read positions only. Not booted here.
+
+**Left:** the crew's position still eases to a stop at every update (a smooth step over the
+half second between two of them), so a walking crew member slows and speeds up twice a
+second, the stop-go `SnapshotBuffer` fixed for players (2026-10-02).

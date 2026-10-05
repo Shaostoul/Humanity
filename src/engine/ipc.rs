@@ -3881,8 +3881,8 @@ mod remote_player_recorder_tests {
                 greetings: Vec::new(),
                 last_position: drawn,
                 target_position: target,
-                last_rotation: Quat::IDENTITY,
-                target_rotation: Quat::IDENTITY,
+                facing: crate::turning::Turn::default(),
+                heading: 0.0,
                 interpolation_t: 0.5,
             },
         ));

@@ -72,10 +72,21 @@ pub struct RemoteNpc {
     pub greetings: Vec<String>,
     pub last_position: Vec3,
     pub target_position: Vec3,
-    pub last_rotation: Quat,
-    pub target_rotation: Quat,
+    /// The way the figure faces, as a turn about +y (its face, +z, looks along (sin a, 0, cos a);
+    /// the transform's rotation is `Quat::from_rotation_y(a)`), turning the way a person turns
+    /// (`crate::turning::BODY`). Worked out on this screen from the figure's own drawn motion and
+    /// never sent: facing is cosmetic, and the relay sends where a crew member is, not which way
+    /// it looks (BUG-166).
+    pub facing: crate::turning::Turn,
+    /// The way it last walked, the same kind of angle: the facing turns toward it, and keeps it
+    /// once the figure stands still.
+    pub heading: f32,
     pub interpolation_t: f32,
 }
+
+/// The shortest step a crew figure is drawn across that counts as walking somewhere to face, m:
+/// an update that moves it less (one that repeats where it stands) leaves its facing alone.
+const CREW_WALKING_STEP_M: f32 = 0.01;
 
 /// Nearest candidate the camera FACES: within [min_dist, max_dist] meters AND
 /// inside the look cone (direction-to-target dot camera-forward >= min_dot).
@@ -1092,12 +1103,9 @@ impl System for NetSyncSystem {
                         world.query_mut::<(&mut Transform, &mut RemoteNpc)>()
                     {
                         if npc.entity_id == entity_id {
-                            // Face the direction of travel (yaw only) when moving.
-                            let delta = pos - transform.position;
-                            if delta.length_squared() > 0.0001 {
-                                npc.last_rotation = transform.rotation;
-                                npc.target_rotation = Quat::from_rotation_y(delta.x.atan2(delta.z));
-                            }
+                            // Where it is drawn now to where the relay has it: the step it is
+                            // drawn across next. Its facing follows that motion each frame (the
+                            // crew loop at the end of `tick`, BUG-166).
                             npc.last_position = transform.position;
                             npc.target_position = pos;
                             npc.activity = activity.clone();
@@ -1123,8 +1131,9 @@ impl System for NetSyncSystem {
                                 greetings: Vec::new(),
                                 last_position: pos,
                                 target_position: pos,
-                                last_rotation: Quat::IDENTITY,
-                                target_rotation: Quat::IDENTITY,
+                                // Facing +z, the transform's identity, until it walks somewhere.
+                                facing: crate::turning::Turn::default(),
+                                heading: 0.0,
                                 interpolation_t: 1.0,
                             },
                         ));
@@ -1179,8 +1188,9 @@ impl System for NetSyncSystem {
                                 greetings: greetings.clone(),
                                 last_position: pos,
                                 target_position: pos,
-                                last_rotation: Quat::IDENTITY,
-                                target_rotation: Quat::IDENTITY,
+                                // Facing +z, the transform's identity, until it walks somewhere.
+                                facing: crate::turning::Turn::default(),
+                                heading: 0.0,
                                 interpolation_t: 1.0,
                             },
                         ));
@@ -1245,16 +1255,30 @@ impl System for NetSyncSystem {
         // NPC_POSITION_BROADCAST_INTERVAL relay-side), so complete the lerp
         // in 0.5s. No dead reckoning: crew walk slowly and stop at chore
         // sites, so holding the last target beats drifting past it.
+        //
+        // And turn each figure to face the way it is drawn walking (BUG-166): while it is
+        // drawn across a step, that step's way across the floor is its heading, and its facing
+        // turns toward it as a person turns (turning::BODY: at most 360 degrees a second,
+        // easing in and out), every frame, whether or not an update came. Standing still, it
+        // keeps the way it last walked. The turn used to be set at each update, from the old
+        // facing to the new over the half second of the lerp: a turn back went at 540 degrees
+        // a second at its middle, and an update that did not move the figure started its last
+        // turn over again, snapping it back to the facing it had before.
         for (_entity, (transform, npc)) in
             world.query_mut::<(&mut Transform, &mut RemoteNpc)>()
         {
             if npc.interpolation_t < 1.0 {
+                let way = npc.target_position - npc.last_position;
+                if way.x.hypot(way.z) > CREW_WALKING_STEP_M {
+                    npc.heading = way.x.atan2(way.z);
+                }
                 npc.interpolation_t += dt * 2.0;
                 npc.interpolation_t = npc.interpolation_t.min(1.0);
                 let t = smooth_step(npc.interpolation_t);
                 transform.position = npc.last_position.lerp(npc.target_position, t);
-                transform.rotation = npc.last_rotation.slerp(npc.target_rotation, t);
             }
+            npc.facing.toward(npc.heading, dt, crate::turning::BODY);
+            transform.rotation = Quat::from_rotation_y(npc.facing.angle);
         }
     }
 }
@@ -2184,5 +2208,112 @@ mod tests {
         sys.queue_messages(vec![NetMessage::PositionUpdate { player_id: 6, position: [0.0, 1.7, 0.0], rotation: [0.0, 0.0, 0.0, 1.0], velocity: [0.0, 0.0, 0.0], timestamp: 1.0 }]);
         sys.tick(&mut world, 0.016, &data);
         assert!(players(&mut world).iter().any(|(id, _)| *id == 6), "a player never seen before appears from its first update");
+    }
+
+    // ── Crew figures face the way they walk (BUG-166) ──
+
+    /// The crew's walking pace on the relay, m/s (relay/handlers/game_state.rs
+    /// `CHORE_WALK_SPEED`; the relay's module is not in this build).
+    const CREW_MPS: f32 = 1.1;
+    /// While a crew member walks the relay sends where it is every half second
+    /// (`NPC_POSITION_BROADCAST_INTERVAL`), and once more on each change of chore.
+    const CREW_UPDATE_S: f32 = 0.5;
+
+    /// A crew member walking as the relay walks one, drawn at 60 frames a second: an update
+    /// where it stands and a second standing still, then an update every half second along each
+    /// leg, `(way, seconds)` (a zero way stands still, the way the relay's arrival, chore-done and
+    /// next-chore updates repeat where it stands). Returns every frame's time since the legs
+    /// began and the way the DRAWN figure's face looks across the floor (+z of the figure
+    /// `engine::net_route::crew_figure_parts` builds, which the game draws).
+    fn crew_walk(legs: &[(Vec3, f32)]) -> Vec<(f32, Vec3)> {
+        let data = crate::hot_reload::data_store::DataStore::new();
+        let mut sys = NetSyncSystem::new();
+        let mut world = hecs::World::new();
+        let update = |p: Vec3| NetMessage::NpcUpdate { entity_id: 9, name: "Cook Ana".to_string(), position: [p.x, p.y, p.z], activity: "Walking".to_string(), working: false };
+        let dt = 1.0 / 60.0;
+        let mut at = Vec3::new(80.0, NPC_LOCAL_STANDING_Y, 30.0);
+        sys.queue_messages(vec![update(at)]);
+        for _ in 0..60 {
+            sys.tick(&mut world, dt, &data);
+        }
+        let mut out = Vec::new();
+        let mut t = 0.0;
+        for &(way, secs) in legs {
+            for _ in 0..(secs / CREW_UPDATE_S).round() as usize {
+                at += way * CREW_MPS * CREW_UPDATE_S;
+                sys.queue_messages(vec![update(at)]);
+                for _ in 0..(CREW_UPDATE_S / dt).round() as usize {
+                    sys.tick(&mut world, dt, &data);
+                    t += dt;
+                    let (pos, rot) = world.query_mut::<(&Transform, &RemoteNpc)>().into_iter().map(|(_, (tr, _))| (tr.position, tr.rotation)).next().expect("the crew member is drawn");
+                    let face = crate::engine::net_route::crew_figure_parts(pos, rot)[0].rotation * Vec3::Z;
+                    out.push((t, Vec3::new(face.x, 0.0, face.z).normalize_or_zero()));
+                }
+            }
+        }
+        out
+    }
+
+    /// Degrees between two ways across the floor.
+    fn degrees(a: Vec3, b: Vec3) -> f32 {
+        a.angle_between(b).to_degrees()
+    }
+
+    /// A CREW FIGURE FACES THE WAY IT WALKS (BUG-166): walking east (+x) it is drawn facing east,
+    /// walking north (-z) facing north, from a second into the walk (a quarter turn takes about
+    /// 0.45 s, a half turn 0.7 s) to its end.
+    ///
+    /// Green on main (0f8b30944) as well: the game already turned crew along their path on each
+    /// relay update (the NpcUpdate arm, since 2026-07-01), so the faults BUG-166 fixed are the
+    /// two tests after this one. Kept as the guard of the facing the new turn keeps.
+    #[test]
+    fn a_crew_figure_faces_the_way_it_walks() {
+        for (name, way) in [("east (+x)", Vec3::X), ("north (-z)", Vec3::NEG_Z)] {
+            for (t, face) in crew_walk(&[(way, 4.0)]) {
+                if t >= 1.0 {
+                    assert!(degrees(face, way) < 3.0, "{t:.2} s into a walk {name} the figure faced {:.1} degrees off its way", degrees(face, way));
+                }
+            }
+        }
+    }
+
+    /// A CREW MEMBER THAT STOPS KEEPS ITS LAST FACING (BUG-166). It steps half a metre east to
+    /// a chore beside the last one (one relay update moves it), then stands: the relay's
+    /// arrival, chore-done and next-chore updates all repeat where it stands. On every frame
+    /// from the time its turn has had to the end it faces east.
+    ///
+    /// Seen red 2026-10-05 on main (0f8b30944): "0.52 s in, standing still, the figure faced
+    /// 89.7 degrees away from east, the way it last walked". An update that did not move the
+    /// figure kept the old turn and started it again, so the figure snapped back to the facing
+    /// it had before its last turn and turned again.
+    #[test]
+    fn a_crew_member_that_stops_keeps_its_last_facing() {
+        for (t, face) in crew_walk(&[(Vec3::X, 0.5), (Vec3::ZERO, 3.0)]) {
+            if t >= 0.48 {
+                let off = degrees(face, Vec3::X);
+                assert!(off < 3.0, "{t:.2} s in, standing still, the figure faced {off:.1} degrees away from east, the way it last walked");
+            }
+        }
+    }
+
+    /// A CREW FIGURE TURNS ROUND SMOOTHLY, NOT IN A SNAP (BUG-166): walking east, then back west,
+    /// it turns no faster than a person turning on the spot (`turning::BODY`, 360 degrees a
+    /// second) on any frame, and faces west a second after it turned back.
+    ///
+    /// Seen red 2026-10-05 on main (0f8b30944): "2.25 s in the figure turned at 539 degrees a
+    /// second; a person turns on the spot at 360". Every turn took the half second between two
+    /// relay updates whatever its size, so a turn back was three times as fast at its middle.
+    #[test]
+    fn a_crew_figure_turns_round_smoothly() {
+        let frames = crew_walk(&[(Vec3::X, 2.0), (Vec3::NEG_X, 2.0)]);
+        let dt = 1.0 / 60.0;
+        let limit = crate::turning::BODY.rate.to_degrees();
+        let (fastest, when) = frames.windows(2).map(|w| (degrees(w[0].1, w[1].1) / dt, w[1].0)).fold((0.0f32, 0.0f32), |a, b| if b.0 > a.0 { b } else { a });
+        assert!(fastest <= limit * 1.001, "{when:.2} s in the figure turned at {fastest:.0} degrees a second; a person turns on the spot at {limit:.0}");
+        for (t, face) in &frames {
+            if *t >= 3.0 {
+                assert!(degrees(*face, Vec3::NEG_X) < 3.0, "{t:.2} s in, a second after turning back, the figure faced {:.1} degrees off west", degrees(*face, Vec3::NEG_X));
+            }
+        }
     }
 }
