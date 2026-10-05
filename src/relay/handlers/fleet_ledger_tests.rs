@@ -655,3 +655,36 @@ fn a_rate_limited_give_is_answered_with_its_id() {
     assert_eq!(r["give_id"], "g-fast", "the refusal names the give / left: {} / right: \"g-fast\"", r["give_id"]);
     assert_eq!((r["type"].as_str(), r["success"].as_bool(), r["error"].as_str()), (Some("game_fleet_give_result"), Some(false), Some("rate_limited")));
 }
+
+/// THE GIVE LIMIT READS THE TEST'S CLOCK, NOT THE WALL (BUG-152). The 200 ms limit reads
+/// `RelayState::perception_now`, which a test can point at a clock it moves by hand, and the
+/// end-to-end test (features.rs `the_fleet_ledger_end_to_end`) relies on that to make "two
+/// gives sent at once" 0 ms apart however long the relay takes over the first. If the limit
+/// went back to reading the wall, that test would still pass on an idle machine and fail again
+/// on a busy one; this is the test that says why.
+///
+/// Seen red 2026-10-05 with `perception_now` reading `Instant::now()` whatever the test set:
+/// "250 ms of wall time passed but the limit's clock did not move, so this is still inside the
+/// 200 ms".
+#[test]
+fn the_give_limit_reads_the_test_clock_not_the_wall() {
+    use crate::relay::handlers::msg_handlers::perception_rate_allows;
+    use std::time::Duration;
+    let (db, path) = temp_db("limit_clock");
+    let state = Arc::new(RelayState::new(db));
+    let clock = crate::test_clock::ManualClock::new();
+    assert!(state.perception_clock.set(clock.clone()).is_ok());
+
+    assert!(perception_rate_allows(&state, "k", "fleet_give"), "the first give is let through");
+    std::thread::sleep(Duration::from_millis(250));
+    assert!(
+        !perception_rate_allows(&state, "k", "fleet_give"),
+        "250 ms of wall time passed but the limit's clock did not move, so this is still inside the 200 ms"
+    );
+    clock.advance(Duration::from_millis(199));
+    assert!(!perception_rate_allows(&state, "k", "fleet_give"), "199 ms on the limit's clock is inside the limit");
+    clock.advance(Duration::from_millis(1));
+    assert!(perception_rate_allows(&state, "k", "fleet_give"), "200 ms on the limit's clock is past it");
+    drop(state);
+    let _ = std::fs::remove_file(&path);
+}

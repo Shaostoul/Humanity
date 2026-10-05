@@ -217,6 +217,12 @@ pub struct RelayState {
     /// queries per second to prevent AI agents from flooding the relay).
     /// Covers game_perceive, game_interact, game_query_inventory, game_query_entity.
     pub last_perception_times: std::sync::Mutex<HashMap<String, std::time::Instant>>,
+    /// Tests only (BUG-152): a clock the perception rate limit reads instead
+    /// of the wall, set by a test that must decide by the time it sets, not by
+    /// how long this machine took, whether two messages arrived "at once".
+    /// Never set in the product (`perception_now`).
+    #[cfg(test)]
+    pub(crate) perception_clock: std::sync::OnceLock<Arc<crate::test_clock::ManualClock>>,
     /// Active stream (only one at a time for MVP).
     pub active_stream: RwLock<Option<ActiveStream>>,
     /// Active federation connections (server_id → FederatedConnection).
@@ -302,6 +308,16 @@ pub struct RelayState {
 }
 
 impl RelayState {
+    /// The time the perception rate limit reads (`perception_rate_allows`):
+    /// the wall clock, or in a test a clock the test moves by hand (BUG-152).
+    pub(crate) fn perception_now(&self) -> Instant {
+        #[cfg(test)]
+        if let Some(clock) = self.perception_clock.get() {
+            return clock.now();
+        }
+        Instant::now()
+    }
+
     /// Anti-replay gate for signed REST auth requests (audit 2026-06-12).
     /// Returns true if this (pubkey, purpose, timestamp) tuple is FRESH (record
     /// it and proceed), false if it is a REPLAY already seen within the window.
@@ -452,6 +468,8 @@ impl RelayState {
             user_statuses: RwLock::new(HashMap::new()),
             last_search_times: std::sync::Mutex::new(HashMap::new()),
             last_perception_times: std::sync::Mutex::new(HashMap::new()),
+            #[cfg(test)]
+            perception_clock: std::sync::OnceLock::new(),
             active_stream: RwLock::new(None),
             federation_connections: RwLock::new(HashMap::new()),
             federation_rate: std::sync::Mutex::new(HashMap::new()),
