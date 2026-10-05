@@ -160,11 +160,37 @@ function getJson(url, timeoutMs = 2000) {
   });
 }
 
+/** What makes a relay a throwaway one on loopback: relayEnv sets these, and a
+ *  caller's `env` may never (`checkExtraEnv`). */
+const OWN_SETTINGS = ["PORT", "DATABASE_PATH", "BIND_ADDRESS", "HUMANITY_NO_FOCUS"];
+
+/** Refuse a caller's `env` (startRelay's option) that names one of the
+ *  settings that make the relay a throwaway loopback one (OWN_SETTINGS, in any
+ *  case of letters), or a value that is not a string. Returns it as plain
+ *  string pairs. */
+function checkExtraEnv(extra) {
+  if (extra === null || extra === undefined) return {};
+  if (typeof extra !== "object" || Array.isArray(extra)) throw new Error(`startRelay's env must be an object of NAME: "value" pairs, got ${JSON.stringify(extra)}`);
+  const out = {};
+  for (const [k, v] of Object.entries(extra)) {
+    if (OWN_SETTINGS.includes(k.toUpperCase())) {
+      throw new Error(`startRelay's env may not set ${k}: a throwaway relay sets ${OWN_SETTINGS.join(", ")} itself (its own port and database, loopback only). Nothing was started.`);
+    }
+    if (typeof v !== "string") throw new Error(`startRelay's env value for ${k} must be a string, got ${JSON.stringify(v)}`);
+    out[k] = v;
+  }
+  return out;
+}
+
 /** This shell's environment, minus anything that would make the throwaway
  *  relay act as a real one: every HUMANITY_* setting (focus, owner keys, data
  *  folders), the bot password, admins, an outside webhook, and the port,
- *  database and listen address it is about to be given. */
-function relayEnv(port, dbPath) {
+ *  database and listen address it is about to be given. Then `extra`, the
+ *  caller's own settings (startRelay's `env`, ship homes increment 5,
+ *  2026-10-05): how a rig names an admin (ADMIN_KEYS) on purpose, where the
+ *  shell's is always dropped. `extra` may not name OWN_SETTINGS. */
+function relayEnv(port, dbPath, extra = null) {
+  const own = checkExtraEnv(extra);
   const env = {};
   const drop = new Set(["API_SECRET", "ADMIN_KEYS", "WEBHOOK_URL", "WEBHOOK_TOKEN", "PORT", "DATABASE_PATH", "RUST_LOG", "BIND_ADDRESS"]);
   for (const [k, v] of Object.entries(process.env)) {
@@ -172,6 +198,8 @@ function relayEnv(port, dbPath) {
     if (K.startsWith("HUMANITY_") || drop.has(K)) continue;
     env[k] = v;
   }
+  // The caller's own, before the throwaway's settings below (which it may not name anyway).
+  Object.assign(env, own);
   // HUMANITY_NO_FOCUS: never the operator's focus, even though a headless
   // relay opens no window (the whole rig asks the same way).
   // BIND_ADDRESS: loopback only, so Windows never raises a firewall prompt
@@ -406,6 +434,12 @@ function mirrorData(srcData, destData) {
  *                    child_process.spawn; a test passes one that runs a tiny
  *                    stand-in relay in node, so the check above can be seen
  *                    working without a release build.
+ *   env        the relay's own settings, { NAME: "value" } (optional, ship homes
+ *              increment 5): ADMIN_KEYS, for a rig that needs an admin
+ *              (verify-copresence --build: its rank holder). The shell's
+ *              ADMIN_KEYS is dropped either way. It may not name PORT,
+ *              DATABASE_PATH, BIND_ADDRESS or HUMANITY_NO_FOCUS: refused, with
+ *              nothing started.
  *
  * Resolves with a handle whether or not /health answered: `health` is the
  * parsed /health body, or null, and the caller decides what that means
@@ -428,8 +462,11 @@ async function startRelay({
   healthTimeoutMs = 60000,
   checkListening = assertLoopbackOnly,
   spawnProcess = spawn,
+  env = null,
 } = {}) {
   if (!sourceExe || !fs.existsSync(sourceExe)) throw new Error(`no relay exe to copy: ${sourceExe}`);
+  // Before anything is made: an env naming the throwaway's own settings starts nothing.
+  checkExtraEnv(env);
   if (typeof expectSha256 !== "string" || !/^[0-9a-f]{64}$/.test(expectSha256)) {
     throw new Error(
       `startRelay needs expectSha256, the SHA-256 the freshness gate recorded for the exe it judged ` +
@@ -513,7 +550,7 @@ async function startRelay({
   h.url = `ws://127.0.0.1:${h.port}/ws`;
   h.httpUrl = `http://127.0.0.1:${h.port}`;
   const log = fs.openSync(h.logPath, "w");
-  proc = spawnProcess(h.exe, ["--headless"], { cwd: dir, env: relayEnv(h.port, h.dbPath), stdio: ["ignore", log, log], windowsHide: true });
+  proc = spawnProcess(h.exe, ["--headless"], { cwd: dir, env: relayEnv(h.port, h.dbPath, env), stdio: ["ignore", log, log], windowsHide: true });
   fs.closeSync(log);
   h.proc = proc;
   h.pid = proc.pid;
