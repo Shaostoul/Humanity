@@ -33,6 +33,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::ecs::components::BurnsFuels;
 use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
 
@@ -273,6 +274,51 @@ pub fn clean_container(
         }
     }
     Ok((litres, agent.map(|a| name_of(&a))))
+}
+
+/// May `item_id` go into a vessel at all, before its class and history are
+/// judged (BUG-154, 2026-10-05)? A vessel that is a machine's fuel tank, whose
+/// entity carries `BurnsFuels` (a generator's drum), takes only what that
+/// machine burns: Paint, Glue and Crude Oil are all "flammable", a class the
+/// drum's whitelist accepts, and not one of them runs an engine built for
+/// fuel. Any other vessel (`fuels` None) leaves it to its class whitelist and
+/// history (`ContainerRegistry::would_accept`, `try_store`). Every path that
+/// puts goods into a machine's vessel asks this: the Store buttons
+/// (`store_offers`) and the Store itself (src/lib.rs), harvest surplus
+/// (farming) and a machine's own craft output (crafting).
+pub fn vessel_takes_item(fuels: Option<&BurnsFuels>, item_id: &str) -> bool {
+    fuels.map_or(true, |f| f.burns(item_id))
+}
+
+/// The Store buttons a vessel's machine card offers (src/lib.rs, the walk-up
+/// card): each item of the player's pack (`pack`: item id -> count) this
+/// vessel would take now, as (id, display name, count), sorted by name, at
+/// most four. A generator's drum offers only its fuels (`vessel_takes_item`,
+/// BUG-154: it offered Paint, Glue and Crude Oil); durable goods are left out,
+/// because a vessel keeps a count, not each tool's wear and grade
+/// (2026-09-26); the rest is the class whitelist and what the vessel
+/// remembers (`would_accept`), so no button is offered that the Store would
+/// refuse.
+pub fn store_offers(
+    reg: &ContainerRegistry,
+    items: Option<&super::ItemRegistry>,
+    vessel: &Container,
+    fuels: Option<&BurnsFuels>,
+    pack: &HashMap<String, u32>,
+) -> Vec<(String, String, u32)> {
+    let mut out: Vec<(String, String, u32)> = pack
+        .iter()
+        .filter(|(id, qty)| **qty > 0 && vessel_takes_item(fuels, id))
+        .filter(|(id, _)| !items.map_or(false, |r| r.durability_for(id) > 0))
+        .filter(|(id, _)| reg.would_accept(vessel, id, items.map_or("solid", |r| r.class_for(id))).is_ok())
+        .map(|(id, qty)| {
+            let name = items.and_then(|r| r.items.get(id)).map(|d| d.name.clone()).unwrap_or_else(|| id.clone());
+            (id.clone(), name, *qty)
+        })
+        .collect();
+    out.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
+    out.truncate(4);
+    out
 }
 
 // ===========================================================================
@@ -1260,5 +1306,44 @@ mod tests {
             StoreOutcome::NoRoom => {}
             other => panic!("expected WrongContent/NoRoom, got {other:?}"),
         }
+    }
+
+    /// BUG-154: the Store buttons at a generator's drum offer the fuel its
+    /// engine burns and nothing else. The player carries Paint, Glue, Crude
+    /// Oil and Refined Fuel, all "flammable" in data/items.csv, and Shampoo, a
+    /// "liquid": the steel fuel drum's class whitelist (liquid|flammable) takes
+    /// every one, and the buttons offered by class alone, so the genset's drum
+    /// offered Paint. A drum whose genset burns Refined Fuel offers only that,
+    /// one whose genset names no fuel offers nothing, and a drum that feeds no
+    /// engine (the refinery's) still offers by class. Seen red on the old rule
+    /// (the genset's drum offered Crude Oil, Glue, Paint and Refined Fuel).
+    #[test]
+    fn a_generators_drum_offers_only_its_fuel() {
+        let reg = load_registry();
+        let csv = std::fs::read(format!("{}/data/items.csv", env!("CARGO_MANIFEST_DIR"))).expect("data/items.csv");
+        let items = crate::systems::inventory::ItemRegistry::from_csv(&csv).expect("item registry");
+        let pack: std::collections::HashMap<String, u32> =
+            [("paint_0", 3), ("glue_0", 2), ("oil_crude_0", 4), ("fuel_refined_0", 5), ("shampoo_bottle_0", 1)]
+                .into_iter()
+                .map(|(id, n)| (id.to_string(), n))
+                .collect();
+        for id in ["paint_0", "glue_0", "oil_crude_0", "fuel_refined_0"] {
+            assert_eq!(items.class_for(id), "flammable", "{id}: the class the old rule burned");
+        }
+        let drum = Container::from_type(reg.container_type("steel_fuel_drum").expect("steel_fuel_drum"));
+        let offered = |fuels: Option<&BurnsFuels>| -> Vec<String> {
+            store_offers(&reg, Some(&items), &drum, fuels, &pack).into_iter().map(|(id, _, _)| id).collect()
+        };
+        let genset = BurnsFuels(vec!["fuel_refined_0".to_string()]);
+        assert_eq!(offered(Some(&genset)), vec!["fuel_refined_0".to_string()], "the genset's drum");
+        let offers = store_offers(&reg, Some(&items), &drum, Some(&genset), &pack);
+        assert_eq!((offers[0].1.as_str(), offers[0].2), ("Refined Fuel", 5), "named, with all five in the pack");
+        assert!(offered(Some(&BurnsFuels::default())).is_empty(), "a genset that names no fuel");
+        let plain = offered(None);
+        assert!(plain.contains(&"paint_0".to_string()), "a drum that feeds no engine offers by class: {plain:?}");
+        // The Store itself asks the same question, whatever asks it to store.
+        assert!(!vessel_takes_item(Some(&genset), "paint_0"));
+        assert!(vessel_takes_item(Some(&genset), "fuel_refined_0"));
+        assert!(vessel_takes_item(None, "paint_0"));
     }
 }

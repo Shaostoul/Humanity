@@ -13780,7 +13780,6 @@ mod native_app {
                                 .get::<crate::systems::inventory::ItemRegistry>("item_registry");
                             let mut cont_entity: Option<hecs::Entity> = None;
                             let mut contents: Option<(String, u32)> = None;
-                            let mut cont_type: Option<String> = None;
                             // The whole container, for what it remembers (2026-09-26).
                             let mut cont_snapshot: Option<crate::systems::inventory::containers::Container> = None;
                             for (e, (id, c)) in state
@@ -13796,7 +13795,6 @@ mod native_app {
                                     continue;
                                 }
                                 cont_entity = Some(e);
-                                cont_type = Some(c.container_type_id.clone());
                                 cont_snapshot = Some(c.clone());
                                 if let Some(item) = &c.current_content_item {
                                     if c.current_qty > 0 {
@@ -13805,6 +13803,17 @@ mod native_app {
                                 }
                                 break;
                             }
+                            // When this vessel is a generator's fuel drum, the
+                            // fuels its engine burns: it takes and offers only
+                            // those (BUG-154).
+                            let fuels = cont_entity.and_then(|e| {
+                                state
+                                    .game_world
+                                    .world
+                                    .get::<&crate::ecs::components::BurnsFuels>(e)
+                                    .ok()
+                                    .map(|f| (*f).clone())
+                            });
                             // Clean (2026-09-26): wash an emptied vessel of its
                             // residue with water from the home tanks.
                             if std::mem::take(&mut state.gui_state.machine_card_clean_pending) {
@@ -13869,8 +13878,14 @@ mod native_app {
                             // vessel — the deposit path that completes the
                             // refinery -> pack -> genset-drum fuel handoff.
                             // Compatibility is guaranteed by construction (the
-                            // Store buttons only list accepted items).
-                            let store = state.gui_state.machine_card_store_pending.take();
+                            // Store buttons only list accepted items), and a
+                            // generator's drum takes only its fuels whatever
+                            // asks (BUG-154).
+                            let store = state
+                                .gui_state
+                                .machine_card_store_pending
+                                .take()
+                                .filter(|i| crate::systems::inventory::containers::vessel_takes_item(fuels.as_ref(), i));
                             if let (Some(e), Some(item)) = (cont_entity, store) {
                                 let unit_vol =
                                     item_reg.map(|r| r.volume_for(&item)).unwrap_or(0.0);
@@ -13929,61 +13944,30 @@ mod native_app {
                                 }
                             }
                             // Storable pack items (for the per-item Store buttons):
-                            // class-accepted by this vessel + no-mixing respected.
+                            // what this vessel would take now, a generator's drum
+                            // only its fuels (BUG-154). See `store_offers`.
                             let mut storable: Vec<(String, String, u32)> = Vec::new();
-                            if let (Some(ct), Some(creg)) = (
-                                cont_type.as_ref(),
+                            if let (Some(c), Some(creg)) = (
+                                cont_snapshot.as_ref(),
                                 state
                                     .data_store
                                     .get::<crate::systems::inventory::containers::ContainerRegistry>(
                                         "container_registry",
                                     ),
                             ) {
-                                let current_item = contents.as_ref().map(|(i, _)| i.clone());
                                 for (_pe, (inv, _c)) in state.game_world.world.query::<(
                                     &crate::systems::inventory::Inventory,
                                     &crate::ecs::components::Controllable,
                                 )>().iter() {
-                                    let mut counts: std::collections::HashMap<String, u32> =
-                                        std::collections::HashMap::new();
-                                    for slot in inv.slots.iter().flatten() {
-                                        *counts.entry(slot.item_id.clone()).or_default() +=
-                                            slot.quantity;
-                                    }
-                                    for (id, qty) in counts {
-                                        if qty == 0 {
-                                            continue;
-                                        }
-                                        // A vessel keeps a count, not each tool's
-                                        // wear and grade, so durable goods are not
-                                        // offered for it (2026-09-26).
-                                        if item_reg.map_or(false, |r| r.durability_for(&id) > 0) {
-                                            continue;
-                                        }
-                                        let class = item_reg
-                                            .map(|r| r.class_for(&id).to_string())
-                                            .unwrap_or_else(|| "solid".to_string());
-                                        // The class whitelist AND what the vessel
-                                        // remembers (residue, toxic history).
-                                        let ok = match &cont_snapshot {
-                                            Some(c) => creg.would_accept(c, &id, &class).is_ok(),
-                                            None => {
-                                                current_item.as_ref().map(|ci| *ci == id).unwrap_or(true)
-                                                    && creg.check(ct, &class).is_accepted()
-                                            }
-                                        };
-                                        if ok {
-                                            let name = item_reg
-                                                .and_then(|r| r.items.get(&id))
-                                                .map(|d| d.name.clone())
-                                                .unwrap_or_else(|| id.clone());
-                                            storable.push((id, name, qty));
-                                        }
-                                    }
+                                    storable = crate::systems::inventory::containers::store_offers(
+                                        creg,
+                                        item_reg,
+                                        c,
+                                        fuels.as_ref(),
+                                        &inv.summary(),
+                                    );
                                     break;
                                 }
-                                storable.sort_by(|a, b| a.1.cmp(&b.1));
-                                storable.truncate(4);
                             }
                             state.gui_state.machine_card_storable = storable;
                             // What the vessel remembers, for the card (2026-09-26).

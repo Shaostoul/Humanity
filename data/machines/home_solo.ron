@@ -288,10 +288,11 @@
             // battery bank). The same machine as home.ron's generator_portable, whose comment
             // quotes its figures: a Honda EU2200i class inverter set, "Rated output" "1.8 kVA",
             // "3.2hr @ rated load" on its 3.6 L tank, so 1,800 W while it runs on 1.125 L of fuel
-            // an hour. It burns what is in its 200 L drum, which this home has no refinery to
-            // fill: its fuel is traded for. The meter shows what it can add, apart from what the
-            // home makes on its own.
-            power: Some(Generator(watts: 1800.0, fuel_lph: 1.125)),
+            // an hour. It burns only the fuel `fuels` names, Refined Fuel, the game's stand-in for
+            // the gasoline its engine runs on (BUG-154; home.ron's generator_portable says why),
+            // from its 200 L drum, which this home has no refinery to fill: its fuel is traded
+            // for. The meter shows what it can add, apart from what the home makes on its own.
+            power: Some(Generator(watts: 1800.0, fuel_lph: 1.125, fuels: ["fuel_refined_0"])),
             container_type: Some("steel_fuel_drum"),
             level_gauge: true,
         ),
