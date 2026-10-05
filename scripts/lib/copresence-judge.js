@@ -789,7 +789,7 @@ function doorRoute(report, from, to, maxStep = 40) {
   const waypoints = [];
   let at = from;
   for (const p of straight) {
-    waypoints.push(...detourRound(at, p, report.walls));
+    waypoints.push(...detourRound(at, p, report.walls, report));
     at = p;
   }
   return { waypoints, points: stepsAlong(from, waypoints, maxStep), doors: crossings.map((c) => `${c.door.from}->${c.door.to}`), error: null };
@@ -797,13 +797,93 @@ function doorRoute(report, from, to, maxStep = 40) {
 
 /** The points to walk from `a` to `b` (b last): [b] when the straight leg crosses
  *  none of `walls`, else round one corner, [corner, b], along x first or along z
- *  first, whichever crosses none; [b] when neither does (`doorRoute`). Pure. */
-function detourRound(a, b, walls) {
+ *  first, whichever crosses none; else a path through the place found on a grid
+ *  that keeps clear of every wall (`clearPath`, the review of increment 4: the
+ *  Respawn walk from p2 to the Commons' far corner had no clear corner, went
+ *  straight at the room block's wall, and stopped there; the rig only knew once it
+ *  checked that every walk arrives); [b] when none is found (`doorRoute`). Pure. */
+function detourRound(a, b, walls, report = null) {
   if (!Array.isArray(walls) || !routeWalls([a, b], walls)) return [b];
   for (const corner of [[b[0], a[1], a[2]], [a[0], a[1], b[2]]]) {
     if (!routeWalls([a, corner, b], walls)) return [corner, b];
   }
-  return [b];
+  return clearPath(a, b, walls, { inside: report ? (q) => aboardFloor(report, q) : null }) || [b];
+}
+
+/** True when `p` stands, across the floor, inside one of the report's places or a door's tube:
+ *  where a walk aboard may go (a path found on a grid never leaves the ship through a doorway
+ *  and round the outside). Pure. */
+function aboardFloor(report, p) {
+  const inBox = (min, max) => p[0] >= min[0] && p[0] <= max[0] && p[2] >= min[2] && p[2] <= max[2];
+  return (report.places || []).some((pl) => inBox(pl.min, pl.max)) || (report.doors || []).some((d) => Array.isArray(d.tube) && inBox(d.tube[0], d.tube[1]));
+}
+
+/** How far from every wall a path `clearPath` finds keeps, metres: the player's 0.3 m and a
+ *  margin, so the game's collision never pushes a walk off its line (a push stops a walk short). */
+const PATH_CLEAR_M = 0.75;
+
+/** A walk from `a` to `b` (b last) that crosses no wall and keeps PATH_CLEAR_M from every wall,
+ *  found on a grid of `cellM` over the box around both (and `padM` beyond), the start and end
+ *  exempt, then cut to as few straight legs as stay clear. null when there is none. Pure. */
+function clearPath(a, b, walls, { cellM = 0.5, padM = 40, clearM = PATH_CLEAR_M, inside = null } = {}) {
+  const lo = [Math.min(a[0], b[0]) - padM, Math.min(a[2], b[2]) - padM];
+  const hi = [Math.max(a[0], b[0]) + padM, Math.max(a[2], b[2]) + padM];
+  const nx = Math.ceil((hi[0] - lo[0]) / cellM) + 1;
+  const nz = Math.ceil((hi[1] - lo[1]) / cellM) + 1;
+  const at = (i, k) => [lo[0] + i * cellM, a[1], lo[1] + k * cellM];
+  const cellOf = (p) => [Math.round((p[0] - lo[0]) / cellM), Math.round((p[2] - lo[1]) / cellM)];
+  const near = (walls || []).filter((w) => Math.max(w[0], w[2]) >= lo[0] && Math.min(w[0], w[2]) <= hi[0] && Math.max(w[1], w[3]) >= lo[1] && Math.min(w[1], w[3]) <= hi[1]);
+  const clearAt = (p) => (!inside || inside(p)) && near.every((w) => wallDistXZ(p, w) >= clearM);
+  const [si, sk] = cellOf(a);
+  const [ti, tk] = cellOf(b);
+  const key = (i, k) => k * nx + i;
+  const free = new Map();
+  const isFree = (i, k) => {
+    if (i < 0 || k < 0 || i >= nx || k >= nz) return false;
+    if ((i === si && k === sk) || (i === ti && k === tk)) return true;
+    const kk = key(i, k);
+    if (!free.has(kk)) free.set(kk, clearAt(at(i, k)));
+    return free.get(kk);
+  };
+  const prev = new Map([[key(si, sk), -1]]);
+  const queue = [[si, sk]];
+  const steps = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+  while (queue.length && !prev.has(key(ti, tk))) {
+    const [i, k] = queue.shift();
+    for (const [di, dk] of steps) {
+      const [j, l] = [i + di, k + dk];
+      if (prev.has(key(j, l)) || !isFree(j, l)) continue;
+      // A diagonal step only past two free sides, never through a wall's corner.
+      if (di && dk && !(isFree(i + di, k) && isFree(i, k + dk))) continue;
+      prev.set(key(j, l), key(i, k));
+      queue.push([j, l]);
+    }
+  }
+  if (!prev.has(key(ti, tk))) return null;
+  const cells = [];
+  for (let c = key(ti, tk); c !== -1; c = prev.get(c)) cells.unshift([c % nx, Math.floor(c / nx)]);
+  const pts = cells.map(([i, k]) => at(i, k));
+  pts[0] = a.slice();
+  pts[pts.length - 1] = b.slice();
+  // Cut to straight legs: from each point, the farthest later one reached by a clear leg (sampled
+  // every quarter metre; the start and end may sit nearer a wall than the rest).
+  const legClear = (p, q) => {
+    if (routeWalls([p, q], near)) return false;
+    const n = Math.max(1, Math.ceil(Math.hypot(q[0] - p[0], q[2] - p[2]) / 0.25));
+    for (let s = 1; s < n; s++) {
+      const x = [p[0] + ((q[0] - p[0]) * s) / n, p[1], p[2] + ((q[2] - p[2]) * s) / n];
+      if (!clearAt(x) && Math.hypot(x[0] - a[0], x[2] - a[2]) > clearM && Math.hypot(x[0] - b[0], x[2] - b[2]) > clearM) return false;
+    }
+    return true;
+  };
+  const out = [];
+  for (let i = 0; i < pts.length - 1; ) {
+    let j = pts.length - 1;
+    while (j > i + 1 && !legClear(pts[i], pts[j])) j--;
+    out.push(pts[j]);
+    i = j;
+  }
+  return out;
 }
 
 /** True when no leg of the walk `points` (its start first, ending at the
@@ -1888,6 +1968,8 @@ module.exports = {
   turnInPlace,
   TURN_IN_PLACE_M,
   judgeWalks,
+  clearPath,
+  PATH_CLEAR_M,
   padApproach,
   editorJumpTarget,
   judgeEditorJump,

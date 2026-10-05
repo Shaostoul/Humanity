@@ -796,15 +796,39 @@ test("routes: the shipped meeting's routes and view cross no wall; a wall moved 
   assert.ok(hit, "the room block's wall moved across p1's way in was not found");
   assert.deepEqual(hit.wall, [65.5, 49, 72, 49]);
   // Planned on the edited walls, there is no way round by one corner (the block on one side,
-  // the stretched wall on the other): the route stays straight, and the check finds it.
+  // the stretched wall on the other): since the review of increment 4 the planner finds one on a
+  // grid that keeps clear of every wall (clearPath), round the block, where the route used to stay
+  // straight into the wall (and a walk there stopped at it).
   const round = doorRoute({ ...DOORS, walls: moved }, P1_SPAWN, MEET_CAM, 40);
-  assert.ok(routeWalls([P1_SPAWN, ...round.points], moved), `a way in with no clear corner passed: ${JSON.stringify(round.waypoints)}`);
+  assert.equal(routeWalls([P1_SPAWN, ...round.points], moved), null, `a way in round the stretched wall crosses one: ${JSON.stringify(round.waypoints)}`);
+  assert.ok(round.waypoints.length > 4, `more than one corner: ${JSON.stringify(round.waypoints)}`);
   // On the shipped walls the way in goes round the room block by its west side, while the
   // straight way the rig planned before doorRoute knew the walls goes through it.
   assert.deepEqual(doorRoute(DOORS, P1_SPAWN, MEET_CAM).waypoints, [[54, 1.7, 40], [66, 1.7, 40], [66, 1.7, 64], MEET_CAM]);
   assert.ok(routeWalls([P1_SPAWN, [54, 1.7, 40], [66, 1.7, 40], MEET_CAM], DOORS.walls), "the straight way through the room block was not found");
   // Touching a wall's end, or running along one, is no crossing.
   assert.equal(routeWalls([[0, 0, 0], [10, 0, 0]], [[10, 0, 10, 5], [2, 0, 8, 0]]), null);
+});
+
+// THE REVIEW OF INCREMENT 4, R4: a walk with no clear corner. Once the rig checked that every walk
+// arrives, the Respawn walk from p2 to the Commons' far corner stopped at the room block's wall:
+// neither single corner was clear, so the planner went straight at it (a low frame rate had let the
+// game tunnel through before). Red check run 2026-10-04: with clearPath answering null (the old
+// straight fallback), FAILED "a way round the wall crosses it: [[9,0,1]]".
+test("routes: with no clear corner, a grid path round the walls, aboard, clear of them", () => {
+  const { clearPath } = require("../lib/copresence-judge.js");
+  // A wall across the way, wide enough that neither single corner gets round it.
+  const walls = [[2, 5, 10, 5]];
+  const report = { places: [{ id: "zone:a", kind: "zone", min: [0, 0, 0], max: [12, 3, 12] }], doors: [], walls };
+  const from = [5, 0, 9];
+  const to = [9, 0, 1];
+  const path = doorRoute(report, from, to).waypoints;
+  assert.equal(routeWalls([from, ...path], walls), null, `a way round the wall crosses it: ${JSON.stringify(path)}`);
+  assert.deepEqual(path[path.length - 1], to);
+  for (let i = 1; i < path.length - 1; i++) assert.ok(walls.every((w) => wallDistXZ(path[i], w) >= 0.75 - 1e-9), `a corner of the path is too near a wall: ${path[i]}`);
+  // Never out of the places: with the only way round outside the zone's box, no path.
+  const boxed = { places: [{ id: "zone:a", kind: "zone", min: [0, 0, 0], max: [12, 3, 12] }], doors: [], walls: [[0, 5, 12, 5]] };
+  assert.equal(clearPath([5, 0, 9], [5, 0, 1], boxed.walls, { inside: (q) => q[0] >= 0 && q[0] <= 12 && q[2] >= 0 && q[2] <= 12 }), null, "a wall from side to side: no way round aboard");
 });
 
 // The second boot against the same relay (the remembered plot): the home built
