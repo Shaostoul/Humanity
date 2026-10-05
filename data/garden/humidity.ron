@@ -637,12 +637,15 @@
     // WHAT ONE HEATER DOES: the 1,500 W heater in data/machines, its thermostat at
     // 24 C. In a 300 m3 room (10 x 3 x 10 m) the walls and ceiling lose 1,373 W
     // for each degree it is warmer and its leakage 51 W, so flat out the heater
-    // holds the room 1.05 C over the air around it and never reaches 24 C. In the
-    // family home's 2,970 m3 greenhouse it adds 0.16 C; in the home's own air,
-    // a few hundredths of a degree. In a mushroom rack's 1.73 m3 fruiting tent,
-    // which loses about 61 W a degree, it would run the tent about 25 C over its
-    // room if its thermostat did not stop it at 24 C, which it holds by running
-    // about a tenth of the time. src/systems/farming/heat_tests.rs measures these.
+    // holds the room 1.05 C over the air around it and never reaches 24 C. In a
+    // room the size of the family home's greenhouse (45 x 3 x 22 m, 2,970 m3)
+    // it adds 0.163 C. src/systems/farming/heat_tests.rs measures both, and the
+    // thermostat holding 24 C in a small room. The same arithmetic gives the rest:
+    // in the family home's own air (about 10,500 m3, so about 4,200 m2 of walls
+    // and roof), about 0.05 C; and in a mushroom rack's 1.73 m3 fruiting tent,
+    // which loses about 61 W a degree (its walls and top 53, its fresh air 8),
+    // it would run the tent about 25 C over its room if its thermostat did not
+    // stop it at 24 C, which it holds by running about an eighth of the time.
     air_specific_heat_j_kg_k: 1013.0,
     envelope_u_w_m2_k: 6.24,
     home_storey_m: 3.0,

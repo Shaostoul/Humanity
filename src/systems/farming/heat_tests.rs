@@ -3,10 +3,11 @@
 //! (THE HEAT) its numbers; these prove a heater's watts reach the air it
 //! stands in, settle where a hand calculation puts them, reach what reads
 //! that air, and that the Greenhouse Construction quest promises no more than
-//! that. Each was seen red first: on the code before this (no heater had any
-//! effect: every one failed on the room or the home staying at its own
-//! temperature), and the doc comment on each says what else was broken to see
-//! it.
+//! that. Each was seen red first. With `heat::heaters` made to find no heater,
+//! which is the code before this fix in effect (no heater had any effect), the
+//! five that run a heater failed, every one on its room or the home's air
+//! staying at its own temperature; the doc comment on each says what else was
+//! broken to see it red.
 
 use std::sync::Mutex;
 
@@ -93,9 +94,9 @@ fn air_j_m3_k(t_c: f64) -> f64 {
 /// What reads the room's air sees that warmth: its vapour reads drier at
 /// 22.05 C than at 21.
 ///
-/// Red on the code before this fix: the room stayed at warmed 0. Also red with
-/// the room's leakage dropped from its conductance (`n` set to 0 in
-/// step_rooms): it settles at 1.093 C.
+/// Red with no heater found (the code before this fix in effect): the room
+/// stayed at warmed 0. Also red with the room's leakage dropped from its
+/// conductance (`n` passed as 0 in step_rooms): it settled at 1.093 C.
 #[test]
 fn a_powered_heater_warms_its_room_to_the_steady_state_worked_by_hand() {
     let data = one_room("room-a", 10.0, 3.0);
@@ -119,6 +120,31 @@ fn a_powered_heater_warms_its_room_to_the_steady_state_worked_by_hand() {
     assert!((rh - d.rh_of(r.vapour_g_m3, 21.0 + want)).abs() < 1e-12, "{rh}");
     assert!(rh < 0.95 * d.rh_of(r.vapour_g_m3, 21.0), "the warmed air reads drier: {rh}");
     assert!((humidity::room_temp_at(&d, r.warmed_k) - 22.054).abs() < 0.001);
+}
+
+/// ONE SPACE HEATER BARELY WARMS A GREENHOUSE THE SIZE OF THE FAMILY HOME'S
+/// (45 x 3 x 22 m, 2,970 m3, data/homes/homestead.ron `room-greenhouse`), on
+/// its own leakage with nothing else in it: by hand its walls and ceiling,
+/// 2 x (45 + 22) x 3 + 45 x 22 = 1,392 m2, lose 8,686 W a degree and its
+/// leakage 501 W, so the heater, flat out and never near 24 C, adds 0.163 C.
+/// The figure humidity.ron and the heating guide quote: a heater has to match
+/// the heat a space loses. Red with no heater found (the code before this fix
+/// in effect): 0.
+#[test]
+fn one_heater_barely_warms_a_greenhouse_the_size_of_the_family_homes() {
+    let greenhouse = GrowRoom { id: "room-greenhouse".into(), name: "Greenhouse".into(), min: [0.0, 0.0, 0.0], max: [45.0, 3.0, 22.0], ..Default::default() };
+    let bed = GrowPlot { id: "bed_a".into(), pos: [20.0, 0.0, 10.0], ..Default::default() };
+    let data = store(vec![greenhouse], vec![bed]);
+    let mut world = hecs::World::new();
+    let e = heater(&mut world, [20.0, 0.5, 10.0], 1500.0, 24.0, true);
+    let mut sys = FarmingSystem::new();
+    run(&mut sys, &mut world, &data, 30, 5.0);
+    let g = 6.24 * (2.0 * (45.0 + 22.0) * 3.0 + 45.0 * 22.0) + air_j_m3_k(21.0) * 0.5 * 2970.0 / 3600.0;
+    let r = room(&world, "room-greenhouse");
+    assert!((r.warmed_k - 1500.0 / g).abs() < 1e-6, "warmed {} K, by hand {}", r.warmed_k, 1500.0 / g);
+    assert!((r.warmed_k - 0.163).abs() < 0.0005, "{}", r.warmed_k);
+    assert_eq!(r.heater, 1.0, "never near 24 C, so flat out");
+    assert!((draw(&world, e) - 1500.0).abs() < 1e-3);
 }
 
 /// AN UNPOWERED HEATER WARMS NOTHING, and still asks for its watts. The same
@@ -153,8 +179,8 @@ fn an_unpowered_heater_warms_nothing_and_asks_for_its_power() {
 /// out it would run 11.9 C over its 21 C. Held at 24 C, 3 C over, it loses
 /// 378.5 W, so the heater runs 25.2% of the time and draws 378.5 W.
 ///
-/// Red with the setpoint ignored (`set_k` passed as None to `heat::step`, or
-/// the duty fixed at 1): the room ran to 11.9 C over.
+/// Red with the thermostat ignored (the duty fixed at 1 in `heat::step`): the
+/// room ran to 11.89 C over.
 #[test]
 fn the_thermostat_holds_its_setpoint() {
     let data = one_room("room-a", 2.0, 2.0);
@@ -217,7 +243,7 @@ fn a_heater_outside_the_grow_rooms_warms_the_home_air_the_body_reads() {
 /// exactly its own temperature: nothing builds up.
 ///
 /// Red with a room's passed heat dropped instead of added to the home's
-/// (`home_heat_in_j` never added to): the home stayed at 0.
+/// (nothing added to `home_heat_in_j`): the home stayed at 0.
 #[test]
 fn a_grow_rooms_heat_reaches_the_home_air_and_none_is_lost() {
     let data = one_room("room-a", 10.0, 3.0);
@@ -242,8 +268,10 @@ fn a_grow_rooms_heat_reaches_the_home_air_and_none_is_lost() {
 /// THE STEP IS EXACT: over any slice, the heat the heaters put in is the heat
 /// the air kept, plus what it gave the air around it, plus what its coils took
 /// (`heat::step` on `life_support::relax`), whatever the slice's length; and
-/// one long slice and many short ones agree on where a heater with no
-/// thermostat ends.
+/// one long slice and many short ones agree on where a heater that never
+/// reaches its setpoint ends. Red with the heat passed reckoned against 0
+/// instead of the air around it (`to_sink(k, 0.0, ..)`): the joules no longer
+/// add up.
 #[test]
 fn the_heat_step_keeps_every_joule() {
     use super::heat::{step, AirHeat};
@@ -281,10 +309,11 @@ fn the_heat_step_keeps_every_joule() {
 /// room with power, it warms that room's air; and the step says so, in words
 /// that fit the HUD's quest line.
 ///
-/// Red on the code before this fix: no catalog had a `heater` (the item could
-/// not be placed) and the step promised "temperature regulation" from a
-/// heater that did nothing. Also red with the catalog setpoint at 21 C (the
-/// rooms' own): the heater never ran in a grow room.
+/// Red on the data before this fix, each part alone: the step's old words
+/// ("Build a heater for temperature regulation", promised from a heater that
+/// did nothing), and home.ron with no `heater` in its catalog (the crafted
+/// item placed nothing). Also red with the catalog's thermostat at the rooms'
+/// own 21 C, where the heater would never run in a grow room.
 #[cfg(feature = "native")]
 #[test]
 fn the_greenhouse_quests_heater_warms_a_grow_rooms_air() {

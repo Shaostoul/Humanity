@@ -3604,17 +3604,56 @@ guide teaches exactly that.
 **Fix (not started):** a generator names the fuels it burns (a data field on the machine),
 and only those run it; a test puts Paint in the drum and expects no power.
 
-## BUG-155: the greenhouse quest asks for a heater that does nothing (OPEN, found 2026-10-04)
+## BUG-155: the greenhouse quest asks for a heater that does nothing (FIXED (merging in v0.1463.0), found 2026-10-04)
 
 **Seen (the same check, confirmed):** the Greenhouse Construction quest's step reads
 "Build a heater for temperature regulation" (`data/quests/farming.ron`, objective
 `Craft(recipe_id: "build_heater")`), but no system gives a built heater any effect: it
 warms neither the air, the plants nor the player. The heating guide says plainly that the
-heater does nothing; the quest says the opposite.
+heater does nothing; the quest says the opposite. Worse than "does nothing": no machine
+catalog had a `heater`, so the crafted `heater_0` could not even be placed.
 
-**Fix (not started):** give the heater a real effect on the room's air temperature (the
-greenhouse's plants and the body heat model read it), or change the quest step until it
-does. Either way a test pins the quest's promise to what the heater does.
+**Fix (ba1ee5e0b):** the catalogs (`data/machines/home.ron`, `home_solo.ron`) carry a
+`heater` machine, placed from `heater_0` like every machine: a 1,500 W electric ceramic
+heater (the Lasko 754200), all of its draw heat, on a thermostat at 24 C (a game choice,
+the middle of UGA Bulletin 792's 70 to 80 F days), heating only while the electrical sim
+powers it and drawing its watts for the share of the time it runs. Its heat goes into the
+air it stands in, a grow room's or fruiting tent's own, else the home's own air, through a
+linear heat balance stepped with the airs' water and gases in the farming tick
+(`src/systems/farming/heat.rs`; numbers and sources in `data/garden/humidity.ron`, THE
+HEAT): `C dtheta/dt = Q - G (theta - theta_around) - G_coil theta`, with G = U x walls and
+ceiling (U 6.24 W/(m2 K), single glass, UGA B792's R 0.91, a labelled game choice for every
+grow room) plus the room's air changes x its heat capacity (FAO-56's cp), and an air
+handler's coil taking the warmth of the air it moves. A room's heat passes on to the home's
+own air, which loses it through its walls and roof. Each air sits at its own temperature
+(the station holds it there) plus what heaters add, and what reads that air reads the sum:
+a grow room's humidity, every humidity setpoint, its CO2 and its pests; the home's air
+space, so the body heat model inside the home and food spoilage; and the body feels a grow
+room's own air where the player stands in one (`engine::survival_env::indoor_air`). The
+Garden panel says what each heater is doing. The quest step now reads "Build a space heater
+to warm a grow room's air". Tests, each seen red first (on the code before this, in
+effect, by making `heat::heaters` find no heater, and by the mutation each test names):
+`farming::heat_tests::a_powered_heater_warms_its_room_to_the_steady_state_worked_by_hand`
+(300 m3: 1.054 C over, by hand), `one_heater_barely_warms_a_greenhouse_the_size_of_the_family_homes`
+(0.163 C), `an_unpowered_heater_warms_nothing_and_asks_for_its_power`,
+`the_thermostat_holds_its_setpoint`, `a_heater_outside_the_grow_rooms_warms_the_home_air_the_body_reads`,
+`a_grow_rooms_heat_reaches_the_home_air_and_none_is_lost`, `the_heat_step_keeps_every_joule`,
+`the_greenhouse_quests_heater_warms_a_grow_rooms_air` (the quest's words, the recipe's item,
+the catalog machine, spawned the way the engine spawns it), and
+`engine::survival_env::tests::indoors_the_body_feels_the_air_of_the_room_it_stands_in`.
+
+**Still open:** the crops' growth does not answer an indoor room's temperature (indoors
+they still grow as if every room were inside their range, so the heater warms the plants'
+air, their humidity and their pests, but not their growth rate; a design call, because 17
+crops' windows exclude the rooms' 21 C); only the air stores heat, so a heated room warms
+and cools in minutes; every grow room is taken as single glass rather than its real walls;
+rooms with no grow machine share the home's one air, so a heater in a bedroom warms the
+whole home by a few hundredths of a degree; a heater's radiant warmth on a body beside it
+is not modelled; the thermostat is set in data, not from a dial in the game
+(docs/design/in-app-ops.md); heaters can be placed only aboard, not in a shelter built on
+a planet (BUG-153's campfire is the planet side); and `data/hvac.ron`'s other heat makers
+(heat pump, wood stove) have no machine yet. The never-registered `HvacSystem`
+(`src/systems/hvac.rs`) is superseded by this and could be deleted.
 
 ## BUG-156: trees float in the air beside the Silverdale waterfront (OPEN, found 2026-10-05)
 
