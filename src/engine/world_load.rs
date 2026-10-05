@@ -245,7 +245,13 @@ pub(crate) fn load_world(state: &mut EngineState) {
     let mut home_kcal = 0.0f32;
     {
         let path = crate::machines::home_ron_path(&state.data_dir);
-        if let Some(home) = crate::machines::MachineHome::load(&path) {
+        // The data file's layout, with the character's own machines in the household's place when
+        // their save holds a home of their own outside the Dev mode (engine/own_home.rs,
+        // 2026-10-04). The editor edits this same layout from here on, so what it shows, what is
+        // spawned and what is saved are one layout (the editor's used to be the one loaded at
+        // startup, before the save and any Settings change of household).
+        if let Some(home) = crate::engine::own_home::machines_for_world(&mut state.gui_state, &path) {
+            state.gui_state.home_machines = Some(home.clone());
             home_kcal = crate::engine::home_spawn::home_metabolic_kcal(&home);
             use std::collections::HashMap;
             // room id -> (center, floor_y, ceiling_y).

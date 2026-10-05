@@ -182,6 +182,29 @@ pub struct WorldSave {
     /// 0 in a save from before it: the tank starts empty.
     #[serde(default)]
     pub urine_tank_person_days: f64,
+    /// The character's OWN home, as they built it with the build editor outside the Dev mode
+    /// (2026-10-04, engine/own_home.rs): the home design and the household's machines. None:
+    /// the character lives in the default home, the data files', and a change to those reaches
+    /// them. Before this every play mode wrote the editor's edits into the shared data files,
+    /// so a machine placed in Normal mode survived a fresh start for free, came back after a
+    /// snapshot restore that had given its item back, and stood in every other character's home
+    /// on the install. Applied on load outside the Dev mode (which authors the data files).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub home: Option<SavedHome>,
+}
+
+/// One character's own home (`WorldSave::home`): what a build-editor edit outside the Dev mode
+/// changes, kept in that character's save instead of the shared data files. The precedent is
+/// `WorldSave::constructions` (the blueprint builds went into the save for the same reason).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SavedHome {
+    /// The home design (data/homes/<kind>.ron's shape): its body (walls, openings, lights,
+    /// stairs, spawn point) and the door point its plot's corridor meets. Assembled onto the
+    /// player's plot at world load in place of the data file's design of the same kind.
+    pub design: crate::ship::ship_structure::HomeDesign,
+    /// The household's machine rows and what was paid for them (the catalog stays the data's).
+    #[serde(default)]
+    pub machines: crate::machines::HouseholdMachines,
 }
 
 /// The player's body in a save (first-hour audit S1, 2026-10-04). Put back exactly as it was
@@ -287,6 +310,7 @@ impl WorldSave {
             home_plot_box: None,
             body: None,
             urine_tank_person_days: 0.0,
+            home: None,
         }
     }
 }
@@ -444,7 +468,7 @@ pub const SNAPSHOTS_KEPT: usize = 10;
 /// The least time between two AUTOMATIC snapshots of one slot.
 ///
 /// The home is saved every two minutes while you play
-/// (`save_load::maybe_periodic_save`), so a snapshot at every write would roll
+/// (`save_load::periodic_save_due`), so a snapshot at every write would roll
 /// all ten copies in twenty minutes: a save spoiled by a bug or a regretted
 /// trade would push every good copy out before anyone noticed. A forced
 /// snapshot ("Snapshot now" in Settings, and the copy a restore keeps of what
@@ -964,6 +988,7 @@ mod tests {
             home_plot_box: None,
             body: None,
             urine_tank_person_days: 0.0,
+            home: None,
         }
     }
 

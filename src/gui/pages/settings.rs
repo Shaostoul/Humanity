@@ -3626,9 +3626,9 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         // Time (2026-09-27): the one game clock's three settings, in their
         // own module because this file is past its size.
         super::settings_time::draw(ui, theme, state, hint);
-        // Fresh world each launch (operator, 2026-09-25): during development,
-        // every session starts from the default home so what you see is what
-        // a new player gets.
+        // Fresh world each launch (operator, 2026-09-25): every session starts
+        // from the default home, so what you see is what a new player gets. Off
+        // by default since 2026-10-04 (progress is kept between launches).
         ui.add_space(theme.spacing_sm);
         if widgets::toggle(ui, theme, "Start every session from the default home", &mut state.settings.fresh_world_each_launch) {
             state.settings_dirty = true;
@@ -3639,8 +3639,8 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             hint,
             "On: each launch starts from the home a new player gets, and only your \
              character (name, look, outfit) carries over. Your saved progress is \
-             kept on disk untouched and comes back when you turn this off. On by \
-             default while the starting home is being built. Applies at the next launch.",
+             kept on disk untouched and comes back when you turn this off. Off by \
+             default: your progress is kept between launches. Applies at the next launch.",
         );
         // Offline progression (operator, 2026-09-21). The companion to 1x: at
         // real agricultural time the wait happens while you are away.

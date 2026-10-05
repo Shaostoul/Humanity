@@ -681,8 +681,11 @@ pub(crate) fn boot_plot(ship_file: &ShipStructure, remembered: Option<&crate::co
 pub(crate) fn assemble_for_boot(data_dir: &std::path::Path, gui: &crate::gui::GuiState) -> Result<ShipStructure, String> {
     let file = ShipStructure::load_ship_file(data_dir)?;
     let server = active_server_key(gui);
+    // The character's own home design, when their save holds one outside the Dev mode
+    // (engine/own_home.rs, 2026-10-04); else the design file's.
+    let own = crate::engine::own_home::design_in_effect(gui);
     if let Some(plot) = boot_plot(&file, gui.home_plots.get(&plot_memory_key(gui, &server))) {
-        match ShipStructure::assemble_from(file.clone(), data_dir, Some(&plot)) {
+        match ShipStructure::assemble_from_own(file.clone(), data_dir, Some(&plot), own) {
             Ok(ship) => {
                 log::info!("load_world: building the home on plot {plot}, the plot remembered for {server}");
                 return Ok(ship);
@@ -690,7 +693,7 @@ pub(crate) fn assemble_for_boot(data_dir: &std::path::Path, gui: &crate::gui::Gu
             Err(e) => log::warn!("load_world: the home does not go on plot {plot}, remembered for {server} ({e}); the default plot instead"),
         }
     }
-    ShipStructure::assemble_from(file, data_dir, None)
+    ShipStructure::assemble_from_own(file, data_dir, None, own)
 }
 
 /// The key a plot is remembered under (`GuiState::home_plots`): this identity on `server`, the

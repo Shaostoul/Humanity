@@ -219,6 +219,7 @@ pub(crate) fn construction_duplicate(state: &mut EngineState) {
         // (first-hour audit 2026-10-04, Missing stakes 1), or Ctrl+D would place any machine
         // in the home free. Paid only when a copy will be made: a locked ship machine or an
         // array cell is not copied (below). Creative and Dev go on exactly as before.
+        let mut paid = None;
         if !g.settings.play_mode.allows(crate::config::Capability::FreeResources) {
             let copy = g.home_machines.as_ref().filter(|h| !h.is_locked(&id)).and_then(|h| {
                 let m = h.instances.iter().find(|m| m.id == id)?;
@@ -226,9 +227,12 @@ pub(crate) fn construction_duplicate(state: &mut EngineState) {
                 Some((m.machine.clone(), label.unwrap_or_else(|| m.machine.clone())))
             });
             if let Some((mtype, label)) = copy {
-                if let Err(why) = pay_for_editor_machine(state, &mtype, &label) {
-                    state.gui_state.pending_notices.push(why);
-                    return;
+                match pay_for_editor_machine(state, &mtype, &label) {
+                    Ok(p) => paid = p,
+                    Err(why) => {
+                        state.gui_state.pending_notices.push(why);
+                        return;
+                    }
                 }
             }
         }
@@ -246,6 +250,11 @@ pub(crate) fn construction_duplicate(state: &mut EngineState) {
                 ni.offset.0 += 1.0;
                 ni.offset.2 += 1.0;
                 h.instances.push(ni);
+                // The copy's own payment (none in a free mode), never the original's: removing the
+                // copy gives back what the copy cost (engine/own_home.rs).
+                if let Some(item) = paid.take() {
+                    h.paid.insert(fresh.clone(), item);
+                }
                 new_id = Some(fresh);
             }
         }
@@ -256,9 +265,16 @@ pub(crate) fn construction_duplicate(state: &mut EngineState) {
     }
 }
 
-/// Undo the last construction edit (v0.575): restore the most recent pre-edit snapshot.
+/// Undo the last construction edit (v0.575): restore the most recent pre-edit snapshot. A paid
+/// machine it takes away gives its item back, and one it brings back takes its item again; when
+/// the player no longer has that item the undo is refused and says so (engine/own_home.rs,
+/// 2026-10-04).
 pub(crate) fn construction_undo(state: &mut EngineState) {
-    if state.construction_history.undo.is_empty() {
+    let Some(target) = state.construction_history.undo.back().map(|s| s.machines.clone()) else {
+        return;
+    };
+    if let Err(why) = crate::engine::own_home::settle_restore(state, target.as_ref()) {
+        state.gui_state.pending_notices.push(why);
         return;
     }
     let cur = editor_snapshot(state);
@@ -267,8 +283,15 @@ pub(crate) fn construction_undo(state: &mut EngineState) {
     }
 }
 
-/// Redo the last undone construction edit (v0.575).
+/// Redo the last undone construction edit (v0.575), settling its payments as an undo does.
 pub(crate) fn construction_redo(state: &mut EngineState) {
+    let Some(target) = state.construction_history.redo.last().map(|s| s.machines.clone()) else {
+        return;
+    };
+    if let Err(why) = crate::engine::own_home::settle_restore(state, target.as_ref()) {
+        state.gui_state.pending_notices.push(why);
+        return;
+    }
     if let Some(next) = state.construction_history.redo.pop() {
         let cur = editor_snapshot(state);
         state.construction_history.undo.push_back(cur);
@@ -282,13 +305,15 @@ pub(crate) fn construction_redo(state: &mut EngineState) {
 /// connect) shows immediately instead of only on the next world entry. Positions come from the
 /// tested MachineHome::placements. The live ECS is kept in sync too as of v0.730 (see
 /// sync_machine_entities above); the connection pipes rebuild via rebuild_connection_objects.
-/// Flush unsaved ship-structure + machine edits to disk (v0.791). Runs on the 60 s
+/// Flush unsaved ship-structure + machine edits (v0.791). Runs on the 60 s
 /// autosave tick and on window close, so build edits survive a quit without the
 /// explicit Save button (before this, ONLY the button persisted them -- inventory
 /// autosaved but the ship didn't, which the operator read as "saves aren't saving").
 /// Differences from the button on purpose: no spawn stamp (build_char_pos is only
 /// meaningful while the build editor is open) and no corridor pruning (a mid-edit
 /// broken corridor row must survive the autosave; load() prunes resiliently now).
+/// In the Dev mode they go to the data files; in Normal and Creative to the
+/// character's save (engine/own_home.rs `keep_edits_now`).
 pub(crate) fn autosave_ship_structure(state: &mut EngineState, force: bool) {
     if !state.gui_state.construction_unsaved {
         return;
@@ -313,51 +338,14 @@ pub(crate) fn autosave_ship_structure(state: &mut EngineState, force: bool) {
     }
     LAST_SECS.store(now, std::sync::atomic::Ordering::Relaxed);
     state.gui_state.construction_unsaved = false;
-    if state.gui_state.ship_structure.is_some() {
-        match save_ship_and_home(state) {
-            Ok(note) => log::info!("Autosave: {note}"),
-            Err(e) => log::warn!("Autosave: {e}"),
-        }
+    // Where the edits go is the play mode's (engine/own_home.rs, 2026-10-04): the Dev mode writes
+    // the data files as it always did (the home design, the ship file and the ship's machines,
+    // the household's machines; `own_home::write_data_files`, which was this function's body);
+    // Normal and Creative keep the character's own home and write their save, never a data file.
+    match crate::engine::own_home::keep_edits_now(state) {
+        Ok(note) => log::info!("Autosave: {note}"),
+        Err(e) => log::warn!("Autosave: {e}"),
     }
-    if let Some(home) = &state.gui_state.home_machines {
-        let path = crate::machines::home_ron_path(&state.data_dir);
-        match home.save(&path) {
-            Ok(()) => log::info!("Autosave: machine layout written to {}", path.display()),
-            Err(e) => log::warn!("Autosave: machine save failed: {e}"),
-        }
-    }
-}
-
-/// Save the loaded ship the way increment 1a of docs/design/ship-homes-and-logistics.md
-/// splits it: the home design (data/homes/<kind>.ron) in every play mode; the ship file
-/// (blueprints/ship_structure.ron) and the ship's machines (machines/ship.ron) only with
-/// ShipStructureEditing, the Dev mode, so a Normal or Creative save can never move a hangar or
-/// a Commons machine. The home's origin is never written: it comes from the plot. The
-/// household's own machines are saved where they always were (`MachineHome::save`, which
-/// writes only the household's part). Ok is the note the editor shows; Err says what failed.
-pub(crate) fn save_ship_and_home(state: &EngineState) -> Result<String, String> {
-    let ship_scope = state
-        .gui_state
-        .settings
-        .play_mode
-        .allows(crate::config::Capability::ShipStructureEditing);
-    let ship = state
-        .gui_state
-        .ship_structure
-        .as_ref()
-        .ok_or_else(|| "no ship is loaded".to_string())?;
-    let note = ship.save_assembled(&state.data_dir, ship_scope)?;
-    if ship_scope {
-        if let Some(machines) = &state.gui_state.home_machines {
-            let home_path = crate::machines::home_ron_path(&state.data_dir);
-            match machines.save_ship_part(&home_path) {
-                Ok(Some(p)) => log::info!("Ship machines written to {}", p.display()),
-                Ok(None) => {}
-                Err(e) => return Err(format!("{note} The ship's machines were NOT saved: {e}")),
-            }
-        }
-    }
-    Ok(note)
 }
 
 /// The slide-gizmo handles for the currently-selected room, with each handle's owning
@@ -549,9 +537,6 @@ pub(crate) fn pay_for_machine(
     machine_type: &str,
     label: &str,
 ) -> Result<Option<String>, String> {
-    use crate::ecs::components::Controllable;
-    use crate::systems::inventory::placed::{stock_counts, take_consumed};
-    use crate::systems::inventory::Inventory;
     if free {
         return Ok(None);
     }
@@ -560,25 +545,8 @@ pub(crate) fn pay_for_machine(
             "There is no {label} item to place one from, so in Normal mode it cannot be placed; Creative and Dev place it free."
         ));
     };
-    // The backpack first.
-    let player = world.query::<(&Inventory, &Controllable)>().iter().next().map(|(e, _)| e);
-    if let Some(mut pack) = player.and_then(|p| world.get::<&mut Inventory>(p).ok()) {
-        if pack.count_item(&item) > 0 {
-            pack.remove_item(&item, 1);
-            return Ok(Some(item));
-        }
-    }
-    // Then the home's storage, the same pool the machines and the build menu
-    // draw on, without what sits in a chest built on a planet.
-    if storage {
-        let away = crate::systems::construction::uses::planet_store_paths(world);
-        let have = stock_counts(placed, &away).get(&item).copied().unwrap_or(0);
-        if have > 0 {
-            let before: std::collections::HashMap<String, u32> = [(item.clone(), have)].into_iter().collect();
-            let after: std::collections::HashMap<String, u32> = [(item.clone(), have - 1)].into_iter().collect();
-            take_consumed(placed, &before, &after, &away);
-            return Ok(Some(item));
-        }
+    if take_one(world, placed, storage, &item) {
+        return Ok(Some(item));
     }
     let name = items.and_then(|r| r.items.get(&item)).map(|d| d.name.clone()).unwrap_or(item);
     Err(if storage {
@@ -586,6 +554,64 @@ pub(crate) fn pay_for_machine(
     } else {
         format!("To place this {label}, carry one {name} in your backpack: you have none, and your home storage is out of reach here.")
     })
+}
+
+/// How many of `item` the player could give right now: the backpack's, plus the home's storage
+/// (without the chests built on a planet) when `storage` (it is in reach where they stand).
+pub(crate) fn count_available(
+    world: &hecs::World,
+    placed: &[crate::systems::inventory::placed::PlacedItem],
+    storage: bool,
+    item: &str,
+) -> u32 {
+    use crate::ecs::components::Controllable;
+    use crate::systems::inventory::Inventory;
+    let pack: u32 = world
+        .query::<(&Inventory, &Controllable)>()
+        .iter()
+        .next()
+        .map_or(0, |(_e, (inv, _))| inv.count_item(item));
+    let home = if storage {
+        let away = crate::systems::construction::uses::planet_store_paths(world);
+        crate::systems::inventory::placed::stock_counts(placed, &away).get(item).copied().unwrap_or(0)
+    } else {
+        0
+    };
+    pack + home
+}
+
+/// Take one `item` from the player: the backpack first, else the home's storage (the same pool
+/// the machines and the build menu draw on, without what sits in a chest built on a planet) when
+/// `storage`. False, and nothing taken, when there is none. A placement's payment
+/// (`pay_for_machine`) and an undo or redo that puts a paid machine back
+/// (engine/own_home.rs `settle_restore`) both take through here.
+pub(crate) fn take_one(
+    world: &mut hecs::World,
+    placed: &mut Vec<crate::systems::inventory::placed::PlacedItem>,
+    storage: bool,
+    item: &str,
+) -> bool {
+    use crate::ecs::components::Controllable;
+    use crate::systems::inventory::placed::{stock_counts, take_consumed};
+    use crate::systems::inventory::Inventory;
+    let player = world.query::<(&Inventory, &Controllable)>().iter().next().map(|(e, _)| e);
+    if let Some(mut pack) = player.and_then(|p| world.get::<&mut Inventory>(p).ok()) {
+        if pack.count_item(item) > 0 {
+            pack.remove_item(item, 1);
+            return true;
+        }
+    }
+    if storage {
+        let away = crate::systems::construction::uses::planet_store_paths(world);
+        let have = stock_counts(placed, &away).get(item).copied().unwrap_or(0);
+        if have > 0 {
+            let before: std::collections::HashMap<String, u32> = [(item.to_string(), have)].into_iter().collect();
+            let after: std::collections::HashMap<String, u32> = [(item.to_string(), have - 1)].into_iter().collect();
+            take_consumed(placed, &before, &after, &away);
+            return true;
+        }
+    }
+    false
 }
 
 /// `pay_for_machine` for the live game: the play mode's free resources, the home's storage when
@@ -633,13 +659,20 @@ pub(crate) fn try_place_held_machine(state: &mut EngineState) {
     // Outside Creative and Dev a placement takes the machine's item, and when
     // there is none the editor says so and places nothing (first-hour audit
     // 2026-10-04, Missing stakes 1). Creative and Dev place free, as before.
-    if let Err(why) = pay_for_editor_machine(state, &mtype, &label) {
-        state.gui_state.pending_notices.push(why);
-        return;
-    }
+    let paid = match pay_for_editor_machine(state, &mtype, &label) {
+        Ok(paid) => paid,
+        Err(why) => {
+            state.gui_state.pending_notices.push(why);
+            return;
+        }
+    };
     if let Some(home) = state.gui_state.home_machines.as_mut() {
         if home.catalog.contains_key(&mtype) {
             let id = home.unique_instance_id(&mtype);
+            // What it cost, so removing it gives the item back (engine/own_home.rs).
+            if let Some(item) = paid {
+                home.paid.insert(id.clone(), item);
+            }
             home.instances.push(crate::machines::MachineInstance {
                 id,
                 machine: mtype,

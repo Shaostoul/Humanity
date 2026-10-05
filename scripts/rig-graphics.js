@@ -129,7 +129,9 @@ const RECORD_ONLY = {
   fps_background_sync: "frame cap: would corrupt the rig's fps readings",
   font_size: "egui text size: shifts every HUD overlay in a capture, not a 3D setting",
   dark_mode: "egui theme: HUD only, not a 3D setting",
-  play_mode: "dev/creative gates, gameplay not graphics",
+  play_mode: "dev/creative gates, gameplay not graphics; every rig runs Dev (lib/rig-gameplay.js, pinned by spawnGame)",
+  fresh_world_each_launch:
+    "Start every session from the default home: gameplay not graphics; every rig starts from the default home (lib/rig-gameplay.js, pinned by spawnGame)",
   home_variant: "which homestead design loads, gameplay content not graphics",
   hostile_wildlife: "spawns predators, gameplay content not graphics",
   vitals_drain: "survival decay rate, gameplay not graphics",

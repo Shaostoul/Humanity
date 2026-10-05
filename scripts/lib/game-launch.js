@@ -31,12 +31,24 @@
 //      (src/embedded_data.rs note_builtin_copy; scripts/lib/compiled-in.js
 //      refuses a loader that does not), and builtinDataLines() finds them in a
 //      run.log so the rig can refuse the run.
+//
+//   4. The game ran on settings the rig was not built on (2026-10-04): fresh
+//      installs start in Normal mode with progress kept, and a rig's sandbox is a
+//      fresh install; and a sandbox that once reached the live server kept it in
+//      its saved servers and dialed it at every boot (2026-10-05: a
+//      verify-screens run identified on united-humanity.us with a rig identity).
+//      spawnGame pins the Dev mode, the default home every launch, the rig's own
+//      relay (or a dead loopback port) as its server and no saved servers into the
+//      sandbox's config.json right before it spawns (lib/rig-gameplay.js), and
+//      REFUSES to start a game whose config still names a server off this
+//      computer.
 
 const fs = require("fs");
 const crypto = require("crypto");
 const { spawn, execSync } = require("child_process");
 const { requireBootCopy } = require("./src-fingerprint.js");
 const MG = require("./machine-guard.js");
+const RG = require("./rig-gameplay.js");
 
 /** The marker src/embedded_data.rs BUILTIN_COPY_MARKER writes (a test pins the two). */
 const BUILTIN_COPY_MARKER = "[built-in data copy]";
@@ -100,11 +112,17 @@ function reapHandoff(pid, pattern = /HumanityOS/i) {
  *   args   its arguments
  *   opts   { fresh (runFreshGate's return), rigName, cwd, env (default process.env),
  *            detached, stdio (default "ignore"), handoffPattern (default /HumanityOS/i),
- *            log (default console.log) }
+ *            log (default console.log), gameplay (default {}: lib/rig-gameplay.js; a rig
+ *            may ask for fresh_world_each_launch, and a rig with a throwaway relay
+ *            names it as server_url, which must be on this computer) }
  * Refuses (exit 1, nothing started) unless `exe` is byte-identical to the exe the
- * gate judged. Always sets HUMANITY_NO_HANDOFF=1.
+ * gate judged. Always sets HUMANITY_NO_HANDOFF=1. Pins the Dev play mode, the
+ * default home every launch, the rig's server and no saved servers into the config
+ * of the sandbox `exe` runs in, and refuses (exit 1, nothing started) when that
+ * config still names a server off this computer.
  * Returns the watch: {
  *   child, pid,
+ *   gameplay      what was pinned ({ path, gameplay, changed }), null outside a sandbox
  *   exited()      null while it runs, else what happened ("exited with code 0", ...)
  *   handoff       the hand-off processes found and stopped (after an exit)
  *   describe()    one sentence for a rig's error, naming a hand-off when there was one
@@ -115,6 +133,19 @@ function spawnGame(exe, args, opts = {}) {
   const rigName = opts.rigName || "rig";
   requireBootCopy(exe, opts.fresh, rigName);
   const env = { ...(opts.env || process.env), HUMANITY_NO_HANDOFF: "1" };
+  const log = opts.log || console.log;
+  // The sandbox's settings, in the config this very game reads, immediately before it starts
+  // (point 4 at the top): a rig is a Dev sandbox on this computer whatever its config.json held.
+  const gameplay = RG.pinSandboxGameplay(exe, env, opts.gameplay, log, rigName);
+  if (gameplay && gameplay.public_servers.length) {
+    console.error("");
+    console.error(`RIG CONFIG NAMES A SERVER OFF THIS COMPUTER (${gameplay.path}), which a rig must never dial:`);
+    for (const p of gameplay.public_servers.slice(0, 8)) console.error(`  ${p.path}: ${p.value}`);
+    console.error("scripts/lib/rig-gameplay.js pinGameplay clears the fields it knows; teach it this one.");
+    console.error("");
+    console.error(`${rigName}: REFUSED - nothing was booted.`);
+    process.exit(1);
+  }
   let child;
   try {
     child = spawn(exe, args || [], {
@@ -128,12 +159,12 @@ function spawnGame(exe, args, opts = {}) {
     // (spawn throws, "spawn UNKNOWN"): nothing was started, say so plainly.
     throw new Error(`${rigName}: could not start ${exe} (${e.message}); nothing booted`);
   }
-  const log = opts.log || console.log;
   const pattern = opts.handoffPattern || /HumanityOS/i;
   let expected = false;
   const w = {
     child,
     pid: child.pid,
+    gameplay,
     exit: null,
     code: null,
     handoff: [],

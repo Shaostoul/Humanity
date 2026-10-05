@@ -102,6 +102,10 @@ fn demo_state() -> GuiState {
     s.donate_routes = crate::gui::load_donate_routes(data);
     s.donate_methods = crate::gui::load_donate_methods(data);
     s.donate_charities = crate::gui::load_donate_charities(data);
+    // The demo state renders the way every rig runs the game: the Dev mode, with its free
+    // resources. Set explicitly since fresh installs start in Normal (2026-10-04), so the
+    // snapshots do not change with that default (scripts/lib/rig-gameplay.js pins the same).
+    s.settings.play_mode = crate::config::PlayMode::Dev;
     s.creative_mode = true;
     // Returning-user state so the main menu shows the loaded hub, not first-run onboarding.
     s.onboarding_complete = true;
