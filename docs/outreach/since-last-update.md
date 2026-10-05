@@ -162,7 +162,9 @@ Each line is written the way a player would hear it; the release notes and
 
 - **v0.1452.0: a day passes in 20 minutes on a shared server, carrying
   weight matters, and the real night sky.** A shared world's clock now runs
-  at 72 times real speed by default, so a day passes in 20 minutes; the
+  at 72 times real speed by default, so a day passes in 20 minutes (the
+  operator changed his mind the next night: from v0.1460.0 the default is
+  real time, and acceleration waits for a later fast mode); the
   server's admin can change it from inside the app (Server Settings > Shared
   world clock), and the page says what a choice means, like how long a
   lettuce takes to grow. How much you can carry now follows gravity (about

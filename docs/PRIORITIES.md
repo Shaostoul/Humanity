@@ -163,8 +163,9 @@ the Day 5 session (he will post on his Discord or ask a brother when it is
 ready); how to balance what NPC homesteads give the fleet against what human
 players give (his open question). ANSWERED 2026-10-04 (journal, verbatim):
 backups stay as they are; no GitHub branch protection for now (immediate deploys
-suit the dev cycle); the shared-world clock is 72x by default with an in-app
-admin control; multiplayer stays ahead of arc A ("not as important as getting
+suit the dev cycle); the shared-world clock got an in-app admin control (its
+default, 72x that morning, became real time the same night: see THE FIRST
+HOUR, decision 5); multiplayer stays ahead of arc A ("not as important as getting
 the game playable"); the net-cup lean stays; server worlds start every player
 FRESH (only appearance crosses; the mothership gateway arrives players stripped
 of upgrades); joint homes wanted later; NPCs eat from the same stores; BUG-136
