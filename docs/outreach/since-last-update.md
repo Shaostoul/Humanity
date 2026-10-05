@@ -11,6 +11,17 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1461.0: a real game from the first minute.** A fresh install now
+  starts in Normal mode with your progress kept between sessions: things are
+  used up, tools wear, and nothing is free. Your first ten minutes walk you
+  through it: check your vitals, eat, plant, make a tool, bring in iron and
+  smelt it, build a chest, and step out of your own front door, with a note
+  after each step saying what is next. A new Death setting: Simplified loses
+  nothing, and Realistic leaves everything in your backpack where you fell,
+  marked on your screen, for an hour of play. Building in your own home now
+  saves into your own save, and a machine you place costs its item (and comes
+  back if you remove it).
+
 - **v0.1460.1: nine Library guides on keeping food, getting through an
   outage, and getting along.** Water-Bath Canning, Pressure Canning, and
   Salting, Curing and Smoking; Choosing and Running a Generator, Emergency

@@ -691,6 +691,11 @@
       "date": "2026-10-05",
       "decision": "Usage cap reached about 01:10. Shipped tonight after v0.1459.0: v0.1459.1 (six Library guides, 101 sourced). Merged locally, unpushed: the four first-hour lanes and the real-time clock lane (v0.1460.0 candidate; verify passed after a seam fix where two lanes' tests met the survival lane's new struct fields). Agents stopped at the cap: plots, Normal-mode defaults, death cost, Library sweep, community guides fixer, seam review. The first-ten-minutes lane finished. Resume list: PRIORITIES 'RESUME HERE'.",
       "why": "Stopping agents at the cap keeps their worktrees in a known state rather than cut off mid-write; main stays unpushed because a push deploys the relay before the rigs have run."
+    },
+    {
+      "date": "2026-10-05",
+      "decision": "Released v0.1460.0 (the four first-hour lanes and the real-time clock, delivered), v0.1460.1 (nine Library guides, 110 sourced) and v0.1461.0 (Normal mode by default with progress kept and rigs pinned to Dev and off the live server; the scripted first ten minutes; death cost by mode; 56 guides rewritten for the new defaults). The PC was switched off mid-probe once; the probe was rerun rather than counted. A seam review of the five first-hour lanes found nothing high or medium; its low item (the controls hint) shipped in v0.1461.0.",
+      "why": "The lanes that needed each other merged in dependency order (Normal mode, then the opening, then death), and their two additive conflicts were resolved by keeping both. New gap for the operator: in Normal mode nobody can leave the ship (PRIORITIES)."
     }
   ],
   "active_scopes_to_avoid": [
