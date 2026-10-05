@@ -1103,6 +1103,18 @@ blocker:
    `get_members`, `get_member_count` and `get_member_by_key`), deliberately
    deferred: a backend flag is useless without the user-facing toggle, so build
    both in the same privacy-UI increment. Verify json1 is compiled in first.
+3. **Blocking a sender (found again 2026-10-04 by the conflict guide's fact
+   check; recorded in `docs/accord/conformance_gaps.md`).** Nobody can stop
+   another person messaging them: a friendship certificate cannot be withdrawn
+   (`verify_friend_cert` is stateless, no revocation), unfollowing does not
+   close the message path, a stranger's certless "knocks" allow 20 a day
+   (`DM_KNOCKS_PER_DAY`), native chat has no block at all, and web's block list
+   only hides messages locally, by name. The Accord requires consent to be
+   revocable. Wanted before the shared world opens to strangers: a
+   recipient-side deny list the relay enforces at dm_put (kept as the
+   recipient's own sealed data where possible, in the certificate pattern),
+   certificate revocation (a serial or an expiry in the preimage, with the KAT
+   tests updated on both clients), and a Block button on both clients.
 
 ---
 
