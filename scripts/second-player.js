@@ -64,6 +64,27 @@
 // operator's live service; putting a scripted figure in front of real people
 // there is his decision, not a test script's.
 //
+// HOW IT BUILDS (ship homes increment 5, 2026-10-05: building only on your own
+// plot). A line on its input asks it to build or take down a piece in the
+// shared world, the way the desktop app does when a player presses E or F there
+// (src/systems/construction/shared.rs, the contract both the relay and the game
+// compile):
+//   build wood_wall@plot:p1:46,0.2,36,1    game_build: the blueprint, its frame
+//                                         (plot:<id> or zone:<id>), x,y,z metres
+//                                         from the frame's corner, quarter turns
+//   unbuild 12                            game_unbuild: take piece 12 down
+//   permit p1 did:hum:... 30              mint a household permit for p1 (it must
+//                                         be our plot) for that person, 30 days,
+//                                         good on this relay only (its own did:hum,
+//                                         from /api/server-info, is in the words)
+//   ... permit {json}                     either of the first two, carrying a permit
+// It sends the pose as the relay's checks want it: the turn exactly as the
+// game's placement makes it (`quarterTurn`, placement.rs `quarter_turn`) and
+// the size the blueprint's own, read from data/blueprints/basic.ron (the file
+// the relay reads). What the relay answers is logged one line each
+// (`logBuilds`), in the patterns this module exports, which
+// scripts/verify-copresence.js --build reads.
+//
 // Usage:
 //   node scripts/second-player.js                      walk a circle on ws://localhost:3210/ws
 //   node scripts/second-player.js --path line --radius 6 --axis z
@@ -153,8 +174,9 @@ second-player: a scripted second player that walks around the shared world.
                     a name already taken by another identity is refused).
                     Default: made from the name, so the same name is always
                     the same identity.
-  --path circle|line  what to walk (default circle). A line goes back and
-                    forth through the centre.
+  --path circle|line|still  what to walk (default circle). A line goes back
+                    and forth through the centre; still stands where the relay
+                    put it (a builder, verify-copresence --build).
   --axis x|z        which way the line runs (default x).
   --center X,Y,Z    the middle of the path, in world metres. "auto" (the
                     default): when the relay gave us a plot of our own (it
@@ -190,6 +212,16 @@ second-player: a scripted second player that walks around the shared world.
 
 A line "stop" on its input stops it the way Ctrl+C does (a rig's way to end it
 gracefully: Windows gives a child process no signal to catch).
+
+Lines on its input also build in the shared world (ship homes increment 5):
+  build <blueprint>@<frame>:<x>,<y>,<z>,<turns>   e.g. build wood_wall@plot:p1:46,0.2,36,1
+                    (frame plot:<id> or zone:<id>; x,y,z metres from its corner;
+                    turns 0 to 3 quarter turns about the vertical)
+  unbuild <piece number>                          take a piece down
+  permit <plot id> <grantee did:hum> <days>       mint a household permit (90 days at most),
+                    good on this relay only: it names the relay's own did:hum
+and a build or an unbuild may end with "permit <the JSON a permit line logged>".
+What the relay answers is logged, one line each.
 `;
 
 /** Read the command line into a plain options object. Throws an Error with a
@@ -227,7 +259,7 @@ function parseOptions(argv) {
     throw new Error("--name may only hold letters, numbers, _ and -, at most 24 characters");
   }
   const pathKind = String(raw["--path"] ?? "circle").toLowerCase();
-  if (pathKind !== "circle" && pathKind !== "line") throw new Error("--path must be circle or line");
+  if (pathKind !== "circle" && pathKind !== "line" && pathKind !== "still") throw new Error("--path must be circle, line or still");
   const axis = String(raw["--axis"] ?? "x").toLowerCase();
   if (axis !== "x" && axis !== "z") throw new Error("--axis must be x or z");
 
@@ -621,6 +653,8 @@ function logOthers(client, me, log, { minMoveM = 0.25, everyS = 2 } = {}) {
  *  - circle: starts at centre + (radius, 0, 0), turning from +X towards +Z.
  *  - line: starts at centre - radius along the axis, walks to + radius, and back. */
 function pathPoint(plan, s) {
+  // Standing still (a builder): always the centre, which is where it stands.
+  if (plan.path === "still") return plan.center.slice(0, 3);
   const [cx, cy, cz] = plan.center;
   const r = plan.radius;
   if (plan.path === "line") {
@@ -655,6 +689,8 @@ function chooseCenter(opts, welcome) {
   const me = snap.find((e) => e.entity_id === welcome.player_id);
   const start = me && Array.isArray(me.position) ? me.position.slice(0, 3) : [0, 1, 0];
   if (opts.center !== "auto") return { center: opts.center, start, why: "as asked" };
+  // A builder (ship homes increment 5) stands where the relay put it, never beside someone else.
+  if (opts.path === "still") return { center: start.slice(), start, why: "standing where the relay put us" };
   if (welcome.home_plot) {
     const r = opts.radius ?? DEFAULT_RADIUS;
     let center;
@@ -909,6 +945,352 @@ function sayInChat(client, identity, name, text, log) {
   };
 }
 
+// ── Building in the shared world (ship homes increment 5, 2026-10-05) ────────
+//
+// The messages, their fields and their rules are the contract's, src/systems/construction/
+// shared.rs (`ToRelay`, `FromRelay`, `Permit`); the tests in scripts/tests/second-player.test.js
+// read that file and hold the messages here to it.
+
+/** The blueprints file the relay reads (its own copy of the tree's data/, scripts/lib/
+ *  throwaway-relay.js), and so the one a scripted build takes its sizes from. */
+const BLUEPRINTS_RON = path.join(REPO, "data", "blueprints", "basic.ron");
+/** A blueprint id as the contract caps it (shared.rs MAX_BLUEPRINT_ID_LEN, 64 bytes). */
+const BLUEPRINT_ID_RULE = /^[a-z0-9_]{1,64}$/;
+/** A frame of the ship (src/ship/build_frames.rs): a plot or a shared space, by its id, at most
+ *  shared.rs MAX_FRAME_LEN (64) bytes in all. A planet site (`site:`) is not built through here. */
+const FRAME_RULE = /^(plot|zone):[A-Za-z0-9_-]{1,59}$/;
+/** A plot's own id, as a permit names it (`p3`, never `plot:p3`; shared.rs `Permit::plot`). */
+const PLOT_ID_RULE = /^[A-Za-z0-9_-]{1,64}$/;
+/** The longest a household permit may run, days: shared.rs PERMIT_MAX_DAYS, the relay's
+ *  pq_crypto.rs PLOT_PERMIT_MAX_DAYS (the operator, 2026-10-05: no endless permits). */
+const PERMIT_MAX_DAYS = 90;
+/** The permit's signature domain: pq_crypto.rs PLOT_PERMIT_DOMAIN. */
+const PERMIT_DOMAIN = "hum/permit/v1";
+/** f32's pi/2, the step `placement::quarter_turn` multiplies by (std::f32::consts::FRAC_PI_2). */
+const F32_FRAC_PI_2 = Math.fround(Math.PI / 2);
+
+/** Split `text` at `sep` where it stands outside every string and bracket (RON). */
+function splitTopLevel(text, sep) {
+  const out = [];
+  let depth = 0;
+  let inStr = false;
+  let from = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inStr) {
+      if (c === "\\") i++;
+      else if (c === '"') inStr = false;
+    } else if (c === '"') inStr = true;
+    else if (c === "(" || c === "[" || c === "{") depth++;
+    else if (c === ")" || c === "]" || c === "}") depth--;
+    else if (c === sep && depth === 0) {
+      out.push(text.slice(from, i));
+      from = i + 1;
+    }
+  }
+  out.push(text.slice(from));
+  return out.map((s) => s.trim()).filter(Boolean);
+}
+
+/** Every blueprint in the text of a blueprints RON file (data/blueprints/basic.ron), by id: its
+ *  name, category, size [x, y, z] metres, build time (s), materials [[item, count]] and whether
+ *  it is `shared` (unset is false, as the game's serde default). Comments are skipped wherever
+ *  they stand and whatever brackets they hold; the fields are read at each entry's top level, so
+ *  a nested value never stands in for one. Pure. */
+function readBlueprints(text) {
+  // Line comments out, strings kept whole.
+  const src = String(text);
+  let clean = "";
+  for (let i = 0, inStr = false; i < src.length; i++) {
+    const c = src[i];
+    if (inStr) {
+      clean += c;
+      if (c === "\\" && i + 1 < src.length) clean += src[++i];
+      else if (c === '"') inStr = false;
+    } else if (c === '"') {
+      inStr = true;
+      clean += c;
+    } else if (c === "/" && src[i + 1] === "/") {
+      while (i < src.length && src[i] !== "\n") i++;
+      clean += "\n";
+    } else {
+      clean += c;
+    }
+  }
+  const out = new Map();
+  const str = (v) => (v && v.startsWith('"') ? JSON.parse(v) : null);
+  const entry = (body) => {
+    const f = {};
+    for (const field of splitTopLevel(body, ",")) {
+      const k = field.indexOf(":");
+      if (k > 0) f[field.slice(0, k).trim()] = field.slice(k + 1).trim();
+    }
+    const id = str(f.id);
+    if (!id) return;
+    const tuple = (v) => (v && /^\(.*\)$/s.test(v) ? splitTopLevel(v.slice(1, -1), ",").map(Number) : null);
+    out.set(id, {
+      id,
+      name: str(f.name) || id,
+      category: str(f.category) || "",
+      size: tuple(f.size),
+      build_time: f.build_time === undefined ? null : Number(f.build_time),
+      materials: [...String(f.materials || "").matchAll(/\(\s*"([^"]*)"\s*,\s*(\d+)\s*\)/g)].map((m) => [m[1], Number(m[2])]),
+      shared: f.shared === "true",
+    });
+  };
+  // Each "(" one bracket inside the file's outer "[" opens a blueprint.
+  let depth = 0;
+  let start = -1;
+  for (let i = 0, inStr = false; i < clean.length; i++) {
+    const c = clean[i];
+    if (inStr) {
+      if (c === "\\") i++;
+      else if (c === '"') inStr = false;
+    } else if (c === '"') inStr = true;
+    else if (c === "(" || c === "[") {
+      depth++;
+      if (c === "(" && depth === 2) start = i;
+    } else if (c === ")" || c === "]") {
+      if (c === ")" && depth === 2 && start >= 0) {
+        entry(clean.slice(start + 1, i));
+        start = -1;
+      }
+      depth--;
+    }
+  }
+  return out;
+}
+
+/** A whole quarter turn about the vertical as a quaternion [x, y, z, w], exactly as the game's
+ *  placement makes it (src/systems/construction/placement.rs `quarter_turn`: glam's
+ *  `Quat::from_rotation_y((t % 4) as f32 * FRAC_PI_2)`, which is (0, sin(a/2), 0, cos(a/2)),
+ *  all in f32). The relay keeps exactly this turn for a build within half a degree of it. */
+function quarterTurn(t) {
+  const turns = ((Math.trunc(Number(t)) % 4) + 4) % 4;
+  const a = Math.fround(Math.fround(turns) * F32_FRAC_PI_2);
+  const half = Math.fround(a * 0.5);
+  return [0, Math.fround(Math.sin(half)), 0, Math.fround(Math.cos(half))];
+}
+
+/** The whole quarter turn (0 to 3) nearest a turn about the vertical [x, y, z, w], either sign. */
+function turnOf(q) {
+  const yaw = 2 * Math.atan2(Number(q[1]), Number(q[3]));
+  return ((Math.round(yaw / (Math.PI / 2)) % 4) + 4) % 4;
+}
+
+/** A permit as a build or an unbuild carries it: the JSON a `permit` line logged (shared.rs
+ *  `Permit`: issuer, server, plot, grantee, expiry, sig). */
+function parsePermitJson(text) {
+  let p = null;
+  try {
+    p = JSON.parse(text);
+  } catch {}
+  const ok =
+    p &&
+    typeof p === "object" &&
+    typeof p.issuer === "string" &&
+    typeof p.server === "string" &&
+    typeof p.plot === "string" &&
+    typeof p.grantee === "string" &&
+    Number.isInteger(p.expiry) &&
+    p.expiry >= 0 &&
+    typeof p.sig === "string";
+  if (!ok) throw new Error(`a permit must be the JSON a "permit" line logged: {"issuer", "server", "plot", "grantee", "expiry", "sig"}, got ${text}`);
+  return { issuer: p.issuer, server: p.server, plot: p.plot, grantee: p.grantee, expiry: p.expiry, sig: p.sig };
+}
+
+/** One line of the walker's input, as a command: { kind: "build", blueprint, frame, local:
+ *  [x, y, z], turns, permit }, { kind: "unbuild", pieceId, permit }, { kind: "permit", plot,
+ *  grantee, days }, { kind: "stop" }, or null for an empty line. Throws, saying what it wants, for
+ *  anything else (see the HELP text). Pure. */
+function parseCommand(line) {
+  const text = String(line ?? "").trim();
+  if (!text) return null;
+  // A permit rides at the end of a build or an unbuild: "... permit {json}".
+  let head = text;
+  let permit = null;
+  const at = text.indexOf(" permit {");
+  if (at >= 0) {
+    permit = parsePermitJson(text.slice(at + " permit ".length).trim());
+    head = text.slice(0, at).trim();
+  }
+  const words = head.split(/\s+/);
+  const verb = words[0];
+  if (verb === "stop" && words.length === 1 && !permit) return { kind: "stop" };
+  if (verb === "build") {
+    const wants = `build wants "build <blueprint>@<frame>:<x>,<y>,<z>,<turns>" (e.g. build wood_wall@plot:p1:46,0.2,36,1), got "${head}"`;
+    const m = words.length === 2 ? words[1].match(/^([^@]+)@(.+):([^:]+)$/) : null;
+    if (!m || !BLUEPRINT_ID_RULE.test(m[1])) throw new Error(wants);
+    const [, blueprint, frame, nums] = m;
+    if (!FRAME_RULE.test(frame)) throw new Error(`the frame must be plot:<id> or zone:<id> (src/ship/build_frames.rs), got "${frame}"`);
+    const v = nums.split(",").map((s) => s.trim());
+    if (v.length !== 4 || !v.every((s) => s !== "" && Number.isFinite(Number(s)))) throw new Error(wants);
+    const [x, y, z, t] = v.map(Number);
+    if (!Number.isInteger(t) || t < 0 || t > 3) throw new Error(`turns must be 0, 1, 2 or 3 (quarter turns about the vertical), got ${v[3]}`);
+    return { kind: "build", blueprint, frame, local: [x, y, z], turns: t, permit };
+  }
+  if (verb === "unbuild") {
+    if (words.length !== 2 || !/^\d+$/.test(words[1]) || Number(words[1]) < 1 || !Number.isSafeInteger(Number(words[1]))) {
+      throw new Error(`unbuild wants a piece number, e.g. "unbuild 12", got "${head}"`);
+    }
+    return { kind: "unbuild", pieceId: Number(words[1]), permit };
+  }
+  if (verb === "permit" && !permit) {
+    const [, plot, grantee, daysText] = words;
+    const days = Number(daysText);
+    if (words.length !== 4 || !PLOT_ID_RULE.test(plot || "") || !grantee || !Number.isFinite(days)) {
+      throw new Error(`permit wants "permit <plot id> <grantee did:hum> <days>" (the plot's own id, p1, not plot:p1), got "${head}"`);
+    }
+    if (!(days > 0 && days <= PERMIT_MAX_DAYS)) throw new Error(`a household permit lasts at most ${PERMIT_MAX_DAYS} days (and more than none), got ${daysText}`);
+    return { kind: "permit", plot, grantee, days };
+  }
+  throw new Error(`unknown command "${head}" (build, unbuild, permit or stop)`);
+}
+
+/** The `game_build` a build command sends (shared.rs `ToRelay::Build`): the pose as given, the
+ *  turn as the game's placement makes it, the size the blueprint's own from `blueprints`
+ *  (`readBlueprints`). Throws for a blueprint the file does not have. Pure. */
+function buildMessage(cmd, reqId, blueprints) {
+  const bp = blueprints.get(cmd.blueprint);
+  if (!bp || !Array.isArray(bp.size) || bp.size.length !== 3) throw new Error(`no blueprint "${cmd.blueprint}" in data/blueprints/basic.ron`);
+  const msg = {
+    type: "game_build",
+    req_id: reqId,
+    frame: cmd.frame,
+    blueprint_id: cmd.blueprint,
+    position: cmd.local.slice(0, 3),
+    rotation: quarterTurn(cmd.turns),
+    scale: bp.size.slice(),
+  };
+  if (cmd.permit) msg.permit = cmd.permit;
+  return msg;
+}
+
+/** The `game_unbuild` an unbuild command sends (shared.rs `ToRelay::Unbuild`). Pure. */
+function unbuildMessage(cmd, reqId) {
+  const msg = { type: "game_unbuild", req_id: reqId, piece_id: cmd.pieceId };
+  if (cmd.permit) msg.permit = cmd.permit;
+  return msg;
+}
+
+/** What a household permit's issuer signs: the relay's own words (src/relay/core/pq_crypto.rs
+ *  `plot_permit_preimage`, pinned by its test, which scripts/tests/second-player.test.js reads).
+ *  `server` is the did:hum of the server the permit is given on (its /api/server-info
+ *  `server_did`, `fetchServerDid`): every server hands out its plots in the ship file's order, so
+ *  one person often holds the same plot id on several, and a permit is good on its own server
+ *  only (Wave 0's 6e0174cd7). */
+function permitPreimage(server, plot, grantee, expiry) {
+  return `${PERMIT_DOMAIN}\n${server}\n${plot}\n${grantee}\n${expiry}`;
+}
+
+/** A household permit `identity` (`deriveIdentity`) signs for `grantee` (their did:hum, `didFor`)
+ *  on `plot` (its own id, p1) of the server `server` (its did:hum, `fetchServerDid`) until `expiry`
+ *  (Unix seconds): { issuer, server, plot, grantee, expiry, sig }, the contract's `Permit`, its
+ *  signature base64. Whether `plot` is the issuer's to give is the relay's question, and it answers
+ *  it. */
+function mintPermit(identity, { server, plot, grantee, expiry }) {
+  const fit = (s) => typeof s === "string" && s.length > 0 && !/[\r\n]/.test(s);
+  if (!fit(server) || !PLOT_ID_RULE.test(String(plot)) || !fit(grantee) || !Number.isSafeInteger(expiry) || expiry < 1) {
+    throw new Error(`a permit needs the server's did:hum, a plot id, a grantee and an end date in Unix seconds, got ${JSON.stringify({ server, plot, grantee, expiry })}`);
+  }
+  const sig = identity.sign(new TextEncoder().encode(permitPreimage(server, plot, grantee, expiry)));
+  return { issuer: identity.publicKeyHex, server, plot, grantee, expiry, sig: Buffer.from(sig).toString("base64") };
+}
+
+/** The relay's own did:hum (its /api/server-info `server_did`, src/relay/api.rs), which a household
+ *  permit names as the server it is good on. Null when the relay names none (one from before
+ *  2026-09-06, when servers had no DID). Rejects when the relay cannot be asked. */
+async function fetchServerDid(serverUrl, { timeoutMs = 5000 } = {}) {
+  const res = await fetch(`${httpBase(serverUrl)}/api/server-info`, { signal: AbortSignal.timeout(timeoutMs) });
+  if (!res.ok) throw new Error(`/api/server-info answered ${res.status}`);
+  const info = await res.json();
+  const did = info && typeof info.server_did === "string" ? info.server_did.trim() : "";
+  return did.startsWith("did:hum:") ? did : null;
+}
+
+/** Base58 in Bitcoin's alphabet, as the relay's `bs58` writes it (each leading zero byte is a 1). */
+const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+function base58(bytes) {
+  const b = Array.from(bytes);
+  let n = 0n;
+  for (const x of b) n = (n << 8n) | BigInt(x);
+  let out = "";
+  while (n > 0n) {
+    out = BASE58_ALPHABET[Number(n % 58n)] + out;
+    n /= 58n;
+  }
+  for (const x of b) {
+    if (x !== 0) break;
+    out = `1${out}`;
+  }
+  return out;
+}
+
+/** The did:hum a relay holds plots under for a Dilithium key (hex): src/relay/core/did.rs, base58
+ *  of the first 16 bytes of BLAKE3 of the key. What a household permit names its grantee by. */
+function didFor(noble, publicKeyHex) {
+  return `did:hum:${base58(noble.blake3(new Uint8Array(Buffer.from(publicKeyHex, "hex"))).slice(0, 16))}`;
+}
+
+/** The lines `logBuilds` writes, and the patterns a rig finds them by (scripts/verify-copresence.js
+ *  --build), one place for both, as CORRECTED_RE is. Positions are metres from the frame's corner,
+ *  to the millimetre; `turn` is the whole quarter turn of the piece's rotation. */
+// Our own build, confirmed: id, blueprint, frame, x, y, z, turn, req, seq, placed_at.
+const BUILT_RE = /(?:^|: )built: piece (\d+) (\S+) on (\S+) at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\) turn (\d) \(req (\d+), seq (\d+), placed_at ([\d.]+)\)/;
+// Someone else's build: id, blueprint, frame, x, y, z, turn, seq.
+const SAW_BUILT_RE = /saw built: piece (\d+) (\S+) on (\S+) at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\) turn (\d) \(seq (\d+)\)/;
+// Our own take-down, confirmed: id, frame, req, seq.
+const TOOK_DOWN_RE = /took down: piece (\d+) on (\S+) \(req (\d+), seq (\d+)\)/;
+// Someone else's take-down: id, frame, seq.
+const SAW_UNBUILT_RE = /saw unbuilt: piece (\d+) on (\S+) \(seq (\d+)\)/;
+// A refusal: action, reason, why (or none), req (or "-"), the relay's sentence.
+const REFUSED_RE = /\b(build|unbuild|pieces) refused: ([a-z_]+)(?: \(([a-z_]+)\))? \(req (\d+|-)\): (.*)$/;
+// One piece of a frame's list: id, blueprint, frame, x, y, z, turn, " (mine)" or nothing.
+const SNAPSHOT_PIECE_RE = /snapshot piece: piece (\d+) (\S+) on (\S+) at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\) turn (\d)( \(mine\))?/;
+// A request sent: build or unbuild, req.
+const SENT_RE = /sent (build|unbuild): req (\d+)\b/;
+// The welcome's ranks, as JSON (or "missing" from a relay older than increment 5).
+const RANKS_RE = /ranks (\{.*\}|missing)/;
+// This walker's own did:hum (a permit's grantee is named by it).
+const DID_RE = /identity: (did:hum:[1-9A-HJ-NP-Za-km-z]+)/;
+// The relay's own did:hum (a permit names the server it is good on).
+const SERVER_DID_RE = /server: (did:hum:[1-9A-HJ-NP-Za-km-z]+)/;
+// A permit this walker minted, as the JSON a build or an unbuild carries.
+const PERMIT_RE = /permit: (\{.*\})$/;
+
+/** The welcome's ranks line (shared.rs `Ranks`: what this player may do beyond their own plot). */
+function ranksLine(welcome) {
+  if (!welcome || !welcome.ranks || typeof welcome.ranks !== "object") return "ranks missing (the welcome tells none: a relay older than increment 5)";
+  return `ranks ${JSON.stringify(welcome.ranks)}`;
+}
+
+/** Log what the relay tells us about pieces, one line each, for a rig to read (the patterns
+ *  above): our own builds and take-downs (they carry our req_id), everyone else's, refusals with
+ *  their codes and sentence, each frame's list as it arrives, and a frame leaving our view.
+ *  Returns the function that stops it. */
+function logBuilds(client, log) {
+  const at3 = (p) => `(${(Array.isArray(p) ? p : []).map((v) => Number(v).toFixed(3)).join(", ")})`;
+  const pieceText = (frame, p) => `piece ${p.piece_id} ${p.blueprint_id} on ${frame} at ${at3(p.position)} turn ${turnOf(p.rotation || [0, 0, 0, 1])}`;
+  const ours = (g) => g.req_id !== undefined && g.req_id !== null;
+  return client.onGame((g) => {
+    if (g.type === "game_built" && g.piece) {
+      if (ours(g)) log(`built: ${pieceText(g.frame, g.piece)} (req ${g.req_id}, seq ${g.seq}, placed_at ${Number(g.piece.placed_at).toFixed(3)})`);
+      else log(`saw built: ${pieceText(g.frame, g.piece)} (seq ${g.seq})`);
+    } else if (g.type === "game_unbuilt") {
+      if (ours(g)) log(`took down: piece ${g.piece_id} on ${g.frame} (req ${g.req_id}, seq ${g.seq})`);
+      else log(`saw unbuilt: piece ${g.piece_id} on ${g.frame} (seq ${g.seq})`);
+    } else if (g.type === "game_build_refused") {
+      log(`${g.action} refused: ${g.reason}${g.why ? ` (${g.why})` : ""} (req ${ours(g) ? g.req_id : "-"}): ${g.message || ""}`);
+    } else if (g.type === "game_pieces") {
+      const pieces = Array.isArray(g.pieces) ? g.pieces : [];
+      log(`snapshot: ${g.frame} seq ${g.seq} part ${g.part}/${g.parts}, ${pieces.length} piece(s)`);
+      for (const p of pieces) log(`snapshot piece: ${pieceText(g.frame, p)}${p.mine ? " (mine)" : ""}`);
+    } else if (g.type === "game_frame_out_of_view") {
+      log(`frame out of view: ${g.frame}`);
+    }
+  });
+}
+
 // ── The program ──────────────────────────────────────────────────────────────
 
 async function main() {
@@ -942,6 +1324,8 @@ async function main() {
   // From here on opts.name is the name actually used (see nameFor).
   opts.name = nameFor(opts, identity.publicKeyHex);
   log(`connecting to ${opts.server} as "${opts.name}" (key ${identity.publicKeyHex.slice(0, 16)}...)`);
+  // Who a household permit names, for a rig that has one walker give another a permit (DID_RE).
+  log(`identity: ${didFor(noble, identity.publicKeyHex)}`);
   if (!opts.name.startsWith(TEST_BOT_PREFIX)) {
     log(`note: "${opts.name}" does not start with ${TEST_BOT_PREFIX}, so the relay adds it to its member list for good`);
   }
@@ -963,6 +1347,15 @@ async function main() {
   } catch (e) {
     log(`could not ask the relay which ship it has (${e.message}): joining as a guest`);
   }
+  // The relay's own did:hum (ship homes increment 5): a household permit this walker mints names
+  // the server it is good on, so it is fetched before any permit is minted (SERVER_DID_RE).
+  let serverDid = null;
+  try {
+    serverDid = await fetchServerDid(opts.server);
+    log(serverDid ? `server: ${serverDid}` : "the relay names no did:hum at /api/server-info: no household permit can be minted for it");
+  } catch (e) {
+    log(`could not ask the relay for its did:hum (${e.message}): no household permit can be minted for it`);
+  }
 
   let welcome;
   try {
@@ -974,11 +1367,19 @@ async function main() {
   const { center, start, why } = chooseCenter(opts, welcome);
   log(`in the world as entity ${welcome.player_id}, starting at ${fmt(start)}`);
   log(homePlotLine(welcome));
+  // What this player may do beyond its own plot (ship homes increment 5), as the welcome says.
+  log(ranksLine(welcome));
   for (const line of presentLines(welcome)) log(line);
   const stopLogging = logOthers(client, welcome.player_id, log);
-  const shape = opts.path === "line"
-    ? `back and forth along a ${2 * opts.radius} m line (${opts.axis} axis)`
-    : `a circle of radius ${opts.radius} m`;
+  // Every piece the relay tells us about (increment 5). Attached before anything else is awaited,
+  // so the frame lists the relay sends right after the welcome are logged too.
+  const stopBuilds = logBuilds(client, log);
+  const shape =
+    opts.path === "line"
+      ? `back and forth along a ${2 * opts.radius} m line (${opts.axis} axis)`
+      : opts.path === "still"
+        ? "nowhere: standing still"
+        : `a circle of radius ${opts.radius} m`;
   log(`walking ${shape} at ${opts.speed} m/s, centred on ${fmt(center)} ${why}`);
 
   const plan = { path: opts.path, axis: opts.axis, center, radius: opts.radius, speed: opts.speed, route: opts.route, routeSpeed: opts.routeSpeed };
@@ -996,6 +1397,7 @@ async function main() {
     clearTimeout(limitTimer);
     stopChat();
     stopLogging();
+    stopBuilds();
     stopCorrections();
     walker.stop();
     // Step out of the world on purpose (the desktop app sends the same),
@@ -1016,6 +1418,45 @@ async function main() {
     if (stopping) process.exit(130); // a second Ctrl+C: stop at once
     finish("stopped (Ctrl+C)");
   });
+  // The commands a rig writes on our input (ship homes increment 5, `parseCommand`): build and
+  // take down pieces through the relay, mint a household permit. Each request gets the next
+  // req_id, said in a "sent" line (SENT_RE) so a rig can match the relay's answer to it; a
+  // command that cannot be sent says why in a "command refused" line and sends nothing.
+  let blueprints = null;
+  let nextReq = 1;
+  const onCommand = (line) => {
+    let cmd;
+    try {
+      cmd = parseCommand(line);
+    } catch (e) {
+      log(`command refused: ${e.message}`);
+      return;
+    }
+    if (!cmd) return;
+    if (cmd.kind === "stop") {
+      finish("stopped (asked on its input)");
+      return;
+    }
+    try {
+      if (cmd.kind === "build") {
+        if (!blueprints) blueprints = readBlueprints(fs.readFileSync(BLUEPRINTS_RON, "utf8"));
+        const msg = buildMessage(cmd, nextReq, blueprints);
+        client.send(msg);
+        log(`sent build: req ${nextReq} ${cmd.blueprint} on ${cmd.frame} at (${cmd.local.map((v) => v.toFixed(3)).join(", ")}) turn ${cmd.turns}${cmd.permit ? " with a permit" : ""}`);
+        nextReq += 1;
+      } else if (cmd.kind === "unbuild") {
+        client.send(unbuildMessage(cmd, nextReq));
+        log(`sent unbuild: req ${nextReq} piece ${cmd.pieceId}${cmd.permit ? " with a permit" : ""}`);
+        nextReq += 1;
+      } else if (cmd.kind === "permit") {
+        if (!serverDid) throw new Error("the relay named no did:hum at /api/server-info, so no permit can name the server it is good on");
+        const expiry = Math.floor(Date.now() / 1000) + Math.round(cmd.days * 86400);
+        log(`permit: ${JSON.stringify(mintPermit(identity, { server: serverDid, plot: cmd.plot, grantee: cmd.grantee, expiry }))}`);
+      }
+    } catch (e) {
+      log(`command refused: ${e.message}`);
+    }
+  };
   // A line "stop" on our input does what Ctrl+C does. Windows gives a child process no signal
   // it can catch (a "kill" ends it at once, with no game_leave, and the relay then keeps its
   // figure for its 90 s grace), so this is how a rig ends a walker cleanly
@@ -1027,7 +1468,7 @@ async function main() {
     for (let i; (i = typed.indexOf("\n")) >= 0; ) {
       const line = typed.slice(0, i).trim();
       typed = typed.slice(i + 1);
-      if (line === "stop") finish("stopped (asked on its input)");
+      if (!stopping) onCommand(line);
     }
   });
   process.stdin.on("error", () => {});
@@ -1037,6 +1478,7 @@ async function main() {
     walker.stop();
     clearTimeout(limitTimer);
     stopChat();
+    stopBuilds();
     fail(2, `the relay closed the connection after ${walker.sent()} updates`);
     setTimeout(() => process.exit(2), 1000).unref();
   });
@@ -1075,6 +1517,32 @@ module.exports = {
   chooseCenter,
   homePlotLine,
   presentLines,
+  // Building in the shared world (ship homes increment 5).
+  BLUEPRINTS_RON,
+  readBlueprints,
+  quarterTurn,
+  turnOf,
+  parseCommand,
+  buildMessage,
+  unbuildMessage,
+  permitPreimage,
+  mintPermit,
+  fetchServerDid,
+  base58,
+  didFor,
+  logBuilds,
+  ranksLine,
+  BUILT_RE,
+  SAW_BUILT_RE,
+  TOOK_DOWN_RE,
+  SAW_UNBUILT_RE,
+  REFUSED_RE,
+  SNAPSHOT_PIECE_RE,
+  SENT_RE,
+  RANKS_RE,
+  DID_RE,
+  SERVER_DID_RE,
+  PERMIT_RE,
 };
 
 if (require.main === module) main();
