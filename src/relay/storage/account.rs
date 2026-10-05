@@ -97,6 +97,9 @@ impl Storage {
             // The plot their home stands on (ship homes 1b; the third review: it was neither
             // exported nor erased).
             grab("ship_plots", "SELECT world_id, plot_id, assigned_at FROM game_plots WHERE owner_did = ?1", &[&plot_owner]);
+            // The pieces they built in the shared world, on every ship (ship homes increment 5,
+            // storage/world_pieces.rs), held under the same DID as the plot. placed_at is Unix ms.
+            grab("world_pieces", "SELECT piece_id, world_id, frame, blueprint_id, pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_w, scale_x, scale_y, scale_z, placed_at, state_json FROM world_pieces WHERE owner_did = ?1 ORDER BY piece_id ASC", &[&plot_owner]);
             // Their progress in the shared world (their quest, completed quests, XP and
             // reputation there), kept so a returning player resumes (ship homes 1b, round 4 of
             // the review: it was neither exported nor erased).
@@ -258,6 +261,10 @@ impl Storage {
             // review: an erased account held its plot for good, and nothing in the app could
             // free it, because the key an admin would name was erased with everything else).
             del("ship_plots", "DELETE FROM game_plots WHERE owner_did = ?1", &[&plot_owner]);
+            // Every piece they built in the shared world, on every ship (ship homes increment 5).
+            // Pieces OTHER people built on their plot are not theirs and are not found here: they
+            // come down with the plot when the relay gives it back (increment 5 plan, 3.3).
+            del("world_pieces", "DELETE FROM world_pieces WHERE owner_did = ?1", &[&plot_owner]);
             // Their progress in the shared world (round 4 of the 1b review).
             del("game_progress", "DELETE FROM player_progress WHERE public_key = ?1", &[&key]);
             // Their fleet ledger (2026-10-04).
@@ -310,6 +317,7 @@ impl Storage {
             OR EXISTS(SELECT 1 FROM server_members WHERE public_key = ?1)
             OR EXISTS(SELECT 1 FROM registered_names WHERE public_key = ?1)
             OR EXISTS(SELECT 1 FROM game_plots WHERE owner_did = ?2)
+            OR EXISTS(SELECT 1 FROM world_pieces WHERE owner_did = ?2)
             OR EXISTS(SELECT 1 FROM player_progress WHERE public_key = ?1)
             OR EXISTS(SELECT 1 FROM fleet_ledger WHERE public_key = ?1)";
         self.with_read_conn(|conn| conn.query_row(q, params![key, plot_owner], |r| r.get::<_, bool>(0)))
@@ -490,6 +498,60 @@ mod tests {
         assert_eq!(db.plot_holder("mothership-1", "p2").unwrap(), Some(plot_owner_id(dev)), "the other player keeps theirs");
         // The next player gets the freed plot.
         assert_eq!(db.claim_plot("mothership-1", &plot_owner_id("c0ffee03"), &plots).unwrap().as_deref(), Some("p1"));
+    }
+
+    /// Ship homes increment 5: the pieces an account built in the shared world (held under its
+    /// DID, like its plot, and on every ship) are listed by its export and taken down by its
+    /// erase, which says how many in its receipt. Nothing of them is left for the left-rows
+    /// check afterwards, and another player's piece stays, even one standing on the erased
+    /// player's plot (it comes down with the plot, when the relay gives the plot back).
+    ///
+    /// Seen red 2026-10-05 with the world_pieces DELETE left out of `delete_account`: "the erase
+    /// takes them down and says so: [(\"upload_files_removed\", 0), (\"messages\", 0), ...
+    /// (\"ship_plots\", 0), (\"game_progress\", 0), (\"fleet_ledger\", 0)]" (no world_pieces line);
+    /// with the world_pieces line left out of `erase_left_rows`, "a piece of the account left
+    /// behind was not seen", and the pin below said "erase_left_rows does not read what
+    /// delete_account erases: [\"FROM world_pieces WHERE owner_did = ?2\"]".
+    #[test]
+    fn an_erase_takes_the_accounts_pieces_and_the_export_lists_them() {
+        use crate::relay::storage::NewPiece;
+        let db = test_storage();
+        let (kai, lea) = ("ca11", "1ea0"); // hex keys, held under their DIDs
+        db.register_name("Kai", kai).unwrap();
+        let piece = |world: &str, frame: &str, key: &str| NewPiece {
+            world_id: world.into(),
+            frame: frame.into(),
+            blueprint_id: "wood_wall".into(),
+            position: [48.0, 0.0, 36.0],
+            rotation: [0.0, 0.0, 0.0, 1.0],
+            scale: [2.0, 3.0, 0.2],
+            owner_did: plot_owner_id(key),
+            placed_at_ms: 1_791_000_000_000,
+        };
+        let kai_home = db.insert_world_piece(&piece("mothership-1", "plot:p1", kai)).unwrap();
+        db.insert_world_piece(&piece("mothership-2", "zone:commons", kai)).unwrap();
+        let lea_on_kai = db.insert_world_piece(&piece("mothership-1", "plot:p1", lea)).unwrap();
+
+        let export = db.export_account(kai, "Kai");
+        let listed = export["world_pieces"].as_array().cloned().unwrap_or_default();
+        assert!(
+            listed.len() == 2
+                && listed[0]["piece_id"] == kai_home
+                && listed[0]["blueprint_id"] == "wood_wall"
+                && listed[1]["world_id"] == "mothership-2"
+                && listed[1]["frame"] == "zone:commons",
+            "the export lists the pieces they built: {listed:?}"
+        );
+
+        let receipt = db.delete_account(kai, "Kai");
+        assert!(receipt.iter().any(|(l, n)| l == "world_pieces" && *n == 2), "the erase takes them down and says so: {receipt:?}");
+        assert!(db.load_world_pieces("mothership-2").unwrap().is_empty(), "on every ship");
+        let left: Vec<u64> = db.load_world_pieces("mothership-1").unwrap().iter().map(|p| p.piece_id).collect();
+        assert_eq!(left, vec![lea_on_kai], "another player's piece stays");
+        assert!(!db.erase_left_rows(kai), "nothing of the account is left");
+        // A piece of theirs the erase did not take (put back here by hand) is seen.
+        db.insert_world_piece(&piece("mothership-1", "plot:p2", kai)).unwrap();
+        assert!(db.erase_left_rows(kai), "a piece of the account left behind was not seen");
     }
 
     /// BUG-135, 2026-10-04: a key whose erase this server remembers sees that in its export

@@ -733,6 +733,35 @@ impl Storage {
             );"
         )?;
 
+        // The building pieces the server keeps in its shared world (ship homes increment 5,
+        // storage/world_pieces.rs): one row per piece, in a FRAME (`plot:p3`, `zone:commons`),
+        // its pose measured from the frame's corner, and its builder's `did:hum:`, which is
+        // never sent anywhere. Its own batch, every column in the CREATE (no ALTER, so BUG-046
+        // cannot apply). AUTOINCREMENT, so a piece's number is never given to another piece,
+        // even after it is taken down or the relay restarts. No index: a ship holds at most
+        // 4,096 pieces, read whole when the relay starts.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS world_pieces (
+                piece_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+                world_id     TEXT NOT NULL,
+                frame        TEXT NOT NULL,
+                blueprint_id TEXT NOT NULL,
+                pos_x        REAL NOT NULL,
+                pos_y        REAL NOT NULL,
+                pos_z        REAL NOT NULL,
+                rot_x        REAL NOT NULL,
+                rot_y        REAL NOT NULL,
+                rot_z        REAL NOT NULL,
+                rot_w        REAL NOT NULL,
+                scale_x      REAL NOT NULL,
+                scale_y      REAL NOT NULL,
+                scale_z      REAL NOT NULL,
+                owner_did    TEXT NOT NULL,
+                placed_at    INTEGER NOT NULL,
+                state_json   TEXT NOT NULL DEFAULT '{}'
+            );"
+        )?;
+
         // Federation: federated server registry.
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS federated_servers (
@@ -1350,7 +1379,8 @@ impl Storage {
                 can_file_share  INTEGER NOT NULL DEFAULT 1,
                 max_chars        INTEGER NOT NULL DEFAULT 280,
                 max_upload_mb    INTEGER NOT NULL DEFAULT 5,
-                max_uploads_kept INTEGER NOT NULL DEFAULT 4
+                max_uploads_kept INTEGER NOT NULL DEFAULT 4,
+                can_edit_ship    INTEGER NOT NULL DEFAULT 0
              );",
         )?;
         // CRITICAL ORDERING (fixed v0.262.2 — production incident
@@ -1423,6 +1453,28 @@ impl Storage {
             info!("Migration: R4 — added per-role max_chars/max_upload_mb/max_uploads_kept + backfilled from base_tier");
         }
 
+        // ── 2026-10-05: the ship-editing rank (ship homes increment 5) ──
+        // `can_edit_ship`: a role with it builds in the ship's shared spaces
+        // (the `zone:` frames: the Commons, First Street) through the server
+        // (storage/roles.rs `has_ship_rank`). DEFAULT 0, so no existing role
+        // gains it, except the built-in Admin, which has it by default (the
+        // decisions taken for docs/design/ship-homes-increment-5-plan.md,
+        // number 4). The UPDATE runs once, with the ALTER, so an admin who
+        // later turns the rank off for Admin finds it still off after a
+        // restart. One transaction, so a stop between the two cannot leave
+        // the column without Admin's rank. Placed after the ALTERs above and
+        // before the seed below (the v0.262.2 ordering), and no index over
+        // the column (BUG-046).
+        if conn.prepare("SELECT can_edit_ship FROM roles LIMIT 0").is_err() {
+            conn.execute_batch(
+                "BEGIN;
+                 ALTER TABLE roles ADD COLUMN can_edit_ship INTEGER NOT NULL DEFAULT 0;
+                 UPDATE roles SET can_edit_ship = 1 WHERE id = 'admin';
+                 COMMIT;"
+            )?;
+            info!("Migration: added can_edit_ship (roles); the built-in Admin role has it");
+        }
+
         // Seed the 5 built-ins. Runs AFTER the ALTERs above so every
         // column exists on both fresh and upgraded DBs. INSERT OR IGNORE
         // → existing built-ins (already backfilled above on an upgrade)
@@ -1432,20 +1484,22 @@ impl Storage {
             // numbers (chars / upload MB / uploads-kept) each built-in
             // used to inherit via base_tier — now owned per-role (R4,
             // v0.262). Fresh DBs seed these directly; upgrades keep the
-            // backfilled values (rows already exist → IGNORE).
-            let seeds: &[(&str, &str, &str, i64, i64, i64, i64, &str, i64, i64, i64, i64)] = &[
-                ("unverified", "Unverified", "#9E9E9E", 0, 0, 0, 0, "unverified", 0,   280,   5,   4),
-                ("verified",   "Verified",   "#4FC3F7", 1, 0, 1, 1, "verified",   1,  1000,  25,  20),
-                ("donor",      "Donor",      "#FFD54F", 2, 0, 1, 1, "verified",   2,  1000,  25,  20),
-                ("mod",        "Moderator",  "#81C784", 3, 1, 1, 1, "mod",        3,  4000, 100, 100),
-                ("admin",      "Admin",      "#E57373", 4, 1, 1, 1, "admin",      4, 10000, 500, 500),
+            // backfilled values (rows already exist → IGNORE). The last
+            // number (ship) is `can_edit_ship`: only Admin has it (ship
+            // homes increment 5).
+            let seeds: &[(&str, &str, &str, i64, i64, i64, i64, &str, i64, i64, i64, i64, i64)] = &[
+                ("unverified", "Unverified", "#9E9E9E", 0, 0, 0, 0, "unverified", 0,   280,   5,   4, 0),
+                ("verified",   "Verified",   "#4FC3F7", 1, 0, 1, 1, "verified",   1,  1000,  25,  20, 0),
+                ("donor",      "Donor",      "#FFD54F", 2, 0, 1, 1, "verified",   2,  1000,  25,  20, 0),
+                ("mod",        "Moderator",  "#81C784", 3, 1, 1, 1, "mod",        3,  4000, 100, 100, 0),
+                ("admin",      "Admin",      "#E57373", 4, 1, 1, 1, "admin",      4, 10000, 500, 500, 1),
             ];
-            for (id, label, color, trust, stream, upload, voice, tier, sort, mc, mu, mk) in seeds {
+            for (id, label, color, trust, stream, upload, voice, tier, sort, mc, mu, mk, ship) in seeds {
                 conn.execute(
                     "INSERT OR IGNORE INTO roles
-                       (id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept)
-                     VALUES (?1,?2,?3,?4,1,?5,?6,?7,?8,?9,1,1,?10,?11,?12)",
-                    rusqlite::params![id, label, color, trust, stream, upload, voice, tier, sort, mc, mu, mk],
+                       (id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept,can_edit_ship)
+                     VALUES (?1,?2,?3,?4,1,?5,?6,?7,?8,?9,1,1,?10,?11,?12,?13)",
+                    rusqlite::params![id, label, color, trust, stream, upload, voice, tier, sort, mc, mu, mk, ship],
                 )?;
             }
             info!("Migration: roles built-ins seeded (post-ALTER ordering)");
@@ -2485,6 +2539,9 @@ mod game_persistence;
 mod game_bans;
 mod plots;
 pub use plots::plot_owner_id;
+// The building pieces the server keeps in its shared world (ship homes increment 5).
+mod world_pieces;
+pub use world_pieces::{NewPiece, StoredPiece};
 pub mod fleet_ledger;
 pub use fleet_ledger::{Adjusted, FleetBalance, FleetEntry, FleetGiveRecord, FleetKindTotal, FleetTotals, NewFleetEntry, Recorded};
 pub mod docs_accord;

@@ -59,6 +59,15 @@ pub struct RoleDef {
     /// the add-role form. One of unverified|verified|mod|admin.
     pub base_tier: String,
     pub sort_order: i64,
+    /// The ship-editing rank (ship homes increment 5, 2026-10-05): people
+    /// with this role build in the ship's shared spaces (the `zone:`
+    /// frames: the Commons, First Street) through the server. Their own
+    /// plot needs no rank. There is no server-wide switch for it. The
+    /// built-in Admin role has it by default; the server's owner always
+    /// does ([`Storage::has_ship_rank`]). `#[serde(default)]` → false for
+    /// a payload without it (default-deny).
+    #[serde(default)]
+    pub can_edit_ship: bool,
 }
 
 // Conservative serde/struct defaults = the historical `unverified`
@@ -94,6 +103,7 @@ impl Default for RoleDef {
             max_uploads_kept: default_max_uploads_kept(),
             base_tier: "unverified".into(),
             sort_order: 0,
+            can_edit_ship: false,
         }
     }
 }
@@ -109,7 +119,7 @@ impl Storage {
         // Read-only: SELECT + query_map (role list broadcast). Read pool.
         self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept
+                "SELECT id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept,can_edit_ship
                  FROM roles ORDER BY sort_order ASC, trust_level ASC",
             )?;
             let rows = stmt.query_map([], |r| {
@@ -129,6 +139,7 @@ impl Storage {
                     max_uploads_kept: r.get(14)?,
                     base_tier: r.get(8)?,
                     sort_order: r.get(9)?,
+                    can_edit_ship: r.get::<_, i64>(15)? != 0,
                 })
             })?;
             Ok(rows.filter_map(|x| x.ok()).collect())
@@ -142,7 +153,7 @@ impl Storage {
         let lookup_id = if role_id.is_empty() { "unverified" } else { role_id };
         let res = self.with_conn(|conn| {
             conn.query_row(
-                "SELECT id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept
+                "SELECT id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept,can_edit_ship
                  FROM roles WHERE id = ?1",
                 params![lookup_id],
                 |r| {
@@ -162,11 +173,22 @@ impl Storage {
                         max_uploads_kept: r.get(14)?,
                         base_tier: r.get(8)?,
                         sort_order: r.get(9)?,
+                        can_edit_ship: r.get::<_, i64>(15)? != 0,
                     })
                 },
             )
         });
         res.unwrap_or_default()
+    }
+
+    /// Whether `key` holds the ship-editing rank: builds in the ship's
+    /// shared spaces through the server (ship homes increment 5). The
+    /// server's owner always does; anyone else when their role has
+    /// `can_edit_ship` (the built-in Admin role does, by default). No role,
+    /// or a role that was deleted, reads as Unverified, which has not.
+    pub fn has_ship_rank(&self, key: &str) -> bool {
+        let role = self.get_role(key).unwrap_or_default();
+        role == "owner" || self.role_def(&role).can_edit_ship
     }
 
     /// Which server_settings limit tier a role inherits. Always one of
@@ -204,20 +226,22 @@ impl Storage {
             };
             conn.execute(
                 "INSERT INTO roles
-                   (id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept)
-                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)
+                   (id,label,color,trust_level,built_in,can_stream,can_upload,can_voice,base_tier,sort_order,can_image_share,can_file_share,max_chars,max_upload_mb,max_uploads_kept,can_edit_ship)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)
                  ON CONFLICT(id) DO UPDATE SET
                    label=?2, color=?3, trust_level=?4, built_in=?5,
                    can_stream=?6, can_upload=?7, can_voice=?8,
                    base_tier=?9, sort_order=?10,
                    can_image_share=?11, can_file_share=?12,
-                   max_chars=?13, max_upload_mb=?14, max_uploads_kept=?15",
+                   max_chars=?13, max_upload_mb=?14, max_uploads_kept=?15,
+                   can_edit_ship=?16",
                 params![
                     r.id, r.label, r.color, trust, built_in,
                     r.can_stream as i64, r.can_upload as i64, r.can_voice as i64,
                     base_tier, r.sort_order,
                     r.can_image_share as i64, r.can_file_share as i64,
                     r.max_chars, r.max_upload_mb, r.max_uploads_kept,
+                    r.can_edit_ship as i64,
                 ],
             )?;
             Ok(())
@@ -399,6 +423,136 @@ mod tests {
         // Seed (OR IGNORE) added the built-ins missing from the rewind.
         assert_eq!(db.role_def("mod").max_chars, 4000, "missing built-in seeded");
         assert!(db.list_roles().unwrap().iter().any(|r| r.id == "unverified"));
+    }
+
+    /// Ship homes increment 5: the ship-editing rank round-trips through
+    /// upsert/list/role_def, on and back off (the ON CONFLICT path), and a
+    /// payload without the field reads as no rank. Guards the appended
+    /// positional SQL (?16, get(15)). A fresh database seeds it on Admin
+    /// alone.
+    ///
+    /// Seen red 2026-10-05 with role_def's get(15) reading another column
+    /// (get(14), max_uploads_kept, which is 4 for this role): "turned off,
+    /// role_def reads it off".
+    #[test]
+    fn can_edit_ship_round_trips() {
+        let db = fresh_db();
+        let mut r = RoleDef::default();
+        r.id = "shipwright".into();
+        r.label = "Shipwright".into();
+        r.built_in = false;
+        r.base_tier = "verified".into();
+        r.can_edit_ship = true;
+        db.upsert_role(&r).expect("upsert");
+        assert!(db.role_def("shipwright").can_edit_ship, "role_def reads the rank");
+        let listed = db.list_roles().unwrap();
+        assert!(listed.iter().find(|x| x.id == "shipwright").expect("in list").can_edit_ship, "list_roles reads the rank");
+
+        r.can_edit_ship = false;
+        db.upsert_role(&r).unwrap();
+        assert!(!db.role_def("shipwright").can_edit_ship, "turned off, role_def reads it off");
+        let listed = db.list_roles().unwrap();
+        assert!(!listed.iter().find(|x| x.id == "shipwright").unwrap().can_edit_ship, "turned off, list_roles reads it off");
+
+        for role in &listed {
+            if role.built_in {
+                assert_eq!(role.can_edit_ship, role.id == "admin", "a fresh server seeds the rank on Admin alone: {}", role.id);
+            }
+        }
+        let old: RoleDef = serde_json::from_str(
+            r##"{"id":"x","label":"X","color":"#000000","trust_level":1,"built_in":false,"can_stream":false,"can_upload":false,"can_voice":false,"base_tier":"verified","sort_order":1}"##,
+        )
+        .expect("a role without the field parses");
+        assert!(!old.can_edit_ship, "a role sent without the field has no rank");
+    }
+
+    /// Ship homes increment 5, the upgrade path (the 2026-05-17 incident's
+    /// lesson): a `roles` table from before the rank (the v0.1456 shape,
+    /// fifteen columns) with its rows, reopened by this code, gains
+    /// `can_edit_ship`, and only the built-in Admin role has it (a custom
+    /// role does not). The rank is given to Admin once, with the column: an
+    /// admin who turns it off finds it still off after a restart.
+    ///
+    /// Seen red 2026-10-05 with the guarded ALTER removed: "the upgrade
+    /// opens: SqliteFailure(Error { code: Unknown, extended_code: 1 },
+    /// Some(\"table roles has no column named can_edit_ship\"))" (the seed's
+    /// INSERT names the column; the older
+    /// `upgrade_from_pre_v0261_roles_schema_does_not_panic` failed the same
+    /// way). The last assertion is there for an UPDATE that would run on
+    /// every open instead of once, with the ALTER.
+    #[test]
+    fn an_existing_roles_table_gains_can_edit_ship_and_only_admin_has_it() {
+        use rusqlite::Connection;
+        let path = crate::test_temp::db("roles_ship_rank");
+        drop(Storage::open(&path).expect("fresh open"));
+        {
+            let c = Connection::open(&path).expect("raw open");
+            c.execute_batch(
+                "DROP TABLE roles;
+                 CREATE TABLE roles (
+                    id TEXT PRIMARY KEY, label TEXT NOT NULL, color TEXT NOT NULL,
+                    trust_level INTEGER NOT NULL, built_in INTEGER NOT NULL,
+                    can_stream INTEGER NOT NULL, can_upload INTEGER NOT NULL,
+                    can_voice INTEGER NOT NULL, base_tier TEXT NOT NULL,
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    can_image_share INTEGER NOT NULL DEFAULT 1,
+                    can_file_share  INTEGER NOT NULL DEFAULT 1,
+                    max_chars        INTEGER NOT NULL DEFAULT 280,
+                    max_upload_mb    INTEGER NOT NULL DEFAULT 5,
+                    max_uploads_kept INTEGER NOT NULL DEFAULT 4);
+                 INSERT INTO roles VALUES
+                    ('unverified','Unverified','#9E9E9E',0,1,0,0,0,'unverified',0,1,1,280,5,4),
+                    ('verified','Verified','#4FC3F7',1,1,0,1,1,'verified',1,1,1,1000,25,20),
+                    ('donor','Donor','#FFD54F',2,1,0,1,1,'verified',2,1,1,1000,25,20),
+                    ('mod','Moderator','#81C784',3,1,1,1,1,'mod',3,1,1,4000,100,100),
+                    ('admin','Admin','#E57373',4,1,1,1,1,'admin',4,1,1,10000,500,500),
+                    ('family','Family','#7E57C2',1,0,1,1,1,'verified',50,1,1,1000,25,20);",
+            )
+            .expect("rewind to the shape before the rank");
+        }
+
+        let db = Storage::open(&path).expect("the upgrade opens");
+        let roles = db.list_roles().unwrap();
+        assert_eq!(roles.len(), 6, "every role is kept");
+        for r in &roles {
+            assert_eq!(r.can_edit_ship, r.id == "admin", "after the upgrade only Admin has the rank: {}", r.id);
+        }
+        assert_eq!(db.role_def("family").max_chars, 1000, "a custom role keeps its own numbers");
+
+        let mut admin = db.role_def("admin");
+        admin.can_edit_ship = false;
+        db.upsert_role(&admin).unwrap();
+        drop(db);
+        let db = Storage::open(&path).expect("restart");
+        assert!(!db.role_def("admin").can_edit_ship, "an admin who turned the rank off for Admin finds it off after a restart");
+    }
+
+    /// Ship homes increment 5: who holds the ship-editing rank. The server's
+    /// owner always does; a member through a role that has it (Admin, by
+    /// default, or a custom role given it); a role without it, no role, or a
+    /// role that was deleted, does not.
+    ///
+    /// Seen red 2026-10-05 with the owner's arm taken out of
+    /// `has_ship_rank`: "the server's owner has the rank".
+    #[test]
+    fn the_ship_rank_is_the_owner_or_a_role_that_has_it() {
+        let db = fresh_db();
+        let mut wright = RoleDef::default();
+        wright.id = "shipwright".into();
+        wright.label = "Shipwright".into();
+        wright.built_in = false;
+        wright.can_edit_ship = true;
+        db.upsert_role(&wright).unwrap();
+        for (key, role) in [("0a", "owner"), ("0b", "admin"), ("0c", "verified"), ("0d", "shipwright")] {
+            db.set_role(key, role).unwrap();
+        }
+        assert!(db.has_ship_rank("0a"), "the server's owner has the rank");
+        assert!(db.has_ship_rank("0b"), "the built-in Admin role has it");
+        assert!(!db.has_ship_rank("0c"), "Verified has not");
+        assert!(db.has_ship_rank("0d"), "a custom role given it has it");
+        assert!(!db.has_ship_rank("0e"), "nor has a member with no role");
+        db.delete_role("shipwright").unwrap();
+        assert!(!db.has_ship_rank("0d"), "a role that was deleted gives nothing");
     }
 
     /// Unknown / deleted role must default-DENY sharing (consistent
