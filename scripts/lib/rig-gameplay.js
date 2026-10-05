@@ -24,8 +24,10 @@
 // join the live shared world (refused only because the ship differed). So the pin also:
 //   server_url        the rig's own throwaway relay when it has one (`server_url` in the
 //                     overrides; it must be on this computer), else RIG_NO_SERVER, a loopback
-//                     port nothing listens on. Never empty: an empty one means the game's
-//                     built-in default, which IS the live server (GuiState::default).
+//                     port nothing listens on. Never absent: a config without one gets the
+//                     game's built-in default, which IS the live server (GuiState::default,
+//                     src/config.rs). An empty one is no server since BUG-160 (2026-10-05),
+//                     but a rig names its own port rather than lean on that.
 //   saved_servers     emptied. A rig's server is the one its autopilot request names; the
 //                     background pump has nothing else to dial.
 //   home_plots, account_erased_on, collapsed_servers, last_world
@@ -157,7 +159,8 @@ function pinGameplay(cfg, overrides = {}) {
 
 /** Why `cfg` would not boot a rig's game as a Dev sandbox from the default home, kept on this
  *  computer (empty = fine). A missing key is the fresh-install default, which is Normal with
- *  progress kept, and an empty server_url is the game's built-in one, the live server. */
+ *  progress kept, and for server_url the game's built-in server, the live one. An empty
+ *  server_url is no server (BUG-160), but it is not the rig's pin either, so it is listed too. */
 function gameplayProblems(cfg, overrides = {}) {
   const want = rigGameplay(overrides);
   const c = cfg && typeof cfg === "object" ? cfg : {};
@@ -165,7 +168,8 @@ function gameplayProblems(cfg, overrides = {}) {
   for (const k of ["play_mode", "fresh_world_each_launch"]) {
     if (c[k] !== want[k]) out.push(`${k} is ${c[k] === undefined ? "absent (the fresh-install default)" : JSON.stringify(c[k])}, not ${JSON.stringify(want[k])}`);
   }
-  if (!c.server_url) out.push("server_url is empty, which the game reads as its built-in server, the live one");
+  if (c.server_url == null) out.push("server_url is absent, which the game reads as its built-in server, the live one");
+  else if (!c.server_url) out.push("server_url is empty (no server), not the rig's relay or its dead loopback port");
   if (Array.isArray(c.saved_servers) && c.saved_servers.length) out.push(`saved_servers holds ${c.saved_servers.length}, which the game dials in the background at boot`);
   for (const p of publicServers(c)) out.push(`${p.path} names a server off this computer: ${p.value}`);
   return out;

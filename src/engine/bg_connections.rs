@@ -196,6 +196,11 @@ fn merge_history_into(conn: &mut crate::gui::ServerConnection, body: &str, my_ke
 /// One dial per identify-handshake keeps a long server list from
 /// stampeding the network (and the relays' rate limits) at startup.
 fn dial_missing_saved_servers(state: &mut EngineState) {
+    // None until a server is chosen this session: after a restart with no server the saved
+    // servers wait for Connect (BUG-160; the decision, tested, is in gui/connections.rs).
+    if !state.gui_state.may_dial_saved_servers() {
+        return;
+    }
     // Exclude BOTH the connected URL and the intended one (server_url):
     // at boot the active auto-connect may not have fired yet, and dialing
     // its server here first would race it into a duplicate connection.

@@ -205,6 +205,7 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
 - **Version Fixed**: v0.89.0
 - **Description**: Fresh `config.json` had empty `server_url` and `user_name` strings. `apply_to_gui_state()` overwrote the hardcoded defaults ("https://united-humanity.us", "Player") with empty strings, preventing auto-connect.
 - **Fix**: Guard with `if !self.server_url.is_empty()` before overwriting in `src/config.rs`.
+- **Superseded 2026-10-05 (BUG-160)** for the server address: an empty saved address now means no server and is applied as it is. A config without the field reads as the official server through the field's own default (`default_server_url`), which `AppConfig::default()` carries too, so the fresh-config case this guarded stays covered. Do not restore the guard: it brought a cleared server back at every launch.
 
 ### BUG-026: Passphrase modal blocks startup
 - **Status**: Fixed
@@ -4015,7 +4016,7 @@ loopback port (http://127.0.0.1:9; scripts/lib/rig-gameplay.js). Two faults toge
    deliberate clear, verify-live-screen's "No server set" step, carries the marker
    `rig-clears-server:`. Seen red first: run over the committed scripts, the check listed
    all six. The screens check then passed on the same build.
-2. **The game (FIXED, merging in v0.1463.0).** Drawing the chat page's connect form filled an empty
+2. **The game, within one session (FIXED, merging in v0.1463.0).** Drawing the chat page's connect form filled an empty
    server address with the live server's (src/gui/pages/chat/left_panel.rs, `if
    state.server_url.is_empty() { state.server_url = "https://united-humanity.us" }`), and
    the auto-connect then dials it. So a player who cleared their server is put back on the
@@ -4026,6 +4027,76 @@ loopback port (http://127.0.0.1:9; scripts/lib/rig-gameplay.js). Two faults toge
    form with no server set and checks none is set, nothing may dial, the form was drawn and
    the field shows the suggestion. Seen red first with the old line in place: "drawing the
    connect form set a server" (left: "https://united-humanity.us", right: "").
+3. **The game, across a restart and at the edges (FIXED, merging in v0.1463.0).** A review
+   of item 2 the same day found it held only within one session, with three gaps (B1 to
+   B3); closing the first turned up two more (B4, B5). Each has a test, seen red first:
+   - **B1, a restart brought the server back.** `AppConfig::apply_to_gui_state`
+     (src/config.rs) skipped an empty saved address (BUG-025's guard, from when a fresh config
+     was written full of empty strings), so GuiState's default, the official server, came
+     back at the next launch and the auto-connect dialled it once the identity was unlocked.
+     Now the saved address means what it says: an empty one is no server, and a restart
+     keeps it. A config that never held an address (the field absent, or a file that does not
+     parse and loads as `AppConfig::default()`) reads as the official server through the
+     field's own default, `default_server_url`, and a fresh install with no config file
+     applies nothing (`AppConfig::load_if_exists`) and keeps GuiState's default, as before.
+     One constant names that server, `gui::OFFICIAL_SERVER` (src/gui/connections.rs).
+     `a_cleared_server_address_survives_a_restart` (src/config.rs, `server_address_tests`)
+     clears the address, saves, loads into a fresh state and unlocks: the address is empty
+     and nothing may auto-connect, while the same restart with an address may. Seen red on
+     efe55abad: "a restart put a server in the cleared address" (left:
+     "https://united-humanity.us", right: ""). `a_fresh_install_starts_on_the_official_server`
+     holds the fresh install and the config without the field to the official server; it
+     passed before the change, and was seen red with the empty address applied and no default
+     for the field: "a config that never held an address came back with no server" (left:
+     "", right: "https://united-humanity.us"). The test that pinned the old meaning,
+     `a_config_holding_dev_and_the_default_home_keeps_them_through_a_load_and_a_save`, used
+     `"server_url":""` as a stand-in for the operator's config; it now holds the official
+     server, as his file does, and checks that it comes through the load and the save.
+   - **B2, the sign-up note for the wrong server.** The connect form looked the BUG-135 note
+     ("pressing Connect signs you up again") up for the field's text, which finds nothing for
+     an empty field, while Connect then dialled the official server and, after an erase
+     there, signed a new account up without the note having been shown. One function,
+     `gui::connect_target` (the field's address, or the official server for an empty field),
+     now answers both. `an_empty_field_shows_the_erase_note_of_the_server_connect_dials`
+     (src/gui/pages/chat/left_panel.rs) draws the form headlessly. Seen red on efe55abad: "the
+     erase note of the server Connect dials is not shown".
+   - **B3, the backoff reconnect.** It dialled whatever the field held when its countdown ran
+     out: "/ws" for an empty one, failing again and again. It now asks
+     `GuiState::backoff_reconnect_runs` (src/gui/connections.rs), which does nothing with no
+     server, as `may_auto_connect` does; both read "no server" from `has_server` (an address
+     of only spaces is none). lib.rs changed by its condition only.
+     `the_backoff_reconnect_never_dials_an_empty_address`; seen red with the countdown's
+     condition as on efe55abad: "the backoff reconnect ran with no server set".
+     `the_dialling_paths_ask_these_decisions` reads lib.rs and engine/bg_connections.rs to
+     hold both dialling paths to their decisions; seen red on efe55abad: "the backoff
+     reconnect does not ask backoff_reconnect_runs" (left: 0, right: 1).
+   - **B4, the saved servers (found closing B1).** The background pump dials every saved
+     server at boot (src/engine/bg_connections.rs), and the official server is saved the
+     first time it connects (lib.rs), so after B1 alone a restart with no server still put
+     the person on the live server, as a background link: the path that took the rig
+     sandboxes there in item 1. The pump now asks `GuiState::may_dial_saved_servers`: nothing
+     until a server is chosen this session (one was dialled, or an address is set and
+     dialling is not held). `a_restart_with_no_server_dials_no_saved_server` (src/config.rs);
+     seen red with the pump as on efe55abad: "a restart with no server dialled the saved
+     servers in the background".
+   - **B5, typing (found the same way).** After a restart with no server, the first letter
+     typed into the empty field made the address non-empty, so the auto-connect dialled it
+     ("h/ws") and the background links followed; within a session, an address typed during
+     a backoff countdown was dialled, finished or not, when the countdown ran out. Now an
+     edit of the Server field holds the auto-connect and the backoff until Connect, as a
+     Disconnect does (`GuiState::hold_dialling_until_connect`; a saved server's row and an
+     unlock lift it too). `typing_into_the_empty_server_field_waits_for_connect`
+     (src/gui/pages/chat.rs: left_panel.rs stands at its line budget) loads a config with no
+     server, unlocks, clicks the field and types "h", headlessly; seen red with B1's change
+     and the edit holding nothing: "the first letter typed after a restart with no server
+     was dialled".
+
+   **Still open:** clearing the field and quitting with nothing saved in between keeps the
+   previous address, which comes back at the next launch: the field is written by Connect
+   and by every other save of the config, not by the edit itself. Saving at the edit is a
+   line in the connect form, but `AppConfig::save` has no test path, so its test would write
+   the real config.json. And an edit made while a connection attempt is still in progress
+   holds that connection's automatic reconnect too, until Connect.
 
 Checked 2026-10-05 (read-only): no member has joined the live server since 2026-10-01, so
 today's rig visits left no rows in its member list.

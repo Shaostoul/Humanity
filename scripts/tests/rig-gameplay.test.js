@@ -92,7 +92,7 @@ test("a rig's config comes out a Dev sandbox with the default home every launch,
   const { next, changed } = RG.pinGameplay({});
   assert.strictEqual(next.play_mode, "Dev");
   assert.strictEqual(next.fresh_world_each_launch, true);
-  assert.strictEqual(next.server_url, RG.RIG_NO_SERVER, "never empty: an empty server_url is the game's built-in one, the live server");
+  assert.strictEqual(next.server_url, RG.RIG_NO_SERVER, "never absent (the game's built-in server, the live one) and never empty");
   assert.deepStrictEqual(next.saved_servers, []);
   assert.deepStrictEqual(Object.keys(changed).sort(), ["fresh_world_each_launch", "play_mode", "saved_servers", "server_url"]);
   assert.deepStrictEqual(RG.gameplayProblems(next), []);
@@ -316,8 +316,9 @@ test("mirroring the operator's graphics into a rig never copies the play mode or
 
 // THE AUTOPILOT REQUEST CANNOT UNDO THE PIN (2026-10-05, BUG-160). The game applies the
 // request's server_url over the pinned config (src/engine/ipc.rs poll_autopilot_request), and an
-// empty one does not mean no server: the chat page fills an empty address with the live
-// server's (src/gui/pages/chat/left_panel.rs) and the auto-connect then dials it. Five rigs sent
+// empty one did not mean no server: the chat page filled an empty address with the live
+// server's (src/gui/pages/chat/left_panel.rs, until BUG-160's game fix) and the auto-connect
+// then dialled it. The rule stands after that fix: a rig names its own server. Five rigs sent
 // { server_url: "" }, and verify-screens' v0.1462.0 run identified on the live server, read its
 // chat and was refused its ship. So a rig's autopilot request names no server (the pin stands)
 // or its own relay through a variable; the one deliberate clear, verify-live-screen's "No server
