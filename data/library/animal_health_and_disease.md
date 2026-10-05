@@ -545,12 +545,29 @@ home's animals never need a vet.
   is not pasteurised, carries a 5 percent chance of food poisoning, and
   spoiled milk always poisons you. Eating raw meat carries a 40 percent
   chance, and meat spoils after 24 game hours at room temperature;
-  cooking removes the risk (`data/food_system.ron`). Food poisoning is a
-  status effect that drains your health for a while.
-- **The game treats cheese and butter as safe.** Its cheese and butter,
-  made from the same raw goats' milk, carry no risk in the game. Real
-  cheese and butter made from raw milk can carry the raw milk's germs, as
-  the CDC warns.
+  cooking removes that chance, though cooked food spoils in its turn,
+  and anything spoiled always poisons (`data/food_system.ron`,
+  `src/systems/food.rs`).
+- **Food poisoning can kill.** For an hour and a half of real time it
+  takes 3 health every 15 seconds: with nothing healing you, that
+  empties a full health bar in about 8 minutes 20 seconds. Nothing in
+  the game cures it, because the medical items' Use button does
+  nothing. What saves you is healing faster than it drains: the Well Fed
+  condition a filling meal gives heals 1 health a second for half an
+  hour, and the First Aid ability puts 35 back at once
+  (`data/status_effects.csv`, `src/systems/food.rs`,
+  `data/abilities.csv`, `src/gui/pages/inventory.rs`). If it does kill
+  you, the default Death setting, Simplified, takes nothing from you,
+  and the Respawn button brings you back at full health with the illness
+  gone (`src/config.rs`, `src/lib.rs`).
+- **Cheese and butter carry no chance of food poisoning, until they
+  spoil.** The game's cheese and butter, made from the same raw goats'
+  milk, carry no chance of it while fresh. Hard cheese spoils after 21
+  game days at room temperature and butter after 30, sooner in the heat
+  and later in the cold, and once spoiled they always poison you, like
+  any spoiled food (`data/food_system.ron`,
+  `data/food/item_profiles.ron`). Real cheese and butter made from raw
+  milk can carry the raw milk's germs, as the CDC warns.
 - **No animal medicines.** There are no drugs for animals, no withdrawal
   times and no needles.
 
@@ -784,9 +801,14 @@ documents were read on 4 October 2026.
   the home's herd in `data/entities/livestock.ron`.
 - Food risks: the `milk` profile (raw risk 0.05, spoilage 168 hours), the
   `raw_meat` profile (raw risk 0.40, spoilage 24 hours) and the `cheese`
-  and `fats_oils` profiles (no risk) in `data/food_system.ron`, mapped to
-  items in `data/food/item_profiles.ron`; spoilage and food poisoning in
-  `src/systems/food.rs`.
+  and `fats_oils` profiles (no raw risk; spoilage 504 and 720 hours) in
+  `data/food_system.ron`, with the temperature zones that speed or slow
+  spoilage, mapped to items in `data/food/item_profiles.ron`; spoilage
+  and food poisoning in `src/systems/food.rs`. Food Poisoning's length
+  and damage and Well Fed's healing in `data/status_effects.csv`; First
+  Aid in `data/abilities.csv`; the medical items' Use button in
+  `src/gui/pages/inventory.rs`; the Death setting and the respawn in
+  `src/config.rs` and `src/lib.rs`.
 - The Play mode setting and free materials (`PlayMode` in
   `src/config.rs`; the Creative mode switch on the Inventory page,
   `src/gui/pages/inventory.rs`); the "Start every session from the
