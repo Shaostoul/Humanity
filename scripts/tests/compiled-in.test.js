@@ -212,6 +212,51 @@ test("RULES: read_data_or_embedded that consults the table BEFORE the disk voids
   assert.strictEqual(cls(a, "data/a.csv"), "UNCLASSIFIED");
 });
 
+// BUG-163 (2026-10-05): load_data_or_embedded also serves the table, when the disk copy
+// cannot be read in full. Every fn in embedded_data.rs that consults the table is held to
+// the same rule as read_data_or_embedded. RED FIRST, against the check that looked only at
+// read_data_or_embedded: both tests that must find a problem failed, as no problem named
+// load_data_or_embedded (a reader that consulted the table first, or never said so, passed).
+const SECOND_READER = `
+pub fn load_data_or_embedded<T>(data_dir: &std::path::Path, rel: &str, build: impl Fn(&[u8]) -> Result<T, String>) -> Result<T, String> {
+    let why = match std::fs::read(data_dir.join(rel)) {
+        Ok(bytes) => match build(&bytes) {
+            Ok(v) => return Ok(v),
+            Err(e) => e,
+        },
+        Err(e) => e.to_string(),
+    };
+    let built_in = get_embedded(rel).ok_or_else(|| why.clone())?;
+    note_builtin_copy(rel, &why);
+    build(built_in.as_bytes())
+}
+`;
+
+test("RULES: a second reader of the table that reads the disk first and says so keeps the class", () => {
+  const a = analyse({ "src/embedded_data.rs": EMBEDDED + SECOND_READER });
+  assert.strictEqual(cls(a, "data/a.csv"), "data-disk-first");
+  assert.ok(!a.problems.some((p) => /load_data_or_embedded/.test(p)), a.problems.join("\n"));
+});
+
+test("RULES: a second reader of the table that consults it BEFORE the disk voids the disk-first class", () => {
+  const backwards = SECOND_READER.replace(
+    "let why = match std::fs::read(data_dir.join(rel)) {",
+    "let _first = get_embedded(rel);\n    let why = match std::fs::read(data_dir.join(rel)) {"
+  );
+  assert.ok(backwards.includes("let _first = get_embedded(rel);"), "the fixture rewrite took");
+  const a = analyse({ "src/embedded_data.rs": EMBEDDED + backwards });
+  assert.ok(a.problems.some((p) => /load_data_or_embedded does not read the disk before/.test(p)), a.problems.join("\n"));
+  assert.strictEqual(cls(a, "data/a.csv"), "UNCLASSIFIED");
+});
+
+test("RULES: a second reader of the table that never says it served the built-in copy is a problem", () => {
+  const silent = SECOND_READER.replace("note_builtin_copy(rel, &why);", "let _ = &why;");
+  assert.ok(silent.includes("let _ = &why;"), "the fixture rewrite took");
+  const a = analyse({ "src/embedded_data.rs": EMBEDDED + silent });
+  assert.ok(a.problems.some((p) => /load_data_or_embedded never calls note_builtin_copy/.test(p)), a.problems.join("\n"));
+  assert.strictEqual(cls(a, "data/a.csv"), "UNCLASSIFIED");
+});
+
 test("RULES: a test cfg shape the check does not know is reported, not guessed", () => {
   const a = analyse({ "src/odd_cfg.rs": '#[cfg(any(test, doc))]\nconst X: &str = include_str!("../data/x.ron");\n' });
   assert.ok(a.problems.some((p) => /odd_cfg\.rs:1: a test cfg this check does not understand/.test(p)), a.problems.join("\n"));

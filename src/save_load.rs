@@ -667,23 +667,21 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
 }
 
 /// A NEW player's starting kit: `starting_items` in data/world/player.ron
-/// (the data dir first, the embedded copy otherwise). Empty when the file
-/// is missing or does not parse, so a broken data file never blocks a boot.
+/// (the data dir first, the embedded copy when the data dir's is missing or
+/// this version cannot read it, BUG-163). Empty only when neither loads, so a
+/// broken data file never blocks a boot.
 pub fn starting_kit(data_dir: &std::path::Path) -> Vec<(String, u32)> {
     #[derive(serde::Deserialize)]
     struct PlayerDef {
         #[serde(default)]
         starting_items: Vec<(String, u32)>,
     }
-    crate::embedded_data::read_data_or_embedded(data_dir, "world/player.ron")
-        .and_then(|text| match ron::from_str::<PlayerDef>(&text) {
-            Ok(def) => Some(def.starting_items),
-            Err(e) => {
-                log::warn!("world/player.ron did not parse, starting kit empty: {e}");
-                None
-            }
+    crate::embedded_data::load_data_or_embedded(data_dir, "world/player.ron", crate::assets::loader::parse_ron::<PlayerDef>)
+        .map(|def| def.starting_items)
+        .unwrap_or_else(|e| {
+            log::warn!("{e}; starting kit empty");
+            Vec::new()
         })
-        .unwrap_or_default()
 }
 
 /// Apply ONLY the character (name, look, outfit) from a save: the path for

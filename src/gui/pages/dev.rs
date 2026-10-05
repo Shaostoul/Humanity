@@ -28,16 +28,19 @@ struct SpeciesRow {
     hostility: String,
 }
 
-/// The 92 species, sorted by name, loaded once. Reads the same creatures.csv
-/// the runtime CreatureRegistry does (embedded fallback for distributed builds),
-/// so the list and the actual spawn never drift.
+/// The species, sorted by name, loaded once. Reads the same creatures.csv
+/// the runtime CreatureRegistry does, by the same rule (the embedded copy when
+/// the data folder's is missing or this version cannot read it, BUG-163), so
+/// the list and the actual spawn never drift.
 fn species() -> &'static Vec<SpeciesRow> {
     static CACHE: std::sync::OnceLock<Vec<SpeciesRow>> = std::sync::OnceLock::new();
     CACHE.get_or_init(|| {
-        let text = crate::embedded_data::read_data_or_embedded(&crate::data_dir(), "creatures.csv")
-            .unwrap_or_default();
         let mut rows: Vec<SpeciesRow> =
-            match crate::systems::livestock::CreatureRegistry::from_csv(text.as_bytes()) {
+            match crate::embedded_data::load_data_or_embedded(
+                &crate::data_dir(),
+                "creatures.csv",
+                crate::systems::livestock::CreatureRegistry::from_csv,
+            ) {
                 Ok(reg) => reg
                     .defs
                     .into_values()

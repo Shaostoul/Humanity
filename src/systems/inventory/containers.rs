@@ -119,6 +119,10 @@ impl Material {
     }
 }
 
+/// The traits of `data/containers/content_traits.ron`: (by food profile, by content
+/// class), each a name to its traits.
+pub type ContentTraits = (HashMap<String, Vec<String>>, HashMap<String, Vec<String>>);
+
 /// `data/containers/content_traits.ron`.
 #[derive(Debug, Clone, Default, Deserialize)]
 struct ContentTraitsFile {
@@ -539,28 +543,40 @@ impl ContainerRegistry {
     ///
     /// Uses the crate's pure parsers, so this works in every build and in
     /// tests without touching the filesystem. Malformed rows are skipped with
-    /// a warning by the underlying CSV parser (graceful degradation).
+    /// a warning by the underlying CSV parser (graceful degradation). The
+    /// game's own loader (`engine::registries`) parses each file on its own
+    /// instead, so a data folder file with a row this version cannot read is
+    /// replaced by its built-in copy rather than half used (BUG-163).
     pub fn from_bytes(types_csv: &[u8], classes_ron: &[u8]) -> Result<Self, String> {
+        Ok(Self::from_parts(Self::types_from_csv(types_csv)?, Self::classes_from_ron(classes_ron)?))
+    }
+
+    /// The container types of `data/containers/types.csv` alone. Each of the
+    /// registry's files parses on its own, so the game's loader can choose each
+    /// file's copy by itself (BUG-163: the data folder's when this version can
+    /// read it, else the one built into the exe).
+    pub fn types_from_csv(types_csv: &[u8]) -> Result<HashMap<String, ContainerType>, String> {
         let rows: Vec<ContainerTypeRow> = crate::assets::loader::parse_csv(types_csv)?;
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                let t = ContainerType::from_row(row);
+                (t.id.clone(), t)
+            })
+            .collect())
+    }
+
+    /// The content classes of `data/containers/content_classes.ron` alone (see
+    /// `types_from_csv`).
+    pub fn classes_from_ron(classes_ron: &[u8]) -> Result<HashMap<String, ContentClass>, String> {
         let classes: Vec<ContentClass> = crate::assets::loader::parse_ron(classes_ron)?;
+        Ok(classes.into_iter().map(|c| (c.id.clone(), c)).collect())
+    }
 
-        let mut types = HashMap::new();
-        for row in rows {
-            let t = ContainerType::from_row(row);
-            types.insert(t.id.clone(), t);
-        }
-
-        let mut content_classes = HashMap::new();
-        for c in classes {
-            content_classes.insert(c.id.clone(), c);
-        }
-
-        Ok(Self {
-            types,
-            content_classes,
-            // The contact rules arrive through `with_contact_rules`.
-            ..Default::default()
-        })
+    /// A registry of these types and classes, without contact rules yet (they
+    /// arrive through `with_contact` or `with_contact_rules`).
+    pub fn from_parts(types: HashMap<String, ContainerType>, content_classes: HashMap<String, ContentClass>) -> Self {
+        Self { types, content_classes, ..Default::default() }
     }
 
     /// Look up a container archetype by id.
@@ -645,19 +661,51 @@ impl ContainerRegistry {
     /// materials table, content traits, and the item -> food profile map the
     /// traits are keyed through. Without them no material rule applies.
     pub fn with_contact_rules(
-        mut self,
+        self,
         materials_csv: &[u8],
         traits_ron: &[u8],
         item_profiles_ron: &[u8],
     ) -> Result<Self, String> {
+        Ok(self.with_contact(
+            Self::materials_from_csv(materials_csv)?,
+            Self::traits_from_ron(traits_ron)?,
+            Self::profiles_from_ron(item_profiles_ron)?,
+        ))
+    }
+
+    /// The contact materials of `data/containers/materials.csv` alone (see
+    /// `types_from_csv`).
+    pub fn materials_from_csv(materials_csv: &[u8]) -> Result<HashMap<String, Material>, String> {
         let mats: Vec<Material> = crate::assets::loader::parse_csv(materials_csv)?;
-        self.materials = mats.into_iter().map(|m| (m.id.clone(), m)).collect();
+        Ok(mats.into_iter().map(|m| (m.id.clone(), m)).collect())
+    }
+
+    /// The content traits of `data/containers/content_traits.ron` alone: by food
+    /// profile, and by content class (see `types_from_csv`).
+    pub fn traits_from_ron(traits_ron: &[u8]) -> Result<ContentTraits, String> {
         let traits: ContentTraitsFile = crate::assets::loader::parse_ron(traits_ron)?;
-        self.traits_by_profile = traits.profiles;
-        self.traits_by_class = traits.classes;
+        Ok((traits.profiles, traits.classes))
+    }
+
+    /// Item -> food profile, from `data/food/item_profiles.ron` alone (see
+    /// `types_from_csv`).
+    pub fn profiles_from_ron(item_profiles_ron: &[u8]) -> Result<HashMap<String, String>, String> {
         let profiles: ItemProfilesFile = crate::assets::loader::parse_ron(item_profiles_ron)?;
-        self.profile_of = profiles.items.into_iter().collect();
-        Ok(self)
+        Ok(profiles.items.into_iter().collect())
+    }
+
+    /// This registry with these contact rules.
+    pub fn with_contact(
+        mut self,
+        materials: HashMap<String, Material>,
+        (by_profile, by_class): ContentTraits,
+        profile_of: HashMap<String, String>,
+    ) -> Self {
+        self.materials = materials;
+        self.traits_by_profile = by_profile;
+        self.traits_by_class = by_class;
+        self.profile_of = profile_of;
+        self
     }
 
     /// The traits a content carries: its food profile's, plus its class's.

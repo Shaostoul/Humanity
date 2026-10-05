@@ -132,21 +132,20 @@ impl GrowMedium {
     }
 }
 
-/// Load the grow-media registry (data/garden/grow_media.ron). Empty on absence/parse error.
+/// Load the grow-media registry (data/garden/grow_media.ron), the built-in copy
+/// when the data folder's is missing or this version cannot read it (BUG-163).
+/// Empty only when neither loads.
 pub fn load_grow_media(data_dir: &Path) -> Vec<GrowMedium> {
     #[derive(Deserialize)]
     struct File {
         media: Vec<GrowMedium>,
     }
-    match crate::embedded_data::read_data_or_embedded(data_dir, "garden/grow_media.ron") {
-        Some(t) => match ron::from_str::<File>(&t) {
-            Ok(f) => f.media,
-            Err(e) => {
-                log::warn!("grow_media parse failed: {e}");
-                Vec::new()
-            }
-        },
-        None => Vec::new(),
+    match crate::embedded_data::load_data_or_embedded(data_dir, "garden/grow_media.ron", crate::assets::loader::parse_ron::<File>) {
+        Ok(f) => f.media,
+        Err(e) => {
+            log::warn!("{e}; no grow media");
+            Vec::new()
+        }
     }
 }
 
@@ -207,8 +206,7 @@ fn load_tower_cups(data_dir: &Path) -> Vec<TowerCups> {
         #[serde(default)]
         towers: Vec<TowerCups>,
     }
-    crate::embedded_data::read_data_or_embedded(data_dir, "towers/aeroponic_configs.ron")
-        .and_then(|t| ron::from_str::<File>(&t).ok())
+    crate::embedded_data::load_data_or_embedded(data_dir, "towers/aeroponic_configs.ron", crate::assets::loader::parse_ron::<File>)
         .map(|f| f.towers)
         .unwrap_or_default()
 }
@@ -269,9 +267,9 @@ impl GrowFoodModel {
     /// registry is missing: then no figure can be computed at all.
     pub fn load(data_dir: &Path) -> Option<Self> {
         let nutrition = CropNutrition::load(&data_dir.join("food").join("crop_nutrition.ron")).ok()?;
-        let read = |rel: &str| crate::embedded_data::read_data_or_embedded(data_dir, rel);
-        let plants = PlantRegistry::from_csv(read("plants.csv")?.as_bytes()).ok()?;
-        let items = ItemRegistry::from_csv(read("items.csv")?.as_bytes()).ok()?;
+        // The same rule the game's registries load by (BUG-163).
+        let plants = crate::embedded_data::load_data_or_embedded(data_dir, "plants.csv", PlantRegistry::from_csv).ok()?;
+        let items = crate::embedded_data::load_data_or_embedded(data_dir, "items.csv", ItemRegistry::from_csv).ok()?;
         Some(Self {
             media: load_grow_media(data_dir),
             showcase: load_showcase(data_dir).unwrap_or_default(),

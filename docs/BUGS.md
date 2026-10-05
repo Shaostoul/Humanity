@@ -4504,3 +4504,127 @@ Bad, Helping Your Neighbours After a Disaster).
   src/systems/food.rs), so the litre of rehydration solution counts no more than a 500 mL
   bottle; at 20 points a litre it would be 20. A drink-volume fix changes the whole thirst
   economy and is its own change.
+
+## BUG-163: a data folder older than the game loads no status effects at all, and any registry could do the same (part 1 FIXED, next release; part 2 designed; found 2026-10-05)
+
+**Seen (the second seam review of the 2026-10-05 merges, item 2; confirmed on the operator's
+machine):** BUG-162 removed the `dispel_type` column from `data/status_effects.csv` and made a
+status effect row refuse a column it does not declare (`deny_unknown_fields`,
+`src/systems/status_effects.rs`). An installed game writes its data folder once, on its first
+run (`storage::extract_data_if_needed`), and an update replaces only the exe, so the folder
+keeps the files of the version that first ran. The one on the operator's machine,
+`%APPDATA%\HumanityOS\data`, written on 2026-07-11, still has `dispel_type`. The shared CSV
+parser skipped every refused row and returned the rest (`assets::loader::parse_csv`), and the
+registry loader used the copy built into the exe only when the file was MISSING
+(`engine::registries::load_data_registries`), so an installed copy reading that folder would load
+NONE of the 70 status effects: no slowdown from thirst, hunger, fatigue or cold, Well Fed heals
+nothing, Food Poisoning is no longer a disease, effects show their raw ids, medicines end nothing,
+and Settings > Gameplay > Illness says the illness lasts "about an hour" (`illness::mode_hint`
+read the same file the same way). The log held one warning per row, none naming the file.
+(A copy run from the checkout, `just launch` included, reads the checkout's own `data/`:
+`find_data_dir` prefers a source-tree data folder. The stale folder is what an installed copy
+run from anywhere else reads.)
+
+**Why it matters beyond this file:** every registry worked this way. Any data folder file the
+code can no longer read row by row (a column removed from a strict row type, a field made
+required, a value whose type changed) emptied its registry without a word a player could find,
+and a RON file that no longer parsed left its registry out of the game.
+
+**Fix, part 1 (2026-10-05): one rule every registry loads by.**
+`embedded_data::load_data_or_embedded(data_dir, rel, build)`, and `load_text_or_embedded` for a
+parser that takes text:
+- the data folder's file is built inside `assets::loader::refusing_rows`, where `parse_csv`
+  refuses the whole file at a row it cannot read (and counts the rest) instead of skipping it.
+  When it builds, it is used: a modded file still wins, whatever it changes, adds or leaves out;
+- otherwise (missing, unreadable, a row refused, does not parse) the copy built into the exe is
+  used, and ONE `[built-in data copy]` line names the file, the line, the row's id and column,
+  and why. On a copy of the operator's folder:
+
+      [built-in data copy] data/status_effects.csv: this version cannot read
+      ...\data\status_effects.csv: 67 of its 67 rows, the first at line 21 (strength_boost):
+      unknown field `dispel_type`, expected one of `id`, `name`, `type`, ...; this run uses
+      the copy compiled into the exe, not the file on disk
+
+  The rigs already refuse a run whose log has that marker (BUG-133), so a data edit this
+  version cannot read now fails a rig instead of half loading in it;
+- a file with no built-in copy (a modder's own file) keeps the old leniency: the rows that can
+  be read, each skipped one logged.
+
+`parse_csv` now names a skipped row by its line in the FILE (comments counted), its id and its
+column, where it used to give a record number in the comment-stripped text and no file, and it
+ignores a byte-order mark (older Notepad saves one) and blank lines. `environment/region_kinds.ron`
+and `manufacturing.ron`, the two registries the loader reads that had no built-in copy, now have
+one: the operator's folder predates both, so an installed copy ran with no environment regions
+and every craft ungraded.
+
+**Covered:** every registry `load_data_registries` loads (items, recipes and the tool rules,
+quality grades, plants, region kinds, climate, status effects, skills, equipment, creatures,
+abilities, travel destinations, construction blueprints, livestock and wild spawns, weather
+events, trade goods, vehicle kits, the container registry with each of its five files chosen on
+its own through `ContainerRegistry::types_from_csv` and its siblings, and the fluid table); the
+quests, through the new `QuestRegistry::load` (each shipped quest file by the rule, then a
+modder's own files beside them; before, a data folder without its quests/ loaded no quests at
+all); and the other loaders that parsed a data file and fell back to nothing: the illnesses and
+the Settings illness hint (`illness::hint_data`), the medical treatments, `food_system.ron` and
+the item profiles (the food system and the inventory's Eat and Drink list), grow media, tower
+cups and the grown-food model's plants and items, the starting kit (`world/player.ron`), the
+GUI's JSON tables, the Fibonacci homestead design, the tower configs, the home outline, the Dev
+page's species list, the Crafting page's recipe list (it read recipes.csv, items.csv and the
+vehicle kits from the disk alone, so a data folder without recipes.csv listed no recipes while
+the game could craft them) and the relay's fleet ledger prices. Humidity, garden nutrients, weeds,
+harvest windows, the death rules, the cosmos catalogue (`catalog_version`) and the ship file
+already fell back on a file they cannot read, and were left alone. `scripts/lib/compiled-in.js`
+holds every fn of embedded_data.rs that consults the built-in table to the
+disk-first-and-say-so rule, not only `read_data_or_embedded`.
+
+**Not covered, on purpose:**
+- the player's own files, which the game writes back through the editor's autosave
+  (`machines/*.ron`, `homes/*.ron`, BUG-151): their loaders are unchanged, because using the
+  built-in layout and then autosaving over the player's file is a decision about the player's
+  state (part 2's second question). The operator's July `machines/home.ron` and
+  `home_solo.ron` still parse;
+- text read only for display (the Maps page's star tables, the inventory card's item details,
+  which reads items.csv by column position) and `game.csv` (key and value, read by key);
+- a file this version CAN read but that is out of date. That is part 2, and on a copy of the
+  operator's folder it is most of what goes wrong: items.csv has 754 rows (987 today),
+  recipes.csv 362 (384), plants.csv 132 (189) and none of the 9 newer columns, creatures.csv 92
+  (101), equipment.csv no `clo` (nothing worn keeps the body warm), abilities.csv no `builds`,
+  containers/types.csv 11 (21), `world/player.ron` no `starting_items` (a new character starts
+  with an EMPTY kit), and `food_system.ron` lacks 36 nutrition profiles that today's item list
+  (built in, as his folder has none) names, so 90 foods and drinks are not edible, the water
+  bottle, purified water, milk and oral rehydration solution among them.
+
+**Part 2, designed, not built:** `docs/design/data-folder-updates.md`: stamp the folder with
+the version that wrote it and the hash of every file written; on a newer exe, refresh each file
+whose hash still matches and keep each one that was edited; never touch a folder that is a
+source tree or reached through a junction (every rig's is). It waits on the operator's answer
+to: when an update changes a file a player edited, keep the edit (recommended for now), replace
+it and keep the edit beside it, or move it into a local mod? (And a smaller one: should a home
+and machine layout nobody edited follow a new default?) Until it is built, an install is brought
+up to date by renaming its data folder so the next start writes a fresh one. The operator's has
+no edits (all 90 files carry the 2026-07-11 02:19:55 extraction time), so renaming it loses
+nothing. In-app debt: `docs/design/in-app-ops.md`, "A data folder older than the app".
+
+Tests, each seen failing first:
+- `engine::registries::tests::a_status_effects_file_with_an_old_column_loads_the_built_in_copy`, red on
+  main at 347c8f77b: "a status_effects.csv with an old column loaded 0 status effects, not the 70
+  built in"; and `a_status_effects_file_with_one_bad_row_loads_the_built_in_copy`, red on main: "a
+  status_effects.csv with one bad row loaded 1 status effects, not the 70 built in". Both also hold
+  that exactly one log line names the file and none is written per row, read back through the new
+  test-only `test_log::capture`;
+- `a_current_status_effects_file_on_disk_wins_over_the_built_in_copy`, which passes on main (mods
+  already won) and was seen red with the loader made to always use the built-in copy: "a current
+  status_effects.csv on disk was not used: 70 status effects loaded, not its 2";
+- `the_shipped_data_folder_loads_every_registry_without_a_warning` (passes on main too; red with an
+  unreadable row appended to abilities.csv: "... line 158 (junk_ability), column mana_cost: invalid
+  float literal") and `every_registry_here_loads_by_the_shared_rule` (red with a registry reading the
+  built-in table itself: "registries.rs loads a file with get_embedded, not load_data_or_embedded");
+- `illness::tests::the_settings_hint_names_the_course_with_a_data_folder_older_than_the_game`, red
+  with the hint's old read: "... Realistic: it lasts about an hour ...";
+- `quests::quest_tests::a_shipped_quest_file_the_game_cannot_read_comes_from_its_built_in_copy`, red
+  with `load` reading the folder alone: "the opening quest is missing when its file cannot be read";
+- `gui::loaders::crafting_recipes_load_tests::a_data_folder_without_recipes_lists_the_built_in_ones`,
+  red with the Crafting page's old disk-only read: "the built-in recipes are listed: 0 found";
+- the rule's own unit tests in `assets::loader` and `embedded_data` (new code, nothing older to run
+  them against), and three in `scripts/tests/compiled-in.test.js`, two of them red against the old
+  check (no problem named load_data_or_embedded).

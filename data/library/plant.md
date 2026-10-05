@@ -92,24 +92,31 @@ it reads `plants.csv` right away: the startup code in
 `src/engine/registries.rs` (a function called `load_data_registries`) hands
 the file to `PlantRegistry::from_csv` in `src/systems/farming/mod.rs`, and
 the result is stored in the game's data store under the name
-`plant_registry`. The file is read by a shared, forgiving parser
-(`parse_csv` in `src/assets/loader.rs`) that skips the `#` comment lines,
-matches values to columns by the header line, and simply drops any broken
-row instead of crashing. If the `plants.csv` file is missing from disk
-entirely, the game falls back to a copy that was baked into the program
-when it was built (`src/embedded_data.rs`), so the game always has plants.
+`plant_registry`. The file is read by a shared parser (`parse_csv` in
+`src/assets/loader.rs`) that skips the `#` comment lines and matches values to
+columns by the header line. The game uses your `plants.csv` only if it can
+read every line of it (`load_data_or_embedded` in `src/embedded_data.rs`). If
+the file is missing, or one line in it cannot be read, the game uses the copy
+of the plant list that was built into the program instead, so the game always
+has plants and never runs on half a file.
 
 ## If something goes wrong
 
-The game is built to be forgiving. A broken line in `plants.csv` is
-skipped, not fatal: the game starts normally and simply acts as if that one
-plant does not exist. So if your plant does not show up:
+The game does not crash over a broken line. If it cannot read a line in your
+`plants.csv`, it sets your whole file aside for that run, plays with its own
+built-in plant list, and writes one line in its log saying which line it could
+not read and why. The log is `run.log` in `%APPDATA%\HumanityOS\logs` (or in
+the `logs` folder beside the game, if you keep the game in one folder). So if
+your plant does not show up, or your other changes seem to have vanished too:
 
-1. Open `plants.csv` again and re-read your line slowly. The most common
-   mistakes are a missing comma, an extra comma, or a `harvest_item` that
-   does not match a real item id in `data/items.csv`.
-2. Compare your line against the tomato line, value by value.
-3. Fix it, save, and restart the game.
+1. Open the log and look for the line containing
+   `[built-in data copy] data/plants.csv`. It names the line number and the
+   column the game could not read.
+2. Open `plants.csv` again and re-read that line slowly. The most common
+   mistakes are a missing comma, an extra comma, or words where a number
+   belongs (a missing comma shifts every value after it one column left).
+3. Compare your line against the tomato line, value by value.
+4. Fix it, save, and restart the game.
 
 If you have the project source code and a terminal (a window where you type
 commands), you can also run the command `just validate-data` from the
