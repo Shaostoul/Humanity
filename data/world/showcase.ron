@@ -1,10 +1,16 @@
 // Perpetual-showcase auto-seed (v0.863). Operator 2026-07-16: "just preload
 // everything with plants at different stages... Assume we're just making a
 // perpetual showcase." Whenever the world has ZERO crops (fresh boot, wiped
-// save, everything harvested), lib.rs::auto_seed_showcase replants every grow
-// surface at staggered growth stages so the garden always demonstrates the
+// save, everything harvested), engine/ipc.rs auto_seed_showcase replants every
+// grow surface at staggered growth stages so the garden always demonstrates the
 // full seed-to-harvest ladder. Crops persist in the save (v0.863), so this
 // only fires when the garden is genuinely empty.
+//
+// Only while free resources are on (Creative and Dev, with the Inventory
+// page's Creative toggle on; engine/ipc.rs showcase_gate). In Normal the
+// garden is the player's to plant: a free garden that refilled itself in every
+// mode was the first-hour audit's Missing stakes 2 (2026-10-04). The probe
+// rigs run as Dev sandboxes, so their garden vantages still get it.
 (
     enabled: true,
     // Crop planted per bed / tray / field / rack machine TYPE. Towers instead
