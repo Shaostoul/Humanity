@@ -57,6 +57,9 @@ mod tests {
     /// as on screen every frame it shows them; the quest event goes out on
     /// the first of those frames only, and again only after the view was
     /// closed and opened again.
+    ///
+    /// Red, run with every view on screen reported each frame: "still open:
+    /// not again".
     #[test]
     fn a_view_is_reported_once_each_time_it_comes_on_screen() {
         let mut gui = crate::gui::GuiState::default();
@@ -78,8 +81,9 @@ mod tests {
     /// The wall screens' frame goes through it (read from its source, so the
     /// helper cannot pass while the screens stop calling it).
     ///
-    /// Red, run with the wall screens drawn on the record: "the wall's
-    /// Inventory page does not count as opening it" (left: ["vitals"], right: []).
+    /// Red, run with what the wall drew kept on the record: "the wall's
+    /// Inventory page does not count as opening it" (left: ["vitals", "map"],
+    /// right: ["map"]).
     #[test]
     fn a_page_on_a_wall_screen_does_not_count_as_opened() {
         let mut gui = crate::gui::GuiState::default();

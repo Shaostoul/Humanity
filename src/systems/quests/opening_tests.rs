@@ -467,7 +467,7 @@ fn a_plant_button_that_plants_nothing_says_why() {
 /// on and then finish on its own whether or not anyone looked.
 ///
 /// Red, run with the page's mark taken out: "opening Inventory > Status
-/// finishes the View step".
+/// finishes the View step" (left: 0, right: 1).
 #[test]
 fn opening_inventory_status_finishes_the_vitals_step() {
     let mut data = opening_store();
@@ -574,9 +574,9 @@ fn the_front_door_is_the_door_of_the_plot_you_were_given() {
 /// out of the front door before they have eaten; the opening must still end
 /// at the door, not the moment the chest is built in the workshop.
 ///
-/// Red, run with Travel counted from the quest's acceptance (the event the
-/// destination fired on entry, as before): "passing the door early does not
-/// end the opening when the chest is built".
+/// Red, run with Travel counted from the quest's acceptance (an event for
+/// each place the player stood in, as before): "passing the door early does
+/// not end the opening when the chest is built" (left: 8, right: 7).
 #[test]
 fn passing_the_door_early_does_not_end_the_opening() {
     let mut game = Game::new("p1");
