@@ -522,19 +522,19 @@ them.
 
 **Two settings change this.**
 
-- **Play mode.** During development the game starts in the Dev play mode
-  (Settings > Gameplay > Play mode). In Dev, as in Creative, crafting
-  takes no materials, no station and no tools, so you can make Stone
-  Bricks and Cement without collecting anything. Building a wall or a
-  foundation from the Crafting page still takes its bricks from your
-  pack or the home's storage. To make collecting matter for crafting
-  too, switch Play mode to Normal, or, in Dev, turn off the Creative
-  mode switch on the Inventory page.
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which is also the default
-  during development, only your character carries between launches, so
-  what you collected starts the next session as it was in the default
-  home.
+- **Play mode.** The game starts in the Normal play mode (Settings >
+  Gameplay > Play mode), where a craft uses up its materials, so Stone
+  Bricks and Cement cost the stone, clay and sand you collected. In
+  Creative, or in Dev if you choose it, a craft uses up no materials and
+  wears no tools while the Inventory page's Creative mode switch is on,
+  though the Crafting page still wants them on hand before it lets you
+  press Craft. In every mode, building a wall or a foundation from the
+  Crafting page takes its bricks from your pack or the home's storage.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so what you
+  collected is kept between launches. With the setting on, only your
+  character carries between launches, and what you collected starts the
+  next session as it was in the default home.
 
 What the game simplifies, so you do not learn it from the game: cement
 is mixed by hand from stone, clay and sand, with no kiln, where real

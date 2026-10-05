@@ -468,12 +468,13 @@ outside.
   a forecast.
 
 The Play mode does not change the weather. "Start every session from the
-default home" (Settings > Gameplay), which is on by default during
-development, restarts the game clock at each launch, so the season, and
-with it the weather's odds, starts at spring every time (the first
-quarter of the game year is spring). The weather itself is not saved:
-each launch starts clear and rolls its first change about a minute of
-game time in.
+default home" (Settings > Gameplay) is off by default, so each launch
+resumes the game clock where you left it, and the season, and with it
+the weather's odds, goes on from there. With that setting on, the clock
+restarts at each launch, so the season starts at spring every time (the
+first quarter of the game year is spring). The weather itself is not
+saved: each launch starts clear and rolls its first change about a
+minute of game time in.
 
 What the game leaves out, so you do not learn it from the game: its
 weather gives no warning. The air pressure where you stand depends on

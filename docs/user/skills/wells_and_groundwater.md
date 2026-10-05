@@ -494,11 +494,11 @@ The Silverdale locale data (`data/locales/silverdale_wa/water.json`)
 does record the real aquifer, the local well depths and the legal limits
 used in this guide, ready for when it is.
 
-**Starting from the default home.** While Settings > Gameplay > "Start
-every session from the default home" is on, which is the default during
-development, only your character carries between launches, so the pump,
-the tanks and everything in them start each session as they are in the
-default home.
+**Starting from the default home.** Settings > Gameplay > "Start every
+session from the default home" is off by default, so the pump, the
+tanks and everything in them are kept between launches. With the
+setting on, only your character carries between launches, and they
+start each session as they are in the default home.
 
 ## You own this when
 

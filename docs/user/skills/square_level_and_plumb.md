@@ -476,11 +476,16 @@ The editor's corner snapping is in `src/engine/geom.rs` and
 (`draw_construction_overlay`), and its structural pieces in
 `data/blueprints/structure_types.ron`.
 
-**One setting changes what you keep.** While Settings > Gameplay >
-"Start every session from the default home" is on, which is the default
-during development, only your character carries between launches, so
+**One setting changes what you keep.** Settings > Gameplay > "Start
+every session from the default home" is off by default, so what you
+built and the experience it earned are kept between launches. In the
+Normal play mode the game starts in, and in Creative, the construction
+editor's changes to your home go into your character's save too; in the
+Dev play mode the editor writes them into the game's data files, the
+default home every new player starts from (`src/engine/own_home.rs`).
+With the setting on, only your character carries between launches, and
 what you built and the experience it earned start over at the next
-launch. Turn the setting off to keep them.
+launch.
 
 What the game leaves out: the roof is a flat slab, so there are no
 rafters or roof pitch; a staircase is one ready-made piece, so there are

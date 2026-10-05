@@ -641,16 +641,20 @@ lets you collect from them.
 
 **Two settings change this.**
 
-- **Play mode.** During development the game starts in the Dev play mode
-  (Settings > Gameplay > Play mode). In Dev, as in Creative, materials are
-  free while the Creative mode switch on the Inventory page is on, which
-  it is unless you turn it off, so cooking needs no milk. Collecting,
-  spoiling and the risk of raw milk work the same in every mode.
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which is also the default
-  during development, only your character carries between launches. What
-  you collected is gone at the next launch, and every animal starts it
-  with its milk, wool or egg ready.
+- **Play mode.** The game starts in the Normal play mode (Settings >
+  Gameplay > Play mode), where cooking uses up the milk it calls for. In
+  Creative, or in Dev if you choose it, materials are free while the
+  Creative mode switch on the Inventory page is on, which it is unless
+  you turn it off, so cooking uses up no milk, though the Crafting page
+  still wants it on hand. Collecting, spoiling and the risk of raw milk
+  work the same in every mode.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so your progress is
+  kept between launches: what you collected is still in your pack or the
+  home's storage, and each animal keeps the time left on its next yield.
+  With the setting on, only your character carries between launches:
+  what you collected is gone at the next launch, and every animal starts
+  it with its milk, wool or egg ready.
 
 What the game leaves out, so you do not learn it from the game: its
 animals need no water, no feed, no salt, no shelter, no fence and no

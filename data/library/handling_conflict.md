@@ -533,8 +533,8 @@ game models a dispute or settles one. The Leadership skill, which this
 topic belongs to, appears in the skill list, but nothing a player does
 in the game earns it experience yet. Only the Profile page's "Dev: max
 skills" button raises it, along with every other skill, and that button
-shows in Dev play mode while the "Enable dev cheats" switch is on, both
-of them the default during development.
+shows only in the Dev play mode with the "Enable dev cheats" switch on.
+The game starts in the Normal play mode, where the button is not there.
 
 Outside the game, HumanityOS's chat has a Report entry on a message's
 menu. It files a report about the sender with the server and tells the

@@ -487,9 +487,11 @@ practising and several things that are not what they look like.
   kilometre of the planet, and the Silverdale and Seattle Center map
   regions are built in at their real latitude and longitude, as
   [Coordinates](coordinates.md) describes. A session starts in your home
-  aboard the ship in orbit, not on the ground; in the default Dev play
-  mode, the Dev page's Land on surface buttons put you on the ground,
-  and its travel buttons take you to a planet's orbit. Both leave fly
+  aboard the ship in orbit, not on the ground, and only the tools of the
+  Dev play mode (Settings > Gameplay > Play mode) take you off the ship,
+  so in Normal, where the game starts, the ground is out of reach. In
+  Dev, the Dev page's Land on surface buttons put you on the ground, and
+  its travel buttons take you to a planet's orbit. Both leave fly
   mode on, and the line under the compass says so: "FLY x1 - gravity on
   [F9 to hover]". Press F9 twice (the first press turns the hover on, the
   second turns both off and the line reads "WALK x1 [F9 to fly]"), or

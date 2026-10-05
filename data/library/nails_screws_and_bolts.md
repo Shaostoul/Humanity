@@ -549,17 +549,18 @@ The game has fasteners as materials you make and use up.
 
 **Two settings change this.**
 
-- **Play mode.** During development the game starts in the Dev play mode
-  (Settings > Gameplay > Play mode). In Dev, as in Creative, materials
-  are free while the Creative mode switch on the Inventory page is on,
-  which it is unless you turn it off: crafting then uses up no boxes of
-  nails or bolts and needs no tools or forge. To see fasteners used up,
-  turn that switch off, or switch Play mode to Normal.
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which is also the default
-  during development, only your character carries between launches, so
-  boxes you forged or used start the next session as they were in the
-  default home.
+- **Play mode.** The game starts in the Normal play mode (Settings >
+  Gameplay > Play mode), where a craft uses up the boxes of nails or
+  bolts it calls for and wears its tools. In Creative, or in Dev if you
+  choose it, materials are free while the Creative mode switch on the
+  Inventory page is on, which it is unless you turn it off: crafting
+  then uses up no boxes of nails or bolts and wears no tools.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so boxes you forged,
+  and what you used them for, are kept between launches. With the
+  setting on, only your character carries between launches, and boxes
+  you forged or used start the next session as they were in the default
+  home.
 
 What the game simplifies, so you do not learn it from the game: there is
 one kind of nail, screw and bolt, with no sizes, lengths, coatings or
@@ -730,8 +731,9 @@ were read on 3 October 2026.
 - The Play mode setting and free materials (`PlayMode` and
   `play_mode_allows` in `src/config.rs`, the creative checks in
   `src/systems/crafting/mod.rs`, the Creative mode switch on the
-  Inventory page in `src/gui/pages/inventory.rs`, on by default in
-  `src/gui/mod.rs` and forced off in Normal in `src/lib.rs`); the "Start every session from the
+  Inventory page in `src/gui/pages/inventory.rs`, off by default in
+  `src/gui/mod.rs` because Normal is the default play mode, and forced
+  off in Normal in `src/lib.rs`); the "Start every session from the
   default home" setting (`src/config.rs`, `src/save_load.rs`).
 - A data file describing a 2x6 stud wall and its nailing schedule,
   `data/assemblies/stud_wall_2x6.ron`, exists, but nothing in the game

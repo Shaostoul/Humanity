@@ -555,23 +555,25 @@ The game has clay, a kiln, and a handful of things fired in it.
 
 **Two settings change this.**
 
-- **Play mode.** During development the game starts in the Dev play mode
-  (Settings > Gameplay > Play mode). In Dev, as in Creative, crafting
-  uses up no materials. The Crafting page still asks for the materials
-  to be in your backpack and for a kiln to be where you are before it
-  lets you press Craft, and a recipe that needs a skill level still
-  needs it. In Dev, while the "Enable dev cheats" switch is on
-  (Settings > Animations, also on by default during development), the
-  Crafting page also shows a "Dev: stock all materials" button that
-  puts a stack of every recipe input in your backpack, clay included,
-  and the Profile page a "Dev: max skills" button. To make clay
-  something you spend, switch Play mode to Normal.
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which is also the default
-  during development, only your character's name, appearance and
-  clothes carry between launches, so the clay you collected, what you
-  fired and the skill levels you earned start the next session as they
-  were in the default home. Turn the setting off to keep them.
+- **Play mode.** The game starts in the Normal play mode (Settings >
+  Gameplay > Play mode), where a firing uses up the clay and fuel its
+  recipe calls for, so clay is something you collect and spend. In
+  Creative, or in Dev if you choose it, crafting uses up no materials
+  while the Inventory page's Creative mode switch is on. In every mode
+  the Crafting page asks for the materials to be in your backpack or the
+  home's storage and for a kiln to be where you are before it lets you
+  press Craft, and a recipe that needs a skill level still needs it. In
+  Dev, while the "Enable dev cheats" switch is on (Settings > Animations,
+  on by default), the Crafting page also shows a "Dev: stock all
+  materials" button that puts a stack of every recipe input in your
+  backpack, clay included, and the Profile page a "Dev: max skills"
+  button.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so the clay you
+  collected, what you fired and the skill levels you earned are kept
+  between launches. With the setting on, only your character's name,
+  appearance and clothes carry between launches, and the rest starts the
+  next session as it was in the default home.
 
 What the game simplifies, so you do not learn it from the game: you
 cannot make a pot or a bowl to store or serve food; nothing is shaped,

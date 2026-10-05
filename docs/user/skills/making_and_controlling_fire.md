@@ -536,9 +536,10 @@ that goes.
   15, but nothing you do in the game earns it experience: no recipe,
   ability or quest names it (`data/skills/skills.csv`; a search of the
   game's data and code finds it nowhere else that counts). Only the
-  Profile page's "Dev: max skills" button, shown by default during
-  development, raises it, along with every other skill
-  (`src/gui/pages/profile.rs`, `src/systems/skills/mod.rs`).
+  Profile page's "Dev: max skills" button, shown only in the Dev play
+  mode and not in Normal, where the game starts, raises it, along with
+  every other skill (`src/gui/pages/profile.rs`,
+  `src/systems/skills/mod.rs`).
 - **A campfire that is not a fire.** The item list has a Campfire Kit,
   "Tinder flint and starter bundle", and decorative Candles and Handheld
   Torches, but there is no campfire to build and no flame to light
@@ -553,10 +554,12 @@ that goes.
   logs into four Coal (the game's charcoal) in a kiln, and the home has a
   kiln in its forge room; recipes at the smelter, kiln and forge list
   charcoal among their ingredients (`data/recipes.csv`,
-  `data/machines/home.ron`). In the default Dev play mode the Crafting
-  page still asks for those ingredients but uses none of them up. The
-  home's smelter is different: it runs Smelt Iron by itself, and a
-  machine that runs by itself always uses up real ingredients, its
+  `data/machines/home.ron`). In the Normal play mode, where the game
+  starts, a craft from the Crafting page uses those ingredients up; in
+  Creative, and in Dev if you choose it, the page still asks for them but
+  uses none of them up. The home's smelter is different: it runs Smelt
+  Iron by itself, and a machine that runs by itself always uses up real
+  ingredients, its
   charcoal included, taken from home storage and never from your
   backpack (`src/systems/crafting/mod.rs`). No flame or smoke is involved
   either way.
@@ -760,7 +763,7 @@ not.
   calls in the code (`src/systems/skills/mod.rs` and its callers); the
   Profile page's "Dev: max skills" button (`src/gui/pages/profile.rs`,
   shown while `dev_cheats_active` in `src/gui/mod.rs` holds, which the
-  default Dev play mode and cheats setting make true), which sets every
+  Dev play mode with the cheats setting on makes true), which sets every
   skill to its maximum (`src/systems/skills/mod.rs`); the Campfire
   ability and what casting it does (`data/abilities.csv`,
   `src/systems/abilities.rs`) and its place on the hotbar (sorted in

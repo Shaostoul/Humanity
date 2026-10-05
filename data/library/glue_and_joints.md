@@ -403,16 +403,16 @@ The game has one glue, and uses it as an ingredient.
 
 **Two settings change this.**
 
-- **Play mode.** During development the game starts in the Dev play mode
-  (Settings > Gameplay > Play mode). In Dev, as in Creative, materials
-  are free while the Creative mode switch on the Inventory page is on,
-  which it is unless you turn it off, so crafting uses up no glue. To see
-  glue used up, turn that switch off, or switch Play mode to Normal.
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which is also the default
-  during development, only your character carries between launches, so
-  glue you made or used is back as the default home had it at the next
-  launch.
+- **Play mode.** The game starts in the Normal play mode (Settings >
+  Gameplay > Play mode), where a craft that needs glue uses it up. In
+  Creative, or in Dev if you choose it, materials are free while the
+  Creative mode switch on the Inventory page is on, which it is unless
+  you turn it off, so crafting uses up no glue.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so the glue you made,
+  and what you used it for, are kept between launches. With the setting
+  on, only your character carries between launches, and glue you made or
+  used is back as the default home had it at the next launch.
 
 What the game leaves out, so you do not learn it from the game: there are
 no joints to cut, no grain, no fit, no clamping, no moisture, no open or

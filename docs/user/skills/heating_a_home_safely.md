@@ -679,8 +679,10 @@ model what heating does to people.
   `src/engine/survival_env.rs`; its tests note that on a 5 C day a
   shelter with no fire is still 5 C inside, and that on a clear 10 C
   night the skin ends about 1.9 C warmer under a roof).
-  While fly mode is on, the weather does not reach your body at all. The
-  Dev page's Land and Travel buttons leave fly mode on, and the line
+  While fly mode is on, the weather does not reach your body at all. Only
+  the tools of the Dev play mode take you onto a planet (Settings >
+  Gameplay > Play mode; the game starts in Normal). The Dev page's Land
+  and Travel buttons leave fly mode on, and the line
   under the compass says so ("FLY x1 - gravity on [F9 to hover]"); press
   F9 twice, or untick Fly mode on the Dev page, and the weather reaches
   you. Under the default Body heat setting, Forgiving, cold does much less
@@ -696,9 +698,10 @@ model what heating does to people.
 - **No fires, no alarms that do anything.** Nothing in the game burns, so
   no heater, stove or candle can start a fire. A Smoke Detector and a Fire
   Extinguisher can be crafted, but neither does anything once made.
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which is the default during
-  development, only your character carries between launches.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so what you built and
+  your body, its core temperature included, are kept between launches.
+  With the setting on, only your character carries between launches.
 
 What the game leaves out, so you do not learn it from the game: fuel
 bills, space heaters that start fires, ovens that poison, generators that

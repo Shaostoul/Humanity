@@ -477,12 +477,14 @@ ones.
   real portland cement, the Army manual explains, is made by heating
   its raw materials to 2,600 to 3,000 degrees F into clinker and grinding
   that to powder. Do not learn a concrete mix from the game.
-- **The default settings.** In the Dev play mode the game starts in
-  (Settings > Gameplay > Play mode), crafting by hand does not use up
-  its ingredients, so the ratios cost you nothing; switch Play mode to
-  Normal to see them consumed. And while "Start every session from the
-  default home" is on, which it is by default, only your character
-  carries between launches, so what you made is gone at the next start.
+- **The default settings.** In the Normal play mode the game starts in
+  (Settings > Gameplay > Play mode), crafting by hand uses up its
+  ingredients, so every batch costs you what goes into it; in Creative,
+  and in Dev if you choose it, it uses up nothing while the Inventory
+  page's Creative mode switch is on. And "Start every session from the
+  default home" is off by default, so what you made is kept between
+  launches; with it on, only your character carries between launches,
+  and what you made is gone at the next start.
 - **The Calculator works left to right.** The app's Calculator (in the
   Platform tab) does each operation in the order you type it, so 2 + 3 x
   4 gives 20, not the 14 that arithmetic's usual order gives, and

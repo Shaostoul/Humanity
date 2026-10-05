@@ -407,14 +407,14 @@ for what they teach.
   the reason given above: a save spoiled by a mistake could otherwise
   push every good copy out before anyone noticed.
 
-**One setting changes both.** While Settings > Gameplay > "Start every
-session from the default home" is on, which is the default during
-development, only your character carries between launches. The ship
-meter starts over each time the game starts, and the home save, and so
-the snapshots taken of it, keeps your character on top of the last home
-saved while the setting was off, rather than your home as you left it
-this session. Turn the setting off if you want the meter and your home
-to carry over.
+**One setting changes both.** Settings > Gameplay > "Start every session
+from the default home" is off by default, so your home carries over
+between launches: the ship meter goes on from where it was, and the home
+save, and so the snapshots taken of it, hold your home as you left it.
+With the setting on, only your character carries between launches. The
+ship meter then starts over each time the game starts, and the home
+save keeps your character on top of the last home saved while the
+setting was off, rather than your home as you left it this session.
 
 What the game does not do: it keeps no garden diary, harvest log or
 maintenance log for you. Those are yours to keep, in the game as in

@@ -505,17 +505,20 @@ eggs.
 
 **Two settings change this.**
 
-- **Play mode.** During development the game starts in the Dev play mode
-  (Settings > Gameplay > Play mode). In Dev, as in Creative, materials
-  are free while the Creative mode switch on the Inventory page is on,
-  which it is unless you turn it off, so the cooking recipes need no
-  eggs. Collecting eggs, spoilage and the risk of raw eggs work the same
-  in every mode.
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which is also the default
-  during development, only your character carries between launches. The
-  eggs you collected are gone at the next launch, and the three hens
-  start it with an egg each, ready.
+- **Play mode.** The game starts in the Normal play mode (Settings >
+  Gameplay > Play mode), where the cooking recipes use up the eggs they
+  call for. In Creative, or in Dev if you choose it, materials are free
+  while the Creative mode switch on the Inventory page is on, which it
+  is unless you turn it off, so those recipes use up no eggs, though the
+  Crafting page still wants them on hand. Collecting eggs, spoilage and
+  the risk of raw eggs work the same in every mode.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so your progress is
+  kept between launches: the eggs you collected are still in your pack
+  or the home's storage, and each hen keeps her time to her next egg.
+  With the setting on, only your character carries between launches:
+  the eggs are gone at the next launch, and the three hens start it with
+  an egg each, ready.
 
 What the game leaves out, so you do not learn it from the game: its hens
 need no feed, no water, no house, no light and no cleaning; they never

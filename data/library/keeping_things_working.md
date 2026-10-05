@@ -571,23 +571,22 @@ one thing in the garden.
 
 **Two settings change this.**
 
-- **Play mode.** During development the game starts in the Dev play mode
-  (Settings > Gameplay > Play mode), and in Dev, as in Creative,
-  nothing is used up and no tool wears: hoeing needs no hoe at all, and
-  laying a row cover takes no pieces from your pack. Crafting is the
-  exception to "needs no tools": the Craft button still wants the
-  recipe's parts in your backpack or your home's storage and its tools
-  in your backpack; it just does not use them up or wear the tools. The
-  Crafting page's "Dev: stock all materials" button fills in every
-  recipe's parts, but not its tools.
-  Only the soap bar wears in every mode. To see tools wear, switch Play
-  mode to Normal.
-- **Starting from the default home.** While Settings > Gameplay > "Start
-  every session from the default home" is on, which is also the default
-  during development, only your character carries between launches, so
-  a worn tool starts the next session as it was in the default home.
-  Turn the setting off to keep your tools, and their wear, from one
-  session to the next.
+- **Play mode.** The game starts in the Normal play mode (Settings >
+  Gameplay > Play mode), where all of the wear above happens. In
+  Creative, or in Dev if you choose it, while the Inventory page's
+  Creative mode switch is on, nothing is used up and no tool wears:
+  hoeing needs no hoe at all, and laying a row cover takes no pieces
+  from your pack. Crafting is the exception to "needs no tools": the
+  Craft button still wants the recipe's parts in your backpack or your
+  home's storage and its tools in your backpack; it just does not use
+  them up or wear the tools. In Dev, the Crafting page's "Dev: stock all
+  materials" button fills in every recipe's parts, but not its tools.
+  Only the soap bar wears in every mode.
+- **Starting from the default home.** Settings > Gameplay > "Start every
+  session from the default home" is off by default, so your tools, and
+  their wear, are kept from one session to the next. With the setting
+  on, only your character carries between launches, and a worn tool
+  starts the next session as it was in the default home.
 
 What the game simplifies, so you do not learn it from the game: there
 is no way to oil, sharpen or repair a tool, so a game tool simply runs

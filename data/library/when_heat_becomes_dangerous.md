@@ -531,15 +531,16 @@ rest of this guide.
   5 hours (`src/systems/body_heat.rs`, and the rule as the setting explains
   it in the game; the conversions and times are our arithmetic). Realistic
   shows the real balance.
-- **Body heat runs in every play mode,** including the default Dev mode;
-  only the developer flying mode switches the weather off your body.
-- **Nothing carries over, by default.** Your health, your vitals, your
-  core temperature among them, and the conditions on you are saved with
-  your game, so quitting neither cools nor heals you (`src/save_load.rs`).
-  But while Settings > Gameplay > "Start every session from the default
-  home" is on, which it is by default during development, every session
-  starts with a new body, and only your character's name, look and
-  clothes carry over.
+- **Body heat runs in every play mode,** the default Normal among them;
+  only the developer flying mode, a tool of the Dev play mode, switches
+  the weather off your body.
+- **Your body carries over.** Your health, your vitals, your core
+  temperature among them, and the conditions on you are saved with your
+  game, so quitting neither cools nor heals you (`src/save_load.rs`), and
+  with Settings > Gameplay > "Start every session from the default home"
+  off, as it is by default, the next launch brings them back as you left
+  them. With that setting on, every session starts with a new body, and
+  only your character's name, look and clothes carry over.
 
 What the game leaves out, so you do not learn it from the game: there is
 no heat index or HeatRisk forecast and no heat alert; no weather event in

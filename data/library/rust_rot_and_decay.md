@@ -482,9 +482,10 @@ The game models almost none of this yet.
 
 - **Nothing rusts, rots or weathers.** Metal tools do not rust, wood does
   not rot, and the walls, floors and machines of your home never decay.
-  A tool loses its uses only by being used, and in the default Dev play
-  mode it does not wear at all; the details are in [Keeping Things
-  Working](/library#keeping-things-working).
+  A tool loses its uses only by being used, as it does in the Normal
+  play mode the game starts in; in Creative and Dev it does not wear at
+  all while the Inventory page's Creative mode switch is on. The details
+  are in [Keeping Things Working](/library#keeping-things-working).
 - **A few garden things wear away.** A row cover left over a bed wears
   out after 365 garden days, the low end of the 1 to 3 years its
   extension source gives for the lightweight grade. A mulch of sawdust
@@ -492,8 +493,9 @@ The game models almost none of this yet.
   from the soil as they rot, as the extension sources say woody mulch
   does. The mulch works while garden weeds are switched on (Settings >
   Gameplay > Garden pests, diseases and weeds, set to Gentle by
-  default). In the default Dev play mode, laying a cover or a
-  mulch takes nothing from your pack.
+  default). In the Normal play mode, the default, laying a cover or a
+  mulch takes it from your pack; in Creative and Dev, while the
+  Inventory page's Creative mode switch is on, it takes nothing.
 - **Food spoils.** Food spoils on a timer set by the kind of food,
   wherever it is kept, faster in heat and slower in the cold (slowest in
   the home's Freezer), and spoiled food gives a quarter of its
