@@ -9,6 +9,8 @@ mod away_tests;
 pub mod home_store;
 #[cfg(test)]
 mod home_store_tests;
+#[cfg(test)]
+mod machine_inputs_tests;
 pub mod quality;
 pub mod tools;
 pub mod workstations;
@@ -1008,11 +1010,19 @@ impl System for CraftingSystem {
         // ── AutoRefine machines (economy automation Phase 1, v0.663) ──
         // Each home machine carrying an AutoRefine marker (smelter -> smelt_iron,
         // workbench -> craft_hammer; data-driven from home.ron's `auto_recipe`)
-        // continuously runs its recipe against the HOME (player) inventory: when
-        // the inputs are in stock and the machine has no craft already in flight,
-        // consume the inputs now and queue a timed craft whose `crafter` is the
-        // MACHINE entity (so multiple machines run concurrently); completion
-        // redirects the outputs back into the home inventory (`auto` flag).
+        // continuously runs its recipe against HOME STORAGE: when the inputs are
+        // in stock there and the machine has no craft already in flight, consume
+        // the inputs now and queue a timed craft whose `crafter` is the MACHINE
+        // entity (so multiple machines run concurrently); completion files the
+        // outputs in home storage (`auto` flag).
+        //
+        // Never the player's backpack (BUG-150, 2026-10-04): in real life a
+        // machine takes what is put into it or what is in the store it is fed
+        // from, never what is in your pockets. It drew from the backpack first,
+        // so the home's sawmill sawed the 10 logs "Dev: stock all materials" had
+        // just put in the backpack before the player could build the raft that
+        // needs 6 of them. The drone now unloads into home storage too
+        // (`mining::deliver_haul`), so drone ore still feeds the smelter.
         // Deliberately bypasses the skill gate -- owning the machine IS the
         // unlock; the machine does the work, not the player's hands.
         //
@@ -1036,12 +1046,13 @@ impl System for CraftingSystem {
         let mut statuses: Vec<String> = Vec::new();
         if let (Some(recipes), Some(player_e), false) = (recipe_registry, player, ran_away) {
             // Home-storage stock (v0.737, operator field report: "there IS
-            // iron in my inventory and/or garage"): auto machines also draw
-            // from the home's organize-layer containers (garage bags, trunks,
-            // duffels). lib.rs mirrors the placed-item counts into this shared
-            // map right before the tick and drains whatever we consume from it
-            // back out of the GUI containers right after. Backpack is consumed
-            // FIRST, home storage covers the remainder.
+            // iron in my inventory and/or garage"): the home's organize-layer
+            // containers (the Barn's crates, garage bags, trunks, duffels).
+            // lib.rs mirrors the placed-item counts into this shared map right
+            // before the tick and drains whatever we consume from it back out
+            // of the GUI containers right after. Since BUG-150 it is the ONLY
+            // stock a machine draws on (with the tanks for tap water); absent
+            // (headless) there is nothing to draw on and the machines wait.
             let home_stock = data
                 .get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock");
             let home_count = |id: &str| -> u32 {
@@ -1088,22 +1099,24 @@ impl System for CraftingSystem {
                 let blocked: Option<String> = match world.get::<&Inventory>(player_e) {
                     Ok(inv) => {
                         // First missing input, by name, with the shortfall.
-                        // Counts the backpack AND home storage (v0.737) — the
-                        // v0.735 "in your backpack" qualifier is gone because
-                        // ore stashed into a clothing bag now genuinely feeds
-                        // the smelter.
+                        // Counts home storage and, for tap water, the tanks:
+                        // never the backpack (BUG-150), and the line says
+                        // where the machine looks, so logs in the backpack
+                        // beside an idle sawmill are never a mystery.
                         let missing = recipe.inputs.iter().find_map(|(id, qty)| {
-                            let have = inv.count_item(id)
-                                + home_count(id)
+                            let have = home_count(id)
                                 + fluids.map_or(0, |t| crate::systems::fluids::tap_units(t, world, id));
                             (have < *qty).then(|| {
                                 let name = item_registry
                                     .and_then(|r| r.items.get(id).map(|d| d.name.clone()))
                                     .unwrap_or_else(|| id.clone());
-                                format!("waiting for {name} x{}", qty - have)
+                                format!("waiting for {name} x{} in home storage", qty - have)
                             })
                         });
-                        // Enough on hand (2026-09-26): the machine rests.
+                        // Enough on hand (2026-09-26): the machine rests. On
+                        // hand counts the backpack as well (counting is not
+                        // taking): a mill rests while the player carries the
+                        // flour its keep target asks for.
                         let stocked = keep.zip(recipe.outputs.first()).and_then(|(k, (out, _))| {
                             (inv.count_item(out) + home_count(out) >= k).then(|| {
                                 let name = item_registry
@@ -1183,33 +1196,24 @@ impl System for CraftingSystem {
                         continue;
                     }
                 }
-                // Consume backpack-first; whatever the pack lacks comes out of
-                // home storage (the map decrement is drained from the GUI's
-                // placed containers by lib.rs right after this tick).
+                // Consume from home storage (the map decrement is drained from
+                // the GUI's placed containers by lib.rs right after this tick).
+                // The backpack is never touched (BUG-150).
                 let mut owed_l = 0.0_f32;
-                if let Ok(mut inv) = world.get::<&mut Inventory>(player_e) {
-                    for (id, qty) in &recipe.inputs {
-                        let from_pack = inv.count_item(id).min(*qty);
-                        if from_pack > 0 {
-                            inv.remove_item(id, from_pack);
-                        }
-                        let remainder = qty - from_pack;
-                        if remainder > 0 {
-                            let mut from_home = 0;
-                            if let Some(m) = home_stock.as_ref() {
-                                if let Ok(mut s) = m.lock() {
-                                    if let Some(c) = s.get_mut(id) {
-                                        from_home = (*c).min(remainder);
-                                        *c = c.saturating_sub(remainder);
-                                    }
-                                }
-                            }
-                            // What storage lacked of a measure of tap water
-                            // comes from the tanks (2026-09-26).
-                            if let Some(l) = fluids.and_then(|t| t.tap_litres(id)) {
-                                owed_l += (remainder - from_home) as f32 * l;
+                for (id, qty) in &recipe.inputs {
+                    let mut from_home = 0;
+                    if let Some(m) = home_stock.as_ref() {
+                        if let Ok(mut s) = m.lock() {
+                            if let Some(c) = s.get_mut(id) {
+                                from_home = (*c).min(*qty);
+                                *c -= from_home;
                             }
                         }
+                    }
+                    // What storage lacked of a measure of tap water comes
+                    // from the tanks (2026-09-26).
+                    if let Some(l) = fluids.and_then(|t| t.tap_litres(id)) {
+                        owed_l += (qty - from_home) as f32 * l;
                     }
                 }
                 if owed_l > 0.0 {
@@ -2493,6 +2497,21 @@ mod auto_refine_tests {
         data
     }
 
+    /// Put `stock` in home storage, the only store an automated machine draws
+    /// on since BUG-150 (its inputs used to come from the backpack first). No
+    /// "home_stock_outputs" channel here, so a machine's goods land in the
+    /// backpack, as they do wherever there is no home storage to file into.
+    fn stock_home(data: &mut DataStore, stock: &[(&str, u32)]) {
+        let stock: std::collections::HashMap<String, u32> = stock.iter().map(|(id, q)| (id.to_string(), *q)).collect();
+        data.insert("home_stock", std::sync::Mutex::new(stock));
+    }
+
+    fn stored(data: &DataStore, id: &str) -> u32 {
+        data.get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock")
+            .and_then(|m| m.lock().ok().map(|s| s.get(id).copied().unwrap_or(0)))
+            .unwrap_or(0)
+    }
+
     /// A machine whose own vessel takes EVERY output still counts the craft
     /// (2026-09-25): the refinery filling its fuel drum used to return before
     /// the completion hook, so it gave no skill XP and no quest event.
@@ -2510,10 +2529,9 @@ mod auto_refine_tests {
             .expect("container registry"),
         );
         data.insert("xp_grants", std::sync::Mutex::new(Vec::<SkillXPEvent>::new()));
+        stock_home(&mut data, &[("oil_crude_0", 2)]);
         let mut world = hecs::World::new();
-        let mut inv = Inventory::new(16);
-        inv.add_item("oil_crude_0", 2, 10);
-        world.spawn((inv, Controllable));
+        world.spawn((Inventory::new(16), Controllable));
         let refinery = world.spawn((
             AutoRefine { recipe_id: "refine_fuel".to_string(), keep: None },
             Container::new("steel_fuel_drum", 200.0),
@@ -2529,17 +2547,15 @@ mod auto_refine_tests {
     }
 
     /// Economy automation Phase 1 (v0.663): a smelter machine with an AutoRefine
-    /// marker refines ore sitting in the HOME inventory into ingots with ZERO
-    /// craft clicks -- inputs consumed, timed batch, output back into the home
-    /// stock. No skill gate: owning the machine is the unlock.
+    /// marker refines ore sitting in HOME STORAGE into ingots with ZERO craft
+    /// clicks -- inputs consumed, timed batch, output delivered. No skill gate:
+    /// owning the machine is the unlock.
     #[test]
     fn auto_refine_smelts_home_stock_without_a_craft_click() {
-        let data = real_data();
+        let mut data = real_data();
+        stock_home(&mut data, &[("iron_ore_0", 2), ("coal_0", 1)]);
         let mut world = hecs::World::new();
-        let mut inv = Inventory::new(16);
-        inv.add_item("iron_ore_0", 2, 20);
-        inv.add_item("coal_0", 1, 99);
-        let player = world.spawn((inv, Controllable));
+        let player = world.spawn((Inventory::new(16), Controllable));
         world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string(), keep: None },));
 
         let mut sys = CraftingSystem::new();
@@ -2548,8 +2564,8 @@ mod auto_refine_tests {
         }
         let inv = world.get::<&Inventory>(player).unwrap();
         assert!(inv.has_item("iron_ingot_0", 1), "ore auto-refined into an ingot");
-        assert_eq!(inv.count_item("iron_ore_0"), 0, "inputs were consumed");
-        assert_eq!(inv.count_item("coal_0"), 0, "coal was consumed");
+        assert_eq!(stored(&data, "iron_ore_0"), 0, "inputs were consumed");
+        assert_eq!(stored(&data, "coal_0"), 0, "coal was consumed");
     }
 
     /// THE LIVING-ECOSYSTEM CHAIN (operator vision, 2026-07-01): commission ONE
@@ -2557,6 +2573,11 @@ mod auto_refine_tests {
     /// to the home stock, the smelter auto-refines it into an ingot, and the
     /// workbench auto-crafts the ingot + a wood plank into a hammer. Raw rock in
     /// space becomes a tool on the shelf with zero further interaction.
+    ///
+    /// Since BUG-150 (2026-10-04) the home stock is HOME STORAGE, as in a
+    /// session: the drone files its haul there and the machines draw only on
+    /// it, never on the backpack, and this test plays the main loop's part
+    /// (each tick, what was filed is put away). The backpack is never touched.
     #[test]
     fn full_chain_drone_ore_becomes_a_hammer_untouched() {
         use crate::ecs::components::AsteroidBody;
@@ -2566,13 +2587,26 @@ mod auto_refine_tests {
             "commission_drone",
             std::sync::Mutex::new(Option::<(String, Vec<(String, u32)>)>::None),
         );
+        // The home already holds the auxiliary inputs; the IRON comes from space.
+        stock_home(&mut data, &[("coal_0", 1), ("wood_plank_0", 1)]);
+        data.insert("home_stock_outputs", std::sync::Mutex::new(Vec::<(String, u32)>::new()));
+        // The main loop after each tick: what was filed joins home storage.
+        let put_away = |data: &DataStore| {
+            let filed: Vec<(String, u32)> = std::mem::take(
+                &mut *data.get::<std::sync::Mutex<Vec<(String, u32)>>>("home_stock_outputs").unwrap().lock().unwrap(),
+            );
+            let mut s = data
+                .get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock")
+                .unwrap()
+                .lock()
+                .unwrap();
+            for (id, q) in filed {
+                *s.entry(id).or_insert(0) += q;
+            }
+        };
 
         let mut world = hecs::World::new();
-        let mut inv = Inventory::new(16);
-        // The home already holds the auxiliary inputs; the IRON comes from space.
-        inv.add_item("coal_0", 1, 99);
-        inv.add_item("wood_plank_0", 1, 99);
-        let player = world.spawn((inv, Controllable));
+        let player = world.spawn((Inventory::new(16), Controllable));
         world.spawn((AsteroidBody {
             id: "rock".to_string(),
             name: "rock".to_string(),
@@ -2595,15 +2629,17 @@ mod auto_refine_tests {
         for _ in 0..60 {
             drones.tick(&mut world, 1.0, &data);
             crafting.tick(&mut world, 1.0, &data);
+            put_away(&data);
         }
 
-        let inv = world.get::<&Inventory>(player).unwrap();
         assert!(
-            inv.has_item("hammer_0", 1),
+            stored(&data, "hammer_0") >= 1,
             "drone ore should have become a hammer with zero interaction (have: ingots={}, ore={})",
-            inv.count_item("iron_ingot_0"),
-            inv.count_item("iron_ore_0"),
+            stored(&data, "iron_ingot_0"),
+            stored(&data, "iron_ore_0"),
         );
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert_eq!(inv.slots.iter().flatten().count(), 0, "the backpack was never touched");
     }
 
     /// Review fix (2026-07-01): creative mode must NOT turn auto machines into
@@ -2633,12 +2669,10 @@ mod auto_refine_tests {
     /// ingots from 2 ore + 1 coal). Exactly one batch's output may appear.
     #[test]
     fn two_machines_sharing_inputs_cannot_duplicate() {
-        let data = real_data();
+        let mut data = real_data();
+        stock_home(&mut data, &[("iron_ore_0", 2), ("coal_0", 1)]);
         let mut world = hecs::World::new();
-        let mut inv = Inventory::new(16);
-        inv.add_item("iron_ore_0", 2, 20);
-        inv.add_item("coal_0", 1, 99);
-        let player = world.spawn((inv, Controllable));
+        let player = world.spawn((Inventory::new(16), Controllable));
         world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string(), keep: None },));
         world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string(), keep: None },)); // second smelter
 
@@ -2659,20 +2693,15 @@ mod auto_refine_tests {
     /// the consumed inputs still come back as outputs into the home inventory.
     #[test]
     fn machine_despawned_mid_batch_still_delivers_to_home() {
-        let data = real_data();
+        let mut data = real_data();
+        stock_home(&mut data, &[("iron_ore_0", 2), ("coal_0", 1)]);
         let mut world = hecs::World::new();
-        let mut inv = Inventory::new(16);
-        inv.add_item("iron_ore_0", 2, 20);
-        inv.add_item("coal_0", 1, 99);
-        let player = world.spawn((inv, Controllable));
+        let player = world.spawn((Inventory::new(16), Controllable));
         let smelter = world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string(), keep: None },));
 
         let mut sys = CraftingSystem::new();
         sys.tick(&mut world, 1.0, &data); // batch starts (inputs consumed)
-        {
-            let inv = world.get::<&Inventory>(player).unwrap();
-            assert_eq!(inv.count_item("iron_ore_0"), 0, "batch consumed the ore");
-        }
+        assert_eq!(stored(&data, "iron_ore_0"), 0, "batch consumed the ore");
         world.despawn(smelter).unwrap(); // the world-reload despawn
         for _ in 0..12 {
             sys.tick(&mut world, 1.0, &data);
@@ -2699,11 +2728,9 @@ mod auto_refine_tests {
         let smelter = || (AutoRefine { recipe_id: "smelt_iron".to_string(), keep: None }, MachineInstanceId("smelter_1".to_string()));
 
         // Session 1: the batch starts and is 3 s in when the game closes.
+        stock_home(&mut data, &[("iron_ore_0", 4), ("coal_0", 2)]);
         let mut world = hecs::World::new();
-        let mut inv = Inventory::new(16);
-        inv.add_item("iron_ore_0", 4, 20);
-        inv.add_item("coal_0", 2, 99);
-        world.spawn((inv, Controllable));
+        world.spawn((Inventory::new(16), Controllable));
         world.spawn(smelter());
         let mut sys = CraftingSystem::new();
         sys.tick(&mut world, 3.0, &data);
@@ -2717,13 +2744,11 @@ mod auto_refine_tests {
         assert_eq!(saved[0].machine_id.as_deref(), Some("smelter_1"));
         assert!(saved[0].auto && (saved[0].time_remaining - 7.0).abs() < 1e-4);
 
-        // Session 2: the saved inventory (one batch already spent), a new
+        // Session 2: the saved home storage (one batch already spent), a new
         // system, the batch restored before the home's machines exist.
+        stock_home(&mut data, &[("iron_ore_0", 2), ("coal_0", 1)]);
         let mut world = hecs::World::new();
-        let mut inv = Inventory::new(16);
-        inv.add_item("iron_ore_0", 2, 20);
-        inv.add_item("coal_0", 1, 99);
-        let player = world.spawn((inv, Controllable));
+        let player = world.spawn((Inventory::new(16), Controllable));
         let mut sys = CraftingSystem::new();
         *data
             .get::<std::sync::Mutex<Option<Vec<CraftSave>>>>("restore_active_crafts")
@@ -2734,7 +2759,7 @@ mod auto_refine_tests {
         world.spawn(smelter()); // world entry spawns the machine: a NEW entity
         sys.tick(&mut world, 1.0, &data);
         assert_eq!(
-            world.get::<&Inventory>(player).unwrap().count_item("iron_ore_0"),
+            stored(&data, "iron_ore_0"),
             2,
             "the respawned machine is busy with the restored batch, not starting another"
         );
@@ -2743,7 +2768,7 @@ mod auto_refine_tests {
         }
         let inv = world.get::<&Inventory>(player).unwrap();
         assert_eq!(inv.count_item("iron_ingot_0"), 2, "the restored batch delivered, then the next one ran");
-        assert_eq!(inv.count_item("iron_ore_0"), 0);
+        assert_eq!(stored(&data, "iron_ore_0"), 0);
     }
 
     /// Review fix (2026-07-01): a FULL home inventory must stop batches from
@@ -2751,14 +2776,15 @@ mod auto_refine_tests {
     /// stock into overflow-discarded outputs.
     #[test]
     fn full_inventory_blocks_batch_start_without_consuming() {
-        let data = real_data();
+        let mut data = real_data();
+        // No home storage channel to file into, so the ingot would go to the
+        // backpack; the inputs wait in home storage (BUG-150).
+        stock_home(&mut data, &[("iron_ore_0", 4), ("coal_0", 2)]);
         let mut world = hecs::World::new();
         // A backpack with no VOLUME left for an ingot. (Until 2026-09-25 this
         // was "2 slots, both taken", but slots grow for any volume-legal add
         // since v0.735, so slots are not what makes a backpack full.)
         let mut inv = Inventory::new(2);
-        inv.add_item("iron_ore_0", 4, 20);
-        inv.add_item("coal_0", 2, 99);
         inv.volume_current_l = inv.volume_capacity_l;
         let player = world.spawn((inv, Controllable));
         world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string(), keep: None },));
@@ -2767,10 +2793,9 @@ mod auto_refine_tests {
         for _ in 0..25 {
             sys.tick(&mut world, 1.0, &data);
         }
-        let inv = world.get::<&Inventory>(player).unwrap();
-        assert_eq!(inv.count_item("iron_ore_0"), 4, "inputs untouched while outputs cannot fit");
-        assert_eq!(inv.count_item("coal_0"), 2, "coal untouched while outputs cannot fit");
-        assert_eq!(inv.count_item("iron_ingot_0"), 0);
+        assert_eq!(stored(&data, "iron_ore_0"), 4, "inputs untouched while outputs cannot fit");
+        assert_eq!(stored(&data, "coal_0"), 2, "coal untouched while outputs cannot fit");
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("iron_ingot_0"), 0);
     }
 
     /// Craft timers run on GAME time (v0.663): at time_scale 10 a 10s recipe
@@ -2781,12 +2806,10 @@ mod auto_refine_tests {
         let mut gt = crate::systems::time::GameTime::default();
         gt.time_scale = 10.0;
         data.insert("game_time", std::sync::Mutex::new(gt));
+        stock_home(&mut data, &[("iron_ore_0", 2), ("coal_0", 1)]);
 
         let mut world = hecs::World::new();
-        let mut inv = Inventory::new(16);
-        inv.add_item("iron_ore_0", 2, 20);
-        inv.add_item("coal_0", 1, 99);
-        let player = world.spawn((inv, Controllable));
+        let player = world.spawn((Inventory::new(16), Controllable));
         world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string(), keep: None },));
 
         let mut sys = CraftingSystem::new();
@@ -2840,10 +2863,25 @@ mod vehicle_factory_tests {
         data
     }
 
+    /// One rover's materials in the BACKPACK: what a hand craft spends.
     fn rover_materials(inv: &mut Inventory) {
         inv.add_item("steel_ingot_0", 6, 20);
         inv.add_item("iron_ingot_0", 4, 20);
         inv.add_item("rubber_sheet_0", 4, 10);
+    }
+
+    /// One rover's materials in HOME STORAGE, the only store the assembler,
+    /// an automated machine, draws on since BUG-150.
+    fn rover_materials_at_home(data: &mut DataStore) {
+        let stock: std::collections::HashMap<String, u32> =
+            [("steel_ingot_0", 6), ("iron_ingot_0", 4), ("rubber_sheet_0", 4)].iter().map(|(id, q)| (id.to_string(), *q)).collect();
+        data.insert("home_stock", std::sync::Mutex::new(stock));
+    }
+
+    fn stored(data: &DataStore, id: &str) -> u32 {
+        data.get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock")
+            .and_then(|m| m.lock().ok().map(|s| s.get(id).copied().unwrap_or(0)))
+            .unwrap_or(0)
     }
 
     fn assembler_at(world: &mut hecs::World, pos: glam::Vec3) -> hecs::Entity {
@@ -2866,11 +2904,10 @@ mod vehicle_factory_tests {
     /// vehicle is a world entity, NOT an inventory item.
     #[test]
     fn auto_assembler_rolls_a_rover_onto_the_pad() {
-        let data = factory_data();
+        let mut data = factory_data();
+        rover_materials_at_home(&mut data);
         let mut world = hecs::World::new();
-        let mut inv = Inventory::new(16);
-        rover_materials(&mut inv);
-        let player = world.spawn((inv, Controllable));
+        let player = world.spawn((Inventory::new(16), Controllable));
         let machine_pos = glam::Vec3::new(10.0, 0.0, -4.0);
         assembler_at(&mut world, machine_pos);
 
@@ -2896,33 +2933,31 @@ mod vehicle_factory_tests {
         );
         let inv = world.get::<&Inventory>(player).unwrap();
         assert_eq!(inv.count_item("rover_0"), 0, "the rover is NOT an inventory item");
-        assert_eq!(inv.count_item("steel_ingot_0"), 0, "steel consumed");
-        assert_eq!(inv.count_item("iron_ingot_0"), 0, "iron consumed");
-        assert_eq!(inv.count_item("rubber_sheet_0"), 0, "rubber consumed");
+        assert_eq!(stored(&data, "steel_ingot_0"), 0, "steel consumed");
+        assert_eq!(stored(&data, "iron_ingot_0"), 0, "iron consumed");
+        assert_eq!(stored(&data, "rubber_sheet_0"), 0, "rubber consumed");
     }
 
     /// v0.737 (operator field report: "there IS iron in my inventory and/or
-    /// garage"): auto machines draw from HOME STORAGE too. Backpack is
-    /// consumed first; the shortfall comes out of the mirrored home-stock map
-    /// (lib.rs drains that decrement from the GUI containers after the tick).
+    /// garage"): auto machines draw from HOME STORAGE, the mirrored home-stock
+    /// map (lib.rs drains that decrement from the GUI containers after the
+    /// tick). Since BUG-150 (2026-10-04) it is the only place they draw from:
+    /// a backpack holding a whole rover's materials is left alone, and the
+    /// rover is built from what home storage holds, its spare steel kept.
+    /// (Until BUG-150 this test pinned the opposite, "backpack first".)
     #[test]
-    fn auto_machine_draws_missing_inputs_from_home_stock() {
-        let data = {
-            let mut d = factory_data();
-            // Garage holds the rubber the backpack lacks (plus spare steel that
-            // must NOT be touched — the pack already covers steel in full).
-            let mut stock = std::collections::HashMap::new();
-            stock.insert("rubber_sheet_0".to_string(), 3u32);
-            stock.insert("steel_ingot_0".to_string(), 5u32);
-            d.insert("home_stock", std::sync::Mutex::new(stock));
-            d
-        };
+    fn auto_machine_builds_from_home_stock_and_leaves_the_backpack_alone() {
+        let mut data = factory_data();
+        rover_materials_at_home(&mut data);
+        data.get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .insert("steel_ingot_0".to_string(), 11); // one rover's 6, and 5 spare
         let mut world = hecs::World::new();
         let mut inv = Inventory::new(16);
-        inv.add_item("steel_ingot_0", 6, 20);
-        inv.add_item("iron_ingot_0", 4, 20);
-        inv.add_item("rubber_sheet_0", 1, 10); // recipe needs 4 — 3 short
-        world.spawn((inv, Controllable));
+        rover_materials(&mut inv); // a whole rover's worth, carried
+        let player = world.spawn((inv, Controllable));
         assembler_at(&mut world, glam::Vec3::ZERO);
 
         let mut sys = CraftingSystem::new();
@@ -2930,22 +2965,14 @@ mod vehicle_factory_tests {
             sys.tick(&mut world, 1.0, &data);
         }
 
-        assert_eq!(vehicles(&mut world).len(), 1, "rover built from pack + home storage");
-        let stock = data
-            .get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock")
-            .unwrap()
-            .lock()
-            .unwrap()
-            .clone();
+        assert_eq!(vehicles(&mut world).len(), 1, "rover built from home storage");
+        assert_eq!(stored(&data, "rubber_sheet_0"), 0, "home storage gave the rubber");
+        assert_eq!(stored(&data, "steel_ingot_0"), 5, "and the steel, its 5 spare kept");
+        let inv = world.get::<&Inventory>(player).unwrap();
         assert_eq!(
-            stock.get("rubber_sheet_0").copied().unwrap_or(0),
-            0,
-            "home storage covered the 3 missing rubber sheets"
-        );
-        assert_eq!(
-            stock.get("steel_ingot_0").copied().unwrap_or(0),
-            5,
-            "backpack-first: fully-stocked inputs never touch home storage"
+            (inv.count_item("steel_ingot_0"), inv.count_item("iron_ingot_0"), inv.count_item("rubber_sheet_0")),
+            (6, 4, 4),
+            "the backpack is left alone"
         );
     }
 
@@ -2954,13 +2981,15 @@ mod vehicle_factory_tests {
     /// production proceeds where a normal recipe would be blocked.
     #[test]
     fn full_inventory_does_not_block_the_assembly_line() {
-        let data = factory_data();
+        let mut data = factory_data();
+        rover_materials_at_home(&mut data);
         let mut world = hecs::World::new();
-        // Exactly 4 slots: 3 hold the materials, 1 holds junk. ZERO free slots
-        // and no stack headroom for anything new.
+        // Exactly 4 slots, all holding junk. ZERO free slots and no stack
+        // headroom for anything new.
         let mut inv = Inventory::new(4);
-        rover_materials(&mut inv);
-        inv.add_item("hammer_0", 1, 1);
+        for junk in ["hammer_0", "bandage_0", "wrench_0", "rope_0"] {
+            inv.add_item(junk, 1, 1);
+        }
         assert_eq!(inv.slots.iter().filter(|s| s.is_none()).count(), 0, "no free slot");
         world.spawn((inv, Controllable));
         assembler_at(&mut world, glam::Vec3::ZERO);
@@ -2976,11 +3005,10 @@ mod vehicle_factory_tests {
     /// must not lose the vehicle: it rolls out at the pad captured at START.
     #[test]
     fn machine_despawned_mid_batch_still_rolls_out_at_the_pad() {
-        let data = factory_data();
+        let mut data = factory_data();
+        rover_materials_at_home(&mut data);
         let mut world = hecs::World::new();
-        let mut inv = Inventory::new(16);
-        rover_materials(&mut inv);
-        world.spawn((inv, Controllable));
+        world.spawn((Inventory::new(16), Controllable));
         let machine_pos = glam::Vec3::new(-7.0, 0.0, 2.0);
         let machine = assembler_at(&mut world, machine_pos);
 
@@ -3062,14 +3090,13 @@ mod vehicle_factory_tests {
             .clone();
         assert_eq!(status.len(), 1);
         assert!(
-            status[0].contains("waiting for Steel Ingot x6"),
-            "idle line names the first missing input: {status:?}"
+            status[0].contains("waiting for Steel Ingot x6 in home storage"),
+            "idle line names the first missing input and where it looks: {status:?}"
         );
 
-        // Stock the materials: the next ticks report starting, then a percent.
-        for (_e, (inv, _c)) in world.query_mut::<(&mut Inventory, &Controllable)>() {
-            rover_materials(inv);
-        }
+        // Stock the materials in home storage (BUG-150: where the machine
+        // looks): the next ticks report starting, then a percent.
+        rover_materials_at_home(&mut data);
         sys.tick(&mut world, 1.0, &data); // starts
         for _ in 0..59 {
             sys.tick(&mut world, 1.0, &data); // ~60s into the 120s batch
@@ -3170,6 +3197,19 @@ mod factory_review_fix_tests {
         data
     }
 
+    /// Materials in HOME STORAGE, the only store the assembler, an automated
+    /// machine, draws on since BUG-150.
+    fn stock_home(data: &mut DataStore, stock: &[(&str, u32)]) {
+        let stock: std::collections::HashMap<String, u32> = stock.iter().map(|(id, q)| (id.to_string(), *q)).collect();
+        data.insert("home_stock", std::sync::Mutex::new(stock));
+    }
+
+    fn stored(data: &DataStore, id: &str) -> u32 {
+        data.get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock")
+            .and_then(|m| m.lock().ok().map(|s| s.get(id).copied().unwrap_or(0)))
+            .unwrap_or(0)
+    }
+
     fn assembler_at(world: &mut hecs::World, pos: glam::Vec3) -> hecs::Entity {
         world.spawn((
             AutoRefine { recipe_id: "assemble_rover".to_string(), keep: None },
@@ -3190,14 +3230,11 @@ mod factory_review_fix_tests {
     /// batch spawned coincident rovers at the identical pad point.
     #[test]
     fn second_batch_parks_in_the_next_lane() {
-        let data = factory_data();
-        let mut world = hecs::World::new();
-        let mut inv = Inventory::new(16);
+        let mut data = factory_data();
         // Materials for exactly TWO rovers.
-        inv.add_item("steel_ingot_0", 12, 20);
-        inv.add_item("iron_ingot_0", 8, 20);
-        inv.add_item("rubber_sheet_0", 8, 10);
-        world.spawn((inv, Controllable));
+        stock_home(&mut data, &[("steel_ingot_0", 12), ("iron_ingot_0", 8), ("rubber_sheet_0", 8)]);
+        let mut world = hecs::World::new();
+        world.spawn((Inventory::new(16), Controllable));
         assembler_at(&mut world, glam::Vec3::ZERO);
 
         let mut sys = CraftingSystem::new();
@@ -3219,13 +3256,10 @@ mod factory_review_fix_tests {
     /// extended to pad space). Freeing a lane resumes production.
     #[test]
     fn assembly_line_pauses_when_the_pad_is_full_and_resumes_when_freed() {
-        let data = factory_data();
+        let mut data = factory_data();
+        stock_home(&mut data, &[("steel_ingot_0", 6), ("iron_ingot_0", 4), ("rubber_sheet_0", 4)]);
         let mut world = hecs::World::new();
-        let mut inv = Inventory::new(16);
-        inv.add_item("steel_ingot_0", 6, 20);
-        inv.add_item("iron_ingot_0", 4, 20);
-        inv.add_item("rubber_sheet_0", 4, 10);
-        let player = world.spawn((inv, Controllable));
+        world.spawn((Inventory::new(16), Controllable));
         assembler_at(&mut world, glam::Vec3::ZERO);
         // Park a vehicle in EVERY lane.
         let mut parked = Vec::new();
@@ -3250,14 +3284,7 @@ mod factory_review_fix_tests {
         for _ in 0..130 {
             sys.tick(&mut world, 1.0, &data);
         }
-        {
-            let inv = world.get::<&Inventory>(player).unwrap();
-            assert_eq!(
-                inv.count_item("steel_ingot_0"),
-                6,
-                "full pad: the line PAUSES with inputs unconsumed"
-            );
-        }
+        assert_eq!(stored(&data, "steel_ingot_0"), 6, "full pad: the line PAUSES with inputs unconsumed");
         assert_eq!(
             rover_positions(&mut world).len() as u32,
             MAX_PAD_LANES,
@@ -3269,10 +3296,7 @@ mod factory_review_fix_tests {
         for _ in 0..130 {
             sys.tick(&mut world, 1.0, &data);
         }
-        {
-            let inv = world.get::<&Inventory>(player).unwrap();
-            assert_eq!(inv.count_item("steel_ingot_0"), 0, "line resumed once a lane freed");
-        }
+        assert_eq!(stored(&data, "steel_ingot_0"), 0, "line resumed once a lane freed");
         assert_eq!(
             rover_positions(&mut world).len() as u32,
             MAX_PAD_LANES,
@@ -3286,13 +3310,10 @@ mod factory_review_fix_tests {
     /// the batch's rover (materials + vehicle from one batch of inputs).
     #[test]
     fn world_rewind_aborts_in_flight_batches() {
-        let data = factory_data();
+        let mut data = factory_data();
+        stock_home(&mut data, &[("steel_ingot_0", 6), ("iron_ingot_0", 4), ("rubber_sheet_0", 4)]);
         let mut world = hecs::World::new();
-        let mut inv = Inventory::new(16);
-        inv.add_item("steel_ingot_0", 6, 20);
-        inv.add_item("iron_ingot_0", 4, 20);
-        inv.add_item("rubber_sheet_0", 4, 10);
-        world.spawn((inv, Controllable));
+        world.spawn((Inventory::new(16), Controllable));
         assembler_at(&mut world, glam::Vec3::ZERO);
 
         let mut sys = CraftingSystem::new();
