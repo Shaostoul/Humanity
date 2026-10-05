@@ -57,7 +57,7 @@
     },
     {
       "name": "Set how fast the shared world's clock runs",
-      "what": "Sets the speed of the shared world's one clock, for everyone in it: the sun, crops, water tanks, batteries, weather and each player's hunger and thirst. 72x on a new server (a day in 20 real minutes; a 45-day lettuce in about 15 hours). The section says in words what the picked speed means, from the data. Takes effect at once for every connected game, without a restart, and the world keeps its date.",
+      "what": "Sets the speed of the shared world's one clock, for everyone in it: the sun, crops, water tanks, batteries, weather and each player's hunger and thirst. Real time (1x) on a new server: a day takes a real day and a 45-day lettuce its real 45 days (at the Simplified 72x a day passes in 20 real minutes and the lettuce grows in about 15 hours). The section says in words what the picked speed means, from the data. Takes effect at once for every connected game, without a restart, and the world keeps its date.",
       "where": "native-app",
       "audience": "any-admin",
       "how": "Server Settings > ADMIN > Shared world clock: pick Realistic (1x), A day an hour (24x), Simplified (72x), Garden testing (720x) or a custom speed (1 to 1000), then Apply to the shared world (src/gui/pages/world_clock_admin.rs; server_settings_update with world_time_scale, src/relay/handlers/server_settings_update.rs set_world_clock; saved as server_settings.world_time_scale).",

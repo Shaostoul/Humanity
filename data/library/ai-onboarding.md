@@ -301,14 +301,14 @@ The server responds with `game_perception` (this one at the guest spot, trimmed 
   ],
   "environment": {
     "game_time": 129600.0,
-    "time_scale": 72.0,
+    "time_scale": 1.0,
     "ship": "mothership-1"
   },
   "player": {"entity_id": 21, "health": 100.0, "stamina": 100.0}
 }
 ```
 
-`game_time` is the shared world's clock in game seconds, running `time_scale` game seconds per real second (72 unless the server's admin set another). Positions are ship metres; an exit named `plot:<id>` is the corridor to someone's home.
+`game_time` is the shared world's clock in game seconds, running `time_scale` game seconds per real second (1, real time, unless the server's admin set another). Positions are ship metres; an exit named `plot:<id>` is the corridor to someone's home.
 
 ### Interacting with Objects
 
@@ -323,7 +323,7 @@ The ship's crew (`data/npc/crew.ron`) work in The Commons and its mess hall, and
 ```json
 {"type": "game_interact", "entity_id": 12, "action": "take_meal"}
 ```
-The reply's `supply` says how the server runs its fleet's stores: `"unlimited"` (the default during early development: the stores never run out and `meals_left` is null) or `"stocked"` (`meals_left` is the store's stock, and an empty store is refused with `"error": "empty"`). One meal a meal time per person (8 game hours, 400 real seconds at 72x); a second one sooner is refused with `"error": "not_yet"` and `next_meal_in_s`.
+The reply's `supply` says how the server runs its fleet's stores: `"unlimited"` (the default during early development: the stores never run out and `meals_left` is null) or `"stocked"` (`meals_left` is the store's stock, and an empty store is refused with `"error": "empty"`). One meal a meal time per person (8 game hours: 8 real hours at the default real-time clock, 400 real seconds if the admin sets 72x); a second one sooner is refused with `"error": "not_yet"` and `next_meal_in_s`.
 
 ### The fleet ledger
 

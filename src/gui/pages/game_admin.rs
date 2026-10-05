@@ -35,7 +35,7 @@ pub fn draw_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.add_space(theme.spacing_md);
     draw_plot_release(ui, theme, state);
     ui.add_space(theme.spacing_md);
-    // How fast the shared world's clock runs (2026-10-04, 72x by default).
+    // How fast the shared world's clock runs (2026-10-04, real time by default).
     super::world_clock_admin::draw(ui, theme, state);
     ui.add_space(theme.spacing_md);
     // Whether the fleet's stores can run out, and the fleet's totals (2026-10-04).
