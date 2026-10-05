@@ -12797,6 +12797,11 @@ mod native_app {
                         // One drone per player: the panel shows the active drone +
                         // disables Launch while one is in flight.
                         state.gui_state.drone_active = !state.gui_state.drones.is_empty();
+                        // Keep mining the drone ended by itself (a trip came back
+                        // empty, or its asteroid is gone) unticks the box to match
+                        // (first-hour audit 2026-10-04, Friction 5).
+                        let has_order = crate::systems::mining::standing_order(&state.data_store).is_some();
+                        crate::gui::pages::inventory::sync_keep_mining(&mut state.gui_state, has_order);
                         // World vehicles (Stage 3, v0.680): name + distance from the
                         // player + transit state, for the Inventory Vehicles section.
                         state.gui_state.vehicles.clear();

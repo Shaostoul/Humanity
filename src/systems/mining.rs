@@ -42,9 +42,12 @@ enum DroneIntent {
         manifest: Vec<(String, u32)>,
     },
     /// Deliver the drone's whole `cargo` into `home`'s inventory, then despawn it.
+    /// `target` and `manifest` are the trip's, for when it comes back empty.
     Deliver {
         drone: hecs::Entity,
         home: u64,
+        target: String,
+        manifest: Vec<(String, u32)>,
         cargo: Vec<(String, u32)>,
     },
 }
@@ -152,6 +155,8 @@ impl System for DroneSystem {
                     intents.push(DroneIntent::Deliver {
                         drone: entity,
                         home: drone.home,
+                        target: drone.target.clone(),
+                        manifest: drone.manifest.clone(),
                         cargo: drone.cargo.clone(),
                     });
                 }
@@ -169,11 +174,14 @@ impl System for DroneSystem {
                         d.cargo = collected;
                     }
                 }
-                DroneIntent::Deliver { drone, home, cargo } => {
+                DroneIntent::Deliver { drone, home, target, manifest, cargo } => {
                     deliver_haul(world, data, item_registry, home, &cargo);
                     let _ = world.despawn(drone);
                     // (Standing-order relaunch happens at TICK level above, not
                     // here -- see the refire block after the commission drain.)
+                    if !cargo.iter().any(|(_, q)| *q > 0) {
+                        came_back_empty(world, data, item_registry, &target, &manifest);
+                    }
                 }
             }
         }
@@ -302,6 +310,56 @@ fn deliver_haul(
     total
 }
 
+/// A trip came home with nothing: its asteroid holds none of what the trip
+/// asked for, so every trip after it would come home empty too. A standing
+/// order for that asteroid ends here, and the player is told either way
+/// (first-hour audit 2026-10-04, Friction 5: an asteroid outlives one of its
+/// ores, since it is deleted only when every ore is gone, and Keep mining used
+/// to relaunch empty trips forever, with the drone never home). The order is
+/// matched by its asteroid, as `launch` ends one whose asteroid is gone.
+fn came_back_empty(
+    world: &hecs::World,
+    data: &DataStore,
+    item_registry: Option<&ItemRegistry>,
+    target: &str,
+    manifest: &[(String, u32)],
+) {
+    let mut ended = false;
+    if let Some(slot) = data.get::<std::sync::Mutex<Option<(String, Vec<(String, u32)>)>>>("auto_mine_order") {
+        if let Ok(mut s) = slot.lock() {
+            if s.as_ref().is_some_and(|(t, _)| t == target) {
+                *s = None;
+                ended = true;
+            }
+        }
+    }
+    let rock = world
+        .query::<&AsteroidBody>()
+        .iter()
+        .find(|(_, a)| a.id == target)
+        .map(|(_, a)| a.name.clone())
+        .unwrap_or_else(|| target.to_string());
+    let ores: Vec<String> = manifest
+        .iter()
+        .map(|(ore, _)| item_registry.and_then(|r| r.items.get(ore)).map(|d| d.name.clone()).unwrap_or_else(|| ore.clone()))
+        .collect();
+    let what = match ores.as_slice() {
+        [] => "ore of the kind it was sent for".to_string(),
+        [one] => one.clone(),
+        [rest @ .., last] => format!("{} or {last}", rest.join(", ")),
+    };
+    let mut line = format!("The drone came back empty from {rock}: it holds no more {what}.");
+    if ended {
+        line.push_str(" Keep mining is off.");
+    }
+    log::info!("[Mining] {line}");
+    if let Some(slot) = data.get::<std::sync::Mutex<Vec<String>>>("player_notices") {
+        if let Ok(mut n) = slot.lock() {
+            n.push(line);
+        }
+    }
+}
+
 /// DELETE fully-consumed asteroids (the operator's "deleted when consumed").
 fn remove_mined_out(world: &mut hecs::World) {
     let depleted: Vec<hecs::Entity> = world
@@ -409,17 +467,25 @@ pub fn advance_away(world: &mut hecs::World, data: &DataStore, secs: f64) -> Vec
                 DronePhase::Returning | DronePhase::Done => {
                     deliver_haul(world, data, item_registry, d.home, &d.cargo);
                     let _ = world.despawn(drone_e);
-                    break Some(d.cargo.clone());
+                    break Some(d);
                 }
             }
         };
-        remove_mined_out(world);
-        match delivered {
-            Some(cargo) if cargo.iter().any(|(_, q)| *q > 0) => hauls.push((t, cargo)),
+        let Some(d) = delivered else {
+            remove_mined_out(world);
+            break;
+        };
+        if !d.cargo.iter().any(|(_, q)| *q > 0) {
             // An empty trip: the asteroid holds none of what the order asks
-            // for, so every further trip would come home empty too.
-            _ => break,
+            // for, so every further trip would come home empty too. It ends
+            // the order, as in a session, rather than leaving the session one
+            // more empty trip to fly on its first frame back.
+            came_back_empty(world, data, item_registry, &d.target, &d.manifest);
+            remove_mined_out(world);
+            break;
         }
+        remove_mined_out(world);
+        hauls.push((t, d.cargo));
     }
     hauls
 }
@@ -785,6 +851,75 @@ mod drone_tests {
         let (_, d) = world.query::<&Drone>().iter().next().map(|(e, d)| (e, d.clone())).expect("in the air");
         assert_eq!((d.phase, d.phase_time), (DronePhase::Mining, 1.0), "2 s out, then 1 s of mining");
         assert_eq!(d.cargo, vec![("iron_ore_0".to_string(), 4)], "its hold already filled");
+    }
+
+    /// KEEP MINING ENDS WHEN A TRIP COMES BACK EMPTY, and says so (first-hour
+    /// audit 2026-10-04, Friction 5). An asteroid is deleted only when EVERY
+    /// ore in it is gone, so once the ore an order asks for runs out the rock
+    /// stays, and the standing order used to relaunch an empty trip forever:
+    /// the drone was never home, so the asteroid cards (which ignore clicks
+    /// while a drone is out) never opened and the Keep mining box could not be
+    /// reached from the Mining page. Here the rock holds 4 iron and 50 nickel:
+    /// the first trip brings the 4 iron, the second comes back empty, the
+    /// order ends with a line naming the rock and the ore, and nothing flies
+    /// again while the nickel stays where it is.
+    ///
+    /// Seen red 2026-10-04 on the code before the fix: "the order ends when a
+    /// trip comes back empty / left: Some((\"rock\", [(\"iron_ore_0\", 10)])) / right: None".
+    #[test]
+    fn an_empty_trip_ends_keep_mining_and_says_so() {
+        let mut data = make_store();
+        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        set_order(&mut data, Some(("rock", vec![("iron_ore_0", 10)])));
+        let mut world = hecs::World::new();
+        let player = world.spawn((Inventory::new(16), Controllable));
+        world.spawn((AsteroidBody {
+            id: "rock".to_string(),
+            name: "Asteroid R-1".to_string(),
+            classification: "M".into(),
+            ores: vec![("iron_ore_0".to_string(), 4.0), ("nickel_ore_0".to_string(), 50.0)],
+            position: [0.0, 0.0, 0.0],
+        },));
+        let mut sys = DroneSystem::new();
+        // A trip at the origin is 2 s out, 5 s mining and 2 s back, plus a tick to
+        // launch: 60 s is the first trip, the empty second one, and time to spare.
+        for _ in 0..60 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("iron_ore_0"), 4, "the first trip's iron");
+        let order = standing_order(&data);
+        assert_eq!(order, None, "the order ends when a trip comes back empty / left: {order:?} / right: None");
+        let notices = data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap().clone();
+        assert!(
+            notices.iter().any(|n| n.contains("came back empty")
+                && n.contains("Asteroid R-1")
+                && n.contains("Iron Ore")
+                && n.contains("Keep mining is off")),
+            "the player is told why the drone stopped: {notices:?}"
+        );
+        for _ in 0..60 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        assert_eq!(world.query::<&Drone>().iter().count(), 0, "no more empty trips");
+        assert_eq!(world.query::<&AsteroidBody>().iter().count(), 1, "the rock keeps its nickel");
+    }
+
+    /// The same while the player is away: the empty trip that ends the
+    /// catch-up ends the order too, and says so, so the session does not fly
+    /// one more empty trip on its first frame back. Seen red 2026-10-04 on the
+    /// code before the fix: "the empty trip away ended the order".
+    #[test]
+    fn an_empty_trip_while_away_ends_keep_mining() {
+        let mut data = make_store();
+        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        set_order(&mut data, Some(("rock", vec![("gold_ore_0", 4)])));
+        let mut world = hecs::World::new();
+        world.spawn((Inventory::new(16), Controllable));
+        world.spawn((asteroid("rock", vec![("iron_ore_0", 50.0)]),));
+        assert!(advance_away(&mut world, &data, 3600.0).is_empty());
+        assert_eq!(standing_order(&data), None, "the empty trip away ended the order");
+        let notices = data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap().clone();
+        assert!(notices.iter().any(|n| n.contains("came back empty") && n.contains("Gold Ore")), "{notices:?}");
     }
 
     /// A drone asking for an ore its asteroid does not hold comes home empty,
