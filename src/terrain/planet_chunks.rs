@@ -638,7 +638,7 @@ pub fn tile_or_base(
 /// rather than sinking into the ~4x-exaggerated detail relief and seeing through
 /// it (2026-07-12). Uses the finest depth so the clamp matches the HIGHEST LOD
 /// -- the eye is then never below even a coarser (not-yet-streamed) patch mesh.
-/// Mirrors the elevation formula in `build_patch_mesh` (base + masked detail).
+/// The same formula as `build_patch_mesh`, through [`drawn_elevation_at_depth`].
 pub fn drawn_elevation_normalized(
     hm: &PlanetHeightmap,
     def: &PlanetDef,
@@ -647,35 +647,77 @@ pub fn drawn_elevation_normalized(
     // f64 (v0.1012): f32 unit dirs quantize ground sampling at ~0.4-0.8 m.
     dir: glam::DVec3,
 ) -> f32 {
-    let (base, from_tile) = tile_or_base(hm, tiles, dir, FINEST_DETAIL_DEPTH);
+    let carve = crate::terrain::water_carve::snapshot();
+    drawn_elevation_at_depth(hm, def, detail, tiles, carve.as_deref().map(Vec::as_slice), dir, FINEST_DETAIL_DEPTH)
+}
+
+/// THE DRAWN ELEVATION FORMULA, the one copy of it (BUG-156, 2026-10-05):
+/// the normalized elevation a terrain patch of `depth` puts at the lattice
+/// vertex `dir`. Base (the streamed tile tier at deep LODs, else the shipped
+/// grid), plus the land-masked sub-grid detail gated by `depth`, then the
+/// region water carve, whose first step REPLACES the elevation with the
+/// region's real survey elevation (the ~13 m DEM, v0.1153) inside its
+/// coverage.
+///
+/// WHY ONE FUNCTION. Three places wrote this formula out: `build_patch_mesh`
+/// (the ground you see), `drawn_elevation_normalized` (the finest-depth field)
+/// and `DrawnPatchSurface` (where trees, grass and the player's feet stand).
+/// When the carve and the DEM arrived (v0.1149, v0.1153) the third copy was
+/// missed, so in Silverdale every tree, grass blade and the player stood on
+/// the coarse ~5.5 km grid plus detail noise while the drawn ground was the
+/// survey: trees hung metres in the air beside the Dyes Inlet waterfront
+/// (BUG-156). Every consumer now calls this, so they cannot part again.
+///
+/// `carve` is the region mask set the caller snapshotted
+/// (`water_carve::snapshot`), passed in rather than read here so a patch build
+/// takes one lock per patch, not one per vertex.
+#[allow(clippy::too_many_arguments)]
+pub fn drawn_elevation_at_depth(
+    hm: &PlanetHeightmap,
+    def: &PlanetDef,
+    detail: &DetailNoise,
+    tiles: Option<&super::terrain_tiles::TerrainTiles>,
+    carve: Option<&[crate::terrain::water_carve::RegionMask]>,
+    dir: glam::DVec3,
+    depth: u8,
+) -> f32 {
+    let (base, from_tile) = tile_or_base(hm, tiles, dir, depth);
     let range_m = hm.max_meters() - hm.min_meters();
     if range_m <= 0.0 {
         return base.clamp(0.0, 1.0);
     }
     let sea = def.sea_level.clamp(0.0, 1.0);
+    // Sub-grid detail: land-masked so oceans and coastlines stay untouched,
+    // expressed in real metres then folded back into the normalized domain so
+    // it inherits the SAME vertical exaggeration (surface_relief) as the data.
+    // Tile-backed samples gate the octaves that duplicate tile data.
     let above_sea_m = (base - sea) * range_m;
     let mask = smoothstep01(above_sea_m / DETAIL_LAND_FADE_M);
     let e = if mask > 0.0 {
         let dm = if from_tile {
-            detail.sample_m_tile_gated(dir, FINEST_DETAIL_DEPTH)
+            detail.sample_m_tile_gated(dir, depth)
         } else {
-            detail.sample_m(dir, FINEST_DETAIL_DEPTH)
+            detail.sample_m(dir, depth)
         };
         base + (dm * mask) / range_m
     } else {
         base
     };
-    // Region water carve (v0.1149): OSM sea/lake polygons press the drawn
-    // ground down. This is the SHARED formula site, so the walk clamp, the
-    // grass, and the region-mesh elevation grid all agree with the patches.
-    crate::terrain::water_carve::carve_normalized(
-        dir,
-        e.clamp(0.0, 1.0),
-        hm.min_meters(),
-        hm.max_meters(),
-        sea,
-    )
-    .clamp(0.0, 1.0)
+    // Region water carve (v0.1149) and real elevation (v0.1153): OSM sea and
+    // lake polygons press the ground down, and inside a region's DEM the
+    // ground IS the survey.
+    match carve {
+        Some(cm) => crate::terrain::water_carve::carve_normalized_with(
+            cm,
+            dir,
+            e.clamp(0.0, 1.0),
+            hm.min_meters(),
+            hm.max_meters(),
+            sea,
+        )
+        .clamp(0.0, 1.0),
+        None => e.clamp(0.0, 1.0),
+    }
 }
 
 /// Depth high enough that `DetailNoise::sample_m` enables EVERY fine octave
@@ -1733,47 +1775,19 @@ pub fn build_patch_mesh_at_density(
             let w2 = c as f64;
             let dir = (corners[0] * w0 + corners[1] * w1 + corners[2] * w2).normalize();
             let e = match source {
-                ElevationSource::Heightmap { hm, detail, tiles, ocean: _ } => {
-                    // Base: real elevation normalized 0..1 - from the
-                    // streamed 460 m tile tier at deep LODs when resident,
-                    // the shipped base grid otherwise (tile_or_base).
-                    let (base, from_tile) = tile_or_base(hm, *tiles, dir, id.depth);
-                    // Sub-grid detail (see the module-header rationale):
-                    // land-masked so oceans + coastlines stay untouched,
-                    // expressed in real meters then folded back into the
-                    // normalized domain so it inherits the SAME vertical
-                    // exaggeration (surface_relief) as the data. Tile-backed
-                    // samples gate the octaves that duplicate tile data.
-                    let range_m = hm.max_meters() - hm.min_meters();
-                    let above_sea_m = (base - sea) * range_m;
-                    let mask = smoothstep01(above_sea_m / DETAIL_LAND_FADE_M);
-                    let e = if mask > 0.0 {
-                        let dm = if from_tile {
-                            detail.sample_m_tile_gated(dir, id.depth)
-                        } else {
-                            detail.sample_m(dir, id.depth)
-                        };
-                        base + (dm * mask) / range_m
-                    } else {
-                        base
-                    };
-                    // Region water carve: MUST mirror the tail of
-                    // `drawn_elevation_normalized` or patches and the walk
-                    // clamp disagree over inlets. `carve_masks` is the
-                    // one-per-patch snapshot taken above.
-                    match &carve_masks {
-                        Some(cm) => crate::terrain::water_carve::carve_normalized_with(
-                            cm,
-                            dir,
-                            e.clamp(0.0, 1.0),
-                            hm.min_meters(),
-                            hm.max_meters(),
-                            sea,
-                        )
-                        .clamp(0.0, 1.0),
-                        None => e.clamp(0.0, 1.0),
-                    }
-                }
+                // The one formula (base, depth-gated detail, then the region
+                // carve and DEM), shared with every sampler that stands
+                // something on this ground. `carve_masks` is the one-per-patch
+                // snapshot taken above.
+                ElevationSource::Heightmap { hm, detail, tiles, ocean: _ } => drawn_elevation_at_depth(
+                    hm,
+                    def,
+                    detail,
+                    *tiles,
+                    carve_masks.as_deref().map(Vec::as_slice),
+                    dir,
+                    id.depth,
+                ),
                 ElevationSource::Noise(s) => s.elevation_at(dir.as_vec3()),
             };
             dirs.push(dir);

@@ -358,6 +358,9 @@ pub(crate) fn poll_screenshot_request(
 /// demo ladder). Consumed on read. An in-Garden GUI button is tracked as
 /// in-app-ops debt (docs/design/in-app-ops.md).
 pub(crate) fn poll_showcase_request(state: &mut EngineState) {
+    // The `hold` verb's keys come up when their time is up: every frame, so
+    // before the no-request early return (engine/rig_walk.rs).
+    crate::engine::rig_walk::tick(state);
     const REQ: &str = "debug/showcase_request.json";
     if !std::path::Path::new(REQ).exists() {
         return;
@@ -412,6 +415,27 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.gui_state.dev_hover = false;
         state.controller.fly_mode = false;
         log::info!("Showcase: walk -> fly mode off, on foot");
+    }
+    // {"hold":"forward,sprint","hold_s":"40"} (BUG-156, 2026-10-05): press
+    // those movement keys for that long, through the controller's own action
+    // path, so a capture can ARRIVE somewhere on foot the way a player does
+    // rather than by teleport (engine/rig_walk.rs). Send it after a stand and
+    // a walk, in the same request or a later one.
+    if let Some(spec) = grab("hold") {
+        let secs = grab("hold_s").and_then(|s| s.parse::<f32>().ok()).unwrap_or(5.0);
+        let note = match crate::engine::rig_walk::parse_keys(&spec) {
+            Some(keys) => crate::engine::rig_walk::hold(state, keys, secs),
+            None => format!("hold wants movement keys (forward, back, left, right, jump, sprint), not {spec:?}"),
+        };
+        log::info!("Showcase: hold -> {note}");
+    }
+    // {"tree_ground":"1"} (BUG-156, 2026-10-05): write where every near tree's
+    // base and the eye stand against the ground drawn under them, the finest
+    // ground and the surface the harvest sampled, to debug/tree_ground.json
+    // (engine/tree_ground.rs). The probe rig's `ground_probe` check reads it.
+    if grab("tree_ground").as_deref() == Some("1") {
+        let note = crate::engine::tree_ground::write_report(state);
+        log::info!("Showcase: tree_ground -> {note}");
     }
     // {"solo":"1"} / {"solo":"0"} (2026-10-03, ship homes 1b): step out of the shared world
     // and back in, the switch the launcher's offline-home pick and Dev travel flip

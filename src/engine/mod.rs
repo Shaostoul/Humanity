@@ -65,6 +65,12 @@ pub mod frame_water;
 /// Near-field 3D trees: the gated harvest, the per-tree draw plan, and the
 /// card-hide promise the far LOD depends on (extracted from lib.rs, v0.1320).
 pub mod frame_near_trees;
+/// The rig's readout of the ground under the near trees and the eye, against
+/// the ground actually drawn there (BUG-156, 2026-10-05).
+pub mod tree_ground;
+/// The rig's held movement keys: arriving somewhere on foot the way a player
+/// does, instead of by teleport (BUG-156, 2026-10-05).
+pub mod rig_walk;
 /// A planet's cloud deck and atmosphere dome, plus the view-dependent order
 /// the two composite in (extracted from lib.rs, v0.1320).
 pub mod frame_shells;
