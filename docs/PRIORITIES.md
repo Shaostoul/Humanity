@@ -195,6 +195,14 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 - **Still in flight:** more plots along First Street (worktree-agent-ac4c5e7fee2ce644e,
   resumed after the PC shutdown); the Library sweep for the Normal-mode defaults (51
   guides named by the Normal-mode lane).
+- **A gap the Normal-mode default exposes (found 2026-10-05 by the Library sweep):** in
+  Normal mode NOBODY CAN LEAVE THE SHIP. The Dev page's travel and Land buttons and F9 flight are
+  the only ways off it, all Dev-only, and no vehicle or route goes down. So by default a
+  player never meets rain, cold, a planet or building on one. Wanted: a real way down for
+  Normal play (the design's transport ship in the hangar, a shuttle or a lander, with what
+  it costs), or an honest note in the game until it exists. A design question for the
+  operator (ship-homes design section 9 already pictures missions grouping at a transport
+  ship in the hangar).
 - **Operator choices to confirm when convenient:** the opening's first tool is a
   fishing rod (no fishing yet) and its useful thing a storage chest; death's 60 minutes
   of play before a pack is gone.
