@@ -3889,3 +3889,32 @@ length of a capture (what the scratchpad loop did), and the steady-speed judges 
 frame rate and refuse to judge, as "contaminated" rather than FAIL, when frames run long
 enough to break the interpolation the check measures. A judge test feeds a capture with
 400 ms frames and expects "contaminated", not a FAIL.
+
+## BUG-162: medicine cures nothing, and food poisoning kills in about 8 minutes (OPEN, found 2026-10-05)
+
+**Seen (by the sanitation guides' fixer, confirmed by reading the code):**
+- The inventory's generic **Use** button discards its click (src/gui/pages/inventory.rs,
+  `let _ = widgets::compact_button(ui, theme, "Use", ...)`), so a Bandage, Medkit, Advanced
+  Medkit or Antibiotics does nothing when used.
+- data/status_effects.csv's `dispel_type` column (food poisoning's is "medicine") is not a
+  field of `StatusEffectDef` (src/systems/status_effects.rs), so nothing removes an effect.
+- Food Poisoning takes 3 health every 15 s for 5,400 s (`data/status_effects.csv`; the tick
+  in src/systems/food.rs): from full health it kills in about 8 minutes 20 seconds unless
+  Well Fed (1 health a second) or the First Aid ability (35) outpaces it. Under the default
+  Simplified death mode a respawn clears it.
+
+**Why it matters:** real food poisoning is not a fast poison. It is mostly fluid loss over
+hours to days; most healthy adults recover with fluids and rest, and the danger is
+dehydration, worst in babies, older people and anyone already weak (the Library's When Food
+or Water Makes You Sick says exactly this). Antibiotics help only some bacterial illnesses,
+and the advice is not to take them for ordinary food poisoning. The game teaches the
+opposite: an eight-minute death with medicine in the pack that cannot be taken.
+
+**Fix (not started):** illness as fluid loss on the body's water (the vitals already track
+it), on the game clock, cleared by time and helped by drinking (oral rehydration more than
+plain water), with the severe course for the vulnerable in Realistic and a milder one in the
+simplified mode (the dual-mode house rule); the Use button applying each medical item's
+effect from data (what it heals, what it removes, what it does not help), so antibiotics
+clear only effects marked as bacterial; a test that food poisoning untreated does not kill a
+healthy adult in minutes, that drinking shortens it, and that Use on each medical item does
+what its data says.
