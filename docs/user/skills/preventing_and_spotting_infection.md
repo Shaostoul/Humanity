@@ -32,11 +32,14 @@ in burns, and [Teeth](teeth.md) the swelling from a tooth that means an
 emergency.
 
 Its sources are the CDC's pages on wounds, skin infections, sepsis, flu,
-urinary infections and antibiotics, all US federal and in the public
-domain, with, restated in our own words, the Kitsap Public Health
-District's beach advisories. Where something is general practice or our
-own reading, the text says so. This guide does not diagnose anything and
-names no medicine.
+urinary infections and antibiotics, with NIDDK, the National Institutes
+of Health's digestive diseases institute, on when diarrhoea needs a
+doctor, all US federal and in the public domain; and, restated in our
+own words, the Washington State Department of Health on Vibrio in
+Washington's waters and the Kitsap Public Health District's beach
+advisories. Where something is general practice or our own reading, the
+text says so. This guide does not diagnose anything and recommends no
+medicine (it names only what not to give).
 
 ## The short version
 
@@ -141,11 +144,16 @@ reason is stark: "About 1 in 5 people with this infection die,
 sometimes within a day or two of becoming ill." That figure is for
 Vibrio vulnificus, which the CDC says can need intensive care or the
 loss of a limb. The CDC says these steps matter most for people with an
-underlying medical condition, especially liver disease. A cut from an oyster shell at a Dyes Inlet beach is
-exactly this case (our reading). Sewage spills add germs of their own:
-the Kitsap Public Health District posts swimming beach and sewage spill
-advisories, which you can get by email or text (restated, page read 5
-October 2026).
+underlying medical condition, especially liver disease. The Washington
+State Department of Health says that, as of 2025, no V. vulnificus
+infection had been traced to Washington shellfish or to skin contact
+with Washington's marine waters, but that other Vibrio species found
+here do infect wounds (restated). So a cut from an oyster shell on a
+Dyes Inlet beach is the case these steps are for, even though the
+deadliest kind has not been recorded here (our reading). Sewage spills
+add germs of their own: the Kitsap Public Health District posts swimming
+beach and sewage spill advisories, which you can get by email or text
+(restated, page read 5 October 2026).
 
 **Wounds to have seen, not just cleaned.** The CDC's disaster sheet says
 to seek medical attention as soon as possible if something is embedded
@@ -177,8 +185,20 @@ notice early if it turns.
 **Rest, fluids, and the right medicine or none.** For a virus,
 antibiotics will not help, and the CDC says to ask a healthcare
 professional for tips on how to feel better while your body fights off
-the infection. For a stomach bug, drink to replace what is lost ([The
-Germs That Matter](the_germs_that_matter.md)).
+the infection. For a stomach bug, drink to replace what is lost ([When
+Food or Water Makes You Sick](when_food_or_water_makes_you_sick.md) has
+what to give, and when it needs a doctor).
+
+**No aspirin for a child or teenager with flu or chickenpox.** The CDC:
+"Aspirin and salicylate-containing products should not be used for
+children or adolescents because it may increase the risk for developing
+Reye syndrome." The CDC says Reye syndrome happens almost only in
+children taking aspirin, mostly with flu or chickenpox, and that it
+brings severe vomiting and confusion and can lead to a coma. Check the
+labels of cold and flu remedies for aspirin or salicylate (general
+practice). Some stomach remedies contain one too, bismuth
+subsalicylate, which the CDC also says not to give a child under 12
+([The Germs That Matter](the_germs_that_matter.md)).
 
 **Stay away from other people while you are ill.** The CDC's advice for
 respiratory viruses: stay home and away from others, including the
@@ -253,11 +273,15 @@ day three is telling you something.
   The CDC says to see a healthcare professional for one or more of these,
   or for any symptom that is severe or worrying. The kidney signs above
   make it more urgent (our reading).
-- **A stomach bug on the CDC's see-a-doctor list:** blood in the
-  diarrhoea, diarrhoea for more than 3 days, a fever over 102 F, vomiting
-  so often that liquids will not stay down, or signs of dehydration; and,
-  in pregnancy, a fever with other flu-like symptoms ([The Germs That
-  Matter](the_germs_that_matter.md)).
+- **A stomach bug that needs a doctor:** blood in the diarrhoea;
+  diarrhoea for more than 2 days in an adult (NIDDK and the CDC's
+  E. coli page; the CDC's general food poisoning list says 3), or for
+  more than a day in a baby or child (NIDDK); a fever over 102 F;
+  vomiting so often that liquids will not stay down; signs of
+  dehydration; and, in pregnancy, a fever with other flu-like symptoms.
+  A baby under 12 months with diarrhoea needs a doctor right away
+  (NIDDK). [When Food or Water Makes You
+  Sick](when_food_or_water_makes_you_sick.md) has the full lists.
 - **Any infection that is not getting better, or is getting worse.** The
   CDC's words: "act fast. Get medical care immediately." It suggests
   asking a healthcare provider, "Could this infection be leading to
@@ -399,9 +423,9 @@ were the clinicians'.
 
 ## Know where your own effort stops
 
-- **Diagnosis and antibiotics** belong to clinicians. This guide names no
-  medicine, and nothing you can make at home is an antibiotic (our
-  reading).
+- **Diagnosis and antibiotics** belong to clinicians. This guide
+  recommends no medicine, and nothing you can make at home is an
+  antibiotic (our reading).
 - **Wounds that need a professional:** punctures, bites, deep wounds,
   anything embedded, and the rest of the list in [Bleeding and
   Wounds](bleeding_and_wounds.md).
@@ -508,6 +532,8 @@ button. In a real body, it comes back because someone noticed in time.
   after.
 - You know that antibiotics do nothing for colds and flu, and you never
   take leftovers or someone else's.
+- You would never give aspirin, or anything with salicylate in it, to a
+  child or teenager with flu or chickenpox.
 - You can name the signs of a wound infection and of cellulitis, and
   you know that spreading redness or a fever means medical care straight
   away.
@@ -616,9 +642,38 @@ were read on 5 October 2026.
   page dated 24 November 2025 (the reasons to see a doctor, fever in
   pregnancy among them).
   https://www.cdc.gov/food-safety/signs-symptoms/index.html
+- Centers for Disease Control and Prevention. *Symptoms of E. coli
+  Infection* and *Treatment of E. coli Infection*, both dated 14 May 2024
+  (calling a doctor for diarrhoea or vomiting lasting more than 2 days;
+  no anti-diarrhoeal medicine containing bismuth subsalicylate for
+  children younger than 12).
+  https://www.cdc.gov/ecoli/signs-symptoms/index.html and
+  https://www.cdc.gov/ecoli/treatment/index.html
+- Centers for Disease Control and Prevention. *Epidemiology and
+  Prevention of Vaccine-Preventable Diseases* (the Pink Book), chapter
+  12, *Influenza*, last reviewed 18 August 2021 and updated 1 April 2024
+  ("Aspirin and salicylate-containing products should not be used for
+  children or adolescents because it may increase the risk for
+  developing Reye syndrome."; Reye syndrome occurring almost only in
+  children taking aspirin, mainly with influenza B or chickenpox, with
+  severe vomiting and confusion that may progress to a coma).
+  https://www.cdc.gov/pinkbook/hcp/table-of-contents/chapter-12-influenza.html
+- National Institutes of Health, National Institute of Diabetes and
+  Digestive and Kidney Diseases (NIDDK). *Symptoms & Causes of
+  Diarrhea*, last reviewed September 2024 (talking with a doctor right
+  away about an adult whose diarrhoea lasts more than 2 days, and about a
+  baby or child whose diarrhoea lasts more than a day; a doctor's help
+  right away for a child with diarrhoea who is under 12 months old).
+  https://www.niddk.nih.gov/health-information/digestive-diseases/diarrhea/symptoms-causes
 
 ### State and local (cited as the authority, restated in our own words)
 
+- Washington State Department of Health. *Vibrio in Shellfish*
+  (vibriosis), undated (as of 2025, no Vibrio vulnificus infection
+  traced to Washington shellfish or to skin contact with Washington's
+  marine waters; other Vibrio species found in Washington able to infect
+  wounds through skin contact with marine water or seafood).
+  https://doh.wa.gov/community-and-environment/shellfish/recreational-shellfish/illnesses/vibriosis
 - Kitsap Public Health District. *Shellfish Safety* page, which carries
   its Water Pollution Identification and Correction programme's water
   contact advisories, undated, read 5 October 2026 (swimming beach and
@@ -636,7 +691,8 @@ were read on 5 October 2026.
   `src/gui/pages/profile.rs`. What is saved: `src/save_load.rs`.
 - [Bleeding and Wounds](bleeding_and_wounds.md), [How Your Body
   Works](how_your_body_works.md), [The Germs That
-  Matter](the_germs_that_matter.md), [Handwashing and
+  Matter](the_germs_that_matter.md), [When Food or Water Makes You
+  Sick](when_food_or_water_makes_you_sick.md), [Handwashing and
   Hygiene](handwashing_and_hygiene.md), [First Aid Until Help
   Arrives](first_aid_until_help_arrives.md), [Treating
   Burns](treating_burns.md) and [Teeth](teeth.md).
@@ -647,13 +703,15 @@ were read on 5 October 2026.
   pharmacist which vaccines are due; going to a clinic about a puncture
   and a tetanus booster the same day rather than after the weekend;
   ringing a doctor's office or nurse line when unsure how urgent
-  something is; and having a doctor look for a cause when infections keep
-  coming back or spread in a household, are general practice.
+  something is; checking the labels of cold and flu remedies for aspirin
+  or salicylate; and having a doctor look for a cause when infections
+  keep coming back or spread in a household, are general practice.
 - Our grouping of the doors germs use; that most of what a household
-  catches is viral; that a Dyes Inlet oyster-shell cut is the Vibrio
-  case; that a healing wound hurts less each day and a passing illness
-  gets better overall; that a wound infection should not be left to
-  clear by itself; that a same-day appointment is the outside limit for
+  catches is viral; that a Dyes Inlet oyster-shell cut is the case the
+  CDC's Vibrio steps are for, even though Vibrio vulnificus has not been
+  recorded here; that a healing wound hurts less each day and a passing
+  illness gets better overall; that a wound infection should not be left
+  to clear by itself; that a same-day appointment is the outside limit for
   urinary and stomach signs, and that kidney signs make a urinary
   infection more urgent; that confusion, trouble breathing or a person
   who cannot be woken means 911 rather than a drive; that a baby's fever

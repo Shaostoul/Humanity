@@ -660,8 +660,20 @@ timescales, and leaves out nearly everything that can go wrong inside one.
   is the real balance. [Heat and How It Moves](heat_and_how_it_moves.md)
   has the detail.
 - **Food poisoning.** Spoiled food always gives you food poisoning, and
-  several raw foods carry a chance of it (`data/food_system.ron`); it
-  drains your health for a while.
+  several raw foods carry a chance of it (`data/food_system.ron`). It can
+  kill you: for an hour and a half of real time it takes 3 health every
+  15 seconds, which with nothing healing you empties a full health bar in
+  about 8 minutes 20 seconds (`data/status_effects.csv`,
+  `src/systems/food.rs`). Nothing in the game cures it, because the
+  medical items' Use button does nothing (`src/gui/pages/inventory.rs`).
+  What keeps you alive is healing faster than it drains: the Well Fed
+  condition a filling meal gives heals 1 health a second for half an
+  hour, and First Aid (above) puts 35 back at once. Its description in
+  the game also mentions stamina and vomiting, but the game models
+  neither. If it does kill you, the default Death setting, Simplified,
+  takes nothing from you, and the Respawn button brings you back at full
+  health with the illness gone (Settings > Gameplay > Death;
+  `src/config.rs`, `src/lib.rs`).
 - **Acceleration.** Aboard a ship under a hard burn, you feel extra
   weight. Above 1.5 g you get High Gravity, which halves your speed, and
   your health drains, faster the harder the burn: at 4 g, about 50 seconds
@@ -865,6 +877,13 @@ Grouped by what kind of authority each one is. Web pages were read on
 - The First Aid ability: `data/abilities.csv`, cast by
   `src/systems/abilities.rs` from its button in `src/gui/pages/profile.rs`
   or the HUD's number keys in `src/lib.rs`.
+- Food Poisoning and Well Fed: their length, damage and healing in
+  `data/status_effects.csv`, applied each tick in `src/systems/food.rs`
+  (the effect tick, in real seconds); nothing reads the "medicine" cure
+  column, and the medical items' Use button in
+  `src/gui/pages/inventory.rs` does nothing. The Death setting
+  (`death_realistic` in `src/config.rs`) and the respawn that restores
+  full health and clears every condition (`src/lib.rs`).
 - The medical catalogue and disease rows that nothing applies yet:
   `data/medical.ron` (its system, `src/systems/medical.rs`, is not
   registered with the game) and `data/status_effects.csv`.

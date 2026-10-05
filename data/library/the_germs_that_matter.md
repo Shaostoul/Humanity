@@ -31,15 +31,20 @@ Mosquitoes and Ticks](/library#rats-flies-mosquitoes-and-ticks) covers the
 animals that carry germs about, and [Chickens and
 Eggs](/library#chickens-and-eggs) the germs a backyard flock carries. [How
 Your Body Works](/library#how-your-body-works) has the signs of dehydration,
-and [Preventing and Spotting
+[When Food or Water Makes You
+Sick](/library#when-food-or-water-makes-you-sick) covers looking after
+someone with a stomach bug, the fluids, the medicines to avoid and the
+danger signs, and [Preventing and Spotting
 Infection](/library#preventing-and-spotting-infection) covers infections of
 wounds and the signs that an illness is getting worse.
 
 Its main source is the Centers for Disease Control and Prevention (CDC),
-US federal and in the public domain. Restated in our own words, it also
-draws on the World Health Organization (WHO), the Washington State
-Department of Health and the Kitsap Public Health District. Where
-something is general practice or our own reading, the text says so.
+with the National Institutes of Health's digestive diseases institute
+(NIDDK) on when diarrhoea needs a doctor, both US federal and in the
+public domain. Restated in our own words, it also draws on the World
+Health Organization (WHO), the Washington State Department of Health
+and the Kitsap Public Health District. Where something is general
+practice or our own reading, the text says so.
 
 ## The short version
 
@@ -76,9 +81,10 @@ groundwater, and the household itself, where flies and animals move
 them onto food, fingers and surfaces. From there they reach a new person
 through drinking water, food, hands, feet and skin, and objects, floors
 and surfaces. The WHO notes that the older and still widely used
-F-diagram, adapted from Wagner and Lanoix's work of 1958, shows several
-of the same steps. Either way the lesson is the same, and it gives two
-kinds of defence (our reading):
+F-diagram (a teaching diagram of the same routes), adapted from Wagner
+and Lanoix's work of 1958, shows several of the same steps. Either way
+the lesson is the same, and it gives two kinds of defence (our
+reading):
 
 - **Keep the waste contained in the first place,** so the germs never
   start out. That is the whole job of a toilet, and of [Toilets and
@@ -151,8 +157,13 @@ diagnose it; a doctor does that.
 - **When it shows:** usually 2 to 7 weeks after exposure, with symptoms
   that can include yellow skin or eyes, dark urine and pale stools.
 - **What stops it:** the CDC: "Vaccination is the best way to prevent
-  infection." Ask a doctor or pharmacist whether you are protected. Wash
-  hands after the toilet and nappy changes and before food.
+  infection." Ask a doctor or pharmacist whether you are protected. If
+  someone in the house has hepatitis A, everyone else should call a
+  doctor at once: the CDC says a single shot of hepatitis A vaccine
+  within 2 weeks of exposure can help prevent illness, and that,
+  depending on age and health, a doctor may also recommend a treatment
+  called immune globulin. Wash hands after the toilet and nappy changes
+  and before food.
 
 ### Salmonella
 
@@ -192,6 +203,14 @@ diagnose it; a doctor does that.
   contaminated water.
 - **When it shows:** 3 to 4 days, with severe stomach cramps, diarrhoea
   that is often bloody, and vomiting.
+- **Watch for:** the signs of hemolytic uremic syndrome, which the CDC
+  calls a medical emergency: little or no peeing, losing the pink colour
+  in the cheeks and inside the lower eyelids, unexplained bruising or a
+  rash of tiny red spots, blood in the pee, being very tired or
+  irritable, and being less alert. Any of them during or after an
+  E. coli illness means emergency care now. The CDC's E. coli page also
+  sets an earlier line for calling the doctor than its general food
+  poisoning page: diarrhoea or vomiting lasting more than 2 days.
 - **What stops it:** cooking ground beef to 160 F, choosing pasteurised
   milk and juice, rinsing produce, and treating doubtful water.
   [Testing Water](/library#testing-water) explains why E. coli in a well test
@@ -277,7 +296,7 @@ diagnose it; a doctor does that.
   alcohol-based sanitisers are not effective against it. Chlorine does
   not reliably kill it, and on surfaces the CDC says no disinfectant is
   guaranteed to work, though hydrogen peroxide is more effective than
-  standard bleach solutions.
+  standard bleach solutions (method below, under Surfaces and laundry).
 
 ### Roundworm and whipworm
 
@@ -342,8 +361,8 @@ The CDC's four steps to food safety are clean, separate, cook and chill.
   thermometer. The CDC's safe internal temperatures: 165 F for all
   poultry, and for leftovers and casseroles; 160 F for ground meats; 145
   F for whole cuts of beef, pork, veal and lamb, then a 3-minute rest;
-  and 145 F for fish with fins, or until the flesh is opaque and separates easily
-  with a fork.
+  and 145 F for fish with fins, or until the flesh is opaque and
+  separates easily with a fork.
 - **Chill.** Bacteria multiply fast between 40 F and 140 F. Refrigerate
   perishable food within 2 hours, or 1 hour above 90 F, keep the
   refrigerator at 40 F or below, and never thaw food on the counter.
@@ -413,7 +432,10 @@ While you use bleach, open a window and keep it off your skin and out of
 your eyes (our reading of the CDC's advice on cleaning with bleach,
 which calls for fresh air, gloves and goggles). Mix bleach with water
 and nothing else; the CDC's warning: "Never mix bleach with ammonia or
-other cleaners."
+other cleaners." The Washington State Department of Health explains
+why: bleach with ammonia, which is in urine, gives off toxic chloramine
+gas, and bleach with an acid, such as a toilet-bowl cleaner, gives off
+chlorine gas (restated).
 
 For the laundry, wearing rubber or disposable gloves: take off clothes
 and linens with vomit or faeces on them at once, handle them without
@@ -423,8 +445,13 @@ CDC).
 
 Crypto is the exception to the bleach rule: the CDC says no disinfectant
 is guaranteed to kill it, and hydrogen peroxide works better than
-standard bleach solutions. With Crypto in the house, the soap, the
-water and the scrubbing matter more than the chemical (our reading).
+standard bleach solutions. Its method, written for childcare centres:
+3 percent hydrogen peroxide (check the strength on the label), covering
+surfaces and soaking objects for 20 minutes, then rinsing thoroughly.
+Never mix hydrogen peroxide with bleach; the CDC warns that "The two
+chemicals may react violently." If bleach has already been used, rinse
+it off thoroughly with water before the peroxide goes on, the order the
+CDC gives for when both are needed.
 
 ### Flies, rats and animals
 
@@ -509,10 +536,20 @@ reading):
   vomiting and diarrhoea take out, and that oral rehydration fluids from
   the pharmacy are most helpful for mild dehydration; sports drinks and
   other drinks without caffeine or alcohol can help with mild
-  dehydration but may not replace important minerals.
+  dehydration but may not replace important minerals. [When Food or
+  Water Makes You Sick](/library#when-food-or-water-makes-you-sick) has what
+  to give and how, for babies and for older adults too.
 - **No antibiotics for it.** The CDC says antibiotics will not help a
   norovirus infection, because they fight bacteria, not viruses, and
   there is no specific medicine for it.
+- **Ask before any anti-diarrhoea medicine.** The CDC says to talk to a
+  healthcare provider first, and: "Do not use anti-diarrheal medication
+  with high fever or bloody diarrhea." It also says not to give a child
+  under 12 one containing bismuth subsalicylate, and that with the
+  E. coli that makes Shiga toxin, anti-diarrhoea medicine and
+  antibiotics both raise the chance of hemolytic uremic syndrome. NIDDK
+  says doctors usually advise against these medicines for babies and
+  children.
 - **Watch for dehydration,** above all in young children and older
   people. The CDC's signs are urinating less, a dry mouth and throat, and
   feeling dizzy when standing up, and in children, crying with few or no
@@ -528,12 +565,34 @@ reading):
 - vomiting so often that liquids will not stay down;
 - signs of dehydration.
 
+**For an adult, the day count is shorter elsewhere.** That list is the
+CDC's general one for food poisoning. NIDDK, and the CDC's own page on
+E. coli, say to call a doctor about an adult whose diarrhoea lasts more
+than 2 days, and the E. coli page counts vomiting that lasts that long
+too. Act on the 2 days, as [When Food or Water Makes You
+Sick](/library#when-food-or-water-makes-you-sick) does.
+
+**For a baby or a child the line comes much sooner.** NIDDK says to
+talk with a doctor right away if a baby or child has diarrhoea lasting
+more than a day, frequent loose stools, any fever in a baby or a high
+fever in an older child, or, in a baby, refuses all food and drink for
+longer than a few hours. It says to get a doctor's help right away for
+any child with diarrhoea who is younger than 12 months, was born early
+or has other medical problems, or cannot drink enough to keep from
+drying out. Its reason: "Diarrhea is especially dangerous in newborns
+and infants and can lead to severe dehydration in just a day or two. A
+child with symptoms of dehydration can die within a day if left
+untreated." A baby under 3 months with any fever of 100.4 F (38 C) or
+more needs the doctor straight away ([Preventing and Spotting
+Infection](/library#preventing-and-spotting-infection)).
+
 And see a doctor if you are pregnant and have a fever with other
 flu-like symptoms (the CDC). The Department of Health asks you to
 contact a health care provider about an illness after eating shellfish
 if the illness is severe or the diarrhoea goes on for more than 3 days,
 and to report shellfish-related illness on its foodborne illness
-complaint form (restated).
+complaint form (restated). After shellfish too, the 2-day line for an
+adult and the 1-day line for a child still apply (our reading).
 
 Some of the germs above show themselves in other ways, and these need a
 doctor too:
@@ -592,9 +651,17 @@ are vomiting.
 
 ## Know where your own effort stops
 
-- **The CDC's see-a-doctor list:** blood in the diarrhoea, diarrhoea for
-  more than 3 days, a fever over 102 F, vomiting that keeps liquids from
-  staying down, signs of dehydration, and fever in pregnancy.
+- **The see-a-doctor lists above:** blood in the diarrhoea, diarrhoea
+  for more than 2 days in an adult, a fever over 102 F, vomiting that
+  keeps liquids from staying down, signs of dehydration, and fever in
+  pregnancy; for a baby or child, diarrhoea lasting more than a day, or
+  any of NIDDK's other signs above; and for a baby under 12 months with
+  diarrhoea, a doctor right away.
+- **During or after an E. coli illness, the signs of hemolytic uremic
+  syndrome** (little or no peeing, losing the pink colour in the cheeks
+  and inside the lower eyelids, unexplained bruising or tiny red spots,
+  blood in the pee, unusual tiredness or irritability, being less
+  alert): emergency care now.
 - **Dehydration that comes with confusion, fainting, no urine, or a
   racing heart or breathing:** medical help right away ([How Your Body
   Works](/library#how-your-body-works)).
@@ -607,8 +674,14 @@ are vomiting.
   minutes or hours of eating shellfish:** the Kitsap Public Health
   District gives these as the first signs of paralytic shellfish
   poisoning, from the biotoxins cooking does not destroy, which can go on
-  to trouble breathing and death; it says to contact a health care
-  provider, and to call 911 for an extreme reaction (restated).
+  to losing control of the arms and legs, trouble breathing and death.
+  The Washington State Department of Health says death has come in under
+  30 minutes; for mild symptoms it says to call a health care provider
+  and the local health department, and for severe ones to call 911 or be
+  taken to an emergency room at once (both restated). Because it can
+  kill that fast, treat it as severe once the tingling spreads beyond
+  the mouth, or with any weakness or loss of control in the arms or legs
+  or any difficulty breathing: call 911 (our reading).
 - **Yellow skin or eyes, or the Listeria signs above in someone at
   risk:** a doctor, and for a stiff neck, confusion or a seizure,
   emergency care.
@@ -708,8 +781,13 @@ depends on what everyone does with their hands.
   paper towels, the CDC's bleach solution for at least 5 minutes, soap
   and hot water, hot laundry, and never bleach mixed with another
   cleaner.
-- You know the signs of dehydration and the CDC's list of reasons to see
-  a doctor.
+- You know the signs of dehydration and the reasons to see a doctor,
+  and that a baby or child needs one much sooner than an adult.
+- You know the signs of hemolytic uremic syndrome after an E. coli
+  illness, and that they mean emergency care.
+- You would ask a healthcare provider before giving anyone an
+  anti-diarrhoea medicine, and you would never mix hydrogen peroxide
+  with bleach.
 - You stay out of the water while you have diarrhoea, and for two weeks
   after it stops if it was Crypto.
 - You boil shellfish until the shells open and for 3 to 5 minutes more,
@@ -728,10 +806,11 @@ were read on 5 October 2026.
   foodborne illness in the US; symptoms 12 to 48 hours after exposure;
   recovery in 1 to 3 days; dehydration signs; children younger than 5,
   older adults and people with weakened immune systems more likely to
-  develop severe infections; spreading for 2 weeks or more after recovery; no specific
-  medicine and no help from antibiotics; drinking plenty of liquids and
-  oral rehydration fluids). *How Norovirus Spreads*, page dated 24 April
-  2024 ("You can get norovirus by accidentally getting tiny particles of
+  develop severe infections; spreading for 2 weeks or more after
+  recovery; no specific medicine and no help from antibiotics; drinking
+  plenty of liquids and oral rehydration fluids). *How Norovirus
+  Spreads*, page dated 24 April 2024 ("You can get norovirus by
+  accidentally getting tiny particles of
   feces (poop) or vomit in your mouth from a person infected with
   norovirus."; "It only takes a few norovirus particles to make you and
   other people sick."; food, water "when a septic tank leaks into a
@@ -749,7 +828,12 @@ were read on 5 October 2026.
   food or drink, even in very small amounts; symptoms 2 to 7 weeks after
   exposure; spreading up to 2 weeks before symptoms; "Vaccination is the
   best way to prevent infection."; handwashing).
-  https://www.cdc.gov/hepatitis-a/about/index.html
+  https://www.cdc.gov/hepatitis-a/about/index.html *Hepatitis A
+  Prevention and Control*, page dated 31 January 2025 (after an exposure
+  in the last 2 weeks, talking to a doctor; a single shot of the vaccine
+  within 2 weeks of exposure that can help prevent illness; immune
+  globulin depending on age and health).
+  https://www.cdc.gov/hepatitis-a/prevention/index.html
 - Centers for Disease Control and Prevention. *Food Poisoning Symptoms*,
   page dated 24 November 2025 (the most common symptoms; the reasons to
   see a doctor; fever in pregnancy; the table of germs, their symptoms,
@@ -768,7 +852,19 @@ were read on 5 October 2026.
   some making people sick; Shiga toxin-producing E. coli and hemolytic
   uremic syndrome; children under 5, adults 65 and older and people with
   weakened immune systems at increased risk).
-  https://www.cdc.gov/ecoli/about/index.html
+  https://www.cdc.gov/ecoli/about/index.html *Symptoms of E. coli
+  Infection*, page dated 14 May 2024 (calling a doctor for diarrhoea or
+  vomiting lasting more than 2 days, bloody poop or pee, a fever over 102
+  F, or signs of dehydration or of hemolytic uremic syndrome; "HUS is a
+  medical emergency."; its signs). *Treatment of E. coli Infection*, page
+  dated 14 May 2024 (talking to a healthcare provider before taking
+  anti-diarrhoeal medicine; "Do not use anti-diarrheal medication with
+  high fever or bloody diarrhea."; none with Shiga toxin-producing
+  E. coli, where it can raise the chance of HUS; none containing bismuth
+  subsalicylate for children younger than 12; no antibiotics with Shiga
+  toxin-producing E. coli).
+  https://www.cdc.gov/ecoli/signs-symptoms/index.html and
+  https://www.cdc.gov/ecoli/treatment/index.html
 - Centers for Disease Control and Prevention. *About Listeria
   Infection*, page dated 2 August 2024 (rare but serious; especially
   harmful for pregnant women, newborns, adults 65 or older and people
@@ -809,8 +905,14 @@ were read on 5 October 2026.
   hydrogen peroxide better than standard bleach solutions; boiling,
   filters labelled NSF 53 or 58 or an absolute pore size of 1 micron or
   smaller; shedding stopping within 2 weeks after symptoms stop).
-  https://www.cdc.gov/cryptosporidium/about/index.html and
-  https://www.cdc.gov/cryptosporidium/prevention/index.html
+  *Preventing and Controlling Crypto at Childcare Facilities*, page dated
+  7 July 2025 (3 percent hydrogen peroxide on surfaces and objects for 20
+  minutes, then a thorough rinse; "Do not mix hydrogen peroxide and
+  bleach solutions. The two chemicals may react violently."; where both
+  are needed, the bleach first and rinsed off before the peroxide).
+  https://www.cdc.gov/cryptosporidium/about/index.html,
+  https://www.cdc.gov/cryptosporidium/prevention/index.html and
+  https://www.cdc.gov/cryptosporidium/prevention/preventing-and-controlling-crypto-childcare-facilities.html
 - Centers for Disease Control and Prevention. *About Soil-transmitted
   Helminths*, page dated 13 June 2024 (eggs passed in faeces, reaching
   soil through outdoor toilet use, unimproved toilets and faeces used as
@@ -847,6 +949,23 @@ were read on 5 October 2026.
   from the water; at oceans, lakes and rivers, looking for swim warnings
   or closures and staying out where pipes drain into the water).
   https://www.cdc.gov/healthy-swimming/prevention/index.html
+- National Institutes of Health, National Institute of Diabetes and
+  Digestive and Kidney Diseases (NIDDK). *Symptoms & Causes of
+  Diarrhea*, last reviewed September 2024 (talking with a doctor right
+  away about an adult whose diarrhoea lasts more than 2 days, and about a
+  baby or child with diarrhoea lasting more than a day, frequent loose
+  stools, any fever in a baby or a high fever in an older child, or a
+  baby refusing food and drink for more than a few hours; a doctor's help
+  right away for a child with diarrhoea who is under 12 months old, was
+  born prematurely, has other medical conditions or cannot drink enough;
+  "Diarrhea is especially dangerous in newborns and infants and can lead
+  to severe dehydration in just a day or two. A child with symptoms of
+  dehydration can die within a day if left untreated.").
+  https://www.niddk.nih.gov/health-information/digestive-diseases/diarrhea/symptoms-causes
+  *Treatment of Diarrhea*, last reviewed September 2024 (doctors
+  typically advising against over-the-counter diarrhoea medicines for
+  infants and children, and for people with bloody stools or a fever).
+  https://www.niddk.nih.gov/health-information/digestive-diseases/diarrhea/treatment
 
 ### State and local (cited as the authority, restated in our own words)
 
@@ -860,6 +979,20 @@ were read on 5 October 2026.
   for diarrhoea lasting more than 3 days; reporting shellfish illness on
   the foodborne illness complaint form).
   https://doh.wa.gov/community-and-environment/shellfish/recreational-shellfish/illnesses/vibriosis
+- Washington State Department of Health. *Dangers of Mixing Bleach with
+  Cleaners*, undated (bleach and ammonia giving off toxic chloramine
+  gases, with ammonia in urine; bleach and acids, toilet-bowl cleaners
+  among them, giving off chlorine gas; bleach reacting with hydrogen
+  peroxide too).
+  https://doh.wa.gov/community-and-environment/contaminants/bleach-mixing-dangers
+- Washington State Department of Health. *Paralytic Shellfish Poisoning
+  (PSP)*, undated (the toxin not destroyed by cooking or freezing;
+  tingling of the lips and tongue, spreading to the fingers and toes,
+  then loss of control of the arms and legs and difficulty breathing;
+  deaths in under 30 minutes; for mild symptoms, a health care provider
+  and the local public health agency, and for severe ones, 911 or the
+  emergency room at once).
+  https://doh.wa.gov/community-and-environment/shellfish/recreational-shellfish/illnesses/biotoxins/paralytic-shellfish-poisoning
 - Kitsap Public Health District. *Shellfish Safety*, a page of its
   Water Pollution Identification and Correction programme, undated, read 5
   October 2026 (sampling streams and swimming beaches for faecal
@@ -903,7 +1036,8 @@ were read on 5 October 2026.
   `data/items.csv` and `src/gui/pages/inventory.rs`. What is saved:
   `src/save_load.rs`.
 - [Handwashing and Hygiene](/library#handwashing-and-hygiene), [Toilets and
-  Human Waste](/library#toilets-and-human-waste), [Making Water Safe to
+  Human Waste](/library#toilets-and-human-waste), [When Food or Water Makes
+  You Sick](/library#when-food-or-water-makes-you-sick), [Making Water Safe to
   Drink](/library#making-water-safe-to-drink), [Testing
   Water](/library#testing-water), [Wells and
   Groundwater](/library#wells-and-groundwater), [Telling Spoiled From
@@ -928,13 +1062,15 @@ were read on 5 October 2026.
   be contaminated again; that bleach is mixed with water and nothing else;
   that the window goes open and the bleach stays off your skin and out of
   your eyes while you clean (from the CDC's bleach advice for mould);
-  that with Crypto the scrubbing matters more than the chemical; that
-  boiling is the better choice than steaming for shellfish, above all
-  from November to March; that the norovirus steps are the safe default
-  for any stomach bug; that a stiff neck, confusion or a seizure is an
-  emergency; that people at high risk should call a doctor sooner; and
-  that illness after shared food should be reported, are our reading of
-  the sources above.
+  that boiling is the better choice than steaming for shellfish, above
+  all from November to March; that the norovirus steps are the safe
+  default for any stomach bug; that the 2-day line for an adult and the
+  1-day line for a child apply after shellfish too; that a stiff neck,
+  confusion or a seizure is an emergency; that after shellfish, tingling
+  that spreads beyond the mouth, any weakness in the arms or legs, or any
+  difficulty breathing means 911; that people at high risk should call a
+  doctor sooner; and that illness after shared food should be reported,
+  are our reading of the sources above.
 - The bleach measure in the worked example, 1/3 cup to a gallon, is
   arithmetic: a cup is 16 tablespoons, so 5 tablespoons is about 1/3 cup.
 - The party, the oysters and the household in the worked example are

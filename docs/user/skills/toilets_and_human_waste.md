@@ -23,22 +23,27 @@ It leans on other guides and does not repeat them. [Where Water
 Goes](where_water_goes.md) explains how a septic system works, the signs
 that one has failed, and what failing systems have done to the shellfish
 beds of Dyes Inlet. [The Germs That Matter](the_germs_that_matter.md)
-names the germs in human waste and how each one travels. [Handwashing and
-Hygiene](handwashing_and_hygiene.md) covers the hands, which are the
-other half of every toilet. [Greywater](greywater.md) covers washing
-water, which is a different stream with its own rules. [Wells and
-Groundwater](wells_and_groundwater.md) has the distances that protect a
-well, [Making Water Safe to Drink](making_water_safe_to_drink.md) what to
-do about water you no longer trust, and [Soil
-Chemistry](soil_chemistry.md) which bag of "lime" is which.
+names the germs in human waste and how each one travels, and [When Food
+or Water Makes You Sick](when_food_or_water_makes_you_sick.md) covers
+looking after someone with diarrhoea and when they need a doctor.
+[Handwashing and Hygiene](handwashing_and_hygiene.md) covers the hands,
+which are the other half of every toilet. [Greywater](greywater.md)
+covers washing water, which is a different stream with its own rules.
+[Wells and Groundwater](wells_and_groundwater.md) has the distances that
+protect a well, [Making Water Safe to
+Drink](making_water_safe_to_drink.md) what to do about water you no
+longer trust, and [Soil Chemistry](soil_chemistry.md) which bag of
+"lime" is which.
 
-Its sources are the Centers for Disease Control and Prevention (CDC),
-the Environmental Protection Agency (EPA), the Consumer Product Safety
-Commission (CPSC), the Federal Emergency Management Agency's Ready.gov
-site, the National Park Service and the federal sewage sludge rule in
-the Code of Federal Regulations, all US federal and in the public domain
-(the one partner's material in the Park Service article is noted under
-Sources); and, restated in our own words, the
+Its sources are the Centers for Disease Control and Prevention (CDC)
+and its National Institute for Occupational Safety and Health (NIOSH),
+the National Institutes of Health's digestive diseases institute
+(NIDDK), the Environmental Protection Agency (EPA), the Consumer
+Product Safety Commission (CPSC), the Federal Emergency Management
+Agency's Ready.gov site, the National Park Service and the federal
+sewage sludge rule in the Code of Federal Regulations, all US federal
+and in the public domain (the one partner's material in the Park Service
+article is noted under Sources); and, restated in our own words, the
 World Health Organization (WHO), the Washington State Department of
 Health, the State Board of Health's on-site sewage rule, the Washington
 State Department of Ecology's biosolids rule, the Kitsap Public Health
@@ -60,8 +65,8 @@ text says so.
 4. **Otherwise, set up a two-bucket toilet:** one bucket for pee, one for
    poo, each with a lid.
    With small children in the house, keep the bathroom door shut and
-   every lid on: an open bucket of water or waste can drown a toddler
-   (below).
+   latched, with the latch out of the child's reach, and every lid on:
+   an open bucket of water or waste can drown a toddler (below).
 5. **Put a handwashing station beside it,** and use it every time.
 6. **Keep the waste covered, contained and away** from food, water,
    children, pets and rats.
@@ -189,9 +194,9 @@ department (restated).
 
 **Setting it up.** Label one bucket for pee and the other for poo;
 numbers 1 and 2, or yellow and brown, work as well. Put them somewhere
-private, with the cover material
-and a scoop beside them, and the handwashing station next to them. The
-same archived CDC page, in its advice for improvised settlements:
+private, with the cover material and a scoop beside them, and the
+handwashing station next to them. The same archived CDC page, in its
+advice for improvised settlements:
 "Install handwashing stations at every sanitation facility, regardless
 of the type of sanitation facility installed." A handwashing station
 across the yard does not get used ([Handwashing and
@@ -216,8 +221,17 @@ to 10 ounces of poo a day, and that two people fill a 5-gallon bucket,
 poo and cover material together, in about a week, counting a bucket as
 full at four fifths. Tie off a lining bag before it gets too heavy to lift
 cleanly, and put it straight into a lidded bucket or bin (general
-practice). That is why the spare buckets matter: a family of four needs
-six, two to start and one more for each person.
+practice).
+
+That is why the spare buckets matter. Clallam's starting kit for a
+family of four is six, two to start and one more for each person,
+adding more as needed. At the rate Clallam gives, four people fill a
+poo bucket every three or four days. The Washington State Department
+of Health puts an adult's urine at about 1.2 litres (40.6 fluid ounces)
+a day, so the pee bucket fills about as fast, and six buckets hold
+roughly a week to ten days of waste with nowhere to empty it (our
+arithmetic). If disposal instructions could take weeks, keep more
+lidded buckets or bins.
 
 **What does not go in.** Clallam's guidance keeps nappies, adult
 incontinence pads, sanitary pads and bagged pet waste out of both
@@ -237,8 +251,9 @@ soap and hot water; and wash your hands. That last clean also leaves no
 bleach on a seat someone will sit on (our reading). Open a window while
 you work, as the CDC's advice for cleaning with bleach asks, and heed
 its warning: "Never mix bleach with ammonia or other cleaners." [The
-Germs That Matter](the_germs_that_matter.md) covers the rest of looking
-after a sick household.
+Germs That Matter](the_germs_that_matter.md) and [When Food or Water
+Makes You Sick](when_food_or_water_makes_you_sick.md) cover the rest of
+looking after a sick household.
 
 ## Sawdust, lime and bleach: what goes in the bucket
 
@@ -255,10 +270,13 @@ process that significantly reduces germs when "Sufficient lime is added
 to the sewage sludge to raise the pH of the sewage sludge to 12 after two
 hours of contact." Washington's rule for spreading septage on land
 allows the same idea, holding pH 12 for at least thirty minutes, with
-two pH tests on every load (restated). The Washington State Department of
-Health adds, for the solids from composting toilets, that lime added
-before the material is tilled into soil may help reduce germs, though it
-says more work is needed on lime for that material (restated).
+two pH tests on every load (restated). Septage is that rule's word for
+what is removed from septic tanks, portable, vault and pit toilets and
+similar systems that take only household sewage (WAC 173-308-080). The
+Washington State Department of Health adds, for the solids from
+composting toilets, that lime added before the material is tilled into
+soil may help reduce germs, though it says more work is needed on lime
+for that material (restated).
 Three things follow, and they are why this guide does not put lime in a
 household bucket (our reading):
 
@@ -274,8 +292,14 @@ household bucket (our reading):
   this guide follows uses dry cover and a tight lid, and leaves the
   treating to whoever collects the waste.
 
-**Bleach.** Use it to clean the seat and the floor, mixed as above, not
-as something poured into the buckets (our reading). The Kitsap Public
+**Bleach.** Use it to clean the seat and the floor, mixed as above, and
+never pour it into the buckets. Urine contains ammonia, and the
+Washington State Department of Health warns that bleach and ammonia
+together give off toxic chloramine gas, naming toilet bowls and nappy
+pails as places to take care, and that bleach with an acid, such as a
+toilet-bowl cleaner, gives off chlorine gas (restated). So wipe up urine
+with paper towels, or with soap and water, first, and then use bleach
+mixed with water and nothing else (our reading). The Kitsap Public
 Health District's homeowner's guide says not to pour strong chemicals,
 bleach among them, into a septic system (restated), and bleach must
 never meet ammonia or other cleaners (the CDC, above).
@@ -311,10 +335,14 @@ you rely on it (our reading). Two more warnings come with it:
   may contain dangerous gases." The WHO's 2018 guidelines name the gases
   that come off decomposing sludge, among them hydrogen sulphide,
   methane, carbon dioxide and ammonia, and say that breathing them can
-  kill (restated). Methane burns, so no cigarette, match or flame near
-  the open tank either (general practice). Lifting the lid from the
-  ground to pour in a bucket is as far as a householder goes (our
-  reading).
+  kill (restated). If anyone collapses in or at the open tank, do not go
+  in or lean in after them: stay back and call 911. NIOSH, writing about
+  confined spaces at work: "More than 60% of confined space fatalities
+  occur among would-be rescuers". ([First Aid Until Help
+  Arrives](first_aid_until_help_arrives.md) has the same rule for gas.)
+  Methane burns, so no cigarette, match or flame near the open tank
+  either (general practice). Lifting the lid from the ground to pour in a
+  bucket is as far as a householder goes (our reading).
 - **An open or broken lid is a hole a child can fall into.** The Kitsap
   Public Health District's septic safety sheet asks owners to keep lids
   sound and fastened, and to teach children not to play near them
@@ -346,12 +374,15 @@ its Department of Health standards (DOH 337-016, August 2025): with
 permits from the local health officer before it is built and used; the
 same distances from wells and water as a septic drainfield; never where
 surface water floods; at least 4 feet of soil between the bottom of the
-pit and the highest seasonal water table or any restrictive layer; never
-in medium sand or anything coarser; and a pit no more than 5 feet deep,
-completely covered by its building (restated). Around Silverdale that
-rules out a great deal of ground: on the Alderwood soils, which cover
-about half the land here ([Where Water Goes](where_water_goes.md)), dense
-till begins roughly 20 to 40 inches down ([Choosing Where to
+pit and the highest seasonal water table or any restrictive layer (the
+state rule's term for a layer that holds back water, air and roots, such
+as hardpan, bedrock or some compacted soils; water soaks through one
+only slowly, if at all); never in medium sand or anything coarser; and
+a pit no more than 5 feet deep, completely covered by its building
+(restated). Around Silverdale that rules out a great deal of ground: on
+the Alderwood soils, which cover about half the land here ([Where Water
+Goes](where_water_goes.md)), dense till, a restrictive layer of this
+kind, begins roughly 20 to 40 inches down ([Choosing Where to
 Build](choosing_where_to_build.md)), which leaves far less than 4 feet
 of soil under any pit (our reading).
 
@@ -407,11 +438,15 @@ needs from you, especially when the water or the power is off.
   tested; do not use the system until the water in the drainfield's soil
   is lower than the water around the house; do not have the tank pumped
   while the ground is saturated, because an emptied tank can float out
-  of the ground; have it inspected if you suspect damage. The EPA also
-  warns that whenever the water table is high or flooding threatens the
-  system, sewage can back up into the home, and: "The only way to
-  prevent this backup is to relieve pressure on the system by using it
-  less."
+  of the ground; have it inspected if you suspect damage; keep away from
+  any pump or other electrical part of the system that was under water
+  until it is dry and clean, and have its electrical connections checked
+  for damage before the power goes back on; and check that the tank's
+  cover is still secure and its inspection ports are not blocked or
+  damaged. The EPA also warns that whenever the water table is high or
+  flooding threatens the system, sewage can back up into the home, and:
+  "The only way to prevent this backup is to relieve pressure on the
+  system by using it less."
 - **Only what bodies make, and toilet paper.** The Kitsap Public Health
   District's homeowner's guide says not to flush cat litter, cigarettes,
   wipes, paper towels, plastics, nappies or hygiene products; to keep
@@ -420,20 +455,22 @@ needs from you, especially when the water or the power is off.
   cleaners; and that it does not recommend commercial septic additives,
   which can harm the system (restated).
 - **Regular inspection.** Kitsap's rules require the owner to have a
-  standard (gravity) system evaluated at least once every three years,
-  and an alternative system at least once a year; the owner of an
-  alternative system must also keep a monitoring and maintenance
-  contract with a provider the health district certifies (Ordinance
-  2025-01, section 13.C). Alternative is the health district's word, on
-  its septic page, for a system that has a pump, a treatment unit or
-  other parts that a plain gravity system lacks. The district's online
-  record search has the
-  record drawing for your property, which shows where the system is
-  (septic safety sheet). The
-  health district also inspects a septic system before a property is
-  sold: in 2025 it carried out 1,743 of these inspections and found
-  significant problems in 450 of them, 27 percent (septic page, read 5
-  October 2026).
+  standard system evaluated at least once every three years, and an
+  alternative system at least once a year; the owner of an alternative
+  system must also keep a monitoring and maintenance contract with a
+  provider the health district certifies (Ordinance 2025-01, section
+  13.C). The ordinance (section 5) counts a septic tank feeding a
+  gravity drainfield as standard even when a pump lifts the liquid from
+  the tank up to the drainfield, and calls any other design
+  alternative; the district's septic page describes alternative systems
+  more loosely, as ones with pumps, treatment devices or other parts a
+  typical gravity system lacks (restated). Your record drawing, or the
+  district, will say which yours is. The district's online record search
+  has the record drawing for your property, which shows where the system
+  is (septic safety sheet). The health district also inspects a septic
+  system before a property is sold: in 2025 it carried out 1,743 of these
+  inspections and found significant problems in 450 of them, 27 percent
+  (septic page, read 5 October 2026).
 - **Someone to tell when it fails.** The owner must report a septic
   failure to the health district within three days (section 13.C).
 
@@ -488,11 +525,12 @@ includes washing, peeling and cooking raw fruit and vegetables.
   and makes greywater, a composting toilet may only be used together
   with an approved system for that greywater, or a public sewer
   (DOH 337-016). [Greywater](greywater.md) has the greywater rules.
-- **What comes out of it is septage.** Under the Department of Ecology's
-  biosolids rule, the solids from a composting toilet that takes only
-  household waste are septage, and must either go to a permitted
-  facility or be managed under the rule for septage applied to land (WAC
-  173-308-193).
+- **What comes out of it is septage,** the same word the state uses for
+  what is removed from septic tanks and from pit and vault toilets
+  (above). Under the Department of Ecology's biosolids rule, the solids
+  from a composting toilet that takes only household waste count as
+  septage, and must either go to a permitted facility or be managed
+  under the rule for septage applied to land (WAC 173-308-193).
 - **Not on the lawn or the vegetable garden.** That rule forbids
   applying septage to a lawn, a home garden or a place the public uses.
   Where it is applied, it must stay 100 feet from surface water and from
@@ -531,10 +569,10 @@ is no running water either.
    seat, a bale of pine shavings, bags, gloves and toilet paper. They
    mark two of the buckets, set them up in the bathroom, put a water jug
    with a tap and the soap on the sink beside them, and show the children
-   how it works. The lids stay on and the bathroom door stays shut
-   between visits, because of the younger child. The shavings go on the
-   poo bucket after every use, because they do not yet know whether the
-   septic system works.
+   how it works. The lids stay on and the bathroom door stays shut and
+   latched between visits, because the younger child is two. The
+   shavings go on the poo bucket after every use, because they do not
+   yet know whether the septic system works.
 3. **Water.** Their stored drinking water is for drinking and cooking.
    Handwashing uses the jug, filled from the rain barrel: water for
    washing hands need not be drinking water, but it must not be water
@@ -547,7 +585,10 @@ is no running water either.
    soap and hot water. Everyone washes with soap and water at every
    visit, not sanitiser ([The Germs That
    Matter](the_germs_that_matter.md)). They watch the child for signs of
-   dehydration and know when to call a doctor.
+   dehydration, and will call the doctor if the diarrhoea goes on for
+   more than a day or the child cannot keep drinks down (NIDDK; [When
+   Food or Water Makes You Sick](when_food_or_water_makes_you_sick.md)
+   has the signs to watch for).
 5. **Day five.** The power is back and the well runs. A septic service
    certified by the health district checks the tank and the pipes and
    finds them sound. Now they can flush again. The stored pee goes down
@@ -569,25 +610,33 @@ is no running water either.
 - **A septic tank that needs cleaning or repair:** that is a trained
   specialist's job, because of the gases in it (the EPA). Lifting a lid
   from the ground to pour in a bucket is as far as a householder goes.
+- **Someone who has collapsed in or at an open septic tank:** do not go
+  in or lean in after them. Stay back and call 911 (NIOSH, above).
 - **Sewage on the floor after a flood:** for cleaning up, the CDC says
   to wear rubber boots and plastic gloves (and rubber gloves and goggles
   for anyone who has to go into floodwater); to throw away what cannot
   be disinfected, such as wall coverings, cloth, rugs and drywall; to
-  clean hard surfaces with
-  soap and water and then disinfect them with 1 cup of bleach to a gallon
-  of water; and to wash clothes that touched flood or sewage water in hot
-  water and detergent before wearing them again. More than a small area,
-  or any sign that the structure or the wiring got wet, is a job for
-  professionals (general practice).
+  clean hard surfaces with soap and water and then disinfect them with 1
+  cup of bleach to a gallon of water, with windows and doors open,
+  goggles on, and the bleach mixed with water and nothing else (the
+  CDC's advice for cleaning with bleach); and to wash clothes that
+  touched flood or sewage water in hot water and detergent before
+  wearing them again. More than a small area, or any sign that the
+  structure or the wiring got wet, is a job for professionals (general
+  practice).
 - **A well that flood water or sewage may have reached:** do not drink
   from it until it has been tested ([Testing Water](testing_water.md),
   [Making Water Safe to Drink](making_water_safe_to_drink.md)).
 - **An outhouse, a pit toilet or a composting toilet:** get the permit
   before you build anything.
-- **Someone ill with diarrhoea that is bloody, lasts more than three
-  days, or comes with signs of dehydration:** the CDC says to see a
-  doctor ([The Germs That Matter](the_germs_that_matter.md) has its full
-  list).
+- **Someone ill with diarrhoea that is bloody, that lasts more than two
+  days in an adult or more than a day in a baby or child, or that comes
+  with signs of dehydration:** see a doctor, and for a baby under 12
+  months with diarrhoea, see one right away. Those day counts are
+  NIDDK's; the CDC's general food poisoning page says more than three
+  days and its E. coli page more than two, so for an adult act on the
+  two. [When Food or Water Makes You
+  Sick](when_food_or_water_makes_you_sick.md) has the full lists.
 
 Yours to do: buying the buckets before the earthquake, knowing where
 your septic tank and drainfield are and when they were last inspected,
@@ -609,19 +658,23 @@ keeping the waste contained, and washing hands.
   are still there.
 - **"A scoop of lime in the bucket."** The kinds strong enough to kill
   germs burn skin and eyes, and may not go in a septic tank.
-- **"A splash of bleach in the bucket."** Bleach is for cleaning
-  surfaces. Never mix it with other cleaners.
+- **"A splash of bleach in the bucket."** Urine and bleach can give off
+  a toxic gas. Bleach is for cleaning surfaces, mixed with water and
+  nothing else.
 - **"Just dig a hole at the bottom of the garden."** Not in this
   region's wet soils, and not without a permit.
 - **"Pee's sterile, it can go on the lawn."** In Kitsap County, urine is
   sewage under the health district's rules.
 - **"I'll just lift the lid and look in."** Never lean into a septic
   tank.
+- **"I'll reach in and pull him out."** Call 911. NIOSH counts would-be
+  rescuers as more than 60 percent of the people who die in confined
+  spaces at work, and a septic tank is a confined space (our reading).
 - **"The composting toilet makes free fertiliser for the vegetables."**
   Not in Washington: its product does not go on a home garden.
 - **"Septic tanks look after themselves."** Kitsap requires an
-  inspection every three years for a gravity system, and every year for
-  an alternative one.
+  evaluation at least every three years for a standard system, and every
+  year for an alternative one.
 
 ## How the game models it
 
@@ -677,9 +730,9 @@ still yours to deal with.
   and you know not to flush after an earthquake or a flood until the
   pipes have been checked and, on a public sewer, officials say the
   sewer is working.
-- You have two lidded buckets and one more for each person, a bucket
-  seat, bags, dry cover material, gloves and soap in the garage now, not
-  after the earthquake.
+- You have two lidded buckets and one more for each person, and more if
+  disposal could take weeks, a bucket seat, bags, dry cover material,
+  gloves and soap in the garage now, not after the earthquake.
 - You keep lids on and the bathroom latched when there is a small child
   in the house.
 - You can set up a two-bucket toilet with a handwashing station beside
@@ -696,8 +749,11 @@ still yours to deal with.
 - You know the cathole rule for the backcountry, and that it is not a
   rule for home.
 - You know where your septic tank and drainfield are, whether the system
-  has a pump, when it was last inspected, and what it needs in a power
+  has a pump, whether the district counts it as standard or
+  alternative, when it was last inspected, and what it needs in a power
   cut and a flood.
+- You would never go into, or lean into, a septic tank after someone
+  who has collapsed there; you would stay back and call 911.
 - You can explain why composting human waste takes heat, time and a
   permit, and why its product does not go on the vegetable garden.
 
@@ -755,6 +811,27 @@ were read on 5 October 2026.
   other cleaners."; open windows and doors for fresh air; rubber boots,
   rubber gloves and goggles during cleanup).
   https://www.cdc.gov/mold-health/about/index.html
+- Centers for Disease Control and Prevention. *Food Poisoning Symptoms*,
+  page dated 24 November 2025 (seeing a doctor for diarrhoea lasting
+  more than 3 days, among other signs).
+  https://www.cdc.gov/food-safety/signs-symptoms/index.html *Symptoms of
+  E. coli Infection*, page dated 14 May 2024 (calling a doctor for
+  diarrhoea or vomiting lasting more than 2 days).
+  https://www.cdc.gov/ecoli/signs-symptoms/index.html
+- National Institute for Occupational Safety and Health, part of the
+  CDC. *Request for Assistance in Preventing Occupational Fatalities in
+  Confined Spaces*, DHHS (NIOSH) Publication 86-110, January 1986, an
+  archived page last reviewed 6 June 2014 ("More than 60% of confined
+  space fatalities occur among would-be rescuers").
+  https://archive.cdc.gov/www_cdc_gov/niosh/docs/86-110/default.html
+- National Institutes of Health, National Institute of Diabetes and
+  Digestive and Kidney Diseases. *Symptoms & Causes of Diarrhea*, last
+  reviewed September 2024 (talking with a doctor right away about an
+  adult whose diarrhoea lasts more than 2 days, and about a baby or child
+  whose diarrhoea lasts more than a day; a doctor's help right away for a
+  child with diarrhoea who is under 12 months old or cannot drink
+  enough).
+  https://www.niddk.nih.gov/health-information/digestive-diseases/diarrhea/symptoms-causes
 - Consumer Product Safety Commission. *Prevent Child In-Home Drowning
   Deaths*, Publication 5013, undated (printed with the code 032012):
   about two thirds of in-home drownings, not counting pools, in
@@ -770,7 +847,11 @@ were read on 5 October 2026.
   soil water is lower than the water around the house; no pumping while
   the ground is saturated, because the tank can float out; inspection
   after damage; "Only trained specialists should clean or repair septic
-  tanks because tanks may contain dangerous gases."; the risk of sewage
+  tanks because tanks may contain dangerous gases."; electrical
+  connections examined for damage before the power is restored;
+  electrical or mechanical parts of the system that may have flooded
+  avoided until they are dry and clean; the tank's manhole cover secure
+  and its inspection ports not blocked or damaged; the risk of sewage
   backing up into the home whenever the water table is high or flooding
   threatens the system, and "The only way to prevent this backup is to
   relieve pressure on the system by using it less."). The title is
@@ -810,10 +891,17 @@ were read on 5 October 2026.
   roundworm and *Cryptosporidium* highly resistant and lasting longer; no
   composting at 41 F or below; lime before tilling possibly helping, with
   more work needed for composting toilet residuals; the product as a rule
-  unsuitable for a lawn or garden, and the other ways to manage it; pit toilets and
-  their permits, distances, 4 feet of vertical separation, unsuitable
-  soils, 5-foot depth and covering building).
+  unsuitable for a lawn or garden, and the other ways to manage it; pit
+  toilets and their permits, distances, 4 feet of vertical separation,
+  unsuitable soils, 5-foot depth and covering building; an average
+  adult's urine of about 40.6 fluid ounces, 1.2 litres, a day).
   https://doh.wa.gov/sites/default/files/legacy/Documents/Pubs/337-016.pdf
+- Washington State Department of Health. *Dangers of Mixing Bleach with
+  Cleaners*, undated (bleach and ammonia giving off toxic chloramine
+  gases; ammonia in urine, and care with toilet bowls and nappy pails;
+  bleach and acids, toilet-bowl and drain cleaners among them, giving off
+  chlorine gas; bleach reacting with hydrogen peroxide too).
+  https://doh.wa.gov/community-and-environment/contaminants/bleach-mixing-dangers
 - Washington State Board of Health, *On-site Sewage Systems*, chapter
   246-272A WAC, as published by the Washington State Legislature: WAC
   246-272A-0210, Table IV (minimum horizontal separations from the edge
@@ -822,27 +910,40 @@ were read on 5 October 2026.
   public drinking water; from a septic tank: 50 feet from a private
   drinking water well and 100 feet from a public one) and WAC
   246-272A-0110 (composting and incinerating toilets registered after
-  testing to NSF/ANSI 41 or NSF Protocol P157). Section 0210 was last
-  amended by WSR 24-06-046, filed 1 March 2024, effective 1 April 2025;
-  section 0110 was last amended by WSR 25-06-036, filed 26 February 2025,
-  effective 1 April 2025. The Kitsap Public Health District's news page on
-  its own ordinance (read 5 October 2026) says the State Board of Health
-  adopted the revised rule in January 2024.
-  https://app.leg.wa.gov/WAC/default.aspx?cite=246-272A&full=true
+  testing to NSF/ANSI 41 or NSF Protocol P157), and the definition of a
+  restrictive layer in WAC 246-272A-0010, a layer that impedes the
+  downward movement of water and air and the growth of roots, such as
+  hardpan, bedrock and some compacted soils. Sections 0010 and 0210 were
+  last amended by WSR 24-06-046, filed 1 March 2024, effective 1 April
+  2025; section 0110 was last amended by WSR 25-06-036, filed 26 February
+  2025, effective 1 April 2025. The Kitsap Public Health District's news
+  post *Kitsap Public Health Board adopts updated onsite sewage (septic
+  system) ordinance*, dated 6 March 2025 (read 5 October 2026), says the
+  State Board of Health adopted the revised rule in January 2024.
+  https://app.leg.wa.gov/WAC/default.aspx?cite=246-272A&full=true and
+  https://www.kitsappublichealth.org/post/kitsap-public-health-board-adopts-updated-onsite-sewage-septic-system-ordinance
 - Washington State Department of Ecology, *Biosolids Management*,
   chapter 173-308 WAC, as published by the Washington State Legislature:
-  WAC 173-308-193 (composting toilet solids are septage, sent to a
-  permitted facility or managed under section 270) and WAC 173-308-270
-  (septage applied to land: never on lawns, home gardens or public
-  contact sites; pH 12 held for thirty minutes, with two tests per load,
-  as one way to reduce germs; 100 feet from surface water and wells; the
-  14, 20 and 38 month waits before food crops are harvested).
+  WAC 173-308-080 (the definition of septage: material removed from
+  septic tanks, cesspools, portable, vault and pit toilets and similar
+  systems that receive only domestic sewage), WAC 173-308-193 (composting
+  toilet solids are septage, sent to a permitted facility or managed
+  under section 270) and WAC 173-308-270 (septage applied to land: never
+  on lawns, home gardens or public contact sites; pH 12 held for thirty
+  minutes, with two tests per load, as one way to reduce germs; 100 feet
+  from surface water and wells; the 14, 20 and 38 month waits before food
+  crops are harvested). All three sections were last amended by WSR
+  07-12-010, filed 24 May 2007, effective 24 June 2007.
+  https://app.leg.wa.gov/WAC/default.aspx?cite=173-308-080,
   https://app.leg.wa.gov/WAC/default.aspx?cite=173-308-193 and
   https://app.leg.wa.gov/WAC/default.aspx?cite=173-308-270
 - Kitsap Public Health Board. *Ordinance 2025-01, Onsite Sewage System
   and General Sewage Sanitation Regulations*, effective 17 March 2025
   (the district's web pages call it Ordinance 2025A-01): section 5, the
-  definition of sewage, urine and faeces included; section 6.B, sewage
+  definition of sewage, urine and faeces included, and of a standard
+  system (a septic tank, possibly with a pump tank, and a gravity
+  drainfield, pump-to-gravity designs included) and an alternative one
+  (any other design); section 6.B, sewage
   only to approved or accepted systems and never onto the ground or into
   water; section 6.G, strong acids and bases, and unapproved additives,
   kept out of on-site systems; section 13.C, failures reported within
@@ -857,10 +958,10 @@ were read on 5 October 2026.
   power). https://www.kitsappublichealth.org/phepr/storms
   Septic system page, undated (inspections every three years for a
   gravity system and at least yearly, under an annual maintenance
-  contract, for an alternative one, the page's word for a system with a
-  pump, a treatment unit or other parts beyond a plain gravity system;
-  1,743 property conveyance inspections in 2025, 450 of them with
-  significant deficiencies; telephone 360-728-2235).
+  contract, for an alternative one, which the page describes as one with
+  pumps, treatment devices or other parts; the ordinance's section 5
+  definitions govern; 1,743 property conveyance inspections in 2025, 450
+  of them with significant deficiencies; telephone 360-728-2235).
   https://www.kitsappublichealth.org/dwos/septicinfo
   *Homeowner's Guide* booklet, undated (its PDF was created on 18 June
   2025, and the file's own properties title it a 2025 booklet): what not
@@ -884,10 +985,12 @@ were read on 5 October 2026.
   Zealand households unable to flush for months, by the sewer sheet, or
   years, by the septic sheet; bags with twist ties and the single-bucket
   camping toilet among the obsolete substitutes; separate buckets for
-  pee and poo, and why; the supplies; dry cover material and about a
-  gallon bag of it a day; 4 to 10 ounces of poo a person a day, and a
-  5-gallon bucket filled by two people in about a week; storing and waiting for disposal
-  instructions; emptying into one's own septic tank, with no cover
+  pee and poo, and why; the supplies, two buckets to start and one more
+  per household member as needed; dry cover material and about a gallon
+  bag of it a day; 4 to 10 ounces of poo a person a day, and a 5-gallon
+  bucket filled by two people in about a week, full at four fifths;
+  storing and waiting for disposal instructions; emptying into one's own
+  septic tank, with no cover
   material, only when the lid can be found and lifted safely; no pit
   privies in the region's seasonally saturated soils; no nappies, pads or
   pet waste in the buckets; a bedside commode for the frail).
@@ -933,7 +1036,9 @@ were read on 5 October 2026.
   `data/machines/home.ron`. What is saved with the game:
   `src/save_load.rs`.
 - [Where Water Goes](where_water_goes.md), [The Germs That
-  Matter](the_germs_that_matter.md), [Handwashing and
+  Matter](the_germs_that_matter.md), [When Food or Water Makes You
+  Sick](when_food_or_water_makes_you_sick.md), [First Aid Until Help
+  Arrives](first_aid_until_help_arrives.md), [Handwashing and
   Hygiene](handwashing_and_hygiene.md), [Greywater](greywater.md),
   [Wells and Groundwater](wells_and_groundwater.md), [Making Water Safe
   to Drink](making_water_safe_to_drink.md), [Testing
@@ -963,10 +1068,15 @@ were read on 5 October 2026.
   CPSC's advice); that the last soap-and-water clean leaves no bleach on
   the seat; that sawdust makes waste bearable rather than safe; that a
   household storage bucket does not need lime and that strong lime is a
-  strong base under Kitsap's rule; that bleach belongs on surfaces rather
-  than in the buckets; that a septic tank should be checked after an
-  earthquake before buckets are emptied into it; that lifting the lid
-  from the ground is as far as a householder goes; that urine counts as
+  strong base under Kitsap's rule; how fast a family of four fills six
+  buckets (our arithmetic from Clallam's and the Department of Health's
+  figures), and keeping more if disposal could take weeks; that bleach
+  belongs on surfaces rather than in the buckets, and that urine is wiped
+  up before bleach goes on; that a septic tank should be checked after
+  an earthquake before buckets are emptied into it; that lifting the lid
+  from the ground is as far as a householder goes; that a septic tank is
+  a confined space in NIOSH's sense; that for an adult the 2-day line
+  for diarrhoea comes before the CDC's 3-day one; that urine counts as
   sewage under Kitsap's definition and may not go on the ground; that the
   cathole is for travellers, not households; that the Alderwood till
   leaves far less than 4 feet of soil under a pit; that an unheated

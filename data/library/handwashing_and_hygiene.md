@@ -460,13 +460,19 @@ what each one is, and why it is not covered here.
 and that somewhere is a toilet, a latrine or a hole in the ground.
 Getting this wrong contaminates groundwater and surface water for
 everyone downhill of you, which is a larger and slower failure than a
-dirty hand. CDC's emergency sanitation guidance makes one point that
-belongs in both topics: "install handwashing stations at every sanitation
-facility, regardless of the type of sanitation facility installed." The
-two topics are physically joined, and the handwashing station is part of
-the toilet, not a separate amenity. Siting, depth, distance from water,
-composting and pathogen die-off times all belong to that guide, [Toilets
-and Human Waste](/library#toilets-and-human-waste).
+dirty hand. An archived CDC page on sanitation in emergencies makes one
+point that belongs in both topics: "Install handwashing stations at
+every sanitation facility, regardless of the type of sanitation
+facility installed." The page is kept for historical purposes and no
+longer updated, and it was written for disaster response in low- and
+medium-income countries; that line comes from its advice for improvised
+settlements, such as camps for people driven from their homes, and for
+areas prone to cholera, not for a family home. The rule carries over to
+a household toilet all the same, and this guide applies it at home (our
+reading). The two topics are physically joined, and the handwashing
+station is part of the toilet, not a separate amenity. Siting, depth,
+distance from water, composting and pathogen die-off times all belong
+to that guide, [Toilets and Human Waste](/library#toilets-and-human-waste).
 
 **Greywater.** Washing water, laundry water and shower water are not
 sewage, but they are not clean either. The EPA's research on onsite
@@ -608,8 +614,12 @@ content is restated in our own words above rather than quoted.
   *Cryptosporidium*).
   https://www.cdc.gov/cryptosporidium/prevention/index.html
 - Centers for Disease Control and Prevention. Potential Sanitation
-  Solutions During an Emergency Response, archived (handwashing stations
-  at every sanitation facility).
+  Solutions During an Emergency Response, last reviewed 9 December 2021,
+  an archived page the CDC marks as kept for historical purposes and no
+  longer updated. It was written for disaster response in low- and
+  medium-income countries, and the line quoted comes from its
+  recommendations for improvised settlements and cholera-prone areas,
+  not homes (handwashing stations at every sanitation facility).
   https://archive.cdc.gov/www_cdc_gov/healthywater/global/sanitation/sanitation-emergency-response.html
 - Centers for Disease Control and Prevention. Clean Hands Publications,
   Data and Statistics (CDC's own evidence listing, including the Patrick
@@ -654,10 +664,14 @@ content is restated in our own words above rather than quoted.
   50 mL versus up to 500 mL per wash, the school programme outcomes).
   https://pmc.ncbi.nlm.nih.gov/articles/PMC7316639/
 
-### Labelled as rules of thumb in the text, and not sourced
+### Labelled as rules of thumb or our reading in the text, and not sourced
 
 - That cold, dry weather worsens hand cracking.
 - That harsh or strongly scented soap worsens it.
 
 Both are consistent with the mechanism CDC describes, which is loss of
 the skin's protective oils, but no figure in this guide rests on them.
+
+- That the archived CDC page's rule for improvised settlements, a
+  handwashing station at every toilet, carries over to a household
+  toilet (our reading).

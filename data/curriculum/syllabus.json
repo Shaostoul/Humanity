@@ -2328,7 +2328,9 @@
       ],
       "sources": [
         "cdc",
-        "kitsap-public-health"
+        "kitsap-public-health",
+        "nih",
+        "wa-doh"
       ],
       "locale_dependent": false,
       "hazard": "lethal",
@@ -3855,7 +3857,9 @@
         "wa-ecology",
         "local-health-jurisdiction",
         "kitsap-public-health",
-        "clallam-county-wa"
+        "clallam-county-wa",
+        "niosh",
+        "nih"
       ],
       "locale_dependent": true,
       "hazard": "lethal",
@@ -3910,7 +3914,8 @@
         "cdc",
         "who",
         "wa-doh",
-        "kitsap-public-health"
+        "kitsap-public-health",
+        "nih"
       ],
       "locale_dependent": false,
       "hazard": "lethal",
