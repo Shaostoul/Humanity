@@ -488,10 +488,13 @@ eggs.
   second is a real second, so that is an egg every five minutes from
   each hen, hundreds a day, where a real hen at her peak lays a little
   under one. A hen holds one egg until you collect it.
-- **Eggs spoil.** An egg in your pack spoils after 504 game hours (21
-  days), which the game's food data describes as the low end of 3 to 5
-  weeks in a refrigerator. The game has no refrigerator yet, so that one
-  figure stands for eggs kept properly (`data/food_system.ron`).
+- **Eggs spoil.** An egg spoils after 504 game hours (21 days) at room
+  temperature, in your pack or in the home's storage, which the game's
+  food data describes as the low end of 3 to 5 weeks in a refrigerator.
+  The game has no refrigerator yet, so at its room temperature an egg
+  keeps as long as a real egg would in a refrigerator, and in the home's
+  Freezer twenty times as long (`data/food_system.ron`,
+  `data/containers/types.csv`).
 - **Raw eggs can make you ill.** Eating an egg raw carries a 15 percent
   chance of food poisoning, and eating a spoiled one always poisons you.
   Cooked dishes made with eggs, such as an omelette, a cake, cookies,

@@ -422,7 +422,9 @@ The game has two ways to trade, and both teach something.
   receive another. You can confirm only while you are actually carrying
   what you offered, and when both sides have confirmed, each player's
   game hands over its own side. A worn tool arrives worn and a graded
-  item keeps its grade, so trading is not a free repair. The server
+  item keeps its grade, so trading is not a free repair. Food is the
+  exception: a trade carries no food's age, so it arrives fresh however
+  old it was (`src/gui/pages/trade.rs`). The server
   records the trade, but it does not hold the goods; the check that
   you still carry what you offered is the guard.
 - **What the Trade page does not show you.** It lists the other

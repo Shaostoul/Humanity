@@ -533,10 +533,13 @@ rest of this guide.
   shows the real balance.
 - **Body heat runs in every play mode,** including the default Dev mode;
   only the developer flying mode switches the weather off your body.
-- **Nothing carries over.** Your health and vitals are not saved between
-  launches (`src/save_load.rs`), and while Settings > Gameplay > "Start
-  every session from the default home" is on, which it is by default during
-  development, only your character's name, look and clothes carry over.
+- **Nothing carries over, by default.** Your health, your vitals, your
+  core temperature among them, and the conditions on you are saved with
+  your game, so quitting neither cools nor heals you (`src/save_load.rs`).
+  But while Settings > Gameplay > "Start every session from the default
+  home" is on, which it is by default during development, every session
+  starts with a new body, and only your character's name, look and
+  clothes carry over.
 
 What the game leaves out, so you do not learn it from the game: there is
 no heat index or HeatRisk forecast and no heat alert; no weather event in
@@ -740,7 +743,8 @@ were read on 4 October 2026 and are cited with the date they carry.
   Gameplay > Body heat, whose explanation is built from the same constants
   (`body_heat_hint` in `src/gui/pages/settings.rs`). The weather events,
   none of them a heat wave: `data/weather/events.ron`; the unregistered
-  disaster system: `src/systems/disasters.rs`. Vitals not saved:
+  disaster system: `src/systems/disasters.rs`. The body saved with the
+  game: `BodySave` in `src/persistence.rs` and `restore_body` in
   `src/save_load.rs`; the "Start every session from the default home"
   setting: `src/config.rs`.
 - [Heat and How It Moves](heat_and_how_it_moves.md), [How Your Body

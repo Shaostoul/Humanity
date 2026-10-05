@@ -618,10 +618,12 @@ lets you collect from them.
   `data/creatures.csv`; the litre is in `data/items.csv`). At the default
   Realistic time speed a game second is a real second, so a goat gives a
   litre every 6 minutes 40 seconds, far faster than any real animal. Each
-  animal holds one yield until you collect it, and if your pack is full
-  the yield stays on the animal.
-- **The milk.** Milk spoils after 168 game hours (7 days), and because the
-  goats' milk is not pasteurised, drinking it carries a 5 percent
+  animal holds one yield until you collect it. Your pack takes as much of
+  it as fits and the rest stays on the animal, which starts its next
+  yield only once you have taken it all.
+- **The milk.** Milk spoils after 168 game hours (7 days) at room
+  temperature, and twenty times as slowly in the home's Freezer. Because
+  the goats' milk is not pasteurised, drinking it carries a 5 percent
   chance of food poisoning; spoiled milk always poisons you
   (`data/food_system.ron`). Cooked dishes made with it, such as
   porridge, carry no such risk, and the game treats its cheese and butter
@@ -885,15 +887,17 @@ documents were read on 4 October 2026.
   two goats, two sheep and the fields they stand by); the `chicken`,
   `goat` and `sheep` rows of `data/creatures.csv` (`renewable_product`
   `egg_0:1:300`, `milk_0:1:400` and `wool_0:2:600`, and their loot
-  tables); `milk_0` as 1 litre in `data/items.csv`; the collect prompt,
-  the full-pack rule and the farming experience in `src/lib.rs`; the herd
-  placed at world entry in `src/engine/world_load.rs`; timers in
+  tables); `milk_0` as 1 litre in `data/items.csv`; the collect prompt
+  and the farming experience in `src/lib.rs`; the herd placed at world
+  entry in `src/engine/world_load.rs`; timers, and the pack taking as
+  much of a yield as fits (`collect_into_pack`), in
   `src/systems/livestock.rs`.
 - Milk as food: the `milk` profile in `data/food_system.ron` (spoilage
   168 hours, raw risk 0.05) and the `cheese`, `fats_oils` and `porridge`
   profiles (no raw risk); spoilage and food poisoning in
-  `src/systems/food.rs`; the milk recipes in `data/recipes.csv`. Wool as
-  `wool_0` in `data/trade_goods.ron`, with no recipe using it.
+  `src/systems/food.rs`, slowed in the Freezer by its `keeps_zone` in
+  `data/containers/types.csv`; the milk recipes in `data/recipes.csv`.
+  Wool as `wool_0` in `data/trade_goods.ron`, with no recipe using it.
 - The swing and its damage (`src/lib.rs`, `src/systems/combat/mod.rs`),
   the default F key (`src/input/bindings.rs`).
 - The game clock and its default Realistic speed (`DEFAULT_TIME_SPEED` in

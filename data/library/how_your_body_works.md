@@ -647,8 +647,9 @@ timescales, and leaves out nearly everything that can go wrong inside one.
   `src/systems/food.rs`, and the slowdowns in `data/status_effects.csv`.
 - **Tiredness and sleep.** Energy runs down through the waking day, and
   after about sixteen waking hours it falls below a quarter and you are
-  Fatigued and slower. A night in a bed you have built restores it; the
-  game sleeps you 8 hours.
+  Fatigued and slower. A night in a bed restores it, the bedroom's own or
+  one you have built ("[E] sleep in the Bed"); the game sleeps you 8
+  hours.
 - **Air.** Out of breathable air, your Oxygen falls in about 40 seconds;
   below half you have Hypoxia, which slows you hard, and at zero
   Suffocation drains your health fast.
@@ -672,11 +673,12 @@ body: hunger, thirst, tiredness, air and body heat run the same in every
 play mode. The Vitals drain slider changes the pace of hunger, thirst and
 tiredness (0 pauses them), and the Dev page's fly mode, a developer tool,
 suspends the danger of airless space and the weather while it is on.
-Your health and vitals are not saved at all, so every launch starts you
-at the starting levels, fed, watered and rested, whatever the save; and
-while "Start every session from the default home" is on, which it is by
-default during development, only your character's name, look and clothes
-carry over, so the food and water in your pack go too.
+Your health, your vitals and the conditions on you are saved with your
+game, so quitting heals and refills nothing; but while "Start every
+session from the default home" is on, which it is by default during
+development, every launch starts you with a new body at the starting
+levels, fed, watered and rested, and only your character's name, look
+and clothes carry over, so the food and water in your pack go too.
 
 What the game leaves out, so you do not learn it from the game: there are
 no heart attacks, strokes, allergies, infections, sepsis, diabetes or
@@ -851,8 +853,13 @@ Grouped by what kind of authority each one is. Web pages were read on
   4 g) in `data/ship/flight.ron`, `harm_per_sec` in `src/systems/flight.rs`,
   the harm in `src/systems/food.rs`, and the High Gravity row in
   `data/status_effects.csv`.
-- Vitals and health not saved: `src/save_load.rs`. The Play mode and the
-  "Start every session from the default home" setting: `src/config.rs`.
+- Health, vitals and conditions saved with the game: `BodySave` in
+  `src/persistence.rs` and `restore_body` in `src/save_load.rs`. The
+  bedroom's bed, which sleeps you as a built bed does: its
+  `provides: Some("rest")` in `data/machines/home.ron` and
+  `home_solo.ron`, used in `src/engine/built_uses.rs`. The Play mode and
+  the "Start every session from the default home" setting:
+  `src/config.rs`.
 - The First Aid ability: `data/abilities.csv`, cast by
   `src/systems/abilities.rs` from its button in `src/gui/pages/profile.rs`
   or the HUD's number keys in `src/lib.rs`.

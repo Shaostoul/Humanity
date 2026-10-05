@@ -544,9 +544,9 @@ home's animals never need a vet.
 - **Food from animals can make you ill.** Drinking the goats' milk, which
   is not pasteurised, carries a 5 percent chance of food poisoning, and
   spoiled milk always poisons you. Eating raw meat carries a 40 percent
-  chance, and meat spoils after 24 game hours; cooking removes the risk
-  (`data/food_system.ron`). Food poisoning is a status effect that drains
-  your health for a while.
+  chance, and meat spoils after 24 game hours at room temperature;
+  cooking removes the risk (`data/food_system.ron`). Food poisoning is a
+  status effect that drains your health for a while.
 - **The game treats cheese and butter as safe.** Its cheese and butter,
   made from the same raw goats' milk, carry no risk in the game. Real
   cheese and butter made from raw milk can carry the raw milk's germs, as

@@ -600,11 +600,11 @@ The simulation has dried food, but not yet the drying.
   dried meat (`data/npcs.ron`), and it is listed as a trade good
   (`data/trade_goods.ron`).
 - **How long they keep** comes from the USDA's FoodKeeper figures, taken at
-  the low end: jerky and dried meat keep 30 days (FoodKeeper gives home-made
-  jerky 1 to 2 months), and dried fruit 30 days (FoodKeeper's figure for an
-  opened package) (`data/food_system.ron`, the `jerky` and `dried_fruit`
-  rows). Spoiled food makes the player ill when eaten; fresh jerky and dried
-  fruit never do.
+  the low end: at room temperature, jerky and dried meat keep 30 days
+  (FoodKeeper gives home-made jerky 1 to 2 months), and dried fruit 30 days
+  (FoodKeeper's figure for an opened package) (`data/food_system.ron`, the
+  `jerky` and `dried_fruit` rows). Spoiled food makes the player ill when
+  eaten; fresh jerky and dried fruit never do.
 - **Drying as a method** is written down in `data/food_system.ron` (a
   preservation method that multiplies shelf life twenty times and needs the
   cooking skill at level 2, and a "dehydrated" cooking method), but the file
@@ -615,9 +615,11 @@ dehydrator, drying rack or sun drying, and no temperature, humidity or time to
 get right; nothing can be under-dried, case-hardened or mouldy; there is no
 acid dip or blanching; the jerky recipe has no heating step and no raw meat,
 so the rule this guide is built around does not exist in the game yet;
-storage temperature does not change how long food keeps; and dried fruit
-spoils on the opened-package clock, where properly stored dried fruit really
-keeps six months to a year.
+every store aboard but the home's Freezer, which keeps food twenty times as
+long, is at room temperature, and dryness and darkness count for nothing, so
+the cool, dry, dark store this guide asks for makes no difference; and dried
+fruit spoils on the opened-package clock, where properly stored dried fruit
+really keeps six months to a year.
 
 ## Sources
 
@@ -693,8 +695,10 @@ own words.
 ### Inside this project
 
 - `data/recipes.csv`: the Dry Fruit, Make Jerky and Dry Meat recipes.
-- `data/food_system.ron`: how long jerky and dried fruit keep, with their
-  FoodKeeper sources, and the drying rows no code reads yet.
+- `data/food_system.ron`: how long jerky and dried fruit keep at room
+  temperature, with their FoodKeeper sources, the temperature zones that
+  speed or slow that, and the drying rows no code reads yet; the
+  Freezer's `keeps_zone` in `data/containers/types.csv`.
 - `data/food/item_profiles.ron`: which items are jerky and dried fruit.
 - [Keeping What You Grew](keeping_what_you_grew.md) for choosing between
   drying, freezing, cellaring and canning;

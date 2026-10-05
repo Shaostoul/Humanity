@@ -400,7 +400,8 @@ perishable food on ice or not at all.
 
 ## How the game models it
 
-The game has spoiling food, and a freezer, but no cold storage.
+The game has spoiling food, and a freezer that slows it, but none of
+the cold stores this guide describes.
 
 - **Food spoils on a clock.** Every food item has a shelf life
   (`spoilage_rate_hours` in `data/food_system.ron`, matched to items in
@@ -412,23 +413,34 @@ The game has spoiling food, and a freezer, but no cold storage.
 - **Spoiled food makes you ill.** Eating a spoiled item gives a quarter
   of its nutrition and always causes food poisoning
   (`src/systems/food.rs`).
-- **Only carried food spoils.** The clock runs on food in an inventory,
-  such as your pack. Food you move into one of the home's storage
-  vessels from its card, such as a pantry cabinet or the family home's
-  Freezer, is not aged at all while it sits there.
+- **Food spoils wherever it is kept.** Food in your pack, in the home's
+  storage (the Barn and its other places, and chests you build) and in
+  the home's storage vessels, such as a pantry cabinet or the Freezer,
+  all ages. Its age goes with it when you move it from one to another,
+  and it is saved with the game.
+- **The temperature sets the pace.** The food data's temperature zones
+  scale the clock: food ages a twentieth as fast in frozen air (below
+  -1 C), a quarter as fast in cold air (-1 to 8 C), 0.6 times as fast in
+  cool air (8 to 18 C), at the full rate at room temperature (18 to
+  30 C) and two and a half times as fast in heat (`temperature_zones` in
+  `data/food_system.ron`). What you carry ages in the air around you:
+  room temperature aboard the ship, and on a planet, with fly mode off,
+  the weather where you stand. Everything in the home's storage and
+  vessels ages in the home's air, at room temperature, except in the
+  Freezer, which keeps its food frozen (`keeps_zone` in
+  `data/containers/types.csv`), so food lasts twenty times as long there.
 
-What the game simplifies, so you do not learn it from the game: no
-temperature anywhere changes how fast food spoils. The food data
-describes temperature zones (frozen, cold, cool, room temperature and
-hot), each with a spoilage multiplier, but no code uses them yet, so a
-cellar, a cold room, snow, ice or a warm kitchen all keep food the
-same. The
-Freezer is a storage vessel like the others: whether or not it has
-power makes no difference to the food in it, and any vessel stops the
-clock entirely. There is no root cellar, pit or springhouse to build,
-produce has no best temperature or humidity, nothing turns green or
-sprouts, and nothing absorbs a smell. The clock is not saved, either:
-when the game starts again, food you were carrying starts fresh.
+What the game simplifies, so you do not learn it from the game: the
+shelf life is counted at room temperature, but for perishables it is a
+refrigerator figure, so milk, meat and eggs keep as long at the game's
+room temperature as they would in a real refrigerator. Aboard, every
+room is at room temperature, so the Freezer is the only cold store, and
+it keeps food frozen whether or not it has power. There is no
+refrigerator, and no cold room, root cellar, pit or springhouse to
+build; a chest you build on a planet keeps its food in the home's air,
+not the weather around it. Produce has no best temperature or humidity,
+nothing turns green or sprouts, nothing absorbs a smell, and food does
+not age while the game is closed.
 
 **Starting from the default home.** While Settings > Gameplay > "Start
 every session from the default home" is on, which is the default during
@@ -549,14 +561,20 @@ read on 4 October 2026.
 
 ### Inside this project
 
-- Food spoilage: `spoilage_rate_hours` and the unused
-  `temperature_zones` in `data/food_system.ron`; which items are food in
-  `data/food/item_profiles.ron`; the spoilage clock, which reads only
-  inventories, on game time, and is not saved, and the effects of eating
-  spoiled food in `src/systems/food.rs`. The Freezer (`freezer`) and
-  pantry cabinets in `data/machines/home.ron`, which are typed containers
-  (`data/containers/types.csv`, `src/systems/inventory/containers.rs`);
-  storing into them from a machine's card in `src/lib.rs`.
+- Food spoilage: `spoilage_rate_hours` and the `temperature_zones` that
+  scale it in `data/food_system.ron`; which items are food in
+  `data/food/item_profiles.ron`; the spoilage clock each holder of food
+  carries, on game time and by the zone where it is kept, and the effects
+  of eating spoiled food in `src/systems/food.rs`; home storage aged in
+  `src/engine/stock_piles.rs` (`age_home_storage`, with the planet chest
+  gap); the ages saved with the game in `src/persistence.rs` and
+  `src/save_load.rs`; the home's air held at 293 K, about 20 C, in
+  `src/systems/atmosphere.rs`. The Freezer (`freezer`) and pantry
+  cabinets in `data/machines/home.ron` and `data/machines/home_solo.ron`,
+  which are typed containers (`data/containers/types.csv`, where the
+  freezer chest's `keeps_zone` is `frozen`;
+  `src/systems/inventory/containers.rs`); storing into them from a
+  machine's card in `src/lib.rs`.
 - The Silverdale soil record (the Alderwood perched water table and the
   basement rating, from USDA NRCS soil data):
   `data/locales/silverdale_wa/soil.json`.
