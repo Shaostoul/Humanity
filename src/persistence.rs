@@ -191,6 +191,11 @@ pub struct WorldSave {
     /// on the install. Applied on load outside the Dev mode (which authors the data files).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub home: Option<SavedHome>,
+    /// The packs left where the player fell in the Death setting's Realistic mode (2026-10-04,
+    /// systems::death_pack): what each holds, where it lies, and the play time it has counted,
+    /// which the time the game was closed never adds to. Empty in a save from before them.
+    #[serde(default)]
+    pub left_packs: Vec<crate::systems::death_pack::LeftPack>,
 }
 
 /// One character's own home (`WorldSave::home`): what a build-editor edit outside the Dev mode
@@ -311,6 +316,7 @@ impl WorldSave {
             body: None,
             urine_tank_person_days: 0.0,
             home: None,
+            left_packs: Vec::new(),
         }
     }
 }
@@ -989,6 +995,7 @@ mod tests {
             body: None,
             urine_tank_person_days: 0.0,
             home: None,
+            left_packs: Vec::new(),
         }
     }
 

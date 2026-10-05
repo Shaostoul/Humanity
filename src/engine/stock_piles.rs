@@ -290,6 +290,9 @@ pub fn age_home_storage(state: &mut crate::engine::state::EngineState) {
         .unwrap_or(0.0);
     let food = crate::systems::food::consume_kinds();
     crate::systems::inventory::placed::age_food(&mut state.gui_state.placed_items, secs, |k| food.contains_key(k));
+    // And in a pack left where the player fell (2026-10-04, systems::death_pack), at the same
+    // rate: aboard that is the ship's air; on a planet, the planet chest's known gap above.
+    crate::systems::death_pack::age_food(&mut state.game_world.world, secs, |k| food.contains_key(k));
 }
 
 /// Home storage for this tick (v0.737 for the automated machines; the build

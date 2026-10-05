@@ -6,12 +6,79 @@ use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::updater::UpdateState;
 
+/// What the death screen says under the cause (2026-10-04, the Death setting, the operator's
+/// decision; engine/death_pack.rs). Simplified: nothing was lost, the words it always said.
+/// Realistic: what stayed behind in the pack, where it lies (and, when the player fell where
+/// no one can stand, why it lies somewhere else and how far from where they fell), that what
+/// they wear and have equipped stays on them, the key that takes it back and how long it
+/// stays. None (no note worked out yet) reads as nothing lost. `key` is the Interact key as
+/// the player has it bound.
+pub(crate) fn death_screen_lines(
+    note: Option<&crate::systems::death_pack::DeathNote>,
+    rules: &crate::systems::death_pack::DeathRules,
+    key: &str,
+) -> Vec<String> {
+    use crate::systems::death_pack::{items_words, minutes_words, DeathNote, Landing};
+    match note {
+        None | Some(DeathNote::NothingLost) => vec![
+            "You wake in the respawner. Nothing was lost, but the body remembers: keep fed, \
+             hydrated, warm, and breathing."
+                .to_string(),
+        ],
+        Some(DeathNote::NothingCarried) => vec![
+            "You wake in the respawner. Your backpack was empty, so nothing was left where you \
+             fell. What you wear and what you have equipped stay on you."
+                .to_string(),
+            "The body remembers: keep fed, hydrated, warm, and breathing.".to_string(),
+        ],
+        Some(DeathNote::Left { items, place_words, landing }) => {
+            let at = match landing {
+                Landing::WhereYouFell => format!("It lies where you fell, {place_words}."),
+                Landing::FromAir { drop_m } => format!(
+                    "You died above the ground, so it fell to the ground below you, {} down, {place_words}.",
+                    marker_distance(*drop_m)
+                ),
+                Landing::FromOpenSpace { dist_m } => format!(
+                    "You died in open space, where no one can walk, so it lies on the nearest floor \
+                     you can walk to, {} away, {place_words}.",
+                    marker_distance(*dist_m)
+                ),
+                Landing::FromDeepWater { dist_m } => format!(
+                    "You died in deep water, so it lies on the nearest dry ground, {} away, {place_words}.",
+                    marker_distance(*dist_m)
+                ),
+                Landing::FromNoGround { dist_m } => format!(
+                    "There was no ground you could walk to near where you died, so it lies on the \
+                     ship's nearest floor, {} away, {place_words}.",
+                    marker_distance(*dist_m)
+                ),
+            };
+            vec![
+                format!(
+                    "You wake in the respawner. Everything in your backpack, {}, stays behind in your \
+                     pack. What you wear and what you have equipped stay on you.",
+                    items_words(*items)
+                ),
+                at,
+                format!(
+                    "It is marked on your screen. Walk to it and press {key} to take back what fits. \
+                     It stays for {} of play, then it is gone.",
+                    minutes_words(rules.keep_minutes_of_play)
+                ),
+            ]
+        }
+    }
+}
+
 /// Death screen (v0.745, loop-map rung 1): a full-screen dim + the cause of
 /// death + a Respawn button, drawn at ctx level OVER every page while
 /// `player_death_cause` is Some. Respawn is handled by lib.rs (teleport to the
-/// spawn room, reset vitals, remove Dead) via `pending_respawn`.
+/// spawn room, reset vitals, remove Dead) via `pending_respawn`. Under the
+/// cause, what the death cost in the Death mode chosen (`death_screen_lines`).
 pub fn draw_death_screen(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let Some(cause) = state.player_death_cause.clone() else { return };
+    let key = crate::input::bindings::pretty_key_name(state.keybinds.pair(crate::input::bindings::GameAction::Interact).0);
+    let lines = death_screen_lines(state.death_pack.note.as_ref(), &state.death_pack.rules, &key);
     let screen = ctx.screen_rect();
     // Dim the world so the moment reads instantly (paint-only layer).
     Area::new(egui::Id::new("death_dim"))
@@ -33,6 +100,8 @@ pub fn draw_death_screen(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 .inner_margin(egui::Margin::same(24))
                 .show(ui, |ui| {
                     ui.set_min_width(320.0);
+                    // Realistic's lines are sentences: wrap them to a readable card.
+                    ui.set_max_width(520.0);
                     ui.vertical_centered(|ui| {
                         ui.label(
                             RichText::new("YOU DIED")
@@ -46,15 +115,10 @@ pub fn draw_death_screen(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                                 .size(theme.font_size_body)
                                 .color(theme.text_primary()),
                         );
-                        ui.add_space(theme.spacing_xs);
-                        ui.label(
-                            RichText::new(
-                                "You wake in the respawner. Nothing was lost, but the \
-                                 body remembers: keep fed, hydrated, warm, and breathing.",
-                            )
-                            .size(theme.font_size_small)
-                            .color(theme.text_muted()),
-                        );
+                        for line in &lines {
+                            ui.add_space(theme.spacing_xs);
+                            ui.label(RichText::new(line).size(theme.font_size_small).color(theme.text_muted()));
+                        }
                         ui.add_space(theme.spacing_md);
                         if crate::gui::widgets::Button::primary("Respawn").show(ui, theme) {
                             state.pending_respawn = true;
@@ -651,6 +715,19 @@ pub fn draw(
                     Pos2::new(center.x, center.y + 22.0),
                     Align2::CENTER_TOP,
                     &state.structure_prompt,
+                    13.0,
+                    theme.accent(),
+                );
+            }
+            // A pack left where the player fell (2026-10-04, the Death setting's Realistic mode,
+            // engine/death_pack.rs): "[E] Take back your pack (14 items)". Set only when nothing
+            // the E chain tries first is targeted, so it never shares the slot.
+            if !state.death_pack.prompt.is_empty() && !e_builds {
+                text_shadowed(
+                    painter,
+                    Pos2::new(center.x, center.y + 22.0),
+                    Align2::CENTER_TOP,
+                    &state.death_pack.prompt,
                     13.0,
                     theme.accent(),
                 );

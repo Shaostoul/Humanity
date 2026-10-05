@@ -186,6 +186,9 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     // to heal and refill everything.
     save.body = body_of(world);
     save.urine_tank_person_days = crate::systems::food::urine_tank_level(world);
+    // The packs left where the player fell (the Death setting's Realistic mode, 2026-10-04),
+    // each with what it holds and the play time it has counted.
+    save.left_packs = crate::systems::death_pack::packs(world);
     // Quests (v0.748, ladder rung 4): the tracker round-trips, so progress
     // and completions survive restarts (was: reset fresh every session).
     for (_e, (tracker, _ctrl)) in world
@@ -478,6 +481,9 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
     // The body as it was left, and the home's urine tank (first-hour audit S1).
     restore_body(world, save.body.as_ref());
     crate::systems::food::set_urine_tank(world, save.urine_tank_person_days);
+    // The packs left where the player fell, as saved: authoritative like the backpack they
+    // came out of, and not advanced by the time away (a pack counts only play).
+    crate::systems::death_pack::restore(world, &save.left_packs);
     // Settled trades (2026-10-02) travel with the backpack just rebuilt.
     restore_settled_trades(world, save, true);
     // Quests (v0.748): a saved tracker replaces the fresh spawn default
@@ -985,8 +991,10 @@ pub struct Resumed {
 ///
 /// Deliberately not advanced: the body (saved since 2026-10-04, first-hour
 /// audit S1, and put back exactly as it was left: the time away costs no
-/// food, water or sleep and runs no effect's timer) and the urine tank, and
-/// anything that consumes or destroys. That includes garden PESTS
+/// food, water or sleep and runs no effect's timer) and the urine tank, a pack
+/// left where the player fell (2026-10-04, systems::death_pack: it stays for
+/// minutes of PLAY, so quitting never loses it), and anything that consumes
+/// or destroys. That includes garden PESTS
 /// (2026-09-26): their pressure costs crop health and the player could not
 /// have answered it while away, so it resumes where the save left it and the
 /// character's upkeep kept them down in the meantime. Nor does a picked
@@ -1132,6 +1140,9 @@ pub fn after_resume(gui: &mut crate::gui::GuiState, save: &WorldSave, r: &Resume
     // The body came back with the save (first-hour audit S1): a save written dead comes
     // back to the death screen with its cause, and a living one clears it.
     gui.player_death_cause = save.body.as_ref().and_then(persistence::BodySave::death);
+    // And what that death cost is worked out again from the world the save just made (the
+    // pack it left, if any: engine/death_pack.rs after_tick), never a previous death's words.
+    gui.death_pack.note = None;
 }
 
 /// Put the world clock back where `save` left it and apply the offline

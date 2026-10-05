@@ -2790,6 +2790,9 @@ pub struct GuiState {
     /// The death screen's Respawn button; lib.rs performs the respawn
     /// (teleport to spawn, reset vitals, remove Dead) and clears it.
     pub pending_respawn: bool,
+    /// What the death cost in the Death mode chosen, the pack prompt and the rules
+    /// (2026-10-04, systems::death_pack; set by engine/death_pack.rs).
+    pub death_pack: crate::systems::death_pack::DeathPackHud,
     // v0.197.0: ai_usage_filters removed (AI Usage page deleted).
     // v0.415.0: onboarding_concepts + onboarding_core_pages removed with the
     // standalone onboarding page. NOTE (audit 2026-07-30): the claim that "the
@@ -4117,6 +4120,7 @@ impl Default for GuiState {
             attack_pulse_last_hit_at: 0.0,
             player_death_cause: None,
             pending_respawn: false,
+            death_pack: Default::default(),
             // v0.197.0: ai_usage_filters removed (page deleted).
             help_registry: crate::gui::widgets::help_modal::HelpRegistry::new(),
             active_help_topic: None,
@@ -4520,6 +4524,10 @@ pub struct SettingsState {
     /// content's main colour per marker, the default), true is Full (the scheme's whole marker,
     /// main-additional-main). Saved as AppConfig::pipe_marking_full.
     pub pipe_marking_full: bool,
+    /// Death (2026-10-04, systems::death_pack): false is Simplified (the default: nothing is
+    /// lost), true is Realistic (the backpack's contents stay where you fell, in a pack to go
+    /// back for). Saved as AppConfig::death_realistic.
+    pub death_realistic: bool,
     /// Which survival bars the HUD draws (2026-09-25). See HudVitals.
     pub hud_vitals: crate::config::HudVitals,
     /// Play mode (task #50): Normal | Creative | Dev -- one ladder for every
@@ -4635,6 +4643,7 @@ impl Default for SettingsState {
             body_heat_realistic: false,
             carry_realistic: false,
             pipe_marking_full: false,
+            death_realistic: false,
             hud_vitals: crate::config::HudVitals::default(),
             play_mode: crate::config::PlayMode::default(),
             profile_visible: true,

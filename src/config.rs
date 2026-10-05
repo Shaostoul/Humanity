@@ -806,6 +806,13 @@ pub struct AppConfig {
     /// Held in GuiState as `settings.pipe_marking_full`.
     #[serde(default)]
     pub pipe_marking_full: bool,
+    /// Death (2026-10-04, systems::death_pack, the operator's decision): false is Simplified
+    /// (nothing is lost, the death screen's old promise), true is Realistic (everything in the
+    /// backpack stays where you fell, in a pack to go back for; what you wear stays on you).
+    /// Simplified by default, the house rule for deep systems. Held in GuiState as
+    /// `settings.death_realistic`.
+    #[serde(default)]
+    pub death_realistic: bool,
     /// Play mode (task #50): Normal | Creative | Dev -- the ladder every
     /// cheat/scope gate hangs off (see the `PlayMode` docs above). Absent =>
     /// Normal via `#[serde(default)]` (the default since 2026-10-04; it was
@@ -1483,6 +1490,7 @@ impl AppConfig {
             body_heat_realistic: state.settings.body_heat_realistic,
             carry_realistic: state.settings.carry_realistic,
             pipe_marking_full: state.settings.pipe_marking_full,
+            death_realistic: state.settings.death_realistic,
             play_mode: state.settings.play_mode,
             hud_vitals: state.settings.hud_vitals,
             // v0.488 voice input prefs (top-level GuiState, not SettingsState).
@@ -1762,6 +1770,7 @@ impl AppConfig {
         state.settings.body_heat_realistic = self.body_heat_realistic;
         state.settings.carry_realistic = self.carry_realistic;
         state.settings.pipe_marking_full = self.pipe_marking_full;
+        state.settings.death_realistic = self.death_realistic;
         // Play mode (task #50): restore the persisted mode, then PRESET the
         // creative (free resources) flag from it -- GuiState defaults that
         // flag to true (early-dev posture), so a Normal-mode player must get
@@ -2184,6 +2193,23 @@ mod play_mode_tests {
         assert!(fresh.settings.pipe_marking_full, "Full pipe markings stay chosen after a restart");
     }
 
+    /// The Death mode (2026-10-04, systems::death_pack) starts Simplified and a chosen
+    /// Realistic survives a save and a load, through the GUI state, the JSON and back.
+    /// Seen red with `from_gui_state` writing `death_realistic: false`: "the death mode is
+    /// written" (the JSON held `"death_realistic":false`).
+    #[test]
+    fn the_death_mode_survives_a_save_and_a_load() {
+        let mut state = crate::gui::GuiState::default();
+        assert!(!state.settings.death_realistic, "death starts Simplified");
+        state.settings.death_realistic = true;
+        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
+        assert!(json.contains("\"death_realistic\":true"), "the death mode is written");
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        let mut fresh = crate::gui::GuiState::default();
+        back.apply_to_gui_state(&mut fresh);
+        assert!(fresh.settings.death_realistic, "Realistic death stays chosen after a restart");
+    }
+
     /// The per-screen video choice and the ffmpeg path survive a save and a
     /// load, through JSON and through both GuiState legs; a config without
     /// them (every config before 2026-09-18) reads as "no choices, auto".
@@ -2365,6 +2391,8 @@ mod pbkdf2_migration_tests {
         assert!(!c.carry_realistic);
         // Pipe markings start Simplified (2026-10-04).
         assert!(!c.pipe_marking_full);
+        // Death starts Simplified: nothing is lost (2026-10-04).
+        assert!(!c.death_realistic);
         assert_eq!(c.planet_max_subdiv, 6.0);
         // Fresh installs see the concept tour exactly once: the serde
         // default is true (pre-v0.198 configs skip it) but the no-config

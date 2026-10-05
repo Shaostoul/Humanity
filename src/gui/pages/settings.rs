@@ -3528,6 +3528,21 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
              your jumps are lower. Forgiving shows the same limit and warns you, \
              and changes nothing about how you move.",
         );
+        // Death (2026-10-04, systems::death_pack; the dual-mode house rule, the operator's
+        // decision): what dying costs.
+        ui.add_space(theme.spacing_sm);
+        ui.label(RichText::new("Death").color(theme.text_secondary()));
+        ui.horizontal(|ui| {
+            for (realistic, label) in [(false, "Simplified"), (true, "Realistic")] {
+                let selected = state.settings.death_realistic == realistic;
+                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
+                    state.settings.death_realistic = realistic;
+                    state.settings_dirty = true;
+                }
+            }
+        });
+        let interact = crate::input::bindings::pretty_key_name(state.keybinds.pair(crate::input::bindings::GameAction::Interact).0);
+        widgets::setting_hint(ui, theme, hint, &death_hint(&state.death_pack.rules, &interact));
         // Survival bars on the HUD (2026-09-25): the simple and full modes of
         // the same readout, plus the default that shows a need when it matters.
         ui.add_space(theme.spacing_sm);
@@ -4832,6 +4847,25 @@ pub(crate) fn body_heat_hint() -> String {
          waits until the real balance would have you below about {cold_real:.0} C \
          or above about {heat_real:.0} C, and then comes at half the rate for \
          each degree you read past {cold:.0} C or {heat:.0} C."
+    )
+}
+
+/// The Death setting's hint (Settings > Gameplay, 2026-10-04): exactly what each mode does,
+/// with the time a pack stays read from the rules it describes (data/world/death.ron, through
+/// `systems::death_pack::DeathRules`), so the two cannot drift. `interact` is the key E is
+/// bound to.
+pub(crate) fn death_hint(rules: &crate::systems::death_pack::DeathRules, interact: &str) -> String {
+    let keep = crate::systems::death_pack::minutes_words(rules.keep_minutes_of_play);
+    format!(
+        "What dying costs. Either way you wake in the respawner with full health. Simplified: \
+         you keep everything you carried, and nothing is lost. Realistic: everything in your \
+         backpack stays where you fell, in a pack marked on your screen; what you wear and what \
+         you have equipped stay on you, and so do your credits, skills and home storage. Walk \
+         back to it and press {interact} to take back as much as your backpack holds; the rest \
+         stays in the pack. If you fell where no one can stand, in open space or deep water, it \
+         lies at the nearest place you can walk to. It stays for {keep} of play, counted only \
+         while you are in the world and alive, never while the game is closed, then it is gone. \
+         On a shared server only you can see or take your pack."
     )
 }
 
