@@ -65,7 +65,10 @@ This part comes first because it is the part that saves lives.
    for help in good faith, and the person overdosing, may not be charged
    with drug possession on evidence found because help was sought (RCW
    69.50.315, read 5 October 2026; it covers possession, not other
-   charges).
+   charges). [First Aid Until Help
+   Arrives](first_aid_until_help_arrives.md) shows the signs of an opioid
+   overdose and how to put someone on their side in the recovery
+   position.
 3. **Call or text 988 for a crisis.** The 988 Suicide and Crisis
    Lifeline answers calls and texts to 988, and chats at
    988lifeline.org, at any hour. The Substance Abuse and Mental Health
@@ -929,7 +932,8 @@ advice.
   (`src/config.rs`, `cheats_enabled` in `data/gui/theme.ron`).
 - The Tools page's Help and services: `src/gui/pages/tools.rs`, reading
   `data/external/catalog.json`.
-- [How Your Body Works](how_your_body_works.md), [Handling
+- [How Your Body Works](how_your_body_works.md), [First Aid Until Help
+  Arrives](first_aid_until_help_arrives.md), [Handling
   Conflict](handling_conflict.md), [Nutrition That Keeps You
   Working](nutrition_that_keeps_you_working.md), [Why Seasons
   Happen](why_seasons_happen.md) and the Humanity Accord's [Human

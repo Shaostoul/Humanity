@@ -34,8 +34,10 @@ depth: [Where Your Own Electrical Work
 Stops](where_your_electrical_work_stops.md) (electrical permits),
 [Wells and Groundwater](wells_and_groundwater.md) (water rights),
 [Choosing Where to Build](choosing_where_to_build.md) (the health
-district's clearance before a building permit) and
-[Firewood](firewood.md) (burn bans). The Library also carries [The
+district's clearance before a building permit), [Firewood](firewood.md)
+(burn bans) and [Making and Controlling
+Fire](making_and_controlling_fire.md) (where and when an outdoor fire is
+allowed around Silverdale). The Library also carries [The
 Constitution of the United States](../../reference/us-constitution.md)
 in full, and [The Laws That Limit This
 Software](../rights/laws_that_limit_this_software.md), on the laws that
@@ -48,7 +50,7 @@ Bureau, the Pipeline and Hazardous Materials Safety Administration, the
 Bureau of Indian Affairs and USAGov, all US federal and public domain;
 and Washington's constitution, statutes, courts and Department of Labor
 and Industries, Kitsap County's government (its fire marshal included)
-and code (read on eCode360), Central Kitsap Fire and Rescue, the Puget
+and code (read on eCode360), Central Kitsap Fire & Rescue, the Puget
 Sound Clean Air Agency, and two legal aid organisations with the
 Northwest Justice Project's WashingtonLawHelp.org, restated in our own
 words. Where something is general practice or our reading, the text
@@ -205,11 +207,11 @@ Some rules come from bodies that govern one subject across a region:
   2026).
 - **The fire district.** Outdoor burning other than a small
   recreational fire also needs a permit from the local fire district.
-  For Silverdale that is Central Kitsap Fire and Rescue, which says that
+  For Silverdale that is Central Kitsap Fire & Rescue, which says that
   all of Silverdale, and much of the land east and southeast towards
   Bremerton, is a no-burn zone where only recreational fires, of
   charcoal or dry firewood, are allowed (the county fire marshal's
-  announcement of 29 September 2026 and Central Kitsap Fire and Rescue's
+  announcement of 29 September 2026 and Central Kitsap Fire & Rescue's
   own page, restated, read 5 October 2026).
 - **The state's departments.** The Department of Labor and Industries
   issues electrical permits and inspects the work in Kitsap County
@@ -527,7 +529,7 @@ will clear the prunings, and work on summer weekend mornings.
    map takes in all of Silverdale; inside it only a small recreational
    fire of charcoal or dry firewood is allowed, so prunings cannot be
    burned, and outside it burning them needs the district's permit
-   (Central Kitsap Fire and Rescue, restated, read 5 October 2026). The
+   (Central Kitsap Fire & Rescue, restated, read 5 October 2026). The
    Puget Sound Clean Air Agency's page also refers to areas where outdoor
    burning is permanently banned ([Firewood](firewood.md)), and the fire
    district's page names the agency as the place to report burning in
@@ -810,7 +812,7 @@ facts are used here and the wording is not.
   undated (staff may not fill out forms or give legal advice; fee
   waivers on request).
   https://www.kitsap.gov/dc/Pages/Small%20Claims%20Forms%20and%20Information.aspx
-- Central Kitsap Fire and Rescue. *CKFR Outdoor Burning Information*,
+- Central Kitsap Fire & Rescue. *CKFR Outdoor Burning Information*,
   undated, read 5 October 2026 (permits for all outdoor burning except
   recreational fires; the no-burn zone, taking in all of Silverdale and
   much of the area east and southeast towards Bremerton; recreational
@@ -865,8 +867,9 @@ facts are used here and the wording is not.
   Conflict](handling_conflict.md), [Where Your Own Electrical Work
   Stops](where_your_electrical_work_stops.md), [Wells and
   Groundwater](wells_and_groundwater.md), [Choosing Where to
-  Build](choosing_where_to_build.md), [Firewood](firewood.md),
-  [Foundations and Ground](foundations_and_ground.md), [Your First
+  Build](choosing_where_to_build.md), [Firewood](firewood.md), [Making
+  and Controlling Fire](making_and_controlling_fire.md), [Foundations and
+  Ground](foundations_and_ground.md), [Your First
   Compost](your_first_compost.md), [Keeping Records](keeping_records.md),
   [The Constitution of the United States](../../reference/us-constitution.md)
   and [The Laws That Limit This
