@@ -207,6 +207,12 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   (worktree-agent-aa41fef38bb3ee28f, head 247b933a4); generators, emergency shelter,
   pressure (worktree-agent-a7b5df9645fc4a9c8, 77fce2f29). With them: change Dry Meat's
   description in data/recipes.csv (it air-dries raw meat with no heat).
+- **For v0.1461.0, from the seam review of the five merged lanes (no high or medium
+  seams):** the one-time controls hint (src/gui/first_steps.rs ~29) still says "Hold Alt
+  to free the mouse and click", but the vendor, privacy and pinned-card windows now free
+  the mouse themselves (src/engine/input.rs); reword it ("a window with buttons frees the
+  mouse"). Undo or delete of a paid B-editor placement loses the item (editor.rs
+  snapshot); the Normal-mode lane's brief already covers the refund.
 - **FTL reopened (operator, 2026-10-05, a proposal):** FTL, with ships built to survive
   indefinitely if it is ever lost (docs/design/gravity-and-movement.md, the
   interstellar section). Recommended; awaiting his answer.
@@ -1138,6 +1144,15 @@ blocker:
    `get_members`, `get_member_count` and `get_member_by_key`), deliberately
    deferred: a backend flag is useless without the user-facing toggle, so build
    both in the same privacy-UI increment. Verify json1 is compiled in first.
+4. **Voice tells Google the player's IP address (found 2026-10-05).** WebRTC asks a STUN server
+   for the public address, and every client lists Google's first: native
+   src/net/webrtc.rs (~175), web web/chat/chat-voice-rooms.js (~25), and the relay's own
+   ICE list in src/relay/turn.rs (~65), which also advertises a STUN at the server's
+   port 3478 that nothing listens on (checked on the VPS: no coturn, nothing on
+   3478). Fix wanted: a small STUN binding responder inside the relay binary (the
+   stun module already builds and parses the messages), the clients told to use only
+   their own server's, and Google dropped. Needs UDP 3478 opened on the VPS firewall:
+   the operator's call (asked 2026-10-05). Until then the privacy page should say so.
 3. **Blocking a sender (found again 2026-10-04 by the conflict guide's fact
    check; recorded in `docs/accord/conformance_gaps.md`).** Nobody can stop
    another person messaging them: a friendship certificate cannot be withdrawn
