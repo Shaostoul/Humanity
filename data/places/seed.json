@@ -110,7 +110,7 @@
           "id": "barn",
           "label": "Barn",
           "kind": "room",
-          "_comment": "The home's dry store, on the Barn's pallet racks. What is filed here shows as crates on the racks (src/engine/stock_piles.rs): the barn fills as the stock grows. Seeded like a homestead's few-month reserve so the default home shows how storage works.",
+          "_comment": "The home's dry store, on the Barn's pallet racks. What is filed here shows as crates on the racks (src/engine/stock_piles.rs): the barn fills as the stock grows. Seeded like a homestead's few-month reserve so the default home shows how storage works. The 5 coal (first-hour audit 2026-10-04, Friction 4): First Steps asks for an iron ingot, and the smelter's recipe burns 1 coal per ingot (2 iron ore + 1 coal), but a new home had no coal or graphite, so the smelter just waited. 5 is that ingot and a little more: a full first drone trip is 10 ore (mining.rs DRONE_CAPACITY), which 5 coal smelts into 5 ingots, so the first haul all becomes iron and the fuel question comes after it (coal at the trading post, graphite from asteroid C-3). Checked by stock_piles.rs the_starting_barn_holds_coal_for_the_first_ingot.",
           "children": [
             { "label": "Wheat grain", "kind": "item", "item": "grain_wheat_0", "qty": 400 },
             { "label": "Oat grain", "kind": "item", "item": "grain_oat_0", "qty": 200 },
@@ -124,6 +124,7 @@
             { "label": "Wood planks", "kind": "item", "item": "wood_plank_0", "qty": 60 },
             { "label": "Rope", "kind": "item", "item": "rope_0", "qty": 10 },
             { "label": "Wire", "kind": "item", "item": "wire_0", "qty": 30 },
+            { "label": "Coal", "kind": "item", "item": "coal_0", "qty": 5 },
             { "label": "Salt blocks (livestock)", "kind": "item", "item": "salt_block_0", "qty": 4 }
           ]
         }
