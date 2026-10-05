@@ -192,9 +192,14 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   `inc5-integration` (worktree .claude/worktrees/inc5-int: 3,281 lib tests pass, release build
   done). `just verify-shared-build` PASSES 35/35 (2026-10-05, after the walker learned the
   relay's pace and the judge counted a refund that spills into home storage; run it from the
-  inc5-int worktree with dxcompiler.dll and dxil.dll copied there). NEXT: the review of the
-  whole increment (running), fix what it finds, merge inc5-integration into main, the full
-  chain (include the --plots legs that walk, for BUG-165), release as v0.1464.0, deliver.
+  inc5-int worktree with dxcompiler.dll and dxil.dll copied there). The review of the whole
+  increment (2026-10-05) found the server rules sound and these to fix (two lanes running; the
+  review is in the session scratchpad as inc5-review.md): the game never re-syncs a frame
+  after a lost relay message; refunds not exactly once across a disconnect; ranks granted
+  mid-session need a rejoin; the CLAUDE.md permit row is stale; shared-building.md, in-app-ops
+  and the web erase text lag. THEN: merge both into inc5-integration, rerun the proof rig,
+  merge inc5-integration into main, the full chain (--plots all orders, the default rig,
+  the full lib suite, just verify-relay, screens, probe), release v0.1464.0, deliver.
 - **Walking backwards (the operator saw it, 2026-10-05):** the rig's `walk_to` held the final
   facing for the whole walk (src/engine/move_check.rs `walk_tick`), so the camera strafed and
   backpedalled; the crew did turn toward their path but snapped back on still updates and
