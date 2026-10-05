@@ -103,7 +103,8 @@ fn simplified_keeps_the_backpack_on_death() {
 ///
 /// Seen red 2026-10-04 with `on_death`'s mode check inverted, so a Realistic death did what
 /// every death did before (nothing): "Realistic: the pack's note / left: NothingLost / right:
-/// Left { items: 9, place_words: \"in the Kitchen\", landing: WhereYouFell }".
+/// Left { items: 9, place_words: \"in the Kitchen\", landing: WhereYouFell }". And 2026-10-05
+/// with the death also clearing the outfit: "what you wear stays on you / left: {}".
 #[test]
 fn realistic_leaves_the_backpack_where_you_fell_and_keeps_what_you_wear() {
     let (mut world, p) = player_world();
@@ -222,7 +223,8 @@ fn on_a_planet_a_pack_lies_on_the_ground_or_the_nearest_dry_ground() {
 ///
 /// Seen red 2026-10-04 with `take_back` moving nothing (there was nothing to take back
 /// before): "the hammer and 7 planks fit, 3 planks do not / left: TakeBack { taken: 0, left:
-/// 11 } / right: TakeBack { taken: 8, left: 3 }".
+/// 11 } / right: TakeBack { taken: 8, left: 3 }". And 2026-10-05 with the volume limit off
+/// (everything taken whether it fits or not): "left: TakeBack { taken: 11, left: 0 }".
 #[test]
 fn e_takes_back_what_fits_and_leaves_the_rest() {
     let reg = items();
@@ -287,7 +289,8 @@ fn round_trip(save: &crate::persistence::WorldSave) -> crate::persistence::World
 /// from before packs loads with none.
 ///
 /// Seen red 2026-10-04 with the save not writing the packs: "the pack comes back with the
-/// save, and only it / left: 0 / right: 1".
+/// save, and only it / left: 0 / right: 1". And 2026-10-05 with the load keeping the packs the
+/// world already had: "left: 2 / right: 1".
 #[test]
 fn the_pack_survives_a_save_and_a_load() {
     let (mut world, p) = player_world();
@@ -327,7 +330,9 @@ fn the_pack_survives_a_save_and_a_load() {
 /// notice that says what was lost.
 ///
 /// Seen red 2026-10-04 with `count_down` counting nothing (packs stayed forever): "the
-/// warning: [] / left: 0 / right: 1".
+/// warning: [] / left: 0 / right: 1". And 2026-10-05 with the offline catch-up counting the
+/// day away on the pack's clock: "a day with the game closed did not take it / left: 0 /
+/// right: 1".
 #[test]
 fn it_goes_after_the_data_files_time_of_play_and_not_while_the_game_is_closed() {
     let r = rules();
@@ -352,7 +357,9 @@ fn it_goes_after_the_data_files_time_of_play_and_not_while_the_game_is_closed() 
     let (mut fresh, _q) = player_world();
     crate::save_load::apply_save_to_world(&mut fresh, &save);
     crate::save_load::catch_up_world(&mut fresh, &save, true, 1.0, 1_000 + 86_400);
-    assert_eq!(dp::packs(&fresh)[0].played_s, played, "a day with the game closed did not count");
+    let after_a_day = dp::packs(&fresh);
+    assert_eq!(after_a_day.len(), 1, "a day with the game closed did not take it");
+    assert_eq!(after_a_day[0].played_s, played, "a day with the game closed did not count");
 
     assert!(dp::count_down(&mut fresh, keep - played - 0.5, &r).is_empty(), "half a second left");
     let gone = dp::count_down(&mut fresh, 1.0, &r);
@@ -395,7 +402,8 @@ fn pack_at(place: PackPlace, played_s: f64) -> LeftPack {
 /// marked through that body's frame; two packs are numbered, newest first.
 ///
 /// Seen red 2026-10-04 with `pack_markers` marking nothing: "the pack is marked / left: 0 /
-/// right: 1".
+/// right: 1". And 2026-10-05 with the home's offset left out: marked at its ship-metre place,
+/// not where the moved home is drawn ("[(\"Your pack\", Vec3(1.0, 0.25, 2.0), 2.67)]").
 #[test]
 fn the_marker_points_at_the_pack() {
     use crate::gui::screen_surface::find_text_in_shapes;
