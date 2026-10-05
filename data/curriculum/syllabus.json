@@ -3832,7 +3832,9 @@
         "kitsap-county",
         "kitsap-911",
         "kitsap-drc",
-        "northwest-justice-project"
+        "northwest-justice-project",
+        "national-dv-hotline",
+        "wa-courts"
       ],
       "locale_dependent": false,
       "hazard": "serious"
@@ -3869,7 +3871,8 @@
         "kitsap-county",
         "regional-air-agency",
         "northwest-justice-project",
-        "kitsap-legal-aid"
+        "kitsap-legal-aid",
+        "central-kitsap-fire-rescue"
       ],
       "locale_dependent": true,
       "hazard": "serious"

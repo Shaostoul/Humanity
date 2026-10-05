@@ -27,12 +27,15 @@ even in materially abundant environments."
 
 Its sources are the National Institute of Mental Health (NIMH), the
 Substance Abuse and Mental Health Services Administration (SAMHSA), the
-CDC, the National Institute on Aging, the Surgeon General's 2023
-advisory on loneliness and the Department of Veterans Affairs (VA), all
-US federal and public domain; and, for the worked example, Washington's
-Health Care Authority, Kitsap County and Kitsap 911, restated in our own
-words. Local details were read on 4 October 2026 and can change. Where
-something is general practice or our reading, the text says so.
+CDC, the National Institute on Aging, the National Institute on Alcohol
+Abuse and Alcoholism, the Surgeon General's 2023 advisory on loneliness
+and the Department of Veterans Affairs (VA), all US federal and public
+domain; and, for Washington and the worked example, Washington's Health
+Care Authority, the Revised Code of Washington, Kitsap County and Kitsap
+911, restated in our own words. Local details were read on 4 and 5
+October 2026 and can change. Where something is general practice or our
+reading, the text says so. Where it touches the law, it is not legal
+advice.
 
 ## If someone may be in danger now
 
@@ -44,8 +47,26 @@ This part comes first because it is the part that saves lives.
    the right call: a suicide attempt in progress; a person with a
    specific plan they intend to carry out right away, who has the means
    to do it; a suspected overdose; and chest pain or shortness of breath
-   that could be either a panic attack or a medical emergency.
-2. **Call or text 988 for a crisis.** The 988 Suicide and Crisis
+   that could be either a panic attack or a medical emergency. If the
+   person is somewhere else, give 911 their address: help goes to where
+   they are, and your call reaches the 911 centre for where you are
+   (general practice). For someone in Kitsap County, Kitsap 911
+   publishes a number for reaching its dispatchers from outside the
+   county: 360-307-5844 (read 5 October 2026).
+2. **While you wait after an overdose.** The CDC says what to do until
+   help arrives. If you are not sure it is an overdose, treat it as one.
+   Give naloxone if you have it, which reverses an opioid overdose and is
+   sold without a prescription, and call 911. Then, in the CDC's words:
+   "Try to keep the person awake and breathing." "Lay the person on their
+   side to prevent choking." "Stay with the person until emergency
+   assistance arrives." The CDC adds that most states have laws that may
+   protect the person overdosing, and the person who called for help,
+   from criminal penalties. Washington's law says that a person who calls
+   for help in good faith, and the person overdosing, may not be charged
+   with drug possession on evidence found because help was sought (RCW
+   69.50.315, read 5 October 2026; it covers possession, not other
+   charges).
+3. **Call or text 988 for a crisis.** The 988 Suicide and Crisis
    Lifeline answers calls and texts to 988, and chats at
    988lifeline.org, at any hour. The Substance Abuse and Mental Health
    Services Administration: "988 offers 24/7 judgment-free support for
@@ -53,27 +74,34 @@ This part comes first because it is the part that saves lives.
    somebody else as well as about yourself; in SAMHSA's words, "People
    can also call, text or chat 988 if they are worried about a loved
    one who may need crisis support."
-3. **Stay with them.** The National Institute of Mental Health: "If
+4. **Stay with them.** The National Institute of Mental Health: "If
    someone tells you that they are going to kill themselves, do not
-   leave them alone."
-4. **Do not promise to keep it secret.** The same NIMH page: "Do not
-   promise that you will keep their suicidal thoughts a secret". Tell a
-   trusted friend, family member or other trusted adult instead (NIMH,
-   restated).
-5. **Put time and distance between them and the means.** NIMH:
-   "Reducing access to highly lethal items or places can help prevent
-   suicide." The section on keeping someone safe, below, says how.
-6. **Keep yourself safe.** If there is a weapon or violence, or you are
-   afraid, get yourself and anyone else out and call 911 (general
-   practice). A helper who is hurt helps nobody.
+   leave them alone." If you are not with them, keep talking, and get
+   someone who can be there to go to them tonight; if nobody can, that
+   is a call to 911 (general practice).
+5. **Do not promise to keep it secret.** The National Institute of
+   Mental Health again: "Do not promise that you will keep their
+   suicidal thoughts a secret". Tell a trusted friend, family member or
+   other trusted adult instead (NIMH, restated).
+6. **Put time and distance between them and the means.** The National
+   Institute of Mental Health: "Reducing access to highly lethal items or
+   places can help prevent suicide." The section on keeping someone
+   safe, below, says how.
+7. **Keep yourself safe.** If they are holding a weapon or can reach
+   one, are violent, or you are afraid, do not try to take the weapon:
+   get yourself and anyone else to safety, call 911, and tell the
+   dispatcher about the weapon and that the person is now alone (general
+   practice). This is the one exception to staying with them, because a
+   helper who is hurt helps nobody; keep them on the phone from somewhere
+   safe if you can (general practice).
 
-Veterans and service members can dial 988 and press 1 for the Veterans
-Crisis Line, or text it at 838255; the VA says you do not have to be
-enrolled in VA benefits or health care to use it. Spanish speakers have
-their own option on the 988 menu, interpreters cover more than 240 other
-languages, and Deaf and hard of hearing callers can dial 988 on a
-videophone to reach counselors who sign in American Sign Language
-(SAMHSA).
+Veterans and service members, and the people who support them, can dial
+988 and press 1 for the Veterans Crisis Line, or text it at 838255; the
+VA says you do not have to be enrolled in VA benefits or health care to
+use it. Spanish speakers have their own option on the 988 menu,
+interpreters cover more than 240 other languages, and Deaf and hard of
+hearing callers can dial 988 on a videophone to reach counselors who
+sign in American Sign Language (SAMHSA).
 
 ## What strain does
 
@@ -117,8 +145,8 @@ The same sheet says these distressing feelings usually fade over time,
 within a few weeks, as you get back to routines, and especially if you
 have used some of the ways of helping yourself below. If they do not, it
 says to reach out for extra help. The sheet dates from 2013 and its
-hotline list predates 988; its advice on reactions has not changed, but
-use the numbers in this guide.
+hotline list predates 988. SAMHSA still offers it, but use the numbers in
+this guide.
 
 ### Caring for someone else
 
@@ -189,7 +217,11 @@ small and building up to two and a half hours a week, for example 20 to
   and alcohol, especially in large amounts. Their effects are multiplied
   under stress and can be harmful, just making things worse." And watch
   the amount: using drugs or alcohol more often is one of NIMH's warning
-  signs of suicide.
+  signs of suicide. If you have been drinking heavily for a long time,
+  talk to a doctor before you stop. The National Institute on Alcohol
+  Abuse and Alcoholism warns that when such a person "suddenly stops
+  drinking, the body can go into a painful or even dangerous process of
+  withdrawal", and that doctors can make it safer.
 - **Ration the news.** The CDC: "Take breaks from news and social media.
   It is good to be informed, but constant information about negative
   events can be upsetting."
@@ -226,18 +258,18 @@ of depression that comes and goes with the seasons, most often starting
 in late fall or early winter and lifting in spring and summer. It says
 SAD is more common in people living farther north, where winter
 daylight is shorter. Silverdale, at about 47.6 degrees north, gets less
-daylight on the shortest day than the 9 hours 20 minutes of the
-40-degree row in the table in [Why Seasons Happen](/library#why-seasons-happen),
-and more than the 8 hours 4 minutes of its 50-degree row (our reading of
-that table). Many people feel down in the dark months and better in
-spring; the booklet separates that from SAD, which is depression with a
-seasonal pattern and a diagnosis to match. Its treatments (light
-therapy, talk therapy, medication and vitamin D) are chosen with a
-health care provider, and NIMH notes that people with certain eye
-diseases, or taking medicines that increase sensitivity to sunlight, may
-need another treatment, or light therapy under medical supervision. Do
-not treat yourself on a hunch; take the pattern to a provider (general
-practice).
+daylight on the shortest day than the 8 hours 46 minutes that [Why
+Seasons Happen](/library#why-seasons-happen) gives for 45 degrees north, and
+more than the 8 hours 4 minutes of its table's 50-degree row (our
+reading of that guide's figures). Many people feel down in the dark
+months and better in spring; the booklet separates that from SAD, which
+is depression with a seasonal pattern and a diagnosis to match. Its
+treatments (light therapy, talk therapy, medication and vitamin D) are
+chosen with a health care provider, and NIMH notes that people with
+certain eye diseases, or taking medicines that increase sensitivity to
+sunlight, may need another treatment, or light therapy under medical
+supervision. Do not treat yourself on a hunch; take the pattern to a
+provider (general practice).
 
 ## Warning signs
 
@@ -254,6 +286,11 @@ examples:
 - loss of interest in things you usually enjoy;
 - inability to complete usual tasks and activities;
 - irritability, frustration or restlessness.
+
+Two weeks is the line for severe or distressing symptoms, not a waiting
+period: going sooner is fine, and the warning signs of suicide below
+mean getting help as soon as possible (our reading of NIMH's pages
+together).
 
 Where to start: NIMH says to talk to a primary care provider, who can
 refer you to a qualified mental health professional such as a
@@ -288,20 +325,27 @@ is looking for ways to die, such as stockpiling pills or buying a gun.
 ### What raises the risk, and what protects
 
 The CDC's list of risk and protective factors explains why a long hard
-stretch matters. Among the risks: job or financial problems or loss,
-serious illness such as chronic pain, substance use, a sense of
-hopelessness, the loss of relationships, high conflict or violent
-relationships, social isolation, and easy access to lethal means among
-people at risk. Among the protections: effective coping and
-problem-solving skills, reasons for living such as family, friends and
-pets, support from partners, friends and family, feeling connected to
-others, and reduced access to lethal means.
+stretch matters. Its list of personal risks starts with the two that
+weigh most: a previous suicide attempt, and a history of depression and
+other mental illnesses. NIMH's list of the main risk factors also starts
+with a history of suicide attempts, and names depression, other mental
+disorders and substance use disorder next. Among the CDC's other risks:
+job or financial problems or loss, serious illness such as chronic pain,
+substance use, a sense of hopelessness, the loss of relationships, high
+conflict or violent relationships, social isolation, and easy access to
+lethal means among people at risk. Among the protections: effective
+coping and problem-solving skills, reasons for living such as family,
+friends and pets, support from partners, friends and family, feeling
+connected to others, and reduced access to lethal means.
 
 NIMH's caution about all such lists: "Most people who have risk factors
 for suicide will not attempt suicide, and it is difficult to tell who
-will act on suicidal thoughts." So you watch the signs, not the
-statistics, and you take every one seriously. "All talk of suicide
-should be taken seriously and requires immediate attention" (NIMH).
+will act on suicidal thoughts." It adds that risk factors are worth
+keeping in mind, but that someone showing warning signs may be at
+higher risk and needs attention at once. So keep both in mind, act on
+the signs straight away, and take every one seriously. "All talk of
+suicide should be taken seriously and requires immediate attention"
+(NIMH).
 
 ## How to ask, and how to stay
 
@@ -313,14 +357,25 @@ thoughts of suicide, are the core of this guide.
    to say, and NIMH says it can help start a conversation. People fear
    that asking plants the idea; NIMH answers that directly: "Studies
    show that asking people if they are suicidal does not increase
-   suicidal behavior or thoughts." Ask directly, using the word, rather
-   than hinting (our reading of the same advice).
+   suicidal behavior or thoughts." Ask directly rather than hinting:
+   NIMH's booklet of questions about suicide says asking someone directly
+   can be the best way to identify someone at risk, and the VA says it is
+   okay to ask directly.
 2. **Be there.** "Listening without judgment is key to learning what the
    person is thinking and feeling." NIMH adds that research suggests
    acknowledging and talking about suicide may reduce suicidal thoughts.
 3. **Help keep them safe.** Ask whether they have a plan, and make the
-   means less available or less deadly (NIMH). The next section says
-   how.
+   means less available or less deadly (NIMH). Ask too whether they mean
+   to act on it now, tonight. A specific plan that someone is carrying
+   out, or means to carry out right away, with the means to do it, is
+   one of SAMHSA's examples of when to call 911. A plan with the means at
+   hand, from someone who will not let you put the means out of reach,
+   calls for 911 as well (our reading of the same example). Help them
+   write a safety plan too: NIMH's booklet of questions says research has
+   shown that a safety plan or crisis response plan, with specific
+   instructions for what to do and how to get help when thoughts of
+   suicide come, can help reduce the risk of acting on them. The next
+   section says how to make the means less available.
 4. **Help them connect.** Connect them with 988, and with someone they
    trust: a family member, friend, spiritual adviser or mental health
    professional (NIMH).
@@ -356,25 +411,45 @@ can help reduce suicide attempts and deaths, and the CDC lists reduced
 access to lethal means among the factors that protect against suicide.
 
 - **Medicines.** Stockpiling pills is on NIMH's list of serious warning
-  signs. Lock medicines away, or hold them for the person, with their
-  agreement where you can get it (general practice, following NIMH's
-  advice to make lethal means less available).
+  signs. With the person's agreement, lock medicines away or hold them
+  yourself (general practice, following NIMH's advice to make lethal
+  means less available). Someone who takes a medicine every day still
+  needs it: hand over each day's prescribed dose rather than stopping
+  it, and ask their pharmacist or doctor how if you are unsure (general
+  practice). If they have a plan and will not let the pills go, that is
+  the 911 call in the steps above.
 - **Firearms.** NIMH lists the presence of guns or other firearms in the
   home among the main risk factors. Store a gun locked and unloaded, with
   the key or combination held by someone other than the person at risk;
   or, where the law allows it (the next point), ask someone you trust to
   hold it until the crisis has passed (general practice). The VA offers
-  a free cable gun lock at its local facilities; its page says simply to
-  ask.
+  a free cable gun lock at its local facilities; its page, written for
+  veterans and service members, says simply to ask.
 - **Handing a gun to someone else, in Washington.** Most transfers of a
   firearm in Washington have to go through a licensed dealer with a
-  background check, but the law makes an exception for a temporary
+  background check, but the law makes exceptions. One is a temporary
   transfer intended to prevent suicide or serious self-harm, lasting only
   as long as reasonably necessary, during which the person holding the
-  gun does not use it for any purpose (RCW 9.41.113(4)(d), read
-  4 October 2026). Other states' rules differ, and the rules on who may
-  hold a gun at all still apply (our reading). Read the section itself,
-  or ask the crisis line, before you hand one over.
+  gun does not use it for any purpose; another is a genuine gift or loan
+  between close family members (RCW 9.41.113(4)(d) and (4)(a), read 4
+  October 2026). Other states' rules differ, and the rules on who may
+  hold a gun at all still apply (our reading).
+- **If they will not let the gun go, in Washington.** An intimate
+  partner, a family or household member, or a law enforcement agency can
+  ask a court for an extreme risk protection order against someone who
+  poses a significant danger of hurting themselves or others with a
+  firearm. If the court grants one, the person must hand their firearms,
+  and any concealed pistol license, to the local police (RCW 7.105.100
+  and 7.105.340, read 5 October 2026). A person can also choose to file
+  a voluntary waiver of their own firearm rights with the court clerk in
+  any Washington county. Once it is accepted they may not have a
+  firearm, any they hold should be surrendered at once, and they cannot
+  revoke the waiver for at least seven days (RCW 9.41.350).
+- **This is not legal advice.** Weapons are one of the areas where a
+  mistake can cost your liberty ([The Law Where You
+  Live](/library#the-law-where-you-live)). Read the sections themselves, and
+  for the question of handing a gun over, ask a lawyer, not the crisis
+  line. Locking the gun away while you check does not have to wait.
 
 ## Where help is
 
@@ -388,13 +463,23 @@ What happens when you call, from SAMHSA's answers to common questions
   local crisis center, chosen by your approximate location or your
   phone's area code; if it cannot answer, a national backup center
   does. You can skip the menu by dialling zero.
+- **Then you hear music** until a counselor answers. When SAMHSA wrote
+  its answers the wait was typically under a minute; if it is longer,
+  SAMHSA asks you to stay on the line. The greeting also says that calls
+  may be monitored or recorded for quality assurance, and some crisis
+  centers use recordings for training (SAMHSA, restated).
 - A trained counselor answers, asks about your safety, listens, works to
   understand how the problem is affecting you, and shares resources that
   may help. Texting and chat follow the same pattern.
 - **It is not the police.** SAMHSA: "Most crises are managed by
   counselors working with you to de-escalate the situation and without
   involving law enforcement." The counselor contacts 911 when you, or the
-  person you are calling about, are in physical danger.
+  person you are calling about, are in physical danger. SAMHSA is honest
+  about the other side too. A mobile crisis team aims to keep people out
+  of hospital, and most people with suicidal thoughts will not need to be
+  taken in against their will, but in SAMHSA's words, "Involuntary
+  hospitalization may be needed in circumstances of imminent risk where
+  the other efforts are not successful."
 - **What they know about you.** The counselor sees your phone number, or
   your internet address on chat, and otherwise does not know who or
   where you are. In the rare case that a counselor has to involve 911
@@ -415,8 +500,8 @@ What happens when you call, from SAMHSA's answers to common questions
   press 2 for Spanish.
 - **Treatment for mental illness or substance use:** the National
   Helpline, 1-800-662-4357, above.
-- **Your own doctor,** for anything that has lasted two weeks or more
-  (NIMH).
+- **Your own doctor,** for severe or distressing symptoms that have
+  lasted two weeks or more (NIMH), or sooner if you want (our reading).
 
 ### In Washington and Kitsap County
 
@@ -425,43 +510,57 @@ everyone in the state, regardless of income or insurance: 911 for a
 life-threatening emergency, 988 for a suicidal or behavioural health
 crisis, or the crisis line for your county. After a call to 988 or a
 county crisis line, it says, a professional asks about the crisis and
-can offer in-person crisis services, such as mobile crisis outreach for
-adults and young people.
+can offer in-person crisis services: mobile crisis outreach for adults
+and young people, designated crisis responders and safety officers (the
+agency's list).
 
 For Kitsap County the line is the Salish Regional Crisis Line,
 1-888-910-0416, which Kitsap County's page lists as open around the
 clock for Kitsap, Clallam and Jefferson counties (both pages read
 4 October 2026).
 
-Kitsap 911 takes calls and texts. Its rule for texting: call if you
-can, text only if you cannot, and type your location, including the
-city, into the text (restated). Its own list of reasons to call 911
-includes a mental or physical illness that needs an emergency medical
-response.
+Kitsap 911 takes texts as well as calls. It asks people to call when
+they can, because a voice call gets help moving faster, and to text
+when speaking is not possible or not safe, putting the location, town
+included, in the message; texting 911 works across Washington, but not
+every phone carrier supports it. Among its reasons to call 911 is an
+illness, of mind or body, that needs emergency medical help. From
+outside the county, its dispatchers are on 360-307-5844 (Kitsap 911,
+restated, read 5 October 2026).
 
 ## Worked example: a hard winter near Silverdale
 
 An illustration with made-up names and details.
 
 **Sam's winter.** Sam is laid off from a job in Silverdale in early
-November. By December the days are short and wet, Sam is sleeping
-until noon, has stopped answering friends, and is drinking most
-evenings.
+November. By early December the days are short and wet, Sam is
+sleeping until noon, has stopped answering friends, and is drinking
+most evenings.
 
-1. Sam sets an alarm for the same time every morning and the same
-   bedtime, and stops drinking in the evenings (CDC; SAMHSA).
-2. Sam goes for a walk every day, even a short one (NIMH).
-3. Sam writes a list (rent, the unemployment claim, the car) and does
+1. A friend sees that three of those are on NIMH's list of warning signs
+   (sleeping more, withdrawing from friends, drinking more often) and
+   says so. NIMH's instruction is to get help as soon as possible,
+   especially when the behaviour is new, so that week Sam books the first
+   appointment a primary care provider has, and says plainly what has
+   changed (NIMH). The steps below run alongside the appointment, not
+   instead of it.
+2. Sam sets an alarm for the same time every morning and the same
+   bedtime, and cuts out the evening drinking (CDC; SAMHSA), telling the
+   provider about the drinking too, in case stopping needs a doctor's
+   care (the caution under food and drink, above).
+3. Sam goes for a walk every day, even a short one (NIMH).
+4. Sam writes a list (rent, the unemployment claim, the car) and does
    one item a day (SAMHSA).
-4. Sam calls one person every day, and says yes to a weekly dinner with
+5. Sam calls one person every day, and says yes to a weekly dinner with
    a neighbour (Surgeon General's advisory).
-5. Three weeks in, Sam still has trouble getting out of bed because of
-   mood and has lost interest in everything. That is past NIMH's two
-   weeks, so Sam books an appointment with a primary care provider and
-   says so plainly (NIMH).
-6. One night Sam catches the thought that everyone would be better off
+6. By mid-December, two weeks after it all began, Sam still has trouble
+   getting out of bed because of mood and has lost interest in
+   everything. Those are severe or distressing symptoms lasting two
+   weeks, NIMH's line for professional help, and at the appointment Sam
+   says so in those words (NIMH).
+7. One night Sam catches the thought that everyone would be better off
    without Sam. That is NIMH's "Being a burden to others", so Sam texts
-   988 that night instead of waiting for the appointment.
+   988 that night instead of waiting for the next appointment.
 
 **Jo's text.** At 11 at night your friend Jo texts: "I don't see the
 point any more." You call.
@@ -469,19 +568,34 @@ point any more." You call.
 1. You ask: "Are you thinking about suicide?" Jo says yes, and that
    there are pills saved up in the bathroom (NIMH: ask, and ask about a
    plan).
-2. You stay on the line, and you do not promise to keep it between you
+2. You ask whether Jo means to take them tonight, and whether Jo has
+   taken anything already. Jo says no to both. Had Jo said yes, refused
+   to let the pills be moved, or stopped answering, you would have
+   called 911 then, giving Jo's address. A specific plan that someone
+   means to carry out right away, with the means at hand, is one of
+   SAMHSA's examples of when to call 911; that a refusal or silence
+   counts the same is our reading.
+3. You stay on the line, and you do not promise to keep it between you
    (NIMH).
-3. You ask whether Jo has taken anything, and Jo has not. You ask Jo to
-   bring the pills to the kitchen and give them to Jo's housemate to
-   keep, and Jo agrees (making the means less available; NIMH).
-4. You suggest calling 988 together, and add the counselor on a
-   three-way call (VA). The counselor talks with Jo, and offers the
-   county crisis line's mobile team; Jo agrees to a visit the next
-   morning (Washington Health Care Authority, restated).
-5. Had Jo already taken the pills, you would have called 911 at once,
-   because a suspected overdose is a 911 call (SAMHSA), and then the
-   housemate.
-6. You call Jo the next day, and the day after (NIMH: follow up). And you
+4. You ask Jo to bring the pills to the kitchen and give them to Jo's
+   housemate to keep, and Jo agrees (making the means less available;
+   NIMH). You ask the housemate to stay with Jo tonight, and the
+   housemate agrees (general practice, in the spirit of NIMH's advice
+   not to leave someone alone).
+5. You suggest calling 988 together, and add the counselor on a
+   three-way call (VA). There is a short wait with music, and you stay on
+   the line (SAMHSA). The counselor talks with Jo, and offers the county
+   crisis line's mobile team; Jo agrees to a visit the next morning
+   (Washington Health Care Authority, restated).
+6. Before you hang up, you and Jo write a short safety plan: what Jo
+   will do, and whom Jo will call, when the thoughts come back, with 988,
+   the housemate and you on it (NIMH's safety plan; what goes in this one
+   is our example).
+7. Had Jo already taken the pills, you would have called 911 at once,
+   with Jo's address, because a suspected overdose is a 911 call
+   (SAMHSA), and asked the housemate to keep Jo awake and breathing, lay
+   Jo on one side, and stay with Jo until help came (CDC).
+8. You call Jo the next day, and the day after (NIMH: follow up). And you
    tell someone you trust how shaken you are, because helpers need help
    too (general practice; the National Institute on Aging's caregiver
    advice says the same of carers).
@@ -490,8 +604,10 @@ point any more." You call.
 
 Your part is real, and it is limited.
 
-- **Diagnosis and treatment belong to professionals.** Two weeks of
-  symptoms means a provider (NIMH). Medicines, light boxes and
+- **Diagnosis and treatment belong to professionals.** Severe or
+  distressing symptoms for two weeks or more mean a provider, and the
+  warning signs of suicide mean help as soon as possible (NIMH); going
+  sooner is always fine (our reading). Medicines, light boxes and
   supplements are chosen with a provider, not from a guide (NIMH;
   general practice).
 - **A crisis belongs to 988, and danger to 911.** You can ask, listen,
@@ -499,8 +615,9 @@ Your part is real, and it is limited.
   can (our reading of NIMH and SAMHSA together).
 - **You cannot keep someone safe alone.** Bring in others: a trusted
   person, the crisis line, their doctor (NIMH).
-- **Your own safety comes first.** If there is a weapon or violence, or
-  you are afraid, leave and call 911 (general practice).
+- **Your own safety comes first.** If they hold or can reach a weapon,
+  are violent, or you are afraid, get to safety and call 911, and do not
+  try to take the weapon yourself (general practice).
 - **You need looking after too.** Caring for someone in a long crisis is
   a strain of its own (National Institute on Aging).
 
@@ -513,9 +630,11 @@ Your part is real, and it is limited.
   talk of suicide needs immediate attention.
 - **"I'll keep it between us."** NIMH: do not promise secrecy.
 - **"988 means police at the door."** SAMHSA: most crises are handled by
-  the counselor, without law enforcement.
-- **"I should be able to handle this myself."** Two weeks of
-  symptoms is the line for a professional, whoever you are (NIMH).
+  the counselor, without law enforcement, and 911 is brought in when
+  someone is in physical danger.
+- **"I should be able to handle this myself."** Severe or distressing
+  symptoms for two weeks or more are NIMH's line for a professional,
+  whoever you are, and you can go sooner.
 - **"A drink helps me sleep."** Alcohol before bed is on the CDC's list
   of habits to avoid, and drinking more is on NIMH's list of warning
   signs.
@@ -530,11 +649,18 @@ The game has no mind to look after. Nothing in it tracks stress, mood,
 grief, loneliness or hope, and no character in it can be in crisis or
 ask for help. The game's data lists effects named Frightened, Confused
 and Focused Mind (`data/status_effects.csv`), but nothing in the game
-gives them to you. The Medicine skill, which this topic shares with the
+gives them to you. Its data also holds a whole psychology file, with
+needs for friendship, family and community, morale effects such as
+loneliness, and personality traits (`data/psychology.ron`), but the
+system that used it was deleted in July 2026, and no code in the game
+reads it now. The Medicine skill, which this topic shares with the
 first-aid guides, rises when you craft medical supplies such as
 bandages, splints, antiseptic and medkits (`data/recipes.csv`); nothing
 about looking after a mind trains it. The Leadership skill appears in the
-skill list, but nothing in the game levels it yet.
+skill list, but nothing you do in the game earns it experience yet. Only
+the Profile page's "Dev: max skills" button raises it, along with every
+other skill, and that button shows in Dev play mode while the "Enable
+dev cheats" switch is on, both of them the default during development.
 
 Outside the game, HumanityOS's Tools page has a Help and services
 section. Its Health category lists the 988 Lifeline, its Emergency
@@ -552,25 +678,33 @@ this guide are the only gauge you will get.
   crisis, and you have them in your phone, with your county's crisis
   line.
 - You would stay with someone who says they are going to kill
-  themselves, and you would not promise secrecy.
+  themselves, or make sure someone else does, and you would not promise
+  secrecy.
 - You can ask "Are you thinking about suicide?" in those words, and you
   know asking does not make it more likely.
+- You would ask whether they mean to act on a plan tonight, and you would
+  call 911, with their address, if they do and the means are at hand.
 - You know NIMH's five steps: ask, be there, help keep them safe, help
-  them connect, follow up.
-- You know the warning signs, including a sudden calm.
+  them connect, follow up, and you would help them write a safety plan.
+- You know the warning signs, including a sudden calm, and you know they
+  mean getting help now, not in two weeks.
+- You know the CDC's steps while help comes after an overdose: naloxone
+  if you have it, keep them awake and breathing, on their side, and stay.
 - You know how to put time and distance between a person and pills or a
-  gun, and you would check your state's law before handing a gun to
-  anyone.
+  gun, and you would check your state's law, and ask a lawyer, before
+  handing a gun to anyone.
 - You keep your own sleep, meals, movement and contact with people going
   through a hard stretch, and you go easy on alcohol and the news.
-- You see a provider when symptoms last two weeks or more, and you know
-  where to find SAMHSA's National Helpline.
+- You see a provider when severe or distressing symptoms last two weeks
+  or more, or sooner, and you know where to find SAMHSA's National
+  Helpline.
 - You look after yourself when you are the one helping.
 
 ## Sources
 
-Grouped by what kind of authority each one is. Web pages and documents
-were read on 4 October 2026; the statute was read on the same day.
+Grouped by what kind of authority each one is. Web pages, documents and
+statutes were read on 4 October 2026; those added after the fact check
+were read on 5 October 2026, as marked.
 
 ### United States government (public domain)
 
@@ -591,19 +725,25 @@ were read on 4 October 2026; the statute was read on the same day.
   Suicide*, NIH Publication No. 23-MH-6389, revised 2023 (call 911 in an
   immediate life-threatening situation; do not leave alone someone who
   says they are going to kill themselves; do not promise secrecy, tell a
-  trusted person; the risk factors, including firearms in the home; most
-  people with risk factors will not attempt suicide; the warning signs,
+  trusted person; the main risk factors, starting with a history of
+  suicide attempts and then depression, other mental disorders or
+  substance use disorder, and including firearms in the home; most
+  people with risk factors will not attempt suicide, while someone
+  showing warning signs needs immediate attention; the warning signs,
   including a sudden change to calm, stockpiling pills or buying a gun;
-  safe storage of lethal means reducing attempts and deaths; asking does
-  not cause or increase suicidal thoughts; all talk of suicide taken
-  seriously, and not a typical response to stress; avoiding the phrase
-  "committing suicide"; SAMHSA's National Helpline and its text line).
+  creating a safety plan or crisis response plan; safe storage of lethal
+  means reducing attempts and deaths; asking does not cause or increase
+  suicidal thoughts, and asking directly can be the best way to identify
+  someone at risk; all talk of suicide taken seriously, and not a typical
+  response to stress; avoiding the phrase "committing suicide"; SAMHSA's
+  National Helpline and its text line).
   https://www.nimh.nih.gov/health/publications/suicide-faq
 - National Institute of Mental Health. *Caring for Your Mental Health*,
   last reviewed April 2026 (30 minutes of walking a day, small amounts
   adding up; regular meals and water; caffeine and alcohol; a sleep
   schedule; setting priorities and saying no; staying connected; seeking
-  professional help for symptoms lasting 2 weeks or more, and the list;
+  professional help for severe or distressing symptoms lasting 2 weeks or
+  more, and the list;
   a primary care provider as the starting point; 988 free, confidential
   and around the clock).
   https://www.nimh.nih.gov/health/topics/caring-for-your-mental-health
@@ -617,8 +757,9 @@ were read on 4 October 2026; the statute was read on the same day.
   NIH Publication No. 23-MH-8138, revised 2023 (winter-pattern SAD
   beginning in late fall or early winter; more common farther north; the
   winter blues as distinct from SAD; treatments chosen with a provider;
-  light therapy not suitable for some eye diseases or light-sensitizing
-  medicines).
+  people with some eye diseases, or taking medicines that increase
+  sensitivity to sunlight, possibly needing another treatment or light
+  therapy under medical supervision).
   https://www.nimh.nih.gov/health/publications/seasonal-affective-disorder
 - Substance Abuse and Mental Health Services Administration. *988
   Suicide and Crisis Lifeline*, last updated 26 September 2025 ("988
@@ -629,12 +770,15 @@ were read on 4 October 2026; the statute was read on the same day.
   Frequently Asked Questions*, last updated 16 December 2025 (call, text
   or chat; calling about a loved one; English, Spanish and interpreters
   in more than 240 languages; the call menu, local and backup centers,
-  and dialling zero; the counselor asking about safety; "There is no
-  reason too big or too small to reach out to 988"; reaching out early;
-  988 and 911, the examples of when 911 is needed, and most crises
-  managed without law enforcement; no payment or insurance, text rates;
-  what the counselor knows of your number and location; videophone
-  access in ASL; press 1 for veterans).
+  and dialling zero; music until a counselor answers, the usual wait of
+  under a minute and staying on the line; calls possibly monitored or
+  recorded; the counselor asking about safety; "There is no reason too
+  big or too small to reach out to 988"; reaching out early; 988 and
+  911, the examples of when 911 is needed, and most crises managed
+  without law enforcement; mobile crisis teams, and involuntary
+  hospitalization in circumstances of imminent risk; no payment or
+  insurance, text rates; what the counselor knows of your number and
+  location; videophone access in ASL; press 1 for veterans).
   https://www.samhsa.gov/mental-health/988/faqs
 - Substance Abuse and Mental Health Services Administration. *SAMHSA's
   National Helpline*, last updated 9 June 2023 (1-800-662-HELP (4357);
@@ -653,7 +797,8 @@ were read on 4 October 2026; the statute was read on the same day.
   areas; one task at a time and a list; patience with yourself; resting
   every day; caffeine, tobacco and alcohol multiplied under stress;
   distressing feelings usually fading within weeks as routines return;
-  its hotline list predates 988).
+  its hotline list predates 988; SAMHSA's library still offers it, dated
+  January 2013).
   https://library.samhsa.gov/product/tips-survivors-disaster-or-other-traumatic-event-managing-stress/sma13-4776
 - Centers for Disease Control and Prevention. *About Sleep*, last updated
   15 May 2024 (hours of sleep by age; the benefits, including reduced
@@ -672,8 +817,25 @@ were read on 4 October 2026; the statute was read on the same day.
   https://www.cdc.gov/social-connectedness/about/index.html
 - Centers for Disease Control and Prevention. *Risk and Protective
   Factors for Suicide*, 26 May 2026 (the individual, relationship,
-  community and societal risk and protective factors).
+  community and societal risk and protective factors, the individual
+  list starting with a previous suicide attempt and a history of
+  depression and other mental illnesses).
   https://www.cdc.gov/suicide/risk-factors/index.html
+- Centers for Disease Control and Prevention. *What to Do If You Think
+  Someone Is Overdosing*, 2 April 2024, read 5 October 2026 (if unsure,
+  treat it as an overdose; naloxone if available, and call 911; keep the
+  person awake and breathing; lay them on their side; stay until help
+  arrives; naloxone reverses an opioid overdose and needs no
+  prescription; most states have laws that may protect the person
+  overdosing and the caller from criminal penalties).
+  https://www.cdc.gov/stop-overdose/response/index.html
+- National Institute on Alcohol Abuse and Alcoholism, National
+  Institutes of Health. Alcohol Treatment Navigator, *FAQs: Searching for
+  Alcohol Treatment*, undated, read 5 October 2026 (when someone who has
+  been drinking heavily for a long time suddenly stops, withdrawal can be
+  painful or dangerous, with symptoms that can include seizures, and
+  doctors can make it safer).
+  https://alcoholtreatment.niaaa.nih.gov/FAQs-searching-alcohol-treatment
 - Office of the Surgeon General, US Department of Health and Human
   Services. *Our Epidemic of Loneliness and Isolation: The U.S. Surgeon
   General's Advisory on the Healing Effects of Social Connection and
@@ -687,51 +849,84 @@ were read on 4 October 2026; the statute was read on the same day.
   completely overwhelmed."; how to ask others for help).
   https://www.nia.nih.gov/health/caregiving/taking-care-yourself-tips-caregivers
 - US Department of Veterans Affairs. Veterans Crisis Line, home page,
-  *What is 988?* and *How You Can Help*, undated (dial 988 then press 1,
-  or text 838255; no need to be enrolled in VA benefits or health care;
-  how to start a conversation; making the call together on a three-way
-  call). https://www.veteranscrisisline.net/ and
+  *What is 988?* and *How You Can Help*, undated (serving veterans,
+  service members and those who support them; dial 988 then press 1, or
+  text 838255; no need to be enrolled in VA benefits or health care; how
+  to start a conversation, and that it is okay to ask directly; making
+  the call together on a three-way call).
+  https://www.veteranscrisisline.net/ and
   https://www.veteranscrisisline.net/about/what-is-988/ and
   https://www.veteranscrisisline.net/how-you-can-help/
-- US Department of Veterans Affairs. *Lethal Means Safety*, undated
-  ("Creating time and space between crisis and action provides crucial
-  moments to face life's challenges."; a free cable gun lock from your
-  local VA). https://www.va.gov/reach/lethal-means/
+- US Department of Veterans Affairs. *Keep It Secure*, the VA's lethal
+  means safety page, undated ("Creating time and space between crisis
+  and action provides crucial moments to face life's challenges."; a
+  free cable gun lock from your local VA, for the asking).
+  https://www.va.gov/reach/lethal-means/
 
 ### Washington State and Kitsap County (cited as the authority, restated in our own words)
 
 Washington does not place its state works in the public domain, and the
 county and Kitsap 911 pages are not federal works either, so the facts
-are used here and the wording is not.
+are used here and the wording is not. The statutes are cited so that you
+can read them yourself; this guide's summary of them is not legal
+advice.
 
 - Washington State Health Care Authority. *Mental health crisis lines*,
   undated (crisis lines for everyone regardless of income or insurance;
-  911, 988 and the county crisis line; what happens after a call,
-  including mobile crisis outreach; Kitsap County's line, 1-888-910-0416).
+  911, 988 and the county crisis line; what happens after a call, and
+  the in-person services offered: mobile crisis outreach for adults and
+  youth, designated crisis responders and safety officers; Kitsap
+  County's line, 1-888-910-0416).
   https://www.hca.wa.gov/free-or-low-cost-health-care/i-need-behavioral-health-support/mental-health-crisis-lines
 - Kitsap County, Salish Behavioral Health Administrative Services
   Organization page, undated (the Salish Regional Crisis Line,
   1-888-910-0416, 24 hours a day for Kitsap, Clallam and Jefferson
   counties). https://kitsap.gov/hs/Pages/SBH-ASO-LANDING-HOME.aspx
-- Kitsap 911. *Emergency or Non-Emergency*, undated (call or text 911;
-  call if you can, text only if you cannot, with the location; mental or
-  physical illness needing an emergency medical response among the
-  reasons to call). https://www.kitsap911.org/call-or-text
+- Kitsap 911. *Emergency or Non-Emergency*, undated, re-read 5 October
+  2026 (call or text 911; a call gets help moving faster, so text when
+  you cannot safely speak, with the location; text-to-911 across
+  Washington, though not every carrier supports it; illness needing
+  emergency medical help among the reasons to call; 360-307-5844 for
+  reaching a dispatcher from outside Kitsap County).
+  https://www.kitsap911.org/call-or-text
 - Revised Code of Washington 9.41.113 (background checks for firearm
-  transfers through a licensed dealer, and the exception in (4)(d) for a
-  temporary transfer intended to prevent suicide or self-inflicted great
-  bodily harm, lasting only as long as reasonably necessary, with the
-  firearm not used by the person holding it).
+  transfers through a licensed dealer; the exceptions in (4)(a) for a
+  genuine gift or loan between immediate family members and in (4)(d)
+  for a temporary transfer intended to prevent suicide or self-inflicted
+  great bodily harm, lasting only as long as reasonably necessary, with
+  the firearm not used by the person holding it).
   https://app.leg.wa.gov/RCW/default.aspx?cite=9.41.113
+- Revised Code of Washington 7.105.100 and 7.105.340, read 5 October
+  2026 (who may petition for an extreme risk protection order, and what
+  it must allege; surrender of firearms and any concealed pistol license
+  to local law enforcement once an order is issued).
+  https://app.leg.wa.gov/RCW/default.aspx?cite=7.105.100 and
+  https://app.leg.wa.gov/RCW/default.aspx?cite=7.105.340
+- Revised Code of Washington 9.41.350, read 5 October 2026 (a voluntary
+  waiver of firearm rights filed with the clerk of the court in any
+  county; possession unlawful once it is accepted; revocation no sooner
+  than seven calendar days after filing).
+  https://app.leg.wa.gov/RCW/default.aspx?cite=9.41.350
+- Revised Code of Washington 69.50.315, read 5 October 2026 (no charge or
+  prosecution for drug possession, on evidence obtained because medical
+  help was sought, for a person who seeks it in good faith for someone
+  overdosing, or for the person overdosing).
+  https://app.leg.wa.gov/RCW/default.aspx?cite=69.50.315
 
 ### Inside this project
 
 - The status effects that nothing applies: `data/status_effects.csv`
   (Frightened, Confused and Focused Mind; no code in `src/` gives them).
+  The psychology file nothing reads: `data/psychology.ron` (needs, morale
+  modifiers, personality traits); its system was removed on 2 July 2026
+  (`tests/engine_wiring_lint.rs`), and no code in `src/` reads the file.
   The Medicine skill trained by crafting medical recipes:
   `data/recipes.csv` and `src/systems/crafting/mod.rs`. The Leadership
   skill: `data/skills/skills.csv`; nothing in `src/` or the game's data
-  awards it experience.
+  awards it experience, and the "Dev: max skills" button
+  (`src/gui/pages/profile.rs`, `src/systems/skills/mod.rs`) sets every
+  skill to its top level, shown in Dev play mode with dev cheats on
+  (`src/config.rs`, `cheats_enabled` in `data/gui/theme.ron`).
 - The Tools page's Help and services: `src/gui/pages/tools.rs`, reading
   `data/external/catalog.json`.
 - [How Your Body Works](/library#how-your-body-works), [Handling
@@ -742,19 +937,29 @@ are used here and the wording is not.
 
 ### Labelled in the text as general practice or our reading, not sourced
 
-- Getting out and calling 911 when there is a weapon, violence or fear,
-  and a hurt helper helping nobody, are general practice.
+- Getting to safety and calling 911 when they hold or can reach a
+  weapon, are violent or you are afraid, not trying to take the weapon,
+  telling the dispatcher about it, and a hurt helper helping nobody, are
+  general practice.
+- Giving 911 the person's address when you are elsewhere, and a call
+  reaching the 911 centre for where you are; getting someone to the
+  person when you cannot be there, or calling 911 if nobody can; and
+  asking a housemate to stay the night are general practice.
 - Keeping the day's fixed points at fixed times; not treating seasonal
   low mood yourself; locking medicines away or holding them with the
-  person's agreement; storing a gun locked and unloaded with the key held
-  by someone else, or with a trusted person; and helpers needing support
-  of their own are general practice.
-- That a crisis is often a peak to get through; asking with the word
-  rather than hinting; that the VA's advice for veterans works for
+  person's agreement, and handing over each day's prescribed dose;
+  storing a gun locked and unloaded with the key held by someone else,
+  or with a trusted person; and helpers needing support of their own are
+  general practice.
+- That a crisis is often a peak to get through; that a plan with the
+  means at hand calls for 911 when the person will not let the means go,
+  or stops answering; that two weeks is a line and not a waiting period,
+  and going sooner is fine; that the VA's advice for veterans works for
   anyone; that you cannot assess risk as a counselor can; that the rules
-  on who may hold a gun still apply under the Washington exception; and
-  Silverdale's shortest-day daylight bracketed from the table in Why
+  on who may hold a gun still apply under the Washington exceptions; and
+  Silverdale's shortest-day daylight bracketed from the figures in Why
   Seasons Happen are our reading.
 - The worked example's people, times, places and words are made up to
-  illustrate the steps, as are the phrase "died by suicide" and the
-  timing of the follow-up calls, both offered as examples.
+  illustrate the steps, as are the phrase "died by suicide", the timing
+  of the follow-up calls and what goes in Jo's safety plan, all offered
+  as examples.

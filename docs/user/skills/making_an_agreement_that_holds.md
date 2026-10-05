@@ -513,7 +513,11 @@ What the game does not model: there are no loans, no shared ownership,
 no written contracts between players beyond the Trade page's offer,
 and no way for an agreement to be broken and disputed. The Trading and
 Leadership skills, which this topic belongs to, appear in the skill
-list, but nothing in the game levels either of them yet.
+list, but nothing a player does in the game earns either of them
+experience yet. Only the Profile page's "Dev: max skills" button raises
+them, along with every other skill, and that button shows in Dev play
+mode while the "Enable dev cheats" switch is on, both of them the
+default during development.
 
 ## You own this when
 
@@ -649,7 +653,10 @@ and documents were read on 4 October 2026.
   `src/config.rs` and `src/save_load.rs` (`apply_identity` keeps the
   name, look and outfit, and the record of settled trades).
 - The Trading and Leadership skills: `data/skills/skills.csv`; nothing
-  in `src/` awards either of them experience.
+  in `src/` awards either of them experience, and the "Dev: max skills"
+  button (`src/gui/pages/profile.rs`, `src/systems/skills/mod.rs`) sets
+  every skill to its top level, shown in Dev play mode with dev cheats
+  on (`src/config.rs`, `cheats_enabled` in `data/gui/theme.ron`).
 - [Trading Fairly](trading_fairly.md), [Keeping
   Records](keeping_records.md), [Testing Water](testing_water.md),
   [Conflict
