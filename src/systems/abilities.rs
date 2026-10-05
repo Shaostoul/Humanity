@@ -7,12 +7,12 @@
 //! knowing it). One stat pipeline, one request channel, same validate-consume
 //! shape as machine automation.
 //!
-//! v1 scope is deliberately SELF-scoped: healing abilities restore Health and
-//! energy pays the cost (mana_cost + stamina_cost both draw from the energy
-//! vital until a separate stamina vital exists - casting makes you tired,
-//! which makes abilities part of the survival economy). Offensive rows load
-//! in the registry but are not castable until the combat arc gives them
-//! targets - the GUI says so honestly instead of fizzling.
+//! Healing abilities restore Health and energy pays the cost (mana_cost +
+//! stamina_cost both draw from the energy vital until a separate stamina vital
+//! exists - casting makes you tired, which makes abilities part of the
+//! survival economy). Offensive rows (damage_base > 0) cast at a creature the
+//! caster faces within range and deal damage_base (v0.760); with no target
+//! they say so instead of fizzling.
 //!
 //! BUILDING ABILITIES (BUG-153, 2026-10-05): a row whose `builds` column names
 //! a blueprint builds that piece in front of the caster, through the one
@@ -47,7 +47,7 @@ pub const BUILD_SPOT_SLOT: &str = "ability_build_spot";
 // ── Definitions (data/abilities.csv) ────────────────────────────────
 
 /// One abilities.csv row. Columns the engine does not consume yet (aoe,
-/// damage, duration) still parse so the combat arc reads the same registry.
+/// duration) still parse so later work reads the same registry.
 #[derive(Debug, Clone, Deserialize)]
 pub struct AbilityDef {
     pub id: String,
@@ -107,9 +107,9 @@ impl AbilityDef {
         self.mana_cost + self.stamina_cost
     }
 
-    /// Does this row do anything in the v1 self-scoped pipeline? Healing
-    /// abilities are live, and so are building ones (BUG-153); damage rows
-    /// wait for the combat arc's targets.
+    /// Is this row cast on the caster, with no target? Healing abilities and
+    /// building ones (BUG-153) are; damage rows are not (they need a creature
+    /// in range, see `cast`).
     pub fn self_castable(&self) -> bool {
         self.healing_base > 0.0 || self.builds.is_some()
     }
