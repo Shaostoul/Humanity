@@ -76,6 +76,21 @@
             onset: "Something you ate has made you ill: Food Poisoning. Vomiting and diarrhoea will take water out of you.",
             helps: "Drink while it lasts. Oral rehydration solution puts back the most (mix a sachet into a litre of water), plain water most of it, and sugary or caffeinated drinks the least. Antibiotics do not help it.",
             passed: "The Food Poisoning has passed. Drink until your Hydration is back up.",
+            // Made ill again while it still lasts: spoiled food, or a raw food's
+            // chance, eaten or drunk before it has passed (2026-10-05). It does
+            // not start over. `again_adds_h` is the most a second exposure adds
+            // to the time left, in game hours of the Realistic course
+            // (Forgiving adds its share of them), and never past a fresh
+            // course. A GAME CHOICE, 0 here: the sources above give how long a
+            // bout lasts and nothing about eating the same kind of thing again
+            // during it, so the bout runs the course it began with. Before
+            // this, each exposure started the whole course again without a
+            // word: a litre of rehydration solution drunk past its 24 hours,
+            // two hours before the end, made it two more days.
+            again_adds_h: 0.0,
+            // What the player is told then. The game adds how long it still
+            // lasts ("It still passes on its own in about 2 hours.").
+            again: "You are already ill with Food Poisoning, so this does not start it over.",
         ),
     ],
 

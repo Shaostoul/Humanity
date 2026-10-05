@@ -341,9 +341,69 @@ enum Consume {
 
 /// Status-effect durations a meal can apply, resolved once per tick.
 struct MealEffects {
+    /// A fresh course of food poisoning in this Illness mode, game seconds.
     poisoning_s: f32,
+    /// The Illness mode, for what a second exposure adds (`Illnesses::again`).
+    illness_mode: crate::systems::illness::Mode,
     well_fed_s: f32,
     nourished_s: f32,
+}
+
+// ── EXACT AT ANY FRAME RATE (BUG-164, 2026-10-05) ─────────────────────────────
+//
+// At time speed 1 a frame is a sixtieth of a second or less, and the body's
+// daily needs move by millionths of a point in one: thirst takes 0.0000096 of
+// a point a frame at 60 frames a second, hunger 0.0000028. An f32 between 64
+// and 128 moves in steps of 0.0000076, so every frame's change was rounded to
+// a whole number of steps. There, at 60 frames a second, satiation never fell
+// (a new character starts at 80, so hunger never came) and thirst ran at 0.79
+// times its rate; at 144 thirst ran 1.9 times too fast, and above about 152 it
+// stopped. Starving took no health from a body above 32 at 60 frames a second,
+// the waste meter stopped rising above 64 at 144 (above 32 at 240), and an
+// illness's countdown, an f32 that moves in steps of 1/64 s at two days, never
+// ran at 144 frames a second or more. Since v0.1005.1 (2026-07-27), when the
+// needs moved to real-scale clocks.
+//
+// THE RULE FOR THE WHOLE BODY: every per-frame change is worked out in f64,
+// and nothing f32 rounding holds back is lost.
+// - An effect's time left is an f64 (`ActiveEffect::remaining`).
+// - A meter that stays an f32 for everything else that reads it (the vitals and
+//   Health: the HUD, the save, the abilities, combat) takes its change through
+//   `change_exactly`, which keeps what rounding held back in the body's
+//   `BodyCarry` and adds it to the next frame's change, the way the water tanks
+//   carry theirs (BUG-096). The meter is then always within half a step of its
+//   exact value, at any frame rate and any time speed.
+// The carry is not saved: it is under half a step (0.000004 of a point near
+// 100), which a save loses once.
+
+/// What f32 rounding has held back from one body's meters (BUG-164), in each
+/// meter's own units, owed to the next frame's change. Kept by the FoodSystem
+/// per body, beside its heat state.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+struct BodyCarry {
+    satiation: f64,
+    hydration: f64,
+    energy: f64,
+    oxygen: f64,
+    waste: f64,
+    health: f64,
+}
+
+/// Change `meter` by `delta`, held within `lo..=hi`, so that nothing is lost to
+/// rounding: the exact result (the meter, what `carry` held back last time, and
+/// `delta`, all in f64) is held within the bounds, the meter becomes its nearest
+/// f32, and what that rounding held back is left in `carry` for the next change.
+/// What a bound takes off (an empty or a full meter) is not carried: an empty
+/// stomach cannot go below empty. A change that is not a number changes nothing.
+fn change_exactly(meter: &mut f32, carry: &mut f64, delta: f64, lo: f32, hi: f32) {
+    let exact = f64::from(*meter) + *carry + delta;
+    if !exact.is_finite() {
+        *carry = 0.0;
+        return;
+    }
+    let held = exact.min(f64::from(hi)).max(f64::from(lo));
+    *meter = held as f32;
+    *carry = held - f64::from(*meter);
 }
 
 /// Tracks nutrition, spoilage, and cooking.
@@ -357,6 +417,9 @@ pub struct FoodSystem {
     /// Each living body's heat state (2026-09-27, `systems::body_heat`). Only
     /// the core temperature is saved (in `Vitals`); the rest restarts from it.
     body_heat: HashMap<hecs::Entity, crate::systems::body_heat::Tracked>,
+    /// What rounding has held back from each body's meters (BUG-164,
+    /// `change_exactly`). Not saved: each is under half an f32 step.
+    carry: HashMap<hecs::Entity, BodyCarry>,
     /// What an illness does to the body's water and what the player is told
     /// (BUG-162, `systems::illness`, data/medical/illnesses.ron).
     illnesses: crate::systems::illness::Illnesses,
@@ -410,6 +473,7 @@ impl FoodSystem {
             item_profile,
             asleep: None,
             body_heat: HashMap::new(),
+            carry: HashMap::new(),
             illnesses,
             treatments,
         }
@@ -520,18 +584,36 @@ impl FoodSystem {
             // cooked/preserved food (risk 0) is safe.
             if is_spoiled || (risk > 0.0 && rand::random::<f32>() < risk) {
                 let already = effects.has("food_poisoning");
-                effects.apply("food_poisoning", fx.poisoning_s);
                 log::info!(
-                    "[Food] {item_id} consumed {} -> food poisoning!",
-                    if is_spoiled { "spoiled" } else { "raw" }
+                    "[Food] {item_id} consumed {} -> food poisoning{}",
+                    if is_spoiled { "spoiled" } else { "raw" },
+                    if already { " again, while still ill" } else { "!" }
                 );
-                // Tell the player, in plain words, once: what is happening,
-                // how long it lasts in this Illness mode, and what helps.
-                if !already {
-                    if let Some(ill) = self.illnesses.get("food_poisoning") {
+                match self.illnesses.get("food_poisoning") {
+                    // Ill again while it still lasts (2026-10-05): it does not
+                    // start over. The time left grows by at most what the data
+                    // says (nothing, for Food Poisoning), and the player is told
+                    // so, with the time it still has to run. It used to restart
+                    // the whole course without a word.
+                    Some(ill) if already => {
+                        let fresh = f64::from(fx.poisoning_s);
+                        if let Some((before, after)) = self.illnesses.again(ill, effects, fresh, fx.illness_mode) {
+                            let msg = crate::systems::illness::Illnesses::again_notice(ill, before, after);
+                            crate::systems::sleep::notice(data, msg);
+                        }
+                    }
+                    // Falling ill: the course in this Illness mode, and the
+                    // player is told in plain words what is happening, how long
+                    // it lasts and what helps.
+                    Some(ill) => {
+                        effects.apply("food_poisoning", fx.poisoning_s);
                         let msg = crate::systems::illness::Illnesses::onset_notice(ill, fx.poisoning_s);
                         crate::systems::sleep::notice(data, msg);
                     }
+                    // No illness data (a broken install): the effect alone, and
+                    // still never started over.
+                    None if !already => effects.apply("food_poisoning", fx.poisoning_s),
+                    None => {}
                 }
             }
             // A satisfying meal grants well_fed (stamina regen) + well_nourished
@@ -644,6 +726,7 @@ impl System for FoodSystem {
                 // The Realistic course, or Forgiving's share of it.
                 poisoning_s: effect_s("food_poisoning", FALLBACK_FOOD_POISONING_S)
                     * self.illnesses.course_share(illness_mode),
+                illness_mode,
                 well_fed_s: effect_s("well_fed", FALLBACK_WELL_FED_S),
                 nourished_s: effect_s("well_nourished", FALLBACK_WELL_FED_S),
             };
@@ -827,24 +910,27 @@ impl System for FoodSystem {
             if dead.is_some() {
                 continue;
             }
-            let mut health_drain = 0.0_f32;
+            // Every change below is worked out in f64, and a meter takes it
+            // through `change_exactly` with this body's carry (BUG-164, the
+            // EXACT AT ANY FRAME RATE note above).
+            let carry = self.carry.entry(e).or_default();
+            let (game_s, real_s, drain) = (f64::from(game_dt), f64::from(dt), f64::from(drain_scale));
+            let mut health_drain = 0.0_f64;
             // Largest single drain source this tick -- becomes the death line
             // ("You died: starvation") if this is the tick that reaches zero.
-            let mut worst: (&str, f32) = ("", 0.0);
+            let mut worst: (&str, f64) = ("", 0.0);
 
-            vitals.satiation =
-                (vitals.satiation - SATIATION_DECAY_PER_SEC * drain_scale * game_dt).max(0.0);
-            vitals.hydration =
-                (vitals.hydration - HYDRATION_DECAY_PER_SEC * drain_scale * game_dt).max(0.0);
-            // An illness takes water while it lasts (BUG-162, systems::illness):
-            // food poisoning's vomiting and diarrhoea, on the game clock, by the
-            // Illness mode. It does no harm of its own: the harm is the empty
-            // Hydration bar below, when the player has not drunk enough. The
-            // Vitals drain slider scales it with the rest of thirst.
+            let hunger = f64::from(SATIATION_DECAY_PER_SEC) * drain * game_s;
+            change_exactly(&mut vitals.satiation, &mut carry.satiation, -hunger, 0.0, f32::INFINITY);
+            // Thirst: the day's clock, and the water an illness takes while it
+            // lasts (BUG-162, systems::illness): food poisoning's vomiting and
+            // diarrhoea, on the game clock, by the Illness mode. The illness
+            // does no harm of its own: the harm is the empty Hydration bar
+            // below, when the player has not drunk enough. The Vitals drain
+            // slider scales both.
             let ill_l = self.illnesses.water_l(effects, illness_mode, game_dt);
-            if ill_l > 0.0 {
-                vitals.hydration = (vitals.hydration - ill_l * HYDRATION_PER_LITRE * drain_scale).max(0.0);
-            }
+            let thirst = (f64::from(HYDRATION_DECAY_PER_SEC) * game_s + ill_l * f64::from(HYDRATION_PER_LITRE)) * drain;
+            change_exactly(&mut vitals.hydration, &mut carry.hydration, -thirst, 0.0, f32::INFINITY);
             if vitals.satiation < HUNGRY_THRESHOLD {
                 effects.apply("hungry", CONDITION_LINGER);
             } else {
@@ -856,14 +942,14 @@ impl System for FoodSystem {
                 effects.remove("thirsty");
             }
             if vitals.satiation <= 0.0 {
-                let amt = STARVE_DAMAGE_PER_SEC * game_dt;
+                let amt = f64::from(STARVE_DAMAGE_PER_SEC) * game_s;
                 health_drain += amt;
                 if amt > worst.1 {
                     worst = ("starvation", amt);
                 }
             }
             if vitals.hydration <= 0.0 {
-                let amt = DEHYDRATE_DAMAGE_PER_SEC * game_dt;
+                let amt = f64::from(DEHYDRATE_DAMAGE_PER_SEC) * game_s;
                 health_drain += amt;
                 if amt > worst.1 {
                     worst = ("dehydration", amt);
@@ -873,7 +959,8 @@ impl System for FoodSystem {
             // Energy drains while awake; low energy -> fatigued (speed debuff, #3b),
             // unless a short rest is still keeping a tired (not exhausted)
             // person alert (systems::sleep::short_rest, 2026-09-27).
-            vitals.energy = (vitals.energy - ENERGY_DECAY_PER_SEC * drain_scale * game_dt).max(0.0);
+            let tiring = f64::from(ENERGY_DECAY_PER_SEC) * drain * game_s;
+            change_exactly(&mut vitals.energy, &mut carry.energy, -tiring, 0.0, f32::INFINITY);
             if vitals.energy < FATIGUED_THRESHOLD && !crate::systems::sleep::nap_holds_off_fatigue(vitals.energy, effects) {
                 effects.apply("fatigued", CONDITION_LINGER);
             } else {
@@ -882,15 +969,16 @@ impl System for FoodSystem {
 
             // Oxygen: recover when breathing, drain in vacuum -> hypoxia then suffocation.
             if env_oxygenated {
-                vitals.oxygen =
-                    (vitals.oxygen + OXYGEN_RECOVER_PER_SEC * dt).min(vitals.oxygen_max);
+                let breath = f64::from(OXYGEN_RECOVER_PER_SEC) * real_s;
+                change_exactly(&mut vitals.oxygen, &mut carry.oxygen, breath, f32::NEG_INFINITY, vitals.oxygen_max);
             } else {
-                vitals.oxygen = (vitals.oxygen - OXYGEN_DRAIN_PER_SEC * dt).max(0.0);
+                let lost = f64::from(OXYGEN_DRAIN_PER_SEC) * real_s;
+                change_exactly(&mut vitals.oxygen, &mut carry.oxygen, -lost, 0.0, f32::INFINITY);
             }
             if vitals.oxygen <= 0.0 {
                 effects.remove("hypoxia");
                 effects.apply("suffocation", CONDITION_LINGER);
-                let amt = SUFFOCATION_DAMAGE_PER_SEC * dt;
+                let amt = f64::from(SUFFOCATION_DAMAGE_PER_SEC) * real_s;
                 health_drain += amt;
                 if amt > worst.1 {
                     worst = ("suffocation", amt);
@@ -927,11 +1015,13 @@ impl System for FoodSystem {
             // daily clock (an hour walking in dry 35 C air is about 0.2 L,
             // 4 points; hard work in the heat is several times that). The
             // Vitals drain slider scales it like the other needs.
-            vitals.hydration = (vitals.hydration - heat.sweat_l * HYDRATION_PER_LITRE * drain_scale).max(0.0);
+            let sweat = f64::from(heat.sweat_l) * f64::from(HYDRATION_PER_LITRE) * drain;
+            change_exactly(&mut vitals.hydration, &mut carry.hydration, -sweat, 0.0, f32::INFINITY);
             if heat.harm > 0.0 {
-                health_drain += heat.harm;
-                if heat.harm > worst.1 {
-                    worst = (heat.cause, heat.harm);
+                let amt = f64::from(heat.harm);
+                health_drain += amt;
+                if amt > worst.1 {
+                    worst = (heat.cause, amt);
                 }
             }
 
@@ -949,7 +1039,7 @@ impl System for FoodSystem {
                 let rate = crate::systems::flight::harm_per_sec(tol, env_g_load);
                 if rate > 0.0 {
                     effects.apply("high_g", CONDITION_LINGER);
-                    let amt = rate * dt;
+                    let amt = f64::from(rate) * real_s;
                     health_drain += amt;
                     if amt > worst.1 {
                         worst = ("crushed by acceleration", amt);
@@ -960,7 +1050,8 @@ impl System for FoodSystem {
             }
 
             // Organic waste accrues while living; high waste -> the unsanitary debuff.
-            vitals.waste = (vitals.waste + WASTE_RISE_PER_SEC * game_dt).min(vitals.waste_max);
+            let made = f64::from(WASTE_RISE_PER_SEC) * game_s;
+            change_exactly(&mut vitals.waste, &mut carry.waste, made, f32::NEG_INFINITY, vitals.waste_max);
             if vitals.waste > UNSANITARY_THRESHOLD {
                 effects.apply("unsanitary", CONDITION_LINGER);
             } else {
@@ -974,35 +1065,36 @@ impl System for FoodSystem {
             // 3 dmg / 20 s drains 0.15/s; regeneration's 5 heal / 3 s restores
             // ~1.67/s. This is also the game's first health REGENERATION path.
             // An illness's own rows count game seconds, like its course.
-            let mut effect_heal = 0.0_f32;
+            let mut effect_heal = 0.0_f64;
             if let Some(reg) = registry {
                 for active in &effects.active {
                     if let Some(def) = reg.get(&active.id) {
                         let interval =
                             if def.tick_interval_s > 0.0 { def.tick_interval_s } else { 1.0 };
-                        let clock = if def.is_disease() { game_dt } else { dt };
+                        let clock = if def.is_disease() { game_s } else { real_s };
                         if def.damage_per_tick > 0.0 {
-                            let amt = def.damage_per_tick / interval * clock;
+                            let amt = f64::from(def.damage_per_tick / interval) * clock;
                             health_drain += amt;
                             if amt > worst.1 {
                                 worst = (def.name.as_str(), amt);
                             }
                         }
                         if def.healing_per_tick > 0.0 {
-                            effect_heal += def.healing_per_tick / interval * clock;
+                            effect_heal += f64::from(def.healing_per_tick / interval) * clock;
                         }
                     }
                 }
             }
 
-            // Apply the tick's accumulated Health drain + healing (all sources).
+            // Apply the tick's accumulated Health drain + healing (all sources),
+            // exactly (BUG-164): starving's 0.0000014 a frame at 60 frames a
+            // second is below an f32's step on a healthy body.
             // A Controllable (the player) whose health reaches zero THIS tick
             // dies: recorded here, Dead inserted after the query borrow ends.
             if let Some(health) = health {
                 let before = health.current;
                 if health_drain > 0.0 || effect_heal > 0.0 {
-                    health.current =
-                        (health.current - health_drain + effect_heal).clamp(0.0, health.max);
+                    change_exactly(&mut health.current, &mut carry.health, effect_heal - health_drain, 0.0, health.max);
                 }
                 if ctrl.is_some() && before > 0.0 && health.current <= 0.0 {
                     let cause =
@@ -1023,7 +1115,7 @@ impl System for FoodSystem {
             let step = |id: &str| if on_game_clock(id) { game_dt } else { dt };
             if ctrl.is_some() {
                 for active in &effects.active {
-                    if active.remaining - step(&active.id) <= 0.0 {
+                    if active.remaining - f64::from(step(&active.id)) <= 0.0 {
                         if let Some(ill) = self.illnesses.get(&active.id) {
                             passed.push(ill.passed.clone());
                         }
@@ -1032,8 +1124,9 @@ impl System for FoodSystem {
             }
             effects.tick_with(step);
         }
-        // Forget the heat state of bodies that are gone.
+        // Forget the heat state and the carry of bodies that are gone.
         self.body_heat.retain(|e, _| heat_seen.contains(e));
+        self.carry.retain(|e, _| heat_seen.contains(e));
         for msg in passed {
             crate::systems::sleep::notice(data, msg);
         }
@@ -2326,3 +2419,9 @@ mod spoilage_tests;
 #[cfg(test)]
 #[path = "illness_tests.rs"]
 mod illness_tests;
+
+/// The body at frame rate (BUG-164, 2026-10-05): hunger, thirst, an illness's water and its
+/// countdown ticked one frame at a time at time speed 1, at 60, 144 and 240 frames a second.
+#[cfg(test)]
+#[path = "food_frame_rate_tests.rs"]
+mod frame_rate_tests;
