@@ -3630,3 +3630,19 @@ detail while the camera was 300 m up (a teleport artifact a walking player would
 see: arriving by teleport and arriving the way a player does have differed before), or whether trees there float
 for anyone. First step: capture the same place after a longer settle and after walking
 in, and compare each tree's base with the terrain height under it.
+
+## BUG-157: two data files are silently ignored: their field names do not match the code that reads them (OPEN, found 2026-10-05)
+
+**Seen (by the leaving-the-ship design proposal, confirmed):** `data/docking.ron` writes
+`docking_ports: [...]` and `docking_procedures: [...]`, but `src/systems/docking.rs` reads
+`ports` and `procedures`; `data/transportation.ron` writes `space: [...]`, but
+`src/systems/transportation.rs` reads `space_infrastructure`. Every one of those loader
+fields is `#[serde(default)]`, so each mismatched list loads as EMPTY with no error and no
+warning: the ports, procedures and space infrastructure written in the data never reach
+the game. Three module headers also name data files that do not exist (`data/vehicles.csv`,
+`data/ship_classes.csv`, `data/propulsion.csv`).
+
+**Fix (not started):** make the names agree (the data is the source of truth, so rename
+the loader fields or add serde aliases), and add a test that loads each shipped file and
+fails if a list the file writes arrives empty. A lint that every top-level key in a shipped
+RON file is a field its loader knows would catch the whole class.
