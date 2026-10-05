@@ -3531,7 +3531,7 @@ counts home storage as well as the backpack. Tests, each seen red first:
 **Still open, smaller:** "Dev: stock all materials" supplies no tools, and since BUG-147 a
 craft's parts come from home storage but its tools must still be carried.
 
-## BUG-151: opening and shutting the build editor with no edit rewrote the home, ship and machine data files (FIXED v0.1459.0, found 2026-10-05)
+## BUG-151: opening and shutting the build editor with no edit rewrote the home, ship and machine data files (FIXED v0.1459.0, found 2026-10-04)
 
 **Seen:** by the first run of increment 4's new rig legs (the editor jump). The
 editor's opening rebuild set `construction_structure_dirty`, and the choke point in
@@ -3544,7 +3544,7 @@ In a checkout (the rigs' data folder is the checkout) that rewrote four tracked 
 rebuild (755018fa0). Test `engine::editor::autosave_tests::opening_the_editor_is_not_an_edit`,
 seen red: "the editor's own rebuild as it opens armed the autosave".
 
-## BUG-152: three tests fail under machine load, not on their code (OPEN, found 2026-10-05)
+## BUG-152: three tests fail under machine load, not on their code (OPEN, found 2026-10-04)
 
 **Seen:** while increment 4's fixes were checked, with other builds running: the media
 seek tests `a_seek_lands_where_it_was_asked_and_the_picture_agrees`,
