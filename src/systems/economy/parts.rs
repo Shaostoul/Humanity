@@ -430,8 +430,9 @@ mod tests {
         }
         // Proof the walk reached the recipe book and the graded goods, so a
         // green run is not an empty one: 350 recipes have inputs the post
-        // sells or can be made from them, and 78 of those make a durable good
-        // the post buys (the 2026-10-05 data).
+        // sells or can be made from them, and 77 of those make a durable good
+        // the post buys (measured on the data after the review of 2026-10-05,
+        // which took out the home-made antibiotics; 78 before it).
         assert!(checked >= 300, "only {checked} recipes have inputs the post sells or can be made from them");
         assert!(graded >= 70, "only {graded} of them make a graded good the post buys");
         if !loops.is_empty() {
@@ -508,11 +509,13 @@ mod tests {
             }
         }
         assert!(wrong.is_empty(), "{} goods break the grade ladder:\n  {}", wrong.len(), wrong.join("\n  "));
-        // Proof the ladder was walked over the real goods: 87 durable goods
-        // are traded, and 80 of them leave room for a premium and fetch one
-        // (the 2026-10-05 data). For the other 7 the parts cost under a
-        // credit and a quarter more than a standard one fetches (the large
-        // backpack's no more at all), or a standard one fetches nothing.
+        // Proof the ladder was walked over the real goods: 81 of the durable
+        // goods the post trades leave room for a premium and fetch one
+        // (measured on the data after the review of 2026-10-05, which took out
+        // the home-made antibiotics; 80 before it). For the rest the parts
+        // cost under a credit and a quarter more than a standard one fetches
+        // (the large backpack's no more at all), or a standard one fetches
+        // nothing.
         assert!(with_room >= 75 && with_premium >= 75, "only {with_room} goods leave room, {with_premium} fetch a premium");
     }
 
