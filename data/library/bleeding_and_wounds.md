@@ -1231,6 +1231,13 @@ The game's medical data lives in `data/medical.ron`, and the mapping to
 this document is partial in ways worth knowing, because the simulation
 teaches a shape and the shape is not yet complete.
 
+None of it happens to you in the game yet. The system that would apply
+the catalogue (`src/systems/medical.rs`) is not registered with the game,
+so no wound, bleeding or infection from it ever reaches your character,
+and the Bleeding and Infected Wound conditions in `data/status_effects.csv`
+are not applied by anything either. What follows describes the catalogue
+as it is written.
+
 What it represents well:
 
 - **`laceration`** ("Deep Laceration") carries the `bleeding` symptom,
@@ -1267,9 +1274,9 @@ guidance warns against.
 
 None of that is a criticism of the file, which is a solid condition and
 procedure catalogue. It is a note that the half of this subject that
-saves lives is the half the simulation does not yet model, and that a
-player could master every medical procedure in the game without
-encountering the idea that you press on a wound and do not let go.
+saves lives is the half the simulation does not yet model, and that even
+once the catalogue is in play, a player could master every procedure in it
+without encountering the idea that you press on a wound and do not let go.
 
 ---
 
