@@ -370,6 +370,54 @@ mod tests {
         assert_eq!(whereabouts(Some(&air), true, Vec3::new(26.0, 30.0, 40.0)), Whereabouts::Outside);
     }
 
+    /// THE TOP OF THE HOMESTEAD'S OWN ELEVATOR BREATHES THE HOME'S AIR (ship homes increment 4
+    /// review, P2), and so do the top of its ladder, the top step of its stairs, and a jump from
+    /// the elevator's top. The home's box used to stop at its roof (3 m for the homestead), so the
+    /// eye of anyone who rode its elevator up a storey (to 4.7 m) was in no air at all: outside,
+    /// in vacuum, hypoxia after 20 s. Before increment 4 every room's box reached the Commons' 8 m.
+    /// High over the roof is still outside.
+    ///
+    /// Seen red 2026-10-04 on the code before the fix: "the elevator's car at the top (elevator-1),
+    /// the eye at [31, 4.7, 26], breathes Outside".
+    #[test]
+    fn the_top_of_the_homesteads_own_elevator_breathes_the_homes_air() {
+        use glam::Vec3;
+        let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("the shipped ship");
+        let air = ship.air_spaces();
+        let eye = crate::surface_walk::EYE_HEIGHT_M as f32;
+        let jump_rise = crate::renderer::camera::JUMP_SPEED_MPS.powi(2) / (2.0 * 9.81);
+        let places = [
+            ("the elevator's car at the top (elevator-1)", Vec3::new(31.0, 3.0 + eye, 26.0)),
+            ("the ladder's top (ladder-1)", Vec3::new(11.0, 3.0 + eye + 0.2, 32.0)),
+            ("the stairs' top step (stairs-1)", Vec3::new(34.0, 3.0 + eye, 5.7)),
+            ("a jump from the elevator's top", Vec3::new(31.0, 3.0 + eye + jump_rise, 26.0)),
+        ];
+        for (what, p) in places {
+            let w = whereabouts(Some(&air), true, p);
+            assert_eq!(w, Whereabouts::InsideHome, "{what}, the eye at {p}, breathes {w:?}");
+        }
+        assert_eq!(whereabouts(Some(&air), true, Vec3::new(26.0, 30.0, 40.0)), Whereabouts::Outside, "high over the roof");
+    }
+
+    /// The headroom a home's air keeps over the highest thing in it (src/ship/ship_space.rs
+    /// `HEADROOM_M`) covers a person standing there and jumping, by the camera's own numbers:
+    /// the eye height and the jump's rise at the homestead's gravity (data/game.csv
+    /// `gravity_m_s2`).
+    #[test]
+    fn a_homes_headroom_covers_a_jump_at_its_gravity() {
+        let csv = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("game.csv")).expect("data/game.csv");
+        let g: f32 = csv
+            .lines()
+            .find_map(|l| l.strip_prefix("gravity_m_s2,"))
+            .and_then(|rest| rest.split(',').next())
+            .and_then(|v| v.trim().parse().ok())
+            .expect("gravity_m_s2 in data/game.csv");
+        let needed = crate::surface_walk::EYE_HEIGHT_M as f32 + crate::renderer::camera::JUMP_SPEED_MPS.powi(2) / (2.0 * g);
+        let headroom = crate::ship::ship_space::HEADROOM_M;
+        assert!(headroom >= needed, "a home's headroom of {headroom} m is under a standing jump's {needed:.2} m at {g} m/s2");
+    }
+
     /// The body heat INPUT at the player changes with altitude: at the same
     /// place and moment, under the same weather, a mountain top is colder and
     /// thinner than the shore below it, and an hour standing there cools a body

@@ -159,6 +159,81 @@ mod tests {
         assert!(text.contains("pair:Some(\"teleporter-2\")") || text.contains("pair:Some(\"teleporter-1\")"), "pairs are written as ids: {}", &text[..text.len().min(200)]);
     }
 
+    /// THE REPO'S OWN HOME STILL READS IN AN OLDER BUILD (ship homes increment 4 review, P3). An
+    /// exe built before increment 4 reads `pair` as a list index (`Option<usize>`, the struct
+    /// below is its PlacedStructure field for field) and moves a home it cannot parse aside as
+    /// homestead.invalid-<time>.ron, so launching the previous archive from this checkout would
+    /// have "deleted" the tracked data/homes/homestead.ron and kept that session out of the shared
+    /// world. So the repo's own home keeps list-index pairs (the loader of this increment settles
+    /// them into ids, `a_home_saved_with_index_pairs_loads`, and the next editor Save writes ids);
+    /// the shipped design is built into the exe, so no older build reads this tree's copy of it.
+    /// The indexes it keeps are the repaired pairing (the west teleporter, index 3, with the east
+    /// one, index 6), which an older build reads the same way.
+    ///
+    /// Seen red 2026-10-04 on the file before the fix (`pair: Some("teleporter-2")`): "an older
+    /// build cannot read the repo's own home: 1442:28: Expected integer".
+    #[test]
+    fn the_repos_own_home_still_reads_in_an_older_build() {
+        #[derive(serde::Deserialize)]
+        #[allow(dead_code)]
+        struct OldPiece {
+            type_id: String,
+            pos: (f32, f32, f32),
+            #[serde(default)]
+            rot_deg: f32,
+            #[serde(default)]
+            pair: Option<usize>,
+        }
+        #[derive(serde::Deserialize)]
+        struct OldBody {
+            structures: Vec<OldPiece>,
+        }
+        #[derive(serde::Deserialize)]
+        struct OldDesign {
+            body: OldBody,
+        }
+        let text = std::fs::read_to_string(data().join("homes").join("homestead.ron")).expect("the repo's own home");
+        let old: OldDesign = ron::from_str(&text).unwrap_or_else(|e| panic!("an older build cannot read the repo's own home: {e}"));
+        let index_of = |ty: &str, n: usize| old.body.structures.iter().enumerate().filter(|(_, s)| s.type_id == ty).nth(n).map(|(i, _)| i);
+        let (west, east) = (index_of("teleporter", 0).expect("the west teleporter"), index_of("teleporter", 1).expect("the east one"));
+        assert_eq!((old.body.structures[west].pair, old.body.structures[east].pair), (Some(east), Some(west)), "an older build pairs the two teleporters");
+        // This build reads it with the shipped design's pieces and pairs (never through
+        // `HomeDesign::load`, which would move the repo's file aside if it did not parse).
+        let now: HomeStructure = ron::from_str::<crate::ship::ship_structure::HomeDesign>(&text).expect("this build reads it").body;
+        let pairs = |h: &HomeStructure| -> Vec<(String, Option<String>)> { h.structures.iter().map(|s| (s.id.clone(), s.pair.clone())).collect() };
+        assert_eq!(pairs(&now), pairs(&shipped_home()), "the repo's own home settles to the shipped pairs");
+    }
+
+    /// A ONE-WAY PAIR STAYS ONE-WAY (ship homes increment 4 review, P1). The editor's pair box
+    /// sets only the piece being edited, so teleporter A linked to B with B left on "(no pair)"
+    /// is an ordinary home, and so is a train platform pointing at another that points nowhere.
+    /// Loading one must leave B unpaired, in the id form a home is saved in now and in the
+    /// list-index form of a home saved before increment 4. Before the fix the loader gave B the
+    /// one piece naming it, on every load: B jumped back to A, and "(no pair)" on B could never
+    /// be kept while A named it.
+    ///
+    /// Seen red 2026-10-04 on the code before the fix: "the teleporter B, saved with no pair, took
+    /// the one naming it: Some(\"teleporter-1\")".
+    #[test]
+    fn a_one_way_pair_stays_one_way() {
+        use crate::ship::home_structure::settle_structures;
+        let piece = |id: &str, ty: &str, pair: Option<&str>, x: f32| PlacedStructure { id: id.into(), type_id: ty.into(), pos: (x, 0.0, 10.0), rot_deg: 0.0, pair: pair.map(str::to_string) };
+        for ty in ["teleporter", "train"] {
+            let (a, b) = (format!("{ty}-1"), format!("{ty}-2"));
+            let mut by_id = vec![piece(&a, ty, Some(&b), 5.0), piece(&b, ty, None, 40.0)];
+            settle_structures(&mut by_id);
+            assert_eq!(by_id[1].pair, None, "the {ty} B, saved with no pair, took the one naming it: {:?}", by_id[1].pair);
+            assert_eq!(by_id[0].pair.as_deref(), Some(b.as_str()), "A still names B");
+            // The list-index form (A's pair Some(1), B's None), read the way every home's
+            // structures are read (`structures_settled`: each pair, then the list settled).
+            let text = format!("[(type_id: \"{ty}\", pos: (5.0, 0.0, 10.0), pair: Some(1)), (type_id: \"{ty}\", pos: (40.0, 0.0, 10.0), pair: None)]");
+            let mut by_index: Vec<PlacedStructure> = ron::from_str(&text).expect("the index form parses");
+            settle_structures(&mut by_index);
+            assert_eq!(by_index[0].pair.as_deref(), Some(b.as_str()), "the index became B's id");
+            assert_eq!(by_index[1].pair, None, "the index-form {ty} B, saved with no pair, took the one naming it: {:?}", by_index[1].pair);
+        }
+    }
+
     /// Ids are stable: removing a piece leaves every other pair as it was (with list indexes, a
     /// removal shifted every pair after it, and four removers each had to fix that up), and the
     /// id a new piece gets is never one in use. Seen red 2026-10-04 with `remove_structure` keeping

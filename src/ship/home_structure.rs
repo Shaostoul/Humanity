@@ -426,11 +426,15 @@ fn pairable(type_id: &str) -> bool {
 ///   2. a pair saved as a list index ("#5") becomes the id of the piece at that index;
 ///   3. a pair that names no piece, the piece itself, a piece of another type, or is set on a
 ///      piece that does not pair (a ladder) is dropped, with a warning;
-///   4. a pairable piece left with no partner takes the one piece of its type that names it, if
-///      exactly one does.
+///   4. a pairable piece whose saved pair was just dropped (in step 2 or 3) takes the one piece of
+///      its type that names it, if exactly one does.
 /// Steps 3 and 4 are what repair a home saved with the shipped homestead's index mispairing (its
 /// west teleporter paired with index 5, the ladder; the east teleporter with index 3, the west
 /// one): the ladder pair is dropped, and the west teleporter takes the east one, which names it.
+/// Step 4 never touches a piece that was SAVED unpaired: the editor's pair box sets only the
+/// piece being edited, so A linked to B with B left on "(no pair)" is an ordinary one-way pair,
+/// and B stays unpaired however often it loads (the review of increment 4, P1: step 4 used to pair
+/// every unpaired piece, so "(no pair)" on B could never be kept while A named it).
 pub fn settle_structures(list: &mut [PlacedStructure]) {
     let mut taken: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut needs_id = Vec::new();
@@ -444,6 +448,8 @@ pub fn settle_structures(list: &mut [PlacedStructure]) {
         taken.insert(id.clone());
         list[i].id = id;
     }
+    // Which pieces were saved with a pair at all (step 4 repairs only those).
+    let saved_paired: Vec<bool> = list.iter().map(|s| s.pair.is_some()).collect();
     let ids: Vec<String> = list.iter().map(|s| s.id.clone()).collect();
     for s in list.iter_mut() {
         if let Some(k) = s.pair.as_deref().and_then(|p| p.strip_prefix('#')).map(|k| k.parse::<usize>().ok()) {
@@ -460,7 +466,7 @@ pub fn settle_structures(list: &mut [PlacedStructure]) {
         }
     }
     for i in 0..list.len() {
-        if list[i].pair.is_some() || !pairable(&list[i].type_id) {
+        if list[i].pair.is_some() || !saved_paired[i] || !pairable(&list[i].type_id) {
             continue;
         }
         let me = list[i].id.clone();

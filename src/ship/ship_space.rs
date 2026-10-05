@@ -30,6 +30,13 @@ pub const ABOARD_MARGIN_M: f32 = 50.0;
 /// A box, (min, max) in ship metres.
 pub type Aabb = (Vec3, Vec3);
 
+/// How far over a walkable surface a person's eye can be, metres: the standing eye height
+/// (surface_walk::EYE_HEIGHT_M, 1.7) and the rise of a jump at the homestead's 1 g
+/// (renderer::camera::JUMP_SPEED_MPS, 5 m/s: 1.27 m), rounded up. A space's air reaches this far
+/// over the highest thing in it (`air_top`); engine/survival_env.rs holds it to the camera's own
+/// numbers and the gravity in data/game.csv.
+pub const HEADROOM_M: f32 = 3.0;
+
 /// A corridor's tube as a box: floor to lid, wall to wall, mouth to mouth.
 pub fn tube_box(g: &CorridorGeom) -> Aabb {
     let hw = g.width * 0.5;
@@ -63,6 +70,24 @@ pub fn aboard_at(bounds: Option<Aabb>, rel: glam::DVec3) -> bool {
 /// m3, where one 14,000 m3 space used to stand for every home).
 pub fn home_air_volume_m3(body: &HomeStructure) -> f32 {
     (body.width * body.depth * body.height).max(0.0)
+}
+
+/// How high above its floor a space's AIR reaches (the box whose air a person breathes): its roof,
+/// or a person standing on the top of the tallest thing built in it and jumping
+/// (`HEADROOM_M`), whichever is higher. The tops are each piece's placed height plus its height
+/// (src/ship/structure.rs: the top step of the stairs, the ramp's top, a deck's slab, a ladder's
+/// top rung, the elevator's car at the top of its ride, which is one storey, its height).
+///
+/// The review of increment 4, P2: the box stopped at the roof (3 m for the homestead), so its own
+/// elevator, ladder and stairs, which climb a storey, carried a person's eye to 4.7 m, out of
+/// every air space: vacuum, hypoxia after 20 s. Before increment 4 the box around every room
+/// reached the Commons' 8 m. The air's VOLUME stays the space's own box, floor to roof
+/// (`home_air_volume_m3`): this is only where a person counts as in it.
+pub fn air_top(body: &HomeStructure) -> f32 {
+    body.structures
+        .iter()
+        .filter_map(|s| crate::ship::structure::structure_type(&s.type_id).map(|t| s.pos.1 + t.size.1 + HEADROOM_M))
+        .fold(body.height, f32::max)
 }
 
 /// The ship's air spaces as this game sees them (`ShipStructure::air_spaces`).
@@ -133,7 +158,9 @@ impl ShipStructure {
                 continue;
             }
             let o = z.origin_vec();
-            let b = (o, o + Vec3::new(z.body.width, z.body.height, z.body.depth));
+            // Up to where a person standing on its tallest piece can be (`air_top`), every zone,
+            // so a teleporter, stairs or a deck built in a shared zone one day reaches its air too.
+            let b = (o, o + Vec3::new(z.body.width, air_top(&z.body), z.body.depth));
             if z.id == HOME_ZONE_ID {
                 spaces.home = Some(b);
             } else {
