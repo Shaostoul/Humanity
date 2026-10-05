@@ -147,20 +147,15 @@ impl Storage {
 mod tests {
     use super::*;
 
-    fn temp_db(tag: &str) -> (Storage, std::path::PathBuf) {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_plots_store_{tag}_{}_{nanos}.db", std::process::id()));
-        (Storage::open(&path).expect("open test db"), path)
+    fn temp_db(tag: &str) -> Storage {
+        Storage::open_temp(&format!("plots_store_{tag}"))
     }
 
     const PLOTS: [&str; 2] = ["p1", "p2"];
 
     #[test]
     fn claims_in_order_keeps_what_it_gave_and_fills_up() {
-        let (db, path) = temp_db("order");
+        let db = temp_db("order");
         assert_eq!(db.claim_plot("ship", "did:hum:a", &PLOTS).unwrap().as_deref(), Some("p1"));
         assert_eq!(db.claim_plot("ship", "did:hum:b", &PLOTS).unwrap().as_deref(), Some("p2"));
         // Asked again, each keeps their own.
@@ -175,21 +170,19 @@ mod tests {
         assert_eq!(db.claim_plot("ship", "did:hum:c", &PLOTS).unwrap().as_deref(), Some("p1"));
         // Another ship is another row set.
         assert_eq!(db.claim_plot("other", "did:hum:a", &PLOTS).unwrap().as_deref(), Some("p1"));
-        let _ = std::fs::remove_file(&path);
     }
 
     /// A plot that left the ship file no longer holds anyone: its row is
     /// dropped and the player claims a plot that exists.
     #[test]
     fn a_plot_that_left_the_ship_file_is_dropped() {
-        let (db, path) = temp_db("left");
+        let db = temp_db("left");
         assert_eq!(db.claim_plot("ship", "did:hum:a", &PLOTS).unwrap().as_deref(), Some("p1"));
         assert_eq!(db.claim_plot("ship", "did:hum:a", &["p2", "p3"]).unwrap().as_deref(), Some("p2"));
         let rows: i64 = db
             .with_conn(|c| c.query_row("SELECT COUNT(*) FROM game_plots WHERE owner_did = 'did:hum:a'", [], |r| r.get(0)))
             .unwrap();
         assert_eq!(rows, 1, "the old row went");
-        let _ = std::fs::remove_file(&path);
     }
 
     /// The table itself refuses a shared plot and a second plot for one
@@ -199,7 +192,7 @@ mod tests {
     /// table" failed (the insert succeeded).
     #[test]
     fn the_table_refuses_a_shared_plot_and_a_second_plot_for_one_player() {
-        let (db, path) = temp_db("constraints");
+        let db = temp_db("constraints");
         let insert = |plot: &str, owner: &str| {
             db.with_conn(|c| {
                 c.execute(
@@ -211,14 +204,13 @@ mod tests {
         insert("p1", "did:hum:a").expect("the first claim");
         assert!(insert("p1", "did:hum:b").is_err(), "a plot already held is refused by the table");
         assert!(insert("p2", "did:hum:a").is_err(), "a second plot for one player is refused by the table");
-        let _ = std::fs::remove_file(&path);
     }
 
     /// Many joins at once, from many threads: every player gets a different
     /// plot, never two the same, and the extras are guests.
     #[test]
     fn simultaneous_claims_never_share_a_plot() {
-        let (db, path) = temp_db("race");
+        let db = temp_db("race");
         let db = std::sync::Arc::new(db);
         let plots: Vec<String> = (1..=8).map(|n| format!("p{n}")).collect();
         let handles: Vec<_> = (0..16)
@@ -236,6 +228,5 @@ mod tests {
         let unique: std::collections::HashSet<&&String> = held.iter().collect();
         assert_eq!(held.len(), 8, "eight plots, eight holders: {got:?}");
         assert_eq!(unique.len(), 8, "no plot given twice: {got:?}");
-        let _ = std::fs::remove_file(&path);
     }
 }

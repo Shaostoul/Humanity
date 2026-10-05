@@ -146,9 +146,7 @@ fn a_give_from_one_home_never_settles_into_another() {
 #[test]
 fn an_answered_give_the_save_lost_is_settled_again_once() {
     use crate::relay::handlers::{fleet_ledger as relay_fleet, game_state::GameWorld};
-    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-    let path = std::env::temp_dir().join(format!("hum_fleet_replay_{}_{nanos}.db", std::process::id()));
-    let db = crate::relay::storage::Storage::open(&path).unwrap();
+    let db = crate::relay::storage::Storage::open_temp("fleet_replay");
     let mut rw = GameWorld::new();
     let snapshot: Vec<serde_json::Value> = rw.snapshot().iter().map(|e| serde_json::to_value(e).unwrap()).collect();
     let store = stores_in(&serde_json::json!({ "world_snapshot": snapshot }))[0].clone();
@@ -192,8 +190,6 @@ fn an_answered_give_the_save_lost_is_settled_again_once() {
     relay_fleet::adjust(&db, "e11e00c1", &serde_json::json!({ "adjustments": adjustments }));
     let l = relay_fleet::ledger_json(&rw, &db, "e11e00c1");
     assert_eq!(l["contributed_value"].as_f64(), Some(rw.fleet_ledger.goods["bread_0"].base_value), "the fleet counts the 1 loaf: {l}");
-    drop(db);
-    let _ = std::fs::remove_file(&path);
 }
 
 /// A GIVE TURNED AWAY FOR COMING TOO SOON IS SENT AGAIN (findings 4 and 13 of the 2026-10-04
@@ -296,9 +292,7 @@ fn power_is_reported_since_the_last_report() {
 #[test]
 fn the_game_reads_what_the_relay_really_sends() {
     use crate::relay::handlers::{fleet_ledger as relay_fleet, game_state::GameWorld};
-    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-    let path = std::env::temp_dir().join(format!("hum_fleet_native_{}_{nanos}.db", std::process::id()));
-    let db = crate::relay::storage::Storage::open(&path).unwrap();
+    let db = crate::relay::storage::Storage::open_temp("fleet_native");
     let mut rw = GameWorld::new();
     let snapshot: Vec<serde_json::Value> = rw.snapshot().iter().map(|e| serde_json::to_value(e).unwrap()).collect();
     let stores = stores_in(&serde_json::json!({ "world_snapshot": snapshot }));
@@ -337,8 +331,6 @@ fn the_game_reads_what_the_relay_really_sends() {
     assert_eq!((l.standing.as_str(), l.supply.as_str()), ("red", "unlimited"));
     assert_eq!(l.recent.len(), 3);
     assert_eq!(l.recent[1].item_name.as_deref(), Some("Bread"));
-    drop(db);
-    let _ = std::fs::remove_file(&path);
 }
 
 /// The welcome's snapshot names the fleet's stores, and a take_meal answer reads in words.

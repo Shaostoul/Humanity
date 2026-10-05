@@ -501,13 +501,7 @@ mod tests {
     /// directly because `Storage::open` requires `&Path` and runs the migration batch.
     fn make_test_storage() -> Storage {
         // Use a unique temp file per test to avoid cross-test interference.
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_test_{pid}_{nanos}.db"));
-        Storage::open(&path).expect("open test db")
+        Storage::open_temp("test")
     }
 
     fn make_signed_object(kp: &DilithiumKeypair, object_type: &str, content: &str) -> Object {

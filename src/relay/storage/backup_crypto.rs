@@ -242,15 +242,8 @@ pub fn key_dir_for_db(db_path: &Path) -> PathBuf {
 mod tests {
     use super::*;
 
-    fn tmp_dir(tag: &str) -> PathBuf {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let d = std::env::temp_dir().join(format!("hum_bkcrypt_{tag}_{pid}_{nanos}"));
-        std::fs::create_dir_all(&d).unwrap();
-        d
+    fn tmp_dir(tag: &str) -> crate::test_temp::TempPath {
+        crate::test_temp::dir(&format!("bkcrypt_{tag}"))
     }
 
     #[test]
@@ -328,7 +321,7 @@ mod tests {
             let gate = std::sync::Arc::new(std::sync::Barrier::new(CREATORS));
             let threads: Vec<_> = (0..CREATORS)
                 .map(|_| {
-                    let (dir, gate) = (dir.clone(), gate.clone());
+                    let (dir, gate) = (dir.to_path_buf(), gate.clone());
                     std::thread::spawn(move || {
                         gate.wait();
                         load_named_key(&dir, "erased-accounts.key")

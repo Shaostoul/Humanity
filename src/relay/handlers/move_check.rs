@@ -743,9 +743,7 @@ mod tests {
     /// check's books, as if they had been added to the snapshot): "the stored world restores".
     #[test]
     fn an_old_stored_world_loads_under_the_speed_check() {
-        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_movecheck_v10_{}_{nanos}.db", std::process::id()));
-        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+        let db = crate::relay::storage::Storage::open_temp("movecheck_v10");
         let blob = include_str!("../../../tests/fixtures/relay/ship_world_v10.json");
         let old: serde_json::Value = serde_json::from_str(blob).expect("the fixture parses");
         db.save_game_world(GameWorld::PERSIST_KEY, blob, old["game_time"].as_f64().unwrap(), old["next_entity_id"].as_u64().unwrap()).expect("store it");
@@ -760,7 +758,5 @@ mod tests {
         assert_eq!(world.judge_move(id, [53.5, 1.7, 140.0], &serde_json::json!({})).0, Verdict::Accept);
         world.update_position(id, [53.5, 1.7, 140.0], [0.0, 0.0, 0.0, 1.0]);
         assert!(matches!(world.judge_move(id, [53.5, 1.7, 40.0], &serde_json::json!({})).0, Verdict::Correct { .. }));
-        drop(db);
-        let _ = std::fs::remove_file(&path);
     }
 }

@@ -448,11 +448,8 @@ pub fn file_picker_modal(
 mod tests {
     use super::*;
 
-    fn tmp(name: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("hos_fb_test_{name}_{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&d);
-        std::fs::create_dir_all(&d).unwrap();
-        d
+    fn tmp(name: &str) -> crate::test_temp::TempPath {
+        crate::test_temp::dir(&format!("fb_test_{name}"))
     }
 
     #[test]

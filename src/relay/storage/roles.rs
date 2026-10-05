@@ -248,13 +248,7 @@ mod tests {
     use super::*;
 
     fn fresh_db() -> Storage {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_roles_{pid}_{nanos}.db"));
-        Storage::open(&path).expect("open test db")
+        Storage::open_temp("roles")
     }
 
     /// v0.261 non-breaking guarantee: every seeded built-in must have
@@ -368,12 +362,7 @@ mod tests {
     #[test]
     fn upgrade_from_pre_v0261_roles_schema_does_not_panic() {
         use rusqlite::Connection;
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_rolesupg_{pid}_{nanos}.db"));
+        let path = crate::test_temp::db("rolesupg");
 
         // 1. Fully migrate a fresh DB (creates roles + server_settings).
         drop(Storage::open(&path).expect("fresh open"));

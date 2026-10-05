@@ -227,12 +227,7 @@ mod tests {
     /// the world runs at the saved 24x, left: 72.0, right: 24.0".
     #[test]
     fn a_restart_brings_the_shared_world_back_at_the_saved_speed() {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir()
-            .join(format!("hum_world_clock_restart_{}_{nanos}.db", std::process::id()));
+        let path = crate::test_temp::db("world_clock_restart");
         {
             // The relay before the restart: the admin's Apply saved 24x.
             let db = Storage::open(&path).expect("open test db");
@@ -245,7 +240,5 @@ mod tests {
         let state = RelayState::new(Storage::open(&path).expect("reopen test db"));
         let scale = state.game_world.try_read().expect("nothing else holds the world").time_scale;
         assert_eq!(scale, 24.0, "after a restart the world runs at the saved 24x");
-        drop(state);
-        let _ = std::fs::remove_file(&path);
     }
 }

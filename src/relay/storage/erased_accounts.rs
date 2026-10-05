@@ -305,20 +305,16 @@ mod tests {
     use super::*;
 
     /// A database in a folder of its own, so its fingerprint secret (made beside it) is its
-    /// own too: tests that share one folder would race to create one shared secret.
-    fn fresh_db(tag: &str) -> (Storage, std::path::PathBuf) {
-        let path = fresh_dir(tag).join("relay.db");
-        (Storage::open(&path).expect("open test db"), path)
+    /// own too: tests that share one folder would race to create one shared secret. The
+    /// storage keeps the folder's guard, so the folder goes when the storage does.
+    fn fresh_db(tag: &str) -> Storage {
+        Storage::open_temp_dir(&format!("erased_{tag}"))
     }
 
-    fn fresh_dir(tag: &str) -> std::path::PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let dir = std::env::temp_dir().join(format!("hum_erased_{tag}_{}_{nanos}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("test folder");
-        dir
+    /// A folder of its own for a test that opens its database more than once: the guard is
+    /// declared before the storages, so it is dropped after them.
+    fn fresh_dir(tag: &str) -> crate::test_temp::TempPath {
+        crate::test_temp::dir(&format!("erased_{tag}"))
     }
 
     /// Write an entry with a chosen day (the tests' clock) under a window of `ttl` days, as
@@ -348,7 +344,7 @@ mod tests {
     /// out): "assertion failed: an erase is remembered for the key that erased".
     #[test]
     fn an_erase_is_remembered_for_that_key_only_until_it_comes_back() {
-        let (db, _) = fresh_db("record");
+        let db = fresh_db("record");
         assert!(!db.erased_account_remembered("aa11"), "nothing remembered before any erase");
         db.remember_erased_account("aa11").expect("record");
         assert!(db.erased_account_remembered("aa11"), "an erase is remembered for the key that erased");
@@ -367,7 +363,7 @@ mod tests {
     /// right` failed: the sweep deletes the entries past the window / left: 0 / right: 2".
     #[test]
     fn entries_older_than_the_window_are_forgotten_and_culled() {
-        let (db, _) = fresh_db("expiry");
+        let db = fresh_db("expiry");
         set_window(&db, 30, 100_000);
         let today = super::super::dms::unix_day_now();
         put_on_day(&db, "old_key", today - 31, 30);
@@ -397,7 +393,7 @@ mod tests {
     /// window of today): "a raised window kept an erase past the 30 days it was promised".
     #[test]
     fn raising_the_window_never_extends_an_earlier_erase() {
-        let (db, _) = fresh_db("raise");
+        let db = fresh_db("raise");
         set_window(&db, 30, 100_000);
         let today = super::super::dms::unix_day_now();
         put_on_day(&db, "promised_30", today - 31, 30);
@@ -426,7 +422,7 @@ mod tests {
     /// Seen red 2026-10-04 on c0c04fc39: "a row dated far in the future is still remembered".
     #[test]
     fn a_row_dated_in_the_future_is_culled() {
-        let (db, _) = fresh_db("future");
+        let db = fresh_db("future");
         set_window(&db, 30, 100_000);
         let today = super::super::dms::unix_day_now();
         put_on_day(&db, "clock_jumped", today + 400, 30);
@@ -443,7 +439,7 @@ mod tests {
     /// remembered yesterday's erase".
     #[test]
     fn the_window_is_at_most_the_days_named() {
-        let (db, _) = fresh_db("bound");
+        let db = fresh_db("bound");
         let today = super::super::dms::unix_day_now();
         set_window(&db, 1, 100_000);
         put_on_day(&db, "today", today, 1);
@@ -464,7 +460,7 @@ mod tests {
     /// `left == right` failed: the table holds no more than the cap / left: 4 / right: 3".
     #[test]
     fn a_full_table_drops_its_oldest_entries_first() {
-        let (db, _) = fresh_db("cap");
+        let db = fresh_db("cap");
         set_window(&db, 30, 3);
         let today = super::super::dms::unix_day_now();
         put_on_day(&db, "day_minus_9", today - 9, 30);
@@ -477,7 +473,7 @@ mod tests {
             assert!(db.erased_account_remembered(kept), "{kept} was dropped instead of the oldest");
         }
         // Same day for everyone: the newest erase is never the one dropped.
-        let (db, _) = fresh_db("cap_same_day");
+        let db = fresh_db("cap_same_day");
         set_window(&db, 30, 2);
         for k in ["s1", "s2", "s3", "s4", "s5"] {
             db.remember_erased_account(k).unwrap();
@@ -499,7 +495,9 @@ mod tests {
     /// value holds the key: [\"4f2a...\"]" (the first assertion).
     #[test]
     fn the_fingerprint_is_not_the_key_and_depends_on_the_secret() {
-        let (db, path) = fresh_db("fingerprint");
+        let dir = fresh_dir("fingerprint");
+        let path = dir.join("relay.db");
+        let db = Storage::open(&path).expect("open test db");
         let key = "4f2a9c11d0e7b35a6c88aa01f4e2d9b7";
         db.remember_erased_account(key).unwrap();
         let (cols, stored): (Vec<String>, Vec<String>) = db
@@ -554,7 +552,7 @@ mod tests {
     /// registered to a key erased here".
     #[test]
     fn registration_and_membership_refuse_a_key_erased_here() {
-        let (db, _) = fresh_db("register");
+        let db = fresh_db("register");
         assert!(db.register_name_unless_erased("Kept", "a1a1").unwrap(), "an ordinary key was refused");
         assert!(db.join_server_unless_erased("a1a1", "Kept").unwrap(), "an ordinary key did not join");
         assert_eq!(db.name_for_key("a1a1").unwrap().as_deref(), Some("Kept"));
@@ -582,7 +580,7 @@ mod tests {
     /// was linked to a name / left: Linked(\"Owner\") / right: ErasedHere".
     #[test]
     fn a_link_code_writes_nothing_for_a_key_erased_here() {
-        let (db, _) = fresh_db("link_code");
+        let db = fresh_db("link_code");
         db.register_name("Owner", "0a0a").unwrap();
         db.set_role("0a0a", "verified").unwrap();
         let code = db.create_link_code("Owner", "0a0a").unwrap();
@@ -607,7 +605,9 @@ mod tests {
     /// settings read would have fallen back to defaults and every Save failed).
     #[test]
     fn opens_a_database_made_by_the_previous_schema() {
-        let (db, path) = fresh_db("previous_schema");
+        let dir = fresh_dir("previous_schema");
+        let path = dir.join("relay.db");
+        let db = Storage::open(&path).expect("open test db");
         let mut s = db.get_server_settings().unwrap();
         s.dm_mailbox_ttl_days = 7; // an operator's tuned value, to survive the upgrade
         assert!(db.set_server_settings(&s, "op_key").unwrap());

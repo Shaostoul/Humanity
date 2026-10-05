@@ -328,13 +328,7 @@ mod tests {
     use crate::relay::storage::plot_owner_id;
 
     fn test_storage() -> Storage {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_account_{pid}_{nanos}.db"));
-        Storage::open(&path).expect("open test db")
+        Storage::open_temp("account")
     }
 
     /// The load-bearing safety property of this whole feature.

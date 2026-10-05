@@ -4,10 +4,9 @@
 use super::*;
 use crate::relay::storage::Storage;
 
-fn temp_db(tag: &str) -> (Storage, std::path::PathBuf) {
-    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-    let path = std::env::temp_dir().join(format!("hum_fleet_h_{tag}_{}_{nanos}.db", std::process::id()));
-    (Storage::open(&path).expect("open test db"), path)
+/// A fresh database that deletes itself when the storage is dropped (BUG-159).
+fn temp_db(tag: &str) -> Storage {
+    Storage::open_temp(&format!("fleet_h_{tag}"))
 }
 
 fn store_of(world: &GameWorld) -> (u64, [f32; 3]) {
@@ -64,8 +63,7 @@ fn the_shipped_ledger_file_prices_every_kind_the_relay_records() {
     assert_eq!(data.meal_item(), Some("ration_basic_0"), "a meal is a Basic Ration");
 
     // A missing file and a broken one both fall back to the built-in copy.
-    let dir = std::env::temp_dir().join(format!("hum_fleet_file_{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = crate::test_temp::dir("fleet_file");
     let missing = LedgerData::load_file(&dir.join("nope.ron"));
     assert_eq!(missing.kinds.len(), data.file.kinds.len(), "a missing file serves the built-in copy");
     let broken = dir.join("broken.ron");
@@ -75,7 +73,6 @@ fn the_shipped_ledger_file_prices_every_kind_the_relay_records() {
     assert!(LedgerFile::parse(&text.replace("price: Fixed(1.5)", "price: Fixed(NaN)")).is_err(), "a NaN price is refused");
     assert!(LedgerFile::parse(&text.replace("power_report_window_s: 120.0", "power_report_window_s: 1.0")).is_err());
     assert!(LedgerFile::parse(&text.replace("home_service_watts: 48000.0", "home_service_watts: 0.0")).is_err(), "a home must have a service");
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// AN UNLIMITED FLEET NEVER RUNS DRY (the operator, 2026-10-04: "the fleet has unlimited of
@@ -127,7 +124,7 @@ fn an_unlimited_fleet_never_runs_dry_and_nobody_misses_a_meal() {
 /// / left: Null / right: \"ration_basic_0\"".
 #[test]
 fn a_meal_taken_is_a_used_line_with_its_value() {
-    let (db, path) = temp_db("meal");
+    let db = temp_db("meal");
     let mut world = GameWorld::new();
     let (store, at) = store_of(&world);
     let far = world.spawn_player("e11e00b1", [at[0] + 20.0, 1.7, at[2]]);
@@ -150,7 +147,6 @@ fn a_meal_taken_is_a_used_line_with_its_value() {
     assert_eq!(take_meal_and_record(&mut world, &db, "e11e00b1", store)["error"], "not_yet");
     assert_eq!(lines_of(&db, "e11e00b1").len(), 1);
     drop(db);
-    let _ = std::fs::remove_file(&path);
 }
 
 /// A GIVE IS A "CONTRIBUTED" LINE, RECORDED ONCE: three loaves of bread at the store are one
@@ -164,7 +160,7 @@ fn a_meal_taken_is_a_used_line_with_its_value() {
 /// \"success\":false,...} / left: (Some(false), None) / right: (Some(true), Some(true))".
 #[test]
 fn a_give_is_a_contributed_line_recorded_once() {
-    let (db, path) = temp_db("give");
+    let db = temp_db("give");
     let mut world = GameWorld::new();
     let (store, _) = store_of(&world);
     player_at_store(&mut world, "e11e00b2");
@@ -184,7 +180,6 @@ fn a_give_is_a_contributed_line_recorded_once() {
     assert_eq!(l["standing"], "black", "given, nothing used: in the black: {l}");
     assert_eq!(l["recent"][0]["item_name"], "Bread");
     drop(db);
-    let _ = std::fs::remove_file(&path);
 }
 
 /// A REFUSED GIVE RECORDS NOTHING (so the game takes nothing): not in the world, no such
@@ -196,7 +191,7 @@ fn a_give_is_a_contributed_line_recorded_once() {
 /// / left: Null / right: \"too_far\"".
 #[test]
 fn a_refused_give_records_nothing() {
-    let (db, path) = temp_db("refused");
+    let db = temp_db("refused");
     let mut world = GameWorld::new();
     let (store, at) = store_of(&world);
     let key = "e11e00b3";
@@ -223,7 +218,6 @@ fn a_refused_give_records_nothing() {
     }
     assert!(lines_of(&db, key).is_empty(), "nothing was recorded: {:?}", lines_of(&db, key));
     drop(db);
-    let _ = std::fs::remove_file(&path);
 }
 
 /// POWER, USED AND RETURNED: a report is written to today's lines in kWh at 1.5 CR each; a
@@ -244,7 +238,7 @@ fn a_refused_give_records_nothing() {
 /// (Some(true), Some(1.6), Some(true)) / right: (Some(true), Some(2.0), Some(false))".
 #[test]
 fn power_reports_are_kept_per_day_and_held_to_one_homes_service() {
-    let (db, path) = temp_db("power");
+    let db = temp_db("power");
     let mut world = GameWorld::new();
     super::super::ship_stores::at_simplified_speed(&mut world);
     let key = "e11e00b4";
@@ -274,7 +268,6 @@ fn power_reports_are_kept_per_day_and_held_to_one_homes_service() {
     assert_eq!(power_report(&mut world, &db, key, &serde_json::json!({ "drawn_wh": -5.0 }))["error"], "bad_report");
     assert_eq!(power_report(&mut world, &db, "e11e00ff", &serde_json::json!({ "drawn_wh": 5.0 }))["error"], "not_in_game");
     drop(db);
-    let _ = std::fs::remove_file(&path);
 }
 
 /// ONE PLAYER CANNOT SEE ANOTHER'S LEDGER: the ledger message is built from the asker's key
@@ -285,7 +278,7 @@ fn power_reports_are_kept_per_day_and_held_to_one_homes_service() {
 /// left out): "B sees only B's meal / left: 3 / right: 1".
 #[test]
 fn one_player_cannot_see_another_players_ledger() {
-    let (db, path) = temp_db("private");
+    let db = temp_db("private");
     let mut world = GameWorld::new();
     let (store, _) = store_of(&world);
     player_at_store(&mut world, "aaaa01");
@@ -303,7 +296,6 @@ fn one_player_cannot_see_another_players_ledger() {
     assert_eq!((t["players"].as_i64(), t["withheld"].as_bool()), (Some(2), Some(true)), "{t}");
     assert!(!t.to_string().contains("aaaa01") && !t.to_string().contains("bbbb02"), "the totals name nobody: {t}");
     drop(db);
-    let _ = std::fs::remove_file(&path);
 }
 
 /// THE LEDGER AND THE SETTING SURVIVE A RESTART, AND A CHANGE OF MODE TOUCHES NO LEDGER: lines
@@ -314,7 +306,8 @@ fn one_player_cannot_see_another_players_ledger() {
 /// "after a restart the fleet runs as saved / left: Unlimited / right: Stocked".
 #[test]
 fn the_ledger_and_the_setting_survive_a_restart() {
-    let (db, path) = temp_db("restart");
+    let path = crate::test_temp::db("fleet_h_restart");
+    let db = Storage::open(&path).expect("open test db");
     let mut world = GameWorld::new();
     let (store, _) = store_of(&world);
     player_at_store(&mut world, "e11e00b5");
@@ -332,7 +325,6 @@ fn the_ledger_and_the_setting_survive_a_restart() {
     assert_eq!(l["supply"], "stocked");
     drop(w);
     drop(state);
-    let _ = std::fs::remove_file(&path);
 }
 
 /// A DATABASE THE PREVIOUS CODE WROTE OPENS (the BUG-046 rule). tests/fixtures/relay/
@@ -353,8 +345,7 @@ fn the_ledger_and_the_setting_survive_a_restart() {
 /// Unknown, extended_code: 1 }, msg: \"no such column: fleet_supply_mode\", ...".
 #[test]
 fn a_database_from_the_previous_code_opens_with_its_world() {
-    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-    let path = std::env::temp_dir().join(format!("hum_fleet_prev_{}_{nanos}.db", std::process::id()));
+    let path = crate::test_temp::db("fleet_prev");
     {
         let conn = rusqlite::Connection::open(&path).unwrap();
         conn.execute_batch(include_str!("../../../tests/fixtures/relay/relay_v0_1456.sql")).expect("the previous code's database loads from its dump");
@@ -381,7 +372,6 @@ fn a_database_from_the_previous_code_opens_with_its_world() {
     }
     assert_eq!(lines_of(&state.db, "e11e00f0").len(), 1, "the meal is a line of the new ledger");
     drop(state);
-    let _ = std::fs::remove_file(&path);
 }
 
 /// ERASING AN ACCOUNT DELETES ITS LEDGER (and the export lists it first): the erase leaves no
@@ -393,7 +383,7 @@ fn a_database_from_the_previous_code_opens_with_its_world() {
 /// 0), (\"game_progress\", 0)]" (no fleet_ledger line in it, and both lines still stored).
 #[test]
 fn erasing_an_account_deletes_its_ledger() {
-    let (db, path) = temp_db("erase");
+    let db = temp_db("erase");
     let mut world = GameWorld::new();
     let (store, _) = store_of(&world);
     player_at_store(&mut world, "aaaa03");
@@ -410,7 +400,6 @@ fn erasing_an_account_deletes_its_ledger() {
     assert!(!db.erase_left_rows("aaaa03"), "nothing of the account is left");
     assert_eq!(lines_of(&db, "bbbb04").len(), 1, "another player's ledger stays");
     drop(db);
-    let _ = std::fs::remove_file(&path);
 }
 
 /// THE LEDGER'S REPLIES CARRY NO SHARED ROW NUMBER (finding 8 of the 2026-10-04 review). The
@@ -425,7 +414,7 @@ fn erasing_an_account_deletes_its_ledger() {
 /// {...\"id\":5,...}]" (the gaps are the other player's lines).
 #[test]
 fn ledger_replies_carry_no_shared_row_id() {
-    let (db, path) = temp_db("rowid");
+    let db = temp_db("rowid");
     let mut world = GameWorld::new();
     let (store, _) = store_of(&world);
     player_at_store(&mut world, "aaaa05");
@@ -474,7 +463,6 @@ fn ledger_replies_carry_no_shared_row_id() {
     assert_eq!(listed.len(), 3, "the export lists the ledger: {}", export["fleet_ledger"]);
     assert!(listed.iter().all(|l| l.get("id").is_none()), "the export lists no row numbers: {}", export["fleet_ledger"]);
     drop(db);
-    let _ = std::fs::remove_file(&path);
 }
 
 /// THE ADMIN'S TOTALS ARE HELD BACK BELOW THE MINIMUM OF OTHER PLAYERS (finding 9 of the
@@ -488,7 +476,7 @@ fn ledger_replies_carry_no_shared_row_id() {
 /// players the totals are withheld / left: Some(false) / right: Some(true)".
 #[test]
 fn totals_are_withheld_below_the_minimum_players() {
-    let (db, path) = temp_db("totals");
+    let db = temp_db("totals");
     let mut world = GameWorld::new();
     let (store, _) = store_of(&world);
     assert_eq!(world.fleet_ledger.file.totals_min_other_players, 3, "the shipped minimum");
@@ -506,7 +494,6 @@ fn totals_are_withheld_below_the_minimum_players() {
     let t = totals_json(&world, &db, "adm1n1");
     assert_eq!((t["withheld"].as_bool(), t["players"].as_i64(), t["used_value"].as_f64()), (Some(false), Some(4), Some(40.0)), "three others: the sums: {t}");
     drop(db);
-    let _ = std::fs::remove_file(&path);
 }
 
 /// A LINE STORES NO TIME FINER THAN A GAME DAY (finding 10 of the 2026-10-04 review). Two
@@ -520,7 +507,7 @@ fn totals_are_withheld_below_the_minimum_players() {
 /// 86400".
 #[test]
 fn a_line_stores_no_time_finer_than_a_day() {
-    let (db, path) = temp_db("day");
+    let db = temp_db("day");
     let mut world = GameWorld::new();
     let (store, _) = store_of(&world);
     player_at_store(&mut world, "e11e00b6");
@@ -541,7 +528,6 @@ fn a_line_stores_no_time_finer_than_a_day() {
     take_meal_and_record(&mut world, &db, "e11e00b6", store);
     assert_eq!(lines_of(&db, "e11e00b6")[0].game_time, 2.0 * GAME_DAY_S, "the next day's line carries the next day's start");
     drop(db);
-    let _ = std::fs::remove_file(&path);
 }
 
 /// A GIVE PAST THE DAY'S CAP IS REFUSED AND WRITES NOTHING (finding 11 of the 2026-10-04
@@ -553,7 +539,7 @@ fn a_line_stores_no_time_finer_than_a_day() {
 /// fourth give of the day / left: null / right: \"too_many\"".
 #[test]
 fn gives_beyond_the_daily_cap_record_nothing() {
-    let (db, path) = temp_db("cap");
+    let db = temp_db("cap");
     let mut world = GameWorld::new();
     assert_eq!(world.fleet_ledger.kind(ITEM).unwrap().max_lines_per_day, Some(500), "the shipped cap");
     for k in world.fleet_ledger.file.kinds.iter_mut() {
@@ -571,7 +557,6 @@ fn gives_beyond_the_daily_cap_record_nothing() {
     assert_eq!(lines_of(&db, "e11e00b7").len(), 3, "it wrote nothing");
     assert_eq!(give(&world, &db, "e11e00b7", &give_msg("g-1", store, "bread_0", 1))["already"], true, "a repeat is still answered");
     drop(db);
-    let _ = std::fs::remove_file(&path);
 }
 
 /// A GIFT FROM CREATIVE MODE IS RECORDED BUT NOT COUNTED (finding 5 of the 2026-10-04 review):
@@ -583,7 +568,7 @@ fn gives_beyond_the_daily_cap_record_nothing() {
 /// nothing / left: Some(9.0) / right: Some(0.0)" (three loaves at 3 CR).
 #[test]
 fn a_creative_gift_is_recorded_but_not_counted() {
-    let (db, path) = temp_db("creative");
+    let db = temp_db("creative");
     let mut world = GameWorld::new();
     let (store, _) = store_of(&world);
     player_at_store(&mut world, "e11e00b8");
@@ -600,7 +585,6 @@ fn a_creative_gift_is_recorded_but_not_counted() {
     unpriced["creative"] = serde_json::json!(true);
     assert_eq!(give(&world, &db, "e11e00b8", &unpriced)["error"], "no_price");
     drop(db);
-    let _ = std::fs::remove_file(&path);
 }
 
 /// A HOME'S GIVES COME BACK TO ITS GAME, AND A SHORT ONE IS CORRECTED ONCE (findings 1, 2, 3
@@ -613,7 +597,7 @@ fn a_creative_gift_is_recorded_but_not_counted() {
 /// out of its WHERE): "home A's gives only / left: 3 / right: 2".
 #[test]
 fn a_homes_gives_come_back_and_a_short_one_is_corrected_once() {
-    let (db, path) = temp_db("replay");
+    let db = temp_db("replay");
     let mut world = GameWorld::new();
     let (store, _) = store_of(&world);
     player_at_store(&mut world, "e11e00b9");
@@ -640,7 +624,6 @@ fn a_homes_gives_come_back_and_a_short_one_is_corrected_once() {
     assert_eq!(l["contributed_value"].as_f64(), Some((1.0 + 1.0 + 2.0) * bread), "the short give counts 1 loaf: {l}");
     assert_eq!(gives_json(&world, &db, "e11e00b9", &serde_json::json!({ "home": "" }))["error"], "bad_home");
     drop(db);
-    let _ = std::fs::remove_file(&path);
 }
 
 /// A GIVE TURNED AWAY BY THE RATE LIMIT IS ANSWERED WITH ITS ID (findings 4 and 13 of the
@@ -670,7 +653,7 @@ fn a_rate_limited_give_is_answered_with_its_id() {
 fn the_give_limit_reads_the_test_clock_not_the_wall() {
     use crate::relay::handlers::msg_handlers::perception_rate_allows;
     use std::time::Duration;
-    let (db, path) = temp_db("limit_clock");
+    let db = temp_db("limit_clock");
     let state = Arc::new(RelayState::new(db));
     let clock = crate::test_clock::ManualClock::new();
     assert!(state.perception_clock.set(clock.clone()).is_ok());
@@ -686,5 +669,4 @@ fn the_give_limit_reads_the_test_clock_not_the_wall() {
     clock.advance(Duration::from_millis(1));
     assert!(perception_rate_allows(&state, "k", "fleet_give"), "200 ms on the limit's clock is past it");
     drop(state);
-    let _ = std::fs::remove_file(&path);
 }

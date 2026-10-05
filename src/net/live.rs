@@ -469,13 +469,7 @@ mod tests {
         use futures::StreamExt;
 
         // --- Relay with our test identity's name registered.
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path =
-            std::env::temp_dir().join(format!("hum_live_e2e_{}_{nanos}.db", std::process::id()));
-        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+        let db = crate::relay::storage::Storage::open_temp("live_e2e");
 
         let seed = [7u8; 32];
         let pq = crate::net::identity::derive_pq_identity(&seed).expect("derive identity");
@@ -577,8 +571,6 @@ mod tests {
 
         assert_eq!(publisher.stats().sent.load(Ordering::Relaxed), 1);
         assert!(publisher.stats().bytes.load(Ordering::Relaxed) > 0, "bitrate must be measured");
-
-        let _ = std::fs::remove_file(&path);
     }
 
     /// The resolution picker must actually change the output height. The old code

@@ -576,11 +576,8 @@ mod tests {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("fixtures").join("media").join("VIDEO_TS")
     }
 
-    fn scratch(name: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("hum_dvd_{name}_{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&d);
-        std::fs::create_dir_all(&d).unwrap();
-        d
+    fn scratch(name: &str) -> crate::test_temp::TempPath {
+        crate::test_temp::dir(&format!("dvd_{name}"))
     }
 
     /// The names a disc uses, read the way the chooser reads them.
@@ -663,7 +660,6 @@ mod tests {
         std::fs::create_dir_all(&plain).unwrap();
         assert_eq!(find_video_ts(&plain), None, "an ordinary folder is not a disc");
         assert_eq!(find_video_ts(&root.join("nowhere")), None, "a path that is not there");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// The fixture disc, on disk: the tree is really shaped like a disc and
@@ -724,7 +720,6 @@ mod tests {
             }
             _ => panic!("a protected disc must not be converted"),
         }
-        let _ = std::fs::remove_dir_all(&d);
     }
 
     /// A file that cannot be read at all gets its own honest message, which
@@ -745,7 +740,6 @@ mod tests {
         let empty = d.join("empty.VOB");
         std::fs::write(&empty, b"").unwrap();
         assert!(matches!(disc_read(&empty), DiscRead::Unreadable(_)), "an empty file is not a film");
-        let _ = std::fs::remove_dir_all(&d);
     }
 
     /// A folder that is not a disc is refused with a message naming what
@@ -769,8 +763,6 @@ mod tests {
             Ingest::Failed(msg) => assert!(msg.contains("no title files"), "{msg}"),
             _ => panic!("a menu is not a film"),
         }
-        let _ = std::fs::remove_dir_all(&d);
-        let _ = std::fs::remove_dir_all(&hollow);
     }
 
     /// The real thing, when the machine has ffmpeg: the fixture disc is
@@ -811,7 +803,6 @@ mod tests {
             Ingest::Failed(msg) => panic!("{msg}"),
             Ingest::Direct(p) => panic!("a disc is never played as it is: {}", p.display()),
         }
-        let _ = std::fs::remove_dir_all(&d);
     }
 
     /// Asking the machine for its drives must never panic and must never

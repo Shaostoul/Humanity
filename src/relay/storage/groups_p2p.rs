@@ -553,13 +553,7 @@ mod tests {
     use ciborium::Value;
 
     fn make_test_storage() -> Storage {
-        let pid = std::process::id();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!("hum_p2pgroups_test_{pid}_{nanos}.db"));
-        Storage::open(&path).expect("open test db")
+        Storage::open_temp("p2pgroups_test")
     }
 
     fn group_obj(creator: &DilithiumKeypair, name: &str) -> Object {

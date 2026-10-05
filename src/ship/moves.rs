@@ -201,8 +201,7 @@ mod tests {
     fn the_rules_are_read_from_disk_first() {
         let r = shipped();
         assert!(r.delivery.out_of_view_m > r.delivery.in_view_m);
-        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-        let dir = std::env::temp_dir().join(format!("hum_moves_rules_{}_{nanos}", std::process::id()));
+        let dir = crate::test_temp::dir("moves_rules");
         std::fs::create_dir_all(dir.join("ship")).expect("a temp data folder");
         let edited = include_str!("../../data/ship/shared_world.ron").replace("in_view_m: 250.0", "in_view_m: 123.0");
         std::fs::write(dir.join("ship").join("shared_world.ron"), edited).expect("write it");
