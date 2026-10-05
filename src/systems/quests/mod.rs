@@ -55,12 +55,56 @@ impl QuestRegistry {
         self.quests.get(id)
     }
 
+    /// The game's quests, as `DataStore["quest_registry"]` holds them (BUG-163).
+    /// Each quest file the game ships comes from `data_dir`'s `quests/` when this
+    /// version can read it, else from the copy built into the game, and the log
+    /// says which file and why (`embedded_data::load_data_or_embedded`, the rule
+    /// every registry loads by). Then every other `.ron` file in `quests/`, a
+    /// modder's own, is merged in name order, and one that does not parse is
+    /// skipped with a warning. A later file's quest replaces an earlier one of
+    /// the same id.
+    pub fn load(data_dir: &std::path::Path) -> Self {
+        let shipped: Vec<&str> = crate::embedded_data::EMBEDDED_KEYS
+            .iter()
+            .filter_map(|k| k.strip_prefix("quests/"))
+            .collect();
+        let mut quests = HashMap::new();
+        for name in &shipped {
+            let rel = format!("quests/{name}");
+            match crate::embedded_data::load_data_or_embedded(data_dir, &rel, crate::assets::loader::parse_ron::<Vec<QuestDef>>) {
+                Ok(defs) => quests.extend(defs.into_iter().map(|d| (d.id.clone(), d))),
+                Err(e) => log::warn!("{e}; its quests are missing"),
+            }
+        }
+        let mut own: Vec<std::path::PathBuf> = std::fs::read_dir(data_dir.join("quests"))
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|entry| entry.path())
+            .filter(|p| p.extension().is_some_and(|x| x == "ron"))
+            .filter(|p| p.file_name().and_then(|n| n.to_str()).map_or(true, |n| !shipped.contains(&n)))
+            .collect();
+        own.sort();
+        for path in own {
+            match std::fs::read(&path)
+                .map_err(|e| e.to_string())
+                .and_then(|bytes| crate::assets::loader::parse_ron::<Vec<QuestDef>>(&bytes))
+            {
+                Ok(defs) => quests.extend(defs.into_iter().map(|d| (d.id.clone(), d))),
+                Err(e) => log::warn!("Quest file {} skipped: {e}", path.display()),
+            }
+        }
+        log::info!("Loaded {} quest definitions", quests.len());
+        Self { quests }
+    }
+
     /// Load every `*.ron` quest file in a directory (each a `Vec<QuestDef>`) and
     /// merge them into one registry. Data-driven (infinite-of-X): drop a new
     /// `.ron` into `data/quests/` and its quests appear. Malformed or unreadable
-    /// files are logged + skipped — never panics (same degradation policy as the
-    /// CSV registries). This is the constructor the runtime calls to populate
-    /// `DataStore["quest_registry"]`; without it QuestSystem finds no quests.
+    /// files are logged + skipped — never panics. Exactly the files in one
+    /// folder, for tests that read the shipped quests; the game loads through
+    /// `load`, which also falls back to the built-in copy of a shipped quest
+    /// file this version cannot read (BUG-163).
     pub fn from_ron_dir(dir: &std::path::Path) -> Self {
         let mut quests = HashMap::new();
         match std::fs::read_dir(dir) {
@@ -831,6 +875,29 @@ mod quest_tests {
         let reg = QuestRegistry::from_ron_dir(&dir);
         assert!(reg.get("gs_first_steps").is_some(), "the getting-started chain loads");
         assert!(reg.quests.len() >= 4, "all quest files merged, got {}", reg.quests.len());
+    }
+
+    /// The game's quest loader (BUG-163): a shipped quest file this version cannot read
+    /// comes from its built-in copy, a modder's own file is added beside the shipped
+    /// ones, and a broken file of their own is skipped without costing anything else.
+    ///
+    /// Seen red with `load` reading the folder alone (`from_ron_dir`):
+    ///   the opening quest is missing when its file cannot be read
+    #[test]
+    fn a_shipped_quest_file_the_game_cannot_read_comes_from_its_built_in_copy() {
+        let root = crate::test_temp::dir("quests");
+        let data = root.join("data");
+        let quests = data.join("quests");
+        std::fs::create_dir_all(&quests).expect("make the folder");
+        std::fs::write(quests.join("getting_started.ron"), "[ (id: \"gs_first_steps\", name: ").expect("write");
+        let own = r#"[(id: "my_quest", name: "Mine", description: "A modder's quest", steps: [], rewards: [], prerequisite: None)]"#;
+        std::fs::write(quests.join("zz_mine.ron"), own).expect("write");
+        std::fs::write(quests.join("zz_broken.ron"), "[(").expect("write");
+        let reg = QuestRegistry::load(&data);
+        assert!(reg.get("gs_first_steps").is_some(), "the opening quest is missing when its file cannot be read");
+        assert!(reg.get("my_quest").is_some(), "the modder's own quest is added");
+        let shipped = QuestRegistry::from_ron_dir(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/quests"));
+        assert_eq!(reg.quests.len(), shipped.quests.len() + 1, "every shipped quest, and the modder's");
     }
 
     /// Where the player stands (2026-10-04, replacing v0.979's edge trigger):

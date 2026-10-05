@@ -297,6 +297,9 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
     // tank's litres, each vessel's contents, with any saved contents still
     // held for world entry (systems::machine_levels).
     save.machine_levels = crate::systems::machine_levels::levels(world);
+    // What each space heater's thermostat was running it at (the review of
+    // BUG-155, 2026-10-05), which the time away charges it.
+    save.heater_draw_w = crate::systems::crafting::away::heater_draws(world);
     // The relay trades this backpack has settled (2026-10-02), in the same
     // save as the backpack they changed.
     save.settled_trades = settled_trades(world);
@@ -664,23 +667,21 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
 }
 
 /// A NEW player's starting kit: `starting_items` in data/world/player.ron
-/// (the data dir first, the embedded copy otherwise). Empty when the file
-/// is missing or does not parse, so a broken data file never blocks a boot.
+/// (the data dir first, the embedded copy when the data dir's is missing or
+/// this version cannot read it, BUG-163). Empty only when neither loads, so a
+/// broken data file never blocks a boot.
 pub fn starting_kit(data_dir: &std::path::Path) -> Vec<(String, u32)> {
     #[derive(serde::Deserialize)]
     struct PlayerDef {
         #[serde(default)]
         starting_items: Vec<(String, u32)>,
     }
-    crate::embedded_data::read_data_or_embedded(data_dir, "world/player.ron")
-        .and_then(|text| match ron::from_str::<PlayerDef>(&text) {
-            Ok(def) => Some(def.starting_items),
-            Err(e) => {
-                log::warn!("world/player.ron did not parse, starting kit empty: {e}");
-                None
-            }
+    crate::embedded_data::load_data_or_embedded(data_dir, "world/player.ron", crate::assets::loader::parse_ron::<PlayerDef>)
+        .map(|def| def.starting_items)
+        .unwrap_or_else(|e| {
+            log::warn!("{e}; starting kit empty");
+            Vec::new()
         })
-        .unwrap_or_default()
 }
 
 /// Apply ONLY the character (name, look, outfit) from a save: the path for
@@ -1226,7 +1227,7 @@ pub fn resume_home(
             .filter(|c| c.auto)
             .filter_map(|c| c.machine_id.clone().map(|id| (id, f64::from(c.time_remaining))))
             .collect(),
-        power_balance_w: home.map_or([0.0; 2], crate::systems::crafting::away::day_power_balance),
+        power_balance_w: home.map_or([0.0; 2], |h| crate::systems::crafting::away::day_power_balance(h, &save.heater_draw_w)),
         hauls,
     });
     crate::systems::crafting::away::hand_over(data, work);

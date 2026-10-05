@@ -225,16 +225,14 @@ impl LedgerData {
         }
     }
 
-    /// Every trade good's name and base value (data/trade_goods.ron, disk first).
+    /// Every trade good's name and base value (data/trade_goods.ron, disk first; the built-in
+    /// copy when the file is missing or this version cannot read it, BUG-163).
     fn load_goods() -> HashMap<String, Good> {
-        let Some(text) = crate::embedded_data::read_data_or_embedded(std::path::Path::new("data"), "trade_goods.ron") else {
-            tracing::error!("trade_goods.ron is missing; the fleet has no prices, so it takes no gives");
-            return HashMap::new();
-        };
-        match crate::systems::economy::TradeGoodsRegistry::from_ron(text.as_bytes()) {
+        let data = std::path::Path::new("data");
+        match crate::embedded_data::load_data_or_embedded(data, "trade_goods.ron", crate::systems::economy::TradeGoodsRegistry::from_ron) {
             Ok(reg) => reg.goods.into_iter().map(|(id, g)| (id, Good { name: g.name, base_value: f64::from(g.base_value) })).collect(),
             Err(e) => {
-                tracing::error!("trade_goods.ron does not parse ({e}); the fleet has no prices, so it takes no gives");
+                tracing::error!("{e}; the fleet has no prices, so it takes no gives");
                 HashMap::new()
             }
         }

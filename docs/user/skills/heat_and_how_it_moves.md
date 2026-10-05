@@ -384,8 +384,8 @@ practice from the physics above:
 
 The game models one kind of heat in real detail: the heat of your own
 body, and what the weather, your clothes, a shelter and a campfire do to
-it. It models one more simply: a heater's heat in the air of a room
-aboard.
+it. It models one more simply: a space heater's heat in the air it stands
+in aboard.
 
 - **Your body's heat balance.** The body heat system is based on a
   published model of human temperature regulation, the two-node model
@@ -428,14 +428,24 @@ aboard.
   sealed and still, at the home's own temperature, and the weather line
   says so: "Indoors", with the temperature and "still air". In a grow
   room it is that room's own air, warmer or damper than the rest.
-- **A heater warms the room it stands in.** A space heater you build and
-  place aboard puts its 1,500 W into the air of the room it stands in, and
-  that air settles where the heater's watts and the heat the room loses
-  balance: by conduction through its walls and ceiling, and by convection
-  with the air it trades with the rest of the home
-  (`src/systems/farming/heat.rs`). In a small room that is a few degrees,
-  held at 24 C by its thermostat; in a big glass greenhouse a fraction of
-  one. Your body feels it when you stand there. [Heating a Home
+- **A heater warms the air it stands in, which is not always its room.**
+  The game keeps a separate air for each grow room (a room with a grow
+  machine in it, such as a bed, a tower or a rack) and each mushroom
+  rack's fruiting tent; every other room of the home shares one air, the
+  home's own. A space heater you build and place aboard puts its 1,500 W
+  into the air it stands in, and that air settles where the heater's
+  watts and the heat it loses balance: by conduction through its walls
+  and ceiling, and by convection with the air it trades with the air
+  around it (`src/systems/farming/heat.rs`). Its thermostat stops it at
+  24 C. In a fruiting tent it holds 24 C, running about an eighth of the
+  time. The home's grow rooms are far bigger, the smallest of them
+  300 m3, and in them it runs flat out and never gets there: one holds a
+  300 m3 room about 1 C warmer, and the family home's 2,970 m3
+  greenhouse about 0.16 C. In any other room, a bedroom or the kitchen,
+  it does not warm that room at all: it warms the home's whole air, about
+  10,500 m3 in the family home, by a few hundredths of a degree, running
+  flat out all the while. Your body feels the air of the grow room you
+  stand in, or the home's own air everywhere else. [Heating a Home
   Safely](heating_a_home_safely.md) has the numbers.
 - **Two modes.** Settings > Gameplay > Body heat. Forgiving, the default,
   runs the same physics but your temperature swings half as far from

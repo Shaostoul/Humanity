@@ -67,12 +67,42 @@
 //! The check `no_grade_sells_back_for_more_than_its_parts_cost` leaves out the
 //! tools a craft wears, a small further cost of every craft, so it is if
 //! anything stricter than play.
+//!
+//! TAP WATER COSTS NOTHING (2026-10-05). A measure of tap water (the `tap`
+//! items of data/containers/fluids.ron, a litre of Purified Water today) is
+//! priced the way a craft really gets it, not at the post's 2 credits a litre:
+//! a hand craft at home draws it from the home's tanks when the backpack has
+//! none (`crafting::plan_inputs`, `fluids::draw_from_tanks`), and so does an
+//! automated machine, and nobody pays credits for what the tanks hold. The
+//! tanks are filled by the home's own well pump and rain catchment
+//! (data/machines/home.ron) and by the air handlers' condensate; the power
+//! that runs them comes from the home's panels or, past those, the ship's
+//! reactor, which the fleet ledger meters as worth on its own balance
+//! (data/ship/fleet_ledger.ron, 1.5 CR a kWh), never against the player's
+//! credits, and the ledger lists no water at all. So the walk starts every
+//! tap item at 0 (`cheapest_costs`), and a recipe that turns tap water into
+//! something the post buys must cost more than it fetches through its other
+//! inputs. Until this the walk priced tap water as bought, and three recipes
+//! sold back for more than they cost: Harvest Honey made a jar of honey from
+//! a litre of tap water, Culture Antibiotics five antibiotics from flour,
+//! sugar and three litres, and Brew Healing Potion a medkit from wheat seed
+//! and that honey (the review of BUG-146; data/recipes.csv says what the
+//! first two became).
 
 use std::collections::HashMap;
 
 use super::TradeGoodsRegistry;
 use crate::systems::crafting::{Recipe, RecipeRegistry};
+use crate::systems::fluids::FluidTable;
 use crate::systems::inventory::ItemRegistry;
+
+/// The items a craft draws from the home's water tanks (data/containers/fluids.ron
+/// `tap`), sorted: the walk counts each at nothing. See the module notes.
+pub fn tap_water(fluids: &FluidTable) -> Vec<String> {
+    let mut tap: Vec<String> = fluids.tap.keys().filter(|id| fluids.tap_litres(id).is_some()).cloned().collect();
+    tap.sort();
+    tap
+}
 
 /// Rounds of the cheapest walk before it gives up: costs that are still
 /// falling by then mean a cycle of recipes makes goods from nothing.
@@ -115,13 +145,15 @@ pub struct Cheapest {
 
 /// The cheapest credits-to-item cost of every item a player can get for
 /// credits (BUG-145): buy it from the post, or make it from cheaper inputs,
-/// crediting what else the recipe makes at `credit(id)` each. Settles in a few
-/// rounds on sound data. Moved here from BUG-145's test (2026-10-05) so the
-/// game's parts prices and the checks share one walk.
+/// crediting what else the recipe makes at `credit(id)` each. `tap` is the
+/// tap water a craft draws from the home's tanks (`tap_water`), which costs
+/// nothing. Settles in a few rounds on sound data. Moved here from BUG-145's
+/// test (2026-10-05) so the game's parts prices and the checks share one walk.
 pub fn cheapest_costs(
     items: &ItemRegistry,
     goods: &TradeGoodsRegistry,
     recipes: &RecipeRegistry,
+    tap: &[String],
     credit: &dyn Fn(&str) -> f64,
 ) -> Cheapest {
     let book = recipe_book(recipes);
@@ -130,6 +162,10 @@ pub fn cheapest_costs(
         .keys()
         .filter_map(|id| vendor_charge(items, goods, id).map(|c| (id.clone(), c)))
         .collect();
+    // Drawn from the tanks, not bought (the module notes).
+    for id in tap {
+        costs.insert(id.clone(), 0.0);
+    }
     for _ in 0..MAX_ROUNDS {
         let mut changed = false;
         for r in &book {
@@ -172,10 +208,16 @@ pub fn cheapest_costs(
 /// material, would want the other output at its graded price instead; the
 /// whole-data check `no_grade_sells_back_for_more_than_its_parts_cost` credits
 /// by-products at the most the post pays for them, so it would name any loop
-/// such a recipe opened.
-pub fn parts_prices(items: &ItemRegistry, goods: &TradeGoodsRegistry, recipes: &RecipeRegistry) -> HashMap<String, f64> {
+/// such a recipe opened. `tap` is the tap water a craft draws from the home's
+/// tanks (`tap_water`), at nothing.
+pub fn parts_prices(
+    items: &ItemRegistry,
+    goods: &TradeGoodsRegistry,
+    recipes: &RecipeRegistry,
+    tap: &[String],
+) -> HashMap<String, f64> {
     let standard = |id: &str| goods.vendor_buy_price(id).unwrap_or(0) as f64;
-    let walk = cheapest_costs(items, goods, recipes, &standard);
+    let walk = cheapest_costs(items, goods, recipes, tap, &standard);
     if !walk.settled {
         log::warn!(
             "trade goods: the cheapest cost of some items never settled (a cycle of recipes in data/recipes.csv \
@@ -260,6 +302,12 @@ mod tests {
         (items, recipes, goods, levels)
     }
 
+    /// The shipped tap water items (data/containers/fluids.ron), which a craft
+    /// draws from the home's tanks.
+    fn shipped_tap() -> Vec<String> {
+        tap_water(&FluidTable::from_ron(&read(FluidTable::FILE)).unwrap())
+    }
+
     /// The grade a hand craft gives an output (crafting::deliver_outputs):
     /// the crafter's grade for a durable good, none for anything else.
     fn grade_of(items: &ItemRegistry, id: &str, crafted: u8) -> u8 {
@@ -306,7 +354,9 @@ mod tests {
     /// they can pay. Their balance must never rise above what they started
     /// with, at any point, so stopping early cannot win either. What else a
     /// recipe makes is credited in the walk at the MOST the post pays for it at
-    /// any grade, so a graded by-product could not hide a loop.
+    /// any grade, so a graded by-product could not hide a loop. Tap water is
+    /// priced as a craft gets it, drawn from the home's tanks for nothing
+    /// (`tap_water`, 2026-10-05).
     ///
     /// Seen red with `vendor_sell`'s body before the fix, verbatim (each
     /// grade's multiple on the whole price): 133 (recipe, grade) loops, 25 at
@@ -315,14 +365,31 @@ mod tests {
     ///   craft_hammer at Masterwork: parts cost 16.50 at the cheapest, the post pays 35 for what it makes (18.50 ahead after one round, 925.00 after 50)
     ///   build_motorcycle_full at Good: parts cost 1560.79 at the cheapest, the post pays 1875 for what it makes (314.21 ahead after one round, 15710.42 after 50)
     ///   build_mech_light at Masterwork: parts cost 74960.55 at the cheapest, the post pays 300000 for what it makes (225039.45 ahead after one round, 11251972.50 after 50)
+    ///
+    /// Seen red again with tap water priced as a craft gets it, on the recipes
+    /// before the review's fix (2026-10-05): 19 (recipe, grade) loops, 3 at
+    /// ungraded, 2 at Defective, 2 at Poor, 3 at Standard, 3 at Good, 3 at
+    /// Excellent and 3 at Masterwork, from three recipes:
+    ///   cook_honey at ungraded: parts cost 0.00 at the cheapest, the post pays 2 for what it makes (2.00 ahead after one round, 100.00 after 50)
+    ///   craft_antibiotics at Standard: parts cost 6.67 at the cheapest, the post pays 10 for what it makes (3.33 ahead after one round, 166.67 after 50)
+    ///   craft_healing_potion at ungraded: parts cost 6.00 at the cheapest, the post pays 7 for what it makes (1.00 ahead after one round, 50.00 after 50)
+    /// (the potion through honey made from tap water).
     #[test]
     fn no_grade_sells_back_for_more_than_its_parts_cost() {
         const ROUNDS: u32 = 50;
         let (items, recipes, goods, levels) = shipped();
         assert!(levels.levels.len() >= 6, "expected the six grades of data/manufacturing.ron, got {}", levels.levels.len());
         let best = |id: &str| best_pay(&goods, &levels, &items, id);
-        let walk = cheapest_costs(&items, &goods, &recipes, &best);
+        let tap = shipped_tap();
+        let walk = cheapest_costs(&items, &goods, &recipes, &tap, &best);
         assert!(walk.settled, "item costs never settle: a cycle of recipes makes goods from nothing");
+        // Proof tap water is priced as a craft gets it: a litre of Purified
+        // Water is a tap item, and the walk counts it at nothing, not the 2
+        // credits the post charges.
+        assert!(tap.iter().any(|id| id == "water_purified_0"), "fluids.ron no longer lists purified water as tap water: {tap:?}");
+        for id in &tap {
+            assert_eq!(walk.costs.get(id), Some(&0.0), "tap water {id} is drawn from the tanks for nothing");
+        }
 
         let grades: Vec<u8> = (0..=levels.levels.len() as u8).collect();
         let grade_name = |q: u8| levels.name(q).unwrap_or("ungraded").to_string();
@@ -363,8 +430,9 @@ mod tests {
         }
         // Proof the walk reached the recipe book and the graded goods, so a
         // green run is not an empty one: 350 recipes have inputs the post
-        // sells or can be made from them, and 78 of those make a durable good
-        // the post buys (the 2026-10-05 data).
+        // sells or can be made from them, and 77 of those make a durable good
+        // the post buys (measured on the data after the review of 2026-10-05,
+        // which took out the home-made antibiotics; 78 before it).
         assert!(checked >= 300, "only {checked} recipes have inputs the post sells or can be made from them");
         assert!(graded >= 70, "only {graded} of them make a graded good the post buys");
         if !loops.is_empty() {
@@ -441,12 +509,45 @@ mod tests {
             }
         }
         assert!(wrong.is_empty(), "{} goods break the grade ladder:\n  {}", wrong.len(), wrong.join("\n  "));
-        // Proof the ladder was walked over the real goods: 87 durable goods
-        // are traded, and 80 of them leave room for a premium and fetch one
-        // (the 2026-10-05 data). For the other 7 the parts cost under a
-        // credit and a quarter more than a standard one fetches (the large
-        // backpack's no more at all), or a standard one fetches nothing.
+        // Proof the ladder was walked over the real goods: 81 of the durable
+        // goods the post trades leave room for a premium and fetch one
+        // (measured on the data after the review of 2026-10-05, which took out
+        // the home-made antibiotics; 80 before it). For the rest the parts
+        // cost under a credit and a quarter more than a standard one fetches
+        // (the large backpack's no more at all), or a standard one fetches
+        // nothing.
         assert!(with_room >= 75 && with_premium >= 75, "only {with_room} goods leave room, {with_premium} fetch a premium");
+    }
+
+    /// The game's own parts prices count tap water the way a craft gets it
+    /// (2026-10-05, the review of BUG-146): the registry built the way
+    /// `engine::registries` builds it (`with_parts_prices`, which reads the
+    /// tap items from data/containers/fluids.ron itself) holds exactly the
+    /// parts prices of the walk with tap water at nothing, and they are not
+    /// the ones with tap water bought: a sterile bandage, made from cloth and
+    /// a litre of tap water, costs its cloth alone. The loop check above prices
+    /// its own walk, so without this the game's ceiling could drift from it:
+    /// with the tap items left out of `with_parts_prices` the loop check stayed
+    /// green, and this was red:
+    ///   bandage_0: the game's parts price is not the walk's with tap water
+    ///   free (left: Some(0.4), right: Some(0.25))
+    #[test]
+    fn the_games_parts_prices_count_tap_water_as_a_craft_gets_it() {
+        let (items, recipes, goods, _levels) = shipped();
+        let tap = shipped_tap();
+        let free = parts_prices(&items, &goods, &recipes, &tap);
+        let bought = parts_prices(&items, &goods, &recipes, &[]);
+        let mut ids: Vec<&String> = free.keys().chain(goods.parts.keys()).collect();
+        ids.sort();
+        ids.dedup();
+        for id in ids {
+            assert_eq!(goods.parts_price(id), free.get(id).copied(), "{id}: the game's parts price is not the walk's with tap water free");
+        }
+        let (bandage_free, bandage_bought) = (free["bandage_0"], bought["bandage_0"]);
+        assert!(
+            bandage_free < bandage_bought,
+            "a sterile bandage's parts cost {bandage_free} with tap water free, {bandage_bought} with it bought"
+        );
     }
 
     /// The rule on hand numbers: a standard price of 7 and parts at 16.50

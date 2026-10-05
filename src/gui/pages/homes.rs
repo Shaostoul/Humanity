@@ -187,21 +187,16 @@ pub struct HomeOutline {
     pub footer: String,
 }
 
-/// Pure loader (unit-tested below): parse data/home_outline.json. Missing or
-/// malformed file yields empty data (the panel hides; the page still works).
+/// Pure loader (unit-tested below): parse data/home_outline.json, the built-in
+/// copy when the data folder's is missing or this version cannot read it
+/// (BUG-163). When neither loads the data is empty (the panel hides; the page
+/// still works).
 pub fn load_home_outline(data_dir: &std::path::Path) -> HomeOutline {
-    let path = data_dir.join("home_outline.json");
-    let text = match crate::embedded_data::read_data_or_embedded(data_dir, "home_outline.json") {
-        Some(t) => t,
-        None => return HomeOutline::default(),
-    };
-    match serde_json::from_str::<HomeOutline>(&text) {
-        Ok(d) => d,
-        Err(e) => {
-            eprintln!("load_home_outline: failed to parse {}: {e}", path.display());
+    crate::embedded_data::load_data_or_embedded(data_dir, "home_outline.json", crate::assets::loader::parse_json::<HomeOutline>)
+        .unwrap_or_else(|e| {
+            log::warn!("{e}; the home outline panel is hidden");
             HomeOutline::default()
-        }
-    }
+        })
 }
 
 fn home_outline() -> &'static HomeOutline {
@@ -677,9 +672,10 @@ fn draw_design(
 
         // ── What one home cannot close (the pedagogical payoff) ──
         // The survival loops above close; these five gaps do NOT, by the design of
-        // reality: the game's own recipes (manufacture_cpu, smelt_steel,
-        // craft_antibiotics, ...) abstract away industrial infrastructure no single
-        // homestead can carry. Marked externally-sourced/traded, in a deliberately
+        // reality: the game's own recipes (manufacture_cpu, smelt_steel, ...)
+        // abstract away industrial infrastructure no single homestead can carry,
+        // and for medicine there is no recipe at all (the trading post sells
+        // antibiotics since 2026-10-05). Marked externally-sourced/traded, in a deliberately
         // muted OUTLINED treatment (warning stroke on the panel background) so it
         // reads clearly apart from the green closed-loop rows above. Data:
         // data/self_sufficiency/cannot_close.ron (homestead-solo-design.md section 8).

@@ -6,6 +6,9 @@
 //
 // Each entry names the game recipe/data that makes something craftable at a bench,
 // then says honestly what real infrastructure that single recipe abstracts away.
+// Medicine says the opposite since 2026-10-05: no recipe makes antibiotics, because a
+// home cannot (the review of BUG-146 took out the one that cultured them from water,
+// flour and sugar), and the trading post sells them.
 // The framing is NON-DEFEATIST: these gaps are not a failure of the homestead,
 // they are the reason civilization exists. Rendered by the Home page
 // (src/gui/pages/homes.rs, "What one home cannot close" panel).
@@ -30,7 +33,7 @@
         (
             id: "medicine",
             title: "Medicine synthesis",
-            body: "The craft_antibiotics recipe cultures water, flour, and sugar into antibiotics at a chemistry set. Real antibiotics, insulin, and vaccines need pharmaceutical-grade fermentation, purification, and quality control: an industry, not a kitchen bench. Your apothecary tower grows chamomile and aloe for comfort, and you can stitch a wound, but the medicines that prevent early death come from outside.",
+            body: "No recipe in the game makes antibiotics: the trading post sells them. One used to culture them from water, flour, and sugar at a chemistry set, and it was taken out on 5 October 2026, because nothing made that way is an antibiotic. Real antibiotics, insulin, and vaccines need pharmaceutical-grade fermentation, purification, and quality control: an industry, not a kitchen bench. Your apothecary tower grows chamomile and aloe for comfort, and you can stitch a wound, but the medicines that prevent early death come from outside.",
             provided_by: "Traded from pharmaceutical industry and clinics.",
         ),
         (

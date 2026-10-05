@@ -62,6 +62,7 @@ const BYPRODUCTS: &[(&str, &str)] = &[
     ("rice_bran_0", "milling paddy into white rice (mill_rice)"),
     ("wood_ash_0", "burning charcoal as fuel in the kiln, the forge and the smelter's melts"),
     ("cereal_hulls_0", "dehulling covered barley, oats and spelt (dehull_barley, dehull_oats, dehull_spelt)"),
+    ("beeswax_0", "crushing and straining honeycomb for its honey (cook_honey)"),
 ];
 
 /// Hulled grains (2026-09-27): (the harvest, still in its hull; the dehulling

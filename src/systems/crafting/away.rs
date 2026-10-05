@@ -26,7 +26,7 @@
 //! What this never does is the doc's "must NOT advance offline": a machine
 //! only turns stock the player chose to automate into its product.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Mutex;
 
 use super::{ActiveCraft, CraftingSystem, Recipe, RecipeRegistry};
@@ -72,14 +72,54 @@ pub struct AwayWork {
 /// electric machine may draw while the player is away: the doc's rule that
 /// nothing runs on power the home could not have supplied, and the batteries
 /// are not a source (they only move a day's power from noon to night).
-pub fn day_power_balance(home: &crate::machines::MachineHome) -> [f32; 2] {
+///
+/// A space heater is the one exception to the meter's day averages (the
+/// review of BUG-155, 2026-10-05). How much of the day its thermostat runs
+/// it depends on the air it stands in, which the meter cannot see, so the
+/// meter charges it its full draw; the time away charges each heater in
+/// `heater_draw_w` (by instance id, saved with the home: `heater_draws`)
+/// the draw its thermostat was running it at instead. A heater with none
+/// there (placed since the save, or a save from before) keeps the meter's
+/// full draw.
+pub fn day_power_balance(home: &crate::machines::MachineHome, heater_draw_w: &BTreeMap<String, f32>) -> [f32; 2] {
+    // What the heaters' thermostats spared of what the meter charges them, W:
+    // the same in both modes, since a heater is not ship life support.
+    let heaters_spared: f32 = home
+        .all_instances()
+        .iter()
+        .filter_map(|inst| {
+            let def = home.catalog.get(&inst.machine).filter(|d| d.heats_w > 0.0)?;
+            let ran = heater_draw_w.get(&inst.id)?;
+            let charged = def.average_load_watts(crate::machines::MeterBasis::default(), false);
+            Some(charged - ran.clamp(0.0, charged))
+        })
+        .sum();
     let balance = |life_support_on_grid: bool| {
         home.utility_meters(METER_SUN_HOURS, crate::machines::MeterBasis { life_support_on_grid })
             .into_iter()
             .find(|m| m.utility == "power")
-            .map_or(0.0, |m| (m.generation - m.demand) * 1000.0 / 24.0)
+            .map_or(0.0, |m| (m.generation - m.demand) * 1000.0 / 24.0 + heaters_spared)
     };
     [balance(false), balance(true)]
+}
+
+/// What each placed space heater draws now, W, by its machine instance id:
+/// its watts for the share of the time its thermostat runs it, as the air
+/// step last set it (`farming::heat`; a heater the electrical sim has shed
+/// asks for what it would draw with power). The share settles within minutes
+/// of the air reaching the thermostat's setting and holds while the air
+/// around it does, which the time away does not change: flat out where the
+/// heater never gets its air to 24 C (a grow room, the home's own air), about
+/// an eighth of the time in a mushroom rack's fruiting tent. A heater the air
+/// step has not measured yet is at the draw it was spawned with, its full
+/// watts, so a save written before then charges it in full, as before. Saved
+/// with the home (`WorldSave::heater_draw_w`) for `day_power_balance`.
+pub fn heater_draws(world: &hecs::World) -> BTreeMap<String, f32> {
+    world
+        .query::<(&crate::ecs::components::MachineInstanceId, &crate::ecs::components::SpaceHeater, &crate::ecs::components::PowerConsumer)>()
+        .iter()
+        .map(|(_e, (id, _h, pc))| (id.0.clone(), pc.draw_watts.max(0.0)))
+        .collect()
 }
 
 /// Meter what the time away drew from the ship's reactor (2026-09-27,

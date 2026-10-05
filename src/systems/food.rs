@@ -61,16 +61,13 @@ impl ItemProfiles {
     /// Path of the list, relative to the data directory.
     pub const FILE: &'static str = "food/item_profiles.ron";
 
-    /// Disk first (modding), embedded copy as the fallback, the same way
-    /// food_system.ron loads. A missing or unparseable file leaves the list
-    /// empty, which means nothing is edible: loud in the log, never a crash.
+    /// Disk first (modding), the embedded copy when the disk copy is missing or
+    /// this version cannot read it (BUG-163), the same way food_system.ron
+    /// loads. With neither the list is empty, which means nothing is edible:
+    /// loud in the log, never a crash.
     pub fn load(data_dir: &Path) -> Self {
-        let Some(text) = crate::embedded_data::read_data_or_embedded(data_dir, Self::FILE) else {
-            log::warn!("{} not found on disk or embedded: nothing is edible", Self::FILE);
-            return Self::default();
-        };
-        ron::from_str(&text).unwrap_or_else(|e| {
-            log::warn!("Failed to parse {}: {e}. Nothing is edible until it is fixed", Self::FILE);
+        crate::embedded_data::load_data_or_embedded(data_dir, Self::FILE, crate::assets::loader::parse_ron).unwrap_or_else(|e| {
+            log::warn!("{e}; nothing is edible until it is fixed");
             Self::default()
         })
     }
@@ -84,18 +81,19 @@ impl ItemProfiles {
 /// guessing from the item id, which offered Drink on the water pump, the
 /// water tester and empty bottles.
 /// 2026-10-03: read disk first like every other loader, the copy built into
-/// the exe only when the data folder has none. It read the built-in copy
+/// the exe only when the data folder has none (or, since BUG-163, a copy this
+/// version cannot read). It read the built-in copy
 /// only, so an edit to either file changed nothing here until a rebuild, and
 /// the source stamp (BUG-133) could not see that the binary was behind.
 pub fn consume_kinds() -> &'static HashMap<String, bool> {
     static KINDS: std::sync::OnceLock<HashMap<String, bool>> = std::sync::OnceLock::new();
     KINDS.get_or_init(|| {
         let dir = crate::data_dir();
-        let list: ItemProfiles = crate::embedded_data::read_data_or_embedded(&dir, ItemProfiles::FILE)
-            .and_then(|t| ron::from_str(&t).ok())
-            .unwrap_or_default();
+        let list = ItemProfiles::load(&dir);
         let data: Option<FoodData> =
-            crate::embedded_data::read_data_or_embedded(&dir, "food_system.ron").and_then(|t| ron::from_str(&t).ok());
+            crate::embedded_data::load_data_or_embedded(&dir, "food_system.ron", crate::assets::loader::parse_ron)
+                .map_err(|e| log::warn!("{e}; no item offers Eat or Drink"))
+                .ok();
         let mut out = HashMap::new();
         if let Some(data) = data {
             for (item, profile) in &list.items {
@@ -431,16 +429,14 @@ pub struct FoodSystem {
 impl FoodSystem {
     pub fn new(data_dir: &Path) -> Self {
         // Disk-first (modding), embedded fallback (v0.744) — a zero-file
-        // install keeps its nutrition/cooking data.
-        let text = crate::embedded_data::read_data_or_embedded(data_dir, "food_system.ron")
-            .unwrap_or_else(|| {
-                log::warn!("food_system.ron not found on disk or embedded");
-                "(nutrition_profiles:[],preservation_methods:[],cooking_methods:[],meal_quality_levels:[],temperature_zones:[])".to_string()
-            });
-        let data: FoodData = ron::from_str(&text).unwrap_or_else(|e| {
-            log::warn!("Failed to parse food_system.ron: {e}");
-            FoodData { nutrition_profiles: vec![], preservation_methods: vec![], cooking_methods: vec![], meal_quality_levels: vec![], temperature_zones: vec![] }
-        });
+        // install keeps its nutrition/cooking data, and so does a data folder
+        // whose copy this version cannot read (BUG-163).
+        let data: FoodData =
+            crate::embedded_data::load_data_or_embedded(data_dir, "food_system.ron", crate::assets::loader::parse_ron)
+                .unwrap_or_else(|e| {
+                    log::warn!("{e}; no food data this session");
+                    FoodData { nutrition_profiles: vec![], preservation_methods: vec![], cooking_methods: vec![], meal_quality_levels: vec![], temperature_zones: vec![] }
+                });
         log::info!("Loaded food data: {} nutrition profiles, {} cooking methods", data.nutrition_profiles.len(), data.cooking_methods.len());
 
         // Resolve the item list against the profiles once, so a lookup per

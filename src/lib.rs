@@ -74,6 +74,9 @@ pub(crate) mod test_clock;
 /// Temporary files and folders that tests delete when done (BUG-159). Test builds only.
 #[cfg(test)]
 pub(crate) mod test_temp;
+/// The warnings a test's own code logs, read back (BUG-163). Test builds only.
+#[cfg(test)]
+pub(crate) mod test_log;
 
 #[cfg(feature = "relay")]
 pub mod relay;
