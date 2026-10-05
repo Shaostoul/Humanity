@@ -3578,7 +3578,7 @@ and the steady-speed judges should report the frame rate and refuse to judge, as
 "contaminated" rather than FAIL, when frames run long enough to break the
 interpolation the check measures.
 
-## BUG-153: the Campfire ability promises a fire with warmth and light, and only heals 3 health (OPEN, found 2026-10-04)
+## BUG-153: the Campfire ability promises a fire with warmth and light, and only heals 3 health (PARTLY FIXED (merging in v0.1463.0), found 2026-10-04)
 
 **Seen (code reading, by the check of the heat, fire and fuel guides; confirmed by the
 orchestrator):** `data/abilities.csv` row `campfire` is described as "Build a campfire that
@@ -3588,9 +3588,45 @@ provides warmth light and slow healing". It is a non-offensive ability, so casti
 and the `campfire_warmth` status effect (`data/status_effects.csv`) is applied by no code.
 For a new character it sorts first among castable abilities, so it sits in hotbar slot 1.
 
-**Fix (not started):** either make it place a real fire the body heat model and the light
-system see (and that can spread or go out, as the fire guide teaches), or describe what it
-does today. A test casts it and checks what the description promises.
+**Fixed (2026-10-05):** the ability now builds a real campfire, and the fire is a heat
+source the body heat model sees. Step by step:
+
+1. The engine works out where it goes when the cast is pressed: the spot a piece in hand
+   would be placed at (`engine::build_place::publish_cast_spot`, the same
+   `planet_build::ghost`), handed to the ability system in `abilities::BUILD_SPOT_SLOT`.
+   An ability row names what it builds in the new `builds` column of `data/abilities.csv`.
+2. The cast goes through the one build path every piece takes, now
+   `construction::begin_build` (moved out of the ConstructionSystem's tick): the
+   `campfire` blueprint (`data/blueprints/basic.ron`, 6 Raw Stone and 3 Wood Logs, as
+   `data/structures.csv` always listed it) is refused with the reason, and nothing spent,
+   aboard the ship, under a built roof, where there is no air to burn, or without the
+   materials; otherwise its materials leave the pack and its scaffold goes up. Only then
+   are the 15 energy spent and the cooldown started. No heal: `healing_base` is 0.
+3. Finished, it is lit with its own three logs (2 h), burns them down on the game clock,
+   and goes out; E at it puts another log from the pack on (it holds four) and relights
+   it when out (`src/systems/construction/fires.rs`). Its fuel is saved with it and burns
+   down while the game is closed.
+4. While it burns it radiates 16 kW (a Forest Service campground fire ring's burn rate,
+   NIST's effective heat of combustion and radiative fraction for wood; the sources are
+   in the module's doc), falling off as the inverse square, and `engine::survival_env`
+   adds it to the mean radiant temperature of a person near it. On a clear, calm 0 C
+   night that is about 16 C at 1.5 m and nothing at 20 m; an out fire gives nothing.
+5. The dead `campfire_warmth` effect is deleted, and the description says what it does.
+
+Tests, each seen red on the code before the fix:
+`the_campfire_ability_builds_a_campfire_outdoors_from_the_pack`,
+`a_campfire_cast_that_cannot_build_spends_nothing` (`src/systems/abilities.rs`);
+`a_campfire_by_a_cold_night_keeps_a_body_warmer_than_one_20_m_away` and
+`an_out_campfire_gives_no_heat` (`src/engine/survival_env.rs`); with the fire's own
+burning, fuel, take-down and warmth tests in `fires.rs`.
+
+**Still open:** the campfire gives NO LIGHT. The renderer's point lights are not
+evaluated in the celestial pass, where a planet's ground and everything built on it is
+drawn (that pass's light count is 0 by design since v0.1155, `80-fragment-shared.wgsl`),
+so a campfire light needs renderer work, not a data entry. Also not modelled: smoke,
+sparks or spreading, carbon monoxide, and needing a light (tinder, a match, the Campfire
+Kit) to start or relight it. In the Normal play mode nobody leaves the ship, so there the
+ability is always refused; it can be used only where the Dev travel tools reach a planet.
 
 ## BUG-154: the backup generator runs on Paint, Glue or Crude Oil (OPEN, found 2026-10-04)
 

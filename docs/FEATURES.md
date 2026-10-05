@@ -1681,9 +1681,16 @@ casts: skill gate (level-1 gates baseline-open), energy cost (mana + stamina col
 both pay from the energy vital), live cooldowns. v1 effects are self-scoped healing
 (first_aid, cauterize, repair, heal...); offensive rows load but honestly wait for
 the combat arc. Profile > Skills gains the Abilities panel with Cast buttons.
+**Building abilities (BUG-153, 2026-10-05):** a row whose `builds` column names a
+blueprint builds that piece where a piece in hand would go (the engine's spot,
+`abilities::BUILD_SPOT_SLOT`), through `construction::begin_build`, spending its
+energy only when the build starts. The Campfire ability builds a campfire
+(`construction::fires`: lit with its own logs, burns down, E adds a log, radiates
+heat the body heat model feels; outdoors only).
 - Native: `src/systems/abilities.rs`, `src/gui/pages/profile.rs` (panel),
-  lib.rs bridge (`pending_cast`, `ability_status`, `ability_cooldowns`)
-- Data: `data/abilities.csv`
+  lib.rs bridge (`pending_cast`, `ability_status`, `ability_cooldowns`),
+  `src/engine/build_place.rs` (`publish_cast_spot`), `src/systems/construction/fires.rs`
+- Data: `data/abilities.csv`, `data/blueprints/basic.ron` (`campfire`)
 
 ### Player Controller
 WASD movement, gravity, jump, ground detection via raycast.
@@ -2083,6 +2090,10 @@ and measured human trials (Helland et al. 2025; Thompson and Hayward 1996).
   (`body_heat::open_sky_radiant_c`, `sun_mrt_rise_c`, `Weather::cloud_share`). The HUD's weather line ends with
   what the air feels like when that is 2 C or more from its temperature ("feels 35C" in the noon sun in 20 C air,
   v0.1419.0): the model's operative temperature, `body_heat::operative_c`.
+- **A campfire's warmth** (BUG-153, 2026-10-05): a burning built fire radiates (16 kW for the campfire) and a
+  person near it feels warmer surroundings, falling as the inverse square: about 16 C instead of -11 C at 1.5 m
+  on a clear 0 C night, nothing at 20 m, nothing from an out fire (`construction::fires::warmth_at`,
+  `body_heat::radiant_with_source_c`, applied in `engine::survival_env`).
 - **Sweat costs water** (v0.1422.0): the sweat the model evaporates comes out of hydration, about 50 mL a
   point (an hour walking in dry 35 C air, about 0.2 L; hard work in heat several times that), scaled by the
   Vitals drain slider (`BodyHeat::sweat_litres`, `HeatOutcome::sweat_l`, `food::HYDRATION_PER_LITRE`).
