@@ -3082,7 +3082,7 @@ mod tests {
         // 2026-10-04 with `NeighbourView::segments` returning nothing: "today's sight segments,
         // and one bare homestead shell per neighbour plot (1 x 74): left 135, right 209".
         let neighbour_plots = before_shape.plots.iter().filter(|p| Some(p.id.as_str()) != before_shape.home_plot().map(|h| h.id.as_str())).count();
-        assert_eq!(neighbour_plots, 1, "p2 is the one neighbour");
+        assert_eq!(neighbour_plots, before_shape.plots.len() - 1, "every plot but p1 is a neighbour's (p2 alone until the twelve plots of 2026-10-04)");
         let bare_shell = crate::ship::wall_collision::sight_segments_with_shell_cuts(
             &HomeDesign::built_in("homestead").expect("the homestead is built in").body,
             &[],
@@ -3199,13 +3199,13 @@ mod tests {
     fn assembly_refuses_what_does_not_fit_and_splits_back_into_its_files() {
         let (ship, design) = shipped_files();
         assert!(ship.zone_index(HOME_ZONE_ID).is_none(), "the ship file holds no home");
-        assert_eq!(ship.plots.len(), 2, "p1 and p2");
+        assert_eq!(ship.plots.len(), 12, "p1 to p12 (the twelve plots along First Street, 2026-10-04)");
         assert_eq!(ship.default_plot_id().as_deref(), Some("p1"));
         let refuse = |s: ShipStructure, d: HomeDesign, plot: &str, frag: &str| {
             let e = s.assemble(d, plot).expect_err(frag);
             assert!(e.contains(frag), "wanted '{frag}', got: {e}");
         };
-        refuse(ship.clone(), design.clone(), "p9", "no plot 'p9'");
+        refuse(ship.clone(), design.clone(), "p99", "no plot 'p99'");
         let mut cabin = design.clone();
         cabin.kind = "cabin".to_string();
         refuse(ship.clone(), cabin, "p1", "takes a homestead home, not a cabin");
@@ -3223,12 +3223,13 @@ mod tests {
         // z 40), but the door is in the home's east wall and the corridor would cut the west
         // one. Red check, run: without the door-face check this plot assembles (nothing
         // overlaps there), and this refusal fails.
+        // (Named "east": p3 is a real plot since the twelve plots along First Street.)
         let mut east = ship.clone();
-        let mut p3 = east.plots.iter().find(|p| p.id == "p2").cloned().expect("p2");
-        p3.id = "p3".to_string();
-        p3.origin = (80.0, 0.0, 99.0);
-        east.plots.push(p3);
-        refuse(east, design.clone(), "p3", "not through the homestead design's door at (135.0, 139.0)");
+        let mut across = east.plots.iter().find(|p| p.id == "p2").cloned().expect("p2");
+        across.id = "east".to_string();
+        across.origin = (80.0, 0.0, 99.0);
+        east.plots.push(across);
+        refuse(east, design.clone(), "east", "not through the homestead design's door at (135.0, 139.0)");
         let assembled = ship.clone().assemble(design.clone(), "p1").expect("assembles");
         refuse(assembled.clone(), design.clone(), "p2", "zone named 'home'");
 
@@ -3320,7 +3321,7 @@ mod tests {
         ship.save_assembled(&dir, true).expect("a Dev save writes both");
         let back = ShipStructure::load_and_assemble(&dir, None).expect("reassembles");
         assert_eq!(back.districts[1].origin.0, ship.districts[1].origin.0, "the district edit was saved");
-        assert!(back.zone_index("street-1").is_some() && back.plots.len() == 2);
+        assert!(back.zone_index("street-1").is_some() && back.plots.len() == 12);
 
         // An overlapping ship is refused, and the file on disk stays as it was. (The street
         // dragged into the Commons: its own corridor no longer resolves and is left out of the
@@ -3377,13 +3378,14 @@ mod tests {
         assert_eq!(std::fs::read(&ship_path).unwrap(), before, "the file on disk is unchanged");
         assert!(ship.move_plot("p2", (0.0, 0.0, 99.0)) && ship.plot_check("p2") == Some(Ok(())), "and back again");
 
-        // Plots add beyond their model and remove (never the home's own).
-        let p3 = ship.add_plot_like("p2", 10.0).expect("a copy of p2");
-        assert_eq!(p3, "p3");
-        let added = ship.plots.iter().find(|p| p.id == "p3").unwrap();
-        assert_eq!((added.origin, added.door.lat), ((0.0, 0.0, 198.0), 238.0), "past p2 by its depth and the gap, the lat with it");
+        // Plots add beyond their model and remove (never the home's own). The model is the last
+        // plot, p12, as the panel's "Add plot" picks it (twelve plots since 2026-10-04).
+        let p13 = ship.add_plot_like("p12", 10.0).expect("a copy of p12");
+        assert_eq!(p13, "p13");
+        let added = ship.plots.iter().find(|p| p.id == "p13").unwrap();
+        assert_eq!((added.origin, added.door.lat), ((0.0, 0.0, 1188.0), 1228.0), "past p12 by its depth and the gap, the lat with it");
         assert!(!ship.remove_plot("p1"), "the home's own plot stays");
-        assert!(ship.remove_plot("p3") && ship.plots.len() == 2);
+        assert!(ship.remove_plot("p13") && ship.plots.len() == 12);
 
         // Districts.
         let id = ship.add_district("hangar", (200.0, 0.0, 0.0), (40.0, 10.0, 40.0));
@@ -3552,9 +3554,10 @@ mod plot_handout_tests {
     }
 
     /// A home with NO authored door names none in its join, and the relay and the game then both
-    /// take the middle of the plot actually handed out, on plots of any size. Here the second
-    /// plot is made larger than the first (planned apartment plots will differ in size), the
-    /// home is built on the first, and the relay hands out the second.
+    /// take the middle of the plot actually handed out, on plots of any size. Here the last plot
+    /// (p12, at First Street's far end, with room to grow; it was p2 until the twelve plots of
+    /// 2026-10-04 put p3 10 m past it) is made larger than the first (planned apartment plots will
+    /// differ in size), the home is built on the first, and the relay hands out the larger one.
     ///
     /// Seen red 2026-10-03 with `home_arrival_local` put back to sending the middle of the plot
     /// the home was built on (the 65b3e2c0c game): "a doorless home on the larger p2: the relay
@@ -3562,26 +3565,29 @@ mod plot_handout_tests {
     #[test]
     fn a_home_with_no_door_arrives_in_the_middle_of_the_plot_it_is_given() {
         let mut file = ShipStructure::load_ship_file(&data_dir()).unwrap();
-        let p2 = file.plots.iter().position(|p| p.id == "p2").expect("p2");
+        let big = file.plots.len() - 1;
+        let id = file.plots[big].id.clone();
         // Wider up to the street (x 65) and deeper: 63 x 120 m against p1's 55 x 89.
-        file.plots[p2].size.0 += 8.0;
-        file.plots[p2].size.2 += 31.0;
+        file.plots[big].size.0 += 8.0;
+        file.plots[big].size.2 += 31.0;
         let mut design = ShipStructure::load_and_assemble_shipped(&data_dir(), None).unwrap().home_design().unwrap();
         design.body.spawn = None;
         let ship = file.clone().assemble(design.clone(), "p1").expect("the doorless home stands on p1");
         // The relay's side: what it spawns at on the plot it hands out, from what the join says.
-        let relay = ShipPlots::of_ship(&file).plot("p2").unwrap().arrival(ship.home_arrival_local());
+        let relay = ShipPlots::of_ship(&file).plot(&id).unwrap().arrival(ship.home_arrival_local());
         // The game's side: where its home's arrival point stands on that plot.
-        let game = ShipStructure::plot_spawn(&file.plots[p2], &design);
+        let game = ShipStructure::plot_spawn(&file.plots[big], &design);
         assert!(
             (relay - game).length() < 1e-4,
-            "a doorless home on the larger p2: the relay spawns at {relay:?}, the game stands at {game:?}"
+            "a doorless home on the larger {id}: the relay spawns at {relay:?}, the game stands at {game:?}"
         );
         assert_eq!(ship.home_arrival_local(), None, "a home with no door names none");
     }
 
-    /// A relay in a folder with no data (the rigs' throwaway relay) hands out the same plots
-    /// and names the same ship, from the copies built into the exe.
+    /// A relay in a folder with no data (a bare exe run with --headless in an empty folder; the
+    /// rigs' throwaway relay has had the tree's data/ mirrored into its folder since 2026-10-03,
+    /// scripts/lib/throwaway-relay.js `mirrorData`) hands out the same plots and names the same
+    /// ship, from the copies built into the exe.
     #[test]
     fn a_relay_with_no_data_folder_hands_out_the_same_plots() {
         let empty = std::env::temp_dir().join(format!("hum_no_data_{}", std::process::id()));
@@ -3590,6 +3596,65 @@ mod plot_handout_tests {
         let on_disk = ShipPlots::load(&data_dir()).expect("the data folder loads");
         assert_eq!(built_in, on_disk, "the exe's copy is the data folder's ship");
         let _ = std::fs::remove_dir_all(&empty);
+    }
+
+    /// MORE HOMES ALONG FIRST STREET (2026-10-04, the operator's accepted recommendation: "add
+    /// plots along First Street (about ten) so more than two people can have homes"). The shipped
+    /// ship has twelve homestead plots: p1 and p2 exactly where they always were (a relay's stored
+    /// claims name plots by id, `game_plots`), and p3 to p12 down the west side of First Street,
+    /// each 55 x 89 m, 99 m apart as p1 and p2 are, with its door on the street. Only the west
+    /// side: the homestead's door is in its EAST wall and a plot cannot turn yet (section 2.2 of
+    /// the design, "a quarter-turn yaw later"), so a home east of the street would face away
+    /// from it, which `assemble` refuses (the critic's review of 1a). The file validates (no
+    /// plot, zone or corridor overlaps another); every plot takes the shipped homestead with its
+    /// corridor leaving through the design's own door; First Street reaches past the last door;
+    /// and the copy built into the exe, which a relay with no data folder hands out, is the same
+    /// ship.
+    ///
+    /// Seen red 2026-10-04 on the two-plot ship file: "the shipped ship has twelve plots, in the
+    /// order a relay hands them out: [\"p1\", \"p2\"]".
+    #[test]
+    fn the_shipped_ship_has_twelve_homes_along_first_street() {
+        let file = ShipStructure::load_ship_file(&data_dir()).expect("the ship file loads");
+        file.validate().expect("the ship file validates: no plot, zone or corridor overlaps another");
+        let ids: Vec<&str> = file.plots.iter().map(|p| p.id.as_str()).collect();
+        let want: Vec<String> = (1..=12).map(|n| format!("p{n}")).collect();
+        assert_eq!(ids, want, "the shipped ship has twelve plots, in the order a relay hands them out: {ids:?}");
+        // p1 and p2 never move: a relay's stored claims name them, and a player's remembered plot
+        // (AppConfig `home_plots`) is an id too.
+        let plot = |id: &str| file.plots.iter().find(|p| p.id == id).unwrap_or_else(|| panic!("{id}"));
+        assert_eq!((plot("p1").origin, plot("p1").door.zone.as_str(), plot("p1").door.lat), ((0.0, 0.0, 0.0), "commons", 40.0));
+        assert_eq!((plot("p2").origin, plot("p2").door.zone.as_str(), plot("p2").door.lat), ((0.0, 0.0, 99.0), "street-1", 139.0));
+        assert_eq!(file.default_plot.as_deref(), Some("p1"), "offline play still builds on p1");
+        let street = &file.zones[file.zone_index("street-1").expect("First Street is a zone")];
+        assert_eq!(street.label, "First Street");
+        let design = HomeDesign::built_in("homestead").expect("the shipped homestead is built in");
+        for p in &file.plots {
+            assert_eq!((p.kind.as_str(), p.size), ("homestead", (55.0, 3.0, 89.0)), "{} is a homestead plot", p.id);
+            if p.id != "p1" {
+                assert_eq!(p.door.zone, "street-1", "{}'s door opens onto First Street", p.id);
+                // West of the street, its east wall facing it across a clear gap.
+                assert!(p.origin.0 + p.size.0 < street.origin.0, "{} stands west of First Street", p.id);
+                // The street runs past the door, mouth and all.
+                let (z0, z1) = (street.origin.2, street.origin.2 + street.body.depth);
+                assert!(p.door.lat - p.door.door_width * 0.5 > z0 && p.door.lat + p.door.door_width * 0.5 < z1, "{}'s door is on the street", p.id);
+            }
+            // Its home stands on it, the door corridor leaving through the design's own door
+            // (`assemble` refuses anything else), and its holder arrives at that door, on it.
+            let ship = file.clone().assemble(design.clone(), &p.id).unwrap_or_else(|e| panic!("{} takes the shipped homestead: {e}", p.id));
+            let door = ship.home_spawn_world().expect("the shipped homestead names its door");
+            let (lo, hi) = p.aabb();
+            assert!(door.cmpge(lo).all() && door.cmple(hi).all(), "{}'s door {door:?} is on it", p.id);
+            assert_eq!(ship.ship_hash(), file.ship_hash(), "the ship is the same ship whichever plot the home stands on");
+        }
+        // Consecutive plots 10 m apart along z, as p2 sits past p1: room for each corridor, and no
+        // two homes' walls flush against each other.
+        for w in file.plots.windows(2) {
+            assert!((w[1].origin.2 - (w[0].origin.2 + w[0].size.2) - 10.0).abs() < 1e-3, "{} is 10 m past {}", w[1].id, w[0].id);
+        }
+        // A relay with no data folder hands out exactly these.
+        let built_in = ShipStructure::built_in_ship_file("test: the twelve plots").expect("the built-in ship loads");
+        assert_eq!(built_in.ship_hash(), file.ship_hash(), "the ship built into the exe is the data folder's");
     }
 
     /// A relay whose ship file on disk does not load (a bad hand edit on the server) keeps the

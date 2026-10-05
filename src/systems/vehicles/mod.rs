@@ -1,7 +1,9 @@
 //! Vehicle & mech system — entering/exiting vehicles, mech torso twist,
 //! jump jets, heat management, and vehicle movement control.
 //!
-//! Vehicle definitions loaded from `data/vehicles.csv`.
+//! Vehicle kits load from `data/vehicles/kits.ron` (DataStore["vehicle_kit_registry"]);
+//! the vehicles themselves are items in `data/items.csv`. (This header used to name a
+//! `data/vehicles.csv` that does not exist; BUG-157, 2026-10-05.)
 //! Ship-specific logic in `ships.rs`, propulsion physics in `propulsion.rs`.
 
 pub mod ships;

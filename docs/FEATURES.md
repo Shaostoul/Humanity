@@ -1547,8 +1547,9 @@ File watcher (notify) invalidates asset cache per frame.
 
 ### Homes on the ship: plots (increment 1a of docs/design/ship-homes-and-logistics.md, v0.1442.0)
 The ship and the home are separate files: `data/blueprints/ship_structure.ron`
-holds the Commons, street-1, the corridors, 13 districts and a `plots` list (p1,
-p2, `default_plot`); `data/homes/homestead.ron` holds the home design (23 room
+holds the Commons, street-1, the corridors, 13 districts and a `plots` list
+(twelve homesteads since 2026-10-04: p1 on the Commons and p2 to p12 down the
+west side of First Street, which runs 1.1 km; `default_plot`); `data/homes/homestead.ron` holds the home design (23 room
 zones, door, spawn); `data/machines/ship.ron` the Commons machines (zone-local).
 Loading assembles the ship with "my home" at my plot's origin
 (`ship_structure::load_and_assemble`); moving a plot moves the whole home, its
@@ -2605,6 +2606,8 @@ decision-briefs Brief 1) generalized it into a whole vessel:
   top cutouts over every glass roof + corridor lid, double-sided plating (look up through glass and see
   hull), greebles (engines/radiators/masts) as data rows. Regrows on any structure edit; H key /
   Settings "Show hull" toggle; purely visual (no exterior collision - bay doors/EVA are follow-ups).
+  Dev pin: showcase `{"hull":"0"}` hides it as H does (released with "1" before every other vantage;
+  the ship-first-street vantage uses it to see the homes along First Street, 2026-10-05).
 - Native: `src/ship/ship_structure.rs` (zones + corridors, load/save/adopt, merged meshes),
   `src/ship/home_structure.rs` (the per-zone body incl. shell cuts), `src/ship/hull.rs` (profile +
   loft + greebles), `src/ship/wall_collision.rs` (`ship_wall_segments` + shell-cut gaps),

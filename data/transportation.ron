@@ -139,7 +139,7 @@
     // SPACE INFRASTRUCTURE (7) - Orbital and launch facilities
     // =========================================================================
 
-    space: [
+    space_infrastructure: [
         (
             id: "docking_port",
             name: "Docking Port",
