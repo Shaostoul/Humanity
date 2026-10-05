@@ -130,9 +130,9 @@ fn demo_state() -> GuiState {
         effects: vec![("Well-fed".into(), 180.0), ("Rested".into(), 90.0)],
     };
     let mut items = vec![
-        Some(GuiItemSlot { item_id: "water_bottle_0".into(), name: "Water Bottle".into(), quantity: 2, wear: 0, quality: 0 }),
-        Some(GuiItemSlot { item_id: "bread_0".into(), name: "Bread".into(), quantity: 5, wear: 0, quality: 0 }),
-        Some(GuiItemSlot { item_id: "iron_ore_0".into(), name: "Iron Ore".into(), quantity: 6, wear: 0, quality: 0 }),
+        Some(GuiItemSlot { item_id: "water_bottle_0".into(), name: "Water Bottle".into(), quantity: 2, ..Default::default() }),
+        Some(GuiItemSlot { item_id: "bread_0".into(), name: "Bread".into(), quantity: 5, ..Default::default() }),
+        Some(GuiItemSlot { item_id: "iron_ore_0".into(), name: "Iron Ore".into(), quantity: 6, ..Default::default() }),
     ];
     // A big flat seed list, to exercise the multi-column leaf layout.
     for s_name in [
@@ -144,8 +144,7 @@ fn demo_state() -> GuiState {
             item_id: format!("seed_{}_0", s_name.to_lowercase().replace(' ', "_")),
             name: format!("{} Seeds", s_name),
             quantity: 1,
-            wear: 0,
-            quality: 0,
+            ..Default::default()
         }));
     }
     s.inventory_items = items;
@@ -1115,7 +1114,7 @@ fn snapshot_fleet_ledger() {
         state.fleet.stores = vec![fleet::FleetStore { entity_id: 12, name: "The mess hall's stores".into(), position: [67.0, 1.0, 22.0] }];
         state.fleet.my_position = Some([68.0, 1.7, 22.0]);
         state.fleet.prices.insert("bread_0".into(), 3.0);
-        state.inventory_items = vec![Some(GuiItemSlot { item_id: "bread_0".into(), name: "Bread".into(), quantity: 3, wear: 0, quality: 0 })];
+        state.inventory_items = vec![Some(GuiItemSlot { item_id: "bread_0".into(), name: "Bread".into(), quantity: 3, ..Default::default() })];
         egui::CentralPanel::default()
             .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
             .show(ctx, |ui| fleet::draw_section(ui, theme, state));
@@ -1846,7 +1845,7 @@ fn snapshot_crafting_home_storage() {
             let parts = state.craft_recipes[idx].inputs.clone();
             let last = parts.len() - 1;
             for (i, (id, need)) in parts.into_iter().enumerate() {
-                let slot = GuiItemSlot { item_id: id.clone(), name: id.clone(), quantity: need / 3, wear: 0, quality: 0 };
+                let slot = GuiItemSlot { item_id: id.clone(), name: id.clone(), quantity: need / 3, ..Default::default() };
                 state.inventory_items.push(Some(slot));
                 state.home_stock.insert(id, if i == last { need - need / 3 - 2 } else { need });
             }

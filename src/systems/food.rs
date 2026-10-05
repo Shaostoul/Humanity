@@ -108,6 +108,18 @@ pub fn consume_kinds() -> &'static HashMap<String, bool> {
     })
 }
 
+/// One temperature zone from `food_system.ron` (2026-10-04, first-hour audit S6): food kept in
+/// air from `temp_min_c` up to `temp_max_c` spoils `spoilage_rate_multiplier` times as fast as
+/// at room temperature, the zones' baseline (1.0). Only the fields the spoilage clock uses are
+/// modeled; the name and description are ignored by serde.
+#[derive(Debug, Clone, Deserialize)]
+pub struct TemperatureZone {
+    pub id: String,
+    pub temp_min_c: f32,
+    pub temp_max_c: f32,
+    pub spoilage_rate_multiplier: f32,
+}
+
 /// Top-level RON schema for `data/food_system.ron`.
 #[derive(Debug, Deserialize)]
 pub struct FoodData {
@@ -115,19 +127,58 @@ pub struct FoodData {
     pub preservation_methods: Vec<ron::Value>,
     pub cooking_methods: Vec<ron::Value>,
     pub meal_quality_levels: Vec<ron::Value>,
-    pub temperature_zones: Vec<ron::Value>,
+    pub temperature_zones: Vec<TemperatureZone>,
 }
 
-// Spoilage state is tracked in FoodSystem's own `spoilage: HashMap<FoodKey, ..>`
-// side-table (below) rather than as an ECS component on the item -- items are
-// plain data (item_id + quantity) with no per-instance component slot of their
-// own, so keying by (entity, inventory-slot-index) is the practical way to
-// attach per-stack state without an item-entity architecture change.
+impl FoodData {
+    /// How fast food spoils in air at `temp_c`, against room temperature (2026-10-04,
+    /// first-hour audit S6): the multiplier of the zone whose range holds it (a range holds
+    /// its lower end), the coldest zone's below the table and the hottest's above it. 1.0
+    /// with no zones loaded.
+    pub fn spoilage_multiplier_at(&self, temp_c: f32) -> f64 {
+        let zones = &self.temperature_zones;
+        if let Some(z) = zones.iter().find(|z| temp_c >= z.temp_min_c && temp_c < z.temp_max_c) {
+            return f64::from(z.spoilage_rate_multiplier);
+        }
+        // Beyond the table: its nearest end.
+        let coldest = zones.iter().min_by(|a, b| a.temp_min_c.total_cmp(&b.temp_min_c));
+        let hottest = zones.iter().max_by(|a, b| a.temp_max_c.total_cmp(&b.temp_max_c));
+        match (coldest, hottest) {
+            (Some(c), _) if temp_c < c.temp_min_c => f64::from(c.spoilage_rate_multiplier),
+            (_, Some(h)) if temp_c >= h.temp_max_c => f64::from(h.spoilage_rate_multiplier),
+            _ => 1.0,
+        }
+    }
 
-// Spoilage time comes from each food's nutrition profile
-// (`spoilage_rate_hours`), so an item spoils on the timescale of the food it
-// is: green peas in days, dried beans in a year. There is no cold storage yet,
-// so nothing multiplies it.
+    /// The multiplier of the zone named `id` (a vessel that keeps its own zone, the freezer
+    /// chest's "frozen"); None when no zone has that name.
+    pub fn zone_multiplier(&self, id: &str) -> Option<f64> {
+        self.temperature_zones.iter().find(|z| z.id == id).map(|z| f64::from(z.spoilage_rate_multiplier))
+    }
+}
+
+/// The DataStore slot (an `f64` in a `Mutex`) where the FoodSystem counts the aging owed to
+/// the food in home storage (2026-10-04, first-hour audit S6): game seconds at room
+/// temperature, the home air's zone applied. The stored items are the GUI's pool
+/// (`GuiState::placed_items`), so the frame puts it on them after the tick
+/// (`engine::stock_piles::age_home_storage`, which also registers the slot).
+pub const STORAGE_AGING_KEY: &str = "food_storage_aging_s";
+
+// SPOILAGE (rebuilt 2026-10-04, first-hour audit S6). Every holder of food
+// carries its own clock: a backpack stack (`ItemStack::age_s`), an item in home
+// storage (`PlacedItem::age_s`: the Barn, the home's other places, a built
+// chest) and a vessel's contents (`Container::content_age_s`). The clock is in
+// game seconds at room temperature: each tick adds the tick's game seconds
+// times the temperature zone where the food is kept (`temperature_zones` in
+// food_system.ron, `FoodData::spoilage_multiplier_at`). The air around the
+// player for what they carry; the home's air for its storage and vessels; the
+// zone a vessel keeps (`ContainerType::keeps_zone`), the freezer's "frozen".
+// A food is spoiled once its clock reaches its profile's `spoilage_rate_hours`,
+// so green peas go in days and dried beans in a year, slower in the cold. The
+// clock moves with the food (moving it keeps it; items joining a stack give it
+// their count-weighted average, `inventory::blend_age`) and is saved with it.
+// It used to live in a side table keyed by (entity, backpack slot), so food in
+// storage never aged, and a move to another slot or a restart made it fresh.
 
 // ── Nutrition tuning (real-time seconds). Vitals run 0..100. ──────────────
 // v0.1005 REAL SCALE (operator: "my character keeps dying from dehydration
@@ -278,17 +329,6 @@ pub fn set_urine_tank(world: &mut hecs::World, person_days: f64) {
     }
 }
 
-/// Unique key for tracking a specific food stack: (entity bits, inventory slot index).
-type FoodKey = (u64, usize);
-
-/// Per-item spoilage tracking.
-#[derive(Debug, Clone)]
-struct SpoilageState {
-    spoilage_timer: f32,
-    max_freshness: f32,
-    spoiled: bool,
-}
-
 /// Which button a consume request came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Consume {
@@ -311,10 +351,6 @@ pub struct FoodSystem {
     /// Edible item id -> index into `data.nutrition_profiles`, built from
     /// `data/food/item_profiles.ron`. An item absent from this map is not food.
     item_profile: HashMap<String, usize>,
-    /// Per-item spoilage timers, keyed by (entity_id, slot_index).
-    spoilage: HashMap<FoodKey, SpoilageState>,
-    /// Accumulator to throttle log spam.
-    log_cooldown: f32,
     /// A night's sleep in a bed while it runs (2026-09-27, `systems::sleep`).
     asleep: Option<crate::systems::sleep::Asleep>,
     /// Each living body's heat state (2026-09-27, `systems::body_heat`). Only
@@ -358,8 +394,6 @@ impl FoodSystem {
         Self {
             data,
             item_profile,
-            spoilage: HashMap::new(),
-            log_cooldown: 0.0,
             asleep: None,
             body_heat: HashMap::new(),
         }
@@ -372,10 +406,10 @@ impl FoodSystem {
             .map(|&idx| &self.data.nutrition_profiles[idx])
     }
 
-    /// How long (real seconds) this item stays fresh, or None when it is not
-    /// food and therefore never spoils.
-    fn freshness_secs(&self, item_id: &str) -> Option<f32> {
-        self.profile_for(item_id).map(|p| p.spoilage_rate_hours * 3600.0)
+    /// How long (game seconds at room temperature) this item stays fresh, or None
+    /// when it is not food and therefore never spoils.
+    fn freshness_secs(&self, item_id: &str) -> Option<f64> {
+        self.profile_for(item_id).map(|p| f64::from(p.spoilage_rate_hours) * 3600.0)
     }
 
     /// Eat or drink one `item_id` from the first player (Inventory + Vitals +
@@ -412,30 +446,28 @@ impl FoodSystem {
             BASE_HYDRATION
         };
 
-        for (e, (inv, vitals, effects)) in
+        // Spoiled = the stack's own clock past the food's time (§3).
+        let keeps = self.freshness_secs(item_id).unwrap_or(f64::INFINITY);
+        for (_e, (inv, vitals, effects)) in
             world.query_mut::<(&mut Inventory, &mut Vitals, &mut StatusEffects)>()
         {
             if !inv.has_item(item_id, 1) {
                 continue;
             }
-            // Spoiled food (tracked by the spoilage pass in tick, §3) nourishes
+            // Spoiled food (aged by the spoilage pass in tick, §3) nourishes
             // far less and always poisons -- eating it is never a free meal.
             // Must match remove_item's OWN consumption order below (last-to-
-            // first) or this can inspect a different slot's spoilage state
-            // than the one actually eaten when the same item_id occupies
-            // more than one slot (e.g. a fresh stack plus an older, spoiled
-            // one after add_item split it across slots).
-            let entity_bits: u64 = e.to_bits().into();
-            let slot_idx = inv
+            // first) or this can inspect a different stack's age than the one
+            // actually eaten when the same item_id occupies more than one
+            // slot (e.g. a fresh stack plus an older, spoiled one after
+            // add_item split it across slots).
+            let is_spoiled = inv
                 .slots
                 .iter()
-                .enumerate()
                 .rev()
-                .find(|(_, s)| s.as_ref().is_some_and(|stack| stack.item_id == item_id))
-                .map(|(idx, _)| idx);
-            let is_spoiled = slot_idx
-                .and_then(|idx| self.spoilage.get(&(entity_bits, idx)))
-                .is_some_and(|s| s.spoiled);
+                .flatten()
+                .find(|stack| stack.item_id == item_id)
+                .is_some_and(|stack| stack.age_s >= keeps);
 
             inv.remove_item(item_id, 1);
             // Drinking from a vessel hands the empty vessel back (2026-09-26,
@@ -884,78 +916,62 @@ impl System for FoodSystem {
             log::info!("[Vitals] player died: {cause}");
         }
 
-        // ── 3. SPOILAGE (existing): age food sitting in inventories. ──
-        let should_log = self.log_cooldown <= 0.0;
-        if should_log {
-            self.log_cooldown = 10.0;
-        }
-        self.log_cooldown -= dt;
-
-        // Track which food keys are still alive this tick (for cleanup)
-        let mut active_keys = std::collections::HashSet::new();
-
-        // Scan all entities that have an inventory
-        for (entity, (inv, name)) in world.query::<(&Inventory, Option<&Name>)>().iter() {
-            let entity_bits: u64 = entity.to_bits().into();
-            let owner = name.map_or_else(
-                || format!("entity_{entity_bits}"),
-                |n| n.0.clone(),
-            );
-
-            for (slot_idx, slot) in inv.slots.iter().enumerate() {
-                let stack = match slot.as_ref() {
-                    Some(s) => s,
-                    None => continue,
-                };
-
+        // ── 3. SPOILAGE: food ages wherever it is kept (2026-10-04, first-hour
+        //    audit S6; the module's SPOILAGE note). Each holder's clock gains this
+        //    tick's game seconds times the temperature zone where the food is.
+        //    The item itself stays as-is (no item-def swap, so it still stacks and
+        //    sells as the same item_id); consume() (§1) reads the eaten stack's
+        //    clock and applies the consequence: a quarter of the food and a
+        //    certain poisoning.
+        let aged = |multiplier: f64| f64::from(game_dt) * multiplier;
+        // What is carried ages in the air around the player: the home's air
+        // aboard, the weather outside. Every inventory on an entity is the
+        // player's today.
+        let carried = self.data.spoilage_multiplier_at(env.ambient_temp_c);
+        for (_e, (inv, name)) in world.query_mut::<(&mut Inventory, Option<&Name>)>() {
+            for (slot_idx, stack) in inv.slots.iter_mut().enumerate() {
+                let Some(stack) = stack.as_mut() else { continue };
                 // Only food spoils, on its own profile's timescale.
-                let Some(max_freshness) = self.freshness_secs(&stack.item_id) else {
-                    continue;
-                };
-
-                let key: FoodKey = (entity_bits, slot_idx);
-                active_keys.insert(key);
-
-                let state = self.spoilage.entry(key).or_insert_with(|| SpoilageState {
-                    spoilage_timer: 0.0,
-                    max_freshness,
-                    spoiled: false,
-                });
-
-                // Update max_freshness in case the item changed (slot reuse)
-                state.max_freshness = max_freshness;
-
-                if state.spoiled {
-                    continue; // already spoiled, nothing more to do
-                }
-
-                // Advance spoilage timer
-                state.spoilage_timer += game_dt;
-
-                if state.spoilage_timer >= state.max_freshness {
-                    state.spoiled = true;
-                    log::info!(
-                        "[Food] {owner}'s {} (slot {slot_idx}) has spoiled after {:.0}s",
-                        stack.item_id, state.spoilage_timer,
-                    );
-                    // The item itself stays as-is (no item-def swap, so it still
-                    // stacks/sells as the same item_id); consume() (§1, eat and
-                    // drink) looks up this slot's spoiled flag and applies the real
-                    // consequence -- reduced nutrition + guaranteed food poisoning.
-                } else if should_log {
-                    let pct = (state.spoilage_timer / state.max_freshness * 100.0) as u32;
-                    if pct >= 75 {
-                        log::debug!(
-                            "[Food] {owner}'s {} (slot {slot_idx}) is {pct}% spoiled",
-                            stack.item_id,
-                        );
-                    }
+                let Some(keeps) = self.freshness_secs(&stack.item_id) else { continue };
+                let before = stack.age_s;
+                stack.age_s += aged(carried);
+                if before < keeps && stack.age_s >= keeps {
+                    let owner = name.map_or("someone", |n| n.0.as_str());
+                    log::info!("[Food] {owner}'s {} (slot {slot_idx}) has spoiled after {:.0} s", stack.item_id, stack.age_s);
                 }
             }
         }
-
-        // Garbage-collect spoilage entries for items that no longer exist
-        self.spoilage.retain(|k, _| active_keys.contains(k));
+        // The home's own air ages its vessels and its storage; before the home's
+        // air space exists, the default room air.
+        let home_c = world
+            .query::<(&crate::systems::atmosphere::HomeAir, &crate::systems::atmosphere::EnclosedSpace)>()
+            .iter()
+            .next()
+            .map(|(_e, (_, space))| space.atmosphere.temperature_k - 273.15)
+            .unwrap_or(crate::ecs::components::EnvironmentContext::default().ambient_temp_c);
+        let at_home = self.data.spoilage_multiplier_at(home_c);
+        // A vessel ages its food in the zone it keeps (a freezer chest's
+        // "frozen", data/containers/types.csv `keeps_zone`), else in the home's air.
+        let containers = data.get::<crate::systems::inventory::containers::ContainerRegistry>("container_registry");
+        for (_e, c) in world.query_mut::<&mut crate::systems::inventory::containers::Container>() {
+            let food = c.current_content_item.as_deref().filter(|_| c.current_qty > 0);
+            if food.and_then(|item| self.freshness_secs(item)).is_none() {
+                continue;
+            }
+            let kept = containers
+                .and_then(|r| r.container_type(&c.container_type_id))
+                .and_then(|t| t.keeps_zone.as_deref())
+                .and_then(|z| self.data.zone_multiplier(z));
+            c.content_age_s += aged(kept.unwrap_or(at_home));
+        }
+        // Home storage (the Barn, the home's other places, built chests) ages in
+        // the home's air. It is the GUI's pool, so its share is handed over for
+        // the frame to put on it (`engine::stock_piles::age_home_storage`).
+        if let Some(owed) = data.get::<std::sync::Mutex<f64>>(STORAGE_AGING_KEY) {
+            if let Ok(mut owed) = owed.lock() {
+                *owed += aged(at_home);
+            }
+        }
     }
 }
 
@@ -1295,7 +1311,7 @@ mod nutrition_tests {
         );
     }
 
-    /// Eating a SPOILED item (tracked by the spoilage side-table in §3 of tick())
+    /// Eating a SPOILED item (its stack's clock past its time, §3 of tick())
     /// always causes food poisoning and grants far less nutrition than eating the
     /// same fresh item -- even though cooked_meat's own raw_consumption_risk is 0.
     /// (roast_chicken_0 is a real items.csv row that uses the cooked_meat
@@ -1311,19 +1327,19 @@ mod nutrition_tests {
         inv.add_item("roast_chicken_0", 1, 99);
         let player = world.spawn((inv, vitals(40.0, 50.0), StatusEffects::default(), Health::default()));
 
-        // One tick (no consume_request) registers the item's slot in the
-        // spoilage side-table via §3; then force it spoiled, mirroring what
-        // happens naturally once max_freshness elapses.
-        sys.tick(&mut world, 0.0, &data);
-        let entity_bits: u64 = player.to_bits().into();
-        let slot_idx = world
-            .get::<&Inventory>(player)
-            .unwrap()
-            .slots
-            .iter()
-            .position(|s| s.as_ref().is_some_and(|st| st.item_id == "roast_chicken_0"))
-            .expect("roast_chicken_0 tracked in spoilage side-table");
-        sys.spoilage.get_mut(&(entity_bits, slot_idx)).unwrap().spoiled = true;
+        // Age the stack past its time, as the spoilage pass (§3) does once
+        // its profile's hours have gone by.
+        let keeps = sys.freshness_secs("roast_chicken_0").expect("roast chicken is food");
+        {
+            let mut inv = world.get::<&mut Inventory>(player).unwrap();
+            let stack = inv
+                .slots
+                .iter_mut()
+                .flatten()
+                .find(|st| st.item_id == "roast_chicken_0")
+                .expect("roast_chicken_0 in the pack");
+            stack.age_s = keeps + 1.0;
+        }
 
         *data
             .get::<std::sync::Mutex<Option<String>>>("consume_request")
@@ -1369,12 +1385,10 @@ mod nutrition_tests {
         inv.slots[3] = Some(crate::systems::inventory::ItemStack::new("roast_chicken_0".to_string(), 1, 99));
         let player = world.spawn((inv, vitals(40.0, 50.0), StatusEffects::default(), Health::default()));
 
-        // Register both slots in the spoilage side-table, then mark ONLY
-        // slot 3 (the one that will actually be eaten) as spoiled.
-        sys.tick(&mut world, 0.0, &data);
-        let entity_bits: u64 = player.to_bits().into();
-        sys.spoilage.get_mut(&(entity_bits, 0)).unwrap().spoiled = false;
-        sys.spoilage.get_mut(&(entity_bits, 3)).unwrap().spoiled = true;
+        // Slot 0 fresh, slot 3 (the one that will actually be eaten) past
+        // its time.
+        let keeps = sys.freshness_secs("roast_chicken_0").expect("roast chicken is food");
+        world.get::<&mut Inventory>(player).unwrap().slots[3].as_mut().unwrap().age_s = keeps + 1.0;
 
         *data
             .get::<std::sync::Mutex<Option<String>>>("consume_request")
@@ -1856,11 +1870,10 @@ mod nutrition_tests {
         }
         assert_eq!(world.get::<&Vitals>(player).unwrap().satiation, 40.0, "a machine fed the player");
         assert!(sys.profile_for("grain_mill_0").is_none() && sys.profile_for("grain_silo_0").is_none());
-        assert!(
-            sys.spoilage.is_empty(),
-            "machines are being tracked for spoilage ({} slots)",
-            sys.spoilage.len()
-        );
+        // An hour later neither machine has aged: only food spoils.
+        sys.tick(&mut world, 3600.0, &data);
+        let aged: Vec<f64> = world.get::<&Inventory>(player).unwrap().slots.iter().flatten().map(|s| s.age_s).collect();
+        assert!(aged.iter().all(|a| *a == 0.0), "machines are aging like food: {aged:?}");
     }
 
     /// A cooked dish a recipe makes actually feeds you: the meat stew raises
@@ -1928,28 +1941,28 @@ mod nutrition_tests {
         inv.slots[0] = Some(crate::systems::inventory::ItemStack::new("legume_pea_0".to_string(), 1, 99));
         inv.slots[1] = Some(crate::systems::inventory::ItemStack::new("legume_bean_0".to_string(), 1, 99));
         let player = world.spawn((inv, vitals(80.0, 80.0), StatusEffects::default(), Health::default()));
-        let bits: u64 = player.to_bits().into();
-
-        // A zero-length tick registers both stacks with the spoilage pass.
-        sys.tick(&mut world, 0.0, &data);
-        let pea = sys.spoilage.get(&(bits, 0)).expect("green peas are not tracked for spoilage").clone();
-        let bean = sys.spoilage.get(&(bits, 1)).expect("dry beans are not tracked for spoilage").clone();
 
         // The clocks are the profiles' own, and they are the right scale:
         // green peas keep days (FoodKeeper 3-5), dry beans a year or more.
         let hours = |id: &str| sys.profile_for(id).map(|p| p.spoilage_rate_hours).unwrap();
-        assert_eq!(pea.max_freshness, hours("legume_pea_0") * 3600.0);
-        assert_eq!(bean.max_freshness, hours("legume_bean_0") * 3600.0);
+        let pea_keeps = sys.freshness_secs("legume_pea_0").expect("green peas are food");
+        let bean_keeps = sys.freshness_secs("legume_bean_0").expect("dry beans are food");
+        assert_eq!(pea_keeps, f64::from(hours("legume_pea_0")) * 3600.0);
+        assert_eq!(bean_keeps, f64::from(hours("legume_bean_0")) * 3600.0);
         assert!(hours("legume_pea_0") <= 7.0 * 24.0, "green peas keep {} h", hours("legume_pea_0"));
         assert!(hours("legume_bean_0") >= 180.0 * 24.0, "dry beans keep {} h", hours("legume_bean_0"));
+        let spoiled = |world: &hecs::World, slot: usize, keeps: f64| {
+            world.get::<&Inventory>(player).unwrap().slots[slot].as_ref().unwrap().age_s >= keeps
+        };
 
-        // One minute short of the pea's limit: still fresh.
-        sys.tick(&mut world, pea.max_freshness - 60.0, &data);
-        assert!(!sys.spoilage[&(bits, 0)].spoiled, "peas spoiled before their time");
+        // One minute short of the pea's limit (at room temperature, the
+        // default air): still fresh.
+        sys.tick(&mut world, (pea_keeps - 60.0) as f32, &data);
+        assert!(!spoiled(&world, 0, pea_keeps), "peas spoiled before their time");
         // Two minutes later: spoiled. The dry beans beside them are fine.
         sys.tick(&mut world, 120.0, &data);
-        assert!(sys.spoilage[&(bits, 0)].spoiled, "peas never spoiled");
-        assert!(!sys.spoilage[&(bits, 1)].spoiled, "dry beans spoiled on the green-pea clock");
+        assert!(spoiled(&world, 0, pea_keeps), "peas never spoiled");
+        assert!(!spoiled(&world, 1, bean_keeps), "dry beans spoiled on the green-pea clock");
     }
 
     /// Drink takes only beverages. The GUI offers Drink for every item whose
@@ -2161,3 +2174,9 @@ mod g_load_wiring_tests {
         );
     }
 }
+
+/// Food spoils wherever it is kept (first-hour audit S6, 2026-10-04). Native only: the tests
+/// walk the save and the GUI's storage pool, which the relay build does not have.
+#[cfg(all(test, feature = "native"))]
+#[path = "food_spoilage_tests.rs"]
+mod spoilage_tests;

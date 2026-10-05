@@ -204,7 +204,7 @@ pub(crate) fn on_give_result(gs: &mut GuiState, world: &mut hecs::World, v: &ser
                 ts.settled.insert(settled_id(give_id));
             }
             Some(h) => {
-                let back = TransferOp { item_id: h.item_id.clone(), qty: h.qty, add: true, wear: h.wear, quality: h.quality };
+                let back = TransferOp { item_id: h.item_id.clone(), qty: h.qty, add: true, wear: h.wear, quality: h.quality, age_s: h.age_s };
                 ts.pending.push((return_id(give_id), vec![back]));
             }
             None => {}
@@ -360,7 +360,9 @@ pub(crate) fn process_outbox(gs: &mut GuiState, world: &mut hecs::World) {
             );
             continue;
         }
-        let taken = give.qty - inv.remove_worn(&give.item_id, give.qty, give.wear, give.quality);
+        // Held at the age they had, so a refused give comes back as old as it left (S6).
+        let (left, age_s) = inv.remove_worn_aged(&give.item_id, give.qty, give.wear, give.quality);
+        let taken = give.qty - left;
         if taken == 0 {
             gs.fleet.status = "That is no longer in your backpack.".into();
             continue;
@@ -375,6 +377,7 @@ pub(crate) fn process_outbox(gs: &mut GuiState, world: &mut hecs::World) {
             wear: give.wear,
             quality: give.quality,
             creative: gs.creative_mode,
+            age_s,
         });
         gs.fleet.status = format!("Giving {taken} {} to the fleet...", give.name);
     }

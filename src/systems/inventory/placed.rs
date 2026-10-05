@@ -13,7 +13,7 @@
 /// the places spine at load; serializable so a save can persist transfers. The live
 /// backpack is NOT in this pool (its items come from the ECS) until the ECS-boundary
 /// transfer lands.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct PlacedItem {
     /// Item id (resolves against items.csv) OR a descriptive label for seed items.
     pub key: String,
@@ -29,6 +29,26 @@ pub struct PlacedItem {
     /// Grade of a crafted durable good (0 = ungraded), kept through storage.
     #[serde(default)]
     pub quality: u8,
+    /// How long it has aged, for food (2026-10-04, first-hour audit S6), in game seconds at
+    /// room temperature, as a backpack stack's (`ItemStack::age_s`): stored food spoils too
+    /// (`age_food`), and it keeps its age going in and out of storage and through a save.
+    /// 0 in a save from before it.
+    #[serde(default)]
+    pub age_s: f64,
+}
+
+/// Age the FOOD in home storage by `secs` (2026-10-04, first-hour audit S6): the game seconds
+/// at room temperature the FoodSystem counted for the home's air since the last call
+/// (`food::STORAGE_AGING_KEY`, put on the pool by `engine::stock_piles::age_home_storage`).
+/// `is_food` says which items are food; nothing else ages. Before this only a backpack aged,
+/// so the Barn's food never spoiled.
+pub fn age_food(pool: &mut [PlacedItem], secs: f64, is_food: impl Fn(&str) -> bool) {
+    if secs.is_nan() || secs <= 0.0 {
+        return;
+    }
+    for p in pool.iter_mut().filter(|p| is_food(&p.key)) {
+        p.age_s += secs;
+    }
 }
 
 /// The container at `path`, or a container inside it ("built:3" holds
@@ -86,7 +106,7 @@ mod tests {
     use super::*;
 
     fn item(key: &str, qty: u32, container: &str) -> PlacedItem {
-        PlacedItem { key: key.into(), name: key.into(), qty, container: container.into(), wear: 0, quality: 0 }
+        PlacedItem { key: key.into(), name: key.into(), qty, container: container.into(), ..Default::default() }
     }
 
     /// A chest built on a planet is the player's, but it is not in the home:

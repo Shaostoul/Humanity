@@ -144,6 +144,8 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
             .iter()
             .filter_map(|s| s.as_ref().map(|st| (st.wear, st.quality)))
             .collect();
+        // Each stack's food clock (2026-10-04, first-hour audit S6).
+        save.inventory_age = inv.slots.iter().filter_map(|s| s.as_ref().map(|st| st.age_s)).collect();
         save.skills = skills
             .skills
             .iter()
@@ -441,14 +443,15 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
         // undoing the never-lose-a-haul guarantee one launch later. Mirror the
         // delivery-site pattern: ensure the slots, then land everything.
         // Each saved stack comes back exactly as it was, with its wear and
-        // grade (2026-09-26); a stack an older save has no state for comes
-        // back unworn and ungraded.
+        // grade (2026-09-26) and its food's age (2026-10-04); a stack an
+        // older save has no state for comes back unworn, ungraded and fresh.
         inv.ensure_slots(save.inventory.len());
         for (i, (item_id, qty)) in save.inventory.iter().enumerate() {
             let (wear, quality) = save.inventory_state.get(i).copied().unwrap_or((0, 0));
             let mut stack = crate::systems::inventory::ItemStack::new(item_id.clone(), *qty, (*qty).max(99));
             stack.wear = wear;
             stack.quality = quality;
+            stack.age_s = save.inventory_age.get(i).copied().filter(|a| a.is_finite()).unwrap_or(0.0);
             inv.slots[i] = Some(stack);
         }
         // Rebuild skills.
@@ -1750,8 +1753,7 @@ mod tests {
             name: "Wood Plank".into(),
             qty: 5,
             container: "2/0".into(),
-            wear: 0,
-            quality: 0,
+            ..Default::default()
         };
         let mut gui = crate::gui::GuiState::default();
         gui.placed_items = vec![plank.clone()];
@@ -1778,16 +1780,14 @@ mod tests {
                 name: "Ice Axe".into(),
                 qty: 1,
                 container: "1/0/0".into(),
-                wear: 0,
-                quality: 0,
+                ..Default::default()
             },
             crate::systems::inventory::placed::PlacedItem {
                 key: "iron_ore_0".into(),
                 name: "Iron Ore".into(),
                 qty: 5,
                 container: "2/0".into(),
-                wear: 0,
-                quality: 0,
+                ..Default::default()
             },
         ]);
         let json = serde_json::to_string(&save).expect("serialize");
@@ -2132,8 +2132,7 @@ mod tests {
             name: "Wood Plank".into(),
             qty: 5,
             container: path.clone(),
-            wear: 0,
-            quality: 0,
+            ..Default::default()
         }]);
         let back: WorldSave = serde_json::from_str(&serde_json::to_string(&save).unwrap()).unwrap();
 

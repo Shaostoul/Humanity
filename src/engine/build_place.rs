@@ -360,7 +360,7 @@ pub(crate) fn apply_take_down(
     if let Some(chan) = data.get::<std::sync::Mutex<Vec<TransferOp>>>("inventory_transfer_ops") {
         if let Ok(mut c) = chan.lock() {
             for (id, qty) in materials {
-                c.push(TransferOp { item_id: id.clone(), qty: *qty, add: true, wear: 0, quality: 0 });
+                c.push(TransferOp { item_id: id.clone(), qty: *qty, add: true, ..Default::default() });
             }
         }
     }
@@ -703,7 +703,7 @@ mod take_down_tests {
         let line = apply_take_down(&mut world, &data, wall, "Wood Wall", &materials);
         assert!(!world.contains(wall), "the wall is gone");
         let ops = data.get::<std::sync::Mutex<Vec<TransferOp>>>("inventory_transfer_ops").unwrap().lock().unwrap().clone();
-        assert_eq!(ops, vec![TransferOp { item_id: "wood_plank_0".into(), qty: 6, add: true, wear: 0, quality: 0 }]);
+        assert_eq!(ops, vec![TransferOp { item_id: "wood_plank_0".into(), qty: 6, add: true, ..Default::default() }]);
         assert_eq!(line, "Took down the Wood Wall: 6 wood_plank_0 back", "no item registry here: the id stands in for the name");
     }
 
@@ -731,8 +731,7 @@ mod take_down_tests {
             name: "Wood Plank".into(),
             qty: 3,
             container: crate::systems::construction::uses::storage_path(7),
-            wear: 0,
-            quality: 0,
+            ..Default::default()
         }];
         let at_chest = Vec3::new(0.0, 0.5, -2.0);
         let refused = take_down_plan(&stores, &held, Some(&reg), at_chest, Vec3::Z, None, &[]).unwrap_err();

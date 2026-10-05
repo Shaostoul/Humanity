@@ -63,6 +63,9 @@ pub struct GuiItemSlot {
     pub wear: u32,
     /// Grade of a crafted durable good (0 = ungraded; crafting::quality).
     pub quality: u8,
+    /// How long the food has aged (`ItemStack::age_s`), so a stack stashed into storage
+    /// keeps its age there (2026-10-04, first-hour audit S6).
+    pub age_s: f64,
 }
 
 /// Game time snapshot bridged from TimeSystem for GUI display.

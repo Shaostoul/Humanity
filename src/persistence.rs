@@ -24,6 +24,12 @@ pub struct WorldSave {
     /// and erase its grade). An older save without it restores unworn.
     #[serde(default)]
     pub inventory_state: Vec<(u32, u8)>,
+    /// How long each saved backpack stack of food has aged, in the same order as `inventory`
+    /// (2026-10-04, first-hour audit S6, `ItemStack::age_s`): a restart used to make all food
+    /// fresh again. A save without it loads every stack fresh. (Home storage keeps its ages
+    /// inside `placed_items`, a vessel inside `machine_levels`.)
+    #[serde(default)]
+    pub inventory_age: Vec<f64>,
     pub skills: HashMap<String, (u32, u32)>,
     pub constructions: Vec<ConstructionSave>,
     /// Craft batches in flight (2026-09-25); see CraftSave.
@@ -265,6 +271,7 @@ impl WorldSave {
             crop_pollination: Vec::new(),
             crop_picking: Vec::new(),
             inventory_state: Vec::new(),
+            inventory_age: Vec::new(),
             soil_memory: Default::default(),
             credits: -1,
             quests: None,
@@ -941,6 +948,7 @@ mod tests {
             crop_pollination: Vec::new(),
             crop_picking: Vec::new(),
             inventory_state: Vec::new(),
+            inventory_age: Vec::new(),
             soil_memory: Default::default(),
             credits: -1,
             quests: None,
