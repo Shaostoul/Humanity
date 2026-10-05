@@ -3587,6 +3587,9 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         // Increment 4: the corrections the relay sent and this game applied, and the rig's walk in
         // progress (engine/move_check.rs); whether the camera stands inside the ship's bounds.
         "moves": crate::engine::move_check::probe_json(state),
+        // Every transit link the ship has (its teleporter pairs, src/ship/transit.rs): the rig
+        // walks onto the home's own west pad and judges where it lands (the increment 4 review, R1).
+        "transit": crate::engine::move_check::transit_probe_json(state),
         "aboard_ship": state.aboard_bounds.is_some_and(|b| crate::ship::ship_space::in_box(&b, state.camera.position)),
         "camera_start": rec.camera_start,
         "camera_end": camera_json(state),

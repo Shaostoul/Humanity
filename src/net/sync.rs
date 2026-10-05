@@ -837,6 +837,11 @@ pub struct NetSyncSystem {
     local_player_id: Option<u32>,
     /// Pending messages to process (filled by the engine loop from NetClient::poll).
     pending_messages: Vec<NetMessage>,
+    /// The players and crew members the relay took off our screen (`EntityDespawn`, its
+    /// `game_out_of_view`, or a leave): an update about one that is still on its way is ignored,
+    /// never lazy-spawned, until something brings it back (its join, `game_in_view`, which
+    /// arrives as PlayerJoined or NpcProfile, or a welcome). Ship homes increment 4 review, P4.
+    gone: std::collections::HashSet<u64>,
 }
 
 impl NetSyncSystem {
@@ -847,6 +852,7 @@ impl NetSyncSystem {
             clock_step: None,
             local_player_id: None,
             pending_messages: Vec::new(),
+            gone: std::collections::HashSet::new(),
         }
     }
 
@@ -901,6 +907,8 @@ impl System for NetSyncSystem {
             match msg {
                 NetMessage::Welcome { player_id, .. } => {
                     self.local_player_id = Some(player_id);
+                    // A welcome lists everyone in view afresh.
+                    self.gone.clear();
                     log::info!("Connected as player {}", player_id);
                     // The relay broadcasts our own join + position back to us; if a remote-player
                     // entity was spawned for our own id before the Welcome arrived (a race), drop it.
@@ -920,6 +928,8 @@ impl System for NetSyncSystem {
                     if self.local_player_id == Some(player_id) {
                         continue;
                     }
+                    // In view (again): its updates count from here (`gone`).
+                    self.gone.remove(&u64::from(player_id));
                     // Idempotent for SPAWNING, but a duplicate join still carries the
                     // real display name -- and that matters (v0.796): position updates
                     // can arrive before the welcome snapshot / joined broadcast (they
@@ -974,7 +984,9 @@ impl System for NetSyncSystem {
                 }
 
                 NetMessage::PlayerLeft { player_id } => {
-                    // Find and despawn the remote player entity
+                    // Find and despawn the remote player entity; an update of theirs still on its
+                    // way draws no figure (`gone`).
+                    self.gone.insert(u64::from(player_id));
                     let mut to_despawn = Vec::new();
                     for (entity, remote) in world.query_mut::<&RemotePlayer>() {
                         if remote.player_id == player_id {
@@ -994,8 +1006,9 @@ impl System for NetSyncSystem {
                     velocity,
                     timestamp,
                 } => {
-                    // Never track ourselves (the relay echoes our own updates back).
-                    if self.local_player_id == Some(player_id) {
+                    // Never track ourselves (the relay echoes our own updates back), nor one the
+                    // relay took off our screen and has not brought back (`gone`).
+                    if self.local_player_id == Some(player_id) || self.gone.contains(&u64::from(player_id)) {
                         continue;
                     }
                     let pos = Vec3::from_array(position);
@@ -1055,6 +1068,10 @@ impl System for NetSyncSystem {
                 }
 
                 NetMessage::NpcUpdate { entity_id, name, position, activity, working } => {
+                    // Taken off our screen and not brought back (`gone`): nothing to update.
+                    if self.gone.contains(&entity_id) {
+                        continue;
+                    }
                     // Update-or-spawn the crew NPC. Updates arrive at ~2 Hz
                     // while traveling (plus on every chore state change), so
                     // interpolation below smooths movement between them.
@@ -1134,7 +1151,8 @@ impl System for NetSyncSystem {
                     //   (b) update -- if the 2 Hz stream spawned the NPC first,
                     //       the profile just fills in the dialogue lines.
                     // Same local-floor Y grounding as NpcUpdate (relay decks vs
-                    // the flat homestead, v0.681).
+                    // the flat homestead, v0.681). In view (again): its updates count (`gone`).
+                    self.gone.remove(&entity_id);
                     let pos = Vec3::new(position[0], NPC_LOCAL_STANDING_Y, position[2]);
                     let mut found = false;
                     for (_e, npc) in world.query_mut::<&mut RemoteNpc>() {
@@ -1184,6 +1202,8 @@ impl System for NetSyncSystem {
                 // until they are in view again, so they are taken off the screen rather than left
                 // standing where they were last seen. A player's id is their entity id.
                 NetMessage::EntityDespawn { entity_id } => {
+                    // An update of theirs still on its way draws no figure (`gone`).
+                    self.gone.insert(entity_id);
                     let mut gone = Vec::new();
                     for (e, r) in world.query_mut::<&RemotePlayer>() {
                         if u64::from(r.player_id) == entity_id {
@@ -2118,5 +2138,51 @@ mod tests {
                 npcs[0].3
             );
         }
+    }
+
+    /// AN UPDATE THAT ARRIVES AFTER ITS MOVER WENT OUT OF VIEW LEAVES NO FROZEN FIGURE (the review
+    /// of increment 4, P4). A player's or crew member's last update can reach us just after the
+    /// relay took it out of our view (`game_out_of_view`): the update was judged and sent before
+    /// the move that took it out. The update then lazy-spawned a "Player N" that never moved
+    /// again, and since a leave goes only to the players who see the mover, nothing ever took it
+    /// away. Now an id taken out of view stays off the screen until something brings it back
+    /// into view: its join, or the relay sending it whole again (`game_in_view`, which arrives as
+    /// PlayerJoined or NpcProfile), or a welcome.
+    ///
+    /// Seen red 2026-10-04 on the code before the fix: "a player out of view was drawn again by an
+    /// update sent before it went" (left: [(5, "Player 5")], right: []).
+    #[test]
+    fn an_update_after_going_out_of_view_draws_no_ghost() {
+        let data = crate::hot_reload::data_store::DataStore::new();
+        let mut sys = NetSyncSystem::new();
+        let mut world = hecs::World::new();
+        let update = |p: [f32; 3]| NetMessage::PositionUpdate { player_id: 5, position: p, rotation: [0.0, 0.0, 0.0, 1.0], velocity: [0.0, 0.0, 0.0], timestamp: 1.0 };
+        let npc_update = || NetMessage::NpcUpdate { entity_id: 9, name: "Cook Ana".to_string(), position: [80.0, 1.7, 30.0], activity: "Cooking".to_string(), working: true };
+        sys.queue_messages(vec![
+            NetMessage::Welcome { player_id: 1, world_snapshot: Vec::new() },
+            NetMessage::PlayerJoined { player_id: 5, name: "Ada".to_string(), position: [10.0, 1.7, 10.0], look: None },
+            NetMessage::NpcProfile { entity_id: 9, name: "Cook Ana".to_string(), role: "cook".to_string(), position: [80.0, 1.7, 30.0], activity: String::new(), dialog: lines(&["Soup's on."]), greetings: Vec::new() },
+            NetMessage::EntityDespawn { entity_id: 5 },
+            NetMessage::EntityDespawn { entity_id: 9 },
+            update([11.0, 1.7, 10.0]),
+            npc_update(),
+        ]);
+        sys.tick(&mut world, 0.016, &data);
+        let players = |w: &mut hecs::World| -> Vec<(u32, String)> { w.query_mut::<&RemotePlayer>().into_iter().map(|(_, r)| (r.player_id, r.name.clone())).collect() };
+        let crew = |w: &mut hecs::World| -> Vec<u64> { w.query_mut::<&RemoteNpc>().into_iter().map(|(_, n)| n.entity_id).collect() };
+        assert_eq!(players(&mut world), Vec::new(), "a player out of view was drawn again by an update sent before it went");
+        assert_eq!(crew(&mut world), Vec::<u64>::new(), "a crew member out of view was drawn again by an update sent before it went");
+        // In view again: drawn, and its updates count again.
+        sys.queue_messages(vec![NetMessage::PlayerJoined { player_id: 5, name: "Ada".to_string(), position: [30.0, 1.7, 10.0], look: None }, update([31.0, 1.7, 10.0])]);
+        sys.tick(&mut world, 0.016, &data);
+        assert_eq!(players(&mut world), vec![(5, "Ada".to_string())], "back in view, drawn again under its name");
+        sys.queue_messages(vec![NetMessage::NpcProfile { entity_id: 9, name: "Cook Ana".to_string(), role: "cook".to_string(), position: [80.0, 1.7, 30.0], activity: String::new(), dialog: lines(&["Soup's on."]), greetings: Vec::new() }, npc_update()]);
+        sys.tick(&mut world, 0.016, &data);
+        assert_eq!(crew(&mut world), vec![9], "the crew member back in view");
+        // A player never seen before still appears from its first update (join-order
+        // independence, `a_late_join_message_fixes_a_lazy_spawned_placeholder_name`).
+        sys.queue_messages(vec![NetMessage::PositionUpdate { player_id: 6, position: [0.0, 1.7, 0.0], rotation: [0.0, 0.0, 0.0, 1.0], velocity: [0.0, 0.0, 0.0], timestamp: 1.0 }]);
+        sys.tick(&mut world, 0.016, &data);
+        assert!(players(&mut world).iter().any(|(id, _)| *id == 6), "a player never seen before appears from its first update");
     }
 }

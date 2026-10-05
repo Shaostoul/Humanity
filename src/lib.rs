@@ -3709,31 +3709,9 @@ mod native_app {
                     }
 
                     // Teleporter pads (v0.584): stepping onto a teleporter that has a linked pair jumps
-                    // the player to the partner pad. A cooldown (set on jump, also blocks arrival re-fire)
-                    // prevents ping-ponging while you stand on the destination. First person, not build.
-                    if state.teleport_cooldown > 0.0 {
-                        state.teleport_cooldown = (state.teleport_cooldown - dt).max(0.0);
-                    }
-                    if state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
-                        && !state.gui_state.construction_active
-                        // Not in dev fly mode (v0.791.x): flying through a pad's
-                        // footprint must not yank the traveler across the ship.
-                        && !state.controller.fly_mode
-                        && state.teleport_cooldown <= 0.0
-                    {
-                        // EVERY zone's teleporters (v0.754), as transit links by id (ship homes
-                        // increment 4, src/ship/transit.rs): the link whose entry pad we stand in
-                        // lands us on its partner, and our next position update says so, so the
-                        // relay passes the jump instead of correcting it (engine/move_check.rs).
-                        let p = state.camera.position;
-                        let jump = state.gui_state.ship_structure.as_ref().and_then(|ship| ship.transit_link_at(p));
-                        if let Some(link) = jump {
-                            state.camera.position.x = link.to_at.x;
-                            state.camera.position.z = link.to_at.z;
-                            state.teleport_cooldown = 1.2; // seconds; clears once you step off the pad
-                            crate::engine::move_check::declare(state, link.declaration());
-                        }
-                    }
+                    // the player to the partner pad, and re-arms only once they have stepped off every
+                    // pad (engine/move_check.rs `teleporter_tick`, ship homes increment 4).
+                    crate::engine::move_check::teleporter_tick(state, dt);
 
                     // Ladder CLIMB zone (v0.589): if the player stands at a ladder, tell the controller
                     // its span so an up/down input climbs it (instead of jumping/falling). First person,

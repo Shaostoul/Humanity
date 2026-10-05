@@ -111,6 +111,43 @@ pub(crate) fn join_denied_sentence(reason: &str) -> Option<&'static str> {
     }
 }
 
+/// The sentence for a server whose ship is not ours (reason "other_ship", or a welcome naming
+/// another ship). `theirs`: the server's ship hash; `built_in`: the hash of the ship built into
+/// this app; `ours_from`: the ship file this game read its own ship from (None: the copy built
+/// into the app). Pure.
+///
+/// The review of increment 4, P6: an installed game writes the ship file into its data folder on
+/// its first run and never refreshes it (src/storage.rs `extract_data_if_needed`), the updater
+/// swaps only the exe, and the ship is read from the data folder first. So after an update that
+/// changes the ship, the game names the OLD ship, and every server running the new one refused
+/// it with "update whichever of the app and the server is older", which cannot help: both are
+/// new. When the server runs the ship built into this app and ours came from the data folder,
+/// that file is the old one: the sentence says so and names it. Otherwise the usual sentence.
+pub(crate) fn other_ship_sentence(theirs: Option<&str>, built_in: Option<&str>, ours_from: Option<&std::path::Path>) -> String {
+    match (theirs, built_in, ours_from) {
+        (Some(t), Some(b), Some(file)) if t == b => format!(
+            "Not joining the shared world: this server runs the ship built into this app, but this game read an older ship file from its data folder ({}), which updating the app does not replace, so move that file aside (the app then uses its own) and reconnect.",
+            file.display()
+        ),
+        _ => SHIP_MISMATCH.to_string(),
+    }
+}
+
+/// `other_ship_sentence` for this game: the ship file it read from `data_dir` (when the data
+/// folder has one: `ShipStructure::load_ship_file` reads it first) and, only then and only now,
+/// the hash of the ship built into this app, to compare with the server's. That read goes
+/// through `built_in_ship_file`, so the log says the built-in copy was read and why (BUG-133:
+/// a rig refuses a run that logs it; no rig run is ever refused a ship).
+pub(crate) fn other_ship_sentence_here(data_dir: &std::path::Path, theirs: Option<&str>) -> String {
+    let file = data_dir.join(crate::ship::ship_structure::SHIP_FILE);
+    let ours_from = file.exists().then_some(file.as_path());
+    let built_in = ours_from
+        .and(theirs)
+        .and_then(|_| ShipStructure::built_in_ship_file("read only to compare with the ship of a server that refused ours; this game runs its data folder's copy").ok())
+        .map(|s| s.ship_hash());
+    other_ship_sentence(theirs, built_in.as_deref(), ours_from)
+}
+
 /// The sentence for a welcome that gives a plot with no id, which only a server of another
 /// version sends. Round 4 of the 1b review: it used to read as another ship.
 pub(crate) const WELCOME_WITHOUT_PLOT_ID: &str = "Not joining the shared world: this server's welcome gave a plot with no id, as a server of another version can, so update whichever of the app and the server is older and reconnect.";
@@ -160,6 +197,9 @@ pub(crate) struct WelcomeContext<'a> {
     pub arrived_on: Option<&'a str>,
     pub server: &'a str,
     pub camera: Vec3,
+    /// The game's data folder, for the sentence of a welcome naming another ship
+    /// (`other_ship_sentence_here`); None: the usual sentence.
+    pub data_dir: Option<&'a std::path::Path>,
 }
 
 /// The server the game is talking to, as the connection list keys it (normalized, the URL the
@@ -241,7 +281,7 @@ pub(crate) fn join_step(g: &JoinGate) -> JoinStep {
 impl<'a> WelcomeContext<'a> {
     /// Read from the running game.
     fn of(state: &'a EngineState, server: &'a str) -> Self {
-        WelcomeContext { arrived_on: state.home_arrived_on.as_deref(), server, camera: state.camera.position }
+        WelcomeContext { arrived_on: state.home_arrived_on.as_deref(), server, camera: state.camera.position, data_dir: Some(&state.data_dir) }
     }
 }
 
@@ -269,7 +309,8 @@ pub(crate) fn plan_welcome(ship: Option<&ShipStructure>, welcome: &serde_json::V
     let theirs = welcome.get("ship").and_then(|s| s.get("hash")).and_then(|h| h.as_str());
     let Some(ship) = ship else { return refuse(OWN_SHIP, false) };
     if theirs != Some(ship.ship_hash().as_str()) {
-        return refuse(SHIP_MISMATCH, false);
+        let sentence = ctx.data_dir.map_or_else(|| SHIP_MISMATCH.to_string(), |d| other_ship_sentence_here(d, theirs));
+        return refuse(&sentence, false);
     }
     // Where the relay holds us right now (our own entry in the snapshot), and whether to stand
     // there.
@@ -452,6 +493,8 @@ fn forget_shared_world_keeping_home(state: &mut EngineState) {
     state.game_joined = false;
     state.game_welcomed = false;
     state.gui_state.copresence_active = false;
+    // The speed check's books of that session (engine/move_check.rs, increment 4 review M2, M6).
+    state.moves.forget_session();
     crate::systems::time::release_host_clock(&state.data_store);
     state.gui_state.copresence_names.clear();
     let gone: Vec<hecs::Entity> = state
@@ -1376,12 +1419,12 @@ mod tests {
 
     /// The first welcome since the world loaded, the camera at `camera`.
     fn arriving(camera: Vec3) -> WelcomeContext<'static> {
-        WelcomeContext { arrived_on: None, server: SERVER, camera }
+        WelcomeContext { arrived_on: None, server: SERVER, camera, data_dir: None }
     }
 
     /// A later welcome from the same server (we arrived on it before), the camera at `camera`.
     fn again(camera: Vec3) -> WelcomeContext<'static> {
-        WelcomeContext { arrived_on: Some(SERVER), server: SERVER, camera }
+        WelcomeContext { arrived_on: Some(SERVER), server: SERVER, camera, data_dir: None }
     }
 
     const P1_DOOR: Vec3 = Vec3::new(53.5, 1.7, 40.5);
@@ -1747,6 +1790,31 @@ mod tests {
         // One sentence: one full stop, at the end.
         assert_eq!(SHIP_MISMATCH.matches(". ").count(), 0);
         assert!(SHIP_MISMATCH.ends_with('.'));
+    }
+
+    /// AN UPDATED APP WITH AN OLD SHIP FILE IN ITS DATA FOLDER IS TOLD WHICH FILE (the review of
+    /// increment 4, P6). An installed game writes the ship file to its data folder on the first
+    /// run and never refreshes it (src/storage.rs `extract_data_if_needed`); the updater swaps
+    /// only the exe, and the ship is read from the data folder first. So after an update that
+    /// changes the ship, the game names the OLD ship and every server running the new one
+    /// refuses it with "update whichever of the app and the server is older", which cannot help:
+    /// both are new. When the server's ship is the one built into this app, the sentence says
+    /// the data folder's file is the old one and names it. Otherwise the usual sentence.
+    ///
+    /// Seen red 2026-10-04 on the code before the fix: "the sentence does not name the old ship
+    /// file: Not joining the shared world: this server has a different ship from yours, and
+    /// positions only agree when everyone has the same ship, so update whichever of the app and
+    /// the server is older and reconnect."
+    #[test]
+    fn an_updated_app_with_an_old_ship_file_is_told_which_file() {
+        let file = std::path::Path::new("C:/Users/someone/AppData/Roaming/HumanityOS/data/blueprints/ship_structure.ron");
+        let said = other_ship_sentence(Some("1234abcd"), Some("1234abcd"), Some(file));
+        assert!(said.contains(&file.display().to_string()), "the sentence does not name the old ship file: {said}");
+        assert_ne!(said, SHIP_MISMATCH);
+        assert!(said.ends_with('.') && said.matches(". ").count() == 0, "one sentence: {said}");
+        assert_eq!(other_ship_sentence(Some("1234abcd"), Some("99990000"), Some(file)), SHIP_MISMATCH, "the server's ship is not the app's either");
+        assert_eq!(other_ship_sentence(Some("1234abcd"), Some("1234abcd"), None), SHIP_MISMATCH, "our ship is the app's own copy");
+        assert_eq!(other_ship_sentence(None, Some("1234abcd"), Some(file)), SHIP_MISMATCH, "the server named no ship");
     }
 
     /// A plot our home does not fit (here p2 made narrower than the home, on a ship whose hash
