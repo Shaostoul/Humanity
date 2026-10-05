@@ -1948,6 +1948,7 @@ mod native_app {
                 homestead_layout: None,
                 construction_cam_active: false,
                 construction_return_pos: Vec3::new(0.0, 1.7, 0.0),
+                construction_entry_rebuild: false,
                 cursor_pos: (0.0, 0.0),
                 construction_grab: None,
                 construction_ghost: None,
@@ -7144,8 +7145,10 @@ mod native_app {
                         construction_history_tick(state, edited);
                         // Arm the autosave (v0.791): any structure/machine edit means there
                         // is unsaved ship state. The 60 s autosave + window-close flush
-                        // persist it; the explicit Save button also clears it.
-                        if edited {
+                        // persist it; the explicit Save button also clears it. The rebuild the
+                        // editor asks for as it opens is no edit (engine/editor.rs `arms_autosave`).
+                        let entry = std::mem::take(&mut state.construction_entry_rebuild);
+                        if crate::engine::editor::arms_autosave(edited, entry) {
                             state.gui_state.construction_unsaved = true;
                         }
                     }

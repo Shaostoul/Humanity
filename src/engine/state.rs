@@ -655,6 +655,10 @@ pub(crate) struct EngineState {
     pub(crate) construction_cam_active: bool,
     /// First-person position to return to when leaving the construction editor. (v0.464)
     pub(crate) construction_return_pos: Vec3,
+    /// The structure rebuild the editor asks for as it opens is not an edit: it must not arm the
+    /// autosave (engine/editor.rs `arms_autosave`). Set by `toggle_build_editor`, taken once a
+    /// frame at the dirty-flag choke point (lib.rs).
+    pub(crate) construction_entry_rebuild: bool,
     /// Last cursor position in physical pixels (top-left origin), for 3D picking. (v0.466)
     pub(crate) cursor_pos: (f32, f32),
     /// The room currently grabbed (left-drag) in the 3D astral editor. (v0.466)
