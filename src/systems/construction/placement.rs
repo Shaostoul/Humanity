@@ -29,6 +29,7 @@
 //! BOTTOM at `position.y` (`Mesh::box_xyz` is bottom-origin), rotated about
 //! that point (the same convention as `uses::ray_hits_box`).
 
+use super::shared::SharedPiece;
 use super::site::{in_frame, PlanetSite};
 use super::{Blueprint, BlueprintRegistry, Construction, Mount, Structure};
 use crate::ecs::components::Transform;
@@ -166,6 +167,20 @@ fn footprints_overlap(a: &(Vec3, Vec3), b: &(Vec3, Vec3)) -> bool {
     ox > OVERLAP_EPS_M && oz > OVERLAP_EPS_M
 }
 
+/// Which finished pieces a placement may rest on and level to, by whether
+/// the server keeps them ([`placement_pose_where`]): every piece, what a
+/// piece of the player's own uses.
+pub fn any_piece(_kept: Option<&SharedPiece>) -> bool {
+    true
+}
+
+/// Only the pieces the server keeps (`shared::SharedPiece`): what a piece
+/// that will be kept by the server rests on and levels to
+/// ([`placement_pose_where`]).
+pub fn shared_pieces(kept: Option<&SharedPiece>) -> bool {
+    kept.is_some()
+}
+
 /// The height `bp` rests at when its box is `candidate` (bottom at the
 /// floor): `floor_y` for a floor piece; for `mount: OnTop`, the top of the
 /// tallest FINISHED structure in `frame` whose blueprint category is in
@@ -181,13 +196,26 @@ pub fn rest_height(
     registry: &BlueprintRegistry,
     frame: Option<&PlanetSite>,
 ) -> f32 {
+    rest_height_where(bp, candidate, floor_y, world, registry, frame, &any_piece)
+}
+
+/// [`rest_height`] on only the pieces `supports` accepts.
+fn rest_height_where(
+    bp: &Blueprint,
+    candidate: &Transform,
+    floor_y: f32,
+    world: &hecs::World,
+    registry: &BlueprintRegistry,
+    frame: Option<&PlanetSite>,
+    supports: &dyn Fn(Option<&SharedPiece>) -> bool,
+) -> f32 {
     if bp.mount != Mount::OnTop || bp.snap_to.is_empty() {
         return floor_y;
     }
     let mine = world_aabb(candidate);
     let mut top: Option<f32> = None;
-    for (_e, (s, tf, site)) in world.query::<(&Structure, &Transform, Option<&PlanetSite>)>().iter() {
-        if !in_frame(site, frame) {
+    for (_e, (s, tf, site, kept)) in world.query::<(&Structure, &Transform, Option<&PlanetSite>, Option<&SharedPiece>)>().iter() {
+        if !in_frame(site, frame) || !supports(kept) {
             continue;
         }
         let Some(under) = registry.get(&s.blueprint_id) else { continue };
@@ -207,7 +235,9 @@ pub fn rest_height(
 
 /// Where `bp` is built when the player aims at the floor point `at` with
 /// `quarter_turns` turns, in `frame`: x and z on the metre grid, turned,
-/// scaled to the blueprint's size, and resting at [`rest_height`].
+/// scaled to the blueprint's size, and resting at [`rest_height`]. It rests
+/// on, and levels to, every finished piece; a piece that will be kept by the
+/// server uses [`placement_pose_where`].
 pub fn placement_pose(
     bp: &Blueprint,
     at: Vec3,
@@ -216,11 +246,37 @@ pub fn placement_pose(
     registry: &BlueprintRegistry,
     frame: Option<&PlanetSite>,
 ) -> Transform {
+    placement_pose_where(bp, at, quarter_turns, world, registry, frame, any_piece)
+}
+
+/// [`placement_pose`] resting on, and levelling to, only the finished pieces
+/// `supports` accepts, by whether the server keeps them (ship homes
+/// increment 5, 2026-10-05).
+///
+/// WHY. Everyone near sees a piece the server keeps (`shared::SharedPiece`),
+/// but of the pieces under it only the ones the server keeps too: a shared
+/// wall resting on a private foundation (in this player's own home and
+/// save) would hang 0.2 m over the deck for everyone else. And a shared wall
+/// levelled to a private wall's top would leave a shared roof on it a sliver
+/// of sky over the other shared walls, for everyone else. So the ghost of a
+/// piece that will be shared is posed with [`shared_pieces`], and stands
+/// right for everyone who sees it. A piece of the player's own uses
+/// [`any_piece`] (`placement_pose`): it may rest on a shared foundation,
+/// which everyone sees.
+pub fn placement_pose_where(
+    bp: &Blueprint,
+    at: Vec3,
+    quarter_turns: u8,
+    world: &hecs::World,
+    registry: &BlueprintRegistry,
+    frame: Option<&PlanetSite>,
+    supports: impl Fn(Option<&SharedPiece>) -> bool,
+) -> Transform {
     let snapped = Vec3::new((at.x / GRID_M).round() * GRID_M, at.y, (at.z / GRID_M).round() * GRID_M);
     let mut tf = Transform { position: snapped, rotation: quarter_turn(quarter_turns), scale: Vec3::from_array(bp.size) };
-    tf.position.y = rest_height(bp, &tf, at.y, world, registry, frame);
+    tf.position.y = rest_height_where(bp, &tf, at.y, world, registry, frame, &supports);
     if tf.position.y == at.y {
-        level_top(bp, &mut tf, world, registry, frame);
+        level_top_where(bp, &mut tf, world, registry, frame, &supports);
     }
     tf
 }
@@ -235,11 +291,23 @@ pub fn placement_pose(
 /// floor the old way. Several touching neighbours: the tallest top within
 /// reach.
 pub fn level_top(bp: &Blueprint, tf: &mut Transform, world: &hecs::World, registry: &BlueprintRegistry, frame: Option<&PlanetSite>) {
+    level_top_where(bp, tf, world, registry, frame, &any_piece);
+}
+
+/// [`level_top`] to only the pieces `supports` accepts.
+fn level_top_where(
+    bp: &Blueprint,
+    tf: &mut Transform,
+    world: &hecs::World,
+    registry: &BlueprintRegistry,
+    frame: Option<&PlanetSite>,
+    supports: &dyn Fn(Option<&SharedPiece>) -> bool,
+) {
     let mine = world_aabb(tf);
     let my_top = mine.1.y;
     let mut target: Option<f32> = None;
-    for (_e, (s, other, site)) in world.query::<(&Structure, &Transform, Option<&PlanetSite>)>().iter() {
-        if !in_frame(site, frame) {
+    for (_e, (s, other, site, kept)) in world.query::<(&Structure, &Transform, Option<&PlanetSite>, Option<&SharedPiece>)>().iter() {
+        if !in_frame(site, frame) || !supports(kept) {
             continue;
         }
         // Only a piece of the same kind and the same built height: walls with
@@ -431,6 +499,50 @@ mod tests {
         assert_eq!(rest_height(chest, &clipping, 0.0, &world, &reg, None), 0.0, "3 cm over the edge: on the floor");
         let onto = Transform { position: Vec3::new(1.0, 0.0, 0.0), ..clipping };
         assert!((rest_height(chest, &onto, 0.0, &world, &reg, None) - 0.2).abs() < 1e-4);
+    }
+
+    /// A PIECE THAT WILL BE SHARED RESTS ONLY ON SHARED PIECES (ship homes
+    /// increment 5, 2026-10-05). Everyone near sees a piece the server keeps,
+    /// but only the pieces the server keeps: on a private foundation (in this
+    /// player's own home and save) a shared wall would hang 0.2 m over the
+    /// deck for all of them. On the deck: a private foundation at the origin
+    /// with a private wall standing on it, and a shared foundation at x 10.
+    /// `placement_pose_where` with `shared_pieces` stands a wall over the
+    /// private foundation on the deck, and one over the shared foundation on
+    /// it, 0.2 m up. It levels a wall only to shared walls: one on the deck
+    /// touching the end of the private wall (top 3.2 m) keeps its own 3 m,
+    /// where `placement_pose` (every piece, what a private piece uses) makes
+    /// it 3.2 m to meet that top, and rests a wall on the private foundation.
+    /// A shared roof on shared walls would otherwise show a sliver of sky
+    /// over the other shared walls to everyone else.
+    /// Seen red 2026-10-05 with the filter ignored: "a shared wall over a
+    /// private foundation stands on the deck: left: 0.2, right: 0.0".
+    #[test]
+    fn a_shared_wall_rests_on_a_shared_foundation_not_a_private_one() {
+        let reg = shipped();
+        let mut world = hecs::World::new();
+        build(&mut world, &reg, "wood_foundation", Vec3::ZERO, 0); // private: x -2..2, z -2..2
+        let kept = build(&mut world, &reg, "wood_foundation", Vec3::new(10.0, 0.0, 0.0), 0);
+        let marked: Vec<hecs::Entity> =
+            world.query::<(&Structure, &Transform)>().iter().filter(|(_, (_, t))| t.position == kept.position).map(|(e, _)| e).collect();
+        world.insert_one(marked[0], SharedPiece { piece_id: 1, frame: "plot:p1".into(), mine: true }).unwrap();
+        let private_wall = build(&mut world, &reg, "wood_wall", Vec3::new(0.0, 0.0, -2.0), 0);
+        assert!((world_aabb(&private_wall).1.y - 3.2).abs() < 1e-4, "the private wall stands on the private foundation");
+        let wall = reg.get("wood_wall").unwrap();
+        let shared_only = shared_pieces;
+
+        let over_private = placement_pose_where(wall, Vec3::new(0.0, 0.0, 1.0), 0, &world, &reg, None, shared_only);
+        assert_eq!(over_private.position.y, 0.0, "a shared wall over a private foundation stands on the deck");
+        let over_shared = placement_pose_where(wall, Vec3::new(10.0, 0.0, 1.0), 0, &world, &reg, None, shared_only);
+        assert!((over_shared.position.y - 0.2).abs() < 1e-4, "on the shared foundation: {}", over_shared.position.y);
+
+        // Touching the private wall's end (x 1.9..2.1, z -6..-2), clear of the private foundation.
+        let touching = placement_pose_where(wall, Vec3::new(2.0, 0.0, -4.0), 1, &world, &reg, None, shared_only);
+        assert_eq!((touching.position.y, touching.scale.y), (0.0, 3.0), "levelled only to shared walls");
+        let private = placement_pose(wall, Vec3::new(2.0, 0.0, -4.0), 1, &world, &reg, None);
+        assert!((private.scale.y - 3.2).abs() < 1e-4, "a private wall meets the private top: {}", private.scale.y);
+        let private_over = placement_pose(wall, Vec3::new(0.0, 0.0, 1.0), 0, &world, &reg, None);
+        assert!((private_over.position.y - 0.2).abs() < 1e-4, "a private wall rests on the private foundation");
     }
 
     /// A second build of the same box in the same frame is a double spend:
