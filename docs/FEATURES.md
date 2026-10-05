@@ -2783,8 +2783,10 @@ infrastructure"). Directly below the closed-loop summary, a visually distinct ou
 five loops no single homestead can close: electronics/semiconductors, metal from raw ore,
 medicine synthesis, equipment replacement, and raw chemistry inputs. Each is an expandable row:
 collapsed shows title + a "traded" tag; expanded gives a plain-language body naming the game
-recipe that abstracts the gap away (manufacture_cpu, smelt_steel, craft_antibiotics, ...) plus
-a "provided by" trade line. Intro + footer carry the non-defeatist framing: these gaps ARE why
+recipe that abstracts the gap away (manufacture_cpu, smelt_steel, ...) plus a "provided by"
+trade line. Medicine names the opposite: since 2026-10-05 no recipe makes antibiotics (the
+old craft_antibiotics cultured them from water, flour and sugar), and the trading post sells
+them. Intro + footer carry the non-defeatist framing: these gaps ARE why
 civilization exists. Data-driven (infinite-of-X): categories live in the RON, not code.
 - Native: `src/gui/pages/homes.rs` (`CannotCloseEntry`, `CannotCloseData`, `load_cannot_close`, the panel in `draw_design`)
 - Data: `data/self_sufficiency/cannot_close.ron` (distilled from `docs/design/homestead-solo-design.md` section 8)

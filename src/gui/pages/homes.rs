@@ -677,9 +677,10 @@ fn draw_design(
 
         // ── What one home cannot close (the pedagogical payoff) ──
         // The survival loops above close; these five gaps do NOT, by the design of
-        // reality: the game's own recipes (manufacture_cpu, smelt_steel,
-        // craft_antibiotics, ...) abstract away industrial infrastructure no single
-        // homestead can carry. Marked externally-sourced/traded, in a deliberately
+        // reality: the game's own recipes (manufacture_cpu, smelt_steel, ...)
+        // abstract away industrial infrastructure no single homestead can carry,
+        // and for medicine there is no recipe at all (the trading post sells
+        // antibiotics since 2026-10-05). Marked externally-sourced/traded, in a deliberately
         // muted OUTLINED treatment (warning stroke on the panel background) so it
         // reads clearly apart from the green closed-loop rows above. Data:
         // data/self_sufficiency/cannot_close.ron (homestead-solo-design.md section 8).

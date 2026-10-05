@@ -1,5 +1,5 @@
 {
-  "count": 384,
+  "count": 383,
   "categories": [
     "assembly",
     "chemistry",
@@ -4302,12 +4302,12 @@
     },
     {
       "id": "cook_honey",
-      "name": "Harvest Honey",
+      "name": "Crush and Strain Honey",
       "category": "cooking",
       "inputs": [
         {
-          "id": "water_purified_0",
-          "label": "Water Purified",
+          "id": "honeycomb_0",
+          "label": "Honeycomb",
           "qty": 1
         }
       ],
@@ -4315,15 +4315,25 @@
         {
           "id": "honey_0",
           "label": "Honey",
+          "qty": 5
+        },
+        {
+          "id": "beeswax_0",
+          "label": "Beeswax",
           "qty": 1
         }
       ],
-      "craft_time_sec": 5,
+      "craft_time_sec": 60,
       "station": "",
       "skill": "Farming",
       "skill_level": 2,
-      "description": "Collect and filter raw honey",
-      "tools": []
+      "description": "Cut the comb out of a hive frame then crush it and strain out the honey and keep the wax",
+      "tools": [
+        {
+          "id": "knife_utility_0",
+          "label": "Knife Utility"
+        }
+      ]
     },
     {
       "id": "cook_spice",
@@ -9587,41 +9597,6 @@
       "skill": "Medicine",
       "skill_level": 3,
       "description": "Extract and tablet analgesic compounds",
-      "tools": []
-    },
-    {
-      "id": "craft_antibiotics",
-      "name": "Culture Antibiotics",
-      "category": "chemistry",
-      "inputs": [
-        {
-          "id": "water_purified_0",
-          "label": "Water Purified",
-          "qty": 3
-        },
-        {
-          "id": "flour_0",
-          "label": "Flour",
-          "qty": 1
-        },
-        {
-          "id": "sugar_0",
-          "label": "Sugar",
-          "qty": 1
-        }
-      ],
-      "outputs": [
-        {
-          "id": "antibiotics_0",
-          "label": "Antibiotics",
-          "qty": 5
-        }
-      ],
-      "craft_time_sec": 60,
-      "station": "Chemistry Set",
-      "skill": "Medicine",
-      "skill_level": 4,
-      "description": "Culture and extract antimicrobial compounds",
       "tools": []
     },
     {

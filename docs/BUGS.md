@@ -3495,6 +3495,65 @@ Counted at nothing, three recipes would come out ahead at standard grade
 play depends on what refilling the tanks costs, which is modelled as a
 closed loop (`systems::life_support`), and was not looked into here.
 
+**Review fixes (2026-10-05, the second seam review of the day's merges): it
+is a loop, and the walk now sees it.** Refilling the tanks costs the player's
+credits nothing. The tanks are filled by the home's own well pump (2 L a
+minute on 10 W), its rain catchment and its air handlers' condensate
+(`data/machines/home.ron`); the power that runs them comes from the home's
+panels or, past those, the ship's reactor, which the fleet ledger meters as
+worth on its own balance (`data/ship/fleet_ledger.ron`, 1.5 CR a kWh, about
+0.0001 CR for the 0.08 Wh the pump spends on a litre), never against the
+player's credits, and the ledger lists no water at all. A hand craft at home
+and an automated machine both draw tap water from the tanks when the
+backpack has none (`crafting::plan_inputs`, `fluids::draw_from_tanks`). So
+the walk now prices it that way: the `tap` items of
+`data/containers/fluids.ron` start at nothing (`parts::tap_water`,
+`parts::cheapest_costs`), in the game's parts prices
+(`TradeGoodsRegistry::with_parts_prices`, which reads the same file the
+crafts do, disk first) and in both loop checks. Priced so, on the recipes as
+they stood, `no_grade_sells_back_for_more_than_its_parts_cost` found 19
+(recipe, grade) loops and BUG-145's `no_recipe_resells_for_more_than_its_inputs_cost`
+three recipes: `cook_honey` (a litre of tap water into a jar of honey that
+sells for 2, made from nothing), `craft_antibiotics` (flour and sugar, 6.67
+at the cheapest, and three litres into five antibiotics that sell for 10)
+and `craft_healing_potion` (through honey made from water: 6 of seeds into a
+medkit that sells for 7). Both checks now pass with tap water free; each
+names the red run in its doc comment. A third,
+`parts::tests::the_games_parts_prices_count_tap_water_as_a_craft_gets_it`,
+holds the game's own parts prices (the registry `engine::registries` builds)
+to the walk with tap water free, because the loop check prices its own walk:
+with the tap items left out of `with_parts_prices` the loop check stayed
+green, and this one was red ("bandage_0: the game's parts price is not the
+walk's with tap water free (left: Some(0.4), right: Some(0.25))").
+
+The two recipes are now real rather than repriced:
+- **Honey comes out of honeycomb.** `cook_honey` is now "Crush and Strain
+  Honey": one `honeycomb_0` (new: the capped comb of one deep Langstroth
+  frame, 3.05 kg, "Each deep frame can hold 6 pounds of extractable honey",
+  Howland Blackiston, with about 327 g of wax, Jamie Ellis's 0.37 g a square
+  centimetre of comb, American Bee Journal, July 2025) gives five 0.5 kg jars
+  of honey and one block of beeswax, by hand with a utility knife to cut the
+  comb out (Keeping Backyard Bees' crush-and-strain list: a long serrated
+  knife, a potato masher, two buckets, a strainer; the game has none of the
+  last three to name). Beeswax joins the byproduct lint, which holds the
+  recipe to its mass (2.8 kg out of 3.05 in). No hive in the game fills
+  frames yet, so the trading post sells honeycomb at the honey and wax it
+  holds (base 29: it sells for 37, and what it makes sells back for 12).
+- **No recipe makes antibiotics.** `craft_antibiotics` (Culture
+  Antibiotics) is gone: nothing cultured at a chemistry set from flour and
+  sugar is an antibiotic, which an industry makes and a prescription gives.
+  The trading post sells them, and `craft_medkit_full` packs bought ones. The
+  Home page's "What one home cannot close" medicine entry
+  (`data/self_sufficiency/cannot_close.ron`) and the Library's Preventing and
+  Spotting Infection now say so. Their base value stays 5, which BUG-145 cut
+  from 20 only to stop this recipe looping; with no recipe it could rise
+  again, a pricing call left open.
+`craft_healing_potion` no longer loops once honey costs what it does (13 of
+inputs against 7), though it is still not a real recipe (wheat seeds, honey
+and water into a medkit); it is left for a pass over the medicine recipes,
+with `craft_painkillers` (water, coal and salt into ten painkillers) and
+`craft_stim_pack`, neither of which loops.
+
 ## BUG-147: the big vehicles cannot be hand-crafted from the backpack (FIXED v0.1457.0, found 2026-10-04)
 
 **Seen:** after the vehicle bills of materials (BUG-145) became realistic. A

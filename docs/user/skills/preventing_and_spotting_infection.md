@@ -498,11 +498,14 @@ game gives one to you.
   nothing gives you either, and Antiseptic does nothing on its own: it
   goes into a Medkit (`data/medical/treatments.ron`,
   `src/systems/treatment.rs`, `src/gui/pages/inventory.rs`).
-- **The game brews antibiotics.** The Crafting page has a recipe called
-  Culture Antibiotics that makes Antibiotics from Purified Water, Flour
-  and Sugar at a Chemistry Set, at Medicine level 4 (`data/recipes.csv`).
-  Real antibiotics come from a pharmacy, on a prescription, and the CDC's
-  rule is to take them only when needed and exactly as prescribed.
+- **Antibiotics are bought, not brewed.** No recipe makes them: the
+  trading post sells them (`data/trade_goods.ron`), and the Full Medkit
+  recipe, which packs three, takes bought ones (`data/recipes.csv`). Until
+  5 October 2026 a recipe called Culture Antibiotics made them from
+  Purified Water, Flour and Sugar at a Chemistry Set; it was taken out,
+  because nothing made that way is an antibiotic. Real antibiotics come
+  from a pharmacy, on a prescription, and the CDC's rule is to take them
+  only when needed and exactly as prescribed.
 - **Healing is instant.** The First Aid ability puts 35 health back at
   once ([First Aid Until Help Arrives](first_aid_until_help_arrives.md)
   has the detail), and the one illness you can catch is Food Poisoning,
@@ -524,8 +527,9 @@ What the game leaves out, so you do not learn it from the game: a wound
 that turns bad over two or three days; the redness, the warmth and the
 fever that tell you; a flu that comes back worse; sepsis; the decision
 to see a doctor, and the one to call 911; and the fact that an antibiotic
-is a prescription, not a recipe. In the game, health comes back with a
-button. In a real body, it comes back because someone noticed in time.
+is a prescription: the trading post sells them to anyone. In the game,
+health comes back with a button. In a real body, it comes back because
+someone noticed in time.
 
 ## You own this when
 
@@ -695,8 +699,9 @@ were read on 5 October 2026.
   Infection and Plague conditions, and the tag that marks them as caused
   by bacteria: `data/status_effects.csv`. The medical items and the Use button:
   `data/items.csv` and `src/gui/pages/inventory.rs`; what each item does:
-  `data/medical/treatments.ron` and `src/systems/treatment.rs`. The
-  Culture Antibiotics recipe: `data/recipes.csv`. Skills from crafting and
+  `data/medical/treatments.ron` and `src/systems/treatment.rs`. Where the
+  game's antibiotics come from: `data/trade_goods.ron`, and the note in
+  `data/recipes.csv` on the recipe it no longer has. Skills from crafting and
   the Dev button: `src/systems/crafting/mod.rs` and
   `src/gui/pages/profile.rs`. What is saved: `src/save_load.rs`.
 - [Bleeding and Wounds](bleeding_and_wounds.md), [How Your Body

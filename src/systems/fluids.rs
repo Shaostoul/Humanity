@@ -53,6 +53,21 @@ impl FluidTable {
         ron::from_str(s).map_err(|e| format!("{}: {e}", Self::FILE))
     }
 
+    /// The table as `engine::registries` loads it for the crafts: the data
+    /// directory's copy, or the one built into the game when that is missing.
+    /// A file that does not parse gives an empty table, as the loader then
+    /// registers none: no tap water and no vessels.
+    pub fn load(data_dir: &std::path::Path) -> Self {
+        match crate::embedded_data::read_data_or_embedded(data_dir, Self::FILE).map(|s| Self::from_ron(s.as_bytes())) {
+            Some(Ok(t)) => t,
+            Some(Err(e)) => {
+                log::warn!("{e}");
+                Self::default()
+            }
+            None => Self::default(),
+        }
+    }
+
     /// Litres one unit of `item` is, when it is a measure of tap water.
     pub fn tap_litres(&self, item: &str) -> Option<f32> {
         self.tap.get(item).copied().filter(|l| *l > 0.0)

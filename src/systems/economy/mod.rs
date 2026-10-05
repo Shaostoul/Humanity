@@ -63,12 +63,28 @@ impl TradeGoodsRegistry {
     /// Work out every good's parts price from the items and recipes the game
     /// loaded (BUG-146). Call once all three are loaded; `engine::registries`
     /// does, so the trading post never pays a grade more than its parts cost.
+    /// Tap water is counted at nothing, as a craft draws it from the home's
+    /// tanks (`parts::tap_water`, 2026-10-05): its items come from the same
+    /// data/containers/fluids.ron the crafts read (disk first, the copy built
+    /// into the game when it is missing), read here because the loader reaches
+    /// the trade goods before the fluid table.
     pub fn with_parts_prices(
-        mut self,
+        self,
         items: &crate::systems::inventory::ItemRegistry,
         recipes: &crate::systems::crafting::RecipeRegistry,
     ) -> Self {
-        self.parts = parts::parts_prices(items, &self, recipes);
+        let fluids = crate::systems::fluids::FluidTable::load(&crate::data_dir());
+        self.with_parts_prices_and_tap(items, recipes, &parts::tap_water(&fluids))
+    }
+
+    /// `with_parts_prices` with the tap water items given (`parts::tap_water`).
+    pub fn with_parts_prices_and_tap(
+        mut self,
+        items: &crate::systems::inventory::ItemRegistry,
+        recipes: &crate::systems::crafting::RecipeRegistry,
+        tap: &[String],
+    ) -> Self {
+        self.parts = parts::parts_prices(items, &self, recipes, tap);
         self
     }
 
@@ -477,13 +493,18 @@ mod tests {
     /// and its messages are the same on every run, and the costs. Settles in
     /// a few rounds; a cost that keeps falling means a cycle of recipes makes
     /// goods from nothing, itself a loop. The walk is `parts::cheapest_costs`
-    /// (it moved there for BUG-146), byproducts at the standard price.
+    /// (it moved there for BUG-146), byproducts at the standard price, and tap
+    /// water at nothing, as a craft draws it from the home's tanks (the review
+    /// of BUG-146, 2026-10-05).
     fn cheapest_costs<'a>(
         items: &crate::systems::inventory::ItemRegistry,
         goods: &TradeGoodsRegistry,
         recipes: &'a crate::systems::crafting::RecipeRegistry,
     ) -> (Vec<&'a crate::systems::crafting::Recipe>, HashMap<String, f64>) {
-        let walk = parts::cheapest_costs(items, goods, recipes, &|id: &str| vendor_pays(goods, id));
+        use crate::systems::fluids::FluidTable;
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join(FluidTable::FILE);
+        let tap = parts::tap_water(&FluidTable::from_ron(&std::fs::read(path).unwrap()).unwrap());
+        let walk = parts::cheapest_costs(items, goods, recipes, &tap, &|id: &str| vendor_pays(goods, id));
         assert!(walk.settled, "item costs never settle: a cycle of recipes makes goods from nothing");
         (parts::recipe_book(recipes), walk.costs)
     }
@@ -574,6 +595,15 @@ mod tests {
     ///   craft_stim_pack: inputs cost 13.00 at the cheapest (buying them all: 13), the outputs sell for 85
     ///   make_wire: inputs cost 12.25 at the cheapest (buying them all: 13), the outputs sell for 15
     ///   ... (and 18 more)
+    ///
+    /// Seen red again once tap water was priced as a craft gets it, drawn from
+    /// the home's tanks for nothing (the review of BUG-146, 2026-10-05), on the
+    /// recipes before that review's fix:
+    ///   3 recipes make goods the vendor buys back for more than their inputs
+    ///   cost, an endless money loop (BUG-145):
+    ///   cook_honey: inputs cost 0.00 at the cheapest (buying them all: 2), the outputs sell for 2
+    ///   craft_antibiotics: inputs cost 6.67 at the cheapest (buying them all: 13), the outputs sell for 10
+    ///   craft_healing_potion: inputs cost 6.00 at the cheapest (buying them all: 17), the outputs sell for 7
     #[test]
     fn no_recipe_resells_for_more_than_its_inputs_cost() {
         let items = shipped_items();

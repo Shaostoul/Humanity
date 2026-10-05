@@ -282,7 +282,21 @@ cook_juice,Press Juice,cooking,fruit_apple_0:7,juice_0:2|apple_pomace_0:1,8,,coo
 # brewed when the beans are drunk (coffee_0's brewed_coffee profile).
 cook_coffee,Roast Coffee Beans,cooking,fruit_coffee_0:6,coffee_0:1,20,stove_0,,0,Pulp dry and roast coffee cherries into beans
 cook_sugar,Refine Sugar,cooking,vegetable_corn_0:4,sugar_0:2,15,stove_0,cooking,2,Extract and crystallize plant sugar
-cook_honey,Harvest Honey,cooking,water_purified_0:1,honey_0:1,5,,farming,2,Collect and filter raw honey
+# Honey (2026-10-05, the review of BUG-146). This was "Harvest Honey": one litre of tap water into a jar
+# of honey. Honey is not made from water, and since a craft draws tap water free from the home's tanks the
+# jar sold back at the trading post for 2 credits made from nothing. Honey comes out of honeycomb, which a
+# beekeeper without an extractor crushes and strains: "1 long serrated knife" to "gently cut the wax comb
+# out" of the frame into "2 Food Grade plastic buckets" with "1 Potato masher" and "1 honey strainer or
+# nylon window screen", left to drip overnight (Gene Rene', "Crush & Strain Honey Harvest", Keeping
+# Backyard Bees, 30 June 2016, read 2026-10-05). honeycomb_0 is one deep frame's comb. Its honey: "Each
+# deep frame can hold 6 pounds of extractable honey" (Howland Blackiston, "Vital Stats and Materials List
+# for Langstroth Frames", Dummies, 21 June 2021, read 2026-10-05), 2.72 kg, which fills five 0.5 kg jars,
+# the rest staying in the crushed comb. Its wax: "the average cm2 of two-sided comb contains about 0.37 g
+# of wax", about 327 g for a deep frame's 883 cm2 (Jamie Ellis, "The Classroom", American Bee Journal,
+# 1 July 2025, read 2026-10-05), one 0.3 kg block of beeswax once the crushed comb is melted down. The
+# knife is the recipe's tool (data/crafting/tools.ron); the game has no buckets, masher or strainer to name.
+# No hive in the game fills frames yet, so the trading post sells the comb (data/trade_goods.ron).
+cook_honey,Crush and Strain Honey,cooking,honeycomb_0:1,honey_0:5|beeswax_0:1,60,,farming,2,Cut the comb out of a hive frame then crush it and strain out the honey and keep the wax
 cook_spice,Blend Spices,cooking,seed_wheat_0:2|salt_food_0:1,spice_mix_0:3,5,,cooking,1,Grind and mix seasoning blend
 #
 # === CLOTHING / TEXTILE ===
@@ -496,7 +510,13 @@ craft_bandage_sterile,Craft Sterile Bandage,chemistry,cloth_bolt_0:1|water_purif
 craft_medkit_full,Assemble Full Medkit,chemistry,bandage_0:5|splint_0:2|painkillers_0:5|antibiotics_0:3,medkit_0:1,20,workbench_0,medicine,3,Pack a comprehensive field medical kit
 craft_splint_padded,Craft Padded Splint,chemistry,aluminum_ingot_0:1|cloth_bolt_0:2,splint_0:4,10,workbench_0,medicine,1,Bend and cushion fracture immobilizers
 craft_painkillers,Synthesize Painkillers,chemistry,water_purified_0:2|coal_0:1|salt_food_0:1,painkillers_0:10,30,chemistry_set_0,medicine,3,Extract and tablet analgesic compounds
-craft_antibiotics,Culture Antibiotics,chemistry,water_purified_0:3|flour_0:1|sugar_0:1,antibiotics_0:5,60,chemistry_set_0,medicine,4,Culture and extract antimicrobial compounds
+# No recipe makes antibiotics (2026-10-05, the review of BUG-146). Culture Antibiotics (craft_antibiotics)
+# made five from three litres of purified water, a bag of flour and a bag of sugar at a chemistry set, and
+# with the water drawn free from the home's tanks it sold back at the trading post for more than the flour
+# and sugar cost. Nothing made that way is an antibiotic: real ones come out of a pharmaceutical industry's
+# fermentation, purification and quality control (data/self_sufficiency/cannot_close.ron) and are taken on
+# a prescription, as the Library's Preventing and Spotting Infection says. The trading post sells them
+# (data/trade_goods.ron), and craft_medkit_full packs bought ones.
 craft_antivenom,Brew Antivenom,chemistry,water_purified_0:2|antiseptic_0:2|salt_food_0:1,antivenom_0:3,45,chemistry_set_0,medicine,4,Prepare venom neutralization serum
 craft_surgical_kit,Assemble Surgical Kit,chemistry,steel_ingot_0:2|cloth_bolt_0:1|antiseptic_0:3,surgical_kit_0:1,40,workbench_0,medicine,5,Sterilize and pack field surgery instruments
 craft_stim_pack,Synthesize Stim Pack,chemistry,water_purified_0:1|sugar_0:2|salt_food_0:1,stim_pack_0:5,25,chemistry_set_0,medicine,3,Mix fast-acting combat stimulant formula
