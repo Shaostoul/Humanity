@@ -708,6 +708,190 @@ test("the build lines are logged in the patterns the rig reads", () => {
   assert.deepEqual(JSON.parse(sp.ranksLine({ ranks: { can_edit_ship: true } }).match(sp.RANKS_RE)[1]), { can_edit_ship: true });
 });
 
+// THE WALKER GOES AT THE GAME'S PACE (verify-copresence --build). The relay takes one build and one
+// take-down from a player each PERCEPTION_MIN_INTERVAL_MS (src/relay/handlers/msg_handlers.rs
+// `perception_rate_allows`) and answers one sooner `rate_limited`, nothing kept. The first --build
+// run lost the builder's wall that way (2026-10-05): the rig asks for the wall the moment the
+// foundation is kept, the walker sent it a few milliseconds later, and the refusal was the answer
+// the rig read, so four checks fell behind it. The walker now does what the game does
+// (src/engine/shared_build.rs `send_next`, the contract's SEND_INTERVAL_MS and
+// RATE_LIMITED_RETRY_MS): at most one request every 250 ms, and one turned away for pace sent
+// again, the same req_id, 500 ms later, that refusal never logged as its answer.
+//
+// A stand-in relay keeps the relay's own pace rule on a made-up clock, answering each request when
+// it gets to it (a little later than it was sent, sometimes later still), and the rig's own reading
+// of the walker's lines is done on what the walker logged (verify-copresence.js `command`: the
+// first "sent" line after the command; `answer`: the first built, took-down or refused line naming
+// that req_id).
+//
+// Seen red 2026-10-05 before the walker was paced (`makeRequests` sending each request the moment
+// it was asked, as main() did):
+//   AssertionError [ERR_ASSERTION]: the wall asked for the moment the foundation was kept: the rig
+//   reads req 2's answer as "second-player: build refused: rate_limited (req 2): Piece not built:
+//   too much was asked at once; it goes again in a moment."
+test("builds and take-downs go at the game's pace, and one turned away for pace goes again", () => {
+  const handlers = fs.readFileSync(path.join(REPO, "src", "relay", "handlers", "msg_handlers.rs"), "utf8");
+  const RELAY_MS = Number(handlers.match(/const PERCEPTION_MIN_INTERVAL_MS: u64 = (\d+);/)[1]);
+
+  // A made-up clock, and timers on it (run in time order; two due together in the order set).
+  const clock = { t: 0, timers: [], n: 0 };
+  clock.now = () => clock.t;
+  clock.setTimer = (fn, ms) => {
+    const h = { at: clock.t + Math.max(0, ms), fn, n: clock.n++ };
+    clock.timers.push(h);
+    return h;
+  };
+  clock.clearTimer = (h) => {
+    const i = clock.timers.indexOf(h);
+    if (i >= 0) clock.timers.splice(i, 1);
+  };
+  clock.run = (until) => {
+    for (;;) {
+      clock.timers.sort((a, b) => a.at - b.at || a.n - b.n);
+      const h = clock.timers[0];
+      if (!h || h.at > until) break;
+      clock.timers.shift();
+      clock.t = Math.max(clock.t, h.at);
+      h.fn();
+    }
+    clock.t = Math.max(clock.t, until);
+  };
+
+  // The stand-in relay: it gets to each request `lag(message)` ms after it was sent, takes it when
+  // the last one of its kind it took was at least RELAY_MS before (its own clock), else answers
+  // `rate_limited` and remembers nothing; `refuse(message)` may turn one away with another reason.
+  // Every message sent is kept, with when.
+  const stand = { lag: () => 2, refuse: () => null, sent: [], listeners: [], last: new Map(), pieces: 0 };
+  const reply = (g) => clock.setTimer(() => stand.listeners.slice().forEach((fn) => fn(g)), 1);
+  const handle = (m) => {
+    const action = m.type === "game_build" ? "build" : "unbuild";
+    const prev = stand.last.get(action);
+    const said = stand.refuse(m) || (prev !== undefined && clock.now() - prev < RELAY_MS ? "rate_limited" : null);
+    if (said) {
+      return reply({ type: "game_build_refused", req_id: m.req_id, action, reason: said, message: "Piece not built: too much was asked at once; it goes again in a moment." });
+    }
+    stand.last.set(action, clock.now());
+    const at = 1759680000 + clock.now() / 1000;
+    if (action === "build") {
+      stand.pieces += 1;
+      reply({ type: "game_built", frame: m.frame, seq: stand.pieces, server_time: at, req_id: m.req_id, piece: { piece_id: stand.pieces, blueprint_id: m.blueprint_id, position: m.position, rotation: m.rotation, scale: m.scale, placed_at: at, mine: true } });
+    } else {
+      reply({ type: "game_unbuilt", frame: "plot:p1", seq: 99, piece_id: m.piece_id, req_id: m.req_id });
+    }
+  };
+  const client = {
+    onGame: (fn) => (stand.listeners.push(fn), () => stand.listeners.splice(stand.listeners.indexOf(fn), 1)),
+    send: (m) => {
+      const copy = JSON.parse(JSON.stringify(m));
+      stand.sent.push({ at: clock.now(), m: copy });
+      clock.setTimer(() => handle(copy), stand.lag(copy));
+    },
+  };
+
+  // The walker as main() wires it.
+  const lines = [];
+  const log = (s) => lines.push(`second-player: ${s}`);
+  const requests = sp.makeRequests({ send: client.send, log, now: clock.now, setTimer: clock.setTimer, clearTimer: clock.clearTimer });
+  sp.logBuilds(client, log, requests);
+  const blueprints = sp.readBlueprints(fs.readFileSync(path.join(REPO, "data", "blueprints", "basic.ron"), "utf8"));
+
+  // The rig: write a command, find its "sent" line, then the answer naming its req_id, within its
+  // BUILD_ANSWER_MS (8 s), as verify-copresence.js `command` and `answer` read them.
+  const answerOf = (ls, req) => {
+    for (const l of ls) {
+      let m = l.match(sp.BUILT_RE);
+      if (m && Number(m[8]) === req) return { kind: "built", line: l };
+      m = l.match(sp.TOOK_DOWN_RE);
+      if (m && Number(m[3]) === req) return { kind: "took", line: l };
+      m = l.match(sp.REFUSED_RE);
+      if (m && m[4] !== "-" && Number(m[4]) === req) return { kind: "refused", reason: m[2], line: l };
+    }
+    return null;
+  };
+  const ask = (text) => {
+    const mark = lines.length;
+    const cmd = sp.parseCommand(text);
+    if (cmd.kind === "build") requests.build(cmd, blueprints);
+    else requests.unbuild(cmd);
+    let req = null;
+    let answer = null;
+    for (const t0 = clock.now(); clock.now() - t0 <= 8000 && !answer; ) {
+      const sent = lines.slice(mark).map((l) => l.match(sp.SENT_RE)).find(Boolean);
+      if (sent) req = Number(sent[2]);
+      if (req !== null) answer = answerOf(lines.slice(mark), req);
+      if (!answer) clock.run(clock.now() + 5);
+    }
+    return { req, answer, said: answer ? `"${answer.line}"` : "nothing" };
+  };
+  const sendsOf = (req) => stand.sent.filter((s) => s.m.req_id === req);
+
+  // 1. The rig's own sequence: the foundation, then the wall the moment the foundation is kept.
+  const foundation = ask("build wood_foundation@plot:p1:48,0,36,0");
+  assert.equal(foundation.answer && foundation.answer.kind, "built", `the foundation: the rig reads req ${foundation.req}'s answer as ${foundation.said}`);
+  const wall = ask("build wood_wall@plot:p1:46,0.2,36,1");
+  assert.equal(wall.answer && wall.answer.kind, "built", `the wall asked for the moment the foundation was kept: the rig reads req ${wall.req}'s answer as ${wall.said}`);
+  assert.deepEqual([foundation.req, wall.req], [1, 2], "one req_id each, in order");
+
+  // 2. The relay gets to a request late (a busy moment), so the next, sent 250 ms after it, reaches
+  // it too soon: turned away for pace, it goes again 500 ms later, the same message, and is kept.
+  // The rig reads the piece kept, never the refusal.
+  stand.lag = (m) => (m.req_id === 3 ? 150 : 2);
+  const late = ask("build wood_wall@plot:p1:50,0.2,36,1");
+  assert.equal(late.answer && late.answer.kind, "built", `a request the relay got to late: ${late.said}`);
+  const again = ask("build wood_wall@plot:p1:54,0.2,36,1");
+  assert.equal(again.answer && again.answer.kind, "built", `the request after it, turned away for pace once: the rig reads req ${again.req}'s answer as ${again.said}`);
+  const twice = sendsOf(again.req);
+  assert.equal(twice.length, 2, `req ${again.req} went twice (once turned away for pace): ${twice.length}`);
+  assert.deepEqual(twice[1].m, twice[0].m, "the same request again, its req_id and all");
+  assert.ok(twice[1].at - twice[0].at >= sp.RATE_LIMITED_RETRY_MS, `sent again ${twice[1].at - twice[0].at} ms later, at least RATE_LIMITED_RETRY_MS (the relay's answer comes first)`);
+  const too = lines.filter((l) => l.match(sp.TOO_SOON_RE));
+  assert.deepEqual(too.map((l) => Number(l.match(sp.TOO_SOON_RE)[2])), [again.req], `the turn-away said in a line of its own: ${too.join(" | ")}`);
+  assert.ok(!too.some((l) => sp.REFUSED_RE.test(l) || sp.SENT_RE.test(l)), "never in a line the rig reads as an answer or a first send");
+  assert.equal(lines.filter((l) => (l.match(sp.RESENT_RE) || [])[2] === String(again.req)).length, 1, "and the second send said");
+
+  // 3. A take-down goes at the same pace.
+  stand.lag = () => 2;
+  const down = ask("unbuild 2");
+  assert.equal(down.answer && down.answer.kind, "took", `the take-down: ${down.said}`);
+
+  // 4. A request the relay turns away for pace every time: after RATE_LIMITED_TRIES more sends, that
+  // refusal is its answer, and nothing more goes.
+  stand.refuse = (m) => (m.req_id === 6 ? "rate_limited" : null);
+  const never = ask("build wood_wall@plot:p1:58,0.2,36,1");
+  assert.equal(never.req, 6);
+  assert.deepEqual([never.answer && never.answer.kind, never.answer && never.answer.reason], ["refused", "rate_limited"], `turned away every time: ${never.said}`);
+  assert.equal(sendsOf(6).length, 1 + sp.RATE_LIMITED_TRIES, `sent once and again ${sp.RATE_LIMITED_TRIES} times`);
+  stand.refuse = (m) => (m.req_id === 7 ? "not_allowed" : null);
+  const no = ask("build wood_wall@plot:p1:62,0.2,36,1");
+  assert.deepEqual([no.answer && no.answer.kind, no.answer && no.answer.reason], ["refused", "not_allowed"], `any other refusal is the answer at once: ${no.said}`);
+  assert.equal(sendsOf(7).length, 1, "and is never sent again");
+  clock.run(clock.now() + 5000);
+  assert.equal(sendsOf(6).length + sendsOf(7).length, 1 + sp.RATE_LIMITED_TRIES + 1, "nothing more goes for either");
+
+  // 5. Over the whole run: never two requests within SEND_INTERVAL_MS, and each request's first send
+  // said once.
+  const gaps = stand.sent.slice(1).map((s, i) => s.at - stand.sent[i].at);
+  assert.ok(gaps.every((g) => g >= sp.SEND_INTERVAL_MS), `the gaps between sends: ${gaps.join(", ")} ms (at least ${sp.SEND_INTERVAL_MS})`);
+  for (let req = 1; req <= 7; req++) {
+    assert.equal(lines.filter((l) => (l.match(sp.SENT_RE) || [])[2] === String(req)).length, 1, `req ${req}'s "sent" line, once`);
+  }
+
+  // 6. Stopped (the walker leaving), nothing waiting goes: of two asked together, the first went at
+  // once and the second never.
+  const before = stand.sent.length;
+  requests.build(sp.parseCommand("build wood_wall@plot:p1:66,0.2,36,1"), blueprints);
+  requests.build(sp.parseCommand("build wood_wall@plot:p1:70,0.2,36,1"), blueprints);
+  requests.stop();
+  clock.run(clock.now() + 5000);
+  assert.equal(stand.sent.length - before, 1, "after stop nothing more went");
+
+  // The pace is the game's own, from the contract, and slower than the relay's.
+  const pinned = (name) => Number((SHARED_RS.match(new RegExp(`pub const ${name}: u64 = (\\d+);`)) || [])[1]);
+  assert.equal(sp.SEND_INTERVAL_MS, pinned("SEND_INTERVAL_MS"), "the walker's pace is the game's (shared.rs SEND_INTERVAL_MS)");
+  assert.equal(sp.RATE_LIMITED_RETRY_MS, pinned("RATE_LIMITED_RETRY_MS"), "and so is its wait before sending again (shared.rs RATE_LIMITED_RETRY_MS)");
+  assert.ok(sp.SEND_INTERVAL_MS > RELAY_MS, `${sp.SEND_INTERVAL_MS} ms is slower than the relay's ${RELAY_MS} ms`);
+});
+
 // A builder stands still where the relay put it (--path still): it never walks off its plot, and
 // every update it sends is the same place, standing still. Red first, 2026-10-05: "--path must be
 // circle or line".
