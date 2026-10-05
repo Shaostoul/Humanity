@@ -230,12 +230,21 @@ pub(crate) fn publish(state: &mut EngineState) {
                     .map(|a| a.breathable)
                     .unwrap_or(true);
                 let home = home_air(&state.game_world.world);
+                // The air where they stand (2026-10-05, BUG-155): a grow room's
+                // own when they stand in one (its heaters' warmth and its damp
+                // with it), else the home's own air, warmed by any heater in it.
+                // A heater warms the AIR; a fire warms the SURROUNDINGS, from
+                // that air (`warmed_by_fires`, BUG-153), so were a fire ever to
+                // burn aboard the two would add up, not replace each other
+                // (`a_heaters_warm_air_and_a_fires_warmth_add_up`).
+                let grow_room = crate::systems::farming::humidity::grow_room_air_at(&state.game_world.world, &state.data_store, pos.to_array());
                 let base = EnvironmentContext::default();
+                let (air_c, rh, kpa) = indoor_air(home, grow_room, &base);
                 EnvironmentContext {
                     oxygenated: breathable,
-                    ambient_temp_c: home.map_or(base.ambient_temp_c, |h| h.0),
-                    relative_humidity: home.map_or(base.relative_humidity, |h| h.1),
-                    pressure_kpa: home.map_or(base.pressure_kpa, |h| h.2),
+                    ambient_temp_c: air_c,
+                    relative_humidity: rh,
+                    pressure_kpa: kpa,
                     activity_met: activity,
                     // A sealed hull stops vacuum, not acceleration.
                     g_load: felt_g_now,
@@ -350,9 +359,24 @@ pub(crate) fn refresh_ship_spaces(state: &mut EngineState) {
     state.aboard_bounds = ship.and_then(|s| s.aboard_bounds());
 }
 
+/// The air a body feels inside the home (2026-10-05, BUG-155): temperature
+/// (C), relative humidity (0 to 1) and pressure (kPa). A grow room's own air
+/// (`farming::humidity::grow_room_air_at`) where the player stands in one, at
+/// the home's pressure; else the home's own air (`home_air`); else the
+/// context's defaults, before anything is spawned. Pure, so it can be tested.
+pub(crate) fn indoor_air(home: Option<(f32, f32, f32)>, grow_room: Option<(f64, f64)>, base: &EnvironmentContext) -> (f32, f32, f32) {
+    let kpa = home.map_or(base.pressure_kpa, |h| h.2);
+    match (grow_room, home) {
+        (Some((t, rh)), _) => (t as f32, (rh as f32).clamp(0.0, 1.0), kpa),
+        (None, Some(h)) => (h.0, h.1, kpa),
+        (None, None) => (base.ambient_temp_c, base.relative_humidity, kpa),
+    }
+}
+
 /// THE home's air: temperature (C), relative humidity (0 to 1) and pressure
 /// (kPa), from its enclosed space (`atmosphere::HomeAir`). None before the
-/// home is spawned.
+/// home is spawned. Its temperature carries what heaters have warmed it by
+/// (the farming tick writes it, `farming::heat`).
 fn home_air(world: &hecs::World) -> Option<(f32, f32, f32)> {
     use crate::systems::atmosphere::{EnclosedSpace, HomeAir};
     world.query::<(&HomeAir, &EnclosedSpace)>().iter().next().map(|(_, (_, s))| {
@@ -368,6 +392,65 @@ mod tests {
     use crate::systems::body_environment::BodyEnvironment;
     use crate::systems::weather::WeatherSystem;
     use crate::ecs::systems::System;
+
+    /// THE AIR A BODY FEELS INSIDE THE HOME IS THE ROOM'S IT STANDS IN
+    /// (2026-10-05, BUG-155): a grow room's own air where the player stands in
+    /// one (a greenhouse a heater has warmed to 22.05 C, at its own 62%), else
+    /// the home's own air (whose temperature carries any heater's warmth in it,
+    /// farming::heat), else the context's defaults; the pressure is the home's.
+    /// Red before this: the greenhouse's air was never read, so the player in a
+    /// heated greenhouse felt the house's 19.85 C.
+    #[test]
+    fn indoors_the_body_feels_the_air_of_the_room_it_stands_in() {
+        let base = EnvironmentContext::default();
+        let home = Some((19.85_f32, 0.5_f32, 101.3_f32));
+        assert_eq!(indoor_air(home, Some((22.05, 0.62)), &base), (22.05, 0.62, 101.3));
+        assert_eq!(indoor_air(home, None, &base), (19.85, 0.5, 101.3));
+        assert_eq!(indoor_air(None, None, &base), (base.ambient_temp_c, base.relative_humidity, base.pressure_kpa));
+    }
+
+    /// A HEATER'S WARM AIR AND A FIRE'S WARMTH ADD UP (BUG-155 with BUG-153,
+    /// 2026-10-05). A heater warms the AIR the body is in (`indoor_air`, the
+    /// ambient temperature); a fire warms its SURROUNDINGS (`warmed_by_fires`,
+    /// the mean radiant temperature), starting from that air when nothing else
+    /// sets them. So neither replaces the other: the fire's warmth goes on top
+    /// of the air the heater warmed. No fire burns aboard and no heater stands
+    /// outside today, so the two never meet in one frame; this holds the
+    /// contract for the day they do. In a greenhouse a heater has warmed to
+    /// 22.05 C with a campfire's 130 W/m2 (about what a body takes 1.5 m from
+    /// one), the body keeps the heater's air, its surroundings are warmer than
+    /// with the fire alone, and after an hour its skin is warmer than with
+    /// either alone. Red with `warmed_by_fires` setting the radiant temperature
+    /// from the rooms' fixed 21 C instead of the context's air: the heater's
+    /// warmth was lost under the fire's.
+    #[test]
+    fn a_heaters_warm_air_and_a_fires_warmth_add_up() {
+        let base = EnvironmentContext::default();
+        let home = Some((19.85_f32, 0.5_f32, 101.3_f32));
+        let indoors = |grow_room: Option<(f64, f64)>| {
+            let (air_c, rh, kpa) = indoor_air(home, grow_room, &base);
+            EnvironmentContext { ambient_temp_c: air_c, relative_humidity: rh, pressure_kpa: kpa, ..base }
+        };
+        let flux = 130.0;
+        let neither = indoors(None);
+        let heater = indoors(Some((22.05, 0.5)));
+        let fire = warmed_by_fires(indoors(None), flux);
+        let both = warmed_by_fires(indoors(Some((22.05, 0.5))), flux);
+        assert_eq!(both.ambient_temp_c, 22.05, "the fire leaves the heater's air alone");
+        let radiant = |c: &EnvironmentContext| c.radiant_temp_c.unwrap_or(c.ambient_temp_c);
+        assert_eq!(radiant(&both), body_heat::radiant_with_source_c(22.05, flux), "the fire's warmth on top of the heater's air");
+        assert!(radiant(&both) > radiant(&fire) && radiant(&both) > radiant(&heater), "surroundings {} with both, {} fire, {} heater", radiant(&both), radiant(&fire), radiant(&heater));
+        let skin_after_an_hour = |c: &EnvironmentContext| {
+            let ex = body_heat::Exposure::from_context(c);
+            let mut body = body_heat::BodyHeat::new(body_heat::CORE_NEUTRAL_C);
+            for _ in 0..60 {
+                body.step(&ex, body_heat::BASE_OUTFIT_CLO, body_heat::MET_STANDING, 60.0);
+            }
+            body.skin_c
+        };
+        let (b, f, h, n) = (skin_after_an_hour(&both), skin_after_an_hour(&fire), skin_after_an_hour(&heater), skin_after_an_hour(&neither));
+        assert!(b > f && b > h && h > n, "skin after an hour: both {b:.3}, fire {f:.3}, heater {h:.3}, neither {n:.3}");
+    }
 
     /// INSIDE THE HOME REQUIRES ABOARD (the review's missing test). The same
     /// camera position inside the home's box is the home's air aboard and

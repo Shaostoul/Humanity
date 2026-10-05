@@ -384,7 +384,8 @@ practice from the physics above:
 
 The game models one kind of heat in real detail: the heat of your own
 body, and what the weather, your clothes, a shelter and a campfire do to
-it.
+it. It models one more simply: a heater's heat in the air of a room
+aboard.
 
 - **Your body's heat balance.** The body heat system is based on a
   published model of human temperature regulation, the two-node model
@@ -422,7 +423,17 @@ it.
   rest).
 - **Indoors aboard.** Inside your home aboard the station the air is
   sealed and still, at the home's own temperature, and the weather line
-  says so: "Indoors", with the temperature and "still air".
+  says so: "Indoors", with the temperature and "still air". In a grow
+  room it is that room's own air, warmer or damper than the rest.
+- **A heater warms the room it stands in.** A space heater you build and
+  place aboard puts its 1,500 W into the air of the room it stands in, and
+  that air settles where the heater's watts and the heat the room loses
+  balance: by conduction through its walls and ceiling, and by convection
+  with the air it trades with the rest of the home
+  (`src/systems/farming/heat.rs`). In a small room that is a few degrees,
+  held at 24 C by its thermostat; in a big glass greenhouse a fraction of
+  one. Your body feels it when you stand there. [Heating a Home
+  Safely](heating_a_home_safely.md) has the numbers.
 - **Two modes.** Settings > Gameplay > Body heat. Forgiving, the default,
   runs the same physics but your temperature swings half as far from
   normal, so harm waits until the real balance would have you below about
@@ -437,9 +448,10 @@ it.
   them; only the developer flying mode, a tool of the Dev play mode,
   switches it off.
 
-What the game leaves out, so you do not learn it from the game: nothing
-in the game conducts heat through a solid, so there are no hot handles
-and no metal that feels colder than wood; there are no scalds, no steam,
+What the game leaves out, so you do not learn it from the game: apart
+from a heated room losing heat through its walls, nothing in the game
+conducts heat through a solid, so there are no hot handles and no metal
+that feels colder than wood; there are no scalds, no steam,
 no grease fires and no superheated water; heaters set nothing alight;
 and a parked vehicle never heats up in the sun. The body heat model is
 the honest part. The rest of the heat in this guide is yours to learn
@@ -577,6 +589,11 @@ public domain. Web pages and documents were read on 3 and 4 October 2026.
   > Body heat (`src/gui/pages/settings.rs`). The HUD's weather, "feels"
   and shelter lines: `src/gui/pages/hud.rs`; shelter: 
   `src/systems/construction/uses.rs`.
+- A heater's heat in a room: `src/systems/farming/heat.rs` (the balance of
+  each air the home keeps), its numbers and sources in
+  `data/garden/humidity.ron` (THE HEAT), the heater in
+  `data/machines/home.ron` (`heater`), and its tests in
+  `src/systems/farming/heat_tests.rs`.
 - [Insulation and Heat Loss](insulation_and_heat_loss.md), [Heating
   Water](heating_water.md), [Firewood](firewood.md), [Cold and
   Hypothermia](cold_and_hypothermia.md), [Treating

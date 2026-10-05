@@ -646,28 +646,66 @@ sources given with each.
 
 ## How the game models it
 
-The game models being cold. Of heating it models one thing, the warmth
-of a campfire built outdoors, and it does not model what heating does to
-people.
+The game models being cold, and two kinds of heating: the warmth of a
+campfire built outdoors, and an electric space heater warming the air of
+the room it stands in aboard. It does not model what heating can do to
+people, the house fires and the carbon monoxide this guide is about.
 
-- **Inside the home, nothing heats the air.** Sessions start in the home
-  aboard the station in orbit, and the air there stays at about 20 C with
-  nothing burning or running to hold it (`src/systems/atmosphere.rs`,
-  `src/engine/survival_env.rs`); the ship's shared spaces, such as the
-  Commons, are a fixed 21 C (`src/ecs/components.rs`). The home's
-  electric water heater draws power for the hot water its fixtures use,
-  but it warms no room (`data/machines/home.ron`). The code has a room
-  heating system (`src/systems/hvac.rs`) that nothing registers, so it
-  never runs.
-- **A heater you can make, that heats nothing.** The Crafting page has a
-  Build Heater recipe for an "Electric space heater" (two steel ingots,
-  three wire and a copper ingot at a workbench, Engineering level 2), and
-  heaters are parts in some ship and station recipes, but no game system
-  gives a heater any effect (`data/recipes.csv`, `data/items.csv`). The
-  Greenhouse Construction quest still asks you to build one "for
-  temperature regulation" (`data/quests/farming.ron`); the heater you
-  build warms neither the air, the plants nor you. That is a known bug,
-  BUG-155.
+- **The station holds the air at its own temperature.** Sessions start in
+  the home aboard the station in orbit. With nothing of yours heating it,
+  the home's air stays at about 20 C (`src/systems/atmosphere.rs`), the
+  grow rooms at 21 C (`data/garden/humidity.ron`, `room_temp_c`), and the
+  ship's shared spaces, such as the Commons, at 21 C
+  (`src/ecs/components.rs`); holding them there costs you nothing. The
+  home's electric water heater draws power for the hot water its fixtures
+  use, but it warms no room (`data/machines/home.ron`).
+- **A space heater you build warms the air it stands in.** The Crafting
+  page's Build Heater recipe makes an "Electric space heater" (two steel
+  ingots, three wire and a copper ingot at a workbench, Engineering level
+  2; `data/recipes.csv`). Placed in a room of your home with the
+  Construction editor (in Normal play it takes the heater from your
+  backpack or home storage), it is a 1,500 W ceramic heater on the home's
+  power, and all 1,500 W become heat in the air around it
+  (`data/machines/home.ron`, `heater`). With no power it heats nothing. Its
+  thermostat holds that air at 24 C: flat out below it, part of the time at
+  it, off above it, and it draws its power only while it runs. In a grow
+  room it warms that room's own air; anywhere else it warms the home's own
+  air, which the game keeps as one air for the whole home. The Garden
+  panel says what each heater is doing and how warm its air is. The
+  Greenhouse Construction quest asks you to build one
+  (`data/quests/farming.ron`); until 5 October 2026 the heater did nothing
+  at all (BUG-155).
+- **How much it warms is the room's heat loss.** A room loses heat
+  through its walls and ceiling and with the air it trades with the rest
+  of the home, and it settles where the heater's watts and that loss
+  balance (`src/systems/farming/heat.rs`; the numbers and their sources
+  are in `data/garden/humidity.ron`, THE HEAT). The game takes every grow
+  room to lose heat the way single glass does, 6.24 W for each square
+  metre of wall and ceiling and each degree it is warmer than the air
+  around it, the University of Georgia's figure for a glass greenhouse.
+  So one heater flat out holds a 300 m3 room about 1 C warmer and never
+  reaches 24 C; it warms the family home's 2,970 m3 greenhouse by about
+  0.16 C, and the whole home's air by a few hundredths of a degree. In a
+  mushroom rack's small fruiting tent it would run about 25 C over its
+  room if its thermostat did not stop it at 24 C. That is the real lesson
+  of the Georgia sizing rule above: a heater has to match the heat the
+  space loses, and one space heater cannot heat a big room. Flat out it
+  uses 36 kWh a day, three times what the family home's panels make: under
+  the default Station-supplied setting the ship's reactor makes up the
+  rest and the Home page meters it, and under Realistic a heater left
+  running in a big room drains the batteries (Settings > Gameplay, Ship
+  life support).
+- **What reads the warmer air.** A room's humidity: warmer air holds more
+  water, so the same damp reads drier, and its fans, humidifiers and air
+  handlers work to their setpoints at the new temperature
+  (`src/systems/farming/humidity.rs`). The pests in it, which develop
+  faster in warmth (`data/garden/pests.ron`). Your body, which feels the
+  air of the grow room you stand in, or the home's own air elsewhere in the
+  home (`src/engine/survival_env.rs`). And food, which ages faster in
+  warmer air, the food you carry and the food in the home's storage
+  (`src/systems/food.rs`). The crops' growth does not yet answer a grow
+  room's temperature: indoors they grow as if every room were inside their
+  range, as the game assumed before heaters worked.
 - **Shelter keeps the weather off but makes no heat.** On a planet, your
   body heat is modelled from the weather, your clothes and any shelter you
   have built: a roof keeps the rain off and, under it, walls on the
@@ -679,7 +717,8 @@ people.
   roof is as cold as the air outside (`src/systems/body_heat.rs`,
   `src/engine/survival_env.rs`; its tests note that on a 5 C day a
   shelter with no fire is still 5 C inside, and that on a clear 10 C
-  night the skin ends about 1.9 C warmer under a roof).
+  night the skin ends about 1.9 C warmer under a roof). A heater cannot
+  help there: machines are placed only in rooms aboard the ship.
   While fly mode is on, the weather does not reach your body at all. Only
   the tools of the Dev play mode take you onto a planet (Settings >
   Gameplay > Play mode; the game starts in Normal). The Dev page's Land
@@ -718,7 +757,10 @@ people.
 What the game leaves out, so you do not learn it from the game: fuel
 bills, space heaters that start fires, ovens that poison, generators that
 must run outdoors, alarms that wake you, and a house that gets colder
-every hour the power is out.
+every hour the power is out. A heater in the game also warms only the air:
+not you, by its glow, when you stand beside it, and not the walls,
+furniture and soil, which in a real room soak up heat for hours, so a
+heated room here warms and cools in minutes.
 
 ## You own this when
 
@@ -995,13 +1037,22 @@ used here and the wording is not.
 ### Inside this project
 
 - The home's air held at about 20 C (`src/systems/atmosphere.rs`, its
-  default of 293 K, and `src/engine/survival_env.rs`), and the ship's
+  default of 293 K, and `src/engine/survival_env.rs`), the grow rooms at
+  21 C (`room_temp_c` in `data/garden/humidity.ron`), and the ship's
   shared spaces at the default 21 C (`src/ecs/components.rs`); the
-  unregistered room heating system (`src/systems/hvac.rs`); the home's
-  electric water heater (`data/machines/home.ron`); the Build Heater
-  recipe and the Heater, Smoke Detector and Fire Extinguisher items
-  (`data/recipes.csv`, `data/items.csv`); the Greenhouse Construction
-  quest's heater step (`data/quests/farming.ron`); the body heat model,
+  home's electric water heater (`data/machines/home.ron`); the Build
+  Heater recipe and the Heater, Smoke Detector and Fire Extinguisher items
+  (`data/recipes.csv`, `data/items.csv`); the space heater machine, its
+  1,500 W and its 24 C thermostat (`heater` in `data/machines/home.ron`
+  and `data/machines/home_solo.ron`); the heat balance of each air, its
+  walls' single-glass heat loss and its sources (`src/systems/farming/heat.rs`,
+  THE HEAT in `data/garden/humidity.ron`), and the tests that measure the
+  300 m3 room's 1 C, the greenhouse-sized room's 0.16 C and the thermostat
+  (`src/systems/farming/heat_tests.rs`);
+  what reads a warmed room (`src/systems/farming/humidity.rs`, the pests'
+  temperature in `src/systems/farming/mod.rs`, `src/engine/survival_env.rs`,
+  `src/systems/food.rs`); the Greenhouse Construction quest's heater step
+  (`data/quests/farming.ron`); the body heat model,
   the built shelter's roof and walls, the sky hidden by a roof, and the
   5 C, clear night and noon tests (`src/systems/body_heat.rs`,
   `src/systems/construction/uses.rs`, `src/engine/survival_env.rs`); fly
