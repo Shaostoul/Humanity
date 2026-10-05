@@ -951,9 +951,9 @@ were read on 5 October 2026.
 
 - World Health Organization. *Oral Rehydration Salts: Production of the
   New ORS*, WHO/FCH/CAH/06.1, 2006, read 5 October 2026 (the reduced
-  osmolarity salts in one sachet; its packet label, "Dissolve entire
-  content of packet in one litre of drinking water" and "DISCARD
-  REMAINING SOLUTION AFTER 24 HOURS"). Cited only for the game's sachet,
+  osmolarity salts in one sachet; its packet label says to dissolve the
+  whole sachet in one litre of drinking water and to throw away any of
+  the mixed solution left after 24 hours). Cited only for the game's sachet,
   its recipe and how long the mixed litre keeps; the guidance above is
   the CDC's and NIDDK's.
   https://www.who.int/publications/i/item/WHO-FCH-CAH-06.1
