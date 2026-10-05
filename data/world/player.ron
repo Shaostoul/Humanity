@@ -28,6 +28,11 @@
         ("water_purified_0", 4),
         ("water_bottle_empty_0", 2),
         ("ration_basic_0", 3),
+        // Oral rehydration salts for a stomach illness (BUG-162, 2026-10-05):
+        // each sachet mixes into a litre (the mix_ors recipe). The Library's
+        // When Food or Water Makes You Sick, from the CDC: keep them in the
+        // house and start them as soon as the diarrhoea begins.
+        ("ors_sachet_0", 4),
         ("trowel_0", 1),
         ("hoe_0", 1),
         ("knife_utility_0", 1),

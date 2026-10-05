@@ -44,6 +44,13 @@
 // vehicle a full bill of materials in data/recipes.csv and its price can
 // rise with it. Done the same day: see the VEHICLES section below.
 //
+// A hand-made good of a better grade (data/manufacturing.ron) fetches its
+// grade's multiple of the 0.5x price, but never more than its parts cost at
+// the vendor (BUG-146, 2026-10-05, src/systems/economy/parts.rs), so no grade
+// loops either; the test no_grade_sells_back_for_more_than_its_parts_cost
+// checks every recipe at every grade. A base value here can therefore rise to
+// the BUG-145 limit without opening a loop at any grade.
+//
 // Value rationale:
 //   1 CR ~ 1 minute of unskilled labor
 //   A day of basic farming yields ~16-80 CR (2-10/hr * 8 hrs)
@@ -271,6 +278,7 @@
     (id: "antidote_0",        name: "Antidote",           category: "medical",         base_value: 20,   weight_kg: 0.1,   description: "Neutralizes common poisons and venoms"),
     (id: "antibiotics_0",     name: "Antibiotics",        category: "medical",         base_value: 5,    weight_kg: 0.1,   description: "Anti-bacterial medicine for infections"),
     (id: "painkillers_0",     name: "Painkillers",        category: "medical",         base_value: 1,    weight_kg: 0.05,  description: "Analgesic tablets for pain management"),
+    (id: "ors_sachet_0",      name: "Oral Rehydration Salts", category: "medical",     base_value: 1,    weight_kg: 0.022, description: "One sachet to mix into a litre of drinking water for vomiting or diarrhoea"),
     (id: "splint_0",          name: "Splint",             category: "medical",         base_value: 5,    weight_kg: 0.3,   description: "Rigid support for broken bones"),
     (id: "blood_pack_0",      name: "Blood Pack",         category: "medical",         base_value: 30,   weight_kg: 0.5,   description: "Synthetic blood for emergency transfusion"),
     (id: "surgical_kit_0",    name: "Surgical Kit",       category: "medical",         base_value: 100,  weight_kg: 2.0,   description: "Precision instruments for field surgery"),

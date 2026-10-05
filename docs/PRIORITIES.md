@@ -323,9 +323,11 @@ than its inputs cost at standard grade, and vehicles carry real bills of
 materials (v0.1455.0), and a hand craft draws on the home's storage
 (BUG-147, v0.1457.0). Still to do from that: the right station per vehicle
 class (everything is built at `workbench_0`), and the `assemble_*` kit
-recipes given real bills of materials too. Open in `docs/BUGS.md`: BUG-146, a
-better craft grade still loops at the vendor (the fix is a vendor price that
-responds to how much of a good it already holds, not lower prices). Smaller:
+recipes given real bills of materials too. BUG-146 (a better craft grade
+looped at the vendor) is fixed, merging in v0.1463.0: a grade's price is
+capped by what its parts cost at the post (`src/systems/economy/parts.rs`);
+a price that falls with the post's stock was not enough on its own, since
+the first sales still paid in full, but could sit on top later. Smaller:
 `craft_optical_fiber` makes copper wire (no optical fibre item), sterile
 bandages yield 8 against 5 plain, several item weights differ between
 items.csv and trade_goods.ron, and herbal_tea_0 and brass_key_0 are named

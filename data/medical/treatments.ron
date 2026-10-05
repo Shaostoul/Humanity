@@ -1,0 +1,124 @@
+// What the Inventory's Use button does with each medical item (BUG-162,
+// 2026-10-05). Read by src/systems/treatment.rs; the food system applies a
+// Use to the player (src/systems/food.rs, the use_item_request channel). Disk
+// first, with a copy built into the game as the fallback.
+//
+// Every items.csv row in category "medical" has an entry here, every item
+// named here is a real item, and every tag in `ends` is carried by at least
+// one status effect in data/status_effects.csv: tests check all three. Only
+// the items listed here show a Use button.
+//
+// FIELDS
+//   item     The items.csv id.
+//   heals    Health points it restores, of the body's 100, up to full. A GAME
+//            CHOICE: the game's Health stands for every hurt at once (a bite,
+//            a fall, cold, heat, going without water), so these numbers are
+//            tuning, not measurements. Absent or 0 restores nothing.
+//   ends     The status effects it ends, named by a tag in the effect's
+//            `tags` column in data/status_effects.csv. Antibiotics end only
+//            effects tagged "bacterial", and Food Poisoning is not one: the
+//            commonest cause of illness from food is a virus, which
+//            antibiotics do nothing for, and the CDC says not to use them
+//            even for some bacterial ones (data/medical/illnesses.ron).
+//   used     What the player is told when it is used. One is used up.
+//   no_help  What the player is told when it would do nothing for them; the
+//            item is then KEPT, not used up. For an item the game has no use
+//            for yet, it says why in plain words (the house rule on saying
+//            what the game leaves out). The game adds what does help with any
+//            illness the player has.
+(
+    treatments: [
+        // Wound care: Health back, and bleeding stopped.
+        (
+            item: "bandage_0",
+            heals: 5.0,
+            ends: ["bleeding"],
+            used: "You cover the wound with a clean dressing.",
+            no_help: "A bandage covers a wound, and you have none to cover, so you keep it.",
+        ),
+        (
+            item: "medkit_0",
+            heals: 30.0,
+            ends: ["bleeding"],
+            used: "You clean and dress your injuries from the first-aid kit.",
+            no_help: "A first-aid kit treats injuries, and you are not hurt, so you keep it.",
+        ),
+        (
+            item: "med_kit_advanced_0",
+            heals: 50.0,
+            ends: ["bleeding"],
+            used: "You close and dress your wounds with the kit's sutures and sterile dressings.",
+            no_help: "The advanced kit is for wounds beyond first aid, and you are not hurt, so you keep it.",
+        ),
+
+        // Medicines that end one kind of effect and nothing else.
+        (
+            item: "antibiotics_0",
+            ends: ["bacterial"],
+            used: "You take a course of antibiotics for the infection.",
+            no_help: "Antibiotics treat some infections caused by bacteria, and nothing you have is one, so you keep them. Taken for nothing, they bring side effects and help germs learn to resist them.",
+        ),
+        (
+            item: "antidote_0",
+            ends: ["toxin"],
+            used: "You take the antidote.",
+            no_help: "An antidote counters a particular poison, and nothing you have is one it treats, so you keep it.",
+        ),
+
+        // Oral rehydration salts are drunk, not used: mixed first.
+        (
+            item: "ors_sachet_0",
+            no_help: "Oral rehydration salts are drunk mixed: one sachet in one litre of clean drinking water (Crafting, Chemistry: Mix Oral Rehydration Solution). You keep the sachet.",
+        ),
+
+        // Items the game has no use for yet: each says why, and is kept.
+        (
+            item: "antivenom_0",
+            no_help: "Antivenom treats the bite of a particular venomous animal, and nothing in the game bites with venom yet, so you keep it.",
+        ),
+        (
+            item: "painkillers_0",
+            no_help: "Painkillers ease pain, and the game does not model pain yet, so they would change nothing: you keep them.",
+        ),
+        (
+            item: "stimulant_0",
+            no_help: "An adrenaline injection is an emergency medicine for a severe allergic reaction, and nothing in the game causes one yet, so you keep it.",
+        ),
+        (
+            item: "stim_pack_0",
+            no_help: "The game has no use for a combat stimulant yet, so you keep it.",
+        ),
+        (
+            item: "vitamins_0",
+            no_help: "Vitamins make up for a diet that lacks them, and the game does not track vitamins yet, so you keep them.",
+        ),
+        (
+            item: "splint_0",
+            no_help: "A splint holds a broken bone still while it heals, and nothing in the game breaks bones yet, so you keep it. It also goes into a Medkit.",
+        ),
+        (
+            item: "antiseptic_0",
+            no_help: "Antiseptic cleans a fresh wound so that it does not go bad; on its own it heals nothing, so you keep it. It goes into a Medkit.",
+        ),
+        (
+            item: "poultice_0",
+            no_help: "A poultice is laid on a swelling or a bruise, and the game does not model either yet, so you keep it.",
+        ),
+        (
+            item: "surgical_kit_0",
+            no_help: "Surgery needs a trained surgeon and someone to operate on, and the game has neither yet, so you keep the kit.",
+        ),
+        (
+            item: "blood_pack_0",
+            no_help: "A transfusion needs blood of a matching type, someone trained to give it and a person who has lost a lot of blood; the game models none of that yet, so you keep it.",
+        ),
+        (
+            item: "blood_bag_0",
+            no_help: "A transfusion needs blood of a matching type, someone trained to give it and a person who has lost a lot of blood; the game models none of that yet, so you keep it.",
+        ),
+        (
+            item: "defibrillator_0",
+            no_help: "A defibrillator is for someone whose heart has stopped. Yours has not, so it would do nothing, and you keep it.",
+        ),
+    ],
+)

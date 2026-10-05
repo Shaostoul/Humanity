@@ -1862,8 +1862,10 @@ material (`data/containers/materials.csv`) refuses what it reacts with.
 Hand-made durable goods are graded (defective to masterwork, from
 data/manufacturing.ron) by the crafter's skill level; the grade scales a
 tool's uses and its sale price, never merges across stacks, and survives
-storage. Machines make standard goods (v0.1353.0).
-- Native: `src/systems/crafting/quality.rs`, `src/systems/inventory/mod.rs` (`ItemStack::quality`, `add_item_q`, `TransferOp`), `src/systems/economy/mod.rs` (`vendor_sell`)
+storage. Machines make standard goods (v0.1353.0). Above standard the
+trading post pays the grade's multiple only up to a ceiling set by what
+the good's parts cost there, so no grade loops money (BUG-146, v0.1463.0).
+- Native: `src/systems/crafting/quality.rs`, `src/systems/inventory/mod.rs` (`ItemStack::quality`, `add_item_q`, `TransferOp`), `src/systems/economy/mod.rs` (`vendor_sell`), `src/systems/economy/parts.rs` (`graded_pay`, `parts_prices`)
 - Data: `data/manufacturing.ron` (`quality_levels`)
 
 ### Byproducts and Machine Output to Storage
@@ -2959,7 +2961,18 @@ approximate and drift as data grows; run `just data-counts` for live figures.)
 
 ### Status Effects Database (v0.90.0)
 80 status effects (buffs, debuffs, conditions) with duration and stacking rules.
-- Data: `data/status_effects.csv`
+- Data: `data/status_effects.csv` (every column read since BUG-162; stacking is
+  read but not acted on yet)
+
+### Illness and medical items (BUG-162, 2026-10-05)
+Food poisoning takes water over game days and passes on its own (Realistic two
+days, Forgiving one, Settings > Gameplay > Illness); drinking puts the water back,
+oral rehydration solution most (sachets in the starting kit, mixed by the
+`mix_ors` recipe); harm only through dehydration. The Inventory's Use button works
+for the medical items, each from data: health restored, effects ended by tag
+(antibiotics: `bacterial` only), a plain reason when it cannot help.
+- Code: `src/systems/illness.rs`, `src/systems/treatment.rs`, `src/systems/food.rs`
+- Data: `data/medical/illnesses.ron`, `data/medical/treatments.ron`
 
 ### Enchantments Database (v0.90.0)
 133 enchantments for equipment with tier scaling and compatibility rules.

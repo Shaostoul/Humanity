@@ -79,7 +79,8 @@ const DEFERRED_SYSTEMS: &[(&str, &str)] = &[
     // on). Safe no-op until something spawns a ProductionFacility entity.
     ("MedicalSystem", "scaffold; needs health/injury entities"),
     ("TransportationSystem", "scaffold; needs a transit network"),
-    ("HvacSystem", "scaffold; needs enclosed-space climate entities"),
+    // HvacSystem was DELETED (2026-10-05): never registered, superseded by the farming air
+    // step's heat model (src/systems/farming/heat.rs, BUG-155).
     // PlumbingSystem is now REGISTERED (v0.608): the live home water sim, coupled to power. It ticks
     // against WaterTank/WaterProducer/WaterConsumer/PlumbingCircuit entities, so it left this allowlist.
 ];

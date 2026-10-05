@@ -793,6 +793,13 @@ pub struct AppConfig {
     /// `settings.body_heat_realistic`.
     #[serde(default)]
     pub body_heat_realistic: bool,
+    /// Illness (BUG-162, systems::illness): false is Forgiving (food poisoning
+    /// runs half its course and takes half the water), true is Realistic (the
+    /// course and the water the data gives, data/medical/illnesses.ron). The
+    /// simplified mode by default, the house rule for deep systems. Held in
+    /// GuiState as `settings.illness_realistic`.
+    #[serde(default)]
+    pub illness_realistic: bool,
     /// Carrying weight (BUG-136, systems::encumbrance): false is Forgiving
     /// (the limit and a warning only), true is Realistic (an overload slows
     /// walking and stops jumps under gravity, and a load's mass weighs on
@@ -1488,6 +1495,7 @@ impl AppConfig {
             hostile_wildlife: state.settings.hostile_wildlife,
             vitals_drain: state.settings.vitals_drain,
             body_heat_realistic: state.settings.body_heat_realistic,
+            illness_realistic: state.settings.illness_realistic,
             carry_realistic: state.settings.carry_realistic,
             pipe_marking_full: state.settings.pipe_marking_full,
             death_realistic: state.settings.death_realistic,
@@ -1768,6 +1776,7 @@ impl AppConfig {
         state.settings.hostile_wildlife = self.hostile_wildlife;
         state.settings.vitals_drain = self.vitals_drain.clamp(0.0, 5.0);
         state.settings.body_heat_realistic = self.body_heat_realistic;
+        state.settings.illness_realistic = self.illness_realistic;
         state.settings.carry_realistic = self.carry_realistic;
         state.settings.pipe_marking_full = self.pipe_marking_full;
         state.settings.death_realistic = self.death_realistic;
@@ -2176,6 +2185,23 @@ mod play_mode_tests {
         assert!(fresh.settings.body_heat_realistic, "Realistic body heat stays chosen after a restart");
     }
 
+    /// The Illness mode (BUG-162, 2026-10-05) starts Forgiving and a chosen Realistic survives
+    /// a save and a load, through the GUI state, the JSON and back.
+    /// Seen red with `from_gui_state` writing `illness_realistic: false`: "the illness mode is
+    /// written" (the JSON held `"illness_realistic":false`).
+    #[test]
+    fn the_illness_mode_survives_a_save_and_a_load() {
+        let mut state = crate::gui::GuiState::default();
+        assert!(!state.settings.illness_realistic, "illness starts Forgiving");
+        state.settings.illness_realistic = true;
+        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
+        assert!(json.contains("\"illness_realistic\":true"), "the illness mode is written");
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        let mut fresh = crate::gui::GuiState::default();
+        back.apply_to_gui_state(&mut fresh);
+        assert!(fresh.settings.illness_realistic, "Realistic illness stays chosen after a restart");
+    }
+
     /// The pipe-marking mode (2026-10-04) starts Simplified and a chosen Full survives a save
     /// and a load, through the GUI state, the JSON and back.
     /// Seen red with `from_gui_state` writing `pipe_marking_full: false`: "the pipe marking
@@ -2387,6 +2413,8 @@ mod pbkdf2_migration_tests {
         assert_eq!(c.vitals_drain, 1.0);
         // Body heat starts Forgiving (the simplified mode is the default).
         assert!(!c.body_heat_realistic);
+        // Illness starts Forgiving too (BUG-162).
+        assert!(!c.illness_realistic);
         // Carrying weight starts Forgiving too (BUG-136).
         assert!(!c.carry_realistic);
         // Pipe markings start Simplified (2026-10-04).

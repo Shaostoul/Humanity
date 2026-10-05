@@ -3397,7 +3397,7 @@ still below real-world prices on the project's own wage scale.
 **Left:** quality grades still loop (BUG-146), and the big vehicles can no
 longer be hand-crafted from the backpack (BUG-147).
 
-## BUG-146: a better craft grade still makes a money loop at the vendor (OPEN, found 2026-10-04)
+## BUG-146: a better craft grade still makes a money loop at the vendor (FIXED (merging in v0.1463.0), found 2026-10-04)
 
 **Seen:** while fixing BUG-145. The vendor pays 0.5x a good's price times its
 craft grade (`data/manufacturing.ron`: good 1.5, excellent 2.5, masterwork
@@ -3413,6 +3413,86 @@ a vendor that buys any quantity at a fixed price. The fix belongs in how the
 vendor values grade and quantity (a price that responds to how much of a
 good it already holds, or grade paid on labour rather than on the whole
 price), not in lowering every price below 0.4x its parts.
+
+**Fix:** the trading post pays a better grade its multiple of the standard
+price only up to a ceiling set by what the good's parts cost there
+(`src/systems/economy/parts.rs`). At a grade whose multiple is m it pays
+the smaller of m times the standard price and the parts' price less the
+standard good's shortfall divided by m. Made from parts bought at the post,
+a standard good comes back (parts minus standard) short of what the parts
+cost; a good one comes back two thirds of that short, an excellent one two
+fifths, a masterwork one fifth. So no grade sells back for more than its
+parts cost; wherever the parts cost more than a standard good fetches,
+every grade fetches more than the one below it; and where the parts cost
+far more than the good sells for (most hand tools) a grade is paid its full
+multiple. A hammer (parts 16.50 at the post) now fetches 2, 7, 10, 12 and 14
+from poor to masterwork, where a masterwork fetched 35; a motorcycle (parts
+1560.79) 500, 1250, 1353, 1436 and 1498. Poor and defective are unchanged.
+
+The parts price is the least it takes to make the good from goods the post
+sells, over every recipe that makes it, with each input at its cheapest
+(the BUG-145 walk, moved from its test into `parts::cheapest_costs` so the
+game and the checks share one). It is worked out once when the data loads
+(`engine::registries`, `TradeGoodsRegistry::with_parts_prices`). A sale
+settles through `TradeGoodsRegistry::vendor_buy_price_graded`, and the
+trading post window lists the same price (`GuiTradeGood::parts_price`, both
+through `parts::graded_pay`; filling that field in the vendor catalog is the
+one `src/lib.rs` line, the catalog being built nowhere else), with a line
+saying a better grade never fetches more than its parts cost there. The
+grade multiples stay the data's (`data/manufacturing.ron`, whose notes now
+say how the post uses them); the rule added no new number.
+
+Why not the two suggestions above: a stock-driven price still pays the
+first sales in full (a masterwork vehicle's first sale paid about four
+times its parts), so it bounds the loop without closing it; and a bonus on
+the labour share pays nothing for most hand-made goods, which are priced
+below their parts, while still looping on the vehicles, priced up to twice
+theirs. Keeping its bids under its own asking price for the parts is the
+rule any dealer that both buys and sells has to keep, and it needs no
+memory of the post's stock, so nothing new is saved per game; a demand
+curve could sit on top of it later. The economy has no realism modes to
+pair it with; Creative and Dev crafting take no inputs, so selling what
+they make stays free money by those modes' design, as before.
+
+**Tests** (in `src/systems/economy/parts.rs` unless named):
+- `no_grade_sells_back_for_more_than_its_parts_cost`: for all 350 recipes
+  whose inputs the post sells or can be made from them (78 of them make a
+  graded good it buys) and every grade, ungraded and the six of
+  `data/manufacturing.ron`, a player with credits for 50 rounds buys the
+  parts at the cheapest, makes the recipe, sells all it makes back through
+  `vendor_sell` and goes round again while they can pay; their balance may
+  never rise above where it started. A recipe's other outputs are credited
+  at the most the post pays for them at any grade, so a graded by-product
+  could not hide a loop. Seen red with `vendor_sell`'s old body: 133
+  (recipe, grade) loops, 25 at Good, 43 at Excellent and 65 at Masterwork,
+  among them all twelve vehicle recipes at Excellent and Masterwork and ten
+  at Good (a light mech from 74,960.55 of parts sold for 300,000 at
+  Masterwork).
+- `a_masterwork_still_fetches_more_than_a_standard_good`: a masterwork
+  hammer sold through `vendor_sell` fetches more than a standard one; for
+  all 87 durable goods the post trades each grade from poor up fetches at
+  least what the grade below does, and the 80 whose parts leave room fetch
+  a masterwork premium. It cannot fail on the old pricing (a masterwork
+  paid five times standard), so it was seen red on a variant that paid no
+  premium ("a masterwork Hammer fetches 7, no more than a standard one
+  (7)"), with the loop check green there: neither check can be met by
+  giving up the other.
+- `engine::registries::tests::the_loaded_trading_post_caps_a_grade_by_its_parts`:
+  the game's own loader gives the trading post its parts prices. Seen red
+  with them left out of the load ("the game's trading post has no parts
+  price for the hammer").
+- `the_grade_rule_on_hand_numbers` pins the rule on the hammer's numbers;
+  `systems::economy::tests::a_sale_is_priced_by_grade` now checks a sale
+  against the graded price (seen red on the old body: a masterwork paid
+  35, not 14). BUG-145's checks pass on the moved walk.
+
+**Noticed on the way, not checked:** the BUG-145 walk prices tap water as
+bought (2 credits a litre), but a craft draws it from the home's tanks.
+Counted at nothing, three recipes would come out ahead at standard grade
+(`cook_honey`, a litre of water into honey that sells for 2;
+`craft_antibiotics`; `craft_healing_potion`). Whether that is a loop in
+play depends on what refilling the tanks costs, which is modelled as a
+closed loop (`systems::life_support`), and was not looked into here.
 
 ## BUG-147: the big vehicles cannot be hand-crafted from the backpack (FIXED v0.1457.0, found 2026-10-04)
 
@@ -3847,7 +3927,7 @@ is not modelled; the thermostat is set in data, not from a dial in the game
 (docs/design/in-app-ops.md); heaters can be placed only aboard, not in a shelter built on
 a planet (BUG-153's campfire is the planet side); and `data/hvac.ron`'s other heat makers
 (heat pump, wood stove) have no machine yet. The never-registered `HvacSystem`
-(`src/systems/hvac.rs`) is superseded by this and could be deleted.
+(`src/systems/hvac.rs`), superseded by this, was deleted the same day.
 
 ## BUG-156: trees float in the air beside the Silverdale waterfront (OPEN, found 2026-10-05)
 
@@ -4019,7 +4099,7 @@ frame rate and refuse to judge, as "contaminated" rather than FAIL, when frames 
 enough to break the interpolation the check measures. A judge test feeds a capture with
 400 ms frames and expects "contaminated", not a FAIL.
 
-## BUG-162: medicine cures nothing, and food poisoning kills in about 8 minutes (OPEN, found 2026-10-05)
+## BUG-162: medicine cures nothing, and food poisoning kills in about 8 minutes (FIXED (merging in v0.1463.0), found 2026-10-05)
 
 **Seen (by the sanitation guides' fixer, confirmed by reading the code):**
 - The inventory's generic **Use** button discards its click (src/gui/pages/inventory.rs,
@@ -4039,11 +4119,68 @@ or Water Makes You Sick says exactly this). Antibiotics help only some bacterial
 and the advice is not to take them for ordinary food poisoning. The game teaches the
 opposite: an eight-minute death with medicine in the pack that cannot be taken.
 
-**Fix (not started):** illness as fluid loss on the body's water (the vitals already track
-it), on the game clock, cleared by time and helped by drinking (oral rehydration more than
-plain water), with the severe course for the vulnerable in Realistic and a milder one in the
-simplified mode (the dual-mode house rule); the Use button applying each medical item's
-effect from data (what it heals, what it removes, what it does not help), so antibiotics
-clear only effects marked as bacterial; a test that food poisoning untreated does not kill a
-healthy adult in minutes, that drinking shortens it, and that Use on each medical item does
-what its data says.
+**Fix (2026-10-05):** the illness takes WATER, and the medical items work from data.
+- **The illness.** Food Poisoning is a `disease` row of `data/status_effects.csv` (course
+  172,800 s, two days, the middle of the CDC's "1 to 3 days" for norovirus; no damage of its
+  own; `speed:0.85` while it lasts) with a row in the new `data/medical/illnesses.ron`: it
+  takes 1.5 L of water a day from Hydration on top of the usual 2.5 L (a labelled game choice
+  under WHO's 2 L a day of rehydration solution for an adult with cholera), on the game clock,
+  scaled by the Vitals drain slider, and passes by itself (`src/systems/illness.rs`, applied in
+  `src/systems/food.rs`). Every `disease` effect now counts game seconds
+  (`StatusEffects::tick_with`). Harm comes only through the existing dehydration drain, and a
+  death while it was taking water reads "dehydration from Food Poisoning". While an illness
+  takes water a drink keeps only a share of its water: oral rehydration solution all,
+  plain water and other drinks 0.75, juice, the energy drink, coffee and tea 0.5 (labelled
+  game choices from the CDC's guidance). New items: Oral Rehydration Salts (`ors_sachet_0`,
+  medical; four in the starting kit, sold at the trading post) and Oral Rehydration Solution
+  (1 L) (`ors_solution_0`, a beverage that keeps 24 hours, the WHO packet's limit), made by
+  the hand recipe `mix_ors` from a sachet and a litre of drinking water (the backpack's or the
+  tap's). The player is told when it starts (what it is, how long it lasts in this mode, what
+  helps) and when it passes.
+- **The modes.** Settings > Gameplay > Illness: Forgiving, the default, runs half the course
+  and takes half the water (`forgiving` shares in the data); Realistic, the data's numbers.
+  `AppConfig::illness_realistic`, published by `engine::survival_env`, hint read from the data.
+- **Use.** `data/medical/treatments.ron` gives every medical item (all 18 in `data/items.csv`)
+  what it restores, which effects it ends by a TAG on the effect, what it says when used, and
+  what it says when it would not help (then it is kept, not used up, with what helps any
+  illness the player has). Bandage 5 health, Medkit 30, Advanced Medkit 50 (labelled game
+  choices), each ending `bleeding`; Antibiotics end only `bacterial` effects (Infection,
+  Infected Wound, Plague), so not Food Poisoning; the Antidote ends `toxin` (Poisoned); the
+  other twelve say why the game has no use for them yet (pain, venom, fractures, transfusion,
+  a stopped heart, vitamins...). The Use button shows only for items with a row
+  (`treatment::has_use`) and rides the new `use_item_request` channel (`src/systems/treatment.rs`;
+  `src/lib.rs` touched only in the inventory-action bridge beside Drink).
+- **The data and the code agree.** `dispel_type`, which nothing read, is gone from the CSV;
+  `StatusEffectDef` declares every column and refuses a row with an unknown one
+  (`deny_unknown_fields`). `stackable`, `max_stacks` and `damage_type` are read but not acted
+  on, and the CSV header says so.
+
+Tests, each seen red on the code before the fix (main at ee2947a79, with this change's new
+data but the old Food Poisoning row): in `src/systems/illness_tests.rs`,
+`an_untreated_healthy_adult_with_food_poisoning_is_alive_after_an_hour` (it killed),
+`food_poisoning_takes_the_water_its_data_says`, `while_ill_oral_rehydration_solution_puts_back_more_than_water`,
+`drinking_through_food_poisoning_keeps_a_body_from_harm`,
+`the_simplified_mode_is_milder_than_realistic`,
+`food_poisoning_tells_the_player_when_it_starts_and_when_it_passes`,
+`use_on_each_medical_item_does_what_its_data_says`,
+`antibiotics_do_not_end_food_poisoning_but_end_a_bacterial_infection` and
+`every_status_effect_column_is_read`; `drying_out_from_food_poisoning_says_so_on_the_death_screen`
+(red with the death line's illness removed); and
+`config::play_mode_tests::the_illness_mode_survives_a_save_and_a_load` (red with the save leg
+writing false). The Library's game sections were corrected to match
+(When Food or Water Makes You Sick, How Your Body Works, Animal Health and Disease, First Aid
+Until Help Arrives, Preventing and Spotting Infection, The Germs That Matter, Microbes Good and
+Bad, Helping Your Neighbours After a Disaster).
+
+**Left for later (not this bug):**
+- Nobody in the game is a baby, old or already weak (the player has no `Age`), so the faster,
+  more dangerous course for the vulnerable has no one to apply to; nor does vomiting that keeps
+  a person from drinking. Both belong with a body that can be vulnerable.
+- Nothing applies Bleeding, Infection, Infected Wound, Plague or Poisoned yet, so in play the
+  dressings and medkits only restore health and Antibiotics and the Antidote are always kept;
+  pain, fractures, venom, allergy and transfusion have no model at all.
+- No effect stacks (`stackable`, `max_stacks`) and damage has no type (`damage_type`).
+- Every drink restores the same 30 Hydration points whatever its volume (`DRINK_HYDRATION`,
+  src/systems/food.rs), so the litre of rehydration solution counts no more than a 500 mL
+  bottle; at 20 points a litre it would be 20. A drink-volume fix changes the whole thirst
+  economy and is its own change.

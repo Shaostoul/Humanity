@@ -223,7 +223,25 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &std::path::
     match crate::embedded_data::read_data_or_embedded(data_dir, "trade_goods.ron") {
         Some(text) => match crate::systems::economy::TradeGoodsRegistry::from_ron(text.as_bytes()) {
             Ok(reg) => {
-                log::info!("Loaded {} trade goods from trade_goods.ron", reg.len());
+                // The parts prices that cap what a better craft grade fetches
+                // (BUG-146), from the items and recipes loaded above. With
+                // either missing nothing can be crafted, so there is no loop
+                // to stop and the goods go in without them.
+                let reg = match (
+                    store.get::<crate::systems::inventory::ItemRegistry>("item_registry"),
+                    store.get::<crate::systems::crafting::RecipeRegistry>("recipe_registry"),
+                ) {
+                    (Some(items), Some(recipes)) => reg.with_parts_prices(items, recipes),
+                    _ => {
+                        log::warn!("trade goods loaded without items or recipes: no parts prices, every grade paid in full");
+                        reg
+                    }
+                };
+                log::info!(
+                    "Loaded {} trade goods from trade_goods.ron ({} with a parts price)",
+                    reg.len(),
+                    reg.parts.len()
+                );
                 store.insert("trade_goods_registry", reg);
             }
             Err(e) => log::warn!("Failed to parse trade_goods.ron: {e}"),
@@ -301,5 +319,39 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &std::path::
                 None => log::warn!("{} not found: no tap water or vessels this session", FluidTable::FILE),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// BUG-146 (2026-10-05): the trading post the game loads caps a better
+    /// grade by the parts price. The economy's own checks build the registry
+    /// with its parts prices themselves, so without this one the game could
+    /// load trade goods without them, paying every grade in full (the money
+    /// loop), and every check would still pass. Loaded here through
+    /// `load_data_registries`, the game's own loader, from the shipped data.
+    ///
+    /// Seen red with the parts prices left out of the load:
+    ///   the game's trading post has no parts price for the hammer
+    #[test]
+    fn the_loaded_trading_post_caps_a_grade_by_its_parts() {
+        let mut store = DataStore::new();
+        load_data_registries(&mut store, &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data"));
+        let goods = store
+            .get::<crate::systems::economy::TradeGoodsRegistry>("trade_goods_registry")
+            .expect("the trade goods load");
+        let levels = store
+            .get::<crate::systems::crafting::quality::QualityLevels>("quality_levels")
+            .expect("the grades load");
+        let parts = goods.parts_price("hammer_0").expect("the game's trading post has no parts price for the hammer");
+        let top = levels.levels.len() as u8;
+        let master = goods.vendor_buy_price_graded("hammer_0", top, Some(levels)).expect("it buys a masterwork hammer");
+        assert!(
+            (master as f64) < parts,
+            "a masterwork hammer fetches {master} at the loaded trading post, its parts cost {parts:.2} there"
+        );
+        assert!(goods.parts.len() >= 60, "only {} goods have a parts price", goods.parts.len());
     }
 }

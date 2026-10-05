@@ -1,0 +1,99 @@
+// What an illness does to the body, and what helps (BUG-162, 2026-10-05).
+// Read by src/systems/illness.rs; the food system applies it every tick
+// (src/systems/food.rs). Disk first, with a copy built into the game as the
+// fallback.
+//
+// An ILLNESS is a status effect of type "disease" in data/status_effects.csv.
+// Its row there gives its name, how long it lasts and its tags: `duration_s`
+// is the Realistic course, counted on the game clock with the body's other
+// daily needs (hunger, thirst, sleep), so the time-speed setting and a night
+// asleep move it along; and the tags decide which medicines end it
+// (data/medical/treatments.ron). This file gives what it does to the body's
+// water while it lasts, and what the player is told.
+//
+// THE MODEL. A stomach illness from food is mostly the body losing water and
+// salts through vomiting and diarrhoea for a day or a few days, and then it
+// passes. Most healthy adults get better with fluids and rest, and the danger
+// is drying out, worst for babies, older people and anyone already weak (the
+// Library's When Food or Water Makes You Sick, from the CDC, NIDDK and the
+// FDA). So an illness here does no harm of its own: it takes water, and harm
+// comes only through dehydration, when the Hydration bar runs empty because
+// the player did not drink enough (src/systems/food.rs). Nobody in the game
+// is a baby, old or already ill yet, so the faster, more dangerous course
+// they would have is not modelled (docs/BUGS.md, BUG-162).
+//
+// Sources, each read on 2026-10-05:
+//   CDC, "About Norovirus", 24 April 2024,
+//     https://www.cdc.gov/norovirus/about/index.html: "Most people with
+//     norovirus illness get better within 1 to 3 days"; "Oral rehydration
+//     fluids that you can get over the counter are most helpful for mild
+//     dehydration."; "Sports drinks and other drinks without caffeine or
+//     alcohol can help with mild dehydration. However, these drinks may not
+//     replace important nutrients and minerals."; "Antibiotic drugs will not
+//     help treat norovirus infections because they fight bacteria, not
+//     viruses."
+//   CDC, King CK et al., "Managing Acute Gastroenteritis Among Children",
+//     MMWR Recommendations and Reports 52(RR-16), 21 November 2003,
+//     https://www.cdc.gov/mmwr/preview/mmwrhtml/rr5216a1.htm: "The mechanism
+//     essential to the efficacy of ORS is the coupled transport of sodium and
+//     glucose molecules at the intestinal brush border."; "the routine use of
+//     antimicrobial agents for treating diarrhea wastes resources and might
+//     lead to increased antimicrobial resistance."
+//   CDC, "Treating Cholera", 29 May 2025,
+//     https://www.cdc.gov/cholera/treatment/index.html: "Sugary drinks can
+//     make diarrhea worse."
+//   MSF, Cholera guideline, Table 5.5 "Quantity of ORS to maintain hydration
+//     (WHO)", https://medicalguidelines.msf.org/en/viewport/CHOL/english/5-5-no-dehydration-or-maintenance-therapy-32409720.html:
+//     for patients over 10 years, "at least 200-250 ml" after each loose
+//     stool and "2000 ml/day".
+(
+    // Settings > Gameplay > Illness. Forgiving, the default (the house rule
+    // for deep systems): the course lasts this share as long and takes this
+    // share of the water. Realistic is the whole of both. A GAME CHOICE: the
+    // same "half" the body heat and garden modes use.
+    forgiving: (course_share: 0.5, water_share: 0.5),
+
+    illnesses: [
+        (
+            effect: "food_poisoning",
+            // Its course: 48 hours (172800 s, data/status_effects.csv), the
+            // middle of the CDC's "1 to 3 days" for norovirus, the commonest
+            // cause of vomiting and diarrhoea from food.
+            //
+            // Water lost a day while it lasts, on top of the 2.5 L a resting
+            // body loses anyway (src/systems/food.rs, HYDRATION_PER_LITRE). A
+            // GAME CHOICE for a moderate bout in an adult. Real losses run
+            // from little more than a normal day's in a mild bout to far more
+            // in cholera, the heaviest kind of watery diarrhoea; this sits
+            // under the 2 L a day of rehydration solution WHO's guidance gives
+            // an adult with cholera who is not yet dried out, to keep up with
+            // what it takes (MSF, above). Drinking nothing at all, a Realistic
+            // bout empties a well watered body in about a day.
+            water_l_per_day: 1.5,
+            // What the player is told. The game puts "It passes on its own in
+            // about <the course in this mode>." between `onset` and `helps`,
+            // and names the illness before `helps` when a medicine cannot help.
+            onset: "Something you ate has made you ill: Food Poisoning. Vomiting and diarrhoea will take water out of you.",
+            helps: "Drink while it lasts. Oral rehydration solution puts back the most (mix a sachet into a litre of water), plain water most of it, and sugary or caffeinated drinks the least. Antibiotics do not help it.",
+            passed: "The Food Poisoning has passed. Drink until your Hydration is back up.",
+        ),
+    ],
+
+    // While an illness is taking water, the share of each drink's water the
+    // body keeps. A GAME CHOICE that puts the sources above into numbers:
+    // oral rehydration solution keeps all of it, because its sodium and
+    // glucose are taken in together even while the gut is losing water; plain
+    // water and other drinks keep most of it, putting water back but not the
+    // salts; sugary or caffeinated drinks keep half. A drink not listed keeps
+    // `others`. While well, every drink keeps all of its water.
+    drinks_while_ill: (
+        others: 0.75,
+        kept: [
+            ("ors_solution_0", 1.0),
+            ("juice_0", 0.5),
+            ("energy_drink_0", 0.5),
+            ("coffee_0", 0.5),
+            ("tea_0", 0.5),
+        ],
+    ),
+)

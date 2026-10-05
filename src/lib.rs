@@ -5787,6 +5787,10 @@ mod native_app {
                             }
                         }
                     }
+                    // Use: the clicked medical item to FoodSystem's use channel (BUG-162).
+                    if let Some(item_id) = state.gui_state.pending_use_item.take() {
+                        crate::systems::treatment::request_use(&mut state.data_store, item_id);
+                    }
                     // Gardening: bridge plant/water/harvest/dev-grow to FarmingSystem.
                     if let Some(seed_id) = state.gui_state.pending_plant_seed.take() {
                         if let Some(slot) = state
@@ -12044,6 +12048,7 @@ mod native_app {
                                     category: g.category.clone(),
                                     buy_price: goods.vendor_sell_price(&g.id).unwrap_or(1),
                                     sell_price: goods.vendor_buy_price(&g.id).unwrap_or(0),
+                                    parts_price: goods.parts_price(&g.id),
                                 })
                                 .collect();
                             list.sort_by(|a, b| {

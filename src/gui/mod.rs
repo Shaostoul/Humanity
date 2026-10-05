@@ -1316,6 +1316,9 @@ pub struct GuiState {
     pub pending_consume_item: Option<String>,
     /// Item id the player clicked "Drink" on this frame → FoodSystem (restores hydration).
     pub pending_drink_item: Option<String>,
+    /// Medical item id the player clicked "Use" on this frame → FoodSystem
+    /// (BUG-162: what it does is its row in data/medical/treatments.ron).
+    pub pending_use_item: Option<String>,
     /// True for the frame the player clicked "Short rest" → a ten-minute nap via FoodSystem (systems::sleep::short_rest).
     pub pending_rest: bool,
     /// True for the frame the player clicked "Compost" → waste→fertilizer via FoodSystem.
@@ -3526,6 +3529,7 @@ impl Default for GuiState {
             build_status: String::new(),
             pending_consume_item: None,
             pending_drink_item: None,
+            pending_use_item: None,
             pending_rest: false,
             pending_compost: false,
             pending_fertilize_crop: None,
@@ -4515,6 +4519,10 @@ pub struct SettingsState {
     /// comes at half the rate), true is Realistic. Saved as
     /// AppConfig::body_heat_realistic; published by engine::survival_env.
     pub body_heat_realistic: bool,
+    /// Illness mode (BUG-162, systems::illness): false is Forgiving (the
+    /// default: a shorter course taking half the water), true is Realistic.
+    /// Saved as AppConfig::illness_realistic; published by engine::survival_env.
+    pub illness_realistic: bool,
     /// Carrying weight mode (BUG-136, systems::encumbrance): false is
     /// Forgiving (the default: the same limit, a warning only), true is
     /// Realistic (an overload slows walking and stops jumps, and a load's
@@ -4641,6 +4649,7 @@ impl Default for SettingsState {
             hostile_wildlife: false,
             vitals_drain: 1.0,
             body_heat_realistic: false,
+            illness_realistic: false,
             carry_realistic: false,
             pipe_marking_full: false,
             death_realistic: false,
