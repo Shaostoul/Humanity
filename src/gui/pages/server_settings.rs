@@ -2135,6 +2135,8 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         // clock, world_clock_admin.rs), and this Save does not send it: follow
         // the server's, so a clock change never reads as an unsaved edit here.
         draft.world_time_scale = cached.world_time_scale;
+        // Likewise the fleet's supply (Fleet supply, fleet_ledger.rs).
+        draft.fleet_supply_mode = cached.fleet_supply_mode.clone();
         // v0.262.4: the obsolete "Per-role limits" header + the dead
         // pointer hint were trimmed (operator: "trimmed of obsolete
         // options now"). Per-role chars/upload-MB/uploads-kept moved to

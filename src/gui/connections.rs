@@ -204,6 +204,9 @@ impl GuiState {
         // Trades are per server (2026-10-02): a switch re-fetches its own.
         self.trades.clear();
         self.trades_synced = false;
+        // So is the fleet ledger (2026-10-04, finding 16): the old server's ledger, stores and
+        // totals go; gives held for it stay held, tagged with it, and are never sent here.
+        self.fleet.forget_server();
         // Sealed-sender DMs: the local history store and fetch high-water
         // are per (identity, server) — drop them so the next server loads
         // its own store from disk and re-fetches its own mailbox.
@@ -417,12 +420,15 @@ pub(crate) fn changed_under_edits(
 }
 
 /// Whether two sets of server settings hold the same values for everything the Server
-/// Settings page's Save sends: all of them except the world clock's speed, which has its own
-/// control and Apply (pages/world_clock_admin.rs), and the save stamp (`updated_at`,
+/// Settings page's Save sends: all of them except the world clock's speed and the fleet's
+/// supply, which have their own controls and Apply (pages/world_clock_admin.rs,
+/// pages/fleet_ledger.rs), and the save stamp (`updated_at`,
 /// `updated_by`), which every save changes, the clock's Apply included. Pure.
 fn same_for_the_page(a: &crate::relay::storage::ServerSettings, b: &crate::relay::storage::ServerSettings) -> bool {
     let mut a = a.clone();
     a.world_time_scale = b.world_time_scale;
+    // The fleet's supply has its own control and Apply too (pages/fleet_ledger.rs).
+    a.fleet_supply_mode = b.fleet_supply_mode.clone();
     a.updated_at = b.updated_at;
     a.updated_by = b.updated_by.clone();
     a == *b

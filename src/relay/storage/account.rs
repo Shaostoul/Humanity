@@ -101,6 +101,11 @@ impl Storage {
             // reputation there), kept so a returning player resumes (ship homes 1b, round 4 of
             // the review: it was neither exported nor erased).
             grab("game_progress", "SELECT current_quest, completed_quests, xp, reputation, updated_at FROM player_progress WHERE public_key = ?1", &[&key]);
+            // Their fleet ledger: what they used from the fleet and gave it (2026-10-04,
+            // storage/fleet_ledger.rs), oldest first. Without the row number: it counts every
+            // player's lines, so the gaps in one player's numbers would say how much everyone
+            // else did in between (the review's finding 8).
+            grab("fleet_ledger", "SELECT kind, direction, item_id, quantity, value, game_time, real_day, give_id, home, adjusted FROM fleet_ledger WHERE public_key = ?1 ORDER BY id ASC", &[&key]);
             // That this key erased its account here earlier, while this server still
             // remembers it (BUG-135, 2026-10-04): only the day and the window it is kept for,
             // under a one-way fingerprint of the key. It is listed because it is held about
@@ -255,6 +260,8 @@ impl Storage {
             del("ship_plots", "DELETE FROM game_plots WHERE owner_did = ?1", &[&plot_owner]);
             // Their progress in the shared world (round 4 of the 1b review).
             del("game_progress", "DELETE FROM player_progress WHERE public_key = ?1", &[&key]);
+            // Their fleet ledger (2026-10-04).
+            del("fleet_ledger", "DELETE FROM fleet_ledger WHERE public_key = ?1", &[&key]);
             // Fold the secure_delete-zeroed pages out of the WAL.
             let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
             // What was kept on purpose above is said in the receipt as not erased, the way a
@@ -303,7 +310,8 @@ impl Storage {
             OR EXISTS(SELECT 1 FROM server_members WHERE public_key = ?1)
             OR EXISTS(SELECT 1 FROM registered_names WHERE public_key = ?1)
             OR EXISTS(SELECT 1 FROM game_plots WHERE owner_did = ?2)
-            OR EXISTS(SELECT 1 FROM player_progress WHERE public_key = ?1)";
+            OR EXISTS(SELECT 1 FROM player_progress WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM fleet_ledger WHERE public_key = ?1)";
         self.with_read_conn(|conn| conn.query_row(q, params![key, plot_owner], |r| r.get::<_, bool>(0)))
             .unwrap_or_else(|e| {
                 // Unknown is said as "not finished": that note only asks the person to erase

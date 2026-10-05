@@ -11,6 +11,31 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1458.0: the fleet never runs out, and you can see what you use and
+  give.** On a shared server the fleet's stores are unlimited for now, so
+  nobody misses a meal. Every meal you take and the ship's power your home
+  draws are counted as used, and anything you give the fleet at a ship store
+  is counted as given, each at its value in credits. Inventory > The fleet
+  shows whether you are in the black or in the red. Only you see your own
+  ledger. A server admin can switch to a realistic mode where stores can run
+  out.
+
+- **v0.1457.3: three Library guides on water, power and keeping food
+  cold.** Wells and Groundwater (never going down a well, what to do with a
+  well after a flood, setbacks from a septic system), Water and Wind Power
+  (how much power a stream or the wind can really give, why to design for the
+  driest month, and keeping a grid-tied system from feeding the line in an
+  outage), and Cold Storage Without a Fridge (the 40 F rule, root cellars, and
+  why food never goes out in the snow). The Library now has 89 sourced guides.
+
+- **v0.1457.2: three Library guides on your body and on pests.** How Your
+  Body Works (vital signs, and the emergencies where minutes count: heart
+  attack, cardiac arrest, stroke, sepsis, heatstroke, carbon monoxide),
+  Invasive Species (what makes a species invasive, giant hogweed, cleaning
+  boots and boats, and why firewood should not travel), and Rats, Flies,
+  Mosquitoes and Ticks (cleaning up after rodents safely, traps and bait
+  stations, and removing a tick). The Library now has 86 sourced guides.
+
 - **v0.1457.1: six more Library guides, on animals and on making things.**
   How Animals Work, Keeping Animals (water, feed, fencing, hay fires, keeping
   new animals apart), and Animal Health and Disease (taking a temperature,

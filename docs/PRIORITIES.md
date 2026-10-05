@@ -111,7 +111,7 @@ every load-bearing claim checked by an adversarial verifier
   on main, all rigs green (67/67 per --plots order, the crew judged where they
   are drawn). NPC homesteads ANSWERED 2026-10-04: their contribution stays 0, and during
   early development the fleet is UNLIMITED with a per-player ledger of what
-  each player used and contributed, in the red or the black (building now). NEXT: increment 4,
+  each player used and contributed, in the red or the black (built 2026-10-04 on branch fleet-ledger: the setting fleet_supply_mode, the ledger, Inventory > The fleet, Server Settings > ADMIN > Fleet supply; design doc, increment 3, "The fleet ledger, as built"). NEXT: increment 4,
   getting around at ship scale (the relay's speed check with a correction
   instead of a freeze, transit links with stable ids, "aboard" as inside the
   ship's bounds, game delivery by zone, an air volume per home). Left for later (design doc section 7): a Dev move of the plot
@@ -217,6 +217,19 @@ responds to how much of a good it already holds, not lower prices). Smaller:
 bandages yield 8 against 5 plain, several item weights differ between
 items.csv and trade_goods.ron, and herbal_tea_0 and brass_key_0 are named
 by data but are not items.
+
+**Game gaps the Library fact checks found (2026-10-04),** each verified in
+the code by the guide writers under the default settings: health and vitals
+are never saved; `data/medical.ron` is never applied (its system is not
+registered with the game); `data/species.json` and `data/geology.ron` are not
+read by anything; farm animals have no illness, feed or water needs and do not
+breed; nothing in the game makes Scrap Metal unless the Dev page spawns its
+robots; the water pump card said 12 L/min (fixed v0.1452.1). Also: the
+groundwater model in `hydrology.rs` is not running, so the well pump has no
+aquifer behind it; the wind turbine makes a constant 4.4 W with no wind
+model, and there is no water power; only food carried in an inventory
+spoils (the Freezer and pantry do not age food, the food data's temperature
+zones are unused, and the spoilage clock is not saved between launches).
 
 ### 1. Environment regions: the rest of the arc BUG-080 opened
 

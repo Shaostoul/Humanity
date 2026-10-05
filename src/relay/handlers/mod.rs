@@ -4,6 +4,7 @@
 pub mod announce;
 pub mod broadcast;
 pub mod federation;
+pub mod fleet_ledger;
 pub mod game_interest;
 pub mod game_state;
 pub mod home_plots;

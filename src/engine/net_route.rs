@@ -11,6 +11,10 @@ use crate::terrain::planet::PlanetDef;
 pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
     use crate::net::protocol::NetMessage;
     let Ok(v) = serde_json::from_str::<serde_json::Value>(payload) else { return; };
+    // The fleet ledger's answers (2026-10-04, engine/fleet.rs).
+    if crate::engine::fleet::on_game_message(state, &v) {
+        return;
+    }
     let arr3 = |val: &serde_json::Value| -> Option<[f32; 3]> {
         let a = val.as_array()?;
         if a.len() != 3 { return None; }
@@ -33,6 +37,8 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
             }
             // Increment 4: a fresh spawn starts the relay's correction count again.
             crate::engine::move_check::on_welcome(state, &v);
+            // The fleet's stores, a fresh power baseline, the ledger (engine/fleet.rs).
+            crate::engine::fleet::on_welcome(state, &v);
             if let Some(id) = v.get("player_id").and_then(|x| x.as_u64()) {
                 let own_id = id as u32;
                 // Welcome first (sets our local_player_id so the self-filter +

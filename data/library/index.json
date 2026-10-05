@@ -168,6 +168,15 @@
           ]
         },
         {
+          "title": "Invasive Species",
+          "file": "invasive_species.md",
+          "tags": [
+            "guide",
+            "real",
+            "safety"
+          ]
+        },
+        {
           "title": "Reading the Tide",
           "file": "reading_the_tide.md",
           "tags": [
@@ -334,6 +343,16 @@
         {
           "title": "Fermenting Vegetables",
           "file": "fermenting_vegetables.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
+          "title": "Cold Storage Without a Fridge",
+          "file": "cold_storage_without_a_fridge.md",
           "tags": [
             "guide",
             "real",
@@ -571,6 +590,16 @@
           ]
         },
         {
+          "title": "Wells and Groundwater",
+          "file": "wells_and_groundwater.md",
+          "tags": [
+            "guide",
+            "real",
+            "water",
+            "safety"
+          ]
+        },
+        {
           "title": "Testing Water",
           "file": "testing_water.md",
           "tags": [
@@ -736,6 +765,17 @@
           ]
         },
         {
+          "title": "Water and Wind Power",
+          "file": "water_and_wind_power.md",
+          "tags": [
+            "guide",
+            "real",
+            "power",
+            "water",
+            "safety"
+          ]
+        },
+        {
           "title": "Insulation and Heat Loss",
           "file": "insulation_and_heat_loss.md",
           "tags": [
@@ -783,12 +823,34 @@
       "name": "When Somebody Is Hurt",
       "docs": [
         {
+          "title": "How Your Body Works",
+          "file": "how_your_body_works.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "safety",
+            "beginner"
+          ]
+        },
+        {
           "title": "Handwashing and Hygiene",
           "file": "handwashing_and_hygiene.md",
           "tags": [
             "guide",
             "real",
             "health",
+            "safety"
+          ]
+        },
+        {
+          "title": "Rats, Flies, Mosquitoes and Ticks",
+          "file": "rats_flies_mosquitoes_and_ticks.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "shelter",
             "safety"
           ]
         },

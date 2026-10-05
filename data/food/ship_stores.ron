@@ -18,6 +18,15 @@
 // hours apart = 400 real seconds) a walk to the mess hall and 40 s at the table about every
 // 7 real minutes.
 //
+// UNLIMITED OR STOCKED (the operator, 2026-10-04: "For the sake of simplicity during early
+// development we'll say the fleet has unlimited of everything and just track what they player
+// uses and contributes."). The server setting `fleet_supply_mode` (Server Settings > ADMIN >
+// Fleet supply) says which: "unlimited", the default, where a meal is always there and the
+// stock below is never drawn on, so nobody misses a meal; or "stocked", the realistic mode, where
+// everything below holds exactly as written. In both, a meal a player takes is a "used" line of
+// their fleet ledger (data/ship/fleet_ledger.ron prices it), and what they give the fleet is
+// the other side of it.
+//
 // Every number below is a game default chosen for this increment, NOT a sourced figure.
 //
 //   stores        one row per store: id, label, the room it stands in (`place`, a room id of the
@@ -31,7 +40,8 @@
 //   ship_farms_meals_per_day
 //                 what fills the stores today: a stand-in for the ship's farms (the agricultural
 //                 bay, the Commons garden) until goods are really carried aboard (the design's
-//                 increment 9, shipments). Players put nothing in yet. Meals per GAME day: 18
+//                 increment 9, shipments). What players give the fleet is recorded in their
+//                 ledger and does not fill this stock yet. Meals per GAME day: 18
 //                 feeds the five crew who eat (15 a day at three meals each) with a little over
 //                 for players.
 //   npc_homestead_self_provided
@@ -40,11 +50,10 @@
 //                 `household: "homestead"`); the rest come from these stores. 0.8 is "mostly".
 //                 No shipped NPC lives on a homestead yet, so this waits for the first ones.
 //   npc_homestead_fleet_meals_per_day
-//                 OPEN QUESTION FOR THE OPERATOR (not decided here): how much an NPC homestead
-//                 gives the fleet's stores, balanced against what human players give. Meals a
-//                 day that EACH NPC homestead household puts into these stores. 0.0 is a
-//                 placeholder that means "nothing until he decides"; like the share above it
-//                 changes nothing until an NPC lives on a homestead.
+//                 Meals a day that EACH NPC homestead household puts into these stores.
+//                 ANSWERED by the operator on 2026-10-04: "We'll keep it to 0 for now. Once we
+//                 get the player stuff sorted we'll worry about NPCs for the market." So 0.0;
+//                 like the share above it, it changes nothing until an NPC lives on a homestead.
 (
     stores: [
         (

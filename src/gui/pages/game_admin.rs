@@ -37,6 +37,9 @@ pub fn draw_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.add_space(theme.spacing_md);
     // How fast the shared world's clock runs (2026-10-04, 72x by default).
     super::world_clock_admin::draw(ui, theme, state);
+    ui.add_space(theme.spacing_md);
+    // Whether the fleet's stores can run out, and the fleet's totals (2026-10-04).
+    super::fleet_ledger::draw_admin(ui, theme, state);
     if !state.game_admin_status.is_empty() {
         ui.add_space(theme.spacing_sm);
         ui.label(
@@ -301,7 +304,7 @@ fn send_game_banned_list_request(state: &GuiState) {
 
 /// Format a Unix-ms timestamp as `YYYY-MM-DD HH:MM` (UTC), chrono-free
 /// (same Howard Hinnant civil-date math as server_settings::format_ban_date).
-fn format_ban_date(ms: i64) -> String {
+pub(crate) fn format_ban_date(ms: i64) -> String {
     if ms <= 0 {
         return "unknown".to_string();
     }
