@@ -3644,8 +3644,8 @@ the game. Three module headers also name data files that do not exist (`data/veh
 
 **Fix:** the data keys renamed to the loaders' names (ports, procedures,
 space_infrastructure; no aliases, nothing else read the old names), with
- and
-, both seen red
+`docking::tests::the_shipped_docking_file_fills_every_list` and
+`transportation::tests::the_shipped_transportation_file_fills_every_list`, both seen red
 first (the ports and the space infrastructure arrived empty). The three module headers now
 say what loads (or that nothing does yet). Both systems are still unwired scaffolds, so
 nothing in the game changed. Still open, the class: a lint that every top-level key in a
