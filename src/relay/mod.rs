@@ -823,25 +823,16 @@ pub async fn run_relay() {
                 crate::relay::handlers::msg_handlers::sweep_link_dead(&game_state).await;
                 let mut world = game_state.game_world.write().await;
                 let npc_events = world.tick(0.05); // 50ms = 0.05 seconds
-                let player_count = world.player_count();
-                drop(world);
-                if player_count > 0 {
-                    for ev in npc_events {
-                        let payload = serde_json::json!({
-                            "type": "game_npc_update",
-                            "entity_id": ev.entity_id,
-                            "name": ev.name,
-                            "position": ev.position,
-                            "chore_id": ev.chore_id,
-                            "chore_label": ev.chore_label,
-                            "chore_state": ev.chore_state,
-                            "room_id": ev.room_id,
-                        });
-                        let _ = game_state.broadcast_tx.send(relay::RelayMessage::System {
-                            message: format!("__game__:{}", payload),
-                        });
-                    }
+                // Each crew member's news to the players who have it in view (ship homes
+                // increment 4, handlers/game_interest.rs); with nobody in the world, to no one.
+                // Sent before the world is let go, in order with every move a player makes
+                // (increment 4 review, P4): a crew update sent after it could reach a player after
+                // their `game_out_of_view` for that crew member, and stand it there for good.
+                let deliveries = if world.player_count() > 0 { world.npc_deliveries(npc_events) } else { Vec::new() };
+                for (to, payload) in deliveries {
+                    crate::relay::handlers::game_interest::send_to(&game_state, to, &payload);
                 }
+                drop(world);
             }
         });
     }
@@ -907,10 +898,15 @@ pub async fn run_relay() {
                 if candidates.is_empty() { continue; }
 
                 use rand::Rng;
-                let mut rng = rand::thread_rng();
-                let (entity_id, speaker, room_id, position, lines) =
-                    &candidates[rng.gen_range(0..candidates.len())];
-                let line = &lines[rng.gen_range(0..lines.len())];
+                // The random picks in a block of their own: the generator may not be held over
+                // the await below.
+                let (pick, line_at) = {
+                    let mut rng = rand::thread_rng();
+                    let pick = rng.gen_range(0..candidates.len());
+                    (pick, rng.gen_range(0..candidates[pick].4.len()))
+                };
+                let (entity_id, speaker, room_id, position, lines) = &candidates[pick];
+                let line = &lines[line_at];
 
                 let chatter = serde_json::json!({
                     "type": "game_ambient_chatter",
@@ -920,9 +916,9 @@ pub async fn run_relay() {
                     "position": position,
                     "line": line,
                 });
-                let _ = game_state.broadcast_tx.send(relay::RelayMessage::System {
-                    message: format!("__game__:{}", chatter),
-                });
+                // To the players who have the speaker in view (increment 4).
+                let hearers = game_state.game_world.read().await.viewer_keys(*entity_id);
+                crate::relay::handlers::game_interest::send_to(&game_state, hearers, &chatter);
                 tracing::debug!("Ambient chatter from {speaker}: {line}");
             }
         });

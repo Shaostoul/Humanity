@@ -96,6 +96,22 @@ pub fn draw_underwater_tint(ctx: &egui::Context, state: &super::GuiState) {
     );
 }
 
+/// The widest a toast's text runs before it wraps, in points: about a hundred characters at
+/// the body size. A narrower window wraps it sooner (`toast_wrap_width`).
+const TOAST_TEXT_MAX_W: f32 = 760.0;
+/// What a toast adds beside its text, in points: the status dot and the gaps after it, the
+/// frame's side margins and its stroke.
+const TOAST_CHROME_W: f32 = 9.0 + 10.0 + 28.0 + 3.0;
+/// The room a toast keeps from the window's sides, in points.
+const TOAST_SIDE_GAP: f32 = 16.0;
+
+/// The width a toast's text wraps at on a window `screen_w` points wide (2026-10-04, the
+/// first-hour audit's guest notice): the text never wrapped, so a notice longer than the
+/// window ran off both edges and could not be read.
+fn toast_wrap_width(screen_w: f32) -> f32 {
+    (screen_w - 2.0 * TOAST_SIDE_GAP - TOAST_CHROME_W).clamp(120.0, TOAST_TEXT_MAX_W)
+}
+
 pub fn draw_toasts(ctx: &egui::Context, theme: &Theme, state: &mut super::GuiState) {
     use super::ToastKind;
     const FADE: f64 = 0.5; // fade-out window at the end of each toast's life
@@ -115,7 +131,13 @@ pub fn draw_toasts(ctx: &egui::Context, theme: &Theme, state: &mut super::GuiSta
     }
     ctx.request_repaint(); // keep the fade animating even with no input
 
-    // Newest toast sits lowest; older ones stack upward.
+    // The oldest toast sits lowest; newer ones stack upward. Each one's text is laid out
+    // here, wrapped to the window (`toast_wrap_width`), so its height is known before it is
+    // placed, and each stands above the one below by that one's real height: a fixed 40 point
+    // step assumed every toast was one line.
+    let wrap_w = toast_wrap_width(ctx.screen_rect().width());
+    let font = egui::FontId::proportional(theme.font_size_body);
+    let mut from_bottom = 48.0_f32;
     for (i, t) in state.toasts.iter().enumerate() {
         let age = now - t.created;
         let alpha = if age > t.life - FADE {
@@ -132,7 +154,11 @@ pub fn draw_toasts(ctx: &egui::Context, theme: &Theme, state: &mut super::GuiSta
             ToastKind::Info => theme.accent(),
             ToastKind::Error => theme.danger(),
         };
-        let y_off = -(48.0 + i as f32 * 40.0);
+        let text = ctx.fonts(|f| f.layout(t.text.clone(), font.clone(), a(theme.text_primary()), wrap_w));
+        let y_off = -from_bottom;
+        // The text (never shorter than the dot), the frame's 9 point top and bottom margins,
+        // its stroke, and a small gap before the next toast up.
+        from_bottom += text.size().y.max(9.0) + 2.0 * 9.0 + 3.0 + 4.0;
         egui::Area::new(egui::Id::new(("hos_toast", i)))
             .order(egui::Order::Foreground)
             .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, y_off))
@@ -149,11 +175,7 @@ pub fn draw_toasts(ctx: &egui::Context, theme: &Theme, state: &mut super::GuiSta
                             let (rect, _) = ui.allocate_exact_size(Vec2::splat(9.0), Sense::hover());
                             ui.painter().circle_filled(rect.center(), 4.0, a(accent));
                             ui.add_space(2.0);
-                            ui.label(
-                                RichText::new(&t.text)
-                                    .size(theme.font_size_body)
-                                    .color(a(theme.text_primary())),
-                            );
+                            ui.label(text);
                         });
                     });
             });

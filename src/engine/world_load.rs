@@ -180,8 +180,8 @@ pub(crate) fn load_world(state: &mut EngineState) {
     // v0.571: placed lights (across ALL zones, v0.754) override the auto synthesis (empty -> auto).
     state.room_lights = home_lights(state.gui_state.ship_structure.as_ref(), auto_lights, state.gui_state.gi_enabled);
 
-    // Sealed-volume AABB (encompasses every room) for the survival environment
-    // context — inside it the player is sealed/oxygenated, outside = vacuum.
+    // The AABB around every room (the hull top reads it). Whose air each place breathes, and
+    // where aboard ends, come from the ship (ship homes increment 4, survival_env.rs).
     state.homestead_bounds = room_info.iter().fold(None, |acc, r| {
         let rmin = r.center - r.dimensions * 0.5;
         let rmax = r.center + r.dimensions * 0.5;
@@ -190,6 +190,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
             Some((mn, mx)) => (mn.min(rmin), mx.max(rmax)),
         })
     });
+    crate::engine::survival_env::refresh_ship_spaces(state);
 
     // Hologram + spawn rooms
     let hologram_room_center = room_info.iter()
@@ -793,8 +794,10 @@ pub(crate) fn load_world(state: &mut EngineState) {
         }
     }
 
-    // The home's sealed air space for the live AtmosphereSystem readout (v0.617).
-    spawn_home_air_space(&mut state.game_world.world, home_kcal);
+    // The home's sealed air space for the live AtmosphereSystem readout (v0.617), as big as this
+    // home (ship homes increment 4).
+    let home_m3 = crate::engine::home_spawn::own_home_air_m3(&state.data_dir, state.gui_state.ship_structure.as_ref());
+    spawn_home_air_space(&mut state.game_world.world, home_kcal, home_m3);
     // Build the live connection cylinders (replaces the old static routed pipes). (v0.530)
     rebuild_connection_objects(state);
     // Build the door/window panels from the home structure's openings. (v0.537)

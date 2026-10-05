@@ -1843,7 +1843,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
             let yaw = f(5).unwrap_or(0.0);
             let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             h.structures.push(crate::ship::home_structure::PlacedStructure {
-                type_id: tid.to_string(), pos: (x, y, z), rot_deg: yaw, pair: None,
+                id: h.next_structure_id(tid), type_id: tid.to_string(), pos: (x, y, z), rot_deg: yaw, pair: None,
             });
             state.construction_structure_dirty = true;
             format!("added structure #{} ({tid}) at ({x},{y},{z}) yaw {yaw}", h.structures.len())
@@ -1852,12 +1852,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
             let Some(i) = u(1) else { return "usage: rm_structure <n>".into(); };
             let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             if i >= 1 && i <= h.structures.len() {
-                h.structures.remove(i - 1);
-                for s in &mut h.structures {
-                    if let Some(p) = s.pair {
-                        if p + 1 == i { s.pair = None; } else if p + 1 > i { s.pair = Some(p - 1); }
-                    }
-                }
+                h.remove_structure(i - 1); // and every pair naming it (increment 4: pairs name ids)
                 // Keep the right-panel selection consistent (same fixup the GUI removers do), so a
                 // console remove never leaves the detail panel pointed at a shifted piece. (v0.583)
                 state.construction_structure_selected = match state.construction_structure_selected {
@@ -2264,13 +2259,14 @@ fn draw_structure_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
     }
     let mut changed = false;
     let mut deselect = false;
-    // Snapshot fields needed for the pairing combo (other teleporters) before the mutable borrow.
-    let pieces: Vec<(usize, String)> = zone_body(&state.ship_structure, state.construction_zone)
+    // Snapshot fields needed for the pairing combo (other teleporters) before the mutable borrow:
+    // each piece's place in the list (shown as #n), type and id (what a pair names, increment 4).
+    let pieces: Vec<(usize, String, String)> = zone_body(&state.ship_structure, state.construction_zone)
         .map(|h| {
             h.structures
                 .iter()
                 .enumerate()
-                .map(|(i, s)| (i, s.type_id.clone()))
+                .map(|(i, s)| (i, s.type_id.clone(), s.id.clone()))
                 .collect()
         })
         .unwrap_or_default();
@@ -2308,10 +2304,17 @@ fn draw_structure_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
         );
         if pairable {
             ui.add_space(theme.spacing_xs);
-            let cur = ps.pair;
+            let cur = ps.pair.clone();
             let my_type = ps.type_id.clone();
             let noun = if kind == Some(crate::ship::structure::StructureKind::Train) { "platform" } else { "teleporter" };
-            let cur_txt = cur.map(|p| format!("-> #{}", p + 1)).unwrap_or_else(|| "(no pair)".into());
+            // The partner by its place in the list and its id (a pair names the id, increment 4).
+            let cur_txt = cur
+                .as_deref()
+                .map(|p| match pieces.iter().find(|(_, _, id)| id == p) {
+                    Some((i, _, id)) => format!("-> #{} {id}", i + 1),
+                    None => format!("-> {p} (not in this body)"),
+                })
+                .unwrap_or_else(|| "(no pair)".into());
             egui::ComboBox::from_id_salt("hs_structure_pair")
                 .selected_text(cur_txt)
                 .show_ui(ui, |ui| {
@@ -2319,12 +2322,12 @@ fn draw_structure_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
                         ps.pair = None;
                         changed = true;
                     }
-                    for (i, tid) in &pieces {
+                    for (i, tid, id) in &pieces {
                         if *i == sel || *tid != my_type {
                             continue;
                         }
-                        if ui.selectable_label(cur == Some(*i), format!("#{} {noun}", i + 1)).clicked() {
-                            ps.pair = Some(*i);
+                        if ui.selectable_label(cur.as_deref() == Some(id.as_str()), format!("#{} {noun} {id}", i + 1)).clicked() {
+                            ps.pair = Some(id.clone());
                             changed = true;
                         }
                     }
@@ -2332,12 +2335,7 @@ fn draw_structure_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
         }
         ui.add_space(theme.spacing_sm);
         if ui.button(RichText::new("Remove").color(theme.danger())).clicked() {
-            hs.structures.remove(sel);
-            for s in &mut hs.structures {
-                if let Some(p) = s.pair {
-                    if p == sel { s.pair = None; } else if p > sel { s.pair = Some(p - 1); }
-                }
-            }
+            hs.remove_structure(sel); // and every pair naming it
             deselect = true;
             changed = true;
         }
@@ -3128,14 +3126,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
                 Key::Structure(i) => {
                     if let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
-                        if i < hs.structures.len() {
-                            hs.structures.remove(i);
-                            for s in &mut hs.structures {
-                                if let Some(p) = s.pair {
-                                    if p == i { s.pair = None; } else if p > i { s.pair = Some(p - 1); }
-                                }
-                            }
-                        }
+                        hs.remove_structure(i); // and every pair naming it
                     }
                     state.construction_structure_selected = None;
                     state.construction_structure_dirty = true;
@@ -3201,15 +3192,8 @@ fn group_delete(state: &mut GuiState) {
         struct_idx.sort_unstable();
         struct_idx.dedup();
         for &i in struct_idx.iter().rev() {
-            if i < hs.structures.len() {
-                hs.structures.remove(i);
-                // Re-point teleporter/train pairs across the removed index (mirrors single-remove).
-                for s in &mut hs.structures {
-                    if let Some(p) = s.pair {
-                        if p == i { s.pair = None; } else if p > i { s.pair = Some(p - 1); }
-                    }
-                }
-            }
+            // Pairs name ids, so taking pieces out leaves every other pair as it was (increment 4).
+            hs.remove_structure(i);
         }
         wall_idx.sort_unstable();
         wall_idx.dedup();

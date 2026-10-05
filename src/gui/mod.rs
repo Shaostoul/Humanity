@@ -47,6 +47,10 @@ mod organize;
 pub use organize::*;
 /// The active relay connection: park, unpark, Disconnect, an erased account. See `gui/connections.rs`.
 mod connections;
+/// A new player's first steps: where onboarding starts them, and the controls hint on their
+/// first entry into the world (first-hour audit 2026-10-04). See `gui/first_steps.rs`.
+#[cfg(feature = "native")]
+mod first_steps;
 pub use connections::{erased_entry, EraseOutcome, ERASED_CONNECT_NOTE, ERASE_UNFINISHED_NOTE};
 
 
@@ -810,6 +814,9 @@ pub struct GuiState {
     /// don't get force-routed into the tour they've never seen but
     /// don't need.
     pub concept_tour_seen: bool,
+    /// The controls hint (I, E, hold Alt, hold F1) was shown on the first entry into the world;
+    /// it is shown once ever (AppConfig `controls_hint_shown`, gui/first_steps.rs).
+    pub controls_hint_shown: bool,
     /// Default page to load after onboarding (Chat by default).
     pub default_page: GuiPage,
 
@@ -3243,6 +3250,7 @@ impl Default for GuiState {
             server_check_error: String::new(),
             user_name: "Player".to_string(),
             concept_tour_seen: false,
+            controls_hint_shown: false,
             default_page: GuiPage::Humanity,
 
             // Task board defaults
