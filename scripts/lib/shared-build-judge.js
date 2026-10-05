@@ -20,7 +20,8 @@
 //        by the relay, and the game never draws it; the game's place in A's plot is refused on its
 //        own screen with the plot sentence before anything is spent or sent (`refused_*`).
 //   6    WHO TAKES DOWN: A cannot take the game's piece down; the game can, A sees it go, and the
-//        materials come back once (`their_take_down_refused`, `our_take_down_*`).
+//        materials come back once, counted in the backpack and home storage together
+//        (`their_take_down_refused`, `our_take_down_*`).
 //   7    THE SHIP'S SHARED SPACES need the rank: the game's place in the Commons and A's build
 //        there are refused with the rank sentence; R's wall there is drawn where it stands, in
 //        view, and seen in the picture (`zone_*`).
@@ -35,8 +36,9 @@
 //   centre the piece is drawn from), rot [x,y,z,w], scale [x,y,z], mine, built (false while it is
 //   a scaffold), progress (s), rect [x0,y0,x1,y1] window pixels or null (behind the camera) }.
 //   The probe's `shared_build` holds ranks, ship_editing, pieces (the same rows, no rect),
-//   save_constructions, pack { item: count }, pending { builds, unbuilds, intents }, hint (the
-//   placing line under the crosshair, or null) and editor_zone.
+//   save_constructions, pack { item: count } (the backpack), storage { item: count } (home
+//   storage, where what the backpack has no room for lands), pending { builds, unbuilds, intents },
+//   hint (the placing line under the crosshair, or null) and editor_zone.
 //
 // WHAT THE RELAY LOGS (Wave 2A, never a key): "Game: built piece {id} {blueprint} on {frame}",
 // "Game: build refused ({reason}/{why}) on {frame}", "Game: took down piece {id} on {frame}",
@@ -189,6 +191,23 @@ function packMoves(run, blueprint, before, after, later) {
   const bp = run && run.blueprints && run.blueprints[blueprint];
   if (!bp || !Array.isArray(bp.materials) || !bp.materials.length || !before || !after) return null;
   return bp.materials.map(([item, n]) => ({ item, n: Number(n), before: num(before[item]), after: num(after[item]), later: later ? num(later[item]) : NaN }));
+}
+
+/** What the player holds of `blueprint`'s materials, the backpack and home storage together, at
+ *  three moments ({ before, after, later } of each), as [{ item, n, before, after, later, pack:
+ *  [b, a, l], store: [b, a, l] }] with the sums at top level; null when any of the six records is
+ *  missing. What a take-down gives back comes through the "Take to backpack" channel, and what the
+ *  backpack has no room for lands in home storage (src/engine/shared_build.rs `took_down`), so only
+ *  the two together say whether it came back. */
+function heldMoves(run, blueprint, pack, store) {
+  const bp = run && run.blueprints && run.blueprints[blueprint];
+  const all = [...pack, ...store];
+  if (!bp || !Array.isArray(bp.materials) || !bp.materials.length || all.some((r) => !r || typeof r !== "object")) return null;
+  return bp.materials.map(([item, n]) => {
+    const p = pack.map((r) => num(r[item]));
+    const s = store.map((r) => num(r[item]));
+    return { item, n: Number(n), before: p[0] + s[0], after: p[1] + s[1], later: p[2] + s[2], pack: p, store: s };
+  });
 }
 
 /** The pixel box of `rect` inside an image of `w` by `h`, or null when nothing of it is. */
@@ -485,15 +504,20 @@ function judgeSharedBuild(run, evidence = {}) {
     );
   }
   {
+    // The backpack and home storage together: what the backpack has no room for lands in storage
+    // (the rig's stocked backpack has none, and 8 planks overfill even an empty one).
     const r = td.ours || null;
-    const moves = r ? packMoves(m, r.blueprint, r.pack_before, r.pack_after, r.pack_later) : null;
+    const moves = r ? heldMoves(m, r.blueprint, [r.pack_before, r.pack_after, r.pack_later], [r.store_before, r.store_after, r.store_later]) : null;
     const ok = !!moves && moves.every((x) => x.after - x.before === x.n && x.later === x.after);
+    const two = (k, x) => `${Number.isFinite(x.pack[k]) ? x.pack[k] : "?"} + ${Number.isFinite(x.store[k]) ? x.store[k] : "?"}`;
     add(
       "our_take_down_refunds_once",
       ok,
       !moves
-        ? "not recorded: the pack before and after the game's take-down"
-        : moves.map((x) => `${x.item}: ${x.before} before, ${x.after} once it came down, ${Number.isFinite(x.later) ? x.later : "?"} a few seconds later (the piece gives back ${x.n})`).join("; ") + (ok ? "" : ": NOT given back exactly once"),
+        ? "not recorded: the backpack and home storage before and after the game's take-down"
+        : moves
+            .map((x) => `${x.item} (backpack + home storage): ${two(0, x)} before, ${two(1, x)} once it came down, ${two(2, x)} a few seconds later (the piece gives back ${x.n}: ${x.pack[1] - x.pack[0]} into the backpack, ${x.store[1] - x.store[0]} into home storage)`)
+            .join("; ") + (ok ? "" : ": NOT given back exactly once"),
     );
   }
 

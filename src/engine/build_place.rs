@@ -665,17 +665,27 @@ pub(crate) fn take_down_piece(state: &mut EngineState, piece_id: u64) -> String 
     let Some(e) = shared_build::entity_of(&state.game_world.world, piece_id) else {
         return format!("no piece {piece_id} the server keeps in this world");
     };
-    let world = &state.game_world.world;
+    let (name, materials) = kept_piece_back(&state.game_world.world, state.data_store.get::<BlueprintRegistry>("blueprint_registry"), e);
+    take_down_entity(state, e, &name, &materials);
+    format!("piece {piece_id} ({name}) asked to come down")
+}
+
+/// The name of the piece `e` the server keeps, finished or still a scaffold, and what taking it
+/// down gives back (the dev verb `take_down`): what F gives for a finished piece
+/// (`fires::materials_back`, its fuel read as `take_down_plan` reads it); for a scaffold the
+/// blueprint's whole price, which is what was paid for it, as a refused build gives back what it
+/// took. A shared piece never burns, so both are its materials in full.
+pub(crate) fn kept_piece_back(world: &hecs::World, registry: Option<&BlueprintRegistry>, e: hecs::Entity) -> (String, Vec<(String, u32)>) {
     let id = match (world.get::<&Structure>(e), world.get::<&crate::systems::construction::Construction>(e)) {
         (Ok(s), _) => s.blueprint_id.clone(),
         (_, Ok(c)) => c.blueprint_id.clone(),
         _ => String::new(),
     };
-    let bp = state.data_store.get::<BlueprintRegistry>("blueprint_registry").and_then(|r| r.get(&id));
+    let bp = registry.and_then(|r| r.get(&id));
     let name = bp.map_or_else(|| id.clone(), |b| b.name.clone());
-    let materials = bp.map(|b| crate::systems::construction::fires::materials_back(b, None)).unwrap_or_default();
-    take_down_entity(state, e, &name, &materials);
-    format!("piece {piece_id} ({name}) asked to come down")
+    let fuel = world.get::<&crate::systems::construction::fires::FireFuel>(e).ok().map(|f| *f);
+    let materials = bp.map(|b| crate::systems::construction::fires::materials_back(b, fuel.as_ref())).unwrap_or_default();
+    (name, materials)
 }
 
 /// What a take-down does, once `take_down_plan` has chosen the piece: its

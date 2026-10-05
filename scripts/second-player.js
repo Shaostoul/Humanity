@@ -81,9 +81,11 @@
 // It sends the pose as the relay's checks want it: the turn exactly as the
 // game's placement makes it (`quarterTurn`, placement.rs `quarter_turn`) and
 // the size the blueprint's own, read from data/blueprints/basic.ron (the file
-// the relay reads). What the relay answers is logged one line each
-// (`logBuilds`), in the patterns this module exports, which
-// scripts/verify-copresence.js --build reads.
+// the relay reads). Requests go at the game's own pace (`makeRequests`: at most
+// one every 250 ms, and one the relay turns away as `rate_limited` goes again
+// 500 ms later), so a rig may ask for the next piece the moment the last is
+// kept. What the relay answers is logged one line each (`logBuilds`), in the
+// patterns this module exports, which scripts/verify-copresence.js --build reads.
 //
 // Usage:
 //   node scripts/second-player.js                      walk a circle on ws://localhost:3210/ws
@@ -1173,6 +1175,133 @@ function unbuildMessage(cmd, reqId) {
   return msg;
 }
 
+// ── The pace of what goes to the relay ──────────────────────────────────────
+//
+// The relay takes one build and one take-down from a player each 200 ms (src/relay/handlers/
+// msg_handlers.rs `perception_rate_allows`, PERCEPTION_MIN_INTERVAL_MS) and answers one that comes
+// sooner `rate_limited`, keeping nothing. The game paces itself under that (src/engine/
+// shared_build.rs `send_next`), and so does this walker, with the contract's own numbers
+// (src/systems/construction/shared.rs). The first --build run (2026-10-05) is why: the rig asks
+// for the builder's wall the moment its foundation is kept, the walker sent it a few milliseconds
+// later, and the relay turned it away, so the wall the rig was to watch go up never existed.
+
+/** At most one build or take-down this often, milliseconds (shared.rs SEND_INTERVAL_MS). */
+const SEND_INTERVAL_MS = 250;
+/** One the relay turned away as `rate_limited` goes again after this, milliseconds (shared.rs
+ *  RATE_LIMITED_RETRY_MS). */
+const RATE_LIMITED_RETRY_MS = 500;
+/** How many times one request goes again for `rate_limited` before that refusal is taken as its
+ *  answer. The game counts none (an unanswered build settles on its own clock, shared.rs
+ *  PENDING_TIMEOUT_S); a rig waits 8 s for each answer (verify-copresence.js BUILD_ANSWER_MS), and
+ *  five more sends take about 3 s. */
+const RATE_LIMITED_TRIES = 5;
+
+/**
+ * The builds and take-downs a rig asks this walker for, on their way to the relay at the game's
+ * pace: each gets the next req_id; at most one goes every SEND_INTERVAL_MS, first one the relay
+ * turned away for pace that is due again, then the rest in the order they were asked (the game
+ * sends take-downs before builds; a rig expects its own order); one turned away for pace goes
+ * again, the same message, RATE_LIMITED_RETRY_MS after that answer, at most RATE_LIMITED_TRIES
+ * times. Its first send is said in the "sent" line a rig reads (SENT_RE), a turn-away in a line of
+ * its own (TOO_SOON_RE: never the "refused" line, which a rig takes for the answer) and a second
+ * send in another (RESENT_RE).
+ *
+ * `send(message)` puts a message on the socket and `log(line)` writes a line; `now`, `setTimer` and
+ * `clearTimer` are the clock and its timers (a test passes made-up ones). Returns { build(cmd,
+ * blueprints), unbuild(cmd) } (`parseCommand`'s commands; each returns its req_id, and build
+ * throws, asking nothing, for a blueprint `blueprints` does not have), heard(g) (each relay
+ * message, from `logBuilds`: the line to write INSTEAD of its usual one, or null) and stop().
+ */
+function makeRequests({ send, log, now = () => performance.now(), setTimer = setTimeout, clearTimer = clearTimeout }) {
+  let nextReq = 1;
+  // Asked for and not sent yet, in order: { req, kind, message, line }.
+  const queue = [];
+  // Sent and not answered, by req_id: the same, with how often it went again and when it is due
+  // to go again (null when it waits for an answer).
+  const out = new Map();
+  // The next request may go then.
+  let nextAt = -Infinity;
+  let timer = null;
+  let stopped = false;
+
+  /** Set the one timer for when the next request may go: the first one due again, or the next
+   *  turn when one waits to be sent. */
+  const arm = () => {
+    if (timer !== null) clearTimer(timer);
+    timer = null;
+    if (stopped) return;
+    let at = queue.length ? nextAt : Infinity;
+    for (const r of out.values()) if (r.again !== null) at = Math.min(at, Math.max(r.again, nextAt));
+    if (at !== Infinity) {
+      const t = now();
+      timer = setTimer(go, Math.max(0, at - t));
+      if (timer && typeof timer.unref === "function") timer.unref();
+    }
+  };
+  /** Send what may go now (at most one), then wait for the next. */
+  const go = () => {
+    timer = null;
+    if (stopped) return;
+    const t = now();
+    if (t >= nextAt) {
+      const due = [...out.values()].find((r) => r.again !== null && r.again <= t);
+      if (due) {
+        due.again = null;
+        send(due.message);
+        log(`sent again: ${due.kind} req ${due.req} (${due.tries} of ${RATE_LIMITED_TRIES})`);
+        nextAt = t + SEND_INTERVAL_MS;
+      } else if (queue.length) {
+        const r = queue.shift();
+        out.set(r.req, { ...r, tries: 0, again: null });
+        send(r.message);
+        log(r.line);
+        nextAt = t + SEND_INTERVAL_MS;
+      }
+    }
+    arm();
+  };
+  const ask = (kind, message, line) => {
+    const req = message.req_id;
+    queue.push({ req, kind, message, line });
+    go();
+    return req;
+  };
+  return {
+    build(cmd, blueprints) {
+      const message = buildMessage(cmd, nextReq, blueprints);
+      nextReq += 1;
+      return ask("build", message, `sent build: req ${message.req_id} ${cmd.blueprint} on ${cmd.frame} at (${cmd.local.map((v) => v.toFixed(3)).join(", ")}) turn ${cmd.turns}${cmd.permit ? " with a permit" : ""}`);
+    },
+    unbuild(cmd) {
+      const message = unbuildMessage(cmd, nextReq);
+      nextReq += 1;
+      return ask("unbuild", message, `sent unbuild: req ${message.req_id} piece ${cmd.pieceId}${cmd.permit ? " with a permit" : ""}`);
+    },
+    heard(g) {
+      if (!g || g.req_id === undefined || g.req_id === null || !out.has(g.req_id)) return null;
+      const r = out.get(g.req_id);
+      if (g.type === "game_built" || g.type === "game_unbuilt") {
+        out.delete(g.req_id);
+        return null;
+      }
+      if (g.type !== "game_build_refused") return null;
+      if (g.reason === "rate_limited" && r.tries < RATE_LIMITED_TRIES && !stopped) {
+        r.tries += 1;
+        r.again = now() + RATE_LIMITED_RETRY_MS;
+        arm();
+        return `${r.kind} req ${r.req}: the relay said too much at once (rate_limited); it goes again in ${RATE_LIMITED_RETRY_MS} ms (${r.tries} of ${RATE_LIMITED_TRIES})`;
+      }
+      // Any other refusal, or one turned away for pace too often: that refusal is its answer.
+      out.delete(g.req_id);
+      return null;
+    },
+    stop() {
+      stopped = true;
+      arm();
+    },
+  };
+}
+
 /** What a household permit's issuer signs: the relay's own words (src/relay/core/pq_crypto.rs
  *  `plot_permit_preimage`, pinned by its test, which scripts/tests/second-player.test.js reads).
  *  `server` is the did:hum of the server the permit is given on (its /api/server-info
@@ -1249,6 +1378,10 @@ const REFUSED_RE = /\b(build|unbuild|pieces) refused: ([a-z_]+)(?: \(([a-z_]+)\)
 const SNAPSHOT_PIECE_RE = /snapshot piece: piece (\d+) (\S+) on (\S+) at \(([-\d.]+), ([-\d.]+), ([-\d.]+)\) turn (\d)( \(mine\))?/;
 // A request sent: build or unbuild, req.
 const SENT_RE = /sent (build|unbuild): req (\d+)\b/;
+// A request the relay turned away for pace, to go again (`makeRequests`): build or unbuild, req.
+const TOO_SOON_RE = /\b(build|unbuild) req (\d+): the relay said too much at once \(rate_limited\)/;
+// That request sent again: build or unbuild, req.
+const RESENT_RE = /sent again: (build|unbuild) req (\d+)\b/;
 // The welcome's ranks, as JSON (or "missing" from a relay older than increment 5).
 const RANKS_RE = /ranks (\{.*\}|missing)/;
 // This walker's own did:hum (a permit's grantee is named by it).
@@ -1266,13 +1399,20 @@ function ranksLine(welcome) {
 
 /** Log what the relay tells us about pieces, one line each, for a rig to read (the patterns
  *  above): our own builds and take-downs (they carry our req_id), everyone else's, refusals with
- *  their codes and sentence, each frame's list as it arrives, and a frame leaving our view.
- *  Returns the function that stops it. */
-function logBuilds(client, log) {
+ *  their codes and sentence, each frame's list as it arrives, and a frame leaving our view. With
+ *  `requests` (`makeRequests`), each message is handed to it first: an answer settles its request,
+ *  and one turned away for pace that goes again is logged as that (TOO_SOON_RE), never as the
+ *  refusal a rig would read as the answer. Returns the function that stops it. */
+function logBuilds(client, log, requests = null) {
   const at3 = (p) => `(${(Array.isArray(p) ? p : []).map((v) => Number(v).toFixed(3)).join(", ")})`;
   const pieceText = (frame, p) => `piece ${p.piece_id} ${p.blueprint_id} on ${frame} at ${at3(p.position)} turn ${turnOf(p.rotation || [0, 0, 0, 1])}`;
   const ours = (g) => g.req_id !== undefined && g.req_id !== null;
   return client.onGame((g) => {
+    const instead = requests ? requests.heard(g) : null;
+    if (instead) {
+      log(instead);
+      return;
+    }
     if (g.type === "game_built" && g.piece) {
       if (ours(g)) log(`built: ${pieceText(g.frame, g.piece)} (req ${g.req_id}, seq ${g.seq}, placed_at ${Number(g.piece.placed_at).toFixed(3)})`);
       else log(`saw built: ${pieceText(g.frame, g.piece)} (seq ${g.seq})`);
@@ -1371,9 +1511,13 @@ async function main() {
   log(ranksLine(welcome));
   for (const line of presentLines(welcome)) log(line);
   const stopLogging = logOthers(client, welcome.player_id, log);
+  // The builds and take-downs a rig asks for on our input, on their way to the relay at the
+  // game's own pace (`makeRequests`).
+  const requests = makeRequests({ send: (m) => client.send(m), log });
   // Every piece the relay tells us about (increment 5). Attached before anything else is awaited,
-  // so the frame lists the relay sends right after the welcome are logged too.
-  const stopBuilds = logBuilds(client, log);
+  // so the frame lists the relay sends right after the welcome are logged too. It also hands each
+  // answer to `requests`, which sends again what the relay turned away for pace.
+  const stopBuilds = logBuilds(client, log, requests);
   const shape =
     opts.path === "line"
       ? `back and forth along a ${2 * opts.radius} m line (${opts.axis} axis)`
@@ -1398,6 +1542,7 @@ async function main() {
     stopChat();
     stopLogging();
     stopBuilds();
+    requests.stop();
     stopCorrections();
     walker.stop();
     // Step out of the world on purpose (the desktop app sends the same),
@@ -1420,10 +1565,10 @@ async function main() {
   });
   // The commands a rig writes on our input (ship homes increment 5, `parseCommand`): build and
   // take down pieces through the relay, mint a household permit. Each request gets the next
-  // req_id, said in a "sent" line (SENT_RE) so a rig can match the relay's answer to it; a
-  // command that cannot be sent says why in a "command refused" line and sends nothing.
+  // req_id and goes in its turn (`makeRequests`), said in a "sent" line (SENT_RE) when it goes so
+  // a rig can match the relay's answer to it; a command that cannot be sent says why in a
+  // "command refused" line and sends nothing.
   let blueprints = null;
-  let nextReq = 1;
   const onCommand = (line) => {
     let cmd;
     try {
@@ -1440,14 +1585,9 @@ async function main() {
     try {
       if (cmd.kind === "build") {
         if (!blueprints) blueprints = readBlueprints(fs.readFileSync(BLUEPRINTS_RON, "utf8"));
-        const msg = buildMessage(cmd, nextReq, blueprints);
-        client.send(msg);
-        log(`sent build: req ${nextReq} ${cmd.blueprint} on ${cmd.frame} at (${cmd.local.map((v) => v.toFixed(3)).join(", ")}) turn ${cmd.turns}${cmd.permit ? " with a permit" : ""}`);
-        nextReq += 1;
+        requests.build(cmd, blueprints);
       } else if (cmd.kind === "unbuild") {
-        client.send(unbuildMessage(cmd, nextReq));
-        log(`sent unbuild: req ${nextReq} piece ${cmd.pieceId}${cmd.permit ? " with a permit" : ""}`);
-        nextReq += 1;
+        requests.unbuild(cmd);
       } else if (cmd.kind === "permit") {
         if (!serverDid) throw new Error("the relay named no did:hum at /api/server-info, so no permit can name the server it is good on");
         const expiry = Math.floor(Date.now() / 1000) + Math.round(cmd.days * 86400);
@@ -1479,6 +1619,7 @@ async function main() {
     clearTimeout(limitTimer);
     stopChat();
     stopBuilds();
+    requests.stop();
     fail(2, `the relay closed the connection after ${walker.sent()} updates`);
     setTimeout(() => process.exit(2), 1000).unref();
   });
@@ -1525,6 +1666,10 @@ module.exports = {
   parseCommand,
   buildMessage,
   unbuildMessage,
+  SEND_INTERVAL_MS,
+  RATE_LIMITED_RETRY_MS,
+  RATE_LIMITED_TRIES,
+  makeRequests,
   permitPreimage,
   mintPermit,
   fetchServerDid,
@@ -1539,6 +1684,8 @@ module.exports = {
   REFUSED_RE,
   SNAPSHOT_PIECE_RE,
   SENT_RE,
+  TOO_SOON_RE,
+  RESENT_RE,
   RANKS_RE,
   DID_RE,
   SERVER_DID_RE,

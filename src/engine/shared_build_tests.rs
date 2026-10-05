@@ -452,6 +452,135 @@ fn my_piece_is_confirmed_by_its_req_id_and_by_a_snapshot() {
     assert_eq!(g.gui.pending_notices, vec!["Wood Wall not built: the server never said it kept it. 6 Wood Plank back.".to_string()]);
 }
 
+/// OUR TAKE-DOWN GIVES THE PIECE'S MATERIALS BACK ONCE, TO WHOEVER TOOK IT DOWN (decision 1 of the
+/// increment 5 plan), the way F gives back a piece of the player's own (build_place.rs
+/// `apply_take_down`): through the "Take to backpack" channel, so what the backpack has no room
+/// for lands in home storage. The home on p1, whose list holds our finished Wood Foundation (7), our
+/// Wood Wall still going up (8), and two finished pieces a household member built (9, 10). The
+/// backpack holds 20 Wood Planks, 163 L in a 65 L pack, put in past its volume as the rig's "stock
+/// all materials" puts a stack of every recipe input. F at the foundation and the dev verb at the
+/// scaffold ask the relay and change nothing; when the relay says each came down with our req_id,
+/// its whole price comes back once (8 planks, then the scaffold's 6, what was paid for it) and the
+/// player is told, and with no room in the backpack all of it lands in home storage. A duplicate of
+/// that answer, the frame's next list and someone else's take-down of piece 9 give nothing. Then,
+/// with the backpack empty, our take-down of the household member's foundation (10) gives its 8
+/// planks to us: 7 into the backpack (8 planks are 65.4 L) and 1 into home storage. Counted as the
+/// probe counts them, the backpack (`pack_counts`) and home storage (`storage_counts`): the first
+/// --build run read the backpack alone and saw "12 before, 12 once it came down".
+///
+/// Seen red 2026-10-05 with `give_back` taken out of `took_down` (nothing comes back):
+/// "the foundation's 8 planks come back once, into home storage: the backpack has no room: left:
+/// (20, 0), right: (20, 8)".
+#[test]
+fn our_take_down_gives_the_materials_back_once_and_what_the_pack_cannot_hold_lands_in_storage() {
+    use crate::ecs::systems::System;
+    use crate::systems::inventory::InventorySystem;
+    let mut g = Game::at("p1");
+    g.data.insert("inventory_transfer_returns", Mutex::new(Vec::<(String, u32)>::new()));
+    g.welcome(serde_json::json!({ "type": "game_welcome", "player_id": 3 }));
+    let old = T - 100.0;
+    let theirs = |id: u64, bp: &str, x: f32| piece(id, bp, [x, 0.0, 40.0], old, false);
+    g.hear(&list(
+        "plot:p1",
+        3,
+        vec![piece(7, "wood_foundation", [20.0, 0.0, 20.0], old, true), piece(8, "wood_wall", [26.0, 0.0, 30.0], T - 1.0, true), theirs(9, "wood_wall", 32.0), theirs(10, "wood_foundation", 40.0)],
+    ));
+    let p1 = |id: u64, built: bool| (id, "plot:p1".to_string(), built);
+    assert_eq!(g.pieces(), vec![p1(7, true), p1(8, false), p1(9, true), p1(10, true)]);
+    let set_pack = |g: &mut Game, planks: u32| {
+        let (_e, inv) = g.world.query_mut::<&mut Inventory>().into_iter().next().expect("the player's backpack");
+        let have = inv.count_item("wood_plank_0");
+        if have > planks {
+            inv.remove_item("wood_plank_0", have - planks);
+        } else {
+            inv.add_item("wood_plank_0", planks - have, 20);
+        }
+    };
+    // One frame of the engine: the InventorySystem applies the "Take to backpack" channel (and
+    // counts what the backpack holds, as it does every frame), and what did not fit goes back to
+    // storage, as lib.rs files it after the systems' tick.
+    let mut inventory = InventorySystem::new();
+    let tick = |g: &mut Game, inventory: &mut InventorySystem| {
+        inventory.tick(&mut g.world, 0.016, &g.data);
+        let returned = std::mem::take(&mut *g.data.get::<Mutex<Vec<(String, u32)>>>("inventory_transfer_returns").unwrap().lock().unwrap());
+        for (key, qty) in returned {
+            crate::gui::return_to_storage(&mut g.gui.placed_items, &key, qty, None);
+        }
+    };
+    // What the player holds of the planks, as the probe counts it: (the backpack, home storage).
+    let held = |g: &Game| {
+        let n = |m: BTreeMap<String, u32>| m.get("wood_plank_0").copied().unwrap_or(0);
+        (n(pack_counts(&g.world)), n(storage_counts(&g.world, &g.gui.placed_items)))
+    };
+    set_pack(&mut g, 20);
+    tick(&mut g, &mut inventory);
+    assert_eq!(held(&g), (20, 0));
+
+    // F at the foundation, as F finds what it looks at and asks.
+    let reg = registry();
+    let eye = Vec3::new(20.0, 1.7, 23.0);
+    let (seven, name, materials) = build_place::take_down_plan(&g.world, &g.gui.placed_items, Some(&reg), eye, Vec3::new(0.0, -1.6, -3.0).normalize(), None, &[]).expect("F finds the foundation");
+    assert_eq!((seven, name.as_str()), (g.entity(7), "Wood Foundation"));
+    assert_eq!(materials, vec![("wood_plank_0".to_string(), 8)], "F gives back a finished foundation's whole price");
+    assert_eq!(build_place::take_down_entity_on(&mut g.sb, &mut g.world, &g.data, &g.gui, seven, &name, &materials), None);
+    // The dev verb at the scaffold (F reaches only finished pieces, the player's own or not).
+    let eight = g.entity(8);
+    let (wall, back) = build_place::kept_piece_back(&g.world, Some(&reg), eight);
+    assert_eq!((wall.as_str(), back.clone()), ("Wood Wall", vec![("wood_plank_0".to_string(), 6)]), "a scaffold gives back what was paid for it");
+    assert_eq!(build_place::take_down_entity_on(&mut g.sb, &mut g.world, &g.data, &g.gui, eight, &wall, &back), None);
+    tick(&mut g, &mut inventory);
+    assert_eq!(held(&g), (20, 0), "nothing back before the relay says so");
+    g.frame(0.3);
+    g.frame(0.3);
+    let sent = g.sent();
+    let req_of = |piece: u64| sent.iter().find(|m| m["piece_id"].as_u64() == Some(piece)).and_then(|m| m["req_id"].as_u64()).map(|r| r as u32);
+    assert_eq!(sent.len(), 2, "one game_unbuild each: {sent:?}");
+
+    // The relay: our foundation came down.
+    g.hear(&unbuilt("plot:p1", 4, 7, req_of(7)));
+    tick(&mut g, &mut inventory);
+    assert_eq!(held(&g), (20, 8), "the foundation's 8 planks come back once, into home storage: the backpack has no room");
+    // The same answer again, the frame's next list, and someone else taking down piece 9.
+    g.hear(&unbuilt("plot:p1", 4, 7, req_of(7)));
+    g.hear(&list("plot:p1", 4, vec![piece(8, "wood_wall", [26.0, 0.0, 30.0], T - 1.0, true), theirs(9, "wood_wall", 32.0), theirs(10, "wood_foundation", 40.0)]));
+    g.hear(&unbuilt("plot:p1", 5, 9, None));
+    tick(&mut g, &mut inventory);
+    assert_eq!(held(&g), (20, 8), "a duplicate, a later list and someone else's take-down give nothing");
+    // Our scaffold came down.
+    g.hear(&unbuilt("plot:p1", 6, 8, req_of(8)));
+    tick(&mut g, &mut inventory);
+    assert_eq!(held(&g), (20, 14), "the scaffold's 6 planks, once");
+
+    // An empty backpack: the household member's foundation, taken down by us, gives its 8 planks to
+    // us, 7 into the backpack and the one it has no room for into home storage.
+    set_pack(&mut g, 0);
+    tick(&mut g, &mut inventory);
+    let ten = g.entity(10);
+    let (name, back) = build_place::kept_piece_back(&g.world, Some(&reg), ten);
+    assert_eq!(build_place::take_down_entity_on(&mut g.sb, &mut g.world, &g.data, &g.gui, ten, &name, &back), None);
+    g.frame(0.3);
+    let sent = g.sent();
+    assert_eq!(sent.len(), 1, "{sent:?}");
+    g.hear(&unbuilt("plot:p1", 7, 10, sent[0]["req_id"].as_u64().map(|r| r as u32)));
+    tick(&mut g, &mut inventory);
+    assert_eq!(held(&g), (7, 15), "whoever takes a piece down gets its materials: 7 into the backpack, 1 into home storage");
+    assert_eq!(
+        g.gui.pending_notices,
+        vec![
+            "Took down the Wood Foundation: 8 Wood Plank back".to_string(),
+            "Took down the Wood Wall: 6 Wood Plank back".to_string(),
+            "Took down the Wood Foundation: 8 Wood Plank back".to_string(),
+        ]
+    );
+    assert!(g.pieces().is_empty(), "every piece came down: {:?}", g.pieces());
+    assert_eq!(g.sb.counts(), (0, 0, 0), "nothing waits");
+    // The probe reports both counts, so the rig can find what came back wherever it landed.
+    let src = include_str!("shared_build.rs");
+    for wired in ["\"pack\": pack_counts(world)", "\"storage\": storage_counts(world, &gui.placed_items)"] {
+        assert!(src.contains(wired), "the probe's shared_build never writes {wired}");
+    }
+}
+
 /// A STALE INDEX ENTRY NEVER DESPAWNS ANOTHER ENTITY. The index can point at an entity that is no
 /// longer the piece (a departure takes pieces down without it). Here piece 7's entry points at the
 /// player's own wall in the home: when the relay takes 7 down, piece 7 comes down (found by its
