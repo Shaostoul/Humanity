@@ -607,6 +607,24 @@ impl ConstructionSystem {
     }
 }
 
+/// Why a build to be kept by the server (`BuildRequest::shared_frame`) cannot
+/// be, in words that follow "Wood Wall not built: ", or the queue it goes
+/// into (ship homes increment 5, 2026-10-05). Only a piece the data marks
+/// `shared` is kept by the server (`shared::only_shell_pieces_words` names
+/// the kinds), and the build needs [`shared::OUT_CHANNEL`], where the engine
+/// picks it up to send: without it, a paid-for build would wait for nobody.
+/// The placing gate (`engine::shared_build`) asks for neither, so a refusal
+/// here means the game is wired wrong; [`begin_build`] asks before it takes
+/// anything, so it costs the player nothing.
+pub fn shared_build_refusal<'a>(bp: &Blueprint, data: &'a DataStore) -> Result<&'a shared::OutQueue, String> {
+    if !bp.shared {
+        let registry = data.get::<BlueprintRegistry>("blueprint_registry");
+        return Err(registry.map_or_else(|| "it is not a piece the server keeps".to_string(), shared::only_shell_pieces_words));
+    }
+    data.get::<shared::OutQueue>(shared::OUT_CHANNEL)
+        .ok_or_else(|| "there is no way to send it to the server right now".to_string())
+}
+
 /// Start one build: refuse it, with the reason and nothing taken, or take its
 /// materials and put up its scaffold, which the ConstructionSystem finishes
 /// over the blueprint's build time. Returns the status line either way.
@@ -614,16 +632,40 @@ impl ConstructionSystem {
 /// THE ONE PATH every build takes (2026-10-05, BUG-153: moved out of the
 /// ConstructionSystem's tick unchanged, so a building ability, the Campfire,
 /// builds exactly as a piece placed from the Crafting page does). In order:
-/// an unknown blueprint; a piece built only outdoors where it cannot stand
-/// ([`outdoors_refusal`]); a roof over a piece built only outdoors
-/// ([`roofs_over_outdoors_piece`]); the same piece already standing there;
-/// too few materials. Blueprint builds take their materials in every play mode,
+/// an unknown blueprint; a build to be kept by the server
+/// (`BuildRequest::shared_frame`) of a piece the server does not keep, or with
+/// nowhere to hand it to ([`shared_build_refusal`]); a piece built only
+/// outdoors where it cannot stand ([`outdoors_refusal`]); a roof over a piece
+/// built only outdoors ([`roofs_over_outdoors_piece`]); the same piece already
+/// standing there; too few materials. Every refusal comes before anything is
+/// taken. Blueprint builds take their materials in every play mode,
 /// Creative and Dev included (the Dev page's "stock all materials" is how Dev
 /// builds freely; the build editor's own machine placement is what goes free
 /// there).
+///
+/// KEPT BY THE SERVER (ship homes increment 5, 2026-10-05, `shared.rs`). A
+/// build with a `shared_frame` passes every check above and pays like any
+/// other, then puts up NOTHING here: what it took is written down
+/// ([`shared::Spent`], from the pack and from the home's storage) and the
+/// build goes into [`shared::OUT_CHANNEL`] as a [`shared::SharedBuildIntent`],
+/// for the engine to send to the relay. The scaffold comes when the relay
+/// says the piece is built, so nobody sees a piece the server never kept; a
+/// refusal gives back exactly what was written down.
 pub fn begin_build(world: &mut hecs::World, data: &DataStore, req: BuildRequest) -> Result<String, String> {
     let Some(bp) = data.get::<BlueprintRegistry>("blueprint_registry").and_then(|r| r.get(&req.blueprint_id).cloned()) else {
         return Err(format!("Unknown blueprint '{}'", req.blueprint_id));
+    };
+    // KEPT BY THE SERVER (ship homes increment 5): only a piece the server
+    // keeps, and only with somewhere to hand it to. Asked before anything is
+    // taken, so a build the server could never keep costs nothing. The checks
+    // below (a fire's open sky, one piece per spot, the materials) apply to
+    // it as to any build.
+    let out = match &req.shared_frame {
+        None => None,
+        Some(_) => match shared_build_refusal(&bp, data) {
+            Err(why) => return Err(format!("{} not built: {why}", bp.name)),
+            Ok(out) => Some(out),
+        },
     };
     // OUTDOORS ONLY (BUG-153): a fire is never built aboard the ship, under
     // a roof, or where there is no air to burn.
@@ -690,23 +732,43 @@ pub fn begin_build(world: &mut hecs::World, data: &DataStore, req: BuildRequest)
             format!("need {list} to build {}", bp.name)
         });
     }
+    // What was taken, item by item, from the pack and from the home's storage:
+    // a build kept by the server carries it, so a refusal gives back exactly
+    // that (ship homes increment 5).
+    let mut spent = shared::Spent::default();
     if let Ok(mut inv) = world.get::<&mut crate::systems::inventory::Inventory>(player) {
         for (id, qty) in &bp.materials {
             let from_pack = inv.count_item(id).min(*qty);
             if from_pack > 0 {
-                inv.remove_item(id, from_pack);
+                let short = inv.remove_item(id, from_pack);
+                spent.pack.push((id.clone(), from_pack - short));
             }
             let remainder = qty - from_pack;
             if remainder > 0 && storage_counts {
                 if let Some(m) = home_stock.as_ref() {
                     if let Ok(mut s) = m.lock() {
                         if let Some(c) = s.get_mut(id) {
-                            *c = c.saturating_sub(remainder);
+                            let took = (*c).min(remainder);
+                            *c -= took;
+                            if took > 0 {
+                                spent.storage.push((id.clone(), took));
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    // KEPT BY THE SERVER: paid for, and handed to the engine to send. No
+    // scaffold until the relay says the piece is built (`shared.rs`). The
+    // queue was there before anything was taken (`shared_build_refusal`), and
+    // a poisoned lock still takes it: what was paid must reach the queue,
+    // where a refusal can give it back.
+    if let (Some(frame), Some(out)) = (req.shared_frame, out) {
+        let intent = shared::SharedBuildIntent { frame, blueprint_id: bp.id.clone(), pose: req.pose, spent };
+        out.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(intent);
+        return Ok(format!("Placing {} in the shared world...", bp.name));
     }
 
     // Where it goes: the ghost's pose, as the player saw it (x and z on the
@@ -754,18 +816,25 @@ impl System for ConstructionSystem {
             });
         }
 
-        // Advance active constructions
+        // Advance active constructions: the player's own, and in a shared
+        // world the scaffolds the server keeps (`shared::SharedPiece`), which
+        // grow here from the moment the server took them.
         let mut completed = Vec::new();
 
-        for (entity, (construction, away)) in world.query_mut::<(&mut Construction, Option<&FinishedWhileAway>)>() {
+        for (entity, (construction, away, kept)) in
+            world.query_mut::<(&mut Construction, Option<&FinishedWhileAway>, Option<&shared::SharedPiece>)>()
+        {
             construction.progress += dt;
             if construction.progress >= construction.build_time {
-                completed.push((entity, construction.blueprint_id.clone(), away.map_or(0.0, |a| a.seconds_ago)));
+                // Whose it is: a piece the server keeps earns its reward only
+                // for the player who put it up (ship homes increment 5).
+                let earns = kept.map_or(true, |k| k.mine);
+                completed.push((entity, construction.blueprint_id.clone(), away.map_or(0.0, |a| a.seconds_ago), earns));
             }
         }
 
         // Convert completed constructions to structures
-        for (entity, bp_id, finished_ago) in completed {
+        for (entity, bp_id, finished_ago, earns) in completed {
             let _ = world.remove_one::<Construction>(entity);
             let _ = world.remove_one::<FinishedWhileAway>(entity);
 
@@ -792,6 +861,14 @@ impl System for ConstructionSystem {
                 let fuel = fires::FireFuel { seconds_left: (fuel.seconds_left - finished_ago).max(0.0) };
                 let _ = world.insert_one(entity, fuel);
             }
+            // SOMEONE ELSE'S (ship homes increment 5, 2026-10-05): a piece the
+            // server keeps that another player put up finishes as quietly as it
+            // grew. It is a structure like any other from here, and earns this
+            // player no quest step, no skill, no sound and no line: they did
+            // not build it. Their own (`SharedPiece::mine`) earns all four.
+            if !earns {
+                continue;
+            }
             // Completion is PROGRESS (v0.746): the construction quest chain's
             // Build objectives finally advance, and building trains the builder.
             crate::systems::quests::push_quest_event(data, format!("build_{bp_id}"));
@@ -806,7 +883,8 @@ impl System for ConstructionSystem {
         }
 
         // Every finished structure gets its stable uid: one just completed,
-        // or one restored from a save written before uids existed.
+        // or one restored from a save written before uids existed. Not a
+        // piece the server keeps, which stays at 0 (`uses::assign_uids`).
         uses::assign_uids(world);
 
         // Built fires burn their fuel down on the game clock (BUG-153), the
@@ -1350,5 +1428,231 @@ mod tests {
         assert_eq!(tf.rotation, ghost.rotation);
         assert_eq!(tf.scale, ghost.scale);
         assert_eq!(*s, site, "in the ghost's frame");
+    }
+
+    // ── Kept by the server (ship homes increment 5, 2026-10-05) ──────────
+
+    /// `build_store` for builds in the shared world: the queue a paid-for
+    /// shared build waits in (`shared::OUT_CHANNEL`), the skill and sound
+    /// channels a finished piece rewards through, and the home's storage
+    /// holding `stored`.
+    fn shared_store(requests: Vec<BuildRequest>, stored: &[(&str, u32)]) -> DataStore {
+        let mut data = build_store(shipped_registry(), requests);
+        data.insert(shared::OUT_CHANNEL, shared::OutQueue::default());
+        data.insert("xp_grants", std::sync::Mutex::new(Vec::<crate::systems::skills::SkillXPEvent>::new()));
+        data.insert("sfx_events", std::sync::Mutex::new(Vec::<(String, String)>::new()));
+        let stock: HashMap<String, u32> = stored.iter().map(|(id, n)| (id.to_string(), *n)).collect();
+        data.insert("home_stock", std::sync::Mutex::new(stock));
+        data
+    }
+
+    /// How many pieces stand in `world`, finished or going up.
+    fn pieces_in(world: &hecs::World) -> usize {
+        world.query::<&Construction>().iter().count() + world.query::<&Structure>().iter().count()
+    }
+
+    fn status_of(data: &DataStore) -> String {
+        data.get::<std::sync::Mutex<String>>("build_status").unwrap().lock().unwrap().clone()
+    }
+
+    fn stored_of(data: &DataStore, id: &str) -> u32 {
+        data.get::<std::sync::Mutex<HashMap<String, u32>>>("home_stock").unwrap().lock().unwrap().get(id).copied().unwrap_or(0)
+    }
+
+    fn queued(data: &DataStore) -> Vec<shared::SharedBuildIntent> {
+        data.get::<shared::OutQueue>(shared::OUT_CHANNEL).unwrap().lock().unwrap().clone()
+    }
+
+    /// A BUILD KEPT BY THE SERVER PAYS ONCE, WAITS IN THE QUEUE AND PUTS UP
+    /// NOTHING (ship homes increment 5, 2026-10-05). A Wood Wall asked for in
+    /// the shared world's `plot:p2`, the builder carrying 4 of its 6 planks
+    /// and the home's storage holding 10: the build takes 4 from the pack and
+    /// 2 from the storage, as every build does, writes exactly that down, and
+    /// leaves one intent in the queue, at the ghost's pose to the bit, for
+    /// that frame. It puts up no scaffold of its own (the relay's answer
+    /// does, engine::shared_build), the status line says where it went, and
+    /// however long the system then runs nothing more is taken, nothing is
+    /// put up and no quest step fires; the engine, not the system, empties
+    /// the queue.
+    /// Seen red 2026-10-05 on the code before (a shared request built like a
+    /// private one): "a shared build puts up nothing of its own: left: 1,
+    /// right: 0".
+    #[test]
+    fn a_shared_build_spends_once_pushes_an_intent_and_spawns_nothing() {
+        use crate::ecs::components::Controllable;
+        use crate::systems::inventory::Inventory;
+        let reg = shipped_registry();
+        let wall = reg.get("wood_wall").unwrap().clone();
+        let (plank, per_wall) = wall.materials[0].clone();
+        assert_eq!(per_wall, 6, "the shipped wall's price, which the split below is written for");
+        let pose = placement::placement_pose(&wall, Vec3::new(30.0, 0.0, 140.0), 1, &hecs::World::new(), &reg, None);
+        let req = BuildRequest::new("wood_wall", pose.clone()).shared(Some("plot:p2".into()));
+        let data = shared_store(vec![req], &[(plank.as_str(), 10)]);
+        let mut world = hecs::World::new();
+        let mut pack = Inventory::new(16);
+        pack.add_item(&plank, 4, 999);
+        let builder = world.spawn((pack, Controllable));
+        let pack_planks = |w: &hecs::World| w.get::<&Inventory>(builder).unwrap().count_item(&plank);
+        let mut sys = ConstructionSystem::new();
+        sys.tick(&mut world, 0.05, &data);
+        assert_eq!(pieces_in(&world), 0, "a shared build puts up nothing of its own");
+        let q = queued(&data);
+        assert_eq!(q.len(), 1, "one intent waits to be sent");
+        assert_eq!((q[0].frame.as_str(), q[0].blueprint_id.as_str()), ("plot:p2", "wood_wall"));
+        let at = &q[0].pose;
+        assert!(
+            at.position == pose.position && at.rotation == pose.rotation && at.scale == pose.scale,
+            "at the ghost's pose, ship metres: {at:?}"
+        );
+        assert_eq!(q[0].spent, shared::Spent { pack: vec![(plank.clone(), 4)], storage: vec![(plank.clone(), 2)] }, "what was taken, written down");
+        assert_eq!((pack_planks(&world), stored_of(&data, &plank)), (0, 8), "4 from the pack, 2 from the storage");
+        assert_eq!(status_of(&data), "Placing Wood Wall in the shared world...");
+
+        // Long past the build time: still nothing put up, nothing more taken.
+        sys.tick(&mut world, wall.build_time * 3.0, &data);
+        assert_eq!(pieces_in(&world), 0);
+        assert_eq!((pack_planks(&world), stored_of(&data, &plank)), (0, 8), "spent once");
+        assert_eq!(queued(&data).len(), 1, "the engine takes it from the queue, not the system");
+        let events = data.get::<std::sync::Mutex<Vec<String>>>("quest_events").unwrap().lock().unwrap().clone();
+        assert!(events.is_empty(), "nothing is built yet, so no quest step: {events:?}");
+    }
+
+    /// A BUILD THE SERVER COULD NEVER KEEP COSTS NOTHING (ship homes
+    /// increment 5, 2026-10-05). A Storage Chest is not a piece the server
+    /// keeps (its contents are the player's own), so a request to keep one in
+    /// `plot:p2` is refused with the sentence the crosshair uses, and nothing
+    /// is taken from the pack or the storage; the queue stays empty. A Wood
+    /// Wall asked for with no queue to go into (an engine that never made
+    /// `shared::OUT_CHANNEL`) is refused the same way, before it is paid for:
+    /// paid for, it would wait for nobody. The same chest asked for in the
+    /// player's own home is built as ever.
+    /// Seen red 2026-10-05 with the check after the spend: "nothing taken for
+    /// a chest the server could never keep: left: (12, 10), right: (20, 10)".
+    #[test]
+    fn a_shared_request_for_a_piece_that_is_not_shareable_spends_nothing() {
+        use crate::ecs::components::Controllable;
+        use crate::systems::inventory::Inventory;
+        let reg = shipped_registry();
+        let chest = reg.get("storage_chest").unwrap().clone();
+        let wall = reg.get("wood_wall").unwrap().clone();
+        let plank = chest.materials[0].0.clone();
+        assert!(!chest.shared && wall.shared && wall.materials[0].0 == plank, "the shipped data this is written for");
+        let empty = hecs::World::new();
+        let chest_pose = placement::placement_pose(&chest, Vec3::new(30.0, 0.0, 140.0), 0, &empty, &reg, None);
+        let wall_pose = placement::placement_pose(&wall, Vec3::new(34.0, 0.0, 140.0), 0, &empty, &reg, None);
+        let to_keep = |id: &str, pose: &Transform| BuildRequest::new(id, pose.clone()).shared(Some("plot:p2".into()));
+        let data = shared_store(vec![to_keep("storage_chest", &chest_pose)], &[(plank.as_str(), 10)]);
+        let mut world = hecs::World::new();
+        let mut pack = Inventory::new(16);
+        pack.add_item(&plank, 20, 999);
+        let builder = world.spawn((pack, Controllable));
+        let pack_planks = |w: &hecs::World| w.get::<&Inventory>(builder).unwrap().count_item(&plank);
+        let mut sys = ConstructionSystem::new();
+        sys.tick(&mut world, 0.05, &data);
+        assert_eq!((pack_planks(&world), stored_of(&data, &plank)), (20, 10), "nothing taken for a chest the server could never keep");
+        assert_eq!(pieces_in(&world), 0);
+        assert!(queued(&data).is_empty());
+        assert_eq!(status_of(&data), "Storage Chest not built: only foundations, roofs and walls can be built outside your own home");
+
+        // A wall the server keeps, with no queue to wait in: refused unpaid.
+        let mut no_queue = build_store(shipped_registry(), vec![to_keep("wood_wall", &wall_pose)]);
+        no_queue.insert("home_stock", std::sync::Mutex::new(HashMap::from([(plank.clone(), 10u32)])));
+        sys.tick(&mut world, 0.05, &no_queue);
+        assert_eq!((pack_planks(&world), stored_of(&no_queue, &plank)), (20, 10), "nothing taken for a build with nowhere to go");
+        assert_eq!(pieces_in(&world), 0);
+        assert_eq!(status_of(&no_queue), "Wood Wall not built: there is no way to send it to the server right now");
+
+        // The chest in the player's own home: built, and paid for, as ever.
+        data.get::<std::sync::Mutex<Vec<BuildRequest>>>("build_request").unwrap().lock().unwrap().push(BuildRequest::new("storage_chest", chest_pose));
+        sys.tick(&mut world, 0.05, &data);
+        assert_eq!(world.query::<&Construction>().iter().count(), 1, "a private chest is built");
+        assert_eq!(pack_planks(&world), 20 - chest.materials[0].1);
+        assert!(queued(&data).is_empty(), "and stays out of the queue");
+    }
+
+    /// WHO A FINISHED PIECE REWARDS (ship homes increment 5, 2026-10-05). In
+    /// the shared world the game grows the scaffolds the server tells it
+    /// about (`shared::SharedPiece`), its own and other people's. Someone
+    /// else's Stone Foundation finishing beside the player becomes a
+    /// structure like any other, and quietly: no `build_stone_foundation`
+    /// quest step, no shelter-building XP, no sound and no "complete" line,
+    /// since the player did not build it. The player's own (`mine`) earns all
+    /// four, as a piece in their own home does.
+    /// Seen red 2026-10-05 on the code before (no gate): "someone else's
+    /// piece finishes quietly: left: ([\"build_stone_foundation\"], 1, 1,
+    /// \"Stone Foundation complete\"), right: ([], 0, 0, \"\")".
+    #[test]
+    fn someone_elses_scaffold_finishes_quietly_and_mine_earns_its_reward() {
+        let reg = shipped_registry();
+        let found = reg.get("stone_foundation").unwrap().clone();
+        let data = shared_store(Vec::new(), &[]);
+        let scaffold = || Construction { blueprint_id: "stone_foundation".into(), progress: found.build_time - 1.0, build_time: found.build_time, builder_key: None };
+        let pose = |x: f32| placement::placement_pose(&found, Vec3::new(x, 0.0, 140.0), 0, &hecs::World::new(), &reg, None);
+        let kept = |piece_id: u64, mine: bool| shared::SharedPiece { piece_id, frame: "plot:p2".into(), mine };
+        let rewards = |d: &DataStore| {
+            let events = d.get::<std::sync::Mutex<Vec<String>>>("quest_events").unwrap().lock().unwrap().clone();
+            let xp = d.get::<std::sync::Mutex<Vec<crate::systems::skills::SkillXPEvent>>>("xp_grants").unwrap().lock().unwrap().len();
+            let sfx = d.get::<std::sync::Mutex<Vec<(String, String)>>>("sfx_events").unwrap().lock().unwrap().len();
+            (events, xp, sfx, status_of(d))
+        };
+        let mut world = hecs::World::new();
+        let theirs = world.spawn((pose(20.0), scaffold(), kept(7, false)));
+        let mut sys = ConstructionSystem::new();
+        sys.tick(&mut world, 1.5, &data);
+        assert!(world.get::<&Structure>(theirs).is_ok(), "someone else's foundation finishes all the same");
+        assert_eq!(rewards(&data), (Vec::<String>::new(), 0, 0, String::new()), "someone else's piece finishes quietly");
+
+        let mine = world.spawn((pose(30.0), scaffold(), kept(8, true)));
+        sys.tick(&mut world, 1.5, &data);
+        assert!(world.get::<&Structure>(mine).is_ok());
+        assert_eq!(
+            rewards(&data),
+            (vec!["build_stone_foundation".to_string()], 1, 1, "Stone Foundation complete".to_string()),
+            "my own piece earns its quest step, its XP, its sound and its line"
+        );
+    }
+
+    /// THE FIRE RULES HOLD FOR A BUILD KEPT BY THE SERVER (the BUG-153
+    /// review's rules, ship homes increment 5, 2026-10-05). A build kept by
+    /// the server takes the one path every build takes (`begin_build`), so it
+    /// meets every check a private build meets before it is paid for: a Wood
+    /// Roof laid on three walls over a campfire is refused with the
+    /// campfire's own reason whether the server is to keep it or not, and
+    /// nothing is taken, queued or put up. (Aboard there is no campfire to
+    /// roof over today, since a fire is built only outdoors: this holds the
+    /// order of the checks, so that handing a shared build over early cannot
+    /// skip them.)
+    /// Seen red 2026-10-05 with the fire checks skipped for a shared build:
+    /// "a shared roof over a campfire is refused: \"Building Wood Roof...\"".
+    #[test]
+    fn a_build_kept_by_the_server_meets_the_fire_rules_too() {
+        use crate::ecs::components::Controllable;
+        use crate::systems::inventory::Inventory;
+        let reg = shipped_registry();
+        let mut world = hecs::World::new();
+        let mut pack = Inventory::new(16);
+        pack.add_item("wood_plank_0", 40, 999);
+        let builder = world.spawn((pack, Controllable));
+        for (x, z, turns) in [(0.0, -2.0, 0), (-2.0, 0.0, 1), (2.0, 0.0, 1)] {
+            let wall = reg.get("wood_wall").unwrap();
+            let tf = placement::placement_pose(wall, Vec3::new(x, 0.0, z), turns, &world, &reg, None);
+            world.spawn((tf, Structure { blueprint_id: "wood_wall".into(), health: 1.0, max_health: 1.0, provides: wall.provides.clone(), uid: 0 }));
+        }
+        let fire = reg.get("campfire").unwrap();
+        let fire_pose = placement::placement_pose(fire, Vec3::ZERO, 0, &world, &reg, None);
+        world.spawn((fire_pose, Structure { blueprint_id: "campfire".into(), health: 1.0, max_health: 1.0, provides: fire.provides.clone(), uid: 0 }));
+        let roof = placement::placement_pose(reg.get("roof").unwrap(), Vec3::ZERO, 0, &world, &reg, None);
+        assert!(roof.position.y > 2.9, "the roof rests on the walls, over the fire: {}", roof.position);
+        let data = shared_store(Vec::new(), &[]);
+        let why = begin_build(&mut world, &data, BuildRequest::new("roof", roof.clone()).shared(Some("plot:p1".into())))
+            .expect_err("a shared roof over a campfire is refused");
+        assert_eq!(
+            why,
+            "The Wood Roof is not built here: it would roof over the Campfire, which needs open sky over it, because under a roof its smoke would fill the shelter"
+        );
+        assert_eq!(world.get::<&Inventory>(builder).unwrap().count_item("wood_plank_0"), 40, "nothing taken");
+        assert!(queued(&data).is_empty(), "nothing queued");
+        assert_eq!(world.query::<&Construction>().iter().count(), 0, "nothing put up");
+        assert!(begin_build(&mut world, &data, BuildRequest::new("roof", roof)).is_err(), "and the same roof kept privately, the same");
     }
 }
