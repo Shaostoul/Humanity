@@ -55,10 +55,12 @@ use crate::surface_walk::{rest_radius, settle_radius, vertical_step, EYE_HEIGHT_
 
 /// Which control law the surface frame-lock runs this frame.
 ///
-/// This is a VIEW of the existing dev-flight flag (`GuiState::dev_fly_mode` ->
-/// `CameraController::fly_mode`), not a second source of truth: build it with
-/// `from_dev_flight` at the call site. The HUD's long-standing "FLY" indicator
-/// reads the same flag, so the mode word and the physics can never disagree.
+/// Built with `from_dev_flight` at the call site, from the F9 hover bit
+/// (`GuiState::dev_hover`, v0.1109.2), which is NOT the controller's fly bit
+/// (`GuiState::dev_fly_mode` -> `CameraController::fly_mode`): dev travel
+/// sets the fly bit alone. The HUD's movement line reads both bits
+/// (`gui::pages::hud::movement_line`, BUG-149, 2026-10-04), so it says FLY
+/// whenever either changes how the player moves, using these two words.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum MoveMode {
     /// Feet on the ground. Gravity pulls, the ground clamps, and WASD moves

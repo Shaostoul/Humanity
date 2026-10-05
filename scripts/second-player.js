@@ -96,12 +96,19 @@ const DEFAULT_SERVER = "ws://localhost:3210/ws";
 // The desktop app sends its position when `game_pos_timer >= 1.0 / 15.0`
 // (src/lib.rs), so fifteen times a second.
 const SEND_HZ = 15;
-// The relay drops any update that moves more than 100 m in one go
-// (handle_game_position_update). No step is longer than this, on the way to
-// the path or on it (makeWalk), so we stay safely under it.
-const MAX_STEP_M = 90;
+// The relay checks every update against how far anyone can go in the time since
+// (ship homes increment 4, src/relay/handlers/move_check.rs, with the rules in
+// data/ship/shared_world.ron): a player may bank at most 46.9 m of allowance
+// (25 m/s on foot, with a quarter's margin, kept 1.5 s) and it builds at
+// 31.25 m/s; a move past that is CORRECTED, not taken. So no step is longer than
+// this, even after a long pause (makeWalk), and none goes faster than
+// MAX_SPEED_MPS. (Until increment 4 the rule was 100 m an update, and this was 90.)
+const MAX_STEP_M = 30;
+// The fastest the walker goes, m/s: under the relay's 25 m/s on foot.
+const MAX_SPEED_MPS = 20;
 // When the path starts somewhere other than where the relay put us, we get
-// there in about this many seconds (never slower than walking speed).
+// there in about this many seconds (never slower than walking speed, never
+// faster than MAX_SPEED_MPS).
 const APPROACH_SECONDS = 4;
 // A plain walking pace for a person, metres per second.
 const DEFAULT_SPEED = 1.4;
@@ -569,6 +576,14 @@ function logOthers(client, me, log, { minMoveM = 0.25, everyS = 2 } = {}) {
     } else if (g.type === "game_player_left" && g.player_id !== me) {
       last.delete(g.player_id);
       log(`player left: entity ${g.player_id}`);
+    } else if (g.type === "game_in_view" && g.entity && g.entity.entity_type === "player" && g.entity.entity_id !== me) {
+      // Another player came into our view (increment 4: the relay sends moves only to the players
+      // who have the mover in view, src/relay/handlers/game_interest.rs).
+      last.delete(g.entity.entity_id);
+      log(`in view: entity ${g.entity.entity_id} "${(g.entity.components && g.entity.components.name) || ""}" at ${fmt((g.entity.position || [0, 0, 0]).map(Number))}`);
+    } else if (g.type === "game_out_of_view" && g.entity_id !== me) {
+      last.delete(g.entity_id);
+      log(`out of view: entity ${g.entity_id}`);
     } else if (g.type === "game_position_update" && g.player_id !== me && Array.isArray(g.position)) {
       const prev = last.get(g.player_id);
       const now = Date.now();
@@ -639,6 +654,24 @@ function chooseCenter(opts, welcome) {
 
 const fmt = (p) => `(${p.map((v) => v.toFixed(2)).join(", ")})`;
 
+/** The line a walker logs when the relay corrects it (ship homes increment 4), and the pattern a
+ *  rig finds it by: scripts/verify-copresence.js counts every walker's corrections with
+ *  CORRECTED_RE, so the two are one place (the review of increment 4, R5: the rig matched its own
+ *  /corrected to/, and rewording the line or dropping the handler left every test green).
+ *  Groups: x, y, z, the reason, the correction's number. */
+const CORRECTED_RE = /corrected to \(([-\d.]+), ([-\d.]+), ([-\d.]+)\) \(([a-z_]+), correction (\d+)\)/;
+const correctedLine = (position, reason, seq) => `corrected to ${fmt(position.map(Number))} (${reason}, correction ${seq})`;
+
+/** One game message for the walk: a correction (`game_position_correction`) is logged in the line
+ *  the rig reads (`correctedLine`) and the walk stands where the relay holds it and walks on from
+ *  there (`walk.corrected`). Returns true when the message was one. */
+function onCorrection(g, walk, log) {
+  if (!g || g.type !== "game_position_correction" || !Array.isArray(g.position)) return false;
+  log(correctedLine(g.position, g.reason, g.seq));
+  walk.corrected(Number(g.seq), g.position);
+  return true;
+}
+
 /** The plot the relay gave us, as the one line the log carries (and
  *  scripts/verify-copresence.js reads): "home_plot {json}" with the welcome's
  *  {id, kind, origin, size}, or "home_plot null" for a guest (the ship is
@@ -696,7 +729,10 @@ function makeWalk(plan, start, startS) {
   let leg = 0;
   const approachM = legs.reduce((acc, p, i) => acc + Math.hypot(...p.map((v, k) => v - (i ? legs[i - 1] : start)[k])), 0);
   let onPath = route.length === 0 && gap < 0.01;
-  const approachSpeed = route.length ? plan.routeSpeed || plan.speed : Math.max(plan.speed, gap / APPROACH_SECONDS);
+  const approachSpeed = Math.min(route.length ? plan.routeSpeed || plan.speed : Math.max(plan.speed, gap / APPROACH_SECONDS), MAX_SPEED_MPS);
+  // The newest correction the relay sent and we stood at (increment 4): every update says it, so
+  // the relay can tell the updates sent before it from those after.
+  let applied = 0;
 
   const update = (velocity) => ({
     type: "game_position_update",
@@ -704,6 +740,7 @@ function makeWalk(plan, start, startS) {
     rotation: facing.slice(),
     velocity,
     timestamp: clockS, // the sender clock, SECONDS (THE TIMESTAMP RULE)
+    correction: applied,
   });
 
   return {
@@ -713,6 +750,20 @@ function makeWalk(plan, start, startS) {
     onPath: () => onPath,
     position: () => pos.slice(),
     here: () => update([0, 0, 0]),
+    /** The relay corrected us (`game_position_correction`, increment 4): stand where it holds
+     *  us, say so in every update from now on, and walk back to where the path is now. */
+    corrected(seq, at) {
+      if (!(seq > applied) || !Array.isArray(at) || at.length !== 3) return false;
+      applied = seq;
+      pos = at.map(Number);
+      if (onPath) {
+        onPath = false;
+        legs.length = 0;
+        legs.push(pathPoint(plan, travelled));
+        leg = 0;
+      }
+      return true;
+    },
     next(nowS) {
       // The time step: how long since the last update, by the same clock the
       // stamps come from. (At least a millisecond, so a velocity never
@@ -798,6 +849,7 @@ function startWalking(client, plan, start, log) {
   return {
     position: () => walk.position(),
     sent: () => sent,
+    corrected: (seq, at) => walk.corrected(seq, at),
     stop() {
       clearInterval(timer);
       clearInterval(status);
@@ -913,6 +965,9 @@ async function main() {
 
   const plan = { path: opts.path, axis: opts.axis, center, radius: opts.radius, speed: opts.speed, route: opts.route, routeSpeed: opts.routeSpeed };
   const walker = startWalking(client, plan, start, log);
+  // A correction from the relay (increment 4): one line a rig reads (CORRECTED_RE; an honest
+  // walk never draws one), then stand where the relay holds us and walk on from there.
+  const stopCorrections = client.onGame((g) => onCorrection(g, walker, log));
   const stopChat = opts.chat ? sayInChat(client, identity, opts.name, opts.chat, log) : () => {};
 
   let stopping = false;
@@ -923,6 +978,7 @@ async function main() {
     clearTimeout(limitTimer);
     stopChat();
     stopLogging();
+    stopCorrections();
     walker.stop();
     // Step out of the world on purpose (the desktop app sends the same),
     // then give the socket a moment to deliver both before closing it.
@@ -969,8 +1025,12 @@ async function main() {
 }
 
 module.exports = {
+  CORRECTED_RE,
+  correctedLine,
+  onCorrection,
   SEND_HZ,
   MAX_STEP_M,
+  MAX_SPEED_MPS,
   DEFAULT_NAME,
   TEST_BOT_PREFIX,
   NAME_RULE,

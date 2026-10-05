@@ -490,9 +490,11 @@ practising and several things that are not what they look like.
   aboard the ship in orbit, not on the ground; in the default Dev play
   mode, the Dev page's Land on surface buttons put you on the ground,
   and its travel buttons take you to a planet's orbit. Both leave fly
-  mode on, although once you are on the ground the line under the
-  compass reads "WALK x1 [F9 to fly]". Press F9 twice, or untick Fly mode
-  on the Dev page, and you are really walking. Until you do, there are
+  mode on, and the line under the compass says so: "FLY x1 - gravity on
+  [F9 to hover]". Press F9 twice (the first press turns the hover on, the
+  second turns both off and the line reads "WALK x1 [F9 to fly]"), or
+  untick Fly mode on the Dev page, and you are really walking. Until you
+  do, there are
   no footsteps, and the mouse wheel can raise your speed far past the
   fifty-times limit that holds while walking.
 - **Footsteps you can count.** Walking on the ground of a planet, or on
@@ -534,11 +536,11 @@ practising and several things that are not what they look like.
   the real regions with north up and a bar scale but does not mark where
   you are. That makes the game a fair place to practise keeping a log,
   and an honest one: if you lose track, nothing on screen will rescue the
-  arithmetic. The Maps page's Track switch for the Home Station is meant
-  to ring your home in orbit with its distance, but in this build the
-  ring is cut off at the Render distance setting (Settings > Graphics,
-  500 metres by default and 2 kilometres at most), so from the ground it
-  never appears ([What to Do When You Are
+  arithmetic. The Maps page's Track switch for the Home Station, on by
+  default, rings your home in orbit with its distance, from the ground
+  too, and pins the ring to the edge of the screen on the side to turn
+  toward when the station is out of view. That shows where home is in
+  the sky, not where you are on the ground ([What to Do When You Are
   Lost](/library#what-to-do-when-you-are-lost)).
 - **The Navigation skill exists, but nothing in the game levels it
   yet.**
@@ -663,8 +665,8 @@ October 2026.
   (`data/world/spawn.ron`); the Dev page's travel and Land on surface
   buttons, which turn fly mode on, and F9 and the Fly mode box, which
   turn it off (`src/lib.rs`, `src/gui/pages/dev.rs`); the HUD's movement
-  line, which reads WALK whenever F9's hover is off
-  (`src/gui/pages/hud.rs`). The footstep stride meter (a footstep each
+  line, which reads FLY whenever fly mode or the hover is on
+  (`movement_line` in `src/gui/pages/hud.rs`). The footstep stride meter (a footstep each
   time 1.5 metres have been walked on a planet's ground or aboard, with
   fly mode off, the leftover distance dropped at each step, and steps
   over 2 metres in one frame ignored): `src/lib.rs`; the 0.35 metre
@@ -685,11 +687,11 @@ October 2026.
   Device items and the Navigation skill, as described in [Knowing Which
   Way Is North](/library#knowing-which-way-is-north) and
   [Coordinates](/library#coordinates). The Maps page's planet view and Track
-  switch: `src/gui/pages/cosmos.rs`. The Home Station ring, dropped by
-  the HUD's `world_to_screen` beyond the camera's far plane
-  (`src/gui/pages/hud.rs`), which is the Render distance setting
-  (`src/config.rs`, applied in `src/lib.rs`; the reverse-depth
-  projection is in `src/renderer/camera.rs`).
+  switch: `src/gui/pages/cosmos.rs`. The Home Station ring and its
+  distance label, shown beyond a kilometre from the station
+  (`src/lib.rs`), placed by direction and pinned to the screen's edge
+  when out of view (`marker_placement` and `marker_distance` in
+  `src/gui/pages/hud.rs`).
 - [Knowing Which Way Is North](/library#knowing-which-way-is-north), [The Sky
   as an Instrument](/library#the-sky-as-an-instrument),
   [Estimating](/library#estimating), [Reading a Map](/library#reading-a-map),

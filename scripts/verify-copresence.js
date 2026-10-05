@@ -66,9 +66,11 @@
 // walker's plot, with the smoothness checks on one forward leg of its walk.
 // Then the two MEET IN THE COMMONS (increment 2), judged under meet_* ids: the
 // game reports its door points (debug/door_points_request.json, from its own
-// corridor geometry, so no corridor maths lives in this rig) and is moved from
-// its door into the Commons in steps the relay accepts (40 m, under its 100 m
-// rule), to a pose facing a line there (MEET_POSE); the walker steps out of the
+// corridor geometry, so no corridor maths lives in this rig) and WALKS from its
+// door into the Commons (the showcase `walk_to` verb at WALK_MPS, increment 4:
+// the relay's speed check corrects a teleport nobody could make, which the 40 m
+// `cam` steps of increments 2 and 3 had been under the old 100 m rule), to a pose
+// facing a line there (MEET_POSE); the walker steps out of the
 // world and back in at ITS door (it names it in its join, --home-spawn) and
 // walks out through its own corridor into the Commons and along the line
 // (second-player.js --route, from the same door points). The game records where
@@ -85,7 +87,22 @@
 // records a few seconds. Judged under crew_* ids (copresence-judge.js judgeCrew): every crew
 // member drawn, no crew figure ever drawn on a plot, every one in the Commons during the look,
 // and at least one SEEN there: named on screen, drawn in front of the camera, and a crew
-// figure's amber body counted in the picture under the name. Then, in each order, the game STEPS OUT of
+// figure's amber body counted in the picture under the name. THE OVERSIZED JUMP (increment 4,
+// the relay's speed check): from the crew look the game jumps (the `cam` verb) to the shared
+// zones' place farthest away, farther than anyone can go in one update; judged under jump_* ids
+// (copresence-judge.js judgeJump): the relay corrected it once (the probe's `moves`, measured
+// from where the game itself says the jump put it), one sentence came on screen, it stands back
+// where the relay holds it, nothing of the jump reached the walker, and its next move did. And
+// over the whole run (moves_* ids, judgeHonestMoves) that jump drew the game's only corrections,
+// the relay sent exactly the corrections the game applied (its relay.log), and no walker was
+// ever corrected: the door walks, the teleporter, Respawn, the step out and back and the build
+// editor's close were each taken. (A reconnect's grant is not exercised here: the guest's
+// reconnect stands back where the relay held it. The relay tests cover the grant.) Every walk
+// the rig makes must arrive, and a turn in place is never sent from anywhere else (walks_* ids,
+// judgeWalks). THE HOME'S OWN TELEPORTER (tele_* ids, judgeTeleporter): after the step back in,
+// the game stands beside its home's west pad and walks onto it; the pad jumps it to the east
+// one, 60.6 m off, and the relay must pass the declared jump on uncorrected; then it comes back
+// the same way. Then, in each order, the game STEPS OUT of
 // the shared world and back (the showcase `solo` verb, the switch the
 // launcher's offline home and Dev travel flip), having been moved more than
 // 100 m from its door while out: the relay spawns it afresh at its door, and
@@ -97,7 +114,9 @@
 // (the third review found Respawn left it frozen at the far end for everyone).
 // Then, from its door, the game opens and shuts the build editor (the showcase
 // `build_editor` verb, the B key's own function), which makes the door its build
-// spot, walks to the far place again, and opens and shuts the editor there:
+// spot; walks about 60 m into the ship and opens and shuts it there, which must
+// stand it back at the build spot with the relay passing the declared jump on
+// (editorjump_* ids, judgeEditorJump); walks to the far place again, and opens and shuts the editor there:
 // shutting it must leave the game where the relay holds it, judged under editor_*
 // ids (round 5 of the review found it put the game back at its build spot, more
 // than 100 m away, frozen for everyone). The far place is the corner of a shared
@@ -190,8 +209,20 @@ const {
   judgeGuest,
   judgeCrew,
   crewPixels,
+  bankedAllowanceM,
+  judgeJump,
+  judgeHonestMoves,
+  relayCorrections,
+  turnInPlace,
+  judgeWalks,
+  padApproach,
+  editorJumpTarget,
+  judgeEditorJump,
+  judgeTeleporter,
 } = require("./lib/copresence-judge.js");
 const png = require("./lib/png.js");
+// The line a walker logs when the relay corrects it, one pattern for the walker and this rig.
+const { CORRECTED_RE } = require("./second-player.js");
 // The freshness gate, run through its one runner so --allow-other-build reaches
 // it and comes back as the manifest's other_build record (BUG-133).
 const { runFreshGate, otherBuildNotice, requireBootCopy, bootRecord } = require("./lib/src-fingerprint.js");
@@ -256,10 +287,12 @@ const SPEED = Number(opt("--speed", "1.4"));
 // (the judge's approachClear), here before booting and again on the start the
 // walker actually reports.
 const SPAWN = [27.5, 1.7, 143.5];
-// second-player.js reaches the start of its path within 4 s however far it is
-// (APPROACH_SECONDS), so a walk of this long covers the approach, one full
-// pass and a margin.
-const APPROACH_MAX_S = 4;
+// second-player.js reaches the start of its path in about 4 s (APPROACH_SECONDS),
+// but never faster than its MAX_SPEED_MPS (20 m/s, under the relay's 25 m/s on
+// foot since its speed check, ship homes increment 4): from p2's middle to the
+// line in front of the camera is about 130 m, 6.5 s. A walk of this long covers
+// the approach, one full pass and a margin.
+const APPROACH_MAX_S = 8;
 const WALK_S = Math.ceil(APPROACH_MAX_S + (2 * RADIUS) / SPEED + 2);
 // The recording starts just before the walker and runs past its end; signing
 // in (loading the post-quantum library, deriving the keys) takes a few seconds.
@@ -964,9 +997,16 @@ const PLOTS_RECORD_S = Math.ceil(CYCLE_S + (2 * RADIUS) / SPEED + 4);
 // and with nothing between the camera and the line. The rig refuses a pose the
 // game's door points do not put inside the Commons.
 const MEET_POSE = opt("--meet-pose", "76,1.7,64,3.14159265,-0.05");
-/** The longest step the game is moved in on its way from its door into the
- *  Commons (the showcase `cam` verb), metres: well inside the relay's 100 m. */
+/** The longest leg between two points of the game's walks (doorRoute's steps), metres. Since
+ *  increment 4 the game WALKS them (the showcase `walk_to` verb, at WALK_MPS): the relay's speed
+ *  check corrects a jump nobody could make, which the `cam` verb's 40 m teleports had been under
+ *  the old 100 m rule. */
 const MEET_STEP_M = 40;
+/** How fast the game walks through the ship (the showcase `walk_to` verb), m/s: a run, well under
+ *  the 25 m/s the relay lets anyone go on foot (data/ship/shared_world.ron). */
+const WALK_MPS = 6;
+/** The relay's own rules for moving aboard, read where the relay reads them. */
+const SHARED_WORLD_RON = path.join(REPO, "data", "ship", "shared_world.ron");
 // Where the game looks at the crew (increment 3): in the Commons' east aisle, facing north (yaw
 // 0) up it toward the mess hall, where the crew's chore sites are (data/npc/chores.ron), every
 // one within the 40 m the HUD names a crew member at, with no wall between.
@@ -1069,7 +1109,7 @@ async function takeShots(name, onLineAt, passS, out, prefix = "") {
  *  the mess hall by the time crew.png was taken). It records CREW_RECORD_S seconds
  *  (crew_samples.json). Returns what judgeCrew's look needs (the amber pixels are counted from
  *  crew.png by `crewChecks`, so --dry-verdict counts them again). */
-async function crewLook({ out, dp, from, showcase, step }) {
+async function crewLook({ out, dp, from, walkRoute, turnTo, step }) {
   const [cx, cy, cz, cyaw, cpitch] = CREW_POSE.split(",").map(Number);
   const to = [cx, cy, cz];
   const route = doorRoute(dp, from, to, MEET_STEP_M);
@@ -1077,11 +1117,9 @@ async function crewLook({ out, dp, from, showcase, step }) {
     step("crew_walk", false, `no route from ${fmt(from)} to the crew look ${fmt(to)}: ${route.error}`);
     return { error: route.error, pose: CREW_POSE };
   }
-  for (const p of route.points) {
-    await showcase({ cam: `${p.join(",")},${cyaw},${cpitch}` });
-    await sleep(1500);
-  }
-  await showcase({ cam: CREW_POSE });
+  await walkRoute(route.points, cyaw, cpitch, "crew");
+  // At CREW_POSE already: this only turns the camera (no move; refused if the walk stopped short).
+  await turnTo(CREW_POSE);
   await sleep(2500);
   const t0 = Date.now();
   let seen = [];
@@ -1377,6 +1415,28 @@ function plotsVerdict(m, dir) {
   } else {
     add("reboot_ran", false, (s.reboot && s.reboot.detail) || "the second boot never ran");
   }
+  // The relay's speed check (increment 4): the oversized jump corrected, never frozen, and every
+  // honest move of the run taken.
+  if (m.jump) {
+    for (const c of judgeJump(m.jump).checks) checks.push(c);
+  } else {
+    add("jump_ran", false, "the oversized jump never ran");
+  }
+  // The fast moves that are declared, end to end (the increment 4 review, R1): the home's own
+  // teleporter, and shutting the build editor away from the build spot.
+  if (m.tele) {
+    for (const c of judgeTeleporter(m.tele).checks) checks.push(c);
+  } else {
+    add("tele_ran", false, "the walk onto the home's own teleporter never ran");
+  }
+  if (m.editorjump) {
+    for (const c of judgeEditorJump(m.editorjump).checks) checks.push(c);
+  } else {
+    add("editorjump_ran", false, "the walk away from the build spot and the build editor's open and shut never ran");
+  }
+  for (const c of judgeHonestMoves(honestOf(m, dir)).checks) checks.push(c);
+  // Every walk arrived, and no turn finished one (R4).
+  for (const c of judgeWalks(m.walks, m.turns).checks) checks.push(c);
   const panics = Number(m.panics || 0);
   add("no_panics", panics === 0, `${panics} PANIC line(s) in run.log`);
   // BUG-133, as the default rig: a data file served from the copy built into the exe makes the
@@ -1394,10 +1454,24 @@ function plotsVerdict(m, dir) {
   return { checks, pass: checks.every((c) => c.ok), stats };
 }
 
+/** What judgeHonestMoves reads from a --plots manifest and its run folder (increment 4): the
+ *  game's corrections over both boots, the jump's share, the corrections the relay sent the game
+ *  (its relay.log in the run folder, without the walkers' keys, the review of increment 4, R7),
+ *  and the walkers' correction lines. Not recorded stays null, which fails. */
+function honestOf(m, dir) {
+  const first = m.corrections_first_boot;
+  const second = m.corrections_second_boot;
+  const gameTotal = Number.isFinite(first) ? first + (Number.isFinite(second) ? second : 0) : null;
+  const j = m.jump || null;
+  const fromJump = j && j.after && j.before ? Number(j.after.count) - Number(j.before.count) : 0;
+  const relayLog = dir ? path.join(dir, "relay.log") : null;
+  const relaySent = relayLog && fs.existsSync(relayLog) && Array.isArray(m.walker_keys) ? relayCorrections(fs.readFileSync(relayLog, "utf8"), m.walker_keys).total : null;
+  return { gameTotal, fromJump, relaySent, walkerLines: Array.isArray(m.walker_corrections) ? m.walker_corrections : null };
+}
+
 /** The guest order's verdict: the rig's steps, the entry, judgeGuest, and the run's
  *  logs. Re-runs from the manifest. */
 function guestVerdict(m, dir) {
-  void dir;
   const checks = [];
   const add = (id, ok, detail) => checks.push({ id, ok: !!ok, detail });
   const s = m.steps_ok || {};
@@ -1407,6 +1481,9 @@ function guestVerdict(m, dir) {
   add("game_in_world", s.joined && s.joined.ok, s.joined ? s.joined.detail : "never joined");
   if (m.guest) for (const c of judgeGuest(m.guest).checks) checks.push(c);
   else add("guest_ran", false, (s.guest && s.guest.detail) || "the guest legs never ran");
+  // Increment 4: no honest move of the guest's was corrected, and every walk arrived (R4).
+  for (const c of judgeHonestMoves(honestOf(m, dir)).checks) checks.push(c);
+  for (const c of judgeWalks(m.walks, m.turns).checks) checks.push(c);
   const panics = Number(m.panics || 0);
   add("no_panics", panics === 0, `${panics} PANIC line(s) in run.log`);
   add(
@@ -1494,6 +1571,9 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     door_points: null,
     meet: null,
     reboot: null,
+    // Every walk of the game and every turn in place (R4, judgeWalks).
+    walks: [],
+    turns: [],
     steps: [],
     steps_ok: {},
     panics: 0,
@@ -1647,6 +1727,47 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     req("showcase_request.json", body);
     // The game deletes the request when it takes it (engine/ipc.rs poll_showcase_request).
     for (const t0 = Date.now(); Date.now() - t0 < 10000 && fs.existsSync(path.join(DEBUG, "showcase_request.json")); ) await sleep(100);
+  };
+  /** Walk the game to `p` (the showcase `walk_to` verb, increment 4) at WALK_MPS facing yaw and
+   *  pitch, and wait until it has arrived: the probe's `moves.walking` false and the camera
+   *  there. Every walk is recorded (`manifest.walks`, judged by judgeWalks), and one that never
+   *  arrives is a failed step, never silence (the review of increment 4, R4: the rig went on as if
+   *  it had, and the turn after it finished the walk with a teleport). Returns { ok, probe }. */
+  const walkGame = async (p, yaw, pitch, label = "walk") => {
+    const from = await probe();
+    const here = from && from.camera_end ? from.camera_end.pos : p;
+    const far = Math.hypot(...[0, 1, 2].map((k) => p[k] - here[k]));
+    await showcase({ walk_to: `${p.join(",")},${yaw},${pitch},${WALK_MPS}` });
+    const at = (pr) => pr && pr.moves && pr.moves.walking === false && pr.camera_end && Math.hypot(...[0, 1, 2].map((k) => pr.camera_end.pos[k] - p[k])) < 0.05;
+    const pr = await until(at, Math.ceil((far / WALK_MPS) * 1000) + 15000);
+    const ok = !!at(pr);
+    const stopped = pr && pr.camera_end ? pr.camera_end.pos : null;
+    manifest.walks.push({ label, to: p, at: stopped, ok });
+    if (!ok) step(`${label}_walk`, false, `the walk to ${fmt(p)} never arrived: the camera stopped at ${stopped ? fmt(stopped) : "(unknown)"}${pr && pr.moves && pr.moves.walking ? ", still walking" : ""}`);
+    return { ok, probe: pr };
+  };
+  /** Walk the game through `points` in order (`walkGame`), stopping at the first walk that never
+   *  arrives. Returns true when every one did. */
+  const walkRoute = async (points, yaw, pitch, label = "walk") => {
+    for (const p of points) {
+      if (!(await walkGame(p, yaw, pitch, label)).ok) return false;
+    }
+    return true;
+  };
+  /** Turn the game where it stands, to `pose` ("x,y,z,yaw,pitch", the `cam` verb, which is a
+   *  teleport): only when the camera already stands within TURN_IN_PLACE_M of its point, else the
+   *  walk there stopped short, and the turn is refused and recorded, never sent (R4). */
+  const turnTo = async (pose) => {
+    const pr = await probe();
+    const at = pr && pr.camera_end ? pr.camera_end.pos : null;
+    const t = turnInPlace(at, pose);
+    manifest.turns.push({ pose, at, off: Number.isFinite(t.off) ? Number(t.off.toFixed(3)) : null, ok: t.ok });
+    if (!t.ok) {
+      step("turn", false, `refused to turn to ${pose}: the camera stands ${Number.isFinite(t.off) ? t.off.toFixed(2) : "?"} m from it, at ${at ? fmt(at) : "(unknown)"}`);
+      return false;
+    }
+    await showcase({ cam: pose });
+    return true;
   };
   const until = async (ok, ms) => {
     let p = null;
@@ -1833,10 +1954,8 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     const farTarget = farthestFrom(farPlaces(dp), arrival);
     const route = doorRoute(dp, arrival, farTarget).points;
     const markWalk = walkerOut.length;
-    for (const p of route) {
-      await showcase({ cam: `${p.join(",")},${yaw},${pitch}` });
-      await sleep(1500);
-    }
+    await walkRoute(route, yaw, pitch, "guest_far");
+    await sleep(1500);
     const walked = seenBy(A.name, markWalk, entity);
     const heldFar = walked.length ? walked[walked.length - 1] : null;
     step("guest_far", !!heldFar, `walked ${route.length} steps to ${fmt(farTarget)}; the relay last passed the guest on at ${heldFar ? fmt(heldFar) : "(never)"}`);
@@ -1910,6 +2029,8 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     g.reconnect.seen = seenBy(A.name, markNudge4, entity3);
     step("guest_back", !!(back && back.game_joined && back.last_welcome_rejoin === true), `reconnected: the welcome did "${g.reconnect.after.lastWelcome}", rejoin ${g.reconnect.after.rejoin}; the home put away: ${g.reconnect.after.homeAway}; the camera at ${cam4 ? fmt(cam4) : "(none)"}; ${g.reconnect.seen.length} relayed move(s) after the nudge`);
     manifest.steps_ok.guest = { ok: true, detail: "the guest legs ran" };
+    const pEnd = await probe();
+    manifest.corrections_first_boot = pEnd && pEnd.moves ? Number(pEnd.moves.count) : null;
     save();
   };
 
@@ -2023,11 +2144,11 @@ async function runPlotsOnce(order, runStamp, cleanups) {
       // From its door, so the walk is the one a person takes out of their home.
       const markGame = walkerOut.length;
       const gameSteps = [gameDoor, ...gameWalk.points];
-      for (const p of gameSteps) {
-        await showcase({ cam: `${p.join(",")},${yaw0},${pitch0}` });
-        await sleep(1500);
-      }
-      await showcase({ cam: MEET_POSE });
+      await walkRoute(gameSteps, yaw0, pitch0, "meet");
+      await sleep(1500);
+      // At the meeting pose already: this turns it to face the line (no move; refused if the walk
+      // stopped short).
+      await turnTo(MEET_POSE);
       await sleep(2500);
       const c1 = await probe();
       await sleep(1000);
@@ -2141,8 +2262,66 @@ async function runPlotsOnce(order, runStamp, cleanups) {
       // ── The crew in the Commons (increment 3): the game walks up the east aisle and looks
       // at the crew at work there and in the mess hall (crewLook).
       manifest.expect_crew = crewInTree();
-      manifest.crew_look = await crewLook({ out, dp, from: camB ? camB.pos : meetCam, showcase, step });
+      const markCrew = walkerOut.length;
+      manifest.crew_look = await crewLook({ out, dp, from: camB ? camB.pos : meetCam, walkRoute, turnTo, step });
       save();
+
+      // ── THE OVERSIZED JUMP (increment 4: the relay's speed check). The game stands still where
+      // the relay holds it, then jumps (the `cam` verb) to the shared zones' place farthest from
+      // there, farther than anyone can go in one update. The relay must answer with a correction,
+      // the game stand back where the relay holds it, nothing of the jump reach the walker, and
+      // the game's next move reach it: corrected, never frozen (the old 100 m rule refused such a
+      // move without a word, and every one after it).
+      {
+        const gameEntity = (() => {
+          const hit = walkerOut.slice(w2.from).map((o) => o.line.match(presentRe) || o.line.match(sawRe)).find((x) => x && Number(x[1]) !== w2id);
+          return hit ? Number(hit[1]) : null;
+        })();
+        const pj0 = await probe();
+        const jFrom = camOf(pj0);
+        const jYaw = pj0 && pj0.camera_end ? pj0.camera_end.yaw : 0;
+        const jPitch = pj0 && pj0.camera_end ? pj0.camera_end.pitch : 0;
+        const heldSeen = gameEntity === null ? [] : seenSince(markCrew, gameEntity);
+        const jHeld = heldSeen.length ? heldSeen[heldSeen.length - 1] : null;
+        const allowance = bankedAllowanceM(fs.readFileSync(SHARED_WORLD_RON, "utf8"));
+        const jTarget = farthestFrom(farPlaces(dp), jFrom || meetCam);
+        const markJump = walkerOut.length;
+        await showcase({ cam: `${jTarget.join(",")},${jYaw},${jPitch}` });
+        const before = pj0 && pj0.moves ? pj0.moves : null;
+        await until((p) => p.moves && before && Number(p.moves.count) > Number(before.count), 10000);
+        await sleep(1500);
+        const pj1 = await probe();
+        const relayedAfterJump = gameEntity === null ? [] : seenSince(markJump, gameEntity);
+        const camJ = camOf(pj1);
+        const nudgedJ = camJ ? [camJ[0] - 1, camJ[1], camJ[2]] : null;
+        const markNudgeJ = walkerOut.length;
+        if (nudgedJ) await walkGame(nudgedJ, jYaw, jPitch, "jump_nudge");
+        await sleep(2500);
+        manifest.jump = {
+          from: jFrom,
+          held: jHeld,
+          target: jTarget,
+          allowance_m: allowance,
+          before,
+          after: pj1 && pj1.moves ? pj1.moves : null,
+          camera: camJ,
+          relayedAfterJump,
+          // The notices on screen after the correction (the one sentence the game shows, R7).
+          notices: pj1 && Array.isArray(pj1.notices) ? pj1.notices : null,
+          nudged: nudgedJ,
+          seen: gameEntity === null ? [] : seenSince(markNudgeJ, gameEntity),
+          entity: gameEntity,
+        };
+        const jl = manifest.jump.after && manifest.jump.after.last;
+        step(
+          "jump",
+          true,
+          `jumped from ${jFrom ? fmt(jFrom) : "?"} to ${fmt(jTarget)} (the relay allows ${allowance === null ? "?" : allowance.toFixed(1)} m in one update); ` +
+            (jl ? `correction ${jl.seq} (${jl.reason}) stood the game at ${fmt(jl.at)}` : "NO correction reached the game") +
+            `; its camera now at ${camJ ? fmt(camJ) : "(none)"}; ${manifest.jump.seen.length} relayed move(s) after the nudge`,
+        );
+        save();
+      }
 
       // ── Step out of the shared world and back (the second review of 1b). The
       // relay takes the game out at its game_leave and, when it joins again,
@@ -2216,6 +2395,67 @@ async function runPlotsOnce(order, runStamp, cleanups) {
       manifest.rejoin.crew_samples = await recordCrewAfter("rejoin_crew_samples.json", "rejoin_crew", out, step);
       save();
 
+      // ── THE HOME'S OWN TELEPORTER (the review of increment 4, R1: no leg stepped on one, so a
+      // lost declaration would have had every use of it corrected with every check green). The
+      // game's home has a pair: the west pad and the east one, 60.6 m apart, more than the relay
+      // lets anyone move in one update. From its door the game stands beside the west pad (one
+      // `cam` step under the relay's allowance after standing still: the home's rooms are walled,
+      // and this rig plans no routes through them), then walks onto the pad: the pad jumps it to
+      // the east one and its next update declares the jump, which the relay must pass on with no
+      // correction. Then it steps off, back on (the way back), and stands at its door again.
+      {
+        const allowanceT = bankedAllowanceM(fs.readFileSync(SHARED_WORLD_RON, "utf8"));
+        const pt = await probe();
+        const links = pt && Array.isArray(pt.transit) ? pt.transit.filter((l) => l.zone === "home") : [];
+        // The west pad: the home link whose entry pad stands farthest west (least x).
+        const link = links.slice().sort((a, b) => a.from_at[0] - b.from_at[0] || a.from_at[2] - b.from_at[2])[0] || null;
+        const tele = { link, allowance_m: allowanceT, entity };
+        manifest.tele = tele;
+        if (!link) {
+          step("tele", false, `the game reports no teleporter link in its home (${links.length} home link(s))`);
+        } else {
+          const onto = padApproach(link.from_at, dp.walls);
+          tele.approach = onto.p;
+          await sleep(2000); // standing still: the relay's allowance fills
+          await showcase({ cam: `${onto.p.join(",")},${yaw},${pitch}` });
+          await sleep(1500);
+          const pa = await probe();
+          tele.before = pa && pa.moves ? pa.moves : null;
+          tele.at_pad = camOf(pa);
+          const markTele = walkerOut.length;
+          // Onto the pad's middle at a walk: the pad jumps the game as it steps in, which ends the walk.
+          await showcase({ walk_to: `${link.from_at[0]},${onto.p[1]},${link.from_at[2]},${yaw},${pitch},3` });
+          await until((p) => p.moves && p.moves.walking === false, 15000);
+          await sleep(2500);
+          const pt2 = await probe();
+          tele.camera = camOf(pt2);
+          tele.after = pt2 && pt2.moves ? pt2.moves : null;
+          tele.seen = entity === null ? [] : seenSince(markTele, entity);
+          const hereT = tele.camera;
+          step(
+            "tele",
+            true,
+            `stepped onto ${link.from} at ${fmt(link.from_at)} from ${fmt(onto.p)}: the camera now at ${hereT ? fmt(hereT) : "(none)"} (${link.to} is at ${fmt(link.to_at)}); ${tele.seen.length} relayed move(s) after it; corrections ${tele.before ? tele.before.count : "?"} before, ${tele.after ? tele.after.count : "?"} after`,
+          );
+          // The way back: off the east pad, a moment off every pad (they re-arm 1.2 s after), back
+          // onto it, which lands on the west pad; then one step under the allowance to the door.
+          const off = padApproach(link.to_at, dp.walls);
+          await walkGame(off.p, yaw, pitch, "tele_off");
+          await sleep(1800);
+          await showcase({ walk_to: `${link.to_at[0]},${off.p[1]},${link.to_at[2]},${yaw},${pitch},3` });
+          await until((p) => p.moves && p.moves.walking === false, 15000);
+          await sleep(2500);
+          const pb = await probe();
+          tele.back = { camera: camOf(pb), moves: pb && pb.moves ? pb.moves : null };
+          await showcase({ cam: `${(nudged || door).join(",")},${yaw},${pitch}` });
+          await sleep(2000);
+          const pd = await probe();
+          tele.home = camOf(pd);
+          step("tele_back", true, `back through the link to ${tele.back.camera ? fmt(tele.back.camera) : "(none)"}, then at the door ${tele.home ? fmt(tele.home) : "(none)"}; corrections now ${pd && pd.moves ? pd.moves.count : "?"}`);
+        }
+        save();
+      }
+
       // ── Respawn far from the door (the third review of 1b). In the world this
       // time, the game walks to the same far place in steps the relay accepts
       // (through the doors, from the door points), so the relay holds it there (the
@@ -2225,10 +2465,8 @@ async function runPlotsOnce(order, runStamp, cleanups) {
       // and the others see it frozen at the far end.
       const route = doorRoute(dp, nudged || door || farTarget, farTarget).points;
       const markWalk = walkerOut.length;
-      for (const p of route) {
-        await showcase({ cam: `${p.join(",")},${yaw},${pitch}` });
-        await sleep(1500);
-      }
+      await walkRoute(route, yaw, pitch, "respawn");
+      await sleep(1500);
       const walked = seenSince(markWalk, entity);
       const heldFar = walked.length ? walked[walked.length - 1] : null;
       const atFarEnd = !!heldFar && Math.hypot(heldFar[0] - farTarget[0], heldFar[2] - farTarget[2]) < 3;
@@ -2297,13 +2535,47 @@ async function runPlotsOnce(order, runStamp, cleanups) {
           ? `opened and shut the build editor at the door; the build spot is ${buildSpot ? fmt(buildSpot) : "(unknown)"}`
           : `the build editor did not open and shut (build_editor ${opened1 && opened1.build_editor}, then ${shut1 && shut1.build_editor}); a build without the verb?`,
       );
+      // ── SHUTTING THE EDITOR AWAY FROM THE BUILD SPOT (the review of increment 4, R1: in every
+      // green run both editor closes were moves of 0 m, so a lost declaration would have had every
+      // real one corrected with every check green). From the build spot the game walks about 60 m
+      // into the ship (`editorJumpTarget`: more than the relay lets anyone move in one update,
+      // well inside the 90 m an editor close may jump), opens the editor and shuts it: the close
+      // stands it back at the build spot on its own plot, a jump its next update declares, which
+      // the relay must pass on with no correction.
       if (toggled && buildSpot) {
+        const allowanceE = bankedAllowanceM(fs.readFileSync(SHARED_WORLD_RON, "utf8"));
+        const ejTarget = editorJumpTarget(dp, buildSpot, allowanceE);
+        const ej = { buildSpot, allowance_m: allowanceE, target: ejTarget.at || null };
+        manifest.editorjump = ej;
+        if (ejTarget.error) {
+          step("editorjump", false, ejTarget.error);
+        } else {
+          const walkedThere = await walkRoute(ejTarget.route, yaw, pitch, "editorjump");
+          await sleep(1500);
+          const pw = await probe();
+          ej.walkedTo = camOf(pw);
+          ej.before = pw && pw.moves ? pw.moves : null;
+          const markEj = walkerOut.length;
+          const o = await editorTo(true);
+          await sleep(1000);
+          const sh = await editorTo(false);
+          ej.toggled = !!(o && o.build_editor === true && sh && sh.build_editor === false);
+          await sleep(2500);
+          const pe = await probe();
+          ej.camera = camOf(pe);
+          ej.after = pe && pe.moves ? pe.moves : null;
+          ej.seen = seenSince(markEj, respawnEntity);
+          step(
+            "editorjump",
+            walkedThere,
+            `walked ${ejTarget.dist.toFixed(1)} m from the build spot ${fmt(buildSpot)} to ${ej.walkedTo ? fmt(ej.walkedTo) : "(none)"}, opened and shut the editor (${ej.toggled ? "it did" : "it did NOT"}): the camera now at ${ej.camera ? fmt(ej.camera) : "(none)"}; ${ej.seen.length} relayed move(s) after the shut; corrections ${ej.before ? ej.before.count : "?"} before, ${ej.after ? ej.after.count : "?"} after`,
+          );
+        }
+        save();
         const route3 = doorRoute(dp, buildSpot, farTarget).points;
         const markWalk3 = walkerOut.length;
-        for (const p of route3) {
-          await showcase({ cam: `${p.join(",")},${yaw},${pitch}` });
-          await sleep(1500);
-        }
+        await walkRoute(route3, yaw, pitch, "editor_far");
+        await sleep(1500);
         const walked3 = seenSince(markWalk3, respawnEntity);
         const held3 = walked3.length ? walked3[walked3.length - 1] : null;
         step(
@@ -2341,6 +2613,9 @@ async function runPlotsOnce(order, runStamp, cleanups) {
       // plot before it joins, and the welcome only confirms it (a Stay). In the
       // walker-first order the game holds p2, which is not the default plot, so a
       // game that forgot builds on p1 and fails here.
+      // Every correction the game took this boot (increment 4): only the jump's may be among them.
+      const pBefore = await probe();
+      manifest.corrections_first_boot = pBefore && pBefore.moves ? Number(pBefore.moves.count) : null;
       await showcase({ solo: "1" });
       await until((p) => p.game_joined === false, 20000);
       killGame();
@@ -2370,6 +2645,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
         camera: pb && pb.camera_end ? pb.camera_end.pos : null,
         plot: Array.isArray(manifest.plots) ? manifest.plots.find((p) => p.id === heldPlot) || null : null,
       };
+      manifest.corrections_second_boot = pb && pb.moves ? Number(pb.moves.count) : null;
       manifest.steps_ok.reboot = { ok: joined2, detail: joined2 ? "the game booted again and joined" : "the second boot never joined" };
       step("reboot", joined2, `the second boot built the home on ${manifest.reboot.bootPlot} (it held ${heldPlot}); its welcome did "${manifest.reboot.lastWelcome}"; its camera at ${manifest.reboot.camera ? fmt(manifest.reboot.camera) : "(none)"}`);
     }
@@ -2387,6 +2663,12 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     ...(relay ? GL.builtinDataLines(relay.logText()).map((l) => `relay: ${l}`) : []),
   ];
   fs.writeFileSync(path.join(out, "walker.log"), walkerOut.map((o) => `${o.at_s.toFixed(2)}s [${o.who}] ${o.line}`).join("\n") + "\n");
+  // Every correction a walker took (increment 4): an honest walk must never draw one. Found with the
+  // walker's own pattern (second-player.js CORRECTED_RE, the review of increment 4, R5).
+  manifest.walker_corrections = walkerOut.filter((o) => CORRECTED_RE.test(o.line)).map((o) => `[${o.who}] ${o.line}`);
+  // The walkers' keys (each one's first 16 hex digits, from its "connecting ... (key ...)" line), so
+  // the corrections the relay's log says it sent can be told apart: the rest are the game's (R7).
+  manifest.walker_keys = [...new Set(walkerOut.map((o) => (o.line.match(/\(key ([0-9a-f]{16})\.\.\.\)/) || [])[1]).filter(Boolean))];
   try {
     fs.copyFileSync(LOG, path.join(out, "run.log"));
   } catch {}
