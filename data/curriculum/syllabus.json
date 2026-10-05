@@ -2047,7 +2047,8 @@
         "osha",
         "medlineplus",
         "red-cross",
-        "wa-rcw"
+        "wa-rcw",
+        "american-heart-association"
       ],
       "locale_dependent": false,
       "hazard": "lethal",
@@ -2151,7 +2152,8 @@
         "osha",
         "nws",
         "fema",
-        "noaa-ncei"
+        "noaa-ncei",
+        "wa-doh"
       ],
       "locale_dependent": true,
       "hazard": "lethal",

@@ -14,7 +14,9 @@ resources for food, water and shelter. Washington's emergency management
 division puts the same thing more bluntly: in a disaster, 911 and the fire,
 police, ambulance and utility crews will be overwhelmed and unable to help
 individuals straight away, and neighbours will likely be each other's
-first responders.
+first responders. It also asks for more than three days: communities may
+have to rely on each other for days to weeks, so every household should
+keep at least two weeks of supplies at home (restated).
 
 That is the good news and the warning together. The CERT manual tells why
 the programme exists: in the response to the 1985 Mexico City earthquake,
@@ -552,7 +554,10 @@ Kitsap County's Department of Emergency Management runs CERT Basic Training
 free for anyone in the county over 18, with advance registration and
 limited places; its autumn 2026 course ran on Thursday evenings and
 Saturdays over just over three weeks, from 17 September to 3 October, and
-every session had to be attended to finish. Washington's emergency
+every session had to be attended to finish. The county's CERT page is where
+its courses are announced, and it says that members must register with
+the county as volunteer emergency workers, before a disaster rather than
+during one (restated). Washington's emergency
 management division points to CERT for anyone who wants to help at the
 state level, and lists neighbourhood programmes nearby such as Bainbridge
 Prepares. If you live elsewhere, your county or city emergency management
@@ -594,10 +599,12 @@ The game does not model a disaster or a neighbourhood yet.
   (`data/weather/events.ron`), and near a Tornado the HUD can tell you to
   take cover, but the damage these events list is not applied by the
   game's code, so none of them hurts you or your home directly
-  (`src/lib.rs`, `src/systems/weather_events.rs`). Their wind, rain and
-  snow do reach your body heat like any other weather, so a Blizzard can
-  still chill you outdoors (`src/systems/weather.rs`,
-  `src/engine/survival_env.rs`).
+  (`src/lib.rs`, `src/systems/weather_events.rs`). Only their wind reaches
+  your body: a Thunderstorm or a Blizzard adds gusts to the wind your body
+  heat feels, so a Blizzard can still chill you outdoors. The rain and snow
+  they show are drawn on the screen and nothing more; it is the ordinary
+  weather's rain and snow that wet you (`src/systems/weather.rs`,
+  `src/systems/precipitation.rs`, `src/engine/survival_env.rs`).
 - **No neighbours to check on.** Nobody in the game gets hurt, trapped or
   frightened in a way you can help with. The Leadership skill, which this
   topic belongs to, appears in the skill list (`data/skills/skills.csv`),
@@ -625,8 +632,8 @@ your own street.
 
 ## You own this when
 
-- Your household could manage on its own for the first days, so that you
-  are free to help.
+- Your household could manage on its own for two weeks, so that you are
+  free to help.
 - You keep shoes, gloves and a torch by the bed, and you would put your own
   people and protective gear first.
 - You know where your gas meter and valve, water main and electrical panel
@@ -745,7 +752,9 @@ used here and the wording is not.
 
 - Washington State Military Department, Emergency Management Division.
   Neighborhoods, undated (911 and first responders overwhelmed in a
-  disaster; neighbours as each other's first responders; a community plan,
+  disaster; neighbours as each other's first responders; communities
+  relying on each other for days to weeks, and at least two weeks of
+  supplies in every household; a community plan,
   meeting spot, skills and resources list, contacts sheet, map and the
   OK/HELP card; CERT; Bainbridge Prepares among neighbouring programmes;
   no longer providing workbooks for Map Your Neighborhood).
@@ -764,8 +773,12 @@ used here and the wording is not.
 - Kitsap County Department of Emergency Management. CERT training begins
   September 17, news item dated 11 August 2026 (free CERT Basic Training
   for anyone in Kitsap County over 18; registration required; sessions 17
-  September to 3 October 2026; all sessions required).
+  September to 3 October 2026; all sessions required). And its Community
+  Emergency Response Team (CERT) page, dated 11 September 2025 (the
+  county's course announcements; members registering with the county as
+  volunteer emergency workers before an event).
   https://www.kitsapdem.com/cert-training-september-17/
+  https://www.kitsapdem.com/programs/cert/
 
 ### Inside this project
 
@@ -774,7 +787,11 @@ used here and the wording is not.
   events and their unapplied damage: `data/weather/events.ron`,
   `src/systems/weather_events.rs` and the HUD warning in `src/lib.rs`; the
   events' gusts added to the wind in `src/systems/weather.rs`, which
-  reaches the body through `src/engine/survival_env.rs`. The Leadership and
+  reaches the body through `src/engine/survival_env.rs`, while their rain
+  and snow are particle effects only (the emitters in
+  `data/weather/events.ron`) and the rain and snow on the body come from
+  the ordinary weather (`falling_at_player` in
+  `src/systems/precipitation.rs`). The Leadership and
   Medicine skills: `data/skills/skills.csv`, with skill experience from
   crafting in `src/systems/crafting/mod.rs` and the "Dev: max skills"
   button in `src/gui/pages/profile.rs` and `src/systems/skills/mod.rs`. The Fire

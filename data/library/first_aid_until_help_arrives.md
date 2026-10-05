@@ -23,15 +23,17 @@ hangs from those five.
 The procedures here come from FEMA's Until Help Arrives course and its
 Community Emergency Response Team (CERT) training, the Centers for Disease
 Control and Prevention (CDC), the National Heart, Lung, and Blood Institute
-(NHLBI), the National 911 Program, the Health Resources and Services
+(NHLBI) and the diabetes institute (NIDDK) of the National Institutes of
+Health, the National 911 Program, the Health Resources and Services
 Administration (HRSA) and the Occupational Safety and Health Administration
 (OSHA), all United States government works in the public domain. Several
 step-by-step techniques come from MedlinePlus, the National Library of
 Medicine's consumer site, whose first aid articles are copyrighted, so they
-are restated here in our own words and never quoted. The American Red Cross
-is cited only for what its classes offer, and one Washington State law is
-restated. Where something is general practice or our own reading, the text
-says so.
+are restated here in our own words and never quoted. A few points come from
+the American Heart Association's 2025 resuscitation guidelines, which are
+cited and restated, never quoted. The American Red Cross is cited only for
+what its classes offer, and three Washington State laws are restated. Where
+something is general practice or our own reading, the text says so.
 
 This guide is the hub of the shelf it sits on, and it hands off to the
 others rather than repeating them. [How Your Body Works](/library#how-your-body-works)
@@ -86,6 +88,11 @@ or willful or wanton misconduct; the protection does not cover someone who
 gives that care as part of a paid job. Doing what this guide describes,
 carefully and in good faith, and stopping where it says to stop, is the
 kind of help that law has in mind (our reading, and not legal advice).
+Washington also protects a person who uses a defibrillator at the scene of
+an emergency: they are not liable for injury from its use unless their
+acts amount to gross negligence or willful or wanton misconduct, and the
+training and upkeep duties the law places on a defibrillator's owner do not
+apply to a Good Samaritan using it (RCW 70.54.310, restated).
 
 ## The five steps, and the order they really go in
 
@@ -162,7 +169,7 @@ first aid or CPR." And: "Do not hang up until the call-taker instructs you
 to do so." Put the phone on speaker and set it down so both your hands are
 free (general practice).
 
-Two other numbers belong beside 911. For a possible poisoning in someone
+One other number belongs beside 911. For a possible poisoning in someone
 who is awake and breathing normally, Poison Help is 1-800-222-1222. HRSA,
 which funds the line, says it connects you to your local poison center and
 is available around the clock in more than 100 languages. For someone
@@ -179,11 +186,13 @@ sources below).
 
 - **Ask and touch.** Tap their shoulder and shout to them (MedlinePlus), by
   name if you know it (general practice).
-- **Look and listen.** Watch the chest and listen at the mouth. MedlinePlus
-  warns that gasping or gurgling is not normal breathing. The CDC lists the
-  signs that someone may be in cardiac arrest: they collapse suddenly and
-  lose consciousness, are not breathing or are only gasping for air, do not
-  respond to shouting or shaking, and have no pulse.
+- **Look and listen.** Watch the chest and listen at the mouth, for at
+  least 5 seconds and no more than 10 (the American Heart Association,
+  restated). MedlinePlus warns that gasping or gurgling is not normal
+  breathing. The CDC lists the signs that someone may be in cardiac
+  arrest: they collapse suddenly and lose consciousness, are not breathing
+  or are only gasping for air, do not respond to shouting or shaking, and
+  have no pulse.
 
 Then one of three things is true:
 
@@ -221,15 +230,17 @@ The steps, from MedlinePlus's overview of CPR, restated:
    to fetch a defibrillator if there is one nearby. If you are alone, the
    NHLBI says a family member or caregiver can call 911 while performing
    CPR; put the phone on speaker beside you (general practice).
-2. **Put them on their back,** on whatever they are lying on, and start at
-   once. Do not waste time moving them to a better surface. If a neck or
-   back injury is possible, MedlinePlus says two people should turn them,
-   so the head and neck do not twist.
+2. **Put them on their back on something firm,** such as the floor, if you
+   can get them there in a moment (a bed or a sofa gives way under your
+   hands), then start at once. Do not lose time hunting for a better
+   surface. If a neck or back injury is possible, MedlinePlus says two
+   people should turn them, so the head and neck do not twist.
 3. **Place your hands.** The heel of one hand in the centre of the chest,
    the other hand on top. Shoulders over your hands, elbows locked.
-4. **Push hard and fast.** Straight down, about 2 inches (5 cm) deep, at
-   about 100 to 120 pushes a minute, letting the chest rise all the way back
-   up between pushes.
+4. **Push hard and fast.** Straight down, at least 2 inches (5 cm) deep
+   (the American Heart Association's 2025 figure for an adult; MedlinePlus
+   says about 2 inches), at about 100 to 120 pushes a minute, letting the
+   chest rise all the way back up between pushes.
 5. **Breaths only if you are trained.** If you have had no training,
    MedlinePlus says you can give hands-only CPR, compressions with no
    breaths, to a teen or adult whose heart has stopped. If you are trained,
@@ -241,37 +252,46 @@ The steps, from MedlinePlus's overview of CPR, restated:
 **Children are different.** MedlinePlus says children need breaths as well
 as compressions and that hands-only CPR alone is not recommended for them;
 it says to push down about a third of the depth of the child's chest, and
-to use child pads on an AED if it has them (adult pads if not). Its
-article on CPR for children adds that if you are alone, you shout for help
-and give about 2 minutes of CPR before you leave the child to call 911.
-That is exactly the part of CPR to learn with a manikin in a class
-(general practice). If a child's heart stops before you have learned it,
-do not do nothing: call 911 on a phone you can use beside the child, with
-the speaker on, or have someone else call, and do what the call-taker
-tells you. The National 911 Program says many call-takers can give
-step-by-step CPR instructions.
+to use child pads on an AED if it has them (adult pads if not). That is
+exactly the part of CPR to learn with a manikin in a class (general
+practice). Its article on CPR for children adds that if you are alone, you
+shout for help and give about 2 minutes of CPR before you leave the child
+to call 911; with a phone at hand, the American Heart Association's 2025
+guidance is to call 911 on speaker straight away instead, so that you never
+have to leave (restated). If a child's heart stops before you have learned
+it, do not do nothing: call 911 on a phone you can use beside the child,
+with the speaker on, or have someone else call, and do what the call-taker
+tells you. If you cannot give breaths, push on the chest anyway: the
+American Heart Association's 2025 guidelines count chest compressions alone
+as a reasonable course for a rescuer who cannot give a child or a baby
+breaths (restated). The National 911 Program says many call-takers can
+give step-by-step CPR instructions.
 
 **The AED.** The NHLBI says these defibrillators are made for untrained
 bystanders to use, are found in places such as airports, office buildings,
 gyms and shopping centres, and talk the user through each step. Turn it on
 and do what it says: MedlinePlus notes that it will tell you when to stop
 compressions and when to deliver a shock, and to start CPR again straight
-after. If you know an AED is nearby, MedlinePlus says to fetch it even if
-that means leaving the person for a moment, but not to leave them to search
-for one that may not be there. The NHLBI suggests phone apps that show
+after. If the person is an adult and you know an AED is nearby, MedlinePlus
+says to fetch it even if that means leaving them for a moment, but not to
+leave them to search for one that may not be there; alone with a child or a
+baby, give about 2 minutes of CPR before you leave (MedlinePlus's articles
+on children and infants). The NHLBI suggests phone apps that show
 where nearby AEDs are; find out where the ones near your home and work are
 before you need them (general practice).
 
 **Do not start compressions on someone who is breathing normally, coughing
 or moving** (MedlinePlus).
 
-**When it might be an opioid overdose.** The CDC lists the signs: the
-person cannot be woken, breathing is slow or shallow or makes choking,
-gurgling or snoring sounds, the skin is discoloured (especially the lips
-and nails), and the pupils are small pinpoints that do not react to light.
-Its steps: give naloxone if you have it and call 911, try to keep the
-person awake and breathing, lay them on their side to prevent choking, and
-stay with them until help arrives. It says naloxone is sold over the
+**When it might be an opioid overdose.** Opioids include some prescription
+medicines, heroin and fentanyl, and naloxone, sold for example as Narcan,
+is a medicine that can help someone who is overdosing on one (the CDC).
+The CDC lists the signs: the person cannot be woken, breathing is slow or
+shallow or makes choking, gurgling or snoring sounds, the skin is
+discoloured (especially the lips and nails), and the pupils are small
+pinpoints that do not react to light. Its steps: give naloxone if you have
+it and call 911, try to keep the person awake and breathing, lay them on
+their side to prevent choking, and stay with them until help arrives. It says naloxone is sold over the
 counter in all 50 states, and that "Naloxone will not harm someone if you
 give it to them and they are not overdosing on an opioid." It also says to
 wait 2 to 3 minutes after the first dose to see whether normal breathing
@@ -279,7 +299,11 @@ returns before giving a second. If they are not breathing normally, give
 CPR as well; MedlinePlus says to give naloxone in a way that does not
 interrupt it. The CDC notes that most states have laws that may protect
 the person overdosing, or the person who calls for help, from criminal
-penalties.
+penalties. Washington's is RCW 69.50.315: someone who seeks medical help in
+good faith for a person having a drug overdose, and the person overdosing,
+are not to be charged or prosecuted for drug possession on evidence found
+because help was sought; it covers possession and nothing else (restated,
+not legal advice).
 
 **When the person is cold.** Someone found cold and apparently lifeless may
 still be revived, and is handled gently: [Cold and
@@ -371,11 +395,24 @@ thrusts with the heel of one hand on the middle of the breastbone, just
 below the nipple line. Repeat
 until the object comes out or the baby stops responding. If the baby stops
 responding, stops breathing or turns blue, shout for help, have someone
-call 911, and give infant CPR on a firm flat surface; MedlinePlus says
-that if you are alone, you call 911 only after 2 minutes of CPR. Only try
-to take an object out of the mouth if you can see it. This is a skill to
-practise on a manikin; a parents' first aid class teaches it (general
-practice).
+call 911, and give infant CPR on a firm flat surface. If you are alone and
+have a phone, call 911 on speaker beside the baby and start at once (the
+American Heart Association, restated); if you have no phone, MedlinePlus
+says to give about 2 minutes of CPR before you leave the baby, or carry it
+with you, to call. Only try to take an object out of the mouth if you can
+see it.
+
+**Infant CPR,** restated from MedlinePlus: lay the baby on its back on
+something firm; put both thumbs side by side on the centre of the chest,
+just below the nipple line, with your hands wrapped round the baby (or use
+the heel of one hand if your thumbs cannot press deep enough); press about
+1 1/2 inches (4 cm), 100 to 120 times a minute, letting the chest rise all
+the way after each press; after every 30 presses, cover the baby's mouth
+and nose with your mouth and give 2 breaths, each lasting about a second
+and making the chest rise. The American Heart Association's 2025
+guidelines dropped the old two-finger method because it did not press deep
+enough (restated). This is a skill to practise on a manikin; a parents'
+first aid class teaches it (general practice).
 
 ## Bleeding
 
@@ -384,7 +421,9 @@ straight on for the rest. FEMA's course reduces it to four: find where the
 blood is coming from; put something between your hands and the blood if
 you have it; press firmly and steadily, right on the source, hard, even if
 it hurts the person; and keep pressing until the ambulance crew takes over,
-handing over to someone else if you tire. When the wound is on an arm or a
+handing over to someone else if you tire. The one exception to pressing
+hard is a head wound over a skull that may be broken (MedlinePlus; see
+Head, neck and back injuries below). When the wound is on an arm or a
 leg and the bleeding cannot be controlled any other way, a tourniquet is
 another way of applying that pressure.
 
@@ -411,8 +450,9 @@ fully coherent and not complaining of pain.
 
 **If it may be the heat, cool them instead.** Pale, clammy skin, heavy
 sweating, a fast weak pulse and dizziness are also the signs of heat
-exhaustion. Someone who has collapsed in the heat needs cooling, not
-blankets, and someone with heat exhaustion who is fully awake can sip
+exhaustion. Someone who has collapsed in the heat, and is breathing
+normally, needs cooling, not blankets (if they are not breathing normally,
+CPR comes first), and someone with heat exhaustion who is fully awake can sip
 water: [When Heat Becomes Dangerous](/library#when-heat-becomes-dangerous) has
 the steps (our reading of the two sets of signs together).
 
@@ -460,6 +500,9 @@ vomiting.
   twist.
 - Do not let them get up and walk.
 - Do not take off a helmet if a serious head or neck injury is possible.
+- If the skull may be broken, do not press directly on the wound and do
+  not pull anything out of it; cover it with sterile gauze if you have it,
+  or a clean dressing.
 - If they stop breathing normally, give chest compressions only, without
   moving the neck.
 
@@ -574,12 +617,21 @@ nervousness, irritability or confusion, dizziness and hunger.
 
 If the person is awake and able to swallow, the CDC's treatment is fast
 sugar: 4 ounces (half a cup) of juice or ordinary, not diet, soda, a
-tablespoon of sugar, honey or syrup, or glucose tablets or gel, followed by
-a snack once they recover. Someone with severe low blood sugar may need an
-injection of glucagon, prescribed in advance, and the CDC says to get
+tablespoon of sugar, honey or syrup, or glucose tablets or gel. Then give
+it time. The CDC calls it the 15-15 rule: 15 grams of carbohydrate, a
+15-minute wait, then another check of the blood sugar, and the same again
+if it is still below 70 mg/dL, with a snack once they recover. With no
+meter to check, give more sugar if they are no better after 15 minutes
+(our reading). Someone with severe low blood sugar may need glucagon, an
+injection or a nasal spray prescribed in advance, and the CDC says to get
 emergency medical treatment immediately after giving it. If they cannot
 swallow safely, give nothing by mouth (general practice, the same rule as
-for shock and seizures). The CDC's seizure advice says to call 911 for
+for shock and seizures) and call 911. The National Institute of Diabetes
+and Digestive and Kidney Diseases (NIDDK), part of the
+National Institutes of Health, asks people with diabetes to teach their
+family and friends to give glucagon, and adds: "Tell them to call 911
+right away after giving you glucagon or if you don't have a glucagon
+emergency kit with you." The CDC's seizure advice says to call 911 for
 someone with diabetes who has a seizure and loses consciousness, and
 MedlinePlus says to call 911 for anyone with diabetes who faints.
 
@@ -710,8 +762,9 @@ one made too late can cost a life (our reading of the sources above).
   clot ([Bleeding and Wounds](/library#bleeding-and-wounds)).
 - **"I'll wait for the ambulance to start CPR."** Without it, brain damage
   begins within minutes.
-- **"I don't know CPR."** Hands-only CPR on an adult needs no breaths, and
-  many 911 call-takers can coach you through it.
+- **"I don't know CPR."** Hands-only CPR on an adult needs no breaths, a
+  child or a baby still gets chest compressions from someone who cannot
+  give breaths, and many 911 call-takers can coach you through it.
 
 ## How the game models it
 
@@ -732,10 +785,11 @@ spot, and little else of what this guide is about.
   Profile page, or with the number keys 1 to 9 on the HUD, which cast the
   first nine abilities you are able to use (`src/gui/pages/profile.rs`,
   `src/lib.rs`). The same list holds fantasy healing spells, such as Heal
-  and Holy Light. Real first aid heals nobody. It keeps a person breathing,
-  stops them losing blood, keeps them warm and gets them to people who can
-  treat them, which is why this guide spends its time on calling, pressing
-  and staying (our reading).
+  and Holy Light. Both are open from the start too, and put back more than
+  First Aid: 50 and 55 health for 30 energy. Real first aid heals nobody.
+  It keeps a person breathing, stops them losing blood, keeps them warm and
+  gets them to people who can treat them, which is why this guide spends
+  its time on calling, pressing and staying (our reading).
 - **No injuries to treat.** Losing health in the game never leaves a wound,
   a burn, a fracture or a concussion. The game's data includes a catalogue
   of injuries, illnesses and treatments (`data/medical.ron`), but the
@@ -843,7 +897,9 @@ were read on 4 October 2026 and are cited with the date they carry.
   Someone Is Overdosing, 2 April 2024 (the signs of an opioid overdose; the
   steps; naloxone over the counter in all 50 states; laws that may protect
   the person and the caller). And 5 Things to Know About Naloxone, 2 May
-  2024 ("Naloxone will not harm someone if you give it to them and they are
+  2024 (what naloxone is, and that opioids include prescription medicines,
+  heroin and fentanyl;
+  "Naloxone will not harm someone if you give it to them and they are
   not overdosing on an opioid."; waiting 2 to 3 minutes before a second
   dose).
   https://www.cdc.gov/stop-overdose/response/index.html
@@ -863,10 +919,18 @@ were read on 4 October 2026 and are cited with the date they carry.
 - Centers for Disease Control and Prevention. Low Blood Sugar
   (Hypoglycemia), 16 May 2024 (the symptoms, severe low blood sugar, lows as
   often as once or twice a week). And Treatment of Low Blood Sugar
-  (Hypoglycemia), dated May 2024 (the fast-acting sugars; glucagon for
-  severe lows and emergency treatment immediately after it).
+  (Hypoglycemia), dated May 2024 (the fast-acting sugars; the 15-15
+  rule; glucagon for severe lows and emergency treatment immediately after
+  it).
   https://www.cdc.gov/diabetes/about/low-blood-sugar-hypoglycemia.html
   https://www.cdc.gov/diabetes/treatment/treatment-low-blood-sugar-hypoglycemia.html
+- National Institutes of Health, National Institute of Diabetes and
+  Digestive and Kidney Diseases (NIDDK). Low Blood Glucose (Hypoglycemia),
+  last reviewed July 2021 (glucagon as an injection or a nasal spray;
+  teaching family and friends to give it; "Tell them to call 911 right away
+  after giving you glucagon or if you don't have a glucagon emergency kit
+  with you.").
+  https://www.niddk.nih.gov/health-information/diabetes/overview/preventing-problems/low-blood-glucose-hypoglycemia
 - National 911 Program (911.gov), National Highway Traffic Safety
   Administration. FAQ About Calling 911, last updated 8 March 2023 (the
   call-taker's questions; being prepared to follow the call-taker's
@@ -893,7 +957,8 @@ were read on 4 October 2026 and are cited with the date they carry.
 - MedlinePlus (US National Library of Medicine). CPR, health topic
   summary, last updated 28 July 2026 (checking for a response and normal
   breathing, gasping not being normal breathing; calling 911 and sending
-  for an AED; the hand position, depth of about 2 inches and rate of 100 to
+  for an AED; not waiting to move the person to another surface; the hand
+  position, depth of about 2 inches and rate of 100 to
   120; hands-only CPR for an untrained rescuer with a teen or adult; 30
   compressions and 2 breaths for the trained; the AED's voice
   instructions; children needing breaths and compressions; refreshing an
@@ -901,7 +966,8 @@ were read on 4 October 2026 and are cited with the date they carry.
   https://medlineplus.gov/cpr.html
 - MedlinePlus, A.D.A.M. Medical Encyclopedia. CPR, adult and child after
   onset of puberty, reviewed 10 February 2026 (brain damage after
-  about 4 minutes without oxygen; fetching a known AED and not searching
+  about 4 minutes without oxygen; a firm, flat surface if possible;
+  fetching a known AED for an adult and not searching
   for an unknown one; switching rescuers every 2 minutes; naloxone without
   interrupting CPR; not compressing a person who is breathing, coughing or
   moving; two people to turn someone with a possible spinal injury; the
@@ -915,15 +981,23 @@ were read on 4 October 2026 and are cited with the date they carry.
   unconscious person; a medical exam afterwards and the signs to watch);
   Choking, infant under 1 year, reviewed 10 February 2026 (back blows and
   chest thrusts, when not to start, and 2 minutes of CPR before a lone
-  rescuer calls); Shock, reviewed 14 October 2025 (the signs and first
+  rescuer leaves the baby to call); CPR, infant, reviewed 10 February 2026
+  (the two-thumb hold with the hands wrapped round the baby, or the heel of
+  one hand; a depth of about 1 1/2 inches at 100 to 120 a minute; 30
+  presses and 2 breaths over the mouth and nose, each about a second and
+  making the chest rise; about 2 minutes of CPR before a lone rescuer
+  leaves the baby, or carries it, to call 911); Shock, reviewed 14 October
+  2025 (the signs and first
   steps; raising the legs only without injury to the head, neck, back or
   legs; nothing by mouth; checking breathing every 5 minutes); Spinal
   injury, reviewed 4 June 2025 (keeping the head and neck in line;
   compressions only; the two-person roll; when to suspect it); Head
   injury, first aid, reviewed 14 October 2025 (the signs to get help for;
-  not shaking a dazed person; not removing a helmet; ice wrapped in a
-  towel); Broken bone, reviewed 14
-  January 2026 (the first steps, splinting, the circulation check, when to
+  not shaking a dazed person; not removing a helmet; no direct pressure on,
+  and no debris taken from, a wound over a possible skull fracture, which
+  is covered with sterile gauze; ice wrapped in a towel); Broken bone,
+  reviewed 14 January 2026 (the first steps, splinting, the circulation
+  check, when to
   call 911, moving by the clothing); Fainting, reviewed 19 May 2025 (the
   first steps and when to call 911). The encyclopedia is licensed to
   MedlinePlus only, so nothing from it is quoted here.
@@ -931,11 +1005,32 @@ were read on 4 October 2026 and are cited with the date they carry.
   https://medlineplus.gov/ency/article/000012.htm
   https://medlineplus.gov/ency/article/000049.htm
   https://medlineplus.gov/ency/article/000048.htm
+  https://medlineplus.gov/ency/article/000011.htm
   https://medlineplus.gov/ency/article/000039.htm
   https://medlineplus.gov/ency/article/000029.htm
   https://medlineplus.gov/ency/article/000028.htm
   https://medlineplus.gov/ency/article/000001.htm
   https://medlineplus.gov/ency/article/003092.htm
+- American Heart Association. 2025 American Heart Association Guidelines
+  for Cardiopulmonary Resuscitation and Emergency Cardiovascular Care,
+  *Circulation*, 21 October 2025, including Part 6, Pediatric Basic Life
+  Support, written with the American Academy of Pediatrics (a lone rescuer
+  with a phone calling 911 on speaker before starting, and one with no
+  phone giving a child or a baby 5 rounds of 30 compressions and 2 breaths,
+  about 2 minutes, before leaving to call; checking breathing for at least
+  5 and no more than 10 seconds; an adult depth of at least 2 inches;
+  chest compressions alone as a reasonable course for a rescuer who cannot
+  give a child or a baby breaths; the two-finger method for babies dropped
+  because it did not press deep enough). Cited, not quoted: the American
+  Heart Association's
+  own pages refused our requests, so these points were read in its
+  Heartsaver CPR AED Summary of High-Quality CPR Components for the 2025
+  guidelines, as posted by Vanderbilt University Medical Center's
+  resuscitation program (a file dated December 2025), and in published
+  summaries of the pediatric guidelines, among them Contemporary
+  Pediatrics, 23 October 2025.
+  https://doi.org/10.1161/CIR.0000000000001370
+  https://www.vumc.org/resuscitation-program/sites/default/files/public_files/BLS/Heartsaver/Heartsaver-CPR-AED-Summary-High-Quality-CPR%20Components-2025-Guidelines.pdf
 - American Red Cross. First Aid classes, undated (online, in-person and
   blended courses; two-year certification; an online-only certificate that
   may not meet workplace requirements).
@@ -949,13 +1044,27 @@ were read on 4 October 2026 and are cited with the date they carry.
   or willful or wanton misconduct; excluding care given in the course of
   paid employment).
   https://app.leg.wa.gov/RCW/default.aspx?cite=4.24.300
+- Revised Code of Washington 70.54.310, 1998 (no civil liability for injury
+  from using a defibrillator at the scene of an emergency, other than for
+  gross negligence or willful or wanton misconduct; the duties the law
+  places on a defibrillator's owner not applying to a Good Samaritan
+  using it).
+  https://app.leg.wa.gov/RCW/default.aspx?cite=70.54.310
+- Revised Code of Washington 69.50.315, as last amended in 2015 (no charge
+  or prosecution for drug possession, on evidence obtained because help was
+  sought, for a person who seeks medical help in good faith for someone
+  having a drug overdose, or for the person overdosing; no protection from
+  other charges).
+  https://app.leg.wa.gov/RCW/default.aspx?cite=69.50.315
 
 ### Inside this project
 
 - The death screen and Respawn button: `src/gui/pages/hud.rs`. The First
   Aid ability and the fantasy healing spells: `data/abilities.csv`, cast by
   `src/systems/abilities.rs` (35 health for 15 energy, 10 seconds between
-  casts), listed with a Cast button in `src/gui/pages/profile.rs` and bound
+  casts; Heal and Holy Light 50 and 55 health for 30 energy, open from the
+  start because a level-1 skill gate is always met), listed with a Cast
+  button in `src/gui/pages/profile.rs` and bound
   to the HUD's number keys in `src/lib.rs`. The "Dev: max skills" button:
   `src/gui/pages/profile.rs`, applied in `src/systems/skills/mod.rs`. The
   medical catalogue `data/medical.ron` and its unregistered system
@@ -999,6 +1108,7 @@ were read on 4 October 2026 and are cited with the date they carry.
   and that real first aid, unlike the game's ability, heals nobody; that
   the law protects careful help in good faith (not legal advice).
 - Treating a collapse in the heat as heat illness rather than shock, read
-  from the two sets of signs together; calling 911 on a speakerphone beside
-  a child rather than leaving them.
+  from the two sets of signs together.
+- That a bed or a sofa gives way under CPR; giving more sugar after 15
+  minutes when there is no meter to check the blood sugar.
 - The worked examples are made up to illustrate the steps.

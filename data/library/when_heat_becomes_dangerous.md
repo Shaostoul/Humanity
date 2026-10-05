@@ -18,10 +18,10 @@ It matters most where heat is rare. The place this simulation is set is
 mild: at the Bremerton weather station, the nearest long temperature
 record to Silverdale, the normal June high is about 21 C (70 F). In late
 June 2021 that station read 100, 102 and 101 F on three days running, and
-Washington recorded 171 heat-related deaths that year, the second highest
-number of any state. A place that is rarely hot is a place where bodies
-are not used to heat, and that, as the sections below explain, is one of
-the things that makes heat dangerous (our reading of NIOSH's advice on
+the CDC counted 171 heat-related deaths in Washington that year, the second
+highest number of any state. A place that is rarely hot is a place where
+bodies are not used to heat, and that, as the sections below explain, is
+one of the things that makes heat dangerous (our reading of NIOSH's advice on
 getting used to heat and of the way HeatRisk weighs early-season heat).
 
 The advice here comes from the Centers for Disease Control and Prevention
@@ -29,8 +29,9 @@ The advice here comes from the Centers for Disease Control and Prevention
 the Occupational Safety and Health Administration (OSHA), the National
 Weather Service and FEMA's Ready.gov, all United States government works in
 the public domain, and from NOAA's daily weather records for the worked
-example. Where something is general practice, arithmetic or our own
-reading, the text says so.
+example. Washington's Department of Health is cited for its count of the
+2021 deaths, restated in our own words. Where something is general
+practice, arithmetic or our own reading, the text says so.
 
 Several neighbours carry parts of this subject. [Heat and How It
 Moves](/library#heat-and-how-it-moves) explains how a body sheds heat and why a
@@ -47,7 +48,12 @@ Hypothermia](/library#cold-and-hypothermia) is this guide's opposite.
 1. **Confused, slurring, collapsed or having a seizure? Call 911.** OSHA:
    confusion, slurred speech or unconsciousness are signs of heat stroke,
    and when they are present you call 911 immediately. The CDC's sheet
-   says it plainly: "heat stroke is a medical emergency".
+   says it plainly: "heat stroke is a medical emergency". If they do not
+   respond and are not breathing normally, their heart may have stopped:
+   the CDC's advice for a cardiac arrest is to call 911, get an AED and
+   give CPR until medical help arrives. So start CPR and send for an AED
+   first ([First Aid Until Help Arrives](/library#first-aid-until-help-arrives)),
+   and let anyone else there cool them while you push.
 2. **Cool them, starting now, before help arrives.** Get them into shade or
    air conditioning, take off outer layers, and cool them hard: in cold
    water or an ice bath if you can, otherwise soak their skin and clothes
@@ -278,7 +284,8 @@ Why some bodies struggle, in the CDC's words and the Weather Service's:
 
 **Medicines.** The CDC's guidance for clinicians says commonly prescribed
 medicines that raise the risk from heat include diuretics (water pills),
-anticholinergic drugs and some psychiatric medicines, that some blood
+anticholinergic drugs (among them some allergy and sleep medicines, such
+as diphenhydramine) and some psychiatric medicines, that some blood
 pressure medicines taken together with a diuretic may raise it
 significantly, and that over-the-counter medicines can play a part too.
 Medicines can blunt thirst, interfere with sweating or temperature
@@ -412,8 +419,13 @@ What happened, from the records:
 - **The harm.** In the CDC's figures for Alaska, Idaho, Oregon and
   Washington, emergency departments saw 1,038 visits for heat-related
   illness on 28 June 2021 against 9 on the same date in 2019, and the
-  groups most affected were men and people aged 75 or older. Washington
-  recorded 171 heat-related deaths in 2021.
+  groups most affected were men and people aged 75 or older. The CDC
+  counted 171 heat-related deaths in Washington in 2021. The state's
+  Department of Health, counting the deaths it tied to the heat between
+  26 June and 31 August 2021, reported 157, 100 of them in the week of the
+  heat wave itself, 26 June to 2 July (restated). The two counts cover
+  different spans of time: the CDC's the whole of 2021, the state's 26 June
+  to 31 August.
 
 Now a made-up household in a heat wave like that one, today, to show the
 steps.
@@ -456,7 +468,8 @@ away; had he become confused, it would have been the 911 call above.
 
 - **Anyone confused, slurring, collapsed, fitting or unconscious in the
   heat** is a 911 call: the CDC calls heat stroke a medical emergency.
-  Start cooling at once and keep cooling until the crew takes over (OSHA).
+  Start cooling at once and keep cooling until the crew takes over (OSHA),
+  unless they are not breathing normally: then CPR comes first.
 - **Heat exhaustion that does not improve within an hour,** or with
   vomiting, or getting worse, needs medical help that day (the CDC).
 - **Medicines.** Do not stop or change one because of the heat without a
@@ -507,12 +520,17 @@ rest of this guide.
   `src/systems/body_heat.rs`). Under Realistic, a core of 41 C would take
   your health from full to nothing in an hour, and 42 C in half an hour.
 - **The default is gentler.** Settings > Gameplay > Body heat starts on
-  Forgiving, which runs the same physics but shows your temperature swinging
-  only half as far from normal and does harm at half the rate. So under
-  Forgiving, Heat Exhaustion appears only once the model's real core passes
-  about 41 C, and Heatstroke, with its harm, only once it passes about 43 C,
-  and then at half the Realistic rate (`src/systems/body_heat.rs`; the core
-  conversion is our arithmetic). Realistic shows the real balance.
+  Forgiving, which uses the same weather, clothes and shelter but shows
+  your temperature moving only half as far from normal, and harms you at
+  half the Realistic rate for each degree that shown temperature reads past
+  40 C. So under Forgiving, Heat Exhaustion appears only once the model's
+  real core passes about 41 C, and Heatstroke, with its harm, only once it
+  passes about 43 C; the harm then comes far more slowly than under
+  Realistic. A real core of 44 C, which empties a full health bar in about
+  15 minutes under Realistic, reads 40.4 C under Forgiving and takes about
+  5 hours (`src/systems/body_heat.rs`, and the rule as the setting explains
+  it in the game; the conversions and times are our arithmetic). Realistic
+  shows the real balance.
 - **Body heat runs in every play mode,** including the default Dev mode;
   only the developer flying mode switches the weather off your body.
 - **Nothing carries over.** Your health and vitals are not saved between
@@ -537,6 +555,8 @@ whole guide is built around.
 - You know the line between heat exhaustion and heat stroke is the
   person's mind, and you call 911 for confusion, slurring, collapse or a
   seizure in the heat, sweating or not.
+- You check that someone who has collapsed in the heat is breathing
+  normally, and start CPR and send for an AED if they are not.
 - You start cooling at once and keep going, with cold water if you can and
   wet skin and moving air if you cannot, and you stay with the person.
 - You give sips of water to someone with heat exhaustion and nothing to
@@ -616,7 +636,8 @@ were read on 4 October 2026 and are cited with the date they carry.
   to use the HeatRisk Tool and Air Quality Index; and Heat and Medications,
   Guidance for Clinicians, all 18 September 2025 (the wider list of people
   at risk, and rural heat; HeatRisk's 0 to 4 scale and its developers; the
-  medicines that raise heat risk and how; heat damaging insulin,
+  medicines that raise heat risk and how, with antihistamines such as
+  diphenhydramine among the anticholinergic ones; heat damaging insulin,
   auto-injectors and inhalers; not stopping medicines abruptly).
   https://www.cdc.gov/heat-health/hcp/clinical-overview/index.html
   https://www.cdc.gov/heat-health/hcp/clinical-guidance/how-to-use-the-heatrisk-tool-and-air-quality-index.html
@@ -625,6 +646,11 @@ were read on 4 October 2026 and are cited with the date they carry.
   Basics, 12 January 2026 (generators never inside a home or garage, only
   outside and more than 20 feet from windows, doors and vents).
   https://www.cdc.gov/carbon-monoxide/about/index.html
+- Centers for Disease Control and Prevention. About Cardiac Arrest, 15 May
+  2024 (its signs, among them collapsing, losing consciousness and not
+  breathing or only gasping; calling 911 right away, finding an AED and
+  giving CPR until medical help arrives).
+  https://www.cdc.gov/heart-disease/about/cardiac-arrest.html
 - National Institute for Occupational Safety and Health. Heat-related
   Illnesses, 3 March 2026 (heat stroke, a temperature of 106 F or higher
   within 10 to 15 minutes, its signs and first aid; heat exhaustion and
@@ -694,6 +720,14 @@ were read on 4 October 2026 and are cited with the date they carry.
   and 38.3 C on 27, 28 and 29 June 2021; the record high).
   https://www.ncei.noaa.gov/pub/data/ghcn/daily/all/USC00450872.dly
 
+### Washington State (cited as the authority, restated in our own words)
+
+- Washington State Department of Health. Heat Wave 2021, undated, which
+  the page calls its final report on deaths due to the 2021 heat wave (157
+  heat-related deaths from 26 June to 31 August 2021, 100 of them between
+  26 June and 2 July). A state work, so restated, never quoted.
+  https://doh.wa.gov/emergencies/be-prepared-be-safe/severe-weather-and-natural-disasters/extreme-heat/hot-weather-precautions/heat-wave-2021
+
 ### Inside this project
 
 - `data/locales/silverdale_wa/climate.json` (the June mean high of 21.2 C
@@ -703,10 +737,12 @@ were read on 4 October 2026 and are cited with the date they carry.
   and its harm rates: `src/systems/body_heat.rs`; sweat taken from
   Hydration: `src/systems/food.rs`; the Heat Exhaustion, Heatstroke and
   Sunburn rows: `data/status_effects.csv`; the setting: Settings >
-  Gameplay > Body heat. The weather events, none of them a heat wave:
-  `data/weather/events.ron`; the unregistered disaster system:
-  `src/systems/disasters.rs`. Vitals not saved: `src/save_load.rs`; the
-  "Start every session from the default home" setting: `src/config.rs`.
+  Gameplay > Body heat, whose explanation is built from the same constants
+  (`body_heat_hint` in `src/gui/pages/settings.rs`). The weather events,
+  none of them a heat wave: `data/weather/events.ron`; the unregistered
+  disaster system: `src/systems/disasters.rs`. Vitals not saved:
+  `src/save_load.rs`; the "Start every session from the default home"
+  setting: `src/config.rs`.
 - [Heat and How It Moves](/library#heat-and-how-it-moves), [How Your Body
   Works](/library#how-your-body-works), [Organising Shared
   Work](/library#organising-shared-work), [First Aid Until Help
@@ -737,7 +773,8 @@ were read on 4 October 2026 and are cited with the date they carry.
   are not used to it, read from NIOSH's and OSHA's advice on getting used
   to heat and from HeatRisk.
 - Calling earlier for the people with the least margin.
-- The Forgiving mode's real core temperatures, converted from the game's
-  code by arithmetic.
+- The Forgiving mode's real core temperatures, and the times a 44 C core
+  takes to empty a health bar in each mode, worked from the game's code by
+  arithmetic.
 - The worked household and everything that happens to it are made up to
   illustrate the steps.
