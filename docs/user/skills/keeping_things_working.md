@@ -573,10 +573,14 @@ one thing in the garden.
 
 - **Play mode.** During development the game starts in the Dev play mode
   (Settings > Gameplay > Play mode), and in Dev, as in Creative,
-  materials are free: crafting and hoeing need no tools and wear none,
-  and laying a row cover takes no pieces from your pack. Only the soap
-  bar wears in every mode. To see tools wear, switch Play mode to
-  Normal.
+  nothing is used up and no tool wears: hoeing needs no hoe at all, and
+  laying a row cover takes no pieces from your pack. Crafting is the
+  exception to "needs no tools": the Craft button still wants the
+  recipe's parts and tools in your backpack or your home's storage, it
+  just does not use them up or wear the tools, and the Crafting page's
+  "Dev: stock all materials" button fills in everything a recipe needs.
+  Only the soap bar wears in every mode. To see tools wear, switch Play
+  mode to Normal.
 - **Starting from the default home.** While Settings > Gameplay > "Start
   every session from the default home" is on, which is also the default
   during development, only your character carries between launches, so
