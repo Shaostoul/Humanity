@@ -364,48 +364,26 @@ pub fn draw(
             }
 
             // ── Movement-mode indicator (v0.791.x, under the compass;
-            // extended v0.1109) ── Gravity behaves DIFFERENTLY between the two
+            // extended v0.1109) ── Gravity behaves DIFFERENTLY between the
             // surface modes, so the mode is never a guess: on a planet the
-            // line always reads WALK (gravity + ground clamp) or FLY (neither,
-            // altitude held), with the F9 toggle spelled out. Off-planet it
-            // keeps its original job of explaining why movement is odd -
-            // shown whenever fly mode is on or the FTL multiplier is above 1x.
+            // line always reads WALK or FLY, with what F9 does spelled out.
+            // Off-planet it keeps its original job of explaining why movement
+            // is odd - shown whenever fly mode is on or the speed gear is
+            // above 1x. The text is decided by `movement_line` (pure, tested;
+            // BUG-149: it read only the F9 hover bit, so the fly mode Land and
+            // Travel leave behind read WALK).
             let on_surface = state.surface_altitude_m.is_some();
-            if state.dev_hover || state.dev_fly_speed_mult > 1.0 || on_surface {
-                let mode = crate::surface_move::MoveMode::from_dev_flight(state.dev_hover);
-                let mut label = format!(
-                    "{} {}",
-                    mode.hud_word(),
-                    crate::dev_travel::format_multiplier(state.dev_fly_speed_mult)
-                );
-                if !state.dev_hover {
-                    // On a planet this is the real walking model, not a
-                    // half-off flight mode, so say which one it is and how to
-                    // leave it. The qualifier stays band-independent on
-                    // purpose: WALK means "the mode with gravity and a ground
-                    // clamp", which the word already carries.
-                    label.push_str(if on_surface { " [F9 to fly]" } else { " (fly mode off)" });
-                } else {
-                    if on_surface {
-                        label.push_str(" - hover, no gravity [F9 to walk]");
-                    }
-                    if state.dev_fly_speed_mult
-                        > crate::renderer::camera::LOCAL_FLY_MULT_MAX
-                    {
-                        label.push_str(" FTL - ship flying");
-                    }
-                }
-                if state.dev_travel_away {
-                    label.push_str(" - away from home");
-                }
+            if let Some((label, warn)) = movement_line(
+                state.dev_fly_mode,
+                state.dev_hover,
+                state.dev_fly_speed_mult,
+                on_surface,
+                state.dev_travel_away,
+            ) {
                 // Plain walking is the NORMAL state, so it reads as secondary
-                // text; anything that changes how gravity behaves keeps the
+                // text; anything that changes how the player moves keeps the
                 // warning colour it has always had.
-                let mode_color = if state.dev_fly_mode || state.dev_fly_speed_mult > 1.0 {
-                    theme.warning()
-                } else {
-                    theme.text_secondary()
-                };
+                let mode_color = if warn { theme.warning() } else { theme.text_secondary() };
                 text_shadowed(
                     painter,
                     Pos2::new(center.x, compass_y + 20.0),
@@ -547,8 +525,18 @@ pub fn draw(
             // point of tracking), label + distance next to the ring, brighter
             // when the camera looks near it - the machine-marker pattern
             // scaled up for world-sized targets.
+            //
+            // Placed by DIRECTION, never through the camera's depth range
+            // (BUG-148, 2026-10-04). The gameplay camera's far plane is the
+            // Render distance setting (500 m by default, 2,000 m at most) and
+            // the station is about 36,000 km up, so `world_to_screen` dropped
+            // the marker on every frame from anywhere off the station's own
+            // deck, the ground included. `marker_placement` ignores depth;
+            // when the target is off screen or behind, the ring is pinned to
+            // the screen's edge on the side to turn toward, with an arrow.
             for (name, pos, dist_m) in &state.target_markers {
-                let Some(sp) = world_to_screen(*pos, view_proj, screen) else { continue };
+                let Some(mark) = marker_placement(*pos, view_proj, screen, TARGET_MARKER_MARGIN) else { continue };
+                let sp = mark.pos;
                 let to_target = (*pos - cam_pos).normalize_or_zero();
                 let fwd = (view_proj.inverse() * glam::Vec4::new(0.0, 0.0, 1.0, 0.0))
                     .truncate()
@@ -560,15 +548,31 @@ pub fn draw(
                 let ring_col = if focus > 0.5 { theme.accent() } else { Color32::from_white_alpha(140) };
                 painter.circle_stroke(sp, 14.0, egui::Stroke::new(1.6, ring_col));
                 painter.circle_stroke(sp, 2.0, egui::Stroke::new(1.2, ring_col));
-                let dist_txt = if *dist_m >= 1000.0 {
-                    format!("{name} · {:.0} km", dist_m / 1000.0)
+                if let Some(dir) = mark.off_screen {
+                    // Out of view: a small arrow just outside the ring, pointing
+                    // the way to turn (the ring sits TARGET_MARKER_MARGIN in from
+                    // the edge, so the arrow stays on screen).
+                    let side = Vec2::new(-dir.y, dir.x);
+                    let base = sp + dir * 17.0;
+                    painter.add(egui::Shape::convex_polygon(
+                        vec![sp + dir * 25.0, base + side * 6.0, base - side * 6.0],
+                        ring_col,
+                        egui::Stroke::NONE,
+                    ));
+                }
+                let dist_txt = format!("{name} · {}", marker_distance(*dist_m));
+                // The label goes on the side of the ring that faces the middle
+                // of the screen, so a marker pinned to the right edge keeps its
+                // words on screen rather than running off it.
+                let (label_at, align) = if sp.x > screen.center().x + screen.width() * 0.25 {
+                    (sp - Vec2::new(18.0, 0.0), Align2::RIGHT_CENTER)
                 } else {
-                    format!("{name} · {:.0} m", dist_m)
+                    (sp + Vec2::new(18.0, 0.0), Align2::LEFT_CENTER)
                 };
                 text_shadowed(
                     painter,
-                    sp + Vec2::new(18.0, 0.0),
-                    Align2::LEFT_CENTER,
+                    label_at,
+                    align,
                     &dist_txt,
                     12.0,
                     if focus > 0.5 { theme.accent() } else { Color32::WHITE },
@@ -1122,6 +1126,140 @@ fn world_to_screen(world: Vec3, view_proj: Mat4, screen: Rect) -> Option<Pos2> {
     let x = screen.left() + (ndc.x * 0.5 + 0.5) * screen.width();
     let y = screen.top() + (1.0 - (ndc.y * 0.5 + 0.5)) * screen.height();
     Some(Pos2::new(x, y))
+}
+
+/// How far in from the screen's edge a tracked marker that is out of view is
+/// pinned, in points: room for its 14-point ring and the arrow beyond it.
+pub(crate) const TARGET_MARKER_MARGIN: f32 = 48.0;
+
+/// Where a tracked marker goes on the screen (BUG-148, `marker_placement`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct MarkerPlacement {
+    /// The ring's centre, in screen points.
+    pub pos: Pos2,
+    /// When the target is off screen or behind the camera and the ring is
+    /// pinned to the edge: the way to turn, as a unit screen direction (x to
+    /// the right, y down). None when the target is in view.
+    pub off_screen: Option<Vec2>,
+}
+
+/// Place a tracked marker by DIRECTION, at any distance (BUG-148, 2026-10-04).
+///
+/// `world_to_screen` drops anything outside the camera's depth range. That
+/// is right for a machine label a few metres away and wrong for a waypoint:
+/// the gameplay camera's far plane is the Render distance (500 m by default,
+/// 2,000 m at most) and the Home Station is about 36,000 km up, so its
+/// marker was dropped on every frame, from the ground and from anywhere else
+/// farther than that.
+///
+/// A perspective projection builds clip x, y and w from the view alone;
+/// only clip z involves the near and far planes. So this reads x, y and w and
+/// never z. In front of the camera (w > 0) and inside the screen less
+/// `margin`, the marker goes where the target projects. Otherwise it is
+/// pinned to that inset edge along the way to turn. Clip x and y keep their
+/// signs behind the eye (it is only the divide by a negative w that mirrors
+/// them), so they point toward the target whether it is off to one side or
+/// behind; a target dead behind goes to the bottom edge. None only when the
+/// projection is not finite.
+pub(crate) fn marker_placement(world: Vec3, view_proj: Mat4, screen: Rect, margin: f32) -> Option<MarkerPlacement> {
+    let clip = view_proj * world.extend(1.0);
+    if !clip.is_finite() {
+        return None;
+    }
+    let centre = screen.center();
+    let half = screen.size() * 0.5;
+    let inner = screen.shrink(margin);
+    if clip.w > 0.0 {
+        let p = centre + Vec2::new(clip.x / clip.w * half.x, -clip.y / clip.w * half.y);
+        if inner.contains(p) {
+            return Some(MarkerPlacement { pos: p, off_screen: None });
+        }
+    }
+    // Off screen or behind. The lateral part of the clip position, scaled to
+    // screen points (y down), is the way to turn. Next to nothing of it, with
+    // the target behind, means dead behind: point down, the usual "turn
+    // around" cue.
+    let lateral = Vec2::new(clip.x * half.x, -clip.y * half.y);
+    let dead_behind = Vec2::new(clip.x, clip.y).length() <= 1e-5 * clip.w.abs();
+    let dir = if dead_behind || lateral.length() == 0.0 { Vec2::new(0.0, 1.0) } else { lateral.normalized() };
+    // Walk from the centre along `dir` to the inset rectangle's edge (a
+    // window narrower than two margins pins it to the centre line).
+    let reach = (inner.size() * 0.5).max(Vec2::ZERO);
+    let t = (reach.x / dir.x.abs().max(1e-6)).min(reach.y / dir.y.abs().max(1e-6));
+    Some(MarkerPlacement { pos: centre + dir * t, off_screen: Some(dir) })
+}
+
+/// The distance a tracked marker shows: metres below a kilometre, tenths of a
+/// kilometre below ten, then whole kilometres in groups of three ("36,000
+/// km", about how far the Home Station is from the ground).
+pub(crate) fn marker_distance(dist_m: f64) -> String {
+    if dist_m < 1_000.0 {
+        format!("{:.0} m", dist_m.max(0.0))
+    } else if dist_m < 10_000.0 {
+        format!("{:.1} km", dist_m / 1_000.0)
+    } else {
+        format!("{} km", crate::gui::pages::settings::thousands((dist_m / 1_000.0) as f32))
+    }
+}
+
+/// The movement line under the compass: its text, and whether it is drawn in
+/// the warning colour; None for no line (BUG-149, 2026-10-04).
+///
+/// Two dev bits decide how the player moves, and the line must read both.
+/// `fly_mode` (`GuiState::dev_fly_mode`) is what the camera controller
+/// follows: lib.rs copies it into `CameraController::fly_mode` every frame,
+/// and with it on, walls and built pieces stop no one, there are no
+/// footsteps, the weather does not reach the body and the speed gear is not
+/// capped. `hover` (`GuiState::dev_hover`, F9) is the no-gravity law on a
+/// planet (`surface_move::MoveMode`). F9 sets both. The Dev page's Land and
+/// Travel, and every dev teleport, set only `fly_mode`, which leaves the
+/// player under gravity but flying, and this line used to read the hover bit
+/// alone and say WALK. So: FLY whenever fly mode is on, or the hover is on
+/// while on a planet (off a planet the hover law does not run), and the note
+/// says which, and what F9 does from there (lib.rs's F9 flips both bits to
+/// the opposite of the hover bit: from fly mode without the hover, F9 turns
+/// the hover on).
+pub(crate) fn movement_line(
+    fly_mode: bool,
+    hover: bool,
+    speed_mult: f32,
+    on_surface: bool,
+    away: bool,
+) -> Option<(String, bool)> {
+    use crate::surface_move::MoveMode;
+    let flying = fly_mode || (on_surface && hover);
+    if !(flying || on_surface || speed_mult > 1.0) {
+        return None;
+    }
+    // One source for the two words: the surface movement model's own.
+    let word = if flying { MoveMode::DevFlight.hud_word() } else { MoveMode::Walk.hud_word() };
+    let mut label = format!("{word} {}", crate::dev_travel::format_multiplier(speed_mult));
+    if !flying {
+        // On a planet this is the real walking model (gravity, the ground
+        // clamp, walls, footsteps), so say how to leave it. Off a planet the
+        // line only shows for a raised speed gear.
+        label.push_str(if on_surface { " [F9 to fly]" } else { " (fly mode off)" });
+    } else {
+        if on_surface {
+            label.push_str(if hover {
+                " - hover, no gravity [F9 to walk]"
+            } else {
+                // Land, Travel, a dev teleport: fly mode without the hover.
+                // Gravity and the ground clamp still hold (MoveMode::Walk),
+                // so this is not hovering, and F9 turns the hover on.
+                " - gravity on [F9 to hover]"
+            });
+        }
+        // The ship itself flies (FTL) only on the controller's fly bit
+        // (lib.rs's FTL block), above the local fly speed cap.
+        if fly_mode && speed_mult > crate::renderer::camera::LOCAL_FLY_MULT_MAX {
+            label.push_str(" FTL - ship flying");
+        }
+    }
+    if away {
+        label.push_str(" - away from home");
+    }
+    Some((label, flying || speed_mult > 1.0))
 }
 
 /// Draw text with a black OUTLINE (stroke) so it stays legible over any 3D background
@@ -2021,5 +2159,275 @@ mod carry_line_tests {
             CarryMode::Realistic,
         );
         assert!(find_text_in_shapes(&hud_shapes(&state), "Overloaded").is_none(), "under the limit, no line");
+    }
+}
+
+/// BUG-148 (the tracked marker) and BUG-149 (the movement line), read back
+/// from the shapes the HUD actually paints, through the game's own camera.
+#[cfg(test)]
+mod marker_and_mode_tests {
+    use crate::gui::screen_surface::find_text_in_shapes;
+    use crate::gui::GuiState;
+    use crate::renderer::camera::Camera;
+    use glam::Vec3;
+
+    /// The test screen, the size the other HUD tests use.
+    const SCREEN: egui::Vec2 = egui::vec2(1280.0, 900.0);
+
+    /// The gameplay camera as a player has it on the ground: its far plane is
+    /// the Render distance setting, 500 m by default (config.rs, applied at
+    /// boot by lib.rs's settings block), and its aspect is the screen's.
+    fn ground_camera() -> Camera {
+        let mut cam = Camera::new();
+        cam.far = 500.0;
+        cam.aspect = SCREEN.x / SCREEN.y;
+        cam
+    }
+
+    /// Two settle frames of the HUD alone, drawn through `cam` exactly as
+    /// lib.rs calls it (yaw, view-projection, position); the second frame's
+    /// shapes.
+    fn hud_shapes(state: &GuiState, cam: &Camera) -> Vec<egui::epaint::ClippedShape> {
+        let ctx = egui::Context::default();
+        crate::gui::fonts::install_font_fallbacks(&ctx);
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        let mut shapes = Vec::new();
+        for _ in 0..2 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), SCREEN)),
+                ..Default::default()
+            };
+            let out = ctx.run(input, |ctx| {
+                super::draw(ctx, &theme, state, cam.yaw, cam.view_projection_matrix(), cam.position);
+            });
+            shapes = out.shapes;
+        }
+        shapes
+    }
+
+    /// Track the Home Station at `pos` (render space, metres), as lib.rs
+    /// does from the station's orbit each frame.
+    fn track(state: &mut GuiState, pos: Vec3) {
+        state.target_markers = vec![("Home Station".to_string(), pos, pos.length() as f64)];
+    }
+
+    /// BUG-148: the tracked Home Station, 36,000 km straight ahead of a
+    /// player standing on the ground, draws its ring and its label with the
+    /// distance, at the middle of the screen. The marker was projected
+    /// through the camera's depth range, whose far plane is the Render
+    /// distance (500 m by default, 2,000 m at most), so anything farther,
+    /// which is every tracked station, was dropped.
+    ///
+    /// Seen red before the fix: "the tracked station draws its label: none
+    /// was drawn" (the `expect` below panicked).
+    #[test]
+    fn a_tracked_station_36000_km_away_draws_its_marker() {
+        let cam = ground_camera();
+        let mut state = GuiState::default();
+        track(&mut state, cam.forward() * 3.6e7);
+        let found = find_text_in_shapes(&hud_shapes(&state, &cam), "Home Station")
+            .expect("the tracked station draws its label: none was drawn");
+        assert_eq!(found.text, "Home Station · 36,000 km", "the label says how far it is");
+        // The label sits just right of the ring, which is at the screen's
+        // middle because the station is dead ahead.
+        let mid = SCREEN * 0.5;
+        assert!(
+            (found.rect.center().y - mid.y).abs() < 12.0
+                && found.rect.left() > mid.x
+                && found.rect.left() < mid.x + 40.0,
+            "the marker is at the middle of the screen: label at {:?}",
+            found.rect
+        );
+    }
+
+    /// BUG-148: behind the player the marker is not lost. It is pinned to
+    /// the screen's edge on the side to turn toward (here the right: the
+    /// station is behind and to the right), with its label inside the
+    /// screen.
+    ///
+    /// Seen red before the fix: "a station behind the player still draws
+    /// its marker: none was drawn" (the `expect` below panicked).
+    #[test]
+    fn a_tracked_station_behind_the_player_is_pinned_to_the_screen_edge() {
+        let cam = ground_camera();
+        let mut state = GuiState::default();
+        let behind_right = (-cam.forward() * 3.0 + cam.right()).normalize();
+        track(&mut state, behind_right * 3.6e7);
+        let found = find_text_in_shapes(&hud_shapes(&state, &cam), "Home Station")
+            .expect("a station behind the player still draws its marker: none was drawn");
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, SCREEN);
+        assert!(screen.contains_rect(found.rect), "the label is on screen: {:?}", found.rect);
+        assert!(
+            found.rect.center().x > SCREEN.x * 0.75,
+            "on the right, the side to turn toward: label at {:?}",
+            found.rect
+        );
+    }
+
+    /// The movement line under the compass, as drawn: the text of whichever
+    /// line starts with WALK or FLY, if any.
+    fn movement_text(state: &GuiState, cam: &Camera) -> Option<String> {
+        let shapes = hud_shapes(state, cam);
+        let walk = find_text_in_shapes(&shapes, "WALK").filter(|f| f.text.starts_with("WALK"));
+        let fly = find_text_in_shapes(&shapes, "FLY").filter(|f| f.text.starts_with("FLY"));
+        match (walk, fly) {
+            (Some(w), Some(f)) => panic!("both WALK and FLY drawn: {:?} and {:?}", w.text, f.text),
+            (w, f) => w.or(f).map(|f| f.text),
+        }
+    }
+
+    /// BUG-149: the HUD says what is true. On the ground with fly mode on
+    /// and hover off, which is what the Dev page's Land and Travel leave
+    /// behind, the line reads FLY: walls do not stop the player, there are
+    /// no footsteps and the weather does not reach the body, although
+    /// gravity still holds them down, and F9 turns hover on. Walking reads
+    /// WALK, and F9's hover reads FLY with its own note.
+    ///
+    /// Seen red before the fix: "fly mode on (Land, Travel): left:
+    /// Some(\"WALK x1 [F9 to fly]\"), right: Some(\"FLY x1 - gravity on [F9
+    /// to hover]\")".
+    #[test]
+    fn the_movement_line_reads_fly_whenever_fly_mode_is_on() {
+        let cam = ground_camera();
+        let mut state = GuiState::default();
+        state.surface_altitude_m = Some(0.0);
+        // What Land and Travel set (lib.rs): fly mode on, hover untouched.
+        state.dev_fly_mode = true;
+        state.dev_hover = false;
+        assert_eq!(
+            movement_text(&state, &cam).as_deref(),
+            Some("FLY x1 - gravity on [F9 to hover]"),
+            "fly mode on (Land, Travel)"
+        );
+        // Both off: walking for real.
+        state.dev_fly_mode = false;
+        assert_eq!(movement_text(&state, &cam).as_deref(), Some("WALK x1 [F9 to fly]"), "walking");
+        // F9: hover, both bits on.
+        state.dev_fly_mode = true;
+        state.dev_hover = true;
+        assert_eq!(
+            movement_text(&state, &cam).as_deref(),
+            Some("FLY x1 - hover, no gravity [F9 to walk]"),
+            "F9 hover"
+        );
+    }
+}
+
+/// The pure rules under the drawn tests above: where a tracked marker goes
+/// (BUG-148), what its distance reads, and the movement line (BUG-149).
+#[cfg(test)]
+mod placement_and_line_tests {
+    use super::{marker_distance, marker_placement, movement_line, world_to_screen, MarkerPlacement, TARGET_MARKER_MARGIN};
+    use crate::renderer::camera::Camera;
+    use egui::{pos2, vec2, Rect};
+    use glam::Vec3;
+
+    fn screen() -> Rect {
+        Rect::from_min_size(pos2(0.0, 0.0), vec2(1280.0, 900.0))
+    }
+
+    /// The gameplay camera with the default Render distance (500 m) as its
+    /// far plane.
+    fn ground_camera() -> Camera {
+        let mut cam = Camera::new();
+        cam.far = 500.0;
+        cam.aspect = 1280.0 / 900.0;
+        cam
+    }
+
+    /// A target 36,000 km away along `dir`, placed for `cam`.
+    fn place(cam: &Camera, dir: Vec3) -> MarkerPlacement {
+        marker_placement(dir.normalize() * 3.6e7, cam.view_projection_matrix(), screen(), TARGET_MARKER_MARGIN)
+            .expect("a finite projection is always placed")
+    }
+
+    /// Dead ahead and 72,000 times past the far plane: the middle of the
+    /// screen, in view. The depth-range projection drops the same point,
+    /// which is the whole of BUG-148.
+    #[test]
+    fn a_target_far_past_the_far_plane_projects_to_where_it_is() {
+        let cam = ground_camera();
+        let p = place(&cam, cam.forward());
+        assert!((p.pos - screen().center()).length() < 0.5, "{p:?}");
+        assert_eq!(p.off_screen, None, "in view");
+        assert!(
+            world_to_screen(cam.forward() * 3.6e7, cam.view_projection_matrix(), screen()).is_none(),
+            "the depth-range projection drops it"
+        );
+        // A little up and to the right, still in view: up and to the right
+        // of the middle.
+        let p = place(&cam, cam.forward() + cam.right() * 0.2 + cam.up * 0.1);
+        assert!(p.off_screen.is_none() && p.pos.x > 700.0 && p.pos.y < 420.0, "{p:?}");
+    }
+
+    /// Out of view, the ring is pinned TARGET_MARKER_MARGIN in from the edge
+    /// on the side to turn toward, pointing that way: far right in front,
+    /// behind on the right, straight overhead, and dead behind (the bottom
+    /// edge, "turn around").
+    #[test]
+    fn a_target_out_of_view_is_pinned_to_the_edge_it_is_toward() {
+        let cam = ground_camera();
+        let s = screen();
+        let m = TARGET_MARKER_MARGIN;
+        let (f, r, u) = (cam.forward(), cam.right(), cam.up);
+        let near = |a: f32, b: f32| (a - b).abs() < 0.5;
+
+        let p = place(&cam, f * 0.17 + r); // 80 degrees right of ahead
+        let d = p.off_screen.expect("out of view");
+        assert!(near(p.pos.x, s.right() - m) && d.x > 0.99, "far right: {p:?}");
+
+        let p = place(&cam, -f * 3.0 + r); // behind, on the right
+        let d = p.off_screen.expect("behind");
+        assert!(near(p.pos.x, s.right() - m) && d.x > 0.99, "behind on the right: {p:?}");
+
+        let p = place(&cam, u); // straight overhead
+        let d = p.off_screen.expect("overhead");
+        assert!(near(p.pos.y, s.top() + m) && d.y < -0.99, "overhead: {p:?}");
+
+        let p = place(&cam, -f); // dead behind
+        assert_eq!(p.off_screen, Some(vec2(0.0, 1.0)), "dead behind points down");
+        assert!(near(p.pos.y, s.bottom() - m) && near(p.pos.x, s.center().x), "dead behind: {p:?}");
+
+        for target in [f * 0.17 + r, -f * 3.0 + r, u, -f, -f + u * 0.3 - r] {
+            let p = place(&cam, target);
+            assert!(s.shrink(m - 0.5).contains(p.pos), "always on screen, inside the margin: {p:?}");
+        }
+    }
+
+    #[test]
+    fn the_distance_reads_in_metres_then_kilometres() {
+        assert_eq!(marker_distance(850.0), "850 m");
+        assert_eq!(marker_distance(1_520.0), "1.5 km");
+        assert_eq!(marker_distance(3.6e7), "36,000 km");
+        assert_eq!(marker_distance(3.844e8), "384,400 km");
+    }
+
+    /// Every state of the two bits (BUG-149): WALK only when neither changes
+    /// how the player moves; FLY with the note that is true for the state.
+    /// Off a planet only the controller's fly bit counts: the hover law runs
+    /// only on a planet's surface.
+    #[test]
+    fn the_movement_line_says_what_is_true_in_every_state() {
+        let line = |fly, hover, surface| movement_line(fly, hover, 1.0, surface, false);
+        // On a planet.
+        assert_eq!(line(false, false, true), Some(("WALK x1 [F9 to fly]".to_string(), false)));
+        assert_eq!(line(true, false, true), Some(("FLY x1 - gravity on [F9 to hover]".to_string(), true)), "Land, Travel");
+        assert_eq!(line(true, true, true), Some(("FLY x1 - hover, no gravity [F9 to walk]".to_string(), true)), "F9");
+        assert_eq!(
+            line(false, true, true),
+            Some(("FLY x1 - hover, no gravity [F9 to walk]".to_string(), true)),
+            "the Dev page's Fly mode box unticked under F9's hover: still no gravity"
+        );
+        // Off a planet.
+        assert_eq!(line(false, false, false), None, "walking aboard needs no line");
+        assert_eq!(line(true, false, false), Some(("FLY x1".to_string(), true)), "Travel's free flight in space");
+        assert_eq!(line(false, true, false), None, "the hover bit does nothing off a planet");
+        // The speed gear, FTL and away notes.
+        assert_eq!(movement_line(false, false, 10.0, false, false), Some(("WALK x10 (fly mode off)".to_string(), true)));
+        assert_eq!(
+            movement_line(true, false, 1.0e6, false, true),
+            Some(("FLY x1M FTL - ship flying - away from home".to_string(), true))
+        );
     }
 }

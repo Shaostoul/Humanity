@@ -182,7 +182,8 @@ itself, so shaping the starting home keeps working. Revisit at launch.
   `resume_home` hands them the time away (`crafting::away::AwayWork`), and
   the CraftingSystem runs it once the machines exist, before it starts any
   batch of its own. The hours are run moment by moment by the session's own
-  rules: a machine starts a batch when its inputs are on hand, spends them
+  rules: a machine starts a batch when its inputs are on hand in home
+  storage (never the backpack: BUG-150, 2026-10-04), spends them
   then, runs the recipe's craft time, files the product in home storage
   and starts again; it rests at its keep target (the mill's 20 flour); what
   one machine makes feeds the next (ore to ingot to hammer) from the moment
@@ -193,8 +194,10 @@ itself, so shaping the starting home keeps working. Revisit at launch.
   lists what they made ("the home's machines made 21 Flour").
 - **The drone** (`mining::advance_away`). The trip in flight finishes, and
   while "Keep mining" is set the drone keeps flying the same trip until its
-  asteroid is mined out, as in a session. Each haul lands in the backpack
-  and is usable by the machines only from the moment it landed. A trip still
+  asteroid is mined out, as in a session. Each haul lands in home storage
+  (it landed in the backpack until BUG-150, 2026-10-04, when the machines
+  stopped drawing from the backpack) and is usable by the machines only
+  from the moment it landed. A trip still
   in the air when the time runs out is left in the air. The asteroids, the
   drone with its cargo, and the standing order are saved now: all three were
   rebuilt fresh at every launch, which refilled every asteroid and lost the

@@ -265,6 +265,8 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
         let rmax = r.center + r.dimensions * 0.5;
         Some(match acc { None => (rmin, rmax), Some((mn, mx)) => (mn.min(rmin), mx.max(rmax)) })
     });
+    // Whose air each place breathes and where aboard ends follow the ship (increment 4).
+    crate::engine::survival_env::refresh_ship_spaces(state);
     // Refresh the HUD room volumes (the "you are in <room>" detection + occlusion) so a
     // moved/resized/added/removed room is tracked live, not just on restart. (v0.459)
     // (Machine placement + pipes + hologram/spawn still resolve at load_world; they refresh

@@ -3490,7 +3490,8 @@ mod plot_handout_tests {
         assert!((p2 - Vec3::new(53.5, 1.7, 139.5)).length() < 1e-4, "p2 spawn {p2:?}");
         // A guest arrives in the Commons: the middle of its 34 x 55 m box at (65, 0, 20).
         let g = plots.guest_spawn.expect("the ship has a Commons");
-        assert!((g - Vec3::new(82.0, 1.7, 47.5)).length() < 1e-4, "guest spawn {g:?}");
+        // The Commons' own spawn (increment 4: it used to be its middle, inside the room block).
+        assert!((g - Vec3::new(87.5, 1.7, 67.5)).length() < 1e-4, "guest spawn {g:?}");
         assert_eq!(plots.ship_id, "mothership-1");
     }
 

@@ -3463,7 +3463,7 @@ can spend offered items, which withdraws the confirmation, BUG-114's guard).
 The `assemble_*` kit recipes have the same toy bills of materials (a 1497 kg
 car from 81 kg of parts) and are not yet covered by the weight test.
 
-## BUG-148: the home marker never shows from the ground: it is cut off at the render distance (OPEN, found 2026-10-04)
+## BUG-148: the home marker never shows from the ground: it is cut off at the render distance (FIXED v0.1459.0, found 2026-10-04)
 
 **Seen (by reading the code, during the fact check of the navigation guides):** the
 tracked Home Station ring, which is meant to show the way and the distance to your
@@ -3474,12 +3474,17 @@ so anything past the far plane gets a negative depth, which hud.rs ~1119-1120 re
 The station is about 36,000 km up, so from the ground the ring never appears and
 nothing shows the way home.
 
-**Fix (not started):** project a tracked marker by direction, not through the depth
-range: a waypoint is drawn wherever it is, clamped to the screen edge when it is behind
-or off screen, with its distance in words. A test projects a point 36,000 km away and
-expects a marker.
+**Fix (d7ee64a38):** `hud::marker_placement` places a tracked marker by direction: it
+reads clip x, y and w, which a perspective projection builds without the near or far
+plane, and never z. In view the ring goes where the target projects; off screen or
+behind, it is pinned to the screen edge on the side to turn toward, with an arrow, and
+its label stays on screen. The distance reads "36,000 km". Tests, each seen red first:
+`marker_and_mode_tests::a_tracked_station_36000_km_away_draws_its_marker` and
+`a_tracked_station_behind_the_player_is_pinned_to_the_screen_edge` ("none was drawn").
+Probe vantage `silverdale-home-marker` shows it from the ground: "Home Station ·
+38,240 km".
 
-## BUG-149: the Dev page's Land and Travel leave fly mode on while the HUD reads WALK (OPEN, found 2026-10-04)
+## BUG-149: the Dev page's Land and Travel leave fly mode on while the HUD reads WALK (FIXED v0.1459.0, found 2026-10-04)
 
 **Seen (code reading, the same fact check):** the Dev page's Land and Travel buttons set
 fly mode on (lib.rs ~5965-5966, ~6082-6083) and lib.rs ~3571 keeps it on every frame,
@@ -3490,10 +3495,18 @@ instead of about 2.5 (lib.rs ~4830-4831 is the swim cap; walking is 5 m/s either
 A player who lands believes they are walking. (The speed detail was corrected the same day
 by the fixer of the navigation guides: the first version said walking.)
 
-**Fix (not started):** either land the player in walk mode, or make the HUD say what is
-true (FLY) whenever fly mode is on, with a test on the HUD text for each state.
+**Fix (d7ee64a38), the HUD half:** the movement line read only the F9 hover bit;
+`hud::movement_line` now reads both, so it says FLY whenever fly mode is on ("FLY x1 -
+gravity on [F9 to hover]"), and Travel's free flight in space shows "FLY x1" again.
+Test `marker_and_mode_tests::the_movement_line_reads_fly_whenever_fly_mode_is_on`, seen
+red first (it read "WALK x1 [F9 to fly]").
 
-## BUG-150: the home's machines take the player's carried items: the sawmill eats stocked logs (OPEN, found 2026-10-04)
+**Still open (lib.rs, not touched by the fix):** Land should put the player down in walk
+mode; F9 should flip from `dev_fly_mode || dev_hover`, not the hover bit alone; turning
+the dev tools off should clear `dev_hover` as well as fly mode; and the Dev page's "Fly
+mode" checkbox hover text does not describe what it does.
+
+## BUG-150: the home's machines take the player's carried items: the sawmill eats stocked logs (FIXED v0.1459.0, found 2026-10-04)
 
 **Seen (code reading, the same fact check):** automated machines take their real inputs
 from the backpack first, even in Dev mode (crafting/mod.rs ~1012-1025, ~1186-1196). The
@@ -3503,7 +3516,85 @@ adds are gone within about 10 s, before a player can craft the raft that needs 6
 In real life a machine takes what is put into it or what is in the store it is fed from,
 never what is in your pockets.
 
-**Fix (not started):** automated machines draw from home storage only (the store they are
-plumbed to), never the backpack, with a test. Related, smaller: "Dev: stock all
-materials" supplies no tools, and since BUG-147 a craft's parts come from home storage
-but its tools must still be carried.
+**Fix (643cc524e):** automated machines count and spend their inputs from home storage
+(and, for tap water, the tanks), never the backpack, in the session and through the time
+away; the status line says where the machine looks ("waiting for Wood Log x2 in home
+storage"). The drone unloads into home storage when the home has it, so the drone,
+smelter and workbench chain still runs, and the first quest's "Acquire 3 iron ore" step
+counts home storage as well as the backpack. Tests, each seen red first:
+`machine_inputs_tests::the_sawmill_saws_the_stored_logs_and_leaves_the_carried_ones_alone`,
+`a_machine_with_its_inputs_only_in_the_backpack_waits_for_home_storage`,
+`through_the_time_away_the_machines_leave_the_backpack_alone`,
+`drone_tests::the_drone_unloads_into_home_storage_when_the_home_has_it` and
+`quest_tests::gather_counts_what_the_home_holds_as_well_as_the_backpack`.
+
+**Still open, smaller:** "Dev: stock all materials" supplies no tools, and since BUG-147 a
+craft's parts come from home storage but its tools must still be carried.
+
+## BUG-151: opening and shutting the build editor with no edit rewrote the home, ship and machine data files (FIXED v0.1459.0, found 2026-10-04)
+
+**Seen:** by the first run of increment 4's new rig legs (the editor jump). The
+editor's opening rebuild set `construction_structure_dirty`, and the choke point in
+lib.rs armed the autosave on any dirty flag, so a minute after a player merely
+opened and shut the editor, the autosave rewrote `data/homes/<kind>.ron`, the ship
+file, `data/machines/home.ron` and `data/machines/ship.ron`, dropping their comments.
+In a checkout (the rigs' data folder is the checkout) that rewrote four tracked files.
+
+**Fix:** `arms_autosave(edited, entry_rebuild)` ignores the editor's own opening
+rebuild (755018fa0). Test `engine::editor::autosave_tests::opening_the_editor_is_not_an_edit`,
+seen red: "the editor's own rebuild as it opens armed the autosave".
+
+## BUG-152: three tests fail under machine load, not on their code (OPEN, found 2026-10-04)
+
+**Seen:** while increment 4's fixes were checked, with other builds running: the media
+seek tests `a_seek_lands_where_it_was_asked_and_the_picture_agrees`,
+`a_seek_with_no_keyframe_in_the_window_still_arrives` and once
+`seeking_while_paused_shows_the_frame_it_landed_on` (they wait 5 s of wall-clock time
+for frames), and the fleet ledger's `the_fleet_ledger_end_to_end` ("rate_limited",
+features.rs ~1980). Each passed alone and on reruns; src/media was unchanged.
+
+**Why it matters:** a check that fails on a busy machine teaches people to rerun it
+until it is green, which is how a real failure gets waved through.
+
+**Fix (not started):** make the media tests wait on the decoder's progress rather
+than on wall-clock time (or give them a deterministic clock), and give the fleet
+ledger test a relay rate limit that cannot trip in a test (or space its sends by
+the limit it is testing).
+
+## BUG-153: the Campfire ability promises a fire with warmth and light, and only heals 3 health (OPEN, found 2026-10-04)
+
+**Seen (code reading, by the check of the heat, fire and fuel guides; confirmed by the
+orchestrator):** `data/abilities.csv` row `campfire` is described as "Build a campfire that
+provides warmth light and slow healing". It is a non-offensive ability, so casting it
+(`src/systems/abilities.rs`, the self-castable arm) spends 15 energy and restores its
+`healing_base` of 3 health, and nothing else: no fire is placed, nothing warms or lights,
+and the `campfire_warmth` status effect (`data/status_effects.csv`) is applied by no code.
+For a new character it sorts first among castable abilities, so it sits in hotbar slot 1.
+
+**Fix (not started):** either make it place a real fire the body heat model and the light
+system see (and that can spread or go out, as the fire guide teaches), or describe what it
+does today. A test casts it and checks what the description promises.
+
+## BUG-154: the backup generator runs on Paint, Glue or Crude Oil (OPEN, found 2026-10-04)
+
+**Seen (the same check, confirmed):** the generator burns whatever flammable-class item is
+in its drum (`src/systems/electrical.rs`, `fuel_ok`: any item whose class is
+"flammable"). Crude Oil, Glue and Paint are all that class (`data/items.csv`), the drum
+accepts them, and the Store button offers them, so the house runs on a can of paint. A real
+generator burns the fuel its engine is made for (gasoline, diesel or propane), and the fuels
+guide teaches exactly that.
+
+**Fix (not started):** a generator names the fuels it burns (a data field on the machine),
+and only those run it; a test puts Paint in the drum and expects no power.
+
+## BUG-155: the greenhouse quest asks for a heater that does nothing (OPEN, found 2026-10-04)
+
+**Seen (the same check, confirmed):** the Greenhouse Construction quest's step reads
+"Build a heater for temperature regulation" (`data/quests/farming.ron`, objective
+`Craft(recipe_id: "build_heater")`), but no system gives a built heater any effect: it
+warms neither the air, the plants nor the player. The heating guide says plainly that the
+heater does nothing; the quest says the opposite.
+
+**Fix (not started):** give the heater a real effect on the room's air temperature (the
+greenhouse's plants and the body heat model read it), or change the quest step until it
+does. Either way a test pins the quest's promise to what the heater does.

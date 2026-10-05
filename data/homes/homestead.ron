@@ -21,6 +21,13 @@
 // Durable notes belong here or in docs/design/homestead.md, not beside the records. The home
 // file is saved by every play mode; the ship file only by the Dev mode.
 //
+// Structure pairs (a teleporter's partner): this copy names them by LIST INDEX (`pair: Some(6)`),
+// the form an exe built before ship homes increment 4 reads. Such an exe moves a home it cannot
+// parse aside as homestead.invalid-<time>.ron, so an older archive launched from this checkout
+// must still read it. Builds since increment 4 read either form and write ids
+// (`pair: Some("teleporter-2")`) on the next editor Save (src/ship/home_structure.rs
+// `settle_structures`).
+//
 // Zones: `room_type: Some("<data/rooms.ron key>")` on a room-grade zone gives the room the
 // zone covers its FUNCTION (purpose, walk-up actions, access); rooms no zone covers stay
 // room_N. Since the 2026-09-19 redesign every room in the acre is covered, so a `room_N` id
@@ -1414,42 +1421,49 @@
         spawn: Some((53.5, 40.5)),
         structures: [
             (
+                id: "stairs-1",
                 type_id: "stairs",
                 pos: (34.0, 0.0, 4.0),
                 rot_deg: 0.0,
                 pair: None,
             ),
             (
+                id: "ramp-1",
                 type_id: "ramp",
                 pos: (38.0, 0.0, 4.0),
                 rot_deg: 0.0,
                 pair: None,
             ),
             (
+                id: "train-1",
                 type_id: "train",
                 pos: (48.0, 0.0, 10.0),
                 rot_deg: 0.0,
                 pair: None,
             ),
             (
+                id: "teleporter-1",
                 type_id: "teleporter",
                 pos: (22.5, 0.0, 20.0),
                 rot_deg: 0.0,
-                pair: Some(5),
+                pair: Some(6),
             ),
             (
+                id: "elevator-1",
                 type_id: "elevator",
                 pos: (31.0, 0.0, 26.0),
                 rot_deg: 0.0,
                 pair: None,
             ),
             (
+                id: "ladder-1",
                 type_id: "ladder",
                 pos: (11.0, 0.0, 32.0),
                 rot_deg: 0.0,
                 pair: None,
             ),
             (
+                id: "teleporter-2",
                 type_id: "teleporter",
                 pos: (31.0, 0.0, 80.0),
                 rot_deg: 0.0,

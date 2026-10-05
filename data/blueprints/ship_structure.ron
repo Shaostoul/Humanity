@@ -34,6 +34,13 @@
 // own metres, so moving the mess hall or the Commons' room block means checking them (the relay
 // test `every_crew_walk_between_its_sites_is_clear_of_walls` says which one a wall now crosses).
 //
+// The Commons' `spawn` is where a guest arrives (a player with no plot of their own, and a
+// scripted player or AI agent that names no ship; `ShipStructure::guest_spawn`): the open floor
+// south-east of its room block, (87.5, 67.5) on the ship, at least 7 m from every wall. Until
+// increment 4 it had none and a guest arrived in the Commons' middle, (82, 47.5), which is inside
+// the walled room block; a walk out of there in a straight line met a wall, and with the relay's
+// speed check nobody can be teleported out any more.
+//
 // Materials: 0 = grid, 1 = steel/metal, 2 = concrete, 3 = wood, 4 = glass.
 //
 // Editor saves rewrite everything BELOW this header, and only in the Dev play mode: body
@@ -940,7 +947,7 @@
                         subdivision: 0,
                     ),
                 ],
-                spawn: None,
+                spawn: Some((22.5, 47.5)),
                 structures: [],
                 road_nodes: [],
                 road_edges: [],
