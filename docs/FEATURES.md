@@ -1161,8 +1161,13 @@ public AWS Terrain Tiles (terrarium decode, minimal zero-dependency
 PNG reader, ~13 m grid) into HOSDEM1 files beside each region;
 inside coverage the drawn ground IS the survey data (edge-blended over
 400 m; bathymetry spikes floored at -2 m since the carve owns
-underwater), applied at the shared carve seam so patches, walk clamp,
-grass, and region grids all agree. Locks: north-up orientation test +
+underwater), applied at the shared carve seam. The patches and the region
+grids agreed from the start; the trees, the grass and the player's feet did
+not until BUG-156 (2026-10-05): they stood on `DrawnPatchSurface`, whose copy
+of the elevation formula had no carve, so beside the Dyes Inlet waterfront
+trees hung about 37 m in the air and the player stood up to 40 m above the
+drawn ground. The formula now lives in one function,
+`planet_chunks::drawn_elevation_at_depth`, which all of them call. Locks: north-up orientation test +
 shipped-file geography gates (Dyes Inlet <= 2 m, the SW ridge > 150 m:
 an orientation flip would land the ridge in the inlet). Probe rig
 hardened the same day: tree-kill + rig-path process sweep + EBUSY
@@ -2049,7 +2054,13 @@ space, in a vehicle, while flying and on water. Dev (no dev gate, like every sho
 an open hut with a chest and a furnace in front of its north wall, through probe-sweep's new
 `final_showcase`, sent after the re-park). `{"walk":"1"}` (v0.1420.0) then turns fly mode off, so the
 survival rules and the HUD's outdoor lines run as for a player on foot; every park leaves fly mode on, so
-before it no capture could show them (`planet-open-noon-walk`).
+before it no capture could show them (`planet-open-noon-walk`). `{"hold":"forward","hold_s":"100"}`
+(BUG-156, 2026-10-05) presses movement keys for that long through the controller's own action path, so a
+capture can ARRIVE on foot the way a player does instead of by teleport (`engine/rig_walk.rs`), and
+`{"tree_ground":"1"}` writes `debug/tree_ground.json`: every near tree's base and the eye against the
+ground drawn under them, the finest ground and the surface the harvest sampled (`engine/tree_ground.rs`).
+A vantage with `ground_probe` has probe-sweep read it after the capture and fail the vantage when an
+on-screen tree floats or the eye is not standing on the drawn ground (`scripts/lib/tree-ground-check.js`).
 Still missing: a door or window set INTO a wall (they sit on the floor); a second storey (nothing stands on a
 roof yet); collision for built pieces (you walk through walls); the one canonical layout schema (built
 pieces, the home editor's `InteriorWall`s and the ship structure pieces are three different shapes); pieces

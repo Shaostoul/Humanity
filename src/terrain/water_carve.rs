@@ -22,11 +22,17 @@
 //! ground.
 //!
 //! WHO MUST CALL IT (the stand-on-drawn-ground rule, v0.835): every consumer
-//! of the terrain elevation formula. Today that is `build_patch_mesh` (the
-//! drawn patches), `drawn_elevation_normalized` (the walk clamp, grass, and
-//! the region elevation grid through `ground_radius_m`), and the water
-//! shell's coverage + depth bake ([`sea_weight_at`]). A consumer that skips
-//! the carve disagrees with the drawn ground by up to [`SEA_CARVE_M`].
+//! of the terrain elevation formula, and since BUG-156 (2026-10-05) they all
+//! reach it through ONE function, `planet_chunks::drawn_elevation_at_depth`:
+//! `build_patch_mesh` (the drawn patches), `drawn_elevation_normalized` (the
+//! altitude reference and the region elevation grid through
+//! `ground_radius_m`) and `DrawnPatchSurface` (the near trees, the grass and
+//! the player's feet). The water shell's coverage + depth bake reads
+//! [`sea_weight_at`]. A consumer that skips the carve does not disagree by a
+//! few metres of sea bed: inside a region's DEM it misses the survey itself.
+//! `DrawnPatchSurface` had its own copy of the formula without the carve, and
+//! beside the Dyes Inlet waterfront that stood trees about 37 m above the
+//! drawn ground and the player up to 40 m above it.
 //!
 //! THREADING. Masks are built on the main thread when regions load
 //! (`engine::region_meshes`), published through [`set_global`], and read by
@@ -683,6 +689,44 @@ pub fn snapshot() -> Option<Arc<Vec<RegionMask>>> {
     CARVE.read().expect("water carve lock poisoned").clone()
 }
 
+/// Tests that publish masks to the global registry take this first, so two of
+/// them never interleave (the harness runs tests on parallel threads, and the
+/// registry is process-wide).
+#[cfg(test)]
+static TEST_REGISTRY_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// A mask set published for one test: holds [`TEST_REGISTRY_LOCK`] and clears
+/// the registry when dropped, so a failing test never leaves its masks behind
+/// for the next one. Tests elsewhere on the planet are unaffected while it is
+/// held: a mask only touches ground inside its own region.
+#[cfg(test)]
+pub(crate) struct PublishedForTest {
+    _lock: std::sync::MutexGuard<'static, ()>,
+}
+
+#[cfg(test)]
+impl PublishedForTest {
+    pub(crate) fn publish(masks: Arc<Vec<RegionMask>>) -> Self {
+        let lock = TEST_REGISTRY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        set_global(masks);
+        Self { _lock: lock }
+    }
+
+    /// Hold the lock with nothing published (a test of the registry itself).
+    pub(crate) fn empty() -> Self {
+        let lock = TEST_REGISTRY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        clear_global();
+        Self { _lock: lock }
+    }
+}
+
+#[cfg(test)]
+impl Drop for PublishedForTest {
+    fn drop(&mut self) {
+        clear_global();
+    }
+}
+
 /// Apply the carve to one NORMALIZED elevation sample against an explicit
 /// mask set (see [`snapshot`]). `min_m..max_m` is the heightmap window and
 /// `sea_norm` the planet's normalized sea level. Returns `e` untouched
@@ -1063,7 +1107,9 @@ mod tests {
 
     #[test]
     fn global_registry_round_trips() {
-        clear_global();
+        // The registry is process-wide: hold the test lock so a test that
+        // publishes masks (drawn_surface_region_tests) cannot interleave.
+        let _held = PublishedForTest::empty();
         assert!(snapshot().is_none());
         set_global(Arc::new(masks()));
         let s = snapshot().expect("set_global publishes");
