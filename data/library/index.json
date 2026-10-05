@@ -837,12 +837,45 @@
           ]
         },
         {
+          "title": "Making and Controlling Fire",
+          "file": "making_and_controlling_fire.md",
+          "tags": [
+            "guide",
+            "real",
+            "power",
+            "safety",
+            "beginner"
+          ]
+        },
+        {
           "title": "Firewood",
           "file": "firewood.md",
           "tags": [
             "guide",
             "real",
             "power",
+            "safety"
+          ]
+        },
+        {
+          "title": "Fuels and Their Hazards",
+          "file": "fuels_and_their_hazards.md",
+          "tags": [
+            "guide",
+            "real",
+            "power",
+            "safety"
+          ]
+        },
+        {
+          "title": "Heating a Home Safely",
+          "file": "heating_a_home_safely.md",
+          "tags": [
+            "guide",
+            "real",
+            "shelter",
+            "power",
+            "health",
             "safety"
           ]
         }

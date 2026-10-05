@@ -1442,14 +1442,36 @@
       "subject": "shelter",
       "title": "Heating a space",
       "summary": "Heat a building without carbon monoxide or fire.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "heating-a-home-safely"
+      ],
       "skills": [
         "fire_making",
         "shelter_building"
       ],
+      "data": [
+        "data/status_effects.csv",
+        "data/equipment.csv"
+      ],
       "sources": [
         "usfa",
-        "cdc"
+        "cpsc",
+        "cdc",
+        "epa",
+        "energy-star",
+        "building-america",
+        "doe",
+        "hhs-acf",
+        "nws",
+        "noaa-ncei",
+        "fema",
+        "dod-technical-manuals",
+        "ecfr",
+        "regional-air-agency",
+        "wa-legislature",
+        "wa-ecology",
+        "wa-commerce"
       ],
       "locale_dependent": true,
       "hazard": "lethal"
@@ -1602,12 +1624,30 @@
       "subject": "energy",
       "title": "Fuels and their hazards",
       "summary": "Store and burn fuels knowing each one's flash point and failure mode.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "fuels-and-their-hazards"
+      ],
       "skills": [
         "fire_making"
       ],
       "data": [
-        "data/chemistry/"
+        "data/chemistry/",
+        "data/containers/content_classes.ron",
+        "data/machines/home.ron"
+      ],
+      "sources": [
+        "osha",
+        "ecfr",
+        "phmsa",
+        "niosh-pocket-guide",
+        "cameo-chemicals",
+        "cpsc",
+        "federal-register",
+        "usfa",
+        "fema",
+        "uk-hse",
+        "poison-control"
       ],
       "locale_dependent": false,
       "hazard": "lethal"
@@ -1617,9 +1657,26 @@
       "subject": "energy",
       "title": "Making and controlling fire",
       "summary": "Start, feed and extinguish fire deliberately.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "making-and-controlling-fire"
+      ],
       "skills": [
         "fire_making"
+      ],
+      "sources": [
+        "dod-technical-manuals",
+        "usfs",
+        "usfa",
+        "cpsc",
+        "nws",
+        "fema",
+        "federal-register",
+        "regional-air-agency",
+        "kitsap-county",
+        "central-kitsap-fire-rescue",
+        "wa-dnr",
+        "kitsap-daily-news"
       ],
       "locale_dependent": true,
       "hazard": "lethal"
