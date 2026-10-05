@@ -18,17 +18,17 @@ worked example is hot-smoked salmon in Silverdale, Washington, where the
 simulation is set.
 
 It leans on other guides rather than repeating them. [Drying
-Food](drying_food.md) covers jerky, whose one rule is to heat the meat to
-160 F before you dry it. [Why Canning Has Rules](why_canning_has_rules.md)
+Food](/library#drying-food) covers jerky, whose one rule is to heat the meat to
+160 F before you dry it. [Why Canning Has Rules](/library#why-canning-has-rules)
 explains water activity, which is the reason salt preserves at all, and
 the organism behind botulism. [Fermenting
-Vegetables](fermenting_vegetables.md) is salt's other job, steering a
-ferment. [Fishing](fishing.md) covers keeping fish cold from the moment
+Vegetables](/library#fermenting-vegetables) is salt's other job, steering a
+ferment. [Fishing](/library#fishing) covers keeping fish cold from the moment
 it is caught, and the parasites in fish eaten raw or cold-smoked.
-[Pressure Canning](pressure_canning.md) is how smoked fish can be kept on
-a shelf. [Cold Storage Without a Fridge](cold_storage_without_a_fridge.md)
+[Pressure Canning](/library#pressure-canning) is how smoked fish can be kept on
+a shelf. [Cold Storage Without a Fridge](/library#cold-storage-without-a-fridge)
 has the rules for keeping perishable food at 40 F or below, and [Telling
-Spoiled From Safe](telling_spoiled_from_safe.md) covers mould on country
+Spoiled From Safe](/library#telling-spoiled-from-safe) covers mould on country
 hams and salami.
 
 Its sources are the US Department of Agriculture's Food Safety and
@@ -100,7 +100,7 @@ freeze-resistant." It names bear, wild boar, wildcat, fox, wolf, seal and
 walrus among the meats at risk. So cook cured or smoked pork to a safe
 internal temperature unless a tested method includes a step against the
 parasite, and always cook wild game (our reading of the CDC page). Fish has parasites of its own, and salting, brining and
-cold smoking do not deal with them ([Fishing](fishing.md)).
+cold smoking do not deal with them ([Fishing](/library#fishing)).
 
 ### Cold-smoked fish and dry sausages are raw food
 
@@ -155,7 +155,7 @@ illness, with botulism the most notorious danger; it keeps smoked fish at
 Salt draws water out of meat and fish and takes its own place in the
 flesh, and the less free water there is, the less anything can grow.
 That free water is called water activity; [Why Canning Has
-Rules](why_canning_has_rules.md) explains it with the FDA's numbers. The
+Rules](/library#why-canning-has-rules) explains it with the FDA's numbers. The
 Pacific Northwest guide to curing bacon says high salt and the resulting
 low water activity prevent the growth of pathogens, spoilage bacteria and
 most fungi.
@@ -178,8 +178,8 @@ Two things make home salting less certain than it sounds.
 
 In fermented vegetables salt has a different job, tilting the
 competition toward the bacteria you want ([Fermenting
-Vegetables](fermenting_vegetables.md), [Why Canning Has
-Rules](why_canning_has_rules.md)).
+Vegetables](/library#fermenting-vegetables), [Why Canning Has
+Rules](/library#why-canning-has-rules)).
 
 ## What curing adds: nitrite
 
@@ -294,7 +294,7 @@ beginner's method, and this guide does not teach it (our reading).
    that cause trouble later; it allows no more than 2 hours at room
    temperature between cleaning fish and smoking it (PNW 238). Keep meat
    and fish at 40 F or below until you start ([Cold Storage Without a
-   Fridge](cold_storage_without_a_fridge.md)).
+   Fridge](/library#cold-storage-without-a-fridge)).
 2. **Use a tested method**, from a source that tested it (below), and
    change nothing that affects safety: the salt, the cure, the times, the
    temperatures.
@@ -333,10 +333,10 @@ beginner's method, and this guide does not teach it (our reading).
   (PNW 450) and *Making Cured Bacon at Home* (PNW 784).
 - **The USDA Complete Guide to Home Canning**, Guide 5, has the tested
   process for canning smoked fish, which PNW 450 pairs with a lighter
-  smoking method ([Pressure Canning](pressure_canning.md)).
+  smoking method ([Pressure Canning](/library#pressure-canning)).
 - **Your county extension office**: around Silverdale, WSU Extension
   Kitsap County.
-- **Jerky** is in [Drying Food](drying_food.md).
+- **Jerky** is in [Drying Food](/library#drying-food).
 
 ## Worked example: hot-smoked salmon in Silverdale
 
@@ -616,12 +616,12 @@ were read on 4 October 2026.
   level 2: `src/systems/crafting/mod.rs`. The unread toxin record:
   `data/chemistry/toxins.csv`.
 - The red alder record in `data/locales/silverdale_wa/species.json`.
-- [Drying Food](drying_food.md), [Why Canning Has
-  Rules](why_canning_has_rules.md), [Fermenting
-  Vegetables](fermenting_vegetables.md), [Fishing](fishing.md), [Pressure
-  Canning](pressure_canning.md), [Cold Storage Without a
-  Fridge](cold_storage_without_a_fridge.md) and [Telling Spoiled From
-  Safe](telling_spoiled_from_safe.md).
+- [Drying Food](/library#drying-food), [Why Canning Has
+  Rules](/library#why-canning-has-rules), [Fermenting
+  Vegetables](/library#fermenting-vegetables), [Fishing](/library#fishing), [Pressure
+  Canning](/library#pressure-canning), [Cold Storage Without a
+  Fridge](/library#cold-storage-without-a-fridge) and [Telling Spoiled From
+  Safe](/library#telling-spoiled-from-safe).
 
 ### Labelled in the text as general practice or our reading, not sourced
 

@@ -16,16 +16,16 @@ with a jar that did not seal or looks wrong. The worked example is a batch
 of applesauce in Silverdale, Washington, where the simulation is set.
 
 It is the practical half of a pair. [Why Canning Has
-Rules](why_canning_has_rules.md) is the reasoning: the organism behind
+Rules](/library#why-canning-has-rules) is the reasoning: the organism behind
 botulism, the pH 4.6 line, why a jar cannot be judged by looking at it,
 and why altitude changes the numbers. Read it first; this guide does not
-repeat it. [Keeping What You Grew](keeping_what_you_grew.md) has the acid
+repeat it. [Keeping What You Grew](/library#keeping-what-you-grew) has the acid
 amounts for tomatoes, a complete tested procedure for crushed tomatoes,
 and the step-by-step disposal of a jar that has gone bad. Everything that
-cannot go in a water bath is in [Pressure Canning](pressure_canning.md).
+cannot go in a water bath is in [Pressure Canning](/library#pressure-canning).
 The tested canning times for sauerkraut and fermented pickles are in
-[Fermenting Vegetables](fermenting_vegetables.md), and [Telling Spoiled
-From Safe](telling_spoiled_from_safe.md) covers spoiled food in general.
+[Fermenting Vegetables](/library#fermenting-vegetables), and [Telling Spoiled
+From Safe](/library#telling-spoiled-from-safe) covers spoiled food in general.
 
 Its sources are the US Department of Agriculture's Complete Guide to Home
 Canning and the Centers for Disease Control and Prevention (CDC), both US
@@ -44,7 +44,7 @@ one line: "Low-acid foods must be processed in a pressure canner to be
 free of botulism risks." Green beans, corn, potatoes, carrots, meat, fish
 and soup in a water bath are not a shortcut, however long they boil. The
 next section says exactly which foods qualify, and [Why Canning Has
-Rules](why_canning_has_rules.md) explains why boiling for longer does not
+Rules](/library#why-canning-has-rules) explains why boiling for longer does not
 make the others safe.
 
 ### A recipe nobody tested
@@ -74,13 +74,13 @@ shows signs of spoilage." A spoiled jar is dangerous to handle as well as
 to eat, so it is not opened, emptied into the sink or rinsed out; the
 USDA guide has you wear rubber or heavy plastic gloves for it. The full
 disposal procedure, which depends on whether the jar is still sealed, is
-in [Keeping What You Grew](keeping_what_you_grew.md), under "When a jar
+in [Keeping What You Grew](/library#keeping-what-you-grew), under "When a jar
 goes wrong". Follow it as written.
 
 ## Which foods can go in a boiling-water canner
 
 The USDA draws the line at pH 4.6, a measure of acidity in which lower
-numbers are more acid. [Why Canning Has Rules](why_canning_has_rules.md)
+numbers are more acid. [Why Canning Has Rules](/library#why-canning-has-rules)
 explains the line; here is what it means in the kitchen. In the USDA's
 words: "Acid foods have a pH of 4.6 or lower. They include fruits,
 pickles, sauerkraut, jams, jellies, marmalades, and fruit butters."
@@ -88,7 +88,7 @@ pickles, sauerkraut, jams, jellies, marmalades, and fruit butters."
 You do not measure the pH yourself. A tested recipe has already put the
 food on the right side of the line, with acid added where it is needed,
 and it does so only as written. [Why Canning Has
-Rules](why_canning_has_rules.md) explains why household pH strips are not
+Rules](/library#why-canning-has-rules) explains why household pH strips are not
 a substitute.
 
 **Into the water bath, by a tested recipe:**
@@ -99,7 +99,7 @@ a substitute.
 - pickles and relishes made by a tested recipe with vinegar of 5 percent
   acidity;
 - sauerkraut and fermented pickles, whose times are in [Fermenting
-  Vegetables](fermenting_vegetables.md);
+  Vegetables](/library#fermenting-vegetables);
 - tomatoes, with acid added to every jar.
 
 **Only with acid added to every jar.** Three foods that seem to belong in
@@ -111,7 +111,7 @@ says "must be acidified before canning in a boiling water canner". The
 tested recipe gives the amount for each jar size: USDA's fig and Asian
 pear recipes measure it as bottled lemon juice (or, for figs, citric
 acid), and the amounts for tomatoes are in [Keeping What You
-Grew](keeping_what_you_grew.md).
+Grew](/library#keeping-what-you-grew).
 
 **Mixtures, only by a tested recipe.** Salsa, chutney, relish and some
 pie fillings mix acid fruit with low-acid foods such as onions and
@@ -126,8 +126,8 @@ guide covers fruit purees, but not purees of bananas, Asian pears, figs,
 tomatoes, cantaloupe and other melons, papaya, ripe mango or coconut:
 "There are no home canning recommendations available for purees of these
 products." Freeze or dry those instead (general practice; see [Keeping
-What You Grew](keeping_what_you_grew.md) and [Drying
-Food](drying_food.md)).
+What You Grew](/library#keeping-what-you-grew) and [Drying
+Food](/library#drying-food)).
 
 **Never in a water bath.** Vegetables, unless a tested recipe has made
 them acid (acidified tomatoes, pickles, relishes and salsas) or the
@@ -135,11 +135,11 @@ USDA's fruit guide lists them, as it lists stewed rhubarb; all meat,
 poultry, fish, seafood and milk; and soups and stews made from them.
 Those are low-acid foods. They go in a pressure canner by a tested
 process, or they are not canned at all ([Pressure
-Canning](pressure_canning.md)).
+Canning](/library#pressure-canning)).
 
 ### Why the line falls where it does
 
-[Why Canning Has Rules](why_canning_has_rules.md) has the whole argument.
+[Why Canning Has Rules](/library#why-canning-has-rules) has the whole argument.
 In short, the bacterium that causes botulism forms spores that the USDA
 guide calls very hard to destroy at boiling-water temperatures, and in a
 sealed jar of moist, low-acid food they can grow. Acid stops them. In the USDA's words, acid foods "contain
@@ -206,7 +206,7 @@ tested in pints is not a quart recipe (our reading).
 - **The acid, and anything that changes it.** No less lemon juice,
   citric acid or vinegar, no vinegar of unknown strength, and no extra
   low-acid ingredient in a mixture (the USDA's pickling cautions; [Why
-  Canning Has Rules](why_canning_has_rules.md)).
+  Canning Has Rules](/library#why-canning-has-rules)).
 - **The proportions in pickles.** The USDA's caution reads: "Do not alter
   vinegar, food, or water proportions in a recipe or use a vinegar with
   unknown acidity."
@@ -222,7 +222,7 @@ tested in pints is not a quart recipe (our reading).
 What you may change: salt in canned tomatoes and in fresh-pack pickles,
 where it is seasoning, but never in fermented sauerkraut or fermented
 pickles, where it is part of the safety ([Why Canning Has
-Rules](why_canning_has_rules.md)). And the syrup in canned
+Rules](/library#why-canning-has-rules)). And the syrup in canned
 fruit: the USDA guide says syrup helps fruit keep its flavour, colour and
 shape but does not prevent spoilage, and that fruit can be canned in
 water or unsweetened juice instead.
@@ -268,7 +268,7 @@ met, among them a tested boiling-water recipe whose time, after the
 altitude adjustment, is 45 minutes or less. This guide covers the
 boiling-water canner only. If you own a steam canner, use it by your
 extension service's current guidance (our reading). An electric multicooker with a canning button is not a
-canner of either kind ([Pressure Canning](pressure_canning.md)).
+canner of either kind ([Pressure Canning](/library#pressure-canning)).
 
 ## Step by step
 
@@ -347,7 +347,7 @@ If you do not know your altitude, the USDA guide says to ask your county
 extension agent. For Silverdale the answer is in the locale data: the
 area runs from sea level to about 178 metres, which is about 584 feet, so
 every jar canned there uses the first column, 0 to 1,000 feet
-([Silverdale, Washington](../locale/silverdale_wa.md), from USGS
+([Silverdale, Washington](/library#silverdale-wa), from USGS
 elevation data). Anyone canning outside that area looks up their own
 elevation first (general practice).
 
@@ -367,7 +367,7 @@ and test each lid in one of the USDA's three ways:
 
 A good seal shows that the lid held. It does not show that the food was
 processed enough; only the tested process does that ([Why Canning Has
-Rules](why_canning_has_rules.md)).
+Rules](/library#why-canning-has-rules)).
 
 ### A jar that did not seal
 
@@ -387,8 +387,8 @@ USDA guide explains that spoilage bacteria and yeast make gas that swells
 lids and breaks seals, so a jar found unsealed on the shelf is treated as
 spoiled: it is not tasted and it does not go back in the canner. It goes
 to the disposal procedure ([Telling Spoiled From
-Safe](telling_spoiled_from_safe.md), [Keeping What You
-Grew](keeping_what_you_grew.md)).
+Safe](/library#telling-spoiled-from-safe), [Keeping What You
+Grew](/library#keeping-what-you-grew)).
 
 ### Storing the jars
 
@@ -428,18 +428,18 @@ is shorter:
   by a process you do not know (our reading);
 - it is a low-acid food that went through a water bath. That food is
   thrown out, not boiled ([Why Canning Has
-  Rules](why_canning_has_rules.md)).
+  Rules](/library#why-canning-has-rules)).
 
 Never taste a jar to check it. The CDC's rule: "If in doubt, throw it out!
 Never taste food to see if it's safe." Follow the disposal procedure in
-[Keeping What You Grew](keeping_what_you_grew.md), wearing gloves,
+[Keeping What You Grew](/library#keeping-what-you-grew), wearing gloves,
 whichever way the jar went wrong.
 
 **Tomatoes get one more step.** The CDC advises boiling home-canned
 tomatoes, and foods that contain them, in a saucepan before eating: 10
 minutes below 1,000 feet, with 1 more minute for each additional 1,000
 feet. That boil is a habit for jars that pass every check, not a way to
-rescue a doubtful one ([Why Canning Has Rules](why_canning_has_rules.md)).
+rescue a doubtful one ([Why Canning Has Rules](/library#why-canning-has-rules)).
 And once any jar is open, it goes in the refrigerator (CDC).
 
 ## Jams, jellies and pickles
@@ -457,7 +457,7 @@ their own (USDA, Guide 1).
 - **No paraffin.** The USDA guide no longer recommends paraffin or wax
   seals for any sweet spread, because of the mould that can grow under
   them. A jar of jam with mould in it is thrown out, not scraped
-  ([Telling Spoiled From Safe](telling_spoiled_from_safe.md) gives the
+  ([Telling Spoiled From Safe](/library#telling-spoiled-from-safe) gives the
   reason).
 - **Sugar and batch size.** Keep the sugar in traditional recipes and
   make one batch at a time (above).
@@ -465,7 +465,7 @@ their own (USDA, Guide 1).
   vinegar of 5 percent acidity, and a tested recipe, unaltered. Cut a
   1/16-inch slice off the blossom end of fresh cucumbers, which the USDA
   guide says may hold an enzyme that softens pickles. Fermented pickles
-  and sauerkraut are in [Fermenting Vegetables](fermenting_vegetables.md).
+  and sauerkraut are in [Fermenting Vegetables](/library#fermenting-vegetables).
 
 ## Worked example: applesauce in Silverdale
 
@@ -526,7 +526,7 @@ sugar and whether to sieve.
 ## Know where your own work stops
 
 - **Low-acid food is not water-bath work at all.** It goes to [Pressure
-  Canning](pressure_canning.md), or into the freezer or the dehydrator.
+  Canning](/library#pressure-canning), or into the freezer or the dehydrator.
 - **A recipe you invented, adapted or inherited** is not something to can
   until it matches a tested recipe exactly. If you want to preserve
   something no tested recipe covers, ask your extension office first
@@ -541,7 +541,7 @@ sugar and whether to sieve.
 
 - **"My grandmother water-bathed her beans."** Beans are a low-acid food.
   Nobody getting ill was luck, not a method ([Why Canning Has
-  Rules](why_canning_has_rules.md)).
+  Rules](/library#why-canning-has-rules)).
 - **"Tomatoes are acid."** Some are not. Add the acid to every jar.
 - **"It sealed, so it's safe."** The seal shows the lid held, not that
   the food was processed enough.
@@ -571,7 +571,7 @@ The game does not model water-bath canning.
 - **Its canning is the low-acid kind.** The recipe called Can Food turns
   potatoes and carrots into Canned Food at the home's Stove. In real life
   those are low-acid vegetables for a pressure canner, and [Pressure
-  Canning](pressure_canning.md) describes what the game does with them.
+  Canning](/library#pressure-canning) describes what the game does with them.
 
 What the game leaves out, so you do not learn it from the game: the
 difference between acid and low-acid food, every step in this guide, and
@@ -679,15 +679,15 @@ were read on 4 October 2026.
 - The Silverdale elevation range, sea level to about 178 metres, from
   USGS 3DEP elevation data: `data/locales/silverdale_wa/locale.json`
   (`elevation_m`), shown in [Silverdale,
-  Washington](../locale/silverdale_wa.md).
+  Washington](/library#silverdale-wa).
 - The game's items and recipes: `data/items.csv` (Apple, Tomato, Canned
   Food) and `data/recipes.csv` (Dry Fruit, Press Juice, Bake Pie, Bake
   Pizza, Make Salad, Can Food).
-- [Why Canning Has Rules](why_canning_has_rules.md), [Keeping What You
-  Grew](keeping_what_you_grew.md), [Pressure
-  Canning](pressure_canning.md), [Fermenting
-  Vegetables](fermenting_vegetables.md), [Telling Spoiled From
-  Safe](telling_spoiled_from_safe.md) and [Drying Food](drying_food.md).
+- [Why Canning Has Rules](/library#why-canning-has-rules), [Keeping What You
+  Grew](/library#keeping-what-you-grew), [Pressure
+  Canning](/library#pressure-canning), [Fermenting
+  Vegetables](/library#fermenting-vegetables), [Telling Spoiled From
+  Safe](/library#telling-spoiled-from-safe) and [Drying Food](/library#drying-food).
 
 ### Labelled in the text as general practice or our reading, not sourced
 

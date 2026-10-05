@@ -1062,15 +1062,25 @@
       "subject": "food_preservation",
       "title": "Water-bath canning (high acid)",
       "summary": "Can high-acid food safely, and know exactly which foods qualify.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "water-bath-canning"
+      ],
       "skills": [
         "cooking"
       ],
-      "sources": [
-        "nchfp",
-        "usda-canning-guide"
+      "data": [
+        "data/locales/<id>/locale.json"
       ],
-      "locale_dependent": false,
+      "sources": [
+        "usda-canning-guide",
+        "cdc",
+        "nchfp",
+        "kstate-extension",
+        "state-extension",
+        "usgs"
+      ],
+      "locale_dependent": true,
       "hazard": "lethal",
       "prerequisites": [
         "preserve_overview"
@@ -1081,13 +1091,25 @@
       "subject": "food_preservation",
       "title": "Pressure canning (low acid)",
       "summary": "Process low-acid food at a temperature that destroys botulinum spores.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "pressure-canning"
+      ],
       "skills": [
         "cooking"
       ],
+      "data": [
+        "data/recipes.csv",
+        "data/items.csv",
+        "data/locales/<id>/locale.json"
+      ],
       "sources": [
+        "usda-canning-guide",
+        "cdc",
         "nchfp",
-        "usda-canning-guide"
+        "wsu-extension",
+        "state-extension",
+        "usgs"
       ],
       "locale_dependent": true,
       "hazard": "lethal",
@@ -1153,13 +1175,26 @@
       "subject": "food_preservation",
       "title": "Salting, curing and smoking",
       "summary": "Preserve meat and fish with salt, nitrate and smoke.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "salting-curing-and-smoking"
+      ],
       "skills": [
         "cooking"
       ],
+      "data": [
+        "data/recipes.csv",
+        "data/items.csv",
+        "data/locales/<id>/species.json"
+      ],
       "sources": [
         "usda-fsis",
-        "nchfp"
+        "usda-canning-guide",
+        "cdc",
+        "hrsa",
+        "oregon-state-extension",
+        "nchfp",
+        "state-extension"
       ],
       "locale_dependent": false,
       "hazard": "lethal"

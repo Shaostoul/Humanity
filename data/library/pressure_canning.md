@@ -15,17 +15,17 @@ gauge matter, and what to do with a jar that did not seal or looks wrong.
 The worked example is a canner load of green beans in Silverdale,
 Washington, where the simulation is set.
 
-Read [Water-Bath Canning](water_bath_canning.md) first. Jars, lids,
+Read [Water-Bath Canning](/library#water-bath-canning) first. Jars, lids,
 headspace, testing the seals, storing the jars and the signs of a bad jar
 work the same way here, and this guide does not repeat them except where
 pressure canning differs. [Why Canning Has
-Rules](why_canning_has_rules.md) explains why low-acid food needs a
+Rules](/library#why-canning-has-rules) explains why low-acid food needs a
 higher temperature than boiling water, why boiling for longer is no
 substitute, and who gets botulism and from what. [Keeping What You
-Grew](keeping_what_you_grew.md) has the step-by-step disposal of a bad
-jar. Fish starts in [Fishing](fishing.md), which covers keeping it cold
+Grew](/library#keeping-what-you-grew) has the step-by-step disposal of a bad
+jar. Fish starts in [Fishing](/library#fishing), which covers keeping it cold
 from the moment it is caught, and smoked fish is in [Salting, Curing and
-Smoking](salting_curing_and_smoking.md).
+Smoking](/library#salting-curing-and-smoking).
 
 Its sources are the US Department of Agriculture's Complete Guide to Home
 Canning and the Centers for Disease Control and Prevention (CDC), both US
@@ -46,7 +46,7 @@ fewer minutes than specified, or cool the canner with water." Add to that
 list a dial gauge that reads high, which the USDA guide says causes
 under-processing, and a recipe nobody tested. Each one can leave food in
 which botulism can develop, and the jar looks exactly like a good one
-([Why Canning Has Rules](why_canning_has_rules.md)). Every step below
+([Why Canning Has Rules](/library#why-canning-has-rules)). Every step below
 closes one of those gaps.
 
 ### A pot of steam under pressure
@@ -98,7 +98,7 @@ the rack."
 
 The USDA's list of low-acid foods, those with a pH above 4.6, is red
 meats, seafood, poultry, milk, and all fresh vegetables except most
-tomatoes; [Why Canning Has Rules](why_canning_has_rules.md) quotes it and
+tomatoes; [Why Canning Has Rules](/library#why-canning-has-rules) quotes it and
 explains it. So the pressure canner is for:
 
 - vegetables: green beans, peas, corn, carrots, beets, potatoes, sweet
@@ -130,8 +130,8 @@ tested process the answer is not to can it:
 
 Tomatoes are the special case. They can go in a pressure canner by a
 tested recipe, but they still get their added acid ([Keeping What You
-Grew](keeping_what_you_grew.md), [Why Canning Has
-Rules](why_canning_has_rules.md)). Acid foods can also be pressure
+Grew](/library#keeping-what-you-grew), [Why Canning Has
+Rules](/library#why-canning-has-rules)). Acid foods can also be pressure
 canned by tested times, but the USDA guide recommends the boiling-water
 canner for them because it is faster.
 
@@ -143,7 +143,7 @@ time do kill microorganisms." Pressure is only how a canner gets its
 water hotter than it can boil in an open pot. The USDA's target for
 low-acid foods is 240 to 250 F, reached in a pressure canner at 10 to 15
 pounds of gauge pressure; at sea level, a canner at 10.5 pounds gives
-240 F inside. [Why Canning Has Rules](why_canning_has_rules.md) explains
+240 F inside. [Why Canning Has Rules](/library#why-canning-has-rules) explains
 why that temperature matters, and why the same job in boiling water would
 take 7 to 11 hours.
 
@@ -196,7 +196,7 @@ nine pints; the smallest that counts as a canner holds four quart jars
 ### Jars and lids
 
 The same as for a water bath ([Water-Bath
-Canning](water_bath_canning.md)), with one difference: the USDA guide
+Canning](/library#water-bath-canning)), with one difference: the USDA guide
 does not recommend mayonnaise-type jars in a pressure canner, because so
 many break. Jars for the pressure canner do not need sterilising, only
 washing and keeping hot (USDA). Use new flat lids every time.
@@ -224,7 +224,7 @@ pressure.
    usual headspace for low-acid foods in a pressure canner is 1 to 1-1/4
    inches; use the recipe's figure. Free the air bubbles, check the
    headspace, wipe the rims and put on the lids and bands, as in
-   [Water-Bath Canning](water_bath_canning.md).
+   [Water-Bath Canning](/library#water-bath-canning).
 6. **Load the canner.** Set the jars on the rack with a jar lifter, kept
    upright, and fasten the canner lid securely (USDA).
 7. **Heat with the vent open.** Leave the weight off the vent port, or
@@ -255,7 +255,7 @@ pressure.
     at least an inch between them, and leave them for 12 to 24 hours at
     room temperature (USDA).
 14. **Test the seals, then store the jars**, as in [Water-Bath
-    Canning](water_bath_canning.md).
+    Canning](/library#water-bath-canning).
 
 ### Altitude and pressure
 
@@ -274,7 +274,7 @@ recipe every time.
 
 For Silverdale the column is the first one either way: the locale data
 puts the area between sea level and about 178 metres, which is about 584
-feet ([Silverdale, Washington](../locale/silverdale_wa.md), from USGS
+feet ([Silverdale, Washington](/library#silverdale-wa), from USGS
 elevation data), so a weighted gauge runs at 10 pounds and a dial gauge
 at 11. Anyone canning outside that area looks up their own elevation
 first; the USDA guide says your county extension agent can tell you.
@@ -285,7 +285,7 @@ A jar that failed to seal on canning day has the same three choices as in
 a water bath: process it again within 24 hours with a new lid, for the
 same time; refrigerate it and eat it within several days; or freeze it,
 after adjusting the headspace to 1-1/2 inches (USDA; [Water-Bath
-Canning](water_bath_canning.md)).
+Canning](/library#water-bath-canning)).
 
 A whole batch is different when you learn afterwards that something went
 wrong: the pressure dropped and you did not restart the timer, you used
@@ -296,15 +296,15 @@ recommendation for consuming foods known to be significantly
 underprocessed", and the CDC's rule is: "Do not eat food if you do not
 know whether safe canning guidelines were followed." Our reading of the
 two together, the same as [Why Canning Has
-Rules](why_canning_has_rules.md) reaches for low-acid food put through a
+Rules](/library#why-canning-has-rules) reaches for low-acid food put through a
 water bath: such a batch is thrown out, by the disposal procedure in
-[Keeping What You Grew](keeping_what_you_grew.md).
+[Keeping What You Grew](/library#keeping-what-you-grew).
 
 ### Before you eat a jar
 
-Every jar gets the checks in [Water-Bath Canning](water_bath_canning.md),
+Every jar gets the checks in [Water-Bath Canning](/library#water-bath-canning),
 and any jar that fails one is thrown out without tasting, by the disposal
-procedure in [Keeping What You Grew](keeping_what_you_grew.md).
+procedure in [Keeping What You Grew](/library#keeping-what-you-grew).
 
 Then one more step. The CDC advises boiling all low-acid home-canned
 foods in a saucepan before eating them: 10 minutes below 1,000 feet, with
@@ -318,7 +318,7 @@ altitude, and that the lid is firmly sealed and concave, nothing has
 leaked, nothing spurts out when the jar is opened, and there is no off
 smell. This Library follows the CDC and boils every time, because the
 boil costs nothing and you can rarely be sure of all eight ([Why Canning
-Has Rules](why_canning_has_rules.md)). The boil is a habit for jars that
+Has Rules](/library#why-canning-has-rules)). The boil is a habit for jars that
 pass every check; it never rescues one that fails.
 
 ## Worked example: green beans in Silverdale
@@ -381,14 +381,14 @@ USDA guide, and a few rules worth knowing before you start (USDA, Guides
   days; for fatty fish such as salmon, the guide's caution is to bleed and
   gut it within 2 hours of catching and keep it on ice. Fish in quart jars
   has a canner procedure of its own, with more water and a longer heating
-  and venting time than usual: follow it exactly. [Fishing](fishing.md)
+  and venting time than usual: follow it exactly. [Fishing](/library#fishing)
   covers the hours between the water and the kitchen.
 - **Soup.** No noodles, pasta, rice, flour, cream, milk or other
   thickening, and dried beans rehydrated first; the guide's soup times
   are longer when the soup contains seafood.
 - **Smoked fish** has its own tested canning process, with its own way
   of filling the canner ([Salting, Curing and
-  Smoking](salting_curing_and_smoking.md)).
+  Smoking](/library#salting-curing-and-smoking)).
 
 ## Know where your own work stops
 
@@ -400,7 +400,7 @@ USDA guide, and a few rules worth knowing before you start (USDA, Guides
   (general practice). Never repair a gauge, a gasket or a safety fuse by
   improvising.
 - **A food with no tested process** is frozen or dried instead ([Keeping
-  What You Grew](keeping_what_you_grew.md), [Drying Food](drying_food.md)).
+  What You Grew](/library#keeping-what-you-grew), [Drying Food](/library#drying-food)).
 - **Electric multicookers** are not canners, whatever the button says.
 - **Selling home-canned food** is regulated. Ask your state's agriculture
   or health department before you sell any (general practice).
@@ -593,7 +593,7 @@ were read on 4 October 2026.
 - The Silverdale elevation range, sea level to about 178 metres, from
   USGS 3DEP elevation data: `data/locales/silverdale_wa/locale.json`
   (`elevation_m`), shown in [Silverdale,
-  Washington](../locale/silverdale_wa.md).
+  Washington](/library#silverdale-wa).
 - The Can Food, Cook Soup and Cook Stew recipes: `data/recipes.csv`
   (`cook_canned_food`, `cook_soup`, `cook_stew`); their knife:
   `data/crafting/tools.ron`; the Canned Food item and the other items:
@@ -604,11 +604,11 @@ were read on 4 October 2026.
   2, and the skill experience a craft earns: `src/systems/crafting/mod.rs`;
   the "Dev: max skills" button: `src/gui/pages/profile.rs`. The unread
   toxin record: `data/chemistry/toxins.csv`.
-- [Water-Bath Canning](water_bath_canning.md), [Why Canning Has
-  Rules](why_canning_has_rules.md), [Keeping What You
-  Grew](keeping_what_you_grew.md), [Fishing](fishing.md), [Salting, Curing
-  and Smoking](salting_curing_and_smoking.md) and [Drying
-  Food](drying_food.md).
+- [Water-Bath Canning](/library#water-bath-canning), [Why Canning Has
+  Rules](/library#why-canning-has-rules), [Keeping What You
+  Grew](/library#keeping-what-you-grew), [Fishing](/library#fishing), [Salting, Curing
+  and Smoking](/library#salting-curing-and-smoking) and [Drying
+  Food](/library#drying-food).
 
 ### Labelled in the text as general practice or our reading, not sourced
 
