@@ -342,6 +342,26 @@
           ]
         },
         {
+          "title": "Water-Bath Canning",
+          "file": "water_bath_canning.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
+          "title": "Pressure Canning",
+          "file": "pressure_canning.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
           "title": "Telling Spoiled From Safe",
           "file": "telling_spoiled_from_safe.md",
           "tags": [
@@ -362,6 +382,16 @@
         {
           "title": "Fermenting Vegetables",
           "file": "fermenting_vegetables.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
+          "title": "Salting, Curing and Smoking",
+          "file": "salting_curing_and_smoking.md",
           "tags": [
             "guide",
             "real",

@@ -271,7 +271,7 @@ cook_pancake,Make Pancakes,cooking,flour_0:1|egg_0:2|milk_0:1,bread_0:3,8,stove_
 cook_cheese,Make Cheese,cooking,milk_0:4|salt_food_0:1,cheese_0:2|whey_0:3,30,stove_0,cooking,3,Culture and press milk into cheese
 cook_butter,Churn Butter,cooking,milk_0:3,butter_0:2,15,,cooking,1,Agitate cream into solid butter
 cook_dried_fruit,Dry Fruit,cooking,fruit_apple_0:3|fruit_banana_0:2,dried_fruit_0:4,20,oven_0,,0,Dehydrate fruit for preservation
-cook_dried_meat,Dry Meat,cooking,raw_mutton_0:2|salt_food_0:1,dried_meat_0:4,20,stove_0,cooking,1,Salt and air-dry meat strips
+cook_dried_meat,Dry Meat,cooking,raw_mutton_0:2|salt_food_0:1,dried_meat_0:4,20,stove_0,cooking,1,Heat thin meat strips to 160 F (165 F for wild game) then salt and dry them (USDA FSIS; CDC)
 # Apple pomace: the skins, cores and pulp left after pressing are about a quarter to a third of the fruit
 # (Shalini and Gupta 2010, J Food Sci Technol 47:365-371). It used to press 0.8 kg of apples into 1.0 kg of
 # juice; now 7 apples (1.4 kg) give 2 juice (1.0 kg) and one 0.4 kg unit of pomace (2026-09-26).

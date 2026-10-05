@@ -227,6 +227,26 @@
           ]
         },
         {
+          "title": "Water-Bath Canning",
+          "src": "docs/user/skills/water_bath_canning.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
+          "title": "Pressure Canning",
+          "src": "docs/user/skills/pressure_canning.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
           "title": "Telling Spoiled From Safe",
           "src": "docs/user/skills/telling_spoiled_from_safe.md",
           "tags": [
@@ -247,6 +267,16 @@
         {
           "title": "Fermenting Vegetables",
           "src": "docs/user/skills/fermenting_vegetables.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
+          "title": "Salting, Curing and Smoking",
+          "src": "docs/user/skills/salting_curing_and_smoking.md",
           "tags": [
             "guide",
             "real",
