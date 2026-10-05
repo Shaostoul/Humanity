@@ -470,7 +470,9 @@ The game has a little of this, mostly in what crafting leaves behind.
   to place from the Crafting page, the Swing tool key (F by default)
   takes down the finished piece you are looking at and returns every
   material to your pack, and what does not fit there to storage, with a
-  message saying so. The code says plainly that this is a game
+  message saying so. A campfire is the one exception: it gives back its
+  stones and only the whole logs it has not burned
+  (`src/systems/construction/fires.rs`). The code says plainly that this is a game
   choice, because nothing models what dismantling breaks; in real life,
   an earlier study cited by the FPL paper above found that taking
   buildings apart cost their lumber about a grade

@@ -626,8 +626,13 @@ of what kills people on a real first night.
 - **A fire in the open.** A campfire you build (the Campfire ability)
   warms you while its logs burn, the nearer the more (see [Making and
   Controlling Fire](/library#making-and-controlling-fire)). The game will not
-  build one under a roof you built, so it stands in the open beside your
-  shelter, never inside it (`src/systems/construction/fires.rs`).
+  build one under a roof, finished or still going up, and will not build
+  a roof over one, so it stands in the open beside your shelter, never
+  inside it. Its warmth reaches you only in a straight line: a wall or a
+  roof between you and the fire stops all of it, so a fire in front of
+  the open side of a three-walled shelter warms the person in it, and a
+  fire behind its walls does not (`src/systems/construction/fires.rs`,
+  `src/systems/construction/mod.rs`).
 
 What the game leaves out, so you do not learn it from the game: there is
 no ground to lose heat to, so lying on cold earth costs nothing; no

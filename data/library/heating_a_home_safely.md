@@ -740,8 +740,10 @@ people, the house fires and the carbon monoxide this guide is about.
   and while it burns your body feels its heat: standing 1.5 m from it on a
   clear, calm 0 C night, your surroundings feel like about 16 C instead of
   minus 11, and at 20 m it makes no difference. It cannot be built aboard
-  the ship or under a roof, so it never heats a room, and it makes no
-  smoke or carbon monoxide (`src/systems/construction/fires.rs`,
+  the ship or under a roof, and no roof can be built over one, so it
+  never heats a room. Its warmth does not pass through a wall or a roof
+  either, so a fire outside a closed hut warms nobody inside it. It makes
+  no smoke or carbon monoxide (`src/systems/construction/fires.rs`,
   `src/engine/survival_env.rs`); [Making and Controlling
   Fire](/library#making-and-controlling-fire) has the rest.
 - **No house fires, no alarms that do anything.** The only fire in the
