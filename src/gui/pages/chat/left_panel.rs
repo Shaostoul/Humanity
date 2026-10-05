@@ -39,6 +39,12 @@
 
 use super::*;
 
+/// The server an empty address stands for, used only when the person presses Connect
+/// (BUG-160, 2026-10-05). It used to be written into the settings whenever this form was
+/// drawn with no server set, so a player who had cleared their server was put back on the
+/// live one, and the auto-connect dialled it, just by opening Chat.
+const OFFICIAL_SERVER: &str = "https://united-humanity.us";
+
 // ─────────────────────────────── LEFT PANEL ───────────────────────────────
 
 // `pub(super)` only because its caller (`draw`, the page frame) stayed in
@@ -112,9 +118,8 @@ pub(super) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
                     return;
                 }
 
-                if state.server_url.is_empty() {
-                    state.server_url = "https://united-humanity.us".to_string();
-                }
+                // No server is written here (BUG-160): an empty address shows the official
+                // server as a suggestion in the field, and Connect uses it.
                 if state.user_name.is_empty() {
                     state.user_name = "DesktopUser".to_string();
                 }
@@ -134,6 +139,7 @@ pub(super) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
                 ui.label(RichText::new("Server:").size(theme.font_size_small).color(theme.text_muted()));
                 ui.add(
                     egui::TextEdit::singleline(&mut state.server_url)
+                        .hint_text(OFFICIAL_SERVER)
                         .desired_width(ui.available_width() - 24.0)
                         .font(egui::TextStyle::Small),
                 );
@@ -152,6 +158,11 @@ pub(super) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
                     if state.private_key_bytes.is_none() {
                         state.ws_status = "Unlock your identity first (Settings → Security → Unlock, or Recover from seed). Connecting locked would squat your name with no encryption key.".to_string();
                     } else {
+                        // The person pressed Connect with the field empty: that is the
+                        // official server, the suggestion the field showed (BUG-160).
+                        if state.server_url.trim().is_empty() {
+                            state.server_url = OFFICIAL_SERVER.to_string();
+                        }
                         let ws_url = derive_ws_url(&state.server_url);
                         let name = state.user_name.clone();
                         let pubkey = if state.profile_public_key.is_empty() {
@@ -2016,3 +2027,53 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                     } // end if !svr_collapsed
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// One headless frame (no GPU) of the left panel, as the chat page draws it.
+    fn draw_once(state: &mut GuiState) -> egui::FullOutput {
+        let ctx = egui::Context::default();
+        crate::gui::fonts::install_font_fallbacks(&ctx);
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        let mut out = None;
+        for _ in 0..2 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(320.0, 900.0))),
+                ..Default::default()
+            };
+            out = Some(ctx.run(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| draw_left_panel(ui, &theme, state));
+            }));
+        }
+        out.expect("two frames ran")
+    }
+
+    /// BUG-160: opening Chat with no server set must not set one. The connect form used to
+    /// write the official server into `server_url` while drawing, and the auto-connect
+    /// (`GuiState::may_auto_connect`, which needs a server) then dialled it. The form is
+    /// reached ("Not connected" is drawn, and the field shows the official server as its
+    /// suggestion), so a panel that drew nothing could not pass.
+    ///
+    /// Seen red 2026-10-05 with the old draw-time default in place: "drawing the connect
+    /// form set a server" (left: "https://united-humanity.us", right: "").
+    #[test]
+    fn drawing_the_connect_form_sets_no_server() {
+        let mut state = GuiState::default();
+        state.server_url.clear();
+        state.connected_server_url.clear();
+        let out = draw_once(&mut state);
+        assert_eq!(state.server_url, "", "drawing the connect form set a server");
+        assert!(!state.may_auto_connect(), "with no server set, nothing dials");
+        let shapes = &out.shapes;
+        assert!(
+            crate::gui::screen_surface::find_text_in_shapes(shapes, "Not connected").is_some(),
+            "the connect form was drawn"
+        );
+        assert!(
+            crate::gui::screen_surface::find_text_in_shapes(shapes, OFFICIAL_SERVER).is_some(),
+            "the empty field suggests the official server"
+        );
+    }
+}

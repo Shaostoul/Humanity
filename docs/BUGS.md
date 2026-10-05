@@ -3665,7 +3665,7 @@ as fast as in an empty folder), but it is disk and directory growth with no end.
 sweep of `hum_*` files older than a day from a dev recipe, never while a test run is
 going.
 
-## BUG-160: an empty server address turns into the live server, and five rigs sent one (rigs FIXED v0.1462.0; the game OPEN, found 2026-10-05)
+## BUG-160: an empty server address turns into the live server, and five rigs sent one (rigs FIXED v0.1462.0; the game FIXED, merging in v0.1463.0; found 2026-10-05)
 
 **Seen:** v0.1462.0's screens check failed `no_builtin_data`. Its game identified on the
 live server (wss://united-humanity.us/ws), read its chat, tried to join its shared world
@@ -3681,14 +3681,17 @@ loopback port (http://127.0.0.1:9; scripts/lib/rig-gameplay.js). Two faults toge
    deliberate clear, verify-live-screen's "No server set" step, carries the marker
    `rig-clears-server:`. Seen red first: run over the committed scripts, the check listed
    all six. The screens check then passed on the same build.
-2. **The game (OPEN, for v0.1463.0).** Drawing the chat page's connect form fills an empty
+2. **The game (FIXED, merging in v0.1463.0).** Drawing the chat page's connect form filled an empty
    server address with the live server's (src/gui/pages/chat/left_panel.rs, `if
    state.server_url.is_empty() { state.server_url = "https://united-humanity.us" }`), and
    the auto-connect then dials it. So a player who cleared their server is put back on the
-   live server just by opening Chat, without pressing anything. Drawing a page must not
-   change which server you are on: show the official server as a suggestion in the empty
-   field and use it only when the person presses Connect, with a test that draws the page
-   with no server and finds none set.
+   live server just by opening Chat, without pressing anything. Now the form writes no
+   server: the empty field shows the official server as a suggestion (`OFFICIAL_SERVER`),
+   and only the Connect button turns an empty address into it. The test
+   `drawing_the_connect_form_sets_no_server` (src/gui/pages/chat/left_panel.rs) draws the
+   form with no server set and checks none is set, nothing may dial, the form was drawn and
+   the field shows the suggestion. Seen red first with the old line in place: "drawing the
+   connect form set a server" (left: "https://united-humanity.us", right: "").
 
 Checked 2026-10-05 (read-only): no member has joined the live server since 2026-10-01, so
 today's rig visits left no rows in its member list.
