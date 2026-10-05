@@ -761,7 +761,7 @@ Server-side game world with entity management, position validation, player sync.
 - Server: `src/relay/handlers/game_state.rs`, `src/relay/handlers/ship_world.rs`
 
 ### Moving aboard: the speed check, transit links, delivery by view (ship homes increment 4, 2026-10-04)
-The relay checks every position update against how far anyone can go in the time since (`data/ship/shared_world.ron`: 25 m/s on foot with a margin, 1.5 s banked) and answers a move past it with `game_position_correction`, which the game applies by standing the player back where the relay holds them: corrected, never frozen. The real fast moves are told apart: spawning, a reconnect (as far as the time away allows, at most 90 m), a teleporter by its link ids, shutting the build editor onto one's own plot, driving a vehicle at its own speed. Placed structures have stable ids and pairs name ids (the shipped homestead's west teleporter used to be paired with its ladder by list index). Game news reaches only the players who have the mover in view (250 m, out at 300), never a socket that is only chatting. "Aboard" is inside the ship's bounds, and each home breathes its own air, sized from its design. Nobody is told which plot another player lives on. Declared jumps come at most one a second; the teleporter pads re-arm only once you have stepped off them. The rig walks the game (showcase `walk_to`), judges one deliberate oversized jump, and walks onto the home's own teleporter and shuts the build editor away from the build spot, each a jump only its declaration explains (the increment 4 review, 2026-10-04).
+The relay checks every position update against how far anyone can go in the time since (`data/ship/shared_world.ron`: 25 m/s on foot with a margin, 1.5 s banked) and answers a move past it with `game_position_correction`, which the game applies by standing the player back where the relay holds them: corrected, never frozen. The real fast moves are told apart: spawning, a reconnect (as far as the time away allows, at most 90 m), a teleporter by its link ids, shutting the build editor onto one's own plot, driving a vehicle at its own speed. Placed structures have stable ids and pairs name ids (the shipped homestead's west teleporter used to be paired with its ladder by list index). Game news reaches only the players who have the mover in view (250 m, out at 300), never a socket that is only chatting. "Aboard" is inside the ship's bounds, and each home breathes its own air, sized from its design. Nobody is told which plot another player lives on. Declared jumps come at most one a second; the teleporter pads re-arm only once you have stepped off them. The rig walks the game (showcase `walk_to`) the way a person walks with the mouse and W: it turns to face the way it goes, walks, and turns to the facing asked for at the end, at most 150 degrees a second, easing in and out (BUG-165, `src/turning.rs`); it judges one deliberate oversized jump, and walks onto the home's own teleporter and shuts the build editor away from the build spot, each a jump only its declaration explains (the increment 4 review, 2026-10-04).
 - Shared: `src/ship/moves.rs`, `src/ship/transit.rs`, `src/ship/ship_space.rs`
 - Server: `src/relay/handlers/move_check.rs`, `src/relay/handlers/game_interest.rs`
 - Game: `src/engine/move_check.rs`
@@ -777,9 +777,9 @@ The operator: "the fleet has unlimited of everything and just track what they pl
 - Web: `web/chat/chat-fleet.js` (your ledger, read-only), `web/chat/chat-game-admin.js` (Fleet supply + totals)
 
 ### Crew Chore AI (v0.663; nameplates v0.667)
-Relay-side crew NPCs work through a data-driven chore rotation instead of the old Brownian wander: walk (straight line, no pathfinding yet) to a chore's site (a spot in a room of the ship: the Commons or its mess hall since ship homes increment 3, never on a plot, every walk clear of walls), dwell there "working" for its duration, rotate to the next chore allowed for their role; a crew member who eats goes to the mess hall for its meals (the ship's food stores). Deterministic rotation staggered per crew member; chore state + the human-readable label live in the entity's components (`chore`, `activity`, `chores_done`) so world snapshots / AI perception carry them automatically. State transitions plus 2 Hz travel positions go out as `game_npc_update` to the players who have that crew member in view (since ship homes increment 4; every socket before). Native client spawns/interpolates `RemoteNpc` entities and renders amber humanoid markers for them. Nameplates SHIPPED (v0.667): the HUD floats each crew member's name over their head out to 40 m, plus the live chore line ("Taking reactor readings") within 15 m -- accent-colored while working at the site, muted while walking to it. Rebuilt every frame from the RemoteNpc components via `GuiState::crew_labels`, drawn through the machine-label world_to_screen path.
+Relay-side crew NPCs work through a data-driven chore rotation instead of the old Brownian wander: walk (straight line, no pathfinding yet) to a chore's site (a spot in a room of the ship: the Commons or its mess hall since ship homes increment 3, never on a plot, every walk clear of walls), dwell there "working" for its duration, rotate to the next chore allowed for their role; a crew member who eats goes to the mess hall for its meals (the ship's food stores). Deterministic rotation staggered per crew member; chore state + the human-readable label live in the entity's components (`chore`, `activity`, `chores_done`) so world snapshots / AI perception carry them automatically. State transitions plus 2 Hz travel positions go out as `game_npc_update` to the players who have that crew member in view (since ship homes increment 4; every socket before). Native client spawns/interpolates `RemoteNpc` entities and renders amber humanoid markers for them; each figure turns as a person turns (at most 360 degrees a second, easing in and out) to face the way it is drawn walking, and keeps that facing when it stops, worked out on each screen and never sent (BUG-166). Nameplates SHIPPED (v0.667): the HUD floats each crew member's name over their head out to 40 m, plus the live chore line ("Taking reactor readings") within 15 m -- accent-colored while working at the site, muted while walking to it. Rebuilt every frame from the RemoteNpc components via `GuiState::crew_labels`, drawn through the machine-label world_to_screen path.
 - Server: `src/relay/handlers/game_state.rs` (ChoreDef, tick, tick_chore_agent, next_chore_index, step_toward), `src/relay/mod.rs` (broadcast loop)
-- Native: `src/net/protocol.rs` (NetMessage::NpcUpdate), `src/net/sync.rs` (RemoteNpc), `src/lib.rs` (route_game_message + render pass + crew_labels refresh), `src/gui/pages/hud.rs` (crew_label_lines + nameplate draw)
+- Native: `src/net/protocol.rs` (NetMessage::NpcUpdate), `src/net/sync.rs` (RemoteNpc, and its facing), `src/turning.rs` (how a figure turns), `src/lib.rs` (route_game_message + render pass + crew_labels refresh), `src/gui/pages/hud.rs` (crew_label_lines + nameplate draw)
 - Data: `data/npc/chores.ron` (14 chores across 6 rooms), `schemas/chore.toml`
 
 ### AI Perception API (v0.131.0)
@@ -1161,8 +1161,13 @@ public AWS Terrain Tiles (terrarium decode, minimal zero-dependency
 PNG reader, ~13 m grid) into HOSDEM1 files beside each region;
 inside coverage the drawn ground IS the survey data (edge-blended over
 400 m; bathymetry spikes floored at -2 m since the carve owns
-underwater), applied at the shared carve seam so patches, walk clamp,
-grass, and region grids all agree. Locks: north-up orientation test +
+underwater), applied at the shared carve seam. The patches and the region
+grids agreed from the start; the trees, the grass and the player's feet did
+not until BUG-156 (2026-10-05): they stood on `DrawnPatchSurface`, whose copy
+of the elevation formula had no carve, so beside the Dyes Inlet waterfront
+trees hung about 37 m in the air and the player stood up to 40 m above the
+drawn ground. The formula now lives in one function,
+`planet_chunks::drawn_elevation_at_depth`, which all of them call. Locks: north-up orientation test +
 shipped-file geography gates (Dyes Inlet <= 2 m, the SW ridge > 150 m:
 an orientation flip would land the ridge in the inlet). Probe rig
 hardened the same day: tree-kill + rig-path process sweep + EBUSY
@@ -1571,7 +1576,15 @@ testing with one person (`just verify-second-player`).
 
 ### Mod Support
 Mod manifest format, directory scanning, load order, path override resolution.
-- Native: `src/mods/mod.rs`
+Nothing calls `ModLoader` yet: the working way to mod today is editing the files
+in the data folder. Every registry reads the folder's copy of a file only when
+this version can read ALL of it (a single CSV row it cannot read refuses the
+file); otherwise it uses the copy built into the exe and writes one
+`[built-in data copy]` log line naming the file, the line and why (BUG-163,
+2026-10-05). An installed game's data folder going stale after an update is
+designed, not built: `docs/design/data-folder-updates.md`.
+- Native: `src/mods/mod.rs`, `src/embedded_data.rs` (`load_data_or_embedded`),
+  `src/assets/loader.rs` (`refusing_rows`)
 - Data: `data/mods/README.md`, `data/mods/example-mod/mod.json`
 
 ### World Persistence
@@ -1608,7 +1621,11 @@ Restore and "Snapshot now" (v0.1442.0, BUG-129).
   real ore (`mining::advance_away`); each animal's egg, milk or wool timer
   moves on to one yield waiting (`livestock::timers_after_away`). Nothing
   dies or is used up without the player's say. A character select now
-  restores the Barn with the save (`save_load::after_resume`).
+  restores the Barn with the save (`save_load::after_resume`). The power the
+  time away charges a space heater is what its thermostat was running it at
+  when the game was saved (2026-10-05, `WorldSave.heater_draw_w`), not the
+  Usage meter's full draw: about 182 W in a fruiting tent, 1,500 W where it
+  never reaches 24 C.
 
 ### Data-Driven Tools (v0.90.7)
 tools.rs loads tool catalog from external JSON instead of hardcoded data.
@@ -2049,7 +2066,13 @@ space, in a vehicle, while flying and on water. Dev (no dev gate, like every sho
 an open hut with a chest and a furnace in front of its north wall, through probe-sweep's new
 `final_showcase`, sent after the re-park). `{"walk":"1"}` (v0.1420.0) then turns fly mode off, so the
 survival rules and the HUD's outdoor lines run as for a player on foot; every park leaves fly mode on, so
-before it no capture could show them (`planet-open-noon-walk`).
+before it no capture could show them (`planet-open-noon-walk`). `{"hold":"forward","hold_s":"100"}`
+(BUG-156, 2026-10-05) presses movement keys for that long through the controller's own action path, so a
+capture can ARRIVE on foot the way a player does instead of by teleport (`engine/rig_walk.rs`), and
+`{"tree_ground":"1"}` writes `debug/tree_ground.json`: every near tree's base and the eye against the
+ground drawn under them, the finest ground and the surface the harvest sampled (`engine/tree_ground.rs`).
+A vantage with `ground_probe` has probe-sweep read it after the capture and fail the vantage when an
+on-screen tree floats or the eye is not standing on the drawn ground (`scripts/lib/tree-ground-check.js`).
 Still missing: a door or window set INTO a wall (they sit on the floor); a second storey (nothing stands on a
 roof yet); collision for built pieces (you walk through walls); the one canonical layout schema (built
 pieces, the home editor's `InteriorWall`s and the ship structure pieces are three different shapes); pieces
@@ -2783,8 +2806,10 @@ infrastructure"). Directly below the closed-loop summary, a visually distinct ou
 five loops no single homestead can close: electronics/semiconductors, metal from raw ore,
 medicine synthesis, equipment replacement, and raw chemistry inputs. Each is an expandable row:
 collapsed shows title + a "traded" tag; expanded gives a plain-language body naming the game
-recipe that abstracts the gap away (manufacture_cpu, smelt_steel, craft_antibiotics, ...) plus
-a "provided by" trade line. Intro + footer carry the non-defeatist framing: these gaps ARE why
+recipe that abstracts the gap away (manufacture_cpu, smelt_steel, ...) plus a "provided by"
+trade line. Medicine names the opposite: since 2026-10-05 no recipe makes antibiotics (the
+old craft_antibiotics cultured them from water, flour and sugar), and the trading post sells
+them. Intro + footer carry the non-defeatist framing: these gaps ARE why
 civilization exists. Data-driven (infinite-of-X): categories live in the RON, not code.
 - Native: `src/gui/pages/homes.rs` (`CannotCloseEntry`, `CannotCloseData`, `load_cannot_close`, the panel in `draw_design`)
 - Data: `data/self_sufficiency/cannot_close.ron` (distilled from `docs/design/homestead-solo-design.md` section 8)
@@ -2970,7 +2995,11 @@ days, Forgiving one, Settings > Gameplay > Illness); drinking puts the water bac
 oral rehydration solution most (sachets in the starting kit, mixed by the
 `mix_ors` recipe); harm only through dehydration. The Inventory's Use button works
 for the medical items, each from data: health restored, effects ended by tag
-(antibiotics: `bacterial` only), a plain reason when it cannot help.
+(antibiotics: `bacterial` only), a plain reason when it cannot help. Spoiled or
+raw food eaten while still ill does not start it over (`again_adds_h`, 0 for food
+poisoning) and the player is told the time it still has to run. The body's needs,
+its health and the illness's countdown are exact at any frame rate (BUG-164,
+`change_exactly` and f64 effect timers).
 - Code: `src/systems/illness.rs`, `src/systems/treatment.rs`, `src/systems/food.rs`
 - Data: `data/medical/illnesses.ron`, `data/medical/treatments.ron`
 

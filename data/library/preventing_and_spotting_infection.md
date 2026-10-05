@@ -484,23 +484,28 @@ game gives one to you.
   Infection that leads to Sepsis, with treatments such as bandaging and
   a course of medicine (`data/medical.ron`). The system that would apply
   it (`src/systems/medical.rs`) is not registered with the game, and the
-  Infected Wound and Infection conditions in `data/status_effects.csv`
-  are not applied by anything either.
+  Infected Wound, Infection and Plague conditions in
+  `data/status_effects.csv` are not applied by anything either.
 - **Medical items treat little yet.** The item list includes Bandage,
   Antiseptic, Painkillers, Antibiotics and Medkit (`data/items.csv`), and
-  each has a Use button in the Inventory. Antibiotics would end the
-  Infection and Infected Wound conditions, which the game marks as caused
-  by bacteria, and nothing else; since nothing gives you either, using
-  them keeps them in your pack and says why, and they do not touch the
-  game's Food Poisoning. A Bandage or a Medkit puts back health, and
-  Antiseptic does nothing on its own: it goes into a Medkit
-  (`data/medical/treatments.ron`, `src/systems/treatment.rs`,
-  `src/gui/pages/inventory.rs`).
-- **The game brews antibiotics.** The Crafting page has a recipe called
-  Culture Antibiotics that makes Antibiotics from Purified Water, Flour
-  and Sugar at a Chemistry Set, at Medicine level 4 (`data/recipes.csv`).
-  Real antibiotics come from a pharmacy, on a prescription, and the CDC's
-  rule is to take them only when needed and exactly as prescribed.
+  each has a Use button in the Inventory. Antibiotics end every condition
+  the game marks as caused by bacteria (the `bacterial` tag in
+  `data/status_effects.csv`), which is three of them: Infected Wound,
+  Infection and Plague. They end nothing else. Since nothing gives you
+  any of the three, using them keeps them in your pack and says why, and
+  they do not touch the game's Food Poisoning, which carries no such tag.
+  A Bandage or a Medkit puts back health and would stop Bleeding, which
+  nothing gives you either, and Antiseptic does nothing on its own: it
+  goes into a Medkit (`data/medical/treatments.ron`,
+  `src/systems/treatment.rs`, `src/gui/pages/inventory.rs`).
+- **Antibiotics are bought, not brewed.** No recipe makes them: the
+  trading post sells them (`data/trade_goods.ron`), and the Full Medkit
+  recipe, which packs three, takes bought ones (`data/recipes.csv`). Until
+  5 October 2026 a recipe called Culture Antibiotics made them from
+  Purified Water, Flour and Sugar at a Chemistry Set; it was taken out,
+  because nothing made that way is an antibiotic. Real antibiotics come
+  from a pharmacy, on a prescription, and the CDC's rule is to take them
+  only when needed and exactly as prescribed.
 - **Healing is instant.** The First Aid ability puts 35 health back at
   once ([First Aid Until Help Arrives](/library#first-aid-until-help-arrives)
   has the detail), and the one illness you can catch is Food Poisoning,
@@ -522,8 +527,9 @@ What the game leaves out, so you do not learn it from the game: a wound
 that turns bad over two or three days; the redness, the warmth and the
 fever that tell you; a flu that comes back worse; sepsis; the decision
 to see a doctor, and the one to call 911; and the fact that an antibiotic
-is a prescription, not a recipe. In the game, health comes back with a
-button. In a real body, it comes back because someone noticed in time.
+is a prescription: the trading post sells them to anyone. In the game,
+health comes back with a button. In a real body, it comes back because
+someone noticed in time.
 
 ## You own this when
 
@@ -689,12 +695,13 @@ were read on 5 October 2026.
 ### Inside this project
 
 - The medical catalogue and the system that is not registered:
-  `data/medical.ron` and `src/systems/medical.rs`. The Infected Wound and
-  Infection conditions, and the tag that marks them as caused by bacteria:
-  `data/status_effects.csv`. The medical items and the Use button:
+  `data/medical.ron` and `src/systems/medical.rs`. The Infected Wound,
+  Infection and Plague conditions, and the tag that marks them as caused
+  by bacteria: `data/status_effects.csv`. The medical items and the Use button:
   `data/items.csv` and `src/gui/pages/inventory.rs`; what each item does:
-  `data/medical/treatments.ron` and `src/systems/treatment.rs`. The
-  Culture Antibiotics recipe: `data/recipes.csv`. Skills from crafting and
+  `data/medical/treatments.ron` and `src/systems/treatment.rs`. Where the
+  game's antibiotics come from: `data/trade_goods.ron`, and the note in
+  `data/recipes.csv` on the recipe it no longer has. Skills from crafting and
   the Dev button: `src/systems/crafting/mod.rs` and
   `src/gui/pages/profile.rs`. What is saved: `src/save_load.rs`.
 - [Bleeding and Wounds](/library#bleeding-and-wounds), [How Your Body

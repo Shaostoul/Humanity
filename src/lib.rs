@@ -53,6 +53,7 @@ pub mod surface_walk;
 /// out of the frame-lock block in lib.rs so it is testable headless; ungated
 /// like `surface_walk`. See `src/surface_move.rs`.
 pub mod surface_move;
+pub mod turning; // How a person turns (the rig's walking camera, the crew figures); ungated, see src/turning.rs.
 /// Curated named viewpoints (data/scenic_views.ron) for the camera-hub arc.
 pub mod scenic_views;
 /// Reaction emoji palette (data/reactions.json): one source for the native
@@ -74,6 +75,9 @@ pub(crate) mod test_clock;
 /// Temporary files and folders that tests delete when done (BUG-159). Test builds only.
 #[cfg(test)]
 pub(crate) mod test_temp;
+/// The warnings a test's own code logs, read back (BUG-163). Test builds only.
+#[cfg(test)]
+pub(crate) mod test_log;
 
 #[cfg(feature = "relay")]
 pub mod relay;
@@ -12485,7 +12489,7 @@ mod native_app {
                                         .and_then(|r| r.get(&e.id))
                                         .map(|d| d.name.clone())
                                         .unwrap_or_else(|| e.id.clone());
-                                    (name, e.remaining)
+                                    (name, e.remaining as f32)
                                 })
                                 .collect();
                         }
@@ -14251,9 +14255,11 @@ mod native_app {
                     }
                     // The decision, tested, lives in gui/connections.rs `may_auto_connect`: an
                     // unlocked identity, onboarding done, no Disconnect, no pending backoff, and
-                    // never a server this identity erased its account on (BUG-135).
+                    // never a server this identity erased its account on (BUG-135). It dials
+                    // `dial_address`, never an address still being typed (BUG-160).
                     if state.gui_state.may_auto_connect() {
-                        let ws_url = crate::gui::pages::chat::derive_ws_url(&state.gui_state.server_url);
+                        let address = state.gui_state.dial_address().unwrap_or_default().to_string();
+                        let ws_url = crate::gui::pages::chat::derive_ws_url(&address);
                         let name = state.gui_state.user_name.clone();
                         let pubkey = if state.gui_state.profile_public_key.is_empty() {
                             crate::gui::pages::chat::generate_random_hex_key()
@@ -14279,7 +14285,7 @@ mod native_app {
                         state.gui_state.ws_client = Some(
                             crate::net::ws_client::WsClient::connect_with_kyber(&ws_url, &name, &pubkey, &kyber_public),
                         );
-                        state.gui_state.connected_server_url = state.gui_state.server_url.clone();
+                        state.gui_state.connected_server_url = address;
                         // Fresh socket: identify handshake not yet complete (v0.794).
                         state.gui_state.ws_identified = false;
                         state.gui_state.dm_fetch_sent = false;
@@ -14302,8 +14308,10 @@ mod native_app {
                         state.gui_state.ws_status = format!("Reconnecting in {}s...", secs_left.max(1));
 
                         if state.gui_state.ws_reconnect_timer <= 0.0 {
-                            // Attempt reconnect
-                            let ws_url = crate::gui::pages::chat::derive_ws_url(&state.gui_state.server_url);
+                            // Attempt reconnect, to the dropped connection's own server
+                            // (`dial_address`), never to an address still being typed.
+                            let address = state.gui_state.dial_address().unwrap_or_default().to_string();
+                            let ws_url = crate::gui::pages::chat::derive_ws_url(&address);
                             let name = state.gui_state.user_name.clone();
                             let pubkey = if state.gui_state.profile_public_key.is_empty() {
                                 crate::gui::pages::chat::generate_random_hex_key()
@@ -14316,7 +14324,7 @@ mod native_app {
                             state.gui_state.ws_client = Some(
                                 crate::net::ws_client::WsClient::connect_with_kyber(&ws_url, &name, &pubkey, &state.gui_state.kyber_public_b64),
                             );
-                            state.gui_state.connected_server_url = state.gui_state.server_url.clone();
+                            state.gui_state.connected_server_url = address;
                             // Fresh socket: identify handshake not yet complete (v0.794).
                             state.gui_state.ws_identified = false;
                             state.gui_state.dm_fetch_sent = false;

@@ -81,6 +81,8 @@ struct IllnessRow {
     onset: String,
     helps: String,
     passed: String,
+    #[serde(default)]
+    again: String,
 }
 
 fn illnesses() -> IllnessesFile {
@@ -393,6 +395,48 @@ fn drying_out_from_food_poisoning_says_so_on_the_death_screen() {
     assert!(world.get::<&Dead>(p).is_ok(), "an hour without water at 1 health is fatal");
     let cause = data.get::<Mutex<Option<String>>>("player_death").unwrap().lock().unwrap().clone();
     assert_eq!(cause.as_deref(), Some("dehydration from Food Poisoning"), "the death line names the illness: {cause:?}");
+}
+
+/// ILL AGAIN WHILE STILL ILL (2026-10-05, item 7 of the second seam review): eating spoiled
+/// food two hours before Food Poisoning would pass does not start it over. It passes when it
+/// was going to, and the player is told so in plain words, with the time it still has to run
+/// (illnesses.ron's `again` line and `again_adds_h`, 0 for Food Poisoning).
+///
+/// Seen red on main at 347c8f77b (with this change's illnesses.ron): "ill again two hours
+/// before the end: it had not passed 24 h later (it was due in 2 h), and the player was told
+/// \"\"" (the course started over, without a word).
+#[test]
+fn eating_spoiled_food_again_while_ill_does_not_start_the_illness_over() {
+    let fp = food_poisoning();
+    let mut sys = FoodSystem::new(data_dir());
+    let mut data = store(Some(Mode::Realistic));
+    // Thirst held still (the Vitals drain slider at 0): this is about the course, not the water.
+    data.insert("vitals_drain_scale", Mutex::new(0.0_f32));
+    let mut world = hecs::World::new();
+    let p = adult(&mut world, 100.0);
+    fall_ill(&mut sys, &mut world, &data, p);
+    notices(&data);
+    let course_s = registry().duration("food_poisoning");
+    let mut t = 0.0_f32;
+    while t < course_s - 2.0 * 3600.0 {
+        sys.tick(&mut world, STEP_S, &data);
+        t += STEP_S;
+    }
+    assert!(ill(&world, p), "the setup: still ill two hours before the end");
+    fall_ill(&mut sys, &mut world, &data, p);
+    let said = notices(&data).join(" ");
+    let mut after = 0.0_f32;
+    while ill(&world, p) && after < 24.0 * 3600.0 {
+        sys.tick(&mut world, 60.0, &data);
+        after += 60.0;
+    }
+    let passed = if ill(&world, p) { "had not passed 24 h later".to_string() } else { format!("passed {:.2} h later", after / 3600.0) };
+    let on_time = !ill(&world, p) && (after - 2.0 * 3600.0).abs() <= 60.0;
+    let told = !fp.again.is_empty() && said.contains(&fp.again) && said.contains("2 hours");
+    assert!(
+        on_time && told,
+        "ill again two hours before the end: it {passed} (it was due in 2 h), and the player was told {said:?}"
+    );
 }
 
 // ── The medical items' Use button ──

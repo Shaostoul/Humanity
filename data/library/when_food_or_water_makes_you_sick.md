@@ -632,7 +632,12 @@ The game has one illness that comes from food, and none from water.
   Bad](/library#microbes-good-and-bad) explains the spoilage clock behind it.
   It starts the moment you eat, not hours later. The game tells you then
   what is happening, how long it will last and what helps, and tells you
-  again when it has passed.
+  again when it has passed. Eating spoiled or raw food again while you
+  are still ill does not start it over or make it last longer: it passes
+  when it was going to, and the game tells you so, with the time it still
+  has to run. That is the game's own choice: the sources this guide uses
+  say how long a bout lasts, not what a second helping does to it
+  (`data/medical/illnesses.ron`).
 - **What it does: it dries you out.** While it lasts, Food Poisoning
   takes water from your Hydration bar, 1.5 litres a day on top of the
   2.5 litres a resting body loses anyway, and slows you a little; then it

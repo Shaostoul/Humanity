@@ -1370,6 +1370,22 @@ impl Default for AppConfig {
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Test-only: `AppConfig::save` on this thread writes nothing (`keep_saves_off_disk`).
+    static SAVES_OFF_DISK: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Test-only: from now on `AppConfig::save` on the calling thread writes nothing, so a test can
+/// press a button that saves (the Chat page's Connect) without writing the person's real
+/// config.json, which `config_path` finds from a test build as well. Each test runs on a thread
+/// of its own, so no other test is touched (one that wants the file written points
+/// HUMANITY_DATA_DIR at a scratch folder, engine/screens/video.rs).
+#[cfg(test)]
+pub(crate) fn keep_saves_off_disk() {
+    SAVES_OFF_DISK.with(|off| off.set(true));
+}
+
 impl AppConfig {
     /// Like `load()`, but returns None when no config file exists yet, so a
     /// FRESH install keeps GuiState's designed defaults rather than having
@@ -1398,6 +1414,10 @@ impl AppConfig {
     }
 
     pub fn save(&self) {
+        #[cfg(test)]
+        if SAVES_OFF_DISK.with(|off| off.get()) {
+            return;
+        }
         let path = Self::config_path();
         if let Ok(json) = serde_json::to_string_pretty(self) {
             match std::fs::write(&path, &json) {

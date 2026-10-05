@@ -137,17 +137,15 @@ pub fn score(skill_factor: f32, roll: f32) -> f32 {
     (skill_factor + roll * 0.2 - 0.1).clamp(0.0, 1.0)
 }
 
-/// Read the grades from the data folder (or the copy built into the exe).
-/// Missing or broken: no grades, and everything stays ungraded.
+/// Read the grades from the data folder, or the copy built into the exe when the
+/// folder's is missing or this version cannot read it (BUG-163; the built-in
+/// copy is new with it, so a data folder written before the grades existed has
+/// them too). Neither: no grades, and everything stays ungraded.
 pub fn load(data_dir: &std::path::Path) -> QualityLevels {
-    match crate::embedded_data::read_data_or_embedded(data_dir, QualityLevels::FILE).map(|s| QualityLevels::from_ron(s.as_bytes())) {
-        Some(Ok(q)) => q,
-        Some(Err(e)) => {
-            log::warn!("{e}; crafted goods are ungraded this session");
-            QualityLevels::default()
-        }
-        None => QualityLevels::default(),
-    }
+    crate::embedded_data::load_data_or_embedded(data_dir, QualityLevels::FILE, QualityLevels::from_ron).unwrap_or_else(|e| {
+        log::warn!("{e}; crafted goods are ungraded this session");
+        QualityLevels::default()
+    })
 }
 
 #[cfg(test)]

@@ -110,6 +110,27 @@ fn the_body_comes_back_as_it_was_left() {
     assert!(fresh.get::<&Dead>(p).is_err(), "alive");
 }
 
+/// A body saved before BUG-164 (2026-10-05) still loads: an effect's time left was an f32
+/// then and is an f64 now, and the f32 the save wrote reads into it unchanged, along with the
+/// vitals, which stay f32.
+#[test]
+fn a_body_saved_with_f32_timers_still_loads() {
+    // `BodySave` as serde_json wrote it before the change: shortest f32 digits throughout.
+    let json = r#"{"health":{"current":37.5,"max":100.0},
+        "vitals":{"satiation":23.5,"hydration":41.25,"energy":12.0,"oxygen":88.0,"body_temp_c":36.25,
+            "waste":66.0,"satiation_max":100.0,"hydration_max":100.0,"energy_max":100.0,
+            "oxygen_max":100.0,"waste_max":100.0},
+        "effects":{"active":[{"id":"food_poisoning","remaining":171234.56},{"id":"well_fed","remaining":299.98334}]},
+        "dead":null}"#;
+    let body: persistence::BodySave = serde_json::from_str(json).expect("a body saved before the change loads");
+    assert_eq!(body.effects.remaining("food_poisoning"), Some(171_234.56));
+    assert_eq!(body.effects.remaining("well_fed"), Some(299.98334));
+    assert_eq!((body.vitals.satiation, body.vitals.hydration), (23.5, 41.25));
+    // And it saves and loads again the same.
+    let again: persistence::BodySave = serde_json::from_str(&serde_json::to_string(&body).unwrap()).unwrap();
+    assert_eq!(again.effects.remaining("food_poisoning"), Some(171_234.56));
+}
+
 /// The home's urine tank keeps its level across a save (first-hour audit S1): a day and a
 /// half of a living player fills it 1.5 person-days; in the next session, after the load,
 /// Compost draws the whole person-day off as one stored urine. It used to live only in the

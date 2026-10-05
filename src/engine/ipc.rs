@@ -387,6 +387,9 @@ pub(crate) fn poll_screenshot_request(
 /// demo ladder). Consumed on read. An in-Garden GUI button is tracked as
 /// in-app-ops debt (docs/design/in-app-ops.md).
 pub(crate) fn poll_showcase_request(state: &mut EngineState) {
+    // The `hold` verb's keys come up when their time is up: every frame, so
+    // before the no-request early return (engine/rig_walk.rs).
+    crate::engine::rig_walk::tick(state);
     const REQ: &str = "debug/showcase_request.json";
     if !std::path::Path::new(REQ).exists() {
         return;
@@ -442,6 +445,27 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.controller.fly_mode = false;
         log::info!("Showcase: walk -> fly mode off, on foot");
     }
+    // {"hold":"forward,sprint","hold_s":"40"} (BUG-156, 2026-10-05): press
+    // those movement keys for that long, through the controller's own action
+    // path, so a capture can ARRIVE somewhere on foot the way a player does
+    // rather than by teleport (engine/rig_walk.rs). Send it after a stand and
+    // a walk, in the same request or a later one.
+    if let Some(spec) = grab("hold") {
+        let secs = grab("hold_s").and_then(|s| s.parse::<f32>().ok()).unwrap_or(5.0);
+        let note = match crate::engine::rig_walk::parse_keys(&spec) {
+            Some(keys) => crate::engine::rig_walk::hold(state, keys, secs),
+            None => format!("hold wants movement keys (forward, back, left, right, jump, sprint), not {spec:?}"),
+        };
+        log::info!("Showcase: hold -> {note}");
+    }
+    // {"tree_ground":"1"} (BUG-156, 2026-10-05): write where every near tree's
+    // base and the eye stand against the ground drawn under them, the finest
+    // ground and the surface the harvest sampled, to debug/tree_ground.json
+    // (engine/tree_ground.rs). The probe rig's `ground_probe` check reads it.
+    if grab("tree_ground").as_deref() == Some("1") {
+        let note = crate::engine::tree_ground::write_report(state);
+        log::info!("Showcase: tree_ground -> {note}");
+    }
     // {"solo":"1"} / {"solo":"0"} (2026-10-03, ship homes 1b): step out of the shared world
     // and back in, the switch the launcher's offline-home pick and Dev travel flip
     // (`copresence_solo`; lib.rs sends game_leave, then joins again once it clears). The
@@ -492,12 +516,15 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         log::info!("Showcase: respawn -> the Respawn button");
     }
     // {"walk_to":"x,y,z,yaw,pitch,speed"} (2026-10-04, ship homes increment 4): walk the camera
-    // there in a straight line at that many metres a second, facing yaw and pitch, the way a
-    // person walks it; the probe's `moves.walking` stays true until it arrives. The relay's speed
-    // check corrects a jump nobody could make, which the `cam` verb's teleport is past a few
-    // metres, so verify-copresence walks the game through the ship with this instead (it moved it
-    // in 40 m teleports while the relay's rule was 100 m per update). It advances only while the
-    // game is in the shared world (engine/move_check.rs `walk_tick`). Permanent dev tooling.
+    // there in a straight line at that many metres a second, the way a person walks it with the
+    // mouse and W: it turns to face the way it goes, walks, and at the point turns to yaw and
+    // pitch (BUG-165, engine/move_check.rs `walk_step`; it used to hold yaw and pitch the whole
+    // way, so it walked backwards); the probe's `moves.walking` stays true until that last turn
+    // is done. The relay's speed check corrects a jump nobody could make, which the `cam` verb's
+    // teleport is past a few metres, so verify-copresence walks the game through the ship with
+    // this instead (it moved it in 40 m teleports while the relay's rule was 100 m per update).
+    // It advances only while the game is in the shared world (engine/move_check.rs
+    // `walk_tick`). Permanent dev tooling.
     if let Some(spec) = grab("walk_to") {
         match crate::engine::move_check::parse_walk(&spec) {
             Some(w) => {
@@ -3932,8 +3959,8 @@ mod remote_player_recorder_tests {
                 greetings: Vec::new(),
                 last_position: drawn,
                 target_position: target,
-                last_rotation: Quat::IDENTITY,
-                target_rotation: Quat::IDENTITY,
+                facing: crate::turning::Turn::default(),
+                heading: 0.0,
                 interpolation_t: 0.5,
             },
         ));

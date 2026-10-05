@@ -687,7 +687,9 @@ impl ItemRegistry {
     /// Build the item registry from raw `items.csv` bytes.
     ///
     /// Uses the shared CSV loader (skips `#` comments, header-mapped, row-resilient
-    /// so one malformed row never blanks the catalog). Only the columns the
+    /// so one malformed row never blanks the catalog; the game's own loader
+    /// instead sets aside a data folder copy with such a row and uses the copy
+    /// built into the exe, BUG-163). Only the columns the
     /// registry needs are deserialized; the rest of items.csv (category,
     /// subcategory, base_material, durability, description, content_class) is
     /// ignored. This is the constructor the runtime calls to populate

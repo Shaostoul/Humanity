@@ -164,6 +164,12 @@
     (id: "egg_0",             name: "Egg",                category: "food_raw",        base_value: 2,    weight_kg: 0.06,  description: "Fresh poultry egg"),
     (id: "milk_0",            name: "Milk",               category: "food_raw",        base_value: 2,    weight_kg: 1.0,   description: "Fresh dairy milk, perishable"),
     (id: "honey_0",           name: "Honey",              category: "food_raw",        base_value: 5,    weight_kg: 0.5,   description: "Natural sweetener that never spoils"),
+    // Honeycomb (2026-10-05, the review of BUG-146): one deep hive frame's capped comb, which cook_honey
+    // (data/recipes.csv) crushes and strains into five jars of honey and a block of beeswax. base_value 29:
+    // A GAME CHOICE, what this file values its honey and wax at (five honey_0 at 5, one beeswax_0 at 4), so a
+    // frame costs about what is in it. The post sells it for 37 and buys its honey and wax back for 12, so
+    // buying frames to sell what they make never pays (src/systems/economy/parts.rs checks every recipe).
+    (id: "honeycomb_0",       name: "Honeycomb",          category: "food_raw",        base_value: 29,   weight_kg: 3.05,  description: "One deep hive frame's capped comb, for crushing and straining"),
     (id: "salt_food_0",       name: "Salt",               category: "food_raw",        base_value: 2,    weight_kg: 0.5,   description: "Mineral salt for preservation and flavor"),
     (id: "sugar_0",           name: "Sugar",              category: "food_raw",        base_value: 3,    weight_kg: 0.5,   description: "Refined cane sugar"),
     (id: "flour_0",           name: "Flour",              category: "food_processed",  base_value: 2,    weight_kg: 0.5,   description: "Milled wheat for baking"),

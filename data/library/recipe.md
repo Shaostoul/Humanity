@@ -56,7 +56,7 @@ The CSV is always the source of truth. The desktop game never reads the JSON, so
 
 ## If something goes wrong
 
-The game is built to be forgiving: if a data file has a broken line, the game skips it rather than crashing. So the worst case is that your recipe simply does not appear.
+The game does not crash over a broken line. If it cannot read a line in your `recipes.csv`, it sets your whole file aside for that run, crafts from its own built-in recipe list, and writes one line in its log saying which line it could not read and why. The log is `run.log` in `%APPDATA%\HumanityOS\logs` (or in the `logs` folder beside the game, if you keep the game in one folder); look for a line containing `[built-in data copy] data/recipes.csv`. So the worst case is that your recipe, and any other change you made to the file, does not appear until that line is fixed.
 
 1. **Check your line against the header.** Count the commas. Every recipe line needs exactly the ten columns from the header, in order. A missing or extra comma shifts everything after it.
 2. **Check your item ids.** Every id in inputs, outputs, and station_required must exist in `data\items.csv` or `data\components.csv`. A typo in an id is the most common mistake.

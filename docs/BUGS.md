@@ -3495,6 +3495,65 @@ Counted at nothing, three recipes would come out ahead at standard grade
 play depends on what refilling the tanks costs, which is modelled as a
 closed loop (`systems::life_support`), and was not looked into here.
 
+**Review fixes (2026-10-05, the second seam review of the day's merges): it
+is a loop, and the walk now sees it.** Refilling the tanks costs the player's
+credits nothing. The tanks are filled by the home's own well pump (2 L a
+minute on 10 W), its rain catchment and its air handlers' condensate
+(`data/machines/home.ron`); the power that runs them comes from the home's
+panels or, past those, the ship's reactor, which the fleet ledger meters as
+worth on its own balance (`data/ship/fleet_ledger.ron`, 1.5 CR a kWh, about
+0.0001 CR for the 0.08 Wh the pump spends on a litre), never against the
+player's credits, and the ledger lists no water at all. A hand craft at home
+and an automated machine both draw tap water from the tanks when the
+backpack has none (`crafting::plan_inputs`, `fluids::draw_from_tanks`). So
+the walk now prices it that way: the `tap` items of
+`data/containers/fluids.ron` start at nothing (`parts::tap_water`,
+`parts::cheapest_costs`), in the game's parts prices
+(`TradeGoodsRegistry::with_parts_prices`, which reads the same file the
+crafts do, disk first) and in both loop checks. Priced so, on the recipes as
+they stood, `no_grade_sells_back_for_more_than_its_parts_cost` found 19
+(recipe, grade) loops and BUG-145's `no_recipe_resells_for_more_than_its_inputs_cost`
+three recipes: `cook_honey` (a litre of tap water into a jar of honey that
+sells for 2, made from nothing), `craft_antibiotics` (flour and sugar, 6.67
+at the cheapest, and three litres into five antibiotics that sell for 10)
+and `craft_healing_potion` (through honey made from water: 6 of seeds into a
+medkit that sells for 7). Both checks now pass with tap water free; each
+names the red run in its doc comment. A third,
+`parts::tests::the_games_parts_prices_count_tap_water_as_a_craft_gets_it`,
+holds the game's own parts prices (the registry `engine::registries` builds)
+to the walk with tap water free, because the loop check prices its own walk:
+with the tap items left out of `with_parts_prices` the loop check stayed
+green, and this one was red ("bandage_0: the game's parts price is not the
+walk's with tap water free (left: Some(0.4), right: Some(0.25))").
+
+The two recipes are now real rather than repriced:
+- **Honey comes out of honeycomb.** `cook_honey` is now "Crush and Strain
+  Honey": one `honeycomb_0` (new: the capped comb of one deep Langstroth
+  frame, 3.05 kg, "Each deep frame can hold 6 pounds of extractable honey",
+  Howland Blackiston, with about 327 g of wax, Jamie Ellis's 0.37 g a square
+  centimetre of comb, American Bee Journal, July 2025) gives five 0.5 kg jars
+  of honey and one block of beeswax, by hand with a utility knife to cut the
+  comb out (Keeping Backyard Bees' crush-and-strain list: a long serrated
+  knife, a potato masher, two buckets, a strainer; the game has none of the
+  last three to name). Beeswax joins the byproduct lint, which holds the
+  recipe to its mass (2.8 kg out of 3.05 in). No hive in the game fills
+  frames yet, so the trading post sells honeycomb at the honey and wax it
+  holds (base 29: it sells for 37, and what it makes sells back for 12).
+- **No recipe makes antibiotics.** `craft_antibiotics` (Culture
+  Antibiotics) is gone: nothing cultured at a chemistry set from flour and
+  sugar is an antibiotic, which an industry makes and a prescription gives.
+  The trading post sells them, and `craft_medkit_full` packs bought ones. The
+  Home page's "What one home cannot close" medicine entry
+  (`data/self_sufficiency/cannot_close.ron`) and the Library's Preventing and
+  Spotting Infection now say so. Their base value stays 5, which BUG-145 cut
+  from 20 only to stop this recipe looping; with no recipe it could rise
+  again, a pricing call left open.
+`craft_healing_potion` no longer loops once honey costs what it does (13 of
+inputs against 7), though it is still not a real recipe (wheat seeds, honey
+and water into a medkit); it is left for a pass over the medicine recipes,
+with `craft_painkillers` (water, coal and salt into ten painkillers) and
+`craft_stim_pack`, neither of which loops.
+
 ## BUG-147: the big vehicles cannot be hand-crafted from the backpack (FIXED v0.1457.0, found 2026-10-04)
 
 **Seen:** after the vehicle bills of materials (BUG-145) became realistic. A
@@ -3930,20 +3989,148 @@ a planet (BUG-153's campfire is the planet side); and `data/hvac.ron`'s other he
 (heat pump, wood stove) have no machine yet. The never-registered `HvacSystem`
 (`src/systems/hvac.rs`), superseded by this, was deleted the same day.
 
-## BUG-156: trees float in the air beside the Silverdale waterfront (OPEN, found 2026-10-05)
+**Review fixes (2026-10-05, the second seam review of the day's merges):**
+- *The time away charged a placed heater its full 1,500 W every hour.* While the player
+  is away the power ledger charges the home's machines the Usage meter's day averages
+  (`crafting::away::day_power_balance`), and the meter cannot see the air a heater stands
+  in, so it charged every heater its full draw: 36 kWh a day, even in a fruiting tent,
+  where its thermostat runs it about an eighth of the time. A static `average_watts` like
+  the other controller-driven machines' would be right in one kind of place only (the
+  heater runs flat out in every grow room and in the home's own air, an eighth of the time
+  in a tent), so the heater is metered by its thermostat instead: the save keeps what each
+  heater was drawing, its watts for the share of the time its thermostat ran it
+  (`WorldSave::heater_draw_w`, by machine instance id, from `crafting::away::heater_draws`),
+  and the time away charges each heater that in place of the meter's figure: about 182 W
+  in a mushroom rack's fruiting tent (it loses about 61 W a degree held 3 C over its 21 C:
+  53.1 through its walls and top, 7.6 with its fresh air), the full 1,500 W in a grow room
+  or the home's own air, which it never warms to 24 C. A heater with no saved draw (placed
+  since the save, or a save from before this) keeps the meter's full draw, and so does one
+  saved before the air step measured it. The Construction page's Usage meter still charges
+  the full draw: it is a design-time meter with no air to read. Test:
+  `farming::heat_tests::the_time_away_charges_a_heater_what_its_thermostat_ran_it_at`: two
+  of the shipped heaters, spawned as the engine spawns them, one in the shipped fruiting
+  tent and one in a greenhouse-sized grow room, run by the farming tick, saved through JSON
+  and resumed an hour later (`resume_home`) with the shipped family home; the time away's
+  balance is better than the meter's by the tent heater's unused 1,318 W in both life
+  support modes. Seen red with the saved draws ignored, the code before this in effect:
+  "Station-supplied: the time away charges the heaters 0.0 W less than their full draw,
+  not the tent heater's unused 1317.8 W"; and with the save not keeping them: "the save
+  has heater_tent's draw: {}".
+- *The add-up test could not fail for the real path.*
+  `engine::survival_env::tests::a_heaters_warm_air_and_a_fires_warmth_add_up` built its
+  own context from `indoor_air` and `warmed_by_fires`, a combination `publish` never made:
+  its inside-the-home branch had no fire term. That branch is now
+  `survival_env::inside_home_context`, which puts the warmth of any fire the player can see
+  (`fire_warmth`, which is 0 aboard today) on top of the air where they stand, so a fire
+  that ever burns aboard adds to a heater's air instead of being dropped; and the test
+  calls it. Seen red on the branch as it was, moved there unchanged: "the fire's warmth on
+  top of the heater's air (left: 22.05, right: 42.179012)". Also red with
+  `warmed_by_fires` taking the radiant temperature from a fixed 21 C (left: 41.318604).
+- *Heat and How It Moves* said a heater warms "the air of the room it stands in", a few
+  degrees in a small room. That is true only in a grow room or a fruiting tent, the only
+  airs the game keeps apart; it now says which airs those are and what one heater does in
+  each (an eighth of the time in a tent at 24 C; flat out and about 1 C in a 300 m3 grow
+  room, 0.16 C in the greenhouse; a few hundredths of a degree on the home's whole air from
+  a bedroom or the kitchen), as Heating a Home Safely already did. The heater's own card
+  (its `air` stat in `data/machines/home.ron` and `home_solo.ron`) said the same thing and
+  now reads "warms the air it stands in, a grow room's or a tent's, else the whole home's,
+  up to 24 C".
+
+## BUG-156: trees float in the air beside the Silverdale waterfront (FIXED 2026-10-05, found 2026-10-05)
 
 **Seen:** in v0.1459.0's probe capture of the new vantage `silverdale-home-marker`
 (`.probe-rig/sweeps/20261005-071141/silverdale-home-marker.png`, the right third of the
 frame): a stand of full-geometry trees west of the camera is drawn with its trunks ending
 in open sky, well above the hillside behind them, leaning only by the camera's upward
 pitch. The vantage starts the camera 300 m up, then stands on the ground 200 m north of
-the Dyes Inlet waterfront and settles for 8 s before the capture.
+the Dyes Inlet waterfront and settles for 8 s before the capture. The HUD in that capture
+reads "Alt 18 m": the eye was floating too.
 
-**Not yet known:** whether the trees keep heights sampled from a coarser terrain level of
-detail while the camera was 300 m up (a teleport artifact a walking player would never
-see: arriving by teleport and arriving the way a player does have differed before), or whether trees there float
-for anyone. First step: capture the same place after a longer settle and after walking
-in, and compare each tree's base with the terrain height under it.
+**Measured: not a teleport artifact; trees there floated for anyone, and so did the
+player.** A diagnostic build of v0.1462.1 carried a new readout (`{"tree_ground":"1"}`
+writes `debug/tree_ground.json`: every near tree's base and the eye against the patch
+actually drawn under them, at that patch's own depth with the region carve, plus the
+finest ground and the surface the harvest sampled; `src/engine/tree_ground.rs`), run by
+probe-sweep at the operator's graphics (trees as models out to 400 m, density 0.2),
+arriving three ways:
+
+| arrival | on-screen trees | base above the drawn ground | eye above the drawn ground |
+|---|---|---|---|
+| the vantage as written (300 m park, `stand`, 8 s) | 54 | +28.7 to +39.9 m, median +36.8 | 18.9 m |
+| the same, settled 60 s | 53 | +28.7 to +39.9 m | 40.1 m |
+| on foot: `stand` 500 m north, `walk`, then forward held 100 s (`hold`, below; about 390 m walked, the harvest re-run all the way) | 90 | +31.4 to +38.4 m, median +37.5 | 25.0 m |
+
+Captures and readouts: `.probe-rig/sweeps/20261005-bug156-pre/` (with the vantage file it
+ran). Per tree, every base sat EXACTLY on the elevation formula without the region carve
+(0.00 m), and the carve put the drawn ground 34.7 to 38.6 m lower under the on-screen
+trees. The level of detail played no part: with no tile tier installed every drawn patch
+and the harvest were at depth 13 (the base-only cap, 54 m triangles), and the finest
+ground differed from the drawn face under the trees by -0.3 to +1.0 m.
+
+**Cause:** `DrawnPatchSurface` (`src/terrain/drawn_surface.rs`), the sampler everything that
+stands on the ground goes through (the near-tree harvest's bases, the grass harvest's
+bases, the walk clamp, and `planet_build::Ground`, so `stand` and building on a planet),
+carried its own copy of the elevation formula, written in v0.1091, before the region water
+carve (v0.1149) and the region DEM (v0.1153). `build_patch_mesh` and
+`drawn_elevation_normalized` apply the carve, whose first step REPLACES the elevation with
+the region's ~13 m survey; this copy never did. Near the Dyes Inlet waterfront the coarse
+grid (0.05 degree cells) plus detail noise sits 34 to 45 m above the survey, so the trees
+and the player stood that far above the ground actually drawn. The eye did not even stay
+there: the walk clamp stands on the drawn surface only within 40 m of the field ground
+(`DRAWN_GROUND_MAX_ALT_M`) and on the field above that, so it wandered between the two
+(the three readings above). The v0.1153 commit said patches, the walk clamp, grass and the
+tree streams "all agree by construction"; only the patches and the region grids did. Every
+region with a DEM (Silverdale, Seattle Center) was affected, however the player arrived.
+
+**Fix:** one formula, `planet_chunks::drawn_elevation_at_depth` (base, depth-gated detail,
+then the region carve and DEM), now called by `build_patch_mesh`,
+`drawn_elevation_normalized` and `DrawnPatchSurface`, so the copies cannot part again.
+`DrawnPatchSurface` snapshots the published carve masks when it is built, as a patch build
+does (`with_carve` lets a test hand in its own set). Outside the regions nothing moves: the
+shared function was checked bit for bit against the copies it replaced (42,129 samples over
+the globe and over Silverdale at nine depths, with and without the masks; a scratch test,
+not kept), and the existing Fuji and Amazon ground gates pass unchanged. After the fix
+(`.probe-rig/sweeps/20261005-bug156-post/`), all four arrivals (the canonical vantage, the
+two settles and the walk-in) read every on-screen tree (53, 53, 53 and 56) at -0.11 to
+-0.23 m against the drawn ground, which is the designed quarter-root-flare sink, none
+floating, and the eye at 1.750 m above it.
+
+**Tests, each seen red first** (`terrain::drawn_surface::region_tests`, the new file
+`src/terrain/drawn_surface_region_tests.rs`: the shipped Silverdale region and DEM, published
+under a test lock, `water_carve::PublishedForTest`, and measured against the real built
+patch mesh):
+- `the_drawn_surface_is_the_drawn_mesh_inside_a_dem_region`: red at 45.04 m off the built mesh
+  over 226 probes at depths 17 and 20; now 0.0000 m, while the uncarved control stays 45.04 m off.
+- `trees_stand_on_the_drawn_ground_beside_the_silverdale_waterfront`: red with 306 of 306
+  trees floating +34.1 to +39.6 m; now -0.24 to -0.11 m, none floating.
+- `the_player_stands_on_the_drawn_ground_in_silverdale`: red at 44.7 m from one body height;
+  now 0.000 m.
+
+**Probe-level check:** `silverdale-home-marker` now carries `ground_probe`: probe-sweep asks
+for the readout after the capture, keeps `<id>-tree-ground.json` beside the PNG, and fails
+the vantage when an on-screen tree floats more than 0.3 m, sinks more than 1 m, or the eye
+is not 1.75 m above the drawn ground (`scripts/lib/tree-ground-check.js`;
+`scripts/tests/tree-ground-check.test.js` in `just rig-tests`, each judgement shown failing
+with its check removed). Red first: the pre-fix sweep failed all three vantages on it.
+
+**New rig tools:** `{"hold":"forward","hold_s":"100"}` presses movement keys through the
+controller's own action path for that long (`src/engine/rig_walk.rs`), so a capture can
+arrive on foot the way a player does; `probe-sweep.js --vantages FILE` runs a one-off
+vantage list.
+
+**Still open:**
+- The near trees all stand on the surface of the FINEST drawn depth (the harvest anchors to
+  the max drawn depth and re-harvests when it changes). With the tile tier installed the
+  patches far from the camera draw coarser than that, so a far tree can sit off its own
+  patch by that patch's level-of-detail error; the readout's per-tree `leaf_depth` and
+  `gap_drawn_m` will show it. On this machine (no tiles) every patch was depth 13 and the
+  gap was the sink alone. Re-grounding each tree on the leaf drawn under it would close it.
+- The harvest does not re-run when a terrain tile arrives (only on 12 m of movement or a
+  max-depth change), so on a machine with tiles the bases can lag a tile arrival.
+- Inside a DEM region the patches still stop at the base-only depth 13 when no tile tier is
+  installed: the 13 m survey is drawn with 54 m triangles, up to about 2 m off the finest
+  ground under these trees, and the region's buildings and roads stand on the finest ground,
+  not on that coarse face.
 
 ## BUG-157: two data files are silently ignored: their field names do not match the code that reads them (FIXED v0.1462.0, found 2026-10-05)
 
@@ -4140,13 +4327,75 @@ loopback port (http://127.0.0.1:9; scripts/lib/rig-gameplay.js). Two faults toge
      server, unlocks, clicks the field and types "h", headlessly; seen red with B1's change
      and the edit holding nothing: "the first letter typed after a restart with no server
      was dialled".
+4. **The typing hold, its own state (FIXED, merging in v0.1463.0; the second seam review of
+   2026-10-05, items 3 and 10).** B5's hold set the Disconnect flag (`ws_manually_disconnected`)
+   on any edit of the Server field, whether or not a connection was up or coming up (the form
+   shows while a socket opens and while a dropped one waits to reconnect). Connect, and a saved
+   server's row, park the active connection first, and the flag went with it; the connection
+   that stayed kept it. A link marked that way is never re-armed or redialled
+   (engine/bg_connections.rs, engine/frame_ws_poll.rs). So on server A, typing B and pressing
+   Connect left A with no reconnect after its next drop (every deploy restarts the relay), and
+   its chat and DMs stopped for the session; a letter typed and deleted while A's socket opened
+   did the same to A itself; and an address typed while A waited to reconnect stopped A's
+   reconnect. Now the hold is its own state (`GuiState::server_field_draft`) and holds only the
+   dialling of the typed address. What the app dials by itself is `dial_address`
+   (src/gui/connections.rs): the field's address, or, while an address is being typed over a
+   connection, that connection's own server, so the backoff reconnect redials the dropped
+   connection and never the draft. lib.rs's auto-connect and backoff reconnect dial it, the
+   self-hosted fast path (frame_ws_poll.rs) compares it, and the DM store is loaded under it
+   (engine/dm.rs `ensure_dm_store`), so a DM row opened while a draft sits in the field does
+   not load the draft's store, which would take the connection's DMs once it is back up (no
+   test: the store reads the real DM folder). A switch takes nothing of the hold along. When the connection comes up its form is gone, and the draft gives way to its
+   address before any of its messages is filed (`active_socket_up`): the app reads the field as
+   the active server (the messages, the DM store, the saved servers), so a draft left there
+   filed them under the wrong server. An unlock no longer lifts the hold (an address never
+   connected is not dialled by itself); Connect and a saved server's row do. The teardown of a
+   dropped socket moved from frame_ws_poll.rs to `active_socket_dropped`, and the pump's
+   per-link steps to `link_frame` and `redial_due` (bg_connections.rs), so the tests run the
+   app's own steps. Tests in src/gui/pages/chat.rs, drawn, clicked and typed into headlessly,
+   every address a loopback port nothing listens on, each seen red with the hold as on 347c8f77b:
+   - `connecting_elsewhere_leaves_the_server_you_left_reconnecting_after_a_drop`: "A, parked
+     by Connect, was never redialled after its socket dropped".
+   - `an_edit_typed_and_deleted_leaves_the_connection_reconnecting_after_a_drop`: "an edit of
+     the Server field, typed and deleted, left the connection with no reconnect after its drop".
+   - `an_address_typed_during_a_reconnect_waits_and_the_connection_still_reconnects`: "an
+     address typed while A was reconnecting stopped A's reconnect".
+   - `the_dialling_paths_ask_these_decisions` (src/gui/connections.rs) also holds lib.rs's two
+     dialling paths to `dial_address` and the pump to the two socket handlers; seen red with
+     lib.rs as on 347c8f77b: "the auto-connect and the backoff reconnect do not dial
+     dial_address" (left: 0, right: 2).
+   - B5's `typing_into_the_empty_server_field_waits_for_connect` stays green: a half-typed
+     address in an empty field is still not dialled before Connect.
+
+   Connect saves the config, and a test build's save reached the person's real config.json:
+   `config::keep_saves_off_disk` keeps one test thread's saves off the disk.
+
+   **The onboarding's server step (item 10)** hinted the official server as a literal, said
+   "Default: united-humanity.us (the official community server)", and its Connect checked
+   "/health" for an empty field, which fails; a new player who cleared the field and pressed
+   Skip ended with no server, which is what an empty field means, after being told it had a
+   default. It now keeps the Chat page's rule: the empty field suggests `OFFICIAL_SERVER`, the
+   line under it says "With the field empty, Connect uses united-humanity.us, the official
+   community server.", Connect checks `connect_target` of the field and the field then holds it
+   (the ready step names it, the app dials it once setup is done), and an edit holds dialling as
+   on the Chat page: an address typed there and skipped is not dialled once setup is done, while
+   the address the step starts with, never edited, still is (chat connects by itself, as the
+   first-hour audit kept it). A test build records Connect's check instead of sending it. Tests
+   in src/gui/pages/main_menu.rs (`server_step_tests`), seen red with the step as on 347c8f77b:
+   `the_server_steps_connect_with_an_empty_field_uses_the_official_server` ("the server step's
+   Connect checked [\"/health\"] for an empty field"),
+   `the_server_step_says_what_an_empty_field_means_as_the_chat_page_does` ("the step still
+   calls the official server a default"), and
+   `an_address_typed_on_the_server_step_and_skipped_is_not_dialled` ("an address typed on the
+   server step and skipped was dialled once setup was done").
 
    **Still open:** clearing the field and quitting with nothing saved in between keeps the
    previous address, which comes back at the next launch: the field is written by Connect
-   and by every other save of the config, not by the edit itself. Saving at the edit is a
-   line in the connect form, but `AppConfig::save` has no test path, so its test would write
-   the real config.json. And an edit made while a connection attempt is still in progress
-   holds that connection's automatic reconnect too, until Connect.
+   and by every other save of the config, not by the edit itself. The reverse holds too: a
+   half-typed address that some other save writes to the config (the hold itself is not
+   saved) is dialled at the next launch. A test path for `AppConfig::save` exists now
+   (`keep_saves_off_disk`), so saving at the edit could be tested; whether the draft or the
+   connected address belongs in the config is a choice about the no-server rule, not made here.
 
 Checked 2026-10-05 (read-only): no member has joined the live server since 2026-10-01, so
 today's rig visits left no rows in its member list.
@@ -4255,3 +4504,346 @@ Bad, Helping Your Neighbours After a Disaster).
   src/systems/food.rs), so the litre of rehydration solution counts no more than a 500 mL
   bottle; at 20 points a litre it would be 20. A drink-volume fix changes the whole thirst
   economy and is its own change.
+
+## BUG-163: a data folder older than the game loads no status effects at all, and any registry could do the same (part 1 FIXED, next release; part 2 designed; found 2026-10-05)
+
+**Seen (the second seam review of the 2026-10-05 merges, item 2; confirmed on the operator's
+machine):** BUG-162 removed the `dispel_type` column from `data/status_effects.csv` and made a
+status effect row refuse a column it does not declare (`deny_unknown_fields`,
+`src/systems/status_effects.rs`). An installed game writes its data folder once, on its first
+run (`storage::extract_data_if_needed`), and an update replaces only the exe, so the folder
+keeps the files of the version that first ran. The one on the operator's machine,
+`%APPDATA%\HumanityOS\data`, written on 2026-07-11, still has `dispel_type`. The shared CSV
+parser skipped every refused row and returned the rest (`assets::loader::parse_csv`), and the
+registry loader used the copy built into the exe only when the file was MISSING
+(`engine::registries::load_data_registries`), so an installed copy reading that folder would load
+NONE of the 70 status effects: no slowdown from thirst, hunger, fatigue or cold, Well Fed heals
+nothing, Food Poisoning is no longer a disease, effects show their raw ids, medicines end nothing,
+and Settings > Gameplay > Illness says the illness lasts "about an hour" (`illness::mode_hint`
+read the same file the same way). The log held one warning per row, none naming the file.
+(A copy run from the checkout, `just launch` included, reads the checkout's own `data/`:
+`find_data_dir` prefers a source-tree data folder. The stale folder is what an installed copy
+run from anywhere else reads.)
+
+**Why it matters beyond this file:** every registry worked this way. Any data folder file the
+code can no longer read row by row (a column removed from a strict row type, a field made
+required, a value whose type changed) emptied its registry without a word a player could find,
+and a RON file that no longer parsed left its registry out of the game.
+
+**Fix, part 1 (2026-10-05): one rule every registry loads by.**
+`embedded_data::load_data_or_embedded(data_dir, rel, build)`, and `load_text_or_embedded` for a
+parser that takes text:
+- the data folder's file is built inside `assets::loader::refusing_rows`, where `parse_csv`
+  refuses the whole file at a row it cannot read (and counts the rest) instead of skipping it.
+  When it builds, it is used: a modded file still wins, whatever it changes, adds or leaves out;
+- otherwise (missing, unreadable, a row refused, does not parse) the copy built into the exe is
+  used, and ONE `[built-in data copy]` line names the file, the line, the row's id and column,
+  and why. On a copy of the operator's folder:
+
+      [built-in data copy] data/status_effects.csv: this version cannot read
+      ...\data\status_effects.csv: 67 of its 67 rows, the first at line 21 (strength_boost):
+      unknown field `dispel_type`, expected one of `id`, `name`, `type`, ...; this run uses
+      the copy compiled into the exe, not the file on disk
+
+  The rigs already refuse a run whose log has that marker (BUG-133), so a data edit this
+  version cannot read now fails a rig instead of half loading in it;
+- a file with no built-in copy (a modder's own file) keeps the old leniency: the rows that can
+  be read, each skipped one logged.
+
+`parse_csv` now names a skipped row by its line in the FILE (comments counted), its id and its
+column, where it used to give a record number in the comment-stripped text and no file, and it
+ignores a byte-order mark (older Notepad saves one) and blank lines. `environment/region_kinds.ron`
+and `manufacturing.ron`, the two registries the loader reads that had no built-in copy, now have
+one: the operator's folder predates both, so an installed copy ran with no environment regions
+and every craft ungraded.
+
+**Covered:** every registry `load_data_registries` loads (items, recipes and the tool rules,
+quality grades, plants, region kinds, climate, status effects, skills, equipment, creatures,
+abilities, travel destinations, construction blueprints, livestock and wild spawns, weather
+events, trade goods, vehicle kits, the container registry with each of its five files chosen on
+its own through `ContainerRegistry::types_from_csv` and its siblings, and the fluid table); the
+quests, through the new `QuestRegistry::load` (each shipped quest file by the rule, then a
+modder's own files beside them; before, a data folder without its quests/ loaded no quests at
+all); and the other loaders that parsed a data file and fell back to nothing: the illnesses and
+the Settings illness hint (`illness::hint_data`), the medical treatments, `food_system.ron` and
+the item profiles (the food system and the inventory's Eat and Drink list), grow media, tower
+cups and the grown-food model's plants and items, the starting kit (`world/player.ron`), the
+GUI's JSON tables, the Fibonacci homestead design, the tower configs, the home outline, the Dev
+page's species list, the Crafting page's recipe list (it read recipes.csv, items.csv and the
+vehicle kits from the disk alone, so a data folder without recipes.csv listed no recipes while
+the game could craft them) and the relay's fleet ledger prices. Humidity, garden nutrients, weeds,
+harvest windows, the death rules, the cosmos catalogue (`catalog_version`) and the ship file
+already fell back on a file they cannot read, and were left alone. `scripts/lib/compiled-in.js`
+holds every fn of embedded_data.rs that consults the built-in table to the
+disk-first-and-say-so rule, not only `read_data_or_embedded`.
+
+**Not covered, on purpose:**
+- the player's own files, which the game writes back through the editor's autosave
+  (`machines/*.ron`, `homes/*.ron`, BUG-151): their loaders are unchanged, because using the
+  built-in layout and then autosaving over the player's file is a decision about the player's
+  state (part 2's second question). The operator's July `machines/home.ron` and
+  `home_solo.ron` still parse;
+- text read only for display (the Maps page's star tables, the inventory card's item details,
+  which reads items.csv by column position) and `game.csv` (key and value, read by key);
+- a file this version CAN read but that is out of date. That is part 2, and on a copy of the
+  operator's folder it is most of what goes wrong: items.csv has 754 rows (987 today),
+  recipes.csv 362 (384), plants.csv 132 (189) and none of the 9 newer columns, creatures.csv 92
+  (101), equipment.csv no `clo` (nothing worn keeps the body warm), abilities.csv no `builds`,
+  containers/types.csv 11 (21), `world/player.ron` no `starting_items` (a new character starts
+  with an EMPTY kit), and `food_system.ron` lacks 36 nutrition profiles that today's item list
+  (built in, as his folder has none) names, so 90 foods and drinks are not edible, the water
+  bottle, purified water, milk and oral rehydration solution among them.
+
+**Part 2, designed, not built:** `docs/design/data-folder-updates.md`: stamp the folder with
+the version that wrote it and the hash of every file written; on a newer exe, refresh each file
+whose hash still matches and keep each one that was edited; never touch a folder that is a
+source tree or reached through a junction (every rig's is). It waits on the operator's answer
+to: when an update changes a file a player edited, keep the edit (recommended for now), replace
+it and keep the edit beside it, or move it into a local mod? (And a smaller one: should a home
+and machine layout nobody edited follow a new default?) Until it is built, an install is brought
+up to date by renaming its data folder so the next start writes a fresh one. The operator's has
+no edits (all 90 files carry the 2026-07-11 02:19:55 extraction time), so renaming it loses
+nothing. In-app debt: `docs/design/in-app-ops.md`, "A data folder older than the app".
+
+Tests, each seen failing first:
+- `engine::registries::tests::a_status_effects_file_with_an_old_column_loads_the_built_in_copy`, red on
+  main at 347c8f77b: "a status_effects.csv with an old column loaded 0 status effects, not the 70
+  built in"; and `a_status_effects_file_with_one_bad_row_loads_the_built_in_copy`, red on main: "a
+  status_effects.csv with one bad row loaded 1 status effects, not the 70 built in". Both also hold
+  that exactly one log line names the file and none is written per row, read back through the new
+  test-only `test_log::capture`;
+- `a_current_status_effects_file_on_disk_wins_over_the_built_in_copy`, which passes on main (mods
+  already won) and was seen red with the loader made to always use the built-in copy: "a current
+  status_effects.csv on disk was not used: 70 status effects loaded, not its 2";
+- `the_shipped_data_folder_loads_every_registry_without_a_warning` (passes on main too; red with an
+  unreadable row appended to abilities.csv: "... line 158 (junk_ability), column mana_cost: invalid
+  float literal") and `every_registry_here_loads_by_the_shared_rule` (red with a registry reading the
+  built-in table itself: "registries.rs loads a file with get_embedded, not load_data_or_embedded");
+- `illness::tests::the_settings_hint_names_the_course_with_a_data_folder_older_than_the_game`, red
+  with the hint's old read: "... Realistic: it lasts about an hour ...";
+- `quests::quest_tests::a_shipped_quest_file_the_game_cannot_read_comes_from_its_built_in_copy`, red
+  with `load` reading the folder alone: "the opening quest is missing when its file cannot be read";
+- `gui::loaders::crafting_recipes_load_tests::a_data_folder_without_recipes_lists_the_built_in_ones`,
+  red with the Crafting page's old disk-only read: "the built-in recipes are listed: 0 found";
+- the rule's own unit tests in `assets::loader` and `embedded_data` (new code, nothing older to run
+  them against), and three in `scripts/tests/compiled-in.test.js`, two of them red against the old
+  check (no problem named load_data_or_embedded).
+
+## BUG-164: at time speed 1 the body's needs, its health and an illness's countdown lose each frame to rounding (FIXED next release, found 2026-10-05)
+
+**Seen (item 1 of the second seam review of 2026-10-05, confirmed by new tests):** the body's
+meters are f32, and at time speed 1 a frame's share of a day's need is a few millionths of a
+point: thirst takes 0.0000096 of a point a frame at 60 frames a second, hunger 0.0000028,
+starving 0.0000014 of health. An f32 between 64 and 128 moves in steps of 0.0000076, so
+every frame's change was rounded to a whole number of steps, or to none. An effect's time
+left was an f32 too, and at two days (172,800 s) it moves in steps of 1/64 s. Through the
+real FoodSystem tick, from a full stomach (`src/systems/food_frame_rate_tests.rs`), on main
+at 347c8f77b:
+- "Forgiving at 60 frames a second, 10 game minutes: satiation fell 0.0000, its rate says
+  0.0992; Hydration fell 0.2747, its rate says 0.3472; energy fell 0.8240, its rate says
+  0.7813; the waste meter rose 0.2747, its rate says 0.2315; starving took health 0.0000,
+  its rate says 0.0496; the illness took water (points) 0.0000, its rate says 0.1042; the
+  illness's countdown ran 562.50 s while the clock ran 600.00 s"
+- Realistic at 60: the same, and "the illness took water (points) 0.2747, its rate says
+  0.2083" (1.32 times).
+- At 144: Hydration 0.6592 against 0.3472 (1.9 times), energy 0.6592 against 0.7813, the
+  waste meter and the illness's water 0; the countdown "ran 0.00 s" in Realistic and
+  675.00 s in Forgiving.
+- At 240: satiation, Hydration, the waste meter and the illness's water all 0, energy 1.0986
+  against 0.7813; the countdown "ran 0.00 s" in Realistic, 1125.00 s in Forgiving.
+- Twelve game hours and then the whole course (the ignored runs, 26 minutes in a debug
+  build): at 60, satiation fell 0.0000 of 7.1429 and Hydration 19.78 of 25.00, and the
+  illness "had not passed 2 minutes after its 24 h course" (Forgiving) or its 48 h course
+  (Realistic); at 144, Hydration fell 41.73 of 25.00 and Forgiving's illness "passed after
+  21.901 h"; at 240, Hydration fell 0.0000 of 25.00 in twelve hours and Forgiving's
+  illness passed after 22.302 h; Realistic's countdown "ran 0.00 s while the clock ran
+  43200.00 s" at both 144 and 240 and never ended.
+
+**Why it matters:** since v0.1005.1 (2026-07-27), when the needs moved to real-scale clocks,
+a new character (satiation 80) never got hungry at 60 frames a second; at 240 Hydration did
+not fall at all above 64 points unless the body sweated; starving never took health from a
+healthy body; and the waste meter stopped filling by itself above 64 at 144 frames a second
+(above 32 at 240), so at those rates only meals made anyone Unsanitary.
+The one clock (v0.1395.0, 3cef4709c) kept all of it at the default time speed 1, and BUG-162's
+illness inherited it: no water taken in Forgiving above 64 Hydration, and a Realistic illness
+that never passed on a 144 Hz display. The Library's How Your Body Works and When Food or
+Water Makes You Sick quoted the right rates (Hydration empties in about two days, Satiation
+in about a week, food poisoning lasts two days or one and takes 1.5 L a day or half); the
+game did not deliver them at frame rate. Every long test stepped minutes per tick, where
+the rounding is far below the change, which is how it went unseen (the illness tests stepped
+600 s; the water tanks' BUG-096 was the same defect).
+
+**Fix (2026-10-05): every per-frame change to the body is worked out in f64, and nothing
+f32 rounding holds back is lost** (`src/systems/food.rs`, the EXACT AT ANY FRAME RATE note).
+- An effect's time left is an f64 (`ActiveEffect::remaining`, `src/ecs/components.rs`);
+  `StatusEffects::apply` takes any duration that converts to f64, `tick_with` takes each
+  frame's step off the f64, and `StatusEffects::remaining` reads it. A save written with the
+  f32 loads unchanged (test below); the HUD's effect list converts it back
+  (`src/lib.rs`, one line).
+- The meters stay f32 for everything else that reads them (the HUD, the save, abilities,
+  combat). Each per-frame change goes through `change_exactly`, which works out the exact
+  result in f64, holds it within the meter's bounds, and keeps what rounding held back in
+  the body's `BodyCarry` for the next frame, the way the water tanks carry theirs
+  (BUG-096). The carry is under half an f32 step and is not saved. Through it now: satiation
+  (hunger), Hydration (the day's thirst, an illness's water and sweat), energy, oxygen
+  (breath, both ways), the waste meter, and Health (starving, drying out, suffocation, heat
+  and cold, a hard burn, and every effect's damage and healing).
+- `Illnesses::water_l` works in f64 (`src/systems/illness.rs`).
+- Checked and left as they were, because they had no such flaw: the body heat model (its
+  state is f64 since 2026-09-27; its per-frame sweat and harm are amounts, not sums, and now
+  land through the carry), the spoilage clocks (f64), the urine tank (f64), the conditions'
+  short timers and the real-second buffs (seconds to minutes, where an f32's step is far
+  below a frame).
+
+**Ill again while still ill (item 7 of the same review, fixed with it):** eating spoiled
+food, or a raw food's chance of illness, while Food Poisoning still lasted applied it again
+with `max(left, a fresh course)` and said nothing: a litre of rehydration solution drunk past
+its 24 hours, two hours before the end, made it two more days, silently. Now it does not
+start over. `data/medical/illnesses.ron` gives each illness `again_adds_h`, the most a
+second exposure adds to the time left (game hours of the Realistic course, Forgiving's
+course share of them, never past a fresh course), 0 for Food Poisoning: a labelled game
+choice, because the sources the file cites give how long a bout lasts and nothing about a
+second helping during it. The player is told in plain words either way: the illness's
+`again` line and the time it still has to run ("You are already ill with Food Poisoning, so
+this does not start it over. It still passes on its own in about 2 hours.";
+`Illnesses::again`, `Illnesses::again_notice`). The two Library guides say so.
+
+**Tests:**
+- `src/systems/food_frame_rate_tests.rs`, through the real FoodSystem tick at 1/60, 1/144
+  and 1/240 of a game second at time speed 1, from a full stomach: six ten-minute runs that
+  always run (both Illness modes at each rate: satiation, Hydration with the body heat
+  model's own sweat, energy and the waste meter each within one percent of its rate, a
+  starving adult's health within one percent of starvation's, the illness's water within
+  one percent of its data, and its countdown within a second of the clock), and six
+  whole-course runs, ignored by default for their length (a tick costs about 40
+  microseconds in a debug build, so they took 26 minutes red): the same over twelve game
+  hours, then the illness must pass within a minute of its course. All twelve seen red on
+  main at 347c8f77b with the messages above, and all twelve pass with the fix (the
+  whole-course runs in 24.5 minutes, six at once).
+- `illness_tests::eating_spoiled_food_again_while_ill_does_not_start_the_illness_over`, seen
+  red: "ill again two hours before the end: it had not passed 24 h later (it was due in 2
+  h), and the player was told \"\"".
+- `illness::tests::being_ill_again_adds_at_most_what_the_data_says` and
+  `being_ill_again_is_told_in_plain_words` (the rule with an illness whose data adds six
+  hours, both modes, the fresh-course cap); `save_load::body_tests::a_body_saved_with_f32_timers_still_loads`.
+
+**Left:**
+- `src/systems/fire.rs` takes a fire's damage from Health each frame in f32 (1 a second at
+  full intensity). At full intensity that is hundreds of f32 steps a frame, so the error is
+  under 0.1 percent; on a fire burning down to a twentieth of its intensity it nears 2
+  percent. Not the body's own system, so left with this note.
+- The whole-course runs are ignored by default; run them with
+  `cargo test --features native --lib -- --ignored frame_rate_tests`.
+
+## BUG-165: the rig's scripted walk walks backwards and never turns the camera (FIXED next release, found 2026-10-05)
+
+**Seen:** the operator, watching a co-presence rig run on his screen: "the walk through that
+you're showing is walking backwards instead of forwards", and "It doesn't actually look like
+the camera rotates at all while walking around. It seems like you're just using WASD instead
+of also using the mouse movement."
+
+**Cause:** the showcase `walk_to` verb ("x,y,z,yaw,pitch,speed",
+`src/engine/move_check.rs`) set the camera's yaw and pitch to the walk's FINAL facing on every
+frame while it moved the camera along its line. And the rig (`scripts/verify-copresence.js`
+`walkRoute`) asked every point of a route for that one facing, the one the camera had before
+the walk, so wherever a route headed anywhere else the camera slid sideways or backwards
+through the ship without ever turning. The game's figure on the other players' screens did the
+same, because the facing it sends is the camera's yaw.
+
+**Fix (2026-10-05):**
+- `walk_step` (`src/engine/move_check.rs`) walks it the way a person does with the mouse and W:
+  it turns to face the way to the point, looking level, and walks on as the facing comes round
+  (it stands and turns while 60 degrees or more off the way, keeps its whole pace within 15
+  degrees, easing between, so it never crabs sideways at speed); at the point it turns where it
+  stands to the facing asked for, and only then is the walk over (the probe's `moves.walking`,
+  which the rig waits on, stays true through that turn). The line it walks is unchanged, so
+  the routes the rig plans through the doors are walked exactly. The stride rule stays: a step
+  is at most 0.1 s of walking and of turning.
+- The turn is `src/turning.rs`, new: the quickest turn that never goes faster than its rate and
+  changes speed by no more than its acceleration, slowing in time to stop exactly on the
+  heading (braking counted in whole frames, so no frame rate swings it past), and following a
+  heading that moves from whatever speed it has. The camera turns with `LOOK`: at most 150
+  degrees a second, reached in a quarter of a second, so a quarter turn takes about 0.8 s and a
+  half turn about 1.4 s.
+- The rig walks a route facing along it: each door is asked for "the way this leg walks",
+  level (`routeFacings`, `walkYaw` in `scripts/lib/copresence-judge.js`), and only the last
+  point for the facing wanted there. The meeting walk now ends facing the line the walker
+  walks (MEET_POSE's yaw), so the `cam` turn after it only stands the camera exactly there.
+- Checked, and nothing to change: no rig judge reads the camera's facing during one of the
+  game's walks. The pass judge's view check (`judgeCopresence`) reads the camera only while
+  the game stands parked for the walker's pass, the crew look is judged after the turn to
+  CREW_POSE, the nameplate check uses the parked meeting yaw, and `judgeWalks` and
+  `turnInPlace` compare positions. Every walk's wait (its walking time plus 15 s) covers the
+  turns, at most about 1.5 s at each end.
+
+**Tests:** `src/engine/move_check.rs`, on one walk whose route heads opposite to its final
+facing (from looking along +x and 17 degrees up, 20 m along +z, asked to end looking back
+along -z and 23 degrees down), all three seen red on main (0f8b30944):
+- `the_rig_faces_the_way_it_walks`: "0.02 s into the walk it moved 0.100 m while looking
+  180.0 degrees away from the way it walked".
+- `the_rig_turns_to_the_asked_facing_only_after_it_arrives`: "the walk was over the frame it
+  reached the point, looking 180.0 degrees away from the way it walked: it never turned there".
+- `the_rig_turns_no_faster_than_a_person`: "frame 1 turned the camera at 5400 degrees a
+  second; a person turns at most 150".
+- `a_long_frame_never_makes_a_long_stride` guards the stride rule (green before too).
+- `src/turning.rs`: the turn keeps its limits and lands on its heading at 240, 60 and 30 frames
+  a second and at the 0.1 s cap, goes the short way round, follows a heading that moves, and
+  caps a long frame.
+- `scripts/tests/copresence-judge.test.js` "walks: a route faces along its legs and turns to
+  the asked facing only at its end", seen red: every point of a 3-point route was asked
+  `{ yaw: 3.14159, pitch: -0.05 }`.
+
+**Rig legs to rerun:** `verify-copresence --plots`: every leg that walks the game (meet, the
+crew look, guest_far, the jump's nudge, the teleporter's step off, walk_away, editorjump,
+walk_away2). Not booted here.
+
+## BUG-166: crew figures turn in a snap, and one that stops can snap back to an old facing (FIXED next release, found 2026-10-05)
+
+**Reported as** every crew figure facing +z whichever way it walks: the relay's chore AI
+moves crew members (`step_toward`, `src/relay/handlers/game_state.rs`) and never sets their
+rotation. **Checked:** the game already turned each crew figure along its path, at each relay
+update (the NpcUpdate arm of `src/net/sync.rs`, since 2026-07-01), so a crew member walking
++x or -z was drawn facing it. A new test of that is green on main. What was wrong:
+- An update that did not move the figure kept its last turn and started it again. The relay
+  repeats where a crew member stands in its arrival, chore-done and next-chore updates, so a
+  figure whose walk lasted one update (a chore half a metre from the last) snapped back to the
+  facing it had before that walk, then turned again.
+- Every turn took the half second of the position's interpolation, whatever its size: a turn
+  back went at 540 degrees a second at its middle, a turn of ten degrees at 30 degrees a second.
+
+**Fix (2026-10-05):** each crew figure faces the way it is DRAWN walking, worked out every
+frame from its own motion (`RemoteNpc::heading`, the floor direction of the step it is drawn
+across, and `RemoteNpc::facing`, turning toward it with `turning::BODY`: at most 360 degrees a
+second, reached in a fifth of a second, a half turn in about 0.7 s). Standing still it keeps
+the way it last walked. Facing is cosmetic, so it stays on each screen and is never sent: the
+wire is unchanged, the relay still sends where a crew member is.
+
+**Tests** (`src/net/sync.rs`, a crew member walked the way the relay walks one, an update
+every half second at 1.1 m/s, drawn at 60 frames a second, its facing read off the figure
+`crew_figure_parts` builds):
+- `a_crew_figure_faces_the_way_it_walks`: walking east it faces east, walking north (-z)
+  north. Green on main too (above), kept as the guard.
+- `a_crew_member_that_stops_keeps_its_last_facing`, seen red on main (0f8b30944): "0.52 s in,
+  standing still, the figure faced 89.7 degrees away from east, the way it last walked".
+- `a_crew_figure_turns_round_smoothly`, seen red on main: "2.25 s in the figure turned at 539
+  degrees a second; a person turns on the spot at 360".
+
+**Other players' figures, checked for the same fault:** a player's figure faces the yaw their
+client sends (`player_face`), their camera's. A person walking with W walks the way they look,
+so they are drawn facing forward; walking back with S or sideways with A and D they are drawn
+moving backwards or sideways, because they are (there is no walking animation yet to show a
+step back or aside). Driving goes where the driver looks. The one path that drew a walking
+player facing the wrong way was the rig's own walk, BUG-165 above, now fixed. The scripted
+second player (`scripts/second-player.js`) faces its own velocity (`facingQuat`), so it never
+walks backwards, but it turns in one update: at each end of its line, and at each corner of
+its route, its figure turns round in the 1/15 s between two updates. That is the same snap as
+the crew's, left as it was (it is the rig's walker, and no judge reads its facing); the fix
+would turn its facing toward its velocity with the same limits.
+
+**Rig legs to rerun:** `verify-copresence --plots`, the crew look (`crew_seen` counts the amber
+body under a name in crew.png, and the figures now stand turned along their walks); the other
+crew judges read positions only. Not booted here.
+
+**Left:** the crew's position still eases to a stop at every update (a smooth step over the
+half second between two of them), so a walking crew member slows and speeds up twice a
+second, the stop-go `SnapshotBuffer` fixed for players (2026-10-02).

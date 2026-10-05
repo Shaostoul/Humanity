@@ -240,23 +240,11 @@ pub(crate) fn publish(state: &mut EngineState) {
                 // The air where they stand (2026-10-05, BUG-155): a grow room's
                 // own when they stand in one (its heaters' warmth and its damp
                 // with it), else the home's own air, warmed by any heater in it.
-                // A heater warms the AIR; a fire warms the SURROUNDINGS, from
-                // that air (`warmed_by_fires`, BUG-153), so were a fire ever to
-                // burn aboard the two would add up, not replace each other
-                // (`a_heaters_warm_air_and_a_fires_warmth_add_up`).
+                // And the warmth of any fire they can see (BUG-153), which is
+                // none aboard today (`fire_warmth`), on top of that air
+                // (`inside_home_context`).
                 let grow_room = crate::systems::farming::humidity::grow_room_air_at(&state.game_world.world, &state.data_store, pos.to_array());
-                let base = EnvironmentContext::default();
-                let (air_c, rh, kpa) = indoor_air(home, grow_room, &base);
-                EnvironmentContext {
-                    oxygenated: breathable,
-                    ambient_temp_c: air_c,
-                    relative_humidity: rh,
-                    pressure_kpa: kpa,
-                    activity_met: activity,
-                    // A sealed hull stops vacuum, not acceleration.
-                    g_load: felt_g_now,
-                    ..base
-                }
+                inside_home_context(home, grow_room, breathable, activity, felt_g_now, fire_warmth(state))
             }
             // The ship's shared spaces (the Commons, First Street, the corridors, a neighbour's
             // plot): the ship's own air, kept by its life support at the standard a home starts at
@@ -380,6 +368,39 @@ pub(crate) fn indoor_air(home: Option<(f32, f32, f32)>, grow_room: Option<(f64, 
     }
 }
 
+/// The context INSIDE the player's own home, as `publish` builds it: sealed,
+/// still air at the air where they stand (`indoor_air`: a grow room's own,
+/// else the home's own, each with any heater's warmth in it), oxygenated
+/// while the life-support air is breathable, felt at the drive's g-load, with
+/// the warmth of the fires they can see (`warmed_by_fires`, W per m2 their
+/// body takes) on top of that air: a heater warms the AIR, a fire the
+/// SURROUNDINGS, so the two add up and neither replaces the other. No fire
+/// burns aboard today (`fire_warmth` gives 0 there), so in play `fire_w_m2`
+/// is 0 and only the heater's air reaches the body. Pure, so the chain is
+/// tested (`a_heaters_warm_air_and_a_fires_warmth_add_up`).
+pub(crate) fn inside_home_context(
+    home: Option<(f32, f32, f32)>,
+    grow_room: Option<(f64, f64)>,
+    breathable: bool,
+    activity_met: f32,
+    g_load: f32,
+    fire_w_m2: f64,
+) -> EnvironmentContext {
+    let base = EnvironmentContext::default();
+    let (air_c, rh, kpa) = indoor_air(home, grow_room, &base);
+    let inside = EnvironmentContext {
+        oxygenated: breathable,
+        ambient_temp_c: air_c,
+        relative_humidity: rh,
+        pressure_kpa: kpa,
+        activity_met,
+        // A sealed hull stops vacuum, not acceleration.
+        g_load,
+        ..base
+    };
+    warmed_by_fires(inside, fire_w_m2)
+}
+
 /// THE home's air: temperature (C), relative humidity (0 to 1) and pressure
 /// (kPa), from its enclosed space (`atmosphere::HomeAir`). None before the
 /// home is spawned. Its temperature carries what heaters have warmed it by
@@ -416,33 +437,49 @@ mod tests {
         assert_eq!(indoor_air(None, None, &base), (base.ambient_temp_c, base.relative_humidity, base.pressure_kpa));
     }
 
-    /// A HEATER'S WARM AIR AND A FIRE'S WARMTH ADD UP (BUG-155 with BUG-153,
-    /// 2026-10-05). A heater warms the AIR the body is in (`indoor_air`, the
-    /// ambient temperature); a fire warms its SURROUNDINGS (`warmed_by_fires`,
-    /// the mean radiant temperature), starting from that air when nothing else
-    /// sets them. So neither replaces the other: the fire's warmth goes on top
-    /// of the air the heater warmed. No fire burns aboard and no heater stands
-    /// outside today, so the two never meet in one frame; this holds the
-    /// contract for the day they do. In a greenhouse a heater has warmed to
-    /// 22.05 C with a campfire's 130 W/m2 (about what a body takes 1.5 m from
-    /// one), the body keeps the heater's air, its surroundings are warmer than
-    /// with the fire alone, and after an hour its skin is warmer than with
-    /// either alone. Red with `warmed_by_fires` setting the radiant temperature
-    /// from the rooms' fixed 21 C instead of the context's air: the heater's
-    /// warmth was lost under the fire's.
+    /// A HEATER'S WARM AIR AND A FIRE'S WARMTH ADD UP, in the context
+    /// `publish` builds inside the home (`inside_home_context`; BUG-155 with
+    /// BUG-153, 2026-10-05). A heater warms the AIR the body is in (the
+    /// ambient temperature); a fire warms its SURROUNDINGS (the mean radiant
+    /// temperature), starting from that air. So neither replaces the other:
+    /// the fire's warmth goes on top of the air the heater warmed. No fire
+    /// burns aboard today (`fire_warmth` gives 0 there), so in play the fire
+    /// term is 0; this holds the contract for the day one does. In a
+    /// greenhouse a heater has warmed to 22.05 C, with a campfire's 130 W/m2
+    /// (about what a body takes 1.5 m from one), the body keeps the heater's
+    /// air, its surroundings are warmer than with the fire alone, and after an
+    /// hour its skin is warmer than with either alone; and the rest is the
+    /// sealed home's context.
+    ///
+    /// Rewritten the same day (the second seam review): the first version
+    /// built its own context from `indoor_air` and `warmed_by_fires`, a
+    /// combination `publish` never made (its inside-the-home branch had no
+    /// fire term), so it could not fail for the real path. This one calls the
+    /// function `publish` calls. Seen red on that branch as it was (moved into
+    /// `inside_home_context` unchanged, the fire's warmth dropped):
+    ///   assertion `left == right` failed: the fire's warmth on top of the
+    ///   heater's air (left: 22.05, right: 42.179012)
+    /// Also red with `warmed_by_fires` setting the radiant temperature from
+    /// the rooms' fixed 21 C instead of the context's air: the heater's
+    /// warmth was lost under the fire's (left: 41.318604, right: 42.179012).
     #[test]
     fn a_heaters_warm_air_and_a_fires_warmth_add_up() {
-        let base = EnvironmentContext::default();
         let home = Some((19.85_f32, 0.5_f32, 101.3_f32));
-        let indoors = |grow_room: Option<(f64, f64)>| {
-            let (air_c, rh, kpa) = indoor_air(home, grow_room, &base);
-            EnvironmentContext { ambient_temp_c: air_c, relative_humidity: rh, pressure_kpa: kpa, ..base }
+        let inside = |grow_room: Option<(f64, f64)>, fire_w_m2: f64| {
+            inside_home_context(home, grow_room, true, body_heat::MET_STANDING, 1.0, fire_w_m2)
         };
         let flux = 130.0;
-        let neither = indoors(None);
-        let heater = indoors(Some((22.05, 0.5)));
-        let fire = warmed_by_fires(indoors(None), flux);
-        let both = warmed_by_fires(indoors(Some((22.05, 0.5))), flux);
+        let neither = inside(None, 0.0);
+        let heater = inside(Some((22.05, 0.5)), 0.0);
+        let fire = inside(None, flux);
+        let both = inside(Some((22.05, 0.5)), flux);
+        // The sealed home's context, whatever warms it: still, dry, out of the
+        // weather, at the home's pressure, breathing its air.
+        for c in [&neither, &heater, &fire, &both] {
+            assert!(c.sealed && c.oxygenated, "sealed and breathable: {c:?}");
+            assert_eq!((c.wind_m_s, c.precipitation, c.pressure_kpa, c.g_load), (0.0, 0.0, 101.3, 1.0), "{c:?}");
+        }
+        assert_eq!(neither.radiant_temp_c, None, "with no fire the surroundings are the air's");
         assert_eq!(both.ambient_temp_c, 22.05, "the fire leaves the heater's air alone");
         let radiant = |c: &EnvironmentContext| c.radiant_temp_c.unwrap_or(c.ambient_temp_c);
         assert_eq!(radiant(&both), body_heat::radiant_with_source_c(22.05, flux), "the fire's warmth on top of the heater's air");

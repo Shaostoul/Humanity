@@ -61,17 +61,14 @@ impl ToolRules {
     }
 }
 
-/// Read the rules from the data folder (or the copy built into the exe). A
-/// missing or broken file means no tool requirements, never a broken game.
+/// Read the rules from the data folder, or the copy built into the exe when the
+/// folder's is missing or this version cannot read it (BUG-163). Neither means
+/// no tool requirements, never a broken game.
 pub fn load(data_dir: &std::path::Path) -> ToolRules {
-    match crate::embedded_data::read_data_or_embedded(data_dir, ToolRules::FILE).map(|s| ToolRules::from_ron(s.as_bytes())) {
-        Some(Ok(r)) => r,
-        Some(Err(e)) => {
-            log::warn!("{e}; crafting needs no tools this session");
-            ToolRules::default()
-        }
-        None => ToolRules::default(),
-    }
+    crate::embedded_data::load_data_or_embedded(data_dir, ToolRules::FILE, ToolRules::from_ron).unwrap_or_else(|e| {
+        log::warn!("{e}; crafting needs no tools this session");
+        ToolRules::default()
+    })
 }
 
 #[cfg(test)]

@@ -263,6 +263,75 @@
         "pan_yaw_deg": -40,
         "pan_pitch_deg": -14
       }
+    },
+    {
+      "id": "silverdale-waterfront-on-foot",
+      "title": "On foot above Dyes Inlet, Silverdale",
+      "caption": "Standing in Silverdale, Washington, a short walk above Dyes Inlet: real elevation data, real trees on the slope, and the ground right where it should be.",
+      "camera": {
+        "body": "earth",
+        "lat": 47.645,
+        "lon": -122.695,
+        "altitude_km": 0.3,
+        "look_offset_deg": 80,
+        "time": 15.5
+      },
+      "showcase": {
+        "sea": "0.3",
+        "weather": "clear",
+        "cloud_cover": "0.2"
+      },
+      "final_showcase": {
+        "stand": "0,1.7,-200,250,4",
+        "stand_at": "47.645,-122.695",
+        "walk": "1"
+      },
+      "final_settle_s": 8,
+      "settle_s": 14,
+      "record": {
+        "seconds": 12,
+        "warmup_s": 3,
+        "pan_yaw_deg": 60
+      }
+    },
+    {
+      "id": "first-street-twelve-homes",
+      "title": "Down First Street: twelve homes on one ship",
+      "caption": "Twelve homes in a row along First Street, aboard one ship in orbit, so twelve people on a server each get a home of their own.",
+      "camera": {
+        "station": "home",
+        "pose": "30,55,-45,3.14159265,-0.55",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "hull": "0"
+      },
+      "settle_s": 10,
+      "record": {
+        "seconds": 14,
+        "warmup_s": 2,
+        "path": [
+          [
+            0,
+            30,
+            55,
+            -45,
+            3.14159265,
+            -0.55
+          ],
+          [
+            14,
+            30,
+            62,
+            200,
+            3.14159265,
+            -0.5
+          ]
+        ]
+      }
     }
   ]
 }

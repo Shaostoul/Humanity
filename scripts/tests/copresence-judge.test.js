@@ -1480,6 +1480,26 @@ test("walks: every walk arrived and every turn was in place, or FAIL", () => {
   assert.equal(judgeWalks([], []).checks[0].ok, false, "no walk recorded fails");
 });
 
+// BUG-165: the game walks a route the way a person does, facing each leg, and turns to the facing
+// the rig asked for only at the route's end. FAILED on main (every point of a route was asked the
+// end's facing, so at every door the camera turned to it and back again).
+const { walkYaw, routeFacings } = require("../lib/copresence-judge.js");
+
+test("walks: a route faces along its legs and turns to the asked facing only at its end", () => {
+  assert.deepEqual(routeFacings(3, 3.14159, -0.05), [{ yaw: null, pitch: 0 }, { yaw: null, pitch: 0 }, { yaw: 3.14159, pitch: -0.05 }], "the doors on the way are walked to facing the leg, level");
+  assert.deepEqual(routeFacings(1, 0.5, 0.1), [{ yaw: 0.5, pitch: 0.1 }], "a one-point route is its end");
+  assert.deepEqual(routeFacings(0, 0.5, 0.1), []);
+});
+
+test("walks: the way a leg looks is the camera's yaw along it", () => {
+  // The camera looks along (sin yaw, 0, -cos yaw) (renderer/camera.rs forward).
+  assert.equal(walkYaw([0, 1.7, 0], [0, 1.7, -5]), 0, "north (-z) is yaw 0");
+  assert.ok(Math.abs(walkYaw([0, 1.7, 0], [5, 1.7, 0]) - Math.PI / 2) < 1e-12, "east (+x) a quarter turn");
+  assert.ok(Math.abs(Math.abs(walkYaw([0, 1.7, 0], [0, 1.7, 5])) - Math.PI) < 1e-12, "south (+z) a half turn");
+  assert.ok(Math.abs(walkYaw([1, 0, 1], [-4, 9, 1]) + Math.PI / 2) < 1e-12, "west, whatever the height");
+  assert.equal(walkYaw([3, 1.7, 3], [3.01, 1.7, 3.02], 0.7), 0.7, "a leg of 2 cm has no way to look: as the camera was");
+});
+
 const shipReport = () => ({
   places: [
     { id: "zone:commons", kind: "zone", purpose: "commons", min: [65, 0, 20], max: [99, 8, 75], door: null, own: false },

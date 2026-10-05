@@ -478,9 +478,10 @@ abstracted single steps that hide enormous real infrastructure:
    `e_waste_processor` at 3 kW) lets you *recycle* existing metal, but you
    can't bootstrap virgin metal solo.
 
-3. **Medicine synthesis.** `recipes.csv` `craft_antibiotics` ("Culture and
-   extract antimicrobial compounds," water+flour+sugar → antibiotics) and
-   `craft_medkit_full` exist, and `medical.ron` treats broken bones,
+3. **Medicine synthesis.** `recipes.csv` had `craft_antibiotics` ("Culture and
+   extract antimicrobial compounds," water+flour+sugar → antibiotics; removed
+   2026-10-05: nothing made that way is an antibiotic, and the trading post
+   sells them), `craft_medkit_full` packs bought ones, and `medical.ron` treats broken bones,
    infections, poisoning. But real antibiotic, insulin, vaccine, or
    analgesic synthesis needs pharmaceutical-grade fermentation,
    purification, and QC — a hospital/industry, not a `chemistry_set_0`.

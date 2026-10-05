@@ -1,5 +1,7 @@
 // Fluids are litres (2026-09-26; docs/design/containers.md, increment 3d).
-// Read by src/systems/fluids.rs.
+// Read by src/systems/fluids.rs, and the `tap` list by the trading post's parts
+// prices too (src/systems/economy/parts.rs, 2026-10-05): what a craft draws from
+// the home's tanks costs it nothing, so a change here moves those prices.
 (
     // Items that ARE a measure of tap water. A recipe or use that needs one
     // draws it from the home's water tanks when the backpack has none, the

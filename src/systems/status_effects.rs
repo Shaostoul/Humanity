@@ -14,12 +14,18 @@ use serde::Deserialize;
 /// One row of `data/status_effects.csv`.
 ///
 /// EVERY COLUMN IS A FIELD (BUG-162, 2026-10-05). The loader refuses a row with
-/// a column this struct does not declare (`deny_unknown_fields`; the shared CSV
-/// loader logs and skips it), so a column can no longer sit in the data while
-/// the code silently drops it, as `dispel_type` did: it promised that medicine
-/// cures an effect while nothing read it. A test holds every shipped row
-/// loading and a row with an unknown column refused. A new column needs a field
-/// here, and a use or a stated reason why it has none yet.
+/// a column this struct does not declare (`deny_unknown_fields`), so a column can
+/// no longer sit in the data while the code silently drops it, as `dispel_type`
+/// did: it promised that medicine cures an effect while nothing read it. A test
+/// holds every shipped row loading and a row with an unknown column refused. A
+/// new column needs a field here, and a use or a stated reason why it has none
+/// yet.
+///
+/// The game loads the file through `embedded_data::load_data_or_embedded`
+/// (BUG-163): a data folder's copy with a refused row, such as one written
+/// before 2026-10-05 that still has `dispel_type`, is set aside for the copy
+/// built into the exe, with one log line saying why, instead of loading an
+/// empty registry.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StatusEffectDef {
@@ -161,6 +167,25 @@ impl StatusEffectRegistry {
     pub fn is_empty(&self) -> bool {
         self.effects.is_empty()
     }
+}
+
+/// `csv` (a status_effects.csv) with the `dispel_type` column BUG-162 removed put
+/// back at the end of its header and of every row: the file a data folder written
+/// before 2026-10-05 holds, as far as the code is concerned (BUG-163).
+#[cfg(test)]
+pub(crate) fn with_old_dispel_type_column(csv: &str) -> String {
+    csv.lines()
+        .map(|l| {
+            if l.starts_with("id,") {
+                format!("{l},dispel_type")
+            } else if l.trim().is_empty() || l.trim_start().starts_with('#') {
+                l.to_string()
+            } else {
+                format!("{l},none")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 #[cfg(test)]

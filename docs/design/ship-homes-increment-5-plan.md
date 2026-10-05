@@ -7,7 +7,7 @@ Date: 2026-10-05. Read against main at 2405e95d2 (v0.1462.x). Sources: docs/desi
 ## 0. In short
 
 - A building piece is a relay-held record in a FRAME: `plot:<id>` (pose relative to the plot's corner), `zone:<id>` (a shared space), `site:<id>` reserved for planets. Seven stateless shell blueprints are shareable (`shared: true`).
-- In the shared world: you place/remove shareable pieces only on your own plot, or on a plot whose holder signed you a household permit (`hum/permit/v1\n{plot}\n{grantee}\n{expiry}`, checked statelessly like `verify_friend_cert`). Owner removes anything on their plot; permit holder only their own pieces; visitor nothing; admins may remove anything.
+- In the shared world: you place/remove shareable pieces only on your own plot, or on a plot whose holder signed you a household permit (`hum/permit/v1\n{server}\n{plot}\n{grantee}\n{expiry}`, where `{server}` is the relay's own `did:hum:`, so a permit works only on the server it was given on (added 2026-10-05 after Wave 0); checked statelessly like `verify_friend_cert`). Owner removes anything on their plot; permit holder only their own pieces; visitor nothing; admins may remove anything.
 - Shared spaces (`zone:*`) need the server rank `can_edit_ship` (new roles column, guarded ALTER after the main schema, no index; BUG-046 rule).
 - Local Dev mode no longer edits the ship structure (B editor's ship scope, E-key "build anywhere") while in a shared world; offline Dev keeps everything.
 - Relay stores pieces in a new `world_pieces` table, keeps a per-frame seq, sends each player the snapshot of every frame in view (same 250/300 m radii as increment 4's delivery), and refuses with a reason code plus one plain sentence.
@@ -114,7 +114,7 @@ Client to relay:
 - `game_build {type, req_id: u32, frame, blueprint_id, position[3], rotation[4], scale[3], permit?}`; pose frame-local.
 - `game_unbuild {type, req_id: u32, piece_id: u64, permit?}`.
 - `game_pieces_request {type, frame}` (resync after a seq gap; 1 s bucket).
-- `permit` object: `{issuer: <Dilithium hex>, plot: "p3", grantee: <grantee's did:hum>, expiry: <unix s>, sig: <base64>}`; preimage exactly `hum/permit/v1\n{plot}\n{grantee}\n{expiry}`.
+- `permit` object: `{issuer: <Dilithium hex>, plot: "p3", grantee: <grantee's did:hum>, expiry: <unix s>, sig: <base64>}`; preimage exactly `hum/permit/v1\n{server}\n{plot}\n{grantee}\n{expiry}` (`{server}` = the relay's own `did:hum:`, passed by the relay as a fact; the wire `permit` also carries `server`, which the relay never reads).
 Relay to client:
 - `game_built {type, frame, seq, server_time, piece{piece_id, blueprint_id, position, rotation, scale, placed_at}}` to every player with the frame in view; the builder's copy adds `req_id` and `mine: true`.
 - `game_unbuilt {type, frame, seq, piece_id}`; the remover's copy adds `req_id`.
@@ -183,7 +183,7 @@ Tests:
 - `shared_only_on_stateless_blueprints` (no stations, generates, power_watts, doorway, storage/rest/crafting provides; the seven are flagged): red before basic.ron gains the flags ("wood_wall is not shareable").
 - `frames_of_the_shipped_ship` (2 zones + 12 plots, no `home`, `frame_at` picks p3 for a point in p3, round trip local/ship exact): red with `home` not filtered.
 - `a_footprint_over_the_plot_line_is_outside` (the build_place.rs:529 cases moved here): red with the 0.15 m slack doubled.
-- `plot_permit_roundtrip_and_pinned_preimage` (pinned "hum/permit/v1\np3\ndid:hum:abc\n0"; wrong plot, grantee, expiry, issuer fail): red with the fields swapped in the preimage.
+- `plot_permit_roundtrip_and_pinned_preimage` (pinned "hum/permit/v1\ndid:hum:srv\np3\ndid:hum:abc\n0" since 6e0174cd7, plus `a_permit_given_on_one_server_is_refused_on_another`; wrong plot, grantee, expiry, issuer fail): red with the fields swapped in the preimage.
 
 ### Wave 1 (three builders in parallel, plus the rig writer)
 1A Relay storage and the rank. Files: src/relay/storage/mod.rs (table batch after :728; CREATE column, guarded ALTER + admin UPDATE between :1418 and :1424, seed tuple; `mod world_pieces`), NEW src/relay/storage/world_pieces.rs, src/relay/storage/roles.rs, src/relay/storage/account.rs (grab, del, EXISTS line), src/gui/pages/server_settings.rs (header "Edit ship" at :2371-2375, row checkbox :2491-2495, add-form checkbox :2535-2539), data/admin/ops_registry.json (roles entry :311-315 names the new permission).
