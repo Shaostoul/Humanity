@@ -1001,6 +1001,31 @@
             category: "Food",
             stats: [(kind: "food", value: "750 days stored", status: "ok"), (kind: "storage", value: "85%", status: "ok")],
         ),
+        // THE FIRST QUESTS' STATIONS (2026-10-04, the first-hour audit's B4). A hand craft
+        // needs its recipe's station placed in the home, and this home placed no smelter and
+        // no workbench: a one-person player could never smelt the first iron ingot (the only
+        // smelter a player can build, the furnace in data/blueprints/basic.ron, takes 3 iron
+        // ingots) nor forge the hammer after it. One small smelter and one workbench, the
+        // same machines as home.ron's, where the family home has its forge and workshop.
+        // homestead-solo-design.md section 8 already allows a homestead small metal jobs;
+        // what one home cannot do is mine and refine at scale, and the ore still comes from
+        // outside, by drone or trade. The test that holds every shipped home to the starter
+        // quests: every_shipped_home_has_what_the_starter_quests_need (src/machines.rs).
+        "smelter": (
+            shape: "box", size: (0.7, 0.9, 0.7), color: (0.55, 0.22, 0.12),
+            label: "Smelter",
+            category: "Production",
+            stats: [(kind: "heat", value: "1200 C", status: "ok"), (kind: "power", value: "-1.0 kWh/d", status: "warn")],
+            auto_recipe: Some("smelt_iron"),
+        ),
+        "workbench": (
+            shape: "box", size: (1.2, 0.9, 0.6), color: (0.45, 0.35, 0.22),
+            label: "Workbench",
+            category: "Production",
+            stats: [(kind: "progress", value: "auto-crafting", status: "ok")],
+            auto_recipe: Some("craft_hammer"),
+            auto_keep: Some(2),
+        ),
     },
 
     // Placed instances, one-person BOM from homestead-solo-design.md sections 1-5:
@@ -1604,6 +1629,24 @@
             machine: "grain_silo",
             room: "room-barn",
             offset: (45.0, 0.0, 78.0),
+            rotation: 0.0,
+            zone: "home",
+        ),
+        // The first quests' stations (2026-10-04, see the catalog), at the spots home.ron
+        // gives its smelter_1 and workbench_1.
+        (
+            id: "smelter_1",
+            machine: "smelter",
+            room: "room-forge",
+            offset: (12.7, 0.0, 33.0),
+            rotation: 270.0,
+            zone: "home",
+        ),
+        (
+            id: "workbench_1",
+            machine: "workbench",
+            room: "room-workshop",
+            offset: (22.0, 0.0, 32.0),
             rotation: 0.0,
             zone: "home",
         ),
