@@ -1207,7 +1207,7 @@ pub fn load_bug_taxonomy(data_dir: &std::path::Path) -> (Vec<String>, Vec<String
 pub fn load_crafting_recipes(data_dir: &std::path::Path) -> Vec<GuiRecipe> {
     // Mirrors the runtime RecipeRegistry load (Wiring-1) but builds the GUI-facing
     // GuiRecipe rows the Crafting page browses. Reuses the shared CSV loader (skips
-    // # comments, row-resilient) + Recipe::parse_ingredients for the pipe-separated
+    // # comments) + Recipe::parse_ingredients for the pipe-separated
     // item:qty inputs/outputs. Before this the page's craft_recipes Vec was never
     // populated, so the Crafting page always showed "No recipes match your filter"
     // even after the recipe registry loaded into the runtime.
@@ -1232,11 +1232,18 @@ pub fn load_crafting_recipes(data_dir: &std::path::Path) -> Vec<GuiRecipe> {
         #[serde(default)]
         description: String,
     }
-    let bytes = match std::fs::read(data_dir.join("recipes.csv")) {
-        Ok(b) => b,
-        Err(_) => return Vec::new(),
-    };
-    let rows: Vec<Row> = crate::assets::loader::parse_csv(&bytes).unwrap_or_default();
+    // By the rule the runtime registry loads by (BUG-163), so the browser lists
+    // what the game crafts: the data folder's file when this version can read
+    // all of it, else the copy built into the exe (it read the disk alone, so a
+    // data folder without recipes.csv listed none).
+    let rows: Vec<Row> =
+        match crate::embedded_data::load_data_or_embedded(data_dir, "recipes.csv", crate::assets::loader::parse_csv::<Row>) {
+            Ok(rows) => rows,
+            Err(e) => {
+                log::warn!("{e}; the Crafting page lists no recipes");
+                return Vec::new();
+            }
+        };
     let tool_rules = crate::systems::crafting::tools::load(data_dir);
     // Which outputs are durable (graded when made by hand, 2026-09-26), and
     // each item's litres (where a result goes, BUG-147).
@@ -1248,15 +1255,17 @@ pub fn load_crafting_recipes(data_dir: &std::path::Path) -> Vec<GuiRecipe> {
         #[serde(default)]
         volume_l: f32,
     }
-    let items: Vec<Dur> = std::fs::read(data_dir.join("items.csv"))
-        .ok()
-        .and_then(|b| crate::assets::loader::parse_csv::<Dur>(&b).ok())
-        .unwrap_or_default();
+    let items: Vec<Dur> =
+        crate::embedded_data::load_data_or_embedded(data_dir, "items.csv", crate::assets::loader::parse_csv::<Dur>)
+            .unwrap_or_default();
     let durable: std::collections::HashSet<&str> = items.iter().filter(|d| d.durability > 0).map(|d| d.id.as_str()).collect();
     let litres: std::collections::HashMap<&str, f32> = items.iter().map(|d| (d.id.as_str(), d.volume_l)).collect();
-    let kits = std::fs::read(data_dir.join("vehicles").join("kits.ron"))
-        .ok()
-        .and_then(|b| crate::systems::vehicles::VehicleKitRegistry::from_ron(&b).ok());
+    let kits = crate::embedded_data::load_data_or_embedded(
+        data_dir,
+        "vehicles/kits.ron",
+        crate::systems::vehicles::VehicleKitRegistry::from_ron,
+    )
+    .ok();
     let rolls = |id: &str| kits.as_ref().is_some_and(|k| k.get_vehicle(id).is_some());
     rows.into_iter()
         .map(|r| GuiRecipe {
@@ -1338,6 +1347,23 @@ mod crafting_recipes_load_tests {
             .expect("smelt_iron present in the browser");
         assert!(!smelt.inputs.is_empty(), "smelt_iron has inputs");
         assert!(!smelt.outputs.is_empty(), "smelt_iron has outputs");
+    }
+
+    /// BUG-163: the browser lists by the rule the game's recipe registry loads by, so a data
+    /// folder without recipes.csv lists the recipes built into the game, as the game crafts
+    /// them, rather than none.
+    ///
+    /// Seen red with the old read (the data folder alone):
+    ///   the built-in recipes are listed: 0 found
+    #[test]
+    fn a_data_folder_without_recipes_lists_the_built_in_ones() {
+        let dir = crate::test_temp::dir("craft_list");
+        let recipes = load_crafting_recipes(&dir);
+        assert!(
+            recipes.iter().any(|r| r.id == "smelt_iron"),
+            "the built-in recipes are listed: {} found",
+            recipes.len()
+        );
     }
 }
 

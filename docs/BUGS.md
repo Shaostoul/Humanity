@@ -4401,7 +4401,9 @@ the Settings illness hint (`illness::hint_data`), the medical treatments, `food_
 the item profiles (the food system and the inventory's Eat and Drink list), grow media, tower
 cups and the grown-food model's plants and items, the starting kit (`world/player.ron`), the
 GUI's JSON tables, the Fibonacci homestead design, the tower configs, the home outline, the Dev
-page's species list and the relay's fleet ledger prices. Humidity, garden nutrients, weeds,
+page's species list, the Crafting page's recipe list (it read recipes.csv, items.csv and the
+vehicle kits from the disk alone, so a data folder without recipes.csv listed no recipes while
+the game could craft them) and the relay's fleet ledger prices. Humidity, garden nutrients, weeds,
 harvest windows, the death rules, the cosmos catalogue (`catalog_version`) and the ship file
 already fell back on a file they cannot read, and were left alone. `scripts/lib/compiled-in.js`
 holds every fn of embedded_data.rs that consults the built-in table to the
@@ -4453,6 +4455,8 @@ Tests, each seen failing first:
   with the hint's old read: "... Realistic: it lasts about an hour ...";
 - `quests::quest_tests::a_shipped_quest_file_the_game_cannot_read_comes_from_its_built_in_copy`, red
   with `load` reading the folder alone: "the opening quest is missing when its file cannot be read";
+- `gui::loaders::crafting_recipes_load_tests::a_data_folder_without_recipes_lists_the_built_in_ones`,
+  red with the Crafting page's old disk-only read: "the built-in recipes are listed: 0 found";
 - the rule's own unit tests in `assets::loader` and `embedded_data` (new code, nothing older to run
   them against), and three in `scripts/tests/compiled-in.test.js`, two of them red against the old
   check (no problem named load_data_or_embedded).
