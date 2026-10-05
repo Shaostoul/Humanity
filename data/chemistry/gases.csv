@@ -5,7 +5,7 @@ nitrogen,N2,Nitrogen,1.251,false,0,0,false,true,colorless,odorless,,78% of atmos
 oxygen,O2,Oxygen,1.429,false,0,0,false,false,colorless,odorless,,21% of atmosphere; supports combustion; essential for respiration
 argon,Ar,Argon,1.784,false,0,0,false,true,colorless,odorless,,Third most abundant atmospheric gas; welding shield gas; inert
 carbon_dioxide,CO2,Carbon Dioxide,1.977,false,0,0,false,true,colorless,odorless,,Exhaled gas; greenhouse effect; carbonation; asphyxiant at high concentration
-carbon_monoxide,CO,Carbon Monoxide,1.250,true,12.5,74.0,true,false,colorless,odorless,882,Silent killer; binds hemoglobin irreversibly; incomplete combustion product
+carbon_monoxide,CO,Carbon Monoxide,1.250,true,12.5,74.0,true,false,colorless,odorless,882,Silent killer; binds hemoglobin over 200 times more tightly than oxygen but reversibly (clears over hours; faster on oxygen); incomplete combustion product
 methane,CH4,Methane,0.657,true,5.0,15.0,false,true,colorless,odorless,813,Natural gas primary component; potent greenhouse gas; swamp gas
 ethane,C2H6,Ethane,1.356,true,3.0,12.4,false,true,colorless,odorless,788,Found in natural gas; petrochemical feedstock
 propane,C3H8,Propane,1.830,true,2.1,9.5,false,true,colorless,odorless,723,LPG fuel; easily liquefied for portable use; odorant added for safety

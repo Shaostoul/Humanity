@@ -188,14 +188,20 @@
 
   // ── Shared world clock (2026-10-04; the native original is src/gui/pages/world_clock_admin.rs).
   // The operator: "let's do 72x but, make sure there's admin tools for me to adjust it from inside
-  // the app." The relay runs the shared world's clock at the server setting world_time_scale (72 on a
-  // new server); an admin changes it here with server_settings_update, and the relay tells every
-  // connected game at once. The speed shown comes from server_settings_state and game_time_sync
-  // (app.js keeps the latest in window.worldClockSpeed).
+  // the app." That evening the default became real time: "For normal mode, especially for my MMO
+  // server, let's have everything be real time, not the 72x." The relay runs the shared world's
+  // clock at the server setting world_time_scale (1, real time, on a new server); an admin changes
+  // it here with server_settings_update, and the relay tells every connected game at once. The
+  // speed shown comes from server_settings_state and game_time_sync (app.js keeps the latest in
+  // window.worldClockSpeed).
   //
   // The speeds offered, as the native's systems::time::TIME_SPEED_PRESETS (a Rust test,
   // world_clock_admin.rs, checks the two lists agree).
   var CLOCK_PRESETS = [[1, 'Realistic'], [24, 'A day an hour'], [72, 'Simplified'], [720, 'Garden testing']];
+  // The speed shown with no server to ask, a new server's (the relay's default_world_time_scale),
+  // and what a speed that is not a number reads as (the native's clamp_time_speed): real time. The
+  // same Rust test fails if it ever differs from the native section's.
+  var CLOCK_DEFAULT = 1;
   // A lettuce's growing time in days, data/plants.csv growth_days: the website serves only the JSON
   // under data/, so the number is here, and the same Rust test fails if it ever differs from the CSV.
   var LETTUCE_GROWTH_DAYS = 45;
@@ -204,7 +210,7 @@
 
   function clampClock(v) {
     v = Number(v);
-    if (!isFinite(v)) return 72;
+    if (!isFinite(v)) return CLOCK_DEFAULT;
     return Math.min(CLOCK_MAX, Math.max(CLOCK_MIN, v));
   }
   function numberText(v) { return Math.abs(v - Math.round(v)) < 0.05 ? String(Math.round(v)) : v.toFixed(1); }
@@ -263,7 +269,7 @@
     // An applied pick is done once the server says it back.
     if (clockDraft !== null && cur !== null && Math.abs(clockDraft - cur) < 1e-3) clockDraft = null;
     now.textContent = cur === null ? 'Connect to a server to see how fast its world runs.' : 'Now: ' + clockExplainer(cur);
-    var chosen = clockDraft !== null ? clockDraft : (cur !== null ? cur : 72);
+    var chosen = clockDraft !== null ? clockDraft : (cur !== null ? cur : CLOCK_DEFAULT);
     Array.prototype.forEach.call(document.querySelectorAll('#gameadmin-clock-presets button'), function (b) {
       b.classList.toggle('active', Math.abs(Number(b.getAttribute('data-speed')) - chosen) < 1e-3);
     });

@@ -722,12 +722,45 @@
           ]
         },
         {
+          "title": "Making and Controlling Fire",
+          "src": "docs/user/skills/making_and_controlling_fire.md",
+          "tags": [
+            "guide",
+            "real",
+            "power",
+            "safety",
+            "beginner"
+          ]
+        },
+        {
           "title": "Firewood",
           "src": "docs/user/skills/firewood.md",
           "tags": [
             "guide",
             "real",
             "power",
+            "safety"
+          ]
+        },
+        {
+          "title": "Fuels and Their Hazards",
+          "src": "docs/user/skills/fuels_and_their_hazards.md",
+          "tags": [
+            "guide",
+            "real",
+            "power",
+            "safety"
+          ]
+        },
+        {
+          "title": "Heating a Home Safely",
+          "src": "docs/user/skills/heating_a_home_safely.md",
+          "tags": [
+            "guide",
+            "real",
+            "shelter",
+            "power",
+            "health",
             "safety"
           ]
         }
@@ -740,6 +773,17 @@
         {
           "title": "How Your Body Works",
           "src": "docs/user/skills/how_your_body_works.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "safety",
+            "beginner"
+          ]
+        },
+        {
+          "title": "First Aid Until Help Arrives",
+          "src": "docs/user/skills/first_aid_until_help_arrives.md",
           "tags": [
             "guide",
             "real",
@@ -798,11 +842,32 @@
           ]
         },
         {
+          "title": "When Heat Becomes Dangerous",
+          "src": "docs/user/skills/when_heat_becomes_dangerous.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "safety"
+          ]
+        },
+        {
           "title": "Teeth",
           "src": "docs/user/skills/teeth.md",
           "tags": [
             "guide",
             "real"
+          ]
+        },
+        {
+          "title": "Helping Your Neighbours After a Disaster",
+          "src": "docs/user/skills/helping_your_neighbours_after_a_disaster.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "safety",
+            "governance"
           ]
         }
       ]

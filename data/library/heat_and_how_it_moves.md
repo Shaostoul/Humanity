@@ -414,8 +414,10 @@ body.
   says so: "Indoors", with the temperature and "still air".
 - **Two modes.** Settings > Gameplay > Body heat. Forgiving, the default,
   runs the same physics but your temperature swings half as far from
-  normal and cold or heat harms you half as fast. Realistic is the real
-  balance. In either, the Inventory page always shows your core
+  normal, so harm waits until the real balance would have you below about
+  27 C or above about 43 C, and then comes at half the rate for each
+  degree you read past 32 C or 40 C (the setting's own hint explains it
+  the same way). Realistic is the real balance. In either, the Inventory page always shows your core
   temperature, the HUD shows it once it leaves the normal range, and the
   game gives you the conditions Shivering, Hypothermia (below 35 C,
   which slows you), Heat Exhaustion (above 39 C, which also slows you)

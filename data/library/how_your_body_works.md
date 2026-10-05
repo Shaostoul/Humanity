@@ -631,6 +631,12 @@ timescales, and leaves out nearly everything that can go wrong inside one.
   breathable air or it is not full, and body temperature whenever it is
   outside the safe range; "Always" shows them all and "Off (health only)"
   shows only health.
+- **First Aid.** The First Aid ability puts 35 health back at once for 15
+  energy and can be used again 10 seconds later, cast with its button on
+  the Profile page or a number key on the HUD (`data/abilities.csv`,
+  `src/systems/abilities.rs`); real first aid restores nothing instantly,
+  as [First Aid Until Help Arrives](/library#first-aid-until-help-arrives)
+  explains.
 - **Thirst and hunger run on real time.** With the default Vitals drain
   of 1.0 (Settings > Gameplay), Hydration empties in about two days and
   Satiation in about a week, and below a quarter you become Thirsty or
@@ -847,6 +853,9 @@ Grouped by what kind of authority each one is. Web pages were read on
   `data/status_effects.csv`.
 - Vitals and health not saved: `src/save_load.rs`. The Play mode and the
   "Start every session from the default home" setting: `src/config.rs`.
+- The First Aid ability: `data/abilities.csv`, cast by
+  `src/systems/abilities.rs` from its button in `src/gui/pages/profile.rs`
+  or the HUD's number keys in `src/lib.rs`.
 - The medical catalogue and disease rows that nothing applies yet:
   `data/medical.ron` (its system, `src/systems/medical.rs`, is not
   registered with the game) and `data/status_effects.csv`.

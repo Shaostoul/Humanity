@@ -11,6 +11,34 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1459.1: six Library guides on heat, fire and first aid.** Heating a
+  Home Safely (space heaters, a carbon monoxide alarm on every sleeping
+  floor, the signs of carbon monoxide poisoning, and Washington's rule on
+  portable kerosene and propane heaters indoors), Making and Controlling
+  Fire (putting a fire out properly, "once out, stay out", burn bans),
+  Fuels and Their Hazards (storing gasoline and propane, what to do if you
+  smell gas), First Aid Until Help Arrives (CPR for adults, children and
+  babies, choking, bleeding, seizures, low blood sugar), When Heat Becomes
+  Dangerous (heat exhaustion against heat stroke, and how to cool someone)
+  and Helping Your Neighbours After a Disaster (damaged buildings, gas
+  leaks, CERT). Each was checked twice against its sources before it
+  shipped. The Library now has 101 sourced guides.
+
+- **v0.1459.0: getting around the ship, and a HUD that tells the truth.** On
+  a shared server, the server now checks how far each player moves. A move
+  that is too big puts the player back where the server last had them,
+  instead of freezing them, and the honest fast moves are allowed: coming
+  back after a respawn or a reconnect, closing the build editor on your own
+  plot, teleporters, transit links, vehicles and ladders. Other players
+  aboard appear when they come within 250 m and drop out past 300 m, so the
+  server sends you only who you could see. Each home has its own air, up its
+  own elevator and stairs. Nobody is told who lives on which plot. Also
+  fixed: the Home Station marker now shows from the ground with its distance,
+  the HUD says FLY whenever fly mode is on, the home's machines take their
+  inputs from home storage and never from your backpack, and opening and
+  shutting the build editor without an edit no longer rewrites the home's
+  files.
+
 - **v0.1458.1: six Library guides on electricity, power tools, finding
   your way and boats.** Electricity and How It Flows, Where Your Own
   Electrical Work Stops (proving a circuit dead, generators and carbon
@@ -134,7 +162,9 @@ Each line is written the way a player would hear it; the release notes and
 
 - **v0.1452.0: a day passes in 20 minutes on a shared server, carrying
   weight matters, and the real night sky.** A shared world's clock now runs
-  at 72 times real speed by default, so a day passes in 20 minutes; the
+  at 72 times real speed by default, so a day passes in 20 minutes (the
+  operator changed his mind the next night: from v0.1460.0 the default is
+  real time, and acceleration waits for a later fast mode); the
   server's admin can change it from inside the app (Server Settings > Shared
   world clock), and the page says what a choice means, like how long a
   lettuce takes to grow. How much you can carry now follows gravity (about

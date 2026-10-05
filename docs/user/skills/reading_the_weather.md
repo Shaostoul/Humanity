@@ -445,7 +445,9 @@ outside.
   wall on the side the wind comes from keeps the wind off. Settings >
   Gameplay > Body heat chooses Forgiving, the default, or Realistic;
   Forgiving uses the same weather and shelter but lets your temperature
-  swing only half as far and harms you half as fast.
+  swing only half as far, so harm starts much later (only where the real
+  balance would have you below about 27 C or above about 43 C) and then
+  comes at half the rate for each degree you read past the harm lines.
 - **The wind** where you stand is the region's prevailing wind, such as
   the trade winds or the westerlies, plus the weather's own wind.
 - **How the weather changes.** Every 6 to 18 hours of game time the game

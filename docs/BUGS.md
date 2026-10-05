@@ -3556,10 +3556,27 @@ features.rs ~1980). Each passed alone and on reruns; src/media was unchanged.
 **Why it matters:** a check that fails on a busy machine teaches people to rerun it
 until it is green, which is how a real failure gets waved through.
 
+**More of the same class, seen the same night:**
+- Relay storage tests fail with "failed to build SQLite read pool: timed out waiting
+  for connection" when several test builds run at once (world-friction lane, 5
+  failures in one run; 8 of 8 passed alone).
+- The co-presence rig's `steady_speed` and `meet_steady_speed` judges. v0.1459.0's
+  first `--plots` runs, with ten agents compiling, drew the game at 6 to 16 fps with
+  single frames of 160 to 465 ms, and three of six orders failed those two checks
+  (the remote walker extrapolated to 1.1 to 2.4 m/s against 1.4). The rerun with
+  every cargo, rustc and link process held at BelowNormal priority (a scratchpad
+  loop, deprioritize-builds.ps1) drew 16 to 24 fps and passed 88/88 in every
+  order. The judge cannot tell a starved machine from a regression.
+
 **Fix (not started):** make the media tests wait on the decoder's progress rather
 than on wall-clock time (or give them a deterministic clock), and give the fleet
 ledger test a relay rate limit that cannot trip in a test (or space its sends by
-the limit it is testing).
+the limit it is testing). Give the relay storage tests a pool timeout that cannot
+expire under load. For the rigs: the machine guard should hold builds at
+BelowNormal priority for the length of a capture (what the scratchpad loop did),
+and the steady-speed judges should report the frame rate and refuse to judge, as
+"contaminated" rather than FAIL, when frames run long enough to break the
+interpolation the check measures.
 
 ## BUG-153: the Campfire ability promises a fire with warmth and light, and only heals 3 health (OPEN, found 2026-10-04)
 
@@ -3598,3 +3615,18 @@ heater does nothing; the quest says the opposite.
 **Fix (not started):** give the heater a real effect on the room's air temperature (the
 greenhouse's plants and the body heat model read it), or change the quest step until it
 does. Either way a test pins the quest's promise to what the heater does.
+
+## BUG-156: trees float in the air beside the Silverdale waterfront (OPEN, found 2026-10-05)
+
+**Seen:** in v0.1459.0's probe capture of the new vantage `silverdale-home-marker`
+(`.probe-rig/sweeps/20261005-071141/silverdale-home-marker.png`, the right third of the
+frame): a stand of full-geometry trees west of the camera is drawn with its trunks ending
+in open sky, well above the hillside behind them, leaning only by the camera's upward
+pitch. The vantage starts the camera 300 m up, then stands on the ground 200 m north of
+the Dyes Inlet waterfront and settles for 8 s before the capture.
+
+**Not yet known:** whether the trees keep heights sampled from a coarser terrain level of
+detail while the camera was 300 m up (a teleport artifact a walking player would never
+see: arriving by teleport and arriving the way a player does have differed before), or whether trees there float
+for anyone. First step: capture the same place after a longer settle and after walking
+in, and compare each tree's base with the terrain height under it.

@@ -2145,7 +2145,7 @@ mod machine_cost_tests {
         assert_eq!(world.get::<&Inventory>(player).unwrap().count_item("smelter_0"), 0, "taken from the backpack");
 
         // Two in the Barn: one comes out of storage.
-        placed.push(PlacedItem { key: "smelter_0".into(), name: "Smelter".into(), qty: 2, container: "1/3".into(), ..Default::default() });
+        placed.push(PlacedItem { key: "smelter_0".into(), name: "Smelter".into(), qty: 2, container: "1/3".into(), wear: 0, quality: 0, age_s: 0.0 });
         assert_eq!(pay_for_machine(&mut world, &mut placed, true, Some(&items), false, "smelter", "Smelter"), Ok(Some("smelter_0".into())));
         assert_eq!(placed[0].qty, 1, "taken from the Barn");
 

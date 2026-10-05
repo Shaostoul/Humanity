@@ -11,12 +11,12 @@
 // increment 6).
 //
 // Every time here is on the shared world's GAME clock, which runs at the server setting
-// `world_time_scale` (72x by default: a game day is 20 real minutes). Meals come on it and the
-// farms fill the stores on it, so the balance below holds at any speed an admin sets. Only the
-// crew's walking and their chores' lengths (data/npc/chores.ron, a meal's 40 s included) are
-// real seconds, so a figure never sprints; at 72x that makes a crew member's meal (8 game
-// hours apart = 400 real seconds) a walk to the mess hall and 40 s at the table about every
-// 7 real minutes.
+// `world_time_scale` (1x, real time, by default: a game day is a real day). Meals come on it and
+// the farms fill the stores on it, so the balance below holds at any speed an admin sets. Only
+// the crew's walking and their chores' lengths (data/npc/chores.ron, a meal's 40 s included) are
+// real seconds, so a figure never sprints. At the default 1x a crew member eats three times a
+// real day, 8 real hours apart; at 72x, if an admin sets it, the same meal comes every 400 real
+// seconds, a walk to the mess hall and 40 s at the table about every 7 real minutes.
 //
 // UNLIMITED OR STOCKED (the operator, 2026-10-04: "For the sake of simplicity during early
 // development we'll say the fleet has unlimited of everything and just track what they player
