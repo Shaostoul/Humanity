@@ -397,6 +397,9 @@ pub struct GameWorld {
     /// Who is in view of whom (game_interest.rs): a player's moves go to the players in view of
     /// them, not to every socket. Never saved.
     pub interest: super::game_interest::Interest,
+    /// The building pieces kept in the shared world, and which frames each player has in view
+    /// (ship homes increment 5, shared_build.rs). Each piece is its own database row.
+    pub pieces: super::shared_build::PieceBook,
 }
 
 /// Where a joining player lives and arrives (increment 1b): their plot (None for a guest,
@@ -525,6 +528,7 @@ impl GameWorld {
             transit: Vec::new(),
             vehicle_speeds: super::move_check::vehicle_speeds(std::path::Path::new("data")),
             interest: Default::default(),
+            pieces: Default::default(),
         };
         world.load_ship();
         world.load_chores();
@@ -587,6 +591,8 @@ impl GameWorld {
                 self.load_ship_rooms(&ship);
                 // Its transit links, by id (increment 4): a declared jump in a shared zone must be one.
                 self.transit = ship.transit_links();
+                // Where pieces may be built, and what they may be (increment 5, shared_build.rs).
+                self.pieces.set_ship(&ship);
             }
             Err(e) => tracing::error!("Game: the ship did not load ({e}); nobody gets a plot, and the world has no rooms"),
         }
@@ -1133,9 +1139,11 @@ impl GameWorld {
             .map(|(id, _)| *id);
         if let Some(id) = id {
             self.entities.remove(&id);
-            // Their allowance and who saw them go with them (increment 4).
+            // Their allowance and who saw them go with them (increment 4), and the frames they
+            // had in view (increment 5).
             self.moves.remove(&id);
             self.interest.forget(id);
+            self.pieces.forget(id);
         }
         id
     }

@@ -17,6 +17,7 @@ use crate::relay::handlers::game_state::{plot_owner_id, JoinHome, JoinRefusal};
 use crate::relay::handlers::msg_handlers::{
     despawn_player_now, handle_game_ban, handle_game_banned_list, handle_game_unban, is_game_admin, send_game_private,
 };
+use crate::relay::handlers::shared_build::{came_down_note, take_down_plot};
 use crate::relay::relay::RelayState;
 use std::sync::Arc;
 
@@ -86,11 +87,15 @@ pub async fn refused_join(state: &Arc<RelayState>, my_key: &str, join: &JoinHome
 ///     as somebody else leaving, so it went on showing the shared world with every update
 ///     dropped, and Respawn joined it again, claiming a new plot for the erased account.
 ///
-/// True when a plot was freed here.
-pub async fn leave_world_for_erase(state: &Arc<RelayState>, key: &str) -> bool {
+/// Ship homes increment 5: in the same step every piece standing on the freed plot comes down,
+/// whoever built it (rows and all), and every piece the account built anywhere else leaves the
+/// relay's memory; those rows go with the rest of the account (`Storage::delete_account`).
+///
+/// What was freed here, for the erase's receipt ([`ErasedFromWorld::add_to`]).
+pub async fn leave_world_for_erase(state: &Arc<RelayState>, key: &str) -> ErasedFromWorld {
     state.link_dead.write().await.remove(key);
     crate::relay::handlers::live_conns::release_game_seat(state, key).await;
-    let (left, freed) = {
+    let (left, freed, pieces) = {
         let mut world = state.game_world.write().await;
         let left = world.despawn_player(key);
         // Also when no figure was taken out: one that left within the last 30 s can still
@@ -100,7 +105,10 @@ pub async fn leave_world_for_erase(state: &Arc<RelayState>, key: &str) -> bool {
                 tracing::warn!("Game: could not store the world without an erased account's figure: {e}");
             }
         }
-        (left, world.release_home(&state.db, key))
+        let freed = world.release_home(&state.db, key);
+        let plot = freed.as_ref().ok().and_then(|p| p.as_deref());
+        let pieces = crate::relay::handlers::shared_build::erase_account(state, &mut world, &state.db, key, plot);
+        (left, freed, pieces)
     };
     if let Some(entity_id) = left {
         let gone = serde_json::json!({ "type": "game_player_left", "player_id": entity_id });
@@ -116,11 +124,38 @@ pub async fn leave_world_for_erase(state: &Arc<RelayState>, key: &str) -> bool {
         });
         send_game_private(state, key, &told).await;
     }
-    match freed {
+    let plot_freed = match freed {
         Ok(freed) => freed.is_some(),
         Err(e) => {
             tracing::warn!("Game: could not give back the plot of an account being erased: {e}");
             false
+        }
+    };
+    ErasedFromWorld { plot_freed, pieces }
+}
+
+/// What taking an erased account out of the shared world freed ([`leave_world_for_erase`]).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ErasedFromWorld {
+    /// Its plot on this ship was given back.
+    pub plot_freed: bool,
+    /// How many building pieces stood on that plot and came down with it, whoever built them.
+    pub pieces: usize,
+}
+
+impl ErasedFromWorld {
+    /// Count what was freed in the erase's receipt (`Storage::delete_account`'s), beside what the
+    /// erase itself deleted: the plot under `ship_plots`, the pieces that stood on it under
+    /// `world_pieces` (with the account's own pieces elsewhere, which the erase deletes).
+    pub fn add_to(&self, receipt: &mut Vec<(String, usize)>) {
+        for (label, n) in [("ship_plots", usize::from(self.plot_freed)), ("world_pieces", self.pieces)] {
+            if n == 0 {
+                continue;
+            }
+            match receipt.iter_mut().find(|(l, _)| l == label) {
+                Some(entry) => entry.1 += n,
+                None => receipt.push((label.to_string(), n)),
+            }
         }
     }
 }
@@ -129,13 +164,18 @@ pub async fn leave_world_for_erase(state: &Arc<RelayState>, key: &str) -> bool {
 /// on the plot this relay gave it (engine/home_plot.rs, "does not fit"), so the plot goes back
 /// for the next player instead of being held for good by someone who never lives there. Only
 /// ever the leaver's own plot. Called BEFORE they leave the world (msg_handlers.rs
-/// `handle_game_leave`), so once anyone sees them gone the plot is free.
+/// `handle_game_leave`), so once anyone sees them gone the plot is free. The building pieces on
+/// it come down with it (increment 5, shared_build.rs `take_down_frame`).
 pub async fn give_up_plot_if_asked(state: &Arc<RelayState>, player_key: &str, raw: &serde_json::Value) {
     if raw.get("give_up_plot").and_then(|v| v.as_bool()) != Some(true) {
         return;
     }
-    match state.game_world.read().await.release_home(&state.db, player_key) {
-        Ok(Some(plot)) => tracing::info!("Game: {} gave up plot {} (their home does not fit it)", player_key, plot),
+    let mut world = state.game_world.write().await;
+    match world.release_home(&state.db, player_key) {
+        Ok(Some(plot)) => {
+            take_down_plot(state, &mut world, &state.db, &plot);
+            tracing::info!("Game: {} gave up plot {} (their home does not fit it)", player_key, plot);
+        }
         Ok(None) => {}
         Err(e) => tracing::warn!("Game: could not give back {}'s plot: {e}", player_key),
     }
@@ -166,6 +206,10 @@ pub async fn handle_game_admin(state: &Arc<RelayState>, my_key: &str, kind: &str
 /// in upper case cannot slip past it (the third review). There is no automatic release of
 /// idle plots: when a plot should go back by itself is the operator's policy call
 /// (docs/design/ship-homes-and-logistics.md, question 19).
+///
+/// The building pieces on a released plot come down with it, whoever built them (decision 2 of
+/// the increment 5 plan: otherwise the next household moves in among a stranger's walls), and
+/// the notice says how many (shared_build.rs `take_down_frame`, `came_down_note`).
 pub async fn handle_game_release_plot(state: &Arc<RelayState>, my_key: &str, raw: &serde_json::Value) {
     let reply = |message: String, ok: bool| {
         serde_json::json!({ "type": if ok { "game_admin_notice" } else { "game_admin_error" }, "message": message })
@@ -183,7 +227,7 @@ pub async fn handle_game_release_plot(state: &Arc<RelayState>, my_key: &str, raw
     // Shortened for the reply by characters, not bytes: the field is typed by a person.
     let short = if target.chars().count() > 16 { format!("{}...", target.chars().take(16).collect::<String>()) } else { target.clone() };
     let msg = {
-        let world = state.game_world.read().await;
+        let mut world = state.game_world.write().await;
         let ship = world.ship_plots.ship_id.clone();
         if world.ship_plots.plot(&target).is_some() {
             // A plot of this ship, by its id: whoever holds it.
@@ -196,7 +240,8 @@ pub async fn handle_game_release_plot(state: &Arc<RelayState>, my_key: &str, raw
                 Ok(Some(_)) => match state.db.release_plot_by_id(&ship, &target) {
                     Ok(_) => {
                         tracing::info!("Game: admin {} released plot {}", my_key, target);
-                        reply(format!("Released plot {target}. The next player to join without a plot gets it."), true)
+                        let note = came_down_note(take_down_plot(state, &mut world, &state.db, &target));
+                        reply(format!("Released plot {target}. The next player to join without a plot gets it.{note}"), true)
                     }
                     Err(e) => {
                         tracing::error!("Game: releasing plot {}: {e}", target);
@@ -214,7 +259,8 @@ pub async fn handle_game_release_plot(state: &Arc<RelayState>, my_key: &str, raw
             match world.release_home(&state.db, &target) {
                 Ok(Some(plot)) => {
                     tracing::info!("Game: admin {} released plot {} held by {}", my_key, plot, target);
-                    reply(format!("Released plot {plot}, held by {short}. The next player to join without a plot gets it."), true)
+                    let note = came_down_note(take_down_plot(state, &mut world, &state.db, &plot));
+                    reply(format!("Released plot {plot}, held by {short}. The next player to join without a plot gets it.{note}"), true)
                 }
                 Ok(None) => reply(format!("{short} holds no plot on this ship."), true),
                 Err(e) => {

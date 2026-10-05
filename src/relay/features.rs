@@ -3259,4 +3259,840 @@ mod tests {
         );
     }
 
+    // ── Increment 5: building only on your own plot ───────────────────────────
+    //
+    // The relay's side of building in the shared world, on a real relay over its socket
+    // (handlers/shared_build.rs; the same rules without sockets are its shared_build_tests.rs).
+    // Every builder's requests go 250 ms apart on a clock the test moves (BUG-152), so the
+    // relay's 200 ms limit never decides a result by how fast this machine is.
+
+    /// The messages a game is sent about building in the shared world (shared.rs `msg`).
+    const SHARED_BUILD_TYPES: [&str; 5] = ["game_built", "game_unbuilt", "game_pieces", "game_frame_out_of_view", "game_build_refused"];
+
+    /// The relay's rate limit reads `clock` from now on.
+    fn limit_clock(state: &std::sync::Arc<crate::relay::relay::RelayState>) -> std::sync::Arc<crate::test_clock::ManualClock> {
+        let clock = crate::test_clock::ManualClock::new();
+        assert!(state.perception_clock.set(clock.clone()).is_ok(), "a new relay has no test clock yet");
+        clock
+    }
+
+    /// 250 ms on the rate limit's clock: the next request of every kind is let through.
+    fn later(clock: &crate::test_clock::ManualClock) {
+        clock.advance(std::time::Duration::from_millis(250));
+    }
+
+    /// A player with seed `[n; 32]` signs in on a connection of their own (10.55.0.`n`) and joins
+    /// the shared world as the game does: their socket, key, and the plot their welcome gave.
+    async fn joiner(state: &std::sync::Arc<crate::relay::relay::RelayState>, port: u16, n: u8, name: &str) -> (TestSocket, String, Option<String>) {
+        let (mut sock, key) = bind_socket_from(state, port, [n; 32], Some(name), 1, Some(&format!("10.55.0.{n}"))).await;
+        let w = welcome_after_join(&mut sock, name).await;
+        (sock, key, welcome_plot(&w))
+    }
+
+    /// The size data/blueprints/basic.ron gives `blueprint` ([1, 1, 1] for one it lacks): the
+    /// scale a game sends with it.
+    fn blueprint_size(blueprint: &str) -> [f32; 3] {
+        let text = std::fs::read_to_string("data/blueprints/basic.ron").expect("basic.ron reads");
+        let reg = crate::systems::construction::BlueprintRegistry::from_ron(text.as_bytes()).expect("basic.ron parses");
+        reg.get(blueprint).map_or([1.0, 1.0, 1.0], |b| b.size)
+    }
+
+    /// A `game_build` as the game sends it: `blueprint` at `at` (metres from `frame`'s corner),
+    /// turned `turns` quarter turns the way the game's placement turns it, at its own size.
+    fn build_msg(req_id: u32, frame: &str, blueprint: &str, at: [f32; 3], turns: u8) -> Value {
+        serde_json::json!({
+            "type": "game_build", "req_id": req_id, "frame": frame, "blueprint_id": blueprint, "position": at,
+            "rotation": crate::systems::construction::placement::quarter_turn(turns).to_array(), "scale": blueprint_size(blueprint),
+        })
+    }
+
+    /// A `game_unbuild` of piece `piece_id`.
+    fn unbuild_msg(req_id: u32, piece_id: u64) -> Value {
+        serde_json::json!({ "type": "game_unbuild", "req_id": req_id, "piece_id": piece_id })
+    }
+
+    /// `msg` carrying household permit `p`.
+    fn with_permit(mut msg: Value, p: &crate::systems::construction::shared::Permit) -> Value {
+        msg["permit"] = serde_json::to_value(p).expect("a permit serialises");
+        msg
+    }
+
+    /// The household permit the player with seed `[issuer; 32]` (key `issuer_key`) signs for
+    /// `grantee` (a did:hum) on `plot` of the server `server`, running out at `expiry`, minted at
+    /// `minted`, as the game mints one (pq_crypto.rs `build_plot_permit`).
+    fn mint_permit(issuer: u8, issuer_key: &str, server: &str, plot: &str, grantee: &str, expiry: u64, minted: u64) -> crate::systems::construction::shared::Permit {
+        let sig = crate::relay::core::pq_crypto::build_plot_permit(&[issuer; 32], server, plot, grantee, expiry, minted).expect("minted");
+        crate::systems::construction::shared::Permit { issuer: issuer_key.into(), server: server.into(), plot: plot.into(), grantee: grantee.into(), expiry, sig }
+    }
+
+    /// The relay's clock, Unix seconds.
+    fn unix_now() -> u64 {
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()
+    }
+
+    /// The relay's answer to request `req_id`: the next `game_built`, `game_unbuilt` or
+    /// `game_build_refused` carrying it. Fails the test when none comes within 10 s.
+    async fn answer(sock: &mut TestSocket, req_id: u32) -> Value {
+        let types = ["game_built", "game_unbuilt", "game_build_refused"];
+        next_frame_with(sock, |v| game_payload(v).filter(|g| types.iter().any(|t| g["type"] == *t) && g["req_id"] == req_id))
+            .await
+            .unwrap_or_else(|| panic!("no answer to request {req_id}"))
+    }
+
+    /// The next whole list of `frame` a socket is sent (`game_pieces`, every part), other messages
+    /// passed over: its `seq`, its pieces in the order sent, and each part's (part, parts). Ends
+    /// at the part numbered as the last, or when nothing more comes for 10 s.
+    async fn whole_list(sock: &mut TestSocket, frame: &str) -> (u64, Vec<Value>, Vec<(u64, u64)>) {
+        let (mut seq, mut pieces, mut parts) = (0, Vec::new(), Vec::new());
+        while let Some(g) = next_frame_with(sock, |v| game_payload(v).filter(|g| g["type"] == "game_pieces" && g["frame"] == frame)).await {
+            seq = g["seq"].as_u64().unwrap_or(u64::MAX);
+            pieces.extend(g["pieces"].as_array().cloned().unwrap_or_default());
+            let (part, of) = (g["part"].as_u64().unwrap_or(0), g["parts"].as_u64().unwrap_or(0));
+            parts.push((part, of));
+            if part >= of {
+                break;
+            }
+        }
+        (seq, pieces, parts)
+    }
+
+    /// The pieces' numbers in a list.
+    fn ids_of(pieces: &[Value]) -> Vec<u64> {
+        pieces.iter().map(|p| p["piece_id"].as_u64().unwrap_or(0)).collect()
+    }
+
+    /// The building messages a socket is sent in the next `ms` milliseconds.
+    async fn shared_build_messages_for(sock: &mut TestSocket, ms: u64) -> Vec<Value> {
+        game_messages_for(sock, ms).await.into_iter().filter(|g| SHARED_BUILD_TYPES.iter().any(|t| g["type"] == *t)).collect()
+    }
+
+    /// Keep `n` foundations in `frame` straight in the relay's world (rows and all), built by
+    /// `owner`, as if built: for a frame nobody in the test holds, or a list too long to build by
+    /// hand. Their numbers.
+    async fn keep_pieces(state: &std::sync::Arc<crate::relay::relay::RelayState>, frame: &str, n: usize, owner: &str) -> Vec<u64> {
+        use crate::relay::handlers::shared_build::{keep, Accepted};
+        let mut world = state.game_world.write().await;
+        let mut ids = Vec::new();
+        for i in 0..n {
+            let piece = crate::relay::storage::NewPiece {
+                world_id: world.ship_plots.ship_id.clone(),
+                frame: frame.into(),
+                blueprint_id: "wood_foundation".into(),
+                position: [2.0 + (i % 50) as f32, 0.0, 2.0 + (i / 50) as f32 * 4.0],
+                rotation: [0.0, 0.0, 0.0, 1.0],
+                scale: [4.0, 0.2, 4.0],
+                owner_did: owner.into(),
+                placed_at_ms: 1_000,
+            };
+            let (kept, _) = keep(&mut world, &state.db, Accepted { piece, name: "Wood Foundation".into() }).expect("kept");
+            ids.push(kept.piece_id);
+        }
+        ids
+    }
+
+    /// The rows the relay keeps in `frame`.
+    fn rows_in(state: &std::sync::Arc<crate::relay::relay::RelayState>, frame: &str) -> Vec<u64> {
+        let ship = crate::ship::ship_structure::ShipPlots::load(std::path::Path::new("data")).expect("the ship loads").ship_id;
+        state.db.load_world_pieces(&ship).unwrap().iter().filter(|p| p.frame == frame).map(|p| p.piece_id).collect()
+    }
+
+    /// Put the player with `key` at `to` in the relay's own world (no move judged, no view
+    /// changed: the next accepted move judges their view from there).
+    async fn stand_at(state: &std::sync::Arc<crate::relay::relay::RelayState>, key: &str, to: [f32; 3]) {
+        let mut w = state.game_world.write().await;
+        let id = w.find_player_entity(key).expect("in the world");
+        w.update_position(id, to, [0.0, 0.0, 0.0, 1.0]);
+    }
+
+    /// The one sentence shared.rs keeps for a refusal, as a relay sends it.
+    fn sentence(action: &str, piece: &str, reason: &str, why: Option<&str>) -> String {
+        use crate::systems::construction::shared::{refusal_message, Action, Reason, Why};
+        let action: Action = serde_json::from_value(serde_json::json!(action)).unwrap();
+        let reason: Reason = serde_json::from_value(serde_json::json!(reason)).unwrap();
+        let why: Option<Why> = why.map(|w| serde_json::from_value(serde_json::json!(w)).unwrap());
+        refusal_message(action, piece, reason, why)
+    }
+
+    /// A BUILD ON YOUR OWN PLOT REACHES THE NEIGHBOUR, AND A BUILD IN THEIRS IS REFUSED (the
+    /// design's named case, the operator's "build only in your own home", 2026-10-03). Ann holds
+    /// p1 and Bo p2, each other's neighbours. Ann's foundation on p1 is kept: her answer carries
+    /// her request's number and `mine`, and Bo, who has p1 in view, is sent the same piece with
+    /// neither. Bo's foundation inside Ann's plot is refused `not_allowed` / `not_your_plot` with
+    /// the one sentence for it, and nothing of it reaches Ann. One row is kept.
+    ///
+    /// Seen red 2026-10-05 with `may_build` answering Ok for every plot: "Bo's build inside Ann's
+    /// plot is refused: {\"frame\":\"plot:p1\",...,\"type\":\"game_built\"}".
+    #[tokio::test]
+    async fn a_build_on_your_own_plot_reaches_the_neighbour_and_a_build_in_theirs_is_refused() {
+        let path = plots_db("sb_own_plot");
+        let (state, port, server) = relay_on(&path).await;
+        let clock = limit_clock(&state);
+        let (mut ann, _, ann_plot) = joiner(&state, port, 41, "BuildAnn").await;
+        let (mut bo, _, bo_plot) = joiner(&state, port, 42, "BuildBo").await;
+        assert_eq!((ann_plot.as_deref(), bo_plot.as_deref()), (Some("p1"), Some("p2")));
+
+        send_json(&mut ann, build_msg(7, "plot:p1", "wood_foundation", [48.0, 0.0, 36.0], 0)).await;
+        let hers = answer(&mut ann, 7).await;
+        assert_eq!(hers["type"], "game_built", "Ann's build on her own plot: {hers}");
+        assert_eq!((hers["frame"].as_str(), hers["piece"]["mine"].as_bool()), (Some("plot:p1"), Some(true)), "{hers}");
+        assert_eq!(hers["piece"]["position"], serde_json::json!([48.0, 0.0, 36.0]), "{hers}");
+        let id = hers["piece"]["piece_id"].as_u64().expect("a piece number");
+        let theirs = next_game_of(&mut bo, &["game_built"]).await.expect("Bo, Ann's neighbour, is told of her piece");
+        assert_eq!(theirs["piece"]["piece_id"], id);
+        assert!(theirs.get("req_id").is_none() && theirs["piece"].get("mine").is_none(), "Bo's copy carries neither her request nor mine: {theirs}");
+        assert_eq!(theirs["seq"], hers["seq"]);
+
+        later(&clock);
+        send_json(&mut bo, build_msg(9, "plot:p1", "wood_foundation", [40.0, 0.0, 36.0], 0)).await;
+        let r = answer(&mut bo, 9).await;
+        assert_eq!(r["type"], "game_build_refused", "Bo's build inside Ann's plot is refused: {r}");
+        assert_eq!((r["action"].as_str(), r["reason"].as_str(), r["why"].as_str()), (Some("build"), Some("not_allowed"), Some("not_your_plot")), "{r}");
+        assert_eq!(r["message"], sentence("build", "Wood Foundation", "not_allowed", Some("not_your_plot")));
+        let to_ann = shared_build_messages_for(&mut ann, 400).await;
+        assert!(to_ann.is_empty(), "a refused build reached Ann: {to_ann:?}");
+        assert_eq!(rows_in(&state, "plot:p1"), vec![id], "one row: Ann's");
+
+        for mut s in [ann, bo] {
+            s.close(None).await.ok();
+        }
+        server.abort();
+    }
+
+    /// ONLY THE HOLDER TAKES DOWN WHAT STANDS ON THEIR PLOT (and the server's admins anything).
+    /// On Ann's p1 stand her foundation and a piece someone else put up there (with her permit,
+    /// say). Bo, a visitor, cannot take down hers: refused `not_allowed` / `not_your_plot`, the
+    /// one take-down sentence, and it still stands. Ann takes down the other one, whoever built
+    /// it; Ada, an admin, takes down Ann's. Each answer carries its request's number, and the
+    /// players with p1 in view are told without it. No row is left.
+    ///
+    /// Seen red 2026-10-05 with `may_remove` answering Ok to everyone: "Bo, a visitor, cannot take
+    /// down Ann's foundation: {\"frame\":\"plot:p1\",...,\"type\":\"game_unbuilt\"}".
+    #[tokio::test]
+    async fn only_the_holder_takes_down_what_stands_on_their_plot() {
+        let path = plots_db("sb_take_down");
+        let (state, port, server) = relay_on(&path).await;
+        let clock = limit_clock(&state);
+        let (mut ann, _, _) = joiner(&state, port, 43, "TakeAnn").await;
+        let (mut bo, _, _) = joiner(&state, port, 44, "TakeBo").await;
+        let (mut ada, ada_key, _) = joiner(&state, port, 45, "TakeAda").await;
+        state.db.set_role(&ada_key, "admin").expect("make admin");
+
+        send_json(&mut ann, build_msg(1, "plot:p1", "wood_foundation", [20.0, 0.0, 20.0], 0)).await;
+        let hers = answer(&mut ann, 1).await["piece"]["piece_id"].as_u64().expect("Ann's foundation is kept");
+        let other = keep_pieces(&state, "plot:p1", 1, "did:hum:SomeoneWithHerPermit").await[0];
+
+        later(&clock);
+        send_json(&mut bo, unbuild_msg(2, hers)).await;
+        let r = answer(&mut bo, 2).await;
+        assert_eq!(r["type"], "game_build_refused", "Bo, a visitor, cannot take down Ann's foundation: {r}");
+        assert_eq!((r["action"].as_str(), r["reason"].as_str(), r["why"].as_str()), (Some("unbuild"), Some("not_allowed"), Some("not_your_plot")), "{r}");
+        assert_eq!(r["message"], sentence("unbuild", "Wood Foundation", "not_allowed", Some("not_your_plot")));
+        assert!(rows_in(&state, "plot:p1").contains(&hers), "it still stands");
+
+        later(&clock);
+        send_json(&mut ann, unbuild_msg(3, other)).await;
+        let took = answer(&mut ann, 3).await;
+        assert_eq!((took["type"].as_str(), took["piece_id"].as_u64()), (Some("game_unbuilt"), Some(other)), "Ann takes down a piece she did not build: {took}");
+        let seen = next_frame_with(&mut bo, |v| game_payload(v).filter(|g| g["type"] == "game_unbuilt" && g["piece_id"] == other)).await;
+        let seen = seen.expect("Bo, with p1 in view, is told");
+        assert!(seen.get("req_id").is_none(), "without Ann's request number: {seen}");
+
+        later(&clock);
+        send_json(&mut ada, unbuild_msg(4, hers)).await;
+        let took = answer(&mut ada, 4).await;
+        assert_eq!((took["type"].as_str(), took["piece_id"].as_u64()), (Some("game_unbuilt"), Some(hers)), "Ada, an admin, takes down Ann's: {took}");
+        let told = next_frame_with(&mut ann, |v| game_payload(v).filter(|g| g["type"] == "game_unbuilt" && g["piece_id"] == hers)).await;
+        assert!(told.is_some_and(|t| t.get("req_id").is_none()), "Ann is told her piece came down");
+        assert!(rows_in(&state, "plot:p1").is_empty(), "no row is left");
+
+        for mut s in [ann, bo, ada] {
+            s.close(None).await.ok();
+        }
+        server.abort();
+    }
+
+    /// A HOUSEHOLD PERMIT LETS ITS HOLDER BUILD, AND TAKE DOWN ONLY THEIR OWN (ship homes section
+    /// 4; the permit is checked without being stored, pq_crypto.rs `verify_plot_permit`). Ann
+    /// holds p1, Cy p2 and Bo p3. Ann signs Bo a 30-day permit for p1, naming THIS relay's own
+    /// did:hum (its /api/server-info `server_did`): Bo's foundation on p1 is kept and is his
+    /// (`mine`); he cannot take down the foundation Ann put up beside it (`not_your_piece`), and
+    /// she can take down his. Refused, each with its own `why`, and nothing kept: a permit that has
+    /// run out (`permit_expired`); one Cy signed for p1, which Cy does not hold
+    /// (`permit_not_from_holder`); Ann's p1 permit used on Cy's p2 (`permit_bad`: the relay
+    /// checks it against its own facts, never what the permit says it is for); one Ann gave on
+    /// another server (`permit_bad`); and no permit at all (`not_your_plot`).
+    ///
+    /// Seen red 2026-10-05 with the permit branch taken out of `may_build` (a build on another's
+    /// plot refused as if no permit came with it): "Bo builds on Ann's plot with her permit:
+    /// {...\"reason\":\"not_allowed\",...,\"why\":\"not_your_plot\"}".
+    #[tokio::test]
+    async fn a_household_permit_lets_its_holder_build_and_take_down_only_their_own() {
+        let path = plots_db("sb_permit");
+        let (state, port, server) = relay_on(&path).await;
+        let clock = limit_clock(&state);
+        let (mut ann, ann_key, _) = joiner(&state, port, 46, "PermitAnn").await;
+        let (mut cy, cy_key, _) = joiner(&state, port, 47, "PermitCy").await;
+        let (mut bo, bo_key, bo_plot) = joiner(&state, port, 48, "PermitBo").await;
+        assert_eq!(bo_plot.as_deref(), Some("p3"), "Ann p1, Cy p2, Bo p3");
+        let here = state.db.server_did().expect("the relay's own did:hum");
+        let bo_did = crate::relay::storage::plot_owner_id(&bo_key);
+        let now = unix_now();
+        let day = 86_400;
+        let good = mint_permit(46, &ann_key, &here, "p1", &bo_did, now + 30 * day, now);
+
+        send_json(&mut bo, with_permit(build_msg(1, "plot:p1", "wood_foundation", [20.0, 0.0, 20.0], 0), &good)).await;
+        let his = answer(&mut bo, 1).await;
+        assert_eq!(his["type"], "game_built", "Bo builds on Ann's plot with her permit: {his}");
+        assert_eq!(his["piece"]["mine"], true, "{his}");
+        let his = his["piece"]["piece_id"].as_u64().unwrap();
+        send_json(&mut ann, build_msg(2, "plot:p1", "wood_foundation", [40.0, 0.0, 20.0], 0)).await;
+        let hers = answer(&mut ann, 2).await["piece"]["piece_id"].as_u64().expect("Ann's own foundation");
+
+        later(&clock);
+        send_json(&mut bo, with_permit(unbuild_msg(3, hers), &good)).await;
+        let r = answer(&mut bo, 3).await;
+        assert_eq!((r["reason"].as_str(), r["why"].as_str()), (Some("not_allowed"), Some("not_your_piece")), "Bo cannot take down Ann's: {r}");
+        assert_eq!(r["message"], sentence("unbuild", "Wood Foundation", "not_allowed", Some("not_your_piece")));
+        later(&clock);
+        send_json(&mut ann, unbuild_msg(4, his)).await;
+        assert_eq!(answer(&mut ann, 4).await["type"], "game_unbuilt", "Ann takes down Bo's");
+
+        let refused = [
+            ("a permit that has run out", "plot:p1", Some(mint_permit(46, &ann_key, &here, "p1", &bo_did, now - day, now - 10 * day)), "permit_expired"),
+            ("a permit from Cy, who does not hold p1", "plot:p1", Some(mint_permit(47, &cy_key, &here, "p1", &bo_did, now + day, now)), "permit_not_from_holder"),
+            ("Ann's p1 permit on Cy's p2", "plot:p2", Some(good.clone()), "permit_bad"),
+            ("a permit Ann gave on another server", "plot:p1", Some(mint_permit(46, &ann_key, "did:hum:AnotherServer1234567", "p1", &bo_did, now + day, now)), "permit_bad"),
+            ("no permit at all", "plot:p1", None, "not_your_plot"),
+        ];
+        for (k, (what, frame, permit, why)) in refused.iter().enumerate() {
+            later(&clock);
+            let req = 10 + k as u32;
+            let msg = build_msg(req, frame, "wood_wall", [20.0, 0.2, 18.0], 0);
+            send_json(&mut bo, match permit { Some(p) => with_permit(msg, p), None => msg }).await;
+            let r = answer(&mut bo, req).await;
+            assert_eq!((r["type"].as_str(), r["reason"].as_str(), r["why"].as_str()), (Some("game_build_refused"), Some("not_allowed"), Some(*why)), "{what}: {r}");
+            assert_eq!(r["message"], sentence("build", "Wood Wall", "not_allowed", Some(*why)), "{what}");
+        }
+        assert_eq!(rows_in(&state, "plot:p1"), vec![hers], "only Ann's own foundation stands on p1");
+        assert!(rows_in(&state, "plot:p2").is_empty(), "nothing on Cy's plot");
+
+        for mut s in [ann, cy, bo] {
+            s.close(None).await.ok();
+        }
+        server.abort();
+    }
+
+    /// A role that has the ship-editing rank and nothing else, as Server Settings > Roles makes
+    /// one.
+    fn shipwright_role() -> crate::relay::storage::RoleDef {
+        crate::relay::storage::RoleDef {
+            id: "shipwright".into(),
+            label: "Shipwright".into(),
+            built_in: false,
+            trust_level: 2,
+            base_tier: "verified".into(),
+            can_edit_ship: true,
+            ..Default::default()
+        }
+    }
+
+    /// THE SHIP'S SHARED SPACES NEED THE RANK (decision 4 of the increment 5 plan). In the Commons
+    /// Pat, a plain player, is refused `not_allowed` / `ship_rank` with the one sentence for it;
+    /// Rae, whose role has `can_edit_ship`, builds a wall there, and Pat, with the Commons in view,
+    /// sees it go up; Ada, an admin (the built-in role has the rank), builds another. Two rows,
+    /// both in the Commons.
+    ///
+    /// Seen red 2026-10-05 with the shared spaces open to anyone in `may_build`: "Pat, a plain
+    /// player, in the Commons: {...\"type\":\"game_built\"}".
+    #[tokio::test]
+    async fn the_ships_spaces_need_the_rank() {
+        let path = plots_db("sb_rank");
+        let (state, port, server) = relay_on(&path).await;
+        let _clock = limit_clock(&state); // each of the three builds once: no wait needed
+        state.db.upsert_role(&shipwright_role()).expect("a role with the rank");
+        let (mut pat, _, _) = joiner(&state, port, 51, "RankPat").await;
+        let (mut rae, rae_key, _) = joiner(&state, port, 52, "RankRae").await;
+        let (mut ada, ada_key, _) = joiner(&state, port, 53, "RankAda").await;
+        state.db.set_role(&rae_key, "shipwright").expect("Rae is a shipwright");
+        state.db.set_role(&ada_key, "admin").expect("Ada is an admin");
+
+        send_json(&mut pat, build_msg(1, "zone:commons", "wood_wall", [11.0, 0.0, 50.0], 0)).await;
+        let r = answer(&mut pat, 1).await;
+        assert_eq!(r["type"], "game_build_refused", "Pat, a plain player, in the Commons: {r}");
+        assert_eq!((r["reason"].as_str(), r["why"].as_str()), (Some("not_allowed"), Some("ship_rank")), "{r}");
+        assert_eq!(r["message"], sentence("build", "Wood Wall", "not_allowed", Some("ship_rank")));
+
+        send_json(&mut rae, build_msg(2, "zone:commons", "wood_wall", [11.0, 0.0, 50.0], 0)).await;
+        let built = answer(&mut rae, 2).await;
+        assert_eq!((built["type"].as_str(), built["frame"].as_str()), (Some("game_built"), Some("zone:commons")), "Rae, a shipwright: {built}");
+        let seen = next_frame_with(&mut pat, |v| game_payload(v).filter(|g| g["type"] == "game_built" && g["frame"] == "zone:commons")).await;
+        assert!(seen.is_some(), "Pat, with the Commons in view, sees Rae's wall go up");
+        send_json(&mut ada, build_msg(3, "zone:commons", "wood_wall", [11.0, 0.0, 46.0], 0)).await;
+        assert_eq!(answer(&mut ada, 3).await["type"], "game_built", "Ada, an admin");
+        assert_eq!(rows_in(&state, "zone:commons").len(), 2, "two rows in the Commons");
+
+        for mut s in [pat, rae, ada] {
+            s.close(None).await.ok();
+        }
+        server.abort();
+    }
+
+    /// THE WELCOME SAYS WHAT THIS PLAYER MAY DO beyond their own plot (shared.rs `Ranks`): a plain
+    /// player nothing; a shipwright (a role with `can_edit_ship`) builds in the ship's shared
+    /// spaces; an admin and the owner also take down anything.
+    ///
+    /// Seen red 2026-10-05 on the welcome before the field: "RankPlain: null".
+    #[tokio::test]
+    async fn the_welcome_says_what_this_player_may_do() {
+        let path = plots_db("sb_welcome_ranks");
+        let (state, port, server) = relay_on(&path).await;
+        state.db.upsert_role(&shipwright_role()).expect("a role with the rank");
+        let cases = [(54u8, "RankPlain", None, false, false), (55, "RankWright", Some("shipwright"), true, false), (56, "RankAdmin", Some("admin"), true, true), (57, "RankOwner", Some("owner"), true, true)];
+        for (n, name, role, can_edit_ship, take_down_any) in cases {
+            let (mut sock, key) = bind_socket_from(&state, port, [n; 32], Some(name), 1, Some(&format!("10.55.0.{n}"))).await;
+            if let Some(role) = role {
+                state.db.set_role(&key, role).expect("a role");
+            }
+            let w = welcome_after_join(&mut sock, name).await;
+            let want = serde_json::json!({ "can_edit_ship": can_edit_ship, "take_down_any": take_down_any });
+            assert_eq!(w["ranks"], want, "{name}: {}", w["ranks"]);
+            sock.close(None).await.ok();
+        }
+        server.abort();
+    }
+
+    /// A JOIN GETS THE PLOTS IN VIEW AND NOT THE FAR ONES (increment 4's 250 m and 300 m, by each
+    /// frame's floor). Pieces stand on p2 and on p12, at First Street's far end. A player joining
+    /// at p1's door is sent the lists of the Commons, First Street and p1 to p3 (p2's with its
+    /// piece), and nothing of p12, 1 km off. Walking up the street to 249 m from p12 brings p12's
+    /// list, with its piece, and takes p1 to p3 and the Commons out of view; walking back to 301 m
+    /// takes p12 out again.
+    ///
+    /// Seen red 2026-10-05 with every frame sent on a join: "the frames in view at p1's door /
+    /// left: {\"plot:p1\", \"plot:p10\", \"plot:p11\", \"plot:p12\", ...".
+    #[tokio::test]
+    async fn a_join_gets_the_plots_in_view_and_not_the_far_ones() {
+        let path = plots_db("sb_view");
+        let (state, port, server) = relay_on(&path).await;
+        let on_p2 = keep_pieces(&state, "plot:p2", 1, "did:hum:TheHolderOfP2").await[0];
+        let on_p12 = keep_pieces(&state, "plot:p12", 1, "did:hum:TheHolderOfP12").await[0];
+        let (mut j, j_key, plot) = joiner(&state, port, 58, "ViewJoiner").await;
+        assert_eq!(plot.as_deref(), Some("p1"));
+        let lists = shared_build_messages_for(&mut j, 800).await;
+        let frames: std::collections::BTreeSet<&str> = lists.iter().filter(|g| g["type"] == "game_pieces").filter_map(|g| g["frame"].as_str()).collect();
+        let want: std::collections::BTreeSet<&str> = ["plot:p1", "plot:p2", "plot:p3", "zone:commons", "zone:street-1"].into_iter().collect();
+        assert_eq!(frames, want, "the frames in view at p1's door");
+        let p2 = lists.iter().find(|g| g["frame"] == "plot:p2").unwrap();
+        assert_eq!(ids_of(p2["pieces"].as_array().unwrap()), vec![on_p2], "p2's list has its piece");
+
+        // Up First Street (x 70) to 249 m from p12's floor (z 1089, x 0 to 55).
+        stand_at(&state, &j_key, [70.0, 1.7, 839.0]).await;
+        step_applied(&mut j, [70.0, 1.7, 840.0], 0).await;
+        let (_, pieces, _) = whole_list(&mut j, "plot:p12").await;
+        assert_eq!(ids_of(&pieces), vec![on_p12], "p12 came into view, with its piece");
+        let gone = shared_build_messages_for(&mut j, 600).await;
+        let gone: std::collections::BTreeSet<&str> = gone.iter().filter(|g| g["type"] == "game_frame_out_of_view").filter_map(|g| g["frame"].as_str()).collect();
+        let want: std::collections::BTreeSet<&str> = ["plot:p1", "plot:p2", "plot:p3", "zone:commons"].into_iter().collect();
+        assert_eq!(gone, want, "the far end of the street is out of the Commons' view");
+
+        // Back down to 301 m from p12's floor.
+        stand_at(&state, &j_key, [70.0, 1.7, 790.0]).await;
+        step_applied(&mut j, [70.0, 1.7, 788.0], 0).await;
+        let out = next_frame_with(&mut j, |v| game_payload(v).filter(|g| g["type"] == "game_frame_out_of_view" && g["frame"] == "plot:p12")).await;
+        assert!(out.is_some(), "p12 left the view at 301 m");
+
+        j.close(None).await.ok();
+        server.abort();
+    }
+
+    /// PIECES KEEP THEIR NUMBERS ACROSS A RECONNECT AND A RELAY RESTART (every piece is its row,
+    /// written before anyone is told). Ann builds a foundation and a wall on p1; her socket
+    /// closes and a new one joins: her list of p1 has both, by the same numbers, `mine`. The relay
+    /// restarts on the same database: her list has both again, by the same numbers, with the
+    /// frame's count of changes back at 0; and her next piece gets a number higher than any
+    /// before.
+    ///
+    /// Seen red 2026-10-05 with the row's write skipped in `keep` (a number counted in memory):
+    /// "after a restart / left: [] / right: [1, 2]".
+    #[tokio::test]
+    async fn pieces_keep_their_ids_across_a_reconnect_and_a_relay_restart() {
+        let path = plots_db("sb_restart");
+        let (state, port, server) = relay_on(&path).await;
+        let clock = limit_clock(&state);
+        let (mut ann, ann_key, _) = joiner(&state, port, 59, "KeepAnn").await;
+        send_json(&mut ann, build_msg(1, "plot:p1", "wood_foundation", [20.0, 0.0, 20.0], 0)).await;
+        let first = answer(&mut ann, 1).await["piece"]["piece_id"].as_u64().unwrap();
+        later(&clock);
+        send_json(&mut ann, build_msg(2, "plot:p1", "wood_wall", [20.0, 0.2, 18.0], 0)).await;
+        let second = answer(&mut ann, 2).await["piece"]["piece_id"].as_u64().unwrap();
+        let both = vec![first, second];
+
+        ann.close(None).await.ok();
+        assert!(wait_until(|| async { live_count(&state, &ann_key).await == 0 }).await, "the socket closed");
+        let (mut again, _, _) = joiner(&state, port, 59, "KeepAnn").await;
+        let (_, pieces, _) = whole_list(&mut again, "plot:p1").await;
+        assert_eq!(ids_of(&pieces), both, "after a reconnect");
+        assert!(pieces.iter().all(|p| p["mine"] == true), "both hers: {pieces:?}");
+        again.close(None).await.ok();
+
+        server.abort();
+        drop(state);
+        let (state, port, server) = relay_on(&path).await;
+        let (mut after, _, _) = joiner(&state, port, 59, "KeepAnn").await;
+        let (seq, pieces, _) = whole_list(&mut after, "plot:p1").await;
+        assert_eq!(ids_of(&pieces), both, "after a restart / left: {:?} / right: {both:?}", ids_of(&pieces));
+        assert_eq!(seq, 0, "a restarted relay counts changes from 0");
+        assert!(pieces.iter().all(|p| p["mine"] == true), "both still hers: {pieces:?}");
+        send_json(&mut after, build_msg(3, "plot:p1", "wood_foundation", [30.0, 0.0, 20.0], 0)).await;
+        let third = answer(&mut after, 3).await["piece"]["piece_id"].as_u64().unwrap();
+        assert!(third > second, "a new piece's number is higher than any before: {third} after {second}");
+
+        after.close(None).await.ok();
+        server.abort();
+    }
+
+    /// EVERY CHANGE MOVES ITS FRAME'S SEQ BY ONE, AND THE LIST CARRIES IT (shared.rs `seq`). Bo
+    /// joins with p1 empty: its list says 0. Ann builds three pieces on p1 (answered 1, 2, 3, and
+    /// Bo is told 1, 2, 3) and takes the second down (4, to both). Cy, joining after, is sent p1's
+    /// list at 4 with the two pieces still standing, and Bo, asking for p1 again, the same. Lists
+    /// asked for again come one a second per player, whichever frame (`PIECES_REQUEST_INTERVAL_MS`,
+    /// the pace the game keeps): Bo's ask for p2 straight after is refused `rate_limited`, and a
+    /// second later answered with p2's list, empty, in one part.
+    ///
+    /// Seen red 2026-10-05 with a take-down leaving its frame's count where it was: "Ann's
+    /// take-down is change 4 / left: Number(3) / right: 4"; and with the limit kept per player
+    /// AND frame (as first built): "another frame's list within the second:
+    /// {\"frame\":\"plot:p2\",\"part\":1,\"parts\":1,\"pieces\":[],...,\"type\":\"game_pieces\"}".
+    #[tokio::test]
+    async fn every_change_moves_its_frames_seq_by_one_and_the_snapshot_carries_it() {
+        let path = plots_db("sb_seq");
+        let (state, port, server) = relay_on(&path).await;
+        let clock = limit_clock(&state);
+        let (mut ann, _, _) = joiner(&state, port, 61, "SeqAnn").await;
+        let (mut bo, _, _) = joiner(&state, port, 62, "SeqBo").await;
+        let (seq, pieces, _) = whole_list(&mut bo, "plot:p1").await;
+        assert_eq!((seq, pieces.len()), (0, 0), "Bo joins with p1 empty");
+
+        let mut ids = Vec::new();
+        for (k, x) in [10.0f32, 20.0, 30.0].into_iter().enumerate() {
+            later(&clock);
+            let req = k as u32 + 1;
+            send_json(&mut ann, build_msg(req, "plot:p1", "wood_foundation", [x, 0.0, 20.0], 0)).await;
+            let a = answer(&mut ann, req).await;
+            assert_eq!(a["seq"], req as u64, "Ann's build {req}: {a}");
+            ids.push(a["piece"]["piece_id"].as_u64().unwrap());
+            let b = next_game_of(&mut bo, &["game_built"]).await.expect("Bo is told");
+            assert_eq!(b["seq"], req as u64, "Bo is told build {req}: {b}");
+        }
+        later(&clock);
+        send_json(&mut ann, unbuild_msg(9, ids[1])).await;
+        assert_eq!(answer(&mut ann, 9).await["seq"], 4, "Ann's take-down is change 4");
+        let down = next_game_of(&mut bo, &["game_unbuilt"]).await.expect("Bo is told of the take-down");
+        assert_eq!(down["seq"].as_u64(), Some(4), "Bo is told the take-down at 4 / left: {} / right: 4", down["seq"]);
+
+        let (mut cy, _, _) = joiner(&state, port, 63, "SeqCy").await;
+        let (seq, pieces, _) = whole_list(&mut cy, "plot:p1").await;
+        assert_eq!((seq, ids_of(&pieces)), (4, vec![ids[0], ids[2]]), "Cy's list of p1");
+        clock.advance(std::time::Duration::from_millis(1100));
+        send_json(&mut bo, serde_json::json!({ "type": "game_pieces_request", "frame": "plot:p1" })).await;
+        let (seq, pieces, _) = whole_list(&mut bo, "plot:p1").await;
+        assert_eq!((seq, ids_of(&pieces)), (4, vec![ids[0], ids[2]]), "Bo's list of p1, asked for again");
+        // One list a second per player, whichever frame (the game asks again after a refusal).
+        send_json(&mut bo, serde_json::json!({ "type": "game_pieces_request", "frame": "plot:p2" })).await;
+        let r = next_game_of(&mut bo, &["game_build_refused", "game_pieces"]).await.expect("an answer");
+        let got = (r["type"].as_str(), r["action"].as_str(), r["reason"].as_str());
+        assert_eq!(got, (Some("game_build_refused"), Some("pieces"), Some("rate_limited")), "another frame's list within the second: {r}");
+        clock.advance(std::time::Duration::from_millis(1100));
+        send_json(&mut bo, serde_json::json!({ "type": "game_pieces_request", "frame": "plot:p2" })).await;
+        let (_, p2, parts) = whole_list(&mut bo, "plot:p2").await;
+        assert_eq!((p2.len(), parts), (0, vec![(1, 1)]), "a second later, p2's list: empty, one part");
+
+        for mut s in [ann, bo, cy] {
+            s.close(None).await.ok();
+        }
+        server.abort();
+    }
+
+    /// A LARGE PLOT ARRIVES IN PARTS (shared.rs `PIECES_PER_PART`, 128 to a message). With 300
+    /// pieces on p1, a player joining is sent p1's list as parts 1, 2 and 3 of 3 (128, 128 and 44
+    /// pieces), each at the frame's count of changes, every piece once; and an empty plot as one
+    /// part with no pieces.
+    ///
+    /// Seen red 2026-10-05 with the parts numbered from 0: "p1's list in three parts / left: [(0,
+    /// 3), (1, 3), (2, 3)] / right: [(1, 3), (2, 3), (3, 3)]".
+    #[tokio::test]
+    async fn a_large_plot_arrives_in_parts() {
+        let path = plots_db("sb_parts");
+        let (state, port, server) = relay_on(&path).await;
+        let kept = keep_pieces(&state, "plot:p1", 300, "did:hum:ABusyBuilder").await;
+        let (mut j, _, _) = joiner(&state, port, 64, "PartsJoiner").await;
+        let (seq, pieces, parts) = whole_list(&mut j, "plot:p1").await;
+        assert_eq!(parts, vec![(1, 3), (2, 3), (3, 3)], "p1's list in three parts / left: {parts:?} / right: [(1, 3), (2, 3), (3, 3)]");
+        assert_eq!(seq, 300, "every part at the frame's count of changes");
+        let mut got = ids_of(&pieces);
+        got.sort_unstable();
+        assert_eq!(got, kept, "every piece once");
+        let (_, empty, parts) = whole_list(&mut j, "plot:p3").await;
+        assert_eq!((empty.len(), parts), (0, vec![(1, 1)]), "an empty plot is one part with no pieces");
+
+        j.close(None).await.ok();
+        server.abort();
+    }
+
+    /// A REFUSED BUILD SAYS WHY AND STORES NOTHING (shared.rs `Reason`, each with the one sentence
+    /// for it). On Ann's own p1, each of these is refused with its reason, its request's number
+    /// and its sentence, and no row is kept: a foundation half a metre off the grid
+    /// (`off_grid`); one tilted ten degrees (`bad_turn`); one a metre too wide (`bad_scale`); one
+    /// whose x is JSON's NaN, null (`bad_shape`), or a number past f32's range (`bad_shape`); an
+    /// unknown blueprint (`unknown_blueprint`); a furnace, which is not shareable
+    /// (`not_shared`); a planet site and a plot this ship lacks (`bad_frame`); a foundation over
+    /// p1's line (`outside_frame`); one below the deck (`out_of_bounds`). Then a build from a
+    /// player not in the shared world (`not_in_game`); a second build within 200 ms of the first
+    /// (`rate_limited`); and taking down a piece that is not there (`no_such_piece`). Every row is
+    /// checked and the wrong ones are listed together.
+    ///
+    /// Seen red 2026-10-05, each row with its own check removed (all at once; every row is
+    /// checked, so each shows its own failure), every one answered with something else:
+    ///   - off the grid, tilted, too wide, below the deck, over p1's line, a furnace, a second
+    ///     build within 200 ms: "expected <reason>, got {...\"type\":\"game_built\"}" (kept, and
+    ///     the tilted and too-wide ones made exact, so nobody could tell);
+    ///   - JSON's null read as 0: "expected bad_shape, got {...\"position\":[0.0,0.0,14.0],...
+    ///     \"type\":\"game_built\"}";
+    ///   - past f32's range, both finite checks removed: "expected bad_shape, got
+    ///     {...\"position\":[null,0.0,14.0],...\"type\":\"game_built\"}" (a piece at infinity, sent
+    ///     to everyone as null);
+    ///   - an unknown blueprint taken as a foundation: "expected unknown_blueprint, got
+    ///     {...\"reason\":\"bad_scale\",...}";
+    ///   - a planet site and plot p99 taken as p1: "expected bad_frame, got {\"frame\":\"plot:p1\",
+    ///     ...\"type\":\"game_built\"}";
+    ///   - a player not in the world taken as a guest: "expected not_in_game, got
+    ///     {...\"reason\":\"not_allowed\",...\"why\":\"guest\"}";
+    ///   - a missing piece answered as taken down: "expected no_such_piece, got
+    ///     {\"frame\":\"plot:p1\",\"piece_id\":999999,\"req_id\":23,\"seq\":0,\"type\":\"game_unbuilt\"}".
+    #[tokio::test]
+    async fn a_refused_build_says_why_and_stores_nothing() {
+        let path = plots_db("sb_refused");
+        let (state, port, server) = relay_on(&path).await;
+        let clock = limit_clock(&state);
+        let (mut ann, _, _) = joiner(&state, port, 65, "RefuseAnn").await;
+        let (mut out, _) = bind_socket_from(&state, port, [66u8; 32], Some("RefuseOutside"), 1, Some("10.55.0.66")).await;
+        // Each row on a spot of its own, so one that slipped through would read as built.
+        let found = |req: u32, at: [f32; 3]| build_msg(req, "plot:p1", "wood_foundation", at, 0);
+        let tilted = {
+            let mut m = found(2, [10.0, 0.0, 6.0]);
+            let q = (glam::Quat::IDENTITY * glam::Quat::from_rotation_x(10f32.to_radians())).normalize();
+            m["rotation"] = serde_json::json!(q.to_array());
+            m
+        };
+        let wide = {
+            let mut m = found(3, [30.0, 0.0, 6.0]);
+            m["scale"] = serde_json::json!([5.0, 0.2, 4.0]);
+            m
+        };
+        let nan = {
+            let mut m = found(4, [20.0, 0.0, 14.0]);
+            m["position"] = serde_json::json!([f32::NAN, 0.0, 14.0]);
+            m
+        };
+        let huge: Value = serde_json::from_str(
+            &found(5, [20.0, 0.0, 14.0]).to_string().replace("\"position\":[20.0,0.0,14.0]", "\"position\":[1e39,0.0,14.0]"),
+        )
+        .unwrap();
+        assert_eq!(huge["position"][0].as_f64(), Some(1e39), "the message carries a number past f32's range");
+        let rows: Vec<(&str, Value, &str, &str)> = vec![
+            ("half a metre off the grid", found(1, [20.5, 0.0, 6.0]), "off_grid", "Wood Foundation"),
+            ("tilted ten degrees", tilted, "bad_turn", "Wood Foundation"),
+            ("a metre too wide", wide, "bad_scale", "Wood Foundation"),
+            ("x is JSON's NaN (null)", nan, "bad_shape", "piece"),
+            ("x past f32's range", huge, "bad_shape", "piece"),
+            ("an unknown blueprint", build_msg(6, "plot:p1", "no_such_blueprint", [10.0, 0.0, 22.0], 0), "unknown_blueprint", "piece"),
+            ("a furnace", build_msg(7, "plot:p1", "furnace", [20.0, 0.0, 22.0], 0), "not_shared", "Furnace"),
+            ("a planet site", build_msg(8, "site:moon-1", "wood_foundation", [30.0, 0.0, 22.0], 0), "bad_frame", "piece"),
+            ("a plot this ship lacks", build_msg(9, "plot:p99", "wood_foundation", [40.0, 0.0, 22.0], 0), "bad_frame", "piece"),
+            ("a foundation over p1's line", found(10, [54.0, 0.0, 36.0]), "outside_frame", "Wood Foundation"),
+            ("a foundation below the deck", found(11, [10.0, -2.0, 40.0]), "out_of_bounds", "Wood Foundation"),
+        ];
+        let mut wrong = Vec::new();
+        let mut check = |what: &str, r: &Value, action: &str, reason: &str, piece: &str| {
+            let ok = r["type"] == "game_build_refused"
+                && r["action"] == action
+                && r["reason"] == reason
+                && r.get("why").is_none()
+                && r["message"] == sentence(action, piece, reason, None);
+            if !ok {
+                wrong.push(format!("{what}: expected {reason}, got {r}"));
+            }
+        };
+        for (what, msg, reason, piece) in &rows {
+            later(&clock);
+            let req = msg["req_id"].as_u64().unwrap() as u32;
+            send_json(&mut ann, msg.clone()).await;
+            check(what, &answer(&mut ann, req).await, "build", reason, piece);
+        }
+        // Not in the shared world: signed in, never joined.
+        send_json(&mut out, found(20, [20.0, 0.0, 40.0])).await;
+        check("from a player not in the shared world", &answer(&mut out, 20).await, "build", "not_in_game", "piece");
+        // Two builds 0 ms apart on the limit's clock: the second is turned away unjudged.
+        later(&clock);
+        send_json(&mut ann, found(21, [30.5, 0.0, 40.0])).await;
+        send_json(&mut ann, found(22, [40.0, 0.0, 40.0])).await;
+        let _ = answer(&mut ann, 21).await;
+        check("a second build within 200 ms", &answer(&mut ann, 22).await, "build", "rate_limited", "piece");
+        // A piece that is not there.
+        later(&clock);
+        send_json(&mut ann, unbuild_msg(23, 999_999)).await;
+        check("taking down a piece that is not there", &answer(&mut ann, 23).await, "unbuild", "no_such_piece", "piece");
+
+        let kept = state.db.load_world_pieces(&state.game_world.read().await.ship_plots.ship_id).unwrap();
+        if !kept.is_empty() {
+            wrong.push(format!("rows were kept: {kept:?}"));
+        }
+        assert!(wrong.is_empty(), "\n{}", wrong.join("\n"));
+
+        ann.close(None).await.ok();
+        out.close(None).await.ok();
+        server.abort();
+    }
+
+    /// NOBODY IS TOLD WHO BUILT WHAT (increment 4's rule that nobody is told who lives where,
+    /// carried over to building). Ann builds two pieces on p1 and takes one down; Bo, her
+    /// neighbour, is told each change, then leaves and joins again and is sent p1's list. Nothing
+    /// Bo is sent about building carries a did:hum, an owner, a builder, a name, Ann's key or
+    /// Ann's name, and none of it says `mine`. Ann's own copies do say `mine`, her answers and her
+    /// list after she joins again.
+    ///
+    /// Seen red 2026-10-05 with the builder put back on the wire (an `owner` in `game_built`):
+    /// "Bo was told who built what (did:hum): {\"frame\":\"plot:p1\",\"owner\":\"did:hum:PBT8...\",...".
+    #[tokio::test]
+    async fn nobody_is_told_who_built_what() {
+        let path = plots_db("sb_nobody_told");
+        let (state, port, server) = relay_on(&path).await;
+        let clock = limit_clock(&state);
+        let (mut ann, ann_key, _) = joiner(&state, port, 67, "TellsNoAnn").await;
+        let (mut bo, _, _) = joiner(&state, port, 68, "TellsNoBo").await;
+        let mut to_bo = Vec::new();
+        let mut ids = Vec::new();
+        for (k, x) in [10.0f32, 20.0].into_iter().enumerate() {
+            later(&clock);
+            let req = k as u32 + 1;
+            send_json(&mut ann, build_msg(req, "plot:p1", "wood_foundation", [x, 0.0, 20.0], 0)).await;
+            let a = answer(&mut ann, req).await;
+            assert_eq!(a["piece"]["mine"], true, "Ann's own copy says mine: {a}");
+            ids.push(a["piece"]["piece_id"].as_u64().unwrap());
+            to_bo.push(next_game_of(&mut bo, &["game_built"]).await.expect("Bo is told"));
+        }
+        later(&clock);
+        send_json(&mut ann, unbuild_msg(3, ids[0])).await;
+        let _ = answer(&mut ann, 3).await;
+        to_bo.push(next_game_of(&mut bo, &["game_unbuilt"]).await.expect("Bo is told of the take-down"));
+        to_bo.extend(shared_build_messages_for(&mut bo, 300).await);
+        send_json(&mut bo, serde_json::json!({ "type": "game_leave" })).await;
+        let (seq, pieces, _) = {
+            let w = welcome_after_join(&mut bo, "TellsNoBo").await;
+            assert!(w.get("ranks").is_some());
+            whole_list(&mut bo, "plot:p1").await
+        };
+        assert_eq!((seq, ids_of(&pieces)), (3, vec![ids[1]]), "Bo's list of p1");
+        to_bo.push(serde_json::json!({ "pieces": pieces }));
+        to_bo.extend(shared_build_messages_for(&mut bo, 300).await);
+        for m in &to_bo {
+            let text = m.to_string();
+            for told in ["did:hum", "owner", "builder", "name", ann_key.as_str(), "TellsNoAnn"] {
+                assert!(!text.contains(told), "Bo was told who built what ({told}): {text}");
+            }
+            assert!(!text.contains("\"mine\""), "Bo's copies never say mine: {text}");
+        }
+
+        send_json(&mut ann, serde_json::json!({ "type": "game_leave" })).await;
+        welcome_after_join(&mut ann, "TellsNoAnn").await;
+        let (_, hers, _) = whole_list(&mut ann, "plot:p1").await;
+        assert_eq!(hers.len(), 1);
+        assert_eq!(hers[0]["mine"], true, "Ann's list says her piece is hers: {hers:?}");
+
+        for mut s in [ann, bo] {
+            s.close(None).await.ok();
+        }
+        server.abort();
+    }
+
+    /// GIVING BACK A PLOT TAKES DOWN WHAT STOOD ON IT (decision 2 of the increment 5 plan), and an
+    /// erased account's pieces come down wherever they stand. Ann holds p1, Bo p2, Cy p3; Ann and
+    /// Cy each give Bo a permit. On p1 stand Ann's foundation and Bo's wall; on p2 Bo's
+    /// foundation; on p3 Bo's wall and Cy's foundation. Ann steps out and an admin gives p1 back:
+    /// the notice says the 2 pieces came down, p1 keeps no row, and Cy, with p1 in view, is sent
+    /// its empty list. Bo erases his account: his plot's foundation comes down with the plot, his
+    /// wall on Cy's plot comes down with the account, the receipt counts the 2, no row of his is
+    /// left, Cy's foundation stays, and Cy is sent the new lists of p2 and p3.
+    ///
+    /// Seen red 2026-10-05 with a released plot's pieces left standing (no `take_down_plot` in
+    /// the admin's release by plot id): "the release takes p1's pieces down / left: [1, 3] /
+    /// right: []".
+    #[tokio::test]
+    async fn giving_back_a_plot_takes_down_what_stood_on_it() {
+        let path = plots_db("sb_give_back");
+        let (state, port, server) = relay_on(&path).await;
+        let clock = limit_clock(&state);
+        let (mut admin, admin_key) = bind_socket_from(&state, port, [69u8; 32], Some("GiveBackAdmin"), 1, Some("10.55.0.69")).await;
+        state.db.set_role(&admin_key, "admin").expect("make admin");
+        let (mut ann, ann_key, _) = joiner(&state, port, 70, "GiveBackAnn").await;
+        let (mut bo, bo_key, _) = joiner(&state, port, 71, "GiveBackBo").await;
+        let (mut cy, cy_key, _) = joiner(&state, port, 72, "GiveBackCy").await;
+        let here = state.db.server_did().unwrap();
+        let bo_did = crate::relay::storage::plot_owner_id(&bo_key);
+        let now = unix_now();
+        let from_ann = mint_permit(70, &ann_key, &here, "p1", &bo_did, now + 86_400, now);
+        let from_cy = mint_permit(72, &cy_key, &here, "p3", &bo_did, now + 86_400, now);
+
+        send_json(&mut ann, build_msg(1, "plot:p1", "wood_foundation", [20.0, 0.0, 20.0], 0)).await;
+        assert_eq!(answer(&mut ann, 1).await["type"], "game_built");
+        send_json(&mut cy, build_msg(2, "plot:p3", "wood_foundation", [20.0, 0.0, 20.0], 0)).await;
+        let cys = answer(&mut cy, 2).await["piece"]["piece_id"].as_u64().unwrap();
+        for (k, (frame, permit)) in [("plot:p1", Some(&from_ann)), ("plot:p2", None), ("plot:p3", Some(&from_cy))].into_iter().enumerate() {
+            later(&clock);
+            let req = 10 + k as u32;
+            let at = if permit.is_some() { [30.0, 0.2, 18.0] } else { [20.0, 0.0, 20.0] };
+            let bp = if permit.is_some() { "wood_wall" } else { "wood_foundation" };
+            let msg = build_msg(req, frame, bp, at, 0);
+            send_json(&mut bo, match permit { Some(p) => with_permit(msg, p), None => msg }).await;
+            assert_eq!(answer(&mut bo, req).await["type"], "game_built", "Bo's piece on {frame}");
+        }
+        assert_eq!(rows_in(&state, "plot:p1").len(), 2);
+        let _ = shared_build_messages_for(&mut cy, 300).await;
+
+        // Ann steps out; the admin gives p1 back.
+        send_json(&mut ann, serde_json::json!({ "type": "game_leave" })).await;
+        assert!(wait_until(|| async { state.game_world.read().await.find_player_entity(&ann_key).is_none() }).await, "Ann stepped out");
+        send_json(&mut admin, serde_json::json!({ "type": "game_release_plot", "target": "p1" })).await;
+        let notice = next_game_of(&mut admin, &["game_admin_notice", "game_admin_error"]).await.expect("the admin is answered");
+        let left = rows_in(&state, "plot:p1");
+        assert!(left.is_empty(), "the release takes p1's pieces down / left: {left:?} / right: []");
+        let said = notice["message"].as_str().unwrap_or("");
+        assert!(said.contains("Released plot p1") && said.contains("The 2 pieces built on it came down with it."), "{notice}");
+        let (_, p1, _) = whole_list(&mut cy, "plot:p1").await;
+        assert!(p1.is_empty(), "Cy, with p1 in view, is sent its empty list: {p1:?}");
+
+        // Bo erases his account.
+        erase_and_wait(&state, &mut bo, &bo_key, "GiveBackBo").await;
+        let heard = frames_until_quiet(&mut bo, 800).await;
+        let receipt = heard.iter().filter_map(|f| f["message"].as_str()).find(|m| m.starts_with("Your account and its data were erased"));
+        let receipt = receipt.unwrap_or_else(|| panic!("no erase receipt: {heard:?}"));
+        assert!(receipt.contains("world_pieces: 2"), "the receipt counts Bo's 2 pieces: {receipt}");
+        assert!(receipt.contains("ship_plots: 1"), "and the plot given back: {receipt}");
+        let ship = state.game_world.read().await.ship_plots.ship_id.clone();
+        let rows = state.db.load_world_pieces(&ship).unwrap();
+        assert!(rows.iter().all(|p| p.owner_did != bo_did), "no row of Bo's is left: {rows:?}");
+        assert_eq!(rows_in(&state, "plot:p3"), vec![cys], "Cy's foundation stays");
+        assert!(rows_in(&state, "plot:p2").is_empty(), "Bo's plot is empty");
+        let (_, p2, _) = whole_list(&mut cy, "plot:p2").await;
+        assert!(p2.is_empty(), "Cy is sent p2's empty list: {p2:?}");
+        let (_, p3, _) = whole_list(&mut cy, "plot:p3").await;
+        assert_eq!(ids_of(&p3), vec![cys], "Cy is sent p3's list without Bo's wall");
+        let still = state.game_world.read().await.pieces.pieces_in("plot:p3").iter().map(|p| p.piece_id).collect::<Vec<_>>();
+        assert_eq!(still, vec![cys], "and the relay's own copy agrees");
+
+        for mut s in [admin, ann, bo, cy] {
+            s.close(None).await.ok();
+        }
+        server.abort();
+    }
 }
