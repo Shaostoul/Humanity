@@ -67,6 +67,10 @@ pub mod lod_registry;
 pub mod engine;
 /// Boot-phase timing -> log summary + debug/boot_timing.json (dev tooling).
 pub mod boot_timing;
+/// A clock a test moves by hand, for code that decides things by elapsed time
+/// (BUG-152). Test builds only.
+#[cfg(test)]
+pub(crate) mod test_clock;
 
 #[cfg(feature = "relay")]
 pub mod relay;
