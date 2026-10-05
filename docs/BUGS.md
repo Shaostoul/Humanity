@@ -3544,7 +3544,7 @@ In a checkout (the rigs' data folder is the checkout) that rewrote four tracked 
 rebuild (755018fa0). Test `engine::editor::autosave_tests::opening_the_editor_is_not_an_edit`,
 seen red: "the editor's own rebuild as it opens armed the autosave".
 
-## BUG-152: three tests fail under machine load, not on their code (OPEN, found 2026-10-04)
+## BUG-152: three tests fail under machine load, not on their code (FIXED next release, found 2026-10-04)
 
 **Seen:** while increment 4's fixes were checked, with other builds running: the media
 seek tests `a_seek_lands_where_it_was_asked_and_the_picture_agrees`,
@@ -3568,15 +3568,78 @@ until it is green, which is how a real failure gets waved through.
   loop, deprioritize-builds.ps1) drew 16 to 24 fps and passed 88/88 in every
   order. The judge cannot tell a starved machine from a regression.
 
-**Fix (not started):** make the media tests wait on the decoder's progress rather
-than on wall-clock time (or give them a deterministic clock), and give the fleet
-ledger test a relay rate limit that cannot trip in a test (or space its sends by
-the limit it is testing). Give the relay storage tests a pool timeout that cannot
-expire under load. For the rigs: the machine guard should hold builds at
-BelowNormal priority for the length of a capture (what the scratchpad loop did),
-and the steady-speed judges should report the frame rate and refuse to judge, as
-"contaminated" rather than FAIL, when frames run long enough to break the
-interpolation the check measures.
+**Causes (found 2026-10-05, each reproduced under a deliberate load:** CPU-burning
+node threads, and for the relay three copies of its 556-test suite running at once):
+- **The media seek tests** gave the decoder a fixed 3 or 5 s of wall-clock time to
+  reach a seek target while the player's clock (an `Instant`) ran on. A busy machine
+  decodes slower than that and the wait ran out. Under 96 burner threads with two test
+  processes at once, 20 of 20 runs failed: `a_seek_lands_where_it_was_asked...`,
+  `a_seek_with_no_keyframe_in_the_window...`, `seeking_while_paused...` and
+  `seek_to_start_rewinds_and_replays` in all 20, `a_short_preroll...` in 15, every
+  failure a wait running out ("frames resume after a seek", "the fallback still
+  delivers", "a paused seek still shows a frame", "never got past 0.4 s"). The landing
+  bound itself never failed: the 4-frame queue keeps the first frame within four
+  frames of the target.
+- **`the_fleet_ledger_end_to_end`** sends two gives back to back and expects the 200 ms
+  limit to turn the second away. The limit measures the time between the relay
+  REACHING the two, which is the time it spends on the first: writing it to SQLite and
+  flushing it to disk, 2.4 ms on an idle machine. In a reproduced failure that write
+  took 437 ms and the second give went through. Beside three relay suites and 64
+  burner threads, 6 of 16 runs failed with exactly the reported assertion (the limit
+  saw the two 310 to 702 ms apart; in the closest passing runs, 169 and 179 ms).
+- **The relay storage tests:** r2d2's `Pool::build` returns only once all 8 read
+  connections are open, and gives them `connection_timeout` (5 s); three worker threads
+  per pool open them, and every test that opens a database builds a pool. With three
+  relay suites at once under load, building a pool took 3.3 s at the median and up to
+  5.6 s, and 335 of 1,013 builds failed, every one with no error from SQLite at all.
+  In the unchanged suites, 373 of the 375 failures across three runs were this; the
+  other 2 were the fleet ledger's.
+
+**Fix (no tolerance widened, no timeout lengthened; each test now waits on the work's
+own progress, and only 30 s with no progress at all fails it as stuck):**
+- `src/test_clock.rs`: `ManualClock`, a clock a test moves by hand. Test builds only.
+- Media (`src/media/mod.rs`, `src/media/tests.rs`): the player's `Clock` reads a test's
+  manual clock when it has one (`VideoPlayer::use_manual_clock`, `#[cfg(test)]`; the
+  product reads `Instant::now()` exactly as before). The seek tests hold the clock at
+  the target and wait on the DECODER (`wait_for_frame_at`: pictures decoded, end of
+  pass, thread alive), with no wall-clock budget. Every check is kept and the landing
+  one is now exact: the first frame after a seek is the frame AT the target (it was
+  "within 0.35 s after it"), and the clock reads the target exactly (it was "within
+  50 ms"). The paused seek keeps the wall clock, because only the wall can show a
+  paused clock standing still, and now also checks its position did not move. The
+  fallback seek lands exactly too since BUG-158 (found on the way) was fixed.
+- Relay: the perception rate limit reads `RelayState::perception_now()`, which a test
+  can point at a manual clock (`perception_clock`, `#[cfg(test)]`). The ledger test
+  moves it 250 ms where it used to sleep, so the gives meant to arrive together are
+  0 ms apart however long the relay takes over the first.
+  `the_give_limit_reads_the_test_clock_not_the_wall` (fleet_ledger_tests.rs) pins the
+  hook; seen red with `perception_now` reading the wall.
+- Pool (`src/relay/storage/pool.rs`): test builds build the same pool (same manager,
+  size, checkout timeout and checkout validation) with `build_unchecked` and wait for
+  its connections to OPEN, failing only when none has opened for 30 s
+  (`build_for_tests`); the product still uses `build` and its 5 s.
+  `a_pool_whose_connections_open_slowly_is_waited_for_in_tests` (700 ms a connection
+  against a 1 s limit) passes, and its control shows `build` failing the same pool;
+  seen red with the test build switched back to `build`.
+
+**Loaded loops after the fix, same loads:** the media seek tests 40 of 40 runs passed
+(about 24 s a run instead of 4: the tests waited for the decoder instead of failing);
+the ledger test beside three relay suites 16 of 16 passed; the three relay suites
+themselves passed 558 of 558 tests in each of 3 runs (375 failures before). Idle:
+`cargo test --features native --lib` 3,141 passed, `just verify-relay` 2,226 passed.
+
+**Not covered, still open:** the co-presence rig's steady-speed judges above. They are
+a rig's judges, not cargo tests, and this fix does not touch them. What the entry
+proposed for them stands: the machine guard holds builds at BelowNormal priority for
+the length of a capture, and the steady-speed judges report the frame rate and
+refuse to judge ("contaminated" rather than FAIL) when frames run long enough to break
+the interpolation the check measures.
+
+**Seen while measuring:** the temp folder held 182,269 entries, 174,578 of them
+`hum_*` databases, WAL and SHM files and folders left behind by relay tests that never
+remove what they create (76,906 databases alone). Not the cause here (opening a file
+there took the same 42 microseconds as in an empty folder), but it grows with every
+test run.
 
 ## BUG-153: the Campfire ability promises a fire with warmth and light, and only heals 3 health (OPEN, found 2026-10-04)
 
@@ -3650,6 +3713,28 @@ first (the ports and the space infrastructure arrived empty). The three module h
 say what loads (or that nothing does yet). Both systems are still unwired scaffolds, so
 nothing in the game changed. Still open, the class: a lint that every top-level key in a
 shipped RON file is a field its loader knows.
+
+## BUG-158: a seek that falls back to decoding from the top shows the clip from its first frame on the way (FIXED next release, found 2026-10-05)
+
+**Seen (while fixing BUG-152):** when a seek finds no keyframe in its rewind window (a
+long-GOP file we did not encode), the decode pass retries from the top of the file
+(`PassEnd::RetryFromStart`) so the seek always arrives. Its own comment says the retry
+lets "the pts filter drop everything before the target", but `decode_thread` hands the
+retry `start_s = 0.0`, and `start_s` is both where the demuxer repositions and where the
+pts filter starts keeping frames. So the retry queues every frame from the first one, and
+as each is at or before the clock (which already stands at the target) the screen plays
+the clip from its start at decode speed before it lands, while the sound has already
+jumped. With the clock held at a 1.5 s target on the test fixture, the first frame the
+player hands out after the seek is the one at 0 s (3 of 3 runs).
+
+**Fix:** `decode_pass` takes the target and a separate `from_top` flag
+(src/media/mod.rs): the retry skips only the reposition and still queues nothing older
+than the target, which is what its comment always said it did. The screen now holds the
+last picture while the retry decodes its way to the target, then lands on it.
+`a_seek_with_no_keyframe_in_the_window_still_arrives` requires the first frame after the
+seek to be the frame at the target, as the other seek tests do; seen red before the fix
+with the message above, green 3 of 3 after, and 20 of 20 loaded runs of the six seek
+tests (96 burner threads, two test processes at once) passed with it.
 
 ## BUG-159: the tests leave their temporary databases and files behind (OPEN, found 2026-10-05)
 

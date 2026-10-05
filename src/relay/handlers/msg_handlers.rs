@@ -3608,7 +3608,7 @@ pub(crate) fn check_perception_rate(state: &Arc<RelayState>, my_key: &str, actio
 /// `check_perception_rate` without the warning: for a caller that answers a refusal in its own
 /// words (a fleet give, whose answer must carry the give's id, handlers/fleet_ledger.rs).
 pub(crate) fn perception_rate_allows(state: &Arc<RelayState>, my_key: &str, action: &str) -> bool {
-    let now = std::time::Instant::now();
+    let now = state.perception_now();
     let bucket = format!("{}|{}", my_key, action);
     let mut map = match state.last_perception_times.lock() {
         Ok(m) => m,

@@ -103,22 +103,101 @@ pub(crate) fn build_read_pool(path: &Path) -> Result<ReadPool, rusqlite::Error> 
             Ok(())
         });
 
-    Pool::builder()
+    let builder = Pool::builder()
         .max_size(READ_POOL_SIZE)
         .connection_timeout(POOL_CHECKOUT_TIMEOUT)
         // Validate a connection on checkout (r2d2_sqlite's `is-valid` feature
         // runs a trivial `SELECT 1`). Cheap insurance against handing out a
         // connection whose underlying file handle went bad.
-        .test_on_check_out(true)
-        .build(manager)
-        .map_err(|e| {
-            // r2d2::Error isn't a rusqlite::Error; fold it into the SQLite
-            // error channel the boot path already threads through `?`.
-            rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CANTOPEN),
-                Some(format!("failed to build SQLite read pool: {e}")),
-            )
-        })
+        .test_on_check_out(true);
+
+    // `build` opens all READ_POOL_SIZE connections before it returns and gives
+    // that `connection_timeout` (5 s); a relay that cannot open its read
+    // connections in 5 s at boot fails loudly instead of hanging.
+    #[cfg(not(test))]
+    let pool = builder.build(manager).map_err(pool_build_error);
+    // Test builds wait for the same connections without the 5 s race: see
+    // `build_for_tests` (BUG-152). The pool itself is configured identically.
+    #[cfg(test)]
+    let pool = build_for_tests(builder, manager);
+    pool
+}
+
+/// r2d2::Error isn't a rusqlite::Error; fold it into the SQLite error channel
+/// the boot path already threads through `?`.
+fn pool_build_error(e: impl std::fmt::Display) -> rusqlite::Error {
+    rusqlite::Error::SqliteFailure(
+        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CANTOPEN),
+        Some(format!("failed to build SQLite read pool: {e}")),
+    )
+}
+
+/// How long `build_for_tests` may go without a single new connection opening
+/// before it calls the pool stuck. A guard against a hang, NOT a budget for
+/// the work (see `build_for_tests`).
+#[cfg(test)]
+const TEST_POOL_STALL: Duration = Duration::from_secs(30);
+
+/// Tests only (BUG-152): the production pool, built without racing a clock.
+///
+/// `Pool::build` returns only once all READ_POOL_SIZE connections are open,
+/// and gives them `connection_timeout` (5 s); three r2d2 worker threads per
+/// pool open them one by one. Every test that opens a database builds a pool,
+/// and when several test binaries run at once each runs a dozen such tests in
+/// parallel, so hundreds of those worker threads wait their turn for a CPU.
+/// Measured 2026-10-05 with three relay test suites at once under a 96-thread
+/// CPU load: building a pool took 3.3 s at the median and up to 5.6 s, and 335
+/// of 1,013 builds failed "timed out waiting for connection", every one with
+/// no error from SQLite at all. The tests failed because the machine was busy,
+/// not because a database could not be opened.
+///
+/// So a test waits for the connections to OPEN rather than for 5 s to pass:
+/// it returns the pool once all are open, and fails only when no new one has
+/// opened for `TEST_POOL_STALL` (with the last error a connection attempt
+/// reported, if any). Same manager, same size, same checkout timeout and
+/// checkout validation as the product; only this wait differs. A busy machine
+/// now builds the pool slowly instead of failing the test.
+#[cfg(test)]
+fn build_for_tests<M: r2d2::ManageConnection>(
+    builder: r2d2::Builder<M>,
+    manager: M,
+) -> Result<Pool<M>, rusqlite::Error> {
+    use std::sync::{Arc, Mutex};
+    use std::time::Instant;
+
+    /// Keeps the latest connection error for the stall message. r2d2 retries
+    /// a failed connection by itself, so an error is not yet a failure.
+    #[derive(Debug)]
+    struct LastError(Arc<Mutex<Option<String>>>);
+    impl<E: std::error::Error> r2d2::HandleError<E> for LastError {
+        fn handle_error(&self, e: E) {
+            *self.0.lock().unwrap_or_else(|p| p.into_inner()) = Some(e.to_string());
+        }
+    }
+
+    let last_error = Arc::new(Mutex::new(None));
+    let pool = builder.error_handler(Box::new(LastError(last_error.clone()))).build_unchecked(manager);
+    let mut open = 0;
+    let mut last_progress = Instant::now();
+    loop {
+        let now_open = pool.state().connections;
+        if now_open >= READ_POOL_SIZE {
+            return Ok(pool);
+        }
+        if now_open != open {
+            open = now_open;
+            last_progress = Instant::now();
+        }
+        if last_progress.elapsed() >= TEST_POOL_STALL {
+            let last = last_error.lock().unwrap_or_else(|p| p.into_inner()).take();
+            return Err(pool_build_error(format!(
+                "no read connection opened for {} s ({open} of {READ_POOL_SIZE} open; last connection error: {})",
+                TEST_POOL_STALL.as_secs(),
+                last.as_deref().unwrap_or("none")
+            )));
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
 }
 
 #[cfg(test)]
@@ -176,6 +255,45 @@ mod tests {
             })
             .expect("second pool read");
         assert_eq!(count, 1);
+    }
+
+    /// BUG-152: a pool whose connections open slowly is waited for in tests,
+    /// not failed. Each connection here takes 700 ms to open, so the 8 take
+    /// about 2.1 s on r2d2's 3 worker threads: the way a busy machine stretches
+    /// them. The control shows `Pool::build` refusing exactly this pool when
+    /// given 1 s (it waits `connection_timeout` for all 8; the product gives
+    /// 5 s, which three relay suites at once overran a third of the time); the
+    /// test build waits for the connections themselves and gets all 8.
+    #[test]
+    fn a_pool_whose_connections_open_slowly_is_waited_for_in_tests() {
+        use super::{build_for_tests, READ_POOL_SIZE};
+        use r2d2::ManageConnection as _;
+        use r2d2_sqlite::SqliteConnectionManager;
+        use std::time::Duration;
+
+        struct Slow(SqliteConnectionManager);
+        impl r2d2::ManageConnection for Slow {
+            type Connection = rusqlite::Connection;
+            type Error = rusqlite::Error;
+            fn connect(&self) -> Result<rusqlite::Connection, rusqlite::Error> {
+                std::thread::sleep(Duration::from_millis(700));
+                self.0.connect()
+            }
+            fn is_valid(&self, conn: &mut rusqlite::Connection) -> Result<(), rusqlite::Error> {
+                self.0.is_valid(conn)
+            }
+            fn has_broken(&self, conn: &mut rusqlite::Connection) -> bool {
+                self.0.has_broken(conn)
+            }
+        }
+        let builder = || r2d2::Pool::builder().max_size(READ_POOL_SIZE).connection_timeout(Duration::from_secs(1));
+
+        let control = builder().build(Slow(SqliteConnectionManager::memory()));
+        assert!(control.is_err(), "the control: Pool::build gives up on connections slower than its timeout");
+
+        let pool = build_for_tests(builder(), Slow(SqliteConnectionManager::memory()))
+            .expect("the test build waits for slow connections instead of failing");
+        assert_eq!(pool.state().connections, READ_POOL_SIZE, "every connection opened");
     }
 
     /// Invariant 2: a write through the read pool is REJECTED by SQLite.
