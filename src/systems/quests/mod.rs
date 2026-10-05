@@ -148,6 +148,26 @@ pub fn travel_transitions(
     entered
 }
 
+/// Where the player stands, as (x, z) in the frame destinations use, for the
+/// Travel emitter (2026-10-04, the first-hour audit's B5). In first person the
+/// camera IS the player: walking moves the camera, and the player entity's
+/// Transform keeps wherever spawning or a teleport last put it, so reading the
+/// Transform meant a Travel step never fired however far the player walked.
+/// The game publishes "camera_position" every frame (lib.rs, the home-local
+/// camera its proximity checks read, the walk-up interaction among them), and
+/// this reads it; the controlled entity's Transform is the fallback only where
+/// nothing publishes one (a headless world, a test).
+pub fn player_xz(world: &hecs::World, data: &DataStore) -> Option<(f32, f32)> {
+    if let Some(p) = data.get::<glam::Vec3>("camera_position") {
+        return Some((p.x, p.z));
+    }
+    world
+        .query::<(&crate::ecs::components::Transform, &crate::ecs::components::Controllable)>()
+        .iter()
+        .next()
+        .map(|(_, (tf, _))| (tf.position.x, tf.position.z))
+}
+
 /// Stable quest key for an NPC display name: lowercase, every non-alphanumeric
 /// run collapsed to one underscore, trimmed. "Mira Chen" -> "mira_chen", so a
 /// quest authors Talk(npc_id: "mira_chen") no matter how the relay styles the
@@ -323,17 +343,11 @@ impl System for QuestSystem {
         // Travel emitter (v0.979): fire "travel_<id>" the moment the player
         // steps into a destination radius (data/entities/destinations.ron).
         // Runs before the drain below, so an arrival advances its Travel
-        // objective in the SAME tick.
+        // objective in the SAME tick. Where the player is comes from the
+        // walking camera (`player_xz`, 2026-10-04): the entity's Transform
+        // never moved when they walked.
         if let Some(dests) = data.get::<DestinationList>("quest_destinations") {
-            let player_xz = world
-                .query::<(
-                    &crate::ecs::components::Transform,
-                    &crate::ecs::components::Controllable,
-                )>()
-                .iter()
-                .next()
-                .map(|(_, (tf, _))| (tf.position.x, tf.position.z));
-            if let Some(xz) = player_xz {
+            if let Some(xz) = player_xz(world, data) {
                 for id in travel_transitions(xz, dests, &mut self.inside_destinations) {
                     push_quest_event(data, format!("travel_{id}"));
                 }
@@ -848,5 +862,116 @@ mod quest_tests {
             t.is_active("q_next"),
             "completing q_craft auto-accepts its dependent q_next"
         );
+    }
+
+    /// TRAVEL STEPS READ WHERE THE PLAYER IS (2026-10-04, the first-hour audit's
+    /// B5). The emitter read the player entity's Transform, which only spawning
+    /// and a teleport set: walking moves the camera (in first person the camera
+    /// IS the player, lib.rs's walk), so a Travel step never fired however far
+    /// the player walked. It now reads "camera_position", the home-local
+    /// position the game publishes every frame for its proximity checks (the
+    /// walk-up interaction reads the same). Here the player entity stays at the
+    /// front door, where spawning left it, while the camera walks to the shipped
+    /// outdoor fields.
+    ///
+    /// Red, run on the emitter before this: "walking to the outdoor fields
+    /// completes Initial Survey's Travel step" (left: 1, right: 2).
+    #[test]
+    fn walking_to_a_destination_completes_its_travel_step() {
+        use crate::ecs::components::{Controllable, Transform};
+        use glam::Vec3;
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let reg = QuestRegistry::from_ron_dir(&root.join("data/quests"));
+        let travel = reg
+            .get("exploration_first_survey")
+            .expect("Initial Survey ships")
+            .steps
+            .iter()
+            .position(|s| matches!(&s.objective, QuestObjective::Travel { destination } if destination == "outdoor_fields"))
+            .expect("Initial Survey walks to the outdoor fields");
+        let dests = DestinationList::from_ron(&std::fs::read(root.join("data/entities/destinations.ron")).unwrap()).unwrap();
+        let fields = dests.destinations.iter().find(|d| d.id == "outdoor_fields").expect("the fields are a destination").pos;
+        let mut data = DataStore::new();
+        data.insert("quest_registry", reg);
+        data.insert("quest_destinations", dests);
+        data.insert("quest_events", std::sync::Mutex::new(Vec::<String>::new()));
+
+        let door = Vec3::new(53.5, 1.7, 40.5);
+        let mut tracker = QuestTracker::default();
+        tracker.accept_quest("exploration_first_survey");
+        tracker.active_quests[0].current_step = travel; // the compass is made
+        let mut world = hecs::World::new();
+        let player = world.spawn((Transform { position: door, ..Default::default() }, Controllable, tracker, Inventory::new(8)));
+        let mut sys = QuestSystem::new();
+
+        data.insert("camera_position", door);
+        sys.tick(&mut world, 0.1, &data);
+        assert_eq!(world.get::<&QuestTracker>(player).unwrap().active_quests[0].current_step, travel, "nothing fires at the door");
+        // Walk there: only the camera moves, as in play.
+        data.insert("camera_position", Vec3::new(fields.0, 1.7, fields.1));
+        sys.tick(&mut world, 0.1, &data);
+        assert_eq!(
+            world.get::<&QuestTracker>(player).unwrap().active_quests[0].current_step,
+            travel + 1,
+            "walking to the outdoor fields completes Initial Survey's Travel step"
+        );
+    }
+
+    /// The ore two exploration quests gather comes from a node a player can
+    /// walk to (2026-10-04, B5). "Initial Survey" asks for 5 ore samples and
+    /// "Distant Expeditions" for 3 rare ore, which only two creatures dropped
+    /// that nothing spawns (tests/recipe_sources_lint.rs now fails on any
+    /// Gather item with no source). Their sources are resource nodes in
+    /// data/entities/wild_spawns.ron; this holds each such placement, scatter
+    /// radius and all, inside a room of the home or a zone of the ship (ship
+    /// metres, the home on plot p1 where offline play puts it), so the source
+    /// is somewhere a player can stand, not in a wall or the void between.
+    ///
+    /// Red, run on the shipped data before this: "no placed node yields
+    /// ore_sample_0" (nothing in wild_spawns.ron gave either ore).
+    #[test]
+    fn quest_ore_comes_from_nodes_a_player_can_walk_to() {
+        use crate::systems::livestock::{CreatureRegistry, WildSpawnList};
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let creatures = CreatureRegistry::from_csv(&std::fs::read(root.join("data/creatures.csv")).unwrap()).unwrap();
+        let spawns = WildSpawnList::from_ron(&std::fs::read(root.join("data/entities/wild_spawns.ron")).unwrap()).unwrap();
+        let ship = crate::ship::ship_structure::ShipStructure::load_and_assemble_shipped(&root.join("data"), None)
+            .expect("the shipped ship assembles");
+        // Walkable boxes in ship metres, (id, x0, x1, z0, z1): the home's rooms and every other zone.
+        let mut boxes: Vec<(String, f32, f32, f32, f32)> = Vec::new();
+        let home_i = ship.home_zone_index();
+        for (i, z) in ship.zones.iter().enumerate() {
+            if i == home_i {
+                for r in z.body.zones.iter().filter(|r| r.origin.0 >= 0.0 && r.origin.2 >= 0.0 && r.origin.0 + r.size.0 <= z.body.width && r.origin.2 + r.size.2 <= z.body.depth) {
+                    let (x0, z0) = (z.origin.0 + r.origin.0, z.origin.2 + r.origin.2);
+                    boxes.push((r.id.clone(), x0, x0 + r.size.0, z0, z0 + r.size.2));
+                }
+            } else {
+                boxes.push((z.id.clone(), z.origin.0, z.origin.0 + z.body.width, z.origin.2, z.origin.2 + z.body.depth));
+            }
+        }
+        assert!(boxes.len() > 20, "the home's rooms and the ship's zones, got {}", boxes.len());
+
+        for item in ["ore_sample_0", "rare_ore_0"] {
+            let nodes: Vec<_> = spawns
+                .spawns
+                .iter()
+                .filter(|s| creatures.get(&s.creature).and_then(|d| d.renewable()).is_some_and(|p| p.item == item))
+                .collect();
+            assert!(!nodes.is_empty(), "no placed node yields {item}");
+            for s in nodes {
+                let inside = boxes.iter().find(|(_, x0, x1, z0, z1)| {
+                    s.pos.0 - s.radius >= *x0 && s.pos.0 + s.radius <= *x1 && s.pos.1 - s.radius >= *z0 && s.pos.1 + s.radius <= *z1
+                });
+                assert!(
+                    inside.is_some(),
+                    "{} ({item}) at ({}, {}) with radius {} is not inside any room of the home or zone of the ship",
+                    s.creature,
+                    s.pos.0,
+                    s.pos.1,
+                    s.radius
+                );
+            }
+        }
     }
 }
