@@ -211,7 +211,10 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   ground (BUG-156's note); far trees should re-ground on the patch drawn under them;
   src/systems/fire.rs takes fire damage per frame in f32 (BUG-164's note); every drink
   gives 30 points whatever its volume; nothing applies Bleeding or infections yet; a
-  second mess hall along First Street (fold into increment 6).
+  second mess hall along First Street (fold into increment 6); the backpack-overflow toast
+  shows an item id and says it "stayed in Home" for things that were never there ("Backpack
+  full: 8 x wood_plank_0 stayed in Home", lib.rs and gui/organize.rs `return_to_storage`):
+  name the item and say it went to home storage.
 - **A gap the Normal-mode default exposes (found 2026-10-05 by the Library sweep):** in
   Normal mode NOBODY CAN LEAVE THE SHIP. The Dev page's travel and Land buttons and F9 flight are
   the only ways off it, all Dev-only, and no vehicle or route goes down. So by default a
