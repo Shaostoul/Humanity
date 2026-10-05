@@ -139,11 +139,7 @@ fn publish_cast_spot(state: &mut EngineState) {
     let Some(blueprint) = builds else { return };
     let id = id.clone();
     let placed = planet_build::ghost(state, &blueprint, 0);
-    let off_plot = refused_off_plot(
-        state.gui_state.ship_structure.as_ref(),
-        state.gui_state.settings.play_mode.allows(crate::config::Capability::ShipStructureEditing),
-        &placed,
-    );
+    let off_plot = refused_off_plot_here(&state.gui_state, &placed);
     let outdoors_only = state
         .data_store
         .get::<BlueprintRegistry>("blueprint_registry")
@@ -244,12 +240,9 @@ pub(crate) fn frame(state: &mut EngineState) {
     let (name, turns) = (p.name.clone(), p.quarter_turns);
     let placed = planet_build::ghost(state, &p.blueprint_id, turns);
     // Aboard, a piece goes only inside your own plot (increment 1a of
-    // docs/design/ship-homes-and-logistics.md); the Dev mode builds anywhere.
-    let off_plot = refused_off_plot(
-        state.gui_state.ship_structure.as_ref(),
-        state.gui_state.settings.play_mode.allows(crate::config::Capability::ShipStructureEditing),
-        &placed,
-    );
+    // docs/design/ship-homes-and-logistics.md); the Dev mode builds anywhere,
+    // but only offline (increment 5: in a shared world the ship is the server's).
+    let off_plot = refused_off_plot_here(&state.gui_state, &placed);
     // A piece built only outdoors (BUG-153: a campfire) is refused aboard,
     // under a roof and where there is no air to burn, and a roof is refused
     // over a campfire, with the reason here, by the rules the build itself
@@ -309,15 +302,23 @@ pub(crate) fn frame(state: &mut EngineState) {
 }
 
 /// Whether the ghost in hand is refused because it would stand outside the builder's own plot:
-/// aboard (a ghost with no planet site), outside the Dev mode (`ship_scope` false), and
-/// `outside_own_plot`. A planet build, a ghost that could not be placed at all, and the Dev mode
-/// are never refused here. The one decision `frame` uses, kept pure so it is tested whole.
+/// aboard (a ghost with no planet site), without the ship's structure to edit (`ship_scope`
+/// false), and `outside_own_plot`. A planet build, a ghost that could not be placed at all, and
+/// `ship_scope` (the Dev mode, offline) are never refused here.
 pub(crate) fn refused_off_plot(
     ship: Option<&crate::ship::ship_structure::ShipStructure>,
     ship_scope: bool,
     placed: &Result<planet_build::Ghost, planet_build::CannotBuild>,
 ) -> bool {
     !ship_scope && matches!(placed, Ok(g) if g.site.is_none() && outside_own_plot(ship, &g.pose))
+}
+
+/// `refused_off_plot` for this session as it stands: the ship it is on, and whether the ship's
+/// structure is its to edit (`config::ship_editing_for`: the Dev mode, and only out of a shared
+/// world, ship homes increment 5). The one decision `frame` and a building ability's cast
+/// (`publish_cast_spot`) use, kept pure so it is tested whole.
+pub(crate) fn refused_off_plot_here(gui: &GuiState, placed: &Result<planet_build::Ghost, planet_build::CannotBuild>) -> bool {
+    refused_off_plot(gui.ship_structure.as_ref(), crate::config::ship_editing_for(gui), placed)
 }
 
 /// How far a built piece may overhang its plot's edge and still count as inside (metres): half
@@ -769,6 +770,42 @@ mod tests {
             "a piece that can be built aboard still hears the plot rule"
         );
         assert_eq!(cast_spot("wood_wall", in_the_commons(reg, "wood_wall"), true, false, true).err().as_deref(), Some(off_plot_reason(true)));
+    }
+
+    /// THE DEV MODE IN A SHARED WORLD BUILDS ONLY ON ITS OWN PLOT (ship homes increment 5,
+    /// 2026-10-05). Offline the Dev mode builds anywhere aboard, the Commons and other plots
+    /// included. Joined to a shared world it has no exemption, because the ship is the server's
+    /// (`config::ship_editing_for`): on the shipped ship assembled at p1, the Commons and p2
+    /// (someone else's plot) are refused and its own yard is not, as for a Normal player. The
+    /// decision is the one `frame` and a building ability's cast use (`refused_off_plot_here`).
+    ///
+    /// Seen red 2026-10-05 with the Dev exemption kept (`refused_off_plot_here` asking
+    /// `play_mode.allows(ShipStructureEditing)` alone, as `frame` did): "in a shared world the
+    /// Dev mode was let build in the Commons".
+    #[test]
+    fn dev_in_a_shared_world_builds_only_on_its_own_plot() {
+        use crate::ship::ship_structure::ShipStructure;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let data = catalog();
+        let reg = data.get::<BlueprintRegistry>("blueprint_registry").unwrap();
+        let at = |x: f32, z: f32| -> Result<planet_build::Ghost, planet_build::CannotBuild> {
+            let bp = reg.get("wood_foundation").unwrap();
+            let pose = placement::placement_pose(bp, Vec3::new(x, 0.0, z), 0, &hecs::World::new(), reg, None);
+            Ok(planet_build::Ghost { pose, site: None, above_floor: 0.0, occupied: false })
+        };
+        let (commons, theirs, yard) = (at(80.0, 40.0), at(30.0, 140.0), at(30.0, 20.0));
+        let mut gui = GuiState::default();
+        gui.settings.play_mode = crate::config::PlayMode::Dev;
+        gui.ship_structure = Some(ShipStructure::load_and_assemble_shipped(&dir, Some("p1")).expect("assembles at p1"));
+        assert!(!refused_off_plot_here(&gui, &commons), "offline, the Dev mode builds in the Commons");
+        assert!(!refused_off_plot_here(&gui, &theirs), "offline, the Dev mode builds on any plot");
+        gui.copresence_active = true;
+        assert!(refused_off_plot_here(&gui, &commons), "in a shared world the Dev mode was let build in the Commons");
+        assert!(refused_off_plot_here(&gui, &theirs), "in a shared world the Dev mode was let build on p2, someone else's plot");
+        assert!(!refused_off_plot_here(&gui, &yard), "in a shared world the Dev mode still builds in its own yard");
+        gui.settings.play_mode = crate::config::PlayMode::Normal;
+        assert!(refused_off_plot_here(&gui, &commons), "a Normal player is refused in the Commons, as before");
+        assert!(!refused_off_plot_here(&gui, &yard), "and builds in their own yard");
     }
 
     fn holding() -> GuiState {

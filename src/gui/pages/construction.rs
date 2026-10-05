@@ -652,17 +652,17 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
 /// to segment); the RIGHT panel edits the selected wall's corners, height, and openings (doors /
 /// windows, each with a data-driven animation STYLE). The footer palette still places machines.
 /// Edits set `construction_structure_dirty` so the engine rebuilds the mesh live; Save persists
-/// the home design (data/homes/<kind>.ron) and, in the Dev mode, the ship file
+/// the home design (data/homes/<kind>.ron) and, in the Dev mode offline, the ship file
 /// (data/blueprints/ship_structure.ron): the same files the AI edits -- one model, edited the same
 /// way by both; the v0.754 multi-zone ship, with a zone selector choosing which zone the tools
 /// operate on.
-/// Outside the Dev mode the ship's own machines (the Commons stalls, its garden) are read-only,
-/// because only a Dev save writes data/machines/ship.ron: an edit made in Normal or Creative
-/// would be dropped on the next load without a word (increment 1a, the critic's review). Set
-/// the lock from the play mode every frame the editor draws, and let go of any selection that
-/// just became read-only (the mode can change with the editor open).
+/// Outside the Dev mode, and in a shared world even in it (`config::ship_editing_for`), the ship's
+/// own machines (the Commons stalls, its garden) are read-only, because only an offline Dev save
+/// writes data/machines/ship.ron: an edit made otherwise would be dropped on the next load without
+/// a word (increment 1a, the critic's review). Set the lock every frame the editor draws, and let
+/// go of any selection that just became read-only (the mode or the world can change mid-edit).
 pub(crate) fn sync_ship_machine_lock(state: &mut GuiState) {
-    let ship_scope = state.settings.play_mode.allows(crate::config::Capability::ShipStructureEditing);
+    let ship_scope = crate::config::ship_editing_for(state);
     let Some(h) = state.home_machines.as_mut() else { return };
     h.ship_part.locked = !ship_scope;
     if ship_scope {

@@ -13,7 +13,8 @@
 //!
 //! THE RULE (`Capability::DefaultHomeAuthoring`, Dev only):
 //!   - Dev writes the data files, exactly as before: the operator authors the default home and
-//!     the ship in-game, and every test rig is a Dev sandbox (scripts/lib/rig-gameplay.js).
+//!     the ship in-game, and every test rig is a Dev sandbox (scripts/lib/rig-gameplay.js). The
+//!     ship only offline: in a shared world the ship is the server's (`config::ship_editing_for`).
 //!   - Normal and Creative keep the character's own home in their save (`WorldSave::home`,
 //!     `persistence::SavedHome`): the home DESIGN (walls, openings, lights, stairs, the spawn
 //!     point; the whole home zone's body) and the household's MACHINES (instances, arrays,
@@ -89,10 +90,10 @@ pub(crate) enum Kept {
 }
 
 /// Keep the build editor's edits where this play mode keeps them. Dev: the shared data files,
-/// exactly as before 2026-10-04 (the home design always, the ship file and the ship's machines,
-/// the household's machines at `machines_path`). Normal and Creative: the home captured into
-/// `gui.own_home`, and NO file written (the caller writes the save, `keep_edits_now`). Pure on
-/// `gui` and the files under `data_dir`.
+/// exactly as before 2026-10-04 (the home design always, the ship file and the ship's machines
+/// offline, the household's machines at `machines_path`). Normal and Creative: the home captured
+/// into `gui.own_home`, and NO file written (the caller writes the save, `keep_edits_now`). Pure
+/// on `gui` and the files under `data_dir`.
 pub(crate) fn keep_editor_edits(gui: &mut GuiState, data_dir: &Path, machines_path: &Path) -> Result<Kept, String> {
     if authors_data_files(gui.settings.play_mode) {
         return write_data_files(gui, data_dir, machines_path).map(Kept::DataFiles);
@@ -101,13 +102,15 @@ pub(crate) fn keep_editor_edits(gui: &mut GuiState, data_dir: &Path, machines_pa
 }
 
 /// The Dev mode's save (the editor's Save button and autosave until 2026-10-04, unchanged): the
-/// home design always, the ship file and the ship's machines with ShipStructureEditing, then the
-/// household's machines. Each is attempted; Err names what was not written.
+/// home design always, the ship file and the ship's machines only while the ship's structure is
+/// this session's to edit (`config::ship_editing_for`: offline, never in a shared world, ship
+/// homes increment 5), then the household's machines. Each is attempted; Err names what was not
+/// written.
 pub(crate) fn write_data_files(gui: &GuiState, data_dir: &Path, machines_path: &Path) -> Result<String, String> {
     let mut errors: Vec<String> = Vec::new();
     let mut note = String::new();
     if let Some(ship) = gui.ship_structure.as_ref() {
-        let ship_scope = gui.settings.play_mode.allows(Capability::ShipStructureEditing);
+        let ship_scope = crate::config::ship_editing_for(gui);
         match ship.save_assembled(data_dir, ship_scope) {
             Ok(n) => {
                 note = n;
@@ -514,6 +517,47 @@ mod tests {
         assert!(!text.contains("paid"), "home.ron carries no payments");
         let design = HomeDesign::load(&dir, "homestead").expect("the home design loads");
         assert_eq!(design.body.walls.len(), walls_before + 1, "the wall is in data/homes/homestead.ron");
+    }
+
+    /// A DEV-MODE SAVE IN A SHARED WORLD WRITES THE HOME AND NOT THE SHIP FILE (ship homes
+    /// increment 5, 2026-10-05). In a shared world the ship is the server's
+    /// (`config::ship_editing_for`), so the Dev mode's save keeps the home as it always did (the
+    /// design, a wall drawn across it, in data/homes/homestead.ron) and writes neither the ship
+    /// file nor the ship's machines, whatever was changed in them: here the Commons relabelled and
+    /// its fish tank moved. Offline the same save writes both: there the Dev mode keeps everything.
+    ///
+    /// Seen red 2026-10-05 with own_home.rs's ship scope still asking the play mode alone
+    /// (`gui.settings.play_mode.allows(Capability::ShipStructureEditing)` in `write_data_files`):
+    /// "a Dev save in a shared world wrote blueprints/ship_structure.ron".
+    #[test]
+    fn a_dev_save_in_a_shared_world_writes_the_home_and_not_the_ship_file() {
+        let dir = data_dir("dev_shared");
+        let machines_path = dir.join("machines").join("home.ron");
+        let mut gui = session(&dir, PlayMode::Dev);
+        gui.copresence_active = true;
+        let walls_before = walls(gui.ship_structure.as_ref().unwrap());
+        place_and_build(&mut gui, None);
+        let ship = gui.ship_structure.as_mut().unwrap();
+        ship.zones.iter_mut().find(|z| z.id == "commons").expect("the Commons").label = "Relabelled in a shared world".into();
+        let machines = gui.home_machines.as_mut().unwrap();
+        machines.instances.iter_mut().find(|i| i.id == "aqua_c1").expect("the Commons' fish tank").offset.0 += 1.0;
+        let file = |rel: &str| std::fs::read(dir.join(rel)).ok();
+        let before = data_files(&dir);
+
+        let kept = keep_editor_edits(&mut gui, &dir, &machines_path).expect("written");
+        assert!(matches!(kept, Kept::DataFiles(_)), "the Dev mode still writes the data files: {kept:?}");
+        for (rel, was) in before.iter().filter(|(rel, _)| rel == "blueprints/ship_structure.ron" || rel == "machines/ship.ron") {
+            assert!(*was == file(rel), "a Dev save in a shared world wrote {rel}");
+        }
+        let design = HomeDesign::load(&dir, "homestead").expect("the home design loads");
+        assert_eq!(design.body.walls.len(), walls_before + 1, "the wall is in data/homes/homestead.ron");
+
+        gui.copresence_active = false;
+        let ship_machines_before = file("machines/ship.ron");
+        keep_editor_edits(&mut gui, &dir, &machines_path).expect("written offline");
+        let ship_text = std::fs::read_to_string(dir.join("blueprints/ship_structure.ron")).unwrap();
+        assert!(ship_text.contains("Relabelled in a shared world"), "offline, the Dev mode's save writes the ship file");
+        assert!(file("machines/ship.ron") != ship_machines_before, "offline, the Dev mode's save writes the ship's machines");
     }
 
     /// The own home is the save's only outside Dev: in the Dev mode a save's own home is kept as
