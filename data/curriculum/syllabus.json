@@ -2550,10 +2550,27 @@
       "subject": "physics",
       "title": "Floating and boats",
       "summary": "Understand buoyancy, stability and why boats capsize.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "floating-and-boats"
+      ],
       "skills": [
         "engineering",
         "navigation"
+      ],
+      "data": [
+        "data/items.csv",
+        "data/recipes.csv"
+      ],
+      "sources": [
+        "uscg",
+        "ecfr",
+        "nws",
+        "usgs",
+        "noaa-coops",
+        "fpl-wood-handbook",
+        "dod-technical-manuals",
+        "wa-state-parks"
       ],
       "locale_dependent": true,
       "hazard": "lethal"
@@ -3251,9 +3268,27 @@
       "subject": "navigation",
       "title": "Navigating without instruments",
       "summary": "Track position by pace, time and bearing.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "navigating-without-instruments"
+      ],
       "skills": [
         "navigation"
+      ],
+      "data": [
+        "data/sounds.toml",
+        "data/maps/regions/silverdale.bin",
+        "data/stars.csv",
+        "data/constellations.json"
+      ],
+      "sources": [
+        "dod-technical-manuals",
+        "nga-bowditch",
+        "usfs",
+        "nps",
+        "nws",
+        "uscg",
+        "peer-reviewed-literature"
       ],
       "locale_dependent": false,
       "hazard": "lethal"
@@ -3289,9 +3324,30 @@
       "subject": "navigation",
       "title": "What to do when lost",
       "summary": "Act so that you are found, instead of making it worse.",
-      "status": "absent",
+      "status": "sourced",
+      "reading": [
+        "what-to-do-when-you-are-lost"
+      ],
       "skills": [
         "navigation"
+      ],
+      "data": [
+        "data/status_effects.csv",
+        "data/equipment.csv"
+      ],
+      "sources": [
+        "usfs",
+        "nps",
+        "national-911-program",
+        "noaa-sarsat",
+        "faa",
+        "uscg",
+        "dod-technical-manuals",
+        "cdc",
+        "nws",
+        "census",
+        "peer-reviewed-literature",
+        "wa-military-department"
       ],
       "locale_dependent": true,
       "hazard": "lethal"
