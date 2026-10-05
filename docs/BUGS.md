@@ -3397,7 +3397,7 @@ still below real-world prices on the project's own wage scale.
 **Left:** quality grades still loop (BUG-146), and the big vehicles can no
 longer be hand-crafted from the backpack (BUG-147).
 
-## BUG-146: a better craft grade still makes a money loop at the vendor (OPEN, found 2026-10-04)
+## BUG-146: a better craft grade still makes a money loop at the vendor (FIXED (merging in v0.1463.0), found 2026-10-04)
 
 **Seen:** while fixing BUG-145. The vendor pays 0.5x a good's price times its
 craft grade (`data/manufacturing.ron`: good 1.5, excellent 2.5, masterwork
@@ -3413,6 +3413,86 @@ a vendor that buys any quantity at a fixed price. The fix belongs in how the
 vendor values grade and quantity (a price that responds to how much of a
 good it already holds, or grade paid on labour rather than on the whole
 price), not in lowering every price below 0.4x its parts.
+
+**Fix:** the trading post pays a better grade its multiple of the standard
+price only up to a ceiling set by what the good's parts cost there
+(`src/systems/economy/parts.rs`). At a grade whose multiple is m it pays
+the smaller of m times the standard price and the parts' price less the
+standard good's shortfall divided by m. Made from parts bought at the post,
+a standard good comes back (parts minus standard) short of what the parts
+cost; a good one comes back two thirds of that short, an excellent one two
+fifths, a masterwork one fifth. So no grade sells back for more than its
+parts cost; wherever the parts cost more than a standard good fetches,
+every grade fetches more than the one below it; and where the parts cost
+far more than the good sells for (most hand tools) a grade is paid its full
+multiple. A hammer (parts 16.50 at the post) now fetches 2, 7, 10, 12 and 14
+from poor to masterwork, where a masterwork fetched 35; a motorcycle (parts
+1560.79) 500, 1250, 1353, 1436 and 1498. Poor and defective are unchanged.
+
+The parts price is the least it takes to make the good from goods the post
+sells, over every recipe that makes it, with each input at its cheapest
+(the BUG-145 walk, moved from its test into `parts::cheapest_costs` so the
+game and the checks share one). It is worked out once when the data loads
+(`engine::registries`, `TradeGoodsRegistry::with_parts_prices`). A sale
+settles through `TradeGoodsRegistry::vendor_buy_price_graded`, and the
+trading post window lists the same price (`GuiTradeGood::parts_price`, both
+through `parts::graded_pay`; filling that field in the vendor catalog is the
+one `src/lib.rs` line, the catalog being built nowhere else), with a line
+saying a better grade never fetches more than its parts cost there. The
+grade multiples stay the data's (`data/manufacturing.ron`, whose notes now
+say how the post uses them); the rule added no new number.
+
+Why not the two suggestions above: a stock-driven price still pays the
+first sales in full (a masterwork vehicle's first sale paid about four
+times its parts), so it bounds the loop without closing it; and a bonus on
+the labour share pays nothing for most hand-made goods, which are priced
+below their parts, while still looping on the vehicles, priced up to twice
+theirs. Keeping its bids under its own asking price for the parts is the
+rule any dealer that both buys and sells has to keep, and it needs no
+memory of the post's stock, so nothing new is saved per game; a demand
+curve could sit on top of it later. The economy has no realism modes to
+pair it with; Creative and Dev crafting take no inputs, so selling what
+they make stays free money by those modes' design, as before.
+
+**Tests** (in `src/systems/economy/parts.rs` unless named):
+- `no_grade_sells_back_for_more_than_its_parts_cost`: for all 350 recipes
+  whose inputs the post sells or can be made from them (78 of them make a
+  graded good it buys) and every grade, ungraded and the six of
+  `data/manufacturing.ron`, a player with credits for 50 rounds buys the
+  parts at the cheapest, makes the recipe, sells all it makes back through
+  `vendor_sell` and goes round again while they can pay; their balance may
+  never rise above where it started. A recipe's other outputs are credited
+  at the most the post pays for them at any grade, so a graded by-product
+  could not hide a loop. Seen red with `vendor_sell`'s old body: 133
+  (recipe, grade) loops, 25 at Good, 43 at Excellent and 65 at Masterwork,
+  among them all twelve vehicle recipes at Excellent and Masterwork and ten
+  at Good (a light mech from 74,960.55 of parts sold for 300,000 at
+  Masterwork).
+- `a_masterwork_still_fetches_more_than_a_standard_good`: a masterwork
+  hammer sold through `vendor_sell` fetches more than a standard one; for
+  all 87 durable goods the post trades each grade from poor up fetches at
+  least what the grade below does, and the 80 whose parts leave room fetch
+  a masterwork premium. It cannot fail on the old pricing (a masterwork
+  paid five times standard), so it was seen red on a variant that paid no
+  premium ("a masterwork Hammer fetches 7, no more than a standard one
+  (7)"), with the loop check green there: neither check can be met by
+  giving up the other.
+- `engine::registries::tests::the_loaded_trading_post_caps_a_grade_by_its_parts`:
+  the game's own loader gives the trading post its parts prices. Seen red
+  with them left out of the load ("the game's trading post has no parts
+  price for the hammer").
+- `the_grade_rule_on_hand_numbers` pins the rule on the hammer's numbers;
+  `systems::economy::tests::a_sale_is_priced_by_grade` now checks a sale
+  against the graded price (seen red on the old body: a masterwork paid
+  35, not 14). BUG-145's checks pass on the moved walk.
+
+**Noticed on the way, not checked:** the BUG-145 walk prices tap water as
+bought (2 credits a litre), but a craft draws it from the home's tanks.
+Counted at nothing, three recipes would come out ahead at standard grade
+(`cook_honey`, a litre of water into honey that sells for 2;
+`craft_antibiotics`; `craft_healing_potion`). Whether that is a loop in
+play depends on what refilling the tanks costs, which is modelled as a
+closed loop (`systems::life_support`), and was not looked into here.
 
 ## BUG-147: the big vehicles cannot be hand-crafted from the backpack (FIXED v0.1457.0, found 2026-10-04)
 
