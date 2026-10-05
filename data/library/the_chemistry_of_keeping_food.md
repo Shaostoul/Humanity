@@ -234,8 +234,9 @@ which can occur in foods under certain situations."
   the worms."
 - Work where it has not reached. The Pacific Northwest guide says that
   without a laboratory test it is hard to be sure a fish has taken up
-  enough salt, which is why cooking and cold storage, not salt, make
-  home-smoked fish safe (restated).
+  enough salt, which is why proper cooking and cold storage are essential
+  as well: the salt is still required, but it cannot be the only
+  safeguard (restated).
 - Make canned vegetables safe. In canning, the USDA says, salt only
   seasons the food. In fermenting it is the opposite, and the USDA warns
   against cutting it: "Caution: Do not attempt to make sauerkraut or
@@ -324,7 +325,10 @@ says freezer temperatures inhibit the botulism bacterium in frozen food.
 
 **What it cannot do.**
 
-- Kill. Whatever went into the freezer comes out with the food.
+- Kill most germs. Most of what went into the freezer comes out with
+  the food. (One exception the CDC gives: freezing pork less than 6
+  inches thick for 20 days at 5 F kills the worms that cause
+  trichinellosis. Wild game is different, below.)
 - Stop every microbe. The FDA's handbook names *Listeria* and *Yersinia*
   as bacteria that grow at refrigerator temperatures, and FSIS says moulds
   can grow there too.
@@ -377,10 +381,12 @@ The smoke itself carries hundreds of compounds, among them phenols and
 volatile acids, according to a review the Institute of Food Technologists
 prepared for the FDA. That review found that short cold smoking lowered
 *Listeria* on the surface of fish rather than raising it, though in one
-study the bacteria grew inside the flesh during cold smoking; it noted
-that smoke has much less effect once the surface has dried into its
-tacky skin; and it found that the effect of liquid smoke on *Listeria*
-depended entirely on the product, from some to none (restated).
+study the bacteria grew inside the flesh during cold smoking; it noted,
+citing an unpublished personal communication, that the smoke has much
+less effect on *Listeria* once the fish's surface has dried into a skin
+(a pellicle) before the smoke goes on; and it found that the effect of
+liquid smoke on *Listeria* depended entirely on the product, from some
+to none (restated).
 
 **What it cannot do.** Preserve food on its own. The Pacific Northwest
 guide to smoking fish says smoke itself is not an effective preservative
@@ -422,9 +428,9 @@ Here is the same idea across the foods in the tested guides. The
 | Jam | Sugar, the fruit's acid, heat in a boiling-water canner and a seal ([Water-Bath Canning](/library#water-bath-canning)) | Mould on the surface of an opened jar means it goes |
 | Fresh-pack pickles | Vinegar's acid, heat and a seal ([Water-Bath Canning](/library#water-bath-canning)) | The vinegar's strength and proportions, unaltered |
 | Hot-smoked salmon | Salt, heat (150 F, preferably 160 F, held at least 30 minutes) and storage at 38 F or below ([Salting, Curing and Smoking](/library#salting-curing-and-smoking)) | The thermometer, not the smoke |
-| Jerky | Heat to 160 F by one of the tested ways, and dryness ([Drying Food](/library#drying-food)) | 165 F for venison and other wild game, and no jerky at all from bear, wild boar or meat-eating wild animals; the heating step, which drying does not replace |
+| Jerky | Heat to 160 F (165 F for poultry) by one of the tested ways, and dryness ([Drying Food](/library#drying-food)) | 165 F for venison and other wild game, and no jerky at all from bear, wild boar or meat-eating wild animals; the heating step, which drying does not replace |
 | Canned green beans | Heat in a pressure canner, then a seal ([Pressure Canning](/library#pressure-canning)) | Everything, because nothing else is holding the line |
-| Frozen peas | Blanching for the enzymes, then cold ([Keeping What You Grew](/library#keeping-what-you-grew)) | Freezing kills nothing; thaw in the refrigerator |
+| Frozen peas | Blanching for the enzymes, then cold ([Keeping What You Grew](/library#keeping-what-you-grew)) | Freezing does not kill most germs; thaw in the refrigerator |
 
 ## Worked example: an October harvest in Silverdale, kept five ways
 
@@ -463,9 +469,10 @@ works, and what it cannot do.
    low-acid, so a boiling-water canner cannot make them safe; the choices
    are the freezer, a pressure canner or drying by the tested method.
    They choose the freezer, and blanch the beans first so their enzymes
-   stop working. *What it cannot do:* freezing kills nothing, so the beans
-   are thawed in the refrigerator, not on the counter ([Keeping What You
-   Grew](/library#keeping-what-you-grew), [Pressure Canning](/library#pressure-canning)).
+   stop working. *What it cannot do:* freezing does not kill most germs,
+   so the beans are thawed in the refrigerator, not on the counter
+   ([Keeping What You Grew](/library#keeping-what-you-grew), [Pressure
+   Canning](/library#pressure-canning)).
 
 Notice that every food here was kept by more than one barrier. Only
 low-acid food in a sealed jar rests on heat alone, which is why a
@@ -497,7 +504,7 @@ pressure-canning recipe is followed to the minute (our reading).
   leave mycotoxins.
 - **"Smoked food keeps."** The smoke is flavour; the salt, the heat and
   the cold do the keeping.
-- **"Freezing sterilises."** It pauses. Whatever went in comes out.
+- **"Freezing sterilises."** It pauses. Most of what went in comes out.
 - **"Dried means safe forever."** Damp brings mould, and bacteria in dried
   food are waiting, not dead.
 - **"Boiling makes anything safe."** Not the spores in a low-acid jar, and
@@ -521,7 +528,8 @@ leaves the chemistry out.
   (`temperature_zones`). Preserved foods simply have longer clocks: ten
   years for canned food and for sugar, three years for field rations, two
   years for honey, 30 days for jerky, dried meat and dried fruit
-  (`data/food/item_profiles.ron`). Once spoiled, a food always gives you
+  (`data/food_system.ron`, mapped to items in
+  `data/food/item_profiles.ron`). Once spoiled, a food always gives you
   Food Poisoning when eaten (`src/systems/food.rs`).
 - **The Freezer is the only cold store.** Food in the home's storage and
   vessels ages in the home's air, at room temperature, except in the
@@ -541,8 +549,9 @@ leaves the chemistry out.
 - **The methods are only written down.** The food data lists eight
   preservation methods with how much longer each makes food keep:
   refrigeration 4 times, freezing 20, canning 100, drying 20, salting 15,
-  smoking 10, vacuum sealing 5 and irradiation 50. No code reads that
-  list (`data/food_system.ron`, `src/systems/food.rs`), and its smoking
+  smoking 10, vacuum sealing 5 and irradiation 50. The game loads that
+  list but nothing uses it (`data/food_system.ron`,
+  `src/systems/food.rs`), and its smoking
   row credits smoke with antimicrobial compounds and drying where the
   Pacific Northwest guide says smoke is no preservative on its own.
 - **Under the default settings.** In Normal, only the Dev play mode's
@@ -676,8 +685,10 @@ were read on 5 October 2026.
 - Centers for Disease Control and Prevention. *How to Prevent
   Trichinellosis*, dated 12 March 2024 ("Curing (salting), drying,
   smoking, or microwaving meat alone does not consistently kill the
-  worms."; "Freezing wild game meats may not effectively kill all worms
-  because some worms that infect wild game are freeze-resistant.").
+  worms."; freezing pork less than 6 inches thick for 20 days at 5 F
+  killing the worms; "Freezing wild game meats may not effectively kill
+  all worms because some worms that infect wild game are
+  freeze-resistant.").
   https://www.cdc.gov/trichinellosis/prevention/index.html
 - Centers for Disease Control and Prevention. *How to Prevent
   Norovirus*, dated 13 January 2025 (noroviruses surviving temperatures
@@ -695,8 +706,10 @@ were read on 5 October 2026.
   Fish at Home, Safely*, PNW 238. Pacific Northwest Extension (Washington
   State University, Oregon State University, University of Idaho),
   published July 1983, revised November 2009 (salt preserving smoked fish
-  by reducing its moisture; how hard it is to know the salt has reached
-  every part without a laboratory test; smoke not an effective
+  by reducing its moisture; a definite level of salt required for
+  safety; how hard it is to know the salt has reached every part without
+  a laboratory test, which is why proper cooking and refrigerated
+  storage are essential as well; smoke not an effective
   preservative under most conditions; liquid smoke and nitrite not to be
   relied on; cooking and storage at 38 F or below as the safeguards). Read
   in Washington State University's copy.
@@ -707,15 +720,17 @@ were read on 5 October 2026.
   (wood smoke containing hundreds of compounds, phenolic substances and
   volatile acids among them; short cold smoking lowering *Listeria* on the
   fish's surface, though in one study it grew in the flesh during cold
-  smoking; smoke much less effective once the surface has dried into a
-  pellicle; liquid smoke's effect on *Listeria* depending on the product).
+  smoking; smoke much less effective against *Listeria* once the surface
+  has dried into a pellicle, a point the report draws from an unpublished
+  personal communication; liquid smoke's effect on *Listeria* depending
+  on the product).
   Published by the FDA; prepared by a private body, so restated.
   https://www.fda.gov/media/103624/download
 
 ### Inside this project
 
 - The spoilage clock, its temperature zones and the preservation methods
-  no code reads: `data/food_system.ron`, `src/systems/food.rs`; which
+  nothing uses: `data/food_system.ron`, `src/systems/food.rs`; which
   items use which clock: `data/food/item_profiles.ron`; the Freezer:
   `data/containers/types.csv`; the recipes and their tools:
   `data/recipes.csv`, `data/crafting/tools.ron`,

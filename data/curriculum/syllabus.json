@@ -2382,7 +2382,9 @@
         "cdc",
         "fda",
         "nih",
-        "local-health-jurisdiction"
+        "local-health-jurisdiction",
+        "epa",
+        "hrsa"
       ],
       "locale_dependent": false,
       "hazard": "lethal",

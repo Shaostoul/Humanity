@@ -162,7 +162,7 @@ also how it fails.
 |---|---|---|
 | Warmth, 40 to 140 F | The range where bacteria grow fastest (FSIS) | The ones FSIS names as growing to dangerous levels in food left out: *Staphylococcus aureus*, *Salmonella* Enteritidis, *E. coli* O157:H7 and *Campylobacter* |
 | A refrigerator, 40 F or below | The FDA: "Proper refrigeration keeps most types of bacteria from growing to numbers that can cause illness" | *Listeria* and *Yersinia* grow at refrigerator temperatures (FDA); moulds can grow there too (FSIS) |
-| A freezer, 0 F | The FDA: "While freezing does not kill most bacteria, it does stop bacteria from growing." | Whatever went in comes out again when it thaws |
+| A freezer, 0 F | The FDA: "While freezing does not kill most bacteria, it does stop bacteria from growing." | Most of what went in comes out again when it thaws |
 | Cooking to a safe temperature | Kills most bacteria and parasites (FDA) | Spores (FDA); some poisons germs have already made (FDA); norovirus can survive 145 F (CDC) |
 | Acid, pH 4.6 or below | Stops the bacterium behind botulism from growing (USDA) | Moulds can "thrive in high-acid foods like jams, jellies, pickles, fruit, and tomatoes" (FSIS); *Shigella* tolerates low pH (FDA) |
 | Salt or sugar | Ties up the water; most bacteria compete badly for what is left (FDA) | The FDA: "Except for Staphylococcus aureus, bacteria are rather poor competitors, whereas molds are excellent competitors." |
@@ -209,7 +209,9 @@ helpful germs that protect our body from infection." The NIH's digestive
 diseases institute (NIDDK) adds that antibiotics can change the gut's
 bacteria and raise the chance of an infection with *C. difficile*, a gut
 bacterium that causes diarrhoea, and the CDC counts *C. diff* infection
-among the more serious side effects of antibiotics.
+among the more serious side effects of antibiotics. The CDC also says
+that anyone who has been taking antibiotics or antifungals should tell
+their doctor about three or more episodes of diarrhoea in 24 hours.
 
 What about probiotics, the live bacteria sold as supplements? NIDDK says
 researchers are still studying them for diarrhoea, that many doctors and
@@ -226,10 +228,13 @@ in sauerkraut and in naturally fermented dills. Alcohol, vinegar, and
 some dairy products are also fermented foods."
 
 You can see the bacteria's work in the FDA's table of food acidity:
-cabbage at pH 5.2 to 6.0 and sauerkraut at 3.4 to 3.6; cucumbers at 5.1
-to 5.7 and dill pickles at 3.2 to 3.5. The lower the number, the more
-acid, and the acid is what the bacteria made from the vegetables' own
-sugar. The FDA warns that the pH of foods "even those of similar types,
+cabbage at pH 5.2 to 6.0 and sauerkraut at 3.4 to 3.6. The lower the
+number, the more acid, and in sauerkraut the acid is what the bacteria
+made from the cabbage's own sugar. (Dill pickles, at 3.2 to 3.5 against
+5.1 to 5.7 for cucumbers, can be soured by bacteria or by vinegar: the
+USDA says fresh-pack pickles are acidified quickly with vinegar. The
+table does not say which kind it measured.) The FDA warns that the pH
+of foods "even those of similar types,
 varies considerably," so these are typical ranges, not targets to test
 your own crock against ([Why Canning Has Rules](/library#why-canning-has-rules)
 explains why household pH strips are not a safety test).
@@ -322,8 +327,9 @@ CDC's list of its sources is meat, poultry, gravies and other foods cooked
 in large batches and held at an unsafe temperature. For *Bacillus cereus*
 the FDA gives 100,000 to 100 million cells, and says the harm comes from
 poison already made in the food. For these, time and temperature are the
-control, and reheating may come too late: the FDA's note for consumers
-says "Cooking, freezing, and washing won't necessarily destroy toxins."
+control, and reheating may come too late: the FDA's chapter on
+*Staphylococcus aureus* says its poisons "are highly heat stable and can
+remain biologically active" after the bacteria themselves are killed.
 [Telling Spoiled From Safe](/library#telling-spoiled-from-safe) has the
 details, including why reheated rice is a classic case.
 
@@ -534,7 +540,8 @@ themselves.
   the Unsanitary condition, which slows you a little, and composting
   clears it; no germs are involved.
 - **Fermenting is only written down.** The food data has a "Fermented"
-  cooking method that no code reads (`data/food_system.ron`). The Make
+  cooking method that the game loads but never uses
+  (`data/food_system.ron`, `src/systems/food.rs`). The Make
   Cheese recipe says it cultures the milk, but it takes only milk and
   salt, and Bake Bread takes flour, water and salt: there is no yeast or
   culture in the game (`data/recipes.csv`, `data/items.csv`).
@@ -585,7 +592,8 @@ were read on 5 October 2026.
   resistance speeding up when the drugs pressure bacteria and fungi to
   adapt; "AR happens when germs like bacteria and fungi develop the
   ability to defeat the drugs designed to kill them."; *C. difficile*
-  among the threats).
+  among the threats; telling the doctor about three or more episodes of
+  diarrhoea in 24 hours while taking antibiotics or antifungals).
   https://www.cdc.gov/antimicrobial-resistance/about/index.html
 - Centers for Disease Control and Prevention. *Healthy Habits: Antibiotic
   Do's and Don'ts*, dated 23 September 2025 ("Antibiotics DO NOT work on
@@ -635,12 +643,13 @@ were read on 5 October 2026.
   Microorganisms and Natural Toxins*, second edition, 2012 (the note for
   consumers on spores, "Proper refrigeration keeps most types of bacteria
   from growing to numbers that can cause illness", cooking killing most
-  bacteria and parasites, *Listeria* and *Yersinia* growing at
-  refrigerator temperatures, and "Cooking, freezing, and washing won't
-  necessarily destroy toxins."; the infective doses in the chapters on
+  bacteria and parasites, and *Listeria* and *Yersinia* growing at
+  refrigerator temperatures; the infective doses in the chapters on
   norovirus, *Salmonella*, *E. coli* O157:H7, *Shigella*, *Giardia*,
   *Cryptosporidium*, *Staphylococcus aureus*, *Clostridium perfringens* and
-  *Bacillus cereus*, and Appendix 1's cautions about them; *Giardia* as a
+  *Bacillus cereus*, and Appendix 1's cautions about them; the
+  *Staphylococcus aureus* chapter's poisons that "are highly heat stable
+  and can remain biologically active" after heat kills the cells; *Giardia* as a
   single-celled parasite; *Shigella* tolerant to low pH; 30 percent of
   norovirus infections without gut symptoms; the glossary's virus,
   replicating "only within living host cells"; Appendix 3 on water
@@ -680,7 +689,8 @@ were read on 5 October 2026.
   bruised food; washing reducing them only slightly; the botulism
   bacterium growing only without air and not at pH 4.6 or below; "In
   fermented foods, salt favors the growth of desirable bacteria while
-  inhibiting the growth of others."; the glossary's bacteria, yeasts,
+  inhibiting the growth of others."; fresh-pack pickles acidified quickly
+  with vinegar; the glossary's bacteria, yeasts,
   microorganisms dividing every 10 to 30 minutes and used to make
   antibiotics, and fermentation). The PDF was downloaded and its text
   extracted locally.
@@ -717,7 +727,8 @@ were read on 5 October 2026.
 
 - Food spoilage and its temperature zones: `data/food_system.ron`
   (`spoilage_rate_hours`, `raw_consumption_risk`, `temperature_zones`,
-  and the unread "Fermented" cooking method); eating, Food Poisoning, the
+  and the "Fermented" cooking method nothing uses); eating, Food
+  Poisoning, the
   Waste meter and composting: `src/systems/food.rs`; the illness rows:
   `data/status_effects.csv`; the air around you aboard:
   `src/engine/survival_env.rs` and `src/systems/atmosphere.rs`; the play

@@ -32,10 +32,12 @@ Rules](/library#why-canning-has-rules) covers botulism, and [Reading the
 Tide](/library#reading-the-tide) the shellfish poisons that come from algae.
 
 Its sources are the Centers for Disease Control and Prevention (CDC), the
-Food and Drug Administration (FDA) and the National Institutes of
-Health's digestive diseases institute (NIDDK), all US federal and in the
-public domain, and, for where to report an illness, the county's public
-health district. Where something is general practice or our own reading,
+Food and Drug Administration (FDA), the National Institutes of Health's
+digestive diseases institute (NIDDK), and, on a few points, the
+Environmental Protection Agency (EPA) and the Health Resources and
+Services Administration (HRSA), all US federal and in the public domain,
+and, for where to report an illness, the county's public health
+district. Where something is general practice or our own reading,
 the text says so. None of it replaces a doctor, and the first section
 says when you need one.
 
@@ -60,8 +62,16 @@ energy, frequent vomiting, severe pain in the abdomen or rectum, stools
 that are black and tarry or contain red blood or pus, and symptoms of
 dehydration. For adults it adds diarrhoea lasting more than 2 days, a
 high fever, and six or more loose stools a day (restated). The CDC's food
-poisoning page says 3 days and NIDDK says 2; for an adult, the shorter
-of the two is the safer one to act on (our reading).
+poisoning page says 3 days; NIDDK, and the CDC's own page on *E. coli*,
+say 2, and the *E. coli* page counts vomiting that lasts more than 2 days
+as well. For an adult, act on the 2 days.
+
+NIDDK also says that anyone with diarrhoea who is pregnant, over 65,
+taking antibiotics or living with a weakened immune system is more
+likely to have health problems from it and should keep in touch with
+their doctor (restated). And the CDC, on antibiotics and antifungals: "If
+you have been taking these drugs, tell your doctor if you have three or
+more diarrhea episodes in 24 hours."
 
 **Babies and young children: sooner.** NIDDK says to talk with a doctor
 right away if a baby or child has diarrhoea lasting more than a day, any
@@ -89,11 +99,17 @@ a fever and feel more tired and achy than usual."
   (HUS), a kidney illness that Shiga toxin-producing *E. coli* can
   trigger. The CDC: "HUS is a medical emergency."
 - **Double or blurred vision, drooping eyelids, slurred speech, trouble
-  swallowing or breathing, muscle weakness:** botulism. The CDC:
-  "Botulism is a medical emergency. If you or your child has signs and
-  symptoms of botulism, immediately see your doctor or go to the
-  emergency room. Do not wait." [Why Canning Has
-  Rules](/library#why-canning-has-rules) explains the pattern.
+  swallowing or breathing, muscle weakness or difficulty moving the
+  eyes:** botulism. The CDC: "Botulism is a medical emergency. If you or
+  your child has signs and symptoms of botulism, immediately see your
+  doctor or go to the emergency room. Do not wait." **In a baby the
+  CDC's signs are different:** constipation, poor feeding, drooping
+  eyelids, pupils slow to react to light, a face with less expression
+  than usual, and a weak cry that sounds different from usual. Honey can
+  carry the bacteria, so the CDC says to give no honey, nor anything made
+  with it such as a honey pacifier, to a child under 1; it also says most
+  botulism in babies cannot be prevented, so know the signs. [Why Canning
+  Has Rules](/library#why-canning-has-rules) explains the pattern.
 - **After raw shellfish, or a wound in sea water:** fever and chills with
   dangerously low blood pressure or blistering skin, or a wound that is
   red, swollen, painful, warm or leaking. These are the CDC's signs of a
@@ -236,8 +252,8 @@ From the CDC and NIDDK together:
   back straight away;
 - in children, crying with few or no tears, and being unusually sleepy or
   fussy;
-- in babies and toddlers, no wet nappy for 3 hours or more, a sunken
-  soft spot on the head, and drowsiness.
+- in babies and toddlers, no wet nappy (diaper) for 3 hours or more, a
+  sunken soft spot on the head, and drowsiness.
 
 Any of them is a reason to see a doctor (CDC). In a child, remember
 NIDDK's warning in the first section and do not wait to see whether
@@ -276,10 +292,16 @@ they pass (our reading).
    and that, once the appetite returns, most people can go back to their
    normal diet even while the diarrhoea lasts (restated).
 
-Keep oral rehydration packets in the house and in an emergency kit,
-because the night someone needs them is the night the shop is shut
-(general practice). This guide gives no home recipe for one: the CDC's
-guidance above is built on the packet.
+Keep oral rehydration packets in the house and in an emergency kit. A
+2003 CDC report on diarrhoea in children puts it this way (ORS is oral
+rehydration solution): "All families should be encouraged to have a
+supply of ORS in the home at all times and to start therapy with a
+commercially available ORS product as soon as diarrhea begins."
+This guide gives no home recipe. NIDDK notes that people do make the
+solution at home, but the same CDC report explains why it recommends
+the packet: "Although producing a homemade solution with appropriate
+concentrations of glucose and sodium is possible, serious errors can
+occur."
 
 ### Medicines: what not to reach for
 
@@ -332,7 +354,13 @@ The CDC's steps, in order:
 **Bleach safely.** The CDC: "Never mix bleach with ammonia or other
 cleaners. This will produce a poisonous gas." Open windows and doors for
 fresh air while you use it (CDC), and keep children and pets out of the
-room until it is done (general practice).
+room until it is done (general practice). Keep the bottle and the mixed
+solution out of children's reach, as HRSA, which funds the Poison Help
+line, says of every household cleaner. If it splashes in someone's eyes,
+rinse them with running water for 15 to 20 minutes (HRSA). For a splash
+in the eyes or a mouthful swallowed, call Poison Help, 1-800-222-1222, or
+911 if the person is unconscious, struggling to breathe or having a
+seizure ([First Aid Until Help Arrives](/library#first-aid-until-help-arrives)).
 
 **Laundry.** The CDC: take off and wash soiled clothes and bedding at
 once, wearing gloves; handle them without shaking them; wash with
@@ -374,9 +402,14 @@ Three more steps that belong in the same list:
   *Campylobacter*. Wash your hands after the hens, the feed and the
   litter ([Chickens and Eggs](/library#chickens-and-eggs)).
 - **Vaccines.** The CDC: "The best way to prevent hepatitis A is by
-  getting vaccinated." NIDDK says two rotavirus vaccines, given by mouth
-  to babies, protect against another common stomach virus; ask your
-  baby's doctor.
+  getting vaccinated." And if you may have been exposed in the last 2
+  weeks, for example because someone in the house has hepatitis A or you
+  ate a food named in an outbreak, call a doctor straight away: the CDC
+  says a single shot of the vaccine within 2 weeks of exposure can help
+  prevent illness, and that depending on your age and health a doctor
+  might also recommend a treatment called immune globulin. NIDDK says two rotavirus
+  vaccines, given by mouth to babies, protect against another common
+  stomach virus; ask your baby's doctor.
 - **Recalls.** The CDC says to throw away recalled food and clean the
   refrigerator if it was stored there.
 
@@ -396,10 +429,20 @@ it is dangerous to confuse them (our reading).
   undercooked shellfish, oysters above all. Its norovirus advice is to
   cook oysters and other shellfish thoroughly, to at least 145 F, and not
   to rely on a quick steam: "Quick steaming processes will not heat foods
-  enough to kill noroviruses." People at higher risk from *Vibrio*
-  should not eat raw oysters at all, and anyone with an open wound should
-  keep it out of sea water and away from raw seafood and its drippings
-  (our reading of the CDC's lists above).
+  enough to kill noroviruses." The CDC's advice for everyone is not to
+  eat raw or undercooked oysters or other seafood, and it says this
+  matters most for people at higher risk. A clam or an oyster in its
+  shell cannot take a thermometer, so use the CDC's times instead: throw
+  away any whose shells are open before cooking; boil them until the
+  shells open and then 3 to 5 minutes more, or put them in a steamer that
+  is already steaming and cook them 4 to 9 minutes more; eat only those
+  that opened, and throw out any that did not open fully; boil shucked
+  oysters for at least 3 minutes. The CDC's norovirus page goes further
+  and says to avoid steaming shellfish at all, so where the two pages
+  differ, boil (our reading). Keep an open wound out of sea water, cover
+  it with a waterproof bandage if it could touch sea water or raw seafood
+  and its juices, and wash it at once with soap and clean running water
+  if it does (CDC).
 
 A closed beach is closed whether or not you plan to cook what you dig.
 
@@ -412,7 +455,10 @@ health department issues an advisory. The CDC describes three kinds.
 
 **Boil water advisory:** germs may be in the water. Use bottled water or
 boiled tap water. The CDC: bring it to a full rolling boil for 1 minute,
-or 3 minutes above 6,500 feet, and let it cool. And from the same page:
+or 3 minutes above 6,500 feet, and let it cool. The EPA draws that
+altitude line lower, at 5,000 feet, and [Making Water Safe to
+Drink](/library#making-water-safe-to-drink) uses the stricter one: above 5,000
+feet, boil for 3 minutes. And from the CDC's page:
 
 - "Boil your tap water even if you filter it." A pitcher or home filter
   does not make it safe.
@@ -423,7 +469,15 @@ or 3 minutes above 6,500 feet, and let it cool. And from the same page:
 - Babies: breastfeeding is the best option, and ready-to-use formula if
   possible. If powdered formula is the only choice, the CDC's formula
   guidance says to mix it with bottled water, or with tap water made safe
-  by boiling and cooled to room temperature first.
+  by boiling and cooled to room temperature first. **The CDC makes one
+  exception, even in an emergency:** if the baby is younger than 2
+  months, was born early (before 37 weeks) or has a weakened immune
+  system, bring the water, bottled or tap, to a full rolling boil as
+  above, wait about 5 minutes, and mix the powder in while the water is
+  still very hot. Powdered formula is not sterile, and water around
+  158 F kills a germ in it, *Cronobacter*, that is rare but serious in
+  young babies. Then let the bottle cool before feeding, and test a few
+  drops on your wrist: it should feel warm, not hot.
 - Handwashing: in many cases tap water and soap are fine; follow the
   officials' advice.
 - Bathing: do not swallow the water, and think about giving babies and
@@ -440,7 +494,9 @@ or 3 minutes above 6,500 feet, and let it cool. And from the same page:
 **Do not drink advisory:** chemicals or toxins may be in the water, and
 the CDC says boiling will not make it safe. Use bottled water for
 drinking, cooking, brushing teeth, washing produce, preparing food,
-mixing formula, making ice and giving water to pets.
+mixing formula, making ice and giving water to pets. The formula
+exception above still holds for the babies it covers: boil the bottled
+water and wait about 5 minutes before mixing (CDC).
 
 **Do not use advisory:** do not use the tap water for anything. The CDC
 says these are rare.
@@ -497,10 +553,18 @@ going round the preschool.
 3. **Fluids.** They give the child oral rehydration solution from the
    cupboard, a few sips every few minutes, because he keeps bringing up
    larger amounts. They watch for the signs: is he weeing, are there
-   tears when he cries, is he unusually sleepy? Had he stopped weeing,
-   become hard to wake or been unable to keep anything down, they would
-   have called the doctor that night. By Sunday morning he is drinking,
-   weeing and grumpy, which is a good sign (our reading).
+   tears when he cries, is he unusually sleepy or fussy? Because he keeps
+   bringing fluids up, they ring the doctor's after-hours line that
+   night, as NIDDK says not to hesitate to do for a child with
+   diarrhoea, and follow the advice they are given. Frequent vomiting,
+   and irritability or a lack of energy, are on NIDDK's list of reasons
+   to talk with a doctor right away, and the CDC counts unusual
+   sleepiness or fussiness as signs of dehydration, so a grumpy,
+   irritable child is a reason to call, not a reassuring sign. Had he
+   stopped weeing, they would have taken him to the emergency room that
+   night (general practice), and had he become hard to wake, they would
+   have called 911. By Sunday morning he is drinking, weeing and playing
+   again.
 4. **Monday.** The grandfather starts vomiting. He is over 65 and has
    diabetes, so before he drinks oral rehydration solution they ring his
    doctor's line, as NIDDK advises, and they follow what the doctor says.
@@ -577,26 +641,32 @@ The game has one illness that comes from food, and none from water.
   stamina and causes vomiting, but the game has no stamina to reduce and
   nothing makes you vomit: the only status-effect modifier the game
   applies is to speed, and this one has none (`src/lib.rs`,
-  `src/ship/moves.rs`). Food Poisoning takes no water from your
+  `src/systems/status_effects.rs`). Food Poisoning takes no water from your
   Hydration bar either, which falls only on its daily clock and when you
   sweat (`src/systems/food.rs`). So the danger this guide is mostly
   about, dehydration, is not part of the game's food poisoning.
 - **No illness from water.** Drinking water carries no chance of Food
   Poisoning in the game's food data, and it keeps ten years before its
-  clock calls it spoiled. The home's purifier sends drinking water to its
-  tanks, a bottle or jerrycan filled at a tank holds drinking water, and
-  nothing makes it otherwise: there is no *Giardia*, no boil water
-  advisory and no water to treat (`data/containers/fluids.ron`,
-  `data/food_system.ron`, `src/systems/plumbing.rs`, `src/machines.rs`).
-  Other drinks are
-  another matter: fresh milk carries the 5 percent chance above, and
-  juice 1 percent.
+  clock calls it spoiled. The home's tanks are filled by its water pump,
+  by rain caught on the cistern and by the water its air handlers
+  condense out of the air, a bottle or jerrycan filled at a tank holds
+  drinking water, and nothing makes it otherwise: there is no *Giardia*,
+  no boil water advisory and no unsafe water. The home's Water purifier
+  draws power but moves no water, and its Purify Water recipe turns
+  bottles that were already drinking water into Purified Water, which the
+  game treats the same (`data/containers/fluids.ron`,
+  `data/food_system.ron`, `data/food/item_profiles.ron`,
+  `data/machines/home.ron`, `src/machines.rs`,
+  `src/engine/home_spawn.rs`, `src/systems/plumbing.rs`,
+  `data/recipes.csv`). Other drinks are another matter: fresh milk
+  carries the 5 percent chance above, and juice 1 percent.
 - **The water supply and the power.** Under the default ship life
   support, Station-supplied (Settings > Gameplay > Ship life support),
   the ship's reactor makes up any power your home does not make, so the
-  home's water keeps coming. In Realistic, a pump or purifier that loses
-  its power stops filling the tanks, and they run down as the home uses
-  water (`src/config.rs`, `src/systems/plumbing.rs`).
+  home's water keeps coming. In Realistic, a water pump that loses its
+  power stops filling the tanks, and they run down whenever the home uses
+  more water than still comes in (`src/config.rs`,
+  `src/systems/plumbing.rs`, `src/systems/ship_power.rs`).
 - **Nobody catches it from anyone.** Illness does not pass between
   people, and the game's catalogue of illnesses, from a cold to
   parasites, is not given to anyone (`data/status_effects.csv`).
@@ -624,8 +694,11 @@ kitchen that prevent all of it.
   emergency room now, from memory.
 - You know that a baby under 12 months with diarrhoea goes to a doctor
   right away, and that a child with signs of dehydration cannot wait.
-- You can read the timing of an illness: hours points to a poison made in
-  the food, days to an infection, weeks to *Giardia* or hepatitis A.
+- You can read the timing of an illness: within a few hours (the CDC
+  gives 30 minutes to 8 hours for *Staphylococcus aureus*) points to a
+  poison made in the food; half a day to several days, to an infection
+  such as norovirus or *Salmonella*; a week or more, to germs such as
+  *Giardia* or hepatitis A.
 - You can name the four groups most at risk and change what you serve
   them.
 - You keep oral rehydration packets in the house, and know to give them
@@ -683,15 +756,16 @@ were read on 5 October 2026.
   rehydration fluids that you can get over the counter are most helpful
   for mild dehydration."; sports drinks and drinks without caffeine or
   alcohol for mild dehydration; severe dehydration and fluids through a
-  vein; not eating raw or undercooked shellfish).
+  vein; not eating raw or undercooked shellfish; unusual sleepiness or
+  fussiness among the signs of dehydration).
   https://www.cdc.gov/norovirus/about/index.html
 - Centers for Disease Control and Prevention. *How to Prevent
   Norovirus*, dated 13 January 2025 (no preparing food or caring for
   others until 2 days after symptoms stop; "Hand sanitizer does not work
-  well against norovirus."; cooking shellfish to at least 145 F and "Quick
-  steaming processes will not heat foods enough to kill noroviruses.";
-  the cleanup steps and the bleach solution of 5 to 25 tablespoons per
-  gallon; 5 minutes; the laundry steps).
+  well against norovirus."; avoiding steaming, cooking shellfish to at
+  least 145 F and "Quick steaming processes will not heat foods enough to
+  kill noroviruses."; the cleanup steps and the bleach solution of 5 to
+  25 tablespoons per gallon; 5 minutes; the laundry steps).
   https://www.cdc.gov/norovirus/prevention/index.html
 - Centers for Disease Control and Prevention. *Treating Cholera*, dated 29
   May 2025 (oral rehydration solution as a prepackaged powder mixed with
@@ -701,16 +775,28 @@ were read on 5 October 2026.
 - Centers for Disease Control and Prevention. *About Escherichia coli
   Infection*, *Symptoms of E. coli Infection* and *Treatment of E. coli
   Infection*, each dated 14 May 2024 (HUS and its signs, "HUS is a medical
-  emergency."; extra fluids for children, "Do not wait."; anti-diarrhoeal
-  medicine and antibiotics, and when not to use them).
+  emergency."; calling the doctor for diarrhoea or vomiting lasting more
+  than 2 days; extra fluids for children, "Do not wait.";
+  anti-diarrhoeal medicine and antibiotics, and when not to use them).
   https://www.cdc.gov/ecoli/about/index.html,
   https://www.cdc.gov/ecoli/signs-symptoms/index.html and
   https://www.cdc.gov/ecoli/treatment/index.html
+- Centers for Disease Control and Prevention. *About Antimicrobial
+  Resistance*, dated 31 January 2025 (on antibiotics and antifungals,
+  "If you have been taking these drugs, tell your doctor if you have
+  three or more diarrhea episodes in 24 hours.").
+  https://www.cdc.gov/antimicrobial-resistance/about/index.html
 - Centers for Disease Control and Prevention. *Symptoms of Botulism*,
-  dated 1 April 2024 (the signs; "Botulism is a medical emergency. If you
-  or your child has signs and symptoms of botulism, immediately see your
-  doctor or go to the emergency room. Do not wait.").
-  https://www.cdc.gov/botulism/signs-symptoms/index.html
+  dated 1 April 2024 (the signs, difficulty moving the eyes among them,
+  and the different signs in an infant; "Botulism is a medical
+  emergency. If you or your child has signs and symptoms of botulism,
+  immediately see your doctor or go to the emergency room. Do not
+  wait."). https://www.cdc.gov/botulism/signs-symptoms/index.html
+- Centers for Disease Control and Prevention. *Botulism Prevention*,
+  dated 26 February 2026 (honey can contain the bacteria; no honey, or
+  products made with it such as honey pacifiers, for a child under 1;
+  most infant botulism cannot be prevented).
+  https://www.cdc.gov/botulism/prevention/index.html
 - Centers for Disease Control and Prevention. *About Vibrio Infection*,
   dated 14 May 2024 (coastal water, higher numbers May to October; raw or
   undercooked shellfish, particularly oysters; the signs of bloodstream
@@ -718,6 +804,15 @@ were read on 5 October 2026.
   emergency room if you have symptoms of a Vibrio bloodstream or wound
   infection. Do not wait."; the conditions and behaviours that raise the
   risk). https://www.cdc.gov/vibrio/about/index.html
+- Centers for Disease Control and Prevention. *Preventing Vibrio
+  Infection*, dated 7 July 2025 (no raw or undercooked oysters or other
+  seafood, especially for people at increased risk; discarding shellfish
+  open before cooking; boiling until the shells open and 3 to 5 minutes
+  more, or 4 to 9 minutes more in a steamer already steaming; eating only
+  those that open; boiling shucked oysters at least 3 minutes; wounds
+  kept out of coastal water, covered with a waterproof bandage, and
+  washed at once with soap and clean running water).
+  https://www.cdc.gov/vibrio/prevention/index.html
 - Centers for Disease Control and Prevention. *About Giardia Infection*,
   dated 2 May 2024 (more people sick from *Giardia* than any other gut
   parasite; untreated water and swimming; symptoms starting 1 to 2 weeks
@@ -729,21 +824,53 @@ were read on 5 October 2026.
   Basics*, dated 29 August 2025 (symptoms 2 to 7 weeks after exposure;
   close contact and contaminated food or drink; "The best way to prevent
   hepatitis A is by getting vaccinated.").
-  https://www.cdc.gov/hepatitis-a/about/index.html
+  https://www.cdc.gov/hepatitis-a/about/index.html *Hepatitis A
+  Prevention and Control*, dated 31 January 2025 (after an exposure in
+  the last 2 weeks, talking to a doctor, a single shot of the vaccine
+  within 2 weeks that can help prevent illness, and immune globulin
+  depending on age and health).
+  https://www.cdc.gov/hepatitis-a/prevention/index.html
+- Centers for Disease Control and Prevention. King CK, Glass R, Bresee
+  JS, Duggan C. *Managing Acute Gastroenteritis Among Children: Oral
+  Rehydration, Maintenance, and Nutritional Therapy*. MMWR
+  Recommendations and Reports 52(RR-16), 21 November 2003 ("All families
+  should be encouraged to have a supply of ORS in the home at all times
+  and to start therapy with a commercially available ORS product as soon
+  as diarrhea begins."; "Although producing a homemade solution with
+  appropriate concentrations of glucose and sodium is possible, serious
+  errors can occur.").
+  https://www.cdc.gov/mmwr/preview/mmwrhtml/rr5216a1.htm
 - Centers for Disease Control and Prevention. *Drinking Water Advisories:
   An Overview*, dated 4 March 2024 (the three kinds of advisory and what
-  each asks; "Boil your tap water even if you filter it."; refrigerator
-  dispensers; formula; handwashing, bathing, teeth, dishes, pets and
-  plants). https://www.cdc.gov/water-emergency/about/drinking-water-advisories-an-overview.html
+  each asks; 1 minute of rolling boil, 3 above 6,500 feet; "Boil your tap
+  water even if you filter it."; refrigerator dispensers; formula;
+  handwashing, bathing, teeth, dishes, pets and plants).
+  https://www.cdc.gov/water-emergency/about/drinking-water-advisories-an-overview.html
 - Centers for Disease Control and Prevention. *Infant Formula Preparation
   and Storage*, dated 14 May 2026 (in an emergency, bottled water for
   powdered formula, or tap water boiled or disinfected and, if boiled,
-  cooled to room temperature first).
+  cooled to room temperature first; and, even in an emergency, for a
+  baby younger than 2 months, born before 37 weeks or with a weakened
+  immune system, water boiled and left about 5 minutes, around 158 F,
+  mixed with the powder while very hot, then cooled and tested on the
+  wrist; powdered formula not sterile; *Cronobacter* rare but serious in
+  infants).
   https://www.cdc.gov/infant-toddler-nutrition/formula-feeding/preparation-and-storage.html
 - Centers for Disease Control and Prevention. *About Mold*, dated 26
   September 2024 ("Never mix bleach with ammonia or other cleaners. This
   will produce a poisonous gas."; opening windows and doors for fresh
   air). https://www.cdc.gov/mold-health/about/index.html
+- Environmental Protection Agency. *Emergency Disinfection of Drinking
+  Water*, last updated 24 February 2026 (a rolling boil for at least one
+  minute, three minutes above 5,000 feet).
+  https://www.epa.gov/ground-water-and-drinking-water/emergency-disinfection-drinking-water
+- Health Resources and Services Administration, which funds the Poison
+  Help line. *Prevention Tips*, undated (household cleaners in locked
+  cabinets or out of the reach of children), and *First Steps in a
+  Poisoning Emergency*, undated (eyes rinsed with running water for 15 to
+  20 minutes; calling Poison Help, 1-800-222-1222).
+  https://poisonhelp.hrsa.gov/what-you-can-do/prevention-tips and
+  https://poisonhelp.hrsa.gov/faq/first-steps-poisoning-emergency
 - Food and Drug Administration. *What You Need to Know about Foodborne
   Illnesses*, content current as of 17 February 2022 (the estimate of
   about 48 million cases a year, 1 in 6 Americans, 128,000
@@ -765,7 +892,11 @@ were read on 5 October 2026.
   Digestive and Kidney Diseases. *Symptoms & Causes of Diarrhea*, last
   reviewed September 2024 (the signs of dehydration in adults and
   children; when to talk with a doctor right away, for adults and for
-  babies and children; "Diarrhea is especially dangerous in newborns and
+  babies and children, irritability or lack of energy and frequent
+  vomiting among the reasons; people with diarrhoea who are pregnant,
+  over 65, taking antibiotics or with a weakened immune system keeping in
+  touch with their doctor; not hesitating to call a doctor for a child
+  with diarrhoea; "Diarrhea is especially dangerous in newborns and
   infants and can lead to severe dehydration in just a day or two. A child
   with symptoms of dehydration can die within a day if left untreated.";
   viruses, bacteria and parasites causing most food poisoning).
@@ -773,9 +904,10 @@ were read on 5 October 2026.
   *Treatment of Diarrhea*, last reviewed September 2024 (electrolytes and
   oral rehydration solutions; older adults and people with health
   conditions talking with a doctor first; babies on breast milk or
-  formula and a doctor before an oral rehydration solution; doctors
-  usually advising against anti-diarrhoea medicine for children;
-  probiotics). https://www.niddk.nih.gov/health-information/digestive-diseases/diarrhea/treatment
+  formula and a doctor before an oral rehydration solution; that
+  rehydration solutions can be made at home or bought; doctors usually
+  advising against anti-diarrhoea medicine for children; probiotics).
+  https://www.niddk.nih.gov/health-information/digestive-diseases/diarrhea/treatment
   *Treatment of Viral Gastroenteritis ("Stomach Flu")*, last reviewed May
   2018 ("If vomiting is a problem, try sipping small amounts of clear
   liquids."; the drinks for adults; a restricted diet not helping; the
@@ -794,10 +926,14 @@ were read on 5 October 2026.
 
 - Food Poisoning, its causes and effects, the Hydration bar and the
   Drink button: `src/systems/food.rs`, `data/food_system.ron`,
-  `data/status_effects.csv`; the home's water: `data/containers/fluids.ron`,
-  `src/systems/plumbing.rs`, `src/machines.rs`; the status-effect
-  modifiers the game applies: `src/lib.rs`, `src/ship/moves.rs`; ship life
-  support: `src/config.rs`; the Use
+  `data/status_effects.csv`; the home's water, its tanks and what fills
+  them: `data/containers/fluids.ron`, `data/machines/home.ron`,
+  `src/machines.rs`, `src/engine/home_spawn.rs`,
+  `src/systems/plumbing.rs`; the Purify Water recipe and its items:
+  `data/recipes.csv`, `data/food/item_profiles.ron`; the status-effect
+  modifiers the game applies: `src/lib.rs`,
+  `src/systems/status_effects.rs`; ship life support and the reactor's
+  feed: `src/config.rs`, `src/systems/ship_power.rs`; the Use
   button: `src/gui/pages/inventory.rs`; the body saved with the game:
   `src/save_load.rs`.
 - [Microbes, Good and Bad](/library#microbes-good-and-bad), [Telling Spoiled
@@ -813,17 +949,18 @@ were read on 5 October 2026.
 
 ### Labelled in the text as general practice or our reading, not sourced
 
-- Acting on the shorter of the CDC's and NIDDK's diarrhoea limits for
-  adults; getting medical help at once for the invasive *Listeria* signs;
+- Getting medical help at once for the invasive *Listeria* signs;
   calling 911 for someone hard to wake, confused or fainting; that very
   fast illness usually means a poison made in the food.
-- Mixing oral rehydration solution exactly as the packet says, keeping
-  packets in the house and the emergency kit, and the reading that the
-  worse the diarrhoea, the more it should be the rehydration solution.
+- Mixing oral rehydration solution exactly as the packet says, and the
+  reading that the worse the diarrhoea, the more it should be the
+  rehydration solution.
 - Using the CDC's norovirus rules for any stomach bug; keeping children
   and pets out of a room being bleached; another adult doing the cooking.
-- That shellfish carry two different hazards; that people at higher risk
-  from *Vibrio* should not eat raw oysters at all.
+- That shellfish carry two different hazards; boiling shellfish where
+  the CDC's *Vibrio* and norovirus pages differ on steaming.
+- In the worked example, the emergency room that night for a child who
+  had stopped weeing.
 - The worked example's household, their illnesses and the dates are made
   up to illustrate the rules; the health district and its number are
   real.
