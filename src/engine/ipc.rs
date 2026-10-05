@@ -3323,6 +3323,9 @@ pub(crate) fn poll_autopilot_request(state: &mut EngineState) {
         state.gui_state.user_name = "Autopilot".to_string();
     }
     state.gui_state.onboarding_complete = true;
+    // A rig, not a new player: no first-entry controls hint over its captures
+    // (gui/first_steps.rs, first-hour audit 2026-10-04).
+    state.gui_state.controls_hint_shown = true;
     state.gui_state.showroom_active = false;
     state.gui_state.construction_active = false;
     let enter = req.get("enter").and_then(|v| v.as_bool()).unwrap_or(true);

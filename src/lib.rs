@@ -2136,19 +2136,10 @@ mod native_app {
                     // "stay half-dead".
                 }
                 WindowEvent::CloseRequested => {
-                    // Persist the active offline home before quitting (v0.381). The
-                    // player entity exists from startup, so this captures the loaded
-                    // or modified inventory + skills, round-tripping the save.
-                    crate::save_load::save_active_home(
-                        &state.game_world.world,
-                        &state.gui_state.placed_items,
-                        &state.data_store,
-                        !state.gui_state.settings.fresh_world_each_launch,
-                    );
-                    // Flush unsaved build edits too (v0.791): quitting without the
-                    // explicit Save button used to silently drop every wall/light/
-                    // strip/corridor edit since the last click.
-                    autosave_ship_structure(state, true);
+                    // Persist the active offline home (v0.381) and flush unsaved build
+                    // edits (v0.791) before quitting: the save every way out of the
+                    // game runs first (engine/quit.rs).
+                    crate::engine::quit::save_before_exit(state);
                     event_loop.exit();
                 }
                 WindowEvent::Resized(size) => {
@@ -14613,6 +14604,12 @@ mod native_app {
                         }
                     }
 
+                    // The controls hint on the first entry into the world, once ever, saved at
+                    // once (first-hour audit 2026-10-04, Friction 1; gui/first_steps.rs).
+                    if state.gui_state.queue_controls_hint_once(state.world_loaded) {
+                        crate::config::AppConfig::from_gui_state(&state.gui_state).save();
+                    }
+
                     // Decide whether to render 3D scene or just a cleared surface
                     let page_active = state.gui_state.active_page != GuiPage::None;
 
@@ -15633,12 +15630,15 @@ mod native_app {
                                     &mut state.gui_state.debug_log,
                                     &mut state.gui_state.debug_console_visible,
                                 );
-
-                                // Quit requested from main menu
-                                if state.gui_state.quit_requested {
-                                    event_loop.exit();
-                                }
                             });
+                            // Quit from the main menu hub or the updater's Restart to Apply
+                            // (first-hour audit 2026-10-04, Blocker 5): the save the close
+                            // button runs, then exit. Out here, not in the egui closure above,
+                            // because the save takes the whole state, which that closure holds.
+                            if std::mem::take(&mut state.gui_state.quit_requested) {
+                                crate::engine::quit::save_before_exit(state);
+                                event_loop.exit();
+                            }
 
                             // ── Game audio frame sync (v0.960, first CC0 sounds) ──
                             if let Some(audio) = state.audio.as_mut() {
@@ -16374,6 +16374,8 @@ mod native_app {
                         }
                         Err(wgpu::SurfaceError::OutOfMemory) => {
                             log::error!("Out of GPU memory");
+                            // The world lives on the CPU: saved on the way out (engine/quit.rs).
+                            crate::engine::quit::save_before_exit(state);
                             event_loop.exit();
                         }
                         Err(e) => {

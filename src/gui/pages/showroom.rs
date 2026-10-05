@@ -31,6 +31,13 @@ const NEW_HOMESTEAD: &str = "My Homestead (new)";
 /// server; `resolve_server` special-cases it to read `server_url` directly.
 const CONNECTED_SERVER_ID: &str = "__connected__";
 
+/// The WHO column's hint: what travels with a character, and where its progress lives. One
+/// save on this computer holds it all, whichever world is played (`save_load::active_home_path`);
+/// a server keeps none of a player's gear (first-hour audit 2026-10-04: the old hint said gear
+/// and skills "stay in the world you earn them in", which the code has never done).
+const WHO_HINT: &str = "Your name and look travel with you. Gear and skills are one save on \
+                        this computer, shared by your home and every server you visit.";
+
 pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     // Land any finished server-info fetch into the cache (v0.478).
     drain_server_info(state);
@@ -259,12 +266,7 @@ fn draw_who_column(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let mut edit_look = false;
 
     ScrollArea::vertical().show(ui, |ui| {
-        hint(
-            ui,
-            theme,
-            "Your name and look travel with you. Gear and skills stay in the \
-             world you earn them in.",
-        );
+        hint(ui, theme, WHO_HINT);
         ui.add_space(theme.spacing_xs);
         for home in &homes {
             let is_sel = who == home.world;
@@ -936,5 +938,33 @@ fn cap(s: &str) -> String {
     match c.next() {
         Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
         None => String::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::WHO_HINT;
+
+    /// The picker's WHO hint says what the save really does (first-hour audit 2026-10-04: "The
+    /// picker's hint is wrong"). It said gear and skills "stay in the world you earn them in",
+    /// but your own home and a server share ONE save on this computer: `save_load::active_home_path`
+    /// is a single file whichever world is played, and a server keeps none of a player's gear
+    /// (the relay holds a fresh entity; what you do there is written into that save). So gear
+    /// earned on a server comes home, and the other way round.
+    ///
+    /// Seen red 2026-10-04 on 8e400d7ed: "the picker still says gear and skills stay in the
+    /// world you earn them in: Your name and look travel with you. Gear and skills stay in the
+    /// world you earn them in."
+    #[test]
+    fn the_pickers_hint_says_one_save_holds_gear_and_skills() {
+        assert!(
+            !WHO_HINT.contains("stay in the"),
+            "the picker still says gear and skills stay in the world you earn them in: {WHO_HINT}"
+        );
+        assert!(WHO_HINT.contains("one save on this computer"), "{WHO_HINT}");
+        assert!(WHO_HINT.contains("your home and every server"), "{WHO_HINT}");
+        // The fact the sentence rests on: one save file, named by no world.
+        let save = crate::save_load::active_home_path();
+        assert_eq!(save.file_name().and_then(|n| n.to_str()), Some("offline_home.json"), "{}", save.display());
     }
 }
