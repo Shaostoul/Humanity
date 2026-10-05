@@ -1412,6 +1412,15 @@ pub struct GuiState {
     /// Quest id the player clicked Accept on; the frame bridge applies it to
     /// the ECS QuestTracker.
     pub pending_accept_quest: Option<String>,
+    /// The views a quest can ask the player to open (2026-10-04, the
+    /// opening's "check your vitals"), as drawn this frame: a page adds one
+    /// through `on_screen` while it shows it ("vitals": the Inventory page's
+    /// Status section with the vitals synced). The frame glue
+    /// (engine::quest_hooks) reports each view that came on screen since the
+    /// frame before as a quest event, once, and keeps the frame before in
+    /// `prev_views_on_screen`.
+    pub views_on_screen: Vec<&'static str>,
+    pub prev_views_on_screen: Vec<&'static str>,
 
     // ── Guilds state (live from the relay's REST guild API, v0.757) ──
     pub guilds: Vec<GuiGuild>,
@@ -3119,6 +3128,14 @@ impl GuiState {
             || self.selected_machine.is_some_and(|i| i < self.machine_labels.len())
     }
 
+    /// A page shows `view` this frame (2026-10-04): a quest step that asks
+    /// for it ("check your vitals") sees it (`views_on_screen`).
+    pub fn on_screen(&mut self, view: &'static str) {
+        if !self.views_on_screen.contains(&view) {
+            self.views_on_screen.push(view);
+        }
+    }
+
     /// The F10 Cloud dev sidebar is open AND expanded (2026-09-05). This is
     /// the "hold Alt" condition made sticky: lib.rs frees the OS cursor and
     /// suppresses mouse-look while it is true (reconcile_cursor + the
@@ -3538,6 +3555,8 @@ impl Default for GuiState {
             quests: Vec::new(),
             quests_available: Vec::new(),
             pending_accept_quest: None,
+            views_on_screen: Vec::new(),
+            prev_views_on_screen: Vec::new(),
 
             // Guilds defaults
             guilds: Vec::new(),

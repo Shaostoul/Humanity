@@ -1,12 +1,12 @@
 // HumanityOS Quest Chain: Exploration
 // Quests that drive players to explore the surrounding environment.
 //
-// Travel objectives WORK as of v0.979: the QuestSystem fires
-// "travel_<id>" when the player enters a destination's radius (ids +
-// positions in data/entities/destinations.ron). The 2026-07-20 audit had
-// stripped Travel steps because nothing emitted those events; they are
-// restored below. Accept the quest BEFORE walking there - leaving and
-// returning re-fires, so a missed first visit just means walking back.
+// Travel objectives WORK as of v0.979 (ids + positions in
+// data/entities/destinations.ron). The 2026-07-20 audit had stripped Travel
+// steps because nothing emitted those events; they are restored below. Since
+// 2026-10-04 a Travel step is done while the player stands in the place and
+// it is the step they are on: a visit before the step that asks for it does
+// not count, so walk there when the quest line asks.
 
 [
     (

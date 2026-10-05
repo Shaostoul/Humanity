@@ -5714,6 +5714,8 @@ mod native_app {
                     }
                     // Built beds and chests: prompt + chests in the places tree (2026-09-27).
                     crate::engine::built_uses::frame(state);
+                    // The quests' glue: views that came on screen, the own front door (2026-10-04).
+                    crate::engine::quest_hooks::frame(state);
 
                     // Per-body environment snapshot (artificial-planet
                     // increment 4): publish which world the player is on so
@@ -12531,9 +12533,10 @@ mod native_app {
                                     .map(|d| d.name.clone())
                                     .unwrap_or_else(|| active.quest_id.clone());
                                 let step_total = def.map(|d| d.steps.len()).unwrap_or(0);
+                                // As the player reads it (the own front door named, 2026-10-04).
                                 let step_desc = def
                                     .and_then(|d| d.steps.get(active.current_step))
-                                    .map(|s| s.description.clone())
+                                    .map(|s| crate::systems::quests::step_text(&s.description, &state.data_store))
                                     .unwrap_or_default();
                                 state.gui_state.quests.push(crate::gui::GuiQuest {
                                     name,

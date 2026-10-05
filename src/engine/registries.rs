@@ -140,8 +140,9 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &std::path::
         "quest_registry",
         QuestRegistry::from_ron_dir(&data_dir.join("quests")),
     );
-    // Travel destinations (v0.979): named world places whose arrival radius
-    // fires "travel_<id>" quest events. Read by QuestSystem::tick.
+    // Travel destinations (v0.979): named world places; a Travel step is done
+    // while the player stands in one and it is the current step (2026-10-04,
+    // including the player's own front door). Read by QuestSystem::tick.
     match crate::embedded_data::read_data_or_embedded(data_dir, "entities/destinations.ron") {
         Some(text) => match crate::systems::quests::DestinationList::from_ron(text.as_bytes()) {
             Ok(list) => {
@@ -154,7 +155,7 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &std::path::
             Err(e) => log::warn!("Failed to parse entities/destinations.ron: {e}"),
         },
         None => log::warn!(
-            "entities/destinations.ron not found (no embedded copy); Travel objectives cannot advance"
+            "entities/destinations.ron not found on disk or built in; Travel objectives cannot advance"
         ),
     }
     // BlueprintRegistry: read by ConstructionSystem::tick (registered 2026-07-01, see

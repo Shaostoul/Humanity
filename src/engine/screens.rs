@@ -808,19 +808,25 @@ pub(crate) fn frame_surfaces(state: &mut EngineState, lists: &SceneDrawLists) {
     // and queue, the theme and the shared GuiState.
     let EngineState { screens, renderer, theme, gui_state, .. } = state;
     let Screens { surfaces, quads, .. } = screens;
-    for si in chosen {
-        if let Some(s) = surfaces.get_mut(si) {
-            s.frame(&renderer.device, &renderer.queue, theme, gui_state);
-            // A provider that resized its surface to its frame left the
-            // scene material pointing at the old texture; rebind it now,
-            // before the scene pass samples it.
-            if s.take_view_changed() {
-                for q in quads.iter().filter(|q| q.surface == si) {
-                    renderer.set_material_albedo_view(q.material, s.view());
+    // A page on a wall screen is not one the player opened (2026-10-04): the
+    // views it marks for a quest step are dropped (`quest_hooks::off_the_record`),
+    // or the Entry's inventory wall would finish the opening's "check
+    // your vitals: press I" the moment the player woke up facing it.
+    crate::engine::quest_hooks::off_the_record(gui_state, |gui_state| {
+        for si in chosen {
+            if let Some(s) = surfaces.get_mut(si) {
+                s.frame(&renderer.device, &renderer.queue, theme, gui_state);
+                // A provider that resized its surface to its frame left the
+                // scene material pointing at the old texture; rebind it now,
+                // before the scene pass samples it.
+                if s.take_view_changed() {
+                    for q in quads.iter().filter(|q| q.surface == si) {
+                        renderer.set_material_albedo_view(q.material, s.view());
+                    }
                 }
             }
         }
-    }
+    });
 }
 
 #[cfg(test)]

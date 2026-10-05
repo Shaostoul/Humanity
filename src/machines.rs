@@ -2730,6 +2730,24 @@ mod tests {
     /// its station placed (smelt_iron at smelter, smelt_iron_graphite at smelter)" and
     /// "home_solo.ron: Toolsmith, step 1 (Forge a hammer): craft_hammer needs a workbench, which
     /// this home does not place".
+    ///
+    /// THE OPENING (2026-10-04): First Steps is now the first ten minutes, and the check covers
+    /// what each of its steps uses as well. An Eat step needs food in the starting kit
+    /// (data/world/player.ron; only the backpack's food has an Eat button). A Plant step needs the
+    /// tower design its line names placed in the home, growing something the kit has a seed for.
+    /// A Make or Craft step needs, besides its station, every input of that recipe to hand: in
+    /// the home's stores, in the kit, sold at a trading post the home places, or got by an earlier
+    /// step of the chain (its ore, its ingot, a quest's reward). The opening's front door is the
+    /// plot's, not the home layout's: systems::quests::opening_tests holds it for every plot.
+    ///
+    /// Red, run on the shipped files with the kit's rations taken out and the fishing rod's
+    /// recipe asking for a fishing line nothing sells (the Barn's planks and wire are sold at the
+    /// trading post too, so taking them out of the Barn leaves the rod makeable): "home.ron:
+    /// First Steps, step 2 (Eat something: press I, click a Basic Ration, then Eat): nothing in
+    /// the starting kit is eaten food" and "home.ron: First Steps, step 4 (Craft a tool: Esc >
+    /// Crafting > Carve Fishing Rod > Craft): no recipe that makes fishing_rod_0 has its station
+    /// and every input to hand (craft_fishing_rod lacks fishing_line_0)", the same for
+    /// home_solo.ron.
     #[test]
     fn every_shipped_home_has_what_the_starter_quests_need() {
         use crate::systems::quests::{QuestObjective, QuestRegistry};
@@ -2773,28 +2791,87 @@ mod tests {
         }
         assert!(chain.len() >= 2, "First Steps leads on to Toolsmith");
 
+        // What a new player carries (data/world/player.ron, the list save_load::starting_kit reads).
+        #[derive(serde::Deserialize)]
+        struct PlayerDef {
+            #[serde(default)]
+            starting_items: Vec<(String, u32)>,
+        }
+        let kit: std::collections::BTreeSet<String> =
+            ron::from_str::<PlayerDef>(&std::fs::read_to_string(root.join("data").join("world").join("player.ron")).unwrap())
+                .expect("player.ron parses")
+                .starting_items
+                .into_iter()
+                .map(|(id, _)| id)
+                .collect();
+        assert!(kit.len() > 5, "the starting kit parsed: {kit:?}");
+        // The tower designs (data/towers/aeroponic_configs.ron): which plants each grows. A tower
+        // of design X is placed as machine "aeroponic_tower_X".
+        #[derive(serde::Deserialize)]
+        struct Towers {
+            towers: Vec<Tower>,
+        }
+        #[derive(serde::Deserialize)]
+        struct Tower {
+            id: String,
+            name: String,
+            plantings: Vec<Planting>,
+        }
+        #[derive(serde::Deserialize)]
+        struct Planting {
+            plant: String,
+        }
+        let towers = ron::from_str::<Towers>(&std::fs::read_to_string(root.join("data").join("towers").join("aeroponic_configs.ron")).unwrap())
+            .expect("aeroponic_configs.ron parses")
+            .towers;
+
         let station = |r: &crate::systems::crafting::Recipe| r.required_station.as_deref().map(|s| s.strip_suffix("_0").unwrap_or(s).to_string());
         let mut problems = Vec::new();
         for file in ["home.ron", "home_solo.ron"] {
             let home = MachineHome::load(&root.join("data").join("machines").join(file)).unwrap_or_else(|| panic!("{file} parses"));
             let placed: std::collections::BTreeSet<String> = home.all_instances().into_iter().map(|i| i.machine).collect();
             let has = |s: &Option<String>| s.as_ref().map_or(true, |s| placed.contains(s));
+            // What the player has to hand: the stores, the kit, the trading post's goods, and what
+            // the chain's earlier steps and rewards give (added as the walk goes on).
+            let mut to_hand: std::collections::BTreeSet<String> = stores.union(&kit).cloned().collect();
+            if placed.contains("trading_post") {
+                to_hand.extend(goods.goods.keys().cloned());
+            }
             for q in &chain {
                 for (n, step) in q.steps.iter().enumerate() {
                     let at = format!("{file}: {}, step {} ({})", q.name, n + 1, step.description);
+                    // A recipe whose station is placed and whose every input is to hand.
+                    let can_make = |r: &crate::systems::crafting::Recipe, to_hand: &std::collections::BTreeSet<String>| {
+                        has(&station(r)) && r.inputs.iter().all(|(id, _)| to_hand.contains(id))
+                    };
+                    let lacking = |r: &crate::systems::crafting::Recipe, to_hand: &std::collections::BTreeSet<String>| {
+                        let missing: Vec<&str> = r.inputs.iter().map(|(id, _)| id.as_str()).filter(|id| !to_hand.contains(*id)).collect();
+                        match (has(&station(r)), missing.is_empty()) {
+                            (false, _) => format!("{} needs a {}", r.id, station(r).unwrap()),
+                            (true, false) => format!("{} lacks {}", r.id, missing.join(", ")),
+                            (true, true) => format!("{} can be made", r.id),
+                        }
+                    };
                     match &step.objective {
                         QuestObjective::Craft { recipe_id, .. } => {
                             let r = recipes.recipes.get(recipe_id).unwrap_or_else(|| panic!("{at}: no recipe {recipe_id}"));
                             if !has(&station(r)) {
                                 problems.push(format!("{at}: {recipe_id} needs a {}, which this home does not place", station(r).unwrap()));
+                            } else if !can_make(r, &to_hand) {
+                                problems.push(format!("{at}: {}", lacking(r, &to_hand)));
                             }
+                            to_hand.extend(r.outputs.iter().map(|(id, _)| id.clone()));
                         }
                         QuestObjective::Make { item_id, .. } => {
                             let makers = recipes.recipes_producing(item_id);
                             if !makers.iter().any(|r| has(&station(r))) {
                                 let list: Vec<String> = makers.iter().map(|r| format!("{} at {}", r.id, station(r).unwrap_or_else(|| "hand".into()))).collect();
                                 problems.push(format!("{at}: no recipe that makes {item_id} has its station placed ({})", list.join(", ")));
+                            } else if !makers.iter().any(|r| can_make(r, &to_hand)) {
+                                let why: Vec<String> = makers.iter().map(|r| lacking(r, &to_hand)).collect();
+                                problems.push(format!("{at}: no recipe that makes {item_id} has its station and every input to hand ({})", why.join("; ")));
                             }
+                            to_hand.insert(item_id.clone());
                         }
                         QuestObjective::Build { blueprint_id } => {
                             let bp = blueprints.blueprints.get(blueprint_id).unwrap_or_else(|| panic!("{at}: no blueprint {blueprint_id}"));
@@ -2805,9 +2882,39 @@ mod tests {
                                 }
                             }
                         }
+                        // Only the backpack's food has an Eat button, so the kit must hold some.
+                        QuestObjective::Eat { item_id, .. } => {
+                            let kinds = crate::systems::food::consume_kinds();
+                            let food = kit.iter().any(|id| kinds.get(id) == Some(&false) && item_id.as_ref().map_or(true, |want| want == id));
+                            if !food {
+                                problems.push(format!("{at}: nothing in the starting kit is eaten food{}", item_id.as_ref().map(|i| format!(" ({i})")).unwrap_or_default()));
+                            }
+                        }
+                        // The tower design the line names, placed here, growing a plant the kit has a seed for.
+                        QuestObjective::Plant { crop_id, .. } => {
+                            match towers.iter().find(|t| step.description.contains(&t.name)) {
+                                None => problems.push(format!("{at}: the line names no tower design")),
+                                Some(t) => {
+                                    if !placed.contains(&format!("aeroponic_tower_{}", t.id)) {
+                                        problems.push(format!("{at}: this home places no {} tower (aeroponic_tower_{})", t.name, t.id));
+                                    }
+                                    let sowable = t.plantings.iter().any(|p| {
+                                        kit.contains(&format!("seed_{}_0", p.plant)) && crop_id.as_ref().map_or(true, |c| c == &p.plant)
+                                    });
+                                    if !sowable {
+                                        problems.push(format!("{at}: the starting kit has a seed for nothing the {} tower grows", t.name));
+                                    }
+                                }
+                            }
+                        }
+                        // Gathered here, to hand from now on.
+                        QuestObjective::Gather { item_id, .. } => {
+                            to_hand.insert(item_id.clone());
+                        }
                         _ => {}
                     }
                 }
+                to_hand.extend(q.rewards.iter().map(|(id, _)| id.clone()));
             }
         }
         assert!(problems.is_empty(), "the starter quests cannot be done in every shipped home:\n  {}", problems.join("\n  "));
