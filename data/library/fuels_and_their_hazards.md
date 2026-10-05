@@ -30,7 +30,8 @@ Home Safely](/library#heating-a-home-safely), and outdoors in [Making and
 Controlling Fire](/library#making-and-controlling-fire). Refuelling small
 engines and oily rags are in [Keeping Things
 Working](/library#keeping-things-working), the gas water heater and fuel
-vapours in [Heating Water](/library#heating-water), generators in [Where Your
+vapours in [Heating Water](/library#heating-water), generators in [Choosing and
+Running a Generator](/library#choosing-and-running-a-generator) and [Where Your
 Own Electrical Work Stops](/library#where-your-electrical-work-stops), carbon
 monoxide alarms in [Ventilation, Damp and
 Mould](/library#ventilation-damp-and-mould), and getting rid of old fuel in

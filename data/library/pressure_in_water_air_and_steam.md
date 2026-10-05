@@ -469,7 +469,8 @@ capacities are not recommended for use in canning." And: "The minimum
 volume of canner that can be used is one that will hold 4 quart jars
 sitting upright on the rack." [Keeping What You
 Grew](/library#keeping-what-you-grew) explains why an electric multicooker is
-not used for canning either, even one with a canning button.
+not used for canning either, even one with a canning button, and
+[Pressure Canning](/library#pressure-canning) gives the whole tested method.
 
 The USDA guide is clear about what the pressure is for: "Pressure does
 not destroy microorganisms, but high temperatures applied for an
