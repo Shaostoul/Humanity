@@ -4,8 +4,8 @@
 //! Tests that needed a database or a scratch folder used to build their own
 //! path, `std::env::temp_dir().join(format!("hum_..."))`, in some sixty places,
 //! and nothing deleted it afterwards. By 2026-10-05 the system temp folder held
-//! about 186,000 `hum_*` entries, 76,906 of them SQLite databases, and every
-//! `just verify` and every worktree agent's test run added more.
+//! 186,523 `hum_*` entries, 81,026 of them SQLite databases, and every full test
+//! run added 740 more.
 //!
 //! A test now asks this module for its path and holds the guard it gets back.
 //! When the guard is dropped, at the end of the test or while a failed
