@@ -911,6 +911,16 @@
           ]
         },
         {
+          "title": "Mental Health Under Strain",
+          "src": "docs/user/skills/mental_health_under_strain.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "safety"
+          ]
+        },
+        {
           "title": "Helping Your Neighbours After a Disaster",
           "src": "docs/user/skills/helping_your_neighbours_after_a_disaster.md",
           "tags": [
@@ -1297,6 +1307,27 @@
             "real",
             "governance",
             "safety"
+          ]
+        },
+        {
+          "title": "Handling Conflict",
+          "src": "docs/user/skills/handling_conflict.md",
+          "tags": [
+            "guide",
+            "real",
+            "governance",
+            "safety",
+            "beginner"
+          ]
+        },
+        {
+          "title": "The Law Where You Live",
+          "src": "docs/user/skills/the_law_where_you_live.md",
+          "tags": [
+            "guide",
+            "real",
+            "governance",
+            "reference"
           ]
         },
         {

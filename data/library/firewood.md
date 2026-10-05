@@ -585,6 +585,17 @@ changes hands.
 Find out how your local agency announces bans and sign up for the alert
 before you need it.
 
+Those are air quality bans, and they come mostly in the colder fall and
+winter months. Summer brings a second kind, the fire safety burn ban,
+which the fire marshal calls when dry weather raises the risk of
+wildfire and which can last for months. The Puget Sound Clean Air
+Agency says it neither issues nor enforces those, and points people to
+their county fire marshal (restated). So before any outdoor fire, the
+brush and slash from cutting firewood included, check both kinds of
+ban, and whether you may burn outdoors where you live at all; [The Law
+Where You Live](/library#the-law-where-you-live) works through those checks
+for a lot near Silverdale.
+
 ## Getting the wood: the part that hurts people
 
 ### Felling
@@ -1017,7 +1028,9 @@ or reproduced here.
   authority over King, Kitsap, Pierce and Snohomish counties; what Stage 1
   and Stage 2 burn bans prohibit and the position of certified stoves and
   pellet stoves in each; the approved exemption; wood smoke as a main
-  contributor to fine particle pollution).
+  contributor to fine particle pollution; air quality bans mostly in fall
+  and winter, and summer fire safety bans issued by the fire marshal,
+  which the agency neither issues nor enforces, read 4 October 2026).
   https://pscleanair.gov/172/About-Air-Quality-Burn-Bans
 - Washington State Department of Ecology. *Wood stove info* (wood smoke as
   one of the main sources of air pollution in Washington; split, covered
