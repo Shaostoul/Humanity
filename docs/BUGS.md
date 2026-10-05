@@ -3736,7 +3736,7 @@ seek to be the frame at the target, as the other seek tests do; seen red before 
 with the message above, green 3 of 3 after, and 20 of 20 loaded runs of the six seek
 tests (96 burner threads, two test processes at once) passed with it.
 
-## BUG-159: the tests leave their temporary databases and files behind (OPEN, found 2026-10-05)
+## BUG-159: the tests leave their temporary databases and files behind (FIXED next release, found 2026-10-05)
 
 **Seen (by the BUG-152 fix, counted):** the system temp folder held about 182,000 entries,
 174,578 of them `hum_*` files left by test runs (76,906 SQLite databases). Fifty-four test
@@ -3745,7 +3745,54 @@ nothing deletes it afterwards, so the pile grows with every `just verify` and ev
 worktree agent's test run. It did not cause BUG-152's timeouts (opening a file there is
 as fast as in an empty folder), but it is disk and directory growth with no end.
 
-**Fix (not started):** one shared test helper that returns a path guard deleting the file
-(and a database's -wal and -shm) when the test ends, used by all 54 files; and a one-time
-sweep of `hum_*` files older than a day from a dev recipe, never while a test run is
-going.
+**Why nothing deleted them:** most of those tests did end with `remove_file(&path)`, but it
+ran while the test still held the database open, which Windows refuses (SQLite opens its
+files without delete sharing), and nothing ever removed the `-wal` and `-shm` beside it. A
+relay a test starts holds its database in its tasks, which the test's runtime drops only
+after the test body (and anything in it) is gone.
+
+**Fix:**
+- `src/test_temp.rs` (test builds only): `db(tag)`, `file(tag, ext)`, `path(tag)` and
+  `dir(tag)` hand out `hum_<tag>_<pid>_<nanos>_<n>` paths in the temp folder as a guard
+  (`TempPath`, derefs to `Path`) that deletes the file with its `-wal`, `-shm` and
+  `-journal`, or the folder, when it is dropped, also while a failed assertion unwinds the
+  test. A delete that fails because something still has the file open is kept and tried
+  again at every later guard drop and once more at exit (an `atexit` hook); whatever is
+  still open then is named on stderr.
+- The relay's storage keeps the guard inside itself: `Storage::open_temp(tag)`,
+  `open_temp_dir(tag)` (a `relay.db` in a folder of its own) and `open_sharing(&guard)`, a
+  `#[cfg(test)]` field declared last so it is dropped after the writer and the read pool
+  have closed the file. A relay a test starts deletes its database when its last task
+  lets go of it. The plots tests that restart a relay on one file share one guard among the
+  relays (`plots_db`, `relay_on`), so the file outlives every relay on it.
+- 85 path-building sites in 59 files moved onto it: every `hum_*` one, plus the four
+  `hos_*` helpers that leaked too (storage.rs, file_browser.rs, own_home.rs,
+  ship_structure.rs `temp_path`). The hand-written `remove_file` / `remove_dir_all` lines at
+  the ends of tests went; moves.rs keeps its `remove_dir_all`, which is part of the test.
+- `test_temp::tests::a_dropped_guard_deletes_what_it_made_even_when_the_test_panics`, seen
+  red with the delete taken out of `Drop`: "the guards left these behind after the test
+  panicked: [...hum_guard_db_..._2.db-wal, ...db-shm, ...db-journal, ...db,
+  ...hum_guard_dir_..._5, ...hum_guard_file_..._6.ron]".
+  `a_database_still_open_when_its_guard_drops_goes_once_it_closes`, seen red on Windows
+  with the retry taken out: "the database its guard could not delete while open was still
+  there after it closed".
+- `just clean-test-temp` (scripts/clean-test-temp.js): deletes the `hum_*` entries in the
+  temp folder nothing has touched for a day, refuses while cargo, rustc or a test binary
+  runs, and prints the count and the space (`--dry-run`, `--dir <folder>`, `--days <n>`).
+  Its tests (scripts/tests/clean-test-temp.test.js, added to `just rig-tests`) work in
+  scratch folders only; seen red with the age check taken out.
+
+**Measured:** before the fix, every full test run left 740 entries in the temp folder (288
+databases, 191 `-wal`, 191 `-shm`, 70 folders): the leftovers of 239 `cargo test --features
+native --lib` runs and 82 relay-only runs already there, grouped by the process id in their
+names (median 738 and 734 over the last 20 of each). After it, `cargo test --features native
+--lib` (3,152 passed) and `just verify-relay` (2,235 passed) left 0 each.
+
+**Still to do:** the old pile (186,523 `hum_*` entries on 2026-10-05) goes with one
+`just clean-test-temp` when no build or test run is going. Left on their own names: 24
+test paths in 9 files (machines.rs, persistence.rs, save_load.rs, home_structure.rs,
+stars.rs, terrain_tiles.rs, assets/mod.rs, cosmos.rs, plant_pass.rs) that delete their own
+files when they pass, so they leave something only when a test fails, and the recipe does
+not sweep their names; host_node.rs's scratch path, which a passing test never creates; and
+tests/federation_two_relays.rs, an integration test, which cannot see a `#[cfg(test)]`
+module of the library.
