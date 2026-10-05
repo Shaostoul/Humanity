@@ -3650,3 +3650,17 @@ first (the ports and the space infrastructure arrived empty). The three module h
 say what loads (or that nothing does yet). Both systems are still unwired scaffolds, so
 nothing in the game changed. Still open, the class: a lint that every top-level key in a
 shipped RON file is a field its loader knows.
+
+## BUG-159: the tests leave their temporary databases and files behind (OPEN, found 2026-10-05)
+
+**Seen (by the BUG-152 fix, counted):** the system temp folder held about 182,000 entries,
+174,578 of them `hum_*` files left by test runs (76,906 SQLite databases). Fifty-four test
+files each build their own path (`std::env::temp_dir().join(format!("hum_..."))`) and
+nothing deletes it afterwards, so the pile grows with every `just verify` and every
+worktree agent's test run. It did not cause BUG-152's timeouts (opening a file there is
+as fast as in an empty folder), but it is disk and directory growth with no end.
+
+**Fix (not started):** one shared test helper that returns a path guard deleting the file
+(and a database's -wal and -shm) when the test ends, used by all 54 files; and a one-time
+sweep of `hum_*` files older than a day from a dev recipe, never while a test run is
+going.
