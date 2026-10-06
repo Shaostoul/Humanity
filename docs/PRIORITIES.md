@@ -181,31 +181,22 @@ night-to-sunrise shot from Silverdale toward Mount Rainier. Earlier: the start
 tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 (2026-10-04: being built), the old plain backups deleted (2026-10-02).
 
-### RESUME HERE: where the work stands (updated 2026-10-05, about 15:00)
+### RESUME HERE: where the work stands (updated 2026-10-05, evening, at the usage cap)
 
-- **Released today:** v0.1459.0 to v0.1460.1 (overnight), v0.1461.0, v0.1462.0, v0.1462.1,
-  and v0.1463.0 (fires, heaters, illness, medicine, the body's clock, the Silverdale ground,
-  the trading post, the server address, the data-folder fallback, the sanitation guides),
-  delivered to the taskbar exe. Two new clips (scripts/clips.json: silverdale-waterfront-on-foot,
-  first-street-twelve-homes; committed on main, unpushed) were filmed and sent to the operator.
-- **Increment 5 (building only on your own plot): at its proof rig.** All waves merged on branch
-  `inc5-integration` (worktree .claude/worktrees/inc5-int: 3,281 lib tests pass, release build
-  done). `just verify-shared-build` PASSES 35/35 (2026-10-05, after the walker learned the
-  relay's pace and the judge counted a refund that spills into home storage; run it from the
-  inc5-int worktree with dxcompiler.dll and dxil.dll copied there). The review of the whole
-  increment (2026-10-05) found the server rules sound and these to fix (two lanes running; the
-  review is in the session scratchpad as inc5-review.md): the game never re-syncs a frame
-  after a lost relay message; refunds not exactly once across a disconnect; ranks granted
-  mid-session need a rejoin; the CLAUDE.md permit row is stale; shared-building.md, in-app-ops
-  and the web erase text lag. THEN: merge both into inc5-integration, rerun the proof rig,
-  merge inc5-integration into main, the full chain (--plots all orders, the default rig,
-  the full lib suite, just verify-relay, screens, probe), release v0.1464.0, deliver.
-- **Walking backwards (the operator saw it, 2026-10-05):** the rig's `walk_to` held the final
-  facing for the whole walk (src/engine/move_check.rs `walk_tick`), so the camera strafed and
-  backpedalled; the crew did turn toward their path but snapped back on still updates and
-  turned at up to 540 degrees a second. FIXED on main (BUG-165, BUG-166: the walk turns like a
-  person, crew turn smoothly and hold their facing), merged into inc5-integration; ships in
-  v0.1464.0 with increment 5 (rerun the --plots legs that walk).
+- **v0.1464.0 is merged on main LOCALLY and uploaded to GitHub branch `wip/v0.1464.0` (NOT main:
+  a push to main deploys the relay).** It holds ship-homes increment 5 (building only on your own
+  plot; proof rig 35/35), BUG-165/166 (walk and crew facing), two new clips. Checks passed on it:
+  just verify (3,351 lib tests, 17 lints), rig tests 314/314, the relay battery 2,352, the release
+  build. The GPU rigs (the two-plot rigs in all orders, co-presence, the second player, screens,
+  the probe, and `node scripts/verify-copresence.js --build`) were running when the cap came.
+- **TO FINISH v0.1464.0:** if main is behind `wip/v0.1464.0`, fast-forward it; rerun the GPU rigs
+  above unless their passing results are in hand; then bump minor (`node scripts/bump-version.js
+  minor`, read V back from Cargo.toml), set the humanity-engine version in Cargo.lock, commit the
+  version files with since-last-update.md, push main, tag, `gh release create` with the notes in
+  docs/history/v0.1464.0-release-notes-draft.md (fill its Checks line), `just deliver`, then add
+  the v0.1464.0 history and journal entries.
+- **NEXT in TIER 0 after that:** increment 5b (the household page), then increment 6 (the starts
+  as data, the Cabin, the mess hall; a second mess hall along First Street).
 - **Follow-ups found today (not started):** BUG-161 (the copresence rig's steady-speed
   judges fail a starved machine); BUG-163 part 2 (refresh a stale data folder on update:
   docs/design/data-folder-updates.md, waits on the operator below); no gasoline or diesel
