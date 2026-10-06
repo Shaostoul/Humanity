@@ -118,7 +118,7 @@ every load-bearing claim checked by an adversarial verifier
   "aboard" is inside the ship's bounds; delivery by view, in at 250 m and out
   at 300 m; each home has its own air; nobody is told who lives on which
   plot). Three reviews, 21 findings fixed; its new rig legs found BUG-151.
-  NEXT: increment 5, building only on your own plot, IN PROGRESS 2026-10-05 (build plan:
+  DONE (v0.1464.0, 2026-10-05; next is increment 5b, the household page): increment 5, building only on your own plot, was IN PROGRESS 2026-10-05 (build plan:
   docs/design/ship-homes-increment-5-plan.md; Wave 0, the contract, building; then Waves 1 to 3)
   (design doc section 7:
   `may_build`/`may_remove`, the permit certificate, ShipStructureEditing off
@@ -181,22 +181,15 @@ night-to-sunrise shot from Silverdale toward Mount Rainier. Earlier: the start
 tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 (2026-10-04: being built), the old plain backups deleted (2026-10-02).
 
-### RESUME HERE: where the work stands (updated 2026-10-05, evening, at the usage cap)
+### RESUME HERE: where the work stands (updated 2026-10-05, evening)
 
-- **v0.1464.0 is merged on main LOCALLY and uploaded to GitHub branch `wip/v0.1464.0` (NOT main:
-  a push to main deploys the relay).** It holds ship-homes increment 5 (building only on your own
-  plot; proof rig 35/35), BUG-165/166 (walk and crew facing), two new clips. Checks passed on it:
-  just verify (3,351 lib tests, 17 lints), rig tests 314/314, the relay battery 2,352, the release
-  build. The GPU rigs (the two-plot rigs in all orders, co-presence, the second player, screens,
-  the probe, and `node scripts/verify-copresence.js --build`) were running when the cap came.
-- **TO FINISH v0.1464.0:** if main is behind `wip/v0.1464.0`, fast-forward it; rerun the GPU rigs
-  above unless their passing results are in hand; then bump minor (`node scripts/bump-version.js
-  minor`, read V back from Cargo.toml), set the humanity-engine version in Cargo.lock, commit the
-  version files with since-last-update.md, push main, tag, `gh release create` with the notes in
-  docs/history/v0.1464.0-release-notes-draft.md (fill its Checks line), `just deliver`, then add
-  the v0.1464.0 history and journal entries.
-- **NEXT in TIER 0 after that:** increment 5b (the household page), then increment 6 (the starts
-  as data, the Cabin, the mess hall; a second mess hall along First Street).
+- **Released today:** v0.1459.0 to v0.1463.0 and v0.1464.0 (ship-homes increment 5, building
+  only on your own plot; BUG-165 and BUG-166, the walking-backwards fixes; two new clips),
+  all delivered to the taskbar exe.
+- **NEXT in TIER 0:** increment 5b (the household page: give a friend a permit to build on
+  your plot, and walking into a permitted plot), then increment 6 (the starts as data, the
+  Cabin, the mess hall; fold in a second mess hall along First Street). Day 5 (a real
+  two-person session on the VPS) is unblocked whenever the operator has a partner.
 - **Follow-ups found today (not started):** BUG-161 (the copresence rig's steady-speed
   judges fail a starved machine); BUG-163 part 2 (refresh a stale data folder on update:
   docs/design/data-folder-updates.md, waits on the operator below); no gasoline or diesel

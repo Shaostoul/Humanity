@@ -11,6 +11,11 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+- **v0.1464.0: build on your own plot, with your neighbours watching.** On a shared server
+  you can now build foundations, walls, windows and roofs on your own plot, and everyone
+  nearby sees them go up; the server keeps them, nobody can build on your plot but you, and
+  nobody is told who built what. The ship's crew now turn to face where they walk.
+
 - **v0.1463.0: fires that burn, heaters that heat, and illness that makes sense.**
   Casting Campfire builds a real stone-ring fire that burns its logs and warms you
   when you sit near it (not through a wall, and never under a roof). The space
