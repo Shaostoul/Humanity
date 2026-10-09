@@ -115,6 +115,12 @@ with con:
         con.execute("DELETE FROM pinned_messages WHERE channel = 'announcements' AND from_key = ? AND original_timestamp = ?",
                     (r["from_key"], r["timestamp"]))
     for tag, r in keep.items():
+        # A post already in the new form is left exactly as it is. The first rerun on
+        # 2026-10-09 rewrote them again, and for a release with no git tag (titles come
+        # from the old deploy text, gone by then) 97 titles became "released"; they were
+        # put back from the saved rows.
+        if NEW.search(r["content"] or ""):
+            continue
         text = text_for(tag, r)
         raw = r["raw_json"]
         try:
