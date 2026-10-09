@@ -371,13 +371,85 @@ async function initDataChannel(peerPubKey) {
   }
 }
 
+// WHO MAY OPEN A DIRECT CONNECTION TO THIS BROWSER (2026-10-09). Answering a
+// direct-connection offer hands the other side this device's network address
+// (which gives away a rough location and the internet provider) and opens a
+// channel to them. Until this date handleDCOffer answered every offer, and the
+// relay forwards one from anyone online, so anyone could learn your address
+// without a call, and open a channel to try the data sync on
+// (docs/design/blocking-and-safe-mode.md, defects 3.7.1 and 3.7.2, section 7.1
+// item 4). Now an offer is answered only from:
+//   - your own key (your other devices, signed in with your recovery phrase),
+//   - a contact you added from their contact card (p2pContacts),
+//   - a member of a P2P group you are in (your group list, or the open group's roster),
+//   - the person you are in a call with, once the call was accepted,
+//   - someone in the voice room you are in.
+// Anyone else gets no answer at all, so they learn nothing, not even that the
+// offer arrived. These are the people every feature that opens a direct
+// connection reaches anyway: the group mesh (ensureGroupMesh) offers only to
+// roster members, and a call or a voice room already connects its people
+// directly. Test: scripts/tests/p2p-direct-offers.test.js
+
+/** The same key? Hex keys are compared without regard to letter case. */
+function sameKeyHex(a, b) {
+  return typeof a === 'string' && typeof b === 'string' && a !== '' && a.toLowerCase() === b.toLowerCase();
+}
+
+/** Is `peerKey` in the roster of a P2P group this browser knows you are in? */
+function isP2pGroupMate(peerKey) {
+  // The group list (loaded on connect, from /api/v2/groups?pubkey=) carries
+  // each group's members.
+  for (const g of (window._p2pGroups || [])) {
+    if (g && Array.isArray(g.members) && g.members.some(k => sameKeyHex(k, peerKey))) return true;
+  }
+  // The open group's roster, loaded when it was opened (it can be newer than the list).
+  const ag = window.activeP2pGroup;
+  if (ag && ag.fpToKey && Object.values(ag.fpToKey).some(k => sameKeyHex(k, peerKey))) return true;
+  return false;
+}
+
+/** Is `peerKey` the person you are in a call with, or someone in your voice room? */
+function isCallOrRoomPartner(peerKey) {
+  // A 1:1 call counts only once it was accepted: someone who is merely ringing
+  // you is not a partner yet (chat-voice-calls.js).
+  if (typeof callState !== 'undefined' && callState === 'in-call'
+      && typeof callPeerKey !== 'undefined' && sameKeyHex(callPeerKey, peerKey)) return true;
+  // The voice room you are in (chat-voice-rooms.js): its roster from the relay,
+  // or a voice connection already made to them in this room.
+  const roomId = window._currentRoomId;
+  if (roomId) {
+    const room = (window._voiceChannels || []).find(c => String(c.id) === String(roomId));
+    if (room && (room.participants || []).some(p => p && sameKeyHex(p.public_key, peerKey))) return true;
+    if (window._roomPeerConnections && Object.keys(window._roomPeerConnections).some(k => sameKeyHex(k, peerKey))) return true;
+  }
+  return false;
+}
+
+/** May this browser answer a direct-connection offer from `peerKey`? See the note above. */
+function mayAnswerDirectOffer(peerKey) {
+  if (typeof peerKey !== 'string' || peerKey === '') return false;
+  if (sameKeyHex(typeof myKey === 'string' ? myKey : '', peerKey)) return true;
+  if (Object.keys(p2pContacts).some(k => sameKeyHex(k, peerKey))) return true;
+  if (isP2pGroupMate(peerKey)) return true;
+  if (isCallOrRoomPartner(peerKey)) return true;
+  return false;
+}
+
 /**
  * Handle an incoming DataChannel offer from a peer.
- * Creates an answer and sends it back via the relay.
+ * Creates an answer and sends it back via the relay, but only to someone
+ * mayAnswerDirectOffer allows; anyone else is ignored without an answer.
  * @param {object} signal - The webrtc_signal message from handleMessage
  */
 async function handleDCOffer(signal) {
   const peerKey = signal.from;
+  if (!mayAnswerDirectOffer(peerKey)) {
+    // Silent on screen on purpose (a stranger could otherwise fill the chat
+    // with notices); the console line is for whoever is debugging a connection.
+    console.info('Ignored a direct-connection offer from ' + String(peerKey || '').slice(0, 12)
+      + '…: not your own device, a contact, a group member, or a call or voice-room partner.');
+    return;
+  }
   const offer = JSON.parse(signal.data);
 
   const pc = new RTCPeerConnection(rtcConfig);
