@@ -926,6 +926,73 @@ called "for children" in public copy; the code itself does not.
 
 ---
 
+## 10a. The operator's answers (2026-10-09)
+
+These change sections 4 to 7 where they disagree; those sections are revised as each
+increment is built.
+
+**Safe by default** (replaces the recommendation in question 1). Verbatim: "I feel like we
+should default users to safe mode. Then people can enable messages/calls from strangers. We
+should also add a way to select individuals or groups of users or something of users that can
+message/call. Like I don't want most people calling me by default. I prefer texts from
+strangers or maybe voice messages. I like being public but, calls are very disruptive."
+
+So the model is a **"Who can reach me" table**: one row per kind of contact, each with its
+own audience, chosen from a short ladder.
+
+- Kinds: text messages, voice messages, calls (voice and video), invitations to groups and
+  rooms, trade requests.
+- Audiences, narrowest first: nobody; people I choose (named lists the person makes, such as
+  Family or Close friends, and single people); friends; people in groups I am in; anyone.
+- Safe defaults for everyone: messages and voice messages from friends; calls from people I
+  choose (an empty list until the person adds someone, with a one-tap "let my friends call
+  me"); invitations from friends; trade requests from friends. A stranger can still send a
+  **contact request** that carries only their name (no text, no links, no pictures), rate
+  limited, which the person accepts or ignores; accepting makes them a friend. That keeps
+  people findable without giving strangers a channel for content.
+- Someone like the operator opens it up: messages and voice messages from anyone (strangers'
+  ones in a quiet Requests list), calls from Family only.
+- The server enforces it without storing who is whose friend: the pass you give a person
+  (the friendship certificate) lists what they may do (message, voice message, call), so a
+  named list is simply the people whose pass includes calls, and the relay checks the pass as
+  it does today. Only the per-row audience setting is stored with the person, as a signed
+  setting that federated servers copy like a profile, so every server enforces the same rules.
+
+**Friendships do not expire** (answers question 4; replaces the end date in section 5.2).
+Verbatim: "What happens when a friendship expires? What if we want to remain friends forever?
+Like I never want to stop being friends with my parents and brothers." With an end date, a
+person away longer than its lifetime would find their family's messages refused under safe
+defaults until their app came back online and renewed. So a friendship pass has no end date;
+it ends only when one of the two ends it (unfriend, block), and that withdrawal works at once
+through the serial (section 5.2). The withdrawn-serial list then keeps its rows (random serials,
+a few dozen bytes each) until the issuer erases their account. Household permits keep their
+end dates: lending your plot is a temporary thing.
+
+**Our own address lookup (STUN) in the relay, and the port: yes.** "Let's do this." Combined
+with routing calls through the server (question 8): one UDP port carries both our STUN
+responder and the room-scoped forwarder (section 7.3), Google is removed from every list,
+calls and voice rooms go through the forwarder by default, a direct connection is an opt-in
+that both people must choose (and uses our STUN, never Google), and voice over the existing
+WebSocket is the fallback for networks that block UDP. Public voice channels in the MMO are
+server-routed by nature: only the server knows who is near whom, so it can forward each
+person only the voices within earshot, which keeps bandwidth proportional to neighbours rather
+than to the crowd. The port is opened by the operator once the responder and forwarder are
+built and their refusal checks pass, and `scripts/provision-vps.sh` asserts it.
+
+**Federation.** Every server runs its own STUN responder and forwarder (they are in the same
+program), so a person's address is seen only by the server they chose to use. A call between
+people on two federated servers goes from each person to their own server, and server to
+server between them, rather than either person learning the other's address.
+
+**Questions 2, 3, 5, 6, 7:** the recommendations stand ("I'm liking where you're going"):
+calls are narrower than friends by default (above), a blocked person is not told, friends-only
+binds admins and mods too, the children's setup is called the "Protected setup" until the dated
+legal findings exist, and reports are kept 90 days after a decision.
+
+**Raised for later designs (not in this document):** hardware security keys, signing in on a
+new device by scanning a code from one already signed in, NFC and RFID. See the journal entry of
+2026-10-09 for the first answer; they belong in an identity-on-every-device design.
+
 ## 11. Docs to update as each piece ships
 
 - `docs/accord/conformance_gaps.md` ("Contact consent cannot be withdrawn")
