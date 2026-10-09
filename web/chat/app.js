@@ -271,6 +271,86 @@ document.getElementById('reply-cancel').addEventListener('click', (e) => {
   document.getElementById('msg-input').focus();
 });
 
+// ── Link-preview cards ──
+// LINK-PREVIEW PICTURES LOAD BY THEMSELVES ONLY FROM THIS SITE (2026-10-09).
+// The relay fetches a link's title, description and picture ADDRESS for the
+// preview card, but the picture itself used to be loaded by this browser
+// straight from the other website. That shows the website your network address
+// (a rough location and your internet provider) and when you read the message,
+// so someone could post a link to a site they run just to collect the address
+// of everyone who scrolled past it. Now a picture this site serves itself shows
+// as before; any other waits behind a small "Load picture" button that names
+// the site, the same way pictures in messages wait for a click.
+// (docs/design/blocking-and-safe-mode.md, section 7.1 item 5; test:
+// scripts/tests/link-preview-pictures.test.js)
+
+/**
+ * How a link preview's picture may be shown. Returns null when there is no
+ * picture to offer, otherwise { url, auto, site }: `url` is the full address,
+ * `auto` is true only when `pageOrigin` (this site) serves it, and `site` is the
+ * host name to show on the button.
+ */
+function linkPreviewPicture(preview, pageOrigin) {
+  if (!preview || typeof preview.image !== 'string' || !preview.image.trim()) return null;
+  // A preview's picture address is written for the page it came from, so a
+  // short one ("/img/p.png") belongs to that page's site, not to this one.
+  const base = (typeof preview.url === 'string' && /^https?:\/\//i.test(preview.url)) ? preview.url : undefined;
+  let u;
+  try { u = base ? new URL(preview.image.trim(), base) : new URL(preview.image.trim()); }
+  catch { return null; }
+  // Only ordinary web addresses; anything else is not offered at all.
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+  return { url: u.href, auto: !!pageOrigin && u.origin === pageOrigin, site: u.hostname };
+}
+
+/** This site's origin, or '' when there is no page location (then nothing loads by itself). */
+function thisSiteOrigin() {
+  try { return (typeof location !== 'undefined' && location.origin) || ''; } catch { return ''; }
+}
+
+/** Build one link-preview card element for a preview the relay sent. */
+function buildLinkPreviewCard(p) {
+  const card = document.createElement('div');
+  card.className = 'link-preview';
+  let html = '<div class="lp-text">';
+  if (p.site_name) html += `<div class="lp-site">${esc(p.site_name)}</div>`;
+  if (p.title) html += `<div class="lp-title"><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a></div>`;
+  if (p.description) html += `<div class="lp-desc">${esc(p.description)}</div>`;
+  html += '</div>';
+  const pic = linkPreviewPicture(p, thisSiteOrigin());
+  if (pic && pic.auto) {
+    html += `<img class="lp-thumb" src="${esc(pic.url)}" alt="" loading="lazy" onerror="this.style.display='none'">`;
+  } else if (pic) {
+    // Same 80 by 60 slot as the picture, so the card keeps its shape. Styled
+    // inline because the card sits outside the message body, where the
+    // .img-placeholder styles in messages.css do not reach.
+    html += `<button type="button" class="lp-load-picture" data-lp-picture="${esc(pic.url)}"`
+      + ` title="${esc('The picture is on ' + pic.site + '. Loading it lets that site see your network address.')}"`
+      + ` style="width:80px;min-height:60px;flex-shrink:0;align-self:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;`
+      + `padding:var(--space-xs);background:var(--bg-hover);border:1px solid var(--border);border-radius:var(--radius-sm);`
+      + `color:var(--accent);font-size:var(--text-xs);cursor:pointer;">`
+      + `<span>${hosIcon('image', 12)} Load picture</span>`
+      + `<span style="color:var(--text-muted);word-break:break-all;">${esc(pic.site)}</span></button>`;
+  }
+  card.innerHTML = html;
+  card.onclick = (e) => {
+    const btn = e && e.target && typeof e.target.closest === 'function' ? e.target.closest('[data-lp-picture]') : null;
+    if (btn) { showLinkPreviewPicture(btn); return; }
+    card.classList.toggle('collapsed');
+  };
+  return card;
+}
+
+/** The reader asked for it: swap the "Load picture" button for the picture. */
+function showLinkPreviewPicture(btn) {
+  const img = document.createElement('img');
+  img.className = 'lp-thumb';
+  img.alt = '';
+  img.onerror = () => { img.style.display = 'none'; };
+  img.src = btn.dataset.lpPicture;
+  btn.replaceWith(img);
+}
+
 // Event delegation: handle clicks on image placeholders (data-img-url).
 // Resolve a mention name to a known peer's public key (case-insensitive match
 // on either display_name or name). Returns null if no user is known by that
@@ -1128,17 +1208,7 @@ async function handleMessage(msg) {
         const bodyEl = msgEl.querySelector('.body');
         if (bodyEl) {
           for (const p of msg.previews.slice(0, 3)) {
-            const card = document.createElement('div');
-            card.className = 'link-preview';
-            card.onclick = () => card.classList.toggle('collapsed');
-            let html = '<div class="lp-text">';
-            if (p.site_name) html += `<div class="lp-site">${esc(p.site_name)}</div>`;
-            if (p.title) html += `<div class="lp-title"><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a></div>`;
-            if (p.description) html += `<div class="lp-desc">${esc(p.description)}</div>`;
-            html += '</div>';
-            if (p.image) html += `<img class="lp-thumb" src="${esc(p.image)}" alt="" loading="lazy" onerror="this.style.display='none'">`;
-            card.innerHTML = html;
-            bodyEl.after(card);
+            bodyEl.after(buildLinkPreviewCard(p));
           }
         }
       }

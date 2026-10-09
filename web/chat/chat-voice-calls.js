@@ -326,12 +326,23 @@ function handleVoiceCallMessage(msg) {
 
 function handleWebrtcSignalMessage(msg) {
   // DataChannel P2P signals are handled by chat-p2p.js; route them there first.
+  // handleDCOffer answers only people mayAnswerDirectOffer allows (your own
+  // devices, contacts, group members, call and voice-room partners).
   if (msg.signal_type === 'dc_offer')  { handleDCOffer(msg);  return; }
   if (msg.signal_type === 'dc_answer') { handleDCAnswer(msg); return; }
   if (msg.signal_type === 'dc_ice')    { handleDCIce(msg);    return; }
 
-  // Voice/video signals are only valid from the current call peer.
-  if (msg.from !== callPeerKey) return;
+  // Voice/video signals count only from the call peer, and only once the call
+  // was accepted (2026-10-09). Before, they were taken from anyone who was just
+  // RINGING you: a modified client could ring and then send an offer straight
+  // away, and handleOffer turned the microphone on and answered while the
+  // incoming-call screen was still asking, which gave the caller your network
+  // address and, where the browser already had microphone permission, your
+  // voice, without Accept ever being pressed. In both shipped clients (web and
+  // native) the caller sends its offer only after the accept, when both sides
+  // are already 'in-call', so a real call is unchanged.
+  // Test: scripts/tests/p2p-direct-offers.test.js
+  if (callState !== 'in-call' || msg.from !== callPeerKey) return;
   switch (msg.signal_type) {
     case 'offer':  handleOffer(msg.data);        break;
     case 'answer': handleAnswer(msg.data);       break;
