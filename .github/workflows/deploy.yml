@@ -129,19 +129,8 @@ jobs:
             sleep 3
             systemctl is-active humanity-relay
 
-      - name: Post deployment announcement
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: root
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            SECRET=$(grep '^API_SECRET' /opt/Humanity/.env | cut -d= -f2- | tr -d '\r')
-            COMMIT_MSG=$(git -C /opt/Humanity log -1 --pretty=format:"%s")
-            COMMIT_SHA=$(git -C /opt/Humanity log -1 --pretty=format:"%h")
-            AUTHOR=$(git -C /opt/Humanity log -1 --pretty=format:"%an")
-            PAYLOAD="{\"channel\":\"announcements\",\"content\":\"🚀 **Deployed** \`${COMMIT_SHA}\` by ${AUTHOR}: ${COMMIT_MSG}\",\"from_name\":\"Deploy Bot\"}"
-            curl -s -X POST "http://localhost:3210/api/send" \
-              -H "Content-Type: application/json" \
-              -H "Authorization: Bearer ${SECRET}" \
-              -d "$PAYLOAD" || true
+      # No post to #announcements from here (operator, 2026-10-09). This ran on EVERY push to
+      # main, docs pushes and re-runs included, so the channel filled with "Deployed <sha>"
+      # notices (about 2,900, 455 of them exact repeats) that buried the releases. The one post
+      # per release now comes from the Build Desktop App workflow's notify job, once the
+      # release's binaries exist. A failed deploy shows in CI and in `just brief`.

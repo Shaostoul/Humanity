@@ -313,24 +313,48 @@ jobs:
             data-manifest-${{ github.ref_name }}.json
 
   # Notify chat
+  # THE one post per release in #announcements (operator, 2026-10-09: "a single announcement
+  # that covers all the things that relate to it"). It names the release by its own title
+  # (the tag commit's subject, "v0.1464.0: build on your own plot...") and links its notes.
+  # Only after a successful build: it used to run on always() and say "binaries ready" after
+  # a failed build too. The VPS deploy workflow no longer posts at all.
   notify:
     name: Notify chat
     needs: build
-    if: always() && startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') && needs.build.result == 'success'
     runs-on: ubuntu-latest
     steps:
-      - name: Post build result to #announcements
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # The JSON is made here with jq, so a title with a quote or a backslash in it cannot
+      # break the message (the old inline JSON silently dropped such posts).
+      - name: Write the release's post
+        id: post
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          SUBJECT="$(git log -1 --format=%s)"
+          TITLE="${SUBJECT#"$TAG: "}"
+          TEXT="🚀 **${TAG}**: ${TITLE} · [Release notes](<https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}>)"
+          PAYLOAD="$(jq -cn --arg c "$TEXT" '{channel:"announcements",content:$c,from_name:"Deploy Bot"}')"
+          echo "$PAYLOAD"
+          echo "b64=$(printf '%s' "$PAYLOAD" | base64 -w0)" >> "$GITHUB_OUTPUT"
+
+      - name: Post it to #announcements
         uses: appleboy/ssh-action@v1
+        env:
+          PAYLOAD_B64: ${{ steps.post.outputs.b64 }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
+          envs: PAYLOAD_B64
           script: |
             SECRET=$(grep '^API_SECRET' /opt/Humanity/.env | cut -d= -f2- | tr -d '\r')
-            TAG="${{ github.ref_name }}"
-            RUN_URL="https://github.com/Shaostoul/Humanity/actions/runs/${{ github.run_id }}"
-            MSG="🚀 **Native Desktop $TAG built** — Windows · Linux · macOS binaries ready. [Release](<https://github.com/Shaostoul/Humanity/releases/tag/$TAG>)"
+            printf '%s' "$PAYLOAD_B64" | base64 -d > /tmp/announce-payload.json
             curl -s -X POST "http://localhost:3210/api/send" \
               -H "Content-Type: application/json" \
               -H "Authorization: Bearer ${SECRET}" \
-              -d "{\"channel\":\"announcements\",\"content\":\"$MSG\",\"from_name\":\"Deploy Bot\"}" || true
+              --data-binary @/tmp/announce-payload.json || true
+            rm -f /tmp/announce-payload.json
