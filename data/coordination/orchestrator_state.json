@@ -721,6 +721,11 @@
       "date": "2026-10-09",
       "decision": "BUG-169: the VPS disk filled on 5 October (a crawler requesting the git mirror's source archives; Forgejo keeps each for a day). Diagnosed read-only; fixed in the repo: scripts/clear-build-cache.sh (clearing target/ keeps the relay binary, used by the guard, deploy.yml and just sync), the guard clears Forgejo's archive cache at 88%, never deletes target/ during a build, restores the relay binary from backups/ if it is missing, logs a WHERE line of folder sizes, and alerts once per incident. Committed locally, not pushed.",
       "why": "The live relay runs a deleted binary (v0.1463.0) and both v0.1464.x deploys failed, so increment 5 never reached the server; the mirror stopped syncing; 73 alerts landed in #announcements. The redeploy (just sync) was refused by the session permission check, and a push to main would redeploy through CI, so the server-side steps wait for the operator. Same class as 2026-05-21: the guard deleted the cache the relay ran from while the cause sat outside its scope."
+    },
+    {
+      "date": "2026-10-09",
+      "decision": "Released v0.1464.2 (scripts and docs). With the operator's go: the operator ran just sync (relay v0.1464.1 live 22:14 UTC from a real file); nginx limits git archive requests to 1/min for everyone (burst 5, 429) and Forgejo deletes archives after 10 min, Forgejo restarted (mirror synced 22:14 UTC); the nine cut-short v0.1464.x release files re-fetched and SHA-256 checked; the 73 Disk Guard posts removed from #announcements (rows saved in /root/announcements-cleanup/). The watchdog no longer posts \"Relay recovered\" after a single failed check.",
+      "why": "The operator asked to finish the important non-game work before game development resumes. Asked the operator (not yet answered): remove the 73 empty Watchdog posts and 455 duplicate deploy notices, and whether deploy notices move out of #announcements to their own channel; and whether blocking a sender (TIER 1 item 3) is the next non-game item."
     }
   ],
   "active_scopes_to_avoid": [
