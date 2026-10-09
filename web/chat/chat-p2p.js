@@ -649,13 +649,42 @@ function applySyncBundle(remote) {
   }
 }
 
-/** Initiate a data-sync offer over an existing DataChannel. */
+// DATA SYNC IS BETWEEN YOUR OWN DEVICES ONLY (2026-10-09). Your devices share one
+// identity (the same recovery phrase gives the same key), so "own device" means the
+// peer's key is yours. Until this date ANY peer who opened a direct connection could
+// send a sync_offer and get back the whole bundle above (calendar, home records,
+// notes, inventory, map pins, which can locate a real home), and any sync_data it
+// sent was merged into this browser's storage unasked. Now: a sync frame from anyone
+// else is ignored and said so in chat; data from your own device is merged only if
+// this browser asked for it, and only after you confirm.
+// (docs/design/blocking-and-safe-mode.md, defect 3.7.1; test: scripts/tests/p2p-sync-own-devices.test.js)
+
+/** Is `peerKey` this identity's own key, that is, another of your own devices? */
+function isOwnDevice(peerKey) {
+  return typeof myKey === 'string' && myKey !== '' && peerKey === myKey;
+}
+
+/** Own devices this browser asked to sync with, or agreed to sync with, this session. */
+const syncAskedFrom = new Set();
+
+/** Ask before your other device's data is merged into this browser. */
+function confirmSyncMerge(name) {
+  if (typeof confirm !== 'function') return false;
+  return confirm(`Merge the calendar, homes, notes, inventory and map data from your other device (${name}) into this browser?`);
+}
+
+/** Initiate a data-sync offer over an existing DataChannel (your own devices only). */
 function offerDataSync(peerKey) {
   const dc = p2pDataChannels[peerKey];
   if (!dc || dc.readyState !== 'open') {
     addSystemMessage('⚠️ No open P2P channel to that peer.');
     return;
   }
+  if (!isOwnDevice(peerKey)) {
+    addSystemMessage('Data sync works only between your own devices (the ones signed in with your recovery phrase).');
+    return;
+  }
+  syncAskedFrom.add(peerKey);
   dc.send(JSON.stringify({ type: 'sync_offer', keys: Object.keys(SYNC_STORES) }));
   addSystemMessage(`🔄 Sync offer sent to ${p2pContacts[peerKey]?.name || peerKey.slice(0,12) + '…'}`);
 }
@@ -666,40 +695,54 @@ async function handleSyncFrame(msg, peerKey) {
   if (!dc) return;
   const name = p2pContacts[peerKey]?.name || peerKey.slice(0,12) + '…';
 
+  if (!isOwnDevice(peerKey)) {
+    if (msg.type === 'sync_offer' || msg.type === 'sync_data') {
+      addSystemMessage(`Ignored a data-sync request from ${name}: sync works only between your own devices, and nothing was sent or changed.`);
+    }
+    return;
+  }
+
   if (msg.type === 'sync_offer') {
-    // Accept all offered keys that we support.
+    // Your own other device asked: share with it, and take its data back (after
+    // you confirm) since this is a two-way sync.
+    syncAskedFrom.add(peerKey);
     const accepted = (msg.keys || []).filter(k => SYNC_STORES[k]);
     dc.send(JSON.stringify({ type: 'sync_accept', keys: accepted }));
-    // Send our own bundle back
     dc.send(JSON.stringify({ type: 'sync_data', data: buildSyncBundle() }));
-    addSystemMessage(`🔄 Sync request from ${name}, sending data…`);
+    addSystemMessage(`🔄 Sync request from your other device (${name}), sending data…`);
     return;
   }
 
   if (msg.type === 'sync_accept') {
-    // Peer accepted, send our bundle
+    if (!syncAskedFrom.has(peerKey)) return;
     dc.send(JSON.stringify({ type: 'sync_data', data: buildSyncBundle() }));
     return;
   }
 
   if (msg.type === 'sync_data') {
+    if (!syncAskedFrom.has(peerKey)) return;
+    syncAskedFrom.delete(peerKey);
+    if (!confirmSyncMerge(name)) {
+      addSystemMessage(`Sync from ${name} not merged.`);
+      return;
+    }
     applySyncBundle(msg.data || {});
     addSystemMessage(`✅ Sync from ${name} complete. Data merged.`);
   }
 }
 
 /**
- * Offer a data sync to every currently-open DataChannel.
+ * Offer a data sync to every open DataChannel to one of your own devices.
  * Triggered by the "🔄 Sync" button in the identity sidebar.
  */
 function syncAllPeers() {
-  const openKeys = Object.keys(p2pDataChannels).filter(k => p2pDataChannels[k]?.readyState === 'open');
+  const openKeys = Object.keys(p2pDataChannels).filter(k => p2pDataChannels[k]?.readyState === 'open' && isOwnDevice(k));
   if (openKeys.length === 0) {
-    addSystemMessage('ℹ️ No open P2P channels. Connect to a peer first via "Share Card" / "Add Contact".');
+    addSystemMessage('ℹ️ No open connection to another of your own devices. Data sync works only between devices signed in with your recovery phrase.');
     return;
   }
   openKeys.forEach(offerDataSync);
-  addSystemMessage(`🔄 Sync initiated with ${openKeys.length} peer${openKeys.length > 1 ? 's' : ''}…`);
+  addSystemMessage(`🔄 Sync initiated with ${openKeys.length} of your device${openKeys.length > 1 ? 's' : ''}…`);
 }
 
 // ── Patch onDCMessage to handle sync frames ──

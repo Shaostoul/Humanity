@@ -5059,3 +5059,30 @@ and the next night's cleanup took it to 40%. Nothing else on the disk moved: the
 its cleanup (build cache, logs, release mirror) covered different things, so it deleted the
 one cache the relay needed while the real cause sat untouched. Every service that writes a cache
 to this disk needs its cache named in the guard, and the guard has to say what it measured.
+
+## BUG-170: web chat's data sync answered anyone who opened a direct connection (FIXED next release, found 2026-10-09)
+
+**What happened.** `web/chat/chat-p2p.js` keeps a data sync that copies local data between
+devices over a direct (peer-to-peer) connection: the calendar, home records, home to-dos and
+notes, notes, inventory, skills, quests, equipment, logbook, map pins and map areas
+(`SYNC_STORES`). It was meant for "two trusted devices", but nothing checked who the peer was:
+`handleDCOffer` accepted a direct-connection offer from any key (the relay forwards `dc_offer`
+from anyone online), a `sync_offer` on that channel made `handleSyncFrame` send back the whole
+bundle (`buildSyncBundle`), and a `sync_data` frame was merged into the browser's storage unasked
+(`applySyncBundle`). So anyone online could read another web user's calendar, notes and map pins
+(which can locate a real home), and plant entries in them. Found by the blocking and safe-mode
+design's survey (`docs/design/blocking-and-safe-mode.md`, defect 3.7.1) and confirmed by reading.
+
+**Fixed.** A sync frame is answered only when the peer's key is this identity's own key (every
+device restored from the same recovery phrase has the same key). From anyone else it is ignored,
+and the chat says so ("Ignored a data-sync request from ...: nothing was sent or changed"). Your
+other device's data is merged only when this browser asked for it, and only after you confirm.
+The Sync button offers only to your own devices.
+
+**Test:** `scripts/tests/p2p-sync-own-devices.test.js` (in `just rig-tests`). Seen red against
+the code before the fix: the stranger got `sync_accept` and `sync_data` with the calendar and map
+pins, the stranger's entry was merged, and the Sync button offered to the stranger.
+
+**Left (the safety work's increment 0):** both clients still accept a direct-connection offer
+from anyone, which hands over the device's network address (defects 3.7.1 and 3.7.2); contact
+cards and group messages carried on it verify their own signatures.

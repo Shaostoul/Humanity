@@ -726,6 +726,11 @@
       "date": "2026-10-09",
       "decision": "Released v0.1464.2 (scripts and docs). With the operator's go: the operator ran just sync (relay v0.1464.1 live 22:14 UTC from a real file); nginx limits git archive requests to 1/min for everyone (burst 5, 429) and Forgejo deletes archives after 10 min, Forgejo restarted (mirror synced 22:14 UTC); the nine cut-short v0.1464.x release files re-fetched and SHA-256 checked; the 73 Disk Guard posts removed from #announcements (rows saved in /root/announcements-cleanup/). The watchdog no longer posts \"Relay recovered\" after a single failed check.",
       "why": "The operator asked to finish the important non-game work before game development resumes. Asked the operator (not yet answered): remove the 73 empty Watchdog posts and 455 duplicate deploy notices, and whether deploy notices move out of #announcements to their own channel; and whether blocking a sender (TIER 1 item 3) is the next non-game item."
+    },
+    {
+      "date": "2026-10-09",
+      "decision": "#announcements made one post per release, with the operator's explicit yes: 5,325 bot posts became 2,354 (one per release, rewritten to the release title and a notes link); 2,898 deploy notices and 73 empty Watchdog posts deleted after saving every row to /root/announcements-cleanup/ on the VPS. deploy.yml posts nothing now; build-desktop.yml posts once per release, only after a successful build, JSON made with jq. data/announcements_archive.json regenerated from the clean channel; the script is scripts/vps/clean-announcements.py (idempotent, tested twice on a copy first).",
+      "why": "The operator: \"Let's make the announcements channel clean. The cleaner it is, means it is easier for people to follow development.\" and \"Why can't we have just a single announcement that covers all the things that relate to it?\" Two automations posted per release (every push to main, and every tag build even when it failed), burying the releases. The bulk delete was stopped once by the permission check until the operator saw the exact counts and said yes."
     }
   ],
   "active_scopes_to_avoid": [

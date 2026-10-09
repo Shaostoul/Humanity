@@ -193,9 +193,22 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   - the 73 Disk Guard alerts were removed from #announcements.
 
   In the repo: `scripts/clear-build-cache.sh`, the disk guard and watchdog fixes, and the git
-  site's nginx config. Open: confirm the mirror syncs again, and the operator's call on the rest
-  of #announcements: 73 empty "Relay recovered" posts, 455 exact duplicate deploy notices, and
-  whether deploy notices (5,251, two per release) belong in #announcements at all.
+  site's nginx config. The mirror synced again at 22:14 UTC.
+- **#announcements is one post per release (operator, 2026-10-09: "The cleaner it is, means it
+  is easier for people to follow development.").** 5,325 bot posts became 2,354: one per release,
+  "🚀 **vX.Y.Z**: title · [Release notes]". The deploy workflow no longer posts, and the desktop
+  build posts once per release, only after a successful build (it used to post "binaries ready"
+  after failed builds too). The old rows are saved in `/root/announcements-cleanup/` on the VPS;
+  the re-seed archive `data/announcements_archive.json` matches the clean channel; the script is
+  `scripts/vps/clean-announcements.py` (safe to rerun).
+- **NEXT non-game item, started 2026-10-09: blocking and safe mode** (TIER 1 item 3, widened by the
+  operator: "give users the tools to protect themselves", plus a safe mode that protects children
+  from predators and scams, and everyone else too). Design in `docs/design/blocking-and-safe-mode.md`
+  (written 2026-10-09): its section 3.7 lists six defects to fix regardless; the first, web data
+  sync answering strangers, is fixed (BUG-170). Next is its increment 0 (the other five defects),
+  then increment 1 (block on both clients). Eight questions for the operator sit in its summary,
+  each with a recommendation. Voice: route calls through a room-scoped forwarder in the relay
+  plus our own STUN on one UDP port, Google removed (section 7; the port is the operator's call).
 - **Released 2026-10-05:** v0.1459.0 to v0.1463.0 and v0.1464.0 (ship-homes increment 5, building
   only on your own plot; BUG-165 and BUG-166, the walking-backwards fixes; two new clips),
   all delivered to the taskbar exe.
@@ -1180,11 +1193,10 @@ blocker:
 
 1. **`/api/send` per-IP rate limit.** Needs X-Real-IP plumbing. Low value while
    the bot path is the trusted API_SECRET path.
-2. **`/api/members` directory opt-out.** Design settled (reuse the existing
-   `profiles.privacy` JSON with a `directory: "unlisted"` key, honored in
-   `get_members`, `get_member_count` and `get_member_by_key`), deliberately
-   deferred: a backend flag is useless without the user-facing toggle, so build
-   both in the same privacy-UI increment. Verify json1 is compiled in first.
+2. **`/api/members` directory opt-out: SHIPPED** (found stale 2026-10-09).
+   `src/relay/storage/members.rs` honours `directory: "unlisted"` in
+   `profiles.privacy`, and both clients have the switch (web chat-privacy.js,
+   native src/gui).
 4. **Voice tells Google the player's IP address (found 2026-10-05).** WebRTC asks a STUN server
    for the public address, and every client lists Google's first: native
    src/net/webrtc.rs (~175), web web/chat/chat-voice-rooms.js (~25), and the relay's own
