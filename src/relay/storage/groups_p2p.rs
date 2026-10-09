@@ -24,6 +24,9 @@
 //! - `author_public_key` = the key performing the action. **Phase 1: must be the
 //!   group creator** (multi-admin delegation via the membership-log fold is a later
 //!   refinement). The current roster = the fold of these entries.
+//! - An `admit` of anyone but the author counts only when the subject's own latest
+//!   signed word on the group is a `group_join_v1` (2026-10-09): nobody is put in a
+//!   group without asking to be. A `remove` needs no such consent.
 //!
 //! ### `group_msg_v1` — a group message (Phase 2; spec'd here, NOT yet projected)
 //! - `object_type = "group_msg_v1"`, `references = [ group_id ]`
@@ -53,7 +56,13 @@ use crate::relay::core::object::Object;
 /// Read a CBOR text field from an object payload (matches the per-module helper
 /// pattern used across storage/*.rs).
 fn read_text(object: &Object, field: &str) -> Option<String> {
-    let value = crate::relay::core::encoding::from_canonical_bytes(&object.payload).ok()?;
+    payload_text(&object.payload, field)
+}
+
+/// `read_text` over raw payload bytes, for objects read back out of
+/// `signed_objects` rather than handed in as an `Object`.
+fn payload_text(payload: &[u8], field: &str) -> Option<String> {
+    let value = crate::relay::core::encoding::from_canonical_bytes(payload).ok()?;
     if let ciborium::Value::Map(entries) = value {
         for (k, v) in entries {
             if let (ciborium::Value::Text(name), ciborium::Value::Text(s)) = (k, v) {
@@ -68,7 +77,12 @@ fn read_text(object: &Object, field: &str) -> Option<String> {
 
 /// Read a CBOR bytes field from an object payload.
 fn read_bytes(object: &Object, field: &str) -> Option<Vec<u8>> {
-    let value = crate::relay::core::encoding::from_canonical_bytes(&object.payload).ok()?;
+    payload_bytes(&object.payload, field)
+}
+
+/// `read_bytes` over raw payload bytes (see `payload_text`).
+fn payload_bytes(payload: &[u8], field: &str) -> Option<Vec<u8>> {
+    let value = crate::relay::core::encoding::from_canonical_bytes(payload).ok()?;
     if let ciborium::Value::Map(entries) = value {
         for (k, v) in entries {
             if let (ciborium::Value::Text(name), ciborium::Value::Bytes(b)) = (k, v) {
@@ -188,6 +202,22 @@ impl Storage {
         if !is_creator && !is_self_leave {
             return Ok(false); // unauthorized admit/remove — ignore
         }
+        // Nobody is put in a group without saying yes (2026-10-09,
+        // blocking-and-safe-mode.md 3.7.4). The creator's admit used to count
+        // for ANY subject, and /api/v2/groups?pubkey= then listed the group as
+        // theirs: a creator could add a stranger to a group they never asked to
+        // join. Now an admit of someone else counts only while that person's
+        // own latest word on this group is a signed join (see
+        // `subject_wants_in`). Shipped clients never send a creator admit at
+        // all, they join through a ticket (`index_group_join`), which is
+        // untouched, so this changes nothing they do. A remove needs no
+        // consent: taking someone out never puts anything in front of them.
+        if action == "admit"
+            && subject != object.author_public_key
+            && !self.subject_wants_in(&group_id, &subject)?
+        {
+            return Ok(false);
+        }
 
         let subject_fp = author_fingerprint(&subject);
         let active: i64 = if action == "admit" { 1 } else if action == "remove" { 0 } else { return Ok(false) };
@@ -205,6 +235,56 @@ impl Storage {
             )?;
             Ok(true)
         })
+    }
+
+    /// Whether `subject`'s own latest signed word on `group_id` is "I want in".
+    /// Gates a creator's admit of someone else (`index_group_member`).
+    ///
+    /// A person's own statements about a group are the objects they sign: a
+    /// `group_join_v1` (whether or not its ticket still lets them in by itself:
+    /// a join on an expired ticket is still them asking, and a creator's admit
+    /// may then answer it) and a self-leave (`group_member_v1` remove with
+    /// subject == author). Both are read back from `signed_objects`, the
+    /// authority this projection caches, newest arrival first, the same order
+    /// the roster fold applies them in. A join means yes. A later self-leave
+    /// takes it back, so a creator cannot pull someone back into a group they
+    /// walked out of. No statement at all means no.
+    ///
+    /// Known Phase 1 limit, the same as for every other object in this file:
+    /// the fold runs in arrival order, so a creator's admit that arrives before
+    /// the subject's join is ignored and is not replayed when the join lands.
+    /// No shipped client sends a creator admit, so nothing depends on that yet.
+    fn subject_wants_in(&self, group_id: &str, subject: &[u8]) -> Result<bool, rusqlite::Error> {
+        let subject_fp = author_fingerprint(subject);
+        let statements: Vec<(String, Vec<u8>)> = self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT object_type, payload FROM signed_objects
+                 WHERE author_fp = ?1
+                   AND author_pubkey = ?2
+                   AND object_type IN ('group_join_v1', 'group_member_v1')
+                   AND json_extract(references_json, '$[0]') = ?3
+                 ORDER BY received_at DESC, rowid DESC",
+            )?;
+            let rows = stmt.query_map(params![subject_fp, subject, group_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
+            })?;
+            rows.collect::<Result<Vec<_>, rusqlite::Error>>()
+        })?;
+        for (object_type, payload) in statements {
+            if object_type == "group_join_v1" {
+                return Ok(true);
+            }
+            // A group_member_v1 this person signed says something about their
+            // own wishes only when it is them leaving. Anything else they sign
+            // (an admit or a remove of someone else) the fold ignores, and so
+            // does this.
+            let is_self_leave = payload_text(&payload, "action").as_deref() == Some("remove")
+                && payload_bytes(&payload, "subject").as_deref() == Some(subject);
+            if is_self_leave {
+                return Ok(false);
+            }
+        }
+        Ok(false)
     }
 
     /// Project a creator-signed `group_invite_v1` capability into
@@ -566,9 +646,22 @@ mod tests {
     }
 
     fn member_obj(by: &DilithiumKeypair, group_id: &str, action: &str, subject_pk: &[u8]) -> Object {
+        member_obj_at(by, group_id, action, subject_pk, 1001)
+    }
+
+    /// `member_obj` with its own timestamp, for a second admit or remove of the
+    /// same person: an identical object has the same object_id, so the store
+    /// would treat the repeat as already seen and never index it.
+    fn member_obj_at(
+        by: &DilithiumKeypair,
+        group_id: &str,
+        action: &str,
+        subject_pk: &[u8],
+        created_at: u64,
+    ) -> Object {
         ObjectBuilder::new("group_member_v1")
             .reference(group_id)
-            .created_at(1001)
+            .created_at(created_at)
             .payload_cbor(&Value::Map(vec![
                 (Value::Text("action".into()), Value::Text(action.into())),
                 (Value::Text("subject".into()), Value::Bytes(subject_pk.to_vec())),
@@ -603,6 +696,35 @@ mod tests {
             .unwrap()
             .sign(by)
             .unwrap()
+    }
+
+    /// A join the subject signs that does NOT let them in by itself: it names
+    /// an invite this relay has never seen, so `index_group_join` refuses it.
+    /// It is still the subject's own signed request to be in the group, which
+    /// is what a creator's admit needs before it counts.
+    fn join_request_obj(by: &DilithiumKeypair, group_id: &str, created_at: u64) -> Object {
+        ObjectBuilder::new("group_join_v1")
+            .reference(group_id)
+            .reference("no-such-invite")
+            .created_at(created_at)
+            .payload_cbor(&Value::Map(vec![
+                (Value::Text("secret".into()), Value::Bytes(vec![1u8; 16])),
+            ]))
+            .unwrap()
+            .sign(by)
+            .unwrap()
+    }
+
+    /// The consenting path to a creator admit: the person asks to join (a
+    /// request that does not admit them by itself), then the creator admits
+    /// them. Tests that only need "this person is a member" use this.
+    fn ask_and_admit(db: &Storage, creator: &DilithiumKeypair, who: &DilithiumKeypair, group_id: &str) {
+        db.put_signed_object(&join_request_obj(who, group_id, 1003), None).unwrap();
+        assert!(
+            !db.p2p_group_has_member(group_id, &who.public_key()).unwrap(),
+            "precondition: a join on an unknown invite must not admit anyone by itself"
+        );
+        db.put_signed_object(&member_obj(creator, group_id, "admit", &who.public_key()), None).unwrap();
     }
 
     fn epoch_obj(by: &DilithiumKeypair, group_id: &str, epoch: u64) -> Object {
@@ -652,8 +774,8 @@ mod tests {
         let gid = g.object_id().unwrap().to_hex();
         db.put_signed_object(&g, None).unwrap();
 
-        // Creator admits Alice.
-        db.put_signed_object(&member_obj(&creator, &gid, "admit", &alice.public_key()), None).unwrap();
+        // Alice asks to join, and the creator admits her.
+        ask_and_admit(&db, &creator, &alice, &gid);
         assert!(db.p2p_group_has_member(&gid, &alice.public_key()).unwrap());
         assert_eq!(db.p2p_group_roster(&gid).unwrap().len(), 2);
 
@@ -761,6 +883,78 @@ mod tests {
         db.put_signed_object(&member_obj(&attacker, &gid, "admit", &mallory.public_key()), None).unwrap();
         assert!(!db.p2p_group_has_member(&gid, &mallory.public_key()).unwrap());
         assert_eq!(db.p2p_group_roster(&gid).unwrap().len(), 1, "roster unchanged");
+    }
+
+    /// blocking-and-safe-mode.md 3.7.4: the CREATOR could add anyone, and
+    /// /api/v2/groups?pubkey= (`p2p_groups_for_member`) then listed the group
+    /// as that person's own. Now the creator's admit counts only alongside the
+    /// subject's own signed join.
+    ///
+    /// Seen red 2026-10-09: with the consent check in `index_group_member`
+    /// disabled, the first assertion failed ("an admit nobody asked for must
+    /// not list the group") because the group was listed for Carol. Restored,
+    /// it passes.
+    #[test]
+    fn creator_admit_without_the_subjects_join_does_not_list_the_group() {
+        let db = make_test_storage();
+        let creator = DilithiumKeypair::generate().unwrap();
+        let carol = DilithiumKeypair::generate().unwrap();
+        let g = group_obj(&creator, "research");
+        let gid = g.object_id().unwrap().to_hex();
+        db.put_signed_object(&g, None).unwrap();
+
+        // The creator admits Carol, who never asked.
+        db.put_signed_object(&member_obj(&creator, &gid, "admit", &carol.public_key()), None).unwrap();
+        assert!(
+            db.p2p_groups_for_member(&carol.public_key()).unwrap().is_empty(),
+            "an admit nobody asked for must not list the group"
+        );
+        assert!(!db.p2p_group_has_member(&gid, &carol.public_key()).unwrap());
+        assert_eq!(db.p2p_group_roster(&gid).unwrap().len(), 1, "roster unchanged");
+
+        // Carol signs her own request to join. On an invite this relay does
+        // not know, the request alone does not let her in...
+        db.put_signed_object(&join_request_obj(&carol, &gid, 1003), None).unwrap();
+        assert!(db.p2p_groups_for_member(&carol.public_key()).unwrap().is_empty());
+
+        // ...but now the creator's admit answers a request she made, and counts.
+        db.put_signed_object(&member_obj_at(&creator, &gid, "admit", &carol.public_key(), 1005), None).unwrap();
+        let listed = db.p2p_groups_for_member(&carol.public_key()).unwrap();
+        assert_eq!(listed.len(), 1, "with Carol's own join, the creator's admit lists the group");
+        assert_eq!(listed[0].0, gid);
+    }
+
+    /// Leaving takes the yes back: after a self-leave, a creator's admit does
+    /// not pull the person back in, even though they joined once.
+    ///
+    /// Seen red 2026-10-09: with the self-leave branch of `subject_wants_in`
+    /// disabled (so any earlier join counted as yes), the final assertion
+    /// failed because Alice was listed again. Restored, it passes.
+    #[test]
+    fn creator_cannot_readmit_someone_who_left() {
+        let db = make_test_storage();
+        let creator = DilithiumKeypair::generate().unwrap();
+        let alice = DilithiumKeypair::generate().unwrap();
+        let g = group_obj(&creator, "research");
+        let gid = g.object_id().unwrap().to_hex();
+        db.put_signed_object(&g, None).unwrap();
+
+        // Alice joins through a ticket (the way shipped clients join), then leaves.
+        let secret = [5u8; 16];
+        let inv = invite_obj(&creator, &gid, &secret, 9_999_999_999_999);
+        let invite_id = inv.object_id().unwrap().to_hex();
+        db.put_signed_object(&inv, None).unwrap();
+        db.put_signed_object(&join_obj(&alice, &gid, &invite_id, &secret), None).unwrap();
+        assert_eq!(db.p2p_groups_for_member(&alice.public_key()).unwrap().len(), 1);
+        db.put_signed_object(&member_obj(&alice, &gid, "remove", &alice.public_key()), None).unwrap();
+        assert!(db.p2p_groups_for_member(&alice.public_key()).unwrap().is_empty());
+
+        // The creator tries to put her back.
+        db.put_signed_object(&member_obj_at(&creator, &gid, "admit", &alice.public_key(), 1006), None).unwrap();
+        assert!(
+            db.p2p_groups_for_member(&alice.public_key()).unwrap().is_empty(),
+            "a creator must not be able to re-admit someone who left"
+        );
     }
 
     #[test]
@@ -874,9 +1068,9 @@ mod tests {
         let g = group_obj(&creator, "research");
         let gid = g.object_id().unwrap().to_hex();
         db.put_signed_object(&g, None).unwrap();
-        // Admit both Alice and Bob.
-        db.put_signed_object(&member_obj(&creator, &gid, "admit", &alice.public_key()), None).unwrap();
-        db.put_signed_object(&member_obj(&creator, &gid, "admit", &bob.public_key()), None).unwrap();
+        // Admit both Alice and Bob (each asked first).
+        ask_and_admit(&db, &creator, &alice, &gid);
+        ask_and_admit(&db, &creator, &bob, &gid);
         assert_eq!(db.p2p_group_roster(&gid).unwrap().len(), 3);
 
         // Alice tries to remove BOB (not herself, and she's not the creator) → ignored.
@@ -892,7 +1086,7 @@ mod tests {
         let g = group_obj(&creator, "research");
         let gid = g.object_id().unwrap().to_hex();
         db.put_signed_object(&g, None).unwrap();
-        db.put_signed_object(&member_obj(&creator, &gid, "admit", &alice.public_key()), None).unwrap();
+        ask_and_admit(&db, &creator, &alice, &gid);
         assert_eq!(db.p2p_groups_for_member(&alice.public_key()).unwrap().len(), 1);
         assert_eq!(db.p2p_groups_for_member(&creator.public_key()).unwrap().len(), 1);
 
@@ -910,7 +1104,7 @@ mod tests {
         let g = group_obj(&creator, "research");
         let gid = g.object_id().unwrap().to_hex();
         db.put_signed_object(&g, None).unwrap();
-        db.put_signed_object(&member_obj(&creator, &gid, "admit", &alice.public_key()), None).unwrap();
+        ask_and_admit(&db, &creator, &alice, &gid);
 
         // Alice (a member, but not the creator) tries to disband → must NOT take effect.
         db.put_signed_object(&disband_obj(&alice, &gid), None).unwrap();
@@ -977,7 +1171,7 @@ mod tests {
         let g = group_obj(&creator, "research");
         let gid = g.object_id().unwrap().to_hex();
         db.put_signed_object(&g, None).unwrap();
-        db.put_signed_object(&member_obj(&creator, &gid, "admit", &alice.public_key()), None).unwrap();
+        ask_and_admit(&db, &creator, &alice, &gid);
 
         let m = msg_obj(&alice, &gid, 1);
         let mid = m.object_id().unwrap().to_hex();

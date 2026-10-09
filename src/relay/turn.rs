@@ -55,25 +55,35 @@ fn make_credential(secret: &str, now: u64, ttl: u64) -> (String, String) {
 /// anyone who opened the page. Rate-limiting is nginx's job if it becomes a
 /// concern; issuing a credential is a cheap HMAC.
 pub async fn turn_credentials() -> Json<serde_json::Value> {
-    // The TURN/STUN host. Defaults to the production relay; override with
+    // The TURN host. Defaults to the production relay; override with
     // TURN_SERVER_HOST for a self-hoster on a different domain.
     let host = std::env::var("TURN_SERVER_HOST").unwrap_or_else(|_| "united-humanity.us".to_string());
+    let secret = std::env::var("TURN_STATIC_SECRET").ok().filter(|s| !s.is_empty());
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let ice = ice_servers(&host, secret.as_deref(), now);
+    Json(serde_json::json!({ "iceServers": ice, "ttl": CREDENTIAL_TTL_SECS }))
+}
 
+/// The ICE-server list `turn_credentials` hands out, built from its inputs so a
+/// test can check it without touching the process environment.
+fn ice_servers(host: &str, secret: Option<&str>, now: u64) -> Vec<serde_json::Value> {
     // Public Google STUN is always offered as the cheap first resort; TURN is the
     // fallback for symmetric NAT.
-    let mut ice = vec![
-        serde_json::json!({ "urls": "stun:stun.l.google.com:19302" }),
-        serde_json::json!({ "urls": format!("stun:{host}:3478") }),
-    ];
+    //
+    // There is no `stun:{host}:3478` entry any more (2026-10-09). It pointed at
+    // coturn, which was taken off the server after the 2026-08-07 abuse incident
+    // (docs/INCIDENT-PLAYBOOK.md), so nothing listens on that port: every client
+    // spent part of each call's address gathering waiting on a server that never
+    // answers. Replacing the Google entry with our own is a later increment
+    // (blocking-and-safe-mode.md section 7).
+    let mut ice = vec![serde_json::json!({ "urls": "stun:stun.l.google.com:19302" })];
 
-    let ttl = CREDENTIAL_TTL_SECS;
-    match std::env::var("TURN_STATIC_SECRET") {
-        Ok(secret) if !secret.is_empty() => {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs())
-                .unwrap_or(0);
-            let (username, credential) = make_credential(&secret, now, ttl);
+    match secret {
+        Some(secret) => {
+            let (username, credential) = make_credential(secret, now, CREDENTIAL_TTL_SECS);
             ice.push(serde_json::json!({
                 "urls": format!("turn:{host}:3478"),
                 "username": username,
@@ -85,13 +95,12 @@ pub async fn turn_credentials() -> Json<serde_json::Value> {
                 "credential": credential,
             }));
         }
-        _ => {
+        None => {
             // No secret configured: STUN-only. Clients handle the absence of TURN
             // entries gracefully (they already tolerate a failed allocation).
         }
     }
-
-    Json(serde_json::json!({ "iceServers": ice, "ttl": ttl }))
+    ice
 }
 
 #[cfg(test)]
@@ -122,6 +131,38 @@ mod tests {
     fn username_expiry_is_now_plus_ttl() {
         let (username, _) = make_credential("s", 500, 900);
         assert!(username.starts_with("1400:"), "expiry = now + ttl, got {username}");
+    }
+
+    /// Nothing listens on the relay's own port 3478 (coturn was removed after the
+    /// 2026-08-07 incident), so the list must not send clients there for STUN.
+    /// Without a TURN secret the list is the one public STUN server and nothing
+    /// else; with one, the only entries naming the relay are the TURN pair.
+    ///
+    /// Seen red 2026-10-09: with the `stun:{host}:3478` line put back into
+    /// `ice_servers`, the first assertion failed, the list holding
+    /// "stun:relay.example:3478" after Google's entry. Restored, it passes.
+    #[test]
+    fn no_stun_entry_points_at_the_relay() {
+        let bare = ice_servers("relay.example", None, 1000);
+        let urls: Vec<String> = bare
+            .iter()
+            .map(|e| e["urls"].as_str().unwrap_or_default().to_string())
+            .collect();
+        assert_eq!(urls, vec!["stun:stun.l.google.com:19302".to_string()]);
+        assert!(
+            !urls.iter().any(|u| u.starts_with("stun:relay.example")),
+            "no STUN entry may name the relay, nothing answers there: {urls:?}"
+        );
+
+        let with_turn = ice_servers("relay.example", Some("s"), 1000);
+        for entry in &with_turn {
+            let url = entry["urls"].as_str().unwrap_or_default();
+            assert!(
+                !url.starts_with("stun:relay.example"),
+                "no STUN entry may name the relay: {url}"
+            );
+        }
+        assert_eq!(with_turn.len(), 3, "Google STUN plus the TURN and TURNS pair");
     }
 
     /// A different secret yields a different credential for the same username, so
