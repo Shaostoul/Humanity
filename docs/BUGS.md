@@ -4990,3 +4990,61 @@ piece someone else took down first while the news of THEIR take-down was lost to
 once more than it should (the list cannot tell whose take-down removed the piece; when that news
 does arrive, `beaten_to_it` settles ours with nothing back). Both need the relay to hold
 inventories (increment 8) to close for good.
+
+## BUG-169: a crawler filled the VPS disk through the git mirror's archive downloads; two relay deploys failed and the live relay was left running a deleted binary (guard FIXED in the repo, VPS steps pending, found 2026-10-09)
+
+**What happened.** Between 17:00 and 20:00 UTC on 5 October the VPS disk went from 57% to 89%,
+then to 100% by 02:00 on the 6th, and stayed full for about 22 hours. The cause was
+`/var/lib/forgejo/data/repo-archive`: a crawler (user agent `ShapBot/0.1.0`, about 8,200 requests
+to the git mirror on 6 and 7 October) walked commit pages on git.united-humanity.us and asked for
+source archives (`.zip`, `.tar.gz`, `.bundle`) of many commits. Forgejo builds each archive on
+disk and keeps it until its `archive_cleanup` cron, which runs at midnight and deletes archives
+older than a day. The archives made before midnight on the 6th were deleted at 00:00 UTC on the
+7th (100% to 45%, the directories under `repo-archive/1/` all changed between 23:52 and 00:14),
+and the next night's cleanup took it to 40%. Nothing else on the disk moved: the release mirror
+(34 GB, ten versions) and everything else add up to today's 44 GB.
+
+**What it broke.**
+- **Both relay deploys failed** (Deploy to VPS for v0.1464.0, run 37396051384, and v0.1464.1,
+  run 37399491894): "could not write output to /opt/Humanity/target/release/deps/...: No such
+  file or directory". The disk guard deleted `target/` at 88% while the v0.1464.0 build was
+  compiling in it (01:44 UTC on the 6th), and the second deploy had no room.
+- **The live relay runs a deleted file.** `/opt/Humanity/target` is gone; the relay process
+  (`/opt/Humanity/target/release/HumanityOS (deleted)`) is still v0.1463.0 and keeps running only
+  because the file stays open. Any restart (the watchdog, a crash, a reboot) finds no binary and
+  the relay stays down: the same cascade as the 2026-05-21 incident. Increment 5's server side
+  (shared building) never reached the server.
+- **The git mirror stopped syncing** at 2026-10-05 21:44 UTC. Forgejo's queue database kept the
+  "no space left on device" write error after space came back (`MirrorsIterate: write
+  /var/lib/forgejo/data/queues/common/000001.log: no space left on device`, still logged at 20:24
+  on the 9th with the disk at 40%). It needs a Forgejo restart.
+- **73 "[Disk Guard]" alerts in #announcements**, one per 20-minute run from 5 October 23:43 to
+  6 October 23:52 UTC: the guard re-posted its critical alert every run.
+- **Release mirror files cut short** (the VPS copy only; GitHub's are whole, and the website and
+  the in-app updater both download from GitHub): v0.1464.0's Windows exe, tar.gz and zip and its
+  data manifest are 0 bytes, its macOS x64 zip is 310 MB of 383 MB; v0.1464.1's Windows tar.gz is
+  28 MB, its zip and data manifest 0 bytes.
+
+**Fixed in the repo** (`scripts/humanity-disk-guard.sh`; it reaches the VPS on the next deploy or
+`just sync`, which install the guard from the repo):
+- At the 88% threshold the guard now clears Forgejo's archive cache (regenerable), before it
+  touches `target/`.
+- It no longer deletes `target/` while `cargo` or `rustc` is running; it logs "RECLAIM deferred"
+  instead.
+- It posts the critical alert once per incident (a marker in `/run`) and one "back to N%" note
+  when the disk recovers.
+- At the threshold it logs one `WHERE:` line with the size of every folder that has filled this
+  disk before, so the next incident's cause is in the journal. This one took an hour of
+  reconstruction from directory change times because the guard only ever said "100%".
+
+**Still to do on the VPS** (each changes the live server, so each waits for the operator's go):
+redeploy the relay (`just sync`), restart Forgejo, stop Forgejo keeping archives for a day
+(`[cron.archive_cleanup]` hourly with `OLDER_THAN = 1h`, or turn archive downloads off with
+`[repository] DISABLE_DOWNLOAD_SOURCE_ARCHIVES = true`), a `robots.txt` on the git host asking
+crawlers to skip archive and per-commit pages, re-fetch the cut-short release files from GitHub
+and regenerate the manifest, and decide what to do with the 73 alert messages in #announcements.
+
+**Lesson.** The same as 2026-05-21, one directory over: the guard's trigger (disk percent) and
+its cleanup (build cache, logs, release mirror) covered different things, so it deleted the
+one cache the relay needed while the real cause sat untouched. Every service that writes a cache
+to this disk needs its cache named in the guard, and the guard has to say what it measured.

@@ -178,6 +178,17 @@ None of it needed the network: every client of a dev relay is on `127.0.0.1`.
 
 **Lesson**: a dev tool that listens should listen on loopback, and should CHECK that it does, from the OS's point of view rather than from the env it passed. Anything that runs from a fresh path (temp copies, per-hash test binaries, per-worktree builds) multiplies a one-time annoyance into a daily one.
 
+### 2026-10-05: a crawler filled the disk through the git mirror's archive downloads (BUG-169)
+**What happened**: a crawler (`ShapBot/0.1.0`) walked commit pages on git.united-humanity.us and asked for source archives of many commits. Forgejo builds each one on disk in `/var/lib/forgejo/data/repo-archive` and keeps it until its midnight cleanup deletes archives older than a day, so about 60 GB piled up in a few hours (57% to 89% between 17:00 and 20:00 UTC, 100% by 02:00 on the 6th). It stayed full for about 22 hours, until Forgejo's own cleanup at midnight on the 7th.
+
+**What it broke**: the disk guard deleted `target/` under a running deploy build, so the v0.1464.0 and v0.1464.1 deploys both failed and the live relay was left running a deleted binary (it survives only while that process lives; a restart finds nothing to run). The git mirror stopped syncing: Forgejo's queue database kept the disk-full write error after space came back, until a restart. The guard posted its critical alert into #announcements 73 times. The VPS copy of the v0.1464.x release files was cut short (GitHub's copy is whole and is what users download).
+
+**How it was found**: four days later, at a session start, from the two red Deploy to VPS runs; nothing reports the relay binary itself, so `systemctl status humanity-relay` showing `(deleted)` was found only by looking. The cause was reconstructed from directory change times (`find / -xdev -type d -newermt ... ! -newermt ...` across the minutes the disk freed), because the guard's journal only ever said "disk 100%".
+
+**Recipe if it recurs**: `journalctl -t humanity-disk-guard | grep WHERE` (the guard now logs folder sizes at 88%); if `repo-archive` is large, the guard clears it at 88%; check `ls -l /proc/$(pgrep -f 'HumanityOS --headless')/exe` for `(deleted)` and redeploy with `just sync` if so; restart Forgejo if `gitea.log` still shows "no space left" with the disk below 90%.
+
+**Lesson**: the 2026-05-21 lesson again, one directory over: the guard's trigger (disk percent) and its cleanup scope covered different things, so it deleted the cache the relay needed while the cause sat untouched. Every service that writes a cache to this disk needs that cache named in the guard, the guard must never delete a build cache under a running build, and an alert must fire once per incident, not once per run.
+
 ## Section 3: Anticipated failures (haven't happened yet but probably will)
 
 ### nginx maps to wrong upstream after a restart

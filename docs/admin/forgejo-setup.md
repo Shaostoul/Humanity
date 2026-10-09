@@ -41,74 +41,15 @@ repository") and push to it directly.
 - **OpenID sign-in**: disabled.
 - **API**: anonymous read access on public repos via `https://git.united-humanity.us/api/v1/...`
 
-## Multi-remote `just ship`
+## Nothing pushes to it
 
-The `_commit` recipe in the Justfile now pushes to both remotes:
-
-```
-git push origin main      # required (GitHub)
-git push forge main       # best-effort (Forgejo) - `-` prefix so it doesn't block ship
-```
-
-Tag push works the same way: tags go to `origin` first (GitHub Actions Build
-Desktop App workflow keys off this), then to `forge`. A transient Forgejo
-outage doesn't block a ship.
-
-To register the second remote on a fresh clone, **prefer SSH**, credentials never expire, no token rotation, no GCM cache invalidation. HTTPS is supported but is fragile; see "Why SSH" below.
-
-```bash
-# SSH (recommended)
-git remote add forge forgejo@git.united-humanity.us:<user>/humanity.git
-```
-
-### SSH setup (one-time)
-
-1. **Add your public key to Forgejo:** https://git.united-humanity.us/-/user/settings/keys → "Add Key"
-2. **Add a Host entry to `~/.ssh/config`** so git uses the right key:
-   ```
-   Host git.united-humanity.us
-     User forgejo
-     IdentityFile ~/.ssh/<your_key>
-     IdentitiesOnly yes
-     StrictHostKeyChecking accept-new
-   ```
-3. **Verify auth:**
-   ```bash
-   ssh -T forgejo@git.united-humanity.us
-   # → "Hi there, <user>! You've successfully authenticated with the key named ..."
-   ```
-4. **Verify git can reach it:**
-   ```bash
-   git ls-remote forge HEAD
-   # → prints the HEAD commit hash
-   ```
-
-### Why SSH (avoid HTTPS)
-
-HTTPS to Forgejo uses Windows Git Credential Manager via browser SSO. The cached
-token expires/invalidates without warning, and `git push forge main` then dies
-with `Credentials are incorrect or have expired`. Recovery is non-obvious, you
-have to manually erase the cached creds before the next push will re-prompt:
-
-```bash
-printf "protocol=https\nhost=git.united-humanity.us\n\n" | git credential reject
-printf "protocol=https\nhost=git.united-humanity.us\n\n" | git credential-manager erase
-git push forge main   # GCM re-prompts and refreshes
-```
-
-SSH keys don't expire, don't depend on browser SSO, and don't need GCM.
-Once the per-host config in `~/.ssh/config` is in place, every clone, fetch,
-push, and tag-push works without ceremony.
-
-### HTTPS fallback (only if SSH unavailable)
-
-```bash
-git remote add forge https://git.united-humanity.us/<user>/humanity.git
-```
-
-On Windows, GCM auto-prompts via browser SSO on first push. On Linux/macOS,
-generate a Personal Access Token in **Settings → Applications → Generate New
-Token** and paste as the password on first push.
+Since 2026-09-29 the mirror PULLS from GitHub every 8 hours, so `just ship`
+pushes only to `origin`. A pull mirror refuses pushes, so the SSH-key and
+credential-manager setup this section used to describe no longer applies. The
+local `forge` remote, if a clone has one, is
+`https://git.united-humanity.us/shaostoul/Humanity.git`, fetch-only. To make it
+take pushes again (only if GitHub is gone), convert it to a regular repository
+first (see the top of this page).
 
 ## Operations
 
@@ -121,6 +62,53 @@ Token** and paste as the password on first push.
 | App config | `ssh humanity-vps 'sudo nano /etc/forgejo/app.ini'` (then restart) |
 | Database backup | `ssh humanity-vps 'sudo -u forgejo cp /var/lib/forgejo/data/forgejo.db /var/lib/forgejo/data/forgejo.db.bak'` |
 | Upgrade Forgejo | replace `/usr/local/bin/forgejo` with new release binary, restart service. Read release notes for migrations. |
+
+
+## Archive downloads and crawlers (incident 2026-10-05, BUG-169)
+
+Every commit page offers its source as a `.zip`, `.tar.gz` or `.bundle`.
+Forgejo builds the file on disk the first time someone asks, in
+`/var/lib/forgejo/data/repo-archive/`, and its `archive_cleanup` cron deletes
+archives only once a day (at midnight, those older than 24 hours). On 5 October
+a crawler (`ShapBot/0.1.0`) asked for archives of many commits and about 60 GB
+piled up in a few hours: the VPS disk sat at 100% for a day, two relay deploys
+failed and this mirror stopped syncing (its queue kept the write error after
+space came back, until a restart).
+
+What protects the disk now:
+
+- **The disk guard** (`scripts/humanity-disk-guard.sh`) clears
+  `repo-archive/` at 88% and logs a `WHERE:` line naming the biggest folders.
+  The files are a cache: Forgejo builds an archive again when one is asked for.
+- **Settings to apply on the VPS** (not applied yet; `app.ini` and the
+  `robots.txt` live only on the server). Clean up hourly instead of daily:
+  ```ini
+  [cron.archive_cleanup]
+  ENABLED = true
+  RUN_AT_START = true
+  SCHEDULE = @every 1h
+  OLDER_THAN = 1h
+  ```
+  or, to stop offering archives at all (cloning and browsing are unaffected,
+  and GitHub still offers them): `[repository] DISABLE_DOWNLOAD_SOURCE_ARCHIVES = true`.
+  Then ask crawlers to skip archives and per-commit pages, keeping the current
+  code browsable, in `/var/lib/forgejo/custom/public/robots.txt` (Forgejo
+  serves it at `/robots.txt`):
+  ```
+  User-agent: *
+  Disallow: /*/*/archive/
+  Disallow: /*/*/commit/
+  Disallow: /*/*/src/commit/
+  Disallow: /*/*/raw/commit/
+  Disallow: /*/*/blame/
+  Disallow: /*/*/compare/
+  ```
+  Restart Forgejo after either change.
+- **If the mirror stops syncing after a full disk:** `gitea.log` shows
+  `MirrorsIterate: ... no space left on device` even with the disk below 90%.
+  Restart Forgejo; the queue reopens and the next sync runs within the 8-hour
+  interval (or press "Synchronize now" on the repository's settings page as the
+  admin).
 
 ## Reproducing the install (for future operators)
 

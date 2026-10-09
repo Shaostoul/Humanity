@@ -52,7 +52,10 @@ jobs:
             echo "Root disk at ${DISK_PCT}% before build"
             if [ "${DISK_PCT:-0}" -ge 80 ]; then
               echo "Disk >= 80% -- clearing regenerable target/ before build"
-              rm -rf target || true
+              # Keeps target/release/HumanityOS, the file the running
+              # relay was started from, so a build that then fails still
+              # leaves a relay that can restart (BUG-169).
+              bash scripts/clear-build-cache.sh /opt/Humanity || true
             fi
             # Install/refresh the standalone disk-guard timer FROM THE
             # REPO so the protection is version-controlled, self-heals

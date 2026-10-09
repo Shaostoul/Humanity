@@ -181,9 +181,18 @@ night-to-sunrise shot from Silverdale toward Mount Rainier. Earlier: the start
 tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 (2026-10-04: being built), the old plain backups deleted (2026-10-02).
 
-### RESUME HERE: where the work stands (updated 2026-10-05, evening)
+### RESUME HERE: where the work stands (updated 2026-10-09)
 
-- **Released today:** v0.1459.0 to v0.1463.0 and v0.1464.0 (ship-homes increment 5, building
+- **FIRST, the VPS (BUG-169, found 2026-10-09):** a crawler filled the disk through the git
+  mirror's archive downloads on 5 October. The live relay is still v0.1463.0 and runs from a
+  DELETED binary (any restart finds nothing to run); both v0.1464.x deploys failed; the git
+  mirror has not synced since 5 October 21:44 UTC. Guard, deploy and `just sync` fixes are in
+  the repo (`scripts/clear-build-cache.sh`, `scripts/humanity-disk-guard.sh`), committed
+  locally and NOT pushed, because a push deploys. Waiting on the operator's go for: `just sync`
+  (redeploy), a Forgejo restart plus the archive settings and robots.txt
+  (`docs/admin/forgejo-setup.md`), re-fetching the cut-short v0.1464.x release files on the
+  VPS, and the 73 "[Disk Guard]" alerts in #announcements (remove or keep).
+- **Released 2026-10-05:** v0.1459.0 to v0.1463.0 and v0.1464.0 (ship-homes increment 5, building
   only on your own plot; BUG-165 and BUG-166, the walking-backwards fixes; two new clips),
   all delivered to the taskbar exe.
 - **NEXT in TIER 0:** increment 5b (the household page: give a friend a permit to build on
