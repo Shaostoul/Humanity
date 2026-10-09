@@ -5115,3 +5115,37 @@ code before the fix and with each fix line undone one at a time.
 
 **Left:** the desktop app's side (answers to direct connections, Google contacted on every
 connection, pictures from any site) is the native half of the same step.
+
+## BUG-172: the relay told strangers what privacy settings promised to hide (FIXED next release, found 2026-10-09)
+
+Found by the blocking and safe-mode design's survey (`docs/design/blocking-and-safe-mode.md`,
+3.7.3 to 3.7.5):
+
+- **Hidden online status leaked.** `handle_voice_call`, `handle_webrtc_signal` and
+  `handle_trade_request` replied "User is not online." only when the target really was offline,
+  so ringing someone who hides their presence (the default) showed whether they were connected.
+  Now a hidden target's sender gets the same reply whether they are connected or not: the one an
+  online target gives (no reply to a ring or a connection signal; a trade request is created, and
+  a hidden person who is offline finds it in their trade list). `may_report_offline`. The cost: a
+  sender can tell someone hides their status, which is the default and says nothing about them.
+- **A group creator could add anyone without asking.** The P2P group roster accepted a creator's
+  `group_member_v1` admit for any subject, and `/api/v2/groups?pubkey=` then listed the group as
+  theirs. Now a creator's admit counts only while the subject's own latest signed word on the
+  group is a join (a later self-leave takes it back): `subject_wants_in` in `groups_p2p.rs`.
+  Shipped clients join by ticket, which is unchanged.
+- **Trade requests were an unlimited free-text channel** to anyone online, stored as plain text.
+  Now a request without the target's friendship certificate (a new optional `friend_cert`,
+  checked statelessly like messages) spends from the same daily budget as message knocks (per
+  sender, as knocks are: a per-pair counter would be a social graph again), and its note is cut
+  to 80 characters; admins and mods are exempt, as for messages.
+- `/api/turn-credentials` no longer lists `stun:<host>:3478`, where nothing has listened since
+  coturn was removed (2026-08-07).
+
+**Tests:** `reach_tests` (3) in `msg_handlers.rs`, two in `groups_p2p.rs`, and
+`turn::no_stun_entry_points_at_the_relay`, each seen red with its fix turned off.
+
+**Left, on the clients:** both clients reject a ring automatically when already in a call, which
+tells the caller a hidden person is online; neither sends `friend_cert` on trade requests yet, so
+friends' trade notes are cut to 80 characters too until they do. Not changed and noticed: the
+limit of 10 active trades counts trades you received, so strangers' pending requests can stop you
+starting your own.

@@ -205,10 +205,27 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   operator: "give users the tools to protect themselves", plus a safe mode that protects children
   from predators and scams, and everyone else too). Design in `docs/design/blocking-and-safe-mode.md`
   (written 2026-10-09): its section 3.7 lists six defects to fix regardless; the first, web data
-  sync answering strangers, is fixed (BUG-170). Next is its increment 0 (the other five defects),
+  sync answering strangers, is fixed (BUG-170), web's half of the rest (BUG-171) and the relay's
+  (BUG-172) are merged, native's is in flight. Client follow-ups from the relay fix: both clients
+  auto-reject a ring when already in a call, which tells a caller a hidden person is online;
+  neither sends `friend_cert` on trade requests yet (friends' trade notes are cut to 80
+  characters until they do); the 10-active-trades limit counts received trades, so strangers'
+  pending requests can block someone starting their own. Next is its increment 0 (the other five defects),
   then increment 1 (block on both clients). Eight questions for the operator sit in its summary,
   each with a recommendation. Voice: route calls through a room-scoped forwarder in the relay
   plus our own STUN on one UDP port, Google removed (section 7; the port is the operator's call).
+- **Signing in where cameras can see (raised 2026-10-09; the operator's PIN was once watched
+  and money was stolen).** Found: the desktop "Quick PIN" unlock (`src/auto_unlock.rs`,
+  KeychainPin) has no limit on wrong guesses, and the guessing can be done offline by anyone who
+  has the computer's signed-in Windows account (the device key sits in the OS keychain beside the
+  blob), so a 4 to 6 digit PIN protects little there. Recommended, ranked: (1) sign in on a new
+  device by scanning a QR from one already signed in, camera-safe because the code holds only a
+  one-time public lock; (2) OS-backed unlock (Windows Hello, Touch ID or Face ID, Android), where
+  the device's security chip limits guesses, replacing Quick PIN; (3) security keys as an
+  optional unlock (FIDO2 hmac-secret); (4) secrets never shown while sharing a screen through the
+  app, and on Windows the window kept out of screen captures while one is shown; (5) anything that
+  moves money asks again. Not worth it: a custom code format, RFID tags holding secrets. Awaiting
+  the operator's pick; belongs in an identity-on-every-device design.
 - **Released 2026-10-05:** v0.1459.0 to v0.1463.0 and v0.1464.0 (ship-homes increment 5, building
   only on your own plot; BUG-165 and BUG-166, the walking-backwards fixes; two new clips),
   all delivered to the taskbar exe.
