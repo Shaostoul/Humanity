@@ -1323,11 +1323,33 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // Render each attached image as a clickable thumbnail
                     // indented under the message text.
                     if !image_urls.is_empty() {
-                        let server_url = state.server_url.clone();
+                        // The server this message came through (its
+                        // connection's address), so a relative /uploads/ path
+                        // resolves against, and "our own server" means, the
+                        // server that delivered it. Older rows carry none.
+                        let server_url = if msg.server.is_empty() {
+                            state.server_url.clone()
+                        } else {
+                            msg.server.clone()
+                        };
                         const THUMB_INDENT: f32 = 40.0;
                         const THUMB_W: f32 = 240.0;
                         for raw_url in image_urls {
-                            let url = crate::gui::widgets::image_cache::resolve_url(&raw_url, &server_url);
+                            // Pictures from the server load by themselves; any
+                            // other website's wait for a click, because
+                            // fetching one shows that website this device's
+                            // network address (2026-10-09, defect 3.7.6 of
+                            // docs/design/blocking-and-safe-mode.md).
+                            let route = crate::gui::widgets::image_cache::route_image(&raw_url, &server_url);
+                            let url = route.url().to_string();
+                            if let crate::gui::widgets::image_cache::ImageRoute::AskFirst { host, .. } = &route {
+                                if !state.image_cache.is_allowed(&url) {
+                                    if draw_click_to_load(ui, theme, row_bg, THUMB_INDENT, host) {
+                                        state.image_cache.allow(&url);
+                                    }
+                                    continue;
+                                }
+                            }
                             state.image_cache.request(&url);
                             let status = state.image_cache.status(&url);
 
@@ -3169,6 +3191,51 @@ fn draw_role_badges(
         Color32::WHITE,
     );
     let _ = text; // suppress unused warning
+}
+
+/// The placeholder drawn in place of a picture from another website, under a
+/// message (2026-10-09). Nothing is fetched until it is clicked, and it says
+/// why in plain words: loading the picture shows that website the reader's
+/// network address. The web client shows every picture this way; native loads
+/// its own server's pictures by itself and asks only for other websites'.
+/// Returns true on the click that allows it.
+fn draw_click_to_load(ui: &mut egui::Ui, theme: &Theme, row_bg: Color32, indent: f32, host: &str) -> bool {
+    let row_w = ui.available_width();
+    let box_h = theme.font_size_small * 2.0 + 18.0;
+    let (row_rect, resp) = ui.allocate_exact_size(Vec2::new(row_w, box_h + 4.0), egui::Sense::click());
+    ui.painter().rect_filled(row_rect, 0.0, row_bg);
+    let box_w = (row_w - indent - 8.0).clamp(160.0, 480.0);
+    let box_rect = egui::Rect::from_min_size(
+        egui::pos2(row_rect.left() + indent, row_rect.top() + 2.0),
+        Vec2::new(box_w, box_h),
+    );
+    let hovered = resp.hovered();
+    let fill = if hovered { theme.bg_tertiary() } else { row_bg };
+    ui.painter().rect_filled(box_rect, Rounding::same(4), fill);
+    ui.painter().rect_stroke(box_rect, Rounding::same(4), Stroke::new(1.0, theme.border()), egui::StrokeKind::Inside);
+    // Clipped to the box, so a long website name cannot spill over the chat.
+    let painter = ui.painter_at(box_rect.shrink(1.0));
+    let line_h = theme.font_size_small + 4.0;
+    let left = box_rect.left() + 8.0;
+    let top = box_rect.top() + 6.0 + theme.font_size_small / 2.0;
+    painter.text(
+        egui::pos2(left, top),
+        egui::Align2::LEFT_CENTER,
+        format!("Picture from {host}. Click to load it."),
+        egui::FontId::proportional(theme.font_size_small),
+        theme.text_primary(),
+    );
+    painter.text(
+        egui::pos2(left, top + line_h),
+        egui::Align2::LEFT_CENTER,
+        format!("Loading this shows {host} your network address."),
+        egui::FontId::proportional(theme.font_size_small),
+        theme.text_muted(),
+    );
+    if hovered {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    resp.clicked()
 }
 
 /// Get the viewer's own role by matching their public key in the user list.
