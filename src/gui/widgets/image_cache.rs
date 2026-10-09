@@ -62,6 +62,10 @@ pub struct ImageCache {
     errors: HashMap<String, String>,
     /// Last successful download path (path toast). Keyed by URL.
     downloads: HashMap<String, std::path::PathBuf>,
+    /// Pictures from another website that the person clicked to load
+    /// (`route_image` sends those to a click-to-load placeholder). This session
+    /// only, one picture at a time, the way the web client's placeholder works.
+    allowed: HashSet<String>,
     /// Cap on max pixels per image to avoid blowing memory on a 10k×10k jpg.
     /// Default ~8 MP (3840×2160). Larger images are downsampled before upload.
     pub max_pixels: u32,
@@ -82,6 +86,7 @@ impl ImageCache {
             fetching: HashSet::new(),
             errors: HashMap::new(),
             downloads: HashMap::new(),
+            allowed: HashSet::new(),
             max_pixels: 8_294_400, // 3840x2160
             tx,
             rx,
@@ -106,6 +111,16 @@ impl ImageCache {
     /// Return a reference to the loaded texture if ready.
     pub fn get_texture(&self, url: &str) -> Option<&TextureHandle> {
         self.textures.get(url)
+    }
+
+    /// The person clicked to load this picture from another website.
+    pub fn allow(&mut self, url: &str) {
+        self.allowed.insert(url.to_string());
+    }
+
+    /// Whether the person clicked to load this picture from another website.
+    pub fn is_allowed(&self, url: &str) -> bool {
+        self.allowed.contains(url)
     }
 
     /// Request an image fetch. No-op if already fetching or loaded.
@@ -346,6 +361,77 @@ mod download_cap_tests {
     }
 }
 
+/// Which pictures named in a message load by themselves (2026-10-09, defect
+/// 3.7.6 of docs/design/blocking-and-safe-mode.md): the server's own, and no
+/// other website's.
+#[cfg(test)]
+mod route_tests {
+    use super::{extract_image_urls, route_image, ImageRoute};
+
+    const OWN: &str = "https://united-humanity.us";
+
+    fn asks(raw: &str, server: &str) -> String {
+        match route_image(raw, server) {
+            ImageRoute::AskFirst { host, .. } => host,
+            ImageRoute::Load(url) => panic!("{raw} would load by itself from {url}"),
+        }
+    }
+
+    /// Seen red 2026-10-09 with the own-server branch of `route_image` switched
+    /// off (every picture asked first): the first assertion, `/uploads/a.png`
+    /// on our own server, failed.
+    #[test]
+    fn the_servers_own_pictures_load_by_themselves() {
+        let own = "https://united-humanity.us/uploads/a.png";
+        assert_eq!(route_image("/uploads/a.png", OWN), ImageRoute::Load(own.into()));
+        assert_eq!(route_image(own, OWN), ImageRoute::Load(own.into()));
+        assert_eq!(route_image(own, "https://united-humanity.us/"), ImageRoute::Load(own.into()));
+        // Host names are not case sensitive.
+        assert!(matches!(route_image("https://United-Humanity.US/uploads/a.png", OWN), ImageRoute::Load(_)));
+        // The socket address the app may hold instead, and a bare host.
+        assert_eq!(route_image("/uploads/a.png", "wss://united-humanity.us/ws"), ImageRoute::Load(own.into()));
+        assert_eq!(route_image("/uploads/a.png", "united-humanity.us"), ImageRoute::Load(own.into()));
+        // A local server on its own port.
+        assert_eq!(
+            route_image("/uploads/a.png", "http://127.0.0.1:3210"),
+            ImageRoute::Load("http://127.0.0.1:3210/uploads/a.png".into())
+        );
+        // A path that starts with two slashes is still a path on our server.
+        assert!(matches!(route_image("//tracker.example/a.png", OWN), ImageRoute::Load(_)));
+    }
+
+    /// Seen red 2026-10-09 with `route_image` loading every picture, as the
+    /// chat did before: "https://tracker.example/pixel.png would load by itself
+    /// from https://tracker.example/pixel.png".
+    #[test]
+    fn any_other_website_waits_for_a_click_and_is_named() {
+        assert_eq!(asks("https://tracker.example/pixel.png", OWN), "tracker.example");
+        assert_eq!(asks("http://tracker.example/pixel.png", OWN), "tracker.example");
+        // Lookalikes: a subdomain, another port, our name as a login part.
+        assert_eq!(asks("https://cdn.united-humanity.us/a.png", OWN), "cdn.united-humanity.us");
+        assert_eq!(asks("https://united-humanity.us:8443/a.png", OWN), "united-humanity.us:8443");
+        assert_eq!(asks("https://united-humanity.us@tracker.example/a.png", OWN), "tracker.example");
+        assert_eq!(asks("https://tracker.example\\@united-humanity.us/a.png", OWN), "tracker.example");
+        assert_eq!(asks("https://united-humanity.us.tracker.example/a.png", OWN), "united-humanity.us.tracker.example");
+        // Another server's picture is another website to a reader on this one.
+        assert_eq!(asks("https://united-humanity.us/uploads/a.png", "http://127.0.0.1:3210"), "united-humanity.us");
+        // Nothing the fetcher could load still never loads by itself.
+        assert_eq!(asks("ftp://tracker.example/a.png", OWN), "another website");
+    }
+
+    /// Seen red 2026-10-09 both ways: with every picture loaded (the tracker's
+    /// came back `Load`) and with every picture asked first (our own came
+    /// back `AskFirst`).
+    #[test]
+    fn a_message_with_both_kinds_routes_each_picture_on_its_own() {
+        let text = "look /uploads/cat.jpg and https://tracker.example/x.gif";
+        let routes: Vec<ImageRoute> = extract_image_urls(text).iter().map(|u| route_image(u, OWN)).collect();
+        assert_eq!(routes.len(), 2, "{routes:?}");
+        assert!(matches!(routes[0], ImageRoute::Load(_)), "{routes:?}");
+        assert!(matches!(&routes[1], ImageRoute::AskFirst { host, .. } if host == "tracker.example"), "{routes:?}");
+    }
+}
+
 /// Scan a plain-text string for image URLs. Returns each URL substring we
 /// find that has an image extension. Both absolute (http/https) and relative
 /// (`/uploads/...`) are matched. Absolute URLs pass through; relative URLs
@@ -409,6 +495,90 @@ pub fn resolve_url(raw: &str, server_url: &str) -> String {
     } else {
         raw.to_string()
     }
+}
+
+/// Where a picture named in a chat message may be loaded from (2026-10-09,
+/// defect 3.7.6 of docs/design/blocking-and-safe-mode.md). Fetching a picture
+/// shows the website that serves it this device's network address, and anyone
+/// can post a link to a server they run to collect the addresses of everyone
+/// who reads the message. The server the message came through already sees the
+/// address, so its own pictures load straight away; any other website's wait
+/// for a click.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ImageRoute {
+    /// Served by the person's own server: load it now.
+    Load(String),
+    /// Served by another website, named by `host`: show the click-to-load
+    /// placeholder first.
+    AskFirst { url: String, host: String },
+}
+
+impl ImageRoute {
+    /// The full URL the picture is fetched from.
+    pub fn url(&self) -> &str {
+        match self {
+            ImageRoute::Load(url) => url,
+            ImageRoute::AskFirst { url, .. } => url,
+        }
+    }
+}
+
+/// Decide where a picture named in a message may load from. `raw` is what
+/// `extract_image_urls` found; `server_url` is the server the message came
+/// through, in whatever form the app holds it (`https://host`, `wss://host/ws`,
+/// a bare `host:port`). A picture counts as the server's own only when its host
+/// AND port are the server's: a subdomain, another port or a lookalike host is
+/// another website. Hosts are compared after the URL parser that does the
+/// fetching has read them, so `https://own.example@other.example/` is
+/// `other.example`, as the fetch would see it.
+pub fn route_image(raw: &str, server_url: &str) -> ImageRoute {
+    let base = http_base(server_url);
+    let url = resolve_url(raw, &base);
+    let picture = url::Url::parse(&url)
+        .ok()
+        .filter(|u| matches!(u.scheme(), "http" | "https"));
+    let Some(picture) = picture else {
+        // Nothing the fetcher could load, and nothing to name.
+        return ImageRoute::AskFirst { url, host: "another website".to_string() };
+    };
+    let own = origin_of(&base);
+    let theirs = picture
+        .host_str()
+        .map(|h| h.to_ascii_lowercase())
+        .zip(picture.port_or_known_default());
+    if own.is_some() && own == theirs {
+        return ImageRoute::Load(url);
+    }
+    let host = match (picture.host_str(), picture.port()) {
+        (Some(h), Some(p)) => format!("{h}:{p}"),
+        (Some(h), None) => h.to_string(),
+        (None, _) => "another website".to_string(),
+    };
+    ImageRoute::AskFirst { url, host }
+}
+
+/// The web address a server's own files are served under: `wss://host/ws`
+/// becomes `https://host`, `ws://` becomes `http://`, a bare `host:port`
+/// becomes `https://host:port`, the same way the WebRTC manager's
+/// `relay_base` is derived from the socket address in src/lib.rs.
+fn http_base(server_url: &str) -> String {
+    let s = server_url.trim().trim_end_matches('/');
+    let s = s.strip_suffix("/ws").unwrap_or(s);
+    if let Some(rest) = s.strip_prefix("wss://") {
+        format!("https://{rest}")
+    } else if let Some(rest) = s.strip_prefix("ws://") {
+        format!("http://{rest}")
+    } else if s.starts_with("https://") || s.starts_with("http://") || s.is_empty() {
+        s.to_string()
+    } else {
+        format!("https://{s}")
+    }
+}
+
+/// A server's host (lower case) and port, or `None` when it has no host.
+fn origin_of(base: &str) -> Option<(String, u16)> {
+    let u = url::Url::parse(base).ok()?;
+    Some((u.host_str()?.to_ascii_lowercase(), u.port_or_known_default()?))
 }
 
 /// Return a copy of `text` with all image URLs removed, collapsing any

@@ -79,7 +79,12 @@
 //!   (server-reflexive address) from the Binding Response's XOR-MAPPED-ADDRESS,
 //!   add it as a local candidate to every peer's `Rtc`, and *trickle* it to the
 //!   far side as a `dc_ice` signal. See the `// STUN srflx` / `// inc-3a`
-//!   markers and the `mod stun` block.
+//!   markers and the `mod stun` block. Since 2026-10-09 the STUN servers are
+//!   asked only while a connection is being made (`stun_request_due`), not on
+//!   every chat connection.
+//! - Who we answer (2026-10-09): a `dc_offer` is answered only when the app has
+//!   a reason to connect to its sender (`OfferReason`, `direct_offer_reason`);
+//!   answering hands over this device's network address.
 //! - inc-3b (THIS increment): TURN relay (RFC 5766) for the symmetric-NAT
 //!   fallback. When BOTH peers are behind symmetric NATs, srflx hole-punching
 //!   fails (each NAT maps the same internal socket to a *different* external
@@ -167,6 +172,13 @@ use str0m::{Candidate, Event, Input, Output, Rtc};
 /// (`web/chat/chat-voice-rooms.js`'s `rtcConfig.iceServers`), so a native peer
 /// and a browser peer derive their srflx from the same public reflectors.
 ///
+/// Every request shows that company this device's network address, so they are
+/// asked only while a connection is actually being made (a call, a voice room,
+/// or a direct connection we agreed to; see `stun_request_due`), never just
+/// because the app is connected to a chat server (2026-10-09,
+/// docs/design/blocking-and-safe-mode.md section 7.1 item 1). Replacing Google
+/// with a responder of our own is a later increment (section 7.4 step 2).
+///
 /// Stored as bare `host:port` (NOT `stun:` URLs) because we resolve them with
 /// `ToSocketAddrs` directly — there's no URL parsing here, just DNS + UDP.
 /// (TURN — the `turn:`/`turns:` entries in the web config — is inc-3b and is
@@ -227,6 +239,116 @@ const CHANNEL_LABEL: &str = "hum-data";
 /// from the relay's voice_channel_list; this name is ours alone).
 pub const CALL_ROOM_ID: &str = "__call__";
 
+// ── Who this device opens a direct connection to (2026-10-09) ────────────
+//
+// Answering a `dc_offer` hands the sender this device's network address: our
+// answer carries our host candidate, and the srflx/relayed candidates trickle
+// after it. The relay forwards `dc_offer` from anyone online, and this app used
+// to answer every one, so anyone could learn anyone's address without a call
+// (docs/design/blocking-and-safe-mode.md, defect 3.7.2). Now an offer is
+// answered only when the app already has a reason to connect to that person;
+// anyone else is ignored silently: no answer, no error back, nothing to probe.
+
+/// Why this device agreed to answer someone's direct-connection offer. Carried
+/// down to the WebRTC thread with the offer (`WebrtcHandle::submit_offer`), so
+/// an offer that arrives without one can never be answered by accident.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OfferReason {
+    /// Another device signed in with the same identity.
+    OwnDevice,
+    /// A friend: we still follow them and hold the friendship certificate
+    /// they gave us (`holds_friendship`).
+    Friend,
+    /// Someone in one of the P2P groups we are in: the group mesh connects
+    /// members directly (`ensure_group_mesh`, src/gui/pages/chat/p2p_groups.rs).
+    GroupMember,
+    /// The other person in our current 1:1 call, or someone in the voice room
+    /// we are in.
+    CallOrRoom,
+    /// The person this device itself asked to connect to (the Dev tools
+    /// "P2P test"). The offerer rule makes the side with the larger key send
+    /// the offer, so the person we asked is often the one who offers.
+    AskedByUs,
+}
+
+/// What the app knows about the sender of a direct-connection offer, gathered
+/// by the caller from its own state (`dc_offer_reason` in
+/// src/engine/frame_ws_poll.rs). Plain data, so the decision below is a pure
+/// function a test can drive without a running app.
+#[derive(Debug, Default)]
+pub struct OfferFacts<'a> {
+    /// This device's identity key.
+    pub my_key: &'a str,
+    /// The sender is a friend (`holds_friendship`, worked out by the caller,
+    /// which holds the DM store).
+    pub sender_is_friend: bool,
+    /// Every member of every P2P group we are in.
+    pub group_members: Vec<&'a str>,
+    /// The other person in our current 1:1 call, if any.
+    pub call_peer: Option<&'a str>,
+    /// Everyone in the voice room we are in (empty when not in one).
+    pub voice_room_peers: Vec<&'a str>,
+    /// The person the Dev tools "P2P test" asked to connect to, if any.
+    pub asked_peer: Option<&'a str>,
+}
+
+/// Decide whether to answer a direct-connection offer from `from`, and why.
+/// `None` means ignore it silently.
+pub fn direct_offer_reason(from: &str, facts: &OfferFacts) -> Option<OfferReason> {
+    if from.is_empty() {
+        return None;
+    }
+    if from == facts.my_key {
+        return Some(OfferReason::OwnDevice);
+    }
+    if facts.sender_is_friend {
+        return Some(OfferReason::Friend);
+    }
+    if facts.group_members.iter().any(|k| *k == from) {
+        return Some(OfferReason::GroupMember);
+    }
+    if facts.call_peer == Some(from) || facts.voice_room_peers.iter().any(|k| *k == from) {
+        return Some(OfferReason::CallOrRoom);
+    }
+    if facts.asked_peer == Some(from) {
+        return Some(OfferReason::AskedByUs);
+    }
+    None
+}
+
+/// Whether `from` counts as a friend for a direct connection. Both halves are
+/// needed: we still follow them (unfollowing ends it on our side, even though
+/// their certificate stays in our store, section 3.2 of the design), and we hold
+/// the certificate they gave us and it really is theirs, naming us. The store
+/// only keeps a certificate that verified on arrival (`ingest_control`); it is
+/// checked again here because one Dilithium check per offer is cheap and the
+/// store is a file on disk.
+pub fn holds_friendship(i_follow: bool, their_cert: Option<&str>, from: &str, my_key: &str) -> bool {
+    i_follow
+        && their_cert
+            .map_or(false, |c| crate::relay::core::pq_crypto::verify_friend_cert(from, my_key, c))
+}
+
+/// Whether the loop should send STUN Binding Requests now. Asking a STUN server
+/// shows it this device's network address, so we ask only while a connection
+/// is being made (`connections_being_made` > 0: we offered, or answered an
+/// offer we had a reason to answer), only until we have learned the address,
+/// and at most once per `STUN_RETRY_INTERVAL`.
+fn stun_request_due(
+    srflx_known: bool,
+    connections_being_made: usize,
+    last_send: Option<Instant>,
+    now: Instant,
+) -> bool {
+    if srflx_known || connections_being_made == 0 {
+        return false;
+    }
+    match last_send {
+        None => true,
+        Some(last) => now.duration_since(last) >= STUN_RETRY_INTERVAL,
+    }
+}
+
 /// An event surfaced from the WebRTC thread up to the GUI. The GUI drains these
 /// via `WebrtcHandle::poll_events()` each frame and turns them into debug lines
 /// / chat messages.
@@ -256,6 +378,9 @@ enum Command {
         /// The signal payload. By contract this is a JSON *string* (the web
         /// `JSON.stringify`'d the SDP/candidate); we parse it back inside.
         data: Value,
+        /// For a `dc_offer`: why the app agreed to answer it. `None` means it
+        /// did not, and the thread drops the offer (see `OfferReason`).
+        offer_reason: Option<OfferReason>,
     },
     /// Application request: start a connection to `peer` (offerer side).
     /// `wants_voice` negotiates an Opus audio m-line too (Phase B); `voice_room`
@@ -300,11 +425,25 @@ pub struct WebrtcHandle {
 
 impl WebrtcHandle {
     /// Feed an inbound `webrtc_signal` (from the relay, via the GUI) into the
-    /// manager. `from` is the sender's pubkey hex, `signal_type` is one of
-    /// `dc_offer` / `dc_answer` / `dc_ice`, and `data` is the JSON value the
-    /// relay forwarded (a JSON string per the contract).
+    /// manager. `from` is the sender's pubkey hex, `signal_type` is
+    /// `dc_answer` or `dc_ice`, and `data` is the JSON value the relay
+    /// forwarded (a JSON string per the contract). A `dc_offer` passed here is
+    /// dropped: answering one hands the sender this device's address, so it
+    /// goes through [`submit_offer`](Self::submit_offer) with a reason.
     pub fn submit_signal(&self, from: String, signal_type: String, data: Value) {
-        let _ = self.tx_cmd.send(Command::Signal { from, signal_type, data });
+        let _ = self.tx_cmd.send(Command::Signal { from, signal_type, data, offer_reason: None });
+    }
+
+    /// Feed an inbound `dc_offer` the app has decided to answer, with the
+    /// reason it may ([`direct_offer_reason`]). The caller decides; the thread
+    /// only answers.
+    pub fn submit_offer(&self, from: String, data: Value, reason: OfferReason) {
+        let _ = self.tx_cmd.send(Command::Signal {
+            from,
+            signal_type: "dc_offer".to_string(),
+            data,
+            offer_reason: Some(reason),
+        });
     }
 
     /// Begin opening a DataChannel to `peer` (by Dilithium pubkey hex).
@@ -590,7 +729,10 @@ impl WebrtcManager {
                 }
             }
 
-            // ── A2. inc-3a STUN gather: until we know our server-reflexive
+            // ── A2. inc-3a STUN gather: only while a connection is being made
+            //    (never with none, see `stun_request_due`; this runs right after
+            //    step A, so the turn that creates the first peer also sends the
+            //    first request), and until we know our server-reflexive
             //    (public) address, (re)send Binding Requests to the STUN servers
             //    on a slow cadence. This does NOT mutate any Rtc — it only sends
             //    plain STUN datagrams on the shared socket — so it's free of the
@@ -1048,8 +1190,8 @@ impl WebrtcManager {
                     let _ = self.tx_event.send(WebrtcEvent::Closed { peer });
                 }
             }
-            Command::Signal { from, signal_type, data } => {
-                self.cmd_signal(from, signal_type, data)
+            Command::Signal { from, signal_type, data, offer_reason } => {
+                self.cmd_signal(from, signal_type, data, offer_reason)
             }
         }
     }
@@ -1228,7 +1370,12 @@ impl WebrtcManager {
     }
 
     /// Handle an inbound `webrtc_signal` of one of: dc_offer / dc_answer / dc_ice.
-    fn cmd_signal(&mut self, from: String, signal_type: String, data: Value) {
+    ///
+    /// A `dc_offer` is answered only when it carries an `offer_reason` (the app
+    /// decided, `direct_offer_reason`); one without is dropped without a word
+    /// back. `dc_answer` and `dc_ice` need no gate: they only act on a peer
+    /// this device created itself, by offering or by answering a reasoned offer.
+    fn cmd_signal(&mut self, from: String, signal_type: String, data: Value, offer_reason: Option<OfferReason>) {
         // By contract `data` is a JSON STRING. Pull the inner string out; if the
         // relay ever forwarded a raw object instead, fall back to re-serializing.
         let inner: String = match &data {
@@ -1237,19 +1384,27 @@ impl WebrtcManager {
         };
 
         match signal_type.as_str() {
-            "dc_offer" => self.on_offer(from, &inner),
+            "dc_offer" => match offer_reason {
+                Some(reason) => self.on_offer(from, &inner, reason),
+                None => log::debug!("WebRTC: dc_offer from {} not answered (no reason to connect)", short(&from)),
+            },
             "dc_answer" => self.on_answer(from, &inner),
             "dc_ice" => self.on_ice(from, &inner),
             other => log::debug!("WebRTC: ignoring unknown signal_type '{other}' from {}", short(&from)),
         }
     }
 
-    /// We received an offer — we are the answerer. Build an Rtc, accept the
-    /// offer, and send back our answer.
-    fn on_offer(&mut self, from: String, sdp_json: &str) {
+    /// We received an offer the app agreed to answer (`reason`), so we are the
+    /// answerer. Build an Rtc, accept the offer, and send back our answer.
+    fn on_offer(&mut self, from: String, sdp_json: &str, reason: OfferReason) {
+        // Our own key is an allowed sender (`OfferReason::OwnDevice`), but this
+        // manager names peers by identity key, and another device of ours has
+        // the same key as this one, so the two cannot be told apart yet. Until
+        // devices get ids of their own, an offer from our own key stays refused.
         if from == self.my_pubkey_hex {
             return;
         }
+        log::debug!("WebRTC: answering dc_offer from {} ({reason:?})", short(&from));
         let offer: SdpOffer = match serde_json::from_str(sdp_json) {
             Ok(o) => o,
             Err(e) => {
@@ -1644,23 +1799,26 @@ impl WebrtcManager {
     //  inc-3a — STUN server-reflexive gathering
     // ════════════════════════════════════════════════════════════════════
 
-    /// If we don't yet know our server-reflexive (public) address, (re)send a
-    /// STUN Binding Request to each configured STUN server, at most once per
-    /// `STUN_RETRY_INTERVAL`. No-op once `srflx` is known.
+    /// If we don't yet know our server-reflexive (public) address AND a
+    /// connection is being made, (re)send a STUN Binding Request to each
+    /// configured STUN server, at most once per `STUN_RETRY_INTERVAL`. No-op
+    /// once `srflx` is known, and no-op while there is no connection: the
+    /// manager starts on every chat connection, and until 2026-10-09 this asked
+    /// Google for the address of every desktop app that connected, voice or
+    /// not. Now the first request goes out in the same loop turn that creates
+    /// the first connection, and the address it learns is trickled to the peer
+    /// (`apply_srflx_to_all_peers`), the way a candidate learned late always was.
     ///
     /// This only sends opaque UDP datagrams on the shared socket — it touches no
     /// `Rtc` — so it is exempt from str0m's single-mutation drain invariant.
     fn maybe_send_stun(&mut self) {
-        if self.srflx.is_some() {
-            return; // already learned our public address — nothing to do.
-        }
-        // Rate-limit: only send if we've never sent, or the retry interval has
-        // elapsed since the last batch.
         let now = Instant::now();
-        if let Some(last) = self.last_stun_send {
-            if now.duration_since(last) < STUN_RETRY_INTERVAL {
-                return;
-            }
+        // Reaped every loop turn, so this counts connections still being made
+        // or in use. Hostname lookups below wait for it too, so nothing about
+        // the STUN servers is touched before a connection exists.
+        let connections = self.peers.values().filter(|p| p.rtc.is_alive()).count();
+        if !stun_request_due(self.srflx.is_some(), connections, self.last_stun_send, now) {
+            return;
         }
 
         // Resolve STUN server hostnames to addresses if we haven't yet (or a
@@ -3452,6 +3610,158 @@ mod turn {
             assert!((0x4000u16 >> 8) as u8 == 0x40);
             assert!((0x7FFFu16 >> 8) as u8 == 0x7F);
         }
+    }
+}
+
+/// Who this device answers, and when it asks a STUN server for its address
+/// (2026-10-09, docs/design/blocking-and-safe-mode.md defect 3.7.2 and section
+/// 7.1 item 1). Everything here stays on this machine: the sockets are bound to
+/// 127.0.0.1 and the one "STUN server" is a socket of the test's own.
+#[cfg(test)]
+mod who_we_answer_tests {
+    use super::*;
+
+    const ME: &str = "bb";
+    const STRANGER: &str = "aa";
+
+    /// A manager as `start` builds one, without the thread, so a test can call
+    /// its methods directly and read what it queued.
+    fn manager() -> (WebrtcManager, Receiver<String>) {
+        let udp = UdpSocket::bind("127.0.0.1:0").expect("bind loopback");
+        let local_addr = udp.local_addr().unwrap();
+        let (_tx_cmd, rx_cmd) = mpsc::channel();
+        let (tx_event, _rx_event) = mpsc::channel();
+        let (tx_outbound, rx_outbound) = mpsc::channel();
+        let mgr = WebrtcManager {
+            my_pubkey_hex: ME.to_string(),
+            udp,
+            local_addr,
+            peers: HashMap::new(),
+            rx_cmd,
+            tx_event,
+            tx_outbound,
+            stun_pending: HashMap::new(),
+            stun_servers: Vec::new(),
+            srflx: None,
+            last_stun_send: None,
+            turn: None,
+            turn_last_fetch: None,
+            relay_base: String::new(),
+        };
+        (mgr, rx_outbound)
+    }
+
+    /// A real data-channel offer, as another app would send it (`data` is the
+    /// JSON string the signaling contract carries).
+    fn an_offer() -> Value {
+        let mut rtc = Rtc::builder().build(Instant::now());
+        let mut api = rtc.sdp_api();
+        let _ = api.add_channel(CHANNEL_LABEL.to_string());
+        let (offer, _pending) = api.apply().expect("offer produced");
+        Value::String(serde_json::to_string(&offer).unwrap())
+    }
+
+    /// Seen red 2026-10-09 with `cmd_signal` answering an offer that came with
+    /// no reason (as every offer was answered before): "an offer with no
+    /// reason to connect must get no answer".
+    #[test]
+    fn a_strangers_offer_gets_no_answer_and_a_reasoned_one_does() {
+        let (mut mgr, outbound) = manager();
+        // An offer handed in with no reason: the old path answered it.
+        mgr.cmd_signal(STRANGER.into(), "dc_offer".into(), an_offer(), None);
+        assert!(outbound.try_recv().is_err(), "an offer with no reason to connect must get no answer");
+        assert!(mgr.peers.is_empty(), "and no connection may be started for it");
+
+        // The same offer from someone the app has a reason to connect to.
+        mgr.cmd_signal(STRANGER.into(), "dc_offer".into(), an_offer(), Some(OfferReason::GroupMember));
+        let answer = outbound.try_recv().expect("a reasoned offer is answered");
+        assert!(answer.contains("\"dc_answer\""), "{answer}");
+        assert!(mgr.peers.contains_key(STRANGER));
+    }
+
+    /// Seen red 2026-10-09 with `direct_offer_reason` ending in an answer for
+    /// everyone left over: "a stranger is ignored", left: Some(Friend).
+    #[test]
+    fn only_people_we_have_a_reason_to_connect_to_are_answered() {
+        let group = ["g1", "g2"];
+        let room = ["r1"];
+        let facts = OfferFacts {
+            my_key: ME,
+            sender_is_friend: false,
+            group_members: group.to_vec(),
+            call_peer: Some("c1"),
+            voice_room_peers: room.to_vec(),
+            asked_peer: Some("t1"),
+        };
+        assert_eq!(direct_offer_reason(STRANGER, &facts), None, "a stranger is ignored");
+        assert_eq!(direct_offer_reason("", &facts), None, "no sender, no answer");
+        assert_eq!(direct_offer_reason(ME, &facts), Some(OfferReason::OwnDevice));
+        assert_eq!(direct_offer_reason("g2", &facts), Some(OfferReason::GroupMember));
+        assert_eq!(direct_offer_reason("c1", &facts), Some(OfferReason::CallOrRoom));
+        assert_eq!(direct_offer_reason("r1", &facts), Some(OfferReason::CallOrRoom));
+        assert_eq!(direct_offer_reason("t1", &facts), Some(OfferReason::AskedByUs));
+        let friend = OfferFacts { my_key: ME, sender_is_friend: true, ..Default::default() };
+        assert_eq!(direct_offer_reason(STRANGER, &friend), Some(OfferReason::Friend));
+        // Being in a call or a room lets in THAT person, nobody else.
+        let in_call = OfferFacts { my_key: ME, call_peer: Some("c1"), ..Default::default() };
+        assert_eq!(direct_offer_reason("c2", &in_call), None);
+    }
+
+    /// Seen red 2026-10-09 with `holds_friendship` reduced to "holds a
+    /// certificate": "unfollowed: their certificate alone is not enough".
+    #[test]
+    fn friendship_needs_our_follow_and_their_certificate_naming_us() {
+        use crate::relay::core::pq_crypto::{build_friend_cert, derive_dilithium_seed, DilithiumKeypair};
+        let key_of = |seed: &[u8; 32]| hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(seed)).public_key());
+        let (them_seed, me_seed, other_seed) = ([0x31u8; 32], [0x32u8; 32], [0x33u8; 32]);
+        let (them, me, other) = (key_of(&them_seed), key_of(&me_seed), key_of(&other_seed));
+        let to_me = build_friend_cert(&them_seed, &them, &me);
+        assert!(holds_friendship(true, Some(&to_me), &them, &me), "we follow them and hold their certificate");
+        assert!(!holds_friendship(false, Some(&to_me), &them, &me), "unfollowed: their certificate alone is not enough");
+        assert!(!holds_friendship(true, None, &them, &me), "no certificate yet");
+        let to_other = build_friend_cert(&them_seed, &them, &other);
+        assert!(!holds_friendship(true, Some(&to_other), &them, &me), "a certificate naming someone else");
+        let from_other = build_friend_cert(&other_seed, &other, &me);
+        assert!(!holds_friendship(true, Some(&from_other), &them, &me), "someone else's certificate passed off as theirs");
+    }
+
+    /// Seen red 2026-10-09 with the connection count dropped from
+    /// `stun_request_due` (the old rule, "until the address is known"):
+    /// "connected to a chat server, no call: no STUN".
+    #[test]
+    fn stun_is_asked_only_while_a_connection_is_being_made() {
+        let now = Instant::now();
+        assert!(!stun_request_due(false, 0, None, now), "connected to a chat server, no call: no STUN");
+        assert!(stun_request_due(false, 1, None, now), "the first connection asks at once");
+        let just_now = now - Duration::from_millis(500);
+        assert!(!stun_request_due(false, 1, Some(just_now), now), "not again within the retry interval");
+        let a_while_ago = now - STUN_RETRY_INTERVAL;
+        assert!(stun_request_due(false, 1, Some(a_while_ago), now), "retried when no answer came");
+        assert!(!stun_request_due(true, 3, None, now), "the address is known: never again");
+    }
+
+    /// The same rule through the manager: with a connection-less manager the
+    /// "STUN server" (a socket of this test's) hears nothing; once an offer is
+    /// answered, it receives a Binding Request. Seen red 2026-10-09 with the
+    /// same change to `stun_request_due`: "no connection, no request".
+    #[test]
+    fn the_manager_sends_no_stun_until_it_answers_an_offer() {
+        let reflector = UdpSocket::bind("127.0.0.1:0").expect("bind loopback");
+        reflector.set_read_timeout(Some(Duration::from_millis(200))).unwrap();
+        let (mut mgr, _outbound) = manager();
+        // Filled in so no hostname is looked up and nothing leaves the machine.
+        mgr.stun_servers = vec![reflector.local_addr().unwrap()];
+        let mut buf = [0u8; 128];
+
+        mgr.maybe_send_stun();
+        assert!(mgr.stun_pending.is_empty() && mgr.last_stun_send.is_none(), "no connection, no request");
+        assert!(reflector.recv_from(&mut buf).is_err(), "nothing reached the STUN server");
+
+        mgr.cmd_signal(STRANGER.into(), "dc_offer".into(), an_offer(), Some(OfferReason::CallOrRoom));
+        mgr.maybe_send_stun();
+        assert_eq!(mgr.stun_pending.len(), 1, "one request per server once a connection exists");
+        let (n, _) = reflector.recv_from(&mut buf).expect("the STUN server got a request");
+        assert!(n >= 20 && buf[0] == 0x00 && buf[1] == 0x01, "a STUN Binding Request");
     }
 }
 
