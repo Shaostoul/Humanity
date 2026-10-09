@@ -5149,3 +5149,35 @@ tells the caller a hidden person is online; neither sends `friend_cert` on trade
 friends' trade notes are cut to 80 characters too until they do. Not changed and noticed: the
 limit of 10 active trades counts trades you received, so strangers' pending requests can stop you
 starting your own.
+
+## BUG-173: the desktop app showed its network address to anyone who asked, to Google on every connection, and to any website a picture link named (FIXED next release, found 2026-10-09)
+
+The native half of BUG-171, found by the blocking and safe-mode design
+(`docs/design/blocking-and-safe-mode.md`, 3.7.2, 3.7.6, 7.1 item 1) and confirmed by reading:
+
+- **Anyone online** could get the device's address: it answered every direct-connection offer
+  (`cmd_signal` to `on_offer` in `src/net/webrtc.rs`; `frame_ws_poll.rs` passed every `dc_*`
+  signal through). Now an offer is answered only from our own key, a friend (we still follow them
+  AND hold their certificate naming us, so unfollowing also closes this), a member of a P2P group
+  we are in, the person in our call, someone in our voice room, or the person the Dev tools P2P
+  test targets: `dc_offer_reason` gathers the facts, `direct_offer_reason` decides, and the WebRTC
+  thread drops any offer that arrives without a reason. Voice-room offers are taken only for the
+  room we are in (`voice_signal_wanted`; 1:1 calls arrive by another path and are unchanged).
+- **Google** was asked for the address on every chat connection (the WebRTC manager starts on
+  connect and sent STUN until it learned its address). Now STUN goes out only while a direct
+  connection is being made (`stun_request_due`); the address reaches the peer as a late candidate.
+- **Any website** a post or DM named got the reader's address: pictures loaded by themselves
+  (`extract_image_urls`, `resolve_url` in `image_cache.rs`). Now only the server's own pictures do
+  (`route_image`, comparing host and port with the `url` crate, so `own@evil` tricks, subdomains
+  and other ports count as another site); any other shows "Picture from <host>. Click to load it."
+  and "Loading this shows <host> your network address." Relative `/uploads/` paths now resolve
+  against the server that delivered the message.
+
+**Tests:** `net::webrtc::who_we_answer_tests`, `engine::frame_ws_poll::dc_offer_tests`,
+`gui::widgets::image_cache::route_tests` (10), each seen red against its reverted fix line.
+
+**Not yet seen in a running app:** the placeholder's look; whether the first call between two
+home networks connects as reliably now that the public address arrives a moment after the offer;
+a packet capture showing no traffic to Google in a chat-only session. **Left:** Google is still
+the STUN server once a call starts (design 7.4 step 2); group and call peers still see each
+other's address.
