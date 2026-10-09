@@ -5086,3 +5086,32 @@ pins, the stranger's entry was merged, and the Sync button offered to the strang
 **Left (the safety work's increment 0):** both clients still accept a direct-connection offer
 from anyone, which hands over the device's network address (defects 3.7.1 and 3.7.2); contact
 cards and group messages carried on it verify their own signatures.
+
+## BUG-171: web chat showed your network address to people you never chose (FIXED next release, found 2026-10-09)
+
+Three ways, all found by the blocking and safe-mode design's survey
+(`docs/design/blocking-and-safe-mode.md`, 3.7.1, 3.7.2, 7.1 item 5) or while fixing it:
+
+1. **Anyone could open a direct connection.** `handleDCOffer` (`web/chat/chat-p2p.js`) answered
+   every direct-connection offer the relay forwarded, so anyone online could learn your address
+   (a rough location and your internet provider) without a call, and open a channel to you. Now
+   `mayAnswerDirectOffer` answers only your own devices, contacts you added, members of your P2P
+   groups, the person in your accepted call, and people in your voice room; anyone else gets no
+   answer at all. The features that open direct connections reach only those people anyway.
+2. **A caller could get your microphone before you pressed Accept.**
+   `handleWebrtcSignalMessage` (`web/chat/chat-voice-calls.js`) took a call offer from someone
+   who was only ringing you, and `handleOffer` turned the microphone on and answered while the
+   incoming-call screen was still asking. A modified client could get your address, and your
+   voice if the site already had microphone permission. Call signals now count only once the
+   call is accepted; both shipped clients send their offer only after the accept, so real calls
+   are unchanged.
+3. **Link-preview pictures loaded from the linked site**, which showed every reader's address to
+   it (`link_previews` in `web/chat/app.js`). Now only pictures this site serves load by
+   themselves; any other waits behind a "Load picture" button naming the site.
+
+**Tests:** `scripts/tests/p2p-direct-offers.test.js` (7) and
+`scripts/tests/link-preview-pictures.test.js` (5), in `just rig-tests`, each seen red against the
+code before the fix and with each fix line undone one at a time.
+
+**Left:** the desktop app's side (answers to direct connections, Google contacted on every
+connection, pictures from any site) is the native half of the same step.
