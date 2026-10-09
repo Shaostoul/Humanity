@@ -83,7 +83,15 @@ prev="$(cat "$STATE_FILE" 2>/dev/null || echo 'unknown')"
 
 if [ "$code" = "200" ]; then
   case "$prev" in
-    suspect|healing|down-critical)
+    suspect)
+      # ONE failed check and then healthy: a deploy's restart, or one slow
+      # answer. Nothing was confirmed down and no "down" alert went out, so
+      # a "recovered" post would announce an outage nobody had. It did, 73
+      # times in #announcements (2026-05 to 2026-10, BUG-169): every deploy
+      # restart posted "Relay recovered" with no outage before it.
+      log "healthy again after one failed check (was 'suspect'): not an outage, nothing posted"
+      ;;
+    healing|down-critical)
       log "RECOVERED: relay healthy again (HTTP 200, was '$prev')"
       announce "[Watchdog] Relay recovered and is responding again."
       external_alert "HumanityOS relay RECOVERED and is responding again." "info"

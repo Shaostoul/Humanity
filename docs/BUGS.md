@@ -5037,12 +5037,23 @@ and the next night's cleanup took it to 40%. Nothing else on the disk moved: the
   disk before, so the next incident's cause is in the journal. This one took an hour of
   reconstruction from directory change times because the guard only ever said "100%".
 
-**Still to do on the VPS** (each changes the live server, so each waits for the operator's go):
-redeploy the relay (`just sync`), restart Forgejo, stop Forgejo keeping archives for a day
-(`[cron.archive_cleanup]` hourly with `OLDER_THAN = 1h`, or turn archive downloads off with
-`[repository] DISABLE_DOWNLOAD_SOURCE_ARCHIVES = true`), a `robots.txt` on the git host asking
-crawlers to skip archive and per-commit pages, re-fetch the cut-short release files from GitHub
-and regenerate the manifest, and decide what to do with the 73 alert messages in #announcements.
+**Done on the VPS, 2026-10-09** (with the operator's go):
+- The operator ran `just sync` (the redeploy).
+- **Archives limited:** nginx now allows at most one archive request a minute for everyone
+  together, burst 5, then 429. The git site's config is now in the repo:
+  `scripts/nginx/git.united-humanity.us.conf`.
+- **Forgejo:** it deletes each archive after 10 minutes (`[cron.archive_cleanup]` in
+  `/etc/forgejo/app.ini`) and was restarted, which clears the stuck queue. The old
+  `app.ini` and nginx file are in `/root/bug169/`.
+- **No robots.txt change:** Forgejo's built-in robots.txt already asked crawlers to skip
+  archives and per-commit pages, and the crawler ignored it.
+- **Release files:** the nine cut-short v0.1464.x files were re-fetched from GitHub,
+  each checked against GitHub's SHA-256, and the manifest regenerated.
+- **#announcements:** the 73 "[Disk Guard]" alerts were removed. The rows were saved first to
+  `/root/announcements-cleanup/disk-guard-73-removed-2026-10-09.json`.
+- **The Watchdog's empty notices stop:** it posted "Relay recovered" 73 times with no outage
+  before it, one for every deploy restart that failed a single health check. It now posts only
+  after a confirmed outage (`scripts/humanity-relay-watchdog.sh`, the `suspect` case).
 
 **Lesson.** The same as 2026-05-21, one directory over: the guard's trigger (disk percent) and
 its cleanup (build cache, logs, release mirror) covered different things, so it deleted the

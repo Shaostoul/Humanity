@@ -75,35 +75,35 @@ piled up in a few hours: the VPS disk sat at 100% for a day, two relay deploys
 failed and this mirror stopped syncing (its queue kept the write error after
 space came back, until a restart).
 
-What protects the disk now:
+What protects the disk now (applied 2026-10-09):
 
-- **The disk guard** (`scripts/humanity-disk-guard.sh`) clears
-  `repo-archive/` at 88% and logs a `WHERE:` line naming the biggest folders.
-  The files are a cache: Forgejo builds an archive again when one is asked for.
-- **Settings to apply on the VPS** (not applied yet; `app.ini` and the
-  `robots.txt` live only on the server). Clean up hourly instead of daily:
+- **nginx limits archive requests**, for everyone together: one a minute with
+  a burst of five; past that the answer is 429 (too many requests, try later).
+  Browsing and cloning are not limited. The site's config is
+  `scripts/nginx/git.united-humanity.us.conf` in the repo, installed as
+  `/etc/nginx/sites-available/git.united-humanity.us`; after editing, copy it
+  there, `nginx -t`, `systemctl reload nginx`.
+- **Forgejo deletes each archive ten minutes after building it** (a zip is
+  downloaded right after it is built, so nobody loses one), added to
+  `/etc/forgejo/app.ini`:
   ```ini
   [cron.archive_cleanup]
   ENABLED = true
   RUN_AT_START = true
-  SCHEDULE = @every 1h
-  OLDER_THAN = 1h
+  SCHEDULE = @every 10m
+  OLDER_THAN = 10m
   ```
-  or, to stop offering archives at all (cloning and browsing are unaffected,
-  and GitHub still offers them): `[repository] DISABLE_DOWNLOAD_SOURCE_ARCHIVES = true`.
-  Then ask crawlers to skip archives and per-commit pages, keeping the current
-  code browsable, in `/var/lib/forgejo/custom/public/robots.txt` (Forgejo
-  serves it at `/robots.txt`):
-  ```
-  User-agent: *
-  Disallow: /*/*/archive/
-  Disallow: /*/*/commit/
-  Disallow: /*/*/src/commit/
-  Disallow: /*/*/raw/commit/
-  Disallow: /*/*/blame/
-  Disallow: /*/*/compare/
-  ```
-  Restart Forgejo after either change.
+  Together that keeps the cache to about ten archives (about 5 GB) at the
+  worst. To stop offering archives altogether (cloning and browsing are
+  unaffected, and GitHub still offers them):
+  `[repository] DISABLE_DOWNLOAD_SOURCE_ARCHIVES = true`, then restart Forgejo.
+- **The disk guard** (`scripts/humanity-disk-guard.sh`) clears
+  `repo-archive/` at 88% and logs a `WHERE:` line naming the biggest folders.
+  The files are a cache: Forgejo builds an archive again when one is asked for.
+- **robots.txt does not help here.** Forgejo's built-in one (served at
+  `/robots.txt`) already asks crawlers to skip `/*/*/archive/`, `.bundle`
+  files, the source tree and every per-commit page. The crawler ignored it, so
+  the limits above are what count.
 - **If the mirror stops syncing after a full disk:** `gitea.log` shows
   `MirrorsIterate: ... no space left on device` even with the disk below 90%.
   Restart Forgejo; the queue reopens and the next sync runs within the 8-hour

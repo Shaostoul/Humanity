@@ -184,14 +184,18 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 ### RESUME HERE: where the work stands (updated 2026-10-09)
 
 - **FIRST, the VPS (BUG-169, found 2026-10-09):** a crawler filled the disk through the git
-  mirror's archive downloads on 5 October. The live relay is still v0.1463.0 and runs from a
-  DELETED binary (any restart finds nothing to run); both v0.1464.x deploys failed; the git
-  mirror has not synced since 5 October 21:44 UTC. Guard, deploy and `just sync` fixes are in
-  the repo (`scripts/clear-build-cache.sh`, `scripts/humanity-disk-guard.sh`), committed
-  locally and NOT pushed, because a push deploys. Waiting on the operator's go for: `just sync`
-  (redeploy), a Forgejo restart plus the archive settings and robots.txt
-  (`docs/admin/forgejo-setup.md`), re-fetching the cut-short v0.1464.x release files on the
-  VPS, and the 73 "[Disk Guard]" alerts in #announcements (remove or keep).
+  mirror's archive downloads on 5 October; both v0.1464.x deploys failed and the live relay ran
+  from a deleted binary. Done 2026-10-09:
+  - the operator's `just sync`;
+  - nginx limits archive requests and Forgejo deletes archives after 10 minutes (and was
+    restarted);
+  - the v0.1464.x release files were re-fetched and verified;
+  - the 73 Disk Guard alerts were removed from #announcements.
+
+  In the repo: `scripts/clear-build-cache.sh`, the disk guard and watchdog fixes, and the git
+  site's nginx config. Open: confirm the mirror syncs again, and the operator's call on the rest
+  of #announcements: 73 empty "Relay recovered" posts, 455 exact duplicate deploy notices, and
+  whether deploy notices (5,251, two per release) belong in #announcements at all.
 - **Released 2026-10-05:** v0.1459.0 to v0.1463.0 and v0.1464.0 (ship-homes increment 5, building
   only on your own plot; BUG-165 and BUG-166, the walking-backwards fixes; two new clips),
   all delivered to the taskbar exe.
