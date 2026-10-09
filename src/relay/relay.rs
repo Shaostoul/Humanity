@@ -2167,6 +2167,15 @@ pub enum RelayMessage {
         target_key: String,
         #[serde(default)]
         message: String,
+        /// The target's friendship certificate for the sender, when the sender
+        /// holds one: the same base64 string `dm_put` carries. With a valid one
+        /// the request is unlimited; without it, it spends a knock and its note
+        /// is cut short (`handle_trade_request`, 2026-10-09). Optional so that
+        /// clients which do not send it yet keep working. The relay reads this
+        /// frame as raw JSON (`handle_trade_request`), so this variant only
+        /// documents the wire shape.
+        #[serde(default)]
+        friend_cert: Option<String>,
     },
 
     /// Client responds to a trade request (accept/reject).
