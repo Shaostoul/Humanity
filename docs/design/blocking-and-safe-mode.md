@@ -1165,6 +1165,56 @@ storage test for the table, export and erase; client unit tests for the settings
 "show as request" rule; a headless snapshot of Settings > Safety (`just snapshot`), only when no
 other HumanityOS instance runs; `just verify`, `just verify-relay`.
 
+### 10c-ii. Step B follow-up: a tick per friend for Messages, Calls and Trades (2026-10-10)
+
+Step B shipped "People I choose" for all three kinds, but only Calls had ticks ("People who may
+call me"), so "People I choose" for Messages or Trades let every friend through: every pass
+carries `message` and `trade` by default. The operator asked to choose individuals who may
+message or call. The relay needs no change: under `chosen` it already admits only a pass whose
+`may` holds the kind (`allowed` in `src/relay/handlers/reach.rs`, tested in `reach_tests.rs`).
+This is client work on both apps, native first, web mirrors.
+
+**The model.** For each friend (someone I have given a pass), my choice of three ticks:
+Message, Call, Trade. A friend with no saved choice has the defaults: Message and Trade ticked,
+Call not (the same as a new pass, step A). The pass I give them carries exactly:
+
+- `message`, `invite` and `voice_message` when Message is ticked (an invitation and a voice
+  message are forms of messaging, and travel together; the relay enforces only `message` today),
+- `trade` when Trade is ticked,
+- `call` when Call is ticked.
+
+A friend with all three unticked keeps a pass whose `may` is `invite` alone: the format refuses
+an empty `may` (`FriendMay::from_words` in `src/relay/core/pq_crypto.rs`), and `invite` gives
+nothing the relay enforces today. Say so in a comment where it is built. Unticking does not end the friendship: it is still a mutual follow, and
+under "Friends" every friend still gets through.
+
+**Changing a tick** re-issues that friend's pass the way the call tick does today (mint the new
+pass with the new `may` first, then withdraw the old serial), so the relay honours it at once.
+Unfollow and Block clear the friend's choices (Block already unticks the call tick, 10d).
+
+**Settings > Safety.** "People who may call me" becomes **"People I choose"**: each friend once,
+with three ticks labelled Message, Call and Trade. Above the list, one line: "These ticks count
+for a row set to People I choose." Under it, which rows use them now, in plain words built from
+the person's settings, for example "In use now: Calls. Messages and Trades are set to Friends,
+so every friend gets through for those." or "Not in use now: no row is set to People I choose."
+The per-row help sentences that name the old list (`web/shared/reach.js` says 'Only the friends
+on your "People who may call me" list can call you.') name the new one, and gain matching
+sentences for Messages and Trades under "People I choose".
+
+**Storage.** Native: replace `may_call: HashSet<String>` in `src/net/dm_store.rs` with one map
+from friend to their ticks (absent means the defaults); `intended_may` in `src/net/reach.rs`
+takes the ticks instead of a bool. No migration of the old field (no installed base, CLAUDE.md):
+a stored `may_call` is simply not read. Web: today `friendMayCall` reads the kinds from the pass
+already given (`store.passMayTo`); keep that approach, so the pass itself is the record, and
+generalise `setFriendMayCall` to a per-kind setter.
+
+**Proof:** unit tests on both clients: a friend with no choice gets the default `may`; unticking
+Message drops `message`, `invite` and `voice_message` and nothing else; ticking Call adds only
+`call`; all three unticked still gives a valid pass; Block and Unfollow clear the choice; the
+"In use now" sentence for each mix of row settings. Each test seen failing once. Native: the
+snapshot fixture in `src/gui/ui_snapshots.rs` shows the new list (render only when no other
+HumanityOS instance runs). `just verify`.
+
 ## 10d. Step C specification: Block, on both clients (2026-10-09)
 
 Steps A and B shipped (v0.1466.0, v0.1467.0). Block is client side (section 4.4's option A),
