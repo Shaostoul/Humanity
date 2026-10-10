@@ -224,6 +224,20 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   then increment 1 (block on both clients). Eight questions for the operator sit in its summary,
   each with a recommendation. Voice: route calls through a room-scoped forwarder in the relay
   plus our own STUN on one UDP port, Google removed (section 7; the port is the operator's call).
+- **Report duties: the finding is in, three decisions for the operator (2026-10-10).**
+  `docs/reference/findings/2026-10-10-report-duties-child-abuse-material.md`: in the United
+  States a "provider" with actual knowledge of apparent child sexual abuse material must report
+  it to NCMEC's CyberTipline and preserve what it reported for one year, with no duty to scan;
+  official sources do not say whether a volunteer's small server is a provider. In the UK an
+  individual can be the provider and a user's report counts as knowing. Done: a reported post's
+  uploaded files and links are never shown to admins (`without_files_or_links`). Decisions, each
+  with a recommendation: (1) "Delete the post" leaves the uploaded file at its public address;
+  recommended: take it out of public view at once and hold it, unreadable through the app, for
+  the one-year preservation period, then delete it. (2) Reports are kept 90 days after a
+  decision (the operator's answer); recommended: one year for the `child_danger` reason, 90 days
+  for the rest. (3) Whether to ask NCMEC (ESPteam@ncmec.org) if a volunteer-run server counts as
+  a provider and should register; recommended: yes, the operator writes it (an outside message
+  is his to send). The rest of this entry is the earlier note.
 - **Legal research needed before reports go further (raised 2026-10-09).** Reports (design 10e)
   must never carry a way to open a reported file: a DM carrying an encrypted file holds the key
   in its text, so such messages cannot be evidence (refused by the relay, not offered by either

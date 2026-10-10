@@ -187,3 +187,13 @@ what we will say about it.
   the fallback. The data is `data/safety/outside_help.json`. Canada is not in
   INHOPE's directory; Mexico, the Philippines and Nigeria have INHOPE-member
   hotlines but no confirmed government line.
+- [`2026-10-10-report-duties-child-abuse-material.md`](2026-10-10-report-duties-child-abuse-material.md),
+  what a server operator must do, and must not do, when a report says child
+  sexual abuse material may be involved: the US provider duty to report to
+  NCMEC's CyberTipline and preserve for one year (18 U.S.C. 2258A, as amended
+  by the 2024 REPORT Act), the limited liability in 2258B, the offences that
+  make viewing or passing on material a crime, and in brief the UK's NCA
+  reporting duty (in force 7 April 2026) and the EU Digital Services Act.
+  Whether a volunteer running a small server counts as a "provider" is not
+  answered by any official source. Ends with what this means for the report
+  flow, including three gaps seen in the code.

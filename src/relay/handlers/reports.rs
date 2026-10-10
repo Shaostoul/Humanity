@@ -367,7 +367,8 @@ impl Item {
                 let found = if from == target { state.db.post_for_report(&from, timestamp).unwrap_or(None) } else { None };
                 match found {
                     Some((text, channel)) => serde_json::json!({
-                        "kind": "post", "from": from, "timestamp": timestamp, "text": text, "channel": channel, "checked": true
+                        "kind": "post", "from": from, "timestamp": timestamp, "text": without_files_or_links(&text),
+                        "channel": channel, "checked": true
                     }),
                     None => serde_json::json!({ "kind": "post", "from": from, "timestamp": timestamp, "checked": false }),
                 }
@@ -377,6 +378,47 @@ impl Item {
             }
         }
     }
+}
+
+/// A reported post's text as admins are shown it: every uploaded file and every web link
+/// replaced by a plain note, so a report never hands anyone a way to open what may be harmful
+/// material (2026-10-10, docs/reference/findings/2026-10-10-report-duties-child-abuse-material.md:
+/// a post's `/uploads/...` address used to reach admins as text they could click). A direct or
+/// group message carrying a file is refused outright (`carries_file`); a post is the server's
+/// own copy, not signed by the reporter, so its text can be redacted without breaking any proof.
+pub(crate) fn without_files_or_links(text: &str) -> String {
+    fn redact(word: &str, out: &mut String) {
+        if word.contains("/uploads/") || word.starts_with("uploads/") {
+            out.push_str("[a file posted here, not shown]");
+        } else if let Some(i) = word.find("://") {
+            let host: String = word[i + 3..]
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || matches!(c, '.' | '-' | ':'))
+                .collect();
+            if host.is_empty() {
+                out.push_str("[a link, not shown]");
+            } else {
+                out.push_str("[a link to ");
+                out.push_str(&host);
+                out.push_str(", not shown]");
+            }
+        } else {
+            out.push_str(word);
+        }
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut word = String::new();
+    for c in text.chars() {
+        if c.is_whitespace() {
+            redact(&word, &mut out);
+            word.clear();
+            out.push(c);
+        } else {
+            word.push(c);
+        }
+    }
+    redact(&word, &mut out);
+    out
 }
 
 /// A report that passed every check, ready to keep.
