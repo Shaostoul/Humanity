@@ -609,12 +609,82 @@ pub fn verify_plot_permit(
         .map_err(|_| PlotPermitError::BadSignature)
 }
 
+// =========================================================================
+// Reports the admins can check (2026-10-09, docs/design/blocking-and-safe-mode.md 10e)
+// =========================================================================
+//
+// Two signatures meet in a report, and the relay checks both here, in the relay build:
+//
+//   report   = "hum/report/v1\n{reporter}\n{target}\n{reason}\n{evidence_hash}\n{ts}"
+//              signed by the REPORTER, so a report is theirs and its evidence is the evidence
+//              they chose: `evidence_hash` is the lowercase hex BLAKE3 of the `evidence` array's
+//              JSON text exactly as it was sent (clients send compact JSON), and `reporter` is
+//              the key of the signed-in socket it arrived on, never a field of the report.
+//   dm inner = "hum/dm/v2\n{from}\n{to}\n{ts}\n{text}"
+//              signed by a DM's SENDER inside every sealed message (net::dm_pq
+//              `build_signed_inner`, web crypto.js `_dmSigPreimage`). A reporter hands over the
+//              readable copy their client holds; the relay rebuilds these words with the
+//              reported person as `from` and the reporter as `to`, so a message forged, or
+//              one written to someone else, does not check.
+//
+// The web client builds the report's words too; scripts read the pinned literals in the tests
+// below (`report_preimage_and_evidence_hash_are_pinned`) to hold it to them.
+
+/// Report signature domain: the first line of what a reporter signs.
+pub const REPORT_DOMAIN: &str = "hum/report/v1";
+
+/// DM v2 inner payload signature domain (net::dm_pq `DM_SIG_DOMAIN`, web `DM_SIG_DOMAIN_V2`).
+pub const DM_INNER_DOMAIN: &str = "hum/dm/v2";
+
+/// What a reporter signs.
+pub fn report_preimage(reporter: &str, target: &str, reason: &str, evidence_hash: &str, ts: u64) -> String {
+    format!("{REPORT_DOMAIN}\n{reporter}\n{target}\n{reason}\n{evidence_hash}\n{ts}")
+}
+
+/// The lowercase hex BLAKE3 of a report's `evidence` JSON text, as sent.
+pub fn report_evidence_hash(evidence_json: &str) -> String {
+    blake3::hash(evidence_json.as_bytes()).to_hex().to_string()
+}
+
+/// MY report's signature (base64 Dilithium3, the key derived from my BIP39 `seed`) over
+/// [`report_preimage`], for evidence sent as `evidence_json`. The clients' half; the relay's
+/// tests use it to make real reports.
+pub fn build_report_sig(seed: &[u8], reporter: &str, target: &str, reason: &str, evidence_json: &str, ts: u64) -> String {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
+    let kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(seed));
+    B64.encode(kp.sign(report_preimage(reporter, target, reason, &report_evidence_hash(evidence_json), ts).as_bytes()))
+}
+
+/// Did `reporter_hex` (a Dilithium3 public key, hex) sign this report? `reporter_hex` must be the
+/// relay's own fact (the signed-in socket's key) and `evidence_hash` the hash the relay computed
+/// itself from the text it received.
+pub fn verify_report_sig(reporter_hex: &str, target: &str, reason: &str, evidence_hash: &str, ts: u64, sig_b64: &str) -> bool {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
+    let (Ok(pk), Ok(sig)) = (hex_decode_str(reporter_hex), B64.decode(sig_b64.trim())) else { return false };
+    verify_dilithium(&pk, report_preimage(reporter_hex, target, reason, evidence_hash, ts).as_bytes(), &sig).is_ok()
+}
+
+/// What a DM's sender signs inside the seal (net::dm_pq `sig_preimage`, byte for byte).
+pub fn dm_inner_preimage(from: &str, to: &str, ts: u64, text: &str) -> String {
+    format!("{DM_INNER_DOMAIN}\n{from}\n{to}\n{ts}\n{text}")
+}
+
+/// Did `from_hex` sign this DM to `to` at `ts` saying `text`? The relay passes the reported
+/// person as `from_hex` and the reporter as `to`, its own facts, never the evidence's claims.
+pub fn verify_dm_inner(from_hex: &str, to: &str, ts: u64, text: &str, sig_b64: &str) -> bool {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
+    let (Ok(pk), Ok(sig)) = (hex_decode_str(from_hex), B64.decode(sig_b64.trim())) else { return false };
+    verify_dilithium(&pk, dm_inner_preimage(from_hex, to, ts, text).as_bytes(), &sig).is_ok()
+}
+
 /// Local hex decode (the `hex` crate is native-gated in some builds; the
 /// relay feature carries it too, but a dependency-free decode keeps this
 /// function unconditionally available).
 fn hex_decode_str(s: &str) -> std::result::Result<Vec<u8>, ()> {
     let s = s.trim();
-    if s.len() % 2 != 0 {
+    // Not ASCII is not hex, and slicing it two bytes at a time below could cut a character in
+    // half and panic (a report's target is whatever the reporter typed).
+    if s.len() % 2 != 0 || !s.is_ascii() {
         return Err(());
     }
     (0..s.len())
@@ -1117,5 +1187,95 @@ mod tests {
             "never minted over it"
         );
         assert!(build_plot_permit(&issuer_master, &server, "p3", grantee, now + 90 * day, now).is_ok());
+    }
+
+    /// REPORTS: THE WORDS A REPORTER SIGNS AND THE EVIDENCE HASH, PINNED (blocking-and-safe-
+    /// mode.md 10e). The web client builds both too, and its Node test reads THESE literals:
+    /// the `report_preimage(...)` call with its expected string, and each
+    /// `report_evidence_hash(...)` call with its expected hex. The first hash is BLAKE3's own
+    /// published value for no input, so the hash is the real BLAKE3 and not a look-alike; the
+    /// second freezes the hash of compact evidence JSON as a client sends it. The DM inner words
+    /// are pinned beside them (net::dm_pq and web crypto.js build them; the relay rebuilds them).
+    /// Seen red 2026-10-09 with `REPORT_DOMAIN` set to "hum/report/v0": left
+    /// `"hum/report/v0\nAABB\nCCDD\nharassment\naf13..3262\n1760000000000"`, right the same with
+    /// `v1`.
+    #[test]
+    fn report_preimage_and_evidence_hash_are_pinned() {
+        assert_eq!(
+            report_preimage("AABB", "CCDD", "harassment", "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262", 1760000000000),
+            "hum/report/v1\nAABB\nCCDD\nharassment\naf1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262\n1760000000000"
+        );
+        assert_eq!(report_evidence_hash(""), "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262");
+        assert_eq!(
+            report_evidence_hash(r#"[{"kind":"group_text","from":"CCDD","ts":1760000000000,"text":"hi "}]"#),
+            "20edb13876aa9ba4cf1932ec62c896c3e11beff7f1fb40f50b339547124e6299"
+        );
+        assert_eq!(dm_inner_preimage("AABB", "CCDD", 1700000000000, "hello"), "hum/dm/v2\nAABB\nCCDD\n1700000000000\nhello");
+    }
+
+    /// A REPORT'S SIGNATURE IS ITS REPORTER'S, OVER ITS OWN WORDS. One made by the shipped builder
+    /// checks; the same signature does not check for another reporter, another target, another
+    /// reason, other evidence or another time; a key that is not hex (or not even ASCII, which a
+    /// careless decode would panic on) is simply not a signer.
+    /// Seen red 2026-10-09 with `verify_report_sig` building its words with `target` in the
+    /// reporter's place: "the report it made checks" failed.
+    #[test]
+    fn a_report_signature_checks_only_for_its_reporter_and_its_words() {
+        let master = [0x41u8; 32];
+        let (reporter, target, other) = (key_hex_of(0x41), key_hex_of(0x42), key_hex_of(0x43));
+        let evidence = r#"[{"kind":"post","from":"x","timestamp":5}]"#;
+        let hash = report_evidence_hash(evidence);
+        let ts = 1_760_000_000_000u64;
+        let sig = build_report_sig(&master, &reporter, &target, "spam", evidence, ts);
+        assert!(verify_report_sig(&reporter, &target, "spam", &hash, ts, &sig), "the report it made checks");
+        assert!(!verify_report_sig(&other, &target, "spam", &hash, ts, &sig), "another reporter");
+        assert!(!verify_report_sig(&reporter, &other, "spam", &hash, ts, &sig), "another target");
+        assert!(!verify_report_sig(&reporter, &target, "scam", &hash, ts, &sig), "another reason");
+        assert!(!verify_report_sig(&reporter, &target, "spam", &report_evidence_hash("[]"), ts, &sig), "other evidence");
+        assert!(!verify_report_sig(&reporter, &target, "spam", &hash, ts + 1, &sig), "another time");
+        assert!(!verify_report_sig("zz", &target, "spam", &hash, ts, &sig), "not hex");
+        assert!(!verify_report_sig("\u{e9}\u{e9}", &target, "spam", &hash, ts, &sig), "not ASCII, and no panic");
+        assert!(!verify_report_sig(&reporter, &target, "spam", &hash, ts, "bm90LWEtc2ln"), "not a signature");
+    }
+
+    /// A DM HANDED OVER AS EVIDENCE CHECKS ONLY AS WHAT IT IS: from its sender, to the person it
+    /// was sent to, with its own time and text. Signed the way every client signs a DM (the
+    /// sender's key over [`dm_inner_preimage`]); the relay passes the reported person as `from`
+    /// and the reporter as `to`. A message pinned on someone else (another sender), one sent to
+    /// someone else and handed over by the reporter, an edited text and an edited time are all
+    /// refused, and a sender that is not even ASCII is refused without a panic.
+    /// Seen red 2026-10-09 with `dm_inner_preimage` leaving `to` out of its words (so the signing
+    /// here and the check both did): "sent to someone else" checked.
+    #[test]
+    fn a_dm_handed_over_as_evidence_checks_only_as_what_it_is() {
+        use base64::{engine::general_purpose::STANDARD as B64, Engine};
+        let sender = DilithiumKeypair::from_seed(&derive_dilithium_seed(&[0x51u8; 32]));
+        let sender_hex = hex::encode(sender.public_key());
+        let (reporter, someone_else) = (key_hex_of(0x52), key_hex_of(0x53));
+        let ts = 1_760_000_000_000u64;
+        let sig = B64.encode(sender.sign(dm_inner_preimage(&sender_hex, &reporter, ts, "you will regret this").as_bytes()));
+        assert!(verify_dm_inner(&sender_hex, &reporter, ts, "you will regret this", &sig), "a genuine message checks");
+        assert!(!verify_dm_inner(&someone_else, &reporter, ts, "you will regret this", &sig), "pinned on someone else");
+        assert!(!verify_dm_inner(&sender_hex, &someone_else, ts, "you will regret this", &sig), "sent to someone else");
+        assert!(!verify_dm_inner(&sender_hex, &reporter, ts, "you will regret this!", &sig), "an edited text");
+        assert!(!verify_dm_inner(&sender_hex, &reporter, ts + 1, "you will regret this", &sig), "an edited time");
+        assert!(!verify_dm_inner("\u{e9}\u{e9}", &reporter, ts, "you will regret this", &sig), "not ASCII, and no panic");
+    }
+
+    /// THE RELAY REBUILDS THE DESKTOP APP'S DM WORDS BYTE FOR BYTE: a payload made by the native
+    /// builder itself (net::dm_pq `build_signed_inner`, padding and all) checks with the relay's
+    /// verifier. Native builds only: the relay build has no net::dm_pq.
+    /// Seen red 2026-10-09 with `DM_INNER_DOMAIN` set to "hum/dm/v1": "the desktop app's DM
+    /// checks at the relay" failed.
+    #[cfg(feature = "native")]
+    #[test]
+    fn the_relay_rebuilds_the_desktop_apps_dm_words_byte_for_byte() {
+        let seed = [0x61u8; 32];
+        let from = key_hex_of(0x61);
+        let to = key_hex_of(0x62);
+        let inner = crate::net::dm_pq::build_signed_inner(&seed, &from, &to, 1_760_000_000_123, "line one\nline two").unwrap();
+        let v: serde_json::Value = serde_json::from_str(&inner).unwrap();
+        let (ts, text, sig) = (v["ts"].as_u64().unwrap(), v["text"].as_str().unwrap(), v["sig"].as_str().unwrap());
+        assert!(verify_dm_inner(&from, &to, ts, text, sig), "the desktop app's DM checks at the relay");
     }
 }

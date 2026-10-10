@@ -5,7 +5,8 @@
 //!   - sealed DM envelopes past `dm_mailbox_ttl_days` (storage/dms.rs);
 //!   - public messages past `message_retention_days` (0 = keep forever; pins always kept;
 //!     storage/channels.rs);
-//!   - erased accounts past their window or over the cap (storage/erased_accounts.rs).
+//!   - erased accounts past their window or over the cap (storage/erased_accounts.rs);
+//!   - reports decided more than 90 days ago (storage/reports.rs; open reports are kept).
 //!
 //! Callers (relay/mod.rs, handlers/server_settings_update.rs): relay start, the six-hour
 //! maintenance pass (before its backup, so nothing expired rides into the backup), and every
@@ -36,6 +37,14 @@ impl Storage {
                 s.erased_accounts_cap
             ),
             Err(e) => tracing::error!("Erased accounts sweep failed: {e}"),
+        }
+        match self.reports_expire(super::now_millis() as i64) {
+            Ok(0) => {}
+            Ok(n) => tracing::info!(
+                "Reports: deleted {n} decided more than {} days ago",
+                super::reports::REPORT_KEEP_DAYS_AFTER_DECISION
+            ),
+            Err(e) => tracing::error!("Reports sweep failed: {e}"),
         }
     }
 }

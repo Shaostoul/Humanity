@@ -159,12 +159,16 @@ impl Storage {
             // is the reporter's data, not theirs. Do not "simplify" these to
             // SELECT * later; the omission is the point.
             //
-            // Reports ABOUT you are also deliberately absent. Their only handle is
-            // reported_name, free text typed by a reporter, and a display name is
-            // released on ban, kick and account deletion. Registering a departed
-            // member's name would otherwise return every accusation ever filed
-            // against them, to a stranger. That needs a reported_key column first.
-            grab("reports_filed", "SELECT id, reported_name, reason, created_at FROM reports WHERE reporter_key = ?1", &[&key]);
+            // Reports ABOUT you are also deliberately absent: the evidence of a
+            // direct-message report is the messages you sent the reporter, so it
+            // names them, and the person reported is never told who reported them
+            // (blocking-and-safe-mode.md 10e). What a report led to (a mute, a ban)
+            // is listed here like any other sanction.
+            //
+            // The reports you FILED (2026-10-09, storage/reports.rs), with the
+            // evidence you chose and what became of each. Not the reviewer or their
+            // note: those are the staff's, as reporter_key is withheld above.
+            grab("reports_filed", "SELECT id, target_key, context, reason, note, evidence, created_at, state, decision, decided_at FROM reports_v2 WHERE reporter_key = ?1 ORDER BY id ASC", &[&key]);
             grab("chat_ban", "SELECT public_key, name, banned_at FROM banned_keys WHERE public_key = ?1", &[&key]);
             grab("chat_mute", "SELECT public_key, name, muted_at FROM muted_members WHERE public_key = ?1", &[&key]);
             grab("reputation", "SELECT public_key, score, level, updated_at FROM reputation WHERE public_key = ?1", &[&key]);
@@ -284,6 +288,15 @@ impl Storage {
             del("fleet_ledger", "DELETE FROM fleet_ledger WHERE public_key = ?1", &[&key]);
             // Who can reach them (2026-10-09, storage/reach.rs).
             del("reach_settings", "DELETE FROM reach_settings WHERE public_key = ?1", &[&key]);
+            // The reports they filed stay for the admins, with the reporter taken out of each
+            // (2026-10-09, storage/reports.rs `forget_reporter`; blocking-and-safe-mode.md 10e).
+            match super::reports::forget_reporter(conn, key) {
+                Ok(n) => receipt.push(("reports_filed_unnamed".to_string(), n)),
+                Err(e) => {
+                    tracing::error!("account erase FAILED for reports_filed_unnamed: {e}");
+                    receipt.push(("reports_filed_unnamed_FAILED".to_string(), 1));
+                }
+            }
             // NOT erased: the friendship passes they took back (friend_cert_revocations,
             // storage/friend_passes.rs). The rows hold a keyed fingerprint, not the key, so they
             // name nobody, and deleting them would let a sign-up with the same key (the same
@@ -312,7 +325,9 @@ impl Storage {
     ///
     /// Read: every table `delete_account` erases by the key (or by the plot owner made from it),
     /// with the same column, pinned to `delete_account` by
-    /// `the_left_rows_check_reads_every_table_the_erase_answers_for`. Not read, because rows
+    /// `the_left_rows_check_reads_every_table_the_erase_answers_for`; and the reports the key
+    /// filed (`reports_v2`), which the erase keeps with the reporter blanked, so one that still
+    /// names the key was filed after it. Not read, because rows
     /// there come back without the erase having left anything (the second round of the review,
     /// finding 6): `dm_mailbox` (sealed mail other people send keeps arriving for the key) and
     /// `signed_profiles` (profile gossip from another server, where the key may still have an
@@ -342,7 +357,8 @@ impl Storage {
             OR EXISTS(SELECT 1 FROM world_pieces WHERE owner_did = ?2)
             OR EXISTS(SELECT 1 FROM player_progress WHERE public_key = ?1)
             OR EXISTS(SELECT 1 FROM fleet_ledger WHERE public_key = ?1)
-            OR EXISTS(SELECT 1 FROM reach_settings WHERE public_key = ?1)";
+            OR EXISTS(SELECT 1 FROM reach_settings WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM reports_v2 WHERE reporter_key = ?1)";
         self.with_read_conn(|conn| conn.query_row(q, params![key, plot_owner], |r| r.get::<_, bool>(0)))
             .unwrap_or_else(|e| {
                 // Unknown is said as "not finished": that note only asks the person to erase

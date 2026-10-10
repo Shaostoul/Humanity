@@ -1,0 +1,52 @@
+[
+  {
+    "id": "spam",
+    "label": "Spam",
+    "help": "Unwanted advertising, or the same message or link sent over and over."
+  },
+  {
+    "id": "scam",
+    "label": "Scam or fraud",
+    "help": "Trying to get money, a recovery phrase, passwords or personal details by lying or tricking."
+  },
+  {
+    "id": "harassment",
+    "label": "Harassment or bullying",
+    "help": "Repeated unwanted contact, insults, or trying to upset, shame or frighten someone."
+  },
+  {
+    "id": "threats",
+    "label": "Threats of violence",
+    "help": "Saying they will hurt someone, or urging others to."
+  },
+  {
+    "id": "hate",
+    "label": "Hate",
+    "help": "Attacking people for who they are, such as their race, religion, disability, sex, gender, sexuality or nationality."
+  },
+  {
+    "id": "unwanted_sexual",
+    "label": "Unwanted sexual messages",
+    "help": "Sexual messages, pictures or requests that were not wanted."
+  },
+  {
+    "id": "impersonation",
+    "label": "Pretending to be someone else",
+    "help": "Using another person's name or picture, or claiming to be staff, to mislead people."
+  },
+  {
+    "id": "child_danger",
+    "label": "A child may be in danger",
+    "help": "If anyone is in danger right now, contact your local emergency number. This server's admins are volunteers, not police."
+  },
+  {
+    "id": "someone_in_danger",
+    "label": "Someone is in danger",
+    "help": "If anyone is in danger right now, contact your local emergency number. This server's admins are volunteers, not police."
+  },
+  {
+    "id": "other",
+    "label": "Something else",
+    "help": "Anything else that breaks this server's rules. Say what happened in the note."
+  }
+]

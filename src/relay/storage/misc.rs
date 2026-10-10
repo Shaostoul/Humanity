@@ -58,55 +58,7 @@ impl Storage {
         })
     }
 
-    // ── Report methods ──
-
-    /// Add a report.
-    pub fn add_report(&self, reporter_key: &str, reported_name: &str, reason: &str) -> Result<(), rusqlite::Error> {
-        self.with_conn(|conn| {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis() as i64;
-            conn.execute(
-                "INSERT INTO reports (reporter_key, reported_name, reason, created_at) VALUES (?1, ?2, ?3, ?4)",
-                params![reporter_key, reported_name, reason, now],
-            )?;
-            Ok(())
-        })
-    }
-
-    /// Get recent reports (newest first).
-    pub fn get_reports(&self, limit: usize) -> Result<Vec<(i64, String, String, String, i64)>, rusqlite::Error> {
-        self.with_conn(|conn| {
-            let mut stmt = conn.prepare(
-                "SELECT id, reporter_key, reported_name, reason, created_at FROM reports ORDER BY id DESC LIMIT ?1"
-            )?;
-            let reports = stmt.query_map(params![limit], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
-            })?.filter_map(|r| r.ok()).collect();
-            Ok(reports)
-        })
-    }
-
-    /// Count reports from a specific key since a given timestamp.
-    pub fn count_recent_reports(&self, reporter_key: &str, since_ms: i64) -> Result<usize, rusqlite::Error> {
-        self.with_conn(|conn| {
-            let count: i64 = conn.query_row(
-                "SELECT COUNT(*) FROM reports WHERE reporter_key = ?1 AND created_at > ?2",
-                params![reporter_key, since_ms],
-                |row| row.get(0),
-            )?;
-            Ok(count as usize)
-        })
-    }
-
-    /// Clear all reports. Returns number deleted.
-    pub fn clear_reports(&self) -> Result<usize, rusqlite::Error> {
-        self.with_conn(|conn| {
-            let rows = conn.execute("DELETE FROM reports", [])?;
-            Ok(rows)
-        })
-    }
+    // (Reports moved to storage/reports.rs and the `reports_v2` table, 2026-10-09.)
 
     // ── Server state (key-value) methods ──
 

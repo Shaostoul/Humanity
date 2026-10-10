@@ -424,6 +424,11 @@ pub const WS_ALWAYS_ON: &[&str] = &[
     // settings and the refusal a sender is given. Changing who can reach you must work whatever
     // the owner offers, for the same reason: it is a person's own protection.
     "reach_set", "reach_settings", "reach_refused",
+    // Reporting someone, and the admins and moderators reviewing reports (2026-10-09,
+    // handlers/reports.rs). Reporting is a person's own protection, like the two above, and harm
+    // can come through any part of a server (a game, a trade, a voice room), so it must not go
+    // away with chat; reviewing reports is the owner administering their own server.
+    "report_v2", "report_received", "reports_list", "reports", "report_decide",
     // A user's data sovereignty (2026-08-23): exporting and erasing your
     // own data must work regardless of which features the owner offers.
     // (account_export/account_export_data moved to POST /api/account/export on
@@ -3297,6 +3302,62 @@ mod tests {
         assert_eq!(state.db.reach_audience_of(&key, "message").as_deref(), Some("anyone"), "and saved");
         use futures::SinkExt;
         sock.close(None).await.ok();
+    }
+
+    /// Reporting over a real socket (handlers/reports.rs, blocking-and-safe-mode.md 10e), with
+    /// EVERY feature switched off: a member's signed report is received, an admin's
+    /// `reports_list` is answered with it, and neither the receipt nor the list (whose evidence is
+    /// readable text) reaches anyone else's socket, the reported person's included. Reporting is
+    /// a person's own protection and reviewing is the owner administering their own server, so
+    /// no choice of features takes either away (`WS_ALWAYS_ON`); the send loop routes both by key.
+    ///
+    /// Seen red 2026-10-09 with "report_v2" mapped to `Feature::Chat` in `ws_message_feature`:
+    /// "the report is received with every feature off"; and with the `Reports` routing taken out
+    /// of the send loop (relay.rs): "the reported person was sent the reports list".
+    #[tokio::test]
+    async fn reporting_works_over_the_socket_with_every_feature_off_and_reaches_only_the_asker() {
+        let mut off = Features::all_enabled();
+        for f in Feature::ALL {
+            off.set(f, false);
+        }
+        let (state, port) = spawn_relay("reports_all_off", off).await;
+        let reporter_seed = [81u8; 32];
+        let (mut reporter, reporter_key) = bind_socket(&state, port, reporter_seed, Some("Reporter"), 1).await;
+        let (mut admin, admin_key) = bind_socket(&state, port, [82u8; 32], Some("Admin"), 1).await;
+        let (mut reported, reported_key) = bind_socket(&state, port, [83u8; 32], Some("Reported"), 1).await;
+        state.db.set_role(&admin_key, "admin").unwrap();
+
+        let evidence = serde_json::json!([{ "kind": "group_text", "from": reported_key, "ts": 1, "text": "rude" }]);
+        let ts = 1_760_000_000_000u64;
+        let sig = crate::relay::core::pq_crypto::build_report_sig(&reporter_seed, &reporter_key, &reported_key, "harassment", &evidence.to_string(), ts);
+        send_json(
+            &mut reporter,
+            serde_json::json!({ "type": "report_v2", "target": reported_key, "context": "group", "reason": "harassment", "note": "", "evidence": evidence, "ts": ts, "sig": sig }),
+        )
+        .await;
+        let got = next_frame_with(&mut reporter, |v| (v["type"] == "report_received").then(|| v.clone()))
+            .await
+            .expect("the report is received with every feature off");
+        let id = got["id"].as_i64().expect("an id");
+
+        send_json(&mut admin, serde_json::json!({ "type": "reports_list", "state": "open" })).await;
+        let list = next_frame_with(&mut admin, |v| (v["type"] == "reports").then(|| v.clone()))
+            .await
+            .expect("the admin's list is answered with every feature off");
+        assert_eq!(list["items"][0]["id"], id, "{list}");
+        assert_eq!(list["items"][0]["evidence"][0]["text"], "rude");
+
+        let leaked = tokio::time::timeout(std::time::Duration::from_millis(1_500), async {
+            next_frame_with(&mut reported, |v| matches!(v["type"].as_str(), Some("reports" | "report_received")).then(|| v.clone())).await
+        })
+        .await
+        .ok()
+        .flatten();
+        assert!(leaked.is_none(), "the reported person was sent the reports list or the receipt: {leaked:?}");
+        use futures::SinkExt;
+        for mut s in [reporter, admin, reported] {
+            s.close(None).await.ok();
+        }
     }
 
     // ── Increment 5: building only on your own plot ───────────────────────────

@@ -621,14 +621,6 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_user_uploads_key
                 ON user_uploads(public_key, id);
 
-            CREATE TABLE IF NOT EXISTS reports (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                reporter_key TEXT NOT NULL,
-                reported_name TEXT NOT NULL,
-                reason      TEXT NOT NULL DEFAULT '',
-                created_at  INTEGER NOT NULL
-            );
-
             CREATE TABLE IF NOT EXISTS reactions (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 target_from     TEXT NOT NULL,
@@ -1059,6 +1051,19 @@ impl Storage {
             info!("Migration: dropped follows table (the social graph is client-side now)");
         }
 
+        // Migration (reports the admins can check, 2026-10-09, blocking-and-safe-mode.md 10e):
+        // DROP the old `reports` table. It held a typed name and a reason, no key and no
+        // evidence, so nothing in it could be checked or acted on, and nothing reads it any more:
+        // `reports_v2` replaces it (storage/reports.rs). Not migrated, on purpose (no
+        // compatibility code before launch, CLAUDE.md).
+        if conn.prepare("SELECT 1 FROM reports LIMIT 0").is_ok() {
+            conn.execute_batch(
+                "DROP TABLE reports;
+                 PRAGMA wal_checkpoint(TRUNCATE);",
+            )?;
+            info!("Migration: dropped the old name-and-reason reports table (reports_v2 replaces it)");
+        }
+
         // Migration: add reply_to columns to messages for threaded replies.
         let has_reply_to: bool = conn
             .prepare("SELECT reply_to_from FROM messages LIMIT 0")
@@ -1335,6 +1340,38 @@ impl Storage {
                 audience   TEXT NOT NULL,
                 PRIMARY KEY (public_key, kind)
             ) WITHOUT ROWID;"
+        )?;
+
+        // Reports the admins can check (2026-10-09, storage/reports.rs; blocking-and-safe-mode.md
+        // 10e): who reported whom, why, the evidence the reporter chose (with what the relay
+        // could prove of it), the reporter's signature over it, and the decision. Culled 90 days
+        // after its decision (storage/expiry.rs); open reports are kept. In the reporter's
+        // export; their erase blanks the reporter and keeps the report. A new table in a batch of
+        // its own, every index over its own CREATE TABLE columns, so a live database from before
+        // it simply gains it (BUG-046 concerns ALTER-added columns only).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS reports_v2 (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                reporter_key    TEXT    NOT NULL,
+                target_key      TEXT    NOT NULL,
+                context         TEXT    NOT NULL,
+                reason          TEXT    NOT NULL,
+                note            TEXT    NOT NULL DEFAULT '',
+                evidence        TEXT    NOT NULL DEFAULT '[]',
+                evidence_signed TEXT    NOT NULL DEFAULT '',
+                evidence_hash   TEXT    NOT NULL,
+                report_ts       INTEGER NOT NULL,
+                report_sig      TEXT    NOT NULL,
+                created_at      INTEGER NOT NULL,
+                state           TEXT    NOT NULL DEFAULT 'open',
+                decision        TEXT,
+                decision_note   TEXT    NOT NULL DEFAULT '',
+                decided_by      TEXT,
+                decided_at      INTEGER
+            );
+            CREATE INDEX IF NOT EXISTS idx_reports_v2_reporter ON reports_v2(reporter_key, created_at);
+            CREATE INDEX IF NOT EXISTS idx_reports_v2_state ON reports_v2(state, id);
+            CREATE INDEX IF NOT EXISTS idx_reports_v2_decided ON reports_v2(decided_at);"
         )?;
 
 
@@ -2580,6 +2617,7 @@ mod friend_passes;
 pub use friend_passes::{FriendCertWithdrawal, FRIEND_CERT_WITHDRAWALS_MAX};
 // "Who can reach me": the audience each person chose per kind of contact (2026-10-09, 10c).
 mod reach;
+pub mod reports;
 pub mod docs_accord;
 
 pub use civilization::CivilizationStats;
