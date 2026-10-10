@@ -674,6 +674,15 @@ async function sendThreadReply() {
   if (!content || !ws || ws.readyState !== WebSocket.OPEN || !currentThread) return;
   // Never my recovery phrase (step F, chat-warnings.js): the reply stays in its box to edit.
   if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(content)) return;
+  // /friend-code and /redeem <code> typed here would reach the relay as commands
+  // too: they take the buttons' gated paths (chat-social.js), as in the composer.
+  const typed = typeof protectedTypedCommand === 'function' ? protectedTypedCommand(content) : null;
+  if (typed) {
+    input.value = '';
+    if (typed.command === 'friend-code') sendFriendCodeRequest();
+    else redeemFriendCode(typed.code);
+    return;
+  }
 
   const timestamp = Date.now();
 
@@ -687,7 +696,8 @@ async function sendThreadReply() {
     reply_to: {
       from: currentThread.from,
       from_name: currentThread.author,
-      content: currentThread.body,
+      // Never a file's marker, nor any part of one: it holds the file's key (app.js replyQuoteText).
+      content: typeof replyQuoteText === 'function' ? replyQuoteText(currentThread.body) : '',
       timestamp: currentThread.timestamp,
     },
   };

@@ -1,5 +1,5 @@
 {
-  "about": "10j's report text (docs/design/blocking-and-safe-mode.md): the marker then the JSON, as web/shared/group-report.js groupReportText builds it for each `fields`, and the sentence it refuses each `refused` case with. Generated from the web builder 2026-10-10; read by src/net/group_report_tests.rs (the desktop app must build the same bytes) and by scripts/tests/group-report-web.test.js (the web must still build them).",
+  "about": "10j's report text (docs/design/blocking-and-safe-mode.md): the marker then the JSON, as web/shared/group-report.js groupReportText builds it for each `fields`, and the sentence it refuses each `refused` case with; and, under `parsed`, received texts with what groupReportParse reads out of each (`parsed` null when the text is refused: an item's `ts` must be a JSON number holding a whole number from 0 to 2^53 - 1, never a string, null, true or a list). Generated from the web builder and parser 2026-10-10; read by src/net/group_report_tests.rs (the desktop app must build the same bytes and read the same fields) and by scripts/tests/group-report-web.test.js (the web must still build and read them).",
   "built": [
     {
       "name": "escapes, an upper-case key and id, a trimmed note",
@@ -326,6 +326,153 @@
         ]
       },
       "error": "This report is too long to send to the group's creator (16 KB at most). Shorten the note or include fewer messages."
+    }
+  ],
+  "parsed": [
+    {
+      "name": "item ts: a whole number",
+      "text": "[[hum:group-report:v1]]{\"group_id\":\"abababababababababababababababababababababababababababababababab\",\"group_name\":\"Hikers\",\"target\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"reason\":\"harassment\",\"note\":\"\",\"items\":[{\"id\":\"0000000000000000000000000000000000000000000000000000000000000001\",\"from\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"ts\":1760000000000,\"text\":\"hi\"}]}",
+      "parsed": {
+        "group_id": "abababababababababababababababababababababababababababababababab",
+        "group_name": "Hikers",
+        "target": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+        "reason": "harassment",
+        "note": "",
+        "items": [
+          {
+            "id": "0000000000000000000000000000000000000000000000000000000000000001",
+            "from": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+            "ts": 1760000000000,
+            "text": "hi"
+          }
+        ]
+      }
+    },
+    {
+      "name": "item ts: zero",
+      "text": "[[hum:group-report:v1]]{\"group_id\":\"abababababababababababababababababababababababababababababababab\",\"group_name\":\"Hikers\",\"target\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"reason\":\"harassment\",\"note\":\"\",\"items\":[{\"id\":\"0000000000000000000000000000000000000000000000000000000000000001\",\"from\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"ts\":0,\"text\":\"hi\"}]}",
+      "parsed": {
+        "group_id": "abababababababababababababababababababababababababababababababab",
+        "group_name": "Hikers",
+        "target": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+        "reason": "harassment",
+        "note": "",
+        "items": [
+          {
+            "id": "0000000000000000000000000000000000000000000000000000000000000001",
+            "from": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+            "ts": 0,
+            "text": "hi"
+          }
+        ]
+      }
+    },
+    {
+      "name": "item ts: the largest whole number both clients read exactly (2^53 - 1)",
+      "text": "[[hum:group-report:v1]]{\"group_id\":\"abababababababababababababababababababababababababababababababab\",\"group_name\":\"Hikers\",\"target\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"reason\":\"harassment\",\"note\":\"\",\"items\":[{\"id\":\"0000000000000000000000000000000000000000000000000000000000000001\",\"from\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"ts\":9007199254740991,\"text\":\"hi\"}]}",
+      "parsed": {
+        "group_id": "abababababababababababababababababababababababababababababababab",
+        "group_name": "Hikers",
+        "target": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+        "reason": "harassment",
+        "note": "",
+        "items": [
+          {
+            "id": "0000000000000000000000000000000000000000000000000000000000000001",
+            "from": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+            "ts": 9007199254740991,
+            "text": "hi"
+          }
+        ]
+      }
+    },
+    {
+      "name": "item ts: a whole number written with a fraction of zero",
+      "text": "[[hum:group-report:v1]]{\"group_id\":\"abababababababababababababababababababababababababababababababab\",\"group_name\":\"Hikers\",\"target\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"reason\":\"harassment\",\"note\":\"\",\"items\":[{\"id\":\"0000000000000000000000000000000000000000000000000000000000000001\",\"from\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"ts\":1760000000000.0,\"text\":\"hi\"}]}",
+      "parsed": {
+        "group_id": "abababababababababababababababababababababababababababababababab",
+        "group_name": "Hikers",
+        "target": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+        "reason": "harassment",
+        "note": "",
+        "items": [
+          {
+            "id": "0000000000000000000000000000000000000000000000000000000000000001",
+            "from": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+            "ts": 1760000000000,
+            "text": "hi"
+          }
+        ]
+      }
+    },
+    {
+      "name": "item ts: a whole number written with an exponent",
+      "text": "[[hum:group-report:v1]]{\"group_id\":\"abababababababababababababababababababababababababababababababab\",\"group_name\":\"Hikers\",\"target\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"reason\":\"harassment\",\"note\":\"\",\"items\":[{\"id\":\"0000000000000000000000000000000000000000000000000000000000000001\",\"from\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"ts\":1.76e12,\"text\":\"hi\"}]}",
+      "parsed": {
+        "group_id": "abababababababababababababababababababababababababababababababab",
+        "group_name": "Hikers",
+        "target": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+        "reason": "harassment",
+        "note": "",
+        "items": [
+          {
+            "id": "0000000000000000000000000000000000000000000000000000000000000001",
+            "from": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+            "ts": 1760000000000,
+            "text": "hi"
+          }
+        ]
+      }
+    },
+    {
+      "name": "item ts: a time written as a string of digits",
+      "text": "[[hum:group-report:v1]]{\"group_id\":\"abababababababababababababababababababababababababababababababab\",\"group_name\":\"Hikers\",\"target\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"reason\":\"harassment\",\"note\":\"\",\"items\":[{\"id\":\"0000000000000000000000000000000000000000000000000000000000000001\",\"from\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"ts\":\"1760000000000\",\"text\":\"hi\"}]}",
+      "parsed": null
+    },
+    {
+      "name": "item ts: a time written as a hexadecimal string",
+      "text": "[[hum:group-report:v1]]{\"group_id\":\"abababababababababababababababababababababababababababababababab\",\"group_name\":\"Hikers\",\"target\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"reason\":\"harassment\",\"note\":\"\",\"items\":[{\"id\":\"0000000000000000000000000000000000000000000000000000000000000001\",\"from\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"ts\":\"0x10\",\"text\":\"hi\"}]}",
+      "parsed": null
+    },
+    {
+      "name": "item ts: a time that is null",
+      "text": "[[hum:group-report:v1]]{\"group_id\":\"abababababababababababababababababababababababababababababababab\",\"group_name\":\"Hikers\",\"target\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"reason\":\"harassment\",\"note\":\"\",\"items\":[{\"id\":\"0000000000000000000000000000000000000000000000000000000000000001\",\"from\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"ts\":null,\"text\":\"hi\"}]}",
+      "parsed": null
+    },
+    {
+      "name": "item ts: a time that is true",
+      "text": "[[hum:group-report:v1]]{\"group_id\":\"abababababababababababababababababababababababababababababababab\",\"group_name\":\"Hikers\",\"target\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"reason\":\"harassment\",\"note\":\"\",\"items\":[{\"id\":\"0000000000000000000000000000000000000000000000000000000000000001\",\"from\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"ts\":true,\"text\":\"hi\"}]}",
+      "parsed": null
+    },
+    {
+      "name": "item ts: a time that is an empty list",
+      "text": "[[hum:group-report:v1]]{\"group_id\":\"abababababababababababababababababababababababababababababababab\",\"group_name\":\"Hikers\",\"target\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"reason\":\"harassment\",\"note\":\"\",\"items\":[{\"id\":\"0000000000000000000000000000000000000000000000000000000000000001\",\"from\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"ts\":[],\"text\":\"hi\"}]}",
+      "parsed": null
+    },
+    {
+      "name": "item ts: a time that is an object",
+      "text": "[[hum:group-report:v1]]{\"group_id\":\"abababababababababababababababababababababababababababababababab\",\"group_name\":\"Hikers\",\"target\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"reason\":\"harassment\",\"note\":\"\",\"items\":[{\"id\":\"0000000000000000000000000000000000000000000000000000000000000001\",\"from\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"ts\":{},\"text\":\"hi\"}]}",
+      "parsed": null
+    },
+    {
+      "name": "item ts: a time with a fraction",
+      "text": "[[hum:group-report:v1]]{\"group_id\":\"abababababababababababababababababababababababababababababababab\",\"group_name\":\"Hikers\",\"target\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"reason\":\"harassment\",\"note\":\"\",\"items\":[{\"id\":\"0000000000000000000000000000000000000000000000000000000000000001\",\"from\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"ts\":1760000000000.5,\"text\":\"hi\"}]}",
+      "parsed": null
+    },
+    {
+      "name": "item ts: a negative time",
+      "text": "[[hum:group-report:v1]]{\"group_id\":\"abababababababababababababababababababababababababababababababab\",\"group_name\":\"Hikers\",\"target\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"reason\":\"harassment\",\"note\":\"\",\"items\":[{\"id\":\"0000000000000000000000000000000000000000000000000000000000000001\",\"from\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"ts\":-1,\"text\":\"hi\"}]}",
+      "parsed": null
+    },
+    {
+      "name": "item ts: a time past 2^53 - 1",
+      "text": "[[hum:group-report:v1]]{\"group_id\":\"abababababababababababababababababababababababababababababababab\",\"group_name\":\"Hikers\",\"target\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"reason\":\"harassment\",\"note\":\"\",\"items\":[{\"id\":\"0000000000000000000000000000000000000000000000000000000000000001\",\"from\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"ts\":9007199254740992,\"text\":\"hi\"}]}",
+      "parsed": null
+    },
+    {
+      "name": "item ts: missing",
+      "text": "[[hum:group-report:v1]]{\"group_id\":\"abababababababababababababababababababababababababababababababab\",\"group_name\":\"Hikers\",\"target\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"reason\":\"harassment\",\"note\":\"\",\"items\":[{\"id\":\"0000000000000000000000000000000000000000000000000000000000000001\",\"from\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\",\"text\":\"hi\"}]}",
+      "parsed": null
     }
   ]
 }

@@ -778,7 +778,9 @@ test("the recovery-phrase guard: 4 words in a row stop every kind of send; 3, or
   assert.deepEqual(chat.sock.sent, [], "the whole phrase is stopped");
   // A reply: stopped, and still a reply.
   reset();
-  chat.set("(k) => { replyTarget = { author: 'Cy', body: 'what are your words?', fromKey: k, timestamp: 7 }; }", CY);
+  // Made through the page's own setReplyTarget, so it belongs to this channel's view (a reply
+  // carries the view it was made in since the batch review, 2026-10-10: app.js replyRefForChannel).
+  chat.set("(k) => { setReplyTarget('Cy', 'what are your words?', k, 7, null); }", CY);
   await typed(four);
   assert.deepEqual(chat.sock.sent, [], "a reply with 4 words is not sent");
   assert.ok(chat.fn("(() => replyTarget)")(), "and the reply is kept to edit");

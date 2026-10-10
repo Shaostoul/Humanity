@@ -1009,7 +1009,8 @@ test("a group's file is not sent anywhere when another conversation is opened wh
 
 // BUG-178 (2026-10-10): a group's row offered the server's React, Edit, Pin and Delete, and
 // Edit and Pin sent the group message's text to the server in the clear (an admin's pin would
-// have been kept there and shown to everyone). A group row keeps Reply and Pin for me only, and
+// have been kept there and shown to everyone). A group row keeps Reply only (Pin for me went too,
+// in the batch review of 2026-10-10: it kept the words under the public channel's pins), and
 // nothing that would send a group message's text or reactions goes out while a group is open.
 // Seen red with the privateRow test taken out of addChatMessage: "a group row offers no React".
 test("a group's row offers no server reaction, edit, pin or delete, and none is sent", async () => {
@@ -1034,4 +1035,28 @@ test("a group's row offers no server reaction, edit, pin or delete, and none is 
   await settle();
   const leaked = page.sock.sent.filter((m) => m.type === "pin_request" || m.type === "reaction" || m.type === "edit");
   assert.deepEqual(leaked, [], "nothing that carries the group's text or reactions goes to the server");
+});
+
+// The batch review (2026-10-10): a picture loads by itself only from the desktop app's friend, a
+// mutual follow who also holds a pass from me. A mutual follow alone (a pass not given yet, or
+// held back by the protected setup) waits for the click like anyone else. Seen red against web/
+// as at a3ca8f167 (HOS_WEB_DIR): "a mutual follow holding no pass from me: Image (click to load)".
+test("a picture from a mutual follow who holds no pass from me waits for the click; with the pass it shows at once", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  // Ben: a mutual follow, but no pass from me yet.
+  page.store.setFollowing(fx.ben.key, true);
+  page.store.setFollower(fx.ben.key, true);
+  page.set("(k) => { myFollowing.add(k); myFollowers.add(k); }", fx.ben.key);
+  const benPic = await fileInGroup(page, fx.ben, { name: "dog.png", mime: "image/png", bytes: PNG, at: T0 + 300 });
+  page.relay.log = [fx.hello, benPic.msg];
+  await openGroup(page);
+  const benRow = rowsFrom(page, fx.ben).find((r) => r.innerHTML.includes("enc-attach"));
+  assert.ok(benRow, "Ben's picture is drawn as a card");
+  assert.ok(benRow.innerHTML.includes("Image (click to load)"), "a mutual follow holding no pass from me: Image (click to load)");
+  assert.equal(gets(page, benPic.meta.url), 0, "nothing fetched before the click");
+  // With the pass, a friend: the next drawing shows it at once.
+  page.store.recordPassSent(fx.ben.key, "11".repeat(16), MAY);
+  assert.equal(page.fn("privateFileFromFriend")(fx.ben.key), true, "a mutual follow holding my pass is a friend");
+  assert.equal(page.fn("privateFileFromFriend")(fx.cy.key), false, "someone else is not");
 });

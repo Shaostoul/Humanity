@@ -157,6 +157,11 @@
   function groupReportToCreator(dest) { return dest === 'creator' || dest === 'both'; }
   function groupReportToAdmins(dest) { return dest === 'admins' || dest === 'both'; }
 
+  /** Is this a received item's time: a JSON number that is a whole number from 0 to 2^53 - 1? */
+  function groupReportTsOk(ts) {
+    return typeof ts === 'number' && Number.isSafeInteger(ts) && ts >= 0;
+  }
+
   /**
    * One group message as an item: {id, from, ts, text}. Null when the id or
    * the sender is not one, or the text carries a file (step D's rule).
@@ -235,7 +240,11 @@
     if (!Array.isArray(v.items) || v.items.length > GROUP_REPORT_MAX_ITEMS) return null;
     const items = [];
     for (const it of v.items) {
-      if (!it || typeof it !== 'object' || typeof it.text !== 'string') return null;
+      if (!it || typeof it !== 'object' || Array.isArray(it) || typeof it.text !== 'string') return null;
+      // The time must be a JSON number holding a whole number from 0 to 2^53 - 1, as the
+      // desktop app reads it (src/net/group_report.rs `whole`): never a string ("1700000000000",
+      // "0x10"), null, true or [], which groupReportItem's Number() would turn into a time.
+      if (!groupReportTsOk(it.ts)) return null;
       const item = groupReportItem(it.id, it.from, it.ts, it.text);
       if (!item) return null;
       items.push(item);

@@ -284,6 +284,9 @@ const reachOfferShown = new Map();
 // People whose contact request was refused this session (`reach_refused` with `request: true`):
 // they are not taking requests, so no Send request button is offered to them again.
 const reachNotTaking = new Set();
+// The Send request offers drawn this session, by person ({text, btn, retired}),
+// so a later "not taking requests" can take their buttons away.
+const reachOffers = new Map();
 const REACH_OFFER_QUIET_MS = 60000;
 
 /** The settings in force: the relay's word, or the safe defaults until it has spoken. */
@@ -517,6 +520,10 @@ function onReachRefused(msg) {
   // 2026-10-10): say they are not taking requests, once, and never offer one to them again
   // this session, where the offer used to come back each minute (the desktop app does the same).
   if (msg.request === true) {
+    // Every offer already on screen for them goes too: its Send request
+    // button would only ask again (the desktop app replaces its one notice
+    // with these words the same way).
+    reachRetireOffers(to);
     if (reachNotTaking.has(to)) return;
     reachNotTaking.add(to);
     reachSay(`Not delivered to ${reachDisplayName(to)}. ${REACH_NOT_TAKING_REQUESTS}`);
@@ -538,16 +545,39 @@ function onReachRefused(msg) {
   const btn = document.createElement('button');
   btn.className = 'vr-btn';
   btn.textContent = 'Send request';
+  const offer = { text, btn };
   btn.onclick = async () => {
+    // They said no to requests since this was drawn: nothing is sent.
+    if (reachNotTaking.has(to) || offer.retired) return;
     btn.disabled = true;
     const ok = await sendContactRequest(to);
+    if (offer.retired) return; // a refusal of the request arrived while it was on its way
     btn.textContent = ok ? 'Request sent' : 'Send request';
     if (!ok) btn.disabled = false;
   };
   el.appendChild(status);
   el.appendChild(text);
   el.appendChild(btn);
+  if (!reachOffers.has(to)) reachOffers.set(to, []);
+  reachOffers.get(to).push(offer);
   if (typeof appendMessage === 'function') appendMessage(el);
+}
+
+/**
+ * They are not taking contact requests (a `reach_refused` with `request:
+ * true`): every Send request offer drawn for them earlier says so instead, and
+ * its button goes, so it cannot ask again.
+ */
+function reachRetireOffers(to) {
+  const list = reachOffers.get(to) || [];
+  for (const offer of list) {
+    offer.retired = true;
+    offer.text.textContent = REACH_NOT_TAKING_REQUESTS;
+    offer.btn.disabled = true;
+    offer.btn.style.display = 'none';
+    offer.btn.onclick = null;
+  }
+  reachOffers.delete(to);
 }
 
 // ── Drawing ──
@@ -746,10 +776,13 @@ function safetyWarningsHtml(model) {
  */
 async function chooseFriendTick(peer, kind, on) {
   // With the protected setup on, the PIN first (10h): a cancelled prompt puts
-  // the tick back as it was and says nothing else.
-  if (typeof protectedUnlock === 'function' && !await protectedUnlock('reach_tick')) {
-    renderSafetyPanel();
-    return false;
+  // the tick back as it was and says nothing else. The PIN opens this one
+  // change only: setFriendTick takes it, and it is gone when this returns.
+  if (typeof protectedNeedsPin === 'function' && protectedNeedsPin('reach_tick')) {
+    let asked = false;
+    const done = await protectedAskThen('reach_tick', () => { asked = true; return chooseFriendTick(peer, kind, on); });
+    if (!asked) renderSafetyPanel();
+    return done;
   }
   const pending = setFriendTick(peer, kind, on);
   renderSafetyPanel();

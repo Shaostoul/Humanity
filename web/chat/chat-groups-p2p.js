@@ -299,23 +299,17 @@
 
     // (2) Current epoch + already-covered recipient fingerprints. Keep the raw
     //     payload bytes so a SHARED-history re-seal can unseal the current key.
-    let currentEpoch = 0;
+    //     Only the server's plain "no key yet" (404) counts as epoch 0; any
+    //     other failure, or a key that cannot be read, skips the re-key this
+    //     time rather than minting a key numbered 1 over the group's real one.
+    const current = await _currentEpochOf(groupId, obj);
+    if (!current) return null;
+    const currentEpoch = current.epoch;
+    const currentEpochPayloadBytes = current.payloadBytes;
     const coveredFps = new Set();
-    let currentEpochPayloadBytes = null;
-    try {
-      const r = await fetch('/api/v2/groups/' + encodeURIComponent(groupId) + '/epoch');
-      if (r.ok) {
-        const epochObj = await r.json();
-        currentEpochPayloadBytes = b64ToBytes(epochObj.payload_b64);
-        const parsed = obj.parseGroupEpochKeyPayload(currentEpochPayloadBytes);
-        if (parsed) {
-          currentEpoch = parsed.epoch || 0;
-          for (const rcp of parsed.recipients) {
-            if (rcp && rcp.fp) coveredFps.add(rcp.fp);
-          }
-        }
-      }
-    } catch (e) { /* no epoch yet, treat as currentEpoch=0, empty set */ }
+    for (const rcp of (current.parsed && Array.isArray(current.parsed.recipients)) ? current.parsed.recipients : []) {
+      if (rcp && rcp.fp) coveredFps.add(rcp.fp);
+    }
 
     // (3) Current roster with each member's Kyber public key.
     let allMembers = [];
@@ -333,6 +327,9 @@
     let hasGap = false;
     for (const m of allMembers) {
       if (!m.kyber_public || !m.pubkey) continue;
+      // Someone this device removed is never sealed to again, even while the
+      // server still lists them (between the new key and the removal).
+      if (_wasRemoved(groupId, m.pubkey)) continue;
       const pubBytes = hexToBytes(m.pubkey);
       const h = blake3(pubBytes);
       let fp = '';
@@ -342,7 +339,9 @@
     }
 
     if (!hasGap) return null; // all current members already covered
-    const addedCount = sealable.length - coveredFps.size;
+    // The members the current key does not cover (not a difference of counts:
+    // someone removed is covered by the old key and left out of the new one).
+    const addedCount = sealable.filter((s) => !coveredFps.has(s.fp)).length;
 
     // (5) Cover the new member(s).
     if (shareHistory && currentEpoch >= 1 && currentEpochPayloadBytes) {
@@ -379,6 +378,11 @@
   }
 
   async function createP2pGroup(name, shareHistory) {
+    // With the protected setup on, starting a group needs the PIN (its
+    // members can post to this device, and the status line says so).
+    if (typeof protectedTake === 'function' && !protectedTake('start_group')) {
+      return protectedAskThen('start_group', () => createP2pGroup(name, shareHistory));
+    }
     if (!pqReady()) return notReady();
     name = (name || '').trim();
     if (!name) return;
@@ -415,6 +419,13 @@
 
   // Mint a creator-signed invite for `groupId`, returning a shareable ticket string.
   async function createP2pInvite(groupId, groupName) {
+    // With the protected setup on, making (or copying) an invite ticket needs
+    // the PIN: each ticket lets someone into a group with this device in it.
+    // Resolves null when the PIN is not given.
+    if (typeof protectedTake === 'function' && !protectedTake('group_invite')) {
+      const t = await protectedAskThen('group_invite', () => createP2pInvite(groupId, groupName));
+      return t || null;
+    }
     if (!pqReady()) { notReady(); return null; }
     const { obj, blake3 } = await mods();
     const secret = obj.randomInviteSecret();
@@ -557,15 +568,13 @@
   async function rotateP2pGroupKey(groupId, without) {
     if (!pqReady() || typeof window.pqDmSeal !== 'function') return null;
     const { obj, blake3 } = await mods();
-    let currentEpoch = 0;
-    try {
-      const r = await fetch('/api/v2/groups/' + encodeURIComponent(groupId) + '/epoch');
-      if (r.ok) {
-        const epochObj = await r.json();
-        const parsed = obj.parseGroupEpochKeyPayload(b64ToBytes(epochObj.payload_b64));
-        if (parsed) currentEpoch = Number(parsed.epoch) || 0;
-      }
-    } catch (e) { /* no epoch yet: this one is the first */ }
+    // The group's current key number. Only the server's plain "no key yet"
+    // (404) means this is the first; any other failure, or a key that cannot
+    // be read, makes no key at all: guessing 0 would post a key numbered 1
+    // over the group's real one (the batch review, 2026-10-10).
+    const current = await _currentEpochOf(groupId, obj);
+    if (!current) return null;
+    const currentEpoch = current.epoch;
     let members = [];
     try {
       const r = await fetch('/api/v2/groups/' + encodeURIComponent(groupId) + '/members');
@@ -577,15 +586,23 @@
     for (const m of members) {
       if (!m || !m.pubkey || !m.kyber_public) continue;
       if (gone && String(m.pubkey).toLowerCase() === gone) continue; // even if the server still lists them
+      if (_wasRemoved(groupId, m.pubkey)) continue; // nor anyone else this device removed
       sealable.push({ fp: fpFromPubHex(m.pubkey, blake3), kyber_public: m.kyber_public });
     }
     const epoch = currentEpoch + 1;
     const epochKey = obj.randomEpochKey();
-    const ek = await obj.buildGroupEpochKeyV1({
-      groupId, epoch, epochKey, members: sealable, seal: window.pqDmSeal,
-      authorPublicKey: authorPub(), sign: signer(), blake3,
-    });
-    await postObject(ek.submission);
+    // A key that cannot be built, or that the server refuses, is a key that
+    // could not be made (the desktop app counts it the same way).
+    try {
+      const ek = await obj.buildGroupEpochKeyV1({
+        groupId, epoch, epochKey, members: sealable, seal: window.pqDmSeal,
+        authorPublicKey: authorPub(), sign: signer(), blake3,
+      });
+      await postObject(ek.submission);
+    } catch (e) {
+      console.warn('rotateP2pGroupKey:', e && e.message);
+      return null;
+    }
     const ag = window.activeP2pGroup;
     if (ag && ag.id === groupId) {
       ag.epoch = epoch;
@@ -608,11 +625,75 @@
     if (!pqReady()) { notReady(); return false; }
     const key = String(memberKey || '').toLowerCase();
     if (!/^[0-9a-f]+$/.test(key) || key.length % 2 !== 0) return false;
-    const rotated = await rotateP2pGroupKey(groupId, key);
-    if (!rotated) throw new Error('a new group key could not be made');
-    await postMemberRemove(groupId, hexToBytes(key));
+    // Counted as removed from the moment their key is being replaced, so the
+    // creator's own rekey on open (rekeyIfCreatorNeeds, which seals to the
+    // server's list) cannot seal to them while the server still lists them
+    // between the new key and the removal.
+    const removed = _removedSet(groupId);
+    const already = removed.has(key);
+    removed.add(key);
+    let rotated = null;
+    try { rotated = await rotateP2pGroupKey(groupId, key); } catch (e) { rotated = null; }
+    if (!rotated) {
+      if (!already) removed.delete(key); // no one was removed, so they are not left out of later keys
+      throw _removeError('a new group key could not be made');
+    }
+    try {
+      await postMemberRemove(groupId, hexToBytes(key));
+    } catch (e) {
+      // Never the server's own words ("HTTP 500"): the desktop app's sentence.
+      // They stay out of every key this device makes: the new one already left them out.
+      console.warn('removeP2pMember:', e && e.message);
+      throw _removeError('the server refused it');
+    }
     await loadP2pGroups();
     return true;
+  }
+
+  /** An error saying why a removal did not go through, in the words the report's line uses. */
+  function _removeError(reason) {
+    const e = new Error(reason);
+    e.removeReason = reason;
+    return e;
+  }
+
+  // ── Who this device removed, for this page visit ──
+  // Group id -> the keys (lowercase hex) this device removed from it. Never
+  // sealed to again by any key this device makes, even while the server still
+  // lists them. Kept in memory only: the server's list catches up, and a new
+  // page load starts from it.
+  const _removedFrom = new Map();
+  function _removedSet(groupId) {
+    let s = _removedFrom.get(groupId);
+    if (!s) { s = new Set(); _removedFrom.set(groupId, s); }
+    return s;
+  }
+  function _wasRemoved(groupId, pubkey) {
+    const s = _removedFrom.get(groupId);
+    return !!(s && typeof pubkey === 'string' && s.has(pubkey.toLowerCase()));
+  }
+
+  /**
+   * The group's current key number, from the server: {epoch, payloadBytes}, with
+   * {epoch: 0, payloadBytes: null} only for the server's plain "no key yet"
+   * (404). Null for any other failure, or for a key that cannot be read: then
+   * nobody may guess the number (a guessed 0 would post a key numbered 1 over
+   * the group's real one).
+   */
+  async function _currentEpochOf(groupId, obj) {
+    try {
+      const r = await fetch('/api/v2/groups/' + encodeURIComponent(groupId) + '/epoch');
+      if (r.status === 404) return { epoch: 0, payloadBytes: null, parsed: null };
+      if (!r.ok) return null;
+      const epochObj = await r.json();
+      const payloadBytes = b64ToBytes(epochObj.payload_b64);
+      const parsed = obj.parseGroupEpochKeyPayload(payloadBytes);
+      const epoch = parsed ? Number(parsed.epoch) : NaN;
+      if (!parsed || !Number.isSafeInteger(epoch) || epoch < 1) return null;
+      return { epoch, payloadBytes, parsed };
+    } catch (e) {
+      return null;
+    }
   }
 
   // Fetch my P2P groups + rosters from the relay projection and re-render.
@@ -620,13 +701,18 @@
   //, otherwise the lazy trigger in renderGroupList would burn the flag before
   // identity loads and the groups would never appear until the user interacted
   // (the "no groups on first load" bug).
+  // A reply that is not a list (an HTTP error, which fetch does not throw for,
+  // or a body without `groups`) keeps the last list: setting it empty would
+  // make a group report arriving meanwhile look like one about a group I do
+  // not hold, and it would be dropped for good (chat-reports.js).
   async function loadP2pGroups() {
     if (typeof myKey !== 'string' || !myKey) return;
     window._p2pGroupsFetched = true;
     try {
       const res = await fetch('/api/v2/groups?pubkey=' + encodeURIComponent(myKey));
-      const data = await res.json();
-      window._p2pGroups = (data && Array.isArray(data.groups)) ? data.groups : [];
+      const data = res && res.ok ? await res.json() : null;
+      if (data && Array.isArray(data.groups)) window._p2pGroups = data.groups;
+      else window._p2pGroups = window._p2pGroups || [];
     } catch (e) {
       window._p2pGroups = window._p2pGroups || [];
     }
@@ -750,6 +836,39 @@
     } catch (e) { /* best effort */ }
   }
 
+  /**
+   * Is there a newer group key than the one `ag` sends under (the creator
+   * made one, as after removing someone)? When it is sealed to me, switch to
+   * it: sending uses it from now on, and it joins the keys history is opened
+   * with. True when it switched. A newer key not sealed to me (I was removed)
+   * changes nothing here; the server refuses my posts then anyway.
+   */
+  async function _adoptNewerEpoch(ag) {
+    if (!ag || !pqReady() || typeof window.pqDmOpen !== 'function' || !myKyberSecret) return false;
+    try {
+      const r = await fetch('/api/v2/groups/' + encodeURIComponent(ag.id) + '/epoch');
+      if (!r.ok) return false;
+      const epochObj = await r.json();
+      const { obj } = await mods();
+      const payload = b64ToBytes(epochObj.payload_b64);
+      const parsed = obj.parseGroupEpochKeyPayload(payload);
+      const newer = parsed ? Number(parsed.epoch) : NaN;
+      if (!Number.isSafeInteger(newer) || newer <= (Number(ag.epoch) || 0)) return false;
+      const fp = ag.myFp || await myFingerprint();
+      const opened = await obj.openGroupEpochKey(payload, fp, window.pqDmOpen, myKyberSecret);
+      if (!opened || !opened.epochKey || !(Number(opened.epoch) > (Number(ag.epoch) || 0))) return false;
+      if (window.activeP2pGroup !== ag) return false; // the view changed meanwhile
+      ag.epoch = Number(opened.epoch);
+      ag.epochKey = opened.epochKey;
+      if (!ag.epochKeys) ag.epochKeys = new Map();
+      ag.epochKeys.set(ag.epoch, opened.epochKey);
+      ag.fpToName = null; // the roster changed with it: reload the names next refresh
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   async function _p2pRefresh() {
     const ag = window.activeP2pGroup;
     if (!ag || _p2pRefreshing) return;
@@ -764,8 +883,12 @@
 
       const rosterP = ag.fpToName ? Promise.resolve() : _loadRosterIndex(ag);
       const rawP = _fetchGroupMessagesRaw(ag.id);            // GET messages (no decrypt yet)
+      // With a key in hand, still ask on every refresh whether there is a newer
+      // one (as the desktop app does on each load): after the creator removes
+      // someone, everyone else must send under the new key at once, never on
+      // under the old one the removed person still holds.
       const keyP = ag.epochKey
-        ? Promise.resolve()
+        ? _adoptNewerEpoch(ag)
         : fetchAllEpochKeys(ag.id).then((all) => {
             if (all) {
               ag.epochKeys = all.map;        // epoch → key, for decrypting the full multi-epoch history
@@ -829,6 +952,10 @@
    */
   function openP2pGroup(groupId, name) {
     if (!pqReady()) { notReady(); return; }
+    // A reply belongs to the view it was made in: a new view starts without
+    // one (app.js), so a reply begun elsewhere never rides a group message
+    // and one begun here never rides a post elsewhere.
+    if (typeof clearReplyTarget === 'function') clearReplyTarget();
     // (a) Clear competing contexts (DM, legacy group). Leave `activeChannel`
     //     untouched so switching back to a channel restores it.
     if (typeof activeDmPartner !== 'undefined') { activeDmPartner = null; activeDmPartnerName = ''; }
@@ -912,6 +1039,8 @@
   function closeP2pGroup() {
     _stopP2pPoll();
     _p2pRenderedKey = '';
+    // A reply made in the group stays in the group (app.js clearReplyTarget).
+    if (window.activeP2pGroup && typeof clearReplyTarget === 'function') clearReplyTarget();
     if (window.activeP2pGroup) window.activeP2pGroup = null;
   }
 
@@ -970,6 +1099,9 @@
       if (typeof addNotice === 'function') addNotice('Send failed: ' + e.message, 'red', 6);
       return false;
     }
+    // A group message carries no reply: the reply bar, if one was open, has
+    // done its job here and never goes on to a post anywhere else (app.js).
+    if (typeof clearReplyTarget === 'function') clearReplyTarget();
     // Optimistic local echo so the user sees their message land
     // immediately, the next poll-refresh reconciles with what the relay
     // stored (dedup by author_fp + created_at).

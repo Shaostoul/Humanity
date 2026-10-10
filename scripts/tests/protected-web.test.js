@@ -69,7 +69,16 @@
 //     the file has them).
 // 20. Forgot the PIN takes only the phrase of the identity the setup was turned on under: another
 //     identity on the same device is refused even with its own correct phrase, and a missing or
-//     damaged stored identity matches none.
+//     damaged stored identity falls back to the identity in use (the desktop app's rule).
+// 21. The PIN opens one action, the one it was asked for: an action that returns before using it,
+//     or throws, leaves nothing open for the next one, and it never opens another kind.
+// 22. Starting a group and making (or copying) an invite ticket need the PIN (in test 4's list);
+//     the typed /friend-code and /redeem, in the composer and in a thread, ask as the buttons do;
+//     a redeem made with the PIN follows the person the relay names with no second PIN.
+// 23. My own Unfollow, echoed from another of my devices, takes them off the approved list.
+// 24. The review lists mutual follows still owed a pass, and keeping them approves them.
+// 25. While it is on, warnings stay on whatever the identity's own switch says; only the PIN turns
+//     them off, and that choice is kept on this device.
 //
 // Red first, 2026-10-10: each mutation made in a copy of web/, this test run against it with
 // HOS_WEB_DIR, and seen failing with the assertion named (the others passing unless said):
@@ -119,6 +128,25 @@
 //     missing stored identity refusing every phrase (fail closed, which would lock a damaged setup
 //     for good; replaced 2026-10-10 by the desktop app's rule): "a missing identity: the phrase of
 //     the identity in use opens it".
+// Added 2026-10-10 (the batch review), each new test run against web/ as at a3ca8f167 (before the
+// fix) and seen failing there with the assertion named:
+// 4 (two new rows): "starting a group: the PIN prompt opens" (createP2pGroup had no gate).
+// 21: "a second action asks for the PIN again, though the first returned without using it" (the
+//     PIN held a 10-second grant that an action returning early left open).
+// 22: "P.protectedTypedCommand is not a function" (the typed commands went to the relay as chat).
+// 23: "an Unfollow echoed from another device takes them off".
+// 24: "both friends are listed, the one owed a pass too".
+// 25: "the identity's own switch does not turn them off while the setup is on".
+// 17 (new rows): "chat/chat-privacy.js: async function chooseFriendTick asks
+//     protectedNeedsPin('reach_tick') before setFriendTick(" and the rows for createP2pGroup,
+//     createP2pInvite, redeemFriendCode and the typed commands.
+// And one break at a time in a copy of the fixed web/: the typed routing taken out of chat-ui.js:
+// "/friend-code: the PIN prompt opens"; createP2pInvite's gate taken out: "making or copying a
+// group's invite ticket: the PIN prompt opens"; the redeem's approval taken out: "no second PIN
+// for the friend the code named"; sendThreadReply's typed check taken out: "typed in a thread: the
+// PIN prompt opens"; protectedAskThen not clearing its grant when the run returns: "a second
+// action asks for the PIN again, though the first returned without using it"; setMessageWarningsOn
+// not keeping warnings_off: "with it, they are off".
 
 const test = require("node:test");
 const assert = require("node:assert");
@@ -345,6 +373,13 @@ function fakeGroupModules() {
     },
     buildGroupJoinV1: async (a) => ({ submission: { object_type: "group_join_v1", group: a.groupId } }),
     buildGroupMemberV1: async (a) => ({ submission: { object_type: "group_member_v1", action: a.action, group: a.groupId } }),
+    // Starting a group and minting its invite ticket (both locked while the setup is on).
+    buildGroupV1: async (a) => ({ objectId: "g-new", submission: { object_type: "group_v1", name: a.name } }),
+    buildGroupEpochKeyV1: async (a) => ({ objectId: "e-new", submission: { object_type: "group_epoch_key_v1", group: a.groupId, epoch: a.epoch } }),
+    randomEpochKey: () => "K",
+    randomInviteSecret: () => "secret",
+    buildGroupInviteV1: async (a) => ({ objectId: "i-new", submission: { object_type: "group_invite_v1", group: a.groupId } }),
+    encodeInviteTicket: (t) => "TICKET-" + t.groupId,
   };
   const noble = {
     blake3: {
@@ -777,6 +812,16 @@ const LOCKED = [
     name: "joining a group by ticket",
     run: (c) => c.fn("joinP2pGroupByTicket")("TICKET-OK"),
     done: (c) => c.posted.some((p) => p.object_type === "group_join_v1"),
+  },
+  {
+    name: "starting a group",
+    run: (c) => { c.fn("createP2pGroup")("Climbers", false); },
+    done: (c) => c.posted.some((p) => p.object_type === "group_v1" && p.name === "Climbers"),
+  },
+  {
+    name: "making or copying a group's invite ticket",
+    run: (c) => { c.fn("createP2pInvite")("g1", "Hikers"); },
+    done: (c) => c.posted.some((p) => p.object_type === "group_invite_v1" && p.group === "g1"),
   },
   {
     name: "joining a voice room",
@@ -1400,9 +1445,14 @@ test("index.html loads protected.js before chat-privacy.js, and every gate sits 
     ["chat/chat-privacy.js", "function chooseReachAudience(", "protectedTake('reach_row')", "ws.send("],
     ["chat/chat-privacy.js", "async function acceptContactRequest(", "protectedBefriendAllowed(", "setFollowLocal("],
     ["chat/chat-privacy.js", "async function sendContactRequest(", "protectedBefriendAllowed(", "ws.send("],
-    ["chat/chat-privacy.js", "async function chooseFriendTick(", "protectedUnlock('reach_tick')", "setFriendTick("],
+    ["chat/chat-privacy.js", "async function chooseFriendTick(", "protectedNeedsPin('reach_tick')", "setFriendTick("],
     ["chat/chat-social.js", "async function setFollowLocal(", "protectedBefriendAllowed(", "sendDmControl("],
     ["chat/chat-social.js", "function sendFriendCodeRequest(", "protectedTake('friend_code')", "ws.send("],
+    ["chat/chat-social.js", "function redeemFriendCode(", "protectedTake('friend_code')", "ws.send("],
+    ["chat/chat-groups-p2p.js", "async function createP2pGroup(", "protectedTake('start_group')", "postObject("],
+    ["chat/chat-groups-p2p.js", "async function createP2pInvite(", "protectedTake('group_invite')", "postObject("],
+    ["chat/chat-ui.js", "sendMessage = async function() {", "protectedTypedCommand(val)", "await _origSendMessage2();"],
+    ["chat/chat-messages.js", "async function sendThreadReply(", "protectedTypedCommand(content)", "ws.send("],
     ["chat/chat-social.js", "async function setFriendTick(", "protectedTake('reach_tick')", "reissuePassTo("],
     ["chat/chat-social.js", "async function sendFriendCertTo(", "protectedPassAllowed(", "pqBuildFriendCert("],
     ["chat/chat-groups-p2p.js", "async function joinP2pGroupByTicket(", "protectedTake('join_group')", "postObject("],
@@ -1708,4 +1758,162 @@ test("forgot the PIN takes only the phrase of the identity the setup was turned 
   await none.fn("protectedSetupChoosePin")(PIN, PIN);
   assert.equal(none.fn("protectedSetupApply")(), false, "no identity: not applied");
   assert.equal(none.saved(), null, "and nothing kept");
+});
+
+// ── 21. The batch review's fixes (2026-10-10) ────────────────────────────
+// Each seen failing against the code before the fix (web/ as at a3ca8f167, through HOS_WEB_DIR):
+// the assertion it tripped is in the red list at the top of this file (21 to 26).
+
+test("the PIN opens one action, the one it was asked for, and nothing after that action returns", async () => {
+  const chat = await loadChat();
+  befriend(chat, ANN, S1);
+  befriend(chat, BEN, S2);
+  await turnOn(chat, PIN);
+  // A tick already as asked: the PIN is given, and the change, having nothing to do, returns
+  // before it uses the PIN.
+  const first = chat.fn("chooseFriendTick")(ANN, "message", true);
+  await settle();
+  assert.ok(chat.pinOpen(), "the tick asks for the PIN");
+  await answerPin(chat, PIN);
+  assert.equal(await first, true);
+  chat.sock.sent.length = 0;
+  // The next tick, for someone else, asks again.
+  chat.fn("chooseFriendTick")(BEN, "call", true);
+  await settle();
+  assert.ok(chat.pinOpen(), "a second action asks for the PIN again, though the first returned without using it");
+  assert.deepEqual(chat.sock.sent, [], "and nothing is re-issued without it");
+  await cancelPin(chat);
+
+  // The gate itself: a run that returns early, one that throws, and one of another kind.
+  const askThen = chat.fn("protectedAskThen");
+  const take = chat.fn("protectedTake");
+  let p = askThen("join_group", () => "returned early");
+  await settle();
+  await answerPin(chat, PIN);
+  assert.equal(await p, "returned early");
+  assert.equal(take("join_group"), false, "a grant its run did not take is gone once the run returns");
+  p = askThen("join_group", () => { throw new Error("boom"); });
+  const rejected = assert.rejects(p); // handled at once: the run throws once the PIN is given
+  await settle();
+  await answerPin(chat, PIN);
+  await rejected;
+  assert.equal(take("join_group"), false, "and once it throws");
+  p = askThen("join_group", async () => [take("befriend"), take("join_group"), take("join_group")]);
+  await settle();
+  await answerPin(chat, PIN);
+  assert.deepEqual(await p, [false, true, false], "it opens its own action, once, and no other kind");
+});
+
+test("starting a group, an invite ticket and the typed friend-code commands need the PIN while it is on", async () => {
+  // The rule, and the words that say so.
+  const on = P.protectedStateNew(PRESET, null, []);
+  for (const a of ["start_group", "group_invite", "friend_code"]) assert.equal(P.protectedActionLocked(a, on), true, `${a} needs the PIN`);
+  assert.deepEqual(P.protectedTypedCommand("/friend-code"), { action: "friend_code", command: "friend-code", code: "" });
+  assert.deepEqual(P.protectedTypedCommand("  /REDEEM   ab12  "), { action: "friend_code", command: "redeem", code: "ab12" });
+  assert.equal(P.protectedTypedCommand("redeem ab12"), null);
+  assert.ok(/starting a group/.test(PRESET.status_line) && /inviting someone to a group/.test(PRESET.routes_line), "the status and routes lines say so");
+
+  const chat = await loadChat();
+  await turnOn(chat, PIN);
+  const input = chat.el("msg-input");
+  // /friend-code, typed.
+  input.value = "/friend-code";
+  await chat.fn("sendMessage")();
+  await settle();
+  assert.ok(chat.pinOpen(), "/friend-code: the PIN prompt opens");
+  assert.deepEqual(chat.sock.sent, [], "/friend-code: nothing reaches the server without the PIN");
+  await answerPin(chat, PIN);
+  assert.deepEqual(chat.sock.sent, [{ type: "friend_code_request" }], "with it, the code is asked for, once");
+  // /redeem <code>, typed.
+  chat.sock.sent.length = 0;
+  input.value = "/REDEEM  ABCD1234";
+  await chat.fn("sendMessage")();
+  await settle();
+  assert.ok(chat.pinOpen(), "/redeem: the PIN prompt opens");
+  assert.deepEqual(chat.sock.sent, [], "/redeem: nothing reaches the server without the PIN");
+  await answerPin(chat, PIN);
+  assert.deepEqual(chat.sock.sent, [{ type: "friend_code_redeem", code: "ABCD1234" }], "with it, the code is redeemed");
+  // The answer names whose code it was: following them asks for no second PIN.
+  chat.sock.sent.length = 0;
+  await chat.handle({ type: "friend_code_result", success: true, name: "Ben", message: "", owner_key: BEN });
+  assert.ok(!chat.pinOpen(), "no second PIN for the friend the code named");
+  assert.ok(putsTo(chat, BEN).some((m) => opened(m).inner.text === CTL_FOLLOW), "following them goes out");
+  assert.ok(chat.saved().approved.includes(BEN), "and they are a friend the PIN holder let be one");
+  // An answer nobody asked for makes no friend without the PIN.
+  await chat.handle({ type: "friend_code_result", success: true, name: "Cy", message: "", owner_key: CY });
+  assert.ok(chat.pinOpen(), "an answer nobody asked for asks for the PIN before following anyone");
+  await cancelPin(chat);
+  assert.deepEqual(putsTo(chat, CY), []);
+  // The thread reply box would send them to the server as commands too.
+  chat.sock.sent.length = 0;
+  chat.set("(k) => { currentThread = { from: k, author: 'Ann', body: 'hi', timestamp: 5 }; }", ANN);
+  chat.el("thread-input").value = "/friend-code";
+  await chat.fn("sendThreadReply")();
+  await settle();
+  assert.ok(chat.pinOpen(), "typed in a thread: the PIN prompt opens");
+  assert.deepEqual(chat.sock.sent, [], "and nothing is sent");
+  await cancelPin(chat);
+});
+
+test("my own Unfollow, from another of my devices, takes them off the approved list here too", async () => {
+  const chat = await loadChat();
+  befriend(chat, ANN, S1);
+  await turnOn(chat, PIN);
+  assert.ok(chat.saved().approved.includes(ANN), "kept at the review: approved");
+  await chat.handle({ type: "dm_new", id: 71, content: envelope(ME, ANN, CTL_UNFOLLOW, 1760000009000) });
+  assert.ok(!chat.saved().approved.includes(ANN), "an Unfollow echoed from another device takes them off");
+  assert.equal(chat.store.certSentTo(ANN), false, "and withdraws the pass");
+  chat.fn("setFollowLocal")(ANN, true);
+  await settle();
+  assert.ok(chat.pinOpen(), "following them again needs the PIN");
+  await cancelPin(chat);
+});
+
+test("the review lists mutual follows still owed a pass, and keeping them approves them", async () => {
+  const chat = await loadChat();
+  befriend(chat, ANN, S1);
+  // Cy: a mutual follow whose pass has not gone out yet (the sweep would give it).
+  chat.store.setFollowing(CY, true);
+  chat.store.setFollower(CY, true);
+  chat.set("(k) => { myFollowing.add(k); myFollowers.add(k); }", CY);
+  assert.equal(chat.store.certSentTo(CY), false);
+  chat.fn("openProtectedSetup")();
+  chat.fn("protectedSetupContinue")();
+  await chat.fn("protectedSetupChoosePin")(PIN, PIN);
+  assert.deepEqual(chat.fn("protectedReviewModel")().friends.map((f) => f.key).sort(), [ANN, CY].sort(), "both friends are listed, the one owed a pass too");
+  assert.ok(chat.el("protected-setup-card").innerHTML.includes(`data-protected-remove="friend" data-protected-remove-id="${CY}"`), "with Remove");
+  assert.equal(chat.fn("protectedSetupApply")(), true);
+  await settle();
+  assert.deepEqual(chat.saved().approved.slice().sort(), [ANN, CY].sort(), "the friends kept are the ones approved");
+  chat.sock.sent.length = 0;
+  await chat.fn("sweepFriendPasses")();
+  await settle();
+  assert.ok(putsTo(chat, CY).some((m) => opened(m).inner.text === CTL_FRIEND_CERT), "so the pass sweep gives Cy the pass owed");
+});
+
+test("while it is on, warnings stay on whatever the identity's own switch says; only the PIN turns them off", async () => {
+  const chat = await loadChat();
+  await turnOn(chat, PIN);
+  assert.equal(chat.fn("messageWarningsOn")(), true);
+  // A restored identity whose warnings were off: its own switch, in its local store, says off.
+  chat.store.setWarningsOn(false);
+  assert.equal(chat.fn("messageWarningsOn")(), true, "the identity's own switch does not turn them off while the setup is on");
+  assert.ok(/data-warnings-switch[^>]*checked/.test(safetyHtml(chat)), "and Safety shows them on");
+  // The PIN holder can turn them off, and on again.
+  chat.fn("setMessageWarningsOn")(false);
+  await settle();
+  assert.ok(chat.pinOpen(), "turning them off asks for the PIN");
+  await answerPin(chat, PIN);
+  assert.equal(chat.fn("messageWarningsOn")(), false, "with it, they are off");
+  chat.store.setWarningsOn(true);
+  assert.equal(chat.fn("messageWarningsOn")(), false, "and another identity's switch does not turn them back on either");
+  assert.equal(chat.fn("setMessageWarningsOn")(true), true, "turning them on needs no PIN");
+  assert.equal(chat.fn("messageWarningsOn")(), true);
+  // With the setup off, the identity's own switch decides again.
+  chat.fn("protectedTurnOff")();
+  await settle();
+  await answerPin(chat, PIN);
+  assert.equal(chat.saved(), null, "off");
+  chat.store.setWarningsOn(false);
+  assert.equal(chat.fn("messageWarningsOn")(), false, "off: the identity's own switch");
 });

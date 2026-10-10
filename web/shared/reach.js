@@ -96,37 +96,41 @@
   // The relay's rule for a registered name (src/relay/relay.rs, identify).
   const REACH_NAME_RE = /^[A-Za-z0-9_-]{1,24}$/;
 
-  /** One line under a row of the Safety page saying what the choice means. */
+  // The line under each row, by kind and audience: the desktop app's words exactly
+  // (src/net/reach.rs `Audience::meaning`, the source of truth; the batch review of
+  // 2026-10-10 found the two clients differing in 11 of these 15).
+  // scripts/tests/reach-web.test.js reads them out of that Rust file and holds this
+  // table to them. The three "People I choose" lines name the list the ticks are on
+  // (10c-ii); a contact request still gets through under it (the relay refuses one
+  // only under "Nobody"), so the Messages line says so.
+  const REACH_EXPLAIN = Object.freeze({
+    message: Object.freeze({
+      nobody: 'No one can message you here, friends included, and contact requests are turned off.',
+      chosen: 'Only the friends you tick for Message on your "People I choose" list can message you. Anyone else can send a contact request that shows you only their name.',
+      friends: 'Your friends can message you. Anyone else can send a contact request with just their name.',
+      groups: 'Friends and people who share a group with you can message you. Anyone else can send a contact request.',
+      anyone: 'Anyone on this server can message you. People who are not your friends have a small daily limit.',
+    }),
+    call: Object.freeze({
+      nobody: 'No one can call you, friends included.',
+      chosen: 'Only the friends you tick for Call on your "People I choose" list can call you.',
+      friends: 'Any of your friends can call you.',
+      groups: 'Friends and people who share a group with you can call you.',
+      anyone: 'Anyone on this server can call you.',
+    }),
+    trade: Object.freeze({
+      nobody: 'No one can send you trade requests.',
+      chosen: 'Only the friends you tick for Trade on your "People I choose" list can send you trade requests.',
+      friends: 'Your friends can send you trade requests.',
+      groups: 'Friends and people who share a group with you can send you trade requests.',
+      anyone: 'Anyone on this server can send you trade requests. People who are not your friends have a small daily limit.',
+    }),
+  });
+
+  /** One line under a row of the Safety page saying what the choice means ('' for a kind or audience it does not know). */
   function reachExplain(kind, audience) {
-    const verb = { message: 'message you', call: 'call you', trade: 'send you trade requests' }[kind];
-    if (!verb) return '';
-    switch (audience) {
-      case 'nobody':
-        return kind === 'message'
-          ? 'No one can message you, and no one can send you a contact request.'
-          : `No one can ${verb}.`;
-      case 'chosen': {
-        // Names the list the ticks are on (10c-ii). A contact request still
-        // gets through under "People I choose" (the relay refuses one only
-        // under "Nobody"), so the Messages line says so, as its Friends line does.
-        const only = `Only the friends you tick for ${REACH_TICK_LABELS[kind]} on your "People I choose" list can ${verb}.`;
-        return kind === 'message'
-          ? `${only} Anyone else can send a contact request that shows you only their name.`
-          : only;
-      }
-      case 'friends':
-        return kind === 'message'
-          ? 'Only your friends can message you. Anyone else can send a contact request that shows you only their name.'
-          : `Only your friends can ${verb}.`;
-      case 'groups':
-        return `Your friends and people who share a group with you can ${verb}.`;
-      case 'anyone':
-        return kind === 'message'
-          ? 'Anyone can message you. People who are not your friends can send a limited number a day.'
-          : `Anyone can ${verb}.`;
-      default:
-        return '';
-    }
+    const row = Object.prototype.hasOwnProperty.call(REACH_EXPLAIN, kind) ? REACH_EXPLAIN[kind] : null;
+    return row && Object.prototype.hasOwnProperty.call(row, audience) ? row[audience] : '';
   }
 
   /**

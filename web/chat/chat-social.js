@@ -20,7 +20,8 @@ function isFriend(key) {
 /** Send a friend_code_request to the relay; response arrives as friend_code_response. */
 function sendFriendCodeRequest() {
   // A friend code is a way to make a friend: with the protected setup on it
-  // needs the PIN (10h, /shared/protected.js).
+  // needs the PIN (10h, /shared/protected.js). The typed /friend-code comes
+  // here too (chat-ui.js), so typing it does not get round the PIN.
   if (typeof protectedTake === 'function' && !protectedTake('friend_code')) {
     protectedAskThen('friend_code', () => sendFriendCodeRequest());
     return;
@@ -29,6 +30,34 @@ function sendFriendCodeRequest() {
     ws.send(JSON.stringify({ type: 'friend_code_request' }));
   }
 }
+
+// A friend code redeemed with the PIN while the protected setup is on: the
+// person the relay's answer names (friend_code_result's owner_key) is the
+// friend the PIN was given for, so following them asks for no second PIN.
+// Only the next answer counts, and only after a redeem made with the setup on.
+let redeemApprovedPending = false;
+
+/**
+ * Redeem a friend code (the typed /redeem <code>, chat-ui.js): it makes a
+ * friend, so with the protected setup on it needs the PIN (`friend_code`),
+ * like making a code. Sends the relay's own `friend_code_redeem` frame.
+ */
+function redeemFriendCode(code) {
+  code = String(code == null ? '' : code).trim();
+  if (!code) {
+    addSystemMessage('Usage: /redeem <code>');
+    return false;
+  }
+  if (typeof protectedTake === 'function' && !protectedTake('friend_code')) {
+    protectedAskThen('friend_code', () => redeemFriendCode(code));
+    return false;
+  }
+  if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+  redeemApprovedPending = typeof protectedIsOn === 'function' && protectedIsOn();
+  ws.send(JSON.stringify({ type: 'friend_code_redeem', code }));
+  return true;
+}
+window.redeemFriendCode = redeemFriendCode;
 
 function isFollowing(key) {
   return myFollowing.has(key);
@@ -65,9 +94,13 @@ handleMessage = function(msg) {
       // Follows removal (2026-08-24): the relay no longer creates the
       // edges — the redeemer's client opens the friendship exchange.
       if (msg.owner_key && typeof setFollowLocal === 'function') {
+        // Redeemed with the PIN (protected setup): they are the friend it was given for.
+        if (redeemApprovedPending && typeof protectedApprove === 'function') protectedApprove(msg.owner_key);
+        redeemApprovedPending = false;
         setFollowLocal(msg.owner_key, true);
       }
     } else {
+      redeemApprovedPending = false;
       addSystemMessage(`⚠️ Friend code failed: ${esc(msg.message || 'Unknown error')}`);
     }
     return;
@@ -645,10 +678,14 @@ async function ingestDmControl(inner) {
   } else if (inner.text === CTL_UNFOLLOW) {
     if (fromMe) {
       // Our own unfollow from another device: the passes we gave go too
-      // (that device withdrew the ones it knew of; a repeat is harmless).
+      // (that device withdrew the ones it knew of; a repeat is harmless), and
+      // with the protected setup on they leave its approved list here too, as
+      // an Unfollow made on this device does (setFollowLocal): a new
+      // friendship with them needs the PIN again.
       if (store) store.setFollowing(peer, false);
       myFollowing.delete(peer);
       withdrawPassesTo(peer);
+      if (typeof protectedForget === 'function') protectedForget(peer);
     } else {
       // They unfollowed, and so withdrew the pass they gave us.
       if (store) { store.setFollower(peer, false); store.forgetCertFrom(peer); }
@@ -657,9 +694,18 @@ async function ingestDmControl(inner) {
   } else if (inner.text === CTL_FRIEND_CERT && inner.cert) {
     if (fromMe) {
       // A pass we gave, echoed from another device: remember its serial so
-      // any of our devices can withdraw it.
+      // any of our devices can withdraw it. Its `may` is that device's latest
+      // word on what they may do (the ticks in "People I choose", 10c-ii), so
+      // it replaces our record of them: every pass to them saying otherwise is
+      // withdrawn (that device withdrew them too; a repeat is harmless), the
+      // desktop app's rule (src/engine/dm.rs ingest_control). Adding it beside
+      // the old ones made the ticks their union, so a tick taken away on one
+      // device came back on this one.
       const pass = friendPassParse(inner.cert);
-      if (store && pass) store.recordPassSent(peer, pass.serial, pass.may);
+      if (store && pass) {
+        store.adoptEchoedPass(peer, pass.serial, pass.may);
+        sendPendingWithdrawals();
+      }
     } else if (await pqVerifyFriendCert(inner.from, myKey, inner.cert)) {
       const hadOne = store ? !!store.certFor(inner.from) : false;
       if (store) store.storeCertFrom(inner.from, inner.cert);

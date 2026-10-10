@@ -394,12 +394,14 @@ function protectedTurnOff() {
 /** Change the PIN: the current one first, then the new one twice. Resolves true when it changed. */
 async function protectedChangePin() {
   if (!protectedIsOn()) return false;
-  if (!await protectedUnlock('change_pin')) return false;
-  if (!protectedTake('change_pin')) return false;
-  if (protectedPin) return false;
-  return new Promise((resolve) => {
-    protectedPin = { action: 'change_pin', resolve, mode: 'newpin', after: 'close', error: '', busy: false };
-    renderProtectedPin();
+  // The current PIN opens this one change (protectedAskThen), taken at once.
+  return protectedAskThen('change_pin', () => {
+    if (!protectedTake('change_pin')) return false;
+    if (protectedPin) return false;
+    return new Promise((resolve) => {
+      protectedPin = { action: 'change_pin', resolve, mode: 'newpin', after: 'close', error: '', busy: false };
+      renderProtectedPin();
+    });
   });
 }
 
@@ -463,16 +465,21 @@ async function protectedSetupChoosePin(pin, again) {
 
 /**
  * Step 3's lists: who can already reach this device. Friends are everyone
- * holding a pass from me; groups are the ones I am in; voice rooms the one I
- * am in (and one this page is about to join again after a reload).
+ * holding a pass from me and every mutual follow still owed one (the pass
+ * sweep would give them one, so they are friends already in all but the
+ * pass; the desktop app's `people_to_choose`); groups are the ones I am in;
+ * voice rooms the one I am in (and one this page is about to join again after
+ * a reload). The friends kept here are the ones approved at step 4.
  */
 function protectedReviewModel() {
   const store = pStore();
   const name = (k) => (typeof reachDisplayName === 'function' ? reachDisplayName(k) : String(k).slice(0, 8));
-  const friends = store
-    ? Object.keys(store.certsSent).filter((k) => store.certSentTo(k)).map((key) => ({ key, name: name(key) }))
-      .sort((a, b) => a.name.localeCompare(b.name))
+  const friendKeys = store
+    ? Array.from(new Set(Object.keys(store.certsSent).filter((k) => store.certSentTo(k))
+      .concat(typeof store.friendsWithoutPass === 'function' ? store.friendsWithoutPass() : [])))
     : [];
+  const friends = friendKeys.map((key) => ({ key, name: name(key) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
   const groups = (Array.isArray(window._p2pGroups) ? window._p2pGroups : [])
     .filter((g) => g && g.group_id)
     .map((g) => ({ id: g.group_id, name: String(g.name || g.group_id.slice(0, 8)) }));
@@ -650,7 +657,7 @@ function renderProtectedSetup() {
 
 let protectedPin = null; // {action, resolve, mode, after, error, busy}
 
-/** Ask for the PIN for `action`. Resolves true for the right PIN, false when cancelled. (/shared/protected.js protectedUnlock calls this.) */
+/** Ask for the PIN for `action`. Resolves true for the right PIN, false when cancelled. (/shared/protected.js protectedAskThen calls this.) */
 function protectedAskPin(action) {
   if (protectedPin) return Promise.resolve(false);
   return new Promise((resolve) => {
@@ -718,7 +725,10 @@ function protectedPinForgot() {
  * chosen; the setup stays on. Under any other identity nothing typed opens it,
  * not even that identity's own correct phrase: a new identity made on this
  * device must not be a way round the lock. A setup that holds no identity, or
- * a damaged one, matches none (fail closed).
+ * a damaged one (only damage to what storage holds can leave that: turning it
+ * on always records one), falls back to the identity in use, so the phrase can
+ * still open it rather than it locking for good (/shared/protected.js
+ * protectedIdentityMatches, the desktop app's rule).
  */
 async function protectedForgotSubmit(phrase) {
   const st = protectedPin;

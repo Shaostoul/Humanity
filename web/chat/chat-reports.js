@@ -1048,7 +1048,11 @@ async function groupReportRemove(id) {
   try {
     ok = typeof removeP2pMember === 'function' ? await removeP2pMember(rec.group_id, rec.target) : false;
   } catch (e) {
-    repSay(`Could not remove ${name} from ${rec.group_name}: ${(e && e.message) || 'the server refused it'}.`);
+    // One of the two reasons removeP2pMember gives (a new group key could not
+    // be made, or the server refused the removal); never the server's own
+    // words ("HTTP 500"), which say nothing to the person reading them.
+    const why = (e && e.removeReason) || 'the server refused it';
+    repSay(`Could not remove ${name} from ${rec.group_name}: ${why}.`);
   }
   if (ok) {
     store.setGroupReportRemoved(id);
