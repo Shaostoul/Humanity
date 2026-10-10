@@ -90,6 +90,14 @@
 //  chat-social.js: an echoed pass only added beside the old ones: "the ticks are the echoed
 //     pass's, not the union with the old one". With adoptEchoedPass not skipping a serial this
 //     device already withdrew: "a pass already taken back here is not standing again".
+//
+// Red first, 2026-10-10 (10l parity with the desktop app; one break at a time through HOS_WEB_DIR):
+//  chat-social.js: reissuePassTo not withdrawing the passes an untick takes away: "the pass
+//     allowing calls is withdrawn at once, before any answer".
+//  chat-privacy.js: the list built from standing passes only: "Ann stays on the list, Call
+//     unticked, held still".
+//  chat-dm-store.js: no cap on the passes never answered (friend-pass-web.test.js): "the fifth
+//     withdraws the oldest".
 
 const test = require("node:test");
 const assert = require("node:assert");
@@ -1179,3 +1187,35 @@ test("10l: a contact request's pass, and the follow, count only once the server 
 //    once the server took it").
 //  chat-privacy.js: reachAllowsFrom reading only the passes on record: "Cy's reply on the pass I
 //    may have given is kept".
+
+test("10l: a tick taken away withdraws the passes allowing it at once; the friend stays on the list", async () => {
+  const { sock, store, handle, fn } = await loadChat();
+  store.setFollowing(ANN, true);
+  store.setFollower(ANN, true);
+  const OLD = "00112233445566778899aabbccddeeff";
+  store.recordPassSent(ANN, OLD, WITH_CALL);
+  const putsToAnn = () => sock.sent.filter((m) => m.type === "dm_put" && m.to === ANN);
+  const row = () => fn("safetyModel")().chosen.find((c) => c.key === ANN);
+
+  assert.equal(await fn("setFriendTick")(ANN, "call", false), true, "Call unticked: the new pass goes");
+  await settle();
+  const [put] = putsToAnn();
+  assert.equal(passOf(put).may, DEFAULT_MAY, "without calls");
+  assert.ok(sock.sent.some((m) => m.type === "cert_revoke" && m.serial === OLD), "the pass allowing calls is withdrawn at once, before any answer");
+  assert.equal(store.certSentTo(ANN), false, "so none stands meanwhile");
+  assert.ok(row() && row().ticks.call === false && row().updating === true, "Ann stays on the list, Call unticked, held still");
+
+  await handle({ type: "dm_put_refused", ref: put.ref, reason: "rate" });
+  await settle();
+  assert.ok(row() && row().ticks.call === false && row().updating === false, "refused: still on the list, Call still unticked");
+  assert.equal(await fn("setFriendTick")(ANN, "call", false), true, "and a tick there still answers");
+
+  // The next sweep sends the same may again, and this time the server takes it.
+  await handle({ type: "full_user_list", users: memberUsers() });
+  await settle();
+  const again = putsToAnn()[1];
+  assert.ok(again && passOf(again).may === DEFAULT_MAY, "the next sweep sends a pass without calls");
+  await handle({ type: "dm_put_ok", ref: again.ref });
+  await settle();
+  assert.deepEqual(store.certsSent[ANN], [{ serial: passOf(again).serial, may: DEFAULT_MAY }], "given once the server took it");
+});

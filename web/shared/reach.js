@@ -210,6 +210,19 @@
     return (words.length ? words : REACH_EMPTY_MAY.slice()).sort();
   }
 
+  /**
+   * Does a pass allowing `may` let its holder through for a kind the relay
+   * checks (message, call, trade) that `want` does not? That is, would
+   * replacing it with a `want` pass TAKE something away? Both are comma-joined
+   * `may` words. Only the checked kinds count: going from the all-unticked
+   * pass (`invite` alone) to one with Trade drops `invite`, which takes nothing
+   * away anyone can feel. The desktop app's src/net/reach.rs `grants_beyond`.
+   */
+  function reachGrantsBeyond(may, want) {
+    const has = (m, k) => String(m || '').split(',').includes(k);
+    return REACH_KINDS.some((k) => has(may, k) && !has(want, k));
+  }
+
   /** "A", "A and B", "A, B and C". */
   function reachListWords(items) {
     if (items.length <= 1) return items.join('');
@@ -279,7 +292,7 @@
     REACH_TICK_LABELS, REACH_TICK_DEFAULTS, REACH_TICK_WORDS, REACH_EMPTY_MAY,
     REACH_TICKS_NOTE, REACH_TICKS_UNUSED, REACH_THROUGH,
     reachExplain, reachSettingsFrom, reachSetFrame, reachAllows,
-    reachTicksFromMay, reachMayFromTicks, reachListWords, reachTicksInUse,
+    reachTicksFromMay, reachMayFromTicks, reachGrantsBeyond, reachListWords, reachTicksInUse,
     contactRequestText, isContactRequestText, contactRequestParse,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;

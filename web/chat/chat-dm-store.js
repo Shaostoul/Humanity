@@ -20,6 +20,10 @@
 // seed (/shared/pq-relay-auth.js getPqDmStoreKey).
 // ─────────────────────────────────────────────────────────────────────────
 
+// Passes kept per friend whose answer never came (10l, passSending); older
+// ones are withdrawn. The desktop app's UNANSWERED_KEPT in src/net/dm_store.rs.
+const PASSES_UNSURE_KEPT = 4;
+
 const hosDmStore = {
   _db: null,
   _key: null,          // CryptoKey (AES-GCM, non-extractable)
@@ -345,11 +349,55 @@ const hosDmStore = {
     return gone;
   },
   // ── Passes on their way (10l) ──
-  /** A pass put is going out to `peer`: perhaps given from now until the server answers. */
+  /**
+   * A pass put is going out to `peer`: perhaps given from now until the server
+   * answers. At most PASSES_UNSURE_KEPT wait per friend: beyond that the
+   * oldest are withdrawn (the desktop app's UNANSWERED_KEPT), so a server that
+   * never answers cannot grow the list without end. Returns the serials
+   * withdrawn, for the caller to send.
+   */
   passSending(peer, serial, may) {
     const list = this.passesUnsure[peer] || (this.passesUnsure[peer] = []);
     if (!list.some((p) => p.serial === serial)) list.push({ serial, may });
+    const over = list.splice(0, Math.max(0, list.length - PASSES_UNSURE_KEPT)).map((p) => p.serial);
+    for (const s of over) if (!this.withdrawalsPending.includes(s)) this.withdrawalsPending.push(s);
     this._persistMeta();
+    return over;
+  },
+  /**
+   * The friends on the "People I choose" list: a pass from me standing, one
+   * on its way or never answered, or a choice of what it lets them do still
+   * waiting for a pass the server takes (10l). Not only the standing passes:
+   * a tick taken away withdraws those at once (withdrawPassesWhere), and the
+   * friend stays on the list while the new pass is on its way. Not anyone I
+   * blocked.
+   */
+  passFriends() {
+    const keys = new Set();
+    for (const map of [this.certsSent, this.passesUnsure]) {
+      for (const p of Object.keys(map)) if (Array.isArray(map[p]) && map[p].length) keys.add(p);
+    }
+    for (const p of Object.keys(this.passIntent)) keys.add(p);
+    return Array.from(keys).filter((p) => !this.isBlocked(p));
+  },
+  /**
+   * Withdraw at once every pass to `peer`, standing or still unanswered, for
+   * which `pred({serial, may})` is true: a tick taken away takes effect now,
+   * whether or not the re-issued pass goes out (10l; the desktop app's
+   * src/engine/dm.rs reissue_pass). Their serials wait for the relay to
+   * confirm. Returns the serials withdrawn.
+   */
+  withdrawPassesWhere(peer, pred) {
+    const gone = [];
+    for (const map of [this.certsSent, this.passesUnsure]) {
+      const list = map[peer] || [];
+      const kept = list.filter((p) => !pred(p));
+      for (const p of list) if (pred(p)) gone.push(p.serial);
+      if (kept.length) map[peer] = kept; else delete map[peer];
+    }
+    for (const s of gone) if (!this.withdrawalsPending.includes(s)) this.withdrawalsPending.push(s);
+    if (gone.length) this._persistMeta();
+    return gone;
   },
   _dropUnsure(peer, serial) {
     const list = this.passesUnsure[peer] || [];

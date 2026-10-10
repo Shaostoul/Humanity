@@ -526,8 +526,9 @@ function holdPassPut(peer, built, pass) {
   if (!store || !built || !built.recipientPut || !pass || !pass.serial) return false;
   const ref = passPutRef();
   built.recipientPut.ref = ref;
-  // From here it may be standing on the server, answered or not.
-  store.passSending(peer, pass.serial, pass.may);
+  // From here it may be standing on the server, answered or not. Past four
+  // unanswered for this friend, the oldest are withdrawn now.
+  if (store.passSending(peer, pass.serial, pass.may).length) sendPendingWithdrawals();
   // A re-issue is my new choice for them: kept apart from the record, so the
   // ticks show it now and a refusal does not put them back.
   if (pass.kind === 'reissue') store.setPassIntent(peer, pass.may);
@@ -711,7 +712,17 @@ async function reissuePassTo(peer, mayWords) {
     const built = await pqBuildFriendCert(peer, mayWords);
     if (!built) return false;
     // Recorded, and the old passes withdrawn, when the server takes it (settlePassPut).
-    return await sendDmControl(peer, CTL_FRIEND_CERT, built.cert, { serial: built.serial, may: built.may, kind: 'reissue' });
+    const sent = await sendDmControl(peer, CTL_FRIEND_CERT, built.cert, { serial: built.serial, may: built.may, kind: 'reissue' });
+    // Except a change that TAKES SOMETHING AWAY (an untick of Message, Call or
+    // Trade): the passes allowing it, standing or still unanswered, are
+    // withdrawn now, not when (or if) the server takes the new one. Consent
+    // taken back takes effect at once; until the new pass is taken the friend
+    // falls back to what my settings allow strangers. An added tick waits.
+    // The desktop app's src/engine/dm.rs reissue_pass.
+    if (sent && store.withdrawPassesWhere(peer, (p) => p.serial !== built.serial && reachGrantsBeyond(p.may, built.may)).length) {
+      sendPendingWithdrawals();
+    }
+    return sent;
   } finally {
     _passMinting.delete(peer);
   }
@@ -745,14 +756,15 @@ window.friendPassUpdating = friendPassUpdating;
  * Tick or untick `kind` (message, call or trade) for `peer` on the "People I
  * choose" list: their pass is re-issued with the `may` the new ticks give
  * (reachMayFromTicks), the new pass first and the old serial withdrawn once the
- * server took it (10l), so the relay honours it at once. Only for someone I
- * have given a pass. Returns true when it was sent, or when the tick already
+ * server took it (10l), except that an untick withdraws the passes allowing it
+ * at once (reissuePassTo), so the relay honours it at once. Only for someone
+ * on the list (chat-dm-store.js passFriends). Returns true when it was sent, or when the tick already
  * stood that way; the ticks show the new choice from then on, and a refused
  * pass is sent again by the next sweep.
  */
 async function setFriendTick(peer, kind, on) {
   const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
-  if (!store || !store.certSentTo(peer) || !REACH_KINDS.includes(kind)) return false;
+  if (!store || !store.passFriends().includes(peer) || !REACH_KINDS.includes(kind)) return false;
   const ticks = friendTicks(peer);
   if (ticks[kind] === !!on) return true;
   // With the protected setup on, a tick needs the PIN (10h, /shared/protected.js).

@@ -390,3 +390,26 @@ test("10l: Unfollow while a pass is on its way withdraws it, and its answer reco
 // sent at once failed "and my other devices are not told yet"; chat-dm-store.js withdrawPassesTo
 // leaving passes on their way failed "the pass on its way is withdrawn: the server may store it";
 // the 30-second wait settling as taken failed "an unanswered pass is not given".
+
+test("10l: past four passes never answered for one friend, the oldest is withdrawn", async () => {
+  const { ctx, sock, store } = await loadChat();
+  const fp = require(path.join(WEB, "shared", "friend-pass.js"));
+  const answerWaits = [];
+  ctx.setTimeout = (fn, ms) => { if (ms === 30000) answerWaits.push(fn); return 0; };
+  store.setFollowing(ANN, true);
+  store.setFollower(ANN, true);
+  const serials = [];
+  for (let i = 0; i < 5; i++) {
+    await memberList(ctx);
+    const puts = passesSent(sock);
+    assert.equal(puts.length, i + 1, `pass ${i + 1} goes`);
+    serials.push(fp.friendPassParse(puts[i].cert).serial);
+    if (i < 4) assert.equal(sentOf(sock, "cert_revoke").length, 0, `with ${i + 1} unanswered, none is withdrawn`);
+    answerWaits[i]();
+    await settle();
+  }
+  const revoked = [...new Set(sentOf(sock, "cert_revoke").map((m) => m.serial))];
+  assert.deepEqual(revoked, [serials[0]], "the fifth withdraws the oldest");
+  assert.deepEqual(store.passesUnsure[ANN].map((p) => p.serial), serials.slice(1), "four are kept");
+  assert.equal(store.certSentTo(ANN), false, "none of them counts as given");
+});

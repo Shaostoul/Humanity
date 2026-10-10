@@ -697,13 +697,14 @@ function safetyModel() {
     };
   });
   const store = reachStore();
-  // "People I choose" (10c-ii): each friend I have given a pass, once, with
+  // "People I choose" (10c-ii): each friend I have given a pass (or one on its
+  // way, chat-dm-store.js passFriends), once, with
   // the ticks I chose for them: what their pass carries, or a newer choice
   // whose pass the server has not taken yet (10l, chat-dm-store.js
   // passMayIntended), so a refused pass never puts the ticks back. The rows'
   // audiences as shown (a choice being saved included) decide which rows the
   // ticks count for.
-  const given = store ? Object.keys(store.certsSent).filter((p) => store.certSentTo(p)) : [];
+  const given = store ? store.passFriends() : [];
   const shown = {};
   for (const r of rows) shown[r.kind] = r.audience;
   const chosen = given.map((key) => ({
