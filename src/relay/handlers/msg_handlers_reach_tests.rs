@@ -113,7 +113,7 @@ fn hidden_presence_gets_the_same_answer_online_or_not() {
     type SendFn = fn(&Arc<RelayState>, &str, &str);
     let sends: [(&str, SendFn); 2] = [
         ("voice_call", |st, from, to| {
-            block(handle_voice_call(st, from, to.to_string(), "ring".to_string()))
+            block(handle_voice_call(st, from, to.to_string(), "ring".to_string(), None))
         }),
         ("webrtc_signal", |st, from, to| {
             block(handle_webrtc_signal(
@@ -122,6 +122,7 @@ fn hidden_presence_gets_the_same_answer_online_or_not() {
                 to.to_string(),
                 "dc_offer".to_string(),
                 serde_json::json!({ "sdp": "x" }),
+                None,
             ))
         }),
     ];
@@ -226,7 +227,7 @@ fn trade_requests_share_the_knock_budget() {
     assert_eq!(trades(&st), 5, "a forged certificate must not lift the limit");
 
     // The target's real certificate for this sender lifts it.
-    let cert = crate::relay::core::pq_crypto::build_friend_cert(&target_seed, &target, sender);
+    let (cert, _) = crate::relay::handlers::friend_passes::test_pass(&st, &target_seed, &target, sender);
     block(handle_trade_request(
         &st,
         sender,
@@ -272,7 +273,7 @@ fn a_strangers_trade_note_is_cut_and_a_friends_is_not() {
     assert!(!replies_to(&mut rx, stranger).iter().any(|m| m.contains("shortened")));
 
     // The friend holds the target's certificate: their note is kept whole.
-    let cert = crate::relay::core::pq_crypto::build_friend_cert(&target_seed, &target, &friend);
+    let (cert, _) = crate::relay::handlers::friend_passes::test_pass(&st, &target_seed, &target, &friend);
     block(handle_trade_request(
         &st,
         &friend,

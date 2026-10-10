@@ -60,13 +60,35 @@ struct StoreBody {
     /// Keys that follow me (learned from [[hum:follow]] notices).
     #[serde(default)]
     followers: std::collections::HashSet<String>,
-    /// peer → certificate THEY issued authorizing ME to DM them
-    /// (presented on every dm_put to that peer).
+    // ── Friendship passes v2 (2026-10-09, blocking-and-safe-mode.md 10b). The JSON keys are
+    // new on purpose: a store written in the v1 days had `certs_from` / `certs_sent` holding
+    // v1 certificates, which no relay accepts any more. Under new names those simply are not
+    // read, so the old records are gone on the next save and the pass sweep
+    // (engine/dm.rs `sweep_friend_passes`) mints v2 passes for every current mutual follow.
+    /// The did:hum of the server the passes below were given on (its `identify_challenge`
+    /// says). A pass names its server, so if this server's identity ever changes, every pass
+    /// below is void and is dropped (`set_pass_server`).
     #[serde(default)]
+    pass_server: String,
+    /// peer → the pass THEY gave ME (the v2 JSON as it arrived, checked then), presented
+    /// whenever I reach them: every dm_put, trade request, call ring and direct offer.
+    #[serde(default, rename = "passes_from")]
     certs_from: HashMap<String, String>,
-    /// Peers I've already issued MY certificate to (dedupe).
+    /// peer → the passes I gave THEM that still stand: the serial (what a withdrawal names)
+    /// and what each allows. Usually one; two devices minting at once can make two.
+    #[serde(default, rename = "passes_sent")]
+    certs_sent: HashMap<String, Vec<SentPass>>,
+    /// Serials of passes I withdrew that the relay has not confirmed yet (`cert_revoked`).
+    /// Resent on every connection until it does, so going offline cannot lose a withdrawal.
     #[serde(default)]
-    certs_sent: std::collections::HashSet<String>,
+    withdrawals_pending: Vec<String>,
+}
+
+/// A friendship pass I gave someone: what a withdrawal names, and what it allows.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SentPass {
+    pub serial: String,
+    pub may: String,
 }
 
 /// A conversation summary for the sidebar.
@@ -271,18 +293,85 @@ impl DmStore {
     pub fn is_friend(&self, peer: &str) -> bool {
         self.is_following(peer) && self.is_follower(peer)
     }
-    /// The certificate `peer` issued authorizing ME to DM them.
+    // ── Friendship passes v2 (2026-10-09) ──
+
+    /// The did:hum of the server these passes belong to, once a challenge has named it.
+    pub fn pass_server(&self) -> Option<&str> {
+        Some(self.body.pass_server.as_str()).filter(|s| !s.is_empty())
+    }
+    /// Record the server's did:hum from its `identify_challenge`. A different one than before
+    /// voids every pass held or given here (they name the old identity) and every withdrawal
+    /// still waiting (it would name passes this server never saw); the sweep then mints anew.
+    /// Returns true when it changed.
+    pub fn set_pass_server(&mut self, did: &str) -> bool {
+        if did.is_empty() || self.body.pass_server == did {
+            return false;
+        }
+        if !self.body.pass_server.is_empty() {
+            self.body.certs_from.clear();
+            self.body.certs_sent.clear();
+            self.body.withdrawals_pending.clear();
+        }
+        self.body.pass_server = did.to_string();
+        true
+    }
+    /// The pass `peer` gave ME, presented whenever I reach them.
     pub fn cert_for(&self, peer: &str) -> Option<&str> {
         self.body.certs_from.get(peer).map(|s| s.as_str())
     }
     pub fn store_cert_from(&mut self, peer: &str, cert: &str) {
         self.body.certs_from.insert(peer.to_string(), cert.to_string());
     }
-    pub fn cert_sent_to(&self, peer: &str) -> bool {
-        self.body.certs_sent.contains(peer)
+    /// Forget the pass `peer` gave me (they unfollowed, and so withdrew it).
+    pub fn forget_cert_from(&mut self, peer: &str) {
+        self.body.certs_from.remove(peer);
     }
-    pub fn mark_cert_sent(&mut self, peer: &str) {
-        self.body.certs_sent.insert(peer.to_string());
+    /// Have I a pass standing with `peer`?
+    pub fn cert_sent_to(&self, peer: &str) -> bool {
+        self.body.certs_sent.get(peer).is_some_and(|v| !v.is_empty())
+    }
+    /// The passes I gave `peer` that still stand.
+    pub fn passes_sent_to(&self, peer: &str) -> &[SentPass] {
+        self.body.certs_sent.get(peer).map(|v| v.as_slice()).unwrap_or(&[])
+    }
+    /// Record a pass I gave `peer` (minted here, or echoed from my other device). Once per serial.
+    pub fn record_pass_sent(&mut self, peer: &str, pass: SentPass) {
+        let list = self.body.certs_sent.entry(peer.to_string()).or_default();
+        if !list.iter().any(|p| p.serial == pass.serial) {
+            list.push(pass);
+        }
+    }
+    /// Take back every pass I gave `peer`: they leave the record and their serials join the
+    /// withdrawals waiting for the relay. Returns the serials withdrawn now.
+    pub fn withdraw_passes_to(&mut self, peer: &str) -> Vec<String> {
+        let gone: Vec<String> = self.body.certs_sent.remove(peer).unwrap_or_default().into_iter().map(|p| p.serial).collect();
+        for s in &gone {
+            if !self.body.withdrawals_pending.contains(s) {
+                self.body.withdrawals_pending.push(s.clone());
+            }
+        }
+        gone
+    }
+    /// Withdrawals the relay has not confirmed yet.
+    pub fn pending_withdrawals(&self) -> &[String] {
+        &self.body.withdrawals_pending
+    }
+    /// The relay confirmed a withdrawal (`cert_revoked {serial}`): stop resending it.
+    pub fn withdrawal_confirmed(&mut self, serial: &str) {
+        self.body.withdrawals_pending.retain(|s| s != serial);
+    }
+    /// Mutual follows I have no standing pass with: the ones the sweep mints for (after the v2
+    /// change, after a server identity change, or when a send could not go out earlier).
+    pub fn friends_without_pass(&self) -> Vec<String> {
+        let mut out: Vec<String> = self.body.following.iter().filter(|p| self.is_follower(p) && !self.cert_sent_to(p)).cloned().collect();
+        out.sort();
+        out
+    }
+
+    /// For tests elsewhere in the crate: remove this store's file from disk.
+    #[cfg(test)]
+    pub(crate) fn remove_file_for_test(&self) {
+        let _ = std::fs::remove_file(&self.path);
     }
 
     /// Delete one whole conversation locally (the server holds nothing to
@@ -353,6 +442,69 @@ mod tests {
         assert_eq!(store3.conversation(&bob_hex).len(), 0);
 
         let _ = std::fs::remove_file(&store2.path);
+    }
+
+    /// Write `json` as the store's body, encrypted as `save` does (to stand in for a store an
+    /// older version of the app wrote).
+    fn write_body(store: &DmStore, json: &serde_json::Value) {
+        let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&store.key));
+        let nonce = Aes256Gcm::generate_nonce(&mut AesOsRng);
+        let ct = cipher.encrypt(&nonce, json.to_string().as_bytes()).unwrap();
+        let mut out = nonce.as_slice().to_vec();
+        out.extend_from_slice(&ct);
+        std::fs::create_dir_all(store.path.parent().unwrap()).unwrap();
+        std::fs::write(&store.path, out).unwrap();
+    }
+
+    /// FRIENDSHIP PASSES v2 (2026-10-09). A store written in the v1 days loads with its history
+    /// and follows intact, and with its v1 certificates gone (no relay accepts them now), so
+    /// every mutual follow is listed for a new pass. Passes given are recorded by serial;
+    /// withdrawing moves the serials to the waiting list until the relay confirms each; a new
+    /// server identity voids every pass and waiting withdrawal.
+    /// Seen red 2026-10-09 with the `rename = "passes_from"` taken off `certs_from`: "the v1
+    /// certificate is not read", left `Some("djEtY2VydA==")`.
+    #[test]
+    fn passes_v2_replace_v1_records_and_track_withdrawals() {
+        let (seed, me) = identity(51);
+        let server = temp_server();
+        let store = DmStore::load(&seed, &me, &server);
+        write_body(&store, &serde_json::json!({
+            "high_water": 9, "conversations": {}, "last_read": {},
+            "following": ["ann", "ben", "cy"], "followers": ["ann", "ben"],
+            "certs_from": { "ann": "djEtY2VydA==" }, "certs_sent": ["ann", "ben"],
+        }));
+        let mut store = DmStore::load(&seed, &me, &server);
+        assert_eq!(store.high_water(), 9, "the rest of the store loads");
+        assert!(store.is_friend("ann") && store.is_friend("ben") && !store.is_friend("cy"));
+        assert_eq!(store.cert_for("ann"), None, "the v1 certificate is not read");
+        assert_eq!(store.friends_without_pass(), vec!["ann".to_string(), "ben".to_string()], "both friends get a new pass");
+        assert_eq!(store.pass_server(), None);
+
+        assert!(store.set_pass_server("did:hum:one"));
+        assert!(!store.set_pass_server("did:hum:one"), "the same server again changes nothing");
+        let p = |s: &str| SentPass { serial: s.into(), may: "invite,message,trade,voice_message".into() };
+        store.record_pass_sent("ann", p("aa"));
+        store.record_pass_sent("ann", p("aa"));
+        store.record_pass_sent("ann", p("ab"));
+        store.store_cert_from("ann", "{\"v\":2}");
+        assert_eq!(store.passes_sent_to("ann").len(), 2, "recorded once per serial");
+        assert_eq!(store.friends_without_pass(), vec!["ben".to_string()]);
+        store.save();
+        let mut store = DmStore::load(&seed, &me, &server);
+        assert_eq!(store.passes_sent_to("ann").len(), 2, "kept across a restart");
+        assert_eq!(store.pass_server(), Some("did:hum:one"));
+
+        assert_eq!(store.withdraw_passes_to("ann"), vec!["aa".to_string(), "ab".to_string()]);
+        assert!(!store.cert_sent_to("ann"));
+        assert_eq!(store.pending_withdrawals(), ["aa".to_string(), "ab".to_string()]);
+        store.withdrawal_confirmed("aa");
+        assert_eq!(store.pending_withdrawals(), ["ab".to_string()], "confirmed ones stop");
+
+        store.record_pass_sent("ben", p("bb"));
+        assert!(store.set_pass_server("did:hum:two"), "a new server identity");
+        assert!(store.passes_sent_to("ben").is_empty() && store.cert_for("ann").is_none() && store.pending_withdrawals().is_empty(), "voids every pass");
+        assert_eq!(store.friends_without_pass(), vec!["ann".to_string(), "ben".to_string()]);
+        let _ = std::fs::remove_file(&store.path);
     }
 
     #[test]

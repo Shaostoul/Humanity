@@ -23,7 +23,7 @@ pub(crate) fn dc_offer_reason(
     let me = gs.profile_public_key.clone();
     let sender_is_friend = crate::engine::dm::ensure_dm_store(gs)
         && gs.dm_store.as_ref().map_or(false, |s| {
-            holds_friendship(s.is_following(from), s.cert_for(from), from, &me)
+            holds_friendship(s.is_following(from), s.cert_for(from), s.pass_server().unwrap_or(""), from, &me)
         });
     let group_members: Vec<&str> = gs
         .p2p_groups

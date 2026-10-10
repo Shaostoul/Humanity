@@ -1306,6 +1306,20 @@ impl Storage {
             CREATE UNIQUE INDEX IF NOT EXISTS idx_fleet_ledger_give ON fleet_ledger(public_key, give_id) WHERE give_id IS NOT NULL;"
         )?;
 
+        // Withdrawn friendship passes (2026-10-09, storage/friend_passes.rs; blocking-and-safe-
+        // mode.md 10b): the serials a person has taken back, under the key that gave them. No end
+        // date (a pass has none), so a row stays until its issuer erases their account. A new
+        // table in a batch of its own, its key over its own CREATE TABLE columns, so a live
+        // database from before it simply gains it (BUG-046 concerns ALTER-added columns only).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS friend_cert_revocations (
+                issuer_key  TEXT    NOT NULL,
+                serial      TEXT    NOT NULL,
+                revoked_day INTEGER NOT NULL,
+                PRIMARY KEY (issuer_key, serial)
+            );"
+        )?;
+
 
         // ── v0.1132 — guaranteed local-only room toggle. Default ON: every
         // server keeps a #local channel that refuses federation, so members
@@ -2544,6 +2558,9 @@ mod world_pieces;
 pub use world_pieces::{NewPiece, StoredPiece};
 pub mod fleet_ledger;
 pub use fleet_ledger::{Adjusted, FleetBalance, FleetEntry, FleetGiveRecord, FleetKindTotal, FleetTotals, NewFleetEntry, Recorded};
+// Withdrawn friendship passes (2026-10-09, blocking-and-safe-mode.md 10b).
+mod friend_passes;
+pub use friend_passes::{FriendCertWithdrawal, FRIEND_CERT_WITHDRAWALS_MAX};
 pub mod docs_accord;
 
 pub use civilization::CivilizationStats;

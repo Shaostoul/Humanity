@@ -731,14 +731,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             {
                                 if connected {
                                     if let Some(ws) = &state.ws_client {
-                                        ws.send(
-                                            &serde_json::json!({
-                                                "type": "trade_request",
-                                                "target_key": ts.new_recipient.trim(),
-                                                "message": ts.new_message.trim(),
-                                            })
-                                            .to_string(),
-                                        );
+                                        let target = ts.new_recipient.trim();
+                                        let mut req = serde_json::json!({
+                                            "type": "trade_request",
+                                            "target_key": target,
+                                            "message": ts.new_message.trim(),
+                                        });
+                                        // The target's friendship pass, when we hold one, so a
+                                        // friend's request is not a stranger's knock and its note
+                                        // is kept whole (passes v2, engine/dm.rs).
+                                        if let Some(pass) = crate::engine::dm::pass_for(state, target) {
+                                            req["friend_cert"] = serde_json::Value::String(pass);
+                                        }
+                                        ws.send(&req.to_string());
                                     }
                                     state.trade_status = "Trade request sent.".to_string();
                                     ts.new_recipient.clear();

@@ -31,12 +31,11 @@ function startCall(targetKey, targetName) {
   callPeerKey = targetKey;
   callPeerName = targetName;
 
-  ws.send(JSON.stringify({
-    type: 'voice_call',
-    from: myKey,
-    to: targetKey,
-    action: 'ring'
-  }));
+  const ring = { type: 'voice_call', from: myKey, to: targetKey, action: 'ring' };
+  // The callee's friendship pass, when we hold one (passes v2, chat-social.js).
+  const pass = typeof friendPassFor === 'function' ? friendPassFor(targetKey) : null;
+  if (pass) ring.friend_cert = pass;
+  ws.send(JSON.stringify(ring));
 
   // Show ringing status
   document.getElementById('ringing-status').innerHTML = `${hosIcon('phone-call', 16)} Calling ${esc(targetName)}…`;

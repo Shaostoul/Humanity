@@ -5,8 +5,11 @@
 //! client-side notion now: follow/unfollow notices travel as sealed
 //! control messages over the DM mailbox, each client keeps its own
 //! following/followers sets in its local encrypted store, and FRIENDSHIP
-//! is a client-held Dilithium certificate the relay verifies statelessly
-//! at dm_put (`relay/core/pq_crypto.rs::verify_friend_cert`).
+//! is a client-held Dilithium pass the relay verifies statelessly
+//! at dm_put (`relay/core/pq_crypto.rs::verify_friend_cert`). The one thing
+//! kept about passes (v2, 2026-10-09) is the list of serials their issuers
+//! withdrew (storage/friend_passes.rs): random serials under the key that
+//! withdrew them, never who a pass was given to.
 //!
 //! What a subpoena of this server yields about relationships: nothing,
 //! because nothing is recorded. Do NOT re-add follow storage here — if a

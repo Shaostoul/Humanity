@@ -318,15 +318,15 @@ pub fn direct_offer_reason(from: &str, facts: &OfferFacts) -> Option<OfferReason
 
 /// Whether `from` counts as a friend for a direct connection. Both halves are
 /// needed: we still follow them (unfollowing ends it on our side, even though
-/// their certificate stays in our store, section 3.2 of the design), and we hold
-/// the certificate they gave us and it really is theirs, naming us. The store
-/// only keeps a certificate that verified on arrival (`ingest_control`); it is
-/// checked again here because one Dilithium check per offer is cheap and the
-/// store is a file on disk.
-pub fn holds_friendship(i_follow: bool, their_cert: Option<&str>, from: &str, my_key: &str) -> bool {
+/// their pass may stay in our store, section 3.2 of the design), and we hold
+/// the pass they gave us on this server (`server`, its did:hum) and it really is
+/// theirs, naming us. The store only keeps a pass that verified on arrival
+/// (`ingest_control`); it is checked again here because one Dilithium check per
+/// offer is cheap and the store is a file on disk.
+pub fn holds_friendship(i_follow: bool, their_cert: Option<&str>, server: &str, from: &str, my_key: &str) -> bool {
     i_follow
         && their_cert
-            .map_or(false, |c| crate::relay::core::pq_crypto::verify_friend_cert(from, my_key, c))
+            .is_some_and(|c| crate::relay::core::pq_crypto::verify_friend_cert(server, from, my_key, c).is_ok())
 }
 
 /// Whether the loop should send STUN Binding Requests now. Asking a STUN server
@@ -3709,20 +3709,28 @@ mod who_we_answer_tests {
 
     /// Seen red 2026-10-09 with `holds_friendship` reduced to "holds a
     /// certificate": "unfollowed: their certificate alone is not enough".
+    /// Passes v2 (same day): a pass names its server, so one given on another
+    /// server is not a friendship here.
     #[test]
     fn friendship_needs_our_follow_and_their_certificate_naming_us() {
-        use crate::relay::core::pq_crypto::{build_friend_cert, derive_dilithium_seed, DilithiumKeypair};
+        use crate::relay::core::pq_crypto::{build_friend_cert, derive_dilithium_seed, DilithiumKeypair, FRIEND_PASS_DEFAULT_MAY};
         let key_of = |seed: &[u8; 32]| hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(seed)).public_key());
         let (them_seed, me_seed, other_seed) = ([0x31u8; 32], [0x32u8; 32], [0x33u8; 32]);
         let (them, me, other) = (key_of(&them_seed), key_of(&me_seed), key_of(&other_seed));
-        let to_me = build_friend_cert(&them_seed, &them, &me);
-        assert!(holds_friendship(true, Some(&to_me), &them, &me), "we follow them and hold their certificate");
-        assert!(!holds_friendship(false, Some(&to_me), &them, &me), "unfollowed: their certificate alone is not enough");
-        assert!(!holds_friendship(true, None, &them, &me), "no certificate yet");
-        let to_other = build_friend_cert(&them_seed, &them, &other);
-        assert!(!holds_friendship(true, Some(&to_other), &them, &me), "a certificate naming someone else");
-        let from_other = build_friend_cert(&other_seed, &other, &me);
-        assert!(!holds_friendship(true, Some(&from_other), &them, &me), "someone else's certificate passed off as theirs");
+        let (here, elsewhere) = ("did:hum:here", "did:hum:elsewhere");
+        let serial = "00112233445566778899aabbccddeeff";
+        let pass = |seed: &[u8; 32], from: &str, to: &str, server: &str| {
+            build_friend_cert(seed, server, from, to, serial, &FRIEND_PASS_DEFAULT_MAY).unwrap()
+        };
+        let to_me = pass(&them_seed, &them, &me, here);
+        assert!(holds_friendship(true, Some(&to_me), here, &them, &me), "we follow them and hold their certificate");
+        assert!(!holds_friendship(false, Some(&to_me), here, &them, &me), "unfollowed: their certificate alone is not enough");
+        assert!(!holds_friendship(true, None, here, &them, &me), "no certificate yet");
+        assert!(!holds_friendship(true, Some(&to_me), elsewhere, &them, &me), "a pass given on another server");
+        let to_other = pass(&them_seed, &them, &other, here);
+        assert!(!holds_friendship(true, Some(&to_other), here, &them, &me), "a certificate naming someone else");
+        let from_other = pass(&other_seed, &other, &me, here);
+        assert!(!holds_friendship(true, Some(&from_other), here, &them, &me), "someone else's certificate passed off as theirs");
     }
 
     /// Seen red 2026-10-09 with the connection count dropped from

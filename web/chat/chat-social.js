@@ -422,15 +422,75 @@ async function sendDmControl(peer, text, ctlCert) {
   return true;
 }
 
-/** Issue + deliver MY friendship certificate to `peer` (idempotent). */
+// ── Friendship passes v2 (2026-10-09, docs/design/blocking-and-safe-mode.md
+// 10b), mirroring native src/engine/dm.rs. A pass names this server's did:hum
+// (window.hosServerDid, from its identify_challenge), a random serial and what
+// the friend may do; unfollowing withdraws it with `cert_revoke {serial}`,
+// which the relay honours at once and answers with `cert_revoked`.
+
+const _passMinting = new Set(); // peers a pass is being minted for right now (async)
+
+/** Issue + deliver MY friendship pass to `peer` (idempotent: nothing when one stands). */
 async function sendFriendCertTo(peer) {
-  if (!(window.hosDmStore && hosDmStore.ready) || hosDmStore.certSentTo(peer)) return;
-  const cert = await pqBuildFriendCert(peer);
-  if (!cert) return;
-  if (await sendDmControl(peer, CTL_FRIEND_CERT, cert)) {
-    hosDmStore.markCertSent(peer);
+  const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
+  if (!store || store.certSentTo(peer) || _passMinting.has(peer)) return;
+  if (!window.hosServerDid || store.passServer !== window.hosServerDid) return; // swept again once known
+  if (typeof getPeerEcdhPublic === 'function' && !getPeerEcdhPublic(peer)) return; // cannot seal to them yet
+  _passMinting.add(peer);
+  try {
+    // Defaults for two new friends: everything but calls.
+    const built = await pqBuildFriendCert(peer);
+    if (built && await sendDmControl(peer, CTL_FRIEND_CERT, built.cert)) {
+      store.recordPassSent(peer, built.serial, built.may);
+    }
+  } finally {
+    _passMinting.delete(peer);
   }
 }
+
+/** Send `cert_revoke` for every withdrawal the relay has not confirmed yet. */
+function sendPendingWithdrawals() {
+  const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
+  if (!store || !ws || ws.readyState !== WebSocket.OPEN) return;
+  for (const serial of store.withdrawalsPending) {
+    ws.send(JSON.stringify({ type: 'cert_revoke', serial }));
+  }
+}
+
+/** Take back every pass I gave `peer` (on Unfollow; later Block and Remove friend). */
+function withdrawPassesTo(peer) {
+  if (!(window.hosDmStore && hosDmStore.ready)) return;
+  hosDmStore.withdrawPassesTo(peer);
+  sendPendingWithdrawals();
+}
+
+/**
+ * Bring the passes up to date (after the store loads, and on every member
+ * list, which carries the DM keys passes are sealed to): note the server's
+ * identity, resend unconfirmed withdrawals, and give a pass to every mutual
+ * follow with none standing. Covers the first run after v2 (old v1 records are
+ * not read), a server whose identity changed, and a send that failed earlier.
+ */
+async function sweepFriendPasses() {
+  const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
+  if (!store || !window.hosServerDid) return;
+  store.setPassServer(window.hosServerDid);
+  sendPendingWithdrawals();
+  for (const peer of store.friendsWithoutPass()) await sendFriendCertTo(peer);
+}
+window.sweepFriendPasses = sweepFriendPasses;
+
+/** The relay confirmed a withdrawal (`cert_revoked {serial}`). */
+function friendPassWithdrawn(serial) {
+  if (window.hosDmStore && hosDmStore.ready && serial) hosDmStore.withdrawalConfirmed(serial);
+}
+window.friendPassWithdrawn = friendPassWithdrawn;
+
+/** The pass `peer` gave me, to attach when I reach them (DM, call ring, direct offer). */
+function friendPassFor(peer) {
+  try { return (window.hosDmStore && hosDmStore.ready) ? hosDmStore.certFor(peer) : null; } catch { return null; }
+}
+window.friendPassFor = friendPassFor;
 
 /** Follow / unfollow (the UI entry point everywhere in the web client). */
 async function setFollowLocal(peer, on) {
@@ -439,9 +499,12 @@ async function setFollowLocal(peer, on) {
   if (on) myFollowing.add(peer); else myFollowing.delete(peer);
   await sendDmControl(peer, on ? CTL_FOLLOW : CTL_UNFOLLOW);
   if (on && myFollowers.has(peer)) {
-    // Mutual now: complete the friendship with our certificate.
+    // Mutual now: complete the friendship with our pass.
     await sendFriendCertTo(peer);
   }
+  // An unfollow means we no longer consent to the friend lane: the passes we
+  // gave them are withdrawn, and the relay honours that at once.
+  if (!on) withdrawPassesTo(peer);
   updateFriendIndicators();
   if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
   addSystemMessage(on
@@ -473,21 +536,31 @@ async function ingestDmControl(inner) {
     }
   } else if (inner.text === CTL_UNFOLLOW) {
     if (fromMe) {
+      // Our own unfollow from another device: the passes we gave go too
+      // (that device withdrew the ones it knew of; a repeat is harmless).
       if (store) store.setFollowing(peer, false);
       myFollowing.delete(peer);
+      withdrawPassesTo(peer);
     } else {
-      if (store) store.setFollower(peer, false);
+      // They unfollowed, and so withdrew the pass they gave us.
+      if (store) { store.setFollower(peer, false); store.forgetCertFrom(peer); }
       myFollowers.delete(peer);
     }
   } else if (inner.text === CTL_FRIEND_CERT && inner.cert) {
     if (fromMe) {
-      if (store) store.markCertSent(peer);
+      // A pass we gave, echoed from another device: remember its serial so
+      // any of our devices can withdraw it.
+      const pass = friendPassParse(inner.cert);
+      if (store && pass) store.recordPassSent(peer, pass.serial, pass.may);
     } else if (await pqVerifyFriendCert(inner.from, myKey, inner.cert)) {
+      const hadOne = store ? !!store.certFor(inner.from) : false;
       if (store) store.storeCertFrom(inner.from, inner.cert);
-      const peerName = (window.peerData && peerData[peer]?.display_name) || shortKey(peer);
-      addSystemMessage(`🤝 You and ${esc(peerName)} are friends now — messages between you are unlimited.`);
+      if (!hadOne) {
+        const peerName = (window.peerData && peerData[peer]?.display_name) || shortKey(peer);
+        addSystemMessage(`🤝 You and ${esc(peerName)} are friends now: messages between you are unlimited.`);
+      }
     } else {
-      console.warn('friend-cert failed verification; dropped');
+      console.warn('friendship pass failed its check; dropped');
     }
   }
   updateFriendIndicators();

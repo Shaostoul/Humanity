@@ -31,8 +31,15 @@ const hosDmStore = {
   // the encrypted meta box and built from sealed control messages.
   following: new Set(),
   followers: new Set(),
-  certsFrom: {},       // peer -> cert THEY issued authorizing ME to DM them
-  certsSent: new Set(),// peers I've issued MY cert to
+  // ── Friendship passes v2 (2026-10-09, blocking-and-safe-mode.md 10b). Saved
+  // under new names (passesFrom / passesSent): the v1 certsFrom / certsSent a
+  // store from before holds are not read, so they are gone on the next save and
+  // the pass sweep (chat-social.js sweepFriendPasses) mints v2 for every mutual
+  // follow.
+  passServer: '',      // did:hum of the server these passes name
+  certsFrom: {},       // peer -> the pass THEY gave ME (v2 JSON), presented whenever I reach them
+  certsSent: {},       // peer -> [{serial, may}] passes I gave them that still stand
+  withdrawalsPending: [], // serials I withdrew that the relay has not confirmed yet
 
   async _sha256hex(s) {
     const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
@@ -101,8 +108,10 @@ const hosDmStore = {
       this.highWater = 0;
       this.following = new Set();
       this.followers = new Set();
+      this.passServer = '';
       this.certsFrom = {};
-      this.certsSent = new Set();
+      this.certsSent = {};
+      this.withdrawalsPending = [];
       // Meta first (high-water + read marks + social sets).
       const meta = await this._idb(this._tx('meta', 'readonly').get(this.scope)).catch(() => null);
       if (meta) {
@@ -112,8 +121,10 @@ const hosDmStore = {
           if (m && m.lastRead) this.lastRead = m.lastRead;
           if (m && Array.isArray(m.following)) this.following = new Set(m.following);
           if (m && Array.isArray(m.followers)) this.followers = new Set(m.followers);
-          if (m && m.certsFrom) this.certsFrom = m.certsFrom;
-          if (m && Array.isArray(m.certsSent)) this.certsSent = new Set(m.certsSent);
+          if (m && typeof m.passServer === 'string') this.passServer = m.passServer;
+          if (m && m.passesFrom && typeof m.passesFrom === 'object') this.certsFrom = m.passesFrom;
+          if (m && m.passesSent && typeof m.passesSent === 'object') this.certsSent = m.passesSent;
+          if (m && Array.isArray(m.withdrawalsPending)) this.withdrawalsPending = m.withdrawalsPending;
         }
       }
       // All records in this scope.
@@ -143,8 +154,10 @@ const hosDmStore = {
       lastRead: this.lastRead,
       following: Array.from(this.following),
       followers: Array.from(this.followers),
-      certsFrom: this.certsFrom,
-      certsSent: Array.from(this.certsSent),
+      passServer: this.passServer,
+      passesFrom: this.certsFrom,
+      passesSent: this.certsSent,
+      withdrawalsPending: this.withdrawalsPending,
     });
     await this._idb(this._tx('meta', 'readwrite').put({ scope: this.scope, hw: this.highWater, box })).catch(() => {});
   },
@@ -159,10 +172,51 @@ const hosDmStore = {
     this._persistMeta();
   },
   isFriendPeer(peer) { return this.following.has(peer) && this.followers.has(peer); },
+
+  // ── Friendship passes v2 (2026-10-09), mirroring native net/dm_store.rs ──
+  /**
+   * Record the server's did:hum. A different one than before voids every pass
+   * held or given here and every withdrawal still waiting (they name the old
+   * identity). Returns true when it changed.
+   */
+  setPassServer(did) {
+    if (!did || this.passServer === did) return false;
+    if (this.passServer) {
+      this.certsFrom = {};
+      this.certsSent = {};
+      this.withdrawalsPending = [];
+    }
+    this.passServer = did;
+    this._persistMeta();
+    return true;
+  },
   certFor(peer) { return this.certsFrom[peer] || null; },
   storeCertFrom(peer, cert) { this.certsFrom[peer] = cert; this._persistMeta(); },
-  certSentTo(peer) { return this.certsSent.has(peer); },
-  markCertSent(peer) { this.certsSent.add(peer); this._persistMeta(); },
+  forgetCertFrom(peer) { delete this.certsFrom[peer]; this._persistMeta(); },
+  certSentTo(peer) { return Array.isArray(this.certsSent[peer]) && this.certsSent[peer].length > 0; },
+  /** Record a pass I gave `peer` (minted here or echoed from my other device), once per serial. */
+  recordPassSent(peer, serial, may) {
+    const list = this.certsSent[peer] || (this.certsSent[peer] = []);
+    if (!list.some((p) => p.serial === serial)) list.push({ serial, may });
+    this._persistMeta();
+  },
+  /** Take back every pass I gave `peer`: their serials wait for the relay to confirm. */
+  withdrawPassesTo(peer) {
+    const gone = (this.certsSent[peer] || []).map((p) => p.serial);
+    delete this.certsSent[peer];
+    for (const s of gone) if (!this.withdrawalsPending.includes(s)) this.withdrawalsPending.push(s);
+    this._persistMeta();
+    return gone;
+  },
+  withdrawalConfirmed(serial) {
+    const before = this.withdrawalsPending.length;
+    this.withdrawalsPending = this.withdrawalsPending.filter((s) => s !== serial);
+    if (this.withdrawalsPending.length !== before) this._persistMeta();
+  },
+  /** Mutual follows with no standing pass from me: the ones the sweep mints for. */
+  friendsWithoutPass() {
+    return Array.from(this.following).filter((p) => this.followers.has(p) && !this.certSentTo(p)).sort();
+  },
 
   setHighWater(id) {
     const n = Number(id) || 0;

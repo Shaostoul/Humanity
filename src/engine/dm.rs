@@ -9,6 +9,7 @@
 
 use crate::gui::GuiState;
 use crate::net::dm_pq::{self, DmInner};
+use crate::net::dm_store::SentPass;
 
 /// Decrypt a v2 envelope with our own key and verify the inner Dilithium
 /// signature. Err = not ours / tampered / spoofed sender — callers drop
@@ -199,11 +200,18 @@ pub(crate) fn ingest_dm(gui_state: &mut GuiState, inner: &DmInner) -> bool {
 // rides the self-copies every control send already deposits.
 
 /// Act on a verified control message (never rendered).
+///
+/// Friendship passes v2 (2026-10-09, blocking-and-safe-mode.md 10b): a pass names this server,
+/// a serial and what it allows. A received one is checked against the server's did:hum before
+/// it is kept; the echo of one we gave from another of our devices is read for its serial, so
+/// any device can withdraw it; an unfollow from our side withdraws what we gave, and one from
+/// theirs drops the pass they gave us (they withdrew it).
 fn ingest_control(gui_state: &mut GuiState, inner: &DmInner) {
     let me = gui_state.profile_public_key.clone();
     let from_me = inner.from == me;
     let peer = if from_me { inner.to.clone() } else { inner.from.clone() };
     let mut want_cert_for: Option<String> = None;
+    let mut withdraw_from: Option<String> = None;
     if let Some(store) = gui_state.dm_store.as_mut() {
         match inner.text.as_str() {
             crate::net::dm_pq::CTL_FOLLOW => {
@@ -212,7 +220,7 @@ fn ingest_control(gui_state: &mut GuiState, inner: &DmInner) {
                     store.set_following(&peer, true);
                 } else {
                     store.set_follower(&peer, true);
-                    // Mutual now? Hand them our certificate (once).
+                    // Mutual now? Hand them our pass (once).
                     if store.is_following(&peer) && !store.cert_sent_to(&peer) {
                         want_cert_for = Some(peer.clone());
                     }
@@ -220,20 +228,29 @@ fn ingest_control(gui_state: &mut GuiState, inner: &DmInner) {
             }
             crate::net::dm_pq::CTL_UNFOLLOW => {
                 if from_me {
+                    // Our own unfollow, from another device: the passes we gave go too
+                    // (that device withdrew the ones it knew of; a repeat is harmless).
                     store.set_following(&peer, false);
+                    withdraw_from = Some(peer.clone());
                 } else {
                     store.set_follower(&peer, false);
+                    store.forget_cert_from(&peer);
                 }
             }
             crate::net::dm_pq::CTL_FRIEND_CERT => {
                 if let Some(cert) = inner.cert.as_deref() {
                     if from_me {
-                        // Our own issued cert echoed from another device.
-                        store.mark_cert_sent(&peer);
-                    } else if crate::relay::core::pq_crypto::verify_friend_cert(&inner.from, &me, cert) {
-                        store.store_cert_from(&inner.from, cert);
+                        // A pass we gave, echoed from another device: remember its serial.
+                        match crate::relay::core::pq_crypto::parse_friend_cert(cert) {
+                            Ok((pass, _)) => store.record_pass_sent(&peer, SentPass { serial: pass.serial, may: pass.may.wire() }),
+                            Err(e) => log::warn!("our own friendship pass echoed unreadable ({e:?}); ignored"),
+                        }
                     } else {
-                        log::warn!("friend-cert from {} failed verification; dropped", &inner.from[..12.min(inner.from.len())]);
+                        let server = store.pass_server().unwrap_or("").to_string();
+                        match crate::relay::core::pq_crypto::verify_friend_cert(&server, &inner.from, &me, cert) {
+                            Ok(_) => store.store_cert_from(&inner.from, cert),
+                            Err(e) => log::warn!("friendship pass from {} failed its check ({e:?}); dropped", &inner.from[..12.min(inner.from.len())]),
+                        }
                     }
                 }
             }
@@ -243,6 +260,9 @@ fn ingest_control(gui_state: &mut GuiState, inner: &DmInner) {
     }
     if let Some(peer) = want_cert_for {
         send_friend_cert(gui_state, &peer);
+    }
+    if let Some(peer) = withdraw_from {
+        withdraw_passes(gui_state, &peer);
     }
     refresh_social_mirrors(gui_state);
 }
@@ -290,28 +310,135 @@ pub(crate) fn send_dm_control(gui_state: &mut GuiState, peer: &str, text: &str, 
     true
 }
 
-/// Issue + deliver MY friendship certificate to `peer` (idempotent).
+/// Issue + deliver MY friendship pass to `peer` (idempotent: nothing when one stands).
+///
+/// v2 (2026-10-09): the pass names this server's did:hum (from its `identify_challenge`), a
+/// fresh random serial and what the friend may do: the defaults two new friends get, which
+/// leave out calls (calls come only from people the person chooses, step B's "may call me"
+/// list). Nothing is minted until the server and the peer's DM key are known; the sweep on the
+/// next member list tries again.
 pub(crate) fn send_friend_cert(gui_state: &mut GuiState, peer: &str) {
-    let already = gui_state.dm_store.as_ref().map(|s| s.cert_sent_to(peer)).unwrap_or(false);
-    if already {
+    use crate::relay::core::pq_crypto::{build_friend_cert, new_friend_cert_serial, FriendMay, FRIEND_PASS_DEFAULT_MAY};
+    let Some(server) = gui_state.dm_store.as_ref().filter(|s| !s.cert_sent_to(peer)).and_then(|s| s.pass_server().map(str::to_string)) else {
         return;
+    };
+    if !gui_state.peer_kyber_keys.contains_key(peer) {
+        return; // cannot seal to them yet; no point signing a pass that cannot be sent
     }
     let Some(seed) = gui_state.private_key_bytes.clone() else { return };
+    let Some(serial) = new_friend_cert_serial() else { return };
     let me = gui_state.profile_public_key.clone();
-    // The minting step lives with its verifier in relay::core::pq_crypto, so
-    // both feature sets can reach it (the relay's DM tests mint certs too).
-    let cert = crate::relay::core::pq_crypto::build_friend_cert(&seed, &me, peer);
+    // The minting step lives with its check in relay::core::pq_crypto, so both feature sets can
+    // reach it (the relay's own tests mint passes too).
+    let cert = match build_friend_cert(&seed, &server, &me, peer, &serial, &FRIEND_PASS_DEFAULT_MAY) {
+        Ok(c) => c,
+        Err(e) => {
+            log::warn!("friendship pass not minted: {e:?}");
+            return;
+        }
+    };
+    let may = FriendMay::from_words(FRIEND_PASS_DEFAULT_MAY).map(|m| m.wire()).unwrap_or_default();
     if send_dm_control(gui_state, peer, crate::net::dm_pq::CTL_FRIEND_CERT, Some(cert)) {
         if let Some(store) = gui_state.dm_store.as_mut() {
-            store.mark_cert_sent(peer);
+            store.record_pass_sent(peer, SentPass { serial, may });
             store.save();
         }
     }
 }
 
+/// Take back every pass I gave `peer` (on Unfollow; later on Block and Remove friend): the
+/// store moves their serials to the waiting withdrawals, and those go to the relay now if we
+/// are connected, or on the next connection.
+pub(crate) fn withdraw_passes(gui_state: &mut GuiState, peer: &str) {
+    if let Some(store) = gui_state.dm_store.as_mut() {
+        store.withdraw_passes_to(peer);
+        store.save();
+    }
+    send_pending_withdrawals(gui_state);
+}
+
+/// Send `cert_revoke {serial}` for every withdrawal the relay has not confirmed yet. The relay
+/// answers each with `cert_revoked {serial}` (`withdrawal_confirmed` below); until then they are
+/// resent on every member list, so a withdrawal made offline is never lost.
+pub(crate) fn send_pending_withdrawals(gui_state: &GuiState) {
+    let Some(store) = gui_state.dm_store.as_ref() else { return };
+    let Some(ref client) = gui_state.ws_client else { return };
+    if !client.is_connected() {
+        return;
+    }
+    for serial in store.pending_withdrawals() {
+        client.send(&serde_json::json!({ "type": "cert_revoke", "serial": serial }).to_string());
+    }
+}
+
+/// The relay's `cert_revoked {serial}`: that withdrawal is done.
+pub(crate) fn withdrawal_confirmed(gui_state: &mut GuiState, frame: &serde_json::Value) {
+    let Some(serial) = frame.get("serial").and_then(|v| v.as_str()) else { return };
+    if let Some(store) = gui_state.dm_store.as_mut() {
+        store.withdrawal_confirmed(serial);
+        store.save();
+    }
+}
+
+/// The server's did:hum, from its `identify_challenge`: the server every pass given or held here
+/// names. Kept in the DM store, which is per server; a changed identity voids the old passes.
+pub(crate) fn note_server_did(gui_state: &mut GuiState, did: Option<&str>) {
+    let Some(did) = did.filter(|d| !d.is_empty()) else { return };
+    if !ensure_dm_store(gui_state) {
+        return;
+    }
+    if let Some(store) = gui_state.dm_store.as_mut() {
+        if store.set_pass_server(did) {
+            store.save();
+        }
+    }
+}
+
+/// Bring the passes up to date, on every member list (which arrives only on a signed-in socket,
+/// with the DM keys the passes are sealed to): resend unconfirmed withdrawals, and give a pass
+/// to every mutual follow that has none standing. That covers the first run after v2 (the v1
+/// records are not read), a server whose identity changed, and a send that could not go out.
+pub(crate) fn sweep_friend_passes(gui_state: &mut GuiState) {
+    if !ensure_dm_store(gui_state) {
+        return;
+    }
+    send_pending_withdrawals(gui_state);
+    let owed = gui_state.dm_store.as_ref().map(|s| s.friends_without_pass()).unwrap_or_default();
+    for peer in owed {
+        send_friend_cert(gui_state, &peer);
+    }
+}
+
+/// The pass `peer` gave me, to attach whenever I reach them (dm_put, a trade request, a call
+/// ring, a direct-connection offer).
+pub(crate) fn pass_for(gui_state: &GuiState, peer: &str) -> Option<String> {
+    gui_state.dm_store.as_ref().and_then(|s| s.cert_for(peer)).map(str::to_string)
+}
+
+/// An outgoing frame from the WebRTC manager, with the target's pass attached when it is a
+/// direct-connection offer (step A of 10b: the relay reads it; step B decides on it).
+pub(crate) fn with_pass_on_offer(gui_state: &GuiState, frame: String) -> String {
+    if !frame.contains("\"dc_offer\"") {
+        return frame;
+    }
+    let Ok(mut v) = serde_json::from_str::<serde_json::Value>(&frame) else { return frame };
+    if v["type"] != "webrtc_signal" || v["signal_type"] != "dc_offer" {
+        return frame;
+    }
+    match v["to"].as_str().and_then(|to| pass_for(gui_state, to)) {
+        Some(pass) => {
+            v["friend_cert"] = serde_json::Value::String(pass);
+            v.to_string()
+        }
+        None => frame,
+    }
+}
+
 /// Follow / unfollow `peer` (the UI entry point). Updates local state,
 /// notifies the peer with a sealed control, and completes the friendship
-/// (certificate exchange) when the follow becomes mutual.
+/// (pass exchange) when the follow becomes mutual. Unfollowing withdraws the
+/// passes we gave them (2026-10-09): an unfollow means we no longer consent
+/// to the friend lane, and the relay now honours that at once.
 pub(crate) fn set_follow(gui_state: &mut GuiState, peer: &str, on: bool) {
     if !ensure_dm_store(gui_state) {
         return;
@@ -327,6 +454,8 @@ pub(crate) fn set_follow(gui_state: &mut GuiState, peer: &str, on: bool) {
         if mutual {
             send_friend_cert(gui_state, peer);
         }
+    } else {
+        withdraw_passes(gui_state, peer);
     }
     refresh_social_mirrors(gui_state);
 }
@@ -350,4 +479,74 @@ pub(crate) fn refresh_social_mirrors(gui_state: &mut GuiState) {
         .filter(|u| friends.contains(&u.public_key))
         .cloned()
         .collect();
+}
+
+/// The native client's half of friendship passes v2 (2026-10-09), without a socket: what
+/// `ingest_control` keeps, drops and withdraws, and what an outgoing offer carries. (The web
+/// client's half is scripts/tests/friend-pass-web.test.js; the relay's, its own tests.)
+#[cfg(test)]
+mod pass_tests {
+    use super::*;
+    use crate::relay::core::pq_crypto::{build_friend_cert, derive_dilithium_seed, DilithiumKeypair, FRIEND_PASS_DEFAULT_MAY};
+
+    fn identity(n: u8) -> (Vec<u8>, String) {
+        let seed = vec![n; 32];
+        (seed.clone(), hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&seed)).public_key()))
+    }
+
+    fn inner(from: &str, to: &str, text: &str, cert: Option<String>) -> DmInner {
+        DmInner { from: from.into(), to: to.into(), ts: 1, text: text.into(), sig_b64: format!("{from}{to}{text}"), cert }
+    }
+
+    /// A pass from a friend is kept only when it names this server and us; their unfollow drops
+    /// it; the echo of a pass we gave from our other device records its serial; our own unfollow
+    /// (from another device) withdraws what we gave, waiting for the relay to confirm. A dc_offer
+    /// to a friend carries their pass; anything else goes out untouched.
+    /// Seen red 2026-10-09 with `store.forget_cert_from(&peer)` taken out of the unfollow arm:
+    /// "their unfollow drops their pass", left `Some(..)`.
+    #[test]
+    fn ingest_keeps_drops_and_withdraws_passes() {
+        let (my_seed, me) = identity(81);
+        let (ben_seed, ben) = identity(82);
+        let (_cy_seed, cy) = identity(83);
+        let server = "did:hum:4dQe1bVHyiHm1Vh8rWbx2F";
+        let mut gs = GuiState::default();
+        gs.profile_public_key = me.clone();
+        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+        let mut store = crate::net::dm_store::DmStore::load(&my_seed, &me, &format!("wss://pass-test-{nanos}.example"));
+        store.set_pass_server(server);
+        gs.dm_store = Some(store);
+        let serial = "00112233445566778899aabbccddeeff";
+        let pass_from = |seed: &[u8], issuer: &str, srv: &str| build_friend_cert(seed, srv, issuer, &me, serial, &FRIEND_PASS_DEFAULT_MAY).unwrap();
+        let held = |gs: &GuiState| gs.dm_store.as_ref().unwrap().cert_for(&ben).map(str::to_string);
+
+        ingest_control(&mut gs, &inner(&ben, &me, dm_pq::CTL_FRIEND_CERT, Some(pass_from(&ben_seed, &ben, "did:hum:elsewhere"))));
+        assert_eq!(held(&gs), None, "a pass given on another server is not kept");
+        let good = pass_from(&ben_seed, &ben, server);
+        ingest_control(&mut gs, &inner(&ben, &me, dm_pq::CTL_FRIEND_CERT, Some(good.clone())));
+        assert_eq!(held(&gs), Some(good.clone()), "a good pass is kept");
+
+        let offer = serde_json::json!({ "type": "webrtc_signal", "to": ben, "signal_type": "dc_offer", "data": "{}" }).to_string();
+        let sent: serde_json::Value = serde_json::from_str(&with_pass_on_offer(&gs, offer)).unwrap();
+        assert_eq!(sent["friend_cert"], good.as_str(), "a dc_offer to a friend carries their pass");
+        let answer = serde_json::json!({ "type": "webrtc_signal", "to": ben, "signal_type": "dc_answer", "data": "{}" }).to_string();
+        assert_eq!(with_pass_on_offer(&gs, answer.clone()), answer, "an answer goes out untouched");
+        let to_cy = serde_json::json!({ "type": "webrtc_signal", "to": cy, "signal_type": "dc_offer", "data": "{}" }).to_string();
+        assert_eq!(with_pass_on_offer(&gs, to_cy.clone()), to_cy, "no pass held, nothing added");
+
+        ingest_control(&mut gs, &inner(&ben, &me, dm_pq::CTL_UNFOLLOW, None));
+        assert_eq!(held(&gs), None, "their unfollow drops their pass");
+
+        // A pass we gave Cy, echoed from our other device, then our own unfollow of Cy from there.
+        let ours = build_friend_cert(&my_seed, server, &me, &cy, serial, &FRIEND_PASS_DEFAULT_MAY).unwrap();
+        ingest_control(&mut gs, &inner(&me, &cy, dm_pq::CTL_FRIEND_CERT, Some(ours)));
+        assert!(gs.dm_store.as_ref().unwrap().cert_sent_to(&cy), "the echo records the pass we gave");
+        ingest_control(&mut gs, &inner(&me, &cy, dm_pq::CTL_UNFOLLOW, None));
+        let store = gs.dm_store.as_ref().unwrap();
+        assert!(!store.cert_sent_to(&cy), "our unfollow takes it back");
+        assert_eq!(store.pending_withdrawals(), [serial.to_string()], "and the withdrawal waits for the relay");
+        withdrawal_confirmed(&mut gs, &serde_json::json!({ "type": "cert_revoked", "serial": serial }));
+        assert!(gs.dm_store.as_ref().unwrap().pending_withdrawals().is_empty(), "until it answers");
+        gs.dm_store.as_ref().unwrap().remove_file_for_test();
+    }
 }

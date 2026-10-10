@@ -12,6 +12,7 @@ use crate::relay::relay::*;
 use crate::relay::storage::Storage;
 use crate::relay::handlers::broadcast::*;
 use crate::relay::handlers::utils::*;
+use crate::relay::handlers::friend_passes::friend_pass;
 
 // ── Sync handlers (raw JSON, not RelayMessage enum) ──
 
@@ -543,9 +544,9 @@ pub async fn handle_profile_request(
     friend_cert: Option<String>,
 ) {
     // Follows-graph removal (2026-08-24): friends-visibility profile
-    // fields unlock by presenting the profile OWNER's friendship
-    // certificate, verified statelessly. The server holds no friends
-    // table to consult.
+    // fields unlock by presenting the profile OWNER's friendship pass
+    // (v2 since 2026-10-09, handlers/friend_passes.rs), checked without a
+    // friends table; a withdrawn pass counts as none.
     let owner_key = {
         let peers = state.peers.read().await;
         peers.values()
@@ -553,11 +554,7 @@ pub async fn handle_profile_request(
             .map(|p| p.public_key_hex.clone())
             .unwrap_or_default()
     };
-    let is_friend = !owner_key.is_empty()
-        && friend_cert
-            .as_deref()
-            .map(|c| crate::relay::core::pq_crypto::verify_friend_cert(&owner_key, my_key, c))
-            .unwrap_or(false);
+    let is_friend = !owner_key.is_empty() && friend_pass(state, &owner_key, my_key, friend_cert.as_deref()).is_some();
 
     match state.db.get_public_profile(&name, is_friend) {
         Ok(Some(fields)) => {
@@ -738,15 +735,15 @@ pub async fn handle_dm_put(
     // delay, all of which still apply; role is no longer part of it.
     if !is_self_copy && user_role != "admin" && user_role != "mod" {
         // Follows-graph removal (2026-08-24): the server keeps no friends
-        // table. A friendship CERTIFICATE (issued by the recipient,
-        // Dilithium-signed, delivered to the sender over the sealed
-        // mailbox when the two became friends) is verified statelessly.
-        // Without one, this is a "knock": still allowed, but capped per
-        // sender per day so strangers can reach out without flooding.
-        let cert_ok = friend_cert
-            .as_deref()
-            .map(|c| crate::relay::core::pq_crypto::verify_friend_cert(&to, my_key, c))
-            .unwrap_or(false);
+        // table. A friendship PASS (issued by the recipient, Dilithium-
+        // signed, delivered to the sender over the sealed mailbox when the
+        // two became friends; v2 since 2026-10-09) is checked against this
+        // relay's own facts and its withdrawal list (handlers/friend_passes.rs).
+        // Without one, or with one the recipient took back, this is a
+        // "knock": still allowed, but capped per sender per day so strangers
+        // can reach out without flooding. What the pass allows (`may`) is not
+        // consulted until "who can reach me" (step B) ships.
+        let cert_ok = friend_pass(state, &to, my_key, friend_cert.as_deref()).is_some();
         if !cert_ok && !spend_knock(state, my_key).await {
             let _ = state.broadcast_tx.send(RelayMessage::Private {
                 to: my_key.to_string(),
@@ -928,12 +925,31 @@ fn may_report_offline(state: &Arc<RelayState>, target: &str) -> bool {
     !state.db.presence_hidden(target)
 }
 
+/// Step A of blocking-and-safe-mode.md 10b: a call ring and a direct-connection offer may carry
+/// the target's friendship pass for the sender. It is checked and logged (what it allows, never
+/// who), and nothing is refused for lacking one yet: "who can reach me" (step B) decides on the
+/// pass this returns. One signature check per ring or offer, which is cheap and rare.
+pub(crate) fn read_contact_pass(
+    state: &Arc<RelayState>,
+    to: &str,
+    my_key: &str,
+    cert: Option<&str>,
+    what: &str,
+) -> Option<crate::relay::core::pq_crypto::FriendPass> {
+    cert?;
+    let pass = friend_pass(state, to, my_key, cert);
+    tracing::debug!("{what} carried a friendship pass: {}", pass.as_ref().map(|p| p.may.wire()).as_deref().unwrap_or("not valid here"));
+    pass
+}
+
 pub async fn handle_voice_call(
     state: &Arc<RelayState>,
     my_key: &str,
     to: String,
     action: String,
+    friend_cert: Option<String>,
 ) {
+    read_contact_pass(state, &to, my_key, friend_cert.as_deref(), "voice_call");
     let peer = state.peers.read().await.get(my_key).cloned();
     let sender_name = peer.as_ref()
         .and_then(|p| p.display_name.clone());
@@ -949,11 +965,13 @@ pub async fn handle_voice_call(
             let _ = state.broadcast_tx.send(private);
         }
     } else {
+        // The pass stays here: the callee issued it and has no use for its echo.
         let msg = RelayMessage::VoiceCall {
             from: my_key.to_string(),
             from_name: sender_name,
             to,
             action,
+            friend_cert: None,
         };
         let _ = state.broadcast_tx.send(msg);
     }
@@ -965,7 +983,11 @@ pub async fn handle_webrtc_signal(
     to: String,
     signal_type: String,
     data: serde_json::Value,
+    friend_cert: Option<String>,
 ) {
+    if signal_type == "dc_offer" {
+        read_contact_pass(state, &to, my_key, friend_cert.as_deref(), "dc_offer");
+    }
     let target_connected = state.peers.read().await.contains_key(&to);
     if !target_connected {
         // Same rule as handle_voice_call: no answer for a hidden target, so
@@ -983,6 +1005,7 @@ pub async fn handle_webrtc_signal(
             to,
             signal_type,
             data,
+            friend_cert: None,
         };
         let _ = state.broadcast_tx.send(msg);
     }
@@ -2771,19 +2794,15 @@ pub async fn handle_trade_request(
 
     // A trade request is a way to put words in front of someone, so it obeys
     // the same rule as a DM (2026-10-09, blocking-and-safe-mode.md 3.7.5): with
-    // a friendship certificate from the target it is unlimited; without one it
-    // is a knock, spent from the sender's one daily budget for DMs and trade
-    // requests together, and its note is cut short. The certificate is checked
-    // statelessly, exactly as handle_dm_put does, so the relay still keeps no
-    // record of who is friends with whom. `friend_cert` is optional on the
-    // wire: clients that do not send it yet are treated as non-friends, which
-    // still works, just within the budget. Admins and moderators skip the
-    // budget, as they do for DMs.
-    let is_friend = raw
-        .get("friend_cert")
-        .and_then(|v| v.as_str())
-        .map(|c| crate::relay::core::pq_crypto::verify_friend_cert(target_key, my_key, c))
-        .unwrap_or(false);
+    // a friendship pass from the target it is unlimited; without one (or with
+    // one the target took back) it is a knock, spent from the sender's one
+    // daily budget for DMs and trade requests together, and its note is cut
+    // short. The pass is checked exactly as handle_dm_put checks it
+    // (handlers/friend_passes.rs), so the relay still keeps no record of who
+    // is friends with whom. `friend_cert` is optional on the wire: a request
+    // without it is treated as a stranger's, which still works, just within
+    // the budget. Admins and moderators skip the budget, as they do for DMs.
+    let is_friend = friend_pass(state, target_key, my_key, raw.get("friend_cert").and_then(|v| v.as_str())).is_some();
     if !is_friend {
         let user_role = state.db.get_role(my_key).unwrap_or_default();
         let budget_exempt = user_role == "admin" || user_role == "mod";
@@ -4197,7 +4216,7 @@ mod dm_mailbox_tests {
         st.db.register_name("Bob", &bob_hex).unwrap();
         st.db.set_role(&alice_hex, "verified").unwrap();
         st.db.set_role(&bob_hex, "verified").unwrap();
-        let cert = crate::relay::core::pq_crypto::build_friend_cert(&bob_seed, &bob_hex, &alice_hex);
+        let (cert, _) = crate::relay::handlers::friend_passes::test_pass(st, &bob_seed, &bob_hex, &alice_hex);
         (alice_hex, bob_hex, cert)
     }
 
@@ -4391,7 +4410,7 @@ mod dm_mailbox_tests {
         let (_stranger_seed, _) = identity(53);
         let (recipient_seed, recipient_hex) = identity(54);
         st.db.register_name("Recipient", &recipient_hex).unwrap();
-        let cert = crate::relay::core::pq_crypto::build_friend_cert(&recipient_seed, &recipient_hex, "loner_key");
+        let (cert, _) = crate::relay::handlers::friend_passes::test_pass(&st, &recipient_seed, &recipient_hex, "loner_key");
         block(async {
             st.rate_limits.write().await.remove("loner_key");
             handle_dm_put(&st, "loner_key", recipient_hex.clone(), envelope(), Some(cert)).await;
@@ -4471,6 +4490,12 @@ mod dm_mailbox_tests {
 #[cfg(test)]
 #[path = "msg_handlers_reach_tests.rs"]
 mod reach_tests;
+
+/// Friendship passes v2 at every contact path, and their withdrawal (2026-10-09,
+/// docs/design/blocking-and-safe-mode.md 10b).
+#[cfg(test)]
+#[path = "msg_handlers_pass_tests.rs"]
+mod pass_tests;
 
 #[cfg(test)]
 mod reconnect_grace_tests {
