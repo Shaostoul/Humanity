@@ -224,6 +224,17 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   then increment 1 (block on both clients). Eight questions for the operator sit in its summary,
   each with a recommendation. Voice: route calls through a room-scoped forwarder in the relay
   plus our own STUN on one UDP port, Google removed (section 7; the port is the operator's call).
+- **Legal research needed before reports go further (raised 2026-10-09).** Reports (design 10e)
+  must never carry a way to open a reported file: a DM carrying an encrypted file holds the key
+  in its text, so such messages cannot be evidence (refused by the relay, not offered by either
+  client). Still to research into a dated findings document (CLAUDE.md, "Research a legal
+  question"): what a server operator must and must not do on receiving a report that may
+  involve child sexual abuse material (for example the United States' 18 U.S.C. 2258A duties of
+  electronic communication service providers, and the equivalents elsewhere), including whether
+  a volunteer-run server counts as a provider, what must be preserved, and where it must be
+  reported. Until then, the reports UI tells people to contact emergency services and their
+  country's official reporting line, and admins are never shown files. The per-country list of
+  official lines is being researched in `docs/reference/findings/2026-10-09-outside-help-lines.md`.
 - **Signing in where cameras can see (raised 2026-10-09; the operator's PIN was once watched
   and money was stolen).** Found: the desktop "Quick PIN" unlock (`src/auto_unlock.rs`,
   KeychainPin) has no limit on wrong guesses, and the guessing can be done offline by anyone who
