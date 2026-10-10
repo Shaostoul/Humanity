@@ -695,7 +695,7 @@
        verifier, which action needs the PIN, the public-rooms filter and the words test, shared with
        Node tests. After reach.js (it builds the one reach_set), before chat-privacy.js and every
        other chat script that asks it before a locked action. -->
-  <script src="/shared/protected.js?v=1"></script>
+  <script src="/shared/protected.js?v=2"></script>
   <script src="/chat/crypto.js?v=12"></script>
   <!-- pq.js: post-quantum (Dilithium3) identity, derived from the same
        BIP39 seed as the Ed25519 key. Must load before app.js calls
@@ -724,7 +724,7 @@
   <script src="/chat/chat-live.js?v=1"></script>
   <!-- Per-user voice control modal: volume/mute/squelch + role-tiered actions -->
   <script src="/chat/chat-voice-modal.js?v=3"></script>
-  <script src="/chat/chat-profile.js?v=7"></script>
+  <script src="/chat/chat-profile.js?v=8"></script>
   <!-- chat-privacy.js: privacy tiers (2026-08-23) — first-connect chooser
        (default: maximum privacy) + tier application. Needs chat-profile.js
        (profile privacy merge) loaded first. -->
@@ -743,11 +743,11 @@
        chat-privacy.js (the Safety page it draws into) and chat-warnings.js (the recovery phrase
        behind "Forgot the PIN?"); last of the scripts that wrap the frame handler, so a hidden
        room's post is dropped before any of them sees it. -->
-  <script src="/chat/chat-protected.js?v=1"></script>
+  <script src="/chat/chat-protected.js?v=2"></script>
   <!-- Your fleet ledger: the player's own used/given ledger from the server, read-only (command palette) -->
   <script src="/chat/chat-fleet.js?v=1"></script>
   <!-- Onboarding wizard: first-time user guide (ELI5 identity + recovery phrase) -->
-  <script src="/chat/chat-onboarding.js?v=1"></script>
+  <script src="/chat/chat-onboarding.js?v=2"></script>
   <!-- qrcode-generator (public domain, ~18 KB), used by chat-p2p.js for contact card QR codes -->
   <script src="/shared/qrcode.js?v=4" onerror="console.warn('qrcode.js not found, QR codes will be unavailable')"></script>
   <script src="/chat/chat-p2p.js?v=13"></script>

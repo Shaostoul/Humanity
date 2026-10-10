@@ -1903,15 +1903,63 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
 // ── Settings-specific backup/recovery-phrase modals ──
 // These are standalone versions that don't depend on chat app functions.
 
-function settingsAlert(msg) {
+// The protected setup (step G, docs/design/blocking-and-safe-mode.md 10h).
+// While it is on, showing the recovery phrase, or saving a backup of the
+// identity it comes from, needs the setup's PIN: whoever has the phrase can set
+// a new PIN through "Forgot the PIN?". This page does not load the chat scripts
+// that ask for the PIN, so here both are refused, with a line saying where the
+// PIN opens them (the chat's Safety page). The setup is read the way
+// /shared/protected.js protectedStateRead reads it: nothing kept, or a setup
+// that says it is off, is off; anything else kept counts as on (fail closed).
+// The three names below must match /shared/protected.js PROTECTED_STORAGE_KEY,
+// PROTECTED_LABELS.phrase_needs_pin and PROTECTED_PRESETS_URL
+// (scripts/tests/protected-web.test.js checks).
+var SETTINGS_PROTECTED_KEY = 'humanity_protected_setup';
+var SETTINGS_PHRASE_NEEDS_PIN = 'While the protected setup is on, showing the recovery phrase or saving a backup of this identity needs the PIN. In the chat, open Safety and choose Show the recovery phrase.';
+var SETTINGS_PRESETS_URL = '/data/gui/safety_presets.json';
+
+/** Is the protected setup on, on this device? */
+function settingsProtectedOn() {
+  var raw = null;
+  try { raw = localStorage.getItem(SETTINGS_PROTECTED_KEY); } catch (e) { return false; }
+  if (raw == null || raw === '') return false;
+  var v = null;
+  try { v = JSON.parse(raw); } catch (e) { v = null; }
+  return !(v && typeof v === 'object' && v.on === false);
+}
+
+/** The line saying where the PIN opens the phrase: the preset's own label when the file has one, else this page's copy. */
+async function settingsPhraseNeedsPinLine() {
+  try {
+    var r = await fetch(SETTINGS_PRESETS_URL, { cache: 'no-cache' });
+    var j = r && r.ok ? await r.json() : null;
+    var list = j && Array.isArray(j.presets) ? j.presets : [];
+    var p = list.find(function (x) { return x && x.id === 'protected'; });
+    var own = p && p.labels ? p.labels.phrase_needs_pin : null;
+    if (typeof own === 'string' && own) return own;
+  } catch (e) { /* the file could not be read: this page's copy */ }
+  return SETTINGS_PHRASE_NEEDS_PIN;
+}
+
+/** With the protected setup on: say so and answer true (the caller shows nothing). Off: false. */
+async function settingsRefusedWhileProtected() {
+  if (!settingsProtectedOn()) return false;
+  // Two sentences: kept up longer than the usual five seconds, so they can be read.
+  settingsAlert(await settingsPhraseNeedsPinLine(), 12000);
+  return true;
+}
+
+function settingsAlert(msg, ms) {
   var d = document.createElement('div');
   d.style.cssText = 'position:fixed;top:var(--space-xl);right:var(--space-xl);z-index:9999;background:#181818;border:1px solid #2a2a2a;border-radius:8px;padding:var(--space-lg) var(--space-2xl);color:#e0e0e0;font-size:0.85rem;max-width:400px;box-shadow:0 8px 24px rgba(0,0,0,0.5);';
   d.textContent = msg;
   document.body.appendChild(d);
-  setTimeout(function() { d.remove(); }, 5000);
+  setTimeout(function() { d.remove(); }, ms || 5000);
 }
 
 async function settingsOpenBackup() {
+  // The file holds the identity the recovery phrase comes from (see above).
+  if (await settingsRefusedWhileProtected()) return;
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:480px;color:#e0e0e0;">' +
@@ -1992,6 +2040,8 @@ function settingsOpenRestore() {
 }
 
 async function settingsOpenSeed() {
+  // With the protected setup on, the phrase is shown only in the chat, after the PIN (see above).
+  if (await settingsRefusedWhileProtected()) return;
   try { await settingsIdentityReady; } catch(e) {}
   var mnemonic;
   try { mnemonic = await generateMnemonic(); } catch(e) { mnemonic = null; }

@@ -494,6 +494,12 @@ function closeViewProfileOverlay() {
  * The user can copy the phrase or write it on paper for offline recovery.
  */
 async function openSeedPhraseModal() {
+  // The protected setup (step G, docs/design/blocking-and-safe-mode.md 10h):
+  // while it is on, the PIN first, because whoever has these words can set a
+  // new PIN through "Forgot the PIN?". Every way here goes through this line:
+  // the Seed button and /recovery (confirmRevealSeedPhrase), the onboarding
+  // launch pad, and Safety's Show the recovery phrase.
+  if (!protectedTake('show_phrase')) return protectedAskThen('show_phrase', () => openSeedPhraseModal());
   let mnemonic;
   try {
     mnemonic = await generateMnemonic();
@@ -749,6 +755,9 @@ async function confirmRevealSeedPhrase() {
  * an AES-256-GCM encrypted identity backup file they can store anywhere.
  */
 function openEncryptedBackupModal() {
+  // The protected setup (10h): the file holds the identity the recovery phrase
+  // comes from, so while it is on, the PIN first (as for the phrase itself).
+  if (!protectedTake('show_phrase')) { protectedAskThen('show_phrase', () => openEncryptedBackupModal()); return; }
   const overlay = document.createElement('div');
   overlay.id = 'encrypted-backup-overlay';
   overlay.style.cssText = `

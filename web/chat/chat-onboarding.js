@@ -15,8 +15,15 @@ const ONBOARD_DONE_KEY = 'humanity_onboarding_done';
 async function showOnboardingWizard(mnemonic) {
   if (localStorage.getItem(ONBOARD_DONE_KEY)) return;
 
-  // Generate the mnemonic now if not provided.
-  if (!mnemonic) {
+  // The protected setup (step G, docs/design/blocking-and-safe-mode.md 10h):
+  // while it is on, step 1 shows no recovery phrase, only a line saying where
+  // the PIN opens it. This guide can be reopened from Help at any time, and
+  // whoever has the words can set a new PIN through "Forgot the PIN?".
+  const phraseLocked = protectedActionLocked('show_phrase', protectedCurrent());
+  if (phraseLocked) {
+    mnemonic = null;
+  } else if (!mnemonic) {
+    // Generate the mnemonic now if not provided.
     try { mnemonic = await generateMnemonic(); } catch(e) { mnemonic = null; }
   }
 
@@ -33,7 +40,7 @@ async function showOnboardingWizard(mnemonic) {
   document.body.appendChild(overlay);
 
   function render() {
-    overlay.innerHTML = buildStep(step, mnemonic);
+    overlay.innerHTML = buildStep(step, mnemonic, phraseLocked);
     // Wire navigation buttons
     const prev = overlay.querySelector('#ob-prev');
     const next = overlay.querySelector('#ob-next');
@@ -66,12 +73,12 @@ async function showOnboardingWizard(mnemonic) {
 
 // ── Step builders ────────────────────────────────────────────────────────────
 
-function buildStep(step, mnemonic) {
+function buildStep(step, mnemonic, phraseLocked) {
   const dots = Array.from({length: 5}, (_, i) =>
     `<span style="width:8px;height:8px;border-radius:50%;display:inline-block;background:${i === step ? 'var(--accent)' : 'var(--border)'};margin:0 3px"></span>`
   ).join('');
 
-  const content = [step0, step1, step2, step3, step4][step](mnemonic);
+  const content = [step0, step1, step2, step3, step4][step](mnemonic, phraseLocked);
   const isLast  = step === 4;
   const isFirst = step === 0;
 
@@ -151,7 +158,17 @@ function step0() {
 }
 
 // ── Step 1: Recovery Phrase + Storage Options ────────────────────────────────────
-function step1(mnemonic) {
+function step1(mnemonic, phraseLocked) {
+  // With the protected setup on, no words and no way to copy or save them:
+  // the setup's own line (chat-protected.js) says where the PIN opens them.
+  if (phraseLocked) {
+    const line = typeof protectedPhraseNeedsPinLine === 'function' ? protectedPhraseNeedsPinLine() : '';
+    const esc = String(line).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    return `
+    <h2 style="font-size:1.15rem;font-weight:800;color:var(--accent);margin:0 0 var(--space-sm)">🔑 Your 24-Word Recovery Phrase</h2>
+    <p class="ob-phrase-locked" style="font-size:.8rem;line-height:1.5;color:var(--text-muted);margin:0 0 var(--space-md)">${esc}</p>
+  `;
+  }
   const words = mnemonic ? mnemonic.trim().split(/\s+/) : [];
   const wordGrid = words.length === 24
     ? `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-sm);margin:var(--space-lg) 0 var(--space-lg)">
