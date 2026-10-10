@@ -796,6 +796,11 @@
       "date": "2026-10-10",
       "decision": "Spec 10j built (relay, then web first, then desktop matching the web's words; a shared byte-for-byte marker fixture) and released as v0.1475.0 with the step B follow-ups: a report about a P2P group goes to its creator as a flagged sealed DM through one narrow relay exception (both in a group the recipient created, 3 a day); the creator's app checks each item against its own copy; Remove changes the group key first (sealed to everyone but the removed person), on both clients. Also BUG-177 (a busy person's automatic reject told a hidden caller they were online; now it rings out with a missed-call line), a refused contact request marked request:true so neither app offers another, the ten-trade limit no longer counting requests sent to you, and the web Trade page (it never signed in) fixed.",
       "why": "Server admins cannot read or check encrypted group messages, nor remove a member; the creator can. Rekeying on removal is what makes Remove mean anything: without it the removed person keeps reading. The follow-ups were in PRIORITIES from steps B and C; each was small and each closed a real leak or a broken page."
+    },
+    {
+      "date": "2026-10-10",
+      "decision": "Released v0.1476.0: spec 10k (files in DMs and P2P groups encrypted on both clients, inline display on the desktop, a marker never sent into a public channel), BUG-178 (Pin, Edit and React refused by the relay outside its own rooms, hidden on private rows, and refused at each send point while a private conversation is open), BUG-179 (the desktop log no longer records file markers, which carried keys), and the account words (terminology_lint gains ACCOUNT_SEED; every \"seed\" meaning the account key changed to \"recovery phrase\").",
+      "why": "Reviewing the safety follow-ups showed private files only as private as their links: a web DM paste and every group file went up as plain public files. The web 10k build then found its group rows offered the server Pin and Edit, which sent group text in the clear (an admin pin would have been kept and broadcast); the desktop build found DM file keys in run.log. Checked the live server read-only: its only two pins are in #general, so nothing private was ever pinned."
     }
   ],
   "active_scopes_to_avoid": [
