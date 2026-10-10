@@ -892,7 +892,8 @@ test("the creator: checked against my copy, listed with a count on the group, ne
   assert.ok(groupsTab.includes(html(gr.groupReportCountTitle(1))));
 
   // The same report handed over again (the mailbox, a refetch): kept once.
-  await handle({ type: "dm_batch", messages: [{ id: 11, content: envelope(fx.ann.key, fx.ben.key, text, T0 + 5000) }], done: true });
+  // On a page answering the page's own fetch, as the relay sends it (its ref, 10o O1).
+  await handle({ type: "dm_batch", ref: fn("sendDmFetch")(0), messages: [{ id: 11, content: envelope(fx.ann.key, fx.ben.key, text, T0 + 5000) }], done: true });
   assert.equal(store.groupReportList().length, 1, "kept once");
 
   // Kept on this device: a reload finds it.

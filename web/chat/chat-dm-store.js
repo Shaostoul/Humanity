@@ -680,16 +680,19 @@ const hosDmStore = {
   },
   /**
    * The people the sweep owes a pass carrying my choice (N4): every mutual
-   * follow, and anyone who holds a pass of mine (standing, or sent and never
-   * answered), so it keeps up with my choice for them; each holding no
-   * standing pass carrying it, not blocked. (Not one marked "changed on my
-   * other device", nor one with a pass on its way: the sweep checks those.)
+   * follow, and anyone who holds a standing pass of mine, so it keeps up with
+   * my choice for them; each holding no standing pass carrying it, not
+   * blocked. (Not one marked "changed on my other device", nor one with a pass
+   * on its way: the sweep checks those.) A pass sent and never answered
+   * (passesUnsure) makes no one owed by itself (10o O2, the desktop app's
+   * rule): a contact request that timed out is never followed by an ordinary
+   * pass to someone I do not follow.
    */
   passesOwed() {
     const keys = new Set();
     for (const p of this.following) if (this.followers.has(p)) keys.add(p);
-    for (const map of [this.certsSent, this.passesUnsure]) {
-      for (const p of Object.keys(map)) if (Array.isArray(map[p]) && map[p].length) keys.add(p);
+    for (const p of Object.keys(this.certsSent)) {
+      if (Array.isArray(this.certsSent[p]) && this.certsSent[p].length) keys.add(p);
     }
     return Array.from(keys)
       .filter((p) => !this.isBlocked(p) && this.passOwed(p))

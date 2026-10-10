@@ -464,7 +464,8 @@ test("a blocked key's DM is not stored or notified", async () => {
   assert.equal(store.followers.has(BEN), false, "their follow notice is dropped");
   await handle({ type: "dm_new", id: 43, content: envelope(BEN, ME, CTL_FRIEND_CERT, 6, { cert: passFrom(BEN) }) });
   assert.equal(store.certFor(BEN), null, "and so is their pass");
-  await handle({ type: "dm_batch", messages: [
+  // The page's own mailbox page: it carries the ref of the page's own fetch (10o O1).
+  await handle({ type: "dm_batch", ref: fn("sendDmFetch")(store.highWater), messages: [
     { id: 44, content: dmEnvelope(BEN, "mailbox words from Ben", 7) },
     { id: 45, content: dmEnvelope(CY, "hello from Cy", 8) },
   ], done: true });
@@ -626,7 +627,7 @@ test("the notes round-trip between my devices, and a note to anyone else is igno
   await a.fn("unblockKey")(ANN);
   const unnote = a.sock.sent.find((m) => m.type === "dm_put");
   assert.equal(opened(unnote).inner.text, "[[hum:unblock:v1]]" + ANN);
-  await b.handle({ type: "dm_batch", messages: [{ id: 62, content: unnote.content }], done: true });
+  await b.handle({ type: "dm_batch", ref: b.fn("sendDmFetch")(b.store.highWater), messages: [{ id: 62, content: unnote.content }], done: true });
   assert.equal(b.store.isBlocked(ANN), false, "device B unblocks her");
 
   // Notes addressed to anyone but me are ignored, and never shown or stored.

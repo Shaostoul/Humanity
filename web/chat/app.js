@@ -43,10 +43,18 @@ let ws = null;
 let myKey = '';
 let dmFetchSent = false; // one-time mailbox fetch per socket (sealed-sender DMs)
 // True from a new socket until its mailbox fetch was read and applied (the
-// last dm_batch page, handleDmBatch). The friendship-pass sweep waits for it
+// last dm_batch page carrying this page's own fetch ref, handleDmBatch, 10o
+// O1). The friendship-pass sweep waits for it
 // (10n N7, chat-social.js sweepFriendPasses): a device that was offline learns
 // my notes (a choice, an Unfollow, a Block) before it sends anything.
 let dmMailboxUnread = false;
+// The ref of this page's mailbox fetch still waiting for its page (10o O1), or
+// null when none is. Every device signed in as me receives every dm_batch page
+// (we share one mailbox), so a page counts only when it carries this ref:
+// another device's page is ignored entirely, and its rows come on mine anyway.
+// A fresh random ref goes with every dm_fetch, paging included (sendDmFetch).
+let dmFetchRef = null;
+let dmFetchAfterId = 0; // where that fetch started (its page's ids lie past it)
 let myName = '';
 let myIdentity = null; // { publicKeyHex, privateKey, publicKey, canSign }
 let reconnectTimer = null;
@@ -969,6 +977,7 @@ function openSocket(opts) {
   // hold the pass sweep until that fetch is read (10n N7).
   dmFetchSent = false;
   dmMailboxUnread = true;
+  dmFetchRef = null;
 
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${proto}//${location.host}/ws`);
@@ -1063,7 +1072,12 @@ async function handleDmNew(msg) {
   // The wire carries NO sender: decrypt with our own key and trust only the
   // Dilithium-verified inner payload (crypto.js pqOpenDmEnvelope).
   const inner = await pqOpenDmEnvelope(msg.content);
-  if (window.hosDmStore && hosDmStore.ready && msg.id) hosDmStore.setHighWater(msg.id);
+  // The read position moves on a live DM only once this connection's own
+  // mailbox fetch is finished (10o O1): with a backlog over one page, a live
+  // DM's id lies past rows not read yet (choice notes among them), and moving
+  // to it would skip them. The DM itself is handled as usual; my fetch brings
+  // its row again, and the store keeps it once.
+  if (window.hosDmStore && hosDmStore.ready && msg.id && !dmMailboxFetching()) hosDmStore.setHighWater(msg.id);
   if (!inner) return; // not ours / tampered / spoofed — never rendered
   // Block (step C, 2026-10-09): a note to myself from another of my devices is
   // acted on, never rendered; anything from someone I blocked (a message, a
@@ -1100,12 +1114,43 @@ async function handleDmNew(msg) {
 }
 
 /**
+ * Ask for my mailbox from after `afterId`, with a fresh random ref (10o O1):
+ * the relay echoes it on the page it sends back, and only that page is this
+ * connection's. Returns the ref, or null when the socket is not open.
+ */
+function sendDmFetch(afterId) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return null;
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  dmFetchRef = 'fetch-' + Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  dmFetchAfterId = Number(afterId) || 0;
+  ws.send(JSON.stringify({ type: 'dm_fetch', after_id: dmFetchAfterId, ref: dmFetchRef }));
+  return dmFetchRef;
+}
+
+/**
+ * Is this connection's own mailbox fetch unfinished: asked for and its last
+ * page not read yet, or (on a new socket) not asked for yet (10o O1)?
+ */
+function dmMailboxFetching() {
+  return dmMailboxUnread || dmFetchRef !== null;
+}
+
+/**
  * A page of our sealed mailbox (`dm_batch`, the reply to dm_fetch): decrypt and
  * verify each envelope into the local store, in mailbox order; page until done.
  * The last page means the mailbox was read and applied on this connection, so
  * the friendship-pass sweep may run now (10n N7, chat-social.js).
+ *
+ * Only a page carrying this connection's own fetch ref counts (10o O1): every
+ * device signed in as me receives every page, and a page another device asked
+ * for is ignored entirely (nothing ingested, the read position unmoved, the
+ * mailbox not counted as read), since my own fetch brings the same rows. The
+ * next page is asked for from the last id of my own page, never from a read
+ * position something else moved.
  */
 async function handleDmBatch(msg) {
+  if (!dmFetchRef || typeof msg.ref !== 'string' || msg.ref !== dmFetchRef) return;
+  const myRef = dmFetchRef;
   const items = msg.messages || [];
   let lastId = 0;
   let ingested = 0;
@@ -1132,10 +1177,18 @@ async function handleDmBatch(msg) {
     }
   }
   if (ingested > 0) console.log(`DM batch: ${ingested} new message(s)`);
-  if (msg.done === false && ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'dm_fetch', after_id: (window.hosDmStore && hosDmStore.highWater) || lastId }));
+  // A new socket opened while this page was being read: its own fetch has
+  // started over, and this page's fetch is no longer this connection's.
+  if (dmFetchRef !== myRef) return;
+  if (msg.done === false) {
+    // The next page, from the last id of this one (10o O1). With the socket
+    // gone, the next connection fetches again from the read position.
+    if (!sendDmFetch(Math.max(lastId, dmFetchAfterId))) dmFetchRef = null;
+    return;
   }
-  if (msg.done !== false && dmMailboxUnread) {
+  // My own last page: the mailbox was read and applied on this connection.
+  dmFetchRef = null;
+  if (dmMailboxUnread) {
     dmMailboxUnread = false;
     if (typeof sweepFriendPasses === 'function') sweepFriendPasses();
   }
@@ -1208,9 +1261,8 @@ async function handleMessage(msg) {
           // Social badges come from the local store now (follows
           // removal 2026-08-24).
           if (ok && typeof syncSocialFromStore === 'function') syncSocialFromStore();
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'dm_fetch', after_id: (ok && hosDmStore.highWater) || 0 }));
-          }
+          // With a fresh ref (10o O1): only the pages carrying it are this connection's.
+          sendDmFetch((ok && hosDmStore.highWater) || 0);
           // Friendship passes owed and withdrawals unconfirmed (chat-social.js
           // sweepFriendPasses) wait for that fetch's last page (10n N7,
           // handleDmBatch), so this device hears my notes before it sends.
