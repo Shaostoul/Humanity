@@ -51,7 +51,7 @@ mod connections;
 /// first entry into the world (first-hour audit 2026-10-04). See `gui/first_steps.rs`.
 #[cfg(feature = "native")]
 mod first_steps;
-pub use connections::{connect_target, erased_entry, EraseOutcome, ERASED_CONNECT_NOTE, ERASE_UNFINISHED_NOTE, OFFICIAL_SERVER};
+pub use connections::{connect_target, erased_entry, EraseOutcome, ERASED_BY_ADMIN_NOTE, ERASED_CONNECT_NOTE, ERASE_UNFINISHED_NOTE, OFFICIAL_SERVER};
 
 
 // Headless UI snapshot tests (v0.495): render egui pages to PNGs for review +
@@ -2423,6 +2423,8 @@ pub struct GuiState {
     pub block_list: Option<crate::net::block_list::BlockList>,
     /// Reports (step D, 2026-10-09): the Report dialog, the reasons, and the admins' list.
     pub reports: crate::net::report::ReportUi,
+    /// An admin erases another person's data (10i, 2026-10-10): the member list's confirm and receipt.
+    pub admin_erase: crate::net::admin_erase::AdminEraseUi,
     /// Calls through the server (step E, 2026-10-09): the call or voice room whose credentials
     /// were asked for, and how far its connection through the server got (engine/call_relay.rs).
     pub call_relay: crate::net::call_relay::CallRelayUi,
@@ -3981,6 +3983,7 @@ impl Default for GuiState {
             reach: Default::default(),
             block_list: None,
             reports: Default::default(),
+            admin_erase: Default::default(),
             call_relay: Default::default(),
             warnings: Default::default(),
             protected: Default::default(),

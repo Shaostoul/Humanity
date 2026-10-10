@@ -73,9 +73,21 @@ pub const ERASED_CONNECT_NOTE: &str =
 pub const ERASE_UNFINISHED_NOTE: &str =
     "The erase of your account on this server did not finish, so open Chat, press Connect and erase it again from Settings.";
 
-/// How an erase on a server ended, as the relay's `account_erased` said (`partial`). Either
-/// way the app leaves that server and never dials it by itself; the two only differ in what
-/// it tells the person.
+/// What the app says when a server ADMIN erased this identity's data there (section 10i of
+/// docs/design/blocking-and-safe-mode.md: the relay's `account_erased` with `by_admin: true`),
+/// word for word from 10i, instead of the self-erase's words, which would tell the person they
+/// did something they did not do. The web client says the same.
+pub const ERASED_BY_ADMIN_NOTE: &str =
+    "A server admin erased your data from this server. Local data on your own devices is untouched.";
+
+/// The Chat page's connect box after an admin's erase: 10i's words, then what the button below
+/// does. Connect signs up again here just as it does after a self-erase (`take_sign_up_again` does
+/// not ask who erased), and BUG-135's rule is that the person is told so before pressing it.
+const ERASED_BY_ADMIN_CONNECT_NOTE: &str = "A server admin erased your data from this server. Local data on your own devices is untouched. Pressing Connect signs you up again as a new account on this server.";
+
+/// How an erase on a server ended, as the relay's `account_erased` said (`partial`, and since
+/// 10i `by_admin`). Either way the app leaves that server and never dials it by itself; they only
+/// differ in what it tells the person.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EraseOutcome {
@@ -83,15 +95,21 @@ pub enum EraseOutcome {
     Erased,
     /// Part of the erase failed on the server, so the account may still partly exist there.
     Unfinished,
+    /// Everything went, and a server admin erased it, not the person (10i).
+    ErasedByAdmin,
 }
 
 impl EraseOutcome {
     /// Read from the relay's `account_erased` frame: `"partial": true` when any part of the
-    /// erase failed (relay msg_handlers.rs `handle_account_delete`). Both sockets' handlers
-    /// read it here (engine/account_erase.rs).
+    /// erase failed (relay msg_handlers.rs `handle_account_delete`), `"by_admin": true` when an
+    /// admin erased it (10i; absent or false from a self-erase). Both sockets' handlers read it
+    /// here (engine/account_erase.rs). An unfinished erase says so whoever made it: that it did
+    /// not finish, and how to finish it, is what the person needs to act on.
     pub fn from_receipt(frame: &serde_json::Value) -> Self {
         if frame.get("partial").and_then(|v| v.as_bool()) == Some(true) {
             EraseOutcome::Unfinished
+        } else if frame.get("by_admin").and_then(|v| v.as_bool()) == Some(true) {
+            EraseOutcome::ErasedByAdmin
         } else {
             EraseOutcome::Erased
         }
@@ -228,6 +246,7 @@ impl GuiState {
         self.game_bans_requested = false;
         self.backup_list_requested = false;
         self.reports.forget_server(); // the Reports list is this server's (step D)
+        self.admin_erase = Default::default(); // an open erase confirm names this server's member (10i)
         self.chat_roles.clear();
         self.chat_banned_users.clear();
         self.chat_muted_users.clear();
@@ -324,6 +343,7 @@ impl GuiState {
         match self.account_erased_on.get(&erased_entry(&self.profile_public_key, url))? {
             EraseOutcome::Erased => Some(ERASED_CONNECT_NOTE),
             EraseOutcome::Unfinished => Some(ERASE_UNFINISHED_NOTE),
+            EraseOutcome::ErasedByAdmin => Some(ERASED_BY_ADMIN_CONNECT_NOTE),
         }
     }
 
@@ -870,6 +890,42 @@ mod erased_account_tests {
         state.account_erased_on_active(EraseOutcome::from_receipt(&whole));
         assert_eq!(state.erase_note("https://a.example"), Some(ERASED_CONNECT_NOTE));
         assert_eq!(state.erase_note("https://b.example"), None, "no note where nothing was erased");
+    }
+
+    /// 10i: an `account_erased` with `by_admin: true` makes the app say a server admin erased the
+    /// data, in 10i's words, instead of the self-erase's (which would tell the person they did it),
+    /// still saying what Connect does; with `by_admin` false or absent it says the old words. The
+    /// app leaves the server and keeps it undialed either way, and the outcome survives a restart.
+    ///
+    /// Seen red 2026-10-10 twice: with `from_receipt` ignoring `by_admin`, "an admin's erase said
+    /// the self-erase's words" (with the self-erase's connect note); and with `by_admin` read
+    /// before `partial`, "an unfinished admin erase lost its words".
+    #[test]
+    fn an_admins_erase_says_an_admin_did_it() {
+        use super::ERASED_BY_ADMIN_NOTE;
+        let by_admin = serde_json::json!({ "type": "account_erased", "to": KEY, "partial": false, "earlier": false, "by_admin": true });
+        let mut state = on("https://a.example");
+        state.account_erased_on_active(EraseOutcome::from_receipt(&by_admin));
+        let note = state.erase_note("https://a.example").expect("a note above Connect");
+        assert!(note.starts_with(ERASED_BY_ADMIN_NOTE), "an admin's erase said the self-erase's words: {note}");
+        assert!(note.contains("Connect") && note.contains("signs you up again"), "it no longer says what Connect does: {note}");
+        assert!(!note.contains(ERASED_CONNECT_NOTE));
+        assert!(state.ws_manually_disconnected && state.account_erased_here("https://a.example"), "still left, still undialed");
+        let saved = serde_json::to_string(&EraseOutcome::from_receipt(&by_admin)).unwrap();
+        assert_eq!(serde_json::from_str::<EraseOutcome>(&saved).unwrap(), EraseOutcome::ErasedByAdmin, "lost on a restart");
+
+        for self_erase in [
+            serde_json::json!({ "type": "account_erased", "to": KEY, "partial": false, "earlier": false, "by_admin": false }),
+            serde_json::json!({ "type": "account_erased", "to": KEY, "partial": false, "earlier": false }),
+        ] {
+            let mut state = on("https://a.example");
+            state.account_erased_on_active(EraseOutcome::from_receipt(&self_erase));
+            assert_eq!(state.erase_note("https://a.example"), Some(ERASED_CONNECT_NOTE), "a self-erase lost its words");
+        }
+        assert_eq!(ERASED_BY_ADMIN_NOTE, "A server admin erased your data from this server. Local data on your own devices is untouched.");
+        // An unfinished erase says so whoever made it, as on the web (`erasedKindOf`).
+        let unfinished = serde_json::json!({ "type": "account_erased", "to": KEY, "partial": true, "by_admin": true });
+        assert_eq!(EraseOutcome::from_receipt(&unfinished), EraseOutcome::Unfinished, "an unfinished admin erase lost its words");
     }
 
     /// BUG-135, the operator's option 2 (2026-10-04): the relay remembers an erase for a while

@@ -42,6 +42,11 @@ pub(crate) fn on_parked_server(state: &mut EngineState, ci: usize, frame: &serde
     crate::config::AppConfig::from_gui_state(&state.gui_state).save();
 }
 
+/// What the game says under the HUD when a server ADMIN erased this identity's data there (10i,
+/// the relay's `account_erased` with `by_admin: true`): 10i's words, so the person is not told
+/// they erased it themselves, then the way back, as the self-erase's sentence gives it.
+pub(crate) const ERASED_BY_ADMIN_HUD: &str = "A server admin erased your data from this server. Local data on your own devices is untouched. Out of the shared world: to come back, open Chat and press Connect, which signs you up again as a new account.";
+
 /// The sentence the game leaves the shared world with after an erase, or None when it already
 /// shows that very sentence (an erase made in the world got the relay's `game_join_denied`
 /// first). Decided by the sentence on show, never by whether this server already refused us:
@@ -52,6 +57,7 @@ pub(crate) fn erase_refusal(outcome: EraseOutcome, showing: Option<&str>) -> Opt
     let sentence = match outcome {
         EraseOutcome::Erased => home_plot::ERASED,
         EraseOutcome::Unfinished => crate::gui::ERASE_UNFINISHED_NOTE,
+        EraseOutcome::ErasedByAdmin => ERASED_BY_ADMIN_HUD,
     };
     (showing != Some(sentence)).then_some(sentence)
 }
@@ -77,6 +83,30 @@ mod tests {
         assert_eq!(erase_refusal(EraseOutcome::Erased, erased), None, "said twice after the relay's own refusal");
         assert_eq!(erase_refusal(EraseOutcome::Unfinished, erased), unfinished, "an unfinished erase kept the sign-up promise");
         assert_eq!(erase_refusal(EraseOutcome::Unfinished, unfinished), None);
+    }
+
+    /// 10i: an admin's erase (`by_admin: true` on the relay's `account_erased`) puts 10i's words
+    /// under the HUD in place of the relay's in-world "your account on this server was erased",
+    /// which it sent first; a self-erase (`by_admin` false or absent) keeps the old sentence.
+    ///
+    /// Seen red 2026-10-10 with the by-admin outcome mapped to the self-erase's sentence: "an
+    /// admin's erase left the self-erase's words under the HUD".
+    #[test]
+    fn an_admins_erase_says_so_under_the_hud() {
+        let frame = |by_admin: Option<bool>| {
+            let mut f = serde_json::json!({ "type": "account_erased", "partial": false, "earlier": false });
+            if let Some(b) = by_admin {
+                f["by_admin"] = serde_json::Value::Bool(b);
+            }
+            EraseOutcome::from_receipt(&f)
+        };
+        let said = erase_refusal(frame(Some(true)), Some(home_plot::ERASED));
+        assert_eq!(said, Some(ERASED_BY_ADMIN_HUD), "an admin's erase left the self-erase's words under the HUD");
+        assert!(ERASED_BY_ADMIN_HUD.starts_with(crate::gui::ERASED_BY_ADMIN_NOTE));
+        assert!(ERASED_BY_ADMIN_HUD.contains("Chat") && ERASED_BY_ADMIN_HUD.contains("Connect") && ERASED_BY_ADMIN_HUD.contains("signs you up again"));
+        assert_eq!(erase_refusal(frame(Some(true)), Some(ERASED_BY_ADMIN_HUD)), None, "said twice");
+        assert_eq!(erase_refusal(frame(Some(false)), None), Some(home_plot::ERASED), "a self-erase lost its words");
+        assert_eq!(erase_refusal(frame(None), None), Some(home_plot::ERASED), "a self-erase lost its words");
     }
 
     /// The two sockets hand the relay's `account_erased` here. The handlers take the whole
