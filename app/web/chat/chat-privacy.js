@@ -82,6 +82,19 @@ async function reassertPrivacyTier() {
   }
 }
 
+/**
+ * The privacy explanation above the choice. Its second sentence (step D,
+ * docs/design/blocking-and-safe-mode.md 10e, REPORT_PRIVACY_SENTENCE in
+ * /shared/report.js) is the other side of reports the admins can check: a DM
+ * is signed, so whoever receives it can show others who wrote it.
+ */
+function privacyExplanationText() {
+  const signed = typeof REPORT_PRIVACY_SENTENCE === 'string' ? ' ' + REPORT_PRIVACY_SENTENCE : '';
+  return 'Your messages are end-to-end encrypted whatever you pick, and this server keeps no record of who you message.'
+    + signed
+    + ' This only controls whether others can see you online and find you in directories. You can change it any time.';
+}
+
 /** First-connect chooser. Called from app.js once identity is confirmed. */
 async function maybeShowPrivacyTierModal() {
   if (_privacyModalShown) return;
@@ -109,9 +122,7 @@ async function maybeShowPrivacyTierModal() {
     <div style="max-width:520px;width:100%;max-height:90vh;overflow-y:auto;background:var(--bg-primary);border:1px solid var(--border);border-radius:12px;padding:18px;">
       <h2 style="margin:0 0 6px;font-size:1.05rem;">How visible do you want to be?</h2>
       <p style="margin:0 0 12px;color:var(--text-muted);font-size:0.8rem;line-height:1.45;">
-        Your messages are end-to-end encrypted whatever you pick, and this server keeps no
-        record of who you message. This only controls whether others can see you online and
-        find you in directories. You can change it any time.
+        ${esc(privacyExplanationText())}
       </p>
       ${cards}
       <button id="privacy-tier-apply" class="vr-btn" style="width:100%;margin-top:8px;font-size:0.85rem;padding:10px;">Use this privacy level</button>
@@ -137,31 +148,10 @@ async function maybeShowPrivacyTierModal() {
   };
 }
 
-// ── Call IP privacy (2026-08-23) ─────────────────────────────────────────
-// WebRTC's classic property: a direct call reveals your IP address to the
-// person you call. "Relay my calls" forces every call through the server's
-// TURN relay instead (iceTransportPolicy: 'relay'). FAIL CLOSED: if no
-// TURN allocation is available the call fails rather than leaking your
-// address — which is what a privacy switch must do.
-function applyRelayCallsPreference() {
-  const on = localStorage.getItem('humanity_relay_calls_only') === '1';
-  try {
-    if (typeof rtcConfig === 'object' && rtcConfig) {
-      if (on) rtcConfig.iceTransportPolicy = 'relay';
-      else delete rtcConfig.iceTransportPolicy;
-    }
-  } catch {}
-}
-function setRelayCallsOnly(on) {
-  localStorage.setItem('humanity_relay_calls_only', on ? '1' : '0');
-  applyRelayCallsPreference();
-  if (typeof addSystemMessage === 'function') {
-    addSystemMessage(on
-      ? 'Calls will be relayed through the server: people you call cannot learn your IP address. If the server has no relay capacity, calls fail rather than leak.'
-      : 'Calls connect directly again (lower latency; the other party can see your IP address, which is how WebRTC normally works).');
-  }
-}
-setTimeout(applyRelayCallsPreference, 300);
+// (The "Relay my calls" switch that stood here since 2026-08-23 is gone: since
+// step E every call and voice room goes through the server for everyone, with
+// no direct option to switch to. chat-voice-rooms.js, "Calls go through the
+// server".)
 
 // ── Account sovereignty controls (2026-08-23) ────────────────────────────
 // Export + erase, injected into the account/identity block so they are
@@ -212,11 +202,45 @@ async function exportMyAccountData() {
   }
 }
 
+// What the server keeps AFTER an erase, said before the person decides (BUG-135, the
+// operator's option 2, 2026-10-04): the server remembers for a limited time that the account
+// was erased, so the person's other devices do not sign them up again by themselves. `days`
+// is this server's own setting (GET /api/server-info `erased_accounts_ttl_days`); null when it
+// could not be read, and then the sentence is empty: nothing is promised about a server whose
+// number we do not have (review finding 6). "Up to" because the server forgets the entry
+// within that many days, never later (finding 4); the backups clause because a copy rides in
+// them until each is deleted (finding 2). The same words as native
+// (src/relay/storage/erased_accounts.rs `erase_memory_sentence`).
+function eraseMemorySentence(days) {
+  if (!(Number.isInteger(days) && days > 0)) return '';
+  const howLong = days === 1 ? 'for up to 1 day' : 'for up to ' + days + ' days';
+  return 'After the erase this server remembers ' + howLong + ' that this account was erased, as a '
+    + 'one-way fingerprint that is not your name or your data, so your other devices do not '
+    + 'sign you up again by themselves; then the entry is deleted here, and a copy of it in '
+    + 'this server\'s backups lasts until that backup is deleted.';
+}
+
+async function eraseMemoryDays() {
+  try {
+    const res = await fetch('/api/server-info');
+    if (!res.ok) return null;
+    const info = await res.json();
+    return Number.isInteger(info && info.erased_accounts_ttl_days) ? info.erased_accounts_ttl_days : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function deleteMyAccount() {
-  if (!await holdConfirm('Erase your entire account on this server (messages, uploads, profile, mailbox, membership)? This is permanent. Data on your own devices stays.', { seconds: 5, confirmLabel: 'Hold to erase account' })) return;
+  const remembered = eraseMemorySentence(await eraseMemoryDays());
+  if (!await holdConfirm('Erase your entire account on this server (messages, uploads, profile, mailbox, membership, your progress in the shared world, what you built in the shared world, and your home\'s plot on the ship)? This is permanent. Data on your own devices stays.' + (remembered ? ' ' + remembered : ''), { seconds: 5, confirmLabel: 'Hold to erase account' })) return;
   const typed = prompt(
-    'This ERASES your account on this server: messages, uploads, profile, follows, '
-    + 'mailbox, and membership, permanently. Data on your own devices stays.\n\n'
+    'This ERASES your account on this server: messages, uploads, profile, '
+    + 'mailbox, membership, your progress in the shared world, what you built in the shared world, '
+    + 'and your home\'s plot on the ship '
+    + '(it goes to the next player; if you come back you get a free plot or a guest place), '
+    + 'permanently. Data on your own devices stays.\n\n'
+    + (remembered ? remembered + '\n\n' : '')
     + 'Type your display name exactly to confirm:');
   if (!typed || !typed.trim()) return;
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -231,22 +255,782 @@ function injectAccountDataButtons() {
   div.id = 'account-data-controls';
   div.style.cssText = 'display:flex;gap:6px;margin-top:8px;';
   div.innerHTML =
-    '<button class="vr-btn" style="flex:1;font-size:0.7rem;" onclick="exportMyAccountData()" title="Download everything this server stores about you as a JSON file.">Export my data</button>'
+    '<button class="vr-btn" style="flex:1;font-size:0.7rem;" onclick="openSafetyPanel()" title="Choose who can message you, call you and send you trade requests, answer contact requests, and see who you blocked.">Safety</button>'
+    + '<button class="vr-btn" style="flex:1;font-size:0.7rem;" onclick="exportMyAccountData()" title="Download everything this server stores about you as a JSON file.">Export my data</button>'
     + '<button class="vr-btn" style="flex:1;font-size:0.7rem;color:var(--danger);" onclick="deleteMyAccount()" title="Erase your account and its data from this server. Self-service, permanent.">Erase account</button>';
   host.appendChild(div);
-  const relayRow = document.createElement('label');
-  relayRow.style.cssText = 'display:flex;align-items:center;gap:6px;margin-top:6px;font-size:0.72rem;color:var(--text-muted);cursor:pointer;';
-  const relayOn = localStorage.getItem('humanity_relay_calls_only') === '1';
-  relayRow.innerHTML = '<input type="checkbox" id="relay-calls-toggle"' + (relayOn ? ' checked' : '')
-    + '> Relay my calls (hide my IP from people I call)';
-  relayRow.querySelector('input').onchange = (e) => setRelayCallsOnly(e.target.checked);
-  host.appendChild(relayRow);
 }
 setTimeout(injectAccountDataButtons, 500);
+
+// ── Safety: who can reach me (step B, 2026-10-09) ────────────────────────
+// docs/design/blocking-and-safe-mode.md 10c, mirroring native Settings >
+// Safety. One row per kind of contact (Messages, Calls, Trades), each with
+// one of five audiences; the words, defaults and rules are /shared/reach.js.
+// The relay enforces the choice and its `reach_settings` is the source of
+// truth for what this page shows: a change goes out as `reach_set` and the
+// row shows the relay's answer, not our guess. Also here: the "People who
+// may call me" list (a friend's pass re-issued with or without `call`,
+// chat-social.js setFriendMayCall), the refusal sentence with a Send request
+// button (`reach_refused`), and the Requests list (contact requests, and
+// DMs from people these settings refuse, shown by name only).
+
+let reachKnown = null;   // the last `reach_settings` from the relay; null until it says
+let reachSaving = null;  // {kind, audience, timer} while a `reach_set` awaits its answer
+const REACH_SAVE_WAIT_MS = 8000;
+// One refusal offer per person a minute: one refused send is often several
+// puts (a follow notice, then the message), and each is refused.
+const reachOfferShown = new Map();
+const REACH_OFFER_QUIET_MS = 60000;
+
+/** The settings in force: the relay's word, or the safe defaults until it has spoken. */
+function reachCurrent() {
+  return reachKnown || reachSettingsFrom(null);
+}
+
+/** HTML-escape for the strings this section builds (pure: no DOM needed). */
+function reachEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function reachSay(text) {
+  if (typeof addSystemMessage === 'function') addSystemMessage(text);
+}
+
+function reachPeers() {
+  return (typeof peerData !== 'undefined' && peerData) ? peerData : {};
+}
+
+function reachDisplayName(key) {
+  const p = reachPeers()[key];
+  return (p && p.display_name) || (typeof shortKey === 'function' ? shortKey(key) : String(key).slice(0, 8));
+}
+
+/**
+ * Do we share a P2P group (the `groups` audience)? From the group list
+ * chat-groups-p2p.js keeps. Until that list has loaded the answer is not
+ * known here, and then the relay's own check stands: a DM it let through is
+ * not turned into a request, which would drop its text for good.
+ */
+function reachSharesGroupWith(peer) {
+  if (!Array.isArray(window._p2pGroups)) return true;
+  return window._p2pGroups.some((g) => g && Array.isArray(g.members) && g.members.includes(peer));
+}
+
+function reachStore() {
+  return (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
+}
+
+/** Would my settings let `peer` reach me for `kind`? The relay's rule, applied with what this client knows. */
+function reachAllowsFrom(peer, kind) {
+  const store = reachStore();
+  return reachAllows(reachCurrent()[kind], kind, {
+    passMay: store ? store.passMayTo(peer) : null,
+    sharesGroup: reachSharesGroupWith(peer),
+  });
+}
+
+/** The relay's answer: what the settings are now (after identify and after every reach_set). */
+function onReachSettings(settings) {
+  reachKnown = reachSettingsFrom(settings);
+  if (reachSaving) {
+    clearTimeout(reachSaving.timer);
+    reachSaving = null;
+  }
+  renderSafetyPanel();
+}
+
+/** A row's choice changed: ask the relay; the row shows the answer when it comes. */
+function chooseReachAudience(kind, audience) {
+  const frame = reachSetFrame({ [kind]: audience });
+  if (!frame || !reachKnown) return false;
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    reachSay('Not connected, so the setting was not changed.');
+    renderSafetyPanel();
+    return false;
+  }
+  ws.send(JSON.stringify(frame));
+  if (reachSaving) clearTimeout(reachSaving.timer);
+  // No answer in time: show what the relay last said again.
+  reachSaving = { kind, audience, timer: setTimeout(() => { reachSaving = null; renderSafetyPanel(); }, REACH_SAVE_WAIT_MS) };
+  renderSafetyPanel();
+  return true;
+}
+
+// ── Contact requests ──
+
+/**
+ * List someone under Requests: from a contact request whose pass checked
+ * ({key, pass, ts}) or a DM my settings refuse ({key, ts}). Shown by the name
+ * the member list has for that key, never a name they claimed. Returns true
+ * when it is listed (a "nobody" setting lists nothing).
+ */
+function receiveContactRequest(req) {
+  const store = reachStore();
+  if (!store || !req || !req.key || req.key === myKey) return false;
+  if (store.isBlocked(req.key)) return false; // never listed (step C)
+  if (reachCurrent().message === 'nobody') return false;
+  const name = reachDisplayName(req.key);
+  if (store.addContactRequest({ key: req.key, name, pass: req.pass || null, ts: Number(req.ts) || Date.now() })) {
+    reachSay(`${name} sent you a contact request. Accept or ignore it under Requests in your DMs.`);
+    if (typeof notifyNewMessage === 'function') notifyNewMessage(name, 'Contact request', true);
+  }
+  renderRequestsEverywhere();
+  return true;
+}
+
+/**
+ * A DM (opened, its signature checked) whose text is a contact request:
+ * returns true when it was one, and then the caller neither stores nor shows
+ * it. From someone else, its pass must have been given to me, on this server,
+ * by the signed sender; one that does not check is dropped. My own, echoed
+ * from another of my devices, records the pass I gave and that I follow them.
+ */
+async function ingestContactRequest(inner) {
+  if (!inner || !isContactRequestText(inner.text)) return false;
+  const req = contactRequestParse(inner.text);
+  const store = reachStore();
+  if (inner.from === myKey) {
+    const pass = req ? friendPassParse(req.pass) : null;
+    // Sent from a device that had not heard I blocked them yet: the pass is
+    // withdrawn at once and the follow is not taken up (step C).
+    if (store && inner.to && store.isBlocked(inner.to)) {
+      if (pass) store.recordPassSent(inner.to, pass.serial, pass.may);
+      if (typeof withdrawPassesTo === 'function') withdrawPassesTo(inner.to);
+      return true;
+    }
+    if (store && pass && inner.to) {
+      store.recordPassSent(inner.to, pass.serial, pass.may);
+      store.setFollowing(inner.to, true);
+    }
+    if (inner.to && typeof myFollowing !== 'undefined') myFollowing.add(inner.to);
+    return true;
+  }
+  if (!req || !await pqVerifyFriendCert(inner.from, myKey, req.pass)) return true;
+  receiveContactRequest({ key: inner.from, pass: req.pass, ts: inner.ts });
+  return true;
+}
+
+/**
+ * A DM (opened and checked) from someone my settings refuse is shown as a
+ * contact request, name only: its text is dropped, never stored or shown, so
+ * a modified client gains nothing by skipping the flag (10c). Returns true
+ * when it was screened out; the caller then neither stores nor shows it.
+ */
+function reachScreenDm(inner) {
+  if (!inner || !inner.from || inner.from === myKey) return false;
+  if (reachAllowsFrom(inner.from, 'message')) return false;
+  receiveContactRequest({ key: inner.from, ts: inner.ts });
+  return true;
+}
+
+/**
+ * Accept: their request counts as their follow, and following back makes us
+ * friends. The pass their request carried is kept first, so every put to them
+ * from here (the follow notice, my pass) presents it as `friend_cert`
+ * (crypto.js pqBuildDmPuts) and their relay's gate lets my reply in.
+ */
+async function acceptContactRequest(id) {
+  const store = reachStore();
+  const req = store && store.contactRequests[id];
+  if (!req || !req.key) return false;
+  const key = req.key;
+  store.removeContactRequest(id);
+  if (req.pass && await pqVerifyFriendCert(key, myKey, req.pass)) store.storeCertFrom(key, req.pass);
+  store.setFollower(key, true);
+  if (typeof myFollowers !== 'undefined') myFollowers.add(key);
+  if (typeof setFollowLocal === 'function') await setFollowLocal(key, true);
+  renderRequestsEverywhere();
+  return true;
+}
+
+/** Ignore: the request (and the pass it carried) goes; nothing is sent and no one is told. */
+function ignoreContactRequest(id) {
+  const store = reachStore();
+  if (store) store.removeContactRequest(id);
+  renderRequestsEverywhere();
+}
+
+/**
+ * Send `peer` a contact request (crypto.js pqBuildContactRequest): a signed,
+ * sealed DM flagged `contact_request`, carrying my name and my pass for them
+ * with the default `may`, plus the self-copy that tells my other devices. From
+ * here I follow them and they hold my pass, so their acceptance gets through
+ * and completes the friendship.
+ */
+async function sendContactRequest(peer) {
+  if (!peer || peer === myKey) return false;
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    reachSay('Not connected, so the request was not sent.');
+    return false;
+  }
+  const built = await pqBuildContactRequest(peer, myName);
+  if (!built) {
+    reachSay('The request could not be sent yet: this person has not been online with a current client here, or your identity is still loading. Try again in a moment.');
+    return false;
+  }
+  ws.send(JSON.stringify(built.recipientPut));
+  ws.send(JSON.stringify(built.selfPut));
+  const store = reachStore();
+  if (store) {
+    store.recordPassSent(peer, built.serial, built.may);
+    store.setFollowing(peer, true);
+  }
+  if (typeof myFollowing !== 'undefined') myFollowing.add(peer);
+  if (typeof updateFriendIndicators === 'function') updateFriendIndicators();
+  reachSay('Contact request sent. They will see only your name; if they accept, you become friends.');
+  return true;
+}
+
+/** The relay refused a send: for a message, the sentence and a Send request button. */
+function onReachRefused(msg) {
+  const to = msg && msg.to;
+  if (!to) return;
+  if (msg.kind === 'trade') {
+    reachSay(REACH_REFUSED_TRADE);
+    return;
+  }
+  if (msg.kind !== 'message') return;
+  const last = reachOfferShown.get(to) || 0;
+  if (Date.now() - last < REACH_OFFER_QUIET_MS) return;
+  reachOfferShown.set(to, Date.now());
+  const el = document.createElement('div');
+  el.className = 'message system reach-refused';
+  el.style.cssText = 'padding:var(--space-sm) var(--space-md);border-left:3px solid var(--warning);';
+  const status = document.createElement('div');
+  status.style.cssText = 'font-weight:600;color:var(--text);';
+  status.textContent = `Not delivered to ${reachDisplayName(to)}.`;
+  const text = document.createElement('div');
+  text.style.cssText = 'color:var(--text-muted);margin:var(--space-xs) 0;';
+  text.textContent = REACH_REFUSED_MESSAGE;
+  const btn = document.createElement('button');
+  btn.className = 'vr-btn';
+  btn.textContent = 'Send request';
+  btn.onclick = async () => {
+    btn.disabled = true;
+    const ok = await sendContactRequest(to);
+    btn.textContent = ok ? 'Request sent' : 'Send request';
+    if (!ok) btn.disabled = false;
+  };
+  el.appendChild(status);
+  el.appendChild(text);
+  el.appendChild(btn);
+  if (typeof appendMessage === 'function') appendMessage(el);
+}
+
+// ── Drawing ──
+
+/** The Requests list (name only, Accept, Ignore and Block), shared by the Safety page and the DMs tab. */
+function contactRequestsHtml(requests, opts) {
+  const compact = !!(opts && opts.compact);
+  if (!requests.length) {
+    return compact ? '' : '<div style="color:var(--text-muted);font-size:var(--text-sm);">No requests.</div>';
+  }
+  // In the narrow DMs rail the name takes its own line and the buttons sit under it.
+  return requests.map((r) =>
+    `<div class="reach-request${compact ? ' dm-item' : ''}" data-req-id="${reachEsc(r.id)}" style="display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-xs) ${compact ? 'var(--space-md);flex-wrap:wrap' : '0'};">`
+    + `<span class="dm-name" style="flex:1 1 ${compact ? '100%' : '0'};min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${reachEsc(r.key ? reachDisplayName(r.key) : r.name)}</span>`
+    + `<button class="vr-btn" data-req-accept="${reachEsc(r.id)}" style="font-size:0.7rem;">Accept</button>`
+    + `<button class="vr-btn" data-req-ignore="${reachEsc(r.id)}" style="font-size:0.7rem;">Ignore</button>`
+    + `<button class="vr-btn" data-req-block="${reachEsc(r.id)}" title="Block them: you will not see anything from them, and they are not told." style="font-size:0.7rem;color:var(--danger);">Block</button>`
+    + '</div>').join('');
+}
+
+/** The Requests block at the top of the DMs tab (empty when there are none). */
+function contactRequestsSidebarHtml() {
+  const store = reachStore();
+  const list = store ? store.contactRequestList() : [];
+  if (!list.length) return '';
+  return '<div class="dm-requests" style="border-bottom:1px solid var(--border);padding-bottom:var(--space-xs);margin-bottom:var(--space-xs);">'
+    + '<div style="font-size:0.6rem;color:var(--text-muted);font-weight:600;letter-spacing:0.05em;padding:var(--space-sm) var(--space-md) 0;">REQUESTS</div>'
+    + contactRequestsHtml(list, { compact: true })
+    + '</div>';
+}
+
+/** Hook the Accept and Ignore buttons inside `container`. */
+function wireContactRequestButtons(container) {
+  if (!container || typeof container.querySelectorAll !== 'function') return;
+  container.querySelectorAll('[data-req-accept]').forEach((b) => {
+    b.onclick = (e) => { if (e) e.stopPropagation(); acceptContactRequest(b.dataset.reqAccept); };
+  });
+  container.querySelectorAll('[data-req-ignore]').forEach((b) => {
+    b.onclick = (e) => { if (e) e.stopPropagation(); ignoreContactRequest(b.dataset.reqIgnore); };
+  });
+  container.querySelectorAll('[data-req-block]').forEach((b) => {
+    b.onclick = (e) => { if (e) e.stopPropagation(); blockContactRequest(b.dataset.reqBlock); };
+  });
+}
+
+function renderRequestsEverywhere() {
+  if (typeof renderDmList === 'function') {
+    try { renderDmList(); } catch (e) { /* the DMs tab is not drawn yet */ }
+  }
+  renderSafetyPanel();
+}
+
+/** What the Safety page shows, from the relay's settings and the passes this client gave. */
+function safetyModel() {
+  const settings = reachCurrent();
+  const known = !!reachKnown;
+  const rows = REACH_KINDS.map((kind) => {
+    const saving = !!(reachSaving && reachSaving.kind === kind);
+    const audience = saving ? reachSaving.audience : settings[kind];
+    return {
+      kind,
+      label: REACH_KIND_LABELS[kind],
+      audience,
+      explain: reachExplain(kind, audience),
+      saving,
+      disabled: !known,
+      options: REACH_AUDIENCES.map((a) => ({ value: a, label: REACH_AUDIENCE_LABELS[a] })),
+    };
+  });
+  const store = reachStore();
+  const given = store ? Object.keys(store.certsSent).filter((p) => store.certSentTo(p)) : [];
+  const named = (keys) => keys.map((key) => ({ key, name: reachDisplayName(key) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const mayCall = (p) => { const m = store.passMayTo(p); return !!m && m.split(',').includes('call'); };
+  return {
+    known,
+    rows,
+    callAudience: settings.call,
+    callers: named(given.filter(mayCall)),
+    others: named(given.filter((p) => !mayCall(p))),
+    requests: store ? store.contactRequestList() : [],
+    // Blocked people (step C): newest first, by the member list's name (or short key).
+    blocked: store ? store.blockedList().map((b) => ({ key: b.key, name: reachDisplayName(b.key), ts: b.ts, date: blockDateLabel(b.ts) })) : [],
+  };
+}
+
+const SAFETY_H3 = 'font-size:0.85rem;margin:var(--space-lg) 0 var(--space-xs);color:var(--text);';
+const SAFETY_NOTE = 'color:var(--text-muted);font-size:var(--text-sm);line-height:1.4;margin:0 0 var(--space-sm);';
+
+/** The Safety page's HTML for a model (pure, so it can be checked without a browser). */
+function safetyPanelHtml(model) {
+  let html = '<div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-sm);">'
+    + '<h2 style="margin:0;">Safety</h2>'
+    + '<button class="vr-btn" data-safety-close style="font-size:0.75rem;">Close</button></div>';
+  html += `<h3 style="${SAFETY_H3}">Who can reach me</h3>`
+    + `<p style="${SAFETY_NOTE}">Choose who can reach you for each kind of contact. This server enforces your choice.</p>`;
+  if (!model.known) {
+    html += `<p class="safety-waiting" style="${SAFETY_NOTE}">Waiting for this server to send your settings. Until it does, these show the safe defaults and cannot be changed.</p>`;
+  }
+  for (const row of model.rows) {
+    html += `<div class="safety-row" data-kind="${row.kind}" style="padding:var(--space-sm) 0;border-top:1px solid var(--border);">`
+      + '<div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-sm);">'
+      + `<span style="font-weight:600;color:var(--text);">${reachEsc(row.label)}</span>`
+      + `<select data-reach-kind="${row.kind}" aria-label="Who can reach me: ${reachEsc(row.label)}"${row.disabled ? ' disabled' : ''} style="background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:var(--space-xs);">`
+      + row.options.map((o) => `<option value="${o.value}"${o.value === row.audience ? ' selected' : ''}>${reachEsc(o.label)}</option>`).join('')
+      + '</select></div>'
+      + `<div class="safety-explain" style="${SAFETY_NOTE}margin-top:var(--space-xs);">${reachEsc(row.explain)}${row.saving ? ' (Saving...)' : ''}</div>`
+      + '</div>';
+  }
+  html += `<h3 style="${SAFETY_H3}">People who may call me</h3>`;
+  if (model.callAudience !== 'chosen') {
+    html += `<p style="${SAFETY_NOTE}">Calls are set to "${reachEsc(REACH_AUDIENCE_LABELS[model.callAudience] || model.callAudience)}", so this list is used only when Calls is set to "People I choose".</p>`;
+  }
+  if (model.callers.length) {
+    html += model.callers.map((c) =>
+      `<div class="safety-caller" style="display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-xs) 0;">`
+      + `<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--text);">${reachEsc(c.name)}</span>`
+      + `<button class="vr-btn" data-call-remove="${reachEsc(c.key)}" style="font-size:0.7rem;">Remove</button></div>`).join('');
+  } else {
+    html += `<p style="${SAFETY_NOTE}">Nobody yet.</p>`;
+  }
+  if (model.others.length) {
+    html += '<div style="display:flex;gap:var(--space-sm);align-items:center;margin-top:var(--space-xs);">'
+      + `<select data-call-add-pick aria-label="A friend to let call you" style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:var(--space-xs);">`
+      + model.others.map((o) => `<option value="${reachEsc(o.key)}">${reachEsc(o.name)}</option>`).join('')
+      + '</select><button class="vr-btn" data-call-add style="font-size:0.7rem;">Add</button></div>';
+  } else if (!model.callers.length) {
+    html += `<p style="${SAFETY_NOTE}">Friends appear here once you have some.</p>`;
+  }
+  html += `<h3 style="${SAFETY_H3}">Requests</h3>`
+    + `<p style="${SAFETY_NOTE}">People who asked to reach you. You see only their name. Accept makes you friends; Ignore tells no one.</p>`
+    + contactRequestsHtml(model.requests);
+  html += `<h3 style="${SAFETY_H3}">Blocked people</h3>`
+    + `<p style="${SAFETY_NOTE}">You see nothing from the people here, on any of your devices, and they are not told. Blocking does not stop them seeing what you post in public. Unblock lets them reach you again as your settings above allow; it does not make you friends again.</p>`;
+  if (model.blocked.length) {
+    html += model.blocked.map((b) =>
+      `<div class="safety-blocked" data-blocked-key="${reachEsc(b.key)}" style="display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-xs) 0;">`
+      + '<div style="flex:1;min-width:0;">'
+      + `<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);">${reachEsc(b.name)}</div>`
+      + `<div style="color:var(--text-muted);font-size:var(--text-sm);">Blocked ${reachEsc(b.date)}</div></div>`
+      + `<button class="vr-btn" data-unblock="${reachEsc(b.key)}" style="font-size:0.7rem;flex:none;">Unblock</button></div>`).join('');
+  } else {
+    html += `<p style="${SAFETY_NOTE}">Nobody is blocked.</p>`;
+  }
+  return html;
+}
+
+/** Open Settings > Safety. */
+function openSafetyPanel() {
+  let overlay = document.getElementById('safety-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'safety-overlay';
+    overlay.className = 'profile-modal-overlay';
+    overlay.style.zIndex = '10000';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.classList.remove('open'); };
+    const card = document.createElement('div');
+    card.id = 'safety-card';
+    card.className = 'profile-modal';
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-label', 'Safety');
+    card.onclick = (e) => e.stopPropagation();
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+  }
+  const menu = document.getElementById('identity-menu');
+  if (menu) menu.style.display = 'none';
+  overlay.classList.add('open');
+  renderSafetyPanel();
+}
+
+/** Redraw the Safety page when it is open. */
+function renderSafetyPanel() {
+  const overlay = typeof document.getElementById === 'function' ? document.getElementById('safety-overlay') : null;
+  const card = overlay && document.getElementById('safety-card');
+  if (!card || !overlay.classList || !overlay.classList.contains('open')) return;
+  card.innerHTML = safetyPanelHtml(safetyModel());
+  const close = card.querySelector('[data-safety-close]');
+  if (close) close.onclick = () => overlay.classList.remove('open');
+  card.querySelectorAll('select[data-reach-kind]').forEach((sel) => {
+    sel.onchange = () => chooseReachAudience(sel.dataset.reachKind, sel.value);
+  });
+  card.querySelectorAll('[data-call-remove]').forEach((b) => {
+    b.onclick = async () => {
+      b.disabled = true;
+      if (!await setFriendMayCall(b.dataset.callRemove, false)) reachSay('Could not change that now: their key is not known here yet. Try again when they are online.');
+      renderSafetyPanel();
+    };
+  });
+  const add = card.querySelector('[data-call-add]');
+  const pick = card.querySelector('[data-call-add-pick]');
+  if (add && pick) {
+    add.onclick = async () => {
+      add.disabled = true;
+      if (!await setFriendMayCall(pick.value, true)) reachSay('Could not change that now: their key is not known here yet. Try again when they are online.');
+      renderSafetyPanel();
+    };
+  }
+  wireContactRequestButtons(card);
+  card.querySelectorAll('[data-unblock]').forEach((b) => {
+    b.onclick = () => { b.disabled = true; unblockKey(b.dataset.unblock); };
+  });
+}
+
+// ── Block (step C, 2026-10-09) ───────────────────────────────────────────
+// docs/design/blocking-and-safe-mode.md 10d, mirroring the desktop app. A
+// block is kept on my own devices only (section 4.4, option A); the relay
+// does its part because blocking withdraws every pass I gave them, so under
+// the safe defaults it refuses their messages, calls and trades from then on.
+//
+// Block, at once and without a confirmation (it is undoable):
+//   1. puts their identity key (never a name) on the list, with the date;
+//   2. withdraws every pass I gave them (`cert_revoke` for each serial, to the
+//      relay) and unfollows them here, telling them nothing;
+//   3. hides everything from them: DMs, knocks, follow notices, passes and
+//      contact requests are dropped before they are stored or notified
+//      (blockScreenDm, called by app.js and chat-p2p.js); channel posts,
+//      replies, group messages, reactions and typing are hidden by key
+//      (app.js, chat-messages.js, and blockScreenFrame below); a ring is
+//      ignored with no reject sent (chat-voice-calls.js); a direct-connection
+//      offer is not answered (chat-p2p.js mayAnswerDirectOffer);
+//   4. tells my other devices with a sealed note to myself only,
+//      [[hum:block:v1]]<key> (/shared/block.js), and shows one line.
+// Unblock takes them off the list and sends [[hum:unblock:v1]]<key> the same
+// way. It does not follow them again or give them a pass: being friends again
+// is a fresh follow or contact request.
+
+function blockSameKey(a, b) {
+  return typeof a === 'string' && typeof b === 'string' && a !== '' && a.toLowerCase() === b.toLowerCase();
+}
+
+/** The date a person was blocked, as the Safety page shows it. */
+function blockDateLabel(ts) {
+  const d = new Date(Number(ts) || 0);
+  try { return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); }
+  catch { return d.toISOString().slice(0, 10); }
+}
+
+/** The member list's mark on a person: dimmed and struck through while blocked. */
+function markPeerBlocked(el, blocked) {
+  if (!el || !el.style) return;
+  let indicator = typeof el.querySelector === 'function' ? el.querySelector('.block-indicator') : null;
+  if (blocked && !indicator && typeof document.createElement === 'function') {
+    const span = document.createElement('span');
+    span.className = 'block-indicator';
+    span.title = 'Blocked';
+    span.style.fontSize = '0.65rem';
+    span.innerHTML = ' ' + (typeof hosIcon === 'function' ? hosIcon('block', 14) : '');
+    el.appendChild(span);
+  } else if (!blocked && indicator) {
+    indicator.remove();
+  }
+  el.style.textDecoration = blocked ? 'line-through' : '';
+  el.style.opacity = blocked ? '0.5' : '';
+}
+
+/**
+ * Hide (or show again) what is already on screen from `key`: posts, replies
+ * and group messages, their reactions, the member list's mark, the open DM's
+ * header. What arrives while they are blocked is never drawn at all, so after
+ * an Unblock it appears the next time the channel is opened.
+ */
+function applyBlockToView(key, hidden) {
+  if (typeof document === 'undefined' || typeof document.querySelectorAll !== 'function') return;
+  document.querySelectorAll('.message[data-from]').forEach((el) => {
+    if (el && el.dataset && blockSameKey(el.dataset.from, key)) el.style.display = hidden ? 'none' : '';
+  });
+  if (typeof messageReactions !== 'undefined' && messageReactions && typeof renderReactions === 'function') {
+    for (const rKey of Object.keys(messageReactions)) {
+      const at = rKey.lastIndexOf(':');
+      if (at > 0) renderReactions(rKey.slice(0, at), Number(rKey.slice(at + 1)));
+    }
+  }
+  document.querySelectorAll('.peer[data-pubkey]').forEach((el) => {
+    if (el && el.dataset && blockSameKey(el.dataset.pubkey, key)) markPeerBlocked(el, hidden);
+  });
+  if (typeof activeDmPartner !== 'undefined' && blockSameKey(activeDmPartner, key) && typeof renderDmHeader === 'function') {
+    renderDmHeader();
+  }
+}
+
+/** Redraw every list a block touches. */
+function renderBlockEverywhere() {
+  // The member list as the page draws it (chat-voice-rooms.js), with its marks.
+  if (typeof renderPresenceSidebarForActiveContext === 'function') {
+    try { renderPresenceSidebarForActiveContext(); } catch (e) { /* the member list is not drawn yet */ }
+  }
+  if (typeof updateFriendIndicators === 'function') {
+    try { updateFriendIndicators(); } catch (e) { /* the member list is not drawn yet */ }
+  }
+  renderRequestsEverywhere();
+}
+
+/**
+ * Block `key` on this device: the list, my passes withdrawn, the follow
+ * dropped here (no notice to them), any request from them gone, and the
+ * screen. Shared by Block and by a block note from another of my devices.
+ * Returns false when they were already blocked.
+ */
+function blockLocally(key, ts) {
+  const store = reachStore();
+  if (!store || !store.setBlocked(key, true, ts)) return false;
+  store.setFollowing(key, false);
+  if (typeof myFollowing !== 'undefined' && myFollowing) myFollowing.delete(key);
+  if (typeof withdrawPassesTo === 'function') withdrawPassesTo(key);
+  store.removeContactRequest(key);
+  applyBlockToView(key, true);
+  renderBlockEverywhere();
+  return true;
+}
+
+/** Unblock `key` on this device. Returns false when they were not blocked. */
+function unblockLocally(key) {
+  const store = reachStore();
+  if (!store || !store.setBlocked(key, false)) return false;
+  applyBlockToView(key, false);
+  renderBlockEverywhere();
+  return true;
+}
+
+/**
+ * Send the notes to myself that have not gone yet (queued by Block and
+ * Unblock, and on every connection). A note goes to my own mailbox only, so
+ * my other devices learn of it; the blocked person is sent nothing. One send
+ * runs at a time, so a quick Block then Unblock go out once each, in order.
+ */
+let blockNotesSending = Promise.resolve();
+function flushBlockNotes() {
+  blockNotesSending = blockNotesSending.then(sendPendingBlockNotes, sendPendingBlockNotes);
+  return blockNotesSending;
+}
+
+async function sendPendingBlockNotes() {
+  const store = reachStore();
+  if (!store || !ws || ws.readyState !== WebSocket.OPEN) return;
+  for (const note of store.blockNotesPending.slice()) {
+    const text = blockNoteText(note.action, note.key);
+    if (!text) { store.blockNoteSent(note.action, note.key); continue; }
+    const built = typeof pqBuildSelfNote === 'function' ? await pqBuildSelfNote(text) : null;
+    if (!built || !ws || ws.readyState !== WebSocket.OPEN) return; // tried again on the next connection
+    ws.send(JSON.stringify(built.put));
+    store.blockNoteSent(note.action, note.key);
+  }
+}
+
+/** Block someone (the button and the command). Returns true when they are blocked now. */
+async function blockKey(rawKey) {
+  const key = blockKeyNorm(rawKey);
+  if (!key) { reachSay('That is not someone this client can block.'); return false; }
+  if (blockSameKey(key, myKey)) { reachSay("You can't block yourself."); return false; }
+  const store = reachStore();
+  if (!store) { reachSay('Your block list is still loading. Try again in a moment.'); return false; }
+  if (store.isBlocked(key)) { reachSay(`${reachDisplayName(key)} is already blocked.`); return true; }
+  blockLocally(key, Date.now());
+  store.queueBlockNote('block', key);
+  await flushBlockNotes();
+  reachSay(BLOCKED_LINE);
+  return true;
+}
+
+/** Unblock someone. Returns true when they are not blocked now. */
+async function unblockKey(rawKey) {
+  const key = blockKeyNorm(rawKey);
+  const store = reachStore();
+  if (!key || !store) return false;
+  if (!store.isBlocked(key)) { reachSay(`${reachDisplayName(key)} is not blocked.`); return true; }
+  unblockLocally(key);
+  store.queueBlockNote('unblock', key);
+  await flushBlockNotes();
+  reachSay(UNBLOCKED_LINE);
+  return true;
+}
+
+/** Block the person behind a contact request (Block instead of Ignore). */
+function blockContactRequest(id) {
+  const store = reachStore();
+  const req = store && store.contactRequests[id];
+  return blockKey((req && req.key) || id);
+}
+
+/**
+ * The key for a name typed after /block or /unblock: the member list's name
+ * (letter case aside), a whole key, or, for /unblock, the name or short key
+ * a blocked person is listed under. Null when there is no such person.
+ */
+function blockKeyForName(name, blockedOnly) {
+  const want = String(name || '').trim().replace(/^@/, '');
+  if (!want) return null;
+  const asKey = blockKeyNorm(want);
+  if (asKey && asKey.length >= 64) return asKey;
+  const lower = want.toLowerCase();
+  const store = reachStore();
+  if (blockedOnly && store) {
+    for (const b of store.blockedList()) {
+      if (reachDisplayName(b.key).toLowerCase() === lower || b.key.startsWith(lower)) return b.key;
+    }
+    return null;
+  }
+  for (const [key, p] of Object.entries(reachPeers())) {
+    if (p && typeof p.display_name === 'string' && p.display_name.toLowerCase() === lower) return key;
+  }
+  return null;
+}
+
+/** `/block <name>`. */
+function blockByName(name) {
+  const key = blockKeyForName(name, false);
+  if (!key) { reachSay(`No one called "${name}" is in the member list.`); return Promise.resolve(false); }
+  return blockKey(key);
+}
+
+/** `/unblock <name>`. */
+function unblockByName(name) {
+  const key = blockKeyForName(name, true);
+  if (!key) { reachSay(`You have not blocked anyone called "${name}".`); return Promise.resolve(false); }
+  return unblockKey(key);
+}
+
+/** `/blocklist`: who is blocked, and where to change it. */
+function showBlockList() {
+  const store = reachStore();
+  const list = store ? store.blockedList() : [];
+  if (!list.length) { reachSay('You have not blocked anyone.'); return; }
+  reachSay('Blocked: ' + list.map((b) => `${reachDisplayName(b.key)} (since ${blockDateLabel(b.ts)})`).join(', ')
+    + '. Unblock with /unblock <name>, or in Safety under Blocked people.');
+}
+
+/**
+ * Apply a note I sent myself (from another of my devices, or this one's own
+ * coming back). A block note's date is when it was written, so every device
+ * shows the same one.
+ */
+function applyBlockNote(note, ts) {
+  if (!note || !note.key) return;
+  if (note.action === 'block') blockLocally(note.key, Number(ts) || Date.now());
+  else if (note.action === 'unblock') unblockLocally(note.key);
+}
+
+/**
+ * Screen an opened, signature-checked DM (app.js dm_new and dm_batch,
+ * chat-p2p.js). Returns true when the caller must neither store nor show it:
+ * a block note (acted on only when I sent it to myself; a note addressed to
+ * anyone else is ignored), or anything at all from someone I blocked.
+ */
+function blockScreenDm(inner) {
+  if (!inner) return false;
+  // (Guarded: on the DM path a missing /shared/block.js must not stop mail.)
+  if (typeof isBlockNoteText === 'function' && isBlockNoteText(inner.text)) {
+    const note = blockNoteFromSelf(inner, myKey);
+    if (note) applyBlockNote(note, inner.ts);
+    return true;
+  }
+  return !!(inner.from && !blockSameKey(inner.from, myKey) && isBlockedKey(inner.from));
+}
+
+/**
+ * Screen a frame from the relay before anything else sees it: a post, typing,
+ * a reaction or a ring from someone I blocked is dropped whole, so no handler
+ * draws it and no notification fires. (Each handler also checks the key
+ * itself, so the order of the handleMessage wrappers is not load-bearing.)
+ */
+function blockScreenFrame(msg) {
+  if (!msg || typeof msg.from !== 'string' || !msg.from) return false;
+  switch (msg.type) {
+    case 'chat':
+    case 'typing':
+    case 'reaction':
+      return isBlockedKey(msg.from);
+    case 'voice_call':
+      return msg.action === 'ring' && isBlockedKey(msg.from);
+    case 'webrtc_signal':
+      return msg.signal_type === 'dc_offer' && isBlockedKey(msg.from);
+    default:
+      return false;
+  }
+}
+
+/** The store has loaded (app.js): hide what was drawn before, and send notes owed. */
+function onBlockListLoaded() {
+  const store = reachStore();
+  if (!store) return;
+  for (const b of store.blockedList()) applyBlockToView(b.key, true);
+  renderBlockEverywhere();
+  flushBlockNotes();
+}
+
+// The relay's frames for this section.
+const _origHandleMessageReach = handleMessage;
+handleMessage = function (msg) {
+  if (blockScreenFrame(msg)) return;
+  if (msg && msg.type === 'reach_settings') { onReachSettings(msg.settings); return; }
+  if (msg && msg.type === 'reach_refused') { onReachRefused(msg); return; }
+  return _origHandleMessageReach(msg);
+};
+
+window.openSafetyPanel = openSafetyPanel;
+window.receiveContactRequest = receiveContactRequest;
+window.ingestContactRequest = ingestContactRequest;
+window.reachScreenDm = reachScreenDm;
+window.acceptContactRequest = acceptContactRequest;
+window.ignoreContactRequest = ignoreContactRequest;
+window.sendContactRequest = sendContactRequest;
+window.chooseReachAudience = chooseReachAudience;
+window.blockKey = blockKey;
+window.unblockKey = unblockKey;
+window.blockByName = blockByName;
+window.unblockByName = unblockByName;
+window.showBlockList = showBlockList;
+window.blockContactRequest = blockContactRequest;
+window.blockScreenDm = blockScreenDm;
+window.onBlockListLoaded = onBlockListLoaded;
+window.flushBlockNotes = flushBlockNotes;
 
 window.maybeShowPrivacyTierModal = maybeShowPrivacyTierModal;
 window.applyPrivacyTier = applyPrivacyTier;
 window.reassertPrivacyTier = reassertPrivacyTier;
 window.exportMyAccountData = exportMyAccountData;
 window.deleteMyAccount = deleteMyAccount;
-window.setRelayCallsOnly = setRelayCallsOnly;
+window.eraseMemorySentence = eraseMemorySentence;

@@ -53,7 +53,9 @@ window.openDmSettings = function() {
 
 // ── Key Bindings ──
 document.getElementById('name-input').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') connect();
+  // 'enter': the person's own Enter, the one that may sign up again after an erase (app.js
+  // signUpAgainChoice, BUG-135).
+  if (e.key === 'Enter') connect('enter');
 });
 
 // Enter to send is handled on #msg-input directly (see below).
@@ -430,13 +432,25 @@ function streamingBadge(isLive) {
 }
 
 // ── User Context Menu ──
-let ctxMenuTarget = null; // { name, publicKey }
+let ctxMenuTarget = null; // { name, publicKey, message } (message: the post or group message the menu was opened on)
 const ctxMenu = document.getElementById('user-context-menu');
 
-function showUserContextMenu(e, name, publicKey) {
+/**
+ * Point the menu's actions (blockFromCtx, dmFromCtx, followFromCtx, ctxCommand
+ * and the rest) at a person without opening the menu: the voice modal
+ * (chat-voice-modal.js withTarget) reuses them this way. `ctxMenuTarget` is a
+ * `let` of this script, not a property of window, so setting
+ * window.ctxMenuTarget from another script never reached it.
+ */
+function setCtxMenuTarget(name, publicKey) {
+  ctxMenuTarget = publicKey ? { name, publicKey, message: null } : null;
+}
+window.setCtxMenuTarget = setCtxMenuTarget;
+
+function showUserContextMenu(e, name, publicKey, message) {
   e.preventDefault();
   e.stopPropagation();
-  ctxMenuTarget = { name, publicKey };
+  ctxMenuTarget = { name, publicKey, message: message || null };
 
   // Role lookups
   const targetPeer = peerData[publicKey] || {};
@@ -480,13 +494,16 @@ function showUserContextMenu(e, name, publicKey) {
     html += ci("viewProfileFromCtx()", '\uD83D\uDC64 View Profile', 'user');
     html += ci("copyPublicKey()", '\uD83D\uDCCB Copy Key', 'user');
     if (name !== myName) {
+      // Block goes by key, beside Report (step C). While someone is blocked the
+      // menu offers Unblock and no Follow: following them is undone by the block.
+      const blocked = typeof isBlockedKey === 'function' && isBlockedKey(publicKey);
       html += ci("dmFromCtx()", '\uD83D\uDCAC Direct Message', 'user');
       if (typeof myFollowing !== 'undefined' && myFollowing.has(publicKey)) {
         html += ci("followFromCtx(false)", '\u274C Unfollow', 'user');
-      } else {
+      } else if (!blocked) {
         html += ci("followFromCtx(true)", '\uD83D\uDC41\uFE0F Follow', 'user');
       }
-      if (isBlocked(name)) {
+      if (blocked) {
         html += ci("unblockFromCtx()", '\u2705 Unblock', 'user');
       } else {
         html += ci("blockFromCtx()", '\uD83D\uDEAB Block', 'user');
@@ -567,36 +584,32 @@ function botCommand(cmd) {
   hideContextMenu();
 }
 
+// Report opens the Report dialog (chat-reports.js, step D): by key, with the
+// post (or the group message) the menu was opened on as evidence, or none when
+// it was opened on the member list.
 function reportUser() {
-  if (!ctxMenuTarget || !ws || ws.readyState !== WebSocket.OPEN) return;
-  const targetName = ctxMenuTarget.name;
+  if (!ctxMenuTarget) return;
+  const t = ctxMenuTarget;
   hideContextMenu();
-  const reason = prompt(`Report ${targetName}?\nEnter a reason (optional):`);
-  if (reason === null) return; // User cancelled
-  const content = reason ? `/report ${targetName} ${reason}` : `/report ${targetName}`;
-  const timestamp = Date.now();
-  ws.send(JSON.stringify({
-    type: 'chat',
-    from: myKey,
-    from_name: myName,
-    content: content,
-    timestamp: timestamp,
-    channel: activeChannel,
-  }));
+  if (typeof openReportDialog !== 'function') return;
+  const message = t.message || null;
+  const context = message ? (message.group ? 'group' : 'post') : 'profile';
+  openReportDialog({ target: t.publicKey, name: t.name, context, message });
 }
 
+// Block and Unblock act on the person's key (chat-privacy.js blockKey, step C).
 function blockFromCtx() {
   if (!ctxMenuTarget) return;
-  const name = ctxMenuTarget.name;
+  const key = ctxMenuTarget.publicKey;
   hideContextMenu();
-  blockUser(name);
+  if (typeof blockKey === 'function') blockKey(key);
 }
 
 function unblockFromCtx() {
   if (!ctxMenuTarget) return;
-  const name = ctxMenuTarget.name;
+  const key = ctxMenuTarget.publicKey;
   hideContextMenu();
-  unblockUser(name);
+  if (typeof unblockKey === 'function') unblockKey(key);
 }
 
 function followFromCtx(doFollow) {
@@ -655,7 +668,7 @@ document.getElementById('peer-list').addEventListener('contextmenu', function(e)
   }
 });
 
-// Profile system, block list -> see chat-profile.js
+// Profile system -> see chat-profile.js; the block list -> chat-privacy.js (step C)
 
 // ── Import file handler (login screen) ──
 // The hidden #import-file-input on the login screen (index.html) points here.
@@ -695,11 +708,11 @@ function finishImport(identity) {
 // ── Restore your identity (login screen) ─────────────────────────────────────
 // ONE surface, two methods. This used to be two modals that asked for different
 // halves of the same question ("how do you want to prove this identity is
-// yours?"): a seed-phrase modal, and a passphrase modal that only appeared when
+// yours?"): a recovery-phrase modal, and a passphrase modal that only appeared when
 // an encrypted backup file happened to be picked (and was the last chat modal
 // still painted in hardcoded hex). They are one tabbed modal now:
 //
-//   Seed phrase  -> restoreIdentityFromMnemonic()  (the 24 BIP39 words)
+//   Recovery phrase  -> restoreIdentityFromMnemonic()  (the 24 BIP39 words)
 //   Backup file  -> importIdentityBackup()         (plain OR encrypted .json)
 //
 // NO KEY HANDLING LIVES HERE. Both tabs call the SAME crypto.js functions the
@@ -887,7 +900,7 @@ function openLoginRestoreModal(opts) {
 
       <div class="lr-tabs" role="tablist" aria-label="Restore method">
         <button type="button" class="lr-tab" id="lr-tab-seed" role="tab"
-          aria-selected="true" aria-controls="lr-panel-seed">🌱 Seed phrase</button>
+          aria-selected="true" aria-controls="lr-panel-seed">🔑 Recovery phrase</button>
         <button type="button" class="lr-tab" id="lr-tab-file" role="tab"
           aria-selected="false" aria-controls="lr-panel-file" tabindex="-1">💾 Backup file</button>
       </div>
@@ -975,7 +988,7 @@ function openLoginRestoreModal(opts) {
     showTab(tabs.seed.getAttribute('aria-selected') === 'true' ? 'file' : 'seed', true);
   });
 
-  // ── Method 1: 24-word seed phrase ──
+  // ── Method 1: 24-word recovery phrase ──
   const wordsEl = el('lr-words');
   const wordCountEl = el('lr-word-count');
   const seedBtn = el('lr-seed-submit');
@@ -1126,8 +1139,8 @@ function openLoginRestoreModal(opts) {
 }
 
 /**
- * The login screen's "Recover from Seed Phrase" button (index.html) calls this.
- * It is simply the seed-phrase door into the one restore modal above.
+ * The login screen's "Restore from recovery phrase" button (index.html) calls this.
+ * It is simply the recovery-phrase door into the one restore modal above.
  */
 function openLoginSeedRecovery() {
   openLoginRestoreModal({ tab: 'seed' });
@@ -1150,9 +1163,9 @@ sendMessage = async function() {
     return;
   }
   // Security & recovery, always available (mirrors the Account & Identity menu in
-  // the header). Reuses the existing modals in chat-profile.js; the /seed reveal
+  // the header). Reuses the existing modals in chat-profile.js; the /recovery reveal
   // goes through the same confirm guard as the menu button.
-  if (val === '/seed') {
+  if (val === '/recovery') {
     input.value = '';
     confirmRevealSeedPhrase();
     return;
@@ -1167,6 +1180,22 @@ sendMessage = async function() {
     showBlockList();
     return;
   }
+  // /report <name> opens the Report dialog (chat-reports.js, step D); /reports
+  // opens the Reports view for admins and mods (anyone else's goes to the
+  // relay, which says no).
+  if (val.startsWith('/report ') && typeof reportByName === 'function') {
+    const name = val.substring(8).trim();
+    if (name) {
+      input.value = '';
+      reportByName(name);
+      return;
+    }
+  }
+  if (val === '/reports' && typeof reportsAmStaff === 'function' && reportsAmStaff()) {
+    input.value = '';
+    openReportsView();
+    return;
+  }
   if (val === '/dms') {
     input.value = '';
     // Request updated DM list from server.
@@ -1175,11 +1204,13 @@ sendMessage = async function() {
     }
     return;
   }
+  // /block and /unblock resolve the name through the member list to a key
+  // (chat-privacy.js blockByName, step C); the list never holds names.
   if (val.startsWith('/block ') && !val.startsWith('/blocklist')) {
     const name = val.substring(7).trim();
     if (name) {
       input.value = '';
-      blockUser(name);
+      blockByName(name);
       return;
     }
   }
@@ -1187,7 +1218,7 @@ sendMessage = async function() {
     const name = val.substring(9).trim();
     if (name) {
       input.value = '';
-      unblockUser(name);
+      unblockByName(name);
       return;
     }
   }
@@ -1264,14 +1295,15 @@ async function sendComposedContent(content) {
   // DM view -> Kyber E2EE, FAIL CLOSED. Never transmit plaintext to the
   // relay and never fall back to a public channel. Mirrors the text-DM path.
   if (activeDmPartner) {
-    // No-gatekeeper default (2026-09-06): no role gate, no hard friendship
-    // gate. Writing to someone who has not befriended you is a "knock" —
-    // it goes through, capped per day by the relay. We say so once per
-    // partner so the cap is not a surprise, then get out of the way.
+    // Writing to someone who has not befriended you depends on THEIR "who
+    // can reach me" setting (step B, 2026-10-09), which is theirs to know:
+    // if they take messages from anyone, it is a "knock", capped per day by
+    // the relay; if not, the relay refuses it and chat-privacy.js offers a
+    // contact request. We say so once per partner, then get out of the way.
     if (typeof isFriend === 'function' && !isFriend(activeDmPartner)
         && !knockNoticeShown.has(activeDmPartner)) {
       knockNoticeShown.add(activeDmPartner);
-      addSystemMessage('This person has not added you yet, so this is an introduction request. A limited number of these can be sent per day. Once they add you back, messages are unlimited.');
+      addSystemMessage('This person has not added you as a friend yet. If they accept messages from anyone, this counts toward a limited number you can send each day; if they accept messages only from people they know, it will not be delivered and you can send a contact request instead.');
     }
     const DM_PLAINTEXT_MAX = 2000;
     if (content.length > DM_PLAINTEXT_MAX) {
@@ -1322,6 +1354,14 @@ window.sendComposedContent = sendComposedContent;
 // Federated servers cache (fetched from API).
 var federatedServers = [];
 var federatedServersFetched = false;
+// One request at a time, and after a failure a wait before asking again (2026-10-09). A
+// failed fetch used to leave federatedServersFetched false, and the redraw it triggered
+// fetched again at once, so a 404 or an unreachable server became thousands of requests
+// (found by the Block build's test, which looped on it). The wait starts at 30 s and doubles
+// to at most 10 minutes; a success resets it.
+var federatedFetchInFlight = false;
+var federatedRetryAt = 0;
+var federatedRetryMs = 30000;
 
 (function initSidebarTabs() {
   const SIDEBAR_TAB_KEY = 'humanity_sidebar_tab';
@@ -1639,16 +1679,26 @@ var federatedServersFetched = false;
 
   // (moved above initSidebarTabs)
 
+  /** Fetch the federated server list once; true when it arrived (see the note at federatedRetryAt). */
   async function fetchFederatedServers() {
+    if (federatedFetchInFlight || Date.now() < federatedRetryAt) return false;
+    federatedFetchInFlight = true;
     try {
       const resp = await fetch('/api/federation/servers');
       if (resp.ok) {
         federatedServers = await resp.json();
         federatedServersFetched = true;
+        federatedRetryMs = 30000;
+        return true;
       }
     } catch (e) {
       console.warn('Failed to fetch federated servers:', e);
+    } finally {
+      federatedFetchInFlight = false;
     }
+    federatedRetryAt = Date.now() + federatedRetryMs;
+    federatedRetryMs = Math.min(federatedRetryMs * 2, 600000);
+    return false;
   }
 
   function renderServerList() {
@@ -1657,7 +1707,9 @@ var federatedServersFetched = false;
 
     // Fetch federated servers if not yet loaded.
     if (!federatedServersFetched) {
-      fetchFederatedServers().then(() => renderServerList());
+      // Redraw only when the list actually arrived: redrawing after a failure is what
+      // used to start the next request straight away.
+      fetchFederatedServers().then((arrived) => { if (arrived) renderServerList(); });
     }
 
     // Current server (always first, highlighted).
@@ -1774,7 +1826,7 @@ var federatedServersFetched = false;
       ws.send(JSON.stringify(msg));
     }
     // Refresh after a delay to pick up the new server.
-    setTimeout(() => { federatedServersFetched = false; renderServerList(); }, 3000);
+    setTimeout(() => { federatedServersFetched = false; federatedRetryAt = 0; renderServerList(); }, 3000);
   }
   window.promptAddServer = promptAddServer;
 
@@ -1978,8 +2030,8 @@ handleMessage = function(msg) {
 // ── Improved Context Menu Positioning ──
 // Patch showUserContextMenu to prevent overflow on mobile.
 const _origShowCtxMenu = showUserContextMenu;
-showUserContextMenu = function(e, name, publicKey) {
-  _origShowCtxMenu(e, name, publicKey);
+showUserContextMenu = function(e, name, publicKey, message) {
+  _origShowCtxMenu(e, name, publicKey, message);
   // Reposition if overflowing.
   const menu = document.getElementById('user-context-menu');
   const rect = menu.getBoundingClientRect();
@@ -2109,6 +2161,10 @@ const CMD_PALETTE_ACTIONS = {
   toggleSearch:          function() { toggleSearch(); },
   openServerStats:       function() { window.open('/info', '_blank'); },
   openGameAdmin:         function() { if (typeof openGameAdminModal === 'function') openGameAdminModal(); },
+  openFleetLedger:       function() { if (typeof openFleetLedger === 'function') openFleetLedger(); },
+  // The Reports view (chat-reports.js, step D). The Moderation section's View
+  // Reports item sends /reports, which opens it too (sendMessage above).
+  openReports:           function() { if (typeof openReportsView === 'function') openReportsView(); },
 };
 fetch('/data/commands.json', { cache: 'no-cache' })
   .then(function(r) { return r.ok ? r.json() : null; })

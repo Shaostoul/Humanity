@@ -1081,7 +1081,7 @@
     '</div>' +
     '<div class="mobile-hub-group group-green"><h4>Community and trade</h4>' +
       // Live streams broadcast from the desktop app's Studio page, fanned out by our
-      // own relay. No third-party platform, and no account needed to watch. (v0.855)
+      // own relay. No third-party platform, and no sign-up needed to watch. (v0.855)
       mobileLink('/watch',   'Watch') +
       mobileLink('/wallet',    'Wallet') +
       mobileLink('/market',    'Market') +
@@ -1397,6 +1397,8 @@
       '<span id="hos-footer-label">HumanityOS, Public domain · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0</a></span>' +
       '<div class="footer-links">' +
         '<a href="https://github.com/Shaostoul/Humanity" target="_blank">' + ghIcon + ' GitHub</a>' +
+        // The project's own copy of the code, a pull mirror of GitHub (2026-09-29).
+        '<a href="https://git.united-humanity.us/shaostoul/Humanity" target="_blank" title="Our own copy of the code, on our own server" style="margin-left:var(--space-lg, 12px);">Mirror</a>' +
         '<a href="#" id="hos-take-tour" style="margin-left:var(--space-lg, 12px);font-size:0.72rem;">Take Tour</a>' +
       '</div>' +
     '</div>';
@@ -1875,7 +1877,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.1306.2';
+    var CURRENT_VERSION = '0.1470.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

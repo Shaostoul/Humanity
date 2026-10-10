@@ -166,12 +166,19 @@
   }
 
   // ── Phase 3: P2P group-object replication over WebRTC DataChannels ──
-  // Reuses chat-p2p.js's per-peer DataChannel transport (initDataChannel +
-  // the global p2pDataChannels map, multiplexed by msg.type) and the relay's
-  // existing webrtc_signal routing. No new relay handler: the relay is
-  // signaling-only for this. group_msg_v1 is a self-validating signed object,
-  // so a peer-pushed copy is verified locally + deduped by object_id against
-  // the relay-polled copy, pushing it carries zero trust risk.
+  // Pushes over chat-p2p.js's per-peer DataChannels (the global p2pDataChannels
+  // map, multiplexed by msg.type) to any roster member with one open.
+  // group_msg_v1 is a self-validating signed object, so a peer-pushed copy is
+  // verified locally + deduped by object_id against the relay-polled copy,
+  // pushing it carries zero trust risk.
+  //
+  // There is no group MESH any more (step E, 2026-10-09,
+  // docs/design/blocking-and-safe-mode.md 10f and 7.4 step 3): opening a
+  // direct channel to every online member showed each of them your network
+  // address, which calls no longer do. Direct channels are now between your
+  // own devices only (chat-p2p.js), and every group message reaches the other
+  // members through the relay, whose log _p2pRefresh polls every 4 seconds.
+  // Test: scripts/tests/calls-through-server.test.js
 
   // object_ids already handled (sent or received over P2P) so a push + the 4s
   // relay poll don't double-render the same message. Reset on group switch.
@@ -185,26 +192,6 @@
       for (let i = 0; i < 16; i++) s += h[i].toString(16).padStart(2, '0');
       return s;
     } catch (_e) { return ''; }
-  }
-
-  /** Open/maintain DataChannels to the active group's roster members.
-   * Glare-free: only the LARGER-pubkey side calls initDataChannel (offers); the
-   * smaller side waits and chat-p2p.js's handleDCOffer answers. Offline members
-   * simply never connect (their offer goes nowhere), the relay poll covers
-   * them. Reuses any channel already open for DMs (multiplexed by msg.type). */
-  function ensureGroupMesh(ag) {
-    if (!ag || !ag.fpToKey) return;
-    if (typeof initDataChannel !== 'function' || typeof p2pDataChannels === 'undefined') return;
-    const myk = (typeof myKey === 'string') ? myKey : '';
-    if (!myk) return;
-    for (const peerKey of Object.values(ag.fpToKey)) {
-      if (!peerKey || peerKey === myk) continue;
-      const dc = p2pDataChannels[peerKey];
-      if (dc && (dc.readyState === 'open' || dc.readyState === 'connecting')) continue;
-      if (myk > peerKey) {           // deterministic offerer
-        try { initDataChannel(peerKey); } catch (_e) {}
-      }
-    }
   }
 
   /** Push a signed group object to every connected roster member. */
@@ -641,9 +628,8 @@
         _p2pRenderedKey = ''; // so the next refresh repaints when the key shows up
         return;
       }
-      // Phase 3: open/maintain DataChannels to roster members so messages
-      // arrive P2P (low-latency), the fetch below stays as offline backfill.
-      ensureGroupMesh(ag);
+      // No direct channels to the members here (step E: they would show each
+      // member your address); the fetch below is how their messages arrive.
       // (3) Decrypt + render (the log was fetched concurrently above; skip the
       //     repaint if nothing changed). Each message opens under the key for its
       //     OWN epoch (history spans epochs after a re-key); fall back to the

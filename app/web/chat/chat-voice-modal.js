@@ -12,7 +12,8 @@
 // The audio controls drive a per-peer Web Audio gain graph set up at the voice
 // mesh ontrack site (chat-voice-rooms.js calls window.setupPeerAudio). The
 // moderation and admin actions reuse the existing per-user functions (they act
-// on window.ctxMenuTarget, which we set before calling). CSP-safe: all DOM is
+// on chat-ui.js's menu target, which withTarget sets before calling through
+// window.setCtxMenuTarget). CSP-safe: all DOM is
 // built with createElement and addEventListener, no inline handlers. No em dashes.
 
 (function () {
@@ -150,9 +151,17 @@
     return String(r).toLowerCase();
   }
 
-  // Reused per-user actions act on window.ctxMenuTarget; set it, then call.
+  // Reused per-user actions act on chat-ui.js's menu target; set it through the
+  // setter chat-ui exposes, then call. (Setting window.ctxMenuTarget, as this
+  // did until 2026-10-09, never reached chat-ui's `let ctxMenuTarget`, so
+  // Block, Unblock, Follow, Direct message and the moderation actions here did
+  // nothing.)
   function withTarget(name, key, fn) {
-    window.ctxMenuTarget = { name: name, publicKey: key, key: key };
+    if (typeof window.setCtxMenuTarget !== 'function') {
+      console.warn('voice modal action failed: the user menu (chat-ui.js) is not loaded');
+      return;
+    }
+    window.setCtxMenuTarget(name, key);
     try { fn(); } catch (e) { console.warn('voice modal action failed', e); }
   }
 
@@ -258,9 +267,10 @@
       // the right-click menu (operator: keep terminology consistent).
       var isFollowing = (typeof myFollowing !== 'undefined' && myFollowing.has(key));
       row(std, isFollowing ? 'Unfollow' : 'Follow', 'tier-standard', function () { withTarget(name, key, function () { if (typeof followFromCtx === 'function') followFromCtx(!isFollowing); }); });
-      var blocked = (typeof isBlocked === 'function' && isBlocked(name));
+      var blocked = (typeof isBlockedKey === 'function' && isBlockedKey(key));
       row(std, blocked ? 'Unblock' : 'Block', 'tier-standard', function () { withTarget(name, key, function () { if (blocked) { if (typeof unblockFromCtx === 'function') unblockFromCtx(); } else { if (typeof blockFromCtx === 'function') blockFromCtx(); } }); }, { danger: !blocked });
-      row(std, 'Report', 'tier-standard', function () { withTarget(name, key, function () { if (typeof reportUser === 'function') reportUser(); }); }, { danger: true });
+      // Report opens the Report dialog by key, as a profile report (chat-reports.js, step D).
+      row(std, 'Report', 'tier-standard', function () { closeVoiceUserModal(); if (typeof openReportDialog === 'function') openReportDialog({ target: key, name: name, context: 'profile' }); }, { danger: true });
     } else {
       var meNote = document.createElement('p');
       meNote.className = 'vmodal-note';

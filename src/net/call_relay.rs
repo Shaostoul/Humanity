@@ -511,11 +511,9 @@ mod tests {
     fn no_google_stun_host_remains_in_either_client() {
         // Built from pieces so this file does not contain what it looks for.
         let needles = [["l.goo", "gle.com"].concat(), [":193", "02"].concat()];
-        const PENDING_OTHER_HALVES: &[&str] = &[
-            "src/relay/turn.rs",
-            "web/chat/chat-voice-rooms.js",
-            "app/web/chat/chat-voice-rooms.js",
-        ];
+        // Emptied 2026-10-10 when the relay and web halves of step E merged and
+        // app/web was regenerated: no file may name a Google STUN host any more.
+        const PENDING_OTHER_HALVES: &[&str] = &[];
         let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let mut files = Vec::new();
         for dir in ["src", "web", "app/web"] {

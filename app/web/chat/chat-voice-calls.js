@@ -3,9 +3,17 @@
 // call UI (ringing, in-call controls), call state management,
 // WebSocket disconnect auto-hangup, web push notifications for calls/DMs.
 //
-// Depends on: chat-voice-rooms.js (rtcConfig, getMicConstraints, ws, myKey,
+// Depends on: chat-voice-rooms.js (requestCallCredentials, relayOnlyRtcConfig,
+//   sayCallsNeedServer, getMicConstraints), app.js (ws, myKey,
 //   addSystemMessage, esc, hosIcon, resolveSenderName, playNotificationChime,
 //   openSocket)
+//
+// A call connects only through the server (step E, 2026-10-09,
+// docs/design/blocking-and-safe-mode.md 10f): once it is accepted, each side
+// asks the relay for `call_credentials` for this call and builds its peer
+// connection from exactly the reply, relay only, so the other person sees the
+// server's address and never yours. No credentials: the call ends and the call
+// bar says why; there is no direct fallback.
 // ─────────────────────────────────────────────────────────────────────────
 
 // ── Voice Call / WebRTC (1-on-1 DM calls) ──
@@ -19,6 +27,23 @@ let localStream = null;
 let callTimerInterval = null;
 let callStartTime = null;
 let isMuted = false;
+// This call's credentials request: { peer, promise }. Asked once per call, by
+// the callee as it accepts and by the caller as the accept arrives.
+let callCredentials = null;
+
+/** The credentials for the call with `peerKey` (chat-voice-rooms.js requestCallCredentials). */
+function callCredentialsFor(peerKey) {
+  if (!callCredentials || callCredentials.peer !== peerKey) {
+    callCredentials = { peer: peerKey, promise: requestCallCredentials({ call: peerKey }) };
+  }
+  return callCredentials.promise;
+}
+
+/** The call cannot go through the server: end it (telling the other side) and say why. */
+function callCannotConnect() {
+  hangupCall();
+  sayCallsNeedServer();
+}
 
 function startCall(targetKey, targetName) {
   if (callState !== 'idle') {
@@ -31,12 +56,11 @@ function startCall(targetKey, targetName) {
   callPeerKey = targetKey;
   callPeerName = targetName;
 
-  ws.send(JSON.stringify({
-    type: 'voice_call',
-    from: myKey,
-    to: targetKey,
-    action: 'ring'
-  }));
+  const ring = { type: 'voice_call', from: myKey, to: targetKey, action: 'ring' };
+  // The callee's friendship pass, when we hold one (passes v2, chat-social.js).
+  const pass = typeof friendPassFor === 'function' ? friendPassFor(targetKey) : null;
+  if (pass) ring.friend_cert = pass;
+  ws.send(JSON.stringify(ring));
 
   // Show ringing status
   document.getElementById('ringing-status').innerHTML = `${hosIcon('phone-call', 16)} Calling ${esc(targetName)}…`;
@@ -62,6 +86,9 @@ function acceptIncomingCall() {
     to: callPeerKey,
     action: 'accept'
   }));
+  // Ask for this call's credentials now (the relay opened the call at the ring),
+  // so they are usually here by the time the caller's offer is.
+  callCredentialsFor(callPeerKey);
 
   // Callee waits for the offer from caller
   showCallBar();
@@ -114,6 +141,7 @@ function resetCallState() {
   callState = 'idle';
   callPeerKey = null;
   callPeerName = '';
+  callCredentials = null;
   isMuted = false;
   if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
   callStartTime = null;
@@ -151,7 +179,16 @@ function toggleMute() {
 }
 
 async function setupPeerConnection(isCaller) {
-  peerConnection = new RTCPeerConnection(rtcConfig);
+  // Through the server only (step E): this call's credentials, or no connection.
+  const peer = callPeerKey;
+  const creds = await callCredentialsFor(peer);
+  if (callState !== 'in-call' || callPeerKey !== peer) return false; // ended while waiting
+  if (!creds) { callCannotConnect(); return false; }
+  const pc = new RTCPeerConnection(relayOnlyRtcConfig(creds));
+  peerConnection = pc;
+  // Addresses the forwarder gave this connection. None by the end of gathering
+  // means the server's call port did not answer, so no connection can form.
+  let relayAddresses = 0;
 
   // Get microphone
   try {
@@ -159,6 +196,12 @@ async function setupPeerConnection(isCaller) {
   } catch (e) {
     addSystemMessage('⚠️ Microphone access denied. Cannot make voice call.');
     hangupCall();
+    return false;
+  }
+  if (peerConnection !== pc) {
+    // The call ended while the microphone was being asked for.
+    localStream.getTracks().forEach(t => t.stop());
+    localStream = null;
     return false;
   }
 
@@ -186,6 +229,7 @@ async function setupPeerConnection(isCaller) {
 
   // ICE candidates → send to peer
   peerConnection.onicecandidate = (event) => {
+    if (event.candidate) relayAddresses++;
     if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: 'webrtc_signal',
@@ -197,8 +241,19 @@ async function setupPeerConnection(isCaller) {
     }
   };
 
+  peerConnection.onicegatheringstatechange = () => {
+    if (pc.iceGatheringState === 'complete' && relayAddresses === 0 && peerConnection === pc) {
+      callCannotConnect();
+    }
+  };
+
   peerConnection.onconnectionstatechange = () => {
     if (peerConnection && (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed')) {
+      // Never a direct retry: the call is through the server or not at all.
+      if (peerConnection.connectionState === 'failed' && relayAddresses === 0) {
+        callCannotConnect();
+        return;
+      }
       addSystemMessage('Call disconnected.');
       cleanupCall();
     }
@@ -284,7 +339,16 @@ handleMessage = function(msg) {
   _origHandleMessage3(msg);
 };
 
+/** Is this caller someone I blocked (app.js isBlockedKey, step C)? */
+function callerBlocked(key) {
+  return typeof isBlockedKey === 'function' && isBlockedKey(key);
+}
+
 function handleVoiceCallMessage(msg) {
+  // A ring from someone I blocked is ignored without a word: no screen, no
+  // chime, and no "reject" back, which would tell them I am online (step C,
+  // docs/design/blocking-and-safe-mode.md 4.7). It rings out on their side.
+  if (msg.action === 'ring' && callerBlocked(msg.from)) return;
   const fromName = resolveSenderName(msg.from_name, msg.from);
   switch (msg.action) {
     case 'ring':
@@ -326,12 +390,23 @@ function handleVoiceCallMessage(msg) {
 
 function handleWebrtcSignalMessage(msg) {
   // DataChannel P2P signals are handled by chat-p2p.js; route them there first.
+  // handleDCOffer answers only your own devices (mayAnswerDirectOffer): a direct
+  // link to anyone else would show them your address (step E).
   if (msg.signal_type === 'dc_offer')  { handleDCOffer(msg);  return; }
   if (msg.signal_type === 'dc_answer') { handleDCAnswer(msg); return; }
   if (msg.signal_type === 'dc_ice')    { handleDCIce(msg);    return; }
 
-  // Voice/video signals are only valid from the current call peer.
-  if (msg.from !== callPeerKey) return;
+  // Voice/video signals count only from the call peer, and only once the call
+  // was accepted (2026-10-09). Before, they were taken from anyone who was just
+  // RINGING you: a modified client could ring and then send an offer straight
+  // away, and handleOffer turned the microphone on and answered while the
+  // incoming-call screen was still asking, which gave the caller your network
+  // address and, where the browser already had microphone permission, your
+  // voice, without Accept ever being pressed. In both shipped clients (web and
+  // native) the caller sends its offer only after the accept, when both sides
+  // are already 'in-call', so a real call is unchanged.
+  // Test: scripts/tests/p2p-direct-offers.test.js
+  if (callState !== 'in-call' || msg.from !== callPeerKey) return;
   switch (msg.signal_type) {
     case 'offer':  handleOffer(msg.data);        break;
     case 'answer': handleAnswer(msg.data);       break;
@@ -394,7 +469,7 @@ handleMessage = function(msg) {
     sendSWNotification('DM from ' + senderName, msg.content || 'New message', 'dm-' + msg.from, '/chat');
   }
   // Notification for incoming call
-  if (msg.type === 'voice_call' && msg.action === 'ring' && document.hidden) {
+  if (msg.type === 'voice_call' && msg.action === 'ring' && document.hidden && !callerBlocked(msg.from)) {
     const callerName = resolveSenderName(msg.from_name, msg.from);
     sendSWNotification('Incoming call from ' + callerName, 'Tap to answer', 'call-' + msg.from, '/chat');
   }

@@ -652,7 +652,8 @@
 .gameadmin-section { color: var(--text); font-size: var(--text-md); margin: var(--space-lg) 0 var(--space-xs); }
 .gameadmin-hint { color: var(--text-muted); font-size: var(--text-sm); margin: 0 0 var(--space-sm); line-height: 1.4; }
 .profile-modal #gameadmin-key,
-.profile-modal #gameadmin-reason { margin-bottom: var(--space-sm); }
+.profile-modal #gameadmin-reason,
+.profile-modal #gameadmin-plot-key { margin-bottom: var(--space-sm); }
 .gameadmin-danger-btn {
   background: var(--danger); color: #fff; border: none;
   padding: var(--space-sm) var(--space-xl); border-radius: var(--radius-sm);
@@ -684,6 +685,23 @@
 }
 .gameadmin-unban-btn:hover { color: var(--text); border-color: var(--text-muted); }
 .gameadmin-status { color: var(--accent); font-size: var(--text-sm); margin-top: var(--space-md); min-height: 1.2em; }
+/* Shared world clock (2026-10-04): a preset row like the native radios, the chosen one lit. */
+.gameadmin-clock-presets { flex-wrap: wrap; gap: var(--space-sm); }
+.gameadmin-refresh-btn.active { color: var(--text); border-color: var(--accent); }
+.gameadmin-clock-if { color: var(--accent); font-size: var(--text-sm); margin: var(--space-xs) 0 var(--space-sm); min-height: 1.2em; }
+.profile-modal #gameadmin-clock-speed { width: 7em; margin-right: var(--space-sm); }
+.gameadmin-refresh-btn:disabled { opacity: 0.5; cursor: default; }
+/* Your fleet ledger (2026-10-04, chat-fleet.js): the headline in the black or the red, and two
+   plain tables. Theme tokens only. */
+.fleet-headline { color: var(--text); font-size: var(--text-md); margin: var(--space-md) 0 var(--space-xs); }
+.fleet-headline.black { color: var(--success); }
+.fleet-headline.red { color: var(--danger); }
+.fleet-totals { color: var(--text); font-size: var(--text-sm); margin: 0 0 var(--space-xs); white-space: pre-wrap; }
+.fleet-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); margin-bottom: var(--space-sm); }
+.fleet-table td { padding: var(--space-xs) var(--space-sm); color: var(--text); border-bottom: 1px solid var(--border); }
+.fleet-table td.fleet-muted { color: var(--text-muted); }
+.fleet-table td.fleet-used { color: var(--danger); text-align: right; }
+.fleet-table td.fleet-given { color: var(--success); text-align: right; }
 
 /* ---- Per-user voice control modal (v0.484) ----
    Three role-tiered sections, colored by tier: standard red, mod green, admin

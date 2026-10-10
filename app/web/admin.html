@@ -269,6 +269,20 @@
         <p style="color:var(--text-muted)">Loading…</p>
       </div>
     </div>
+
+    <!-- Reports (step D, docs/design/blocking-and-safe-mode.md 10e). The Reports
+         view lives in Chat, not here: its requests go over Chat's signed-in
+         connection, and moderators review reports too, while this page is for
+         admins only. -->
+    <div class="panel">
+      <h2>Reports</h2>
+      <p>
+        Reports from members, with the messages they chose as evidence, are reviewed in Chat,
+        where moderators can review them too. Open <a href="/chat" style="color:var(--accent)">Chat</a>,
+        then choose View Reports in the command palette's Moderation section, or type
+        <code>/reports</code>.
+      </p>
+    </div>
   </div>
 </div>
 

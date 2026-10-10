@@ -42,9 +42,10 @@
 //   sharing a server.
 //
 // Phase 3b, WebRTC DataChannel
-//   Once a contact card has been imported, a direct DataChannel is opened so DMs
-//   travel peer-to-peer (encrypted with ECDH+AES-256-GCM).  The relay is used
-//   only for ICE signaling; it never sees DM content.
+//   A direct DataChannel is now opened ONLY between your own devices (step E,
+//   2026-10-09, see "Direct links" below): one to anyone else would show them
+//   your network address. DMs to contacts go through the relay mailbox, sealed
+//   end to end as always; the channel code below carries own-device sync.
 //
 // Depends on (from app.js / crypto.js):
 //   ws, myKey, myName, myIdentity, addSystemMessage, esc,
@@ -74,7 +75,7 @@ const CONTACT_CARD_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
  * verify it hasn't been tampered with.
  */
 async function exportContactCard() {
-  if (!myIdentity || !myIdentity.privateKey) {
+  if (!myIdentity || !(myIdentity.privateKey || myIdentity.seed32)) {
     addSystemMessage('⚠️ Cannot export, identity not loaded.');
     return;
   }
@@ -328,19 +329,62 @@ async function verifyContactCardSignature(message, sigHex, pubKeyHex) {
 }
 
 // ── Phase 3b: WebRTC DataChannel ──
-// (Implementation in progress, signaling infrastructure below)
+
+// DIRECT LINKS: YOUR OWN DEVICES ONLY (step E, 2026-10-09). Calls and voice
+// rooms now go through the server so that the other people see only the
+// server's address (docs/design/blocking-and-safe-mode.md 10f). A direct link
+// to another person would hand them your address all the same, so this browser
+// neither opens one nor answers an offer of one, except between your own
+// devices (the same identity key: devices signed in with your recovery phrase),
+// which is what data sync needs. That ends what used to run here: the P2P group
+// mesh (group messages reach members through the relay, polled every 4 seconds
+// in chat-groups-p2p.js) and contact-card channels (DMs go through the relay
+// mailbox). Design 7.2 and 7.4 step 3.
+// Tests: scripts/tests/calls-through-server.test.js, p2p-direct-offers.test.js
+
+/** The same key? Hex keys are compared without regard to letter case. */
+function sameKeyHex(a, b) {
+  return typeof a === 'string' && typeof b === 'string' && a !== '' && a.toLowerCase() === b.toLowerCase();
+}
+
+/** May this browser have a direct link with `peerKey`? Only another of my own devices. */
+function mayLinkDirectly(peerKey) {
+  return sameKeyHex(typeof myKey === 'string' ? myKey : '', peerKey);
+}
 
 /**
- * Open a WebRTC DataChannel to a peer so future DMs travel P2P.
- * The relay is used only for ICE signaling; message content stays off-server.
- * Falls back to relay DMs automatically if the channel closes.
+ * Settings for a link between my own devices: the address lookup this server
+ * offers at /api/turn-credentials (its own STUN entry, 10f), so two of my
+ * devices on different networks can still find each other. Showing my address
+ * to my own device, and to my own server, gives nothing away. With no answer,
+ * none: devices on one network still connect.
+ */
+async function ownDeviceRtcConfig() {
+  try {
+    const r = await fetch('/api/turn-credentials', { cache: 'no-store' });
+    if (r.ok) {
+      const data = await r.json();
+      if (Array.isArray(data.iceServers)) return { iceServers: data.iceServers };
+    }
+  } catch (_) {}
+  return { iceServers: [] };
+}
+
+/**
+ * Open a WebRTC DataChannel to another of my own devices (for data sync).
+ * The relay is used only for ICE signaling. Anyone else: nothing is opened.
  *
- * @param {string} peerPubKey - Ed25519 public key hex of the target peer
+ * @param {string} peerPubKey - identity key hex of the target device (my own)
  */
 async function initDataChannel(peerPubKey) {
+  if (!mayLinkDirectly(peerPubKey)) {
+    console.info('No direct link opened to ' + String(peerPubKey || '').slice(0, 12)
+      + '…: direct links are between your own devices only.');
+    return;
+  }
   if (p2pDataChannels[peerPubKey]?.readyState === 'open') return; // already open
 
-  const pc = new RTCPeerConnection(rtcConfig);
+  const pc = new RTCPeerConnection(await ownDeviceRtcConfig());
   p2pConnections[peerPubKey] = pc;
 
   const dc = pc.createDataChannel('dm', { ordered: true });
@@ -362,25 +406,51 @@ async function initDataChannel(peerPubKey) {
   await pc.setLocalDescription(offer);
 
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({
-      type: 'webrtc_signal',
-      to: peerPubKey,
-      signal_type: 'dc_offer',
-      data: JSON.stringify(offer),
-    }));
+    const signal = { type: 'webrtc_signal', to: peerPubKey, signal_type: 'dc_offer', data: JSON.stringify(offer) };
+    // The target's friendship pass, when we hold one (passes v2, chat-social.js).
+    const pass = typeof friendPassFor === 'function' ? friendPassFor(peerPubKey) : null;
+    if (pass) signal.friend_cert = pass;
+    ws.send(JSON.stringify(signal));
   }
+}
+
+// WHO MAY OPEN A DIRECT CONNECTION TO THIS BROWSER. Answering a
+// direct-connection offer hands the other side this device's network address
+// (which gives away a rough location and the internet provider) and opens a
+// channel to them, and the relay forwards an offer from more people than your
+// own devices. Until 2026-10-09 handleDCOffer answered every offer (defects
+// 3.7.1 and 3.7.2 in docs/design/blocking-and-safe-mode.md); later that day it
+// answered contacts, group members and call or voice-room partners too, the
+// people a call or the group mesh connected directly anyway. Now calls and
+// rooms go through the server and the mesh is gone (step E, above), so only
+// your own devices are answered. Anyone else, someone you blocked included,
+// gets no answer at all, so they learn nothing, not even that the offer
+// arrived. Tests: scripts/tests/p2p-direct-offers.test.js, block-web.test.js
+
+/** May this browser answer a direct-connection offer from `peerKey`? Only from my own devices. */
+function mayAnswerDirectOffer(peerKey) {
+  if (typeof peerKey !== 'string' || peerKey === '') return false;
+  return mayLinkDirectly(peerKey);
 }
 
 /**
  * Handle an incoming DataChannel offer from a peer.
- * Creates an answer and sends it back via the relay.
+ * Creates an answer and sends it back via the relay, but only to someone
+ * mayAnswerDirectOffer allows; anyone else is ignored without an answer.
  * @param {object} signal - The webrtc_signal message from handleMessage
  */
 async function handleDCOffer(signal) {
   const peerKey = signal.from;
+  if (!mayAnswerDirectOffer(peerKey)) {
+    // Silent on screen on purpose (a stranger could otherwise fill the chat
+    // with notices); the console line is for whoever is debugging a connection.
+    console.info('Ignored a direct-connection offer from ' + String(peerKey || '').slice(0, 12)
+      + '…: direct links are between your own devices only.');
+    return;
+  }
   const offer = JSON.parse(signal.data);
 
-  const pc = new RTCPeerConnection(rtcConfig);
+  const pc = new RTCPeerConnection(await ownDeviceRtcConfig());
   p2pConnections[peerKey] = pc;
 
   pc.ondatachannel = ({ channel }) => {
@@ -523,6 +593,14 @@ async function onDCMessage(event, peerKey) {
   let inner = null;
   try { inner = await pqOpenDmEnvelope(msg.env); } catch {}
   if (!inner || inner.from !== peerKey) return;
+  // From someone I blocked (or a block note, which never comes this way):
+  // dropped before it is stored or notified, as for mail (chat-privacy.js).
+  if (typeof blockScreenDm === 'function' && blockScreenDm(inner)) return;
+  // A contact request, or a DM from someone my "who can reach me" settings
+  // refuse (step B): a request, name only, its text dropped, as for mail
+  // (chat-privacy.js ingestContactRequest, reachScreenDm).
+  if (typeof ingestContactRequest === 'function' && await ingestContactRequest(inner)) return;
+  if (typeof reachScreenDm === 'function' && reachScreenDm(inner)) return;
   if (window.hosDmStore && hosDmStore.ready) {
     const isNew = await hosDmStore.insert(inner);
     if (!isNew) return; // already have it (relay copy arrived first)
@@ -649,13 +727,42 @@ function applySyncBundle(remote) {
   }
 }
 
-/** Initiate a data-sync offer over an existing DataChannel. */
+// DATA SYNC IS BETWEEN YOUR OWN DEVICES ONLY (2026-10-09). Your devices share one
+// identity (the same recovery phrase gives the same key), so "own device" means the
+// peer's key is yours. Until this date ANY peer who opened a direct connection could
+// send a sync_offer and get back the whole bundle above (calendar, home records,
+// notes, inventory, map pins, which can locate a real home), and any sync_data it
+// sent was merged into this browser's storage unasked. Now: a sync frame from anyone
+// else is ignored and said so in chat; data from your own device is merged only if
+// this browser asked for it, and only after you confirm.
+// (docs/design/blocking-and-safe-mode.md, defect 3.7.1; test: scripts/tests/p2p-sync-own-devices.test.js)
+
+/** Is `peerKey` this identity's own key, that is, another of your own devices? */
+function isOwnDevice(peerKey) {
+  return typeof myKey === 'string' && myKey !== '' && peerKey === myKey;
+}
+
+/** Own devices this browser asked to sync with, or agreed to sync with, this session. */
+const syncAskedFrom = new Set();
+
+/** Ask before your other device's data is merged into this browser. */
+function confirmSyncMerge(name) {
+  if (typeof confirm !== 'function') return false;
+  return confirm(`Merge the calendar, homes, notes, inventory and map data from your other device (${name}) into this browser?`);
+}
+
+/** Initiate a data-sync offer over an existing DataChannel (your own devices only). */
 function offerDataSync(peerKey) {
   const dc = p2pDataChannels[peerKey];
   if (!dc || dc.readyState !== 'open') {
     addSystemMessage('⚠️ No open P2P channel to that peer.');
     return;
   }
+  if (!isOwnDevice(peerKey)) {
+    addSystemMessage('Data sync works only between your own devices (the ones signed in with your recovery phrase).');
+    return;
+  }
+  syncAskedFrom.add(peerKey);
   dc.send(JSON.stringify({ type: 'sync_offer', keys: Object.keys(SYNC_STORES) }));
   addSystemMessage(`🔄 Sync offer sent to ${p2pContacts[peerKey]?.name || peerKey.slice(0,12) + '…'}`);
 }
@@ -666,40 +773,54 @@ async function handleSyncFrame(msg, peerKey) {
   if (!dc) return;
   const name = p2pContacts[peerKey]?.name || peerKey.slice(0,12) + '…';
 
+  if (!isOwnDevice(peerKey)) {
+    if (msg.type === 'sync_offer' || msg.type === 'sync_data') {
+      addSystemMessage(`Ignored a data-sync request from ${name}: sync works only between your own devices, and nothing was sent or changed.`);
+    }
+    return;
+  }
+
   if (msg.type === 'sync_offer') {
-    // Accept all offered keys that we support.
+    // Your own other device asked: share with it, and take its data back (after
+    // you confirm) since this is a two-way sync.
+    syncAskedFrom.add(peerKey);
     const accepted = (msg.keys || []).filter(k => SYNC_STORES[k]);
     dc.send(JSON.stringify({ type: 'sync_accept', keys: accepted }));
-    // Send our own bundle back
     dc.send(JSON.stringify({ type: 'sync_data', data: buildSyncBundle() }));
-    addSystemMessage(`🔄 Sync request from ${name}, sending data…`);
+    addSystemMessage(`🔄 Sync request from your other device (${name}), sending data…`);
     return;
   }
 
   if (msg.type === 'sync_accept') {
-    // Peer accepted, send our bundle
+    if (!syncAskedFrom.has(peerKey)) return;
     dc.send(JSON.stringify({ type: 'sync_data', data: buildSyncBundle() }));
     return;
   }
 
   if (msg.type === 'sync_data') {
+    if (!syncAskedFrom.has(peerKey)) return;
+    syncAskedFrom.delete(peerKey);
+    if (!confirmSyncMerge(name)) {
+      addSystemMessage(`Sync from ${name} not merged.`);
+      return;
+    }
     applySyncBundle(msg.data || {});
     addSystemMessage(`✅ Sync from ${name} complete. Data merged.`);
   }
 }
 
 /**
- * Offer a data sync to every currently-open DataChannel.
+ * Offer a data sync to every open DataChannel to one of your own devices.
  * Triggered by the "🔄 Sync" button in the identity sidebar.
  */
 function syncAllPeers() {
-  const openKeys = Object.keys(p2pDataChannels).filter(k => p2pDataChannels[k]?.readyState === 'open');
+  const openKeys = Object.keys(p2pDataChannels).filter(k => p2pDataChannels[k]?.readyState === 'open' && isOwnDevice(k));
   if (openKeys.length === 0) {
-    addSystemMessage('ℹ️ No open P2P channels. Connect to a peer first via "Share Card" / "Add Contact".');
+    addSystemMessage('ℹ️ No open connection to another of your own devices. Data sync works only between devices signed in with your recovery phrase.');
     return;
   }
   openKeys.forEach(offerDataSync);
-  addSystemMessage(`🔄 Sync initiated with ${openKeys.length} peer${openKeys.length > 1 ? 's' : ''}…`);
+  addSystemMessage(`🔄 Sync initiated with ${openKeys.length} of your device${openKeys.length > 1 ? 's' : ''}…`);
 }
 
 // ── Patch onDCMessage to handle sync frames ──

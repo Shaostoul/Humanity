@@ -76,9 +76,7 @@ function openDmConversation(partnerKey, partnerName) {
   document.getElementById('pin-list').classList.remove('open');
 
   // Update channel header.
-  const header = document.getElementById('channel-header');
-  header.innerHTML = `<span class="ch-name" style="cursor:pointer;" onclick="closeDmView()">← Back</span> <span class="ch-name">${hosIcon('chat', 16)} ${esc(partnerName)}</span>`;
-  header.style.display = 'block';
+  renderDmHeader();
 
   // Clear messages area and set DM context (crimson tint + red stripes).
   const msgsEl = document.getElementById('messages');
@@ -98,6 +96,36 @@ function openDmConversation(partnerKey, partnerName) {
   renderDmConversationFromStore(partnerKey);
 
   if (isMobile()) closeSidebars();
+}
+
+/**
+ * The open conversation's header: Back, their name, Block (Unblock while they
+ * are blocked; step C, 2026-10-09) and Report (step D: their messages here can
+ * go to the admins as evidence, chat-reports.js). Redrawn by chat-privacy.js
+ * when a block changes.
+ */
+function renderDmHeader() {
+  const header = document.getElementById('channel-header');
+  if (!header || !activeDmPartner) return;
+  const blocked = typeof isBlockedKey === 'function' && isBlockedKey(activeDmPartner);
+  const blockTitle = blocked
+    ? 'Unblock them: they can reach you again as your safety settings allow.'
+    : 'Block them: you will not see anything from them, and they are not told.';
+  header.innerHTML = `<span class="ch-name" style="cursor:pointer;" onclick="closeDmView()">← Back</span> <span class="ch-name">${hosIcon('chat', 16)} ${esc(activeDmPartnerName)}</span>`
+    + `<button class="vr-btn dm-block-btn" onclick="toggleBlockActiveDm()" title="${esc(blockTitle)}" style="float:right;font-size:0.7rem;${blocked ? '' : 'color:var(--danger);'}">${blocked ? 'Unblock' : 'Block'}</button>`
+    + `<button class="vr-btn dm-report-btn" onclick="reportActiveDm()" title="Report them to this server's admins, with their messages you choose as evidence. They are not told who reported them." style="float:right;font-size:0.7rem;margin-right:var(--space-xs);color:var(--danger);">Report</button>`;
+  header.style.display = 'block';
+}
+
+/** The header's Block / Unblock button. */
+function toggleBlockActiveDm() {
+  const key = activeDmPartner;
+  if (!key) return;
+  if (typeof isBlockedKey === 'function' && isBlockedKey(key)) {
+    if (typeof unblockKey === 'function') unblockKey(key);
+  } else if (typeof blockKey === 'function') {
+    blockKey(key);
+  }
 }
 
 /** Render a DM conversation from the LOCAL history store into #messages. */
@@ -306,13 +334,17 @@ function renderDmList() {
     + '<span class="hold-ring" aria-hidden="true"></span>'
     + '<span class="dm-name">Delete my server mailbox</span>'
     + '<span class="hold-hint">hold</span></div>';
+  // Contact requests ("who can reach me", step B): name only, Accept and
+  // Ignore, above the conversations (chat-privacy.js draws and wires them).
+  const requestsHtml = (typeof contactRequestsSidebarHtml === 'function') ? contactRequestsSidebarHtml() : '';
   if (dmConversations.length === 0) {
-    list.innerHTML = '<div style="font-size:0.7rem;color:var(--text-muted);padding:var(--space-sm) var(--space-md);">No conversations yet</div>' + purgeRow;
+    list.innerHTML = requestsHtml + '<div style="font-size:0.7rem;color:var(--text-muted);padding:var(--space-sm) var(--space-md);">No conversations yet</div>' + purgeRow;
+    if (typeof wireContactRequestButtons === 'function') wireContactRequestButtons(list);
     wirePurgeMailboxHold();
     return;
   }
 
-  list.innerHTML = dmConversations.map(c => {
+  list.innerHTML = requestsHtml + dmConversations.map(c => {
     const isActive = activeDmPartner === c.partner_key;
     const unread = c.unread_count > 0 ? '<span class="dm-unread"></span>' : '';
     const timeStr = formatTime(c.last_timestamp);
@@ -331,6 +363,7 @@ function renderDmList() {
     </div>`;
   }).join('') + purgeRow;
   if (window.twemoji) twemoji.parse(list);
+  if (typeof wireContactRequestButtons === 'function') wireContactRequestButtons(list);
   wirePurgeMailboxHold();
   if (typeof window.refreshUnifiedLeftHeaderCounts === 'function') window.refreshUnifiedLeftHeaderCounts();
 }

@@ -289,13 +289,13 @@
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
   <div class="eli5-simple">Websites to explore! Click any card to visit. Use the + button to save your own bookmarks.</div>
-  <div class="eli5-expert">Curated bookmark directory with localStorage persistence (key: hos_bookmarks_v1). In the desktop app (Tauri), sites open in built-in browser tabs. On web, they open in new windows. Custom bookmarks are saved locally and merged with the default set.</div>
+  <div class="eli5-expert">The websites database (data/web/sites.json, one file shared with the desktop Browser page) rendered as cards, plus your own bookmarks from localStorage (key: hos_bookmarks_v1). On the website a card opens in a new window; in the desktop app, with "Read websites inside HumanityOS" turned on under Settings > Privacy, the same card opens in the app's readable web view (no scripts, no trackers). Each record carries whether the site's pages may be shown inside HumanityOS; hover a card to see its review state.</div>
 </div>
 <p class="page-hint">Your bookmarked websites, click to visit, + to add your own</p>
 
 <div id="page-app">
   <div class="platform-note">
-    In the desktop app, these open in a built-in browser tab. On web, they open in a new window.
+    On the website these open in a new window. In the desktop app they can open inside HumanityOS as readable pages (Settings &gt; Privacy &gt; Read websites inside HumanityOS, off by default).
   </div>
 
   <div class="web-search">
@@ -321,14 +321,7 @@
     <input type="text" id="bm-desc" placeholder="A short description">
     <label for="bm-cat">Category</label>
     <select id="bm-cat">
-      <option value="Learning">Learning</option>
-      <option value="Development">Development</option>
-      <option value="Communication">Communication</option>
-      <option value="Science & Space">Science & Space</option>
-      <option value="Tools">Tools</option>
-      <option value="Games">Games</option>
-      <option value="Health">Health</option>
-      <option value="Custom" selected>Custom</option>
+      <option value="custom" selected>Custom</option>
     </select>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeAddModal()">Cancel</button>
@@ -338,44 +331,18 @@
 </div>
 
 <script>
-/** Default curated bookmarks, not editable by the user */
-var DEFAULT_SITES = [
-  // Learning
-  { name: 'Khan Academy',       desc: 'Free courses on everything',                url: 'https://www.khanacademy.org',           category: 'Learning' },
-  { name: 'MIT OpenCourseWare', desc: 'University courses, free',                  url: 'https://ocw.mit.edu',                   category: 'Learning' },
-  { name: 'Wikipedia',          desc: 'The encyclopedia anyone can edit',           url: 'https://www.wikipedia.org',             category: 'Learning' },
-  { name: 'Coursera',           desc: 'Online courses from top universities',       url: 'https://www.coursera.org',              category: 'Learning' },
-
-  // Development
-  { name: 'GitHub',             desc: 'Code hosting and collaboration',             url: 'https://github.com',                    category: 'Development' },
-  { name: 'MDN Web Docs',       desc: 'Web technology reference',                   url: 'https://developer.mozilla.org',         category: 'Development' },
-  { name: 'Stack Overflow',     desc: 'Q&A for developers',                         url: 'https://stackoverflow.com',             category: 'Development' },
-  { name: 'Rust Book',          desc: 'The Rust programming language',              url: 'https://doc.rust-lang.org/book',        category: 'Development' },
-
-  // Communication
-  { name: 'Discord',            desc: 'Voice, video, and text chat',                url: 'https://discord.com',                   category: 'Communication' },
-  { name: 'Element',            desc: 'Decentralized encrypted chat (Matrix)',       url: 'https://element.io',                    category: 'Communication' },
-  { name: 'Signal',             desc: 'Private messaging',                           url: 'https://signal.org',                    category: 'Communication' },
-
-  // Science & Space
-  { name: 'NASA',               desc: 'Space exploration and science',               url: 'https://www.nasa.gov',                  category: 'Science & Space' },
-  { name: 'arXiv',              desc: 'Open-access research papers',                 url: 'https://arxiv.org',                     category: 'Science & Space' },
-  { name: 'Sci-Hub',            desc: 'Research paper access tool (legal gray area, no link provided)', url: '',                  category: 'Science & Space' },
-
-  // Tools
-  { name: 'OpenStreetMap',      desc: 'Free editable maps',                          url: 'https://www.openstreetmap.org',         category: 'Tools' },
-  { name: 'Internet Archive',   desc: 'Digital library of the web',                  url: 'https://archive.org',                   category: 'Tools' },
-  { name: 'LibreOffice',        desc: 'Free office suite',                           url: 'https://www.libreoffice.org',           category: 'Tools' },
-
-  // Games
-  { name: 'Steam',              desc: 'Game store and community',                    url: 'https://store.steampowered.com',        category: 'Games' },
-  { name: 'GOG',                desc: 'DRM-free games',                              url: 'https://www.gog.com',                   category: 'Games' },
-  { name: 'Itch.io',            desc: 'Indie games marketplace',                     url: 'https://itch.io',                       category: 'Games' },
-
-  // Health
-  { name: 'PubMed',             desc: 'Medical research database',                   url: 'https://pubmed.ncbi.nlm.nih.gov',      category: 'Health' },
-  { name: 'Examine',            desc: 'Supplement and nutrition research',            url: 'https://examine.com',                   category: 'Health' },
-];
+/**
+ * The websites database, fetched at load. ONE list for both clients: the
+ * desktop Browser page reads this same file (src/gui/mod.rs load_web_sites),
+ * and tests/page_parity_lint.rs fails if either side stops reading it.
+ * Before 2026-09-16 this page carried its own DEFAULT_SITES array and the
+ * two lists had drifted apart.
+ */
+var SITES_URL = '/data/web/sites.json';
+/** categories[] from the file, in display order: { id, name, color } */
+var SITE_CATEGORIES = [];
+/** sites[] from the file, normalized to the card shape used below */
+var SITE_RECORDS = [];
 
 var STORAGE_KEY = 'hos_bookmarks_v1';
 var activeCategory = '';
@@ -395,6 +362,56 @@ function iconLetter(name) {
   return name.trim().charAt(0).toUpperCase();
 }
 
+/** Human wording for a record's embed review state (shown on hover) */
+function embedLabel(embed) {
+  if (!embed) return '';
+  if (embed.status === 'allowed') return 'Embedding: allowed (' + (embed.basis || '') + ')';
+  if (embed.status === 'forbidden') return 'Embedding: forbidden (' + (embed.basis || '') + ')';
+  if (embed.status === 'unknown') return 'Embedding: terms could not be found';
+  return 'Embedding: not yet reviewed';
+}
+
+/** Load the database and render. A missing file leaves only custom bookmarks. */
+function loadSites() {
+  return fetch(SITES_URL, { cache: 'no-cache' })
+    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(db) {
+      SITE_CATEGORIES = (db.categories || []).map(function(c) {
+        return { id: c.id, name: c.name, color: c.color || 'accent' };
+      });
+      SITE_RECORDS = (db.sites || []).map(function(s) {
+        return {
+          name: s.name,
+          desc: s.description || '',
+          url: s.url,
+          category: s.category,
+          icon: s.icon || '',
+          embed: s.embed || null,
+          affiliate: s.affiliate || null
+        };
+      });
+    })
+    .catch(function(e) {
+      console.warn('web: could not load ' + SITES_URL + ': ' + e.message);
+    })
+    .then(function() {
+      fillCategorySelect();
+      renderFilters();
+      renderSites();
+    });
+}
+
+/** The add-bookmark modal's category list comes from the same file. */
+function fillCategorySelect() {
+  var sel = document.getElementById('bm-cat');
+  var html = '';
+  SITE_CATEGORIES.forEach(function(c) {
+    html += '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>';
+  });
+  html += '<option value="custom" selected>Custom</option>';
+  sel.innerHTML = html;
+}
+
 /** Load user bookmarks from localStorage */
 function loadUserBookmarks() {
   try {
@@ -408,25 +425,30 @@ function saveUserBookmarks(bookmarks) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(bookmarks));
 }
 
-/** Merge defaults + user bookmarks into one list */
+/** Merge the database + user bookmarks into one list */
 function getAllSites() {
   var user = loadUserBookmarks();
   // Tag user bookmarks so we can show delete button
   user.forEach(function(b) { b._custom = true; });
-  return DEFAULT_SITES.concat(user);
+  return SITE_RECORDS.concat(user);
 }
 
-/** Collect unique category names preserving order */
+/** Display name of a category id (custom bookmarks store the id too) */
+function categoryName(id) {
+  for (var i = 0; i < SITE_CATEGORIES.length; i++) {
+    if (SITE_CATEGORIES[i].id === id) return SITE_CATEGORIES[i].name;
+  }
+  return id === 'custom' ? 'Custom' : id;
+}
+
+/** Collect category ids: the file's order first, then any custom ones */
 function getCategories(sites) {
   var cats = [];
-  var categoryOrder = ['Learning', 'Development', 'Communication', 'Science & Space', 'Tools', 'Games', 'Health'];
-  // Add default categories first in order
-  categoryOrder.forEach(function(c) {
+  SITE_CATEGORIES.forEach(function(c) {
     sites.forEach(function(s) {
-      if (s.category === c && cats.indexOf(c) === -1) cats.push(c);
+      if (s.category === c.id && cats.indexOf(c.id) === -1) cats.push(c.id);
     });
   });
-  // Then add any custom categories
   sites.forEach(function(s) {
     if (cats.indexOf(s.category) === -1) cats.push(s.category);
   });
@@ -440,7 +462,7 @@ function renderFilters() {
   var el = document.getElementById('cat-filters');
   var html = '<span class="cat-pill' + (activeCategory === '' ? ' active' : '') + '" onclick="setCategory(\'\')">All</span>';
   cats.forEach(function(c) {
-    html += '<span class="cat-pill' + (activeCategory === c ? ' active' : '') + '" onclick="setCategory(\'' + c.replace(/'/g, "\\'") + '\')">' + c + '</span>';
+    html += '<span class="cat-pill' + (activeCategory === c ? ' active' : '') + '" onclick="setCategory(\'' + c.replace(/'/g, "\\'") + '\')">' + esc(categoryName(c)) + '</span>';
   });
   el.innerHTML = html;
 }
@@ -451,14 +473,10 @@ function setCategory(cat) {
   renderSites();
 }
 
-/** Open a site, desktop app uses built-in tab, browser uses new window */
+/** Open a site in a new window. (The desktop app reads it in-app instead.) */
 function openSite(url) {
-  if (!url) return; // Sci-Hub has no URL
-  if (typeof window.__TAURI__ !== 'undefined' && typeof openWebviewTab === 'function') {
-    openWebviewTab(url, url);
-  } else {
-    window.open(url, '_blank', 'noopener');
-  }
+  if (!url) return;
+  window.open(url, '_blank', 'noopener');
 }
 
 /** Escape HTML to prevent XSS in user-supplied bookmark data */
@@ -475,9 +493,9 @@ function renderSites() {
   var filtered = allSites.filter(function(s) {
     if (activeCategory && s.category !== activeCategory) return false;
     if (search && s.name.toLowerCase().indexOf(search) === -1 &&
-        s.desc.toLowerCase().indexOf(search) === -1 &&
-        s.url.toLowerCase().indexOf(search) === -1 &&
-        s.category.toLowerCase().indexOf(search) === -1) return false;
+        (s.desc || '').toLowerCase().indexOf(search) === -1 &&
+        (s.url || '').toLowerCase().indexOf(search) === -1 &&
+        categoryName(s.category).toLowerCase().indexOf(search) === -1) return false;
     return true;
   });
 
@@ -493,14 +511,16 @@ function renderSites() {
   var html = '';
   cats.forEach(function(cat) {
     if (!groups[cat] || groups[cat].length === 0) return;
-    html += '<div class="cat-section"><h2>' + esc(cat) + '</h2><div class="site-grid">';
+    html += '<div class="cat-section"><h2>' + esc(categoryName(cat)) + '</h2><div class="site-grid">';
     groups[cat].forEach(function(s) {
       var domain = s.url ? s.url.replace(/^https?:\/\//, '').replace(/\/.*$/, '') : '-';
       var letter = iconLetter(s.name);
       var color = stringColor(domain || s.name);
       var hasUrl = !!s.url;
       var tag = hasUrl ? 'a' : 'div';
-      var hrefAttr = hasUrl ? ' href="' + esc(s.url) + '" target="_blank" rel="noopener"' : '';
+      var review = s._custom ? 'Your bookmark' : embedLabel(s.embed);
+      var hrefAttr = (hasUrl ? ' href="' + esc(s.url) + '" target="_blank" rel="noopener"' : '') +
+        ' title="' + esc(s.name + '\n' + (s.url || '') + '\n' + review) + '"';
       var clickHandler = hasUrl ? ' onclick="event.preventDefault();openSite(\'' + s.url.replace(/'/g, "\\'") + '\')"' : '';
 
       html += '<' + tag + ' class="site-card"' + hrefAttr + clickHandler + '>' +
@@ -561,7 +581,7 @@ function saveBookmark() {
   var name = document.getElementById('bm-name').value.trim();
   var url  = document.getElementById('bm-url').value.trim();
   var desc = document.getElementById('bm-desc').value.trim();
-  var cat  = document.getElementById('bm-cat').value;
+  var cat  = document.getElementById('bm-cat').value || 'custom';
 
   if (!name) { document.getElementById('bm-name').focus(); return; }
   if (!url)  { document.getElementById('bm-url').focus(); return; }
@@ -580,8 +600,7 @@ function saveBookmark() {
 
 // ── Init ──
 document.addEventListener('DOMContentLoaded', function() {
-  renderFilters();
-  renderSites();
+  loadSites();
 });
 
 // FAB click

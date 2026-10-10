@@ -90,6 +90,50 @@ if (savedName && location.hash.indexOf('devicelink=') === -1) {
   setTimeout(() => connect(), 50);
 }
 
+// An account this identity erased on this server (BUG-135). The erase removes the saved
+// name, so a reload does not sign up again by itself, and this flag keeps the login screen
+// saying what pressing Enter does. connect() clears it. Mirrors the native Chat page's
+// connect box (src/gui/connections.rs ERASED_CONNECT_NOTE, which names its Connect button).
+// The flag holds 'erased', or 'unfinished' when part of the erase failed on the server (the
+// relay's `partial`): then the old account may still partly exist, so the note says to erase
+// again instead of promising a fresh sign-up (native: ERASE_UNFINISHED_NOTE).
+const ERASED_FLAG = 'humanity_account_erased';
+const ERASED_ENTER_NOTE = 'Your account on this server was erased, so pressing Enter signs you up again as a new account on this server.';
+const ERASE_UNFINISHED_NOTE = 'The erase of your account on this server did not finish, so press Enter and use Erase account again.';
+function showErasedNote(kind) {
+  const el = document.getElementById('login-note');
+  if (!el) return;
+  const text = kind === 'unfinished' ? ERASE_UNFINISHED_NOTE : kind === 'erased' ? ERASED_ENTER_NOTE : '';
+  el.textContent = text;
+  el.style.display = text ? 'block' : 'none';
+}
+
+// Whether this connect's identify says `sign_up_again` (BUG-135, the operator's option 2,
+// 2026-10-04). The server remembers an erase for a limited time and signs nothing up again
+// without it, so an automatic reconnect can never bring an erased account back. Only the
+// person pressing Enter (the button, or Enter in the name box: `how` is 'enter') under the
+// erase note says it; a reload's auto-connect, a restore or an import connects without it,
+// and if the server still remembers the erase it says so and the note comes back. Mirrors
+// native src/gui/connections.rs `take_sign_up_again`.
+function signUpAgainChoice(how, erasedFlag) {
+  return how === 'enter' && (erasedFlag === 'erased' || erasedFlag === 'unfinished');
+}
+try {
+  if (!savedName) showErasedNote(localStorage.getItem(ERASED_FLAG));
+} catch (e) { /* storage blocked: the note is a convenience, the erase already happened */ }
+
+// Closing the socket on purpose (ws.onclose = null) skips the call teardown that
+// chat-voice-calls.js hangs on onclose, so a call in progress would be left half open:
+// end it first. Used where the client leaves a server by itself (name_taken,
+// account_erased; review of BUG-135). callState and cleanupCall live in chat-voice-calls.js,
+// which loads after this file, hence the typeof guards.
+function endCallBeforeLeaving() {
+  if (typeof cleanupCall === 'function' && typeof callState !== 'undefined' && callState !== 'idle') {
+    addSystemMessage('Call ended (disconnected).');
+    cleanupCall();
+  }
+}
+
 let pendingLinkCode = null;
 let pendingInviteCode = null;
 let identityConfirmed = false;
@@ -183,6 +227,23 @@ function handleScratchCommand(content) {
   }
 }
 let peerData = {};
+// A top-level `let` is not a property of window, so the `window.peerData && ...`
+// name lookups in chat-dms.js and chat-social.js always fell back to a short key.
+// The same object, never reassigned (only filled in), so the alias stays true.
+window.peerData = peerData;
+
+/**
+ * Is this identity key on my block list (step C, 2026-10-09,
+ * docs/design/blocking-and-safe-mode.md 10d)? The list is kept in the
+ * encrypted local store (chat-dm-store.js); chat-privacy.js keeps it. Every
+ * path that shows something from a person asks this, by key, never by name.
+ */
+function isBlockedKey(key) {
+  try {
+    return !!(key && window.hosDmStore && hosDmStore.ready && hosDmStore.isBlocked(key));
+  } catch { return false; }
+}
+window.isBlockedKey = isBlockedKey;
 
 function resolveSenderName(rawName, fromKey) {
   const given = (rawName || '').trim();
@@ -227,6 +288,86 @@ document.getElementById('reply-cancel').addEventListener('click', (e) => {
   document.getElementById('msg-input').focus();
 });
 
+// ── Link-preview cards ──
+// LINK-PREVIEW PICTURES LOAD BY THEMSELVES ONLY FROM THIS SITE (2026-10-09).
+// The relay fetches a link's title, description and picture ADDRESS for the
+// preview card, but the picture itself used to be loaded by this browser
+// straight from the other website. That shows the website your network address
+// (a rough location and your internet provider) and when you read the message,
+// so someone could post a link to a site they run just to collect the address
+// of everyone who scrolled past it. Now a picture this site serves itself shows
+// as before; any other waits behind a small "Load picture" button that names
+// the site, the same way pictures in messages wait for a click.
+// (docs/design/blocking-and-safe-mode.md, section 7.1 item 5; test:
+// scripts/tests/link-preview-pictures.test.js)
+
+/**
+ * How a link preview's picture may be shown. Returns null when there is no
+ * picture to offer, otherwise { url, auto, site }: `url` is the full address,
+ * `auto` is true only when `pageOrigin` (this site) serves it, and `site` is the
+ * host name to show on the button.
+ */
+function linkPreviewPicture(preview, pageOrigin) {
+  if (!preview || typeof preview.image !== 'string' || !preview.image.trim()) return null;
+  // A preview's picture address is written for the page it came from, so a
+  // short one ("/img/p.png") belongs to that page's site, not to this one.
+  const base = (typeof preview.url === 'string' && /^https?:\/\//i.test(preview.url)) ? preview.url : undefined;
+  let u;
+  try { u = base ? new URL(preview.image.trim(), base) : new URL(preview.image.trim()); }
+  catch { return null; }
+  // Only ordinary web addresses; anything else is not offered at all.
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+  return { url: u.href, auto: !!pageOrigin && u.origin === pageOrigin, site: u.hostname };
+}
+
+/** This site's origin, or '' when there is no page location (then nothing loads by itself). */
+function thisSiteOrigin() {
+  try { return (typeof location !== 'undefined' && location.origin) || ''; } catch { return ''; }
+}
+
+/** Build one link-preview card element for a preview the relay sent. */
+function buildLinkPreviewCard(p) {
+  const card = document.createElement('div');
+  card.className = 'link-preview';
+  let html = '<div class="lp-text">';
+  if (p.site_name) html += `<div class="lp-site">${esc(p.site_name)}</div>`;
+  if (p.title) html += `<div class="lp-title"><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a></div>`;
+  if (p.description) html += `<div class="lp-desc">${esc(p.description)}</div>`;
+  html += '</div>';
+  const pic = linkPreviewPicture(p, thisSiteOrigin());
+  if (pic && pic.auto) {
+    html += `<img class="lp-thumb" src="${esc(pic.url)}" alt="" loading="lazy" onerror="this.style.display='none'">`;
+  } else if (pic) {
+    // Same 80 by 60 slot as the picture, so the card keeps its shape. Styled
+    // inline because the card sits outside the message body, where the
+    // .img-placeholder styles in messages.css do not reach.
+    html += `<button type="button" class="lp-load-picture" data-lp-picture="${esc(pic.url)}"`
+      + ` title="${esc('The picture is on ' + pic.site + '. Loading it lets that site see your network address.')}"`
+      + ` style="width:80px;min-height:60px;flex-shrink:0;align-self:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;`
+      + `padding:var(--space-xs);background:var(--bg-hover);border:1px solid var(--border);border-radius:var(--radius-sm);`
+      + `color:var(--accent);font-size:var(--text-xs);cursor:pointer;">`
+      + `<span>${hosIcon('image', 12)} Load picture</span>`
+      + `<span style="color:var(--text-muted);word-break:break-all;">${esc(pic.site)}</span></button>`;
+  }
+  card.innerHTML = html;
+  card.onclick = (e) => {
+    const btn = e && e.target && typeof e.target.closest === 'function' ? e.target.closest('[data-lp-picture]') : null;
+    if (btn) { showLinkPreviewPicture(btn); return; }
+    card.classList.toggle('collapsed');
+  };
+  return card;
+}
+
+/** The reader asked for it: swap the "Load picture" button for the picture. */
+function showLinkPreviewPicture(btn) {
+  const img = document.createElement('img');
+  img.className = 'lp-thumb';
+  img.alt = '';
+  img.onerror = () => { img.style.display = 'none'; };
+  img.src = btn.dataset.lpPicture;
+  btn.replaceWith(img);
+}
+
 // Event delegation: handle clicks on image placeholders (data-img-url).
 // Resolve a mention name to a known peer's public key (case-insensitive match
 // on either display_name or name). Returns null if no user is known by that
@@ -268,7 +409,9 @@ document.getElementById('messages').addEventListener('click', function(e) {
 });
 
 // ── Connect ──
-async function connect() {
+// `how` is 'enter' only from the login screen's Enter (index.html, chat-ui.js); see
+// signUpAgainChoice.
+async function connect(how) {
   myName = document.getElementById('name-input').value.trim() || 'Anonymous';
   pendingLinkCode = document.getElementById('link-code-input').value.trim() || null;
   pendingInviteCode = document.getElementById('invite-code-input').value.trim() || null;
@@ -282,6 +425,13 @@ async function connect() {
   }
 
   localStorage.setItem('humanity_name', myName);
+  // Entering after an erase is the person choosing to sign up again (BUG-135): only this
+  // connect's first socket tells the server so (openSocket's `signUpAgain`).
+  let erasedFlag = null;
+  try { erasedFlag = localStorage.getItem(ERASED_FLAG); } catch (e) {}
+  const signUpAgain = signUpAgainChoice(how, erasedFlag);
+  try { localStorage.removeItem(ERASED_FLAG); } catch (e) {}
+  showErasedNote(null);
 
   // Hide any previous error, show connecting status.
   document.getElementById('login-error').style.display = 'none';
@@ -306,16 +456,18 @@ async function connect() {
 
   // Stay on login screen, we switch to chat only after server confirms identity.
   identityConfirmed = false;
-  openSocket();
+  openSocket({ signUpAgain });
 }
 
 // ── User Data Sync ──
 // --- Encrypted Sync Data (AES-256-GCM) ---
 async function deriveSyncKey() {
-  if (!myIdentity || !myIdentity.privateKey) return null;
   try {
-    const pkcs8 = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
-    const hash = await crypto.subtle.digest('SHA-256', pkcs8);
+    // The seed as the PKCS8 it has always been hashed as, so a seed-only
+    // browser derives the same key (crypto.js, SEED-ONLY IDENTITY).
+    const seed = await identitySeed();
+    if (!seed) return null;
+    const hash = await crypto.subtle.digest('SHA-256', pkcs8FromSeed(seed));
     return await crypto.subtle.importKey('raw', hash, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
   } catch (e) {
     console.warn('Failed to derive sync encryption key:', e);
@@ -365,7 +517,7 @@ async function decryptSyncData(data) {
 
 const SYNC_KEYS = [
   'humanity_settings', 'humanity_notes', 'humanity_todos', 'humanity_garden', 'humanity_garden_v2',
-  'humanity_blocked', 'humanity_pins', 'humanity_default_tab',
+  'humanity_pins', 'humanity_default_tab',
   'humanity_browse', 'humanity_dashboard',
   'footer_collapsed', 'sidebar_tab'
 ];
@@ -495,7 +647,7 @@ function onIdentityConfirmed() {
   }
 
   // Launch onboarding wizard for first-time users, explains the identity
-  // system in plain language and walks them through the seed phrase backup.
+  // system in plain language and walks them through the recovery phrase backup.
   if (myIdentity && myIdentity.isNew) {
     myIdentity.isNew = false; // Only trigger once
     setTimeout(async () => {
@@ -648,10 +800,14 @@ async function loadHistory() {
 }
 
 // ── WebSocket ──
-function openSocket() {
+// `opts.signUpAgain` rides this one socket's identify only (connect() after Enter under the
+// erase note, BUG-135). scheduleReconnect calls this with no options, so a reconnect never
+// carries it.
+function openSocket(opts) {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
     return;
   }
+  const signUpAgain = !!(opts && opts.signUpAgain);
 
   // Fresh socket: re-arm the one-time DM mailbox fetch (sealed-sender).
   dmFetchSent = false;
@@ -684,6 +840,9 @@ function openSocket() {
     if (pendingInviteCode) {
       identifyMsg.invite_code = pendingInviteCode;
       pendingInviteCode = null;
+    }
+    if (signUpAgain) {
+      identifyMsg.sign_up_again = true;
     }
     ws.send(JSON.stringify(identifyMsg));
 
@@ -770,7 +929,10 @@ async function handleMessage(msg) {
     }
     case 'peer_joined':
       // Update peerData with new peer info, sidebar handles visibility.
-      peerData[msg.public_key] = { public_key: msg.public_key, display_name: msg.display_name, role: msg.role || '', kyber_public: msg.kyber_public || null };
+      // A join that carries no DM key keeps the one we already hold: a
+      // standalone page signing in without it must not cut off DMs to that
+      // person (2026-10-02).
+      peerData[msg.public_key] = { public_key: msg.public_key, display_name: msg.display_name, role: msg.role || '', kyber_public: msg.kyber_public || (peerData[msg.public_key] && peerData[msg.public_key].kyber_public) || null };
       updateStats();
       break;
     case 'peer_left':
@@ -797,6 +959,11 @@ async function handleMessage(msg) {
           if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'dm_fetch', after_id: (ok && hosDmStore.highWater) || 0 }));
           }
+          // Friendship passes owed and withdrawals unconfirmed (chat-social.js).
+          if (ok && typeof sweepFriendPasses === 'function') sweepFriendPasses();
+          // The block list is loaded: hide what was drawn before it was, and send
+          // any note to my other devices that could not go earlier (chat-privacy.js).
+          if (ok && typeof onBlockListLoaded === 'function') onBlockListLoaded();
         });
       }
       break;
@@ -806,6 +973,9 @@ async function handleMessage(msg) {
       // identify_response, only then does the relay bind the socket to
       // our claimed key. Closes HIGH-2 (identity spoofing).
       try {
+        // The server's own did:hum: what every friendship pass given or held
+        // here names (crypto.js pqBuildFriendCert / pqVerifyFriendCert).
+        window.hosServerDid = msg.server_did || null;
         const nonce = msg.nonce || '';
         if (!nonce || !myDilithiumSecret || typeof window.pqSignMessage !== 'function') {
           console.error('identify_challenge: missing nonce or PQ identity not ready');
@@ -860,6 +1030,14 @@ async function handleMessage(msg) {
       if (!identityConfirmed) {
         onIdentityConfirmed();
       }
+      // The FIRST peer_list on each socket is the relay accepting THAT socket's
+      // identify (later ones are broadcasts). A reconnect opens a new socket, so
+      // this fires once per connection; modules holding a per-socket place on
+      // the relay take it again here (voice, chat-voice-rooms.js, 2026-10-02).
+      if (ws && !ws._identityAccepted) {
+        ws._identityAccepted = true;
+        if (window.hos && typeof hos.emit === 'function') hos.emit('socket-identified');
+      }
       // Always re-enable input and update status (handles reconnects too).
       setStatus('connected', 'Connected');
       document.getElementById('msg-input').disabled = false;
@@ -874,8 +1052,16 @@ async function handleMessage(msg) {
       break;
     case 'full_user_list':
       updateUserList(msg.users || []);
+      // The member list carries the DM keys passes are sealed to.
+      if (typeof sweepFriendPasses === 'function') sweepFriendPasses();
+      break;
+    case 'cert_revoked':
+      // The relay confirmed a friendship pass withdrawal (chat-social.js).
+      if (typeof friendPassWithdrawn === 'function') friendPassWithdrawn(msg.serial);
       break;
     case 'typing': {
+      // Someone I blocked is never shown typing (by key, step C).
+      if (isBlockedKey(msg.from)) break;
       // Show "X is typing…" indicator, clear after 3 seconds.
       const typerName = resolveSenderName(msg.from_name, msg.from);
       showTypingIndicator(typerName);
@@ -987,8 +1173,18 @@ async function handleMessage(msg) {
       const inner = await pqOpenDmEnvelope(msg.content);
       if (window.hosDmStore && hosDmStore.ready && msg.id) hosDmStore.setHighWater(msg.id);
       if (!inner) break; // not ours / tampered / spoofed — never rendered
+      // Block (step C, 2026-10-09): a note to myself from another of my devices is
+      // acted on, never rendered; anything from someone I blocked (a message, a
+      // follow notice, a pass, a contact request) is dropped here, before it is
+      // stored or notified (chat-privacy.js).
+      if (typeof blockScreenDm === 'function' && blockScreenDm(inner)) break;
       // Social control messages (follows removal 2026-08-24): act, never render.
       if (typeof ingestDmControl === 'function' && await ingestDmControl(inner)) break;
+      // A contact request (step B, 2026-10-09): its pass checked, listed under Requests by the
+      // member list's name for the signed sender (chat-privacy.js), never rendered.
+      if (typeof ingestContactRequest === 'function' && await ingestContactRequest(inner)) break;
+      // From someone my "who can reach me" settings refuse: a request, name only, its text dropped.
+      if (typeof reachScreenDm === 'function' && reachScreenDm(inner)) break;
       const isNew = (window.hosDmStore && hosDmStore.ready) ? await hosDmStore.insert(inner) : true;
       if (!isNew) break; // duplicate (echo of our own send, refetch, replay)
       const isFromMe = inner.from === myKey;
@@ -1018,7 +1214,10 @@ async function handleMessage(msg) {
         if (!item.content) continue;
         const inner = await pqOpenDmEnvelope(item.content);
         if (!inner) continue; // undecryptable/spoofed — skip, high-water still advances
+        if (typeof blockScreenDm === 'function' && blockScreenDm(inner)) continue;
         if (typeof ingestDmControl === 'function' && await ingestDmControl(inner)) continue;
+        if (typeof ingestContactRequest === 'function' && await ingestContactRequest(inner)) continue;
+        if (typeof reachScreenDm === 'function' && reachScreenDm(inner)) continue;
         if (window.hosDmStore && hosDmStore.ready) {
           if (await hosDmStore.insert(inner)) ingested++;
         }
@@ -1055,17 +1254,7 @@ async function handleMessage(msg) {
         const bodyEl = msgEl.querySelector('.body');
         if (bodyEl) {
           for (const p of msg.previews.slice(0, 3)) {
-            const card = document.createElement('div');
-            card.className = 'link-preview';
-            card.onclick = () => card.classList.toggle('collapsed');
-            let html = '<div class="lp-text">';
-            if (p.site_name) html += `<div class="lp-site">${esc(p.site_name)}</div>`;
-            if (p.title) html += `<div class="lp-title"><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a></div>`;
-            if (p.description) html += `<div class="lp-desc">${esc(p.description)}</div>`;
-            html += '</div>';
-            if (p.image) html += `<img class="lp-thumb" src="${esc(p.image)}" alt="" loading="lazy" onerror="this.style.display='none'">`;
-            card.innerHTML = html;
-            bodyEl.after(card);
+            bodyEl.after(buildLinkPreviewCard(p));
           }
         }
       }
@@ -1108,9 +1297,28 @@ async function handleMessage(msg) {
               window.gameBans = Array.isArray(game.users) ? game.users : [];
               if (typeof renderGameAdminList === 'function') renderGameAdminList();
               break;
+            case 'game_time_sync':
+              // The shared world's clock and how fast it runs (2026-10-04): the Game Admin
+              // window's Shared world clock shows the speed.
+              if (typeof game.time_scale === 'number') window.worldClockSpeed = game.time_scale;
+              if (typeof renderGameAdminClock === 'function') renderGameAdminClock();
+              break;
+            case 'game_fleet_totals':
+              // The fleet's totals for an admin (2026-10-04): every player's ledger summed, no names
+              // (held back, `withheld`, while too few players have one).
+              window.fleetTotals = game;
+              if (typeof renderGameAdminFleet === 'function') renderGameAdminFleet();
+              break;
+            case 'game_fleet_ledger':
+              // This player's own fleet ledger, for the read-only window (chat-fleet.js).
+              window.fleetLedger = game;
+              if (typeof renderFleetLedger === 'function') renderFleetLedger();
+              break;
             case 'game_admin_error':
+            // A done-and-said from a game-admin action (releasing a plot): the same status line.
+            case 'game_admin_notice':
               if (typeof showGameAdminError === 'function') showGameAdminError(game.message || 'Game admin error.');
-              else console.warn('game_admin_error:', game.message);
+              else console.warn(game.type + ':', game.message);
               break;
             default:
               break;
@@ -1177,8 +1385,47 @@ async function handleMessage(msg) {
       errEl.style.display = 'block';
       document.getElementById('crypto-status').textContent = '';
       identityConfirmed = false;
+      endCallBeforeLeaving();
       if (ws) { ws.onclose = null; ws.close(); ws = null; }
       setStatus('disconnected', 'Choose a different name');
+      break;
+    }
+    case 'server_settings_state':
+      // Server-wide settings (v0.200.0). The web keeps what it shows: the shared world
+      // clock's speed, for the Game Admin window (2026-10-04).
+      if (msg.settings && typeof msg.settings.world_time_scale === 'number') {
+        window.worldClockSpeed = msg.settings.world_time_scale;
+        if (typeof renderGameAdminClock === 'function') renderGameAdminClock();
+      }
+      // And the fleet's supply mode (2026-10-04), for the window's Fleet supply section.
+      if (msg.settings && typeof msg.settings.fleet_supply_mode === 'string') {
+        window.fleetSupplyMode = msg.settings.fleet_supply_mode;
+        if (typeof renderGameAdminFleet === 'function') renderGameAdminFleet();
+      }
+      break;
+    case 'account_erased': {
+      // BUG-135: this server erased our account (the receipt just before this said what
+      // went). Leave it and never come back by ourselves: no reconnect timer, and no saved
+      // name, so a reload does not sign in. Every client of this identity gets this, so a
+      // second tab stops too. The login screen's Enter is the way back, and says first that
+      // it signs up again, or, when part of the erase failed (`partial`), to erase again
+      // (showErasedNote). Same steps as name_taken above.
+      const erasedKind = msg.partial === true ? 'unfinished' : 'erased';
+      clearTimeout(reconnectTimer);
+      reconnectDelay = 1000;
+      try {
+        localStorage.removeItem('humanity_name');
+        localStorage.setItem(ERASED_FLAG, erasedKind);
+      } catch (e) {}
+      identityConfirmed = false;
+      endCallBeforeLeaving();
+      if (ws) { ws.onclose = null; ws.close(); ws = null; }
+      setStatus('disconnected', erasedKind === 'unfinished' ? 'Erase not finished' : 'Account erased');
+      document.getElementById('login-screen').style.display = 'flex';
+      document.getElementById('chat-screen').style.display = 'none';
+      document.getElementById('login-error').style.display = 'none';
+      document.getElementById('crypto-status').textContent = '';
+      showErasedNote(erasedKind);
       break;
     }
   }
@@ -1435,8 +1682,9 @@ async function sendChatCommand(command, channelOverride) {
 
 // ── Rendering ──
 function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, replyTo, threadCount, isFederated, messageId) {
-  // Skip messages from blocked users entirely.
-  if (author && isBlocked(author)) return;
+  // Posts, replies and group messages from someone I blocked are never drawn
+  // (by key, step C; chat-privacy.js hides the ones already on screen).
+  if (fromKey && isBlockedKey(fromKey)) return;
 
   const el = document.createElement('div');
   const stripe = getStripeClass(fromKey || author);
@@ -1515,10 +1763,14 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   // Reply indicator HTML.
   let replyIndicatorHtml = '';
   if (replyTo) {
-    const replyPreview = (replyTo.content || '').substring(0, 60) + ((replyTo.content || '').length > 60 ? '…' : '');
+    // A reply quoting someone I blocked shows neither their name nor their words.
+    const quotesBlocked = isBlockedKey(replyTo.from);
+    const replyPreview = quotesBlocked ? ''
+      : (replyTo.content || '').substring(0, 60) + ((replyTo.content || '').length > 60 ? '…' : '');
+    const replyAuthor = quotesBlocked ? 'Someone you blocked' : (replyTo.from_name || 'Unknown');
     replyIndicatorHtml = `<div class="reply-indicator" data-reply-from="${esc(replyTo.from)}" data-reply-ts="${replyTo.timestamp}">
       <span>↩</span>
-      <span class="reply-indicator-author">${esc(replyTo.from_name || 'Unknown')}</span>
+      <span class="reply-indicator-author">${esc(replyAuthor)}</span>
       <span class="reply-indicator-preview">${esc(replyPreview)}</span>
     </div>`;
     el.classList.add('has-reply');
@@ -1546,12 +1798,15 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
     actionsHtml: actions,
   });
 
-  // Context menu on author name click.
+  // Context menu on author name click. It knows the message it was opened on,
+  // so its Report can name this post (or, in a P2P group, carry the words seen):
+  // chat-reports.js, step D.
   const authorEl = el.querySelector('.author');
   if (authorEl) {
+    const menuMessage = { timestamp, text: body, group: !!window.activeP2pGroup };
     authorEl.addEventListener('click', (e) => {
       e.stopPropagation();
-      showUserContextMenu(e, author, fromKey);
+      showUserContextMenu(e, author, fromKey, menuMessage);
     });
   }
 
@@ -1789,7 +2044,7 @@ function updateUserList(users) {
     const escapedName = esc(u.name);
     const escapedKey = esc(u.public_key);
     const deviceCount = (!isBot && u.key_count > 1) ? ` <span style="font-size:0.6rem;color:var(--text-muted)">(${u.key_count} devices)</span>` : '';
-    const blocked = isBlocked(u.name);
+    const blocked = isBlockedKey(u.public_key);
     const blockIndicator = blocked ? ' <span class="block-indicator" title="Blocked" style="font-size:0.65rem;">' + hosIcon('block', 14) + '</span>' : '';
     const dimStyle = u.online ? (blocked ? ' style="opacity:0.5;text-decoration:line-through"' : '') : (blocked ? ' style="opacity:0.5;text-decoration:line-through"' : ' style="opacity:0.5"');
     const botClass = isBot ? ' is-bot' : '';

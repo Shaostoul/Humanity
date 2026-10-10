@@ -1,6 +1,6 @@
 // ── Profile System ──
-// Goal: keep the local profile store in sync with the relay, render the View
-// Profile overlay, and manage the client-side block list.
+// Goal: keep the local profile store in sync with the relay and render the View
+// Profile overlay. (The block list lives in chat-privacy.js since step C.)
 //
 // CANONICAL PROFILE EDITOR (2026-07-14, docs/UI-AUDIT.md section 5):
 // the standalone /profile PAGE (web/pages/profile.html) is the ONE place a user
@@ -27,7 +27,7 @@
 //
 // Depends on (from app.js): ws, myKey, myName, esc, generateIdenticon,
 //   roleBadge, peerData, isFriend, isFollowing, myFollowing, myFollowers,
-//   addSystemMessage, reRenderMessagesForBlockChange, rerenderUserList.
+//   addSystemMessage.
 
 /** Canonical local store for the network-facing profile. Also written by /profile. */
 const PROFILE_LS_KEY = 'humanity_profile';
@@ -169,7 +169,12 @@ function requestViewProfile(name, publicKey) {
   }
   // Request from server.
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'profile_request', name: name }));
+    // The owner's friendship pass, when we hold one, unlocks their friends-only
+    // fields (passes v2, chat-social.js; the relay checks it).
+    const req = { type: 'profile_request', name: name };
+    const pass = publicKey && typeof friendPassFor === 'function' ? friendPassFor(publicKey) : null;
+    if (pass) req.friend_cert = pass;
+    ws.send(JSON.stringify(req));
     // Show loading state.
     document.getElementById('view-profile-content').innerHTML =
       '<div style="color:var(--text-muted);font-style:italic;">Loading profile…</div>';
@@ -459,77 +464,11 @@ function closeViewProfileOverlay() {
   pendingProfileView = null;
 }
 
-// ── Block List (client-side) ──
-// Stores blocked usernames in localStorage; messages from blocked users are hidden
-// client-side without any server interaction (server never knows about blocks).
-function getBlockList() {
-  try { return JSON.parse(localStorage.getItem('humanity_blocks') || '[]'); }
-  catch { return []; }
-}
-function setBlockList(list) {
-  localStorage.setItem('humanity_blocks', JSON.stringify(list));
-}
-function isBlocked(name) {
-  return getBlockList().some(b => b.toLowerCase() === name.toLowerCase());
-}
+// (The block list moved to chat-privacy.js in step C, 2026-10-09: it is a list
+// of identity keys kept in the encrypted local store and synced between my
+// devices, replacing the old list of names in localStorage outright.)
 
-function blockUser(name) {
-  if (name.toLowerCase() === myName.toLowerCase()) {
-    addSystemMessage("You can't block yourself.");
-    return;
-  }
-  const list = getBlockList();
-  if (list.some(b => b.toLowerCase() === name.toLowerCase())) {
-    addSystemMessage(`${name} is already blocked.`);
-    return;
-  }
-  list.push(name);
-  setBlockList(list);
-  addSystemMessage(`🚫 Blocked ${name}. Their messages are now hidden.`);
-  reRenderMessagesForBlockChange();
-  rerenderUserList();
-}
-
-function unblockUser(name) {
-  const list = getBlockList();
-  const idx = list.findIndex(b => b.toLowerCase() === name.toLowerCase());
-  if (idx === -1) {
-    addSystemMessage(`${name} is not blocked.`);
-    return;
-  }
-  list.splice(idx, 1);
-  setBlockList(list);
-  addSystemMessage(`✅ Unblocked ${name}.`);
-  reRenderMessagesForBlockChange();
-  rerenderUserList();
-}
-
-function showBlockList() {
-  const list = getBlockList();
-  if (list.length === 0) {
-    addSystemMessage('No blocked users.');
-  } else {
-    addSystemMessage('🚫 Blocked users: ' + list.join(', '));
-  }
-}
-
-/** Re-filter visible messages after a block/unblock change. */
-function reRenderMessagesForBlockChange() {
-  const container = document.getElementById('messages');
-  const msgs = container.querySelectorAll('.message[data-from]');
-  msgs.forEach(el => {
-    const authorEl = el.querySelector('.author');
-    if (!authorEl) return;
-    const authorName = authorEl.dataset.username;
-    if (authorName && isBlocked(authorName)) {
-      el.style.display = 'none';
-    } else {
-      el.style.display = '';
-    }
-  });
-}
-
-// ── Seed Phrase (BIP39) UI ──
+// ── Recovery Phrase (BIP39) UI ──
 // Goal: let users back up and restore their Ed25519 identity using a standard
 // 24-word BIP39 mnemonic, writeable on paper, hardware-wallet compatible.
 
@@ -544,11 +483,11 @@ async function openSeedPhraseModal() {
   try {
     mnemonic = await generateMnemonic();
   } catch (e) {
-    addSystemMessage('⚠️ Seed phrase unavailable, ' + e.message);
+    addSystemMessage('⚠️ Recovery phrase unavailable, ' + e.message);
     return;
   }
   if (!mnemonic) {
-    addSystemMessage('⚠️ Seed phrase unavailable, key may be non-extractable.');
+    addSystemMessage('⚠️ Recovery phrase unavailable, key may be non-extractable.');
     return;
   }
 
@@ -559,7 +498,7 @@ async function openSeedPhraseModal() {
 
   overlay.innerHTML = `
     <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-2xl);width:100%;max-width:600px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text);max-height:90vh;overflow-y:auto">
-      <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🌱 Identity Seed Phrase (24 words)</h2>
+      <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🔑 Account Recovery Phrase (24 words)</h2>
       <p style="font-size:.76rem;color:var(--text-muted);line-height:1.5;margin:0 0 var(--space-xl)">
         These 24 words <em>are</em> your identity, anyone who has them can use your account.
         Store at least one copy somewhere safe. <strong style="color:var(--danger)">Never photograph this screen.</strong>
@@ -671,7 +610,7 @@ function openRestoreFromMnemonicModal() {
 
   overlay.innerHTML = `
     <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-2xl);width:100%;max-width:540px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text);max-height:90vh;overflow-y:auto">
-      <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🌱 Restore from Seed Phrase</h2>
+      <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🔑 Restore from Recovery Phrase</h2>
       <p style="font-size:.78rem;color:var(--text-muted);line-height:1.5;margin:0 0 var(--space-xl)">
         ${myIdentity && myIdentity.canSign ? '<strong style="color:var(--danger)">This will permanently replace your current identity on this device.</strong>' : 'Restore your identity using one of the two methods below:'}
       </p>
@@ -765,11 +704,11 @@ async function doRestoreFromMnemonic() {
 }
 
 /**
- * Confirm-then-reveal wrapper for the seed phrase.
+ * Confirm-then-reveal wrapper for the recovery phrase.
  *
  * openSeedPhraseModal() paints all 24 words the instant it opens, which is the
  * last thing you want from a stray click while screen-sharing or streaming. The
- * permanent entry points (the Account & Identity menu button and the /seed
+ * permanent entry points (the Account & Identity menu button and the /recovery
  * command) therefore route through this guard. Onboarding step 4 still calls the
  * modal directly, because there the user is deliberately in a set-up-my-backups
  * flow and has just been told what the words are for.
@@ -778,7 +717,7 @@ async function doRestoreFromMnemonic() {
  */
 async function confirmRevealSeedPhrase() {
   if (!await holdConfirm(
-    'Reveal your 24-word seed phrase?\n\n' +
+    'Reveal your 24-word recovery phrase?\n\n' +
     'Anyone who reads these words controls your identity permanently.\n' +
     'Make sure you are NOT screen-sharing, streaming, or being recorded.',
     { seconds: 5 }
@@ -907,18 +846,18 @@ function openRestoreIdentityModal() {
  * Open the phone camera and scan for a QR code. Resolves the decoded string via
  * onResult. Uses the built-in BarcodeDetector (Android Chrome + most mobile
  * browsers); if it's unavailable (e.g. iOS Safari) it falls back with a clear
- * message pointing at the Paste / Seed-phrase methods.
+ * message pointing at the Paste / Recovery-phrase methods.
  */
 async function scanQrWithCamera(onResult) {
   if (!('BarcodeDetector' in window)) {
-    alert('This browser can\'t scan QR codes directly. Use "Paste identity code" or "Seed phrase" instead.');
+    alert('This browser can\'t scan QR codes directly. Use "Paste identity code" or "Recovery phrase" instead.');
     return;
   }
   let stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
   } catch (e) {
-    alert('Camera access was denied. Use "Paste identity code" or "Seed phrase" instead.');
+    alert('Camera access was denied. Use "Paste identity code" or "Recovery phrase" instead.');
     return;
   }
   const overlay = document.createElement('div');
@@ -1005,13 +944,13 @@ function openLinkThisDeviceModal() {
       ${groupLabel('Fully become this identity (recommended)')}
       ${method('📷', 'Scan a QR code', 'Fastest, no typing. Gets everything incl. DMs.', 'Needs your other device to show its identity QR + a camera here.', 'ltd-scan')}
       ${method('📋', 'Paste identity code', 'Works on any browser.', 'Copy the code text from your other device\'s "Show my identity" screen.', 'ltd-paste')}
-      ${method('🌱', 'Enter seed phrase', 'From your written 24-word backup; no other device needed.', 'You type/paste 24 words.', 'ltd-seed')}
+      ${method('🔑', 'Enter recovery phrase', 'From your written 24-word backup; no other device needed.', 'You type/paste 24 words.', 'ltd-seed')}
       ${method('💾', 'Encrypted backup file', 'A file you saved, protected by your passphrase.', 'You transfer the file to this device first.', 'ltd-file')}
       ${groupLabel('Companion device (keep this device\'s own key)')}
       <p style="font-size:.72rem;color:var(--text-muted);line-height:1.5;margin:0 0 var(--space-sm)">
         On your other device type <code style="color:var(--accent)">/link</code> in chat to get a one-time code, then enter it here. This device shows under your name and can post + upload, but keeps its own key (it can't read your private DMs).
       </p>
-      ${method('🔗', 'Enter a link code', 'No seed or QR needed.', 'Get the code by typing /link on your other device (5-minute, one-time).', 'ltd-code')}
+      ${method('🔗', 'Enter a link code', 'No recovery phrase or QR code needed.', 'Get the code by typing /link on your other device (5-minute, one-time).', 'ltd-code')}
       <div style="text-align:right;margin-top:var(--space-md)">
         <button onclick="document.getElementById('link-this-device-overlay').remove()"
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Close</button>
@@ -1036,7 +975,7 @@ function openLinkThisDeviceModal() {
  * name by redeeming a one-time /link code from your other device. The relay copies
  * your role to this device's key (so it can upload), but because DMs are
  * end-to-end encrypted to a specific key, this device won't read your existing
- * DMs (use "Enter seed phrase" / QR for that). Reconnects so the code rides the
+ * DMs (use "Enter recovery phrase" / QR for that). Reconnects so the code rides the
  * identify message (app.js consumes `pendingLinkCode`).
  */
 function linkThisDeviceWithCode() {
@@ -1178,32 +1117,6 @@ async function doRemoveKeyProtection() {
 // deleted in Inc5b/v0.265 and no caller remained, so the modal sent an ignored
 // message yet swapped the local key regardless, a desync hazard. In-app key
 // replacement now lives in the native Settings "Replace Identity" flow.)
-
-/** Force re-render user list with updated block indicators. */
-function rerenderUserList() {
-  const list = document.getElementById('peer-list');
-  const peers = list.querySelectorAll('.peer[data-username]');
-  peers.forEach(el => {
-    const name = el.dataset.username;
-    if (!name) return;
-    const blocked = isBlocked(name);
-    let indicator = el.querySelector('.block-indicator');
-    if (blocked && !indicator) {
-      const span = document.createElement('span');
-      span.className = 'block-indicator';
-      span.innerHTML = ' ' + hosIcon('block', 14);
-      span.title = 'Blocked';
-      span.style.fontSize = '0.65rem';
-      el.appendChild(span);
-      el.style.textDecoration = 'line-through';
-      el.style.opacity = '0.5';
-    } else if (!blocked && indicator) {
-      indicator.remove();
-      el.style.textDecoration = '';
-      if (el.style.opacity === '') el.removeAttribute('style');
-    }
-  });
-}
 
 // ── System Info ──────────────────────────────────────────────────────────────
 // Detects hardware/OS via browser APIs, lets users add overrides, and provides

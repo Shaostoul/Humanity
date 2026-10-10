@@ -761,6 +761,11 @@
       "date": "2026-10-09",
       "decision": "Step D (reports the admins can check, design 10e) merged from three parallel worktrees, released as v0.1469.0: report_v2 signed by the reporter over a pinned preimage with a BLAKE3 evidence hash; DM evidence checked by the relay against the target signature over the DM v2 inner words; posts looked up; group text unproven; Reports for admins and mods (mods never see the reporter); decisions through the moderation rules; 90-day cull after decision. Also the outside-help findings (18 countries, dated, quoted), the desktop built-in copy of report_reasons.json, and moderators spelled either way see Reports.",
       "why": "The operator: protect the users. A web builder noticed a DM carrying an encrypted file holds its key in the text; a report could hand an admin the means to open abuse imagery, which is itself a crime to view or pass on. Since the signature covers the text, such messages can never be evidence: refused by the relay and offered by neither client (marker matched in any version). The underlying legal duties of a server operator on such a report are logged in PRIORITIES for a dated findings document."
+    },
+    {
+      "date": "2026-10-10",
+      "decision": "Step E (our own STUN and the room-scoped call forwarder, design 10f) merged from three parallel worktrees, released as v0.1470.0: one UDP port with a rate-limited STUN responder and a closed TURN forwarder whose relayed addresses are virtual and which delivers only between allocations of the same room; call_credentials over the signed-in socket; both clients connect calls and rooms relay only, Google removed everywhere (a native lint scans src, web and app/web), group mesh and contact channels off, direct offers answered only from own devices.",
+      "why": "The operator approved it (Do we have to go through Google? and Let us do this). The forwarder cannot reach any outside address, which is what made the 2026-08-07 reflector possible. Calls stay unavailable, said plainly, until the operator opens UDP 3478 with the command in docs/admin/call-forwarder.md; the AI does not change firewall settings."
     }
   ],
   "active_scopes_to_avoid": [

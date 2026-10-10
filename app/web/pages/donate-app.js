@@ -1,17 +1,25 @@
 /**
- * Donate page logic, fetches funding config, renders source cards
- * dynamically from the flexible addresses array (or legacy sources),
- * queries blockchain balances client-side, animates progress bar.
+ * Donate page logic. Mirrors the desktop app's Donate page
+ * (src/gui/pages/donate.rs) and reads the same data files, which
+ * tests/page_parity_lint.rs checks on both sides:
+ *
+ *   /data/donate/routes.json     the ways to give, shown first, in file order:
+ *                                the maintainer on Patreon (not tax-deductible)
+ *                                and the nonprofit Sponsor-a-Can (tax-deductible),
+ *                                each with one plain sentence saying where the
+ *                                money goes
+ *   /data/donate/methods.json    more direct links to the maintainer
+ *   /data/donate/charities.json  charities the maintainer endorses
+ *   /data/donate/faq.json        the FAQ
+ *
+ * plus the connected server's funding block from /api/server-info (its goal
+ * and any addresses it lists). Entries with no link or address are not shown,
+ * the same as native: a "coming soon" card is a dead end for someone trying to
+ * give. There is no "raised so far" figure, because nothing tracks one; the
+ * goal is shown on its own, as native does.
  */
 (function () {
   'use strict';
-
-  const CACHE_KEY = 'hos_donate_cache';
-  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-  // ── State ──
-  let fundingConfig = null;
-  let totals = { total: 0 };
 
   // ── Network icon colors for the colored-circle abbreviation display ──
   var networkColors = {
@@ -101,24 +109,56 @@
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
-  // ── Progress bar ──
-
-  function updateProgressBar(raised, goal) {
-    var section = document.getElementById('progress-section');
-    if (!goal || goal <= 0) { section.style.display = 'none'; return; }
-    section.style.display = '';
-
-    var pct = Math.min((raised / goal) * 100, 100);
-    document.getElementById('progress-raised').textContent = fmtUSD(raised);
-    document.getElementById('progress-goal').textContent = fmtUSD(goal);
-    document.getElementById('progress-pct').textContent = pct.toFixed(1) + '%';
-
-    requestAnimationFrame(function () {
-      document.getElementById('progress-fill').style.width = pct + '%';
-    });
+  /** Colored circle with a short abbreviation, the icon every card uses. */
+  function iconHtml(abbrev, color) {
+    return '<span class="source-icon" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:' + escHtml(color) + ';color:#fff;font-size:0.7rem;font-weight:700;flex-shrink:0;">' + escHtml(abbrev) + '</span>';
   }
 
-  // ── Dynamic address card rendering (new flexible format) ──
+  /** Fetch one data file and return the named array (empty on any failure). */
+  async function loadList(path, key) {
+    try {
+      var resp = await fetch(path, { cache: 'no-cache' });
+      var json = await resp.json();
+      return (json && Array.isArray(json[key])) ? json[key] : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /** Compare links loosely: case, a trailing slash and http/https do not make two different links. */
+  function sameLink(a, b) {
+    function norm(u) { return String(u || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, ''); }
+    return norm(a) !== '' && norm(a) === norm(b);
+  }
+
+  // ── Ways to give (data/donate/routes.json) ──
+
+  function renderRoutes(routes) {
+    var section = document.getElementById('routes-section');
+    var grid = document.getElementById('routes-grid');
+    grid.innerHTML = '';
+    routes.forEach(function (r) {
+      if (!r || !String(r.name || '').trim() || !String(r.url || '').trim()) return;
+      var card = document.createElement('div');
+      card.className = 'route-card';
+      var abbrev = r.abbrev || networkAbbrev(r.name);
+      var color = r.color || networkColor(r.name);
+      card.innerHTML =
+        '<h3>' + iconHtml(abbrev, color) + ' ' + escHtml(r.name) + '</h3>' +
+        (r.kind ? '<div class="route-kind">' + escHtml(r.kind) + '</div>' : '') +
+        '<div class="tax-badge' + (r.tax_deductible ? ' yes' : '') + '">' +
+          (r.tax_deductible ? 'Tax-deductible' : 'Not tax-deductible') + '</div>' +
+        (r.about ? '<p class="route-about">' + escHtml(r.about) + '</p>' : '') +
+        '<p class="route-goes">' + escHtml(r.goes_to || '') + '</p>' +
+        (r.note ? '<div class="route-note">' + escHtml(r.note) + '</div>' : '') +
+        '<div class="route-action"><a href="' + escHtml(r.url) + '" target="_blank" rel="noopener" class="btn-sponsor">' + escHtml(r.button || 'Open') + '</a>' +
+        '<span class="route-url">' + escHtml(r.url) + '</span></div>';
+      grid.appendChild(card);
+    });
+    section.style.display = grid.children.length ? '' : 'none';
+  }
+
+  // ── More direct links + the server's addresses ──
 
   function renderAddressCards(addresses) {
     var grid = document.getElementById('source-grid');
@@ -131,31 +171,21 @@
       var abbrev = entry.abbrev || networkAbbrev(entry.network);
       var color = entry.color || networkColor(entry.network);
       var label = entry.label || '';
-      var value = entry.value || '';
-      var hasValue = value && value.length > 0;
-
-      // Icon: colored circle with abbreviation
-      var iconHtml = '<span class="source-icon" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:' + color + ';color:#fff;font-size:0.7rem;font-weight:700;flex-shrink:0;">' + escHtml(abbrev) + '</span>';
+      var value = entry.value;
 
       if (entry.type === 'url') {
-        // URL-based source (e.g. GitHub Sponsors)
         card.innerHTML =
-          '<h3>' + iconHtml + ' ' + escHtml(entry.network) + '</h3>' +
+          '<h3>' + iconHtml(abbrev, color) + ' ' + escHtml(entry.network) + '</h3>' +
           '<p>' + escHtml(label) + '</p>' +
-          (hasValue
-            ? '<a href="' + escHtml(value) + '" target="_blank" rel="noopener" class="btn-sponsor">Open</a>'
-            : '<div class="coming-soon">Link coming soon</div>');
+          '<a href="' + escHtml(value) + '" target="_blank" rel="noopener" class="btn-sponsor">Open</a>';
       } else {
         // Address-based source (crypto address)
-        var qrId = 'qr-addr-' + idx;
         card.innerHTML =
-          '<h3>' + iconHtml + ' ' + escHtml(entry.network) + '</h3>' +
+          '<h3>' + iconHtml(abbrev, color) + ' ' + escHtml(entry.network) + '</h3>' +
           '<p>' + escHtml(label) + '</p>' +
-          (hasValue
-            ? '<div class="addr-row"><span class="addr-text">' + escHtml(value) + '</span>' +
-              '<button class="btn-copy" onclick="window.__donateCopy(\'' + escHtml(value) + '\', this)">Copy</button></div>' +
-              '<div class="qr-container" id="' + qrId + '"></div>'
-            : '<div class="coming-soon">Address coming soon</div>');
+          '<div class="addr-row"><span class="addr-text">' + escHtml(value) + '</span>' +
+          '<button class="btn-copy" onclick="window.__donateCopy(\'' + escHtml(value) + '\', this)">Copy</button></div>' +
+          '<div class="qr-container" id="qr-addr-' + idx + '"></div>';
       }
 
       grid.appendChild(card);
@@ -163,7 +193,7 @@
 
     // Render QR codes after cards are in the DOM
     addresses.forEach(function (entry, idx) {
-      if (entry.type === 'address' && entry.value) {
+      if (entry.type === 'address') {
         var qrEl = document.getElementById('qr-addr-' + idx);
         if (qrEl) {
           // Prefix with protocol for Bitcoin-style URI
@@ -177,296 +207,99 @@
     });
   }
 
-  // ── Legacy source card rendering (backward compatible) ──
-
-  function renderSourceCards(sources) {
-    var grid = document.getElementById('source-grid');
-    grid.innerHTML = '';
-
-    sources.forEach(function (src) {
-      var card = document.createElement('div');
-      card.className = 'source-card';
-
-      if (src.type === 'github_sponsors') {
-        card.innerHTML =
-          '<h3><span class="source-icon" style="color:#c678dd;">&#x1F49C;</span> GitHub Sponsors</h3>' +
-          '<p>Recurring monthly support for full-time open-source development.</p>' +
-          '<div class="fee-tag">0% fees, GitHub covers processing</div>' +
-          '<a href="' + escHtml(src.url || 'https://github.com/sponsors/Shaostoul') + '" target="_blank" rel="noopener" class="btn-sponsor">' +
-            '&#x2764; Sponsor on GitHub</a>';
-      } else if (src.type === 'solana') {
-        var solAddr = src.address || '';
-        var hasAddr = solAddr && solAddr !== 'Coming soon';
-        card.innerHTML =
-          '<h3><span class="source-icon">&#x25CE;</span> Solana (SOL / USDC)</h3>' +
-          '<p>Near-zero fees. Your wallet comes from the same 24-word seed phrase as your HumanityOS identity.</p>' +
-          '<div class="fee-tag">~0% fees</div>' +
-          (hasAddr
-            ? '<div class="addr-row"><span class="addr-text">' + escHtml(solAddr) + '</span>' +
-              '<button class="btn-copy" onclick="window.__donateCopy(\'' + escHtml(solAddr) + '\', this)">Copy</button></div>' +
-              '<div class="qr-container" id="qr-solana"></div>'
-            : '<div class="coming-soon">Address coming soon</div>');
-      } else if (src.type === 'bitcoin') {
-        var btcAddr = src.address || '';
-        var hasBtc = btcAddr && btcAddr !== 'Coming soon';
-        card.innerHTML =
-          '<h3><span class="source-icon">&#x20BF;</span> Bitcoin</h3>' +
-          '<p>Largest crypto network. Ideological reach and universal recognition.</p>' +
-          '<div class="fee-tag">Network fee only</div>' +
-          (hasBtc
-            ? '<div class="addr-row"><span class="addr-text">' + escHtml(btcAddr) + '</span>' +
-              '<button class="btn-copy" onclick="window.__donateCopy(\'' + escHtml(btcAddr) + '\', this)">Copy</button></div>' +
-              '<div class="qr-container" id="qr-bitcoin"></div>'
-            : '<div class="coming-soon">Address coming soon</div>');
-      }
-
-      grid.appendChild(card);
-    });
-
-    // Render QR codes after cards are in the DOM
-    sources.forEach(function (src) {
-      if (src.type === 'solana' && src.address && src.address !== 'Coming soon') {
-        var qrEl = document.getElementById('qr-solana');
-        if (qrEl) renderQR(qrEl, src.address);
-      }
-      if (src.type === 'bitcoin' && src.address && src.address !== 'Coming soon') {
-        var qrEl = document.getElementById('qr-bitcoin');
-        if (qrEl) renderQR(qrEl, 'bitcoin:' + src.address);
-      }
-    });
-  }
-
-  // ── Breakdown (works with both formats) ──
-
-  function renderBreakdown(entries) {
-    var section = document.getElementById('breakdown-section');
-    var rows = document.getElementById('breakdown-rows');
-    rows.innerHTML = '';
-
-    entries.forEach(function (entry) {
-      // Determine label: new format uses .network, legacy uses type-based labels
-      var label = entry.network || entry.label || entry.type || 'Unknown';
-      var row = document.createElement('div');
-      row.className = 'breakdown-row';
-      row.innerHTML =
-        '<span class="label">' + escHtml(label) + '</span>' +
-        '<span class="value">' + fmtUSD(0) + '</span>';
-      rows.appendChild(row);
-    });
-
-    // Total row
-    var totalRow = document.createElement('div');
-    totalRow.className = 'breakdown-row';
-    totalRow.innerHTML =
-      '<span class="label" style="font-weight:600;color:var(--text);">Total</span>' +
-      '<span class="value" style="color:var(--accent);">' + fmtUSD(totals.total) + '</span>';
-    rows.appendChild(totalRow);
-
+  /**
+   * The server's goal, shown as an amount and its label with no progress bar,
+   * the same as native. Until 2026-10-04 this page drew "$0 raised" against the
+   * goal, and $0 beside every source, because the only thing it could total was
+   * crypto balances and no address is configured; native had already dropped
+   * that figure as made up.
+   */
+  function renderGoal(funding) {
+    var section = document.getElementById('goal-section');
+    var goal = funding && Number(funding.goal_usd);
+    if (!goal || goal <= 0) { section.style.display = 'none'; return false; }
+    document.getElementById('goal-amount').textContent = fmtUSD(goal);
+    document.getElementById('goal-label').textContent = funding.goal_label || '';
     section.style.display = '';
-  }
-
-  // ── Blockchain balance queries ──
-
-  async function fetchSolanaBalance(address) {
-    if (!address) return 0;
-    try {
-      var resp = await fetch('https://api.mainnet-beta.solana.com', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0', id: 1,
-          method: 'getBalance',
-          params: [address]
-        })
-      });
-      var data = await resp.json();
-      var lamports = (data.result && data.result.value) || 0;
-      var sol = lamports / 1e9;
-
-      var priceResp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
-      var priceData = await priceResp.json();
-      var solPrice = (priceData.solana && priceData.solana.usd) || 0;
-
-      return sol * solPrice;
-    } catch (e) {
-      return 0;
-    }
-  }
-
-  async function fetchBitcoinBalance(address) {
-    if (!address) return 0;
-    try {
-      var resp = await fetch('https://mempool.space/api/address/' + address);
-      var data = await resp.json();
-      var funded = (data.chain_stats && data.chain_stats.funded_txo_sum) || 0;
-      var spent = (data.chain_stats && data.chain_stats.spent_txo_sum) || 0;
-      var btc = (funded - spent) / 1e8;
-
-      var priceResp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
-      var priceData = await priceResp.json();
-      var btcPrice = (priceData.bitcoin && priceData.bitcoin.usd) || 0;
-
-      return btc * btcPrice;
-    } catch (e) {
-      return 0;
-    }
-  }
-
-  // ── Cache ──
-
-  function loadCache() {
-    try {
-      var raw = localStorage.getItem(CACHE_KEY);
-      if (!raw) return null;
-      var cached = JSON.parse(raw);
-      if (Date.now() - cached.timestamp > CACHE_TTL) return null;
-      return cached;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  function saveCache(data) {
-    try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify({
-        timestamp: Date.now(),
-        totals: data
-      }));
-    } catch (e) { /* quota exceeded or private mode */ }
+    return true;
   }
 
   // ── Charities the maintainer endorses (data/donate/charities.json) ──
   // Independent nonprofits, not HumanityOS funding. Rendered into their own grid.
 
-  async function renderCharities() {
+  function renderCharities(list) {
+    var section = document.getElementById('charities-section');
     var grid = document.getElementById('charities-grid');
-    if (!grid) return;
-    var list = [];
-    try {
-      var resp = await fetch('/data/donate/charities.json', { cache: 'no-cache' });
-      var json = await resp.json();
-      if (json && Array.isArray(json.charities)) list = json.charities;
-    } catch (e) { /* optional; leave the section empty if absent */ }
     grid.innerHTML = '';
     list.forEach(function (c) {
       if (!c || !c.name) return;
-      var color = c.color || '#4a9';
       var abbrev = c.abbrev || c.name.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase();
-      var iconHtml = '<span class="source-icon" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:' + color + ';color:#fff;font-size:0.7rem;font-weight:700;flex-shrink:0;">' + escHtml(abbrev) + '</span>';
       var card = document.createElement('div');
       card.className = 'source-card';
       card.innerHTML =
-        '<h3>' + iconHtml + ' ' + escHtml(c.name) + '</h3>' +
+        '<h3>' + iconHtml(abbrev, c.color || '#4a9') + ' ' + escHtml(c.name) + '</h3>' +
         '<p>' + escHtml(c.mission || '') + '</p>' +
-        (c.note ? '<div class="coming-soon" style="font-style:normal;color:var(--text-muted);">' + escHtml(c.note) + '</div>' : '') +
+        (c.note ? '<p>' + escHtml(c.note) + '</p>' : '') +
         (c.url ? '<a href="' + escHtml(c.url) + '" target="_blank" rel="noopener" class="btn-sponsor">Donate</a>' : '');
       grid.appendChild(card);
     });
+    section.style.display = grid.children.length ? '' : 'none';
   }
 
-  // ── Fetch totals (works with both new addresses and legacy sources) ──
+  // ── FAQ (data/donate/faq.json) ──
 
-  async function fetchTotals(addresses) {
-    var cached = loadCache();
-    if (cached && cached.totals) {
-      totals = cached.totals;
-      return;
-    }
-
-    var total = 0;
-
-    for (var i = 0; i < addresses.length; i++) {
-      var entry = addresses[i];
-      var addr = entry.value || entry.address || '';
-      if (!addr) continue;
-
-      var netLower = (entry.network || entry.type || '').toLowerCase();
-      if (netLower.includes('solana') || entry.type === 'solana') {
-        var bal = await fetchSolanaBalance(addr);
-        total += bal;
-      } else if (netLower.includes('bitcoin') || entry.type === 'bitcoin') {
-        var bal = await fetchBitcoinBalance(addr);
-        total += bal;
-      }
-    }
-
-    totals.total = total;
-    saveCache(totals);
+  function renderFaq(entries) {
+    var section = document.getElementById('faq-section');
+    var list = document.getElementById('faq-list');
+    list.innerHTML = '';
+    entries.forEach(function (e) {
+      if (!e || !e.question) return;
+      var item = document.createElement('div');
+      item.className = 'faq-item';
+      item.innerHTML =
+        '<div class="faq-q">' + escHtml(e.question) + '</div>' +
+        '<div class="faq-a">' + escHtml(e.answer || '') + '</div>';
+      item.querySelector('.faq-q').addEventListener('click', function () { item.classList.toggle('open'); });
+      list.appendChild(item);
+    });
+    section.style.display = list.children.length ? '' : 'none';
   }
-
-  // ── Default config ──
-
-  var defaultConfig = {
-    goal_usd: 100000,
-    goal_label: 'Full-time development for 1 year',
-    addresses: [
-      { network: 'GitHub Sponsors', type: 'url', value: 'https://github.com/sponsors/Shaostoul', label: 'Recurring or one-time' },
-      { network: 'Solana (SOL)', type: 'address', value: '', label: 'Send SOL or SPL tokens' },
-      { network: 'Bitcoin (BTC)', type: 'address', value: '', label: 'Send BTC' }
-    ],
-    display_progress: true
-  };
 
   // ── Init ──
 
   async function init() {
+    var funding = null;
     try {
       var resp = await fetch('/api/server-info');
       var info = await resp.json();
-      fundingConfig = (info && info.funding) ? info.funding : defaultConfig;
-    } catch (e) {
-      fundingConfig = defaultConfig;
+      funding = (info && info.funding) ? info.funding : null;
+    } catch (e) { /* offline or no relay: the data files below still render */ }
+
+    var routes = await loadList('/data/donate/routes.json', 'routes');
+    renderRoutes(routes);
+
+    // More direct links first (data/donate/methods.json), then the server's
+    // addresses, de-duped by network name and by link, and never repeating a
+    // route that already has its own card above. Native's build_donation_sources
+    // applies the same three rules.
+    var entries = [];
+    var seenNetwork = {};
+    function add(e) {
+      if (!e || !e.network || !String(e.value || '').trim()) return;
+      if (seenNetwork[e.network.toLowerCase()]) return;
+      if (routes.some(function (r) { return sameLink(r.url, e.value); })) return;
+      if (entries.some(function (x) { return sameLink(x.value, e.value); })) return;
+      seenNetwork[e.network.toLowerCase()] = true;
+      entries.push(e);
     }
+    (await loadList('/data/donate/methods.json', 'methods')).forEach(add);
+    if (funding && Array.isArray(funding.addresses)) funding.addresses.forEach(add);
+    renderAddressCards(entries);
+    var hasGoal = renderGoal(funding);
+    document.getElementById('direct-section').style.display = (entries.length || hasGoal) ? '' : 'none';
 
-    // Prefer new "addresses" array; fall back to legacy "sources"
-    var useNewFormat = Array.isArray(fundingConfig.addresses) && fundingConfig.addresses.length > 0;
-    var entries = useNewFormat ? fundingConfig.addresses : fundingConfig.sources;
-
-    if (!entries || entries.length === 0) {
-      entries = defaultConfig.addresses;
-      useNewFormat = true;
-    }
-
-    // Merge the direct-support link methods (data/donate/methods.json) into the
-    // grid, de-duped by network name so a server-config GitHub isn't doubled.
-    // Only in the new-format path (renderAddressCards handles url + address).
-    if (useNewFormat) {
-      try {
-        var mResp = await fetch('/data/donate/methods.json', { cache: 'no-cache' });
-        var mJson = await mResp.json();
-        if (mJson && Array.isArray(mJson.methods)) {
-          var have = {};
-          entries.forEach(function (e) { if (e.network) have[e.network.toLowerCase()] = true; });
-          mJson.methods.forEach(function (m) {
-            if (m && m.network && !have[m.network.toLowerCase()]) entries.push(m);
-          });
-        }
-      } catch (e) { /* methods.json is optional; ignore if absent */ }
-    }
-
-    // Render cards using appropriate renderer
-    if (useNewFormat) {
-      renderAddressCards(entries);
-    } else {
-      renderSourceCards(entries);
-    }
-
-    // Fetch balances
-    await fetchTotals(entries);
-
-    // Progress bar
-    if (fundingConfig.display_progress !== false) {
-      updateProgressBar(totals.total, fundingConfig.goal_usd || 100000);
-      if (fundingConfig.goal_label) {
-        document.getElementById('progress-goal-label').textContent = fundingConfig.goal_label;
-      }
-    }
-
-    // Breakdown
-    renderBreakdown(entries);
-
-    // Endorsed charities (independent of the maintainer-support entries above).
-    await renderCharities();
+    renderCharities(await loadList('/data/donate/charities.json', 'charities'));
+    renderFaq(await loadList('/data/donate/faq.json', 'entries'));
   }
 
   // Expose copy function for inline onclick handlers
