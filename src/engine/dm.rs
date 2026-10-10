@@ -638,12 +638,21 @@ pub(crate) fn withdraw_passes(gui_state: &mut GuiState, peer: &str) {
 /// Send `cert_revoke {serial}` for every withdrawal the relay has not confirmed yet. The relay
 /// answers each with `cert_revoked {serial}` (`withdrawal_confirmed` below); until then they are
 /// resent on every member list, so a withdrawal made offline is never lost.
-pub(crate) fn send_pending_withdrawals(gui_state: &GuiState) {
-    let Some(store) = gui_state.dm_store.as_ref() else { return };
-    let Some(ref client) = gui_state.ws_client else { return };
-    if !client.is_connected() {
+///
+/// 10o O5: the choice notes (and Unfollows) still waiting to go out go FIRST (engine/choice.rs
+/// `flush`), on every path that sends withdrawals (a note's arrival, an echo, `cert_revoked`,
+/// Block, a re-issue taken, the sweep), so my other devices hear the new choice before they hear
+/// that an old pass was withdrawn. The withdrawals go even when a note cannot go yet: taking
+/// consent back is never held up.
+pub(crate) fn send_pending_withdrawals(gui_state: &mut GuiState) {
+    if !gui_state.ws_client.as_ref().is_some_and(|c| c.is_connected()) {
         return;
     }
+    if gui_state.dm_store.as_ref().is_some_and(|s| !s.pending_choices().is_empty() || !s.pending_unfollows().is_empty()) {
+        crate::engine::choice::flush(gui_state);
+    }
+    let Some(store) = gui_state.dm_store.as_ref() else { return };
+    let Some(ref client) = gui_state.ws_client else { return };
     for serial in store.pending_withdrawals() {
         client.send(&serde_json::json!({ "type": "cert_revoke", "serial": serial }).to_string());
     }
@@ -709,16 +718,17 @@ pub(crate) fn sweep_friend_passes(gui_state: &mut GuiState) {
 }
 
 /// 10n N7: has this connection's mailbox been read to its last page and applied? The fetch goes
-/// out once per connection (`dm_fetch_sent`, reset with every new socket) and `dm_fetch_done` is
-/// set by its last page, so a new connection reads false until its own fetch is done.
+/// out once per connection (`dm_fetch`, reset with every new socket) and only its own last page,
+/// the one carrying its own ref (10o O1), counts it read: a new connection reads false until its
+/// own fetch is done, whatever pages my other devices' fetches bring it.
 pub(crate) fn mailbox_read(gui_state: &GuiState) -> bool {
-    gui_state.dm_fetch_sent && gui_state.dm_fetch_done
+    gui_state.dm_fetch.is_read()
 }
 
-/// The last page of this connection's mailbox has been read and applied (frame_ws_poll.rs, the
-/// `dm_batch` arm): the pass sweep that waited for it runs now (10n N7).
+/// The last page of this connection's own mailbox fetch has been read and applied
+/// (engine/mailbox.rs `on_batch`): the pass sweep that waited for it runs now (10n N7).
 pub(crate) fn on_mailbox_read(gui_state: &mut GuiState) {
-    gui_state.dm_fetch_done = true;
+    gui_state.dm_fetch.finish();
     sweep_friend_passes(gui_state);
 }
 
@@ -820,7 +830,8 @@ pub(crate) fn set_follow(gui_state: &mut GuiState, peer: &str, on: bool) {
             // time (10n, as the web chat does): my other devices clear it as of that same time
             // when its self-copy reaches them (`clear_choice_at`), so a choice made after it on
             // another device still wins on every device. Never dated before the choice it clears.
-            at = store.choose(peer, &crate::net::reach::intended_may_wire(crate::net::reach::FriendTicks::default()));
+            // Kept as the empty `may` (10o O6), which any note at the same time beats.
+            at = store.clear_choice_now(peer);
         }
         store.save();
     }

@@ -17,6 +17,7 @@
 //! rebuilds it from history if the user ever needs it.
 
 use crate::engine::state::EngineState;
+use crate::gui::GuiState;
 use crate::gui::pages::chat::norm_server_url;
 
 /// Per-frame tick: dial, drain, store, redial. `dt` drives the reconnect
@@ -317,15 +318,15 @@ fn redial_dropped(state: &mut EngineState) {
 /// On-demand — no cached handle on the connection struct: DM events are
 /// rare, the file is small, and only the ACTIVE server keeps a cached
 /// store on GuiState.
-fn bg_dm_store(state: &EngineState, ci: usize) -> Option<crate::net::dm_store::DmStore> {
-    let seed = state.gui_state.private_key_bytes.as_ref()?;
-    if state.gui_state.profile_public_key.is_empty() {
+fn bg_dm_store(gs: &GuiState, ci: usize) -> Option<crate::net::dm_store::DmStore> {
+    let seed = gs.private_key_bytes.as_ref()?;
+    if gs.profile_public_key.is_empty() {
         return None;
     }
-    let conn = state.gui_state.connections.get(ci)?;
+    let conn = gs.connections.get(ci)?;
     Some(crate::net::dm_store::DmStore::load(
         seed,
-        &state.gui_state.profile_public_key,
+        &gs.profile_public_key,
         &conn.url,
     ))
 }
@@ -339,23 +340,23 @@ fn bg_dm_store(state: &EngineState, ci: usize) -> Option<crate::net::dm_store::D
 /// list is the identity's, so a note that came by way of a parked server counts everywhere, and
 /// a block also takes back what we gave on that server), and anything from a key we blocked is
 /// dropped before it is listed or stored.
-fn bg_screen(state: &mut EngineState, store: &mut crate::net::dm_store::DmStore, inner: &crate::net::dm_pq::DmInner) -> bool {
-    if crate::engine::block::screens_dm_parked(&mut state.gui_state, store, inner) {
+fn bg_screen(gs: &mut GuiState, store: &mut crate::net::dm_store::DmStore, inner: &crate::net::dm_pq::DmInner) -> bool {
+    if crate::engine::block::screens_dm_parked(gs, store, inner) {
         return true;
     }
     // 10n: a choice note to ourselves is applied to that server's choice and passes, never shown.
-    if crate::engine::choice::screens_dm_parked(&mut state.gui_state, store, inner) {
+    if crate::engine::choice::screens_dm_parked(gs, store, inner) {
         return true;
     }
     if inner.text.starts_with(crate::net::reach::CONTACT_REQUEST_MARKER) {
         // The protected setup is the device's, so it holds on a parked server too (10h).
-        let may_complete = state.gui_state.protected.setup.pass_allowed(&inner.from);
-        crate::engine::reach::contact_request_in(store, &state.gui_state.profile_public_key, inner, may_complete);
+        let may_complete = gs.protected.setup.pass_allowed(&inner.from);
+        crate::engine::reach::contact_request_in(store, &gs.profile_public_key, inner, may_complete);
         return true;
     }
     // A report about a group (10j) waits in that server's store, checked once it is the active one.
     if crate::net::group_report::is_report_text(&inner.text) {
-        crate::engine::group_report::take_into(store, &state.gui_state.profile_public_key, inner);
+        crate::engine::group_report::take_into(store, &gs.profile_public_key, inner);
         return true;
     }
     crate::engine::reach::file_if_refused_in(store, inner)
@@ -364,7 +365,7 @@ fn bg_screen(state: &mut EngineState, store: &mut crate::net::dm_store::DmStore,
 /// Fold one verified sealed-sender DM into a parked connection's sidebar
 /// entry + message buffer (so unpark restores a current picture).
 fn bg_apply_dm(
-    state: &mut EngineState,
+    gs: &mut GuiState,
     ci: usize,
     inner: &crate::net::dm_pq::DmInner,
     is_from_me: bool,
@@ -375,7 +376,7 @@ fn bg_apply_dm(
     }
     // Resolve a display name from the parked server's roster.
     let display = {
-        let conn = &state.gui_state.connections[ci];
+        let conn = &gs.connections[ci];
         conn.users
             .iter()
             .find(|u| u.public_key == partner)
@@ -384,10 +385,10 @@ fn bg_apply_dm(
             .unwrap_or_else(|| partner.chars().take(8).collect())
     };
     let sender_display = if is_from_me {
-        if state.gui_state.user_name.is_empty() {
+        if gs.user_name.is_empty() {
             "You".to_string()
         } else {
-            state.gui_state.user_name.clone()
+            gs.user_name.clone()
         }
     } else {
         display.clone()
@@ -398,7 +399,7 @@ fn bg_apply_dm(
         inner.text.clone()
     };
     let ts_str = crate::gui::pages::chat::format_timestamp(inner.ts);
-    let conn = &mut state.gui_state.connections[ci];
+    let conn = &mut gs.connections[ci];
     if let Some(d) = conn.dms.iter_mut().find(|d| d.user_key == partner) {
         d.last_message = preview;
         d.timestamp = ts_str.clone();
@@ -426,6 +427,92 @@ fn bg_apply_dm(
     });
     while conn.messages.len() > 200 {
         conn.messages.remove(0);
+    }
+}
+
+/// Send a parked server's mailbox fetch, once per connection (its channel list arm), from its
+/// store's read position, with a fresh ref (10o O1).
+pub(crate) fn bg_begin_fetch(gs: &mut GuiState, ci: usize) {
+    let after_id = bg_dm_store(gs, ci).map(|s| s.high_water()).unwrap_or(0);
+    let conn = &mut gs.connections[ci];
+    let Some(ws) = conn.ws.as_ref() else { return };
+    if let Some(frame) = conn.mailbox.begin(after_id) {
+        ws.send(&frame.to_string());
+    }
+}
+
+/// A live `dm_new` on a parked server: no sender on the wire, so it is opened with our key and
+/// only the verified inner is trusted; screened (`bg_screen`), stored in that server's store and
+/// folded into its parked sidebar. It moves that store's read position only once this
+/// connection's own fetch is done (10o O1), so a backlog is never skipped. True when it should
+/// ding: a new message from someone else, DM notifications on (a person is a person, whichever
+/// relay carried them).
+pub(crate) fn bg_dm_new(gs: &mut GuiState, ci: usize, val: &serde_json::Value) -> bool {
+    let mail_id = val.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
+    let raw_env = val.get("content").and_then(|v| v.as_str()).unwrap_or("");
+    if raw_env.is_empty() {
+        return false;
+    }
+    let moves = gs.connections.get(ci).is_some_and(|c| c.mailbox.is_read());
+    let Some(mut store) = bg_dm_store(gs, ci) else { return false };
+    let mut fresh = None;
+    match crate::engine::dm::open_verify_dm(raw_env, gs) {
+        // Step B: a contact request, or a DM our settings there would refuse, goes to that
+        // server's Requests and is never stored as a message (nor is a note to ourselves).
+        Ok(inner) => {
+            if !bg_screen(gs, &mut store, &inner) && store.insert(&inner) {
+                fresh = Some(inner);
+            }
+        }
+        // Not ours, or spoofed: dropped. Once the fetch is done the read position still moves
+        // past it, so a poison envelope cannot wedge fetches.
+        Err(e) => log::warn!("Parked-server DM envelope {mail_id} dropped: {e}"),
+    }
+    if moves {
+        store.set_high_water(mail_id);
+    }
+    store.save();
+    let Some(inner) = fresh else { return false }; // taken, or a duplicate (an echo, a refetch)
+    let is_from_me = inner.from == gs.profile_public_key;
+    bg_apply_dm(gs, ci, &inner, is_from_me);
+    !is_from_me && gs.notif_dm_enabled
+}
+
+/// A `dm_batch` page on a parked server. One carrying another ref, or none, is another of my
+/// devices' page and is ignored entirely (10o O1). One of ours fills that server's store, moves
+/// its read position to the page's last id and rebuilds the parked sidebar; then the next page is
+/// asked for from there, or, on the last, the mailbox counts as read, so once this server is the
+/// active one its pass sweep may run (10n N7, carried by unpark).
+pub(crate) fn bg_dm_batch(gs: &mut GuiState, ci: usize, val: &serde_json::Value) {
+    let Some(page) = gs.connections.get_mut(ci).map(|c| c.mailbox.page(val)) else { return };
+    let crate::net::mailbox_fetch::Page::Own { last_id, next, read } = page else { return };
+    let Some(mut store) = bg_dm_store(gs, ci) else { return };
+    let mut fresh: Vec<crate::net::dm_pq::DmInner> = Vec::new();
+    for m in val.get("messages").and_then(|v| v.as_array()).into_iter().flatten() {
+        let raw = m.get("content").and_then(|v| v.as_str()).unwrap_or("");
+        if raw.is_empty() {
+            continue;
+        }
+        if let Ok(inner) = crate::engine::dm::open_verify_dm(raw, gs) {
+            // Step B: a contact request, or a DM our settings there would refuse, goes to that
+            // server's Requests instead.
+            if !bg_screen(gs, &mut store, &inner) && store.insert(&inner) {
+                fresh.push(inner);
+            }
+        }
+    }
+    store.set_high_water(last_id);
+    store.save();
+    let me = gs.profile_public_key.clone();
+    for inner in &fresh {
+        bg_apply_dm(gs, ci, inner, inner.from == me);
+    }
+    let conn = &mut gs.connections[ci];
+    if let (Some(next), Some(ws)) = (next, conn.ws.as_ref()) {
+        ws.send(&next.to_string());
+    }
+    if read {
+        conn.mailbox.finish();
     }
 }
 
@@ -534,19 +621,10 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
                     .map(|c| c.id.clone())
                     .collect();
                 // Sealed-sender DMs: channel_list only arrives on a bound
-                // socket, so fetch this parked server's mailbox too. The
-                // high-water mark lives in the per-server local store.
-                let after_id = bg_dm_store(state, ci)
-                    .map(|s| s.high_water())
-                    .unwrap_or(0);
-                let conn = &mut state.gui_state.connections[ci];
-                if let Some(ws) = conn.ws.as_ref() {
-                    ws.send(
-                        &serde_json::json!({ "type": "dm_fetch", "after_id": after_id })
-                            .to_string(),
-                    );
-                    conn.mailbox = (true, false); // 10n N7: read once its last page is in
-                }
+                // socket, so fetch this parked server's mailbox too, with a
+                // fresh ref (10o O1). The high-water mark lives in the
+                // per-server local store; its sweep waits for the last page.
+                bg_begin_fetch(&mut state.gui_state, ci);
             }
         }
         Some("chat") => {
@@ -643,105 +721,20 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
                 conn.messages.remove(0);
             }
         }
+        // Sealed-sender DMs on a parked server: only its own fetch pages count, and a live DM moves
+        // its read position only once that fetch is done (10o O1).
         Some("dm_new") => {
-            // Sealed-sender envelope on a parked server: no sender on the
-            // wire — decrypt with our key, trust only the verified inner.
-            let mail_id = val.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
-            let raw_env = val.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            if raw_env.is_empty() {
-                return;
-            }
-            match crate::engine::dm::open_verify_dm(&raw_env, &state.gui_state) {
-                Ok(inner) => {
-                    let Some(mut store) = bg_dm_store(state, ci) else { return };
-                    // Step B: a contact request, or a DM our settings there would refuse, goes
-                    // to that server's Requests and is never stored as a message.
-                    if bg_screen(state, &mut store, &inner) {
-                        store.set_high_water(mail_id);
-                        store.save();
-                        return;
-                    }
-                    let is_new = store.insert(&inner);
-                    store.set_high_water(mail_id);
-                    store.save();
-                    if !is_new {
-                        return; // duplicate (echo of our own send / refetch)
-                    }
-                    let is_from_me = inner.from == state.gui_state.profile_public_key;
-                    // DM ding even for a parked server: a person is a
-                    // person, whichever relay carried them.
-                    if !is_from_me && state.gui_state.notif_dm_enabled {
-                        state
-                            .pending_sfx
-                            .push(("sfx.chat_message", "audio/ui/chat_message.ogg"));
-                    }
-                    bg_apply_dm(state, ci, &inner, is_from_me);
-                }
-                Err(e) => {
-                    // Not ours / spoofed — drop, but keep the high-water
-                    // moving so a poison envelope can't wedge fetches.
-                    log::warn!("Parked-server DM envelope {mail_id} dropped: {e}");
-                    if let Some(mut store) = bg_dm_store(state, ci) {
-                        store.set_high_water(mail_id);
-                        store.save();
-                    }
-                }
+            if bg_dm_new(&mut state.gui_state, ci, &val) {
+                state.pending_sfx.push(("sfx.chat_message", "audio/ui/chat_message.ogg"));
             }
         }
-        Some("dm_batch") => {
-            // Mailbox page for a parked server: fill the local store, then
-            // rebuild the parked sidebar list from it.
-            let Some(mut store) = bg_dm_store(state, ci) else { return };
-            let mut last_id: i64 = 0;
-            let mut fresh: Vec<crate::net::dm_pq::DmInner> = Vec::new();
-            if let Some(msgs) = val.get("messages").and_then(|v| v.as_array()) {
-                for m in msgs {
-                    let id = m.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
-                    if id > last_id {
-                        last_id = id;
-                    }
-                    let raw = m.get("content").and_then(|v| v.as_str()).unwrap_or("");
-                    if raw.is_empty() {
-                        continue;
-                    }
-                    if let Ok(inner) = crate::engine::dm::open_verify_dm(raw, &state.gui_state) {
-                        // Step B: a contact request, or a DM our settings there would refuse,
-                        // goes to that server's Requests instead.
-                        if !bg_screen(state, &mut store, &inner) && store.insert(&inner) {
-                            fresh.push(inner);
-                        }
-                    }
-                }
-            }
-            store.set_high_water(last_id);
-            store.save();
-            let done = val.get("done").and_then(|v| v.as_bool()).unwrap_or(true);
-            let me = state.gui_state.profile_public_key.clone();
-            for inner in &fresh {
-                let is_from_me = inner.from == me;
-                bg_apply_dm(state, ci, inner, is_from_me);
-            }
-            if done {
-                // Its mailbox is read: once this server is the active one, its pass sweep may run
-                // (10n N7, carried by unpark).
-                state.gui_state.connections[ci].mailbox.1 = true;
-            } else {
-                let after_id = store.high_water();
-                let conn = &state.gui_state.connections[ci];
-                if let Some(ws) = conn.ws.as_ref() {
-                    ws.send(
-                        &serde_json::json!({ "type": "dm_fetch", "after_id": after_id })
-                            .to_string(),
-                    );
-                }
-            }
-        }
+        Some("dm_batch") => bg_dm_batch(&mut state.gui_state, ci, &val),
         // BUG-135: an erase confirmed after the person switched away from that server.
         Some("account_erased") => crate::engine::account_erase::on_parked_server(state, ci, &val),
         // Who can reach me there (step B, 2026-10-09): kept in that server's store, where its
         // "show as a request" rule and, once it is active again, the Safety page read it.
         Some("reach_settings") => {
-            if let (Some(settings), Some(mut store)) = (crate::net::reach::ReachSettings::from_frame(&val), bg_dm_store(state, ci)) {
+            if let (Some(settings), Some(mut store)) = (crate::net::reach::ReachSettings::from_frame(&val), bg_dm_store(&state.gui_state, ci)) {
                 store.set_reach_settings(settings);
                 store.save();
             }

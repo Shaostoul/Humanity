@@ -14288,7 +14288,7 @@ mod native_app {
                         state.gui_state.connected_server_url = address;
                         // Fresh socket: identify handshake not yet complete (v0.794).
                         state.gui_state.ws_identified = false;
-                        state.gui_state.dm_fetch_sent = false;
+                        state.gui_state.dm_fetch = Default::default();
                         state.gui_state.ws_status = "Connecting...".to_string();
                     }
 
@@ -14327,7 +14327,7 @@ mod native_app {
                             state.gui_state.connected_server_url = address;
                             // Fresh socket: identify handshake not yet complete (v0.794).
                             state.gui_state.ws_identified = false;
-                            state.gui_state.dm_fetch_sent = false;
+                            state.gui_state.dm_fetch = Default::default();
                             state.gui_state.ws_reconnect_attempts += 1;
                             // Clear the rate-limit guard now that we are actually retrying: if this
                             // attempt is throttled again, the system handler re-arms it. (v0.544)

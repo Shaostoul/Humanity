@@ -260,14 +260,17 @@ pub(crate) fn unblock(gs: &mut GuiState, key: &str) {
 
 /// What a block takes back on one server's store: every pass we gave them (their serials join
 /// the withdrawals waiting for the relay), our follow, our "People I choose" ticks for them
-/// (10c-ii: back to the defaults, so Unblock and a fresh friendship start clean), and their entry
-/// in Requests. True when anything changed (the caller saves).
+/// (10c-ii: cleared, so Unblock and a fresh friendship start clean, with any choice note for them
+/// still waiting to go out, 10o O4), an Unfollow of them still waiting (10o O3: nothing is sent to
+/// someone blocked, and the block's own note tells my other devices), and their entry in Requests.
+/// True when anything changed (the caller saves).
 pub(crate) fn enforce_on_store(store: &mut DmStore, key: &str) -> bool {
     let mut changed = !store.withdraw_passes_to(key).is_empty();
     if store.is_following(key) {
         store.set_following(key, false);
         changed = true;
     }
+    changed |= store.drop_pending_unfollow(key);
     changed |= store.clear_ticks(key);
     changed | store.remove_request(key).is_some()
 }
@@ -446,7 +449,7 @@ mod tests {
         gs.dm_store = Some(store);
         gs.block_list = Some(BlockList::in_temp(seed, me, tag));
         // This connection's mailbox has been read (10n N7), so the pass sweep runs.
-        (gs.dm_fetch_sent, gs.dm_fetch_done) = (true, true);
+        gs.dm_fetch = crate::net::mailbox_fetch::MailboxFetch::already_read();
         gs
     }
 

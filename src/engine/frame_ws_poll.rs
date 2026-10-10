@@ -416,26 +416,11 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         // Sealed-sender DMs: channel_list only arrives on a
                         // BOUND socket (post identify-challenge), so this is
                         // the reliable moment to fetch our mailbox. Once per
-                        // connection; the high-water mark lives in the local
-                        // encrypted store.
-                        if !state.gui_state.dm_fetch_sent {
-                            crate::engine::dm::ensure_dm_store(&mut state.gui_state);
-                            let after_id = state
-                                .gui_state
-                                .dm_store
-                                .as_ref()
-                                .map(|s| s.high_water())
-                                .unwrap_or(0);
-                            if let Some(ref client) = state.gui_state.ws_client {
-                                if client.is_connected() {
-                                    client.send(&serde_json::json!({
-                                        "type": "dm_fetch",
-                                        "after_id": after_id,
-                                    }).to_string());
-                                    state.gui_state.dm_fetch_sent = true;
-                                    state.gui_state.dm_fetch_done = false; // 10n N7: the sweep waits for it
-                                }
-                            }
+                        // connection, with a fresh ref (10o O1); the high-water
+                        // mark lives in the local encrypted store. The sweep
+                        // waits for its last page (10n N7).
+                        if !state.gui_state.dm_fetch.sent {
+                            crate::engine::mailbox::begin_fetch(&mut state.gui_state);
                             // Show whatever local history we already have
                             // while the fetch round-trips, and restore the
                             // client-side social badges (follows removal
@@ -801,108 +786,15 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         state.gui_state.notif_dnd_end = prefs.dnd_end;
                         state.gui_state.notif_prefs_loaded = true;
                     }
+                    // Sealed-sender DMs, live and fetched (engine/mailbox.rs): only this
+                    // connection's own fetch pages count, and a live DM moves the read
+                    // position only once that fetch is done (10o O1).
                     Some("dm_new") => {
-                        // Sealed-sender envelope, live-delivered. The wire
-                        // carries NO sender — decrypt with our own key and
-                        // trust only the Dilithium-verified inner payload.
-                        let mail_id = val.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
-                        let raw_content = val.get("content").and_then(|v| v.as_str()).unwrap_or("");
-                        if !raw_content.is_empty() { match crate::engine::dm::open_verify_dm(raw_content, &state.gui_state) {
-                            Ok(inner) => {
-                                let is_from_me = inner.from == state.gui_state.profile_public_key;
-                                let peer = if is_from_me { inner.to.clone() } else { inner.from.clone() };
-                                let dm_is_open = state.gui_state.chat_active_channel == format!("dm:{peer}");
-                                let was_new = crate::engine::dm::ingest_dm(&mut state.gui_state, &inner);
-                                if let Some(store) = state.gui_state.dm_store.as_mut() {
-                                    store.set_high_water(mail_id);
-                                    store.save();
-                                }
-                                // DM notify ding (v0.985): someone ELSE's
-                                // message, conversation not on screen, DM
-                                // notifications enabled.
-                                if was_new && !is_from_me && !dm_is_open
-                                    && state.gui_state.notif_dm_enabled
-                                {
-                                    state.pending_sfx.push((
-                                        "sfx.chat_message",
-                                        "audio/ui/chat_message.ogg",
-                                    ));
-                                }
-                            }
-                            Err(e) => {
-                                // Not ours / tampered / spoofed sender —
-                                // never rendered, but still advance the
-                                // high-water so a poison envelope can't
-                                // wedge every future fetch at its id.
-                                log::warn!("DM envelope {mail_id} dropped: {e}");
-                                if let Some(store) = state.gui_state.dm_store.as_mut() {
-                                    store.set_high_water(mail_id);
-                                    store.save();
-                                }
-                            }
-                        } }
-                    }
-                    Some("dm_batch") => {
-                        // A page of our sealed mailbox (reply to dm_fetch).
-                        // Decrypt + verify each envelope into the local
-                        // store; page again until the server says done.
-                        let mut last_id: i64 = 0;
-                        let mut ingested = 0usize;
-                        let mut dropped = 0usize;
-                        if let Some(msgs) = val.get("messages").and_then(|v| v.as_array()) {
-                            for m in msgs {
-                                let id = m.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
-                                if id > last_id {
-                                    last_id = id;
-                                }
-                                let raw = m.get("content").and_then(|v| v.as_str()).unwrap_or("");
-                                if raw.is_empty() {
-                                    continue;
-                                }
-                                match crate::engine::dm::open_verify_dm(raw, &state.gui_state) {
-                                    Ok(inner) => {
-                                        if crate::engine::dm::ingest_dm(&mut state.gui_state, &inner) {
-                                            ingested += 1;
-                                        }
-                                    }
-                                    Err(_) => {
-                                        // Not ours / tampered — skip, but the
-                                        // high-water still advances past it.
-                                        dropped += 1;
-                                    }
-                                }
-                            }
-                        }
-                        let done = val.get("done").and_then(|v| v.as_bool()).unwrap_or(true);
-                        crate::engine::dm::ensure_dm_store(&mut state.gui_state);
-                        if let Some(store) = state.gui_state.dm_store.as_mut() {
-                            store.set_high_water(last_id);
-                            store.save();
-                        }
-                        crate::engine::dm::rebuild_dm_sidebar(&mut state.gui_state);
-                        // If a DM conversation is on screen, refresh it from
-                        // the store so fetched history appears in place.
-                        let active = state.gui_state.chat_active_channel.clone();
-                        if let Some(peer) = active.strip_prefix("dm:") {
-                            crate::engine::dm::reload_dm_channel(&mut state.gui_state, peer);
-                        }
-                        if ingested > 0 || dropped > 0 {
-                            log::info!("DM batch: {ingested} new message(s), {dropped} undecryptable envelope(s) skipped");
-                        }
-                        if done {
-                            crate::engine::dm::on_mailbox_read(&mut state.gui_state); // 10n N7: now the pass sweep
-                        } else {
-                            let after_id = state.gui_state.dm_store.as_ref().map(|s| s.high_water()).unwrap_or(last_id);
-                            if let Some(ref client) = state.gui_state.ws_client {
-                                if client.is_connected() {
-                                    client.send(&serde_json::json!({
-                                        "type": "dm_fetch",
-                                        "after_id": after_id,
-                                    }).to_string());
-                                }
-                            }
+                        if crate::engine::mailbox::on_new(&mut state.gui_state, &val) {
+                            state.pending_sfx.push(("sfx.chat_message", "audio/ui/chat_message.ogg"));
                         }
                     }
+                    Some("dm_batch") => crate::engine::mailbox::on_batch(&mut state.gui_state, &val),
                     // (legacy group_msg/group_history arms removed 2026-08-23)
                     Some("reaction") => {
                         // Single reaction: target_from + target_timestamp + emoji + from
@@ -1437,7 +1329,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         state.gui_state.connected_server_url = url.clone();
                         // Fresh socket: identify handshake not yet complete (v0.794).
                         state.gui_state.ws_identified = false;
-                        state.gui_state.dm_fetch_sent = false;
+                        state.gui_state.dm_fetch = Default::default();
                         state.gui_state.ws_status = format!("Reconnecting as {}...", fallback);
                         log::info!("Reconnecting as: {}", fallback);
                     }

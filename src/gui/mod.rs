@@ -2412,11 +2412,11 @@ pub struct GuiState {
     /// that expires and carries no sender; this store is the archive.
     /// One per (identity, server) — reset on server switch.
     pub dm_store: Option<crate::net::dm_store::DmStore>,
-    /// Whether we've sent the initial `dm_fetch` on this connection.
-    pub dm_fetch_sent: bool,
-    /// That fetch has been read to its last page (`done`) and applied (10n N7): only then does the
-    /// pass sweep run, so a device that was offline learns its own notes before it sends anything.
-    pub dm_fetch_done: bool,
+    /// This connection's own mailbox fetch (10n N7, 10o O1): sent once per connection with a fresh
+    /// ref and read only on its own last page. Until then the pass sweep waits, so a device that
+    /// was offline learns its own notes before it sends anything, and a live `dm_new` does not
+    /// move the read position (net/mailbox_fetch.rs). A new socket starts from `Default`.
+    pub dm_fetch: crate::net::mailbox_fetch::MailboxFetch,
     /// "Who can reach me" (step B, 2026-10-09): a change asked of the server and not yet
     /// answered, and who refused our messages. The settings themselves live in `dm_store`.
     pub reach: crate::net::reach::ReachUi,
@@ -3986,8 +3986,7 @@ impl Default for GuiState {
             privacy_tier_selection: String::new(),
             privacy_tier_prompt_open: false,
             dm_store: None,
-            dm_fetch_sent: false,
-            dm_fetch_done: false,
+            dm_fetch: Default::default(),
             reach: Default::default(),
             block_list: None,
             reports: Default::default(),

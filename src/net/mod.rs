@@ -96,6 +96,11 @@ pub mod put_pacer;
 #[cfg(feature = "native")]
 pub mod put_answers;
 
+/// One connection's own mailbox fetch (section 10o O1, 2026-10-10): a fresh ref on every
+/// `dm_fetch`, and only pages carrying it count as this connection's.
+#[cfg(feature = "native")]
+pub mod mailbox_fetch;
+
 /// An admin erases another person's data (section 10i of docs/design/blocking-and-safe-mode.md,
 /// 2026-10-10): who is offered it, the typed-name check, the `admin_erase` frame and the receipt.
 #[cfg(feature = "native")]

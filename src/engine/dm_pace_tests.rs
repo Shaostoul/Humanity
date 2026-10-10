@@ -57,7 +57,7 @@ fn a_sweep_owing_many_passes_keeps_to_the_servers_pace() {
     let (client, sent) = crate::net::ws_client::WsClient::recording();
     gs.ws_client = Some(client);
     // This connection's mailbox has been read (10n N7), so the pass sweep and passes run.
-    (gs.dm_fetch_sent, gs.dm_fetch_done) = (true, true);
+    gs.dm_fetch = crate::net::mailbox_fetch::MailboxFetch::already_read();
 
     let t0 = Instant::now();
     sweep_friend_passes(&mut gs);

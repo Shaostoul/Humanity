@@ -157,7 +157,7 @@ impl GuiState {
             rate_limited: take(&mut self.ws_rate_limited),
             msgs_in: take(&mut self.ws_msgs_in),
             history_fetched: take(&mut self.history_fetched),
-            mailbox: (take(&mut self.dm_fetch_sent), take(&mut self.dm_fetch_done)),
+            mailbox: take(&mut self.dm_fetch),
             // Re-arm the background history backfill for this server's
             // FEDERATED rooms at every park (field test 5): the active life
             // only fetched the room the user had open, so a parked buffer is
@@ -238,7 +238,7 @@ impl GuiState {
         // The restored socket is already signed in, so no new channel list (where the mailbox
         // fetch goes out) is coming: its own fetch state comes back with it, read or still in
         // flight, and the pass sweep waits for exactly that (10n N7).
-        (self.dm_fetch_sent, self.dm_fetch_done) = conn.mailbox;
+        self.dm_fetch = conn.mailbox;
         true
     }
 
@@ -277,7 +277,7 @@ impl GuiState {
         if let Some(store) = self.dm_store.take() {
             store.save();
         }
-        self.dm_fetch_sent = false;
+        self.dm_fetch = Default::default();
         // Who can reach me is per server too (step B): its settings live in that store.
         self.reach = Default::default();
     }
@@ -730,25 +730,29 @@ mod park_unpark_tests {
     /// read, and an unparked socket is already signed in, so no new channel list (where the fetch
     /// goes out) comes. Its own fetch state comes back with it: read stays read, and a fetch still
     /// in flight is still waited for (its last page, arriving on the active pump, runs the sweep).
-    /// While parked, another server's state is never taken for it.
+    /// While parked, another server's state is never taken for it. A fetch in flight keeps its
+    /// ref (10o O1), so its own page, arriving after the unpark, is still taken as its own.
     /// Seen red 2026-10-10 with `unpark_connection` not restoring it: "read stays read" failed
     /// (left false), which left the sweep waiting on that server until a reconnect.
     #[test]
     fn the_mailbox_fetch_state_rides_a_park_and_unpark() {
+        use crate::net::mailbox_fetch::{MailboxFetch, Page};
         let mut state = connected_state("https://a.example/");
-        (state.dm_fetch_sent, state.dm_fetch_done) = (true, true);
+        state.dm_fetch = MailboxFetch::already_read();
         state.park_active_connection();
-        assert!(!state.dm_fetch_sent && !state.dm_fetch_done, "the next server starts unread");
+        assert!(!state.dm_fetch.sent && !state.dm_fetch.done, "the next server starts unread");
         state.connections[0].ws = Some(crate::net::ws_client::WsClient::recording().0);
         assert!(state.unpark_connection("https://a.example"));
-        assert_eq!((state.dm_fetch_sent, state.dm_fetch_done), (true, true), "read stays read");
+        assert_eq!(state.dm_fetch, MailboxFetch::already_read(), "read stays read");
         assert!(crate::engine::dm::mailbox_read(&state));
 
-        state.dm_fetch_done = false; // a fetch still in flight
+        let fetch = state.dm_fetch.begin(7).unwrap(); // a fetch still in flight
         state.park_active_connection();
         state.connections[0].ws = Some(crate::net::ws_client::WsClient::recording().0);
         assert!(state.unpark_connection("https://a.example"));
-        assert_eq!((state.dm_fetch_sent, state.dm_fetch_done), (true, false), "a fetch in flight is still waited for");
+        assert!(state.dm_fetch.sent && !state.dm_fetch.done, "a fetch in flight is still waited for");
+        let page = serde_json::json!({ "type": "dm_batch", "messages": [], "done": true, "ref": fetch["ref"] });
+        assert_eq!(state.dm_fetch.page(&page), Page::Own { last_id: 0, next: None, read: true }, "and its own page is still its own");
     }
 
     #[test]

@@ -1143,9 +1143,10 @@ pub struct ServerConnection {
     pub rate_limited: bool,
     pub msgs_in: u64,
     pub history_fetched: bool,
-    /// Its mailbox fetch: (sent, read to its last page). Carried through park and unpark, so the
-    /// pass sweep never runs before this connection's mailbox was read (10n N7).
-    pub mailbox: (bool, bool),
+    /// Its own mailbox fetch (sent, its ref, its paging position, read to its own last page).
+    /// Carried through park and unpark, so the pass sweep never runs before this connection's
+    /// mailbox was read (10n N7), and only pages carrying its own ref count (10o O1).
+    pub mailbox: crate::net::mailbox_fetch::MailboxFetch,
     /// Federated channel ids still awaiting a REST history fetch (armed once
     /// when the channel list first arrives; drained one channel at a time by
     /// the background pump so Commons rooms have depth from EVERY carrier,
