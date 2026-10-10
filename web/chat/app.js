@@ -747,6 +747,10 @@ async function loadHistory() {
   // loadHistory can be called directly before any channel switch).
   const _mc = document.getElementById('messages');
   if (_mc && !_mc.dataset.ctx) { _mc.dataset.ctx = 'channel'; }
+  // A room the protected setup hides is never loaded, including the one saved
+  // from last time before the server's list says what it is (10h,
+  // chat-protected.js, which moves to a listed room when the list arrives).
+  if (typeof protectedChannelHidden === 'function' && protectedChannelHidden(activeChannel)) return;
   try {
     const resp = await fetch(`/api/messages?limit=100&channel=${encodeURIComponent(activeChannel)}`);
     const data = await resp.json();
@@ -1265,7 +1269,9 @@ async function handleMessage(msg) {
         const bodyEl = msgEl.querySelector('.body');
         if (bodyEl) {
           for (const p of msg.previews.slice(0, 3)) {
-            bodyEl.after(buildLinkPreviewCard(p));
+            // The protected setup shows no picture from someone who is not a friend (10h).
+            const shownPreview = typeof protectedPreviewFor === 'function' ? protectedPreviewFor(p, msg.from) : p;
+            bodyEl.after(buildLinkPreviewCard(shownPreview));
           }
         }
       }
@@ -1777,9 +1783,9 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   const isHeronBot = fromKey && fromKey.startsWith('bot_') && (author === 'Heron 🪶' || author === 'Heron');
   if (isTodoChannel && isHeronBot) {
     const todoHtml = formatTodoMessage(body);
-    bodyHtml = todoHtml || formatBody(body);
+    bodyHtml = todoHtml || formatBody(body, fromKey);
   } else {
-    bodyHtml = formatBody(body);
+    bodyHtml = formatBody(body, fromKey);
   }
 
   // Reply indicator HTML.
@@ -2098,7 +2104,10 @@ function updateChannelList(channels) {
 function renderChannelList() {
   // Legacy hidden channel-list (kept for compatibility)
   const list = document.getElementById('channel-list');
-  list.innerHTML = channelList.map(ch => {
+  // The protected setup lists only read-only rooms (10h, /shared/protected.js).
+  const shown = (typeof protectedChannelsShown === 'function' && typeof protectedCurrent === 'function')
+    ? protectedChannelsShown(channelList, protectedCurrent()).shown : channelList;
+  list.innerHTML = shown.map(ch => {
     const isActive = ch.id === activeChannel && !activeDmPartner;
     const title = ch.description ? ` title="${esc(ch.description)}"` : '';
     const lock = ch.read_only ? ' ' + hosIcon('lock', 14) : '';
@@ -2306,7 +2315,7 @@ function isMessageContinuation(fromKey, timestamp) {
   return dt < 5 * 60 * 1000;
 }
 
-function formatBody(text) {
+function formatBody(text, fromKey) {
   // Step 1: Extract code blocks BEFORE escaping (they get special treatment).
   const codeBlocks = [];
   const CODE_PLACEHOLDER = '\x00CB';
@@ -2434,6 +2443,11 @@ function formatBody(text) {
     const langLabel = block.lang ? `<span class="code-lang">${esc(block.lang)}</span>` : '';
     return `<div class="code-block-wrapper">${langLabel}<button class="code-copy" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').textContent);this.innerHTML='✓ Copied';setTimeout(()=>this.innerHTML=hosIcon('copy',14)+' Copy',1500)">${hosIcon('copy', 14)} Copy</button><pre><code>${escapedCode}</code></pre></div>`;
   });
+
+  // Step 7: with the protected setup on, pictures and files from someone who is
+  // not a friend are not shown at all, one line in place of each (10h,
+  // chat-protected.js). Only when the caller says who wrote it.
+  if (fromKey && typeof protectedBodyHtml === 'function') safe = protectedBodyHtml(safe, fromKey);
 
   return safe;
 }

@@ -344,6 +344,13 @@ function onReachSettings(settings) {
 function chooseReachAudience(kind, audience) {
   const frame = reachSetFrame({ [kind]: audience });
   if (!frame || !reachKnown) return false;
+  // With the protected setup on, a row needs the PIN (10h, /shared/protected.js):
+  // the row is drawn back as it was, and the change goes out once the PIN is given.
+  if (typeof protectedTake === 'function' && !protectedTake('reach_row')) {
+    protectedAskThen('reach_row', () => chooseReachAudience(kind, audience));
+    renderSafetyPanel();
+    return false;
+  }
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     reachSay('Not connected, so the setting was not changed.');
     renderSafetyPanel();
@@ -435,6 +442,11 @@ async function acceptContactRequest(id) {
   const req = store && store.contactRequests[id];
   if (!req || !req.key) return false;
   const key = req.key;
+  // Accepting makes a friend: with the protected setup on it needs the PIN
+  // (10h), and the request stays listed until it is given.
+  if (typeof protectedBefriendAllowed === 'function' && !protectedBefriendAllowed(key)) {
+    return protectedAskThen('befriend', () => acceptContactRequest(id));
+  }
   store.removeContactRequest(id);
   if (req.pass && await pqVerifyFriendCert(key, myKey, req.pass)) store.storeCertFrom(key, req.pass);
   store.setFollower(key, true);
@@ -463,6 +475,11 @@ async function sendContactRequest(peer) {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     reachSay('Not connected, so the request was not sent.');
     return false;
+  }
+  // A request carries my pass for them and follows them: it makes a friend
+  // once they accept, so with the protected setup on it needs the PIN (10h).
+  if (typeof protectedBefriendAllowed === 'function' && !protectedBefriendAllowed(peer)) {
+    return protectedAskThen('befriend', () => sendContactRequest(peer));
   }
   // A request carries my name: never my recovery phrase (step F, chat-warnings.js).
   if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(myName, 'The request was not sent.')) return false;
@@ -529,10 +546,12 @@ function contactRequestsHtml(requests, opts) {
     return compact ? '' : '<div style="color:var(--text-muted);font-size:var(--text-sm);">No requests.</div>';
   }
   // In the narrow DMs rail the name takes its own line and the buttons sit under it.
+  // With the protected setup on, Accept says it needs the PIN (10h).
+  const accept = (typeof protectedAcceptLabel === 'function' && protectedAcceptLabel()) || 'Accept';
   return requests.map((r) =>
     `<div class="reach-request${compact ? ' dm-item' : ''}" data-req-id="${reachEsc(r.id)}" style="display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-xs) ${compact ? 'var(--space-md);flex-wrap:wrap' : '0'};">`
     + `<span class="dm-name" style="flex:1 1 ${compact ? '100%' : '0'};min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${reachEsc(r.key ? reachDisplayName(r.key) : r.name)}</span>`
-    + `<button class="vr-btn" data-req-accept="${reachEsc(r.id)}" style="font-size:0.7rem;">Accept</button>`
+    + `<button class="vr-btn" data-req-accept="${reachEsc(r.id)}" style="font-size:0.7rem;">${reachEsc(accept)}</button>`
     + `<button class="vr-btn" data-req-ignore="${reachEsc(r.id)}" style="font-size:0.7rem;">Ignore</button>`
     + `<button class="vr-btn" data-req-block="${reachEsc(r.id)}" title="Block them: you will not see anything from them, and they are not told." style="font-size:0.7rem;color:var(--danger);">Block</button>`
     + '</div>').join('');
@@ -623,6 +642,8 @@ function safetyPanelHtml(model) {
   let html = '<div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-sm);">'
     + '<h2 style="margin:0;">Safety</h2>'
     + '<button class="vr-btn" data-safety-close style="font-size:0.75rem;">Close</button></div>';
+  // The protected setup's always-visible line, at the top while it is on (10h).
+  if (typeof protectedStatusLineHtml === 'function') html += protectedStatusLineHtml('safety');
   html += `<h3 style="${SAFETY_H3}">Who can reach me</h3>`
     + `<p style="${SAFETY_NOTE}">Choose who can reach you for each kind of contact. This server enforces your choice.</p>`;
   if (!model.known) {
@@ -676,6 +697,8 @@ function safetyPanelHtml(model) {
     html += `<p style="${SAFETY_NOTE}">Nobody is blocked.</p>`;
   }
   html += safetyWarningsHtml(model);
+  // The protected setup (10h, chat-protected.js): its own section, last.
+  if (typeof protectedSafetyHtml === 'function') html += protectedSafetyHtml();
   return html;
 }
 
@@ -705,6 +728,12 @@ function safetyWarningsHtml(model) {
  * what it carried before). Returns true when it was sent.
  */
 async function chooseFriendTick(peer, kind, on) {
+  // With the protected setup on, the PIN first (10h): a cancelled prompt puts
+  // the tick back as it was and says nothing else.
+  if (typeof protectedUnlock === 'function' && !await protectedUnlock('reach_tick')) {
+    renderSafetyPanel();
+    return false;
+  }
   const pending = setFriendTick(peer, kind, on);
   renderSafetyPanel();
   const ok = await pending.catch(() => false);
@@ -759,6 +788,7 @@ function renderSafetyPanel() {
   if (warningsSwitch && typeof setMessageWarningsOn === 'function') {
     warningsSwitch.onchange = () => setMessageWarningsOn(warningsSwitch.checked);
   }
+  if (typeof wireProtectedSafety === 'function') wireProtectedSafety(card);
 }
 
 // ── Block (step C, 2026-10-09) ───────────────────────────────────────────
@@ -859,6 +889,8 @@ function renderBlockEverywhere() {
 function blockLocally(key, ts) {
   const store = reachStore();
   if (!store || !store.setBlocked(key, true, ts)) return false;
+  // Block never needs the PIN; with the protected setup on, being friends again needs it (10h).
+  if (typeof protectedForget === 'function') protectedForget(key);
   store.setFollowing(key, false);
   if (typeof myFollowing !== 'undefined' && myFollowing) myFollowing.delete(key);
   if (typeof withdrawPassesTo === 'function') withdrawPassesTo(key);

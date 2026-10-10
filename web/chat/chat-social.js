@@ -19,6 +19,12 @@ function isFriend(key) {
 
 /** Send a friend_code_request to the relay; response arrives as friend_code_response. */
 function sendFriendCodeRequest() {
+  // A friend code is a way to make a friend: with the protected setup on it
+  // needs the PIN (10h, /shared/protected.js).
+  if (typeof protectedTake === 'function' && !protectedTake('friend_code')) {
+    protectedAskThen('friend_code', () => sendFriendCodeRequest());
+    return;
+  }
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'friend_code_request' }));
   }
@@ -435,6 +441,11 @@ async function sendFriendCertTo(peer) {
   const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
   if (!store || store.certSentTo(peer) || _passMinting.has(peer)) return;
   if (store.isBlocked(peer)) return; // never a pass to someone I blocked (step C)
+  // With the protected setup on, a pass goes only to someone the PIN holder
+  // let be a friend (10h): so a follow made before the setup and followed
+  // back after it does not make a friend without the PIN. They can still send
+  // a contact request, whose Accept needs the PIN.
+  if (typeof protectedPassAllowed === 'function' && !protectedPassAllowed(peer)) return;
   if (!window.hosServerDid || store.passServer !== window.hosServerDid) return; // swept again once known
   if (typeof getPeerEcdhPublic === 'function' && !getPeerEcdhPublic(peer)) return; // cannot seal to them yet
   _passMinting.add(peer);
@@ -543,6 +554,10 @@ async function setFriendTick(peer, kind, on) {
   if (!store || !store.certSentTo(peer) || !REACH_KINDS.includes(kind)) return false;
   const ticks = friendTicks(peer);
   if (ticks[kind] === !!on) return true;
+  // With the protected setup on, a tick needs the PIN (10h, /shared/protected.js).
+  if (typeof protectedTake === 'function' && !protectedTake('reach_tick')) {
+    return protectedAskThen('reach_tick', () => setFriendTick(peer, kind, on));
+  }
   ticks[kind] = !!on;
   return reissuePassTo(peer, reachMayFromTicks(ticks));
 }
@@ -557,6 +572,14 @@ window.friendPassFor = friendPassFor;
 /** Follow / unfollow (the UI entry point everywhere in the web client). */
 async function setFollowLocal(peer, on) {
   if (!peer || peer === myKey) return;
+  // With the protected setup on, following someone (or following back) makes a
+  // friend, so it needs the PIN unless the PIN holder already let them be one
+  // (10h, /shared/protected.js). Unfollowing never does, and a new friendship
+  // after it needs the PIN again.
+  if (on && typeof protectedBefriendAllowed === 'function' && !protectedBefriendAllowed(peer)) {
+    return protectedAskThen('befriend', () => setFollowLocal(peer, on));
+  }
+  if (!on && typeof protectedForget === 'function') protectedForget(peer);
   if (window.hosDmStore && hosDmStore.ready) hosDmStore.setFollowing(peer, on);
   if (on) myFollowing.add(peer); else myFollowing.delete(peer);
   await sendDmControl(peer, on ? CTL_FOLLOW : CTL_UNFOLLOW);

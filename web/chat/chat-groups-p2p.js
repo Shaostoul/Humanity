@@ -423,6 +423,11 @@
   }
 
   async function joinP2pGroupByTicket(ticketStr) {
+    // With the protected setup on, joining a group needs the PIN (10h,
+    // /shared/protected.js). Leaving one never does.
+    if (typeof protectedTake === 'function' && !protectedTake('join_group')) {
+      return protectedAskThen('join_group', () => joinP2pGroupByTicket(ticketStr));
+    }
     if (!pqReady()) return notReady();
     const { obj, blake3 } = await mods();
     let t;
