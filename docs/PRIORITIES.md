@@ -209,7 +209,7 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   (BUG-172) and native's (BUG-173) shipped in v0.1465.0; native's still needs seeing in a running
   app (the click-to-load placeholder; a first call between two home networks). NEXT: the "Who can
   reach me" table with friendship passes that never expire (design section 10a), then Block on
-  both clients. Step A (passes v2) shipped in v0.1466.0; step B ("who can reach me", enforcing a pass's may) is next. Found while building A: (1) the web Trade
+  both clients. Step A (passes v2) shipped in v0.1466.0; step B ("who can reach me") merged 2026-10-09 (Settings > Safety on both clients, safe defaults enforced by the relay, contact requests that carry the requester's pass). Step B follow-ups: "People I choose" for Messages and Trades acts like Friends until per-friend message and trade ticks exist (the operator asked to choose individuals and groups); a contact request refused under Nobody gets the same reach_refused as a message, so clients may offer the request again; incoming rings are not also filtered by the callee's client; tests/snapshots/settings_full.png predates the Safety section. NEXT: step C, Block on both clients. Found while building A: (1) the web Trade
   page (`web/pages/trade-app.js`) never answers `identify_challenge`, so its socket is never
   signed in and its trade requests never reach the relay (an old bug; `tasks-app.js` has the
   sign-in pattern); (2) for step B, the relay cannot tell a text message from a voice message

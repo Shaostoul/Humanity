@@ -746,6 +746,11 @@
       "date": "2026-10-09",
       "decision": "Released v0.1466.0: friendship passes v2 (design 10b step A): hum/friend/v2 preimage with the server DID, a random serial and a may list (call, invite, message, trade, voice_message; new friends get all but call), no end date; withdrawal by cert_revoke into friend_cert_revocations stored under a keyed BLAKE3 fingerprint (the erased-accounts secret, domain hum/withdrawn-pass/v1) and kept past an account erase; the pass rides on dm_put, trade_request, voice_call, dc_offer and profile requests; may is read but not yet enforced (step B).",
       "why": "The operator: friendships must never expire (parents and brothers), and consent must be revocable (the Accord). Reviewed the relay check before merging and sent the branch back once for the fingerprint and keep-past-erase changes. Accepted risk: withdrawal rows are permanent and bounded at 4,096 per key; a throwaway key could add about 400 KB, less than one day of the 20 knocks a key may already deposit. Found while building: the web Trade page never signs in (logged in PRIORITIES)."
+    },
+    {
+      "date": "2026-10-09",
+      "decision": "Step B (who can reach me, design 10c) merged from three parallel worktrees: relay (reach_settings table, reach_set/reach_settings/reach_refused, enforcement at dm_put, voice_call and its signals, trade_request and dc_offer, the groups audience, open calls tracked in memory as a hash of the two keys, contact requests 5 a day), desktop (Settings > Safety, People who may call me re-issuing passes, refusal notice, Requests list), web (the mirror, plus window.peerData exposed so names resolve). Safe defaults: messages friends, calls chosen, trades friends; admins bound.",
+      "why": "The operator: safe by default, choose individuals for calls. The web build found the first contact-request design could never form a friendship under the defaults and could be spoofed (256 bytes cannot hold a signature); amended mid-build so a request is an ordinary signed sealed DM carrying the requester s pass, and the accepter s reply attaches it, keeping the relay free of who-asked-whom records. The relay build found the 256-byte rule could never have worked anyway (every signed DM pads to 16,384)."
     }
   ],
   "active_scopes_to_avoid": [
