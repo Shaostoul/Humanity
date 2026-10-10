@@ -54,6 +54,14 @@
 //     builder a leave uses) with them as the subject, and says Removed; a key that cannot be made
 //     removes no one; Block them blocks them; Dismiss takes the report off this device and the
 //     count off the group.
+//  9. The batch review's fixes (2026-10-10): a reply begun in a group never rides a post anywhere
+//     else and no reply quotes a file's marker; an open group switches to a newer key on its next
+//     refresh; a group row has no Pin for me, and draws where a control it lacks is null (as in a
+//     browser); a Remove makes no key over one it cannot read (only a 404 is "no key yet"), nor
+//     does the creator's re-key on open; someone removed is never sealed to again while the server
+//     still lists them; a received item's time must be a JSON whole number (the shared fixture's
+//     `parsed` cases); an HTTP error keeps the last group list; a refused removal says the desktop
+//     app's sentence.
 //
 // Red first: see the end of this file for each deliberate break and the assertion it tripped.
 
@@ -210,6 +218,10 @@ function fakeDom(state) {
     own.getAttribute = (k) => (k in own.attrs ? own.attrs[k] : null);
     own.querySelector = (sel) => {
       if (NOTHING_YET.has(sel)) return null;
+      if (state.honest && typeof own.innerHTML === "string" && /^\.[\w-]+$/.test(sel)) {
+        const cls = sel.slice(1).replace(/-/g, "\\-");
+        if (!new RegExp(`class="(?:[^"]*\\s)?${cls}(?:\\s[^"]*)?"`).test(own.innerHTML)) return null;
+      }
       if (!own.parts.has(sel)) own.parts.set(sel, el(sel));
       return own.parts.get(sel);
     };
@@ -338,9 +350,10 @@ const isWords = (b) => b.length >= 4 && b[0] === 0x68 && b[1] === 0x75 && b[2] =
  */
 async function loadChat(me, opts = {}) {
   const fx = await fixture();
-  const state = { appended: [] };
+  const state = { appended: [], honest: !!opts.honest };
   const posted = [];
   const fetched = [];
+  const intervals = [];
   const relay = {
     groups: opts.groups || [],
     members: [fx.ann, fx.ben, fx.cy].map((p) => ({ pubkey: p.key, kyber_public: kyberOf(p.key) })),
@@ -364,19 +377,35 @@ async function loadChat(me, opts = {}) {
       fetched.push(method + " " + u);
       if (u.startsWith("/api/federation/servers")) return ok([]);
       if (u.startsWith(report.REPORT_REASONS_URL)) return ok(JSON.parse(JSON.stringify(REASONS)));
-      if (u === "/api/v2/objects" && method === "POST") { posted.push(JSON.parse(init.body)); return ok({ ok: true }); }
-      if (u.startsWith("/api/v2/groups?pubkey=")) return ok({ groups: JSON.parse(JSON.stringify(relay.groups)) });
+      if (u === "/api/v2/objects" && method === "POST") {
+        const body = JSON.parse(init.body);
+        // A server that refuses this kind of object (relay.refuse), saying only its status.
+        if (relay.refuse && relay.refuse.has(body.object_type)) return Promise.resolve({ ok: false, status: 500, json: async () => ({ error: "HTTP 500" }) });
+        posted.push(body);
+        // relay.trackEpochs: a new group key becomes the one /epoch serves.
+        if (relay.trackEpochs && body.object_type === "group_epoch_key_v1") relay.epoch = body;
+        return ok({ ok: true });
+      }
+      if (u.startsWith("/api/v2/groups?pubkey=")) {
+        if (relay.groupsDown) return Promise.resolve({ ok: false, status: 500, json: async () => ({ error: "storage error" }) });
+        return ok({ groups: JSON.parse(JSON.stringify(relay.groups)) });
+      }
       if (u === `/api/v2/objects/${G}`) return ok(fx.groupServed);
       if (u.startsWith("/api/v2/objects/")) return notFound();
       if (u === `/api/v2/groups/${G}/members`) return relay.membersDown ? Promise.resolve({ ok: false, status: 503, json: async () => ({}) }) : ok({ members: relay.members });
       if (u === `/api/v2/groups/${G}/epochs`) return ok({ epochs: [relay.epoch] });
-      if (u === `/api/v2/groups/${G}/epoch`) return ok(relay.epoch);
+      if (u === `/api/v2/groups/${G}/epoch`) {
+        // relay.epochStatus: the server answers this status instead (404 is its plain "no key yet").
+        if (relay.epochStatus) return Promise.resolve({ ok: false, status: relay.epochStatus, json: async () => ({ error: "x" }) });
+        return ok(relay.epoch);
+      }
       if (u === `/api/v2/groups/${G}/messages`) return ok({ messages: relay.log });
       return Promise.reject(new Error("no network in tests: " + u));
     },
     setTimeout: () => 0,
     clearTimeout: () => {},
-    setInterval: () => 0,
+    // Kept, never run by themselves: a test runs the group's 4-second poll when it wants one.
+    setInterval: (fn, ms) => { intervals.push({ fn, ms }); return intervals.length; },
     clearInterval: () => {},
     WebSocket: Object.assign(function () { return fakeSocket(); }, { OPEN: 1, CONNECTING: 0, CLOSED: 3 }),
     RTCPeerConnection: FakePeerConnection,
@@ -473,7 +502,7 @@ async function loadChat(me, opts = {}) {
   const fn = (name) => vm.runInContext(name, ctx);
   const el = (id) => ctx.document.getElementById(id);
   const dialog = () => vm.runInContext("reportDialog", ctx);
-  return { ctx, fx, sock, store, state, relay, posted, fetched, confirms, idb, handle, fn, el, dialog };
+  return { ctx, fx, sock, store, state, relay, posted, fetched, confirms, idb, intervals, handle, fn, el, dialog };
 }
 
 function textOf(e) {
@@ -611,7 +640,9 @@ test("the marker's exact shape, 20 items and 16 KB, and never a file", () => {
 // scripts/tests/fixtures/group-report-marker.json was generated from this builder and is read by
 // the desktop app's own test (src/net/group_report_tests.rs), which builds every text in it byte
 // for byte. Read here too, so a change to the web builder that the fixture does not follow fails
-// on this side as well, not only on the desktop's.
+// on this side as well, not only on the desktop's. Its `parsed` section (received texts and what
+// groupReportParse reads out of each, null when refused; added 2026-10-10) is held to the parser by
+// the "received item's time" test in section 9, and the desktop app's parse reads the same cases.
 
 test("the shared fixture: the web still builds every text the desktop app is held to", () => {
   const shared = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts", "tests", "fixtures", "group-report-marker.json"), "utf8"));
@@ -962,6 +993,268 @@ test("the creator's three actions: Remove them from the group, Block them, Dismi
   assert.equal(reloaded.store.groupReportList().length, 0, "dismissed for good");
 });
 
+// ── 9. The batch review's fixes (2026-10-10) ────────────────────────────
+// Each test below was seen failing against the code before the fix (web/ as at a3ca8f167, through
+// HOS_WEB_DIR); the assertion it tripped is in the red list at the end of this file.
+
+/** A group message of `who`'s, encrypted under the group's key `key` (number `epoch`), as the server serves it. */
+async function servedGroupMsg(fx, who, text, at, epoch = 1, key = fx.K) {
+  const { obj, blake3 } = fx.m;
+  const built = await obj.buildGroupMsgV1({ groupId: fx.G, epoch, epochKey: key, plaintext: text, authorPublicKey: who.pub, sign: fx.signer(who), blake3, createdAt: at });
+  return { built, served: { object_id: built.objectId, author_fp: fx.fp(who.key), received_at: 1, ...built.submission } };
+}
+
+/** Open the group and wait until its rows are drawn and its key is open. */
+async function openTheGroup(page) {
+  page.fn("openP2pGroup")(page.fx.G, "Hikers");
+  await waitFor(() => page.state.appended.some((e) => e && e.dataset && e.dataset.groupObjectId), "the group's messages are drawn");
+  await waitFor(() => { const ag = page.fn("activeP2pGroup"); return ag && ag.epochKey; }, "the group's key is open");
+  await settle();
+}
+
+/** Type `text` into the composer and press Send. */
+async function typeAndSend(page, text) {
+  page.el("msg-input").value = text;
+  await page.fn("sendMessage")();
+  await settle();
+}
+
+const groupRows = (page) => page.state.appended.filter((e) => e && e.dataset && e.dataset.groupObjectId);
+const pressReply = (row) => row.querySelector(".reply-btn").listeners.click[0]({ stopPropagation() {} });
+const FILE_KEY_PART = FILE_TEXT.slice("[[hum:file:v1]]".length);
+
+test("a reply begun in a group never rides a post anywhere else, and no reply quotes a file's marker", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann, { groups: GROUP_AS(fx, fx.ann, false) });
+  vm.runInContext("identityConfirmed = true", page.ctx);
+  const file = await servedGroupMsg(fx, fx.cy, FILE_TEXT, T0 + 900);
+  page.relay.log = fx.log.concat([file.served]);
+  await openTheGroup(page);
+  const words = groupRows(page).find((e) => e.dataset.groupObjectId === fx.m1.objectId);
+  const fileRow = groupRows(page).find((e) => e.dataset.groupObjectId === file.built.objectId);
+  assert.ok(words && fileRow, "Cy's words and Cy's file are drawn");
+  const reply = () => vm.runInContext("replyTarget", page.ctx);
+
+  // A reply to a group's file never holds its marker, nor any part of it.
+  pressReply(fileRow);
+  assert.ok(reply(), "Reply opens the reply bar");
+  assert.ok(!JSON.stringify(reply().body).includes("[[hum:file:") && !JSON.stringify(reply().body).includes(FILE_KEY_PART), "the reply holds no part of the file's marker");
+  assert.ok(!String(page.el("reply-preview").innerHTML).includes(FILE_KEY_PART), "nor does the reply bar show it");
+
+  // A reply begun on a group's words, then the view changes some way that does not take it down:
+  // the next post in the public channel carries no reply, and none of the group's words.
+  pressReply(words);
+  page.ctx.activeP2pGroup = null;
+  page.sock.sent.length = 0;
+  page.sock.raw.length = 0;
+  await typeAndSend(page, "hello everyone");
+  const post = page.sock.sent.find((m) => m.type === "chat" && m.content === "hello everyone");
+  assert.ok(post, "the post went to the public channel");
+  assert.equal(post.reply_to, undefined, "a reply made in a group is never attached to a public post");
+  assert.ok(!page.sock.raw.some((r) => r.includes("you are all idiots")), "the group's words are in no frame");
+
+  // Changing the view takes the reply down.
+  await openTheGroup(page);
+  pressReply(words);
+  assert.ok(reply(), "a reply in the group");
+  page.fn("switchChannel")("general");
+  assert.equal(reply(), null, "opening a channel takes a group's reply down");
+
+  // A public message holding a file's marker (another client's): a reply to it quotes no part of it.
+  await page.handle({ type: "chat", from: fx.cy.key, from_name: "Cy", content: "look " + FILE_TEXT, timestamp: T0 + 1000, channel: "general" });
+  const pub = page.state.appended.find((e) => e && e.dataset && e.dataset.from === fx.cy.key && String(e.dataset.timestamp) === String(T0 + 1000));
+  assert.ok(pub, "the public message is drawn");
+  pressReply(pub);
+  page.sock.sent.length = 0;
+  page.sock.raw.length = 0;
+  await typeAndSend(page, "what is that?");
+  const answer = page.sock.sent.find((m) => m.type === "chat" && m.content === "what is that?");
+  assert.ok(answer && answer.reply_to, "a reply in the channel it was made in is still a reply");
+  assert.equal(answer.reply_to.from, fx.cy.key);
+  assert.ok(!page.sock.raw.some((r) => r.includes("[[hum:file:") || r.includes(FILE_KEY_PART)), "reply_to carries no part of a file's marker");
+});
+
+test("after the creator rotates the group's key, a member with the group open sends under the new one", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann, { groups: GROUP_AS(fx, fx.ann, false) });
+  vm.runInContext("identityConfirmed = true", page.ctx);
+  await openTheGroup(page);
+  assert.equal(page.fn("activeP2pGroup").epoch, 1, "key 1 is in use");
+  // Ben removes Cy: a new key, number 2, sealed to Ann and Ben only.
+  const { obj, blake3 } = fx.m;
+  const K2 = new Uint8Array(32).fill(9);
+  const e2 = await obj.buildGroupEpochKeyV1({
+    groupId: fx.G, epoch: 2, epochKey: K2,
+    members: [fx.ann, fx.ben].map((p) => ({ fp: fx.fp(p.key), kyber_public: kyberOf(p.key) })),
+    seal: fx.seal, authorPublicKey: fx.ben.pub, sign: fx.signer(fx.ben), blake3, createdAt: T0 + 2000,
+  });
+  page.relay.epoch = { object_id: e2.objectId, author_fp: fx.fp(fx.ben.key), received_at: 1, ...e2.submission };
+  // The group's next poll.
+  const poll = page.intervals.filter((t) => t.ms === 4000).pop();
+  assert.ok(poll, "the open group polls");
+  await poll.fn();
+  await settle();
+  assert.equal(page.fn("activeP2pGroup").epoch, 2, "the refresh found the newer key and switched to it");
+  page.posted.length = 0;
+  await typeAndSend(page, "after the removal");
+  const sent = page.posted.filter((p) => p.object_type === "group_msg_v1");
+  assert.equal(sent.length, 1, "one group message");
+  const parsed = obj.parseGroupMsgPayload(new Uint8Array(Buffer.from(sent[0].payload_b64, "base64")));
+  assert.equal(parsed.epoch, 2, "sent under the new key, which Cy does not hold");
+  assert.equal(await obj.aesGcmDecrypt(K2, parsed.nonce, parsed.ct), "after the removal");
+});
+
+test("a group row offers no Pin for me, and nothing of the group goes into this browser's pins", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann, { groups: GROUP_AS(fx, fx.ann, false) });
+  await openTheGroup(page);
+  const rows = groupRows(page);
+  assert.ok(rows.length >= 3, "the group's rows are drawn");
+  for (const row of rows) {
+    assert.ok(!row.innerHTML.includes("mypin-btn"), "a group row offers no Pin for me");
+    assert.ok(row.innerHTML.includes('class="reply-btn"'), "Reply stays");
+    const btn = row.parts.get(".mypin-btn");
+    for (const f of (btn && btn.listeners.click) || []) f({ stopPropagation() {} });
+  }
+  const pins = vm.runInContext("getMyPins", page.ctx)();
+  assert.deepEqual(JSON.parse(JSON.stringify(pins)), [], "nothing of the group is kept as a pin under the public channel");
+});
+
+test("a group's rows draw where a control a row lacks is null, as in a browser", async () => {
+  const fx = await fixture();
+  // The honest page: a row's querySelector finds only the classes its HTML holds.
+  const page = await loadChat(fx.ann, { groups: GROUP_AS(fx, fx.ann, false), honest: true });
+  await openTheGroup(page);
+  assert.ok(groupRows(page).length >= 3, "every group message is drawn");
+  assert.equal(groupRows(page)[0].querySelector(".react-btn"), null, "a group row has no React button to hook");
+});
+
+test("a creator's Remove makes no key when the current one cannot be read; only the server's plain no-key starts at 1", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ben, { groups: GROUP_AS(fx, fx.ben, true) });
+  const { obj } = fx.m;
+  const remove = async () => { try { return await page.fn("removeP2pMember")(fx.G, fx.cy.key); } catch (e) { return e; } };
+  const keysPosted = () => page.posted.filter((p) => p.object_type === "group_epoch_key_v1");
+
+  // The server fails (500): no key, no removal.
+  page.relay.epochStatus = 500;
+  let r = await remove();
+  await settle();
+  assert.ok(r && typeof r === "object" && r.message === "a new group key could not be made", "a failure to read the key is not \"no key yet\"");
+  assert.deepEqual(page.posted, [], "nothing posted: no key numbered 1 over the real one, and no one removed");
+
+  // The server answers with a key that cannot be read: the same.
+  page.relay.epochStatus = 0;
+  page.relay.epoch = { ...fx.epochServed, payload_b64: Buffer.from("not a group key").toString("base64") };
+  r = await remove();
+  await settle();
+  assert.ok(r && typeof r === "object" && r.message === "a new group key could not be made", "an unreadable key is not \"no key yet\"");
+  assert.deepEqual(page.posted, [], "nothing posted");
+
+  // The server's plain "no key yet" (404): this one is the first.
+  page.relay.epochStatus = 404;
+  r = await remove();
+  await settle();
+  assert.equal(r, true, "removed");
+  assert.deepEqual(page.posted.map((p) => p.object_type), ["group_epoch_key_v1", "group_member_v1"]);
+  const first = await obj.verifyObjectSubmission(keysPosted()[0], { blake3: fx.m.blake3, pqVerify: fx.m.verify });
+  assert.equal(obj.parseGroupEpochKeyPayload(first.payload).epoch, 1, "numbered 1");
+});
+
+test("the creator's own re-key on opening the group makes no key when the current one cannot be read", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ben, { groups: GROUP_AS(fx, fx.ben, true) });
+  // Dan has joined since the last key (the server lists him), so a re-key is due; but the server
+  // fails to say which key is current.
+  page.relay.members = [fx.ann, fx.ben, fx.cy, fx.dan].map((p) => ({ pubkey: p.key, kyber_public: kyberOf(p.key) }));
+  page.relay.epochStatus = 500;
+  const before = page.fetched.length;
+  page.fn("openP2pGroup")(fx.G, "Hikers");
+  await waitFor(() => page.fetched.slice(before).includes(`GET /api/v2/groups/${fx.G}/epoch`), "the re-key check asks for the current key");
+  await settle();
+  assert.deepEqual(page.posted.map((p) => p.object_type), [], "no key numbered 1 over the group's real one");
+  // Once the server answers, the re-key goes ahead: key 2, sealed to Dan too.
+  page.relay.epochStatus = 0;
+  page.fn("closeP2pGroup")();
+  page.fn("openP2pGroup")(fx.G, "Hikers");
+  await waitFor(() => page.posted.some((p) => p.object_type === "group_epoch_key_v1"), "the re-key goes ahead");
+  const { obj, blake3, verify } = fx.m;
+  const k = await obj.verifyObjectSubmission(page.posted.find((p) => p.object_type === "group_epoch_key_v1"), { blake3, pqVerify: verify });
+  const parsed = obj.parseGroupEpochKeyPayload(k.payload);
+  assert.equal(parsed.epoch, 2, "the next key after the real one");
+  assert.ok(parsed.recipients.map((r) => r.fp).includes(fx.fp(fx.dan.key)), "sealed to the new member");
+});
+
+test("someone this device removed is never sealed to again while the server still lists them", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ben, { groups: GROUP_AS(fx, fx.ben, true) });
+  const { obj, blake3, verify } = fx.m;
+  page.relay.trackEpochs = true; // the new key becomes the one the server serves
+  assert.equal(await page.fn("removeP2pMember")(fx.G, fx.cy.key), true);
+  await settle();
+  const recipients = async (sub) => obj.parseGroupEpochKeyPayload((await obj.verifyObjectSubmission(sub, { blake3, pqVerify: verify })).payload).recipients.map((x) => x.fp);
+  const [k2] = page.posted.filter((p) => p.object_type === "group_epoch_key_v1");
+  assert.ok(!(await recipients(k2)).includes(fx.fp(fx.cy.key)), "the new key leaves Cy out");
+  // The server still lists Cy (its list lags the removal). Ben opens the group: his own re-key
+  // for members the current key does not cover must not seal to Cy.
+  page.posted.length = 0;
+  const before = page.fetched.length;
+  page.fn("openP2pGroup")(fx.G, "Hikers");
+  await waitFor(() => page.fetched.slice(before).filter((f) => f === `GET /api/v2/groups/${fx.G}/members`).length >= 2, "the roster and the re-key check both read the members");
+  await settle();
+  for (const k of page.posted.filter((p) => p.object_type === "group_epoch_key_v1")) {
+    assert.ok(!(await recipients(k)).includes(fx.fp(fx.cy.key)), "no key this device makes is sealed to Cy");
+  }
+  assert.deepEqual(page.posted.map((p) => p.object_type), [], "and none is needed: everyone else holds the current key");
+});
+
+test("a received item's time is a JSON number holding a whole number, as the desktop app reads it", () => {
+  const shared = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts", "tests", "fixtures", "group-report-marker.json"), "utf8"));
+  assert.ok(Array.isArray(shared.parsed) && shared.parsed.length >= 12, "the fixture's parse cases are there");
+  for (const c of shared.parsed) assert.deepEqual(gr.groupReportParse(c.text), c.parsed, c.name);
+  const G = "ab".repeat(32), T = "cd".repeat(32), ID = "01".repeat(32);
+  const text = (ts) => `[[hum:group-report:v1]]{"group_id":"${G}","group_name":"","target":"${T}","reason":"spam","note":"","items":[{"id":"${ID}","from":"${T}","ts":${ts},"text":"x"}]}`;
+  for (const ts of ['"1700000000000"', "null", "true", "[]", '"0x10"', "false", '""', "{}"]) {
+    assert.equal(gr.groupReportParse(text(ts)), null, `ts ${ts} is not a time`);
+  }
+  assert.equal(gr.groupReportParse(text("1700000000000")).items[0].ts, 1700000000000, "a whole number is");
+});
+
+test("a group report arriving while the server's group list fails is kept, against the list this page had", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ben, { groups: GROUP_AS(fx, fx.ben, true) });
+  await page.fn("loadP2pGroups")();
+  assert.equal(page.ctx._p2pGroups.length, 1, "the list as the server gave it");
+  page.relay.groupsDown = true; // an HTTP error, which fetch does not throw for
+  await page.fn("loadP2pGroups")();
+  assert.equal(page.ctx._p2pGroups.length, 1, "an error keeps the last list");
+  await page.handle({ type: "dm_new", id: 51, content: envelope(fx.ann.key, fx.ben.key, reportText(fx, [{ id: fx.m1.objectId, from: fx.cy.key, ts: T0 + 500, text: "you are all idiots" }]), T0 + 9) });
+  assert.equal(page.store.groupReportList().length, 1, "the report is kept, not dropped for good");
+});
+
+test("a removal the server refuses says so in the desktop app's words, never the server's", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ben, { groups: GROUP_AS(fx, fx.ben, true) });
+  await page.handle({ type: "dm_new", id: 61, content: envelope(fx.ann.key, fx.ben.key, reportText(fx, [{ id: fx.m1.objectId, from: fx.cy.key, ts: T0 + 500, text: "you are all idiots" }]), T0 + 9) });
+  const [rec] = page.store.groupReportList();
+  assert.ok(rec, "kept");
+  // The new key goes out; the removal is refused.
+  page.relay.refuse = new Set(["group_member_v1"]);
+  assert.equal(await page.fn("groupReportRemove")(rec.id), false);
+  await settle();
+  let said = shown(page.state.appended);
+  assert.ok(said.includes("Could not remove Cy from Hikers: the server refused it."), "the desktop app's sentence");
+  assert.ok(!said.includes("HTTP 500"), "never the server's own words");
+  assert.equal(page.store.groupReportList()[0].removed, false);
+  // A new key the server refuses is a key that could not be made.
+  page.relay.refuse = new Set(["group_epoch_key_v1"]);
+  assert.equal(await page.fn("groupReportRemove")(rec.id), false);
+  await settle();
+  said = shown(page.state.appended);
+  assert.ok(said.includes("Could not remove Cy from Hikers: a new group key could not be made."), "a refused key is one that could not be made");
+  assert.ok(!said.includes("HTTP 500"));
+});
+
 // Red first, 2026-10-10. Each break made alone in a fresh copy of web/, this test run against it
 // with HOS_WEB_DIR, and seen failing with the assertion named (passing again on the real web/):
 //  group-report.js
@@ -1010,3 +1303,24 @@ test("the creator's three actions: Remove them from the group, Block them, Dismi
 // One break was not caught by the pure test alone, and why: groupReportCheck without its
 // `v.ok` test still finds nothing for a bad signature, because pq-object.js's verifier returns no
 // object id for one; the signature check is proven in the page instead (above).
+//
+// Red first, the batch review's tests (section 9, 2026-10-10). Each run against web/ as at a3ca8f167
+// (before the fixes) through HOS_WEB_DIR, and seen failing there with the assertion named:
+//  - "the reply holds no part of the file's marker" (setReplyTarget kept the whole body).
+//  - "the refresh found the newer key and switched to it" (_p2pRefresh fetched keys only while it
+//    had none).
+//  - "a group row offers no Pin for me".
+//  - the honest page: "Cannot read properties of null (reading 'addEventListener')" (BUG-178's
+//    rows hooked a React button they no longer had, so in a browser no group message was drawn).
+//  - "a failure to read the key is not \"no key yet\"" (rotateP2pGroupKey took a 500 for epoch 0).
+//  - "no key numbered 1 over the group's real one" (rekeyIfCreatorNeeds the same).
+//  - "no key this device makes is sealed to Cy".
+//  - "item ts: a time written as a string of digits" (groupReportParse took Number() of anything).
+//  - "an error keeps the last list" (loadP2pGroups set the list empty on an HTTP error).
+//  - "the desktop app's sentence" (the line said "HTTP 500").
+// And one break at a time in a copy of the fixed web/: replyRefForChannel without its view check:
+// "a reply made in a group is never attached to a public post"; switchChannel and closeP2pGroup
+// without clearReplyTarget: "opening a channel takes a group's reply down"; replyQuoteText
+// returning the body: "the reply holds no part of the file's marker"; rekeyIfCreatorNeeds without
+// its _wasRemoved line: "no key this device makes is sealed to Cy"; _currentEpochOf taking any
+// error for "no key yet": "a failure to read the key is not \"no key yet\"".

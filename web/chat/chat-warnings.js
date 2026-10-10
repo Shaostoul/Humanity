@@ -89,10 +89,20 @@ function warningSenderIsFriend(key) {
   return typeof isFriend === 'function' ? !!isFriend(key) : false;
 }
 
-/** Is the "Warnings on messages" switch on? On until the person turns it off. */
+/**
+ * Is the "Warnings on messages" switch on? On until the person turns it off.
+ * With the protected setup on, only its own choice counts (made with the PIN,
+ * kept on this device: /shared/protected.js protectedWarningsOn), never the
+ * per-identity switch in the local store, so restoring an identity whose
+ * warnings were off does not turn them off.
+ */
 function messageWarningsOn() {
   const store = warnStore();
-  return store ? store.warningsOn !== false : true;
+  const own = store ? store.warningsOn !== false : true;
+  if (typeof protectedWarningsOn === 'function' && typeof protectedCurrent === 'function') {
+    return protectedWarningsOn(protectedCurrent(), own);
+  }
+  return own;
 }
 
 /** The Safety switch changed. Returns false when the store is not loaded yet (the switch is disabled then). */
@@ -108,6 +118,10 @@ function setMessageWarningsOn(on) {
     return false;
   }
   store.setWarningsOn(!!on);
+  // With the setup on, the choice is the setup's (made with the PIN when it is
+  // off), kept on this device so another identity's switch cannot undo it.
+  const prot = typeof protectedCurrent === 'function' ? protectedCurrent() : null;
+  if (prot && typeof protectedSave === 'function') protectedSave(Object.assign({}, prot, { warnings_off: !on }));
   applyWarningsSwitchToView();
   if (typeof renderSafetyPanel === 'function') renderSafetyPanel();
   return true;

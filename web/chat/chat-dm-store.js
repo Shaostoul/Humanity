@@ -274,6 +274,30 @@ const hosDmStore = {
     this._persistMeta();
     return old;
   },
+  /**
+   * A pass I gave `peer`, echoed from another of my devices: it is that
+   * device's latest word on what they may do, so it is recorded and every
+   * other pass to them whose `may` differs is withdrawn (their serials wait
+   * for the relay to confirm), the desktop app's rule (src/net/dm_store.rs
+   * withdraw_passes_to_except). One with the same `may` stands beside it:
+   * withdrawing it would take nothing away. Returns the serials withdrawn.
+   * A pass this device has already taken back (its withdrawal still waiting
+   * for the relay) is never standing again: that is this device's own pass
+   * echoing back after a newer one replaced it, and adopting it would
+   * withdraw the newer pass the friend now holds.
+   */
+  adoptEchoedPass(peer, serial, may) {
+    if (this.withdrawalsPending.includes(serial)) return [];
+    const norm = (m) => String(m || '').split(',').filter(Boolean).sort().join(',');
+    const want = norm(may);
+    const list = this.certsSent[peer] || [];
+    const gone = list.filter((p) => p.serial !== serial && norm(p.may) !== want).map((p) => p.serial);
+    const kept = list.filter((p) => p.serial !== serial && norm(p.may) === want);
+    this.certsSent[peer] = kept.concat([{ serial, may }]);
+    for (const s of gone) if (!this.withdrawalsPending.includes(s)) this.withdrawalsPending.push(s);
+    this._persistMeta();
+    return gone;
+  },
   /** What the passes I gave `peer` that still stand let them do (sorted, comma-joined), or null when none stands. */
   passMayTo(peer) {
     const words = new Set();

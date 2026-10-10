@@ -67,10 +67,16 @@
     return true;
   }
 
-  /** The confirm's sentence for this person, 10i's words exactly. */
+  /**
+   * The confirm's sentence for this person, 10i's words exactly. Corrected
+   * 2026-10-10 after the batch review: the erase keeps the reports, bans and
+   * mutes about them (as the self-erase does), so it does not delete
+   * "everything" without saying so.
+   */
   function adminEraseConfirmText(name) {
     return 'This deletes everything this server stores about ' + String(name == null ? '' : name)
-      + ': their messages, profile, uploads, membership and settings. It cannot be undone. It does'
+      + ': their messages, profile, uploads, membership and settings. Reports, bans and mutes about'
+      + ' them are kept, as when someone erases their own account. It cannot be undone. It does'
       + ' not touch anything on their own devices, and it does not stop them joining again (ban them'
       + ' too for that).';
   }

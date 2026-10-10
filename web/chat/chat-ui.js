@@ -1458,6 +1458,22 @@ sendMessage = async function() {
     }
     return;
   }
+  // /friend-code and /redeem <code> make a friend. In a public channel, where
+  // the relay would act on them as typed, they go through the same paths as
+  // the buttons (chat-social.js), so with the protected setup on, typing one
+  // asks for the PIN as the button does (10h; they used to go straight to the
+  // relay as a chat command, round the lock).
+  if (!window.activeP2pGroup && !(typeof isScratchPad === 'function' && isScratchPad())
+      && typeof protectedTypedCommand === 'function') {
+    const typed = protectedTypedCommand(val);
+    if (typed) {
+      input.value = '';
+      input.style.height = 'auto';
+      if (typed.command === 'friend-code') sendFriendCodeRequest();
+      else redeemFriendCode(typed.code);
+      return;
+    }
+  }
   await _origSendMessage2();
 };
 
@@ -1527,6 +1543,9 @@ async function sendComposedContent(content) {
     }
     ws.send(JSON.stringify(built.recipientPut));
     ws.send(JSON.stringify(built.selfPut));
+    // A DM carries no reply: the reply bar, if one was open, has done its job
+    // here and never goes on to a post anywhere else (app.js).
+    if (typeof clearReplyTarget === 'function') clearReplyTarget();
     // Persist our copy locally right away; the relay echo of the
     // self-copy dedupes against this via the inner signature.
     if (window.hosDmStore && hosDmStore.ready) {

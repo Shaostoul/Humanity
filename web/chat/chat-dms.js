@@ -55,6 +55,8 @@ function openDmConversation(partnerKey, partnerName) {
   const resolvedName = partnerName ||
     (window.peerData && window.peerData[partnerKey]?.display_name) ||
     (typeof shortKey === 'function' ? shortKey(partnerKey) : partnerKey.slice(0, 8));
+  // A reply belongs to the view it was made in: a new view starts without one (app.js).
+  if (typeof clearReplyTarget === 'function') clearReplyTarget();
   activeDmPartner = partnerKey;
   activeDmPartnerName = resolvedName;
   // Clear group context so sendMessage doesn't accidentally route to the active group.
@@ -295,13 +297,18 @@ function privateFileIsPicture(meta) {
   return PRIVATE_FILE_PICTURE_TYPES.includes(String((meta && meta.mime) || '').toLowerCase());
 }
 
-/** Is a file from `fromKey` shown without a click: mine, or a friend's? */
+/**
+ * Is a file from `fromKey` shown without a click: mine, or a friend's? A
+ * friend here is the desktop app's: a mutual follow who also holds a pass from
+ * me (someone I let through under "Friends"), not a mutual follow alone. Before
+ * the local store loads nobody is, so nothing from anyone opens early.
+ */
 function privateFileFromFriend(fromKey) {
   if (!fromKey || typeof fromKey !== 'string') return false;
   if (typeof myKey === 'string' && myKey && fromKey.toLowerCase() === myKey.toLowerCase()) return true;
   const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
-  if (store) return store.isFriendPeer(fromKey);
-  return typeof isFriend === 'function' ? !!isFriend(fromKey) : false;
+  if (!store) return false;
+  return !!(store.isFriendPeer(fromKey) && store.certSentTo(fromKey));
 }
 
 /** Are files from `fromKey` not shown now (the protected setup's pictures rule)? */

@@ -259,9 +259,35 @@ function resolveSenderName(rawName, fromKey) {
 }
 
 // ── Reply Bar ──
+// A reply belongs to the view it was made in (the batch review, 2026-10-10): a
+// reply started on a P2P group's message or in a DM is never attached to a post
+// anywhere else, and changing the view takes the reply bar down. It used to
+// stay, and the next post in a public channel carried the group's decrypted
+// words (a file's marker, key and all) to the server as `reply_to.content`.
+
+/** The view a reply made now belongs to: 'group:<id>', 'dm:<key>' or 'channel:<id>'. */
+function replyScopeNow() {
+  const ag = window.activeP2pGroup;
+  if (ag && ag.id) return 'group:' + ag.id;
+  if (typeof activeDmPartner !== 'undefined' && activeDmPartner) return 'dm:' + activeDmPartner;
+  if (typeof activeGroupId !== 'undefined' && activeGroupId) return 'legacy-group:' + activeGroupId;
+  return 'channel:' + activeChannel;
+}
+
+/**
+ * The words a reply quotes: never a file's [[hum:file: marker, nor any part of
+ * one (it carries the key that opens the file), so a message holding one is
+ * quoted with no words at all.
+ */
+function replyQuoteText(body) {
+  const s = String(body == null ? '' : body);
+  return /\[\[hum:file:/i.test(s) ? '' : s;
+}
+
 function setReplyTarget(author, body, fromKey, timestamp, element) {
-  const shortBody = body.length > 80 ? body.substring(0, 80) + '…' : body;
-  replyTarget = { author, body, fromKey, timestamp, element };
+  const quoted = replyQuoteText(body);
+  const shortBody = quoted.length > 80 ? quoted.substring(0, 80) + '…' : quoted;
+  replyTarget = { author, body: quoted, fromKey, timestamp, element, scope: replyScopeNow() };
   const bar = document.getElementById('reply-bar');
   document.getElementById('reply-preview').innerHTML =
     `<span class="reply-author">${esc(author)}</span> ${esc(shortBody)}`;
@@ -271,8 +297,26 @@ function setReplyTarget(author, body, fromKey, timestamp, element) {
 
 function clearReplyTarget() {
   replyTarget = null;
-  document.getElementById('reply-bar').style.display = 'none';
-  document.getElementById('reply-preview').innerHTML = '';
+  const bar = document.getElementById('reply-bar');
+  if (bar) bar.style.display = 'none';
+  const preview = document.getElementById('reply-preview');
+  if (preview) preview.innerHTML = '';
+}
+window.clearReplyTarget = clearReplyTarget;
+
+/**
+ * The `reply_to` a post in public channel `channel` may carry: the reply made
+ * in that same channel, its words with no file marker; null for any other
+ * reply (made in a group, a DM, or another channel), which is never attached.
+ */
+function replyRefForChannel(target, channel) {
+  if (!target || target.scope !== 'channel:' + channel) return null;
+  return {
+    from: target.fromKey,
+    from_name: target.author,
+    content: replyQuoteText(target.body),
+    timestamp: target.timestamp,
+  };
 }
 
 // Click reply preview → scroll to the original message.
@@ -1505,15 +1549,11 @@ async function sendMessage() {
   // command for the server is stopped, and the text and the reply stay to edit.
   if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(content)) return;
 
-  // Build reply_to reference if replying.
+  // Build reply_to reference if replying: only a reply made in this channel
+  // (replyRefForChannel), never one made in a group or a DM.
   let replyRef = null;
   if (replyTarget) {
-    replyRef = {
-      from: replyTarget.fromKey,
-      from_name: replyTarget.author,
-      content: replyTarget.body,
-      timestamp: replyTarget.timestamp,
-    };
+    replyRef = replyRefForChannel(replyTarget, activeChannel);
     clearReplyTarget();
   }
 
@@ -1772,7 +1812,11 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   const isStaff = myRole === 'admin' || myRole === 'mod';
   // A P2P group's row (opts.privateRow) is encrypted end to end: no reaction, edit, server pin
   // or delete, each of which sends the message's text or who reacted to it to the server
-  // (BUG-178, 2026-10-10); Reply and Pin for me stay. The relay refuses them too.
+  // (BUG-178, 2026-10-10). Nor Pin for me (the batch review, 2026-10-10): it kept the
+  // decrypted words, a file's marker and key included, in this browser's storage under the
+  // PUBLIC channel's name, so they showed in that channel's pin bar. Reply stays: it belongs
+  // to the group's view and is never attached to a post anywhere else (replyRefForChannel).
+  // The relay refuses the server-side ones too.
   const privateRow = !!(opts && opts.privateRow);
   let actions = '<div class="msg-actions">';
   if (!privateRow) actions += '<button class="react-btn" title="React">😀</button>';
@@ -1783,7 +1827,7 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   if (isStaff && !privateRow) {
     actions += '<button class="pin-btn" title="Pin (server)">' + hosIcon('pin', 14) + '</button>';
   }
-  actions += '<button class="mypin-btn" title="Pin for me">⭐</button>';
+  if (!privateRow) actions += '<button class="mypin-btn" title="Pin for me">⭐</button>';
   if (privateRow) {
     // nothing: see above
   } else if (isMe) {
@@ -1872,15 +1916,22 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
     });
   }
 
-  // Click react button → show emoji picker.
-  el.querySelector('.react-btn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    showReactionPicker(e.target, fromKey, timestamp, el);
-  });
+  // Click react button → show emoji picker. A private row has none, and no
+  // picker on its pill's thorn either (a reaction tells the server who reacted
+  // to what). Each control is looked up before it is hooked: in a browser a
+  // button the row does not have is null, and hooking null threw, so no group
+  // message was drawn at all.
+  const reactBtn = privateRow ? null : el.querySelector('.react-btn');
+  if (reactBtn) {
+    reactBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showReactionPicker(e.target, fromKey, timestamp, el);
+    });
+  }
 
   // Click the Þ in the timestamp pill → reaction picker (native parity:
   // the pill's thorn is the primary add-reaction affordance).
-  const thornEl = el.querySelector('.ts-thorn');
+  const thornEl = privateRow ? null : el.querySelector('.ts-thorn');
   if (thornEl) {
     thornEl.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1889,14 +1940,17 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   }
 
   // Click reply button → show reply preview bar above input.
-  el.querySelector('.reply-btn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    setReplyTarget(author, body, fromKey, timestamp, el);
-    document.getElementById('msg-input').focus();
-  });
+  const replyBtn = el.querySelector('.reply-btn');
+  if (replyBtn) {
+    replyBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setReplyTarget(author, body, fromKey, timestamp, el);
+      document.getElementById('msg-input').focus();
+    });
+  }
 
   // Click edit button → inline edit mode.
-  const editBtn = el.querySelector('.edit-btn');
+  const editBtn = privateRow ? null : el.querySelector('.edit-btn');
   if (editBtn) {
     editBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1905,7 +1959,7 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   }
 
   // Click pin button → server pin (admin/mod).
-  const pinBtn = el.querySelector('.pin-btn');
+  const pinBtn = privateRow ? null : el.querySelector('.pin-btn');
   if (pinBtn) {
     pinBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1913,8 +1967,8 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
     });
   }
 
-  // Click ⭐ button → personal pin.
-  const mypinBtn = el.querySelector('.mypin-btn');
+  // Click ⭐ button → personal pin (never on a private row: see the actions above).
+  const mypinBtn = privateRow ? null : el.querySelector('.mypin-btn');
   if (mypinBtn) {
     mypinBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1923,7 +1977,7 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   }
 
   // Click delete button → send delete request.
-  const delBtn = el.querySelector('.delete-btn');
+  const delBtn = privateRow ? null : el.querySelector('.delete-btn');
   if (delBtn) {
     delBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -2158,6 +2212,8 @@ function renderChannelList() {
 }
 
 function switchChannel(channelId) {
+  // A reply belongs to the view it was made in: a new view starts without one.
+  clearReplyTarget();
   // Clear DM view if active.
   activeDmPartner = null;
   activeDmPartnerName = '';

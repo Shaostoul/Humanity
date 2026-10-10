@@ -72,6 +72,16 @@
 //  chat-privacy.js: blockLocally without withdrawPassesTo failed "Unfollow and Block clear the
 //     choice"; the tick boxes not wired, and the model reading every friend as the defaults,
 //     each failed the page test.
+//
+// Red first, 2026-10-10 (the batch review; the three tests at the end, each run against web/ as
+// at a3ca8f167 through HOS_WEB_DIR and seen failing there):
+//  reach.js: the web's own help sentences, which differed from src/net/reach.rs in 11 places:
+//     "message under nobody: the desktop app's words".
+//  chat-privacy.js: a request refusal leaving earlier offers as they were: "the earlier offer's
+//     button is turned off".
+//  chat-social.js: an echoed pass only added beside the old ones: "the ticks are the echoed
+//     pass's, not the union with the old one". With adoptEchoedPass not skipping a serial this
+//     device already withdrew: "a pass already taken back here is not standing again".
 
 const test = require("node:test");
 const assert = require("node:assert");
@@ -870,4 +880,76 @@ test("10c-ii: Settings > Safety > People I choose, each friend once with three t
   for (const k of [ANN, BEN, CY]) store.withdrawPassesTo(k);
   fn("renderSafetyPanel")();
   assert.ok(card.innerHTML.includes("Friends appear here once you have some.") && !card.innerHTML.includes("data-chosen-key"));
+});
+
+// ── The batch review's fixes (2026-10-10) ────────────────────────────────
+
+// Each row's help sentence: the desktop app's words are the source of truth. They are read out of
+// src/net/reach.rs (`Audience::meaning`) here, so a change on either side that the other does not
+// follow fails at once.
+test("each row's help sentence is the desktop app's, read out of src/net/reach.rs", () => {
+  const rust = fs.readFileSync(path.join(ROOT, "src", "net", "reach.rs"), "utf8");
+  const start = rust.indexOf("pub fn meaning(self, kind: ReachKind)");
+  assert.ok(start > 0, "reach.rs has Audience::meaning");
+  const body = rust.slice(start, rust.indexOf("pub struct ReachSettings", start));
+  const arms = [...body.matchAll(/\(ReachKind::(\w+), Audience::(\w+)\)\s*=>\s*\{?\s*"((?:[^"\\]|\\.)*)"/g)];
+  assert.equal(arms.length, 15, "one sentence for each kind and audience");
+  const unescape = (s) => {
+    assert.ok(!/\\[^"\\]/.test(s), "only \\\" and \\\\ escapes in these strings");
+    return s.replace(/\\(["\\])/g, "$1");
+  };
+  const seen = new Set();
+  for (const [, kind, audience, said] of arms) {
+    const k = kind.toLowerCase();
+    const a = audience.toLowerCase();
+    assert.ok(reach.REACH_KINDS.includes(k) && reach.REACH_AUDIENCES.includes(a), `${k}/${a} is a kind and an audience the web knows`);
+    seen.add(k + "/" + a);
+    assert.equal(reach.reachExplain(k, a), unescape(said), `${k} under ${a}: the desktop app's words`);
+  }
+  assert.equal(seen.size, 15, "every pair once");
+  assert.equal(reach.reachExplain("message", "everyone"), "", "nothing for an audience it does not know");
+});
+
+test("a refused contact request takes the Send request button off every earlier offer for that person", async () => {
+  const { sock, appended, handle } = await loadChat();
+  await handle({ type: "reach_refused", kind: "message", to: CY });
+  const offer = appended.find((el) => textOf(el).includes(reach.REACH_REFUSED_MESSAGE));
+  const button = findButton(offer, "Send request");
+  assert.ok(button && !button.disabled, "an offer with a live Send request button");
+  await handle({ type: "reach_refused", kind: "message", to: CY, request: true });
+  assert.ok(button.disabled, "the earlier offer's button is turned off");
+  assert.ok(textOf(offer).includes(reach.REACH_NOT_TAKING_REQUESTS), "and the offer says they are not taking requests");
+  sock.sent.length = 0;
+  if (typeof button.onclick === "function") await button.onclick();
+  assert.deepEqual(sock.sent, [], "pressing it anyway sends nothing");
+});
+
+// A DM self-copy from another of my devices (from me, to `to`), sealed to my DM key.
+function selfEnvelope(to, text, cert, ts = 1760000005000) {
+  const sig = b64(`hum/dm/v2\n${ME}\n${to}\n${ts}\n${text}`);
+  const inner = JSON.stringify({ v: 2, from: ME, to, ts, text, sig, cert });
+  return JSON.stringify({ v: 2, ek_ct_b64: b64(MY_KYBER), nonce_b64: "AAAA", ct_b64: b64(inner) });
+}
+
+test("a pass echoed from another of my devices replaces this one's record of the friend: a tick taken away there stays away", async () => {
+  const { sock, store, handle, fn } = await loadChat();
+  const OLD = "00112233445566778899aabbccddeeff";
+  const NEW = "ffeeddccbbaa99887766554433221100";
+  store.recordPassSent(ANN, OLD, "invite,message,trade,voice_message");
+  // My other device gave Ann Call and took Trade away: its new pass, echoed to me.
+  const may = "call,invite,message,voice_message";
+  const cert = fp.friendPassJson(NEW, may, b64(fp.friendPassPreimage(SERVER, ME, ANN, NEW, may)));
+  sock.sent.length = 0;
+  await handle({ type: "dm_new", id: 81, content: selfEnvelope(ANN, CTL_FRIEND_CERT, cert) });
+  await settle();
+  assert.deepEqual(fn("friendTicks")(ANN), { message: true, call: true, trade: false }, "the ticks are the echoed pass's, not the union with the old one");
+  assert.deepEqual(store.certsSent[ANN].map((p) => p.serial), [NEW], "the echoed pass is the record");
+  assert.ok(sock.sent.some((m) => m.type === "cert_revoke" && m.serial === OLD), "the pass it replaced is withdrawn here too");
+  // My own earlier pass, echoing back late after the newer one replaced it: it does not come back.
+  const oldCert = fp.friendPassJson(OLD, "invite,message,trade,voice_message", b64(fp.friendPassPreimage(SERVER, ME, ANN, OLD, "invite,message,trade,voice_message")));
+  sock.sent.length = 0;
+  await handle({ type: "dm_new", id: 82, content: selfEnvelope(ANN, CTL_FRIEND_CERT, oldCert, 1760000004000) });
+  await settle();
+  assert.deepEqual(store.certsSent[ANN].map((p) => p.serial), [NEW], "a pass already taken back here is not standing again");
+  assert.ok(!sock.sent.some((m) => m.type === "cert_revoke" && m.serial === NEW), "and the newer one is not withdrawn for it");
 });

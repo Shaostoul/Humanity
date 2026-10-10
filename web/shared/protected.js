@@ -49,9 +49,10 @@
   const PROTECTED_PIN_ITERATIONS = 600000;
   const PROTECTED_SALT_BYTES = 16;
   const PROTECTED_HASH_BITS = 256;
-  // After the right PIN, the action it was asked for may run once within this
-  // long (the page asks, then runs the action, which takes the permission).
-  const PROTECTED_GRANT_MS = 10000;
+  // The right PIN unlocks ONE action, the one it was asked for: no time
+  // window (the batch review, 2026-10-10, replaced a 10-second one, in which
+  // a second action of the same kind, or the first one returning early before
+  // it took the permission, ran without asking). See protectedAskThen.
   // A recovery phrase is 24 words; anything much shorter is not one.
   const PROTECTED_PHRASE_MIN_WORDS = 12;
 
@@ -59,7 +60,10 @@
   // While the setup is on, these need the PIN. Each name is one place in the
   // chat that asks: a "Who can reach me" row, a "People I choose" tick, making
   // a friend in any way (Follow, Follow back, accepting or sending a contact
-  // request), a friend code, joining a group by ticket, joining a voice room,
+  // request), a friend code (making one, or redeeming one, by button or by the
+  // typed /friend-code and /redeem commands), joining a group by ticket,
+  // starting a group (`start_group`), making or copying a group's invite
+  // ticket (`group_invite`: each one lets someone in), joining a voice room,
   // turning warnings off, turning the pictures rule down, showing public rooms,
   // changing the PIN, turning the setup off, and showing the recovery phrase
   // (`show_phrase`), as the desktop app does: whoever has the phrase can set a
@@ -68,7 +72,8 @@
   // the identity the phrase comes from (a backup file, the device-link code),
   // because the phrase can be read back out of each.
   const PROTECTED_LOCKED_ACTIONS = Object.freeze([
-    'reach_row', 'reach_tick', 'befriend', 'friend_code', 'join_group', 'join_voice_room',
+    'reach_row', 'reach_tick', 'befriend', 'friend_code', 'join_group', 'start_group', 'group_invite',
+    'join_voice_room',
     'warnings_off', 'pictures_down', 'show_public_rooms', 'change_pin', 'turn_off', 'show_phrase',
   ]);
   // Never locked: anything that reduces who can reach this device. A person
@@ -276,14 +281,22 @@
   // `identity` is the public key of the identity the setup was turned on under
   // (the desktop app keeps the same): "Forgot the PIN?" takes only THAT
   // identity's recovery phrase, so making a new identity on this device (and
-  // so knowing its phrase) does not open the lock. A missing or damaged one
-  // matches no identity (fail closed).
+  // so knowing its phrase) does not open the lock. A missing or damaged one,
+  // which only damage to what storage holds can leave (turning the setup on
+  // always records one), falls back to the identity in use, so the recovery
+  // phrase can still open a damaged setup rather than it locking for good
+  // (protectedIdentityMatches; the desktop app's rule, 10h as built).
   // `approved` is everyone the PIN holder let be a friend: the friends kept in
   // the review step, and each friend made with the PIN since. A pass is given
   // only to them (chat-social.js sendFriendCertTo), so no route makes a friend
   // without the PIN, even a follow made before the setup that is followed back
   // after it. `wrong` and `wait_until` are kept too, so reloading the page does
   // not reset the wait after three wrong PINs.
+  // `warnings_off` is the PIN holder's choice to turn "Warnings on messages"
+  // off (with the PIN), kept here on the device like the desktop app's one
+  // switch: while the setup is on it alone decides, never the per-identity
+  // switch in the local store, so restoring an identity whose warnings were
+  // off does not turn them off (the batch review, 2026-10-10).
 
   function normKey(k) {
     return typeof k === 'string' ? k.trim().toLowerCase() : '';
@@ -328,6 +341,7 @@
       approved: Array.isArray(src.approved) ? Array.from(new Set(src.approved.map(normKey).filter(Boolean))) : [],
       wrong: Number.isInteger(src.wrong) && src.wrong > 0 ? src.wrong : 0,
       wait_until: Number.isFinite(src.wait_until) && src.wait_until > 0 ? src.wait_until : 0,
+      warnings_off: src.warnings_off === true,
     };
   }
 
@@ -337,7 +351,7 @@
     return protectedStateParse(JSON.stringify({
       v: 1, on: true, pin: verifier, identity: protectedIdentityKey(identity), rules,
       pictures: rules.pictures_from_non_friends, public_rooms: rules.public_rooms,
-      approved: approved || [], wrong: 0, wait_until: 0,
+      approved: approved || [], wrong: 0, wait_until: 0, warnings_off: false,
     }));
   }
 
@@ -397,6 +411,22 @@
     return !!(state && k && state.approved.includes(k));
   }
 
+  /**
+   * A typed chat command that makes a friend, which the relay would act on
+   * as typed (src/relay/relay.rs: the first word, any letter case):
+   * `/friend-code` makes a code, `/redeem <code>` uses one. Returns
+   * {action: 'friend_code', command: 'friend-code'|'redeem', code} or null
+   * for anything else. The chat sends these through the same gated paths
+   * as its buttons, so typing one never gets round the PIN.
+   */
+  function protectedTypedCommand(text) {
+    const words = String(text == null ? '' : text).trim().split(/\s+/);
+    const first = (words[0] || '').toLowerCase();
+    if (first === '/friend-code') return { action: 'friend_code', command: 'friend-code', code: '' };
+    if (first === '/redeem') return { action: 'friend_code', command: 'redeem', code: words[1] || '' };
+    return null;
+  }
+
   /** Is this channel listed? With the setup on, only read-only rooms are, unless the PIN showed them. */
   function protectedChannelShown(channel, state) {
     if (!state || !state.on || state.public_rooms === 'all') return true;
@@ -414,6 +444,16 @@
   function protectedHidesPictures(state, who) {
     if (!state || !state.on || state.pictures !== 'never') return false;
     return !(who && (who.isMe || who.isFriend));
+  }
+
+  /**
+   * Is "Warnings on messages" on? With the setup on, its own `warnings_off`
+   * decides (only the PIN sets it), whatever `identitySwitch` (the per-identity
+   * switch in the local store) says; while it is off, that switch does.
+   */
+  function protectedWarningsOn(state, identitySwitch) {
+    if (state && state.on) return state.warnings_off !== true;
+    return identitySwitch !== false;
   }
 
   /**
@@ -455,9 +495,10 @@
   }
 
   /**
-   * Is `key` the identity the setup was turned on under? False while it is off,
-   * and false when the state holds no identity or a damaged one (fail closed):
-   * then no phrase opens "Forgot the PIN?".
+   * Is `key` the identity the setup was turned on under? False while it is off
+   * and for a key that is not one. When the state holds no identity, or a
+   * damaged one, the identity in use counts as it (see below), so its phrase
+   * can still open "Forgot the PIN?".
    */
   function protectedIdentityMatches(state, key) {
     const want = state ? protectedIdentityKey(state.identity) : '';
@@ -480,10 +521,18 @@
 
   // ── The gate the chat scripts call (browser) ──
   // The state is read from this device's storage on every check, so a change
-  // made in another tab counts at once. A grant is held in memory only: the
-  // right PIN lets the action it was asked for run once, soon after.
+  // made in another tab counts at once.
+  //
+  // One PIN, one action (the batch review, 2026-10-10). The right PIN given
+  // for `action` holds a grant, in memory only, for the run that asked for it
+  // (protectedAskThen's `fn`), which takes it once with protectedTake (or
+  // protectedBefriendAllowed) for that same action. The grant is cleared when
+  // that run returns, whatever way it returns: early before taking it, with a
+  // value, through a promise that settles, or by throwing. It used to last 10
+  // seconds, so an action that returned before taking it left the PIN open
+  // for the next action of the same kind, unasked.
 
-  let grantHeld = null; // {action, until}
+  let grantHeld = null; // {action}, while the run the PIN was given for is going
 
   function storage() {
     try { return root.localStorage || null; } catch { return null; }
@@ -504,21 +553,15 @@
     return protectedStateWrite(storage(), state);
   }
 
-  function nowMs() { return Date.now(); }
-
-  /** The right PIN was given for `action`: it may run once within PROTECTED_GRANT_MS. */
-  function protectedGrant(action) {
-    grantHeld = { action, until: nowMs() + PROTECTED_GRANT_MS };
-  }
-
   function grantFor(action) {
-    return !!(grantHeld && grantHeld.action === action && grantHeld.until >= nowMs());
+    return !!(grantHeld && grantHeld.action === action);
   }
 
   /**
    * May `action` run now? True when the setup is off, the action is never
-   * locked, or the PIN was just given for it (the permission is used up).
-   * A locked action that gets false must not run; it asks with protectedAskThen.
+   * locked, or the PIN was just given for exactly this action and the run it
+   * was given for is going (the grant is used up). A locked action that gets
+   * false must not run; it asks with protectedAskThen.
    */
   function protectedTake(action) {
     if (!protectedActionLocked(action, protectedCurrent())) return true;
@@ -526,25 +569,39 @@
     return false;
   }
 
-  /**
-   * Ask for the PIN for `action` (chat-protected.js protectedAskPin draws the
-   * prompt). True at once when no PIN is needed. When the prompt cannot be
-   * drawn, the answer is no: a lock that cannot ask stays locked.
-   */
-  async function protectedUnlock(action) {
-    if (!protectedActionLocked(action, protectedCurrent())) return true;
-    if (grantFor(action)) return true;
-    const ask = root.protectedAskPin;
-    if (typeof ask !== 'function') return false;
-    let ok = false;
-    try { ok = !!(await ask(action)); } catch { ok = false; }
-    if (ok) protectedGrant(action);
-    return ok;
+  /** Does `action` need the PIN asked for now (the setup locks it, and no grant for it is held)? */
+  function protectedNeedsPin(action) {
+    return protectedActionLocked(action, protectedCurrent()) && !grantFor(action);
   }
 
-  /** Ask for the PIN, then run `fn` (which takes the permission). Resolves to what `fn` returns, or false. */
-  function protectedAskThen(action, fn) {
-    return protectedUnlock(action).then((ok) => (ok ? fn() : false));
+  /**
+   * Ask for the PIN for `action` (chat-protected.js protectedAskPin draws the
+   * prompt). When the prompt cannot be drawn, the answer is no: a lock that
+   * cannot ask stays locked.
+   */
+  async function askPin(action) {
+    const ask = root.protectedAskPin;
+    if (typeof ask !== 'function') return false;
+    try { return !!(await ask(action)); } catch { return false; }
+  }
+
+  /**
+   * Ask for the PIN for `action`, then run `fn`, which takes the grant
+   * (protectedTake or protectedBefriendAllowed). Resolves to what `fn`
+   * returns, or false when the PIN was not given. The grant is gone once
+   * `fn` returns or throws, taken or not. While the setup is off, or for an
+   * action it never locks, `fn` just runs.
+   */
+  async function protectedAskThen(action, fn) {
+    if (!protectedActionLocked(action, protectedCurrent())) return fn();
+    if (!(await askPin(action))) return false;
+    const grant = { action };
+    grantHeld = grant;
+    try {
+      return await fn();
+    } finally {
+      if (grantHeld === grant) grantHeld = null;
+    }
   }
 
   /**
@@ -591,16 +648,16 @@
   const api = {
     PROTECTED_PRESETS_URL, PROTECTED_PRESET_ID, PROTECTED_STORAGE_KEY,
     PROTECTED_PIN_KDF, PROTECTED_PIN_ITERATIONS, PROTECTED_SALT_BYTES, PROTECTED_HASH_BITS,
-    PROTECTED_GRANT_MS, PROTECTED_LOCKED_ACTIONS, PROTECTED_NEVER_LOCKED, PROTECTED_SAFE_RULES,
+    PROTECTED_LOCKED_ACTIONS, PROTECTED_NEVER_LOCKED, PROTECTED_SAFE_RULES,
     PROTECTED_LABELS,
     protectedPresetFrom, protectedLabel, protectedRulesFrom, protectedReachFrame, protectedPresetStrings,
     protectedAvoidHits, protectedPinOk, protectedMakeVerifier, protectedVerifierOk, protectedPinMatches,
     protectedStateParse, protectedStateNew, protectedStateRead, protectedStateWrite,
     protectedWaitLeftMs, protectedAfterWrong, protectedAfterRight,
-    protectedActionLocked, protectedIsApproved, protectedChannelShown, protectedChannelsShown,
-    protectedHidesPictures, protectedWarningAudiences, protectedHidePicturesHtml,
+    protectedActionLocked, protectedIsApproved, protectedTypedCommand, protectedChannelShown, protectedChannelsShown,
+    protectedHidesPictures, protectedWarningsOn, protectedWarningAudiences, protectedHidePicturesHtml,
     protectedPhraseWords, protectedPhraseMatches, protectedIdentityKey, protectedIdentityMatches,
-    protectedCurrent, protectedIsOn, protectedSave, protectedGrant, protectedTake, protectedUnlock,
+    protectedCurrent, protectedIsOn, protectedSave, protectedTake, protectedNeedsPin,
     protectedAskThen, protectedBefriendAllowed, protectedPassAllowed, protectedApprove, protectedForget,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
