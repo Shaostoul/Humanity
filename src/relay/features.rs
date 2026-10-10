@@ -1171,6 +1171,63 @@ mod tests {
     /// handler: "the player's game hears the new speed at once" failed after
     /// the 10 s wait (the setting was saved, the world and the games never
     /// heard).
+    /// BUG-178 (2026-10-10): a pin, an edit or a reaction names the channel its message was in,
+    /// and the relay stored and broadcast all three for any name it was given. An admin pinning a
+    /// message in a DM or a P2P group would have kept that private text here and shown it to
+    /// everyone connected; a reaction there told everyone who reacted to whom. Only this server's
+    /// own rooms are accepted now; a pin in a room still works.
+    ///
+    /// Seen red 2026-10-10 with the `is_room` checks taken out of relay.rs: "a pin in a DM is
+    /// refused" failed (the admin got no refusal, and the bystander was sent the pin).
+    #[tokio::test]
+    async fn pins_edits_and_reactions_are_only_for_this_servers_rooms() {
+        let (state, port) = spawn_relay("only_rooms", Features::all_enabled()).await;
+        state.db.ensure_default_channel().unwrap(); // the relay makes #general at start (relay/mod.rs)
+        let (mut admin, admin_key) = bind_socket(&state, port, [51u8; 32], Some("Admin"), 1).await;
+        state.db.set_role(&admin_key, "admin").unwrap();
+        let (mut bystander, _) = bind_socket(&state, port, [52u8; 32], Some("Bystander"), 1).await;
+        let private_word = |v: &Value| v.get("message").and_then(|m| m.as_str()).map(str::to_string);
+
+        for ch in ["dm:aa", "p2pgroup:bb"] {
+            send_json(&mut admin, serde_json::json!({
+                "type": "pin_request", "from_key": "someone", "from_name": "Someone",
+                "content": "a private word", "timestamp": 1_791_000_000_000u64, "channel": ch,
+            })).await;
+            let said = next_frame_with(&mut admin, |v| private_word(v).filter(|m| m.contains("can be pinned")).map(Value::String)).await;
+            assert!(said.is_some(), "a pin in a DM is refused ({ch})");
+            assert!(state.db.get_pinned_messages(ch).unwrap().is_empty(), "and nothing is kept ({ch})");
+
+            send_json(&mut admin, serde_json::json!({
+                "type": "edit", "from": admin_key, "timestamp": 1_791_000_000_000u64,
+                "new_content": "a private word", "channel": ch,
+            })).await;
+            let said = next_frame_with(&mut admin, |v| private_word(v).filter(|m| m.contains("can be edited")).map(Value::String)).await;
+            assert!(said.is_some(), "an edit in a DM is refused ({ch})");
+
+            send_json(&mut admin, serde_json::json!({
+                "type": "reaction", "target_from": "someone", "target_timestamp": 1_791_000_000_000u64,
+                "emoji": "👍", "channel": ch,
+            })).await;
+        }
+        // A pin in a room still works, and is the first thing of its kind the bystander hears:
+        // nothing from the DM or the group reached them before it.
+        send_json(&mut admin, serde_json::json!({
+            "type": "pin_request", "from_key": "someone", "from_name": "Someone",
+            "content": "a public word", "timestamp": 1_791_000_000_001u64, "channel": "general",
+        })).await;
+        let first = next_frame_with(&mut bystander, |v| {
+            let t = v.get("type").and_then(|t| t.as_str()).unwrap_or("");
+            (t == "pin_added" || t == "reaction" || t == "edit").then(|| v.clone())
+        })
+        .await
+        .expect("the bystander hears the room's pin");
+        assert_eq!(first["type"], "pin_added", "nothing from a DM or a group reached the bystander first: {first}");
+        assert_eq!(first["channel"], "general");
+        assert!(!first.to_string().contains("a private word"), "no private text was sent to them");
+        assert!(state.db.load_channel_reactions("dm:aa", 10).unwrap().is_empty(), "no reaction kept for a DM");
+        assert!(state.db.load_channel_reactions("p2pgroup:bb", 10).unwrap().is_empty(), "nor for a group");
+    }
+
     #[tokio::test]
     async fn a_world_clock_change_reaches_every_connected_game() {
         let (state, port) = spawn_relay("world_clock", Features::all_enabled()).await;

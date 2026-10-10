@@ -5262,3 +5262,25 @@ calls it, and is 18 lines shorter); web: `handleVoiceCallMessage` in `web/chat/c
 **Test:** `engine::call_relay::tests::a_ring_while_busy_rings_out_and_leaves_a_missed_call_line`
 and the busy part of `scripts/tests/block-web.test.js`'s ring test, each seen red with the old
 automatic reject put back.
+
+## BUG-178: Pin, Edit and React could send a private conversation's text to the server (FIXED next release, found 2026-10-10)
+
+A pin, an edit and a reaction each name the channel their message was in, and the relay stored
+and broadcast all three for any name it was given. Both clients offered them on every row: the
+desktop app in DMs and P2P groups, the web chat in P2P groups (its group rows reuse the channel
+row). So Edit and Pin sent a private message's text to the server in the clear; for an admin or a
+moderator, a pin was kept in `pinned_messages` under `dm:...` or `p2pgroup:...` and broadcast to
+everyone connected as a pinned message; a reaction told everyone who reacted to whom. Found by
+the 10k web build. Checked on the live server the same day: its only two pins are in #general,
+so nothing private was pinned there.
+
+**Fixed, in three layers.** The relay accepts a pin, an edit or a reaction only for one of its own
+rooms (`relay::handlers::utils::is_room`, a row in `channels`); both clients offer only Reply (and
+the web's local Pin for me) on a DM or group row; and each send point refuses while a private
+conversation is open (desktop `is_private_channel` in `src/gui/pages/chat.rs`; web
+`privateViewOpen` in `web/chat/chat-messages.js`).
+
+**Tests:** relay `pins_edits_and_reactions_are_only_for_this_servers_rooms` (socket level: the
+refusals, nothing kept, the bystander hears only the room's pin); desktop
+`dms_and_p2p_groups_are_private_and_rooms_are_not`; web, the BUG-178 test in
+`scripts/tests/private-files-web.test.js`. Each seen red with its fix taken out.

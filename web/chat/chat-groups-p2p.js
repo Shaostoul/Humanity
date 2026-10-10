@@ -705,7 +705,7 @@
    */
   function addGroupMessage(name, text, ts, fromKey, isHistory) {
     if (typeof addChatMessage !== 'function') return null;
-    return addChatMessage(name, text, ts, fromKey, isHistory, false, null, null, false, null, { privateFiles: true });
+    return addChatMessage(name, text, ts, fromKey, isHistory, false, null, null, false, null, { privateFiles: true, privateRow: true });
   }
 
   /**

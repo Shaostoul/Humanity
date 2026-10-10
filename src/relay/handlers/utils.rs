@@ -5,6 +5,14 @@ use std::sync::Arc;
 
 use crate::relay::relay::{LinkPreview, RelayState};
 
+/// Is `channel` one of this server's own rooms (a row in `channels`)? Pins, edits and reactions
+/// carry the channel their message was in, and only a room's may be stored or broadcast: a direct
+/// message (`dm:...`) or a P2P group (`p2pgroup:...`) is encrypted end to end, and its text, or who
+/// reacted to whom in it, must never be kept here or sent to everyone (BUG-178, 2026-10-10).
+pub fn is_room(state: &RelayState, channel: &str) -> bool {
+    !channel.is_empty() && state.db.channel_exists(channel).unwrap_or(false)
+}
+
 /// Check if an IP address is private/internal (SSRF prevention).
 pub fn is_private_ip(ip: &std::net::IpAddr) -> bool {
     match ip {

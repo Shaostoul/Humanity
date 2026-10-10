@@ -52,8 +52,14 @@ function showReactionPicker(btn, targetFrom, targetTs, msgEl) {
   }, 0);
 }
 
+/** A P2P group is open: nothing that sends a message's text or reactions to the server (BUG-178). */
+function privateViewOpen() {
+  return !!(typeof window !== 'undefined' && window.activeP2pGroup);
+}
+
 function sendReaction(targetFrom, targetTs, emoji) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  if (privateViewOpen()) return;
   ws.send(JSON.stringify({
     type: 'reaction',
     target_from: targetFrom,
@@ -168,7 +174,8 @@ function startEditMode(msgEl, originalBody, fromKey, timestamp) {
     if (!newContent || newContent.length > getMaxMsgLength()) return;
     // Never my recovery phrase (step F, chat-warnings.js): the edit stays open to fix.
     if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(newContent, 'Your edit was not saved.')) return;
-    // Send edit via WebSocket.
+    // Send edit via WebSocket; never from a group, whose text is encrypted (BUG-178).
+    if (privateViewOpen()) return;
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: 'edit',
@@ -335,6 +342,7 @@ async function loadPinsForChannel(channelId) {
 }
 
 function pinMessageFromUI(fromKey, fromName, content, timestamp) {
+  if (privateViewOpen()) return; // a group message's text never goes to the server (BUG-178)
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({
       type: 'pin_request',

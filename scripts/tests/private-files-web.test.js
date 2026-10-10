@@ -1006,3 +1006,32 @@ test("a group's file is not sent anywhere when another conversation is opened wh
 //     "a marker in a public channel is refused".
 //  B15 chat-dms.js, the failure line in other words ("Attachment unavailable."): test 0 "the page
 //     says 10k's line", test 6 "a wrong key: the line".
+
+// BUG-178 (2026-10-10): a group's row offered the server's React, Edit, Pin and Delete, and
+// Edit and Pin sent the group message's text to the server in the clear (an admin's pin would
+// have been kept there and shown to everyone). A group row keeps Reply and Pin for me only, and
+// nothing that would send a group message's text or reactions goes out while a group is open.
+// Seen red with the privateRow test taken out of addChatMessage: "a group row offers no React".
+test("a group's row offers no server reaction, edit, pin or delete, and none is sent", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  const mine = await page.fx.groupMsg(fx.ann, "a private word", T0 + 300);
+  page.relay.log = [fx.hello, mine];
+  await openGroup(page);
+  const rows = page.state.appended.filter((e) => e && e.dataset && e.dataset.groupObjectId);
+  assert.ok(rows.length >= 2, "the group's rows are drawn");
+  for (const row of rows) {
+    const html = row.innerHTML;
+    assert.ok(!html.includes('class="react-btn"'), "a group row offers no React");
+    assert.ok(!html.includes('class="edit-btn"'), "nor Edit");
+    assert.ok(!html.includes('class="pin-btn"'), "nor a server Pin");
+    assert.ok(!html.includes('class="delete-btn"'), "nor a server Delete");
+    assert.ok(html.includes('class="reply-btn"'), "Reply stays");
+  }
+  page.sock.sent.length = 0;
+  page.fn("pinMessageFromUI")(fx.ann.key, fx.ann.name, "a private word", T0 + 300);
+  page.fn("sendReaction")(fx.ann.key, T0 + 300, "👍");
+  await settle();
+  const leaked = page.sock.sent.filter((m) => m.type === "pin_request" || m.type === "reaction" || m.type === "edit");
+  assert.deepEqual(leaked, [], "nothing that carries the group's text or reactions goes to the server");
+});

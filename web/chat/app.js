@@ -1770,17 +1770,23 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   // Action buttons: react, reply, edit (own), pin (admin/mod), delete (own).
   const myRole = (peerData[myKey] && peerData[myKey].role) ? peerData[myKey].role : '';
   const isStaff = myRole === 'admin' || myRole === 'mod';
+  // A P2P group's row (opts.privateRow) is encrypted end to end: no reaction, edit, server pin
+  // or delete, each of which sends the message's text or who reacted to it to the server
+  // (BUG-178, 2026-10-10); Reply and Pin for me stay. The relay refuses them too.
+  const privateRow = !!(opts && opts.privateRow);
   let actions = '<div class="msg-actions">';
-  actions += '<button class="react-btn" title="React">😀</button>';
+  if (!privateRow) actions += '<button class="react-btn" title="React">😀</button>';
   actions += '<button class="reply-btn" title="Reply">↩</button>';
-  if (isMe) {
+  if (isMe && !privateRow) {
     actions += '<button class="edit-btn" title="Edit">✏️</button>';
   }
-  if (isStaff) {
+  if (isStaff && !privateRow) {
     actions += '<button class="pin-btn" title="Pin (server)">' + hosIcon('pin', 14) + '</button>';
   }
   actions += '<button class="mypin-btn" title="Pin for me">⭐</button>';
-  if (isMe) {
+  if (privateRow) {
+    // nothing: see above
+  } else if (isMe) {
     actions += '<button class="delete-btn" title="Delete">✕</button>';
   } else if (isStaff) {
     // Moderators/admins can delete others' messages (native parity). The relay

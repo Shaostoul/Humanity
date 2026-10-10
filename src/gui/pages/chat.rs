@@ -1051,7 +1051,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 });
                                 ui.close_menu();
                             }
-                            if msg.timestamp_ms > 0 && ui.button("Pin message").clicked() {
+                            if msg.timestamp_ms > 0 && !is_private_channel(&msg.channel) && ui.button("Pin message").clicked() {
                                 pending_pins.push((
                                     msg.sender_key.clone(),
                                     msg.sender_name.clone(),
@@ -1060,7 +1060,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 ));
                                 ui.close_menu();
                             }
-                            if is_own && msg.timestamp_ms > 0 && ui.button("Edit").clicked() {
+                            if is_own && msg.timestamp_ms > 0 && !is_private_channel(&msg.channel) && ui.button("Edit").clicked() {
                                 pending_edit = Some((msg.timestamp_ms, msg.content.clone()));
                                 ui.close_menu();
                             }
@@ -1069,7 +1069,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             // Server enforces the same predicate so a stale UI
                             // can't bypass; we just hide the option when it's
                             // certain to be rejected.
-                            if msg.timestamp_ms > 0 && (is_own || is_admin_or_mod) {
+                            if msg.timestamp_ms > 0 && (is_own || is_admin_or_mod) && !is_private_channel(&msg.channel) {
                                 let label = if is_own { "Delete" } else { "Delete (admin)" };
                                 if ui.button(label).clicked() {
                                     pending_deletes.push((
@@ -1129,8 +1129,10 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         // variation selectors and known-broken glyphs.
                         // Palette lives in data/reactions.json (one source for
                         // native, relay allowlist, and web) via crate::reactions.
-                        let top_reactions: &'static [String] = crate::reactions::top();
-                        let all_reactions: &'static [String] = crate::reactions::all();
+                        // No reactions in a DM or a P2P group: the server would tell everyone who reacted to
+                        // whom there (BUG-178), so the popup offers none.
+                        let top_reactions: &'static [String] = if is_private_channel(&msg.channel) { &[] } else { crate::reactions::top() };
+                        let all_reactions: &'static [String] = if is_private_channel(&msg.channel) { &[] } else { crate::reactions::all() };
                         let is_own = msg.sender_key == state.profile_public_key;
 
                         // Estimated popup geometry — needed for the sticky
@@ -1304,14 +1306,14 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                                         timestamp_ms: target_ts,
                                                     });
                                                 }
-                                                if ui.add(
+                                                if !is_private_channel(&msg.channel) && ui.add(
                                                     egui::Button::new(RichText::new("Pin").size(theme.font_size_small).color(chan))
                                                         .min_size(Vec2::new(34.0, 22.0))
                                                         .rounding(Rounding::same(4))
                                                 ).on_hover_text("Pin message").clicked() {
                                                     pending_pins.push((msg.sender_key.clone(), msg.sender_name.clone(), msg.content.clone(), target_ts));
                                                 }
-                                                if is_own {
+                                                if is_own && !is_private_channel(&msg.channel) {
                                                     if ui.add(
                                                         egui::Button::new(RichText::new("Edit").size(theme.font_size_small).color(chan))
                                                             .min_size(Vec2::new(38.0, 22.0))
@@ -1519,6 +1521,13 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
                 // Apply pending edit save (send the WS edit message + clear edit target). An edit
                 // holding the recovery phrase is stopped (step F) and its editor stays open.
+                // Never in a DM or a P2P group (BUG-178): the edit would carry its private text to the server.
+                if is_private_channel(&state.chat_active_channel) {
+                    pending_edit_save = None;
+                    pending_pins.clear();
+                    pending_reactions.clear();
+                    pending_deletes.clear();
+                }
                 if let Some((ts, new_content)) = pending_edit_save.take().filter(|(_, c)| !crate::engine::warnings::guard_stops(state, &[c])) {
                     if let Some(ref client) = state.ws_client {
                         if client.is_connected() {
@@ -3904,6 +3913,13 @@ pub fn format_full_timestamp(ts_ms: u64) -> String {
 /// private, file the notice under "general" (a server channel) instead — it's
 /// preserved without polluting the private conversation. (Bug: a deploy-bot
 /// #announcements notice appeared inside an open P2P group, then disappeared.)
+/// A DM (`dm:`) or a P2P group (`p2pgroup:`): encrypted end to end, so nothing that sends a
+/// message's text or who reacted to it to the server (pin, edit, reaction, delete) is offered or
+/// sent there (BUG-178, 2026-10-10). The relay refuses them too (`relay::handlers::utils::is_room`).
+pub(crate) fn is_private_channel(channel: &str) -> bool {
+    channel.starts_with("dm:") || channel.starts_with("p2pgroup:")
+}
+
 pub fn notice_channel(active_channel: &str) -> String {
     if active_channel.starts_with("p2pgroup:") || active_channel.starts_with("dm:") {
         "general".to_string()
@@ -4691,5 +4707,20 @@ mod connect_form_tests {
         state.active_socket_up();
         assert_eq!(state.server_url, *a, "with A up again the field still names the abandoned draft");
         assert!(!state.typed_address_held());
+    }
+}
+
+#[cfg(test)]
+mod private_channel_tests {
+    /// BUG-178: a DM and a P2P group are private, so a row there offers no pin, edit, reaction
+    /// or delete, and none is sent; a room of the server is not private. Seen red 2026-10-10 with
+    /// `is_private_channel` answering false for groups: "a P2P group is private".
+    #[test]
+    fn dms_and_p2p_groups_are_private_and_rooms_are_not() {
+        assert!(super::is_private_channel("dm:abc"), "a DM is private");
+        assert!(super::is_private_channel("p2pgroup:xyz"), "a P2P group is private");
+        for room in ["general", "announcements", "local", "commons:garden", ""] {
+            assert!(!super::is_private_channel(room), "{room:?} is not private");
+        }
     }
 }

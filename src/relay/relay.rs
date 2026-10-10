@@ -5296,6 +5296,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
                                 let display = peer.as_ref().and_then(|p| p.display_name.clone());
                                 let ch = if reaction_channel.is_empty() { "general".to_string() } else { reaction_channel };
+                                // Only a room of this server: a reaction in a DM or a P2P group would tell everyone
+                                // who reacted to whom in a private conversation (BUG-178). Dropped silently.
+                                if !crate::relay::handlers::utils::is_room(&state_clone, &ch) {
+                                    continue;
+                                }
                                 let _ = state_clone.db.toggle_reaction(
                                     &target_from, target_timestamp, &emoji,
                                     &my_key_for_recv, display.as_deref().unwrap_or(""), &ch,
@@ -5357,7 +5362,16 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             RelayMessage::Edit { timestamp, new_content, channel: edit_channel, .. } => {
                                 let edit_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
                                 let edit_char_limit: usize = if edit_role == "admin" { 10_000 } else { 2_000 };
-                                if new_content.is_empty() || new_content.len() > edit_char_limit {
+                                // Only a room of this server: an edit in a DM or a P2P group would carry its private
+                                // text here in the clear (BUG-178); the clients do not offer it there.
+                                let edit_room = if edit_channel.is_empty() { "general" } else { edit_channel.as_str() };
+                                if !crate::relay::handlers::utils::is_room(&state_clone, edit_room) {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Edit failed: only messages in this server's rooms can be edited.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                } else if new_content.is_empty() || new_content.len() > edit_char_limit {
                                     let private = RelayMessage::Private {
                                         to: my_key_for_recv.clone(),
                                         message: format!("Edit failed: message must be 1-{} characters.", edit_char_limit),
@@ -5755,6 +5769,13 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     let _ = state_clone.broadcast_tx.send(private);
                                 } else {
                                     let ch = if pin_ch.is_empty() { "general".to_string() } else { pin_ch };
+                                    // Only a room of this server: pinning a DM or a P2P group message would store its
+                                    // private text here and show it to everyone (BUG-178).
+                                    if !crate::relay::handlers::utils::is_room(&state_clone, &ch) {
+                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only messages in this server's rooms can be pinned.".to_string() };
+                                        let _ = state_clone.broadcast_tx.send(private);
+                                        continue;
+                                    }
                                     let display = state_clone.peers.read().await.get(&my_key_for_recv)
                                         .and_then(|p| p.display_name.clone())
                                         .unwrap_or_else(|| my_key_for_recv[..8].to_string());
