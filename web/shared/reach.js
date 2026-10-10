@@ -16,12 +16,14 @@
 // Safety page shows; the client applies the same rule to DMs that reach it
 // anyway, showing them as a contact request with no text.
 //
-// A contact request is a sealed DM whose plaintext is exactly the smallest
-// padding bucket (256 bytes, the first of DM_PAD_BUCKETS in src/net/dm_pq.rs
-// and web/chat/crypto.js) and carries only the sender's name:
-//   {"v":2,"contact_request":true,"name":"<registered name>","pad":"   ..."}
-// The name follows the relay's own rule for registered names (letters, digits,
-// underscore, dash, at most 24), so a request cannot carry a sentence or a link.
+// A contact request (10c, as amended in review the same day) is an ordinary
+// signed, sealed v2 DM deposited with `"contact_request": true`, whose text is
+//   [[hum:contact-request:v1]]{"name":"<sender's registered name>","pass":"<pass JSON>"}
+// where the pass is the sender's v2 friendship pass for the recipient with the
+// default `may`: asking to connect is consenting to hear back, and the reply
+// gets through the sender's relay gate because it carries that pass. The DM's
+// own signature says who sent it; the recipient checks the pass and shows only
+// the name its member list has for that key, never the claimed one.
 //
 // A classic script in the browser (its names land on window), a CommonJS
 // module under Node. Load before crypto.js.
@@ -51,8 +53,8 @@
   const REACH_REFUSED_MESSAGE = 'This person only accepts messages from people they know. You can send a contact request: they will see only your name.';
   const REACH_REFUSED_TRADE = 'This person only accepts trade requests from people they know.';
 
-  // The smallest padding bucket: a contact request's sealed plaintext is exactly this long.
-  const CONTACT_REQUEST_BYTES = 256;
+  // The control marker a contact request's text starts with. Must match native.
+  const CONTACT_REQUEST_MARKER = '[[hum:contact-request:v1]]';
   // The relay's rule for a registered name (src/relay/relay.rs, identify).
   const REACH_NAME_RE = /^[A-Za-z0-9_-]{1,24}$/;
 
@@ -132,42 +134,40 @@
     }
   }
 
-  function utf8Len(s) {
-    return new TextEncoder().encode(s).length;
-  }
-
   /**
-   * The sealed plaintext of a contact request from `name`: exactly
-   * CONTACT_REQUEST_BYTES bytes of JSON, or null when the name is not a
-   * registered-name word.
+   * The text of a contact request from `name` carrying `passJson` (the
+   * sender's pass for the recipient), or null when the name is not a
+   * registered-name word or there is no pass.
    */
-  function contactRequestJson(name) {
+  function contactRequestText(name, passJson) {
     if (typeof name !== 'string' || !REACH_NAME_RE.test(name)) return null;
-    const bare = { v: 2, contact_request: true, name, pad: '' };
-    const fill = CONTACT_REQUEST_BYTES - utf8Len(JSON.stringify(bare));
-    if (fill < 0) return null;
-    bare.pad = ' '.repeat(fill);
-    return JSON.stringify(bare);
+    if (typeof passJson !== 'string' || !passJson) return null;
+    return CONTACT_REQUEST_MARKER + JSON.stringify({ name, pass: passJson });
+  }
+
+  /** Is this DM text a contact request (whatever follows the marker)? */
+  function isContactRequestText(text) {
+    return typeof text === 'string' && text.startsWith(CONTACT_REQUEST_MARKER);
   }
 
   /**
-   * Read a contact request's plaintext: {name}, or null when it is not one. A
-   * payload longer than the smallest bucket, or one whose name is not a
-   * registered-name word, is not a contact request.
+   * Read a contact request's text: {name, pass}, or null when it is not one or
+   * its body is not the JSON object with both strings. The pass is not checked
+   * here (crypto.js pqVerifyFriendCert does that) and the name is never shown.
    */
-  function contactRequestParse(json) {
-    if (typeof json !== 'string' || utf8Len(json) > CONTACT_REQUEST_BYTES) return null;
+  function contactRequestParse(text) {
+    if (!isContactRequestText(text)) return null;
     let v;
-    try { v = JSON.parse(json); } catch { return null; }
-    if (!v || v.v !== 2 || v.contact_request !== true) return null;
-    if (typeof v.name !== 'string' || !REACH_NAME_RE.test(v.name)) return null;
-    return { name: v.name };
+    try { v = JSON.parse(text.slice(CONTACT_REQUEST_MARKER.length)); } catch { return null; }
+    if (!v || typeof v !== 'object' || typeof v.name !== 'string' || typeof v.pass !== 'string' || !v.pass) return null;
+    return { name: v.name, pass: v.pass };
   }
 
   const api = {
     REACH_KINDS, REACH_AUDIENCES, REACH_DEFAULTS, REACH_KIND_LABELS, REACH_AUDIENCE_LABELS,
-    REACH_REFUSED_MESSAGE, REACH_REFUSED_TRADE, CONTACT_REQUEST_BYTES, REACH_NAME_RE,
-    reachExplain, reachSettingsFrom, reachSetFrame, reachAllows, contactRequestJson, contactRequestParse,
+    REACH_REFUSED_MESSAGE, REACH_REFUSED_TRADE, CONTACT_REQUEST_MARKER, REACH_NAME_RE,
+    reachExplain, reachSettingsFrom, reachSetFrame, reachAllows,
+    contactRequestText, isContactRequestText, contactRequestParse,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else Object.assign(root, api);

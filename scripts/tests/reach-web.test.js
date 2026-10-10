@@ -1,5 +1,6 @@
 // "Who can reach me" in the web chat client (step B, 2026-10-09,
-// docs/design/blocking-and-safe-mode.md 10c), mirroring native Settings > Safety.
+// docs/design/blocking-and-safe-mode.md 10c, contact requests as amended in review the same day),
+// mirroring native Settings > Safety.
 //
 // Run: node --test scripts/tests/reach-web.test.js   (in `just rig-tests`)
 //
@@ -12,36 +13,45 @@
 // The real primitives are covered by scripts/pq-kat.mjs and the relay's tests.
 //
 // What it proves:
-//  0. The words and the contact request's size: the first padding bucket is the same in the
-//     relay's Rust (src/net/dm_pq.rs), the web sealer (crypto.js) and reach.js, and a request's
-//     plaintext is exactly that long whatever the name; the five audiences decide as 10c says.
+//  0. The words: the padding buckets are the same in the relay's Rust (src/net/dm_pq.rs) and the
+//     web sealer (crypto.js); a contact request's text is the marker and {name, pass}; the five
+//     audiences decide as 10c says.
 //  1. `reach_settings` from the relay is what the Safety page shows; before it arrives the rows
 //     show the safe defaults and cannot be changed.
 //  2. Changing a row sends `reach_set` with only that kind, and the row shows the relay's answer.
 //  3. A `reach_refused` for a message shows the spec's sentence and a Send request button, once a
 //     minute per person; the button sends a contact request.
-//  4. A contact request goes out flagged, sealed at the smallest bucket, carrying only my name.
-//  5. A DM from someone my settings refuse is shown as a request by name, its text stored and
-//     shown nowhere; a contact request is listed by name; "nobody" lists neither; "groups" lets
-//     in someone who shares a P2P group and no one else; Accept follows back and gives my pass;
-//     Ignore sends nothing.
+//  4. A contact request goes out as an ordinary signed, sealed, padded DM flagged
+//     `contact_request`, carrying my name and my pass for them (the default `may`, this server),
+//     with a self-copy; from then on they hold my pass and I follow them.
+//  5. Receiving: a request whose pass checks is listed under the name the member list has for the
+//     signed sender (never the claimed one) and its text is kept nowhere; one whose pass does not
+//     check is dropped; Accept follows back and sends my pass, each put presenting the
+//     requester's pass as `friend_cert`; Ignore sends nothing; my own request echoed from another
+//     device records the pass I gave. A DM from someone my settings refuse is listed by name with
+//     its text dropped; "nobody" lists neither; "groups" lets in someone who shares a P2P group
+//     and no one else. And window.peerData is the member list app.js keeps.
 //  6. "People who may call me": adding a friend re-issues their pass with `call`, removing
 //     re-issues without it, and each time the old serial is withdrawn after the new pass went.
 //
-// Red first, 2026-10-09 (each mutation made, run, seen failing, put back):
-//  0: crypto.js DM_PAD_BUCKETS starting at 512 failed "the first bucket is the same everywhere".
+// Red first, 2026-10-09 (each mutation made in a copy of web/, run, seen failing; tests 0, 4 and 5
+// seen red again after the amendment):
+//  0: crypto.js DM_PAD_BUCKETS starting at 512 failed "the buckets match and a request is the
+//     marker and a pass"; so did reach.js's marker spelled "[[hum:contact-request]]".
 //  1: onReachSettings without `reachKnown = reachSettingsFrom(settings)` failed "reach_settings
 //     drives what the Safety page shows" (the rows stayed on the defaults, disabled).
 //  2: chooseReachAudience sending the whole current set instead of the one kind failed
 //     "a changed row sends reach_set with only that kind".
 //  3: the `reach_refused` branch taken out of chat-privacy.js's handleMessage failed
 //     "a refusal offers a contact request" (no sentence, no button).
-//  4: CONTACT_REQUEST_BYTES set to 1024 in reach.js failed "a contact request goes out at the
-//     smallest bucket" (and test 0).
-//  5: the reachScreenDm call taken out of app.js's dm_new case failed "a DM my settings refuse
-//     becomes a request with no text" (the text was stored in the conversation); and
-//     reachSharesGroupWith answering false for a loaded group list failed it too ("a shared group
-//     lets it through").
+//  4: pqBuildContactRequest without `built.recipientPut.contact_request = true` failed "a contact
+//     request goes out as a signed DM" (not flagged).
+//  5: ingestContactRequest without the pass check listed a request whose pass named someone else;
+//     acceptContactRequest without storeCertFrom sent its reply with no friend_cert; the
+//     reachScreenDm call taken out of app.js's dm_new kept a refused DM's text; and
+//     reachSharesGroupWith answering false for a loaded group list refused a shared group: each
+//     failed "receiving a request; a DM my settings refuse". Without `window.peerData = peerData`
+//     in app.js it failed too.
 //  6: sendPendingWithdrawals() taken out of chat-social.js reissuePassTo failed "the call list
 //     re-issues the pass" (no cert_revoke for the old serial).
 
@@ -242,11 +252,16 @@ function dmEnvelope(from, text, ts = 1760000000000) {
   const inner = JSON.stringify({ v: 2, from, to: ME, ts, text, sig });
   return JSON.stringify({ v: 2, ek_ct_b64: b64(MY_KYBER), nonce_b64: "AAAA", ct_b64: b64(inner) });
 }
-function requestEnvelope(name) {
-  return JSON.stringify({ v: 2, ek_ct_b64: b64(MY_KYBER), nonce_b64: "AAAA", ct_b64: b64(reach.contactRequestJson(name)) });
+// A pass `issuer` gave `grantee` on `server` (the stand-in signature is the signed words).
+function passFrom(issuer, grantee = ME, server = SERVER, serial = "0123456789abcdef0123456789abcdef", may = "invite,message,trade,voice_message") {
+  return fp.friendPassJson(serial, may, b64(fp.friendPassPreimage(server, issuer, grantee, serial, may)));
+}
+// A contact request from `from` claiming `name`, carrying `pass`.
+function requestEnvelope(from, name, pass, ts) {
+  return dmEnvelope(from, reach.contactRequestText(name, pass), ts);
 }
 
-test("the first bucket is the same everywhere, and a request's plaintext is exactly that long", async () => {
+test("the buckets match and a request is the marker and a pass", async () => {
   const rust = fs.readFileSync(path.join(ROOT, "src", "net", "dm_pq.rs"), "utf8");
   const m = rust.match(/DM_PAD_BUCKETS:\s*\[usize;\s*\d+\]\s*=\s*\[([^\]]+)\]/);
   assert.ok(m, "src/net/dm_pq.rs still declares DM_PAD_BUCKETS");
@@ -254,20 +269,25 @@ test("the first bucket is the same everywhere, and a request's plaintext is exac
   const { ctx } = await loadChat();
   const webBuckets = Array.from(vm.runInContext("DM_PAD_BUCKETS", ctx));
   assert.deepEqual(webBuckets, rustBuckets, "web and native pad to the same buckets");
-  assert.equal(reach.CONTACT_REQUEST_BYTES, rustBuckets[0], "a contact request is the smallest bucket");
 
+  // The request's words (10c as amended): the marker, then {name, pass}.
+  assert.equal(reach.CONTACT_REQUEST_MARKER, "[[hum:contact-request:v1]]");
+  const pass = passFrom(ME, ANN);
   for (const name of ["A", "Me_1", "x".repeat(24), "a-b_C9"]) {
-    const json = reach.contactRequestJson(name);
-    assert.equal(Buffer.byteLength(json, "utf8"), 256, `exactly 256 bytes for "${name}"`);
-    assert.deepEqual(Object.keys(JSON.parse(json)).sort(), ["contact_request", "name", "pad", "v"], "a name and nothing else");
-    assert.deepEqual(reach.contactRequestParse(json), { name });
+    const text = reach.contactRequestText(name, pass);
+    assert.ok(text.startsWith("[[hum:contact-request:v1]]{"), "the marker, then the JSON");
+    assert.deepEqual(JSON.parse(text.slice(reach.CONTACT_REQUEST_MARKER.length)), { name, pass }, "a name and a pass, nothing else");
+    assert.ok(reach.isContactRequestText(text));
+    assert.deepEqual(reach.contactRequestParse(text), { name, pass });
   }
   for (const bad of ["", "two words", "x".repeat(25), "café", "a.b", "http://x", null]) {
-    assert.equal(reach.contactRequestJson(bad), null, `"${bad}" is not a registered-name word`);
+    assert.equal(reach.contactRequestText(bad, pass), null, `"${bad}" is not a registered-name word`);
   }
-  assert.equal(reach.contactRequestParse(JSON.stringify({ v: 2, contact_request: true, name: "Ann", pad: " ".repeat(300) })), null, "longer than the bucket is not a request");
-  assert.equal(reach.contactRequestParse(JSON.stringify({ v: 2, name: "Ann" })), null, "no flag, no request");
-  assert.equal(reach.contactRequestParse(JSON.stringify({ v: 2, contact_request: true, name: "see my site" })), null, "a sentence is not a name");
+  assert.equal(reach.contactRequestText("Ann", ""), null, "no pass, no request");
+  assert.equal(reach.contactRequestParse("hello"), null, "plain text is not a request");
+  assert.equal(reach.contactRequestParse("[[hum:contact-request:v1]]{\"name\":\"Ann\"}"), null, "a request without a pass is not one");
+  assert.equal(reach.contactRequestParse("[[hum:contact-request:v1]]not json"), null);
+  assert.ok(reach.isContactRequestText("[[hum:contact-request:v1]]not json"), "but it is still kept out of the conversation");
 
   // The five audiences (10c).
   const who = (passMay, sharesGroup) => ({ passMay, sharesGroup });
@@ -376,52 +396,79 @@ test("a refusal offers a contact request, and the button sends one", async () =>
   assert.ok(appended.some((el) => textOf(el).includes(reach.REACH_REFUSED_TRADE)), "a refused trade says so");
 });
 
-test("a contact request goes out at the smallest bucket, flagged, carrying only my name", async () => {
+test("a contact request goes out as a signed DM, flagged, carrying my name and my pass for them", async () => {
   const { sock, store, fn } = await loadChat();
   assert.equal(await fn("sendContactRequest")(ANN), true);
   const puts = sock.sent.filter((m) => m.type === "dm_put");
-  assert.equal(puts.length, 1, "one deposit: no self-copy, nothing in it is history");
-  const put = puts[0];
-  assert.deepEqual(Object.keys(put).sort(), ["contact_request", "content", "to", "type"], "no pass, no other field");
-  assert.equal(put.contact_request, true);
-  assert.equal(put.to, ANN);
+  const toAnn = puts.filter((m) => m.to === ANN);
+  const toMe = puts.filter((m) => m.to === ME);
+  assert.equal(toAnn.length, 1, "one deposit for them");
+  assert.equal(toMe.length, 1, "and the self-copy, which tells my other devices");
+  const put = toAnn[0];
+  assert.equal(put.contact_request, true, "flagged");
+  assert.ok(!("friend_cert" in put), "I hold no pass from them to present");
+  assert.ok(!("contact_request" in toMe[0]), "the self-copy is not flagged");
+
   const { sealedTo, plain } = opened(put);
   assert.equal(sealedTo, kyberOf(ANN), "sealed to their DM key");
-  assert.equal(Buffer.byteLength(plain, "utf8"), 256, "the plaintext is the smallest bucket exactly");
+  const webBuckets = Array.from(vm.runInContext("DM_PAD_BUCKETS", (await loadChat()).ctx));
   const inner = JSON.parse(plain);
-  assert.deepEqual(Object.keys(inner).sort(), ["contact_request", "name", "pad", "v"], "my name and nothing else: no key, no text, no signature");
-  assert.equal(inner.name, "Me_1");
-  assert.equal(inner.pad.trim(), "");
-  assert.ok(store.following.has(ANN), "I follow them from here, so their Accept completes the friendship");
+  // The ordinary padding (crypto.js pqBuildDmPuts): a pad field fills it to just under a bucket.
+  assert.equal(typeof inner.pad, "string", "padded like any DM");
+  assert.ok(webBuckets.some((size) => plain.length <= size && plain.length > size - 12), "to just under a bucket");
+  assert.deepEqual([inner.v, inner.from, inner.to], [2, ME, ANN], "an ordinary v2 inner payload");
+  assert.equal(unb64(inner.sig), `hum/dm/v2\n${ME}\n${ANN}\n${inner.ts}\n${inner.text}`, "signed by me, as every DM is");
+  const req = reach.contactRequestParse(inner.text);
+  assert.ok(req, "its text is a contact request");
+  assert.equal(req.name, "Me_1", "my registered name");
+  const pass = fp.friendPassParse(req.pass);
+  assert.ok(pass, "and a v2 pass");
+  assert.equal(pass.may, "invite,message,trade,voice_message", "with the default may: no calls");
+  assert.equal(unb64(pass.sig), fp.friendPassPreimage(SERVER, ME, ANN, pass.serial, pass.may), "given by me to them on this server");
 
-  // The recipient's client reads it back as a request, never as a message.
-  const back = await vm.runInContext("pqOpenDmEnvelope", (await loadChat()).ctx)(put.content.replace(b64(kyberOf(ANN)), b64(MY_KYBER)));
-  assert.deepEqual(back, { contact_request: true, name: "Me_1" });
+  assert.deepEqual(store.certsSent[ANN], [{ serial: pass.serial, may: pass.may }], "they now hold my pass, so their reply gets in");
+  assert.ok(store.following.has(ANN), "and I follow them, so their Accept completes the friendship");
 });
 
-test("a DM my settings refuse becomes a request with no text; Accept and Ignore", async () => {
+test("receiving a request; a DM my settings refuse; Accept and Ignore", async () => {
   const { ctx, sock, store, appended, notified, handle, fn } = await loadChat();
+  assert.equal(ctx.peerData && ctx.peerData[BEN] && ctx.peerData[BEN].display_name, "Ben", "window.peerData is the member list app.js keeps");
   await handle({ type: "reach_settings", settings: { message: "friends", call: "chosen", trade: "friends" } });
   store.recordPassSent(ANN, "aa".repeat(16), "invite,message,trade,voice_message"); // Ann is a friend
+  const everything = () => [...appended.map(textOf), ...notified.map((a) => a.join(" ")), JSON.stringify(store.contactRequests), fn("contactRequestsSidebarHtml")(), fn("safetyPanelHtml")(fn("safetyModel")())].join("\n");
 
+  // A refused DM: listed by name, its text nowhere.
   const SECRET = "meet me at the old mill, here is my number";
   await handle({ type: "dm_new", id: 1, content: dmEnvelope(CY, SECRET) });
   await settle();
   assert.deepEqual(store.conversation(CY), [], "the text is not kept");
-  const listed = store.contactRequestList();
-  assert.deepEqual(listed.map((r) => [r.id, r.key, r.name]), [[CY, CY, "Cy"]], "Cy is listed by name");
-  const shown = [...appended.map(textOf), ...notified.map((a) => a.join(" ")), JSON.stringify(store.contactRequests), fn("contactRequestsSidebarHtml")()].join("\n");
-  assert.ok(!shown.includes("old mill"), "and the text is shown nowhere");
+  assert.deepEqual(store.contactRequestList().map((r) => [r.id, r.key, r.name, r.hasPass]), [[CY, CY, "Cy", false]], "Cy is listed by name");
+  assert.ok(!everything().includes("old mill"), "and the text is shown nowhere");
   assert.ok(fn("contactRequestsSidebarHtml")().includes(`data-req-accept="${CY}"`), "the DMs tab lists it with Accept");
 
   await handle({ type: "dm_new", id: 2, content: dmEnvelope(ANN, "hi from Ann") });
   await settle();
   assert.equal(store.conversation(ANN).length, 1, "a friend's DM is kept as before");
 
-  // A contact request (name only) is listed under the member it names.
-  await handle({ type: "dm_new", id: 3, content: requestEnvelope("Ben") });
+  // Contact requests: the pass must be Ben's, for me, on this server; the name shown is the member list's.
+  const bensPass = passFrom(BEN);
+  await handle({ type: "dm_new", id: 3, content: requestEnvelope(BEN, "Admin_Team", passFrom(BEN, ANN)) });
+  await handle({ type: "dm_new", id: 4, content: requestEnvelope(BEN, "Admin_Team", passFrom(BEN, ME, "did:hum:elsewhere")) });
+  await handle({ type: "dm_new", id: 5, content: requestEnvelope(BEN, "Admin_Team", passFrom(ANN)) });
   await settle();
-  assert.deepEqual(store.contactRequestList().map((r) => r.key).sort(), [BEN, CY].sort());
+  assert.deepEqual(store.contactRequestList().map((r) => r.key), [CY], "a request whose pass does not check is dropped");
+  await handle({ type: "dm_new", id: 6, content: requestEnvelope(BEN, "Admin_Team", bensPass) });
+  await settle();
+  const ben = store.contactRequestList().find((r) => r.key === BEN);
+  assert.ok(ben && ben.hasPass, "a request whose pass checks is listed");
+  assert.equal(ben.name, "Ben", "under the member list's name for the signed sender, not the one claimed");
+  assert.ok(!everything().includes("Admin_Team"), "the claimed name is shown nowhere");
+  assert.deepEqual(store.conversation(BEN), [], "and the request is not a message");
+  const STRANGER = "e5".repeat(32);
+  await handle({ type: "dm_new", id: 7, content: requestEnvelope(STRANGER, "Admin_Team", passFrom(STRANGER)) });
+  await settle();
+  assert.equal(store.contactRequestList().find((r) => r.key === STRANGER).name, vm.runInContext("shortKey", ctx)(STRANGER), "someone the member list does not know shows as their short key");
+  fn("ignoreContactRequest")(STRANGER);
 
   // Ignore: gone, nothing sent.
   sock.sent.length = 0;
@@ -429,41 +476,57 @@ test("a DM my settings refuse becomes a request with no text; Accept and Ignore"
   assert.deepEqual(store.contactRequestList().map((r) => r.key), [BEN]);
   assert.equal(sock.sent.length, 0, "Ignore tells no one");
 
-  // Accept: follow back, which (their request counting as their follow) makes us friends and gives my pass.
+  // Accept: follow back and send my pass, each put presenting Ben's pass to his relay.
   assert.equal(await fn("acceptContactRequest")(BEN), true);
   await settle();
-  const toBen = sock.sent.filter((m) => m.type === "dm_put" && m.to === BEN).map((m) => JSON.parse(opened(m).plain).text);
-  assert.ok(toBen.includes(CTL_FOLLOW), "Accept follows them back");
-  assert.ok(toBen.includes(CTL_FRIEND_CERT), "and gives them my pass");
+  const toBen = sock.sent.filter((m) => m.type === "dm_put" && m.to === BEN);
+  const texts = toBen.map((m) => JSON.parse(opened(m).plain).text);
+  assert.ok(texts.includes(CTL_FOLLOW), "Accept follows them back");
+  assert.ok(texts.includes(CTL_FRIEND_CERT), "and gives them my pass");
+  for (const m of toBen) assert.equal(m.friend_cert, bensPass, "each reply carries the pass Ben's request gave me");
+  assert.equal(store.certFor(BEN), bensPass);
   assert.ok(store.certSentTo(BEN));
   assert.deepEqual(store.contactRequestList(), []);
 
+  // My own request, echoed from another of my devices: the pass I gave is recorded.
+  const mine = passFrom(ME, CY, SERVER, "fedcba9876543210fedcba9876543210");
+  const echo = JSON.stringify({ v: 2, ek_ct_b64: b64(MY_KYBER), nonce_b64: "AAAA", ct_b64: b64(JSON.stringify({
+    v: 2, from: ME, to: CY, ts: 5, text: reach.contactRequestText("Me_1", mine),
+    sig: b64(`hum/dm/v2\n${ME}\n${CY}\n5\n${reach.contactRequestText("Me_1", mine)}`),
+  })) });
+  await handle({ type: "dm_new", id: 8, content: echo });
+  await settle();
+  assert.deepEqual(store.certsSent[CY], [{ serial: "fedcba9876543210fedcba9876543210", may: "invite,message,trade,voice_message" }]);
+  assert.ok(store.following.has(CY));
+  assert.deepEqual(store.contactRequestList(), [], "and it is not a request to me");
+
   // "Nobody": not even a request.
+  const DAN = "f6".repeat(32);
   await handle({ type: "reach_settings", settings: { message: "nobody", call: "chosen", trade: "friends" } });
-  await handle({ type: "dm_new", id: 4, content: requestEnvelope("Cy") });
-  await handle({ type: "dm_new", id: 5, content: dmEnvelope(CY, "again") });
+  await handle({ type: "dm_new", id: 9, content: requestEnvelope(DAN, "Dan", passFrom(DAN)) });
+  await handle({ type: "dm_new", id: 10, content: dmEnvelope(DAN, "again") });
   await settle();
   assert.deepEqual(store.contactRequestList(), [], "nobody lists no request");
-  assert.deepEqual(store.conversation(CY), [], "and keeps no text");
+  assert.deepEqual(store.conversation(DAN), [], "and keeps no text");
 
   // "Groups": someone who shares a P2P group with me gets through; someone who does not is a request.
   await handle({ type: "reach_settings", settings: { message: "groups", call: "chosen", trade: "friends" } });
   ctx._p2pGroups = [{ group_id: "g1", members: [ME, ANN] }];
-  await handle({ type: "dm_new", id: 6, content: dmEnvelope(CY, "not in my groups") });
+  await handle({ type: "dm_new", id: 11, content: dmEnvelope(DAN, "not in my groups") });
   await settle();
-  assert.deepEqual(store.conversation(CY), [], "no shared group: no text kept");
-  assert.deepEqual(store.contactRequestList().map((r) => r.key), [CY], "but a request");
-  ctx._p2pGroups = [{ group_id: "g2", members: [ME, CY] }];
-  await handle({ type: "dm_new", id: 7, content: dmEnvelope(CY, "we share a group") });
+  assert.deepEqual(store.conversation(DAN), [], "no shared group: no text kept");
+  assert.deepEqual(store.contactRequestList().map((r) => r.key), [DAN], "but a request");
+  ctx._p2pGroups = [{ group_id: "g2", members: [ME, DAN] }];
+  await handle({ type: "dm_new", id: 12, content: dmEnvelope(DAN, "we share a group") });
   await settle();
-  assert.equal(store.conversation(CY).length, 1, "a shared group lets it through");
+  assert.equal(store.conversation(DAN).length, 1, "a shared group lets it through");
 
   // "Anyone": a stranger's DM is a message.
-  const DAN = "e5".repeat(32);
+  const EVE = "a7".repeat(32);
   await handle({ type: "reach_settings", settings: { message: "anyone", call: "chosen", trade: "friends" } });
-  await handle({ type: "dm_new", id: 8, content: dmEnvelope(DAN, "hello from Dan") });
+  await handle({ type: "dm_new", id: 13, content: dmEnvelope(EVE, "hello from Eve") });
   await settle();
-  assert.equal(store.conversation(DAN).length, 1, "anyone lets it through");
+  assert.equal(store.conversation(EVE).length, 1, "anyone lets it through");
 });
 
 test("the call list re-issues the pass, then withdraws the old serial", async () => {

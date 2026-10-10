@@ -322,21 +322,6 @@ function reachDisplayName(key) {
   return (p && p.display_name) || (typeof shortKey === 'function' ? shortKey(key) : String(key).slice(0, 8));
 }
 
-/** The member whose registered name is `name` (any case), or null when there is none or more than one. */
-function reachKeyForName(name) {
-  const lower = String(name || '').toLowerCase();
-  if (!lower) return null;
-  let found = null;
-  for (const [k, p] of Object.entries(reachPeers())) {
-    if (k === myKey || !p) continue;
-    if (String(p.display_name || '').toLowerCase() === lower) {
-      if (found && found !== k) return null;
-      found = k;
-    }
-  }
-  return found;
-}
-
 /**
  * Do we share a P2P group (the `groups` audience)? From the group list
  * chat-groups-p2p.js keeps. Until that list has loaded the answer is not
@@ -391,31 +376,46 @@ function chooseReachAudience(kind, audience) {
 // ── Contact requests ──
 
 /**
- * Someone asked to reach me: a contact request ({name}) or a DM my settings
- * refuse ({key}). Listed under Requests by name only. Returns true when it is
- * listed (a "nobody" setting lists nothing; someone already let in needs no
- * request).
+ * List someone under Requests: from a contact request whose pass checked
+ * ({key, pass, ts}) or a DM my settings refuse ({key, ts}). Shown by the name
+ * the member list has for that key, never a name they claimed. Returns true
+ * when it is listed (a "nobody" setting lists nothing).
  */
 function receiveContactRequest(req) {
   const store = reachStore();
-  if (!store || !req) return false;
+  if (!store || !req || !req.key || req.key === myKey) return false;
   if (reachCurrent().message === 'nobody') return false;
-  let key = req.key || null;
-  let name = req.name || '';
-  if (!key && name) key = reachKeyForName(name);
-  if (key === myKey) return false;
-  if (key) {
-    if (!req.key && reachAllowsFrom(key, 'message')) return false;
-    if (reachPeers()[key] || !name) name = reachDisplayName(key);
-    // One entry per person: a request listed by name before their key was known goes.
-    store.removeContactRequest('name:' + name.toLowerCase());
-  }
-  if (!name) return false;
-  if (store.addContactRequest({ key, name, ts: Date.now() })) {
+  const name = reachDisplayName(req.key);
+  if (store.addContactRequest({ key: req.key, name, pass: req.pass || null, ts: Number(req.ts) || Date.now() })) {
     reachSay(`${name} sent you a contact request. Accept or ignore it under Requests in your DMs.`);
     if (typeof notifyNewMessage === 'function') notifyNewMessage(name, 'Contact request', true);
   }
   renderRequestsEverywhere();
+  return true;
+}
+
+/**
+ * A DM (opened, its signature checked) whose text is a contact request:
+ * returns true when it was one, and then the caller neither stores nor shows
+ * it. From someone else, its pass must have been given to me, on this server,
+ * by the signed sender; one that does not check is dropped. My own, echoed
+ * from another of my devices, records the pass I gave and that I follow them.
+ */
+async function ingestContactRequest(inner) {
+  if (!inner || !isContactRequestText(inner.text)) return false;
+  const req = contactRequestParse(inner.text);
+  const store = reachStore();
+  if (inner.from === myKey) {
+    const pass = req ? friendPassParse(req.pass) : null;
+    if (store && pass && inner.to) {
+      store.recordPassSent(inner.to, pass.serial, pass.may);
+      store.setFollowing(inner.to, true);
+    }
+    if (inner.to && typeof myFollowing !== 'undefined') myFollowing.add(inner.to);
+    return true;
+  }
+  if (!req || !await pqVerifyFriendCert(inner.from, myKey, req.pass)) return true;
+  receiveContactRequest({ key: inner.from, pass: req.pass, ts: inner.ts });
   return true;
 }
 
@@ -428,21 +428,23 @@ function receiveContactRequest(req) {
 function reachScreenDm(inner) {
   if (!inner || !inner.from || inner.from === myKey) return false;
   if (reachAllowsFrom(inner.from, 'message')) return false;
-  receiveContactRequest({ key: inner.from });
+  receiveContactRequest({ key: inner.from, ts: inner.ts });
   return true;
 }
 
-/** Accept: their request counts as their follow, and following back makes us friends (my pass goes to them). */
+/**
+ * Accept: their request counts as their follow, and following back makes us
+ * friends. The pass their request carried is kept first, so every put to them
+ * from here (the follow notice, my pass) presents it as `friend_cert`
+ * (crypto.js pqBuildDmPuts) and their relay's gate lets my reply in.
+ */
 async function acceptContactRequest(id) {
   const store = reachStore();
   const req = store && store.contactRequests[id];
-  if (!req) return false;
-  const key = req.key || reachKeyForName(req.name);
-  if (!key) {
-    reachSay(`${req.name} is not on this server's member list right now, so they cannot be added yet. Try again when they are online.`);
-    return false;
-  }
+  if (!req || !req.key) return false;
+  const key = req.key;
   store.removeContactRequest(id);
+  if (req.pass && await pqVerifyFriendCert(key, myKey, req.pass)) store.storeCertFrom(key, req.pass);
   store.setFollower(key, true);
   if (typeof myFollowers !== 'undefined') myFollowers.add(key);
   if (typeof setFollowLocal === 'function') await setFollowLocal(key, true);
@@ -450,7 +452,7 @@ async function acceptContactRequest(id) {
   return true;
 }
 
-/** Ignore: the request goes from the list; nothing is sent and no one is told. */
+/** Ignore: the request (and the pass it carried) goes; nothing is sent and no one is told. */
 function ignoreContactRequest(id) {
   const store = reachStore();
   if (store) store.removeContactRequest(id);
@@ -458,11 +460,11 @@ function ignoreContactRequest(id) {
 }
 
 /**
- * Send `peer` a contact request: a sealed DM carrying only my name, at the
- * smallest padding bucket, flagged `contact_request` (crypto.js
- * pqBuildContactRequest). I follow them from here on (no follow notice goes
- * out: their settings would refuse it), so their acceptance completes the
- * friendship.
+ * Send `peer` a contact request (crypto.js pqBuildContactRequest): a signed,
+ * sealed DM flagged `contact_request`, carrying my name and my pass for them
+ * with the default `may`, plus the self-copy that tells my other devices. From
+ * here I follow them and they hold my pass, so their acceptance gets through
+ * and completes the friendship.
  */
 async function sendContactRequest(peer) {
   if (!peer || peer === myKey) return false;
@@ -470,14 +472,18 @@ async function sendContactRequest(peer) {
     reachSay('Not connected, so the request was not sent.');
     return false;
   }
-  const put = await pqBuildContactRequest(peer, myName);
-  if (!put) {
-    reachSay('The request could not be sent: this person has not been online with a current client here yet, so there is no key to seal it to.');
+  const built = await pqBuildContactRequest(peer, myName);
+  if (!built) {
+    reachSay('The request could not be sent yet: this person has not been online with a current client here, or your identity is still loading. Try again in a moment.');
     return false;
   }
-  ws.send(JSON.stringify(put));
+  ws.send(JSON.stringify(built.recipientPut));
+  ws.send(JSON.stringify(built.selfPut));
   const store = reachStore();
-  if (store) store.setFollowing(peer, true);
+  if (store) {
+    store.recordPassSent(peer, built.serial, built.may);
+    store.setFollowing(peer, true);
+  }
   if (typeof myFollowing !== 'undefined') myFollowing.add(peer);
   if (typeof updateFriendIndicators === 'function') updateFriendIndicators();
   reachSay('Contact request sent. They will see only your name; if they accept, you become friends.');
@@ -531,7 +537,7 @@ function contactRequestsHtml(requests, opts) {
   // In the narrow DMs rail the name takes its own line and the buttons sit under it.
   return requests.map((r) =>
     `<div class="reach-request${compact ? ' dm-item' : ''}" data-req-id="${reachEsc(r.id)}" style="display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-xs) ${compact ? 'var(--space-md);flex-wrap:wrap' : '0'};">`
-    + `<span class="dm-name" style="flex:1 1 ${compact ? '100%' : '0'};min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${reachEsc(r.name)}</span>`
+    + `<span class="dm-name" style="flex:1 1 ${compact ? '100%' : '0'};min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${reachEsc(r.key ? reachDisplayName(r.key) : r.name)}</span>`
     + `<button class="vr-btn" data-req-accept="${reachEsc(r.id)}" style="font-size:0.7rem;">Accept</button>`
     + `<button class="vr-btn" data-req-ignore="${reachEsc(r.id)}" style="font-size:0.7rem;">Ignore</button>`
     + '</div>').join('');
@@ -711,6 +717,7 @@ handleMessage = function (msg) {
 
 window.openSafetyPanel = openSafetyPanel;
 window.receiveContactRequest = receiveContactRequest;
+window.ingestContactRequest = ingestContactRequest;
 window.reachScreenDm = reachScreenDm;
 window.acceptContactRequest = acceptContactRequest;
 window.ignoreContactRequest = ignoreContactRequest;

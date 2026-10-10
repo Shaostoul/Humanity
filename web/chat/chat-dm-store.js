@@ -41,10 +41,11 @@ const hosDmStore = {
   certsSent: {},       // peer -> [{serial, may}] passes I gave them that still stand
   withdrawalsPending: [], // serials I withdrew that the relay has not confirmed yet
   // ── Contact requests ("who can reach me", step B, 2026-10-09, 10c): people
-  // who asked to reach me, shown by name only with Accept and Ignore. Keyed by
-  // their key when it is known (a refused DM, or a name the member list
-  // resolves), else by "name:<lower-case name>". Never holds any text.
-  contactRequests: {}, // id -> {key, name, ts}
+  // who asked to reach me, shown by name only with Accept and Ignore, keyed by
+  // their (signed) key. `pass` is the pass their request carried, which my
+  // reply presents to their relay on Accept; null for a DM my settings refused
+  // (no pass came with it). Never holds any text.
+  contactRequests: {}, // key -> {key, name, pass, ts}
 
   async _sha256hex(s) {
     const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
@@ -256,14 +257,22 @@ const hosDmStore = {
   },
 
   // ── Contact requests (step B) ──
-  /** Add or refresh a request ({key?, name, ts}); returns true when it is new. Never stores text. */
+  /**
+   * Add or refresh a request ({key, name, pass?, ts}); returns true when it is
+   * new. A pass already held for them is kept when a later one comes without.
+   * Never stores text.
+   */
   addContactRequest(req) {
-    if (!req || (!req.key && !req.name)) return false;
-    const id = req.key || ('name:' + String(req.name).toLowerCase());
-    const isNew = !this.contactRequests[id];
-    this.contactRequests[id] = { key: req.key || null, name: String(req.name || ''), ts: Number(req.ts) || Date.now() };
+    if (!req || !req.key) return false;
+    const old = this.contactRequests[req.key];
+    this.contactRequests[req.key] = {
+      key: req.key,
+      name: String(req.name || ''),
+      pass: req.pass || (old && old.pass) || null,
+      ts: Number(req.ts) || Date.now(),
+    };
     this._persistMeta();
-    return isNew;
+    return !old;
   },
   removeContactRequest(id) {
     if (!this.contactRequests[id]) return false;
@@ -271,10 +280,10 @@ const hosDmStore = {
     this._persistMeta();
     return true;
   },
-  /** The requests, newest first, each with its id. */
+  /** The requests, newest first, each with its id (their key). */
   contactRequestList() {
     return Object.entries(this.contactRequests)
-      .map(([id, r]) => ({ id, key: r.key || null, name: r.name, ts: Number(r.ts) || 0 }))
+      .map(([id, r]) => ({ id, key: r.key || id, name: r.name, hasPass: !!r.pass, ts: Number(r.ts) || 0 }))
       .sort((a, b) => b.ts - a.ts);
   },
   /** Mutual follows with no standing pass from me: the ones the sweep mints for. */
