@@ -1885,6 +1885,14 @@ friend owed a pass, so the next sweep tries again with the same intended `may` (
 apart from the record, so a refusal never resets a friend's ticks). The pacing stays as a
 politeness, not as the guarantee.
 
+**As built (web first, 2026-10-10), both clients:** the SELF-COPY of a pass put (to my own
+mailbox, which my other devices read) is sent only after the recipient copy's `dm_put_ok`, so my
+other devices never adopt a pass the server did not take (and withdraw the one the friend holds).
+A pass sent and never answered is kept as "perhaps given": Unfollow and Block withdraw it, and
+so does the next pass the server does take, because the relay may have stored it after its answer
+was lost. One pass put per friend is in flight at a time. The relay half must be live before (or
+with) the clients' halves: a client whose `ref` is never answered records no pass at all.
+
 **Proof:** relay tests: `dm_put_ok` for a stored put with a ref, `dm_put_refused` with the right
 reason for a rate refusal and a reach refusal, nothing for a put without a ref, nothing for the
 self-copy. Client tests on both: a pass is recorded and the old one withdrawn only after
