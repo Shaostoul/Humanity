@@ -1711,6 +1711,56 @@ frame matches the protocol, and the erased person's client shows the by-admin wo
 seen failing once. Native snapshot of the confirm (render only when no other instance runs).
 `just verify`, `just verify-relay`.
 
+## 10j. A report about a group reaches the group's creator (2026-10-10)
+
+Why: a peer-to-peer group's messages are encrypted for the group, so a server's admins cannot
+read them or check who wrote them (step D stores such items "Not proven"), and they cannot remove
+anyone from the group either. The group's creator can do both: they hold the group's messages
+in their own copy, and they are the one who admits and removes members
+(`src/relay/storage/groups_p2p.rs`, the creator is the group's sole admin today).
+
+**The report dialog, for a group message:** a choice "Send this report to", with "The group's
+creator" (default), "This server's admins", and "Both". "The group's creator" is not offered when
+the reporter is the creator or the reported person is the creator; then only the admins remain,
+and a line says why ("You created this group: remove them from the group's member list." or
+"The person you are reporting created this group, so this goes to the server's admins.").
+
+**To the creator: a sealed DM** (an ordinary sealed v2 DM, so the relay sees nothing of it) sent
+with `"group_report": true` on the `dm_put`, whose inner text is the marker
+`[[hum:group-report:v1]]` followed by the JSON `{"group_id","group_name","target","reason","note","items":[{"id","from","ts","text"}]}`,
+where each item names a group message by its signed-object id and repeats its sender, time and
+text as the reporter's copy shows them. Reasons are `data/safety/report_reasons.json`'s ids.
+At most 20 items and 16 KB of inner text; a file is never included (the step D rule).
+
+**Relay: one narrow exception to "who can reach me".** A `dm_put` with `group_report: true`
+passes the recipient's `message` audience (except `nobody`) when the sender and the recipient
+are both active members of some group whose creator is the recipient
+(`p2p_groups_for_member` for both keys, and the group's `creator_pubkey`), with 3 group
+reports a day per sender (separate from knocks and contact requests). Anything else carrying the
+flag is refused as an ordinary message would be. The relay stores nothing about who reported
+whom.
+
+**The creator's client:** verifies the inner signature as for any DM, parses the marker, and
+checks each item against its OWN copy of the group: an item whose id is found, with the same
+sender, time and text and a valid signature on the stored object, is marked "Found in your copy
+of the group, signed by <name>"; anything else "Not found in your copy" (shown, never dropped). A
+report about a group the creator does not hold, or from someone not in it, is dropped. Shown in
+Settings > Safety under "Reports about your groups" (and as a count on the group), each with the
+group, the reported person, the reason, the note, the items, and the actions "Remove them from
+the group" (the existing remove path), "Block them", and "Dismiss". The reporter is named to the
+creator (a group report is between members who already see each other; there is no way to hide
+the sender of a sealed DM from its recipient), and the dialog says so before sending: "The group's
+creator will see that you sent this." Kept on that device until dismissed, never synced to a
+server.
+
+**Proof:** relay tests: the exception lets a group report through to the creator under
+`friends` and `chosen`, refuses it under `nobody`, refuses it when the recipient is not the
+creator of a group both are in or either has left, counts 3 a day, and stores nothing. Client
+tests on both: the dialog's choices (and the two cases with only the admins), the marker's exact
+shape, the 20-item and size limits, no file, the creator's checks against their own copy (found,
+not found, altered text, wrong sender), a report about a group they do not hold dropped, and the
+three actions. Each seen failing once. `just verify`, `just verify-relay`.
+
 ## 11. Docs to update as each piece ships
 
 - `docs/accord/conformance_gaps.md` ("Contact consent cannot be withdrawn")
