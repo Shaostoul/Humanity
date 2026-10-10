@@ -178,6 +178,8 @@ pub struct RelayState {
     pub http_client: reqwest::Client,
     /// Per-key rate limiting state (Fibonacci backoff).
     pub rate_limits: RwLock<HashMap<String, RateLimitState>>,
+    /// Private-message send buckets, separate from channel chat's limiter above (handlers/dm_rate.rs).
+    pub dm_rate: crate::relay::handlers::dm_rate::DmRateLimits,
     /// Cert-less DM "knock" budget: sender_key → (unix_day, count).
     /// In-memory only, sender-scoped — deliberately never a pair graph.
     /// (Follows-graph removal, 2026-08-24.)
@@ -463,6 +465,7 @@ impl RelayState {
             webhook,
             http_client: reqwest::Client::new(),
             rate_limits: RwLock::new(HashMap::new()),
+            dm_rate: Default::default(),
             dm_knocks: RwLock::new(HashMap::new()),
             reach: Default::default(),
             report_reasons: crate::relay::handlers::reports::ReportReasons::load(),

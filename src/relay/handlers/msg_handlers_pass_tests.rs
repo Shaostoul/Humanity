@@ -34,10 +34,10 @@ fn connect(st: &Arc<RelayState>, key: &str) {
     });
 }
 
-/// One DM from `from` to `to`, with the Fibonacci limiter reset (it has tests of its own).
+/// One DM from `from` to `to`, with the DM send limiter reset (handlers/dm_rate.rs, tested there).
 fn dm(st: &Arc<RelayState>, from: &str, to: &str, pass: Option<&str>) {
     block(async {
-        st.rate_limits.write().await.remove(from);
+        st.dm_rate.forget(from);
         handle_dm_put(st, from, to.to_string(), envelope(), pass.map(str::to_string), reach::DmAsk::Ordinary).await;
     });
 }

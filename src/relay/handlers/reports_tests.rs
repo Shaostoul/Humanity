@@ -100,7 +100,7 @@ fn kept_items(st: &Arc<RelayState>, id: i64) -> Vec<Value> {
 }
 
 fn count(st: &Arc<RelayState>) -> usize {
-    st.db.reports_latest(1_000).unwrap().len()
+    st.db.reports_latest("", 1_000).unwrap().len()
 }
 
 /// A DM handed over as evidence is `checked` only when it is what it claims: written by the
@@ -394,7 +394,8 @@ fn admins_see_who_reported_and_moderators_see_a_member() {
 }
 
 /// A decision is carried out through the moderation path, so its rules hold: a moderator cannot
-/// ban (admins only) nor act on an admin, and a report about the moderator is for an admin; each
+/// ban (admins only) nor act on an admin, and a report about the moderator is for an admin (to
+/// the moderator it does not exist); each
 /// refusal leaves the report open. A moderator's mute mutes and is recorded with who decided,
 /// what, the note and when; a decided report is not decided again; nobody else may decide.
 ///
@@ -427,7 +428,7 @@ fn a_decision_goes_through_the_moderation_path_and_keeps_its_rules() {
     let told = decide(&mo, about_admin, "mute");
     assert!(told.iter().any(|t| t.contains("Only an admin can act on another admin")) && open(about_admin), "a moderator cannot act on an admin: {told:?}");
     let told = decide(&mo, about_mod, "dismiss");
-    assert!(told.iter().any(|t| t.contains("is about you")) && open(about_mod), "a report about the moderator is for an admin: {told:?}");
+    assert!(told == [format!("There is no report #{about_mod}.")] && open(about_mod), "a report about the moderator is for an admin: {told:?}");
     let told = decide(&ned, about_tom, "dismiss");
     assert!(told.iter().any(|t| t.contains("Only admins and moderators")) && open(about_tom), "a member cannot decide: {told:?}");
     let told = decide(&mo, about_tom, "shout");
@@ -604,4 +605,92 @@ fn a_reported_posts_files_and_links_are_not_shown_to_admins() {
     assert!(shown.contains("[a link, not shown]"), "a link with no plain host still goes: {shown}");
     assert!(shown.starts_with("look ") && shown.ends_with("\nbye"), "the words and line breaks around them stay: {shown}");
     assert_eq!(without_files_or_links("just words, no links"), "just words, no links");
+}
+
+/// A report about an admin, the owner or a moderator never reaches the one it is about: they are
+/// not told it arrived, it is not in their Reports list nor their `/reports`, and to them it does
+/// not exist when they try to decide it, while the rest of the staff see and decide it as usual.
+/// The owner counts as an admin: they review reports and are shown who reported.
+///
+/// Seen red 2026-10-10 against the old `is_staff` (no owner), `handle_list` (no viewer filter),
+/// the notice loop (every staff member online) and `handle_decide` (an admin could decide a
+/// report about themselves).
+#[test]
+fn a_report_about_a_staff_member_never_reaches_them() {
+    let st = fresh_state("about_staff");
+    let (rae, ada, abe, ola, mo) = (person(1), person(3), person(9), person(10), person(4));
+    st.db.register_name("Rae", &rae.key).unwrap();
+    let staff = [(&ada, "Ada", "admin"), (&abe, "Abe", "admin"), (&ola, "Ola", "owner"), (&mo, "Mo", "mod")];
+    for (p, name, role) in staff {
+        st.db.register_name(name, &p.key).unwrap();
+        st.db.set_role(&p.key, role).unwrap();
+    }
+    block(async {
+        let mut peers = st.peers.write().await;
+        for (i, (p, name, _)) in staff.iter().enumerate() {
+            let peer = Peer { public_key_hex: p.key.clone(), display_name: Some(name.to_string()), upload_token: None, kyber_public: None, conn_id: i as u64 + 1 };
+            peers.insert(p.key.clone(), peer);
+        }
+    });
+    let notified = |all: &[RelayMessage], who: &Person| heard(all, &who.key).iter().any(|t| t.starts_with("New report"));
+
+    // Rae reports Ada, then Ola, then Mo: everyone on the staff online is told, except the one
+    // each report is about.
+    let all = send(&st, &rae, frame(&rae, &ada.key, "harassment", "profile", serde_json::json!([])));
+    let about_ada = received(&all, &rae.key).expect("received");
+    assert!(!notified(&all, &ada), "the reported admin is not told it arrived: {:?}", heard(&all, &ada.key));
+    assert!(notified(&all, &abe) && notified(&all, &ola) && notified(&all, &mo), "the rest of the staff are, the owner included");
+    let all = send(&st, &rae, frame(&rae, &ola.key, "harassment", "profile", serde_json::json!([])));
+    let about_ola = received(&all, &rae.key).expect("received");
+    assert!(!notified(&all, &ola) && notified(&all, &ada), "the reported owner is not told");
+    let all = send(&st, &rae, frame(&rae, &mo.key, "harassment", "profile", serde_json::json!([])));
+    let about_mo = received(&all, &rae.key).expect("received");
+    assert!(!notified(&all, &mo) && notified(&all, &ada), "the reported moderator is not told");
+
+    // Each list leaves out the report about whoever asked; the owner, as an admin, sees who reported.
+    let list = |who: &Person| -> Vec<Value> {
+        let mut rx = st.broadcast_tx.subscribe();
+        block(handle(&st, &who.key, "reports_list", &serde_json::json!({ "type": "reports_list", "state": "open" }), ""));
+        drain(&mut rx)
+            .into_iter()
+            .find_map(|m| match m {
+                RelayMessage::Reports { to, items, .. } if to == who.key => Some(items),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("no list was sent"))
+    };
+    let ids = |items: &[Value]| items.iter().map(|i| i["id"].as_i64().unwrap()).collect::<Vec<_>>();
+    assert_eq!(ids(&list(&ada)), [about_mo, about_ola], "an admin does not see the report about herself");
+    let owner_items = list(&ola);
+    assert_eq!(ids(&owner_items), [about_mo, about_ada], "the owner sees reports, not the one about them");
+    assert!(owner_items.iter().all(|i| i["reporter"] == rae.key.as_str()), "and is shown who reported, as an admin is");
+    let mod_items = list(&mo);
+    assert_eq!(ids(&mod_items), [about_ola, about_ada], "a moderator does not see the one about himself");
+    assert!(!Value::Array(mod_items).to_string().contains(&rae.key), "nor who reported the others");
+    assert_eq!(ids(&list(&abe)), [about_mo, about_ola, about_ada], "another admin sees all three");
+
+    // `/reports` the same way.
+    let slash = |who: &Person| -> String {
+        let mut rx = st.broadcast_tx.subscribe();
+        block(handle_slash(&st, &who.key, "/reports"));
+        heard(&drain(&mut rx), &who.key).join("\n")
+    };
+    let ada_lines = slash(&ada);
+    assert!(!ada_lines.contains("about Ada") && ada_lines.contains("about Mo"), "{ada_lines}");
+    let owner_lines = slash(&ola);
+    assert!(!owner_lines.contains("about Ola") && owner_lines.contains("from Rae"), "{owner_lines}");
+
+    // Deciding: to the one it is about the report does not exist, whatever their role.
+    let decide = |who: &Person, id: i64| -> Vec<String> {
+        let mut rx = st.broadcast_tx.subscribe();
+        let raw = serde_json::json!({ "type": "report_decide", "id": id, "decision": "dismiss", "note": "" });
+        block(handle(&st, &who.key, "report_decide", &raw, ""));
+        heard(&drain(&mut rx), &who.key)
+    };
+    let open = |id: i64| st.db.report_by_id(id).unwrap().unwrap().state == "open";
+    assert_eq!(decide(&ada, about_ada), [format!("There is no report #{about_ada}.")], "an admin cannot dismiss a report about herself");
+    assert_eq!(decide(&ola, about_ola), [format!("There is no report #{about_ola}.")], "nor can the owner");
+    assert!(open(about_ada) && open(about_ola), "both stay open");
+    decide(&abe, about_ada);
+    assert!(!open(about_ada), "another admin decides it");
 }

@@ -174,6 +174,16 @@ impl Storage {
                     }
                 }
             }
+            // A group key that would replace its epoch's key in a way only a broken app sends
+            // (groups_p2p.rs `epoch_key_refusal`): refused before it is stored, so the poster
+            // hears it, not only skipped by the projection.
+            "group_epoch_key_v1" => {
+                if let Some(why) = self.epoch_key_refusal(object)? {
+                    return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(SignedObjectError(
+                        format!("group key refused: {why}"),
+                    ))));
+                }
+            }
             _ => {}
         }
 

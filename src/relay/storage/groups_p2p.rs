@@ -38,7 +38,14 @@
 //! bootstrap:[{member_pubkey, kyber_pub, relays}], invite_secret, expires_at,
 //! uses_remaining }`. Lets a joiner verify the group, request admission, and
 //! bootstrap a peer connection. Hardened (expiry + use-limit) unlike the legacy
-//! 6-hex relay code.
+//! 6-hex relay code. Someone the creator removed can come back only on a ticket
+//! issued after the removal (`invite_postdates_removal`, 2026-10-10).
+//!
+//! ### `group_epoch_key_v1`: one epoch's group key, sealed to each member
+//! An epoch that already has a key keeps it unless the new object is a re-seal of
+//! the group's latest epoch to everyone still in it (`epoch_key_refusal`,
+//! 2026-10-10): an app that could not read the current key used to overwrite an
+//! old epoch's key, and the history under it stopped opening.
 //!
 //! ## Phase 1 scope / limitations (documented on purpose)
 //! - Only the creator can admit/remove (sole bootstrap admin). Delegated admins =
@@ -93,6 +100,34 @@ fn payload_bytes(payload: &[u8], field: &str) -> Option<Vec<u8>> {
         }
     }
     None
+}
+
+/// The fingerprints a `group_epoch_key_v1` payload's key is sealed to: each `fp` in its
+/// `recipients` array, the shape both apps build (net/group_e2ee.rs `build_group_epoch_key_v1`,
+/// web pq-object.js `buildGroupEpochKeyV1`). The sealed copies themselves stay opaque here. A
+/// payload that cannot be read gives none.
+fn epoch_recipient_fps(payload: &[u8]) -> std::collections::BTreeSet<String> {
+    let mut fps = std::collections::BTreeSet::new();
+    let Ok(ciborium::Value::Map(entries)) = crate::relay::core::encoding::from_canonical_bytes(payload) else {
+        return fps;
+    };
+    for (k, v) in entries {
+        let (ciborium::Value::Text(name), ciborium::Value::Array(recipients)) = (k, v) else { continue };
+        if name != "recipients" {
+            continue;
+        }
+        for recipient in recipients {
+            let ciborium::Value::Map(fields) = recipient else { continue };
+            for (fk, fv) in fields {
+                if let (ciborium::Value::Text(field), ciborium::Value::Text(fp)) = (fk, fv) {
+                    if field == "fp" && !fp.is_empty() {
+                        fps.insert(fp);
+                    }
+                }
+            }
+        }
+    }
+    fps
 }
 
 /// Read a CBOR unsigned-integer field from an object payload.
@@ -385,6 +420,13 @@ impl Storage {
         if blake3::hash(&secret).as_bytes()[..] != secret_hash[..] {
             return Ok(false);
         }
+        // Someone the creator removed comes back only on a ticket issued after the removal
+        // (2026-10-10). Before, any unexpired ticket (they last 7 days) let them straight back
+        // in, and the creator's own app then sealed the group key to them again, while both apps
+        // told the creator "They can come back only with a new invite ticket."
+        if !self.invite_postdates_removal(&group_id, &invite_id, &object.author_public_key)? {
+            return Ok(false);
+        }
 
         let member_fp = author_fingerprint(&object.author_public_key);
         let member_pubkey = object.author_public_key.clone();
@@ -398,6 +440,86 @@ impl Storage {
                 params![group_id, member_fp, member_pubkey, now],
             )?;
             Ok(true)
+        })
+    }
+
+    /// Whether a join by `joiner` on invite `invite_id` survives the creator's removals: true when
+    /// the group's creator has never removed `joiner` from `group_id`, or when the invite was
+    /// issued after every such removal (so after the latest).
+    ///
+    /// How "issued after" is decided. The invite (`group_invite_v1`) and the removal (a
+    /// `group_member_v1` remove) are both objects the creator signs, and both apps stamp each with
+    /// the creator's own clock in `created_at` as they build it (net/api_v2.rs, web
+    /// pq-object.js). Comparing the two stamps compares the creator's clock with itself, whatever
+    /// order the objects reached this relay in (replication can deliver an old invite late), and
+    /// the stamps are signed, so neither the joiner nor a relay can move them. (Two of the
+    /// creator's devices with clocks far apart could disagree; the cost is a new ticket that reads
+    /// as old, and making another one later fixes it.) Strictly later counts:
+    /// an invite stamped in the same millisecond as the removal is taken to be the old one. When
+    /// either object has no `created_at` (no shipped app leaves it out), arrival at this relay
+    /// (`received_at`) decides instead, which still refuses every ticket that was here before
+    /// the removal.
+    ///
+    /// Only the creator removing someone else counts. A person who left on their own (a
+    /// self-leave) may come back on a ticket they still hold, and the creator leaving their own
+    /// group is a self-leave too.
+    fn invite_postdates_removal(&self, group_id: &str, invite_id: &str, joiner: &[u8]) -> Result<bool, rusqlite::Error> {
+        let creator: Option<Vec<u8>> = self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT creator_pubkey FROM p2p_groups WHERE group_id = ?1",
+                params![group_id],
+                |row| row.get::<_, Vec<u8>>(0),
+            )
+            .optional()
+        })?;
+        let Some(creator) = creator else {
+            return Ok(false); // an invite for a group this relay does not hold cannot be checked
+        };
+        if creator == joiner {
+            return Ok(true);
+        }
+        let creator_fp = author_fingerprint(&creator);
+        // The creator's signed membership entries on this group, read back from the authority
+        // (`signed_objects`), with their signed stamp and arrival time.
+        let entries: Vec<(Vec<u8>, Option<i64>, i64)> = self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT payload, created_at, received_at FROM signed_objects
+                 WHERE author_fp = ?1
+                   AND author_pubkey = ?2
+                   AND object_type = 'group_member_v1'
+                   AND json_extract(references_json, '$[0]') = ?3",
+            )?;
+            let rows = stmt.query_map(params![creator_fp, creator, group_id], |row| {
+                Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, Option<i64>>(1)?, row.get::<_, i64>(2)?))
+            })?;
+            rows.collect::<Result<Vec<_>, rusqlite::Error>>()
+        })?;
+        let removals: Vec<(Option<i64>, i64)> = entries
+            .into_iter()
+            .filter(|(payload, _, _)| {
+                payload_text(payload, "action").as_deref() == Some("remove")
+                    && payload_bytes(payload, "subject").as_deref() == Some(joiner)
+            })
+            .map(|(_, signed, arrived)| (signed, arrived))
+            .collect();
+        if removals.is_empty() {
+            return Ok(true);
+        }
+        let invite: Option<(Option<i64>, i64)> = self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT created_at, received_at FROM signed_objects WHERE object_id = ?1",
+                params![invite_id],
+                |row| Ok((row.get::<_, Option<i64>>(0)?, row.get::<_, i64>(1)?)),
+            )
+            .optional()
+        })?;
+        let Some((invite_signed, invite_arrived)) = invite else {
+            return Ok(false);
+        };
+        let removal_stamps: Option<Vec<i64>> = removals.iter().map(|(signed, _)| *signed).collect();
+        Ok(match (invite_signed, removal_stamps) {
+            (Some(issued), Some(stamps)) => stamps.iter().all(|removed| issued > *removed),
+            _ => removals.iter().all(|(_, removed_arrived)| invite_arrived > *removed_arrived),
         })
     }
 
@@ -561,6 +683,9 @@ impl Storage {
             Some(pk) if pk == object.author_public_key => {}
             _ => return Ok(false),
         }
+        if self.epoch_key_refusal(object)?.is_some() {
+            return Ok(false);
+        }
         let created_at = object.created_at.map(|t| t as i64);
         self.with_conn(|conn| {
             conn.execute(
@@ -570,6 +695,82 @@ impl Storage {
             )?;
             Ok(true)
         })
+    }
+
+    /// Why a `group_epoch_key_v1` may not become its group's key for its epoch, or None when it
+    /// may. Checked by `index_group_epoch_key` and, so the poster is told, by `put_signed_object`
+    /// before the object is stored.
+    ///
+    /// Why (2026-10-10): epoch keys used to be projected with `INSERT OR REPLACE` on
+    /// (group, epoch), so any later key object for an epoch replaced the one there. An app that
+    /// could not read the current epoch posted "epoch 1" again with a fresh key: every message
+    /// already sent under the real epoch-1 key stopped opening, while the latest key (which a
+    /// removed person still holds) stayed current. The relay cannot see inside a sealed key, so
+    /// it cannot tell a fresh key from the same one sealed again; it can see who a key is sealed
+    /// to and which epoch it is for.
+    ///
+    /// The one legitimate replacement is a share-history group's creator re-sealing the SAME
+    /// key to an expanded roster when someone joins, and both apps do that only for the group's
+    /// current (highest) epoch. So a new key object for an epoch that already has one is refused
+    /// when that epoch is not the group's latest, or when it is not sealed to every recipient of
+    /// the stored one who is still an active member: a re-seal never drops anyone who is in the
+    /// group. Someone who has left or been removed may be dropped, because the apps build a
+    /// re-seal from the current member list, so holding them in would refuse every re-seal after
+    /// anyone left; they already hold that key, so dropping them changes nothing for them. A new
+    /// epoch, or the same object again, is never refused here.
+    pub(super) fn epoch_key_refusal(&self, object: &Object) -> Result<Option<String>, rusqlite::Error> {
+        if object.object_type != "group_epoch_key_v1" {
+            return Ok(None);
+        }
+        let (Some(group_id), Some(epoch)) = (object.references.first(), read_uint(object, "epoch")) else {
+            return Ok(None); // not projectable at all; index_group_epoch_key ignores it
+        };
+        let Ok(object_id) = object.object_id().map(|id| id.to_hex()) else {
+            return Ok(None);
+        };
+        let epoch = epoch as i64;
+        let (stored, latest): (Option<String>, Option<i64>) = self.with_conn(|conn| {
+            let stored = conn
+                .query_row(
+                    "SELECT object_id FROM p2p_group_epochs WHERE group_id = ?1 AND epoch = ?2",
+                    params![group_id, epoch],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?;
+            let latest = conn.query_row(
+                "SELECT MAX(epoch) FROM p2p_group_epochs WHERE group_id = ?1",
+                params![group_id],
+                |row| row.get::<_, Option<i64>>(0),
+            )?;
+            Ok::<_, rusqlite::Error>((stored, latest))
+        })?;
+        let Some(stored) = stored else {
+            return Ok(None); // a new epoch
+        };
+        if stored == object_id {
+            return Ok(None); // the same object again
+        }
+        if latest.is_some_and(|latest| epoch < latest) {
+            return Ok(Some(format!(
+                "epoch {epoch} already has a key and is not this group's latest epoch, so it cannot be replaced"
+            )));
+        }
+        let Some(stored_payload) = self.get_signed_object(&stored)?.map(|r| r.payload) else {
+            return Ok(None); // the stored key object is gone, so there is nothing a new one could take away
+        };
+        let active: std::collections::HashSet<String> =
+            self.p2p_group_roster(group_id)?.into_iter().map(|m| m.member_fp).collect();
+        let sealed_to = epoch_recipient_fps(&object.payload);
+        let left_out = epoch_recipient_fps(&stored_payload)
+            .into_iter()
+            .filter(|fp| active.contains(fp) && !sealed_to.contains(fp))
+            .count();
+        if left_out > 0 {
+            return Ok(Some(format!(
+                "epoch {epoch} already has a key, and this one is not sealed to {left_out} member(s) the stored one is"
+            )));
+        }
+        Ok(None)
     }
 
     /// Project a `group_msg_v1` (an encrypted group message) into the message
@@ -635,14 +836,23 @@ impl Storage {
         })
     }
 
-    /// object_ids of a group's messages, oldest→newest (capped). The caller
+    /// object_ids of a group's NEWEST `limit` messages, returned oldest→newest. The caller
     /// fetches each object and decrypts client-side.
+    ///
+    /// The newest, not the oldest (2026-10-10): the query used to take the first `limit` rows in
+    /// time order, so once a group passed the cap its newer messages never reached either app,
+    /// and a report naming one of them read "Not found" in the creator's copy (10j). The newest
+    /// are picked first and then put back in time order, because both apps draw the list in the
+    /// order it comes (net/api_v2.rs `fetch_group_messages_raw`, web chat-groups-p2p.js
+    /// `_fetchGroupMessagesRaw`).
     pub fn p2p_group_message_ids(&self, group_id: &str, limit: usize) -> Result<Vec<String>, rusqlite::Error> {
         let lim = limit.clamp(1, 500) as i64;
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT object_id FROM p2p_group_messages
-                 WHERE group_id = ?1 ORDER BY created_at ASC, object_id ASC LIMIT ?2",
+                "SELECT object_id FROM (
+                   SELECT object_id, created_at FROM p2p_group_messages
+                   WHERE group_id = ?1 ORDER BY created_at DESC, object_id DESC LIMIT ?2
+                 ) ORDER BY created_at ASC, object_id ASC",
             )?;
             let rows = stmt.query_map(params![group_id, lim], |row| row.get::<_, String>(0))?;
             rows.collect()
@@ -1213,3 +1423,9 @@ mod tests {
         assert_eq!(ids.len(), 2, "the outsider's message must not be logged");
     }
 }
+
+/// A removed member's old ticket, an epoch key overwritten, and the newest messages served
+/// (2026-10-10).
+#[cfg(test)]
+#[path = "groups_p2p_safety_tests.rs"]
+mod safety_tests;

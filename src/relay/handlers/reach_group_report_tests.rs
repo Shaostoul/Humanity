@@ -15,13 +15,16 @@ fn report(st: &Arc<RelayState>, sender: &str, target: &str, cert: Option<&str>) 
     report_after(st, sender, target, cert, true)
 }
 
-/// `report`, leaving the rate limiter as it is when `reset_limiter` is false.
+/// `report`, with the sender's DM bucket emptied instead when `reset_limiter` is false (it holds
+/// a burst of sends, so an empty one is what slows the next send down).
 fn report_after(st: &Arc<RelayState>, sender: &str, target: &str, cert: Option<&str>, reset_limiter: bool) -> (bool, Vec<String>) {
     let mut rx = st.broadcast_tx.subscribe();
     let before = st.db.mailbox_fetch(target, 0, 1_000).unwrap().len();
     block(async {
         if reset_limiter {
-            st.rate_limits.write().await.remove(sender);
+            st.dm_rate.forget(sender);
+        } else {
+            st.dm_rate.drain(sender);
         }
         handle_dm_put(st, sender, target.to_string(), envelope(), cert.map(str::to_string), DmAsk::GroupReport).await;
     });
@@ -235,7 +238,7 @@ fn group_reports_are_three_a_day_per_sender_and_separate_from_knocks_and_contact
     assert!(!try_reach(&st, Kind::Message, &reporter.key, &open.key, None).0, "precondition: the knocks are spent");
     for _ in 0..CONTACT_REQUESTS_PER_DAY {
         block(async {
-            st.rate_limits.write().await.remove(&reporter.key);
+            st.dm_rate.forget(&reporter.key);
             handle_dm_put(&st, &reporter.key, asked.key.clone(), envelope(), None, DmAsk::ContactRequest).await;
         });
     }

@@ -52,7 +52,10 @@
 //! WHO SEES WHAT. A report goes to admins and moderators only. Admins see who reported; a
 //! moderator sees "a member", and a direct message's `to` and signature (which name the reporter
 //! just as well) are left out of what a moderator is sent. The reported person is never told who
-//! reported them. Online admins and moderators get a notice when a report arrives.
+//! reported them. Online admins and moderators get a notice when a report arrives. The owner
+//! counts as an admin. An admin or moderator who is themselves reported is never sent that report,
+//! never told it arrived, and cannot decide it (2026-10-10): otherwise a reported admin would read
+//! who reported them, and a reported moderator could dismiss the report about themselves.
 //!
 //! ALWAYS ON. `report_v2`, `reports_list`, `report_decide` and their answers are in features.rs
 //! `WS_ALWAYS_ON`: reporting is a person's own protection and reviewing reports is the owner
@@ -204,9 +207,16 @@ fn role_of(state: &RelayState, key: &str) -> String {
     state.db.get_role(key).unwrap_or_default()
 }
 
-/// An admin or a moderator.
+/// An admin (the owner included) or a moderator. The owner is an admin everywhere else in the
+/// relay (server settings, the account erase, the admin commands), so leaving the role out here
+/// kept the server's own owner from reviewing reports.
 fn is_staff(role: &str) -> bool {
-    matches!(role, "admin" | "mod" | "moderator")
+    matches!(role, "admin" | "owner" | "mod" | "moderator")
+}
+
+/// An admin or the owner: who is shown the reporter.
+fn is_admin(role: &str) -> bool {
+    matches!(role, "admin" | "owner")
 }
 
 fn now_ms() -> i64 {
@@ -545,7 +555,16 @@ pub async fn handle_report(state: &Arc<RelayState>, reporter: &str, raw: &Value,
         n => n,
     };
     let notice = format!("New report #{id} about {about}: {}. Open Reports to review it.", state.report_reasons.label(&c.reason));
-    let staff: Vec<String> = state.peers.read().await.keys().filter(|k| is_staff(&role_of(state, k))).cloned().collect();
+    // Never the reported person, staff or not: a moderator or admin who is reported must not
+    // learn of it (nor of when it came, which with the member list can name the reporter).
+    let staff: Vec<String> = state
+        .peers
+        .read()
+        .await
+        .keys()
+        .filter(|k| **k != c.target && is_staff(&role_of(state, k)))
+        .cloned()
+        .collect();
     for key in staff {
         tell(state, &key, notice.clone());
     }
@@ -601,7 +620,8 @@ pub fn item_json(state: &RelayState, r: &ReportRow, for_admin: bool) -> Value {
 }
 
 /// `reports_list {state}` from `me`: the open or the decided reports, newest first, to admins and
-/// moderators only.
+/// moderators only, never one about `me` (an admin reported would otherwise read who reported
+/// them; the query leaves those out so they do not use up the list's room either).
 pub fn handle_list(state: &Arc<RelayState>, me: &str, raw: &Value) {
     let role = role_of(state, me);
     if !is_staff(&role) {
@@ -611,11 +631,11 @@ pub fn handle_list(state: &Arc<RelayState>, me: &str, raw: &Value) {
     if want != "open" && want != "decided" {
         return tell(state, me, "Reports are listed as \"open\" or \"decided\".".to_string());
     }
-    let rows = state.db.reports_in_state(want, LIST_MAX).unwrap_or_else(|e| {
+    let rows = state.db.reports_in_state(want, me, LIST_MAX).unwrap_or_else(|e| {
         tracing::error!("Reports: could not read the {want} reports: {e}");
         Vec::new()
     });
-    let items = rows.iter().map(|r| item_json(state, r, role == "admin")).collect();
+    let items = rows.iter().map(|r| item_json(state, r, is_admin(&role))).collect();
     let _ = state.broadcast_tx.send(RelayMessage::Reports { to: me.to_string(), state: want.to_string(), items });
 }
 
@@ -634,8 +654,9 @@ fn posts_of(r: &ReportRow) -> Vec<(String, u64)> {
 /// `report_decide {id, decision, note}` from `me`, an admin or moderator: carry the decision out
 /// through the moderation path, then record it on the report (reviewer, decision, note, time).
 /// Refused, and nothing recorded, when the moderation rules refuse the action (a moderator
-/// banning, or acting on an admin), when the report is already decided, when a moderator decides
-/// a report about themselves, and when `delete_post` finds no post of theirs in the report.
+/// banning, or acting on an admin), when the report is already decided, when the report is about
+/// the one deciding (an admin too; answered as if there were no such report), and when
+/// `delete_post` finds no post of theirs in the report.
 pub async fn handle_decide(state: &Arc<RelayState>, me: &str, raw: &Value) {
     let role = role_of(state, me);
     if !is_staff(&role) {
@@ -653,6 +674,11 @@ pub async fn handle_decide(state: &Arc<RelayState>, me: &str, raw: &Value) {
         return tell(state, me, format!("Report #{id} was not decided: the note is longer than {NOTE_MAX_CHARS} characters."));
     }
     let report = match state.db.report_by_id(id) {
+        // A report about the one deciding is answered as if it did not exist, for every role:
+        // they never see it (handle_list), so they cannot decide it either, and a different
+        // answer would tell them by probing ids which reports are about them. Another admin or
+        // moderator decides it; on a server with one admin and no moderator it stays open.
+        Ok(Some(r)) if r.target_key == me => return tell(state, me, format!("There is no report #{id}.")),
         Ok(Some(r)) => r,
         Ok(None) => return tell(state, me, format!("There is no report #{id}.")),
         Err(e) => {
@@ -664,9 +690,6 @@ pub async fn handle_decide(state: &Arc<RelayState>, me: &str, raw: &Value) {
         return tell(state, me, format!("Report #{id} was already decided ({}).", report.decision.as_deref().unwrap_or("")));
     }
     let target = report.target_key.clone();
-    if target == me && role != "admin" {
-        return tell(state, me, format!("Report #{id} is about you, so an admin decides it."));
-    }
     match decision {
         "warn" | "mute" | "kick" | "ban" => {
             let name = name_of(state, &target);
@@ -731,8 +754,8 @@ fn ago(now: i64, then_ms: i64) -> String {
 
 /// `/report`, `/reports` and `/reports-clear`, typed in chat by `me`. `/report` says how reports
 /// are made now; `/reports` lists the latest reports (admins and moderators, moderators seeing
-/// "a member" for whoever reported); `/reports-clear` deletes the decided reports (admins; open
-/// reports stay until someone decides them).
+/// "a member" for whoever reported, and nobody seeing one about themselves); `/reports-clear`
+/// deletes the decided reports (admins; open reports stay until someone decides them).
 pub async fn handle_slash(state: &Arc<RelayState>, me: &str, cmd: &str) {
     let role = role_of(state, me);
     match cmd {
@@ -741,7 +764,7 @@ pub async fn handle_slash(state: &Arc<RelayState>, me: &str, cmd: &str) {
             if !is_staff(&role) {
                 return tell(state, me, "Only admins and moderators can see reports.".to_string());
             }
-            let rows = match state.db.reports_latest(SLASH_LIST_MAX) {
+            let rows = match state.db.reports_latest(me, SLASH_LIST_MAX) {
                 Ok(rows) => rows,
                 Err(e) => {
                     tracing::error!("Reports: could not read the latest reports: {e}");
@@ -754,7 +777,7 @@ pub async fn handle_slash(state: &Arc<RelayState>, me: &str, cmd: &str) {
             let now = now_ms();
             let mut lines = vec!["Recent reports (open them in Reports to see the evidence):".to_string()];
             for r in &rows {
-                let item = item_json(state, r, role == "admin");
+                let item = item_json(state, r, is_admin(&role));
                 let about = match name_of(state, &r.target_key) {
                     n if n.is_empty() => r.target_key.chars().take(8).collect::<String>(),
                     n => n,
@@ -774,7 +797,7 @@ pub async fn handle_slash(state: &Arc<RelayState>, me: &str, cmd: &str) {
             tell(state, me, lines.join("\n"));
         }
         "/reports-clear" => {
-            if role != "admin" {
+            if !is_admin(&role) {
                 return tell(state, me, "Only admins can clear reports.".to_string());
             }
             match state.db.reports_clear_decided() {
