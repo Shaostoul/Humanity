@@ -4583,6 +4583,9 @@ pub struct SettingsState {
     pub privacy_tier: String,
     /// Settings > Safety, "Warnings on messages" (step F, 10g): On by default; Off hides them all.
     pub warnings_on_messages: bool,
+    /// The report dialog's "Help outside this server" country, last picked on this device (10e-ii):
+    /// a code, "other", or empty (never picked). Kept here only; never sent anywhere.
+    pub outside_help_country: String,
     // Data
     pub seed_phrase_visible: bool,
     // Restoring from the recovery phrase
@@ -4688,6 +4691,7 @@ impl Default for SettingsState {
             online_status_visible: true,
             privacy_tier: String::new(),
             warnings_on_messages: true,
+            outside_help_country: String::new(),
             seed_phrase_visible: false,
             seed_phrase_input: String::new(),
             seed_phrase_recovery_status: String::new(),

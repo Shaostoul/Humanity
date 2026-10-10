@@ -9,10 +9,14 @@
 //! refused, which the chat shows like every other Private notice. With "Also block them" ticked
 //! (the default for a DM report), step C's Block runs as the report goes.
 //!
+//! Opening a dialog also loads the help outside this server (10e-ii, src/net/outside_help.rs)
+//! and starts it on the country last picked on this device. That country is never sent.
+//!
 //! The message pump (frame_ws_poll.rs) reaches this file through `on_frame`, called from its
 //! catch-all arm: the pump sits at its file-size budget, so nothing more goes there.
 
 use crate::gui::GuiState;
+use crate::net::outside_help;
 use crate::net::report::{self, DraftProblem, Evidence, ReportContext, ReportDialog, ReportDraft};
 
 /// The confirmation `report_received` shows.
@@ -38,6 +42,19 @@ pub(crate) fn ensure_reasons(gs: &mut GuiState) {
             log::warn!("{e}");
             gs.reports.reasons_error = Some(e);
         }
+    }
+}
+
+/// Load the help outside this server (`data/safety/outside_help.json`, 10e-ii) the first time a
+/// dialog opens, and try again on the next one if it could not be read. Without it the dialog
+/// simply has no such block: a report never waits on this file.
+pub(crate) fn ensure_outside_help(gs: &mut GuiState) {
+    if gs.reports.outside_help.is_some() {
+        return;
+    }
+    match outside_help::load(&crate::data_dir()) {
+        Ok(help) => gs.reports.outside_help = Some(help),
+        Err(e) => log::warn!("{e}"),
     }
 }
 
@@ -111,11 +128,18 @@ pub(crate) fn open_for_person(gs: &mut GuiState, key: &str) {
     open(gs, ReportDialog { target: key.to_string(), target_name, context: Some(ReportContext::Profile), ..Default::default() });
 }
 
-fn open(gs: &mut GuiState, dialog: ReportDialog) {
+fn open(gs: &mut GuiState, mut dialog: ReportDialog) {
     if dialog.target.is_empty() || dialog.target == gs.profile_public_key {
         return;
     }
     ensure_reasons(gs);
+    // The help outside this server starts on the country last picked on this device, else
+    // Another country (10e-ii; this app reads no OS locale, so there is no language step). The
+    // person's location is never looked up.
+    ensure_outside_help(gs);
+    if let Some(help) = gs.reports.outside_help.as_ref() {
+        dialog.country = outside_help::first_country(help, &gs.settings.outside_help_country);
+    }
     gs.reports.dialog = Some(dialog);
 }
 
@@ -349,6 +373,38 @@ mod tests {
 
         open_for_person(&mut gs, &me);
         assert!(gs.reports.dialog.is_none(), "never a report of ourselves");
+        gs.dm_store.as_ref().unwrap().remove_file_for_test();
+    }
+
+    /// The help outside this server (10e-ii) opens on the country last picked on this device, else
+    /// on Another country, and the country never goes in the report: the frame carries exactly
+    /// 10e's fields. Seen red 2026-10-10 with `open` leaving `country` empty: "the saved pick".
+    #[test]
+    fn a_dialog_opens_on_the_country_last_picked_and_the_report_never_carries_it() {
+        let (seed, me) = identity(55);
+        let (_, dana) = identity(56);
+        let mut gs = app(&me, &seed, "report-country");
+        let help = outside_help::parse(crate::embedded_data::OUTSIDE_HELP_JSON.as_bytes()).expect("the shipped file");
+        let listed = help.countries[0].clone();
+        gs.settings.outside_help_country = listed.code.clone();
+        open_for_person(&mut gs, &dana);
+        assert!(gs.reports.outside_help.is_some(), "the file loads with the dialog");
+        assert_eq!(gs.reports.dialog.as_ref().map(|d| d.country.as_str()), Some(listed.code.as_str()), "the saved pick");
+
+        gs.reports.dialog = None;
+        gs.settings.outside_help_country.clear();
+        open_for_person(&mut gs, &dana);
+        assert_eq!(gs.reports.dialog.as_ref().map(|d| d.country.as_str()), Some(outside_help::OTHER), "nothing picked: Another country");
+
+        let d = gs.reports.dialog.as_mut().unwrap();
+        d.country = listed.code.clone();
+        d.reason = "child_danger".into();
+        let (frame, _) = prepare_send(&gs, 4_000).expect("a frame");
+        let v: serde_json::Value = serde_json::from_str(&frame).unwrap();
+        let mut keys: Vec<&str> = v.as_object().unwrap().keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(keys, ["context", "evidence", "note", "reason", "sig", "target", "ts", "type"], "10e's fields and nothing else");
+        assert!(!frame.contains(&listed.name), "the country is not in the report");
         gs.dm_store.as_ref().unwrap().remove_file_for_test();
     }
 

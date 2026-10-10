@@ -198,6 +198,11 @@ pub const REPORT_REASONS_JSON: &str = include_str!("../data/safety/report_reason
 /// Built in so the desktop app still warns when the data folder lacks the file (net/warnings.rs
 /// `load_warnings`); the web client reads the same file.
 pub const WARNINGS_JSON: &str = include_str!("../data/safety/warnings.json");
+/// The help outside this server the report dialog shows for the two danger reasons (design
+/// blocking-and-safe-mode.md 10e-ii): emergency numbers and child-report lines per country, dated.
+/// Built in so the desktop app still shows them when the data folder lacks the file
+/// (net/outside_help.rs `load`); the web client reads the same file.
+pub const OUTSIDE_HELP_JSON: &str = include_str!("../data/safety/outside_help.json");
 
 // ── Lookup helper ───────────────────────────────────────────────────
 
@@ -403,6 +408,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "equipment.csv" => Some(EQUIPMENT_CSV),
         "safety/report_reasons.json" => Some(REPORT_REASONS_JSON),
         "safety/warnings.json" => Some(WARNINGS_JSON),
+        "safety/outside_help.json" => Some(OUTSIDE_HELP_JSON),
 
         _ => None,
     }

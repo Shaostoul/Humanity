@@ -44,6 +44,12 @@ pub mod block_list;
 #[cfg(feature = "native")]
 pub mod report;
 
+/// Help outside this server, in the report dialog (step D follow-up, blocking-and-safe-mode.md
+/// 10e-ii, 2026-10-10): the per-country emergency numbers and child-report lines, and which
+/// country the block starts on.
+#[cfg(feature = "native")]
+pub mod outside_help;
+
 /// Calls through the server (step E of docs/design/blocking-and-safe-mode.md, 2026-10-09): the
 /// `call_credentials` request and reply, and the state the call UI shows while it is asked.
 #[cfg(feature = "native")]

@@ -7,11 +7,18 @@
 //! The dialog: the reasons from `data/safety/report_reasons.json` with the chosen one's help text,
 //! the evidence (a DM report's list of that person's messages to tick; a post or group message
 //! as it is; none for a person's profile), an optional note, and "Also block them", ticked by
-//! default for a DM report. Nothing in it is a setting: it starts fresh each time it opens.
+//! default for a DM report. Nothing in it is a setting: it starts fresh each time it opens, except
+//! the country of the help outside this server.
+//!
+//! Help outside this server (10e-ii, 2026-10-10): for the two danger reasons, a block under the
+//! reason's help with the emergency number and the official place to report a child being
+//! exploited online, for a country picked in the block (rules and words: src/net/outside_help.rs).
+//! The pick is kept on this device for the next dialog and never sent.
 //!
 //! Takes `use super::*` like the page's other children.
 
 use super::*;
+use crate::net::outside_help;
 use crate::net::report::{ReportContext, FILES_NOT_INCLUDED, MAX_EVIDENCE_ITEMS, MAX_NOTE_CHARS, REASONS_FILE};
 
 /// What a Report button says when hovered.
@@ -65,91 +72,103 @@ fn one_line(text: &str, max: usize) -> String {
 pub(crate) fn draw_report_dialog(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let Some(mut d) = state.reports.dialog.take() else { return };
     let reasons = state.reports.reasons.clone();
+    let outside = state.reports.outside_help.as_ref();
     let mut open = true;
     let mut send = false;
     let mut cancel = false;
+    let mut picked = false;
     let name = if d.target_name.is_empty() { d.target.chars().take(8).collect() } else { d.target_name.clone() };
 
     widgets::dialog(ctx, theme, "report_dialog", "Report", &mut open, |ui| {
         ui.set_min_width(440.0);
         ui.set_max_width(520.0);
-        ui.label(RichText::new(format!("Report {name}")).size(theme.font_size_heading).color(theme.text_primary()).strong());
-        widgets::body_hint(
-            ui,
-            theme,
-            &format!("This goes to this server's admins and moderators, signed with your key. {name} is not told who reported them."),
-        );
-        ui.add_space(theme.spacing_sm);
-
-        // ── Reason ──
-        widgets::subsection_label(ui, theme, "What is happening?");
-        if reasons.is_empty() {
-            ui.label(
-                RichText::new(format!(
-                    "The list of reasons could not be loaded (data/{REASONS_FILE}), so a report cannot be sent from this app right now."
-                ))
-                .size(theme.font_size_small)
-                .color(theme.warning()),
-            );
-        }
-        for r in &reasons {
-            ui.radio_value(&mut d.reason, r.id.clone(), RichText::new(&r.label).color(theme.text_primary()));
-        }
-        if let Some(help) = reasons.iter().find(|r| r.id == d.reason).map(|r| r.help.as_str()).filter(|h| !h.is_empty()) {
-            ui.add_space(theme.spacing_xs);
-            widgets::alert(ui, theme, widgets::AlertKind::Info, help);
-        }
-        ui.add_space(theme.spacing_sm);
-
-        // ── Evidence ──
-        match d.context {
-            Some(ReportContext::Dm) => draw_dm_picker(ui, theme, &mut d.candidates),
-            Some(ReportContext::Post) => {
-                widgets::subsection_label(ui, theme, "The post");
-                widgets::card(ui, theme, |ui| {
-                    ui.label(RichText::new(one_line(&d.fixed_text, 300)).color(theme.text_secondary()));
-                });
-                widgets::body_hint(ui, theme, "The server already has this post, signed by its author, and finds it from its author and time.");
-            }
-            Some(ReportContext::Group) if d.fixed.is_none() => {
-                widgets::subsection_label(ui, theme, "The message");
-                widgets::body_hint(ui, theme, &format!("{FILES_NOT_INCLUDED} The report goes without it."));
-            }
-            Some(ReportContext::Group) => {
-                widgets::subsection_label(ui, theme, "The message");
-                widgets::card(ui, theme, |ui| {
-                    ui.label(RichText::new(one_line(&d.fixed_text, 300)).color(theme.text_secondary()));
-                });
-                widgets::body_hint(
-                    ui,
-                    theme,
-                    "Group messages are encrypted for the group, so the server's admins cannot check who wrote this. \
-                     It is sent as text and marked Not proven.",
-                );
-            }
-            _ => widgets::body_hint(
+        // The two danger reasons add the help outside this server (10e-ii), which can make the
+        // dialog taller than a small window, so the body scrolls and Send stays on screen.
+        let body_height = (ctx.screen_rect().height() - 140.0).max(240.0);
+        egui::ScrollArea::vertical().id_salt("report_dialog_body").max_height(body_height).auto_shrink([false, true]).show(ui, |ui| {
+            ui.label(RichText::new(format!("Report {name}")).size(theme.font_size_heading).color(theme.text_primary()).strong());
+            widgets::body_hint(
                 ui,
                 theme,
-                "No messages are attached. To include messages, report them from your conversation with them.",
-            ),
-        }
-        ui.add_space(theme.spacing_sm);
+                &format!("This goes to this server's admins and moderators, signed with your key. {name} is not told who reported them."),
+            );
+            ui.add_space(theme.spacing_sm);
 
-        // ── Note ──
-        widgets::subsection_label(ui, theme, "Anything else they should know (optional)");
-        ui.add(
-            egui::TextEdit::multiline(&mut d.note)
-                .desired_rows(3)
-                .desired_width(f32::INFINITY)
-                .char_limit(MAX_NOTE_CHARS)
-                .hint_text("For example, when it started."),
-        );
-        ui.add_space(theme.spacing_sm);
+            // ── Reason ──
+            widgets::subsection_label(ui, theme, "What is happening?");
+            if reasons.is_empty() {
+                ui.label(
+                    RichText::new(format!(
+                        "The list of reasons could not be loaded (data/{REASONS_FILE}), so a report cannot be sent from this app right now."
+                    ))
+                    .size(theme.font_size_small)
+                    .color(theme.warning()),
+                );
+            }
+            for r in &reasons {
+                ui.radio_value(&mut d.reason, r.id.clone(), RichText::new(&r.label).color(theme.text_primary()));
+            }
+            if let Some(help) = reasons.iter().find(|r| r.id == d.reason).map(|r| r.help.as_str()).filter(|h| !h.is_empty()) {
+                ui.add_space(theme.spacing_xs);
+                widgets::alert(ui, theme, widgets::AlertKind::Info, help);
+            }
+            // Under that help, for the two danger reasons only (10e-ii).
+            if let Some(view) = outside.and_then(|help| outside_help::view(help, &d.reason, &d.country)) {
+                ui.add_space(theme.spacing_xs);
+                picked |= draw_outside_help(ui, theme, &view, &mut d.country);
+            }
+            ui.add_space(theme.spacing_sm);
 
-        // ── Also block them ──
-        ui.checkbox(&mut d.also_block, RichText::new("Also block them").color(theme.text_primary()))
-            .on_hover_text(super::blocking::BLOCK_TIP);
-        widgets::body_hint(ui, theme, "You will not see anything from them on any server. They are not told.");
+            // ── Evidence ──
+            match d.context {
+                Some(ReportContext::Dm) => draw_dm_picker(ui, theme, &mut d.candidates),
+                Some(ReportContext::Post) => {
+                    widgets::subsection_label(ui, theme, "The post");
+                    widgets::card(ui, theme, |ui| {
+                        ui.label(RichText::new(one_line(&d.fixed_text, 300)).color(theme.text_secondary()));
+                    });
+                    widgets::body_hint(ui, theme, "The server already has this post, signed by its author, and finds it from its author and time.");
+                }
+                Some(ReportContext::Group) if d.fixed.is_none() => {
+                    widgets::subsection_label(ui, theme, "The message");
+                    widgets::body_hint(ui, theme, &format!("{FILES_NOT_INCLUDED} The report goes without it."));
+                }
+                Some(ReportContext::Group) => {
+                    widgets::subsection_label(ui, theme, "The message");
+                    widgets::card(ui, theme, |ui| {
+                        ui.label(RichText::new(one_line(&d.fixed_text, 300)).color(theme.text_secondary()));
+                    });
+                    widgets::body_hint(
+                        ui,
+                        theme,
+                        "Group messages are encrypted for the group, so the server's admins cannot check who wrote this. \
+                         It is sent as text and marked Not proven.",
+                    );
+                }
+                _ => widgets::body_hint(
+                    ui,
+                    theme,
+                    "No messages are attached. To include messages, report them from your conversation with them.",
+                ),
+            }
+            ui.add_space(theme.spacing_sm);
+
+            // ── Note ──
+            widgets::subsection_label(ui, theme, "Anything else they should know (optional)");
+            ui.add(
+                egui::TextEdit::multiline(&mut d.note)
+                    .desired_rows(3)
+                    .desired_width(f32::INFINITY)
+                    .char_limit(MAX_NOTE_CHARS)
+                    .hint_text("For example, when it started."),
+            );
+            ui.add_space(theme.spacing_sm);
+
+            // ── Also block them ──
+            ui.checkbox(&mut d.also_block, RichText::new("Also block them").color(theme.text_primary()))
+                .on_hover_text(super::blocking::BLOCK_TIP);
+            widgets::body_hint(ui, theme, "You will not see anything from them on any server. They are not told.");
+        });
 
         if !d.problem.is_empty() {
             ui.add_space(theme.spacing_xs);
@@ -171,12 +190,69 @@ pub(crate) fn draw_report_dialog(ctx: &egui::Context, theme: &Theme, state: &mut
         });
     });
 
+    if picked {
+        remember_country(state, &d.country);
+    }
     if send {
         state.reports.dialog = Some(d);
         crate::engine::report::send(state); // closes the dialog when it went, says why when not
     } else if open && !cancel {
         state.reports.dialog = Some(d);
     }
+}
+
+/// Keep the country picked in the outside help block for the next dialog (10e-ii): in AppConfig,
+/// written through `settings_dirty` like every other local setting. It stays on this device and
+/// is never part of a report.
+fn remember_country(state: &mut GuiState, code: &str) {
+    state.settings.outside_help_country = code.to_string();
+    state.settings_dirty = true;
+}
+
+/// Help outside this server (10e-ii), under a danger reason's help: the country picker, then for
+/// the chosen entry the emergency number (large), its other numbers, the child report line
+/// (smaller for someone in danger), its note, and the date the numbers were checked, in the web
+/// dialog's order so both apps read the same. True when another country was picked.
+fn draw_outside_help(ui: &mut egui::Ui, theme: &Theme, v: &outside_help::HelpView, country: &mut String) -> bool {
+    let before = country.clone();
+    widgets::card(ui, theme, |ui| {
+        ui.label(RichText::new(outside_help::TITLE).size(theme.font_size_body).color(theme.text_primary()).strong());
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Country:").color(theme.text_secondary()));
+            egui::ComboBox::from_id_salt("report_outside_help_country").selected_text(v.name.as_str()).show_ui(ui, |ui| {
+                for (code, name) in &v.choices {
+                    ui.selectable_value(country, code.clone(), name.as_str());
+                }
+            });
+        });
+        ui.add_space(theme.spacing_xs);
+        // The number is what someone in danger needs first, so it is the largest line; Another
+        // country's sentence stands in its place at body size.
+        let size = if v.emergency.is_some() { theme.font_size_heading } else { theme.font_size_body };
+        ui.label(RichText::new(v.emergency_line()).size(size).color(theme.text_primary()).strong());
+        for also in &v.also {
+            ui.label(RichText::new(also.line()).color(theme.text_primary()));
+        }
+        if let Some(child) = &v.child {
+            ui.add_space(theme.spacing_xs);
+            let size = if v.child_small { theme.font_size_small } else { theme.font_size_body };
+            ui.horizontal_wrapped(|ui| {
+                ui.label(RichText::new(outside_help::CHILD_LEAD).size(size).color(theme.text_secondary()));
+                let text = RichText::new(child.name.as_str()).size(size).color(theme.accent());
+                // Opens in the browser. On hover: the INHOPE directory's own name when it stands
+                // in for a country's body, otherwise the address, so the person sees where it goes.
+                ui.add(egui::Hyperlink::from_label_and_url(text, child.url.as_str()).open_in_new_tab(true))
+                    .on_hover_text(child.hover.as_deref().unwrap_or(child.url.as_str()));
+            });
+        }
+        if !v.note.is_empty() {
+            widgets::body_hint(ui, theme, &v.note);
+        }
+        if !v.date_line.is_empty() {
+            widgets::body_hint(ui, theme, &v.date_line);
+        }
+    });
+    *country != before
 }
 
 /// A DM report's evidence: that person's messages to us, newest first, to tick.

@@ -449,6 +449,12 @@ pub struct AppConfig {
     /// 2026-10-10). On by default, so a config written before it existed warns.
     #[serde(default = "default_true")]
     pub warnings_on_messages: bool,
+    /// The report dialog's "Help outside this server" country (blocking-and-safe-mode.md 10e-ii,
+    /// 2026-10-10): the last one picked on this device, a code such as "GB" or "other" for
+    /// Another country; empty until one is picked. The person's own choice, kept in this file
+    /// only: never looked up from their location, never sent with a report or anywhere else.
+    #[serde(default)]
+    pub outside_help_country: String,
     /// UI font size. An accessibility setting, so losing it every launch is
     /// worse than losing a cosmetic one.
     #[serde(default = "default_font_size")]
@@ -1470,6 +1476,7 @@ impl AppConfig {
             online_status_visible: state.settings.online_status_visible,
             privacy_tier: state.settings.privacy_tier.clone(),
             warnings_on_messages: state.settings.warnings_on_messages,
+            outside_help_country: state.settings.outside_help_country.clone(),
             font_size: state.settings.font_size,
             dark_mode: state.settings.dark_mode,
             hint_display: state.settings.hint_display,
@@ -1648,6 +1655,7 @@ impl AppConfig {
         state.settings.online_status_visible = self.online_status_visible;
         state.settings.privacy_tier = self.privacy_tier.clone();
         state.settings.warnings_on_messages = self.warnings_on_messages;
+        state.settings.outside_help_country = self.outside_help_country.clone();
         // Clamp the ranges the UI enforces, so a hand-edited config cannot
         // produce an unusable window (a 0 font size or a 0 m far plane).
         state.settings.font_size = self.font_size.clamp(10.0, 24.0);
@@ -2282,6 +2290,25 @@ mod play_mode_tests {
         let mut fresh = crate::gui::GuiState::default();
         back.apply_to_gui_state(&mut fresh);
         assert!(!fresh.settings.warnings_on_messages, "Off must STAY off across a restart");
+    }
+
+    /// The report dialog's outside help country (blocking-and-safe-mode.md 10e-ii): none for a
+    /// config written before it existed, and a pick (a code, or "other" for Another country)
+    /// survives a save and a load. Seen red 2026-10-10 with `apply_to_gui_state` not reading it:
+    /// "the pick survives a restart" (the app opened on Another country again).
+    #[test]
+    fn the_outside_help_country_survives_a_restart() {
+        let old: AppConfig = serde_json::from_str(r#"{"server_url":""}"#).unwrap();
+        assert_eq!(old.outside_help_country, "", "nothing picked in an old config");
+        for pick in ["GB", "other"] {
+            let mut state = crate::gui::GuiState::default();
+            state.settings.outside_help_country = pick.to_string();
+            let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
+            let back: AppConfig = serde_json::from_str(&json).unwrap();
+            let mut fresh = crate::gui::GuiState::default();
+            back.apply_to_gui_state(&mut fresh);
+            assert_eq!(fresh.settings.outside_help_country, pick, "the pick survives a restart");
+        }
     }
 
     /// The two realism switches (BUG-136 carrying weight, and body heat,
