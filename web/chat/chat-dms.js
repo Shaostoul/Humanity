@@ -223,17 +223,28 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
   const fileMeta = (typeof pqParseFileMarker === 'function') ? pqParseFileMarker(body) : null;
   const bodyHtml = fileMeta ? encAttachmentPlaceholder(fileMeta) : formatBody(body);
 
+  // Step F (2026-10-10, chat-warnings.js): a stranger's links are held until
+  // the line under the message's Open is pressed, and the warnings the message
+  // matches show under it. Never on my own messages.
+  const received = !!fromKey && !isMe;
+  const holdLinks = received && !fileMeta && typeof dmLinksHeld === 'function' && typeof holdLinksHtml === 'function'
+    && dmLinksHeld(fromKey, timestamp, body);
+
   el.innerHTML = messageRowHTML({
     isContinuation,
     identiconHtml,
     metaHtml,
     pillHtml: timestampPillHTML({ time: formatTimePill(timestamp), extra: e2eeBadge }),
-    bodyHtml,
+    bodyHtml: holdLinks ? holdLinksHtml(bodyHtml) : bodyHtml,
   });
 
   appendMessage(el);
+  if (received && typeof addMessageSafetyLines === 'function') {
+    addMessageSafetyLines(el, { text: body, from: fromKey, ts: timestamp, context: 'dm', name: author, liveBodyHtml: holdLinks ? bodyHtml : null });
+  }
   if (fileMeta) hydrateEncAttachment(el, fileMeta);
   if (window.twemoji) twemoji.parse(el);
+  return el;
 }
 
 function _fmtBytes(n) {

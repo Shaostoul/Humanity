@@ -162,10 +162,12 @@ function startEditMode(msgEl, originalBody, fromKey, timestamp) {
   const saveBtn = document.createElement('button');
   saveBtn.className = 'edit-save';
   saveBtn.textContent = 'Save';
-  saveBtn.onclick = (e) => {
+  saveBtn.onclick = async (e) => {
     e.stopPropagation();
     const newContent = textarea.value.trim();
     if (!newContent || newContent.length > getMaxMsgLength()) return;
+    // Never my recovery phrase (step F, chat-warnings.js): the edit stays open to fix.
+    if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(newContent, 'Your edit was not saved.')) return;
     // Send edit via WebSocket.
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
@@ -435,6 +437,9 @@ function attachmentTooLarge(file) {
 async function uploadImage(file) {
   // Client-side size guard: abort before uploading anything over the 6 MB cap.
   if (attachmentTooLarge(file)) return null;
+  // The file's name goes to the server with it: never my recovery phrase
+  // (step F, chat-warnings.js).
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(file && file.name, 'The file was not sent.')) return null;
   const indicator = document.getElementById('upload-indicator');
   indicator.textContent = `Uploading ${file.name}…`;
   indicator.style.display = 'block';
@@ -499,6 +504,9 @@ async function sendEncryptedAttachment(file) {
   // Same 6 MB cap applies to encrypted DM attachments (the ciphertext upload
   // hits the same nginx body limit). Guard before encrypting/uploading.
   if (attachmentTooLarge(file)) return;
+  // The file's name rides in the sealed message: never my recovery phrase
+  // (step F, chat-warnings.js).
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(file && file.name, 'The file was not sent.')) return;
   const indicator = document.getElementById('upload-indicator');
   try {
     if (indicator) { indicator.textContent = `Encrypting ${file.name}…`; indicator.style.display = 'block'; }
@@ -627,6 +635,8 @@ async function sendThreadReply() {
   const input = document.getElementById('thread-input');
   const content = input.value.trim();
   if (!content || !ws || ws.readyState !== WebSocket.OPEN || !currentThread) return;
+  // Never my recovery phrase (step F, chat-warnings.js): the reply stays in its box to edit.
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(content)) return;
 
   const timestamp = Date.now();
 

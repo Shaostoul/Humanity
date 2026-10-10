@@ -454,6 +454,17 @@ async function connect(how) {
   }
   myKey = myIdentity.publicKeyHex; // now the Dilithium3 public-key hex
 
+  // Never my recovery phrase (step F, chat-warnings.js): my name goes out with
+  // every message and every contact request, so a name made of the phrase's
+  // words does not connect.
+  if (typeof recoveryPhraseIn === 'function' && await recoveryPhraseIn(myName)) {
+    const errEl = document.getElementById('login-error');
+    errEl.textContent = 'That name was not used. ' + PHRASE_GUARD_SENTENCE;
+    errEl.style.display = 'block';
+    document.getElementById('crypto-status').textContent = '';
+    return;
+  }
+
   // Stay on login screen, we switch to chat only after server confirms identity.
   identityConfirmed = false;
   openSocket({ signUpAgain });
@@ -1466,6 +1477,10 @@ async function sendMessage() {
     return;
   }
 
+  // Never my recovery phrase (step F, chat-warnings.js): a post, a reply or a
+  // command for the server is stopped, and the text and the reply stay to edit.
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(content)) return;
+
   // Build reply_to reference if replying.
   let replyRef = null;
   if (replyTarget) {
@@ -1560,10 +1575,12 @@ function handleChannelAdminFeedback(message) {
  * Sends a skill_verify_response back to the relay if approved.
  * @param {{from_key, from_name, skill_id, level}} d
  */
-function handleSkillVerifyRequest(d) {
+async function handleSkillVerifyRequest(d) {
   const msg = `${d.from_name || 'A peer'} is asking to verify your "${d.skill_id}" skill (level ${d.level}). Approve?`;
   if (!confirm(msg)) return;
   const note = prompt('Optional note for the endorsement:', 'Verified!') ?? 'Verified';
+  // Never my recovery phrase (step F, chat-warnings.js).
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(note, 'Your endorsement was not sent.')) return;
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({
       type: 'skill_verify_response',
@@ -1621,9 +1638,12 @@ function requestSkillEndorsements(userKey) {
  * @param {string} targetKey Player public key (their identity), NOT a display name.
  * @param {string} reason    Operator-visible reason (may be empty).
  */
-function sendGameBan(targetKey, reason) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+async function sendGameBan(targetKey, reason) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+  // Never my recovery phrase (step F, chat-warnings.js): the reason is something I wrote.
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(reason || '', 'The ban was not sent.')) return false;
   ws.send(JSON.stringify({ type: 'game_ban', target: targetKey, reason: reason || '' }));
+  return true;
 }
 
 /**
@@ -1651,6 +1671,8 @@ async function sendChatCommand(command, channelOverride) {
     addSystemMessage('Not connected. Please reconnect and try again.');
     return false;
   }
+  // Never my recovery phrase (step F): a channel's new name is something I wrote.
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(command)) return false;
 
   const timestamp = Date.now();
   const msg = {
@@ -1905,6 +1927,8 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
 
   appendMessage(el);
   if (window.twemoji) twemoji.parse(el);
+  // The row, so a P2P group can put its warnings under it (chat-groups-p2p.js, step F).
+  return el;
 }
 
 function addSystemMessage(text) {

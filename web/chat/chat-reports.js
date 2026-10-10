@@ -350,6 +350,8 @@ async function submitReportDialog() {
   st.sending = true;
   st.error = '';
   renderReportDialog();
+  // The note is mine: never my recovery phrase (step F, chat-warnings.js). Said in the dialog.
+  if (typeof recoveryPhraseIn === 'function' && await recoveryPhraseIn(st.note)) return fail(PHRASE_GUARD_SENTENCE);
   const built = typeof pqBuildReport === 'function'
     ? await pqBuildReport({ target: st.target, context: st.context, reason: st.reason, note: st.note, evidence: reportDialogEvidence(st) })
     : { error: 'Reporting is not loaded on this page.' };

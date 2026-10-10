@@ -255,7 +255,7 @@ function injectAccountDataButtons() {
   div.id = 'account-data-controls';
   div.style.cssText = 'display:flex;gap:6px;margin-top:8px;';
   div.innerHTML =
-    '<button class="vr-btn" style="flex:1;font-size:0.7rem;" onclick="openSafetyPanel()" title="Choose who can message you, call you and send you trade requests, answer contact requests, and see who you blocked.">Safety</button>'
+    '<button class="vr-btn" style="flex:1;font-size:0.7rem;" onclick="openSafetyPanel()" title="Choose who can message you, call you and send you trade requests, answer contact requests, see who you blocked, and turn warnings on messages on or off.">Safety</button>'
     + '<button class="vr-btn" style="flex:1;font-size:0.7rem;" onclick="exportMyAccountData()" title="Download everything this server stores about you as a JSON file.">Export my data</button>'
     + '<button class="vr-btn" style="flex:1;font-size:0.7rem;color:var(--danger);" onclick="deleteMyAccount()" title="Erase your account and its data from this server. Self-service, permanent.">Erase account</button>';
   host.appendChild(div);
@@ -463,6 +463,8 @@ async function sendContactRequest(peer) {
     reachSay('Not connected, so the request was not sent.');
     return false;
   }
+  // A request carries my name: never my recovery phrase (step F, chat-warnings.js).
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(myName, 'The request was not sent.')) return false;
   const built = await pqBuildContactRequest(peer, myName);
   if (!built) {
     reachSay('The request could not be sent yet: this person has not been online with a current client here, or your identity is still loading. Try again in a moment.');
@@ -598,6 +600,10 @@ function safetyModel() {
     requests: store ? store.contactRequestList() : [],
     // Blocked people (step C): newest first, by the member list's name (or short key).
     blocked: store ? store.blockedList().map((b) => ({ key: b.key, name: reachDisplayName(b.key), ts: b.ts, date: blockDateLabel(b.ts) })) : [],
+    // Warnings on messages (step F, chat-warnings.js): On by default; the
+    // switch waits for the local store, where it is kept.
+    warningsOn: typeof messageWarningsOn === 'function' ? messageWarningsOn() : true,
+    warningsReady: !!store,
   };
 }
 
@@ -659,7 +665,26 @@ function safetyPanelHtml(model) {
   } else {
     html += `<p style="${SAFETY_NOTE}">Nobody is blocked.</p>`;
   }
+  html += safetyWarningsHtml(model);
   return html;
+}
+
+/**
+ * Warnings on messages (step F, 2026-10-10, blocking-and-safe-mode.md 10g):
+ * the switch, what it does, that it runs on this device only (6.5), and the
+ * two rules that have no switch. Empty when /shared/warnings.js is not loaded.
+ */
+function safetyWarningsHtml(model) {
+  if (typeof WARNINGS_SWITCH_LABEL !== 'string') return '';
+  return `<h3 style="${SAFETY_H3}">${reachEsc(WARNINGS_SWITCH_LABEL)}</h3>`
+    + '<label class="safety-warnings" style="display:flex;align-items:center;gap:var(--space-sm);color:var(--text);cursor:pointer;">'
+    + `<input type="checkbox" data-warnings-switch aria-label="${reachEsc(WARNINGS_SWITCH_LABEL)}"${model.warningsOn ? ' checked' : ''}${model.warningsReady ? '' : ' disabled'}>`
+    + `<span>${reachEsc(WARNINGS_SWITCH_LABEL)}</span></label>`
+    + (model.warningsReady ? '' : `<p style="${SAFETY_NOTE}margin-top:var(--space-xs);">Waiting for your settings on this device to load.</p>`)
+    + `<p style="${SAFETY_NOTE}margin-top:var(--space-xs);">${reachEsc(WARNINGS_SWITCH_HELP)}</p>`
+    + `<p style="${SAFETY_NOTE}">${reachEsc(WARNINGS_ON_DEVICE_SENTENCE)}</p>`
+    + `<p style="${SAFETY_NOTE}">Links in a direct message from someone who is not your friend open only when you press Open under it.</p>`
+    + `<p style="${SAFETY_NOTE}">Your recovery phrase is never sent: anything you write that holds it is stopped before it leaves this device. This is always on.</p>`;
 }
 
 /** Open Settings > Safety. */
@@ -717,6 +742,10 @@ function renderSafetyPanel() {
   card.querySelectorAll('[data-unblock]').forEach((b) => {
     b.onclick = () => { b.disabled = true; unblockKey(b.dataset.unblock); };
   });
+  const warningsSwitch = card.querySelector('[data-warnings-switch]');
+  if (warningsSwitch && typeof setMessageWarningsOn === 'function') {
+    warningsSwitch.onchange = () => setMessageWarningsOn(warningsSwitch.checked);
+  }
 }
 
 // ── Block (step C, 2026-10-09) ───────────────────────────────────────────
@@ -997,6 +1026,8 @@ function onBlockListLoaded() {
   const store = reachStore();
   if (!store) return;
   for (const b of store.blockedList()) applyBlockToView(b.key, true);
+  // Warnings drawn before the store loaded used the default (On): follow the kept switch (step F).
+  if (typeof applyWarningsSwitchToView === 'function') applyWarningsSwitchToView();
   renderBlockEverywhere();
   flushBlockNotes();
 }

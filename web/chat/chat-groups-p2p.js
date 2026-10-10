@@ -251,7 +251,9 @@
         : ((ag.fpToName && ag.fpToName[authorFp]) || (res.authorPubHex || '').slice(0, 12) + '…');
       const fromKey = (ag.fpToKey && ag.fpToKey[authorFp]) || res.authorPubHex;
       if (typeof addChatMessage === 'function') {
-        addChatMessage(name, text, res.createdAt || Date.now(), fromKey, true, false, null, null);
+        const ts = res.createdAt || Date.now();
+        const el = addChatMessage(name, text, ts, fromKey, true, false, null, null);
+        if (!isMe) groupMessageWarnings(el, text, fromKey, ts, name);
       }
     } catch (_e) { /* never let a bad frame break the channel */ }
   }
@@ -545,8 +547,18 @@
         ? (window.myName || 'You')
         : (labelFromMap || (m.author_fp || '').slice(0, 12) + '…');
       const fromKey = isMe ? myKey : (ag.fpToKey && ag.fpToKey[m.author_fp]) || m.author_fp;
-      addChatMessage(authorName, m.text, m.created_at, fromKey, true, false, null, null);
+      const el = addChatMessage(authorName, m.text, m.created_at, fromKey, true, false, null, null);
+      if (!isMe) groupMessageWarnings(el, m.text, fromKey, m.created_at, authorName);
     }
+  }
+
+  /**
+   * The warnings a group message matches, under it (step F, 2026-10-10,
+   * chat-warnings.js): by whether its author is a friend. Never on my own.
+   */
+  function groupMessageWarnings(el, text, fromKey, ts, name) {
+    if (!el || typeof addMessageSafetyLines !== 'function') return;
+    addMessageSafetyLines(el, { text, from: fromKey, ts, context: 'group', name });
   }
 
   // Populate ag.fpToName + ag.fpToKey by fetching the roster + matching each
@@ -778,6 +790,8 @@
       if (!input) return;
       const text = (input.value || '').trim();
       if (!text) return;
+      // Never my recovery phrase (step F, chat-warnings.js): stopped, the text stays to edit.
+      if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(text)) return;
       if (!ag.epochKey) {
         if (typeof addNotice === 'function') addNotice('Waiting for the group epoch key. The group creator must open the group once first.', 'orange', 6);
         return;

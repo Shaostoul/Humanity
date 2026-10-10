@@ -1288,6 +1288,9 @@ sendMessage = async function() {
 const knockNoticeShown = new Set();
 async function sendComposedContent(content) {
   if (!content || !ws || ws.readyState !== WebSocket.OPEN) return false;
+  // Never my recovery phrase (step F, chat-warnings.js): a DM or a post is
+  // stopped before anything is built, and the text stays in the composer.
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(content)) return false;
 
   // (Legacy group_msg branch removed 2026-08-23; the P2P group composer
   // patch in chat-groups-p2p.js routes E2EE group sends before this runs.)
@@ -1815,11 +1818,13 @@ var federatedRetryMs = 30000;
   window.switchSidebarTab = switchSidebarTab;
 
   // Prompt to add a federated server via /server-add command.
-  function promptAddServer() {
+  async function promptAddServer() {
     const url = prompt('Enter server URL (e.g. https://chat.example.com):');
     if (!url) return;
     const name = prompt('Server name (optional):') || '';
     const cmd = name ? `/server-add ${url} ${name}` : `/server-add ${url}`;
+    // Never my recovery phrase (step F, chat-warnings.js).
+    if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(cmd, 'The server was not added.')) return;
     // Send the command as a chat message (the server intercepts slash commands).
     if (ws && ws.readyState === WebSocket.OPEN) {
       const msg = { type: 'chat', content: cmd, timestamp: Date.now(), channel: activeChannel || 'general' };
@@ -2318,7 +2323,7 @@ window.closeSearch = function() {
   document.getElementById('search-count').textContent = '';
 };
 
-function doSearch() {
+async function doSearch() {
   const query = document.getElementById('search-input').value.trim();
   const fromUser = document.getElementById('search-from').value.trim();
   if (query.length < 2) {
@@ -2337,6 +2342,8 @@ function doSearch() {
     // Don't filter by channel, search all. User can filter from dropdown later.
   }
   if (fromUser) msg.from = fromUser;
+  // Never my recovery phrase (step F, chat-warnings.js): a search goes to the server too.
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops([query, fromUser], 'Not searched.')) return;
   if (typeof ws !== 'undefined' && ws && ws.readyState === 1) {
     ws.send(JSON.stringify(msg));
   }
