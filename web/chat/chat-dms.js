@@ -306,13 +306,17 @@ function renderDmList() {
     + '<span class="hold-ring" aria-hidden="true"></span>'
     + '<span class="dm-name">Delete my server mailbox</span>'
     + '<span class="hold-hint">hold</span></div>';
+  // Contact requests ("who can reach me", step B): name only, Accept and
+  // Ignore, above the conversations (chat-privacy.js draws and wires them).
+  const requestsHtml = (typeof contactRequestsSidebarHtml === 'function') ? contactRequestsSidebarHtml() : '';
   if (dmConversations.length === 0) {
-    list.innerHTML = '<div style="font-size:0.7rem;color:var(--text-muted);padding:var(--space-sm) var(--space-md);">No conversations yet</div>' + purgeRow;
+    list.innerHTML = requestsHtml + '<div style="font-size:0.7rem;color:var(--text-muted);padding:var(--space-sm) var(--space-md);">No conversations yet</div>' + purgeRow;
+    if (typeof wireContactRequestButtons === 'function') wireContactRequestButtons(list);
     wirePurgeMailboxHold();
     return;
   }
 
-  list.innerHTML = dmConversations.map(c => {
+  list.innerHTML = requestsHtml + dmConversations.map(c => {
     const isActive = activeDmPartner === c.partner_key;
     const unread = c.unread_count > 0 ? '<span class="dm-unread"></span>' : '';
     const timeStr = formatTime(c.last_timestamp);
@@ -331,6 +335,7 @@ function renderDmList() {
     </div>`;
   }).join('') + purgeRow;
   if (window.twemoji) twemoji.parse(list);
+  if (typeof wireContactRequestButtons === 'function') wireContactRequestButtons(list);
   wirePurgeMailboxHold();
   if (typeof window.refreshUnifiedLeftHeaderCounts === 'function') window.refreshUnifiedLeftHeaderCounts();
 }

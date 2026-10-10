@@ -954,6 +954,45 @@ function _dmSigPreimage(from, to, ts, text) {
   return `${DM_SIG_DOMAIN_V2}\n${from}\n${to}\n${ts}\n${text}`;
 }
 
+// Sealed plaintext size buckets (bytes). Must match native
+// net::dm_pq::DM_PAD_BUCKETS; scripts/tests/reach-web.test.js holds the two
+// to each other.
+const DM_PAD_BUCKETS = [256, 1024, 4096, 16384];
+
+// ── Contact requests ("who can reach me", step B, 2026-10-09, 10c as
+// amended in review) ──────────────────────────────────────────────────────
+// A person refused for messages may send one: an ordinary signed, sealed v2
+// DM, deposited with `"contact_request": true`, whose text is the marker and
+// {name, pass} (/shared/reach.js contactRequestText). The pass is mine for
+// them with the default `may`: asking to connect is consenting to hear back,
+// and their reply carries it, so my relay's gate lets the reply in. The relay
+// lets the request through whatever their audience (unless it is "nobody"),
+// 5 a day per sender. The self-copy tells my other devices which pass I gave.
+
+/**
+ * Build a contact request from `myNameWord` to `partnerKey`: { recipientPut,
+ * selfPut, inner, serial, may }, the recipient's put flagged. Null when the
+ * identity, the server's did:hum or their DM key is not ready here, or the
+ * name is not a registered-name word.
+ */
+async function pqBuildContactRequest(partnerKey, myNameWord) {
+  try {
+    if (typeof contactRequestText !== 'function') return null;
+    if (!getPeerEcdhPublic(partnerKey)) return null;
+    const pass = await pqBuildFriendCert(partnerKey); // the default may: no calls
+    if (!pass) return null;
+    const text = contactRequestText(myNameWord, pass.cert);
+    if (!text) return null;
+    const built = await pqBuildDmPuts(text, partnerKey, Date.now());
+    if (!built) return null;
+    built.recipientPut.contact_request = true;
+    return { ...built, serial: pass.serial, may: pass.may };
+  } catch (e) {
+    console.warn('pqBuildContactRequest failed:', e && e.message);
+    return null;
+  }
+}
+
 function _hexToBytes(hex) {
   const out = new Uint8Array(hex.length / 2);
   for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
@@ -985,9 +1024,8 @@ async function pqBuildDmPuts(text, partnerKey, ts, opts) {
     // bucket so ciphertext length doesn't leak message length. Buckets
     // must match native (net::dm_pq::DM_PAD_BUCKETS).
     {
-      const buckets = [256, 1024, 4096, 16384];
       const bare = JSON.stringify(inner).length;
-      const bucket = buckets.find((b) => bare + 12 <= b) || (bare + 12);
+      const bucket = DM_PAD_BUCKETS.find((b) => bare + 12 <= b) || (bare + 12);
       inner.pad = ' '.repeat(Math.max(0, bucket - bare - 12));
     }
     const innerJson = JSON.stringify(inner);

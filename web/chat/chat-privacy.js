@@ -265,7 +265,8 @@ function injectAccountDataButtons() {
   div.id = 'account-data-controls';
   div.style.cssText = 'display:flex;gap:6px;margin-top:8px;';
   div.innerHTML =
-    '<button class="vr-btn" style="flex:1;font-size:0.7rem;" onclick="exportMyAccountData()" title="Download everything this server stores about you as a JSON file.">Export my data</button>'
+    '<button class="vr-btn" style="flex:1;font-size:0.7rem;" onclick="openSafetyPanel()" title="Choose who can message you, call you and send you trade requests, and answer contact requests.">Safety</button>'
+    + '<button class="vr-btn" style="flex:1;font-size:0.7rem;" onclick="exportMyAccountData()" title="Download everything this server stores about you as a JSON file.">Export my data</button>'
     + '<button class="vr-btn" style="flex:1;font-size:0.7rem;color:var(--danger);" onclick="deleteMyAccount()" title="Erase your account and its data from this server. Self-service, permanent.">Erase account</button>';
   host.appendChild(div);
   const relayRow = document.createElement('label');
@@ -277,6 +278,451 @@ function injectAccountDataButtons() {
   host.appendChild(relayRow);
 }
 setTimeout(injectAccountDataButtons, 500);
+
+// ── Safety: who can reach me (step B, 2026-10-09) ────────────────────────
+// docs/design/blocking-and-safe-mode.md 10c, mirroring native Settings >
+// Safety. One row per kind of contact (Messages, Calls, Trades), each with
+// one of five audiences; the words, defaults and rules are /shared/reach.js.
+// The relay enforces the choice and its `reach_settings` is the source of
+// truth for what this page shows: a change goes out as `reach_set` and the
+// row shows the relay's answer, not our guess. Also here: the "People who
+// may call me" list (a friend's pass re-issued with or without `call`,
+// chat-social.js setFriendMayCall), the refusal sentence with a Send request
+// button (`reach_refused`), and the Requests list (contact requests, and
+// DMs from people these settings refuse, shown by name only).
+
+let reachKnown = null;   // the last `reach_settings` from the relay; null until it says
+let reachSaving = null;  // {kind, audience, timer} while a `reach_set` awaits its answer
+const REACH_SAVE_WAIT_MS = 8000;
+// One refusal offer per person a minute: one refused send is often several
+// puts (a follow notice, then the message), and each is refused.
+const reachOfferShown = new Map();
+const REACH_OFFER_QUIET_MS = 60000;
+
+/** The settings in force: the relay's word, or the safe defaults until it has spoken. */
+function reachCurrent() {
+  return reachKnown || reachSettingsFrom(null);
+}
+
+/** HTML-escape for the strings this section builds (pure: no DOM needed). */
+function reachEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function reachSay(text) {
+  if (typeof addSystemMessage === 'function') addSystemMessage(text);
+}
+
+function reachPeers() {
+  return (typeof peerData !== 'undefined' && peerData) ? peerData : {};
+}
+
+function reachDisplayName(key) {
+  const p = reachPeers()[key];
+  return (p && p.display_name) || (typeof shortKey === 'function' ? shortKey(key) : String(key).slice(0, 8));
+}
+
+/**
+ * Do we share a P2P group (the `groups` audience)? From the group list
+ * chat-groups-p2p.js keeps. Until that list has loaded the answer is not
+ * known here, and then the relay's own check stands: a DM it let through is
+ * not turned into a request, which would drop its text for good.
+ */
+function reachSharesGroupWith(peer) {
+  if (!Array.isArray(window._p2pGroups)) return true;
+  return window._p2pGroups.some((g) => g && Array.isArray(g.members) && g.members.includes(peer));
+}
+
+function reachStore() {
+  return (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
+}
+
+/** Would my settings let `peer` reach me for `kind`? The relay's rule, applied with what this client knows. */
+function reachAllowsFrom(peer, kind) {
+  const store = reachStore();
+  return reachAllows(reachCurrent()[kind], kind, {
+    passMay: store ? store.passMayTo(peer) : null,
+    sharesGroup: reachSharesGroupWith(peer),
+  });
+}
+
+/** The relay's answer: what the settings are now (after identify and after every reach_set). */
+function onReachSettings(settings) {
+  reachKnown = reachSettingsFrom(settings);
+  if (reachSaving) {
+    clearTimeout(reachSaving.timer);
+    reachSaving = null;
+  }
+  renderSafetyPanel();
+}
+
+/** A row's choice changed: ask the relay; the row shows the answer when it comes. */
+function chooseReachAudience(kind, audience) {
+  const frame = reachSetFrame({ [kind]: audience });
+  if (!frame || !reachKnown) return false;
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    reachSay('Not connected, so the setting was not changed.');
+    renderSafetyPanel();
+    return false;
+  }
+  ws.send(JSON.stringify(frame));
+  if (reachSaving) clearTimeout(reachSaving.timer);
+  // No answer in time: show what the relay last said again.
+  reachSaving = { kind, audience, timer: setTimeout(() => { reachSaving = null; renderSafetyPanel(); }, REACH_SAVE_WAIT_MS) };
+  renderSafetyPanel();
+  return true;
+}
+
+// ── Contact requests ──
+
+/**
+ * List someone under Requests: from a contact request whose pass checked
+ * ({key, pass, ts}) or a DM my settings refuse ({key, ts}). Shown by the name
+ * the member list has for that key, never a name they claimed. Returns true
+ * when it is listed (a "nobody" setting lists nothing).
+ */
+function receiveContactRequest(req) {
+  const store = reachStore();
+  if (!store || !req || !req.key || req.key === myKey) return false;
+  if (reachCurrent().message === 'nobody') return false;
+  const name = reachDisplayName(req.key);
+  if (store.addContactRequest({ key: req.key, name, pass: req.pass || null, ts: Number(req.ts) || Date.now() })) {
+    reachSay(`${name} sent you a contact request. Accept or ignore it under Requests in your DMs.`);
+    if (typeof notifyNewMessage === 'function') notifyNewMessage(name, 'Contact request', true);
+  }
+  renderRequestsEverywhere();
+  return true;
+}
+
+/**
+ * A DM (opened, its signature checked) whose text is a contact request:
+ * returns true when it was one, and then the caller neither stores nor shows
+ * it. From someone else, its pass must have been given to me, on this server,
+ * by the signed sender; one that does not check is dropped. My own, echoed
+ * from another of my devices, records the pass I gave and that I follow them.
+ */
+async function ingestContactRequest(inner) {
+  if (!inner || !isContactRequestText(inner.text)) return false;
+  const req = contactRequestParse(inner.text);
+  const store = reachStore();
+  if (inner.from === myKey) {
+    const pass = req ? friendPassParse(req.pass) : null;
+    if (store && pass && inner.to) {
+      store.recordPassSent(inner.to, pass.serial, pass.may);
+      store.setFollowing(inner.to, true);
+    }
+    if (inner.to && typeof myFollowing !== 'undefined') myFollowing.add(inner.to);
+    return true;
+  }
+  if (!req || !await pqVerifyFriendCert(inner.from, myKey, req.pass)) return true;
+  receiveContactRequest({ key: inner.from, pass: req.pass, ts: inner.ts });
+  return true;
+}
+
+/**
+ * A DM (opened and checked) from someone my settings refuse is shown as a
+ * contact request, name only: its text is dropped, never stored or shown, so
+ * a modified client gains nothing by skipping the flag (10c). Returns true
+ * when it was screened out; the caller then neither stores nor shows it.
+ */
+function reachScreenDm(inner) {
+  if (!inner || !inner.from || inner.from === myKey) return false;
+  if (reachAllowsFrom(inner.from, 'message')) return false;
+  receiveContactRequest({ key: inner.from, ts: inner.ts });
+  return true;
+}
+
+/**
+ * Accept: their request counts as their follow, and following back makes us
+ * friends. The pass their request carried is kept first, so every put to them
+ * from here (the follow notice, my pass) presents it as `friend_cert`
+ * (crypto.js pqBuildDmPuts) and their relay's gate lets my reply in.
+ */
+async function acceptContactRequest(id) {
+  const store = reachStore();
+  const req = store && store.contactRequests[id];
+  if (!req || !req.key) return false;
+  const key = req.key;
+  store.removeContactRequest(id);
+  if (req.pass && await pqVerifyFriendCert(key, myKey, req.pass)) store.storeCertFrom(key, req.pass);
+  store.setFollower(key, true);
+  if (typeof myFollowers !== 'undefined') myFollowers.add(key);
+  if (typeof setFollowLocal === 'function') await setFollowLocal(key, true);
+  renderRequestsEverywhere();
+  return true;
+}
+
+/** Ignore: the request (and the pass it carried) goes; nothing is sent and no one is told. */
+function ignoreContactRequest(id) {
+  const store = reachStore();
+  if (store) store.removeContactRequest(id);
+  renderRequestsEverywhere();
+}
+
+/**
+ * Send `peer` a contact request (crypto.js pqBuildContactRequest): a signed,
+ * sealed DM flagged `contact_request`, carrying my name and my pass for them
+ * with the default `may`, plus the self-copy that tells my other devices. From
+ * here I follow them and they hold my pass, so their acceptance gets through
+ * and completes the friendship.
+ */
+async function sendContactRequest(peer) {
+  if (!peer || peer === myKey) return false;
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    reachSay('Not connected, so the request was not sent.');
+    return false;
+  }
+  const built = await pqBuildContactRequest(peer, myName);
+  if (!built) {
+    reachSay('The request could not be sent yet: this person has not been online with a current client here, or your identity is still loading. Try again in a moment.');
+    return false;
+  }
+  ws.send(JSON.stringify(built.recipientPut));
+  ws.send(JSON.stringify(built.selfPut));
+  const store = reachStore();
+  if (store) {
+    store.recordPassSent(peer, built.serial, built.may);
+    store.setFollowing(peer, true);
+  }
+  if (typeof myFollowing !== 'undefined') myFollowing.add(peer);
+  if (typeof updateFriendIndicators === 'function') updateFriendIndicators();
+  reachSay('Contact request sent. They will see only your name; if they accept, you become friends.');
+  return true;
+}
+
+/** The relay refused a send: for a message, the sentence and a Send request button. */
+function onReachRefused(msg) {
+  const to = msg && msg.to;
+  if (!to) return;
+  if (msg.kind === 'trade') {
+    reachSay(REACH_REFUSED_TRADE);
+    return;
+  }
+  if (msg.kind !== 'message') return;
+  const last = reachOfferShown.get(to) || 0;
+  if (Date.now() - last < REACH_OFFER_QUIET_MS) return;
+  reachOfferShown.set(to, Date.now());
+  const el = document.createElement('div');
+  el.className = 'message system reach-refused';
+  el.style.cssText = 'padding:var(--space-sm) var(--space-md);border-left:3px solid var(--warning);';
+  const status = document.createElement('div');
+  status.style.cssText = 'font-weight:600;color:var(--text);';
+  status.textContent = `Not delivered to ${reachDisplayName(to)}.`;
+  const text = document.createElement('div');
+  text.style.cssText = 'color:var(--text-muted);margin:var(--space-xs) 0;';
+  text.textContent = REACH_REFUSED_MESSAGE;
+  const btn = document.createElement('button');
+  btn.className = 'vr-btn';
+  btn.textContent = 'Send request';
+  btn.onclick = async () => {
+    btn.disabled = true;
+    const ok = await sendContactRequest(to);
+    btn.textContent = ok ? 'Request sent' : 'Send request';
+    if (!ok) btn.disabled = false;
+  };
+  el.appendChild(status);
+  el.appendChild(text);
+  el.appendChild(btn);
+  if (typeof appendMessage === 'function') appendMessage(el);
+}
+
+// ── Drawing ──
+
+/** The Requests list (name only, Accept and Ignore), shared by the Safety page and the DMs tab. */
+function contactRequestsHtml(requests, opts) {
+  const compact = !!(opts && opts.compact);
+  if (!requests.length) {
+    return compact ? '' : '<div style="color:var(--text-muted);font-size:var(--text-sm);">No requests.</div>';
+  }
+  // In the narrow DMs rail the name takes its own line and the buttons sit under it.
+  return requests.map((r) =>
+    `<div class="reach-request${compact ? ' dm-item' : ''}" data-req-id="${reachEsc(r.id)}" style="display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-xs) ${compact ? 'var(--space-md);flex-wrap:wrap' : '0'};">`
+    + `<span class="dm-name" style="flex:1 1 ${compact ? '100%' : '0'};min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${reachEsc(r.key ? reachDisplayName(r.key) : r.name)}</span>`
+    + `<button class="vr-btn" data-req-accept="${reachEsc(r.id)}" style="font-size:0.7rem;">Accept</button>`
+    + `<button class="vr-btn" data-req-ignore="${reachEsc(r.id)}" style="font-size:0.7rem;">Ignore</button>`
+    + '</div>').join('');
+}
+
+/** The Requests block at the top of the DMs tab (empty when there are none). */
+function contactRequestsSidebarHtml() {
+  const store = reachStore();
+  const list = store ? store.contactRequestList() : [];
+  if (!list.length) return '';
+  return '<div class="dm-requests" style="border-bottom:1px solid var(--border);padding-bottom:var(--space-xs);margin-bottom:var(--space-xs);">'
+    + '<div style="font-size:0.6rem;color:var(--text-muted);font-weight:600;letter-spacing:0.05em;padding:var(--space-sm) var(--space-md) 0;">REQUESTS</div>'
+    + contactRequestsHtml(list, { compact: true })
+    + '</div>';
+}
+
+/** Hook the Accept and Ignore buttons inside `container`. */
+function wireContactRequestButtons(container) {
+  if (!container || typeof container.querySelectorAll !== 'function') return;
+  container.querySelectorAll('[data-req-accept]').forEach((b) => {
+    b.onclick = (e) => { if (e) e.stopPropagation(); acceptContactRequest(b.dataset.reqAccept); };
+  });
+  container.querySelectorAll('[data-req-ignore]').forEach((b) => {
+    b.onclick = (e) => { if (e) e.stopPropagation(); ignoreContactRequest(b.dataset.reqIgnore); };
+  });
+}
+
+function renderRequestsEverywhere() {
+  if (typeof renderDmList === 'function') {
+    try { renderDmList(); } catch (e) { /* the DMs tab is not drawn yet */ }
+  }
+  renderSafetyPanel();
+}
+
+/** What the Safety page shows, from the relay's settings and the passes this client gave. */
+function safetyModel() {
+  const settings = reachCurrent();
+  const known = !!reachKnown;
+  const rows = REACH_KINDS.map((kind) => {
+    const saving = !!(reachSaving && reachSaving.kind === kind);
+    const audience = saving ? reachSaving.audience : settings[kind];
+    return {
+      kind,
+      label: REACH_KIND_LABELS[kind],
+      audience,
+      explain: reachExplain(kind, audience),
+      saving,
+      disabled: !known,
+      options: REACH_AUDIENCES.map((a) => ({ value: a, label: REACH_AUDIENCE_LABELS[a] })),
+    };
+  });
+  const store = reachStore();
+  const given = store ? Object.keys(store.certsSent).filter((p) => store.certSentTo(p)) : [];
+  const named = (keys) => keys.map((key) => ({ key, name: reachDisplayName(key) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const mayCall = (p) => { const m = store.passMayTo(p); return !!m && m.split(',').includes('call'); };
+  return {
+    known,
+    rows,
+    callAudience: settings.call,
+    callers: named(given.filter(mayCall)),
+    others: named(given.filter((p) => !mayCall(p))),
+    requests: store ? store.contactRequestList() : [],
+  };
+}
+
+const SAFETY_H3 = 'font-size:0.85rem;margin:var(--space-lg) 0 var(--space-xs);color:var(--text);';
+const SAFETY_NOTE = 'color:var(--text-muted);font-size:var(--text-sm);line-height:1.4;margin:0 0 var(--space-sm);';
+
+/** The Safety page's HTML for a model (pure, so it can be checked without a browser). */
+function safetyPanelHtml(model) {
+  let html = '<div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-sm);">'
+    + '<h2 style="margin:0;">Safety</h2>'
+    + '<button class="vr-btn" data-safety-close style="font-size:0.75rem;">Close</button></div>';
+  html += `<h3 style="${SAFETY_H3}">Who can reach me</h3>`
+    + `<p style="${SAFETY_NOTE}">Choose who can reach you for each kind of contact. This server enforces your choice.</p>`;
+  if (!model.known) {
+    html += `<p class="safety-waiting" style="${SAFETY_NOTE}">Waiting for this server to send your settings. Until it does, these show the safe defaults and cannot be changed.</p>`;
+  }
+  for (const row of model.rows) {
+    html += `<div class="safety-row" data-kind="${row.kind}" style="padding:var(--space-sm) 0;border-top:1px solid var(--border);">`
+      + '<div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-sm);">'
+      + `<span style="font-weight:600;color:var(--text);">${reachEsc(row.label)}</span>`
+      + `<select data-reach-kind="${row.kind}" aria-label="Who can reach me: ${reachEsc(row.label)}"${row.disabled ? ' disabled' : ''} style="background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:var(--space-xs);">`
+      + row.options.map((o) => `<option value="${o.value}"${o.value === row.audience ? ' selected' : ''}>${reachEsc(o.label)}</option>`).join('')
+      + '</select></div>'
+      + `<div class="safety-explain" style="${SAFETY_NOTE}margin-top:var(--space-xs);">${reachEsc(row.explain)}${row.saving ? ' (Saving...)' : ''}</div>`
+      + '</div>';
+  }
+  html += `<h3 style="${SAFETY_H3}">People who may call me</h3>`;
+  if (model.callAudience !== 'chosen') {
+    html += `<p style="${SAFETY_NOTE}">Calls are set to "${reachEsc(REACH_AUDIENCE_LABELS[model.callAudience] || model.callAudience)}", so this list is used only when Calls is set to "People I choose".</p>`;
+  }
+  if (model.callers.length) {
+    html += model.callers.map((c) =>
+      `<div class="safety-caller" style="display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-xs) 0;">`
+      + `<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--text);">${reachEsc(c.name)}</span>`
+      + `<button class="vr-btn" data-call-remove="${reachEsc(c.key)}" style="font-size:0.7rem;">Remove</button></div>`).join('');
+  } else {
+    html += `<p style="${SAFETY_NOTE}">Nobody yet.</p>`;
+  }
+  if (model.others.length) {
+    html += '<div style="display:flex;gap:var(--space-sm);align-items:center;margin-top:var(--space-xs);">'
+      + `<select data-call-add-pick aria-label="A friend to let call you" style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:var(--space-xs);">`
+      + model.others.map((o) => `<option value="${reachEsc(o.key)}">${reachEsc(o.name)}</option>`).join('')
+      + '</select><button class="vr-btn" data-call-add style="font-size:0.7rem;">Add</button></div>';
+  } else if (!model.callers.length) {
+    html += `<p style="${SAFETY_NOTE}">Friends appear here once you have some.</p>`;
+  }
+  html += `<h3 style="${SAFETY_H3}">Requests</h3>`
+    + `<p style="${SAFETY_NOTE}">People who asked to reach you. You see only their name. Accept makes you friends; Ignore tells no one.</p>`
+    + contactRequestsHtml(model.requests);
+  return html;
+}
+
+/** Open Settings > Safety. */
+function openSafetyPanel() {
+  let overlay = document.getElementById('safety-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'safety-overlay';
+    overlay.className = 'profile-modal-overlay';
+    overlay.style.zIndex = '10000';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.classList.remove('open'); };
+    const card = document.createElement('div');
+    card.id = 'safety-card';
+    card.className = 'profile-modal';
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-label', 'Safety');
+    card.onclick = (e) => e.stopPropagation();
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+  }
+  const menu = document.getElementById('identity-menu');
+  if (menu) menu.style.display = 'none';
+  overlay.classList.add('open');
+  renderSafetyPanel();
+}
+
+/** Redraw the Safety page when it is open. */
+function renderSafetyPanel() {
+  const overlay = typeof document.getElementById === 'function' ? document.getElementById('safety-overlay') : null;
+  const card = overlay && document.getElementById('safety-card');
+  if (!card || !overlay.classList || !overlay.classList.contains('open')) return;
+  card.innerHTML = safetyPanelHtml(safetyModel());
+  const close = card.querySelector('[data-safety-close]');
+  if (close) close.onclick = () => overlay.classList.remove('open');
+  card.querySelectorAll('select[data-reach-kind]').forEach((sel) => {
+    sel.onchange = () => chooseReachAudience(sel.dataset.reachKind, sel.value);
+  });
+  card.querySelectorAll('[data-call-remove]').forEach((b) => {
+    b.onclick = async () => {
+      b.disabled = true;
+      if (!await setFriendMayCall(b.dataset.callRemove, false)) reachSay('Could not change that now: their key is not known here yet. Try again when they are online.');
+      renderSafetyPanel();
+    };
+  });
+  const add = card.querySelector('[data-call-add]');
+  const pick = card.querySelector('[data-call-add-pick]');
+  if (add && pick) {
+    add.onclick = async () => {
+      add.disabled = true;
+      if (!await setFriendMayCall(pick.value, true)) reachSay('Could not change that now: their key is not known here yet. Try again when they are online.');
+      renderSafetyPanel();
+    };
+  }
+  wireContactRequestButtons(card);
+}
+
+// The relay's frames for this section.
+const _origHandleMessageReach = handleMessage;
+handleMessage = function (msg) {
+  if (msg && msg.type === 'reach_settings') { onReachSettings(msg.settings); return; }
+  if (msg && msg.type === 'reach_refused') { onReachRefused(msg); return; }
+  return _origHandleMessageReach(msg);
+};
+
+window.openSafetyPanel = openSafetyPanel;
+window.receiveContactRequest = receiveContactRequest;
+window.ingestContactRequest = ingestContactRequest;
+window.reachScreenDm = reachScreenDm;
+window.acceptContactRequest = acceptContactRequest;
+window.ignoreContactRequest = ignoreContactRequest;
+window.sendContactRequest = sendContactRequest;
+window.chooseReachAudience = chooseReachAudience;
 
 window.maybeShowPrivacyTierModal = maybeShowPrivacyTierModal;
 window.applyPrivacyTier = applyPrivacyTier;

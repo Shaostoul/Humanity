@@ -594,6 +594,11 @@ async function onDCMessage(event, peerKey) {
   let inner = null;
   try { inner = await pqOpenDmEnvelope(msg.env); } catch {}
   if (!inner || inner.from !== peerKey) return;
+  // A contact request, or a DM from someone my "who can reach me" settings
+  // refuse (step B): a request, name only, its text dropped, as for mail
+  // (chat-privacy.js ingestContactRequest, reachScreenDm).
+  if (typeof ingestContactRequest === 'function' && await ingestContactRequest(inner)) return;
+  if (typeof reachScreenDm === 'function' && reachScreenDm(inner)) return;
   if (window.hosDmStore && hosDmStore.ready) {
     const isNew = await hosDmStore.insert(inner);
     if (!isNew) return; // already have it (relay copy arrived first)

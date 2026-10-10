@@ -486,6 +486,55 @@ function friendPassWithdrawn(serial) {
 }
 window.friendPassWithdrawn = friendPassWithdrawn;
 
+/**
+ * Give `peer` a new pass allowing `mayWords`, then withdraw the ones it
+ * replaces ("who can reach me", step B, 10c: what a friend may do lives in the
+ * pass, so changing it is a new serial and a withdrawal of the old). The new
+ * pass goes first, so the friend is never left without one. Returns true when
+ * it was sent.
+ */
+async function reissuePassTo(peer, mayWords) {
+  const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
+  if (!store || !peer || _passMinting.has(peer)) return false;
+  if (!window.hosServerDid || store.passServer !== window.hosServerDid) return false;
+  if (typeof getPeerEcdhPublic === 'function' && !getPeerEcdhPublic(peer)) return false;
+  _passMinting.add(peer);
+  try {
+    const built = await pqBuildFriendCert(peer, mayWords);
+    if (!built || !await sendDmControl(peer, CTL_FRIEND_CERT, built.cert)) return false;
+    store.replacePassTo(peer, built.serial, built.may);
+    sendPendingWithdrawals();
+    return true;
+  } finally {
+    _passMinting.delete(peer);
+  }
+}
+window.reissuePassTo = reissuePassTo;
+
+/** May `peer` call me: does a pass I gave them that still stands include `call`? */
+function friendMayCall(peer) {
+  const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
+  const may = store ? store.passMayTo(peer) : null;
+  return !!may && may.split(',').includes('call');
+}
+window.friendMayCall = friendMayCall;
+
+/**
+ * Put `peer` on, or take them off, the "People who may call me" list: their
+ * pass is re-issued with or without `call`, everything else it allows kept.
+ * Only for someone I have given a pass. Returns true when it was sent.
+ */
+async function setFriendMayCall(peer, on) {
+  const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
+  if (!store || !store.certSentTo(peer)) return false;
+  if (friendMayCall(peer) === !!on) return true;
+  const words = new Set(String(store.passMayTo(peer) || '').split(',').filter(Boolean));
+  if (on) words.add('call'); else words.delete('call');
+  if (words.size === 0) return false;
+  return reissuePassTo(peer, Array.from(words));
+}
+window.setFriendMayCall = setFriendMayCall;
+
 /** The pass `peer` gave me, to attach when I reach them (DM, call ring, direct offer). */
 function friendPassFor(peer) {
   try { return (window.hosDmStore && hosDmStore.ready) ? hosDmStore.certFor(peer) : null; } catch { return null; }
