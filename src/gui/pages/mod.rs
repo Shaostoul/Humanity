@@ -18,7 +18,7 @@ pub mod cloud_dev;
 pub mod placeholder;
 pub mod tasks;
 pub mod privacy;
-/// Settings > Safety: who can reach me, who may call, contact requests (step B, 2026-10-09).
+/// Settings > Safety: who can reach me, People I choose, contact requests (step B, 2026-10-09).
 pub mod safety;
 pub mod profile;
 pub mod real;

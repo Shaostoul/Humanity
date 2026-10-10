@@ -24,7 +24,7 @@ use aes_gcm::{
 use serde::{Deserialize, Serialize};
 
 use super::dm_pq::DmInner;
-use super::reach::{ContactRequest, ReachSettings};
+use super::reach::{ContactRequest, FriendTicks, ReachSettings};
 
 /// BLAKE3 domain for the at-rest encryption key. Distinct from every
 /// other seed-derived key (identity, kyber, dm-aes).
@@ -99,10 +99,13 @@ struct StoreBody {
     /// only, never their text). Kept until Accept or Ignore.
     #[serde(default)]
     requests: Vec<ContactRequest>,
-    /// Friends ticked in "People who may call me": the pass they hold from us is re-issued with
-    /// `call` in it (and without it when the tick is taken away).
+    /// Each friend's ticks in "People I choose" (10c-ii, 2026-10-10): Message, Call and Trade.
+    /// The pass they hold from us is re-issued to allow exactly what is ticked. A friend with
+    /// no entry has the defaults (`FriendTicks::default`), and an entry equal to the defaults is
+    /// not kept, so "no choice" has one spelling. Step B's `may_call` set, which this replaced,
+    /// is simply not read any more (no installed base to carry over, CLAUDE.md).
     #[serde(default)]
-    may_call: HashSet<String>,
+    friend_ticks: HashMap<String, FriendTicks>,
 }
 
 /// A friendship pass I gave someone: what a withdrawal names, and what it allows.
@@ -442,20 +445,43 @@ impl DmStore {
         let at = self.body.requests.iter().position(|r| r.key == key)?;
         Some(self.body.requests.remove(at))
     }
-    /// Is `peer` ticked in "People who may call me"?
-    pub fn may_call(&self, peer: &str) -> bool {
-        self.body.may_call.contains(peer)
+    /// `peer`'s ticks in "People I choose" (10c-ii): what the person chose, or the defaults.
+    pub fn ticks(&self, peer: &str) -> FriendTicks {
+        self.body.friend_ticks.get(peer).copied().unwrap_or_default()
     }
-    pub fn set_may_call(&mut self, peer: &str, on: bool) {
-        if on {
-            self.body.may_call.insert(peer.to_string());
+    /// Keep the person's choice for `peer`. A choice equal to the defaults is the same as none,
+    /// so it is not stored (a friend with no entry has the defaults).
+    pub fn set_ticks(&mut self, peer: &str, ticks: FriendTicks) {
+        if ticks == FriendTicks::default() {
+            self.body.friend_ticks.remove(peer);
         } else {
-            self.body.may_call.remove(peer);
+            self.body.friend_ticks.insert(peer.to_string(), ticks);
         }
+    }
+    /// Forget the person's choice for `peer`, back to the defaults (our Unfollow, and Block,
+    /// 10c-ii). True when there was one to forget.
+    pub fn clear_ticks(&mut self, peer: &str) -> bool {
+        self.body.friend_ticks.remove(peer).is_some()
+    }
+    /// Who the "People I choose" list shows (10c-ii, sorted by key; the page sorts by name):
+    /// everyone holding a pass from us, the spec's "someone I have given a pass", which also takes
+    /// in someone we sent a contact request to. Plus every mutual follow, who is owed one: the
+    /// pass sweep gives each a pass, and while it cannot yet (no DM key for them, or a pass taken
+    /// back at once by an untick made offline, engine/dm.rs `reissue_pass`) they stay on the list
+    /// rather than vanishing the moment their ticks are changed.
+    pub fn people_to_choose(&self) -> Vec<String> {
+        let mut out: Vec<String> = self.body.certs_sent.iter().filter(|(_, v)| !v.is_empty()).map(|(k, _)| k.clone()).collect();
+        for peer in &self.body.following {
+            if self.is_follower(peer) && !out.contains(peer) {
+                out.push(peer.clone());
+            }
+        }
+        out.sort();
+        out
     }
     /// The `may` a pass to `peer` should carry, canonical form.
     pub fn intended_may_wire(&self, peer: &str) -> String {
-        super::reach::intended_may_wire(self.may_call(peer))
+        super::reach::intended_may_wire(self.ticks(peer))
     }
     /// People holding a pass from us that does not allow what the person chose for them (a tick
     /// added or taken away whose re-issue could not go out yet): the ones the pass sweep
@@ -618,6 +644,56 @@ mod tests {
         assert!(store.set_pass_server("did:hum:two"), "a new server identity");
         assert!(store.passes_sent_to("ben").is_empty() && store.cert_for("ann").is_none() && store.pending_withdrawals().is_empty(), "voids every pass");
         assert_eq!(store.friends_without_pass(), vec!["ann".to_string(), "ben".to_string()]);
+        let _ = std::fs::remove_file(&store.path);
+    }
+
+    /// "People I choose" (10c-ii): a friend's ticks are kept across a restart; a friend with no
+    /// choice, or a choice equal to the defaults, has the defaults and no entry; a pass that does
+    /// not match the ticks is listed for re-issue; the list shows everyone holding a pass from us
+    /// and every mutual follow, once each; clearing forgets the choice. A store written with step
+    /// B's `may_call` set loads, and that set is not read (no migration).
+    /// Seen red 2026-10-10 with `friend_ticks` marked `#[serde(skip)]` (kept in memory, never
+    /// saved): "kept across a restart" failed (Ben read back as the defaults); and with
+    /// `people_to_choose` listing mutual follows only, as step B's list did: "pass holders and
+    /// mutual follows, once each" failed (Cy, who holds a pass, missing).
+    #[test]
+    fn friend_ticks_are_kept_and_step_b_may_call_is_not_read() {
+        let (seed, me) = identity(61);
+        let server = temp_server();
+        let store = DmStore::load(&seed, &me, &server);
+        write_body(&store, &serde_json::json!({
+            "high_water": 3, "conversations": {}, "last_read": {},
+            "following": ["ann", "ben"], "followers": ["ann", "ben"], "may_call": ["ann"],
+        }));
+        let mut store = DmStore::load(&seed, &me, &server);
+        assert_eq!(store.high_water(), 3, "a store with the old field loads");
+        assert_eq!(store.ticks("ann"), FriendTicks::default(), "the old may_call set is not read");
+
+        let chosen = FriendTicks { message: false, call: true, trade: true };
+        store.set_ticks("ben", chosen);
+        store.set_ticks("ann", FriendTicks::default());
+        assert!(!store.clear_ticks("ann"), "a choice equal to the defaults is not stored");
+        let default_may = super::super::reach::intended_may_wire(FriendTicks::default());
+        store.record_pass_sent("ann", SentPass { serial: "aa".repeat(16), may: default_may.clone() });
+        store.record_pass_sent("ben", SentPass { serial: "bb".repeat(16), may: default_may });
+        assert_eq!(store.passes_out_of_step(), vec!["ben".to_string()], "Ben's pass does not match his ticks yet");
+
+        // The list: everyone holding a pass from us (Cy, sent one with a contact request) and
+        // every mutual follow (Eve, whose pass has not gone out yet); not someone we only follow.
+        store.record_pass_sent("cy", SentPass { serial: "cc".repeat(16), may: "invite,message,trade,voice_message".into() });
+        for (peer, follows_us) in [("dee", false), ("eve", true)] {
+            store.set_following(peer, true);
+            store.set_follower(peer, follows_us);
+        }
+        assert_eq!(store.people_to_choose(), ["ann", "ben", "cy", "eve"], "pass holders and mutual follows, once each");
+        store.save();
+
+        let mut store = DmStore::load(&seed, &me, &server);
+        assert_eq!(store.ticks("ben"), chosen, "kept across a restart");
+        assert_eq!(store.intended_may_wire("ben"), "call,trade");
+        assert!(store.clear_ticks("ben"), "clearing forgets the choice");
+        assert_eq!(store.ticks("ben"), FriendTicks::default(), "back to the defaults");
+        assert!(store.passes_out_of_step().is_empty(), "and Ben's default pass is in step again");
         let _ = std::fs::remove_file(&store.path);
     }
 

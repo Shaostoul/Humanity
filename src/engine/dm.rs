@@ -252,8 +252,10 @@ fn ingest_control(gui_state: &mut GuiState, inner: &DmInner) {
             crate::net::dm_pq::CTL_UNFOLLOW => {
                 if from_me {
                     // Our own unfollow, from another device: the passes we gave go too
-                    // (that device withdrew the ones it knew of; a repeat is harmless).
+                    // (that device withdrew the ones it knew of; a repeat is harmless), and so
+                    // does our choice of what they may do (10c-ii), as it does on that device.
                     store.set_following(&peer, false);
+                    store.clear_ticks(&peer);
                     withdraw_from = Some(peer.clone());
                 } else {
                     store.set_follower(&peer, false);
@@ -264,14 +266,15 @@ fn ingest_control(gui_state: &mut GuiState, inner: &DmInner) {
                 if let Some(cert) = inner.cert.as_deref() {
                     if from_me {
                         // A pass we gave, echoed from another device: remember its serial. Its
-                        // `may` is that device's latest word on whether they may call (step B), so
-                        // the tick follows it, and our record of passes saying otherwise is
-                        // withdrawn (that device withdrew them too; a repeat is harmless), which
-                        // keeps this device from re-issuing what the other one already did.
+                        // `may` is that device's latest word on what they may do (the ticks in
+                        // "People I choose", 10c-ii), so the ticks here follow it, and our record
+                        // of passes saying otherwise is withdrawn (that device withdrew them too;
+                        // a repeat is harmless), which keeps this device from re-issuing what
+                        // the other one already did.
                         match crate::relay::core::pq_crypto::parse_friend_cert(cert) {
                             Ok((pass, _)) => {
                                 let may = pass.may.wire();
-                                store.set_may_call(&peer, pass.may.allows(crate::net::reach::ReachKind::Call.wire()));
+                                store.set_ticks(&peer, crate::net::reach::FriendTicks::from_may(&may));
                                 store.record_pass_sent(&peer, SentPass { serial: pass.serial, may: may.clone() });
                                 if !store.withdraw_passes_to_except(&peer, |p| p.may == may).is_empty() {
                                     send_withdrawals = true;
@@ -354,29 +357,31 @@ pub(crate) fn control_puts(gui_state: &GuiState, peer: &str, text: &str, cert: O
 /// Issue + deliver MY friendship pass to `peer` (idempotent: nothing when one stands).
 ///
 /// v2 (2026-10-09): the pass names this server's did:hum (from its `identify_challenge`), a
-/// fresh random serial and what the friend may do: the defaults two new friends get, which
-/// leave out calls (calls come only from people the person chooses), plus `call` for someone
-/// ticked in Settings > Safety's "People who may call me" (step B). Nothing is minted until the
-/// server and the peer's DM key are known; the sweep on the next member list tries again.
+/// fresh random serial and what the friend may do: what is ticked for them in Settings >
+/// Safety's "People I choose" (10c-ii), which for someone nobody chose anything for is the
+/// defaults two new friends get, leaving out calls (calls come only from people the person
+/// chooses). Nothing is minted until the server and the peer's DM key are known; the sweep on the
+/// next member list tries again.
 pub(crate) fn send_friend_cert(gui_state: &mut GuiState, peer: &str) {
     if gui_state.dm_store.as_ref().is_some_and(|s| !s.cert_sent_to(peer)) {
         mint_and_send_pass(gui_state, peer);
     }
 }
 
-/// Mint a new pass for `peer` allowing what the person chose for them (the step A defaults,
-/// plus `call` when ticked in Settings > Safety, step B) and deliver it. Returns the new serial
-/// once it is sent and recorded; None when it cannot go out yet (no server identity, no DM key
-/// for them, locked, offline), which the pass sweep on the next member list retries.
+/// Mint a new pass for `peer` allowing what the person ticked for them in Settings > Safety's
+/// "People I choose" (10c-ii; the step A defaults when nothing was chosen) and deliver it.
+/// Returns the new serial once it is sent and recorded; None when it cannot go out yet (no
+/// server identity, no DM key for them, locked, offline), which the pass sweep on the next
+/// member list retries.
 fn mint_and_send_pass(gui_state: &mut GuiState, peer: &str) -> Option<String> {
     if crate::engine::block::is_blocked(gui_state, peer) {
         return None; // never a pass for someone we blocked (step C), whatever a stray echo says
     }
-    let may_call = gui_state.dm_store.as_ref()?.may_call(peer);
+    let ticks = gui_state.dm_store.as_ref()?.ticks(peer);
     if !gui_state.peer_kyber_keys.contains_key(peer) {
         return None; // cannot seal to them yet; no point signing a pass that cannot be sent
     }
-    let (cert, sent) = mint_pass(gui_state, peer, &crate::net::reach::intended_may(may_call))?;
+    let (cert, sent) = mint_pass(gui_state, peer, &crate::net::reach::intended_may(ticks))?;
     if !send_dm_control(gui_state, peer, crate::net::dm_pq::CTL_FRIEND_CERT, Some(cert)) {
         return None;
     }
@@ -405,12 +410,13 @@ pub(crate) fn mint_pass(gui_state: &GuiState, peer: &str, may: &[&str]) -> Optio
     }
 }
 
-/// Bring the pass `peer` holds from us in line with what the person chose for them (Settings >
-/// Safety, "People who may call me", step B of 10c): mint the new pass first, then withdraw the
-/// old ones, so a friend is never left between passes. When the new one cannot go out yet and
-/// the change TAKES AWAY calling, the old passes are withdrawn at once anyway (consent taken back
-/// takes effect now; the friend falls back to whatever the person's settings allow strangers
-/// until the sweep delivers the new pass). An added tick simply waits for the sweep.
+/// Bring the pass `peer` holds from us in line with what the person ticked for them (Settings >
+/// Safety, "People I choose", 10c-ii): mint the new pass first, then withdraw the old ones, so a
+/// friend is never left between passes and the relay honours the change at once. When the new
+/// one cannot go out yet and the change TAKES SOMETHING AWAY (an untick of Message, Call or
+/// Trade), the old passes allowing it are withdrawn at once anyway (consent taken back takes
+/// effect now; the friend falls back to whatever the person's settings allow strangers until the
+/// sweep delivers the new pass). An added tick simply waits for the sweep.
 pub(crate) fn reissue_pass(gui_state: &mut GuiState, peer: &str) {
     let Some(store) = gui_state.dm_store.as_ref() else { return };
     let want = store.intended_may_wire(peer);
@@ -418,7 +424,9 @@ pub(crate) fn reissue_pass(gui_state: &mut GuiState, peer: &str) {
     if !standing.is_empty() && standing.iter().all(|p| p.may == want) {
         return; // already in step
     }
-    let takes_away_call = !store.may_call(peer) && standing.iter().any(|p| p.may.split(',').any(|k| k == "call"));
+    // Only the kinds the relay checks count as taken away (net/reach.rs `grants_beyond`), so
+    // ticking something for a friend with nothing ticked never withdraws their only pass early.
+    let takes_away = standing.iter().any(|p| crate::net::reach::grants_beyond(&p.may, &want));
     match mint_and_send_pass(gui_state, peer) {
         Some(new_serial) => {
             if let Some(store) = gui_state.dm_store.as_mut() {
@@ -427,9 +435,9 @@ pub(crate) fn reissue_pass(gui_state: &mut GuiState, peer: &str) {
             }
             send_pending_withdrawals(gui_state);
         }
-        None if takes_away_call => {
+        None if takes_away => {
             if let Some(store) = gui_state.dm_store.as_mut() {
-                store.withdraw_passes_to_except(peer, |p| !p.may.split(',').any(|k| k == "call"));
+                store.withdraw_passes_to_except(peer, |p| !crate::net::reach::grants_beyond(&p.may, &want));
                 store.save();
             }
             send_pending_withdrawals(gui_state);
@@ -503,9 +511,9 @@ pub(crate) fn sweep_friend_passes(gui_state: &mut GuiState) {
     for peer in owed {
         send_friend_cert(gui_state, &peer);
     }
-    // Step B: passes whose "may call" no longer matches the person's choice (a re-issue that
-    // could not go out when the tick changed), and Requests from people who have since become
-    // friends.
+    // Step B: passes that no longer allow what the person ticked for that friend (10c-ii: a
+    // re-issue that could not go out when a tick changed), and Requests from people who have
+    // since become friends.
     let out_of_step = gui_state.dm_store.as_ref().map(|s| s.passes_out_of_step()).unwrap_or_default();
     for peer in out_of_step {
         reissue_pass(gui_state, &peer);
@@ -554,6 +562,11 @@ pub(crate) fn set_follow(gui_state: &mut GuiState, peer: &str, on: bool) {
     }
     if let Some(store) = gui_state.dm_store.as_mut() {
         store.set_following(peer, on);
+        if !on {
+            // Unfollow clears our choice of what they may do (10c-ii): a friendship begun again
+            // later starts from the defaults, like any new one.
+            store.clear_ticks(peer);
+        }
         store.save();
     }
     let text = if on { crate::net::dm_pq::CTL_FOLLOW } else { crate::net::dm_pq::CTL_UNFOLLOW };

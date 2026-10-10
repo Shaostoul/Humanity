@@ -1,15 +1,15 @@
 //! Settings > Safety (step B of docs/design/blocking-and-safe-mode.md, section 10c, 2026-10-09):
 //! "Who can reach me", one row per kind of contact the server checks (Messages, Calls, Trades)
 //! with the five audiences in plain words and a line under each saying what the current choice
-//! means; "People who may call me", the person's friends with a tick each; the Requests
-//! list (also in Chat, under DMs), where a request can also be blocked; Warnings (step F, 10g),
-//! the "Warnings on messages" switch; and Blocked people (step C, 10d), each with the date and
-//! Unblock.
+//! means; "People I choose" (10c-ii), the person's friends, each once with three ticks
+//! (Message, Call, Trade); the Requests list (also in Chat, under DMs), where a request can
+//! also be blocked; Warnings (step F, 10g), the "Warnings on messages" switch; and Blocked
+//! people (step C, 10d), each with the date and Unblock.
 //!
 //! What the rows show is what the SERVER last said (`reach_settings`, kept in the DM store per
 //! server), never what was clicked: a click sends `reach_set` and the row moves when the server
 //! answers, so the page cannot show a choice the server is not enforcing. A tick re-issues that
-//! friend's pass with or without `call` (engine/dm.rs `reissue_pass`).
+//! friend's pass to allow exactly what is ticked (engine/dm.rs `reissue_pass`).
 //!
 //! Persistence: one AppConfig setting, "Warnings on messages" (step F, 10g, saved through
 //! `settings_dirty` and checked by tests/settings_persistence_lint.rs, which scans this file as
@@ -22,7 +22,7 @@ use egui::RichText;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::GuiState;
-use crate::net::reach::{Audience, ReachKind};
+use crate::net::reach::{Audience, FriendTicks, ReachKind, ReachSettings};
 
 /// The section's content, drawn inside its tinted band by `pages::settings::draw`. `accent` is
 /// the band's colour, which the subsection headers wear.
@@ -94,7 +94,7 @@ pub(crate) fn draw_safety_content(ui: &mut egui::Ui, theme: &Theme, state: &mut 
         crate::engine::reach::ask(state, kind, audience);
     }
 
-    draw_may_call_list(ui, theme, state, accent, shown.call);
+    draw_chosen_list(ui, theme, state, accent, shown);
 
     widgets::subsection_header(
         ui,
@@ -161,57 +161,92 @@ pub(crate) fn draw_warnings_switch(ui: &mut egui::Ui, theme: &Theme, state: &mut
     });
 }
 
-/// "People who may call me": each friend (a mutual follow) with a tick. Ticking re-issues the
-/// pass they hold from us with `call` in it; unticking re-issues it without.
-fn draw_may_call_list(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: egui::Color32, calls: Audience) {
+/// "People I choose" (10c-ii): each friend (someone we have given a pass, or a mutual follow
+/// still owed one) once, with three ticks, Message, Call and Trade. Changing a tick re-issues
+/// the pass they hold from us to allow exactly what is ticked (engine/reach.rs `set_tick`).
+/// Above the list, one line saying when the ticks count and, directly under it, one saying
+/// which rows use them now, built from the person's settings as the server last said them
+/// (`shown`), so the ticks never look as though they decide a row set to "Friends".
+fn draw_chosen_list(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: egui::Color32, shown: ReachSettings) {
     widgets::subsection_header(
         ui,
         theme,
         accent,
-        "People who may call me",
-        "Tick a friend to let them call you: the pass they hold from you is re-issued with calling \
-         in it. Untick to take it away again.",
+        "People I choose",
+        "Everyone you have given a pass, each with what they may do: message you, call you, or send \
+         you trade requests. Changing a tick re-issues the pass they hold from you, so the server \
+         goes by it at once. Unticking everything does not end a friendship.",
     );
     let Some(store) = state.dm_store.as_ref() else { return };
+    // Each person once (net/dm_store.rs `people_to_choose`: everyone holding a pass from us, and
+    // every mutual follow), with their ticks, and whether the pass they hold is not yet the one
+    // their ticks call for: a re-issue that could not go out (offline, or no DM key for them
+    // yet), or a first pass still owed. The pass sweep sends it on the next member list.
+    // The ticks stay live meanwhile: on this app a re-issue is minted, sent and recorded within
+    // the click, so two quick clicks cannot race, and a change of mind made offline is simply
+    // what the sweep sends.
     let out_of_step = store.passes_out_of_step();
-    let mut friends: Vec<(String, String, bool)> = store
-        .following()
-        .iter()
-        .filter(|k| store.is_follower(k))
-        .map(|k| (k.clone(), crate::engine::dm::dm_display_name(state, k), store.may_call(k)))
+    let mut friends: Vec<(String, String, FriendTicks, bool)> = store
+        .people_to_choose()
+        .into_iter()
+        .map(|k| {
+            let updating = out_of_step.contains(&k) || !store.cert_sent_to(&k);
+            let (name, ticks) = (crate::engine::dm::dm_display_name(state, &k), store.ticks(&k));
+            (k, name, ticks, updating)
+        })
         .collect();
     friends.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
 
-    let mut toggled: Option<(String, bool)> = None;
+    let mut toggled: Option<(String, ReachKind, bool)> = None;
     widgets::card(ui, theme, |ui| {
         ui.set_min_width(ui.available_width());
-        match calls {
-            Audience::Chosen => {}
-            Audience::Nobody => widgets::body_hint(ui, theme, "Calls is set to Nobody, so no one can call you, ticked or not."),
-            other => widgets::body_hint(
+        // The two lines above the list (10c-ii): when the ticks count, then which rows use them now.
+        widgets::body_hint(ui, theme, crate::net::reach::CHOSEN_TICKS_NOTE);
+        widgets::body_hint(ui, theme, &crate::net::reach::chosen_in_use_line(&shown));
+        ui.add_space(theme.spacing_xs);
+        if friends.is_empty() {
+            widgets::body_hint(
                 ui,
                 theme,
-                &format!("Calls is set to {}, so these ticks only decide who can call you if you change it to People I choose.", other.label()),
-            ),
+                "No friends on this server yet. People you follow who follow you back appear here, and so does anyone you send a contact request.",
+            );
         }
-        if friends.is_empty() {
-            widgets::body_hint(ui, theme, "No friends on this server yet. People you follow who follow you back appear here.");
-        }
-        for (key, name, on) in &friends {
+        // A fixed name column, so the three ticks line up down the list; narrower on a narrow
+        // window, where a long name is cut short rather than pushing the ticks off the edge.
+        let name_w = theme.settings_label_width.min(ui.available_width() * 0.4);
+        for (key, name, ticks, updating) in &friends {
             ui.horizontal(|ui| {
-                let mut tick = *on;
-                if widgets::custom_checkbox(ui, theme, &mut tick) {
-                    toggled = Some((key.clone(), tick));
+                ui.allocate_ui_with_layout(
+                    egui::Vec2::new(name_w, ui.spacing().interact_size.y),
+                    egui::Layout::left_to_right(egui::Align::Center),
+                    |ui| {
+                        ui.set_min_width(name_w);
+                        ui.set_max_width(name_w);
+                        ui.add(egui::Label::new(RichText::new(name).size(theme.font_size_body).color(theme.text_primary())).truncate());
+                    },
+                );
+                for kind in ReachKind::ALL {
+                    let mut tick = ticks.get(kind);
+                    let mut changed = widgets::custom_checkbox(ui, theme, &mut tick);
+                    // The word beside the box toggles it too, as a checkbox's label does.
+                    let word = RichText::new(kind.tick_label()).size(theme.font_size_body).color(theme.text_secondary());
+                    if ui.add(egui::Label::new(word).sense(egui::Sense::click())).clicked() {
+                        tick = !tick;
+                        changed = true;
+                    }
+                    if changed {
+                        toggled = Some((key.clone(), kind, tick));
+                    }
+                    ui.add_space(theme.spacing_sm);
                 }
-                ui.label(RichText::new(name).size(theme.font_size_body).color(theme.text_primary()));
-                if out_of_step.contains(key) {
+                if *updating {
                     ui.label(RichText::new("(updating their pass)").size(theme.font_size_small).color(theme.text_muted()));
                 }
             });
         }
     });
-    if let Some((key, on)) = toggled {
-        crate::engine::reach::set_may_call(state, &key, on);
+    if let Some((key, kind, on)) = toggled {
+        crate::engine::reach::set_tick(state, &key, kind, on);
     }
 }
 

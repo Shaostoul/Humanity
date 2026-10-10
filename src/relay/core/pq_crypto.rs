@@ -287,7 +287,9 @@ pub const FRIEND_CERT_VERSION: u64 = 2;
 pub const FRIEND_PASS_KINDS: [&str; 5] = ["call", "invite", "message", "trade", "voice_message"];
 
 /// What a pass allows when two people become friends (10b): everything but calls, which come
-/// only from people the person chooses (step B's "may call me" list).
+/// only from people the person chooses. It is also the pass of a friend whose ticks in the
+/// Safety page's "People I choose" were never changed (10c-ii: Message and Trade ticked, Call
+/// not; the native client's `net::reach::FriendTicks::default`, pinned to this list by its test).
 pub const FRIEND_PASS_DEFAULT_MAY: [&str; 4] = ["invite", "message", "trade", "voice_message"];
 
 /// A pass serial's length, bytes (it travels as twice as many lowercase hex characters).
