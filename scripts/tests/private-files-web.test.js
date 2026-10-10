@@ -1060,3 +1060,58 @@ test("a picture from a mutual follow who holds no pass from me waits for the cli
   assert.equal(page.fn("privateFileFromFriend")(fx.ben.key), true, "a mutual follow holding my pass is a friend");
   assert.equal(page.fn("privateFileFromFriend")(fx.cy.key), false, "someone else is not");
 });
+
+// The scratch pad is local only by its label, and the desktop app has kept it so since v0.1477.0
+// (src/gui/pages/chat/attach_send.rs `Destination::Scratchpad`, chat.rs `is_private_channel`):
+// a file there is encrypted with its marker kept in this browser, and its rows offer nothing
+// that would send their words to the server. Seen red 2026-10-10 against the web before this
+// (HOS_WEB_DIR): "uploaded with encrypted=1" (the plain file went up); with the rows left public,
+// "a scratch pad row offers no React".
+test("the scratch pad: a file is encrypted and its marker kept in this browser; its rows offer no server action", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  page.fn("switchChannel")("__scratch__");
+  await settle();
+  page.sock.sent.length = 0;
+  page.sock.raw.length = 0;
+  page.state.appended.length = 0;
+
+  await paste(page, picture("image.png"));
+  const up = oneEncryptedUpload(page, PNG);
+  assert.equal(page.sock.raw.length, 0, "nothing goes on the socket");
+  assert.equal(page.posted.length, 0, "nor is anything posted");
+  const kept = JSON.parse(page.ctx.localStorage.getItem("hos_scratch_msgs") || "[]");
+  assert.equal(kept.length, 1, "the scratch pad keeps one entry");
+  const meta = markerMeta(kept[0].content);
+  assert.ok(meta, "its marker");
+  await markerOpensUpload(meta, up, PNG);
+
+  const row = page.state.appended.find((e) => e && e.dataset && e.dataset.from === fx.ann.key);
+  assert.ok(row && row.innerHTML.includes("enc-attach") && !row.innerHTML.includes(FILE_MARKER) && !row.innerHTML.includes(meta.k), "drawn as a card, not the marker's text");
+  const pic = await shownPicture(page, cardBody(row));
+  assert.ok(pic && sameBytes(pic.bytes, PNG), "showing the picture");
+
+  page.el("msg-input").value = "a note to myself";
+  await page.fn("sendMessage")();
+  await settle();
+  assert.equal(page.sock.raw.length, 0, "a typed note goes nowhere either");
+  const rows = page.state.appended.filter((e) => e && e.dataset && e.dataset.from === fx.ann.key);
+  assert.equal(rows.length, 2, "both rows are drawn");
+  for (const r of rows) {
+    const html = r.innerHTML;
+    assert.ok(!html.includes('class="react-btn"'), "a scratch pad row offers no React");
+    assert.ok(!html.includes('class="edit-btn"'), "nor Edit");
+    assert.ok(!html.includes('class="pin-btn"'), "nor a server Pin");
+    assert.ok(!html.includes('class="delete-btn"'), "nor a server Delete");
+  }
+
+  // Opening it again draws the kept entries the same way.
+  page.fn("switchChannel")("general");
+  await settle();
+  page.state.appended.length = 0;
+  page.fn("switchChannel")("__scratch__");
+  await settle();
+  const again = page.state.appended.filter((e) => e && e.dataset && e.dataset.from === fx.ann.key);
+  assert.equal(again.length, 2, "both entries again");
+  assert.ok(again.every((r) => !r.innerHTML.includes('class="react-btn"') && !r.innerHTML.includes(FILE_MARKER)), "as private rows, the file as a card");
+});

@@ -161,6 +161,28 @@ function isScratchPad() {
   return activeChannel === SCRATCH_PAD_ID;
 }
 
+// A scratch pad row is a private row (addChatMessage opts): no reaction, edit,
+// server pin or delete, each of which would send its words to the server, and
+// a file's [[hum:file:v1]] marker is drawn as the file, never as its text,
+// which holds the file's key. The desktop app's rule (src/gui/pages/chat.rs
+// is_private_channel, 2026-10-10).
+const SCRATCH_PAD_ROW = Object.freeze({ privateFiles: true, privateRow: true });
+
+/**
+ * Keep `content` in the scratch pad (this browser only) and draw it: typed
+ * text, or the marker of a file encrypted here (chat-messages.js
+ * sendEncryptedAttachment), whose key is then held nowhere but here.
+ */
+function scratchPadKeep(content) {
+  const timestamp = Date.now();
+  const msg = { from_name: myName || 'You', from: myKey || '__local__', content, timestamp };
+  const msgs = loadScratchPadMessages();
+  msgs.push(msg);
+  saveScratchPadMessages(msgs);
+  addChatMessage(msg.from_name, content, timestamp, msg.from, false, false, null, null, false, null, SCRATCH_PAD_ROW);
+}
+window.scratchPadKeep = scratchPadKeep;
+
 /** Load scratch pad messages from localStorage. */
 function loadScratchPadMessages() {
   try {
@@ -1528,12 +1550,7 @@ async function sendMessage() {
     // Check for slash commands first.
     if (handleScratchCommand(content)) return;
     // Otherwise, store and display as a local message.
-    const timestamp = Date.now();
-    const msg = { from_name: myName || 'You', from: myKey || '__local__', content, timestamp };
-    const msgs = loadScratchPadMessages();
-    msgs.push(msg);
-    saveScratchPadMessages(msgs);
-    addChatMessage(msg.from_name, content, timestamp, msg.from, false, false, null, null);
+    scratchPadKeep(content);
     input.focus();
     return;
   }
@@ -2246,10 +2263,10 @@ function switchChannel(channelId) {
   if (channelId === SCRATCH_PAD_ID) {
     const msgs = loadScratchPadMessages();
     msgs.forEach(m => {
-      addChatMessage(m.from_name, m.content, m.timestamp, m.from, false, false, null, null);
+      addChatMessage(m.from_name, m.content, m.timestamp, m.from, false, false, null, null, false, null, SCRATCH_PAD_ROW);
     });
     if (msgs.length === 0) {
-      addSystemMessage('Scratch Pad: your private workspace. Nothing leaves your browser. Type /help for commands.');
+      addSystemMessage('Scratch Pad: your private workspace. Nothing is sent to anyone: what you type stays in this browser, and a file is encrypted here first, its key kept only here. Type /help for commands.');
     }
     return;
   }

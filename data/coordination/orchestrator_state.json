@@ -811,6 +811,11 @@
       "date": "2026-10-10",
       "decision": "Spec 10l shipped as v0.1478.0 (relay, web and desktop together, BUG-182): every friendship-pass dm_put carries a random ref; the relay answers dm_put_ok or dm_put_refused {reason} to the sender alone (src/relay/handlers/dm_answer.rs); a pass counts as given only on dm_put_ok, the self-copy waits for it, an unanswered pass is kept as perhaps given (native passes_unanswered, web passesUnsure, at most 4 per friend) and withdrawn with the rest. Exception kept on purpose: an untick (Message, Call or Trade) withdraws the passes allowing it at once, not when the new pass is taken; the friend stays on the People I choose list meanwhile (web passFriends). Same release: a removed group member let back in is sealed to again once a member list asked for after the removal names them; a re-seal ignores members with no Kyber key; the chat limiter no longer subtracts Instants (Windows boot panic); the desktop phrase-lock line draws only its first sentence.",
       "why": "A second review of the batch-review fixes found that pacing only made a refused pass rarer: the relay never said which put it refused, so both apps could show a friendship complete while the friend held no pass. The untick exception follows the earlier rule that consent taken back takes effect now; the desktop builder proposed it and the web took it up with a red-first test. Relay and clients ship together because a client whose ref is never answered records no pass at all."
+    },
+    {
+      "date": "2026-10-10",
+      "decision": "v0.1479.0 (BUG-183): the web scratch pad treats files like a private conversation (encrypted upload, marker kept in localStorage by app.js scratchPadKeep) and its rows are private rows (SCRATCH_PAD_ROW: no React, Edit, server Pin or Delete); the desktop is_private_channel counts \"scratchpad\" so its rows offer none either. The PRIORITIES follow-up line about the scratchpad was removed.",
+      "why": "The follow-up list said the scratchpad still uploaded plain files; checking both clients showed the desktop had been fixed in v0.1477.0 but the web never was, and neither client hid the row actions that send a row's words to the server. A follow-up list has to be checked against both mirrors, not just the one that was fixed."
     }
   ],
   "active_scopes_to_avoid": [

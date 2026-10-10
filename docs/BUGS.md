@@ -5390,3 +5390,20 @@ A second review, of BUG-181's own fixes, found six more:
   first sentence.
 - **The protected setup turning off on update** (BUG-181's accepted side effect) was confirmed and
   left as documented.
+
+## BUG-183: the web scratch pad uploaded files as plain public files, and scratch pad rows on both clients offered Edit and React (FIXED v0.1479.0, found 2026-10-10)
+
+The scratch pad says "Local only. Nothing sent to anyone." The desktop app made a scratchpad file
+encrypted, with its marker kept on the device, in v0.1477.0 (BUG-181). The web chat did not: a
+picture pasted, dropped or picked there went through the public channel's path, a plain upload
+at a public address. Separately, on both clients a scratch pad row still offered React, Edit and
+(for staff) Pin and Delete, each of which sends the row's words or a reference to them to the
+server. The relay keeps none of it (BUG-178's `is_room` refuses a room it does not have), but the
+words left the device.
+
+Fixed: the web treats the scratch pad as a private conversation for files
+(`chat-messages.js` `privateConversationNow` returns `scratch`, the marker is kept by `app.js`
+`scratchPadKeep`), and its rows are private rows (`SCRATCH_PAD_ROW`); the desktop's
+`is_private_channel` counts `scratchpad`. Found by checking the PRIORITIES follow-up "the
+scratchpad still uploads a picked file as a plain public file" against both clients: the desktop
+half was done, the web half was not.

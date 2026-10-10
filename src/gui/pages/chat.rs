@@ -3795,8 +3795,11 @@ pub fn format_full_timestamp(ts_ms: u64) -> String {
 /// A DM (`dm:`) or a P2P group (`p2pgroup:`): encrypted end to end, so nothing that sends a
 /// message's text or who reacted to it to the server (pin, edit, reaction, delete) is offered or
 /// sent there (BUG-178, 2026-10-10). The relay refuses them too (`relay::handlers::utils::is_room`).
+/// And the scratchpad, which its label calls local-only: an edit or a pin there would carry its
+/// words to the server, though the server keeps none of it (the web chat's scratch pad rows are
+/// private rows the same way, app.js `SCRATCH_PAD_ROW`).
 pub(crate) fn is_private_channel(channel: &str) -> bool {
-    channel.starts_with("dm:") || channel.starts_with("p2pgroup:")
+    channel.starts_with("dm:") || channel.starts_with("p2pgroup:") || channel == "scratchpad"
 }
 
 pub fn notice_channel(active_channel: &str) -> String {
@@ -4480,11 +4483,13 @@ mod connect_form_tests {
 mod private_channel_tests {
     /// BUG-178: a DM and a P2P group are private, so a row there offers no pin, edit, reaction
     /// or delete, and none is sent; a room of the server is not private. Seen red 2026-10-10 with
-    /// `is_private_channel` answering false for groups: "a P2P group is private".
+    /// `is_private_channel` answering false for groups: "a P2P group is private"; and before the
+    /// scratchpad counted: "the scratchpad, local only, is private".
     #[test]
     fn dms_and_p2p_groups_are_private_and_rooms_are_not() {
         assert!(super::is_private_channel("dm:abc"), "a DM is private");
         assert!(super::is_private_channel("p2pgroup:xyz"), "a P2P group is private");
+        assert!(super::is_private_channel("scratchpad"), "the scratchpad, local only, is private");
         for room in ["general", "announcements", "local", "commons:garden", ""] {
             assert!(!super::is_private_channel(room), "{room:?} is not private");
         }

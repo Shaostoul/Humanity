@@ -230,11 +230,10 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   port is open); incoming rings are not also filtered by the callee's own app (the relay gates
   them); Block does not reach game nameplates (`RemotePlayer` carries no identity key); the relay
   cannot tell a text message from a voice message inside a sealed DM, so a pass's
-  `voice_message` can only be enforced by the recipient's app; the scratchpad still uploads a
-  picked file as a plain public file though it is labelled local-only. Done 2026-10-10 (v0.1476.0):
+  `voice_message` can only be enforced by the recipient's app. Done 2026-10-10 (v0.1476.0):
   files in DMs and P2P groups encrypted on both clients and shown inline on the desktop (10k), BUG-178
   (Pin, Edit and React no longer reach the server from a private conversation), BUG-179 (the
-  desktop log no longer carries DM file keys), and the account words. Then a batch review of the week (three critics, one area each) found about 30 defects at the seams, all fixed: v0.1476.1 (web, incl. BUG-180) and v0.1477.0 (relay and desktop); BUG-181 lists them. A second review of those fixes found six more (BUG-182), fixed in v0.1478.0, the main one spec 10l: a friendship pass counts as given only once the server says it took it.
+  desktop log no longer carries DM file keys), and the account words. Then a batch review of the week (three critics, one area each) found about 30 defects at the seams, all fixed: v0.1476.1 (web, incl. BUG-180) and v0.1477.0 (relay and desktop); BUG-181 lists them. A second review of those fixes found six more (BUG-182), fixed in v0.1478.0, the main one spec 10l: a friendship pass counts as given only once the server says it took it. And v0.1479.0 made the web scratch pad as private as the desktop's (BUG-183).
 - **Report duties: the finding is in, three decisions for the operator (2026-10-10).**
   `docs/reference/findings/2026-10-10-report-duties-child-abuse-material.md`: in the United
   States a "provider" with actual knowledge of apparent child sexual abuse material must report

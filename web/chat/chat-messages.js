@@ -504,6 +504,9 @@ async function handleFileAttachment(event) {
  * 'group:<id>' for a P2P group, '' for a public channel.
  */
 function privateConversationNow() {
+  // The scratch pad is local only: a file there is encrypted like a DM's, and
+  // its marker (with the key) is kept in this browser (app.js scratchPadKeep).
+  if (typeof isScratchPad === 'function' && isScratchPad()) return 'scratch';
   if (typeof activeDmPartner !== 'undefined' && activeDmPartner) return 'dm:' + activeDmPartner;
   if (window.activeP2pGroup && window.activeP2pGroup.id) return 'group:' + window.activeP2pGroup.id;
   return '';
@@ -514,8 +517,9 @@ function privateConversationNow() {
  * DM or a P2P group the FILE must be as private as the message (2026-08-24
  * for picked files in a DM; 10k, 2026-10-10, for everything else): it is
  * encrypted on this device, only ciphertext is uploaded, and the marker with
- * its key travels inside the sealed DM or the group's encrypted message. In a
- * public channel, public is public: the plain upload and its address.
+ * its key travels inside the sealed DM or the group's encrypted message. The
+ * scratch pad, local only, encrypts it the same way and keeps the marker here.
+ * In a public channel, public is public: the plain upload and its address.
  */
 async function sendAttachment(file) {
   if (!file) return;
@@ -566,6 +570,11 @@ async function sendEncryptedAttachment(file) {
     // Another conversation opened while it uploaded: it is not sent there.
     if (privateConversationNow() !== target) {
       addSystemMessage('The file was not sent because another conversation was opened while it uploaded.');
+      return;
+    }
+    // The scratch pad keeps the marker here and sends nothing.
+    if (target === 'scratch') {
+      window.scratchPadKeep(marker);
       return;
     }
     // Goes through the exact send path as any message: the DM's seal, or the
