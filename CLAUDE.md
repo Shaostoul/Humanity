@@ -642,6 +642,7 @@ which was split into five files, and omitted nine that exist). As of 2026-10-10 
 `twemoji` → `/shared/icons.js` → `/shared/events.js` → `/shared/hold-confirm.js` →
 `/shared/shell.js` → `/shared/defaults.js` → `/shared/settings.js` → `bip39-english.js` →
 `/shared/friend-pass.js` → `/shared/reach.js` → `/shared/block.js` → `/shared/report.js` →
+`/shared/group-report.js` →
 `/shared/warnings.js` → `/shared/protected.js` → `/shared/admin-erase.js` → `crypto.js` →
 `pq.js` → `chat-dm-store.js` → `view/timestampPill.js` → `view/messageRow.js` → `app.js` →
 `chat-messages.js` → `chat-dms.js` → `chat-social.js` → `chat-groups-p2p.js` → `chat-ui.js` →
