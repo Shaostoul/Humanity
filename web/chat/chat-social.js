@@ -512,29 +512,41 @@ async function reissuePassTo(peer, mayWords) {
 }
 window.reissuePassTo = reissuePassTo;
 
-/** May `peer` call me: does a pass I gave them that still stands include `call`? */
-function friendMayCall(peer) {
+/**
+ * `peer`'s ticks on the "People I choose" list ({message, call, trade}, 10c-ii),
+ * read from the passes I gave them that still stand. The pass is the record:
+ * Unfollow and Block withdraw it, which clears the choice, so a friendship
+ * begun again starts from the defaults (Message and Trade, not Call), the
+ * same as a new pass.
+ */
+function friendTicks(peer) {
   const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
-  const may = store ? store.passMayTo(peer) : null;
-  return !!may && may.split(',').includes('call');
+  return reachTicksFromMay(store ? store.passMayTo(peer) : null);
 }
-window.friendMayCall = friendMayCall;
+window.friendTicks = friendTicks;
+
+/** Is a pass for `peer` being minted right now (the page holds their ticks still meanwhile)? */
+function friendPassUpdating(peer) {
+  return _passMinting.has(peer);
+}
+window.friendPassUpdating = friendPassUpdating;
 
 /**
- * Put `peer` on, or take them off, the "People who may call me" list: their
- * pass is re-issued with or without `call`, everything else it allows kept.
- * Only for someone I have given a pass. Returns true when it was sent.
+ * Tick or untick `kind` (message, call or trade) for `peer` on the "People I
+ * choose" list: their pass is re-issued with the `may` the new ticks give
+ * (reachMayFromTicks), the new pass first and the old serial withdrawn after,
+ * so the relay honours it at once. Only for someone I have given a pass.
+ * Returns true when it was sent, or when the tick already stood that way.
  */
-async function setFriendMayCall(peer, on) {
+async function setFriendTick(peer, kind, on) {
   const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
-  if (!store || !store.certSentTo(peer)) return false;
-  if (friendMayCall(peer) === !!on) return true;
-  const words = new Set(String(store.passMayTo(peer) || '').split(',').filter(Boolean));
-  if (on) words.add('call'); else words.delete('call');
-  if (words.size === 0) return false;
-  return reissuePassTo(peer, Array.from(words));
+  if (!store || !store.certSentTo(peer) || !REACH_KINDS.includes(kind)) return false;
+  const ticks = friendTicks(peer);
+  if (ticks[kind] === !!on) return true;
+  ticks[kind] = !!on;
+  return reissuePassTo(peer, reachMayFromTicks(ticks));
 }
-window.setFriendMayCall = setFriendMayCall;
+window.setFriendTick = setFriendTick;
 
 /** The pass `peer` gave me, to attach when I reach them (DM, call ring, direct offer). */
 function friendPassFor(peer) {
