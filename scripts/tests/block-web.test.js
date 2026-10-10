@@ -565,12 +565,15 @@ test("a ring from a blocked key sends nothing back, and their direct offer is no
   assert.equal(swNotes.length, 0, "no system notification");
   assert.deepEqual(sock.sent, [], "and nothing back");
 
-  // Busy: anyone else gets the automatic reject; they get nothing, so they learn nothing.
+  // Busy: nothing goes back to anyone (BUG-177, 2026-10-10: an automatic reject told a caller
+  // who cannot see us online that we were there), so a blocked caller and Cy alike learn
+  // nothing; Cy's ring leaves a missed-call line here instead. Seen red with the old
+  // automatic reject put back: "while busy, nothing goes back to Cy either".
   vm.runInContext("callState = 'in-call'; callPeerKey = null", ctx);
   await handle(ring(BEN));
   assert.deepEqual(sock.sent, [], "even while busy, no reject goes to them");
   await handle(ring(CY));
-  assert.deepEqual(sock.sent.map((m) => [m.type, m.to, m.action]), [["voice_call", CY, "reject"]], "while Cy, not blocked, gets one");
+  assert.deepEqual(sock.sent, [], "while busy, nothing goes back to Cy either");
   assert.equal(swNotes.length, 1, "and Cy's ring notifies");
   vm.runInContext("callState = 'idle'; callPeerKey = null", ctx);
   await handle(ring(CY));

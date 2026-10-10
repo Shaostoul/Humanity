@@ -113,10 +113,53 @@ fn apply(gs: &mut GuiState, step: Step) {
     }
 }
 
+/// The line a busy person sees when someone rang while they were in another call or a room.
+pub(crate) fn missed_call_line(name: &str) -> String {
+    format!("Missed call from {name}: you were in another call or a voice room.")
+}
+
+/// A ring arrived (the message pump hands it here). Idle: it rings. Busy (in a call, ringing
+/// either way, or in a voice room): nothing is sent back and it rings out on the caller's side,
+/// the way a blocked caller's ring does, and this person sees a missed-call line instead. An
+/// automatic "reject" used to go back, which told a caller who cannot see us online (hidden
+/// status, BUG-172) that we were there after all (BUG-177, 2026-10-10).
+pub(crate) fn on_ring(gs: &mut GuiState, from: String, from_name: String) {
+    let busy = gs.call_active.is_some() || gs.call_incoming.is_some() || gs.call_outgoing.is_some() || gs.voice_active_room.is_some();
+    if busy {
+        gs.pending_notices.push(missed_call_line(&from_name));
+    } else {
+        gs.call_incoming = Some((from, from_name));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::gui::ChatChannel;
+
+    /// BUG-177: a ring while busy sends nothing back (no "reject" that would say we are online)
+    /// and leaves a missed-call line; an idle ring rings. Seen red 2026-10-10 with the old
+    /// automatic reject put back: "a busy ring sends nothing back".
+    #[test]
+    fn a_ring_while_busy_rings_out_and_leaves_a_missed_call_line() {
+        let mut gs = app();
+        let (client, sent) = crate::net::ws_client::WsClient::recording();
+        gs.ws_client = Some(client);
+        on_ring(&mut gs, "ab".into(), "Ann".into());
+        assert_eq!(gs.call_incoming, Some(("ab".into(), "Ann".into())), "an idle ring rings");
+        assert!(gs.pending_notices.is_empty());
+
+        on_ring(&mut gs, "cd".into(), "Cy".into());
+        assert_eq!(gs.call_incoming, Some(("ab".into(), "Ann".into())), "the first ring is untouched");
+        assert!(sent.try_recv().is_err(), "a busy ring sends nothing back");
+        assert_eq!(gs.pending_notices, vec![missed_call_line("Cy")]);
+
+        gs.call_incoming = None;
+        gs.voice_active_room = Some("12".into());
+        on_ring(&mut gs, "ef".into(), "Ed".into());
+        assert_eq!(gs.call_incoming, None, "in a voice room counts as busy");
+        assert!(sent.try_recv().is_err());
+    }
     use crate::net::call_relay::{RelayStatus, NOT_SET_UP_LINE};
 
     fn app() -> GuiState {

@@ -1076,27 +1076,9 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         let action = val.get("action").and_then(|v| v.as_str()).unwrap_or("");
                         if !from.is_empty() {
                             match action {
-                                "ring" => {
-                                    let busy = state.gui_state.call_active.is_some()
-                                        || state.gui_state.call_incoming.is_some()
-                                        || state.gui_state.call_outgoing.is_some()
-                                        || state.gui_state.voice_active_room.is_some();
-                                    if busy {
-                                        // Auto-reject like the web does when
-                                        // already in a call / ringing / a room.
-                                        if let Some(ref client) = state.gui_state.ws_client {
-                                            let _ = client.send(&serde_json::json!({
-                                                "type": "voice_call",
-                                                "from": state.gui_state.profile_public_key,
-                                                "to": from,
-                                                "action": "reject",
-                                            }).to_string());
-                                        }
-                                    } else {
-                                        state.gui_state.call_incoming =
-                                            Some((from, from_name));
-                                    }
-                                }
+                                // Rings here, or while busy rings out with a missed-call line
+                                // and no reply (BUG-177; engine/call_relay.rs `on_ring`).
+                                "ring" => crate::engine::call_relay::on_ring(&mut state.gui_state, from, from_name),
                                 "accept" => {
                                     // The peer accepted OUR outgoing call. Per
                                     // the web protocol (chat-voice-calls.js the

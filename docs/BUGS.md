@@ -5246,3 +5246,19 @@ measured height: a 468 px window. Both report-dialog snapshots were rendered and
 
 **Lesson:** a merged GUI change gets its snapshot rendered and READ before release, not just
 compiled; "the snapshot fixture compiles" is not evidence that the page draws.
+
+## BUG-177: a busy person's app told a caller they were online (FIXED next release, found 2026-10-09, fixed 2026-10-10)
+
+Both apps answered a ring that arrived during another call (and the desktop app, during a voice
+room too) with an automatic `reject`. A caller who cannot see the person online (hidden status,
+BUG-172) learned they were there after all: an instant reject means someone is home. Found while
+building the call gate (step B) and listed in PRIORITIES.
+
+**Fixed.** A ring while busy is let ring out on the caller's side and nothing goes back, the same
+way a blocked caller's ring is treated; the busy person sees "Missed call from <name>: you were in
+another call or a voice room." Desktop: `on_ring` in `src/engine/call_relay.rs` (the message pump
+calls it, and is 18 lines shorter); web: `handleVoiceCallMessage` in `web/chat/chat-voice-calls.js`.
+
+**Test:** `engine::call_relay::tests::a_ring_while_busy_rings_out_and_leaves_a_missed_call_line`
+and the busy part of `scripts/tests/block-web.test.js`'s ring test, each seen red with the old
+automatic reject put back.

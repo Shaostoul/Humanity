@@ -217,9 +217,11 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   client (discard a voice message from someone whose pass lacks it) unless the kind travels
   outside the seal, which would tell the server what kind of message it is. Client follow-ups from the
   relay fix: both clients
-  auto-reject a ring when already in a call, which tells a caller a hidden person is online;
-  neither sends `friend_cert` on trade requests yet (friends' trade notes are cut to 80
-  characters until they do); the 10-active-trades limit counts received trades, so strangers'
+  auto-rejected a ring when already in a call, which told a caller a hidden person was online
+  (BUG-177, fixed 2026-10-10: it now rings out, with a missed-call line);
+  the desktop app sends `friend_cert` on trade requests (checked 2026-10-10), but the web Trade
+  page never signed in at all (it answered no `identify_challenge`) and sent no pass, so it could
+  not send a trade; being fixed 2026-10-10; the 10-active-trades limit counts received trades, so strangers'
   pending requests can block someone starting their own. Next is its increment 0 (the other five defects),
   then increment 1 (block on both clients). Eight questions for the operator sit in its summary,
   each with a recommendation. Voice: route calls through a room-scoped forwarder in the relay
