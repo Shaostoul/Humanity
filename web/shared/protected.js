@@ -5,9 +5,11 @@
 // age and never tells any server anything. Shared by the web chat client
 // (web/chat/chat-protected.js draws the setup, the PIN prompt and the lines
 // it shows; chat-privacy.js, chat-social.js, chat-groups-p2p.js,
-// chat-voice-rooms.js, chat-warnings.js, chat-ui.js and app.js ask it which
-// actions need the PIN) and by Node, where scripts/tests/protected-web.test.js
-// holds it to the spec.
+// chat-voice-rooms.js, chat-warnings.js, chat-ui.js, chat-profile.js,
+// chat-onboarding.js and app.js ask it which actions need the PIN) and by
+// Node, where scripts/tests/protected-web.test.js holds it to the spec. The
+// settings page (web/pages/settings-app.js) does not load it: it reads the
+// same storage key itself and refuses the recovery phrase while the setup is on.
 //
 // What lives here:
 //   - the preset reader: data/gui/safety_presets.json, entry `protected`, which
@@ -59,10 +61,15 @@
   // a friend in any way (Follow, Follow back, accepting or sending a contact
   // request), a friend code, joining a group by ticket, joining a voice room,
   // turning warnings off, turning the pictures rule down, showing public rooms,
-  // changing the PIN, and turning the setup off.
+  // changing the PIN, turning the setup off, and showing the recovery phrase
+  // (`show_phrase`), as the desktop app does: whoever has the phrase can set a
+  // new PIN through "Forgot the PIN?", so the person the setup protects must
+  // not be able to read it off this device. The same name covers every copy of
+  // the identity the phrase comes from (a backup file, the device-link code),
+  // because the phrase can be read back out of each.
   const PROTECTED_LOCKED_ACTIONS = Object.freeze([
     'reach_row', 'reach_tick', 'befriend', 'friend_code', 'join_group', 'join_voice_room',
-    'warnings_off', 'pictures_down', 'show_public_rooms', 'change_pin', 'turn_off',
+    'warnings_off', 'pictures_down', 'show_public_rooms', 'change_pin', 'turn_off', 'show_phrase',
   ]);
   // Never locked: anything that reduces who can reach this device. A person
   // must always be able to get away from someone, PIN or no PIN.
@@ -112,6 +119,8 @@
     pictures_click: 'Shown after a click',
     phrase: 'Recovery phrase',
     phrase_wrong: 'That is not the recovery phrase of this identity.',
+    show_phrase: 'Show the recovery phrase',
+    phrase_needs_pin: 'While the protected setup is on, showing the recovery phrase or saving a backup of this identity needs the PIN. In the chat, open Safety and choose Show the recovery phrase.',
     waiting_store: 'Waiting for your settings on this device to load.',
     not_connected: 'Not connected, so the setting was not changed.',
   });
@@ -262,8 +271,13 @@
   }
 
   // ── The state this device keeps ──
-  //   {v: 1, on: true, pin: verifier, rules: {...}, pictures, public_rooms,
-  //    approved: [keys], wrong, wait_until}
+  //   {v: 1, on: true, pin: verifier, identity: key, rules: {...}, pictures,
+  //    public_rooms, approved: [keys], wrong, wait_until}
+  // `identity` is the public key of the identity the setup was turned on under
+  // (the desktop app keeps the same): "Forgot the PIN?" takes only THAT
+  // identity's recovery phrase, so making a new identity on this device (and
+  // so knowing its phrase) does not open the lock. A missing or damaged one
+  // matches no identity (fail closed).
   // `approved` is everyone the PIN holder let be a friend: the friends kept in
   // the review step, and each friend made with the PIN since. A pass is given
   // only to them (chat-social.js sendFriendCertTo), so no route makes a friend
@@ -273,6 +287,12 @@
 
   function normKey(k) {
     return typeof k === 'string' ? k.trim().toLowerCase() : '';
+  }
+
+  /** An identity key as the state keeps it: lower-case hex, or '' for anything that is not one. */
+  function protectedIdentityKey(k) {
+    const n = normKey(k);
+    return /^[0-9a-f]+$/.test(n) ? n : '';
   }
 
   /**
@@ -301,6 +321,7 @@
       v: 1,
       on: true,
       pin: protectedVerifierOk(src.pin) ? src.pin : null,
+      identity: protectedIdentityKey(src.identity),
       rules,
       pictures: PROTECTED_PICTURE_RULES.includes(src.pictures) ? src.pictures : rules.pictures_from_non_friends,
       public_rooms: PROTECTED_ROOM_RULES.includes(src.public_rooms) ? src.public_rooms : rules.public_rooms,
@@ -310,11 +331,11 @@
     };
   }
 
-  /** A new setup's state: the verifier, the preset's rules, the friends kept. */
-  function protectedStateNew(preset, verifier, approved) {
+  /** A new setup's state: the verifier, the identity it is turned on under, the preset's rules, the friends kept. */
+  function protectedStateNew(preset, verifier, approved, identity) {
     const rules = protectedRulesFrom(preset);
     return protectedStateParse(JSON.stringify({
-      v: 1, on: true, pin: verifier, rules,
+      v: 1, on: true, pin: verifier, identity: protectedIdentityKey(identity), rules,
       pictures: rules.pictures_from_non_friends, public_rooms: rules.public_rooms,
       approved: approved || [], wrong: 0, wait_until: 0,
     }));
@@ -431,6 +452,17 @@
     return String(text == null ? '' : text).toLowerCase()
       .split(/[^\p{Alphabetic}\p{N}]+/u)
       .filter((w) => w && !/^\p{N}+$/u.test(w));
+  }
+
+  /**
+   * Is `key` the identity the setup was turned on under? False while it is off,
+   * and false when the state holds no identity or a damaged one (fail closed):
+   * then no phrase opens "Forgot the PIN?".
+   */
+  function protectedIdentityMatches(state, key) {
+    const want = state ? protectedIdentityKey(state.identity) : '';
+    const got = protectedIdentityKey(key);
+    return !!(want && got && want === got);
   }
 
   /** Is `typed` this identity's phrase (`words`, as derived on this device), word for word? */
@@ -562,7 +594,7 @@
     protectedWaitLeftMs, protectedAfterWrong, protectedAfterRight,
     protectedActionLocked, protectedIsApproved, protectedChannelShown, protectedChannelsShown,
     protectedHidesPictures, protectedWarningAudiences, protectedHidePicturesHtml,
-    protectedPhraseWords, protectedPhraseMatches,
+    protectedPhraseWords, protectedPhraseMatches, protectedIdentityKey, protectedIdentityMatches,
     protectedCurrent, protectedIsOn, protectedSave, protectedGrant, protectedTake, protectedUnlock,
     protectedAskThen, protectedBefriendAllowed, protectedPassAllowed, protectedApprove, protectedForget,
   };

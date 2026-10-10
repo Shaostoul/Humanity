@@ -14,7 +14,10 @@
 // the PIN?" through the recovery phrase), and what changes on screen while it
 // is on: the always-visible line (top of Safety and above the DM list), public
 // rooms hidden from the channel list (and their posts dropped before any
-// handler sees them), pictures and files from non-friends not shown.
+// handler sees them), pictures and files from non-friends not shown, and the
+// recovery phrase (and every copy of the identity it comes from) shown only
+// after the PIN. "Forgot the PIN?" takes only the phrase of the identity the
+// setup was turned on under.
 //
 // The rules themselves (which action needs the PIN, the channel filter, the
 // verifier) are /shared/protected.js, which the other chat scripts ask before
@@ -31,7 +34,9 @@
 // chat-social.js (setFollowLocal), chat-groups-p2p.js (leaveP2pGroup,
 // loadP2pGroups), chat-voice-rooms.js (leaveVoiceRoom), chat-privacy.js
 // (renderSafetyPanel, reachDisplayName, renderRequestsEverywhere),
-// chat-warnings.js (recoveryPhraseWords, setMessageWarningsOn).
+// chat-warnings.js (recoveryPhraseWords, setMessageWarningsOn),
+// chat-profile.js (confirmRevealSeedPhrase), crypto.js (openLinkDeviceModal,
+// downloadIdentityBackup, which this file wraps).
 // Test: scripts/tests/protected-web.test.js
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -223,6 +228,31 @@ handleMessage = function (msg) {
   return _origHandleMessageProtected(msg);
 };
 
+// ── The recovery phrase ──────────────────────────────────────────────────
+// Whoever has the phrase can set a new PIN through "Forgot the PIN?", so with
+// the setup on, every way the phrase leaves this device asks for the PIN first
+// (`show_phrase`, as the desktop app's Show Recovery Phrase does): the phrase
+// itself (chat-profile.js openSeedPhraseModal, whose callers are the Seed
+// button, /recovery, the onboarding launch pad and Safety's Show the recovery
+// phrase), and every copy of the identity it comes from, because the phrase
+// can be read back out of each one: the encrypted backup file (chat-profile.js
+// openEncryptedBackupModal, also /backup), and the two crypto.js wraps here,
+// the device-link code (openLinkDeviceModal) and the plain identity file
+// (downloadIdentityBackup, /export). The onboarding guide shows no words while
+// the setup is on (chat-onboarding.js).
+
+const _origOpenLinkDeviceModalProtected = openLinkDeviceModal;
+openLinkDeviceModal = function () {
+  if (!protectedTake('show_phrase')) return protectedAskThen('show_phrase', () => openLinkDeviceModal());
+  return _origOpenLinkDeviceModalProtected();
+};
+
+const _origDownloadIdentityBackupProtected = downloadIdentityBackup;
+downloadIdentityBackup = function (name) {
+  if (!protectedTake('show_phrase')) return protectedAskThen('show_phrase', () => downloadIdentityBackup(name));
+  return _origDownloadIdentityBackupProtected(name);
+};
+
 // ── The always-visible line ──────────────────────────────────────────────
 
 /** The status line (the same words whoever turned it on), or '' while the setup is off. */
@@ -271,6 +301,11 @@ function protectedSafetyHtml() {
     + `<option value="never"${state.pictures === 'never' ? ' selected' : ''}>${pEsc(pLabel('pictures_never'))}</option>`
     + `<option value="click"${state.pictures === 'click' ? ' selected' : ''}>${pEsc(pLabel('pictures_click'))}</option>`
     + '</select></label>';
+  // The recovery phrase: whoever keeps it can change the PIN, so showing it
+  // needs the PIN (`show_phrase`). This is the place the settings page and
+  // the onboarding guide send the PIN holder to.
+  html += `<p style="${P_NOTE}">${pEsc(p.forgot_pin_explain)}</p>`
+    + `<div style="${P_ROW}"><button class="vr-btn" data-protected-show-phrase style="font-size:0.75rem;">${pEsc(pLabel('show_phrase'))}</button></div>`;
   html += `<div style="${P_ROW}">`
     + `<button class="vr-btn" data-protected-change-pin style="font-size:0.75rem;">${pEsc(pLabel('change_pin'))}</button>`
     + `<button class="vr-btn" data-protected-off style="font-size:0.75rem;">${pEsc(pLabel('turn_off'))}</button>`
@@ -287,10 +322,30 @@ function wireProtectedSafety(card) {
   if (rooms) rooms.onclick = () => protectedSetPublicRooms(rooms.dataset.protectedRooms);
   const pics = card.querySelector('[data-protected-pictures]');
   if (pics) pics.onchange = () => protectedSetPictures(pics.value);
+  const phrase = card.querySelector('[data-protected-show-phrase]');
+  if (phrase) phrase.onclick = () => protectedShowPhrase();
   const change = card.querySelector('[data-protected-change-pin]');
   if (change) change.onclick = () => protectedChangePin();
   const off = card.querySelector('[data-protected-off]');
   if (off) off.onclick = () => protectedTurnOff();
+}
+
+/**
+ * The section's "Show the recovery phrase": chat-profile.js's own reveal (its
+ * hold-to-confirm, then, with the setup on, the PIN). False when that script
+ * is not on the page.
+ */
+function protectedShowPhrase() {
+  if (typeof confirmRevealSeedPhrase !== 'function') return false;
+  // The phrase's own box opens below Safety's overlay, so Safety closes first.
+  const safety = typeof document !== 'undefined' && typeof document.getElementById === 'function' ? document.getElementById('safety-overlay') : null;
+  if (safety && safety.classList) safety.classList.remove('open');
+  return confirmRevealSeedPhrase();
+}
+
+/** The line saying where the PIN opens the recovery phrase (the onboarding guide shows it in place of the words). */
+function protectedPhraseNeedsPinLine() {
+  return pLabel('phrase_needs_pin');
 }
 
 /** Show public rooms (needs the PIN) or hide them again (never locked). Returns true when changed. */
@@ -467,21 +522,23 @@ async function protectedReviewRemove(kind, id) {
 /**
  * Step 4: apply. Sends one ordinary `reach_set` with the preset's values and
  * nothing else; the rest is kept on this device: the PIN's verifier, the
- * rules, and the friends kept in step 3 (the only people a pass may go to
- * from now on without the PIN). Warnings go on, for friends too.
+ * identity it is turned on under (whose recovery phrase alone opens "Forgot
+ * the PIN?"), the rules, and the friends kept in step 3 (the only people a
+ * pass may go to from now on without the PIN). Warnings go on, for friends too.
  */
 function protectedSetupApply() {
   const st = protectedSetup;
   if (!st || st.step !== 'review' || !st.verifier || st.busy) return false;
   const frame = protectedReachFrame(protectedPreset);
-  if (!frame || !pSocketOpen()) {
+  const identity = protectedIdentityKey(typeof myKey === 'string' ? myKey : '');
+  if (!frame || !pSocketOpen() || !identity) {
     st.error = pLabel('not_connected');
     renderProtectedSetup();
     return false;
   }
   const kept = protectedReviewModel().friends.map((f) => f.key);
   ws.send(JSON.stringify(frame));
-  protectedStateWrite(localStorage, protectedStateNew(protectedPreset, st.verifier, kept));
+  protectedStateWrite(localStorage, protectedStateNew(protectedPreset, st.verifier, kept, identity));
   protectedSetup = null;
   if (typeof setMessageWarningsOn === 'function') setMessageWarningsOn(true);
   protectedRedrawAll();
@@ -656,17 +713,22 @@ function protectedPinForgot() {
 }
 
 /**
- * The recovery phrase typed: when it is this identity's (derived on this
- * device, never kept), a new PIN may be chosen; the setup stays on.
+ * The recovery phrase typed: when it is the phrase of the identity the setup
+ * was turned on under (derived on this device, never kept), a new PIN may be
+ * chosen; the setup stays on. Under any other identity nothing typed opens it,
+ * not even that identity's own correct phrase: a new identity made on this
+ * device must not be a way round the lock. A setup that holds no identity, or
+ * a damaged one, matches none (fail closed).
  */
 async function protectedForgotSubmit(phrase) {
   const st = protectedPin;
   if (!st || st.mode !== 'forgot' || st.busy) return false;
   st.busy = true;
   renderProtectedPin();
-  const words = typeof recoveryPhraseWords === 'function' ? await recoveryPhraseWords() : null;
+  const sameIdentity = protectedIdentityMatches(protectedCurrent(), typeof myKey === 'string' ? myKey : '');
+  const words = sameIdentity && typeof recoveryPhraseWords === 'function' ? await recoveryPhraseWords() : null;
   st.busy = false;
-  if (!protectedPhraseMatches(phrase, words)) {
+  if (!sameIdentity || !protectedPhraseMatches(phrase, words)) {
     st.error = pLabel('phrase_wrong');
     renderProtectedPin();
     return false;
@@ -824,3 +886,5 @@ window.protectedTurnOff = protectedTurnOff;
 window.protectedChangePin = protectedChangePin;
 window.protectedSetPublicRooms = protectedSetPublicRooms;
 window.protectedSetPictures = protectedSetPictures;
+window.protectedShowPhrase = protectedShowPhrase;
+window.protectedPhraseNeedsPinLine = protectedPhraseNeedsPinLine;
