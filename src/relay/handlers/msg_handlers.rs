@@ -632,15 +632,16 @@ fn is_v2_envelope(content: &str) -> bool {
 // The stranger's daily knock budget (DM_KNOCKS_PER_DAY, spend_knock) moved to handlers/reach.rs
 // with step B ("who can reach me", 2026-10-09), which decides who is a stranger at every door.
 
-/// `contact_request`: the sender asks to be let in rather than writing (handlers/reach.rs): a
-/// signed sealed DM carrying their own pass for the recipient, within its own daily budget.
+/// `ask`: an ordinary message, a contact request (the sender asks to be let in rather than
+/// writing, carrying their own pass for the recipient) or a report about a group to its creator
+/// (handlers/reach.rs, each request with its own daily budget). Each is a signed sealed DM.
 pub async fn handle_dm_put(
     state: &Arc<RelayState>,
     my_key: &str,
     to: String,
     content: String,
     friend_cert: Option<String>,
-    contact_request: bool,
+    ask: reach::DmAsk,
 ) {
     if content.is_empty() || to.is_empty() {
         return;
@@ -694,15 +695,16 @@ pub async fn handle_dm_put(
 
     // Who can reach me (step B, 2026-10-09, handlers/reach.rs): the recipient's message audience,
     // checked with the friendship pass they gave the sender (the server keeps no friends list),
-    // or a contact request's own rules. Mail to OTHER people only: the self-copy (sent history
-    // for the sender's other devices) is always theirs to write. No role is exempt here. What a
-    // send costs (a stranger's knock, a contact request) is paid after the rate limiter below,
-    // so a send it slows down spends nothing. No admin has to grant anyone the right to write
-    // (the no-gatekeeper default, 2026-09-06): the audience is the recipient's own choice.
+    // or a contact request's or group report's own rules. Mail to OTHER people only: the self-copy
+    // (sent history for the sender's other devices) is always theirs to write. No role is exempt
+    // here. What a send costs (a knock, a contact request, a group report) is paid after the rate
+    // limiter below, so a send it slows down spends nothing. No admin has to grant anyone the
+    // right to write (the no-gatekeeper default, 2026-09-06): the audience is the recipient's own
+    // choice.
     let cost = if is_self_copy {
         reach::Cost::Free
     } else {
-        match reach::dm_gate(state, my_key, &to, friend_cert.as_deref(), contact_request, &user_role) {
+        match reach::dm_gate(state, my_key, &to, friend_cert.as_deref(), ask, &user_role) {
             Some(cost) => cost,
             None => return,
         }
@@ -4175,7 +4177,7 @@ mod dm_mailbox_tests {
         let st = fresh_state();
         let (alice, bob, cert) = friends(&st);
         let mut rx = st.broadcast_tx.subscribe();
-        block(handle_dm_put(&st, &alice, bob.clone(), envelope(), Some(cert), false));
+        block(handle_dm_put(&st, &alice, bob.clone(), envelope(), Some(cert), reach::DmAsk::Ordinary));
         // Delivered live, targeted at Bob's mailbox key only.
         let mut saw_dm_new = false;
         while let Ok(msg) = rx.try_recv() {
@@ -4201,8 +4203,8 @@ mod dm_mailbox_tests {
         let st = fresh_state();
         let (alice, bob, cert) = friends(&st);
         let mut rx = st.broadcast_tx.subscribe();
-        block(handle_dm_put(&st, &alice, bob.clone(), "hi bob, plaintext".to_string(), Some(cert.clone()), false));
-        block(handle_dm_put(&st, &alice, bob.clone(), r#"{"v":1,"r":{},"s":{}}"#.to_string(), Some(cert), false));
+        block(handle_dm_put(&st, &alice, bob.clone(), "hi bob, plaintext".to_string(), Some(cert.clone()), reach::DmAsk::Ordinary));
+        block(handle_dm_put(&st, &alice, bob.clone(), r#"{"v":1,"r":{},"s":{}}"#.to_string(), Some(cert), reach::DmAsk::Ordinary));
         assert!(st.db.mailbox_fetch(&bob, 0, 10).unwrap().is_empty(), "nothing may be stored");
         let mut refusals = 0;
         while let Ok(msg) = rx.try_recv() {
@@ -4235,7 +4237,7 @@ mod dm_mailbox_tests {
             "precondition: muting does not set a role, which is what hid this"
         );
         let mut rx = st.broadcast_tx.subscribe();
-        block(handle_dm_put(&st, "loud_key", "quiet_key".to_string(), envelope(), None, false));
+        block(handle_dm_put(&st, "loud_key", "quiet_key".to_string(), envelope(), None, reach::DmAsk::Ordinary));
         assert!(
             st.db.mailbox_fetch("quiet_key", 0, 10).unwrap().is_empty(),
             "a muted sender's DM must not land"
@@ -4251,7 +4253,7 @@ mod dm_mailbox_tests {
         assert!(told, "and they must be told why, not silently dropped");
         // Unmuting restores the ability to write.
         st.db.unmute_user("loud_key").unwrap();
-        block(handle_dm_put(&st, "loud_key", "quiet_key".to_string(), envelope(), None, false));
+        block(handle_dm_put(&st, "loud_key", "quiet_key".to_string(), envelope(), None, reach::DmAsk::Ordinary));
         assert_eq!(
             st.db.mailbox_fetch("quiet_key", 0, 10).unwrap().len(),
             1,
@@ -4276,7 +4278,7 @@ mod dm_mailbox_tests {
             "precondition: the newcomer holds no granted role"
         );
         let mut rx = st.broadcast_tx.subscribe();
-        block(handle_dm_put(&st, "newcomer_key", "stranger_key".to_string(), envelope(), None, false));
+        block(handle_dm_put(&st, "newcomer_key", "stranger_key".to_string(), envelope(), None, reach::DmAsk::Ordinary));
         assert_eq!(
             st.db.mailbox_fetch("stranger_key", 0, 10).unwrap().len(),
             1,
@@ -4294,7 +4296,7 @@ mod dm_mailbox_tests {
         for _ in 0..(DM_KNOCKS_PER_DAY + 5) {
             block(async {
                 st.rate_limits.write().await.remove("newcomer_key");
-                handle_dm_put(&st, "newcomer_key", "stranger_key".to_string(), envelope(), None, false).await;
+                handle_dm_put(&st, "newcomer_key", "stranger_key".to_string(), envelope(), None, reach::DmAsk::Ordinary).await;
             });
         }
         assert_eq!(
@@ -4316,7 +4318,7 @@ mod dm_mailbox_tests {
         st.db.register_name("Stranger", "stranger_key").unwrap();
         st.db.set_reach_settings("stranger_key", &[("message", "anyone")]).unwrap(); // takes strangers' mail (handlers/reach.rs)
         // Self-copy: unlimited, no cert, no knock budget spent.
-        block(handle_dm_put(&st, "loner_key", "loner_key".to_string(), envelope(), None, false));
+        block(handle_dm_put(&st, "loner_key", "loner_key".to_string(), envelope(), None, reach::DmAsk::Ordinary));
         assert_eq!(st.db.mailbox_fetch("loner_key", 0, 10).unwrap().len(), 1);
         // Certless knocks land until the daily budget is spent, then stop.
         // (The Fibonacci per-message limiter is reset between sends — it
@@ -4325,7 +4327,7 @@ mod dm_mailbox_tests {
         for _ in 0..(DM_KNOCKS_PER_DAY + 5) {
             block(async {
                 st.rate_limits.write().await.remove("loner_key");
-                handle_dm_put(&st, "loner_key", "stranger_key".to_string(), envelope(), None, false).await;
+                handle_dm_put(&st, "loner_key", "stranger_key".to_string(), envelope(), None, reach::DmAsk::Ordinary).await;
             });
         }
         let landed = st.db.mailbox_fetch("stranger_key", 0, 200).unwrap().len();
@@ -4341,7 +4343,7 @@ mod dm_mailbox_tests {
                 "stranger_key".to_string(),
                 envelope(),
                 Some("Zm9yZ2VkLXNpZw==".to_string()),
-                false,
+                reach::DmAsk::Ordinary,
             )
             .await;
         });
@@ -4357,7 +4359,7 @@ mod dm_mailbox_tests {
         let (cert, _) = crate::relay::handlers::friend_passes::test_pass(&st, &recipient_seed, &recipient_hex, "loner_key");
         block(async {
             st.rate_limits.write().await.remove("loner_key");
-            handle_dm_put(&st, "loner_key", recipient_hex.clone(), envelope(), Some(cert), false).await;
+            handle_dm_put(&st, "loner_key", recipient_hex.clone(), envelope(), Some(cert), reach::DmAsk::Ordinary).await;
         });
         assert_eq!(
             st.db.mailbox_fetch(&recipient_hex, 0, 10).unwrap().len(),
@@ -4376,12 +4378,12 @@ mod dm_mailbox_tests {
         st.db.register_name("Newbie", "newbie_key").unwrap();
         st.db.register_name("Target", "target_key").unwrap();
         st.db.set_reach_settings("target_key", &[("message", "anyone")]).unwrap(); // takes strangers' mail (handlers/reach.rs)
-        block(handle_dm_put(&st, "bot_helper", "target_key".to_string(), envelope(), None, false));
+        block(handle_dm_put(&st, "bot_helper", "target_key".to_string(), envelope(), None, reach::DmAsk::Ordinary));
         assert!(
             st.db.mailbox_fetch("target_key", 0, 10).unwrap().is_empty(),
             "a bot has no seal keypair, so it can never deposit a sealed DM"
         );
-        block(handle_dm_put(&st, "newbie_key", "target_key".to_string(), envelope(), None, false));
+        block(handle_dm_put(&st, "newbie_key", "target_key".to_string(), envelope(), None, reach::DmAsk::Ordinary));
         assert_eq!(
             st.db.mailbox_fetch("target_key", 0, 10).unwrap().len(),
             1,

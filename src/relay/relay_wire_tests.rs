@@ -54,11 +54,13 @@ fn legacy_channel_edit_is_not_a_channel_update() {
 /// The exact shapes of docs/design/blocking-and-safe-mode.md 10c, which both clients are built
 /// against: `reach_settings` carries only `settings` with the three kinds (the key it is routed
 /// by is not sent), `reach_refused` carries `kind` and `to` (the person refused to the sender,
-/// whose own key routes it and is not sent), and `dm_put` reads `contact_request`, false when
-/// absent.
+/// whose own key routes it and is not sent), and `dm_put` reads `contact_request` and (10j)
+/// `group_report`, each false when absent.
 ///
 /// Seen red 2026-10-09 with the `#[serde(skip)]` taken off `ReachRefused::sender`: "the refusal
-/// carries exactly type, kind and to" (it carried the sender's own key as well).
+/// carries exactly type, kind and to" (it carried the sender's own key as well). And 2026-10-10
+/// with `DmPut::group_report` renamed `group_reports` on the wire: "a group report is read
+/// (10j)", left (false, false), right (false, true).
 #[test]
 fn reach_messages_have_the_exact_shapes_the_clients_read() {
     use crate::relay::handlers::reach::ReachSettings;
@@ -77,16 +79,31 @@ fn reach_messages_have_the_exact_shapes_the_clients_read() {
         serde_json::json!({ "type": "reach_refused", "kind": "message", "to": "them" }),
         "the refusal carries exactly type, kind and to"
     );
-    let put = |extra: serde_json::Value| -> bool {
+    let put = |extra: serde_json::Value| -> (bool, bool) {
         let mut v = serde_json::json!({ "type": "dm_put", "to": "them", "content": "{}" });
         v.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
         match serde_json::from_value::<RelayMessage>(v).expect("dm_put parses") {
-            RelayMessage::DmPut { contact_request, .. } => contact_request,
+            RelayMessage::DmPut { contact_request, group_report, .. } => (contact_request, group_report),
             other => panic!("expected DmPut, got {other:?}"),
         }
     };
-    assert!(put(serde_json::json!({ "contact_request": true })), "a contact request is read");
-    assert!(!put(serde_json::json!({})), "and an ordinary dm_put is not one");
+    assert_eq!(put(serde_json::json!({ "contact_request": true })), (true, false), "a contact request is read");
+    assert_eq!(put(serde_json::json!({ "group_report": true })), (false, true), "a group report is read (10j)");
+    assert_eq!(put(serde_json::json!({})), (false, false), "and an ordinary dm_put is neither");
+}
+
+/// The flags of a `dm_put` become one ask of the gate (handlers/reach.rs `DmAsk::from_flags`): a
+/// put carrying both is a contact request, the rule that already lets it through more widely.
+///
+/// Seen red 2026-10-10 with `from_flags` testing `group_report` first: "both flags: a contact
+/// request", left GroupReport, right ContactRequest.
+#[test]
+fn a_dm_puts_flags_make_one_ask() {
+    use crate::relay::handlers::reach::DmAsk;
+    assert_eq!(DmAsk::from_flags(false, false), DmAsk::Ordinary);
+    assert_eq!(DmAsk::from_flags(true, false), DmAsk::ContactRequest);
+    assert_eq!(DmAsk::from_flags(false, true), DmAsk::GroupReport);
+    assert_eq!(DmAsk::from_flags(true, true), DmAsk::ContactRequest, "both flags: a contact request");
 }
 
 // ── A socket that fell behind the broadcast ring ──

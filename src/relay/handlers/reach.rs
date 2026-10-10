@@ -40,8 +40,19 @@
 //! audience, unless that is `nobody`, when the sender has one of today's
 //! [`CONTACT_REQUESTS_PER_DAY`] left (a budget of its own, separate from the knocks). The relay
 //! stores nothing about who asked whom: the accepter's reply gets through the requester's own
-//! gate because it presents the requester's pass as its `friend_cert`, which [`admit`] checks
+//! gate because it presents the requester's pass as its `friend_cert`, which [`dm_gate`] checks
 //! like any other pass. The recipient's client shows only the sender's registered name.
+//!
+//! Group reports (2026-10-10, 10j): a report about a P2P group's message goes to the group's
+//! creator as an ordinary signed, sealed v2 DM sent with `"group_report": true`, because only the
+//! creator can read the group's messages and remove someone from it. It is let through the
+//! creator's `message` audience, unless that is `nobody`, when the sender and the recipient are
+//! both active members of some group the recipient created, and the sender has one of today's
+//! [`GROUP_REPORTS_PER_DAY`] left (a budget of its own, separate from the knocks and the contact
+//! requests). A friend's report is free, as a friend's DM is: the exception only matters where
+//! the ordinary gate would refuse, or charge a knock. Anything else carrying the flag is treated
+//! exactly as the same DM without it. The relay keeps nothing about who reported whom: the
+//! budget counts per sender, in memory.
 //!
 //! The settings: `{"type":"reach_set","settings":{"message":"...","call":"...","trade":"..."}}`
 //! from the person's own signed-in socket saves any subset of kinds ([`handle_reach_set`]); the
@@ -151,6 +162,11 @@ pub const DM_KNOCKS_PER_DAY: u32 = 20;
 /// knocks.
 pub const CONTACT_REQUESTS_PER_DAY: u32 = 5;
 
+/// Reports about a group one sender may send its creators a day, across all groups (10j),
+/// separate from the knocks and the contact requests. Low on purpose: a report is rare, and the
+/// exception reaches someone who may have chosen to hear from no strangers.
+pub const GROUP_REPORTS_PER_DAY: u32 = 3;
+
 /// How long a call that was let through stays open with no ring or signal between its two
 /// people. Each one refreshes it, so a long call stays open; an abandoned one closes by itself.
 const CALL_IDLE: Duration = Duration::from_secs(2 * 60 * 60);
@@ -159,9 +175,10 @@ const CALL_IDLE: Duration = Duration::from_secs(2 * 60 * 60);
 /// which only means its next signal is checked against the callee's setting again).
 const OPEN_CALLS_MAX: usize = 10_000;
 
-/// What "who can reach me" keeps in memory (never on disk): the calls it let through and the
-/// contact requests each sender sent today. Lost on a restart, which only closes open calls
-/// (their next signal is checked against the setting again) and refills the day's requests.
+/// What "who can reach me" keeps in memory (never on disk): the calls it let through, and the
+/// contact requests and group reports each sender sent today. Lost on a restart, which only
+/// closes open calls (their next signal is checked against the setting again) and refills the
+/// day's budgets.
 #[derive(Default)]
 pub struct ReachState {
     /// Calls let through: a one-way hash of the two keys (sorted, so either may be first) to the
@@ -170,6 +187,9 @@ pub struct ReachState {
     calls: Mutex<HashMap<[u8; 32], Instant>>,
     /// Contact requests sent today: sender key -> (Unix day, count). Sender-scoped like the knocks.
     contact_requests: Mutex<HashMap<String, (i64, u32)>>,
+    /// Group reports sent today: sender key -> (Unix day, count). Sender-scoped, never per pair,
+    /// so it says nothing about whom anyone reported (10j: the relay stores nothing of that).
+    group_reports: Mutex<HashMap<String, (i64, u32)>>,
 }
 
 /// The id of the call between `a` and `b`, the same whichever of them is first.
@@ -280,6 +300,17 @@ fn share_a_group(state: &RelayState, a: &str, b: &str) -> bool {
     !first.is_empty() && groups_of(b).iter().any(|g| first.contains(g))
 }
 
+/// Did `creator` create a P2P group (not disbanded) that both they and `member` are active
+/// members of now? The group-report exception's condition (10j). Sharing a group is not enough:
+/// only the creator holds the group's messages to check a report against and can remove anyone.
+/// A key that is not hex (a bot) created nothing.
+fn created_a_group_with(state: &RelayState, creator: &str, member: &str) -> bool {
+    match (hex::decode(creator), hex::decode(member)) {
+        (Ok(c), Ok(m)) => state.db.p2p_group_created_by_with(&c, &m).unwrap_or(false),
+        _ => false,
+    }
+}
+
 /// Are `a` and `b` both in one voice room right now?
 async fn in_same_voice_room(state: &RelayState, a: &str, b: &str) -> bool {
     state.voice_rooms.read().await.values().any(|room| {
@@ -310,8 +341,9 @@ pub struct Admitted {
     pub pass: Option<FriendPass>,
 }
 
-/// The gate for a message or a trade request from `sender` to `target`, carrying the pass
-/// `cert`: let in, or refused with `reach_refused {kind, to}` sent to the sender alone.
+/// The gate for a trade request from `sender` to `target`, carrying the pass `cert`: let in, or
+/// refused with `reach_refused {kind, to}` sent to the sender alone. A message makes the same
+/// check in [`dm_gate`], which has a contact request's and a group report's exceptions beside it.
 pub fn admit(state: &Arc<RelayState>, target: &str, sender: &str, kind: Kind, cert: Option<&str>) -> Option<Admitted> {
     let pass = friend_pass(state, target, sender, cert);
     if allowed(state, target, sender, kind, pass.as_ref()) {
@@ -335,27 +367,78 @@ pub enum Cost {
     Knock,
     /// A contact request: one of today's [`CONTACT_REQUESTS_PER_DAY`].
     ContactRequest,
+    /// A report about a group, let in by its own exception: one of today's
+    /// [`GROUP_REPORTS_PER_DAY`].
+    GroupReport,
+}
+
+/// What a `dm_put` asks of the gate, read from its flags: an ordinary message, a contact request
+/// (`contact_request: true`, 10c) or a report about a group to its creator (`group_report: true`,
+/// 10j).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DmAsk {
+    Ordinary,
+    ContactRequest,
+    GroupReport,
+}
+
+impl DmAsk {
+    /// The ask a `dm_put`'s two flags make. No client sets both; if one does, it is a contact
+    /// request, which is let through more widely than a group report anyway, so a put carrying
+    /// both gains nothing over the contact-request rule and spends that budget.
+    pub fn from_flags(contact_request: bool, group_report: bool) -> DmAsk {
+        if contact_request {
+            DmAsk::ContactRequest
+        } else if group_report {
+            DmAsk::GroupReport
+        } else {
+            DmAsk::Ordinary
+        }
+    }
 }
 
 /// The "who can reach me" gate for a `dm_put` from `sender` to `to`, someone other than
-/// themselves: the recipient's `message` audience, or for a contact request its own rule
-/// (refused only by `nobody`; the envelope's shape and size were already checked like any DM's).
-/// `role` is the sender's. Returns what the send costs, or None when it is refused (the sender
-/// has been told).
-pub fn dm_gate(state: &Arc<RelayState>, sender: &str, to: &str, cert: Option<&str>, contact_request: bool, role: &str) -> Option<Cost> {
-    if contact_request {
+/// themselves: the recipient's `message` audience, or for a contact request or a group report its
+/// own rule (the envelope's shape and size were already checked like any DM's). `role` is the
+/// sender's. Returns what the send costs, or None when it is refused (the sender has been told,
+/// with the refusal everyone gets).
+///
+/// A group report is first checked as the same DM without the flag would be: a friend (or an
+/// admin or moderator) the audience lets in sends it free, as they would any DM, so a friend's
+/// fourth report in a day still arrives. Only where the ordinary gate would refuse, or would
+/// charge a stranger's knock, does the exception apply, and then it costs a group report. Where
+/// the exception does not apply either, the ordinary answer stands: a knock, or the refusal.
+pub fn dm_gate(state: &Arc<RelayState>, sender: &str, to: &str, cert: Option<&str>, ask: DmAsk, role: &str) -> Option<Cost> {
+    let refuse = || {
+        let _ = state.broadcast_tx.send(RelayMessage::ReachRefused {
+            sender: sender.to_string(),
+            kind: Kind::Message.word().to_string(),
+            to: to.to_string(),
+        });
+        None
+    };
+    if ask == DmAsk::ContactRequest {
         if audience(state, to, Kind::Message) == Audience::Nobody {
-            let _ = state.broadcast_tx.send(RelayMessage::ReachRefused {
-                sender: sender.to_string(),
-                kind: Kind::Message.word().to_string(),
-                to: to.to_string(),
-            });
-            return None;
+            return refuse();
         }
         return Some(Cost::ContactRequest);
     }
-    let admitted = admit(state, to, sender, Kind::Message, cert)?;
-    Some(if admitted.pass.is_none() && role != "admin" && role != "mod" { Cost::Knock } else { Cost::Free })
+    let pass = friend_pass(state, to, sender, cert);
+    let let_in = allowed(state, to, sender, Kind::Message, pass.as_ref());
+    let free = pass.is_some() || role == "admin" || role == "mod";
+    if let_in && free {
+        return Some(Cost::Free);
+    }
+    if ask == DmAsk::GroupReport
+        && audience(state, to, Kind::Message) != Audience::Nobody
+        && created_a_group_with(state, to, sender)
+    {
+        return Some(Cost::GroupReport);
+    }
+    if let_in {
+        return Some(Cost::Knock);
+    }
+    refuse()
 }
 
 /// Pay what [`dm_gate`] said a send costs. False (and the sender told why) when today's budget
@@ -377,13 +460,24 @@ pub async fn pay(state: &Arc<RelayState>, sender: &str, cost: Cost) -> bool {
             false
         }
         Cost::ContactRequest => {
-            if spend_contact_request(state, sender) {
+            if spend_daily(&state.reach.contact_requests, sender, CONTACT_REQUESTS_PER_DAY) {
                 return true;
             }
             tell(
                 state,
                 sender,
                 format!("You have sent today's {CONTACT_REQUESTS_PER_DAY} contact requests. You can send more tomorrow."),
+            );
+            false
+        }
+        Cost::GroupReport => {
+            if spend_daily(&state.reach.group_reports, sender, GROUP_REPORTS_PER_DAY) {
+                return true;
+            }
+            tell(
+                state,
+                sender,
+                format!("You have sent today's {GROUP_REPORTS_PER_DAY} reports to group creators. You can send more tomorrow."),
             );
             false
         }
@@ -408,15 +502,16 @@ pub(crate) async fn spend_knock(state: &RelayState, sender: &str) -> bool {
     true
 }
 
-/// Spend one of `sender`'s contact requests for today. False when they are used up.
-fn spend_contact_request(state: &RelayState, sender: &str) -> bool {
+/// Spend one of `sender`'s sends for today from a per-sender daily budget of `limit` (the contact
+/// requests, the group reports). False when they are used up (nothing is spent then).
+fn spend_daily(budget: &Mutex<HashMap<String, (i64, u32)>>, sender: &str, limit: u32) -> bool {
     let today = unix_day();
-    let mut sent = state.reach.contact_requests.lock().unwrap_or_else(|p| p.into_inner());
+    let mut sent = budget.lock().unwrap_or_else(|p| p.into_inner());
     let entry = sent.entry(sender.to_string()).or_insert((today, 0));
     if entry.0 != today {
         *entry = (today, 0);
     }
-    if entry.1 >= CONTACT_REQUESTS_PER_DAY {
+    if entry.1 >= limit {
         return false;
     }
     entry.1 += 1;
