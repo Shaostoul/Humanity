@@ -82,7 +82,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     ui.add_space(theme.spacing_md);
 
                     let role = current_user_role(state);
-                    let is_mod   = matches!(role.as_str(), "mod" | "admin" | "owner");
+                    // "moderator" too: the relay accepts both spellings (reports.rs, api.rs,
+                    // relay.rs), and a moderator spelled that way could not see Reports (2026-10-09).
+                    let is_mod   = matches!(role.as_str(), "mod" | "moderator" | "admin" | "owner");
                     let is_admin = matches!(role.as_str(), "admin" | "owner");
 
                     draw_tab_bar(ui, theme, state, is_mod);

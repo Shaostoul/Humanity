@@ -190,6 +190,10 @@ pub const REGION_KINDS_RON: &str = include_str!("../data/environment/region_kind
 pub const MANUFACTURING_RON: &str = include_str!("../data/manufacturing.ron");
 pub const ABILITIES_CSV: &str = include_str!("../data/abilities.csv");
 pub const PROPOSAL_TYPES_RON: &str = include_str!("../data/governance/proposal_types.ron");
+/// The reasons a report may give (design blocking-and-safe-mode.md 10e). Built in so the
+/// desktop app can still offer Report when the data folder lacks the file; the relay builds in
+/// its own copy in src/relay/handlers/reports.rs.
+pub const REPORT_REASONS_JSON: &str = include_str!("../data/safety/report_reasons.json");
 
 // ── Lookup helper ───────────────────────────────────────────────────
 
@@ -393,6 +397,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "trade_goods.ron" => Some(TRADE_GOODS_RON),
         "economy.ron" => Some(ECONOMY_RON),
         "equipment.csv" => Some(EQUIPMENT_CSV),
+        "safety/report_reasons.json" => Some(REPORT_REASONS_JSON),
 
         _ => None,
     }
