@@ -265,7 +265,7 @@ function injectAccountDataButtons() {
   div.id = 'account-data-controls';
   div.style.cssText = 'display:flex;gap:6px;margin-top:8px;';
   div.innerHTML =
-    '<button class="vr-btn" style="flex:1;font-size:0.7rem;" onclick="openSafetyPanel()" title="Choose who can message you, call you and send you trade requests, and answer contact requests.">Safety</button>'
+    '<button class="vr-btn" style="flex:1;font-size:0.7rem;" onclick="openSafetyPanel()" title="Choose who can message you, call you and send you trade requests, answer contact requests, and see who you blocked.">Safety</button>'
     + '<button class="vr-btn" style="flex:1;font-size:0.7rem;" onclick="exportMyAccountData()" title="Download everything this server stores about you as a JSON file.">Export my data</button>'
     + '<button class="vr-btn" style="flex:1;font-size:0.7rem;color:var(--danger);" onclick="deleteMyAccount()" title="Erase your account and its data from this server. Self-service, permanent.">Erase account</button>';
   host.appendChild(div);
@@ -384,6 +384,7 @@ function chooseReachAudience(kind, audience) {
 function receiveContactRequest(req) {
   const store = reachStore();
   if (!store || !req || !req.key || req.key === myKey) return false;
+  if (store.isBlocked(req.key)) return false; // never listed (step C)
   if (reachCurrent().message === 'nobody') return false;
   const name = reachDisplayName(req.key);
   if (store.addContactRequest({ key: req.key, name, pass: req.pass || null, ts: Number(req.ts) || Date.now() })) {
@@ -407,6 +408,13 @@ async function ingestContactRequest(inner) {
   const store = reachStore();
   if (inner.from === myKey) {
     const pass = req ? friendPassParse(req.pass) : null;
+    // Sent from a device that had not heard I blocked them yet: the pass is
+    // withdrawn at once and the follow is not taken up (step C).
+    if (store && inner.to && store.isBlocked(inner.to)) {
+      if (pass) store.recordPassSent(inner.to, pass.serial, pass.may);
+      if (typeof withdrawPassesTo === 'function') withdrawPassesTo(inner.to);
+      return true;
+    }
     if (store && pass && inner.to) {
       store.recordPassSent(inner.to, pass.serial, pass.may);
       store.setFollowing(inner.to, true);
@@ -528,7 +536,7 @@ function onReachRefused(msg) {
 
 // ── Drawing ──
 
-/** The Requests list (name only, Accept and Ignore), shared by the Safety page and the DMs tab. */
+/** The Requests list (name only, Accept, Ignore and Block), shared by the Safety page and the DMs tab. */
 function contactRequestsHtml(requests, opts) {
   const compact = !!(opts && opts.compact);
   if (!requests.length) {
@@ -540,6 +548,7 @@ function contactRequestsHtml(requests, opts) {
     + `<span class="dm-name" style="flex:1 1 ${compact ? '100%' : '0'};min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${reachEsc(r.key ? reachDisplayName(r.key) : r.name)}</span>`
     + `<button class="vr-btn" data-req-accept="${reachEsc(r.id)}" style="font-size:0.7rem;">Accept</button>`
     + `<button class="vr-btn" data-req-ignore="${reachEsc(r.id)}" style="font-size:0.7rem;">Ignore</button>`
+    + `<button class="vr-btn" data-req-block="${reachEsc(r.id)}" title="Block them: you will not see anything from them, and they are not told." style="font-size:0.7rem;color:var(--danger);">Block</button>`
     + '</div>').join('');
 }
 
@@ -562,6 +571,9 @@ function wireContactRequestButtons(container) {
   });
   container.querySelectorAll('[data-req-ignore]').forEach((b) => {
     b.onclick = (e) => { if (e) e.stopPropagation(); ignoreContactRequest(b.dataset.reqIgnore); };
+  });
+  container.querySelectorAll('[data-req-block]').forEach((b) => {
+    b.onclick = (e) => { if (e) e.stopPropagation(); blockContactRequest(b.dataset.reqBlock); };
   });
 }
 
@@ -601,6 +613,8 @@ function safetyModel() {
     callers: named(given.filter(mayCall)),
     others: named(given.filter((p) => !mayCall(p))),
     requests: store ? store.contactRequestList() : [],
+    // Blocked people (step C): newest first, by the member list's name (or short key).
+    blocked: store ? store.blockedList().map((b) => ({ key: b.key, name: reachDisplayName(b.key), ts: b.ts, date: blockDateLabel(b.ts) })) : [],
   };
 }
 
@@ -650,6 +664,18 @@ function safetyPanelHtml(model) {
   html += `<h3 style="${SAFETY_H3}">Requests</h3>`
     + `<p style="${SAFETY_NOTE}">People who asked to reach you. You see only their name. Accept makes you friends; Ignore tells no one.</p>`
     + contactRequestsHtml(model.requests);
+  html += `<h3 style="${SAFETY_H3}">Blocked people</h3>`
+    + `<p style="${SAFETY_NOTE}">You see nothing from the people here, on any of your devices, and they are not told. Blocking does not stop them seeing what you post in public. Unblock lets them reach you again as your settings above allow; it does not make you friends again.</p>`;
+  if (model.blocked.length) {
+    html += model.blocked.map((b) =>
+      `<div class="safety-blocked" data-blocked-key="${reachEsc(b.key)}" style="display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-xs) 0;">`
+      + '<div style="flex:1;min-width:0;">'
+      + `<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);">${reachEsc(b.name)}</div>`
+      + `<div style="color:var(--text-muted);font-size:var(--text-sm);">Blocked ${reachEsc(b.date)}</div></div>`
+      + `<button class="vr-btn" data-unblock="${reachEsc(b.key)}" style="font-size:0.7rem;flex:none;">Unblock</button></div>`).join('');
+  } else {
+    html += `<p style="${SAFETY_NOTE}">Nobody is blocked.</p>`;
+  }
   return html;
 }
 
@@ -705,11 +731,297 @@ function renderSafetyPanel() {
     };
   }
   wireContactRequestButtons(card);
+  card.querySelectorAll('[data-unblock]').forEach((b) => {
+    b.onclick = () => { b.disabled = true; unblockKey(b.dataset.unblock); };
+  });
+}
+
+// ── Block (step C, 2026-10-09) ───────────────────────────────────────────
+// docs/design/blocking-and-safe-mode.md 10d, mirroring the desktop app. A
+// block is kept on my own devices only (section 4.4, option A); the relay
+// does its part because blocking withdraws every pass I gave them, so under
+// the safe defaults it refuses their messages, calls and trades from then on.
+//
+// Block, at once and without a confirmation (it is undoable):
+//   1. puts their identity key (never a name) on the list, with the date;
+//   2. withdraws every pass I gave them (`cert_revoke` for each serial, to the
+//      relay) and unfollows them here, telling them nothing;
+//   3. hides everything from them: DMs, knocks, follow notices, passes and
+//      contact requests are dropped before they are stored or notified
+//      (blockScreenDm, called by app.js and chat-p2p.js); channel posts,
+//      replies, group messages, reactions and typing are hidden by key
+//      (app.js, chat-messages.js, and blockScreenFrame below); a ring is
+//      ignored with no reject sent (chat-voice-calls.js); a direct-connection
+//      offer is not answered (chat-p2p.js mayAnswerDirectOffer);
+//   4. tells my other devices with a sealed note to myself only,
+//      [[hum:block:v1]]<key> (/shared/block.js), and shows one line.
+// Unblock takes them off the list and sends [[hum:unblock:v1]]<key> the same
+// way. It does not follow them again or give them a pass: being friends again
+// is a fresh follow or contact request.
+
+function blockSameKey(a, b) {
+  return typeof a === 'string' && typeof b === 'string' && a !== '' && a.toLowerCase() === b.toLowerCase();
+}
+
+/** The date a person was blocked, as the Safety page shows it. */
+function blockDateLabel(ts) {
+  const d = new Date(Number(ts) || 0);
+  try { return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); }
+  catch { return d.toISOString().slice(0, 10); }
+}
+
+/** The member list's mark on a person: dimmed and struck through while blocked. */
+function markPeerBlocked(el, blocked) {
+  if (!el || !el.style) return;
+  let indicator = typeof el.querySelector === 'function' ? el.querySelector('.block-indicator') : null;
+  if (blocked && !indicator && typeof document.createElement === 'function') {
+    const span = document.createElement('span');
+    span.className = 'block-indicator';
+    span.title = 'Blocked';
+    span.style.fontSize = '0.65rem';
+    span.innerHTML = ' ' + (typeof hosIcon === 'function' ? hosIcon('block', 14) : '');
+    el.appendChild(span);
+  } else if (!blocked && indicator) {
+    indicator.remove();
+  }
+  el.style.textDecoration = blocked ? 'line-through' : '';
+  el.style.opacity = blocked ? '0.5' : '';
+}
+
+/**
+ * Hide (or show again) what is already on screen from `key`: posts, replies
+ * and group messages, their reactions, the member list's mark, the open DM's
+ * header. What arrives while they are blocked is never drawn at all, so after
+ * an Unblock it appears the next time the channel is opened.
+ */
+function applyBlockToView(key, hidden) {
+  if (typeof document === 'undefined' || typeof document.querySelectorAll !== 'function') return;
+  document.querySelectorAll('.message[data-from]').forEach((el) => {
+    if (el && el.dataset && blockSameKey(el.dataset.from, key)) el.style.display = hidden ? 'none' : '';
+  });
+  if (typeof messageReactions !== 'undefined' && messageReactions && typeof renderReactions === 'function') {
+    for (const rKey of Object.keys(messageReactions)) {
+      const at = rKey.lastIndexOf(':');
+      if (at > 0) renderReactions(rKey.slice(0, at), Number(rKey.slice(at + 1)));
+    }
+  }
+  document.querySelectorAll('.peer[data-pubkey]').forEach((el) => {
+    if (el && el.dataset && blockSameKey(el.dataset.pubkey, key)) markPeerBlocked(el, hidden);
+  });
+  if (typeof activeDmPartner !== 'undefined' && blockSameKey(activeDmPartner, key) && typeof renderDmHeader === 'function') {
+    renderDmHeader();
+  }
+}
+
+/** Redraw every list a block touches. */
+function renderBlockEverywhere() {
+  // The member list as the page draws it (chat-voice-rooms.js), with its marks.
+  if (typeof renderPresenceSidebarForActiveContext === 'function') {
+    try { renderPresenceSidebarForActiveContext(); } catch (e) { /* the member list is not drawn yet */ }
+  }
+  if (typeof updateFriendIndicators === 'function') {
+    try { updateFriendIndicators(); } catch (e) { /* the member list is not drawn yet */ }
+  }
+  renderRequestsEverywhere();
+}
+
+/**
+ * Block `key` on this device: the list, my passes withdrawn, the follow
+ * dropped here (no notice to them), any request from them gone, and the
+ * screen. Shared by Block and by a block note from another of my devices.
+ * Returns false when they were already blocked.
+ */
+function blockLocally(key, ts) {
+  const store = reachStore();
+  if (!store || !store.setBlocked(key, true, ts)) return false;
+  store.setFollowing(key, false);
+  if (typeof myFollowing !== 'undefined' && myFollowing) myFollowing.delete(key);
+  if (typeof withdrawPassesTo === 'function') withdrawPassesTo(key);
+  store.removeContactRequest(key);
+  applyBlockToView(key, true);
+  renderBlockEverywhere();
+  return true;
+}
+
+/** Unblock `key` on this device. Returns false when they were not blocked. */
+function unblockLocally(key) {
+  const store = reachStore();
+  if (!store || !store.setBlocked(key, false)) return false;
+  applyBlockToView(key, false);
+  renderBlockEverywhere();
+  return true;
+}
+
+/**
+ * Send the notes to myself that have not gone yet (queued by Block and
+ * Unblock, and on every connection). A note goes to my own mailbox only, so
+ * my other devices learn of it; the blocked person is sent nothing. One send
+ * runs at a time, so a quick Block then Unblock go out once each, in order.
+ */
+let blockNotesSending = Promise.resolve();
+function flushBlockNotes() {
+  blockNotesSending = blockNotesSending.then(sendPendingBlockNotes, sendPendingBlockNotes);
+  return blockNotesSending;
+}
+
+async function sendPendingBlockNotes() {
+  const store = reachStore();
+  if (!store || !ws || ws.readyState !== WebSocket.OPEN) return;
+  for (const note of store.blockNotesPending.slice()) {
+    const text = blockNoteText(note.action, note.key);
+    if (!text) { store.blockNoteSent(note.action, note.key); continue; }
+    const built = typeof pqBuildSelfNote === 'function' ? await pqBuildSelfNote(text) : null;
+    if (!built || !ws || ws.readyState !== WebSocket.OPEN) return; // tried again on the next connection
+    ws.send(JSON.stringify(built.put));
+    store.blockNoteSent(note.action, note.key);
+  }
+}
+
+/** Block someone (the button and the command). Returns true when they are blocked now. */
+async function blockKey(rawKey) {
+  const key = blockKeyNorm(rawKey);
+  if (!key) { reachSay('That is not someone this client can block.'); return false; }
+  if (blockSameKey(key, myKey)) { reachSay("You can't block yourself."); return false; }
+  const store = reachStore();
+  if (!store) { reachSay('Your block list is still loading. Try again in a moment.'); return false; }
+  if (store.isBlocked(key)) { reachSay(`${reachDisplayName(key)} is already blocked.`); return true; }
+  blockLocally(key, Date.now());
+  store.queueBlockNote('block', key);
+  await flushBlockNotes();
+  reachSay(BLOCKED_LINE);
+  return true;
+}
+
+/** Unblock someone. Returns true when they are not blocked now. */
+async function unblockKey(rawKey) {
+  const key = blockKeyNorm(rawKey);
+  const store = reachStore();
+  if (!key || !store) return false;
+  if (!store.isBlocked(key)) { reachSay(`${reachDisplayName(key)} is not blocked.`); return true; }
+  unblockLocally(key);
+  store.queueBlockNote('unblock', key);
+  await flushBlockNotes();
+  reachSay(UNBLOCKED_LINE);
+  return true;
+}
+
+/** Block the person behind a contact request (Block instead of Ignore). */
+function blockContactRequest(id) {
+  const store = reachStore();
+  const req = store && store.contactRequests[id];
+  return blockKey((req && req.key) || id);
+}
+
+/**
+ * The key for a name typed after /block or /unblock: the member list's name
+ * (letter case aside), a whole key, or, for /unblock, the name or short key
+ * a blocked person is listed under. Null when there is no such person.
+ */
+function blockKeyForName(name, blockedOnly) {
+  const want = String(name || '').trim().replace(/^@/, '');
+  if (!want) return null;
+  const asKey = blockKeyNorm(want);
+  if (asKey && asKey.length >= 64) return asKey;
+  const lower = want.toLowerCase();
+  const store = reachStore();
+  if (blockedOnly && store) {
+    for (const b of store.blockedList()) {
+      if (reachDisplayName(b.key).toLowerCase() === lower || b.key.startsWith(lower)) return b.key;
+    }
+    return null;
+  }
+  for (const [key, p] of Object.entries(reachPeers())) {
+    if (p && typeof p.display_name === 'string' && p.display_name.toLowerCase() === lower) return key;
+  }
+  return null;
+}
+
+/** `/block <name>`. */
+function blockByName(name) {
+  const key = blockKeyForName(name, false);
+  if (!key) { reachSay(`No one called "${name}" is in the member list.`); return Promise.resolve(false); }
+  return blockKey(key);
+}
+
+/** `/unblock <name>`. */
+function unblockByName(name) {
+  const key = blockKeyForName(name, true);
+  if (!key) { reachSay(`You have not blocked anyone called "${name}".`); return Promise.resolve(false); }
+  return unblockKey(key);
+}
+
+/** `/blocklist`: who is blocked, and where to change it. */
+function showBlockList() {
+  const store = reachStore();
+  const list = store ? store.blockedList() : [];
+  if (!list.length) { reachSay('You have not blocked anyone.'); return; }
+  reachSay('Blocked: ' + list.map((b) => `${reachDisplayName(b.key)} (since ${blockDateLabel(b.ts)})`).join(', ')
+    + '. Unblock with /unblock <name>, or in Safety under Blocked people.');
+}
+
+/**
+ * Apply a note I sent myself (from another of my devices, or this one's own
+ * coming back). A block note's date is when it was written, so every device
+ * shows the same one.
+ */
+function applyBlockNote(note, ts) {
+  if (!note || !note.key) return;
+  if (note.action === 'block') blockLocally(note.key, Number(ts) || Date.now());
+  else if (note.action === 'unblock') unblockLocally(note.key);
+}
+
+/**
+ * Screen an opened, signature-checked DM (app.js dm_new and dm_batch,
+ * chat-p2p.js). Returns true when the caller must neither store nor show it:
+ * a block note (acted on only when I sent it to myself; a note addressed to
+ * anyone else is ignored), or anything at all from someone I blocked.
+ */
+function blockScreenDm(inner) {
+  if (!inner) return false;
+  // (Guarded: on the DM path a missing /shared/block.js must not stop mail.)
+  if (typeof isBlockNoteText === 'function' && isBlockNoteText(inner.text)) {
+    const note = blockNoteFromSelf(inner, myKey);
+    if (note) applyBlockNote(note, inner.ts);
+    return true;
+  }
+  return !!(inner.from && !blockSameKey(inner.from, myKey) && isBlockedKey(inner.from));
+}
+
+/**
+ * Screen a frame from the relay before anything else sees it: a post, typing,
+ * a reaction or a ring from someone I blocked is dropped whole, so no handler
+ * draws it and no notification fires. (Each handler also checks the key
+ * itself, so the order of the handleMessage wrappers is not load-bearing.)
+ */
+function blockScreenFrame(msg) {
+  if (!msg || typeof msg.from !== 'string' || !msg.from) return false;
+  switch (msg.type) {
+    case 'chat':
+    case 'typing':
+    case 'reaction':
+      return isBlockedKey(msg.from);
+    case 'voice_call':
+      return msg.action === 'ring' && isBlockedKey(msg.from);
+    case 'webrtc_signal':
+      return msg.signal_type === 'dc_offer' && isBlockedKey(msg.from);
+    default:
+      return false;
+  }
+}
+
+/** The store has loaded (app.js): hide what was drawn before, and send notes owed. */
+function onBlockListLoaded() {
+  const store = reachStore();
+  if (!store) return;
+  for (const b of store.blockedList()) applyBlockToView(b.key, true);
+  renderBlockEverywhere();
+  flushBlockNotes();
 }
 
 // The relay's frames for this section.
 const _origHandleMessageReach = handleMessage;
 handleMessage = function (msg) {
+  if (blockScreenFrame(msg)) return;
   if (msg && msg.type === 'reach_settings') { onReachSettings(msg.settings); return; }
   if (msg && msg.type === 'reach_refused') { onReachRefused(msg); return; }
   return _origHandleMessageReach(msg);
@@ -723,6 +1035,15 @@ window.acceptContactRequest = acceptContactRequest;
 window.ignoreContactRequest = ignoreContactRequest;
 window.sendContactRequest = sendContactRequest;
 window.chooseReachAudience = chooseReachAudience;
+window.blockKey = blockKey;
+window.unblockKey = unblockKey;
+window.blockByName = blockByName;
+window.unblockByName = unblockByName;
+window.showBlockList = showBlockList;
+window.blockContactRequest = blockContactRequest;
+window.blockScreenDm = blockScreenDm;
+window.onBlockListLoaded = onBlockListLoaded;
+window.flushBlockNotes = flushBlockNotes;
 
 window.maybeShowPrivacyTierModal = maybeShowPrivacyTierModal;
 window.applyPrivacyTier = applyPrivacyTier;

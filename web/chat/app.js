@@ -232,6 +232,19 @@ let peerData = {};
 // The same object, never reassigned (only filled in), so the alias stays true.
 window.peerData = peerData;
 
+/**
+ * Is this identity key on my block list (step C, 2026-10-09,
+ * docs/design/blocking-and-safe-mode.md 10d)? The list is kept in the
+ * encrypted local store (chat-dm-store.js); chat-privacy.js keeps it. Every
+ * path that shows something from a person asks this, by key, never by name.
+ */
+function isBlockedKey(key) {
+  try {
+    return !!(key && window.hosDmStore && hosDmStore.ready && hosDmStore.isBlocked(key));
+  } catch { return false; }
+}
+window.isBlockedKey = isBlockedKey;
+
 function resolveSenderName(rawName, fromKey) {
   const given = (rawName || '').trim();
   if (given && !/^anonymous$/i.test(given)) return given;
@@ -504,7 +517,7 @@ async function decryptSyncData(data) {
 
 const SYNC_KEYS = [
   'humanity_settings', 'humanity_notes', 'humanity_todos', 'humanity_garden', 'humanity_garden_v2',
-  'humanity_blocked', 'humanity_pins', 'humanity_default_tab',
+  'humanity_pins', 'humanity_default_tab',
   'humanity_browse', 'humanity_dashboard',
   'footer_collapsed', 'sidebar_tab'
 ];
@@ -948,6 +961,9 @@ async function handleMessage(msg) {
           }
           // Friendship passes owed and withdrawals unconfirmed (chat-social.js).
           if (ok && typeof sweepFriendPasses === 'function') sweepFriendPasses();
+          // The block list is loaded: hide what was drawn before it was, and send
+          // any note to my other devices that could not go earlier (chat-privacy.js).
+          if (ok && typeof onBlockListLoaded === 'function') onBlockListLoaded();
         });
       }
       break;
@@ -1044,6 +1060,8 @@ async function handleMessage(msg) {
       if (typeof friendPassWithdrawn === 'function') friendPassWithdrawn(msg.serial);
       break;
     case 'typing': {
+      // Someone I blocked is never shown typing (by key, step C).
+      if (isBlockedKey(msg.from)) break;
       // Show "X is typing…" indicator, clear after 3 seconds.
       const typerName = resolveSenderName(msg.from_name, msg.from);
       showTypingIndicator(typerName);
@@ -1155,6 +1173,11 @@ async function handleMessage(msg) {
       const inner = await pqOpenDmEnvelope(msg.content);
       if (window.hosDmStore && hosDmStore.ready && msg.id) hosDmStore.setHighWater(msg.id);
       if (!inner) break; // not ours / tampered / spoofed — never rendered
+      // Block (step C, 2026-10-09): a note to myself from another of my devices is
+      // acted on, never rendered; anything from someone I blocked (a message, a
+      // follow notice, a pass, a contact request) is dropped here, before it is
+      // stored or notified (chat-privacy.js).
+      if (typeof blockScreenDm === 'function' && blockScreenDm(inner)) break;
       // Social control messages (follows removal 2026-08-24): act, never render.
       if (typeof ingestDmControl === 'function' && await ingestDmControl(inner)) break;
       // A contact request (step B, 2026-10-09): its pass checked, listed under Requests by the
@@ -1191,6 +1214,7 @@ async function handleMessage(msg) {
         if (!item.content) continue;
         const inner = await pqOpenDmEnvelope(item.content);
         if (!inner) continue; // undecryptable/spoofed — skip, high-water still advances
+        if (typeof blockScreenDm === 'function' && blockScreenDm(inner)) continue;
         if (typeof ingestDmControl === 'function' && await ingestDmControl(inner)) continue;
         if (typeof ingestContactRequest === 'function' && await ingestContactRequest(inner)) continue;
         if (typeof reachScreenDm === 'function' && reachScreenDm(inner)) continue;
@@ -1658,8 +1682,9 @@ async function sendChatCommand(command, channelOverride) {
 
 // ── Rendering ──
 function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, replyTo, threadCount, isFederated, messageId) {
-  // Skip messages from blocked users entirely.
-  if (author && isBlocked(author)) return;
+  // Posts, replies and group messages from someone I blocked are never drawn
+  // (by key, step C; chat-privacy.js hides the ones already on screen).
+  if (fromKey && isBlockedKey(fromKey)) return;
 
   const el = document.createElement('div');
   const stripe = getStripeClass(fromKey || author);
@@ -1738,10 +1763,14 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   // Reply indicator HTML.
   let replyIndicatorHtml = '';
   if (replyTo) {
-    const replyPreview = (replyTo.content || '').substring(0, 60) + ((replyTo.content || '').length > 60 ? '…' : '');
+    // A reply quoting someone I blocked shows neither their name nor their words.
+    const quotesBlocked = isBlockedKey(replyTo.from);
+    const replyPreview = quotesBlocked ? ''
+      : (replyTo.content || '').substring(0, 60) + ((replyTo.content || '').length > 60 ? '…' : '');
+    const replyAuthor = quotesBlocked ? 'Someone you blocked' : (replyTo.from_name || 'Unknown');
     replyIndicatorHtml = `<div class="reply-indicator" data-reply-from="${esc(replyTo.from)}" data-reply-ts="${replyTo.timestamp}">
       <span>↩</span>
-      <span class="reply-indicator-author">${esc(replyTo.from_name || 'Unknown')}</span>
+      <span class="reply-indicator-author">${esc(replyAuthor)}</span>
       <span class="reply-indicator-preview">${esc(replyPreview)}</span>
     </div>`;
     el.classList.add('has-reply');
@@ -2012,7 +2041,7 @@ function updateUserList(users) {
     const escapedName = esc(u.name);
     const escapedKey = esc(u.public_key);
     const deviceCount = (!isBot && u.key_count > 1) ? ` <span style="font-size:0.6rem;color:var(--text-muted)">(${u.key_count} devices)</span>` : '';
-    const blocked = isBlocked(u.name);
+    const blocked = isBlockedKey(u.public_key);
     const blockIndicator = blocked ? ' <span class="block-indicator" title="Blocked" style="font-size:0.65rem;">' + hosIcon('block', 14) + '</span>' : '';
     const dimStyle = u.online ? (blocked ? ' style="opacity:0.5;text-decoration:line-through"' : '') : (blocked ? ' style="opacity:0.5;text-decoration:line-through"' : ' style="opacity:0.5"');
     const botClass = isBot ? ' is-bot' : '';

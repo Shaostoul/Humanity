@@ -434,6 +434,7 @@ const _passMinting = new Set(); // peers a pass is being minted for right now (a
 async function sendFriendCertTo(peer) {
   const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
   if (!store || store.certSentTo(peer) || _passMinting.has(peer)) return;
+  if (store.isBlocked(peer)) return; // never a pass to someone I blocked (step C)
   if (!window.hosServerDid || store.passServer !== window.hosServerDid) return; // swept again once known
   if (typeof getPeerEcdhPublic === 'function' && !getPeerEcdhPublic(peer)) return; // cannot seal to them yet
   _passMinting.add(peer);
@@ -457,7 +458,7 @@ function sendPendingWithdrawals() {
   }
 }
 
-/** Take back every pass I gave `peer` (on Unfollow; later Block and Remove friend). */
+/** Take back every pass I gave `peer` (on Unfollow and Block; later Remove friend). */
 function withdrawPassesTo(peer) {
   if (!(window.hosDmStore && hosDmStore.ready)) return;
   hosDmStore.withdrawPassesTo(peer);
@@ -572,6 +573,17 @@ async function ingestDmControl(inner) {
   const fromMe = inner.from === myKey;
   const peer = fromMe ? inner.to : inner.from;
   const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
+  // My own follow or pass for someone I have since blocked, echoed from a
+  // device that had not heard of the block yet: the block wins. (Their own
+  // notices never get this far: blockScreenDm drops them first.)
+  if (fromMe && store && store.isBlocked(peer)) {
+    if (inner.text === CTL_FRIEND_CERT && inner.cert) {
+      const pass = friendPassParse(inner.cert);
+      if (pass) store.recordPassSent(peer, pass.serial, pass.may);
+      withdrawPassesTo(peer);
+    }
+    return true;
+  }
   if (inner.text === CTL_FOLLOW) {
     if (fromMe) {
       if (store) store.setFollowing(peer, true);

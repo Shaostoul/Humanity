@@ -46,6 +46,14 @@ const hosDmStore = {
   // reply presents to their relay on Accept; null for a DM my settings refused
   // (no pass came with it). Never holds any text.
   contactRequests: {}, // key -> {key, name, pass, ts}
+  // ── Blocked people (step C, 2026-10-09, blocking-and-safe-mode.md 10d):
+  // identity keys (lowercase hex), never names, each with when it was
+  // blocked. Kept only here, encrypted; my other devices learn of a change
+  // through a sealed note to myself (chat-privacy.js), the server never.
+  blocked: {},         // key -> {ts}
+  // Notes to myself not sent yet (Block or Unblock while not connected),
+  // oldest first, at most one per key: [{action, key}].
+  blockNotesPending: [],
 
   async _sha256hex(s) {
     const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
@@ -119,6 +127,8 @@ const hosDmStore = {
       this.certsSent = {};
       this.withdrawalsPending = [];
       this.contactRequests = {};
+      this.blocked = {};
+      this.blockNotesPending = [];
       // Meta first (high-water + read marks + social sets).
       const meta = await this._idb(this._tx('meta', 'readonly').get(this.scope)).catch(() => null);
       if (meta) {
@@ -133,6 +143,8 @@ const hosDmStore = {
           if (m && m.passesSent && typeof m.passesSent === 'object') this.certsSent = m.passesSent;
           if (m && Array.isArray(m.withdrawalsPending)) this.withdrawalsPending = m.withdrawalsPending;
           if (m && m.contactRequests && typeof m.contactRequests === 'object') this.contactRequests = m.contactRequests;
+          if (m && m.blocked && typeof m.blocked === 'object') this.blocked = m.blocked;
+          if (m && Array.isArray(m.blockNotesPending)) this.blockNotesPending = m.blockNotesPending;
         }
       }
       // All records in this scope.
@@ -167,6 +179,8 @@ const hosDmStore = {
       passesSent: this.certsSent,
       withdrawalsPending: this.withdrawalsPending,
       contactRequests: this.contactRequests,
+      blocked: this.blocked,
+      blockNotesPending: this.blockNotesPending,
     });
     await this._idb(this._tx('meta', 'readwrite').put({ scope: this.scope, hw: this.highWater, box })).catch(() => {});
   },
@@ -286,9 +300,52 @@ const hosDmStore = {
       .map(([id, r]) => ({ id, key: r.key || id, name: r.name, hasPass: !!r.pass, ts: Number(r.ts) || 0 }))
       .sort((a, b) => b.ts - a.ts);
   },
-  /** Mutual follows with no standing pass from me: the ones the sweep mints for. */
+  /** Mutual follows with no standing pass from me, and not blocked: the ones the sweep mints for. */
   friendsWithoutPass() {
-    return Array.from(this.following).filter((p) => this.followers.has(p) && !this.certSentTo(p)).sort();
+    return Array.from(this.following).filter((p) => this.followers.has(p) && !this.certSentTo(p) && !this.isBlocked(p)).sort();
+  },
+
+  // ── Blocked people (step C) ──
+  _blockKey(key) { return typeof key === 'string' ? key.trim().toLowerCase() : ''; },
+  isBlocked(key) {
+    const k = this._blockKey(key);
+    return !!k && Object.prototype.hasOwnProperty.call(this.blocked, k);
+  },
+  /**
+   * Put `key` on the list (with when) or take it off. Returns true when the
+   * list changed: blocking someone already blocked keeps the first date.
+   */
+  setBlocked(key, on, ts) {
+    const k = this._blockKey(key);
+    if (!k) return false;
+    if (on) {
+      if (this.isBlocked(k)) return false;
+      this.blocked[k] = { ts: Number(ts) || Date.now() };
+    } else {
+      if (!this.isBlocked(k)) return false;
+      delete this.blocked[k];
+    }
+    this._persistMeta();
+    return true;
+  },
+  /** Everyone blocked, newest first: [{key, ts}]. */
+  blockedList() {
+    return Object.keys(this.blocked)
+      .map((key) => ({ key, ts: Number(this.blocked[key] && this.blocked[key].ts) || 0 }))
+      .sort((a, b) => b.ts - a.ts);
+  },
+  /** Queue a note to myself; a newer one for the same key replaces the older. */
+  queueBlockNote(action, key) {
+    const k = this._blockKey(key);
+    this.blockNotesPending = this.blockNotesPending.filter((n) => n.key !== k);
+    this.blockNotesPending.push({ action, key: k });
+    this._persistMeta();
+  },
+  /** A queued note went out. */
+  blockNoteSent(action, key) {
+    const before = this.blockNotesPending.length;
+    this.blockNotesPending = this.blockNotesPending.filter((n) => !(n.action === action && n.key === key));
+    if (this.blockNotesPending.length !== before) this._persistMeta();
   },
 
   setHighWater(id) {

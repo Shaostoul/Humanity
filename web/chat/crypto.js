@@ -904,6 +904,10 @@ const DM_SIG_DOMAIN_V2 = 'hum/dm/v2';
 const CTL_FOLLOW = '[[hum:follow]]';
 const CTL_UNFOLLOW = '[[hum:unfollow]]';
 const CTL_FRIEND_CERT = '[[hum:friend-cert]]';
+// Block's notes to myself, [[hum:block:v1]]<key> and [[hum:unblock:v1]]<key>
+// (step C, 2026-10-09), are CTL_BLOCK and CTL_UNBLOCK in /shared/block.js,
+// pinned to native by scripts/tests/block-web.test.js; pqBuildSelfNote below
+// seals one.
 
 // Friendship passes v2 (2026-10-09, docs/design/blocking-and-safe-mode.md 10b).
 // The issuer gives the grantee a pass naming this server's did:hum, a random
@@ -1004,12 +1008,17 @@ function _hexToBytes(hex) {
  *   { recipientPut, selfPut, inner }   (puts are plain objects for ws.send)
  * or null when the identity / peer key isn't ready (FAIL CLOSED — there
  * is no plaintext fallback in the v2 protocol).
+ *
+ * With `opts.selfOnly` (a note to myself, `partnerKey` my own key) only the
+ * copy sealed to me is built: recipientPut is null.
  */
 async function pqBuildDmPuts(text, partnerKey, ts, opts) {
   try {
     if (typeof window.pqDmSeal !== 'function' || typeof window.pqSignMessage !== 'function') return null;
     if (!myDilithiumPublicHex || !myDilithiumSecret || !myKyberPublicBase64) return null;
-    const peerKyber = getPeerEcdhPublic(partnerKey);
+    const selfOnly = !!(opts && opts.selfOnly);
+    if (selfOnly && partnerKey !== myDilithiumPublicHex) return null;
+    const peerKyber = selfOnly ? myKyberPublicBase64 : getPeerEcdhPublic(partnerKey);
     if (!peerKyber) return null;
     const from = myDilithiumPublicHex;
     const preimage = _dmSigPreimage(from, partnerKey, ts, text);
@@ -1034,6 +1043,11 @@ async function pqBuildDmPuts(text, partnerKey, ts, opts) {
       if (!sealed) return null;
       return JSON.stringify({ v: 2, ek_ct_b64: sealed.ek_ct_b64, nonce_b64: sealed.nonce_b64, ct_b64: sealed.ct_b64 });
     };
+    if (selfOnly) {
+      const envNote = await sealTo(myKyberPublicBase64);
+      if (!envNote) return null;
+      return { recipientPut: null, selfPut: { type: 'dm_put', to: from, content: envNote }, inner };
+    }
     const envRecipient = await sealTo(peerKyber);
     const envSelf = await sealTo(myKyberPublicBase64);
     if (!envRecipient || !envSelf) return null;
@@ -1054,6 +1068,19 @@ async function pqBuildDmPuts(text, partnerKey, ts, opts) {
     console.warn('pqBuildDmPuts failed:', e && e.message);
     return null;
   }
+}
+
+/**
+ * Build a sealed note to myself only (Block's notes, step C, 2026-10-09): one
+ * `dm_put` to my own mailbox whose inner payload is from me to me, signed and
+ * padded like any DM and sealed to my own DM key, so my other devices fetch it
+ * and nobody else is sent anything. Returns { put, inner }, or null when the
+ * identity is not ready.
+ */
+async function pqBuildSelfNote(text, ts) {
+  if (!myDilithiumPublicHex) return null;
+  const built = await pqBuildDmPuts(text, myDilithiumPublicHex, ts || Date.now(), { selfOnly: true });
+  return built ? { put: built.selfPut, inner: built.inner } : null;
 }
 
 // ── Encrypted private attachments (2026-08-24) ──────────────────────────────

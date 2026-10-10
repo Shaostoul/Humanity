@@ -76,9 +76,7 @@ function openDmConversation(partnerKey, partnerName) {
   document.getElementById('pin-list').classList.remove('open');
 
   // Update channel header.
-  const header = document.getElementById('channel-header');
-  header.innerHTML = `<span class="ch-name" style="cursor:pointer;" onclick="closeDmView()">← Back</span> <span class="ch-name">${hosIcon('chat', 16)} ${esc(partnerName)}</span>`;
-  header.style.display = 'block';
+  renderDmHeader();
 
   // Clear messages area and set DM context (crimson tint + red stripes).
   const msgsEl = document.getElementById('messages');
@@ -98,6 +96,34 @@ function openDmConversation(partnerKey, partnerName) {
   renderDmConversationFromStore(partnerKey);
 
   if (isMobile()) closeSidebars();
+}
+
+/**
+ * The open conversation's header: Back, their name, and Block (Unblock while
+ * they are blocked; step C, 2026-10-09). Redrawn by chat-privacy.js when a
+ * block changes.
+ */
+function renderDmHeader() {
+  const header = document.getElementById('channel-header');
+  if (!header || !activeDmPartner) return;
+  const blocked = typeof isBlockedKey === 'function' && isBlockedKey(activeDmPartner);
+  const blockTitle = blocked
+    ? 'Unblock them: they can reach you again as your safety settings allow.'
+    : 'Block them: you will not see anything from them, and they are not told.';
+  header.innerHTML = `<span class="ch-name" style="cursor:pointer;" onclick="closeDmView()">← Back</span> <span class="ch-name">${hosIcon('chat', 16)} ${esc(activeDmPartnerName)}</span>`
+    + `<button class="vr-btn dm-block-btn" onclick="toggleBlockActiveDm()" title="${esc(blockTitle)}" style="float:right;font-size:0.7rem;${blocked ? '' : 'color:var(--danger);'}">${blocked ? 'Unblock' : 'Block'}</button>`;
+  header.style.display = 'block';
+}
+
+/** The header's Block / Unblock button. */
+function toggleBlockActiveDm() {
+  const key = activeDmPartner;
+  if (!key) return;
+  if (typeof isBlockedKey === 'function' && isBlockedKey(key)) {
+    if (typeof unblockKey === 'function') unblockKey(key);
+  } else if (typeof blockKey === 'function') {
+    blockKey(key);
+  }
 }
 
 /** Render a DM conversation from the LOCAL history store into #messages. */

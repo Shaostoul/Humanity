@@ -258,7 +258,7 @@
       // the right-click menu (operator: keep terminology consistent).
       var isFollowing = (typeof myFollowing !== 'undefined' && myFollowing.has(key));
       row(std, isFollowing ? 'Unfollow' : 'Follow', 'tier-standard', function () { withTarget(name, key, function () { if (typeof followFromCtx === 'function') followFromCtx(!isFollowing); }); });
-      var blocked = (typeof isBlocked === 'function' && isBlocked(name));
+      var blocked = (typeof isBlockedKey === 'function' && isBlockedKey(key));
       row(std, blocked ? 'Unblock' : 'Block', 'tier-standard', function () { withTarget(name, key, function () { if (blocked) { if (typeof unblockFromCtx === 'function') unblockFromCtx(); } else { if (typeof blockFromCtx === 'function') blockFromCtx(); } }); }, { danger: !blocked });
       row(std, 'Report', 'tier-standard', function () { withTarget(name, key, function () { if (typeof reportUser === 'function') reportUser(); }); }, { danger: true });
     } else {

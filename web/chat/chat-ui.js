@@ -482,13 +482,16 @@ function showUserContextMenu(e, name, publicKey) {
     html += ci("viewProfileFromCtx()", '\uD83D\uDC64 View Profile', 'user');
     html += ci("copyPublicKey()", '\uD83D\uDCCB Copy Key', 'user');
     if (name !== myName) {
+      // Block goes by key, beside Report (step C). While someone is blocked the
+      // menu offers Unblock and no Follow: following them is undone by the block.
+      const blocked = typeof isBlockedKey === 'function' && isBlockedKey(publicKey);
       html += ci("dmFromCtx()", '\uD83D\uDCAC Direct Message', 'user');
       if (typeof myFollowing !== 'undefined' && myFollowing.has(publicKey)) {
         html += ci("followFromCtx(false)", '\u274C Unfollow', 'user');
-      } else {
+      } else if (!blocked) {
         html += ci("followFromCtx(true)", '\uD83D\uDC41\uFE0F Follow', 'user');
       }
-      if (isBlocked(name)) {
+      if (blocked) {
         html += ci("unblockFromCtx()", '\u2705 Unblock', 'user');
       } else {
         html += ci("blockFromCtx()", '\uD83D\uDEAB Block', 'user');
@@ -587,18 +590,19 @@ function reportUser() {
   }));
 }
 
+// Block and Unblock act on the person's key (chat-privacy.js blockKey, step C).
 function blockFromCtx() {
   if (!ctxMenuTarget) return;
-  const name = ctxMenuTarget.name;
+  const key = ctxMenuTarget.publicKey;
   hideContextMenu();
-  blockUser(name);
+  if (typeof blockKey === 'function') blockKey(key);
 }
 
 function unblockFromCtx() {
   if (!ctxMenuTarget) return;
-  const name = ctxMenuTarget.name;
+  const key = ctxMenuTarget.publicKey;
   hideContextMenu();
-  unblockUser(name);
+  if (typeof unblockKey === 'function') unblockKey(key);
 }
 
 function followFromCtx(doFollow) {
@@ -657,7 +661,7 @@ document.getElementById('peer-list').addEventListener('contextmenu', function(e)
   }
 });
 
-// Profile system, block list -> see chat-profile.js
+// Profile system -> see chat-profile.js; the block list -> chat-privacy.js (step C)
 
 // ── Import file handler (login screen) ──
 // The hidden #import-file-input on the login screen (index.html) points here.
@@ -1177,11 +1181,13 @@ sendMessage = async function() {
     }
     return;
   }
+  // /block and /unblock resolve the name through the member list to a key
+  // (chat-privacy.js blockByName, step C); the list never holds names.
   if (val.startsWith('/block ') && !val.startsWith('/blocklist')) {
     const name = val.substring(7).trim();
     if (name) {
       input.value = '';
-      blockUser(name);
+      blockByName(name);
       return;
     }
   }
@@ -1189,7 +1195,7 @@ sendMessage = async function() {
     const name = val.substring(9).trim();
     if (name) {
       input.value = '';
-      unblockUser(name);
+      unblockByName(name);
       return;
     }
   }

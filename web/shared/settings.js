@@ -379,7 +379,6 @@
         todos: (() => { try { return JSON.parse(localStorage.getItem('humanity_todos') || '[]'); } catch { return []; } })(),
         garden: (() => { try { return JSON.parse(localStorage.getItem('humanity_garden') || '{}'); } catch { return {}; } })(),
         pins: (() => { try { return JSON.parse(localStorage.getItem('humanity_pins') || '[]'); } catch { return []; } })(),
-        blocked: (() => { try { return JSON.parse(localStorage.getItem('humanity_blocked') || '[]'); } catch { return []; } })(),
         exportedAt: new Date().toISOString()
       };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -421,7 +420,6 @@
             if (data.todos) localStorage.setItem('humanity_todos', JSON.stringify(data.todos));
             if (data.garden) localStorage.setItem('humanity_garden', JSON.stringify(data.garden));
             if (data.pins) localStorage.setItem('humanity_pins', JSON.stringify(data.pins));
-            if (data.blocked) localStorage.setItem('humanity_blocked', JSON.stringify(data.blocked));
             // Re-apply settings
             if (data.settings) {
               applySettings(Object.assign({}, DEFAULTS, data.settings));
