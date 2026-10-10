@@ -5284,3 +5284,18 @@ conversation is open (desktop `is_private_channel` in `src/gui/pages/chat.rs`; w
 refusals, nothing kept, the bystander hears only the room's pin); desktop
 `dms_and_p2p_groups_are_private_and_rooms_are_not`; web, the BUG-178 test in
 `scripts/tests/private-files-web.test.js`. Each seen red with its fix taken out.
+
+## BUG-179: the desktop app wrote each DM file's decryption key into its log (FIXED next release, found 2026-10-10)
+
+The upload worker logged the text it was about to send. For an encrypted DM attachment that text
+is the `[[hum:file:v1]]` marker, which carries the file's AES-256-GCM key and nonce, so every DM
+file's key went into `%APPDATA%/HumanityOS/logs/run.log` in the clear: anyone who read the log, or
+a log attached to a bug report, could open the file at its upload address. Found by the 10k desktop
+build while moving the attach code.
+
+**Fixed.** The upload path (`src/gui/pages/chat/attach_send.rs`) logs only whether the send
+happened, never the content.
+
+**Not undone by the fix:** a log written before it keeps those lines. A person who sent DM files
+from the desktop app before this release can delete `run.log` (and its rotated copies) in
+`%APPDATA%/HumanityOS/logs/`.
