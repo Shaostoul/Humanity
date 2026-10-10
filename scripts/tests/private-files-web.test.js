@@ -45,6 +45,10 @@
 //  9. A file whose conversation is left while it uploads is not sent anywhere: a group's marker
 //     never lands in the public channel opened meanwhile, and the send path refuses a marker in a
 //     public channel whatever the timing.
+// 10. 10m R10, the scratch pad stays on this device: no typing indicator while it is open; a
+//     /command's rows are private rows; a Pin, reaction, edit or delete there never reaches the
+//     socket; a reply made there is kept on the note as a quote and the reply bar clears; its
+//     header, channel description and row tooltip say where a note and a file are kept.
 //
 // Red first: see the end of this file for each deliberate break and the assertion it tripped.
 
@@ -199,8 +203,15 @@ const NOTHING_YET = new Set([".edit-area", ".edited-marker", ".block-indicator"]
 // A document whose elements keep what is written to them, their class list, the listeners a
 // script adds, and one kept element per selector they are asked for (so a file card's body, and
 // the buttons in it, can be read and pressed).
+//
+// The honest page (`state.honest`, 10m, as group-report-web.test.js): an element's querySelector
+// for a class its HTML does not hold answers null, the way a browser does, so a row control that
+// is not drawn cannot be hooked by mistake (BUG-180: a fake that answered every lookup hid a
+// crash). And `state.absent` names ids that are not on the page until a script gives an element
+// that id (getElementById answers null for them until then).
 function fakeDom(state) {
   const all = [];
+  const absent = state.absent || new Set();
   function el(tag) {
     const classes = new Set();
     const own = {
@@ -216,6 +227,10 @@ function fakeDom(state) {
     own.getAttribute = (k) => (k in own.attrs ? own.attrs[k] : null);
     own.querySelector = (sel) => {
       if (NOTHING_YET.has(sel)) return null;
+      if (state.honest && typeof own.innerHTML === "string" && /^\.[\w-]+$/.test(sel)) {
+        const cls = sel.slice(1).replace(/-/g, "\\-");
+        if (!new RegExp(`class="(?:[^"]*\\s)?${cls}(?:\\s[^"]*)?"`).test(own.innerHTML)) return null;
+      }
       if (!own.parts.has(sel)) own.parts.set(sel, el(sel));
       return own.parts.get(sel);
     };
@@ -234,6 +249,8 @@ function fakeDom(state) {
       set(t, prop, v) {
         // Writing the body afresh drops what was put in it before (an image replaced by the line).
         if (prop === "innerHTML") t.children = [];
+        // An id that is not on the page until a script gives it to an element (state.absent).
+        if (prop === "id" && absent.has(String(v))) byId.set(String(v), p);
         t[prop] = v;
         return true;
       },
@@ -242,7 +259,13 @@ function fakeDom(state) {
     return p;
   }
   const byId = new Map();
-  const kept = (id) => { if (!byId.has(id)) byId.set(id, el("#" + id)); return byId.get(id); };
+  const kept = (id) => {
+    if (!byId.has(id)) {
+      if (absent.has(id)) return null;
+      byId.set(id, el("#" + id));
+    }
+    return byId.get(id);
+  };
   return new Proxy({}, {
     get(_t, prop) {
       if (prop === "createElement") return el;
@@ -367,7 +390,10 @@ const isWords = (b) => b.length >= 4 && b[0] === 0x68 && b[1] === 0x75 && b[2] =
  */
 async function loadChat(me, opts = {}) {
   const fx = await fixture();
-  const state = { appended: [] };
+  // opts.honest and opts.absentIds: the honest page (fakeDom). opts.timers: an array that collects
+  // every setTimeout the page asks for, {cb, ms}, none of which runs by itself (a test may run one,
+  // such as chat-ui.js initUnifiedLeftSidebar, which the page queues as it loads).
+  const state = { appended: [], honest: !!opts.honest, absent: new Set(opts.absentIds || []) };
   const posted = [];
   const fetched = [];   // every fetch, "METHOD url"
   const uploads = [];   // { url, query, name, type, bytes } for each POST /api/upload
@@ -431,7 +457,7 @@ async function loadChat(me, opts = {}) {
       if (u === `/api/v2/groups/${G}/messages`) return ok({ messages: relay.log });
       return Promise.reject(new Error("no network in tests: " + u));
     },
-    setTimeout: () => 0,
+    setTimeout: (cb, ms) => { if (opts.timers) opts.timers.push({ cb, ms }); return 0; },
     clearTimeout: () => {},
     setInterval: () => 0,
     clearInterval: () => {},
@@ -1115,3 +1141,165 @@ test("the scratch pad: a file is encrypted and its marker kept in this browser; 
   assert.equal(again.length, 2, "both entries again");
   assert.ok(again.every((r) => !r.innerHTML.includes('class="react-btn"') && !r.innerHTML.includes(FILE_MARKER)), "as private rows, the file as a card");
 });
+
+// ── 10m R10: the scratch pad stays on this device (2026-10-10) ──────────
+// docs/design/blocking-and-safe-mode.md 10m R10, the web items: no typing indicator while it is
+// open; the rows a /command writes are private rows; the send-time check counts it as a private
+// view (a Pin, reaction, edit or delete never reaches the socket); a reply made there is kept on
+// the note as a quote and the reply bar clears; its header, channel description and row tooltip
+// say where a note and a file are kept. These tests use the honest page (fakeDom): a row control
+// that is not drawn is not there. Each was run against web/ as at bf8c4c582 (HOS_WEB_DIR) and
+// seen failing there, with the assertion named in the list after them.
+
+const SCRATCH_NOTE = "Notes stay in this browser. A file is stored encrypted on the server, and only this browser has its key.";
+
+/** Open the scratch pad on a fresh page, with nothing on the socket or drawn yet. */
+async function openScratchPad(page) {
+  page.fn("switchChannel")("__scratch__");
+  await settle();
+  page.sock.sent.length = 0;
+  page.sock.raw.length = 0;
+  page.state.appended.length = 0;
+}
+/** Type `text` into the composer and send it the way the Send button does. */
+async function typeAndSend(page, text) {
+  page.el("msg-input").value = text;
+  await page.fn("sendMessage")();
+  await settle();
+}
+/** The first element under `root` (itself included) whose class names `cls`. */
+function findByClass(root, cls) {
+  if (!root) return null;
+  if (String(root.className || "").split(/\s+/).includes(cls)) return root;
+  for (const c of root.children || []) { const f = findByClass(c, cls); if (f) return f; }
+  return null;
+}
+const ROW_SERVER_ACTIONS = ["react-btn", "edit-btn", "pin-btn", "mypin-btn", "delete-btn"];
+
+test("10m R10: no typing indicator while the scratch pad is open", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann, { honest: true });
+  await openScratchPad(page);
+  const keydown = page.el("msg-input").listeners.keydown || [];
+  assert.ok(keydown.length, "the composer listens for keys");
+  const press = () => { for (const fn of keydown) fn({ key: "a", shiftKey: false, preventDefault() {}, target: page.el("msg-input") }); };
+  press();
+  press();
+  assert.deepEqual(page.sock.sent.filter((m) => m.type === "typing"), [], "no typing indicator goes from the scratch pad");
+  page.fn("switchChannel")("general");
+  await settle();
+  press();
+  assert.equal(page.sock.sent.filter((m) => m.type === "typing").length, 1, "in a channel it still goes");
+});
+
+test("10m R10: the rows a /command writes in the scratch pad are private rows", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann, { honest: true });
+  // As a moderator, so a public row would offer a server Pin and Delete too.
+  page.set("(k) => { peerData[k] = Object.assign({}, peerData[k], { role: 'mod' }); }", fx.ann.key);
+  await openScratchPad(page);
+  for (const cmd of ["/echo hello there", "/time", "/md **bold** text"]) await typeAndSend(page, cmd);
+  const rows = page.state.appended.filter((e) => e && e.dataset && e.dataset.from === "__system__");
+  assert.equal(rows.length, 3, "each command writes a row");
+  for (const row of rows) {
+    for (const cls of ROW_SERVER_ACTIONS) {
+      assert.ok(!row.innerHTML.includes(`class="${cls}"`), `a command's row offers no ${cls}`);
+    }
+    assert.ok(row.innerHTML.includes('class="reply-btn"'), "Reply stays");
+  }
+  assert.equal(page.sock.raw.length, 0, "and nothing went on the socket");
+});
+
+test("10m R10: in the scratch pad a Pin, a reaction, an edit or a delete never reaches the socket", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann, { honest: true });
+  page.set("(k) => { peerData[k] = Object.assign({}, peerData[k], { role: 'mod' }); }", fx.ann.key);
+  await openScratchPad(page);
+  page.fn("pinMessageFromUI")(fx.ann.key, "Ann", "a note to myself", T0);
+  page.fn("sendReaction")(fx.ann.key, T0, "👍");
+  // An edit, pressed through its own Save button.
+  const row = page.ctx.document.createElement("div");
+  page.fn("startEditMode")(row, "a note to myself", fx.ann.key, T0);
+  const save = findByClass(row.querySelector(".body"), "edit-save");
+  assert.ok(save && typeof save.onclick === "function", "the edit has a Save button");
+  const area = findByClass(row.querySelector(".body"), "edit-area");
+  const textarea = area && (area.children || []).find((c) => c.tag === "textarea");
+  if (textarea) textarea.value = "a changed note";
+  await save.onclick({ stopPropagation() {} });
+  // A delete, from a row drawn without the private options (the /command rows used to be).
+  page.fn("addChatMessage")("Ann", "an old note", T0 + 5, fx.ann.key, false, false, null, null);
+  const drawn = page.state.appended[page.state.appended.length - 1];
+  const del = drawn.querySelector(".delete-btn");
+  assert.ok(del, "that row has a Delete button");
+  for (const fn of del.listeners.click || []) fn({ stopPropagation() {} });
+  await settle();
+  const leaked = page.sock.sent.filter((m) => ["pin_request", "reaction", "edit", "delete"].includes(m.type));
+  assert.deepEqual(leaked, [], "none of them reaches the socket");
+});
+
+test("10m R10: a reply made in the scratch pad is kept on the note as a quote, and the reply bar clears", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann, { honest: true });
+  await openScratchPad(page);
+  await typeAndSend(page, "buy seeds for the garden");
+  const first = page.state.appended.find((e) => e && e.dataset && e.dataset.from === fx.ann.key);
+  const kept1 = JSON.parse(page.ctx.localStorage.getItem("hos_scratch_msgs") || "[]");
+  assert.equal(kept1.length, 1);
+  page.fn("setReplyTarget")("Ann", kept1[0].content, fx.ann.key, kept1[0].timestamp, first);
+  assert.equal(page.el("reply-bar").style.display, "flex", "the reply bar shows");
+
+  await typeAndSend(page, "done, and the trowel too");
+  const kept = JSON.parse(page.ctx.localStorage.getItem("hos_scratch_msgs") || "[]");
+  assert.equal(kept.length, 2, "the answer is kept");
+  assert.deepEqual(kept[1].replyTo, { from: fx.ann.key, from_name: "Ann", content: "buy seeds for the garden", timestamp: kept1[0].timestamp },
+    "with the note it answers kept on it as a quote");
+  assert.equal(page.fn("replyTarget"), null, "the reply is cleared");
+  assert.equal(page.el("reply-bar").style.display, "none", "and the reply bar hides");
+  const answer = page.state.appended.filter((e) => e && e.dataset && e.dataset.from === fx.ann.key)[1];
+  assert.ok(answer && answer.innerHTML.includes('class="reply-indicator"'), "the answer is drawn as a reply");
+  assert.ok(answer.innerHTML.includes("buy seeds for the garden"), "quoting the note");
+  assert.equal(page.sock.raw.length, 0, "nothing went on the socket");
+
+  // Opening the scratch pad again draws it as a reply still.
+  page.fn("switchChannel")("general");
+  await settle();
+  page.state.appended.length = 0;
+  page.fn("switchChannel")("__scratch__");
+  await settle();
+  const again = page.state.appended.filter((e) => e && e.dataset && e.dataset.from === fx.ann.key);
+  assert.equal(again.length, 2);
+  assert.ok(again[1].innerHTML.includes('class="reply-indicator"') && again[1].innerHTML.includes("buy seeds for the garden"), "the quote is kept with the note");
+  assert.ok(!again[0].innerHTML.includes('class="reply-indicator"'), "and only on the answer");
+});
+
+test("10m R10: the scratch pad's header, channel description and row tooltip say where a note and a file are kept", async () => {
+  const fx = await fixture();
+  const timers = [];
+  const page = await loadChat(fx.ann, { honest: true, timers, absentIds: ["unified-scratch-row"] });
+  page.systemLines.length = 0;
+  page.fn("switchChannel")("__scratch__");
+  await settle();
+  const header = page.el("channel-header").innerHTML;
+  assert.ok(header.includes(SCRATCH_NOTE), "the header says it");
+  const description = page.fn("SCRATCH_PAD_CHANNEL").description;
+  assert.ok(description.startsWith(SCRATCH_NOTE), "and the channel description");
+  assert.ok(page.systemLines.some((l) => l.includes(SCRATCH_NOTE)), "and the empty pad's line");
+  // The scratch pad's row at the top of the left rail, which the page draws once it has loaded.
+  const init = timers.find((t) => t.cb && t.cb.name === "initUnifiedLeftSidebar");
+  assert.ok(init, "the page queues the left rail");
+  init.cb();
+  const row = page.el("unified-scratch-row");
+  assert.ok(row, "the scratch pad's row is drawn");
+  assert.equal(row.title, "Your scratch pad. " + SCRATCH_NOTE, "and its tooltip says it too");
+  for (const said of [header, description, row.title]) {
+    assert.ok(!/Nothing sent|Local only/i.test(said), "no longer claiming nothing is sent");
+    assert.ok(!said.includes("\u2014") && !/\bseed\b/i.test(said), "plain words, no em dash");
+  }
+});
+
+// Red first, 2026-10-10 (10m R10), each against web/ as at bf8c4c582 through HOS_WEB_DIR:
+//  "no typing indicator goes from the scratch pad" (one went on every key, throttled);
+//  "a command's row offers no react-btn" (the /echo, /time and /md rows were public rows);
+//  "none of them reaches the socket" (a reaction, a Pin request, an edit and a delete went);
+//  "with the note it answers kept on it as a quote" (the note was kept with no reply);
+//  "the header says it" (it said "Local only. Nothing sent to anyone.").

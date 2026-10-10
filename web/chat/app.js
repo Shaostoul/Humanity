@@ -147,10 +147,15 @@ let replyTarget = null; // { author, body, fromKey, timestamp, element }
 
 // ── Scratch Pad (local-only channel) ──
 const SCRATCH_PAD_ID = '__scratch__';
+// What the scratch pad keeps where, said the same way in its header, its
+// channel description, its row's tooltip (chat-ui.js) and its empty-pad line
+// (10m R10): a note stays in this browser; a file is uploaded, but only as
+// ciphertext, and its key is kept only here.
+const SCRATCH_PAD_NOTE = 'Notes stay in this browser. A file is stored encrypted on the server, and only this browser has its key.';
 const SCRATCH_PAD_CHANNEL = {
   id: SCRATCH_PAD_ID,
   name: 'scratch-pad',
-  description: 'Local only. Nothing sent to the server. Test formatting, take notes, run /commands.',
+  description: SCRATCH_PAD_NOTE + ' Take notes, test formatting, run /commands.',
   read_only: false,
   voice_enabled: false,
   federated: false,
@@ -159,6 +164,18 @@ const SCRATCH_PAD_CHANNEL = {
 /** Check if currently viewing the scratch pad. */
 function isScratchPad() {
   return activeChannel === SCRATCH_PAD_ID;
+}
+
+/**
+ * Is the scratch pad the view open now? Not when a DM or a group was opened
+ * over it (activeChannel stays '__scratch__' then): the same test as the
+ * scratch row's highlight (chat-ui.js refreshScratchActive).
+ */
+function scratchPadOpen() {
+  if (!isScratchPad()) return false;
+  if (typeof activeDmPartner !== 'undefined' && activeDmPartner) return false;
+  if (typeof activeGroupId !== 'undefined' && activeGroupId) return false;
+  return !(typeof window !== 'undefined' && window.activeP2pGroup);
 }
 
 // A scratch pad row is a private row (addChatMessage opts): no reaction, edit,
@@ -172,14 +189,18 @@ const SCRATCH_PAD_ROW = Object.freeze({ privateFiles: true, privateRow: true });
  * Keep `content` in the scratch pad (this browser only) and draw it: typed
  * text, or the marker of a file encrypted here (chat-messages.js
  * sendEncryptedAttachment), whose key is then held nowhere but here.
+ * `replyTo` ({from, from_name, content, timestamp}, replyRefForChannel): the
+ * note it answers, kept with it as a quote and drawn the way a reply is
+ * (10m R10, as the desktop app shows it).
  */
-function scratchPadKeep(content) {
+function scratchPadKeep(content, replyTo) {
   const timestamp = Date.now();
   const msg = { from_name: myName || 'You', from: myKey || '__local__', content, timestamp };
+  if (replyTo) msg.replyTo = replyTo;
   const msgs = loadScratchPadMessages();
   msgs.push(msg);
   saveScratchPadMessages(msgs);
-  addChatMessage(msg.from_name, content, timestamp, msg.from, false, false, null, null, false, null, SCRATCH_PAD_ROW);
+  addChatMessage(msg.from_name, content, timestamp, msg.from, false, false, replyTo || null, null, false, null, SCRATCH_PAD_ROW);
 }
 window.scratchPadKeep = scratchPadKeep;
 
@@ -197,7 +218,12 @@ function saveScratchPadMessages(msgs) {
   localStorage.setItem('hos_scratch_msgs', JSON.stringify(msgs));
 }
 
-/** Handle scratch pad slash commands. Returns true if handled. */
+/**
+ * Handle scratch pad slash commands. Returns true if handled. The rows a
+ * command writes are scratch pad rows too (SCRATCH_PAD_ROW, 10m R10): no
+ * React, Edit, server Pin or Delete, each of which would send their words to
+ * the server.
+ */
 function handleScratchCommand(content) {
   const parts = content.split(/\s+/);
   const cmd = parts[0].toLowerCase();
@@ -210,14 +236,14 @@ function handleScratchCommand(content) {
       addSystemMessage('Scratch pad cleared.');
       return true;
     case '/echo':
-      addChatMessage('Echo', arg || '(empty)', Date.now(), '__system__', false, false, null, null);
+      addChatMessage('Echo', arg || '(empty)', Date.now(), '__system__', false, false, null, null, false, null, SCRATCH_PAD_ROW);
       return true;
     case '/time':
-      addChatMessage('System', new Date().toLocaleString(), Date.now(), '__system__', false, false, null, null);
+      addChatMessage('System', new Date().toLocaleString(), Date.now(), '__system__', false, false, null, null, false, null, SCRATCH_PAD_ROW);
       return true;
     case '/markdown':
     case '/md':
-      addChatMessage('Preview', arg || '**bold** *italic* `code` ~~strike~~', Date.now(), '__system__', false, false, null, null);
+      addChatMessage('Preview', arg || '**bold** *italic* `code` ~~strike~~', Date.now(), '__system__', false, false, null, null, false, null, SCRATCH_PAD_ROW);
       return true;
     case '/help':
       addSystemMessage(
@@ -1549,8 +1575,13 @@ async function sendMessage() {
     input.style.height = 'auto';
     // Check for slash commands first.
     if (handleScratchCommand(content)) return;
-    // Otherwise, store and display as a local message.
-    scratchPadKeep(content);
+    // Otherwise, store and display as a local message. A reply made here is
+    // kept on the note as a quote (10m R10): only one made in the scratch pad
+    // (replyRefForChannel), its words with no file marker; the reply bar
+    // clears either way.
+    const replyTo = replyTarget ? replyRefForChannel(replyTarget, SCRATCH_PAD_ID) : null;
+    if (replyTarget) clearReplyTarget();
+    scratchPadKeep(content, replyTo);
     input.focus();
     return;
   }
@@ -2004,6 +2035,9 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   if (delBtn) {
     delBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      // Never from a private view (a P2P group, the scratch pad): the delete
+      // names the message to the server (chat-messages.js privateViewOpen).
+      if (typeof privateViewOpen === 'function' && privateViewOpen()) return;
       if (ws && ws.readyState === WebSocket.OPEN) {
         // Own delete → from: myKey (unchanged). Moderator delete of someone
         // else's message → from: the ORIGINAL sender's key (fromKey), which is
@@ -2263,10 +2297,11 @@ function switchChannel(channelId) {
   if (channelId === SCRATCH_PAD_ID) {
     const msgs = loadScratchPadMessages();
     msgs.forEach(m => {
-      addChatMessage(m.from_name, m.content, m.timestamp, m.from, false, false, null, null, false, null, SCRATCH_PAD_ROW);
+      const replyTo = (m.replyTo && typeof m.replyTo === 'object') ? m.replyTo : null;
+      addChatMessage(m.from_name, m.content, m.timestamp, m.from, false, false, replyTo, null, false, null, SCRATCH_PAD_ROW);
     });
     if (msgs.length === 0) {
-      addSystemMessage('Scratch Pad: your private workspace. Nothing is sent to anyone: what you type stays in this browser, and a file is encrypted here first, its key kept only here. Type /help for commands.');
+      addSystemMessage('Scratch Pad: your private workspace. ' + SCRATCH_PAD_NOTE + ' Type /help for commands.');
     }
     return;
   }
@@ -2313,7 +2348,7 @@ function updateChannelHeader() {
   const header = document.getElementById('channel-header');
   // Scratch pad gets a special header.
   if (isScratchPad()) {
-    header.innerHTML = '<span class="ch-name" style="color:var(--warning,#e0a030);"># scratch-pad</span><span class="ch-desc">Local only. Nothing sent to anyone.</span>';
+    header.innerHTML = '<span class="ch-name" style="color:var(--warning,#e0a030);"># scratch-pad</span><span class="ch-desc">' + esc(SCRATCH_PAD_NOTE) + '</span>';
     header.style.display = 'block';
     return;
   }

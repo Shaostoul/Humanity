@@ -462,8 +462,10 @@ window.syncSocialFromStore = syncSocialFromStore;
 
 /**
  * Seal + send one control message (recipient copy + self copy). With `pass`
- * ({serial, may, kind}), the message gives a friendship pass and waits for the
- * server's answer (10l, holdPassPut): its self-copy is held back until then.
+ * ({serial, may, kind, selfNow?}), the message gives a friendship pass and
+ * waits for the server's answer (10l, holdPassPut): its self-copy is held back
+ * until then, except with `selfNow` (a re-issue that takes something away,
+ * 10m R2), when it goes at once, right after the recipient copy.
  */
 async function sendDmControl(peer, text, ctlCert, pass) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return false;
@@ -474,7 +476,7 @@ async function sendDmControl(peer, text, ctlCert, pass) {
   }
   if (pass && !holdPassPut(peer, built, pass)) return false;
   ws.send(JSON.stringify(built.recipientPut));
-  if (!pass) ws.send(JSON.stringify(built.selfPut));
+  if (!pass || pass.selfNow) ws.send(JSON.stringify(built.selfPut));
   return true;
 }
 
@@ -493,11 +495,25 @@ async function sendDmControl(peer, text, ctlCert, pass) {
 // The self-copy (how my other devices learn which pass I gave) waits for the
 // answer too: a device that adopted a pass the friend never got would withdraw
 // the one they do hold (chat-dm-store.js adoptEchoedPass), and this page gets
-// its own self-copy back as well.
+// its own self-copy back as well. Except for a re-issue that takes something
+// away (10m R2, reissuePassTo): that one has already withdrawn the passes it
+// replaces, so there is nothing for my other devices to withdraw wrongly, and
+// holding its self-copy left them on the old choice when the new pass was
+// refused (one went stale; another minted the defaults and gave back what was
+// unticked). Its self-copy goes at once, before the withdrawals.
 
 const PASS_ANSWER_WAIT_MS = 30000;
-// ref -> {ref, peer, serial, may, kind ('new' | 'reissue' | 'request'), selfPut, timer, onAnswer}
+// ref -> {ref, peer, serial, may, kind ('new' | 'reissue' | 'request'), selfPut, selfSent, timer, onAnswer}
 const _passPuts = new Map();
+
+// Friends whose pass the server refused because of their own "who can reach
+// me" setting (`dm_put_refused` with reason "reach", 10m R7): two friends whose
+// settings both say Friends and who hold no pass from each other cannot give
+// each other one, and re-sending on every member list repeated a "Not
+// delivered" offer every minute. So for the rest of this page's life the sweep
+// does not send them one by itself, until their pass reaches me (ingestDmControl)
+// or the person follows, accepts or changes ticks for them (passPersonChoseFor).
+const _passReachRefused = new Set();
 
 /** A fresh ref for one put: 1 to 64 characters of [A-Za-z0-9_-] (10l), here "pass-" and 24 hex digits. */
 function passPutRef() {
@@ -514,7 +530,9 @@ function passPutInFlight(peer) {
 /**
  * Tag a built pass put with a ref and hold it until the server answers:
  * `built.recipientPut` gets the ref (the caller sends it), `built.selfPut` is
- * kept back. `pass`: {serial, may, kind, onAnswer?}; onAnswer({taken, outcome,
+ * kept back, unless `pass.selfNow` (10m R2: the caller sends it at once, and the
+ * answer then sends it no second time). `pass`: {serial, may, kind, selfNow?,
+ * onAnswer?}; onAnswer({taken, outcome,
  * reason}) runs once: `outcome` is 'ok', 'refused' or 'timeout', `reason` the
  * server's ("rate", "reach", "size", "other") for a refusal, and `taken` is
  * true only when the pass was recorded as given (an 'ok' for a pass withdrawn
@@ -532,9 +550,11 @@ function holdPassPut(peer, built, pass) {
   // A re-issue is my new choice for them: kept apart from the record, so the
   // ticks show it now and a refusal does not put them back.
   if (pass.kind === 'reissue') store.setPassIntent(peer, pass.may);
+  const selfNow = !!pass.selfNow;
   const entry = {
     ref, peer, serial: pass.serial, may: pass.may, kind: pass.kind || 'new',
-    selfPut: built.selfPut, onAnswer: typeof pass.onAnswer === 'function' ? pass.onAnswer : null, timer: 0,
+    selfPut: selfNow ? null : built.selfPut, selfSent: selfNow,
+    onAnswer: typeof pass.onAnswer === 'function' ? pass.onAnswer : null, timer: 0,
   };
   entry.timer = setTimeout(() => settlePassPut(ref, 'timeout', 'timeout'), PASS_ANSWER_WAIT_MS);
   _passPuts.set(ref, entry);
@@ -555,13 +575,15 @@ function settlePassPut(ref, outcome, reason) {
   if (outcome === 'ok') {
     taken = !!(store && store.passTaken(p.peer, p.serial, p.may, p.kind === 'reissue'));
     if (taken) {
-      // Now my other devices may hear of it.
+      // Now my other devices may hear of it (unless it went with the pass, 10m R2).
       if (p.selfPut && ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(p.selfPut));
       // The passes it replaces, and any sent earlier with no answer.
       sendPendingWithdrawals();
     }
   } else if (outcome === 'refused') {
-    if (store) store.passRefused(p.peer, p.serial);
+    if (store) store.passRefused(p.peer, p.serial, p.selfSent);
+    // Refused by their own setting (10m R7): not sent again by itself this session.
+    if (reason === 'reach' && p.kind !== 'request') _passReachRefused.add(p.peer);
   }
   // No answer in time: nothing is recorded, and the pass stays among those
   // perhaps given (chat-dm-store.js passesUnsure), so a later Unfollow or
@@ -586,6 +608,18 @@ window.friendPassPutAnswered = friendPassPutAnswered;
 window.holdPassPut = holdPassPut;
 window.passPutInFlight = passPutInFlight;
 
+/**
+ * The person decided about `peer` on this device (follow, accept, a tick): the
+ * holds that keep their pass from being sent by itself go (10m R3 "changed on
+ * my other device", R7 "refused by their setting").
+ */
+function passPersonChoseFor(peer) {
+  _passReachRefused.delete(peer);
+  const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
+  if (store) store.clearPassChangedElsewhere(peer);
+}
+window.passPersonChoseFor = passPersonChoseFor;
+
 // ── Friendship passes v2 (2026-10-09, docs/design/blocking-and-safe-mode.md
 // 10b), mirroring native src/engine/dm.rs. A pass names this server's did:hum
 // (window.hosServerDid, from its identify_challenge), a random serial and what
@@ -597,12 +631,16 @@ const _passMinting = new Set(); // peers a pass is being minted for right now (a
 /**
  * Issue + deliver MY friendship pass to `peer` (idempotent: nothing when one
  * stands, or one is on its way). Returns true when it was sent; it counts as
- * given once the server takes it (10l, holdPassPut).
+ * given once the server takes it (10l, holdPassPut). Nothing for a friend whose
+ * pass another of my devices withdrew (10m R3): that device's choice is not
+ * known here, and the defaults could give back what it took away. A person's
+ * own follow or accept clears that first (passPersonChoseFor).
  */
 async function sendFriendCertTo(peer) {
   const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
   if (!store || store.certSentTo(peer) || _passMinting.has(peer) || passPutInFlight(peer)) return;
   if (store.isBlocked(peer)) return; // never a pass to someone I blocked (step C)
+  if (store.passChangedOnOtherDevice(peer)) return;
   // With the protected setup on, a pass goes only to someone the PIN holder
   // let be a friend (10h): so a follow made before the setup and followed
   // back after it does not make a friend without the PIN. They can still send
@@ -675,11 +713,17 @@ async function sweepFriendPasses() {
     const pace = async () => {
       if (sent >= SWEEP_BURST) await new Promise((resolve) => setTimeout(resolve, SWEEP_GAP_MS));
     };
+    // Not a friend whose pass my other device withdrew (10m R3), nor one whose
+    // own setting refused my pass this session (R7): both wait for news or for
+    // the person.
+    const held = (peer) => store.passChangedOnOtherDevice(peer) || _passReachRefused.has(peer);
     for (const peer of store.friendsWithoutPass()) {
+      if (held(peer)) continue;
       await pace();
       if (await sendFriendCertTo(peer)) sent++;
     }
     for (const owed of store.passReissuesOwed()) {
+      if (held(owed.peer)) continue;
       await pace();
       if (await reissuePassTo(owed.peer, owed.may.split(','))) sent++;
     }
@@ -689,9 +733,18 @@ async function sweepFriendPasses() {
 }
 window.sweepFriendPasses = sweepFriendPasses;
 
-/** The relay confirmed a withdrawal (`cert_revoked {serial}`). */
+/**
+ * The relay confirmed a withdrawal (`cert_revoked {serial}`). One this device
+ * did not make came from another of my devices; a friend it left with no pass
+ * is drawn as "updating their pass" (10m R3, chat-dm-store.js withdrawalConfirmed).
+ */
 function friendPassWithdrawn(serial) {
-  if (window.hosDmStore && hosDmStore.ready && serial) hosDmStore.withdrawalConfirmed(serial);
+  if (!(window.hosDmStore && hosDmStore.ready && serial)) return;
+  const marked = hosDmStore.withdrawalConfirmed(serial);
+  if (Array.isArray(marked) && marked.length) {
+    updateFriendIndicators();
+    if (typeof renderSafetyPanel === 'function') renderSafetyPanel();
+  }
 }
 window.friendPassWithdrawn = friendPassWithdrawn;
 
@@ -711,15 +764,24 @@ async function reissuePassTo(peer, mayWords) {
   try {
     const built = await pqBuildFriendCert(peer, mayWords);
     if (!built) return false;
-    // Recorded, and the old passes withdrawn, when the server takes it (settlePassPut).
-    const sent = await sendDmControl(peer, CTL_FRIEND_CERT, built.cert, { serial: built.serial, may: built.may, kind: 'reissue' });
-    // Except a change that TAKES SOMETHING AWAY (an untick of Message, Call or
-    // Trade): the passes allowing it, standing or still unanswered, are
-    // withdrawn now, not when (or if) the server takes the new one. Consent
-    // taken back takes effect at once; until the new pass is taken the friend
-    // falls back to what my settings allow strangers. An added tick waits.
-    // The desktop app's src/engine/dm.rs reissue_pass.
-    if (sent && store.withdrawPassesWhere(peer, (p) => p.serial !== built.serial && reachGrantsBeyond(p.may, built.may)).length) {
+    // Does it TAKE SOMETHING AWAY (an untick of Message, Call or Trade): does
+    // any pass to them, standing or still unanswered, allow what this one does
+    // not?
+    const beyond = (p) => p.serial !== built.serial && reachGrantsBeyond(p.may, built.may);
+    const takesAway = (store.certsSent[peer] || []).concat(store.passesUnsure[peer] || []).some(beyond);
+    // Recorded, and the old passes withdrawn, when the server takes it
+    // (settlePassPut). A change that takes something away sends its self-copy
+    // at once (10m R2), so my other devices hear the new choice now, whatever
+    // the server's answer; an added tick holds it until the pass is taken.
+    const sent = await sendDmControl(peer, CTL_FRIEND_CERT, built.cert, { serial: built.serial, may: built.may, kind: 'reissue', selfNow: takesAway });
+    // And it withdraws the passes allowing what it takes away now, not when
+    // (or if) the server takes the new one. Consent taken back takes effect at
+    // once; until the new pass is taken the friend falls back to what my
+    // settings allow strangers. An added tick waits. The new pass and its
+    // self-copy went first, so my other devices are told the new choice before
+    // they hear the old pass was withdrawn. The desktop app's src/engine/dm.rs
+    // reissue_pass.
+    if (sent && store.withdrawPassesWhere(peer, beyond).length) {
       sendPendingWithdrawals();
     }
     return sent;
@@ -739,9 +801,29 @@ window.reissuePassTo = reissuePassTo;
  */
 function friendTicks(peer) {
   const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
+  // A friend whose pass my other device withdrew (10m R3) holds none from me,
+  // and what that device chose is not known here yet: no tick is drawn as
+  // given, so a tick made here gives exactly what is ticked, never back what
+  // the other device took away.
+  if (store && store.passChangedOnOtherDevice(peer)) {
+    const none = {};
+    for (const kind of REACH_KINDS) none[kind] = false;
+    return none;
+  }
   return reachTicksFromMay(store ? store.passMayIntended(peer) : null);
 }
 window.friendTicks = friendTicks;
+
+/**
+ * Did another of my devices withdraw `peer`'s pass, leaving them none from me,
+ * with its choice not heard here yet (10m R3)? The Safety page draws them
+ * "(updating their pass)", their ticks still free to change.
+ */
+function friendPassChangedElsewhere(peer) {
+  const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
+  return !!(store && store.passChangedOnOtherDevice(peer));
+}
+window.friendPassChangedElsewhere = friendPassChangedElsewhere;
 
 /**
  * Is a pass for `peer` being minted or waiting for the server's answer right
@@ -772,7 +854,11 @@ async function setFriendTick(peer, kind, on) {
     return protectedAskThen('reach_tick', () => setFriendTick(peer, kind, on));
   }
   ticks[kind] = !!on;
-  return reissuePassTo(peer, reachMayFromTicks(ticks));
+  const sent = await reissuePassTo(peer, reachMayFromTicks(ticks));
+  // The person chose for them here (10m R3, R7): once that pass is on its way
+  // the holds go, and the sweep keeps sending this choice if it is refused.
+  if (sent) passPersonChoseFor(peer);
+  return sent;
 }
 window.setFriendTick = setFriendTick;
 
@@ -793,6 +879,9 @@ async function setFollowLocal(peer, on) {
     return protectedAskThen('befriend', () => setFollowLocal(peer, on));
   }
   if (!on && typeof protectedForget === 'function') protectedForget(peer);
+  // Following them here is the person's own word (10m R3, R7): their pass may
+  // be sent again, from what this device knows.
+  if (on) passPersonChoseFor(peer);
   if (window.hosDmStore && hosDmStore.ready) hosDmStore.setFollowing(peer, on);
   if (on) myFollowing.add(peer); else myFollowing.delete(peer);
   await sendDmControl(peer, on ? CTL_FOLLOW : CTL_UNFOLLOW);
@@ -877,6 +966,9 @@ async function ingestDmControl(inner) {
     } else if (await pqVerifyFriendCert(inner.from, myKey, inner.cert)) {
       const hadOne = store ? !!store.certFor(inner.from) : false;
       if (store) store.storeCertFrom(inner.from, inner.cert);
+      // Their pass reached me: mine, refused by their setting before (10m
+      // R7), can go now, presenting theirs.
+      _passReachRefused.delete(inner.from);
       if (!hadOne) {
         const peerName = (window.peerData && peerData[peer]?.display_name) || shortKey(peer);
         addSystemMessage(`🤝 You and ${esc(peerName)} are friends now: messages between you are unlimited.`);
