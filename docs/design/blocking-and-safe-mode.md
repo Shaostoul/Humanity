@@ -1158,8 +1158,9 @@ as a signed setting (10a) comes with federation work.
 - `reach_settings` from the relay is the source of truth for what the Safety page shows.
 
 **Proof:** relay tests for each kind under each audience (including the defaults with no row,
-`groups` with a shared P2P group, admins bound, a contact request let through at 256 bytes and
-refused at 1,024, the 5-a-day budget, a refused call getting no reply, a refused `dc_offer`); a
+`groups` with a shared P2P group, admins bound, a contact request let through under `friends` and
+refused under `nobody`, the 5-a-day budget, the accepter's reply admitted because it carries the
+requester's pass, a refused call getting no reply, a refused `dc_offer`); a
 storage test for the table, export and erase; client unit tests for the settings model and the
 "show as request" rule; a headless snapshot of Settings > Safety (`just snapshot`), only when no
 other HumanityOS instance runs; `just verify`, `just verify-relay`.
