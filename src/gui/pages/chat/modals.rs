@@ -245,6 +245,7 @@ pub(crate) fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut Gu
     let is_following = state.chat_following_keys.contains(&key)
         || state.chat_friends.iter().any(|f| f.public_key == key);
     let follows_me = state.chat_followers.contains(&key);
+    let blocked = crate::engine::block::is_blocked(state, &key); // no Follow until Unblock (step C)
 
     // Voice call (v0.705). Disabled when we're already in any call state or
     // calling ourselves; the ring goes out and the callee (web or native)
@@ -430,7 +431,7 @@ pub(crate) fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut Gu
             } else {
                 // "Follow back" when they already follow you (v0.721).
                 let follow_label = if follows_me { "Follow back" } else { "Follow" };
-                if widgets::Button::success(follow_label).full_width().show(&mut cols[1], theme) {
+                if widgets::Button::success(follow_label).disabled(blocked).full_width().show(&mut cols[1], theme) {
                     // Follows removal (2026-08-24): sealed control message +
                     // certificate exchange when it becomes mutual.
                     crate::engine::dm::set_follow(state, &key, true);
@@ -444,6 +445,7 @@ pub(crate) fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut Gu
             }
         });
         super::reach::draw_refusal_notice(ui, theme, state, &key); // their gate refused us (step B)
+        super::blocking::draw_profile_block(ui, theme, state, &key); // Block / Unblock (step C)
 
         // (v0.845: the old "Watch Stream" button was a dead no-op — the native
         // roster carries no per-user stream URL and there's no native stream

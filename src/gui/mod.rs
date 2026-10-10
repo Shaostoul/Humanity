@@ -2417,6 +2417,10 @@ pub struct GuiState {
     /// "Who can reach me" (step B, 2026-10-09): a change asked of the server and not yet
     /// answered, and who refused our messages. The settings themselves live in `dm_store`.
     pub reach: crate::net::reach::ReachUi,
+    /// The people this identity has blocked (step C, 2026-10-09): one encrypted file per
+    /// identity, NOT per server, loaded by `engine::block::ensure_block_list`. Kept across a
+    /// server switch: a key is the same person on every server.
+    pub block_list: Option<crate::net::block_list::BlockList>,
 
     // ── Cosmos page state (v0.203.0, Phase 3) ──
     /// Which view the Cosmos page is currently rendering.
@@ -3965,6 +3969,7 @@ impl Default for GuiState {
             dm_store: None,
             dm_fetch_sent: false,
             reach: Default::default(),
+            block_list: None,
             server_settings: None,
             server_settings_requested: false,
             erase_memory_days: None,

@@ -15,11 +15,18 @@
 /// - Call or room: the other person in our current call, and everyone in the
 ///   voice room we are in (its roster, plus anyone connected to us in it).
 /// - Asked by us: the person the Dev tools "P2P test" was pressed for.
+///
+/// Someone we blocked is never answered, whatever else is true of them (step C, 2026-10-09: a
+/// group or a voice room we share with them does not count). The message pump drops their
+/// signals before they get here too (engine/block.rs `screens_out`); this gate stands on its own.
 pub(crate) fn dc_offer_reason(
     gs: &mut crate::gui::GuiState,
     from: &str,
 ) -> Option<crate::net::webrtc::OfferReason> {
     use crate::net::webrtc::{direct_offer_reason, holds_friendship, OfferFacts};
+    if crate::engine::block::is_blocked(gs, from) {
+        return None;
+    }
     let me = gs.profile_public_key.clone();
     let sender_is_friend = crate::engine::dm::ensure_dm_store(gs)
         && gs.dm_store.as_ref().map_or(false, |s| {
@@ -114,6 +121,26 @@ mod dc_offer_tests {
         assert_eq!(super::dc_offer_reason(&mut gs, "t1"), Some(OfferReason::AskedByUs));
 
         assert_eq!(super::dc_offer_reason(&mut gs, "stranger"), None, "still nobody else");
+    }
+
+    /// Someone we blocked (step C) gets no answer even from a group, our call or our voice room.
+    /// Seen red 2026-10-09 with the `is_blocked` check taken out of `dc_offer_reason`: "a blocked
+    /// group member gets no answer", left: Some(GroupMember).
+    #[test]
+    fn a_blocked_key_is_never_answered() {
+        let mut gs = app();
+        let mut list = crate::net::block_list::BlockList::in_temp(&[71u8; 32], "me", "dc-offer");
+        list.block("g1", 1);
+        gs.block_list = Some(list);
+        gs.p2p_groups.push(crate::net::api_v2::P2pGroupInfo {
+            group_id: "g".into(),
+            name: "Garden".into(),
+            members: vec!["me".into(), "g1".into(), "g3".into()],
+            is_creator: false,
+        });
+        gs.call_active = Some(("g1".into(), "Gee".into()));
+        assert_eq!(super::dc_offer_reason(&mut gs, "g1"), None, "a blocked group member gets no answer");
+        assert_eq!(super::dc_offer_reason(&mut gs, "g3"), Some(OfferReason::GroupMember), "the rest of the group still does");
     }
 
     /// Seen red 2026-10-09 with `voice_signal_wanted` passing everything, as

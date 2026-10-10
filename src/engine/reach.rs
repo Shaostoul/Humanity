@@ -236,9 +236,15 @@ pub(crate) fn settle_requests(gs: &mut GuiState) {
 /// `true`; never the name a request claimed. Someone not on the list right now shows the start
 /// of their key, with `false`.
 pub(crate) fn request_name(gs: &GuiState, req: &ContactRequest) -> (String, bool) {
-    match gs.chat_users.iter().find(|u| u.public_key == req.key) {
+    member_name(gs, &req.key)
+}
+
+/// The name the server's member list holds for `key`, with `true`; otherwise the start of the
+/// key, with `false`. Also how Settings > Safety > Blocked people names each person (step C).
+pub(crate) fn member_name(gs: &GuiState, key: &str) -> (String, bool) {
+    match gs.chat_users.iter().find(|u| u.public_key == key) {
         Some(u) if !u.name.is_empty() && u.name != "Anonymous" => (u.name.clone(), true),
-        _ => (req.key.chars().take(8).collect(), false),
+        _ => (key.chars().take(8).collect(), false),
     }
 }
 
@@ -249,6 +255,9 @@ pub(crate) fn request_name(gs: &GuiState, req: &ContactRequest) -> (String, bool
 /// are sent. The pass is ours for them, with the default `may` (step A): asking someone to
 /// connect is consenting to hear back from them.
 pub(crate) fn contact_request_puts(gs: &GuiState, peer: &str) -> Result<(serde_json::Value, serde_json::Value, SentPass), String> {
+    if crate::engine::block::is_blocked(gs, peer) {
+        return Err("You blocked them. Unblock them first, in Settings > Safety > Blocked people.".into());
+    }
     if !gs.peer_kyber_keys.contains_key(peer) {
         return Err("Their key is not known yet. They need to have been online on this server once.".into());
     }

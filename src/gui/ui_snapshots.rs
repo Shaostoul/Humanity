@@ -1049,6 +1049,28 @@ fn settings_panel(
     });
 }
 
+// Settings > Safety > Blocked people (step C of docs/design/blocking-and-safe-mode.md 10d,
+// 2026-10-09): two people blocked, one the member list names and one not on it right now, each
+// with the date blocked and Unblock, then the line saying what blocking cannot do. The list is
+// built in memory and never saved, so nothing lands on disk.
+#[test]
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_safety_blocked() {
+    render_page_png("safety_blocked", 960, 520, |ctx, theme, state| {
+        if state.block_list.is_none() {
+            state.profile_public_key = "me".to_string();
+            let mut list = crate::net::block_list::BlockList::in_temp(&[7u8; 32], "me", "snapshot");
+            list.block("dana", 1_791_504_000_000); // 2026-10-09
+            list.block("e1f2a3b4c5d6", 1_790_726_400_000); // 2026-09-30
+            state.block_list = Some(list);
+            state.chat_users.push(crate::gui::ChatUser { name: "Dana Okafor".into(), public_key: "dana".into(), role: String::new(), status: "online".into() });
+        }
+        settings_panel(ctx, theme, state, |ui, theme, state| {
+            crate::gui::pages::safety::draw_blocked_people(ui, theme, state, theme.info())
+        });
+    });
+}
+
 #[test]
     #[ignore = "GPU snapshot; run via `just snapshots`"]
     fn snapshot_credits_settings() {

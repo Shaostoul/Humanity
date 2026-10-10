@@ -27,6 +27,9 @@ pub(crate) fn open_verify_dm(raw_content: &str, gui_state: &GuiState) -> Result<
 /// Make sure the active server's DM store is loaded. Returns false when
 /// identity or server aren't established yet (nothing to key the store by).
 pub(crate) fn ensure_dm_store(gui_state: &mut GuiState) -> bool {
+    // The block list is the identity's, not the server's (step C), but it is needed wherever DMs
+    // are, so it is loaded here too.
+    crate::engine::block::ensure_block_list(gui_state);
     if gui_state.dm_store.is_some() {
         return true;
     }
@@ -90,6 +93,9 @@ pub(crate) fn rebuild_dm_sidebar(gui_state: &mut GuiState) {
     let summaries = store.conversations();
     let rebuilt: Vec<crate::gui::ChatDm> = summaries
         .iter()
+        // A conversation with someone we blocked leaves the list (step C); it is kept in the
+        // store, so Unblock brings it back.
+        .filter(|s| !crate::engine::block::is_blocked(gui_state, &s.peer))
         .map(|s| {
             let text = dm_preview_text(&s.last_text);
             let preview = if s.last_from_me {
@@ -147,6 +153,12 @@ pub(crate) fn reload_dm_channel(gui_state: &mut GuiState, peer: &str) {
 /// controls sync our social state across devices for free.
 pub(crate) fn ingest_dm(gui_state: &mut GuiState, inner: &DmInner) -> bool {
     if !ensure_dm_store(gui_state) {
+        return false;
+    }
+    // Step C (2026-10-09, blocking-and-safe-mode.md 10d), before anything is stored, listed or
+    // notified: a note to ourselves about the block list is applied, and anything from a key we
+    // blocked (a message, a knock, a follow notice, a pass, a contact request) is dropped.
+    if crate::engine::block::screens_dm(gui_state, inner) {
         return false;
     }
     if matches!(
@@ -357,6 +369,9 @@ pub(crate) fn send_friend_cert(gui_state: &mut GuiState, peer: &str) {
 /// once it is sent and recorded; None when it cannot go out yet (no server identity, no DM key
 /// for them, locked, offline), which the pass sweep on the next member list retries.
 fn mint_and_send_pass(gui_state: &mut GuiState, peer: &str) -> Option<String> {
+    if crate::engine::block::is_blocked(gui_state, peer) {
+        return None; // never a pass for someone we blocked (step C), whatever a stray echo says
+    }
     let may_call = gui_state.dm_store.as_ref()?.may_call(peer);
     if !gui_state.peer_kyber_keys.contains_key(peer) {
         return None; // cannot seal to them yet; no point signing a pass that cannot be sent
@@ -423,7 +438,8 @@ pub(crate) fn reissue_pass(gui_state: &mut GuiState, peer: &str) {
     }
 }
 
-/// Take back every pass I gave `peer` (on Unfollow; later on Block and Remove friend): the
+/// Take back every pass I gave `peer` (on Unfollow; Block does the same through
+/// engine/block.rs `enforce_on_store`, which also unfollows without telling them): the
 /// store moves their serials to the waiting withdrawals, and those go to the relay now if we
 /// are connected, or on the next connection.
 pub(crate) fn withdraw_passes(gui_state: &mut GuiState, peer: &str) {
@@ -479,6 +495,9 @@ pub(crate) fn sweep_friend_passes(gui_state: &mut GuiState) {
     if !ensure_dm_store(gui_state) {
         return;
     }
+    // Step C: a block made on another server or device takes back what we gave here first, so
+    // nothing below hands a blocked person a pass.
+    crate::engine::block::sweep(gui_state);
     send_pending_withdrawals(gui_state);
     let owed = gui_state.dm_store.as_ref().map(|s| s.friends_without_pass()).unwrap_or_default();
     for peer in owed {
@@ -526,6 +545,11 @@ pub(crate) fn with_pass_on_offer(gui_state: &GuiState, frame: String) -> String 
 /// to the friend lane, and the relay now honours that at once.
 pub(crate) fn set_follow(gui_state: &mut GuiState, peer: &str, on: bool) {
     if !ensure_dm_store(gui_state) {
+        return;
+    }
+    if on && crate::engine::block::is_blocked(gui_state, peer) {
+        // A block takes the follow back (step C); following again starts with Unblock.
+        gui_state.pending_notices.push("You blocked them. Unblock them first, in Settings > Safety > Blocked people.".to_string());
         return;
     }
     if let Some(store) = gui_state.dm_store.as_mut() {

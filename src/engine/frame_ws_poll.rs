@@ -76,7 +76,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
             state.gui_state.ws_msgs_in = state.gui_state.ws_msgs_in.saturating_add(1);
             // Log raw message to debug console (truncate long messages)
             crate::debug::push_debug(format!("WS <<< {}", clip(&raw, 300)));
-            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&raw) {
+            if let Some(val) = serde_json::from_str::<serde_json::Value>(&raw).ok().filter(|v| !crate::engine::block::screens_out(&state.gui_state, v)) { // a blocked key's post, typing, reaction, ring or offer goes no further (step C)
                 let msg_type = val.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
                 log::debug!("WS recv: type={}", msg_type);
                 match val.get("type").and_then(|t| t.as_str()) {

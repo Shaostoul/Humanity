@@ -230,8 +230,9 @@ fn draw_user_row(
         ui.painter().circle_filled(egui::pos2(cx + dot_r, cy), dot_r, dot_color);
         cx += theme.status_dot_size + 4.0;
 
-        // Name
-        let nc = if status == "offline" { theme.text_muted() } else { theme.text_primary() };
+        // Name (muted for someone offline, or someone we blocked, step C)
+        let blocked = crate::engine::block::is_blocked(state, public_key);
+        let nc = if status == "offline" || blocked { theme.text_muted() } else { theme.text_primary() };
         let name_galley = ui.painter().layout_no_wrap(
             name.to_string(),
             egui::FontId::proportional(theme.body_size),
@@ -300,7 +301,9 @@ fn draw_user_row(
         let i_follow = state.chat_following_keys.contains(public_key)
             || state.chat_friends.iter().any(|f| f.public_key == public_key);
         let follows_me = state.chat_followers.contains(public_key);
-        if public_key != state.profile_public_key && (i_follow || follows_me) {
+        if crate::engine::block::is_blocked(state, public_key) {
+            response.clone().on_hover_text("You blocked them. Right-click to unblock.");
+        } else if public_key != state.profile_public_key && (i_follow || follows_me) {
             let txt = match (i_follow, follows_me) {
                 (true, true) => "Friends (you follow each other)",
                 (true, false) => "You follow them (not followed back yet)",
@@ -316,6 +319,10 @@ fn draw_user_row(
         state.chat_user_modal_open = true;
         state.chat_user_modal_name = name.to_string();
         state.chat_user_modal_key = public_key.to_string();
+    }
+    // Right-click: Block or Unblock this person (step C; their profile has it too).
+    if !public_key.is_empty() && public_key != state.profile_public_key {
+        response.context_menu(|ui| super::blocking::member_menu(ui, state, public_key));
     }
 }
 

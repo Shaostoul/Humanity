@@ -187,8 +187,9 @@ pub struct DmInner {
     pub ts: u64,
     /// The message text. Control messages (follows-graph removal,
     /// 2026-08-24) use reserved markers: `[[hum:follow]]`,
-    /// `[[hum:unfollow]]`, `[[hum:friend-cert]]` — clients act on them
-    /// instead of rendering them.
+    /// `[[hum:unfollow]]`, `[[hum:friend-cert]]`, and the notes to
+    /// oneself `[[hum:block:v1]]<key>` / `[[hum:unblock:v1]]<key>`
+    /// (2026-10-09). Clients act on them instead of rendering them.
     pub text: String,
     /// Base64 Dilithium3 signature (kept for dedupe keying).
     pub sig_b64: String,
@@ -203,6 +204,13 @@ pub struct DmInner {
 pub const CTL_FOLLOW: &str = "[[hum:follow]]";
 pub const CTL_UNFOLLOW: &str = "[[hum:unfollow]]";
 pub const CTL_FRIEND_CERT: &str = "[[hum:friend-cert]]";
+/// Block, step C of docs/design/blocking-and-safe-mode.md (10d, 2026-10-09): notes a person
+/// sends ONLY to themselves (sealed to their own key, `to` = their own key), so their other
+/// devices learn the block list without the server knowing it. The blocked person's identity
+/// key follows the marker directly: `[[hum:block:v1]]<key>`. The blocked person is never sent
+/// anything. Must match the web client exactly.
+pub const CTL_BLOCK: &str = "[[hum:block:v1]]";
+pub const CTL_UNBLOCK: &str = "[[hum:unblock:v1]]";
 
 /// Encrypted-attachment marker (2026-08-24). A DM whose text starts with this
 /// carries a base64 JSON payload `{url,k,n,name,mime,size}` instead of prose:
