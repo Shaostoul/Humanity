@@ -6,8 +6,9 @@
 //   MOD (green, mod and admin, affects the user for everyone): Text mute, Kick
 //     from server. (Server voice-mute and Disconnect-from-voice arrive with the
 //     relay handlers; shown disabled until then.)
-//   ADMIN (blue, admin only, heavy or permanent): Ban, Unban, Game ban, Verify,
-//     Promote to Mod, Demote.
+//   ADMIN (blue, admin and owner, heavy or permanent): Ban, Unban, Game ban, Verify,
+//     Promote to Mod, Demote, and Erase their data (10i; not on an admin's or the
+//     owner's row).
 //
 // The audio controls drive a per-peer Web Audio gain graph set up at the voice
 // mesh ontrack site (chat-voice-rooms.js calls window.setupPeerAudio). The
@@ -300,6 +301,11 @@
       row(adm, 'Verify', 'tier-admin', function () { withTarget(name, key, function () { if (typeof ctxCommand === 'function') ctxCommand('/verify'); }); });
       row(adm, 'Promote to mod', 'tier-admin', function () { withTarget(name, key, function () { if (typeof ctxCommand === 'function') ctxCommand('/mod'); }); });
       row(adm, 'Demote', 'tier-admin', function () { withTarget(name, key, function () { if (typeof ctxCommand === 'function') ctxCommand('/unmod'); }); });
+      // 10i: erase everything this server stores about them (chat-ui.js opens the confirm).
+      // Never on an admin's or the owner's row (/shared/admin-erase.js).
+      if (typeof adminEraseOfferedFor === 'function' && adminEraseOfferedFor(key)) {
+        row(adm, ADMIN_ERASE_LABEL, 'tier-admin', function () { closeVoiceUserModal(); if (typeof openAdminEraseDialog === 'function') openAdminEraseDialog({ target: key, name: name }); }, { danger: true });
+      }
     }
 
     overlay.addEventListener('click', function (e) { if (e.target === overlay) closeVoiceUserModal(); });
