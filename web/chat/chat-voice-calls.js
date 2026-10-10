@@ -283,7 +283,16 @@ handleMessage = function(msg) {
   _origHandleMessage3(msg);
 };
 
+/** Is this caller someone I blocked (app.js isBlockedKey, step C)? */
+function callerBlocked(key) {
+  return typeof isBlockedKey === 'function' && isBlockedKey(key);
+}
+
 function handleVoiceCallMessage(msg) {
+  // A ring from someone I blocked is ignored without a word: no screen, no
+  // chime, and no "reject" back, which would tell them I am online (step C,
+  // docs/design/blocking-and-safe-mode.md 4.7). It rings out on their side.
+  if (msg.action === 'ring' && callerBlocked(msg.from)) return;
   const fromName = resolveSenderName(msg.from_name, msg.from);
   switch (msg.action) {
     case 'ring':
@@ -404,7 +413,7 @@ handleMessage = function(msg) {
     sendSWNotification('DM from ' + senderName, msg.content || 'New message', 'dm-' + msg.from, '/chat');
   }
   // Notification for incoming call
-  if (msg.type === 'voice_call' && msg.action === 'ring' && document.hidden) {
+  if (msg.type === 'voice_call' && msg.action === 'ring' && document.hidden && !callerBlocked(msg.from)) {
     const callerName = resolveSenderName(msg.from_name, msg.from);
     sendSWNotification('Incoming call from ' + callerName, 'Tap to answer', 'call-' + msg.from, '/chat');
   }

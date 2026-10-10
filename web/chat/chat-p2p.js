@@ -384,7 +384,8 @@ async function initDataChannel(peerPubKey) {
 //   - the person you are in a call with, once the call was accepted,
 //   - someone in the voice room you are in.
 // Anyone else gets no answer at all, so they learn nothing, not even that the
-// offer arrived. These are the people every feature that opens a direct
+// offer arrived. Someone you blocked gets none either, even when they are one
+// of the people above (step C). These are the people every feature that opens a direct
 // connection reaches anyway: the group mesh (ensureGroupMesh) offers only to
 // roster members, and a call or a voice room already connects its people
 // directly. Test: scripts/tests/p2p-direct-offers.test.js
@@ -424,10 +425,15 @@ function isCallOrRoomPartner(peerKey) {
   return false;
 }
 
-/** May this browser answer a direct-connection offer from `peerKey`? See the note above. */
+/**
+ * May this browser answer a direct-connection offer from `peerKey`? See the
+ * note above. Never someone I blocked (step C, 2026-10-09), whatever else
+ * they are to me: a contact, a group mate, a voice-room neighbour.
+ */
 function mayAnswerDirectOffer(peerKey) {
   if (typeof peerKey !== 'string' || peerKey === '') return false;
   if (sameKeyHex(typeof myKey === 'string' ? myKey : '', peerKey)) return true;
+  if (typeof isBlockedKey === 'function' && isBlockedKey(peerKey)) return false;
   if (Object.keys(p2pContacts).some(k => sameKeyHex(k, peerKey))) return true;
   if (isP2pGroupMate(peerKey)) return true;
   if (isCallOrRoomPartner(peerKey)) return true;
@@ -594,6 +600,9 @@ async function onDCMessage(event, peerKey) {
   let inner = null;
   try { inner = await pqOpenDmEnvelope(msg.env); } catch {}
   if (!inner || inner.from !== peerKey) return;
+  // From someone I blocked (or a block note, which never comes this way):
+  // dropped before it is stored or notified, as for mail (chat-privacy.js).
+  if (typeof blockScreenDm === 'function' && blockScreenDm(inner)) return;
   // A contact request, or a DM from someone my "who can reach me" settings
   // refuse (step B): a request, name only, its text dropped, as for mail
   // (chat-privacy.js ingestContactRequest, reachScreenDm).

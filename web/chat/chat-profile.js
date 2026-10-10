@@ -1,6 +1,6 @@
 // ── Profile System ──
-// Goal: keep the local profile store in sync with the relay, render the View
-// Profile overlay, and manage the client-side block list.
+// Goal: keep the local profile store in sync with the relay and render the View
+// Profile overlay. (The block list lives in chat-privacy.js since step C.)
 //
 // CANONICAL PROFILE EDITOR (2026-07-14, docs/UI-AUDIT.md section 5):
 // the standalone /profile PAGE (web/pages/profile.html) is the ONE place a user
@@ -27,7 +27,7 @@
 //
 // Depends on (from app.js): ws, myKey, myName, esc, generateIdenticon,
 //   roleBadge, peerData, isFriend, isFollowing, myFollowing, myFollowers,
-//   addSystemMessage, reRenderMessagesForBlockChange, rerenderUserList.
+//   addSystemMessage.
 
 /** Canonical local store for the network-facing profile. Also written by /profile. */
 const PROFILE_LS_KEY = 'humanity_profile';
@@ -464,75 +464,9 @@ function closeViewProfileOverlay() {
   pendingProfileView = null;
 }
 
-// ── Block List (client-side) ──
-// Stores blocked usernames in localStorage; messages from blocked users are hidden
-// client-side without any server interaction (server never knows about blocks).
-function getBlockList() {
-  try { return JSON.parse(localStorage.getItem('humanity_blocks') || '[]'); }
-  catch { return []; }
-}
-function setBlockList(list) {
-  localStorage.setItem('humanity_blocks', JSON.stringify(list));
-}
-function isBlocked(name) {
-  return getBlockList().some(b => b.toLowerCase() === name.toLowerCase());
-}
-
-function blockUser(name) {
-  if (name.toLowerCase() === myName.toLowerCase()) {
-    addSystemMessage("You can't block yourself.");
-    return;
-  }
-  const list = getBlockList();
-  if (list.some(b => b.toLowerCase() === name.toLowerCase())) {
-    addSystemMessage(`${name} is already blocked.`);
-    return;
-  }
-  list.push(name);
-  setBlockList(list);
-  addSystemMessage(`🚫 Blocked ${name}. Their messages are now hidden.`);
-  reRenderMessagesForBlockChange();
-  rerenderUserList();
-}
-
-function unblockUser(name) {
-  const list = getBlockList();
-  const idx = list.findIndex(b => b.toLowerCase() === name.toLowerCase());
-  if (idx === -1) {
-    addSystemMessage(`${name} is not blocked.`);
-    return;
-  }
-  list.splice(idx, 1);
-  setBlockList(list);
-  addSystemMessage(`✅ Unblocked ${name}.`);
-  reRenderMessagesForBlockChange();
-  rerenderUserList();
-}
-
-function showBlockList() {
-  const list = getBlockList();
-  if (list.length === 0) {
-    addSystemMessage('No blocked users.');
-  } else {
-    addSystemMessage('🚫 Blocked users: ' + list.join(', '));
-  }
-}
-
-/** Re-filter visible messages after a block/unblock change. */
-function reRenderMessagesForBlockChange() {
-  const container = document.getElementById('messages');
-  const msgs = container.querySelectorAll('.message[data-from]');
-  msgs.forEach(el => {
-    const authorEl = el.querySelector('.author');
-    if (!authorEl) return;
-    const authorName = authorEl.dataset.username;
-    if (authorName && isBlocked(authorName)) {
-      el.style.display = 'none';
-    } else {
-      el.style.display = '';
-    }
-  });
-}
+// (The block list moved to chat-privacy.js in step C, 2026-10-09: it is a list
+// of identity keys kept in the encrypted local store and synced between my
+// devices, replacing the old list of names in localStorage outright.)
 
 // ── Recovery Phrase (BIP39) UI ──
 // Goal: let users back up and restore their Ed25519 identity using a standard
@@ -1183,32 +1117,6 @@ async function doRemoveKeyProtection() {
 // deleted in Inc5b/v0.265 and no caller remained, so the modal sent an ignored
 // message yet swapped the local key regardless, a desync hazard. In-app key
 // replacement now lives in the native Settings "Replace Identity" flow.)
-
-/** Force re-render user list with updated block indicators. */
-function rerenderUserList() {
-  const list = document.getElementById('peer-list');
-  const peers = list.querySelectorAll('.peer[data-username]');
-  peers.forEach(el => {
-    const name = el.dataset.username;
-    if (!name) return;
-    const blocked = isBlocked(name);
-    let indicator = el.querySelector('.block-indicator');
-    if (blocked && !indicator) {
-      const span = document.createElement('span');
-      span.className = 'block-indicator';
-      span.innerHTML = ' ' + hosIcon('block', 14);
-      span.title = 'Blocked';
-      span.style.fontSize = '0.65rem';
-      el.appendChild(span);
-      el.style.textDecoration = 'line-through';
-      el.style.opacity = '0.5';
-    } else if (!blocked && indicator) {
-      indicator.remove();
-      el.style.textDecoration = '';
-      if (el.style.opacity === '') el.removeAttribute('style');
-    }
-  });
-}
 
 // ── System Info ──────────────────────────────────────────────────────────────
 // Detects hardware/OS via browser APIs, lets users add overrides, and provides

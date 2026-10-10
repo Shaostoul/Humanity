@@ -67,7 +67,13 @@ function sendReaction(targetFrom, targetTs, emoji) {
   applyReaction(targetFrom, Number(targetTs), emoji, myKey, myName);
 }
 
+/** Is this key someone I blocked (app.js isBlockedKey, step C)? Their reactions and thread replies are not shown. */
+function fromBlockedKey(reactorKey) {
+  return typeof isBlockedKey === 'function' && isBlockedKey(reactorKey);
+}
+
 function applyReaction(targetFrom, targetTs, emoji, reactorKey, reactorName) {
+  if (fromBlockedKey(reactorKey)) return;
   const rKey = targetFrom + ':' + targetTs;
   if (!messageReactions[rKey]) messageReactions[rKey] = {};
   if (!messageReactions[rKey][emoji]) messageReactions[rKey][emoji] = new Set();
@@ -90,14 +96,18 @@ function renderReactions(targetFrom, targetTs) {
   if (!msgEl) return;
 
   msgEl.innerHTML = Object.entries(reactions).map(([emoji, users]) => {
+    // Counted without anyone I blocked (a reaction from before the block too).
+    const shown = Array.from(users).filter((k) => !fromBlockedKey(k)).length;
+    if (shown === 0) return '';
     const isMine = users.has(myKey);
-    return `<span class="reaction-badge${isMine ? ' mine' : ''}" data-target-from="${esc(targetFrom)}" data-target-ts="${targetTs}" data-emoji="${esc(emoji)}">${esc(emoji)} <span class="count">${users.size}</span></span>`;
+    return `<span class="reaction-badge${isMine ? ' mine' : ''}" data-target-from="${esc(targetFrom)}" data-target-ts="${targetTs}" data-emoji="${esc(emoji)}">${esc(emoji)} <span class="count">${shown}</span></span>`;
   }).join('');
   if (window.twemoji) twemoji.parse(msgEl);
 }
 
 // Apply a reaction from sync (add-only, no toggle).
 function applyReactionSync(targetFrom, targetTs, emoji, reactorKey) {
+  if (fromBlockedKey(reactorKey)) return;
   const rKey = targetFrom + ':' + targetTs;
   if (!messageReactions[rKey]) messageReactions[rKey] = {};
   if (!messageReactions[rKey][emoji]) messageReactions[rKey][emoji] = new Set();
@@ -359,8 +369,7 @@ let typingNames = {};    // key → display name
 let lastTypingSent = 0;  // throttle outbound typing events
 
 function showTypingIndicator(name) {
-  // Suppress typing indicators from blocked users.
-  if (isBlocked(name)) return;
+  // (Someone I blocked never reaches here: app.js drops their `typing` by key.)
   // Track who is typing, clear after 3 seconds of no updates.
   const key = name;
   typingNames[key] = name;
@@ -589,6 +598,8 @@ function closeThreadPanel() {
 function renderThreadMessages(messages) {
   const messagesDiv = document.getElementById('thread-panel-messages');
   if (!currentThread) return;
+  // Replies from someone I blocked are not shown (by key, step C).
+  messages = (messages || []).filter((m) => !(m && fromBlockedKey(m.from)));
   // Keep parent, rebuild replies.
   const parentHtml = `<div class="thread-msg thread-parent">
     <span class="thread-msg-author">${esc(currentThread.author)}</span>

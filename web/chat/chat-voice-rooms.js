@@ -953,7 +953,12 @@ function renderUnifiedRightSidebar() {
     const live = typeof streamingBadge === 'function' ? streamingBadge(u.streaming_live) : '';
     // Follow indicator
     const followed = typeof isFollowing === 'function' && isFollowing(pk) ? '<span class="role-badge" style="background:#555;color:#ccc" title="Following">F</span>' : '';
-    return `<div class="unified-row peer" data-username="${esc(name)}" data-pubkey="${esc(pk)}">${dot}<span class="peer-name">${esc(name)}</span>${role}${live}${followed}${badges}</div>`;
+    // Someone I blocked (step C): dimmed, struck through and marked, still listed
+    // so the menu on their name can Unblock them.
+    const blocked = typeof isBlockedKey === 'function' && isBlockedKey(pk);
+    const blockedStyle = blocked ? ' style="opacity:0.5;text-decoration:line-through"' : '';
+    const blockedMark = blocked ? `<span class="block-indicator" title="Blocked" style="font-size:0.65rem;">${hosIcon('block', 14)}</span>` : '';
+    return `<div class="unified-row peer" data-username="${esc(name)}" data-pubkey="${esc(pk)}"${blockedStyle}>${dot}<span class="peer-name">${esc(name)}</span>${role}${live}${followed}${blockedMark}${badges}</div>`;
   }
 
   // Build a collapsible section with a flat alphabetical user list
