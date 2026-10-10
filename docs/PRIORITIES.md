@@ -206,8 +206,10 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   from predators and scams, and everyone else too). Design in `docs/design/blocking-and-safe-mode.md`
   (written 2026-10-09): its section 3.7 lists six defects to fix regardless; the first, web data
   sync answering strangers, is fixed (BUG-170), web's half of the rest (BUG-171) and the relay's
-  (BUG-172) and native's (BUG-173) are merged; native's still needs seeing in a running app (the
-  click-to-load placeholder; a first call between two home networks). Client follow-ups from the
+  (BUG-172) and native's (BUG-173) shipped in v0.1465.0; native's still needs seeing in a running
+  app (the click-to-load placeholder; a first call between two home networks). NEXT: the "Who can
+  reach me" table with friendship passes that never expire (design section 10a), then Block on
+  both clients. Client follow-ups from the
   relay fix: both clients
   auto-reject a ring when already in a call, which tells a caller a hidden person is online;
   neither sends `friend_cert` on trade requests yet (friends' trade notes are cut to 80
