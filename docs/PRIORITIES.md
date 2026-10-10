@@ -181,7 +181,7 @@ night-to-sunrise shot from Silverdale toward Mount Rainier. Earlier: the start
 tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
 (2026-10-04: being built), the old plain backups deleted (2026-10-02).
 
-### RESUME HERE: where the work stands (updated 2026-10-09)
+### RESUME HERE: where the work stands (updated 2026-10-10)
 
 - **FIRST, the VPS (BUG-169, found 2026-10-09):** a crawler filled the disk through the git
   mirror's archive downloads on 5 October; both v0.1464.x deploys failed and the live relay ran
@@ -201,32 +201,39 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   after failed builds too). The old rows are saved in `/root/announcements-cleanup/` on the VPS;
   the re-seed archive `data/announcements_archive.json` matches the clean channel; the script is
   `scripts/vps/clean-announcements.py` (safe to rerun).
-- **NEXT non-game item, started 2026-10-09: blocking and safe mode** (TIER 1 item 3, widened by the
-  operator: "give users the tools to protect themselves", plus a safe mode that protects children
-  from predators and scams, and everyone else too). Design in `docs/design/blocking-and-safe-mode.md`
-  (written 2026-10-09): its section 3.7 lists six defects to fix regardless; the first, web data
-  sync answering strangers, is fixed (BUG-170), web's half of the rest (BUG-171) and the relay's
-  (BUG-172) and native's (BUG-173) shipped in v0.1465.0; native's still needs seeing in a running
-  app (the click-to-load placeholder; a first call between two home networks). NEXT: the "Who can
-  reach me" table with friendship passes that never expire (design section 10a), then Block on
-  both clients. Step A (passes v2) shipped in v0.1466.0; step B ("who can reach me") merged 2026-10-09 (Settings > Safety on both clients, safe defaults enforced by the relay, contact requests that carry the requester's pass). Step B follow-ups: "People I choose" for Messages and Trades acts like Friends until per-friend message and trade ticks exist (the operator asked to choose individuals and groups); a contact request refused under Nobody now comes back marked `request: true`, and both apps say the person is not taking requests instead of offering another (2026-10-10); incoming rings are not also filtered by the callee's client; tests/snapshots/settings_full.png predates the Safety section. Step C, Block on both clients, ships in v0.1468.0 (one block list per identity on native; game nameplates not yet, since RemotePlayer carries no identity key). Step D, reports the admins can check, ships in v0.1469.0 (signed reports, DM evidence checked against the sender's own signature, never a message carrying a file, Reports for admins and moderators; still to build: sending group reports to the group's creator, and showing the per-country help lines from data/safety/outside_help.json in the dialog). Step E, our own STUN and the room-scoped call forwarder, ships in v0.1470.0: calls and voice rooms relay only through the server, Google gone from both clients; calls stay unavailable until the operator opens UDP 3478 (docs/admin/call-forwarder.md). Step F, warnings and the recovery-phrase guard, ships in v0.1471.0: warnings under direct and group messages from strangers (some for friends too), matched from data/safety/warnings.json identically on both clients (17 shared cases), a stranger's links held until Open, and a send holding 4 or more of your own recovery phrase's words in a row is stopped (numbered lists included); reported posts never show admins a file or a link. Step B and D follow-ups built 2026-10-10 (design 10c-ii, a Message/Call/Trade tick per friend; 10e-ii, help outside this server in the report dialog): both clients, shipped in v0.1472.0. Step G, the protected setup, shipped in v0.1473.0 on both clients (spec 10h, written from the dated finding `docs/reference/findings/2026-10-10-childrens-online-safety-rules.md`: a PIN lock on this device's safety settings, a review of existing friends, groups and rooms when it is turned on, an always-visible line telling the person it is on, never called "kid safe", "child safe" or "compliant"; the recovery phrase and every copy of the identity need the PIN while it is on). An admin tool to erase another person's data on a server (spec 10i: admins and the owner only, their typed name to confirm, the self-erase's exact steps through one shared function, the erased person told an admin did it, no key in the log) ships in v0.1474.0 on the relay and both clients. A report about a group reaching the group's creator (spec 10j: a flagged sealed DM, one narrow relay exception, the creator's app checking each item against its own copy, and Remove changing the group key first) ships in v0.1475.0 on the relay and both clients. The safety design's planned steps are all built; what remains is in the operator decisions above and the smaller follow-ups listed here. **Operator decisions from that finding** (each with the finding's reasoning; the setup is built with neutral words meanwhile): (1) the age position: the web chat's entry screen says "you confirm you are 18 years or older", which a setup for children contradicts; the finding's two coherent options are a general-audience service for 13 and over (the setup aimed at parents of teenagers; recommended) or 18 and over with the setup described "for someone you look after"; (2) whether the project server's rules page (`web/pages/rules.html`) should name pornography and content encouraging suicide, self-harm or eating disorders as not allowed (the UK Online Safety Act condition, section 12(5), under which mandatory age checks would not apply); (3) whether to email the FTC's COPPA hotline (CoppaHotLine@ftc.gov) describing the no-sign-up design, which would turn three unknowns into staff guidance (an outside message, the operator's to send). The California AB 1043 finding is written (`docs/reference/findings/2026-10-10-california-ab-1043-age-signals.md`): rewritten by AB 1856, in force 1 January 2027; the app is probably outside it today and so must NOT ask the operating system for an age (1798.501(e)); **before any app-store listing (Flathub, Snap, WinGet, Homebrew, F-Droid), decide on AB 1043 first**, since a listing would very likely bring the app inside it (an age request at first launch, deemed knowledge of the age range). Also the camera-safe sign-in items above, awaiting the operator's pick. Found while building A: (1) the web Trade
-  page (`web/pages/trade-app.js`) never answers `identify_challenge`, so its socket is never
-  signed in and its trade requests never reach the relay (an old bug; `tasks-app.js` has the
-  sign-in pattern); (2) for step B, the relay cannot tell a text message from a voice message
-  inside a sealed DM, so `message` and `voice_message` can only be told apart by the recipient's
-  client (discard a voice message from someone whose pass lacks it) unless the kind travels
-  outside the seal, which would tell the server what kind of message it is. Client follow-ups from the
-  relay fix: both clients
-  auto-rejected a ring when already in a call, which told a caller a hidden person was online
-  (BUG-177, fixed 2026-10-10: it now rings out, with a missed-call line);
-  the desktop app sends `friend_cert` on trade requests (checked 2026-10-10), but the web Trade
-  page never signed in at all (it answered no `identify_challenge`) and sent no pass, so it could
-  not send a trade; fixed 2026-10-10 (it signs in like Tasks, reads the pass from Chat's store read-only, looks names up, and its order book signs with Dilithium3); the 10-active-trades limit counted received trades, so strangers'
-  pending requests could block someone starting their own (fixed 2026-10-10: it counts trades
-  you started and received ones you took up). Next is its increment 0 (the other five defects),
-  then increment 1 (block on both clients). Eight questions for the operator sit in its summary,
-  each with a recommendation. Voice: route calls through a room-scoped forwarder in the relay
-  plus our own STUN on one UDP port, Google removed (section 7; the port is the operator's call).
+- **Safety: the planned steps are built (2026-10-09 to 10-10, v0.1465.0 to v0.1475.0).** The
+  operator asked for "tools to protect themselves" and a mode that protects children from
+  predators and scams. Design: `docs/design/blocking-and-safe-mode.md` (sections 10a to 10j hold
+  the operator's answers and each step's spec as built). Shipped on the relay and both clients:
+  the six defects of 3.7 (BUG-170 to BUG-173); friendship passes that never expire (A); "who can
+  reach me", safe by default, with a Message, Call and Trade tick per friend (B, 10c-ii); Block
+  (C); reports the admins can check, help outside the server, reported posts never showing a file
+  or a link (D, 10e-ii); calls through our own STUN and forwarder (E); warnings on messages and
+  the recovery-phrase guard (F); the protected setup (G); an admin erasing another person's data
+  (10i); a report about a group reaching its creator, with Remove changing the group key (10j);
+  BUG-176 and BUG-177; a refused contact request that says so; the ten-trade limit; the web Trade
+  page.
+  **Operator decisions** (each with a recommendation, none blocking what is built): (1) the age
+  position: the web chat's entry screen says "you confirm you are 18 years or older", which a
+  setup for children contradicts; the dated finding's options are a general audience of 13 and
+  over (recommended, the setup aimed at parents of teenagers) or 18 and over with the setup "for
+  someone you look after"; (2) whether `web/pages/rules.html` should name pornography and content
+  encouraging suicide, self-harm or eating disorders as not allowed (the UK Online Safety Act's
+  section 12(5) condition); (3) whether to email the FTC's COPPA hotline (CoppaHotLine@ftc.gov)
+  about the no-sign-up design (an outside message, the operator's to send); (4) opening UDP 3478
+  so calls work (`docs/admin/call-forwarder.md`); plus the report-duties and camera-safe sign-in
+  items below. **Before any app-store listing** (Flathub, Snap, WinGet, Homebrew, F-Droid),
+  decide on California AB 1043 first (`docs/reference/findings/2026-10-10-california-ab-1043-age-signals.md`):
+  a listing would very likely require an age request at first launch.
+  **Smaller follow-ups, not started:** the native fixes of BUG-173 still want seeing in a running
+  app (the click-to-load picture placeholder; a first call between two home networks, once the
+  port is open); incoming rings are not also filtered by the callee's own app (the relay gates
+  them); Block does not reach game nameplates (`RemotePlayer` carries no identity key); the relay
+  cannot tell a text message from a voice message inside a sealed DM, so a pass's
+  `voice_message` can only be enforced by the recipient's app; P2P group attachments are not yet
+  encrypted, and the desktop app shows a DM attachment as a card rather than decrypting it inline
+  (the Cryptography table in CLAUDE.md); `tests/snapshots/settings_full.png` predates the Safety
+  section.
 - **Report duties: the finding is in, three decisions for the operator (2026-10-10).**
   `docs/reference/findings/2026-10-10-report-duties-child-abuse-material.md`: in the United
   States a "provider" with actual knowledge of apparent child sexual abuse material must report
