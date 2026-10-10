@@ -1349,6 +1349,54 @@ tests: no Google entry anywhere (a lint-style test that greps both clients), the
 request and relay-only configuration. A loopback rig with two clients in one room, if it can be
 built without booting the game; otherwise say so.
 
+## 10g. Step F specification: warnings, and the recovery-phrase guard (2026-10-10)
+
+Section 6.3 is the design; this fixes what both clients must do identically. The patterns live
+in `data/safety/warnings.json` (already written; reviewed by the coordinator; read by both
+clients, built into the desktop app like the report reasons).
+
+**Matching, identical on both clients.** Normalise a text by lower-casing it and turning every
+run of characters that are not letters or digits into one space, then trimming; normalise each
+phrase the same way. A message matches an entry when `" " + text + " "` contains
+`" " + phrase + " "` for any phrase in `any`. So "I'm an admin!!" matches the phrase
+"i'm an admin" (both become "i m an admin"), and "admin" never matches inside "administer".
+Letters and digits are Unicode-aware (a JavaScript `\p{L}\p{N}` class and Rust's
+`char::is_alphanumeric`), and both clients lower-case with their standard Unicode lower-casing.
+
+**Where warnings show:** under a received direct message, and under a message in a P2P group,
+when its sender is someone the entry `applies_to`. `friends` means a mutual follow (you follow
+them and they follow you), the same test both clients already use when they give passes;
+everyone else is `strangers`. Not on public channel posts in this step (too noisy for words
+like "urgent"), and never on your own messages. Each matching entry shows once under the
+message: its `title`, `explain` and `advice`, and a "Got it" that hides it for that message.
+Several matching entries show in the file's order.
+
+**Links from strangers:** a direct message from a stranger that contains a link shows one line
+under it, "<name> is not your friend. Links open only when you choose.", and the link opens only
+after a click on that line's Open button (the existing click-to-load picture rule already covers
+pictures).
+
+**The switch:** Settings > Safety, "Warnings on messages", On by default; Off hides them all.
+Persisted with the other safety settings on each client.
+
+**The recovery-phrase guard (always on, no switch, no "send anyway").** Before anything you
+write is sent (a direct message, a channel post, a reply, a group message, a contact request's
+name, a profile field), your own client checks it against your own recovery phrase: normalise
+both the same way as above; if the text contains a run of 4 or more of your phrase's words
+consecutively and in the phrase's order, the send is stopped and nothing leaves, with: "This is
+your recovery phrase. Anyone who has it owns your identity and everything in it. Nobody
+legitimate will ever ask for it. Remove it to send the rest." The phrase is derived on the
+device from what the client already holds (never stored anywhere new, never sent anywhere).
+When the identity is locked and the phrase cannot be derived, the guard cannot run; say nothing
+and let the send go as today.
+
+**Proof:** on both clients, unit tests of the matcher on the examples above (including Unicode
+text, punctuation inside a phrase, and a near miss), the friends and strangers rule, the link
+line, the switch, and the guard (a run of 4 words stops the send, 3 words or the words out of
+order do not, the full phrase stops it, a locked identity sends). A cross-client test: a Node
+test that runs the web matcher over a shared list of cases in `scripts/tests/fixtures/` and a
+Rust test that runs the native matcher over the same file, so the two cannot drift.
+
 ## 11. Docs to update as each piece ships
 
 - `docs/accord/conformance_gaps.md` ("Contact consent cannot be withdrawn")
