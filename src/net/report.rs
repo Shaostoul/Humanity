@@ -552,6 +552,9 @@ pub struct ReportDialog {
     pub also_block: bool,
     /// Why the last Send did not go.
     pub problem: String,
+    /// The country the help outside this server shows (10e-ii): a listed code, or
+    /// `outside_help::OTHER`. It stays on this device and is never part of the report.
+    pub country: String,
 }
 
 /// Step D's part of the app state (`GuiState::reports`).
@@ -561,6 +564,10 @@ pub struct ReportUi {
     pub reasons: Vec<ReportReason>,
     /// Why they could not be loaded, if they could not.
     pub reasons_error: Option<String>,
+    /// The help outside this server (`data/safety/outside_help.json`, 10e-ii), loaded the first
+    /// time a dialog opens. None until then, or while it cannot be read (the dialog then has no
+    /// such block, and reports still send).
+    pub outside_help: Option<super::outside_help::OutsideHelp>,
     pub dialog: Option<ReportDialog>,
     /// The Reports list (admins and mods): showing decided reports rather than open ones.
     pub show_decided: bool,

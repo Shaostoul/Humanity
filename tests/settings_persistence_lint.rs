@@ -48,8 +48,15 @@ const INTENTIONALLY_TRANSIENT: &[&str] = &[
 /// The files whose controls are drawn inside the Settings page: settings.rs
 /// itself, and the sections it hands to another file. Settings > Safety lives in
 /// safety.rs, and its "Warnings on messages" switch (step F, 2026-10-10) is an
-/// AppConfig setting like any other, so the scan covers that file too.
-const SETTINGS_FILES: &[&str] = &["src/gui/pages/settings.rs", "src/gui/pages/safety.rs"];
+/// AppConfig setting like any other, so the scan covers that file too. The
+/// Report dialog's "Help outside this server" country (10e-ii, 2026-10-10) is
+/// picked in the dialog, not on the Settings page, but it is kept the same way
+/// and must survive a restart the same way, so its file is scanned as well.
+const SETTINGS_FILES: &[&str] = &[
+    "src/gui/pages/settings.rs",
+    "src/gui/pages/safety.rs",
+    "src/gui/pages/chat/report_dialog.rs",
+];
 
 /// Pull every `state.settings.<field>` that the Settings files bind to a widget
 /// or assign to. Those are the fields a person can actually change.

@@ -1123,6 +1123,37 @@ fn snapshot_report_reasons() -> Vec<crate::net::report::ReportReason> {
     });
 }
 
+// The Report dialog with the help outside this server open (10e-ii, 2026-10-10): a report from a
+// person's profile, "A child may be in danger" chosen with its help text, and under it the block
+// for France (the shipped file's entry with two other numbers): the country picker, the emergency
+// number, the other numbers, the child report line, and the date the numbers were checked, all
+// read from the real data/safety/outside_help.json built into the exe. Built in memory; nothing
+// is sent or saved.
+#[test]
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_report_dialog_outside_help() {
+    render_page_png("report_dialog_outside_help", 760, 900, |ctx, theme, state| {
+        if state.reports.dialog.is_none() {
+            use crate::net::report::{ReportContext, ReportDialog};
+            state.profile_public_key = "me".to_string();
+            state.reports.reasons = snapshot_report_reasons();
+            state.reports.outside_help = Some(
+                crate::net::outside_help::parse(crate::embedded_data::OUTSIDE_HELP_JSON.as_bytes()).expect("the shipped outside help"),
+            );
+            state.reports.dialog = Some(ReportDialog {
+                target: "dana".into(),
+                target_name: "Dana Okafor".into(),
+                context: Some(ReportContext::Profile),
+                reason: "child_danger".into(),
+                country: "FR".into(),
+                ..Default::default()
+            });
+        }
+        egui::CentralPanel::default().show(ctx, |_| {});
+        crate::gui::pages::chat::draw_report_dialog(ctx, theme, state);
+    });
+}
+
 // Server Settings > Moderator > Reports as an admin sees it (step D, 10e): an open DM report with
 // one item whose signature the server checked and one it could not prove, the sentence on what a
 // checked signature does not prove, and the decision buttons (Ban shown, as for an admin). Built
