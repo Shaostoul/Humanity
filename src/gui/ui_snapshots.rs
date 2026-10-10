@@ -1017,26 +1017,37 @@ fn settings_panel(
 }
 
 // Settings > Safety (step B of docs/design/blocking-and-safe-mode.md 10c, 2026-10-09): "Who
-// can reach me" as the server last said it (messages from anyone, the safe defaults for calls
-// and trades), three friends in "People who may call me" (one ticked, one ticked whose pass is
-// still being re-issued, one not), and two requests: one the member list names, one from someone
-// not on it right now. The store is built in memory and never saved, so nothing lands on disk.
-// Taller since step F (10g, 2026-10-10) so the Warnings section and its switch are in the picture.
+// can reach me" as the server last said it (messages and calls from people I choose, trades from
+// friends), "People I choose" (10c-ii, 2026-10-10) with four friends, each once with Message,
+// Call and Trade ticks: one on the defaults, one with all three ticked, one whose new choice
+// (Message off, Call on) is still being re-issued, one with nothing ticked; the lines above the
+// list read "In use now: Messages and Calls. Trades are set to Friends, ...". Then two requests:
+// one the member list names, one from someone not on it right now. The store is built in memory
+// and never saved, so nothing lands on disk. Taller since step F (10g, 2026-10-10) so the
+// Warnings section and its switch are in the picture, and again for the two lines and the fourth
+// friend of 10c-ii.
 #[test]
     #[ignore = "GPU snapshot; run via `just snapshots`"]
     fn snapshot_safety_settings() {
-    render_page_png("safety_settings", 960, 1400, |ctx, theme, state| {
+    render_page_png("safety_settings", 960, 1480, |ctx, theme, state| {
         if state.dm_store.is_none() {
             use crate::net::dm_store::SentPass;
-            use crate::net::reach::{intended_may_wire, Audience, ContactRequest, ReachSettings};
+            use crate::net::reach::{intended_may_wire, Audience, ContactRequest, FriendTicks, ReachSettings};
             state.profile_public_key = "me".to_string();
             let mut store = crate::net::dm_store::DmStore::load(&[7u8; 32], "me", "wss://snapshot.safety.invalid");
-            store.set_reach_settings(ReachSettings { message: Audience::Anyone, ..ReachSettings::default() });
-            for (key, name, tick, pass_has_call) in [("ann", "Ann", false, false), ("ben", "Ben", true, true), ("cy", "Cy", true, false)] {
+            store.set_reach_settings(ReachSettings { message: Audience::Chosen, ..ReachSettings::default() });
+            let t = |message, call, trade| FriendTicks { message, call, trade };
+            // (key, name, the ticks chosen, the ticks the pass they hold was given under)
+            for (key, name, chosen, given) in [
+                ("ann", "Ann", FriendTicks::default(), FriendTicks::default()),
+                ("ben", "Ben", t(true, true, true), t(true, true, true)),
+                ("cy", "Cy", t(false, true, true), FriendTicks::default()),
+                ("dee", "Dee", t(false, false, false), t(false, false, false)),
+            ] {
                 store.set_following(key, true);
                 store.set_follower(key, true);
-                store.set_may_call(key, tick);
-                store.record_pass_sent(key, SentPass { serial: format!("{key:0>32}"), may: intended_may_wire(pass_has_call) });
+                store.set_ticks(key, chosen);
+                store.record_pass_sent(key, SentPass { serial: format!("{key:0>32}"), may: intended_may_wire(given) });
                 state.chat_users.push(crate::gui::ChatUser { name: name.into(), public_key: key.into(), role: String::new(), status: "online".into() });
             }
             state.chat_users.push(crate::gui::ChatUser { name: "Dana Okafor".into(), public_key: "dana".into(), role: String::new(), status: "online".into() });

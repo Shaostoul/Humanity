@@ -2,8 +2,9 @@
 //! native client's half that touches the socket and the app state: the relay's `reach_settings`
 //! (the only source of what Settings > Safety shows) and `reach_refused`, the `reach_set` the
 //! page sends, contact requests sent and received, the Requests list's Accept and Ignore, and
-//! the "People who may call me" ticks, which re-issue a friend's pass (engine/dm.rs
-//! `reissue_pass`). The rules themselves, without a socket, are src/net/reach.rs.
+//! the "People I choose" ticks (Message, Call and Trade per friend, 10c-ii), which re-issue a
+//! friend's pass (engine/dm.rs `reissue_pass`). The rules themselves, without a socket, are
+//! src/net/reach.rs.
 //!
 //! A contact request (10c, amended in review) is an ordinary signed sealed DM whose text is
 //! `[[hum:contact-request:v1]]{"name":...,"pass":...}`, sent with `"contact_request": true` so the
@@ -323,11 +324,14 @@ pub(crate) fn ignore_request(gs: &mut GuiState, key: &str) {
     }
 }
 
-/// Tick or untick a friend in "People who may call me": the choice is kept, and their pass is
-/// re-issued with or without `call` (the new one minted, the old one withdrawn).
-pub(crate) fn set_may_call(gs: &mut GuiState, peer: &str, on: bool) {
+/// Tick or untick one of a friend's three ticks in "People I choose" (10c-ii): the choice is
+/// kept, and their pass is re-issued to allow exactly what is ticked now (the new one minted
+/// first, then the old one withdrawn, so the relay honours the change at once).
+pub(crate) fn set_tick(gs: &mut GuiState, peer: &str, kind: ReachKind, on: bool) {
     if let Some(store) = gs.dm_store.as_mut() {
-        store.set_may_call(peer, on);
+        let mut ticks = store.ticks(peer);
+        ticks.set(kind, on);
+        store.set_ticks(peer, ticks);
         store.save();
     }
     crate::engine::dm::reissue_pass(gs, peer);
@@ -484,38 +488,110 @@ mod tests {
         gs.dm_store.as_ref().unwrap().remove_file_for_test();
     }
 
-    /// A pass re-issued from another device: its echo sets the tick to what that device chose and
-    /// withdraws our record of passes saying otherwise, so this device does not mint again; and an
-    /// untick while the new pass cannot go out withdraws the calling pass at once.
+    /// A pass re-issued from another device: its echo sets the ticks to what that device chose
+    /// and withdraws our record of passes saying otherwise, so this device does not mint again;
+    /// and an untick of Call while the new pass cannot go out withdraws the calling pass at once.
     /// Seen red 2026-10-09 with the echo arm not withdrawing the old pass: "the old pass is
     /// withdrawn here too", the default pass still standing beside the new one.
     #[test]
     fn an_echoed_reissue_moves_the_tick_and_the_record() {
+        use crate::net::reach::FriendTicks;
         use crate::relay::core::pq_crypto::build_friend_cert;
         let (my_seed, me) = identity(95);
         let (_b, ben) = identity(96);
         let mut gs = app(&me, &my_seed, "reach-echo");
         let old = "11".repeat(16);
         gs.dm_store.as_mut().unwrap().record_pass_sent(&ben, SentPass { serial: old.clone(), may: "invite,message,trade,voice_message".into() });
-        assert!(gs.dm_store.as_ref().unwrap().passes_out_of_step().is_empty(), "a default pass with no tick is in step");
+        assert!(gs.dm_store.as_ref().unwrap().passes_out_of_step().is_empty(), "a default pass with no choice is in step");
 
         let new = "22".repeat(16);
-        let cert = build_friend_cert(&my_seed, SERVER, &me, &ben, &new, &crate::net::reach::intended_may(true)).unwrap();
+        let all = FriendTicks { message: true, call: true, trade: true };
+        let cert = build_friend_cert(&my_seed, SERVER, &me, &ben, &new, &crate::net::reach::intended_may(all)).unwrap();
         let mut echo = inner(&me, &ben, crate::net::dm_pq::CTL_FRIEND_CERT);
         echo.cert = Some(cert);
         crate::engine::dm::ingest_dm(&mut gs, &echo);
         let store = gs.dm_store.as_ref().unwrap();
-        assert!(store.may_call(&ben), "the tick follows the other device");
+        assert_eq!(store.ticks(&ben), all, "the ticks follow the other device");
         assert_eq!(store.passes_sent_to(&ben).iter().map(|p| p.serial.clone()).collect::<Vec<_>>(), vec![new.clone()], "the old pass is withdrawn here too");
         assert_eq!(store.pending_withdrawals(), [old], "and waits for the relay to confirm");
         assert!(store.passes_out_of_step().is_empty(), "nothing left to re-issue");
 
         // Untick here with no DM key for Ben: the call pass cannot be replaced yet, so it goes now.
-        set_may_call(&mut gs, &ben, false);
+        set_tick(&mut gs, &ben, ReachKind::Call, false);
         let store = gs.dm_store.as_ref().unwrap();
-        assert!(!store.may_call(&ben));
+        assert_eq!(store.ticks(&ben), FriendTicks::default(), "Message and Trade still ticked");
         assert!(store.passes_sent_to(&ben).is_empty(), "taking calling away does not wait for a new pass");
         assert!(store.pending_withdrawals().contains(&new));
+        gs.dm_store.as_ref().unwrap().remove_file_for_test();
+    }
+
+    /// 10c-ii, changing a tick while the new pass cannot go out yet (no DM key for the friend
+    /// here, so the sweep delivers it later): unticking Message takes the old pass back at once,
+    /// because it allowed messages; ticking Trade for a friend with nothing ticked keeps their
+    /// only pass until the new one goes out, because it took nothing away.
+    /// Seen red 2026-10-10 with `reissue_pass` still asking only whether CALLING was taken
+    /// away: "unticking Message takes the old pass back at once" failed (the pass stood).
+    #[test]
+    fn changing_a_tick_takes_back_at_once_or_waits() {
+        use crate::net::reach::{intended_may_wire, FriendTicks};
+        let (my_seed, me) = identity(97);
+        let (_b, ben) = identity(98);
+        let (_c, cy) = identity(99);
+        let mut gs = app(&me, &my_seed, "reach-ticks");
+        let none = FriendTicks { message: false, call: false, trade: false };
+        {
+            let store = gs.dm_store.as_mut().unwrap();
+            store.record_pass_sent(&ben, SentPass { serial: "33".repeat(16), may: intended_may_wire(FriendTicks::default()) });
+            store.set_ticks(&cy, none);
+            store.record_pass_sent(&cy, SentPass { serial: "44".repeat(16), may: intended_may_wire(none) });
+        }
+
+        set_tick(&mut gs, &ben, ReachKind::Message, false);
+        let store = gs.dm_store.as_ref().unwrap();
+        assert_eq!(store.ticks(&ben), FriendTicks { message: false, call: false, trade: true }, "the choice is kept");
+        assert!(store.passes_sent_to(&ben).is_empty(), "unticking Message takes the old pass back at once");
+        assert_eq!(store.pending_withdrawals(), ["33".repeat(16)], "and the withdrawal waits for the relay");
+        assert_eq!(store.intended_may_wire(&ben), "trade", "the pass the sweep gives them next allows trades only");
+
+        set_tick(&mut gs, &cy, ReachKind::Trade, true);
+        let store = gs.dm_store.as_ref().unwrap();
+        assert_eq!(store.passes_sent_to(&cy).len(), 1, "ticking Trade takes nothing away: their pass stays until the new one goes out");
+        assert_eq!(store.passes_out_of_step(), vec![cy.clone()], "and the sweep re-issues it");
+        assert_eq!(store.pending_withdrawals().len(), 1, "nothing more withdrawn");
+        gs.dm_store.as_ref().unwrap().remove_file_for_test();
+    }
+
+    /// 10c-ii: Unfollow clears the friend's choice, ours from here and ours echoed from another
+    /// of our devices, so a friendship begun again starts from the defaults. (Block clears it
+    /// too: engine/block.rs `block_withdraws_the_passes_and_unfollows`.)
+    /// Seen red 2026-10-10 with `clear_ticks` taken out of `set_follow`: "Unfollow clears the
+    /// choice" failed (Call still ticked).
+    #[test]
+    fn unfollow_clears_the_choice() {
+        use crate::net::reach::FriendTicks;
+        let (my_seed, me) = identity(87);
+        let (_b, ben) = identity(88);
+        let (_c, cy) = identity(89);
+        let mut gs = app(&me, &my_seed, "reach-unfollow");
+        let chosen = FriendTicks { message: false, call: true, trade: true };
+        {
+            let store = gs.dm_store.as_mut().unwrap();
+            for peer in [&ben, &cy] {
+                store.set_following(peer, true);
+                store.set_follower(peer, true);
+                store.set_ticks(peer, chosen);
+            }
+        }
+        crate::engine::dm::set_follow(&mut gs, &ben, false);
+        let store = gs.dm_store.as_ref().unwrap();
+        assert!(!store.is_following(&ben));
+        assert_eq!(store.ticks(&ben), FriendTicks::default(), "Unfollow clears the choice");
+
+        // Our unfollow of Cy, made on another device and echoed here.
+        crate::engine::dm::ingest_dm(&mut gs, &inner(&me, &cy, crate::net::dm_pq::CTL_UNFOLLOW));
+        let store = gs.dm_store.as_ref().unwrap();
+        assert!(!store.is_following(&cy));
+        assert_eq!(store.ticks(&cy), FriendTicks::default(), "an Unfollow from our other device clears it too");
         gs.dm_store.as_ref().unwrap().remove_file_for_test();
     }
 }

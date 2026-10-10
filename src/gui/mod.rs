@@ -4242,7 +4242,7 @@ pub enum SettingsCategory {
     Gameplay,
     Controls,
     Privacy,
-    /// Who can reach me, who may call, and contact requests (step B, 2026-10-09).
+    /// Who can reach me, People I choose, and contact requests (step B, 2026-10-09; 10c-ii).
     Safety,
     /// Video on in-world screens: where ffmpeg is for converting a chosen
     /// file (2026-09-18). Named in the screen's own error text ("set its

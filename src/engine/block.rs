@@ -4,10 +4,10 @@
 //!
 //! WHAT BLOCK DOES, at once and with no confirmation (it is undoable):
 //! 1. adds their identity key, never a name, to the block list, with the date;
-//! 2. takes back every pass we gave them (`cert_revoke` for each serial, step A), our follow, the
-//!    "may call me" tick and any request of theirs, on the server we are on now; on every other
-//!    server the same happens the next time we are on it (`sweep`). Under the safe defaults the
-//!    relay then refuses their messages, calls and trades by itself;
+//! 2. takes back every pass we gave them (`cert_revoke` for each serial, step A), our follow, our
+//!    "People I choose" ticks for them (10c-ii) and any request of theirs, on the server we are
+//!    on now; on every other server the same happens the next time we are on it (`sweep`).
+//!    Under the safe defaults the relay then refuses their messages, calls and trades by itself;
 //! 3. hides everything from them on every path in section 4.5's client column: DMs, knocks,
 //!    follow notices and contact requests are dropped before they are stored or notified
 //!    (`screens_dm`); posts, replies, reactions and typing in channels and groups are hidden by
@@ -251,7 +251,8 @@ pub(crate) fn unblock(gs: &mut GuiState, key: &str) {
 }
 
 /// What a block takes back on one server's store: every pass we gave them (their serials join
-/// the withdrawals waiting for the relay), our follow, the "may call me" tick, and their entry
+/// the withdrawals waiting for the relay), our follow, our "People I choose" ticks for them
+/// (10c-ii: back to the defaults, so Unblock and a fresh friendship start clean), and their entry
 /// in Requests. True when anything changed (the caller saves).
 pub(crate) fn enforce_on_store(store: &mut DmStore, key: &str) -> bool {
     let mut changed = !store.withdraw_passes_to(key).is_empty();
@@ -259,10 +260,7 @@ pub(crate) fn enforce_on_store(store: &mut DmStore, key: &str) -> bool {
         store.set_following(key, false);
         changed = true;
     }
-    if store.may_call(key) {
-        store.set_may_call(key, false);
-        changed = true;
-    }
+    changed |= store.clear_ticks(key);
     changed | store.remove_request(key).is_some()
 }
 
@@ -434,11 +432,13 @@ mod tests {
         SentPass { serial: serial.into(), may: "invite,message,trade,voice_message".into() }
     }
 
-    /// Block withdraws every pass we gave and unfollows (10d, item 2), unticks "may call me" and
-    /// drops their request, with the one line and nothing addressed to them; their typing, their
-    /// ring and their waiting trade request go too. Unblock gives nothing back.
+    /// Block withdraws every pass we gave and unfollows (10d, item 2), clears our "People I
+    /// choose" ticks for them (10c-ii) and drops their request, with the one line and nothing
+    /// addressed to them; their typing, their ring and their waiting trade request go too.
+    /// Unblock gives nothing back.
     /// Seen red 2026-10-09 with `enforce_on_store`'s withdrawal line taken out: "every pass we
-    /// gave is withdrawn" failed (both serials still standing).
+    /// gave is withdrawn" failed (both serials still standing). Seen red 2026-10-10 with
+    /// `clear_ticks` taken out of `enforce_on_store`: "Block clears the choice" failed.
     #[test]
     fn block_withdraws_the_passes_and_unfollows() {
         let (seed, me) = identity(141);
@@ -450,7 +450,7 @@ mod tests {
             store.record_pass_sent(&ben, default_pass(&"a2".repeat(16)));
             store.set_following(&ben, true);
             store.set_follower(&ben, true);
-            store.set_may_call(&ben, true);
+            store.set_ticks(&ben, crate::net::reach::FriendTicks { message: false, call: true, trade: true });
             store.add_request(crate::net::reach::ContactRequest { key: ben.clone(), ts: 1, pass: String::new() });
         }
         gs.chat_typing_users.insert(ben.clone(), ("Ben".into(), std::time::Instant::now()));
@@ -464,7 +464,8 @@ mod tests {
         assert!(!store.cert_sent_to(&ben), "every pass we gave is withdrawn");
         assert_eq!(store.pending_withdrawals(), ["a1".repeat(16), "a2".repeat(16)], "and waits for the relay (cert_revoke for each serial)");
         assert!(!store.is_following(&ben), "we no longer follow them");
-        assert!(!store.is_friend(&ben) && !store.may_call(&ben), "so they are no friend, and not ticked to call");
+        assert!(!store.is_friend(&ben), "so they are no friend");
+        assert_eq!(store.ticks(&ben), crate::net::reach::FriendTicks::default(), "Block clears the choice");
         assert!(store.requests().is_empty(), "their request is gone");
         assert!(gs.chat_typing_users.is_empty() && gs.call_incoming.is_none(), "their typing and their ring are forgotten");
         assert_eq!(gs.trades.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), ["t2"], "their trade request goes; a trade under way stays");
