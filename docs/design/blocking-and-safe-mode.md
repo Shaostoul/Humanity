@@ -1665,6 +1665,52 @@ chosen and a wrong one does not; the state absent from the self-sync notes and e
 seen failing once. Native: snapshots of the setup's steps and of Settings > Safety with it on
 (render only when no other HumanityOS instance runs). `just verify`.
 
+## 10i. An admin erases another person's data (2026-10-10)
+
+Why: the children's finding (`docs/reference/findings/2026-10-10-childrens-online-safety-rules.md`,
+judgement call 7) notes that a server operator who learns a member is under 13 is expected to
+delete that child's information, and that today only a person can erase their own data. The same
+tool serves a person who asks the admin to remove them when they cannot reach their own device.
+
+**Who:** an admin (role `admin` or `owner`) of this server, from a signed-in socket. Moderators
+cannot: erasing is not undoable, and it is the admins who answer for the server.
+
+**Protocol (exact; relay and both clients build against it):**
+- client to relay: `{"type":"admin_erase","target":"<their public key>","confirm_name":"<their registered name, typed>"}`.
+- Refused with a `Private` notice, and nothing changed, when: the sender is not an admin or the
+  owner; the target is the sender (use the ordinary erase in Settings); the target is an admin or
+  the owner (demote first, the same rule the self-erase has); the target has no account here; or
+  `confirm_name` is not exactly their registered name (trimmed).
+- On success the relay does exactly what the self-erase (`handle_account_delete`) does for the
+  target, in the same order: `remember_erase`, `leave_world_for_erase`, `delete_account`, the
+  member list re-sent, and last an `AccountErased` to the target's own clients, which gains a
+  field `by_admin: true` (default false; the self-erase sends false) so their client can say
+  "A server admin erased your data from this server. Local data on your own devices is
+  untouched." instead of the self-erase words, and disconnects as it does today.
+- The admin gets `{"type":"admin_erase_done","name":"<the name they typed>","receipt":[["<table>",<rows>],...],"partial":<bool>}`,
+  the same per-table counts the self-erase reports.
+- The server log line names no key and no name, as the self-erase's does: "An admin erased an
+  account (<counts>)". The account's withdrawn passes and its erased-account fingerprint follow
+  the self-erase's rules (kept, keyed, naming nobody).
+
+**Clients (native first, web mirrors):** where an admin already manages a member (native Server
+Settings' member list; web, the admin's member menu or admin page, whichever already holds kick
+and ban), an "Erase their data" action, shown only to admins and the owner, opening a confirm
+that says what it does and does not do: "This deletes everything this server stores about
+<name>: their messages, profile, uploads, membership and settings. It cannot be undone. It does
+not touch anything on their own devices, and it does not stop them joining again (ban them too
+for that)." with a field to type their name and an "Erase" button that is enabled only when the
+typed name matches. Show the receipt when `admin_erase_done` arrives.
+
+**Proof:** relay tests: every refusal (not an admin, a moderator, self, an admin target, an
+unknown target, a wrong name) changes nothing; a success removes the same rows the self-erase
+does (compare receipts against a self-erase of an identical account), sends `AccountErased` with
+`by_admin: true` only to the target, and logs no key; the self-erase still sends `by_admin:
+false`. Client tests: the action shows only for an admin, the button needs the exact name, the
+frame matches the protocol, and the erased person's client shows the by-admin words. Each test
+seen failing once. Native snapshot of the confirm (render only when no other instance runs).
+`just verify`, `just verify-relay`.
+
 ## 11. Docs to update as each piece ships
 
 - `docs/accord/conformance_gaps.md` ("Contact consent cannot be withdrawn")
