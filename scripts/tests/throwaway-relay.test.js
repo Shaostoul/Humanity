@@ -44,6 +44,28 @@ test("relayEnv tells the relay to listen on loopback only, whatever the shell sa
   }
 });
 
+// The relay's call forwarder (src/relay/call_forwarder.rs, 2026-10-09) opens a
+// UDP port of its own. A throwaway relay keeps it on loopback (TURN_BIND) and on
+// a port the system picks (TURN_PORT 0), so two rigs, or a rig beside the
+// operator's own node, never fight over 3478 and Windows never asks about it.
+// Red first, 2026-10-09, against relayEnv without the two lines: "actual:
+// '0.0.0.0', expected: '127.0.0.1'" (the shell's TURN_BIND went straight through).
+test("relayEnv keeps the call forwarder on loopback and on a free port, whatever the shell says", () => {
+  const before = { bind: process.env.TURN_BIND, port: process.env.TURN_PORT };
+  process.env.TURN_BIND = "0.0.0.0";
+  process.env.TURN_PORT = "3478";
+  try {
+    const env = TR.relayEnv(43210, "x/relay.db", { TURN_BIND: "0.0.0.0" });
+    assert.strictEqual(env.TURN_BIND, "127.0.0.1", "the forwarder must listen on loopback only");
+    assert.strictEqual(env.TURN_PORT, "0", "on a port the system picks");
+  } finally {
+    for (const [k, v] of [["TURN_BIND", before.bind], ["TURN_PORT", before.port]]) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
+
 // Captured formats. The PID under test is 4242; 1252 and 9999 are other
 // programs whose rows must be ignored.
 const WIN = `

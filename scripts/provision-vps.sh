@@ -17,9 +17,13 @@
 #   bash /opt/Humanity/scripts/provision-vps.sh
 #
 # What it deliberately does NOT install:
-#   - coturn: BANNED until the ephemeral-credential migration
-#     (docs/admin/turn-rotation.md) is implemented IN THIS SCRIPT. The old
-#     static-credential config is what got the server null-routed.
+#   - coturn: BANNED. The old static-credential config is what got the server
+#     null-routed. Calls and STUN are served by the relay itself since
+#     2026-10-09 (src/relay/call_forwarder.rs: our own STUN and a forwarder that
+#     only passes packets between allocations of one room, never to an outside
+#     address). Its UDP port is opened in the firewall only when the operator
+#     chooses to (HUMANITY_OPEN_CALL_PORT=1, docs/admin/call-forwarder.md), and
+#     the assertions at the end check that only the relay listens on it.
 #   - transmission (release seeding): reinstate later with RPC bound to
 #     localhost and upload caps; it is not launch-critical.
 #   - forgejo (git mirror): reinstate later from docs/admin/forgejo-setup.md;
@@ -46,6 +50,13 @@ CERT_MAIL="${HUMANITY_CERT_MAIL:-shaostoul@gmail.com}"
 # Extra cert names (space-separated). The canonical instance keeps its www-less
 # apex + chat subdomain; a self-hoster with only an apex leaves this empty.
 CERT_EXTRA_DOMAINS="${HUMANITY_CERT_EXTRA:-}"
+# The relay's call forwarder and STUN responder (one UDP port), the host clients
+# are told to reach it at, and whether the firewall lets it in. Written into the
+# relay's .env below (TURN_PORT, TURN_PUBLIC_HOST); the port stays closed unless
+# HUMANITY_OPEN_CALL_PORT=1 (the operator's call: docs/admin/call-forwarder.md).
+CALL_PORT="${HUMANITY_CALL_PORT:-3478}"
+CALL_HOST="${HUMANITY_CALL_HOST:-$DOMAIN}"
+OPEN_CALL_PORT="${HUMANITY_OPEN_CALL_PORT:-0}"
 
 say() { echo -e "\n=== $* ==="; }
 
@@ -105,10 +116,15 @@ rm -rf /etc/systemd/system/serial-getty@*.service.d \
        /etc/systemd/system/getty@tty1.service.d
 systemctl daemon-reload
 
-# ── 7. Firewall: default-deny inbound. 22/80/443 and nothing else.
-#       NO 3478/5349 (TURN) — see the header. ────────────────────────────────
+# ── 7. Firewall: default-deny inbound. 22/80/443, plus the relay's own call
+#       forwarder port (UDP $CALL_PORT) ONLY when the operator opened it with
+#       HUMANITY_OPEN_CALL_PORT=1. Never 5349, never coturn (see the header). ──
 say "nftables"
-cat > /etc/nftables.conf <<'NFT'
+CALL_RULE=""
+if [ "$OPEN_CALL_PORT" = 1 ]; then
+  CALL_RULE="udp dport $CALL_PORT accept"
+fi
+cat > /etc/nftables.conf <<NFT
 #!/usr/sbin/nft -f
 flush ruleset
 table inet filter {
@@ -119,6 +135,7 @@ table inet filter {
     ip protocol icmp accept
     meta l4proto ipv6-icmp accept
     tcp dport { 22, 80, 443 } accept
+    $CALL_RULE
   }
   chain forward { type filter hook forward priority 0; policy drop; }
   chain output  { type filter hook output  priority 0; policy accept; }
@@ -160,6 +177,18 @@ elif ! grep -q '^ALLOWED_ORIGINS=' "$REPO/.env"; then
   # Existing node from before the seam: append the domain allowlist once.
   printf 'ALLOWED_ORIGINS=https://%s,https://%s\n' "$DOMAIN" "$CHAT_DOMAIN" >> "$REPO/.env"
 fi
+# The call forwarder's settings are this script's, not hand edits: set (or
+# replace) them on every run so the port the relay listens on, the port the
+# firewall rule names and the port the assertions check are one value.
+set_relay_env() {
+  if grep -q "^$1=" "$REPO/.env"; then
+    sed -i "s|^$1=.*|$1=$2|" "$REPO/.env"
+  else
+    printf '%s=%s\n' "$1" "$2" >> "$REPO/.env"
+  fi
+}
+set_relay_env TURN_PORT "$CALL_PORT"
+set_relay_env TURN_PUBLIC_HOST "$CALL_HOST"
 # ── The relay binary: FETCH if we can, build only if we must ────────────────
 #
 # Measured on the live VPS: RUNNING the relay costs 19.7 MB RSS, 0.5% of one
@@ -383,6 +412,21 @@ swapon --show | grep -q swap || { echo "!! no swap"; fail=1; }
 [ -d /var/log/journal ] || { echo "!! journal is not persistent"; fail=1; }
 ok=0; for i in $(seq 1 15); do curl -fsS -m 3 http://127.0.0.1:3210/health >/dev/null 2>&1 && { ok=1; break; }; sleep 2; done
 [ $ok = 1 ] || { echo "!! relay /health not answering after 30s"; fail=1; }
+# The call forwarder's port: the relay listens on it, and NOTHING else does (the
+# relay binds it before /health answers). A coturn left behind, or any other
+# program on this port, is exactly the reflector the 2026-08-07 incident was.
+call_rows="$(ss -Hulnp "sport = :$CALL_PORT" 2>/dev/null || true)"
+if [ -z "$call_rows" ]; then
+  echo "!! nothing listens on UDP $CALL_PORT: the relay's call forwarder did not start (voice switched off in data/server-config.json, the port taken, or a relay binary from before 2026-10-09; see journalctl -u humanity-relay)"; fail=1
+elif grep -qv '"HumanityOS"' <<<"$call_rows"; then
+  echo "!! something other than the relay listens on UDP $CALL_PORT:"; echo "$call_rows"; fail=1
+fi
+if pgrep -x turnserver >/dev/null 2>&1; then echo "!! coturn (turnserver) is running"; fail=1; fi
+if [ "$OPEN_CALL_PORT" = 1 ]; then
+  grep -q "udp dport $CALL_PORT accept" <<<"$nft_rules" || { echo "!! HUMANITY_OPEN_CALL_PORT=1 but the firewall does not let UDP $CALL_PORT in"; fail=1; }
+elif grep -q "udp dport" <<<"$nft_rules"; then
+  echo "!! the firewall lets a UDP port in although HUMANITY_OPEN_CALL_PORT is not 1"; fail=1
+fi
 sleep 3; systemctl is-active --quiet fail2ban || { echo "!! fail2ban is not running (it can die AFTER start reports success)"; fail=1; }
 # The backup timer must be ARMED and must have produced at least one real
 # backup - the rebuilt box looked healthy for days with neither (2026-08-12).

@@ -303,8 +303,13 @@ pub fn ws_message_feature(msg_type: &str) -> Option<Feature> {
         return Some(Feature::VaultBackup);
     }
     // Voice signalling. `webrtc_signal` carries the peer connection offers for
-    // voice calls and has no other user.
-    if msg_type.starts_with("voice_") || msg_type == "webrtc_signal" {
+    // voice calls and has no other user. `call_credentials` (2026-10-09,
+    // call_credentials.rs) hands out the call forwarder, which carries voice rooms
+    // and calls through this server's bandwidth: an owner who switched voice off has
+    // no rooms or calls for it to carry, and does not run its UDP port at all
+    // (mod.rs `run_relay`). It is not a person's own protection like the always-on
+    // rows below: turning voice off removes the calls themselves, not a safeguard.
+    if msg_type.starts_with("voice_") || msg_type == "webrtc_signal" || msg_type == "call_credentials" {
         return Some(Feature::Voice);
     }
     // The message plane. Listed explicitly rather than by prefix so a future
@@ -571,6 +576,7 @@ mod tests {
         assert_eq!(ws_message_feature("task_create"), Some(Feature::Tasks));
         assert_eq!(ws_message_feature("voice_call"), Some(Feature::Voice));
         assert_eq!(ws_message_feature("webrtc_signal"), Some(Feature::Voice));
+        assert_eq!(ws_message_feature("call_credentials"), Some(Feature::Voice), "the call forwarder is voice");
         assert_eq!(ws_message_feature("chat"), Some(Feature::Chat));
         assert_eq!(ws_message_feature("dm_put"), Some(Feature::Chat));
         assert_eq!(ws_message_feature("dm_fetch"), Some(Feature::Chat));
@@ -1362,6 +1368,57 @@ mod tests {
 
     async fn voice_join(sock: &mut TestSocket) {
         send_json(sock, serde_json::json!({ "type": "voice_room", "action": "join", "room_id": "lounge" })).await;
+    }
+
+    /// CALL FORWARDER CREDENTIALS OVER A REAL SOCKET (2026-10-09, call_credentials.rs,
+    /// blocking-and-safe-mode.md 10f). Someone in the voice room asks and is answered on their own
+    /// socket, in the shape the clients build against; someone else signed in at the same moment
+    /// is sent no credentials at all (the send loop routes them by `to`; an unrouted variant goes
+    /// to everyone). With voice switched off the request is refused like any voice message.
+    ///
+    /// Seen red 2026-10-09 with `CallCredentials` taken out of its routing line in relay.rs's send
+    /// loop: "the bystander was sent someone else's call credentials".
+    #[tokio::test]
+    async fn call_credentials_reach_only_the_asker_and_need_voice() {
+        let (state, port) = voice_relay("call_creds").await;
+        state.calls.set_listening("127.0.0.1", 3478);
+        let (mut asker, key) = bind_socket(&state, port, [61u8; 32], Some("Asker"), 1).await;
+        let (mut bystander, _) = bind_socket(&state, port, [62u8; 32], Some("Bystander"), 1).await;
+        voice_join(&mut asker).await;
+        assert!(wait_until(|| async { times_listed(&state, &key).await == 1 }).await, "the asker is in the lounge");
+        frames_until_quiet(&mut bystander, 300).await;
+
+        send_json(&mut asker, serde_json::json!({ "type": "call_credentials", "room": "lounge" })).await;
+        let creds = next_frame_with(&mut asker, |v| (v["type"] == "call_credentials").then(|| v.clone())).await.expect("the asker is answered");
+        assert_eq!(creds["room"], "lounge");
+        assert_eq!(creds["urls"], serde_json::json!(["turn:127.0.0.1:3478?transport=udp", "stun:127.0.0.1:3478"]));
+        assert_eq!(creds["ttl"], 3600);
+        assert!(creds["username"].as_str().is_some_and(|u| u.contains(':')) && creds["credential"].as_str().is_some());
+        let leaked = frames_until_quiet(&mut bystander, 700).await.into_iter().any(|v| v["type"] == "call_credentials");
+        assert!(!leaked, "the bystander was sent someone else's call credentials");
+
+        // Someone NOT in the room is refused at once, on their own socket only.
+        send_json(&mut bystander, serde_json::json!({ "type": "call_credentials", "room": "lounge" })).await;
+        let refusal = next_frame_with(&mut bystander, |v| (v["type"] == "call_credentials").then(|| v.clone())).await.expect("a refusal");
+        assert_eq!(refusal, serde_json::json!({ "type": "call_credentials", "room": "lounge", "refused": true }));
+        assert!(!frames_until_quiet(&mut asker, 500).await.into_iter().any(|v| v["type"] == "call_credentials"), "the refusal is the bystander's alone");
+
+        // Voice switched off: the feature gate refuses it, with the gate's notice and the
+        // refusal reply, so the client stops waiting at once.
+        let mut off = Features::all_enabled();
+        off.set(Feature::Voice, false);
+        let (quiet, quiet_port) = spawn_relay("call_creds_off", off).await;
+        quiet.calls.set_listening("127.0.0.1", 3478);
+        let (mut sock, _) = bind_socket(&quiet, quiet_port, [63u8; 32], Some("NoVoice"), 1).await;
+        frames_until_quiet(&mut sock, 300).await;
+        send_json(&mut sock, serde_json::json!({ "type": "call_credentials", "room": "lounge" })).await;
+        let frames = frames_until_quiet(&mut sock, 700).await;
+        assert!(
+            frames.iter().any(|v| v["message"].as_str().is_some_and(|m| m.contains("'voice' disabled"))),
+            "the gate's notice: {frames:?}"
+        );
+        let replies: Vec<&Value> = frames.iter().filter(|v| v["type"] == "call_credentials").collect();
+        assert_eq!(replies, vec![&serde_json::json!({ "type": "call_credentials", "room": "lounge", "refused": true })], "refused with voice off");
     }
 
     /// The socket that is not `not`, while exactly two are open.
