@@ -52,7 +52,7 @@ pub struct Warning {
 /// Who sent a message, as the warnings see it (10g): a friend is a mutual follow (you follow
 /// them and they follow you, the test both clients use when they give passes); everyone else is
 /// a stranger.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Sender {
     Friend,
     Stranger,
@@ -93,16 +93,22 @@ impl Warnings {
 
     /// `matching`, as the entries' indices in the file.
     pub fn matching_indices(&self, text: &str, from: Sender) -> Vec<usize> {
+        self.matching_indices_for(text, &[from])
+    }
+
+    /// The entries that match `text` and apply to ANY of `froms`, each once, in the file's order.
+    /// The protected setup (10h) shows a friend's message the entries for friends AND those for
+    /// strangers, which is `&[Sender::Friend, Sender::Stranger]`.
+    pub fn matching_indices_for(&self, text: &str, froms: &[Sender]) -> Vec<usize> {
         let norm = normalize(text);
         if norm.is_empty() {
             return Vec::new();
         }
         let padded = format!(" {norm} ");
-        let word = from.applies_word();
         self.entries
             .iter()
             .enumerate()
-            .filter(|(_, (w, _))| w.applies_to.iter().any(|a| a == word))
+            .filter(|(_, (w, _))| w.applies_to.iter().any(|a| froms.iter().any(|f| a == f.applies_word())))
             .filter(|(_, (_, phrases))| phrases.iter().any(|p| padded.contains(p.as_str())))
             .map(|(i, _)| i)
             .collect()

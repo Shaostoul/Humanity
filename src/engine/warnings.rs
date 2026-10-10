@@ -70,15 +70,24 @@ pub(crate) fn checked_sender(gs: &GuiState, msg: &ChatMessage) -> Option<Sender>
 /// whether its author is a friend), so a long conversation is not re-matched every frame.
 pub(crate) fn shown_under<'a>(gs: &'a GuiState, msg: &ChatMessage) -> Vec<&'a Warning> {
     let (Some(from), Some(list)) = (checked_sender(gs, msg), gs.warnings.list.as_ref()) else { return Vec::new() };
+    // Step G (10h): with the protected setup on, a friend's message gets the strangers' entries
+    // as well as the friends' ones.
+    let froms: &[Sender] = if from == Sender::Friend && crate::engine::protected::warns_friends_as_strangers(gs) {
+        &[Sender::Friend, Sender::Stranger]
+    } else if from == Sender::Friend {
+        &[Sender::Friend]
+    } else {
+        &[Sender::Stranger]
+    };
     let mut h = std::collections::hash_map::DefaultHasher::new();
-    (&msg.channel, &msg.sender_key, msg.timestamp_ms, &msg.content, from == Sender::Friend).hash(&mut h);
+    (&msg.channel, &msg.sender_key, msg.timestamp_ms, &msg.content, froms).hash(&mut h);
     let key = h.finish();
     let ids: Vec<usize> = {
         let mut seen = gs.warnings.matched.lock().unwrap_or_else(|p| p.into_inner());
         if seen.len() > 4096 {
             seen.clear(); // a bound, not a policy: re-matching is only a few microseconds a message
         }
-        seen.entry(key).or_insert_with(|| list.matching_indices(&msg.content, from)).clone()
+        seen.entry(key).or_insert_with(|| list.matching_indices_for(&msg.content, froms)).clone()
     };
     ids.into_iter()
         .filter_map(|i| list.get(i))

@@ -439,8 +439,10 @@ pub(crate) fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut Gu
                     // Follows removal (2026-08-24): sealed control message +
                     // certificate exchange when it becomes mutual.
                     crate::engine::dm::set_follow(state, &key, true);
-                    state.chat_following_keys.insert(key.clone());
-                    if !state.chat_friends.iter().any(|f| f.public_key == key) {
+                    // Step G: with the protected setup on the PIN prompt may be open instead.
+                    let followed = state.dm_store.as_ref().map_or(true, |s| s.is_following(&key));
+                    if followed { state.chat_following_keys.insert(key.clone()); }
+                    if followed && !state.chat_friends.iter().any(|f| f.public_key == key) {
                         if let Some(u) = state.chat_users.iter().find(|u| u.public_key == key).cloned() {
                             state.chat_friends.push(u);
                         }
@@ -1076,39 +1078,10 @@ pub(super) fn draw_join_group_modal(ctx: &egui::Context, theme: &Theme, state: &
                 }
             });
             if do_join {
-                // P2P signed-object join: decode the ticket + POST a
-                // group_join_v1 revealing the secret. The relay's roster fold
-                // admits us iff BLAKE3(secret) matches the creator-signed
-                // invite and it hasn't expired.
-                let server_url = state.server_url.clone();
+                // P2P signed-object join (chat/p2p_groups.rs), which asks the
+                // protected setup's PIN first when it is on (step G).
                 let ticket = state.join_group_invite_code.trim().to_string();
-                let seed_opt = state.private_key_bytes.clone();
-                match seed_opt {
-                    Some(seed) => {
-                        match crate::net::api_v2::join_group_by_ticket(&server_url, &seed, &ticket) {
-                            Ok((group_id, name)) => {
-                                log::info!("Joined P2P group: {} ({})", name, group_id);
-                                crate::debug::push_debug(format!("Joined P2P group '{}'", name));
-                                state.join_group_status.clear();
-                                state.join_group_result = Some(if name.is_empty() {
-                                    "(unnamed)".to_string()
-                                } else {
-                                    name
-                                });
-                                // Refresh so the joined group appears in the
-                                // left-panel list once the user clicks Done.
-                                refresh_p2p_groups(state);
-                            }
-                            Err(e) => {
-                                state.join_group_status = format!("Join failed: {e}");
-                                log::error!("join P2P group failed: {e}");
-                            }
-                        }
-                    }
-                    None => {
-                        state.join_group_status = "No identity loaded. Connect first.".to_string();
-                    }
-                }
+                super::join_group_with_ticket(state, &ticket);
             }
         }
     });

@@ -54,6 +54,12 @@ pub mod call_relay;
 #[cfg(feature = "native")]
 pub mod warnings;
 
+/// The protected setup (step G of docs/design/blocking-and-safe-mode.md, 2026-10-10): the preset
+/// (data/gui/safety_presets.json), the PIN's verifier and its wait, which actions need the PIN,
+/// the review step's rows and the "Forgot the PIN?" phrase check, with no socket and no GUI.
+#[cfg(feature = "native")]
+pub mod protected;
+
 /// Native client → relay v2 signed-object submission + invite ticket helpers
 /// (P2P groups). HTTP via the same blocking-ureq pattern as image upload.
 #[cfg(feature = "native")]

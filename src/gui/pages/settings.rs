@@ -666,7 +666,15 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             let enc = state.encrypted_private_key.clone();
             let salt = state.key_salt.clone();
             let iters = state.key_iterations;
-            let reveal = if !enc.is_empty() && !salt.is_empty() {
+            // Step G: while the protected setup is on, showing the phrase needs its PIN first,
+            // because whoever has the phrase can change the PIN (10h, "Forgot the PIN?").
+            let pin_ok = !crate::engine::protected::is_on(state) || state.protected.phrase_shown;
+            let reveal = if !pin_ok {
+                if widgets::secondary_button(ui, theme, "Show Recovery Phrase") {
+                    crate::engine::protected::perform(state, crate::net::protected::ProtectedAction::ShowRecoveryPhrase);
+                }
+                false
+            } else if !enc.is_empty() && !salt.is_empty() {
                 let lock = state.section_locks.entry("seed_phrase".to_string()).or_default();
                 widgets::lockable_gate(ui, theme, lock, "Reveal recovery phrase", |pass| {
                     crate::config::decrypt_private_key(&enc, &salt, pass, iters).is_ok()
@@ -5348,6 +5356,18 @@ mod body_heat_hint_tests {
     }
 }
 
+/// The body of the signed export request: the key, the time and the signature, and nothing
+/// else from this device (so nothing of this device's own settings, the protected setup's
+/// included, can reach a server this way; 10h, "Per device, never synced").
+pub(crate) fn account_export_request(public_key: &str, seed: &[u8], ts: u64) -> serde_json::Value {
+    let sig = crate::net::identity::pq_sign_chat(seed, "account_export", ts);
+    serde_json::json!({
+        "key": public_key,
+        "timestamp": ts,
+        "sig": sig,
+    })
+}
+
 /// Blocking POST /api/account/export (signed). Writes the export to the app's
 /// exports directory and returns the path it wrote.
 ///
@@ -5364,12 +5384,7 @@ fn fetch_account_export_blocking(
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64;
-    let sig = crate::net::identity::pq_sign_chat(seed, "account_export", ts);
-    let body = serde_json::json!({
-        "key": public_key,
-        "timestamp": ts,
-        "sig": sig,
-    });
+    let body = account_export_request(public_key, seed, ts);
 
     let text = match ureq::post(&format!("{base}/api/account/export"))
         .set("Content-Type", "application/json")

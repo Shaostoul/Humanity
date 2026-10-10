@@ -198,6 +198,10 @@ pub const REPORT_REASONS_JSON: &str = include_str!("../data/safety/report_reason
 /// Built in so the desktop app still warns when the data folder lacks the file (net/warnings.rs
 /// `load_warnings`); the web client reads the same file.
 pub const WARNINGS_JSON: &str = include_str!("../data/safety/warnings.json");
+/// The safety presets (design blocking-and-safe-mode.md 10h): the protected setup's settings and every
+/// word it shows. Built in so the desktop app still has them when the data folder lacks the file
+/// (net/protected.rs `load_preset`); the web client reads the same file.
+pub const SAFETY_PRESETS_JSON: &str = include_str!("../data/gui/safety_presets.json");
 
 // ── Lookup helper ───────────────────────────────────────────────────
 
@@ -403,6 +407,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "equipment.csv" => Some(EQUIPMENT_CSV),
         "safety/report_reasons.json" => Some(REPORT_REASONS_JSON),
         "safety/warnings.json" => Some(WARNINGS_JSON),
+        "gui/safety_presets.json" => Some(SAFETY_PRESETS_JSON),
 
         _ => None,
     }
