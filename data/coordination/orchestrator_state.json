@@ -836,6 +836,11 @@
       "date": "2026-10-10",
       "decision": "v0.1482.0 (BUG-186): spec 10m merged from both halves and aligned (the web's refused-echo list taken to the desktop; the desktop's withdraw-in-flight-passes-when-marking taken to the web). Plus a leak found while checking: the desktop history pump asked /api/messages?channel=dm:<key> on opening a DM; now only a server's own rooms (net_route::history_channel). Live server checked read-only: 3 nginx lines in the oldest rotated log (ages out within a day), none in the relay journal; nothing deleted.",
       "why": "Multi-device consent must never widen by itself; and the sealed-sender design is undone if the client tells the server whose conversation it opened. Deleting the 3 log lines would be an operator call; they rotate out on their own."
+    },
+    {
+      "date": "2026-10-10",
+      "decision": "Spec 10n (commit 91ac73d78): the choice for each friend syncs as its own signed self-note [[hum:choice:v1]]<key>/<may> (newer at wins, equal at: larger may text), the block-notes pattern; passes follow the choice on every device (withdraw beyond at once, echoes never change the choice); 10m R2 withdrawn (self-copies held until dm_put_ok again, refused-echo lists removed); offline Unfollow queued; sweep waits for the mailbox on connect; web scratch pad into the encrypted DM store. Desktop and web built in parallel worktrees.",
+      "why": "A third critic, reviewing 10m, found more two-device orderings that lost or reversed a choice (an offline untick undone from the web; a marked friend re-granted with one click; an older echo winning). All share one root: ticks rebuilt from pass echoes that arrive late, out of order or never. Patching orderings one by one does not converge; syncing the choice itself as state, like the block list, does."
     }
   ],
   "active_scopes_to_avoid": [
