@@ -1486,3 +1486,27 @@ test("10m R7: a pass refused for reach is not sent again by itself; the offer sh
 //  R7: "it is not sent again by itself" (every member list sent it, and the offer came back).
 //  R8: "a DM the server let through under Groups is kept, whatever this page's group list says"
 //    (in the receiving test above; the page's stale group list turned it into a request).
+
+// 10m R3, the desktop app's rule (src/net/dm_store.rs withdrawal_confirmed): a pass this tab still
+// has on its way to Ben was minted without my other device's choice, so when that device's
+// withdrawal leaves him no standing pass, it goes too and Ben is marked. Seen red 2026-10-10
+// against the merged web half before this (a pass on its way kept Ben unmarked): "Ben is marked
+// though a pass of mine was on its way".
+test("10m R3: a pass of mine still on its way goes too when my other device withdrew his", async () => {
+  const t = await loadChat();
+  const { sock, store, handle } = t;
+  await befriendBoth(t, BEN);
+  const OLD = "00112233445566778899aabbccddeeff";
+  const ONWAY = "0f0e0d0c0b0a09080706050403020100";
+  store.recordPassSent(BEN, OLD, DEFAULT_MAY);
+  store.passSending(BEN, ONWAY, WITH_CALL);
+  sock.sent.length = 0;
+  await handle({ type: "cert_revoked", to: ME, serial: OLD });
+  await settle();
+  assert.ok(store.passChangedOnOtherDevice(BEN), "Ben is marked though a pass of mine was on its way");
+  assert.equal((store.passesUnsure[BEN] || []).length, 0, "and that pass is no longer waiting");
+  assert.ok(sock.sent.some((m) => m.type === "cert_revoke" && m.serial === ONWAY), "it is withdrawn at once");
+  await handle({ type: "full_user_list", users: memberUsers() });
+  await settle();
+  assert.ok(!sock.sent.some((m) => m.type === "dm_put" && m.to === BEN), "and no pass goes to him by itself");
+});

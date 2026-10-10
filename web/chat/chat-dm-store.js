@@ -579,8 +579,17 @@ const hosDmStore = {
     const marked = [];
     if (!mine) {
       for (const peer of touched) {
-        if (this.certSentTo(peer) || (this.passesUnsure[peer] || []).length) continue;
+        if (this.certSentTo(peer)) continue; // another pass of mine still stands with them
         if (this.isBlocked(peer) || this.passChangedOnOtherDevice(peer)) continue;
+        // A pass of mine still on its way to them was minted without that
+        // device's choice: it is withdrawn too, so it cannot give back what
+        // the other device took away (the desktop app's withdrawal_confirmed
+        // does the same). The caller sends the withdrawals.
+        for (const p of (this.passesUnsure[peer] || [])) {
+          if (!this.withdrawalsPending.includes(p.serial)) this.withdrawalsPending.push(p.serial);
+        }
+        delete this.passesUnsure[peer];
+        changed = true;
         this.passChangedElsewhere[peer] = Date.now();
         delete this.passIntent[peer];
         marked.push(peer);

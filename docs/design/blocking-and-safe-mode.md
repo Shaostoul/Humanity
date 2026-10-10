@@ -1982,6 +1982,21 @@ like their figure and nameplate. Doors still open for them: they still stand the
 - Web labels: the header, the channel description and the row's tooltip say a note stays in this
   browser and a file is stored encrypted, with its key kept only here.
 
+**As built (v0.1482.0, desktop and web in parallel, then aligned).** Beyond the rules: (a) with R2 a
+pass's self-copy can come back to the device that sent it, so an echo of my own pass is ignored
+while its answer is still pending, and so is one the server refused after its self-copy had gone
+(both keep the newest 32 such serials: desktop `passes_refused_echoed`, web `passesRefusedEchoed`);
+(b) R3 also covers a withdrawn pass that was still unanswered, and when it marks a friend, any pass
+of this device's still on its way to them is withdrawn too (it was minted without the other
+device's choice); a marked friend's ticks are drawn empty and stay free to change, and a tick there
+gives exactly what is ticked and clears the mark. (c) Found while checking R10: the desktop's
+history pump asked the server for `/api/messages?channel=dm:<key>` when a DM was opened (and on a
+reconnect with one open), putting who the person talks to into the server's request log; it now
+asks only for a server's own rooms (`net_route::history_channel`), and the web never asks for the
+scratch pad. Words: "A request or pass to them is still waiting for this server to answer. Try
+again in a moment." (`reach::STILL_WAITING`), and the web scratch pad's "Notes stay in this
+browser. A file is stored encrypted on the server, and only this browser has its key."
+
 ## 11. Docs to update as each piece ships
 
 - `docs/accord/conformance_gaps.md` ("Contact consent cannot be withdrawn")

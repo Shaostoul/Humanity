@@ -52,9 +52,15 @@ function showReactionPicker(btn, targetFrom, targetTs, msgEl) {
   }, 0);
 }
 
-/** A P2P group is open: nothing that sends a message's text or reactions to the server (BUG-178). */
+/**
+ * A P2P group is open (BUG-178), or the scratch pad (10m R10, the desktop
+ * app's is_private_channel, which counts "scratchpad"): nothing that sends a
+ * message's text or reactions to the server (a reaction, an edit, a server
+ * pin, a delete).
+ */
 function privateViewOpen() {
-  return !!(typeof window !== 'undefined' && window.activeP2pGroup);
+  if (typeof window !== 'undefined' && window.activeP2pGroup) return true;
+  return typeof scratchPadOpen === 'function' && scratchPadOpen();
 }
 
 function sendReaction(targetFrom, targetTs, emoji) {
@@ -773,6 +779,9 @@ document.getElementById('thread-input').addEventListener('keydown', (e) => {
 });
 
 function sendTypingIndicator() {
+  // Nothing while the scratch pad is open (10m R10): what is typed there goes
+  // to no one, so no one is told someone is typing.
+  if (typeof scratchPadOpen === 'function' && scratchPadOpen()) return;
   // Throttle: send at most once every 2 seconds.
   const now = Date.now();
   if (now - lastTypingSent < 2000) return;

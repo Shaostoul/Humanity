@@ -23,6 +23,9 @@
 // Passes kept per friend whose answer never came (10l, passSending); older
 // ones are withdrawn. The desktop app's UNANSWERED_KEPT in src/net/dm_store.rs.
 const PASSES_UNSURE_KEPT = 4;
+// Refused passes whose self-copy already went (10m R2) remembered, so their
+// echo is not adopted here (passesRefusedEchoed).
+const PASSES_REFUSED_KEPT = 32;
 
 const hosDmStore = {
   _db: null,
@@ -63,6 +66,20 @@ const hosDmStore = {
   // `may` until a pass carrying it is taken. Cleared once it is, and by
   // Unfollow and Block (a friendship begun again starts from the defaults).
   passIntent: {},      // peer -> may (sorted, comma-joined)
+  // ── Passes across my own devices (10m R2 and R3, 2026-10-10) ──
+  // Friends whose pass another of my devices withdrew (the relay's
+  // `cert_revoked` for a serial this device held and did not withdraw itself),
+  // leaving them none from me (withdrawalConfirmed). That device made a choice
+  // this one did not see, so this one gives them no pass by itself until it
+  // hears what it was (the echo of a pass to them, adoptEchoedPass) or the
+  // person decides here (ticks, follow, accept): nothing withdrawn is ever
+  // given back by a device that did not see the choice.
+  passChangedElsewhere: {}, // peer -> when it was marked (ms)
+  // Serials of re-issued passes whose self-copy went out at once (an untick,
+  // 10m R2) and which the server then refused: my own echo of one is not
+  // adopted here, where the refusal is known (the friend never held it, and
+  // the next sweep sends it again). Newest last, at most PASSES_REFUSED_KEPT.
+  passesRefusedEchoed: [],
   // ── Contact requests ("who can reach me", step B, 2026-10-09, 10c): people
   // who asked to reach me, shown by name only with Accept and Ignore, keyed by
   // their (signed) key. `pass` is the pass their request carried, which my
@@ -172,6 +189,8 @@ const hosDmStore = {
       this.withdrawalsPending = [];
       this.passesUnsure = {};
       this.passIntent = {};
+      this.passChangedElsewhere = {};
+      this.passesRefusedEchoed = [];
       this.contactRequests = {};
       this.blocked = {};
       this.blockNotesPending = [];
@@ -192,6 +211,8 @@ const hosDmStore = {
           if (m && Array.isArray(m.withdrawalsPending)) this.withdrawalsPending = m.withdrawalsPending;
           if (m && m.passesUnsure && typeof m.passesUnsure === 'object') this.passesUnsure = m.passesUnsure;
           if (m && m.passIntent && typeof m.passIntent === 'object') this.passIntent = m.passIntent;
+          if (m && m.passChangedElsewhere && typeof m.passChangedElsewhere === 'object') this.passChangedElsewhere = m.passChangedElsewhere;
+          if (m && Array.isArray(m.passesRefusedEchoed)) this.passesRefusedEchoed = m.passesRefusedEchoed;
           if (m && m.contactRequests && typeof m.contactRequests === 'object') this.contactRequests = m.contactRequests;
           if (m && m.blocked && typeof m.blocked === 'object') this.blocked = m.blocked;
           if (m && Array.isArray(m.blockNotesPending)) this.blockNotesPending = m.blockNotesPending;
@@ -233,6 +254,8 @@ const hosDmStore = {
       withdrawalsPending: this.withdrawalsPending,
       passesUnsure: this.passesUnsure,
       passIntent: this.passIntent,
+      passChangedElsewhere: this.passChangedElsewhere,
+      passesRefusedEchoed: this.passesRefusedEchoed,
       contactRequests: this.contactRequests,
       blocked: this.blocked,
       blockNotesPending: this.blockNotesPending,
@@ -269,6 +292,9 @@ const hosDmStore = {
       // what each friend may do starts again from the defaults with them.
       this.passesUnsure = {};
       this.passIntent = {};
+      // And what my other devices did with them (10m) is about the old passes.
+      this.passChangedElsewhere = {};
+      this.passesRefusedEchoed = [];
     }
     this.passServer = did;
     this._persistMeta();
@@ -282,6 +308,8 @@ const hosDmStore = {
   recordPassSent(peer, serial, may) {
     const list = this.certsSent[peer] || (this.certsSent[peer] = []);
     if (!list.some((p) => p.serial === serial)) list.push({ serial, may });
+    // A pass to them stands again on record here: this device knows what they hold (10m R3).
+    delete this.passChangedElsewhere[peer];
     this._persistMeta();
   },
   /**
@@ -295,6 +323,7 @@ const hosDmStore = {
     delete this.certsSent[peer];
     delete this.passesUnsure[peer];
     delete this.passIntent[peer];
+    delete this.passChangedElsewhere[peer];
     for (const s of gone) if (!this.withdrawalsPending.includes(s)) this.withdrawalsPending.push(s);
     this._persistMeta();
     return gone;
@@ -307,6 +336,7 @@ const hosDmStore = {
   replacePassTo(peer, serial, may) {
     const old = (this.certsSent[peer] || []).map((p) => p.serial).filter((s) => s !== serial);
     this.certsSent[peer] = [{ serial, may }];
+    delete this.passChangedElsewhere[peer];
     for (const s of old) if (!this.withdrawalsPending.includes(s)) this.withdrawalsPending.push(s);
     this._persistMeta();
     return old;
@@ -330,6 +360,12 @@ const hosDmStore = {
     // before. It says nothing new, and acting on it again would withdraw a
     // newer pass this device has sent since.
     if ((this.certsSent[peer] || []).some((p) => p.serial === serial)) return [];
+    // This device's own pass, whose self-copy went out with it (an untick,
+    // 10m R2): still waiting for the server's answer, or refused by it. The
+    // answer decides here, never the echo: adopting a refused one would count
+    // a pass the friend does not hold, and the sweep would stop sending it.
+    if ((this.passesUnsure[peer] || []).some((p) => p.serial === serial)) return [];
+    if (this.passesRefusedEchoed.includes(serial)) return [];
     const norm = (m) => String(m || '').split(',').filter(Boolean).sort().join(',');
     const want = norm(may);
     const list = this.certsSent[peer] || [];
@@ -342,8 +378,11 @@ const hosDmStore = {
     this.certsSent[peer] = kept.concat([{ serial, may }]);
     const unsureKept = unsure.filter((p) => norm(p.may) === want);
     if (unsureKept.length) this.passesUnsure[peer] = unsureKept; else delete this.passesUnsure[peer];
-    // What this device meant to give them gives way to it as well.
+    // What this device meant to give them gives way to it as well, and a
+    // friend marked as changed on my other device is not any more (10m R3):
+    // this is that device's word.
     delete this.passIntent[peer];
+    delete this.passChangedElsewhere[peer];
     for (const s of gone) if (!this.withdrawalsPending.includes(s)) this.withdrawalsPending.push(s);
     this._persistMeta();
     return gone;
@@ -378,7 +417,26 @@ const hosDmStore = {
       for (const p of Object.keys(map)) if (Array.isArray(map[p]) && map[p].length) keys.add(p);
     }
     for (const p of Object.keys(this.passIntent)) keys.add(p);
+    // And a friend whose pass my other device just changed (10m R3): still mine
+    // to choose for, while they are a friend here (an Unfollow made there
+    // clears the mark when its note arrives, withdrawPassesTo).
+    for (const p of Object.keys(this.passChangedElsewhere)) if (this.isFriendPeer(p)) keys.add(p);
     return Array.from(keys).filter((p) => !this.isBlocked(p));
+  },
+  /** Did another of my devices withdraw `peer`'s pass, leaving them none from me (10m R3)? */
+  passChangedOnOtherDevice(peer) {
+    return Object.prototype.hasOwnProperty.call(this.passChangedElsewhere, peer);
+  },
+  /**
+   * The person decided for `peer` on this device (ticks, follow, accept), or
+   * this device heard my other device's choice: the mark goes. Returns true
+   * when there was one.
+   */
+  clearPassChangedElsewhere(peer) {
+    if (!this.passChangedOnOtherDevice(peer)) return false;
+    delete this.passChangedElsewhere[peer];
+    this._persistMeta();
+    return true;
   },
   /**
    * Withdraw at once every pass to `peer`, standing or still unanswered, for
@@ -411,8 +469,16 @@ const hosDmStore = {
    * so nothing about it is kept and nothing is withdrawn. Their pass, if one
    * stands, stands; what I meant to give them stays, for the next sweep.
    */
-  passRefused(peer, serial) {
-    if (this._dropUnsure(peer, serial)) this._persistMeta();
+  passRefused(peer, serial, selfCopySent) {
+    let changed = this._dropUnsure(peer, serial);
+    // Its self-copy already went to my mailbox (10m R2): its echo, when it
+    // comes back here, is not a pass the friend holds (adoptEchoedPass).
+    if (selfCopySent && !this.passesRefusedEchoed.includes(serial)) {
+      this.passesRefusedEchoed.push(serial);
+      this.passesRefusedEchoed.splice(0, Math.max(0, this.passesRefusedEchoed.length - PASSES_REFUSED_KEPT));
+      changed = true;
+    }
+    if (changed) this._persistMeta();
   },
   /**
    * The server took the put (`dm_put_ok`): from now the pass is given. A
@@ -481,25 +547,56 @@ const hosDmStore = {
    * The relay confirmed a withdrawal. The serial also leaves the passes I gave,
    * so another of my devices that still listed it (it learns of a withdrawal
    * made elsewhere only from this answer) stops counting it as standing.
+   *
+   * A serial this device did not withdraw itself was withdrawn by another of
+   * my devices (10m R3). When that leaves the friend with no pass from me, on
+   * record or on its way, they are marked "changed on my other device"
+   * (passChangedElsewhere): that device made a choice this one did not see,
+   * so this one gives them nothing by itself, and what it meant to give them
+   * before (passIntent) is dropped as older than that choice. Returns the
+   * friends marked now.
    */
   withdrawalConfirmed(serial) {
     let changed = false;
+    const mine = this.withdrawalsPending.includes(serial);
     const before = this.withdrawalsPending.length;
     this.withdrawalsPending = this.withdrawalsPending.filter((s) => s !== serial);
     if (this.withdrawalsPending.length !== before) changed = true;
+    const touched = [];
     for (const peer of Object.keys(this.certsSent)) {
       const list = this.certsSent[peer] || [];
       const kept = list.filter((p) => p.serial !== serial);
       if (kept.length !== list.length) {
         changed = true;
+        touched.push(peer);
         if (kept.length) this.certsSent[peer] = kept; else delete this.certsSent[peer];
       }
     }
     // A withdrawn pass is not waiting for anything any more (10l).
     for (const peer of Object.keys(this.passesUnsure)) {
-      if (this._dropUnsure(peer, serial)) changed = true;
+      if (this._dropUnsure(peer, serial)) { changed = true; touched.push(peer); }
+    }
+    const marked = [];
+    if (!mine) {
+      for (const peer of touched) {
+        if (this.certSentTo(peer)) continue; // another pass of mine still stands with them
+        if (this.isBlocked(peer) || this.passChangedOnOtherDevice(peer)) continue;
+        // A pass of mine still on its way to them was minted without that
+        // device's choice: it is withdrawn too, so it cannot give back what
+        // the other device took away (the desktop app's withdrawal_confirmed
+        // does the same). The caller sends the withdrawals.
+        for (const p of (this.passesUnsure[peer] || [])) {
+          if (!this.withdrawalsPending.includes(p.serial)) this.withdrawalsPending.push(p.serial);
+        }
+        delete this.passesUnsure[peer];
+        changed = true;
+        this.passChangedElsewhere[peer] = Date.now();
+        delete this.passIntent[peer];
+        marked.push(peer);
+      }
     }
     if (changed) this._persistMeta();
+    return marked;
   },
 
   // ── Contact requests (step B) ──
@@ -532,7 +629,12 @@ const hosDmStore = {
       .map(([id, r]) => ({ id, key: r.key || id, name: r.name, hasPass: !!r.pass, ts: Number(r.ts) || 0 }))
       .sort((a, b) => b.ts - a.ts);
   },
-  /** Mutual follows with no standing pass from me, and not blocked: the ones the sweep mints for. */
+  /**
+   * Mutual follows with no standing pass from me, and not blocked: the ones the
+   * sweep mints for (it skips one whose pass my other device withdrew, 10m R3,
+   * chat-social.js sweepFriendPasses; they are still friends, so the protected
+   * setup's review lists them from here).
+   */
   friendsWithoutPass() {
     return Array.from(this.following).filter((p) => this.followers.has(p) && !this.certSentTo(p) && !this.isBlocked(p)).sort();
   },

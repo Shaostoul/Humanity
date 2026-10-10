@@ -847,6 +847,8 @@ async function loadHistory() {
   // from last time before the server's list says what it is (10h,
   // chat-protected.js, which moves to a listed room when the list arrives).
   if (typeof protectedChannelHidden === 'function' && protectedChannelHidden(activeChannel)) return;
+  // The scratch pad is kept in this browser; the server is never asked for it.
+  if (isScratchPad()) return;
   try {
     const resp = await fetch(`/api/messages?limit=100&channel=${encodeURIComponent(activeChannel)}`);
     const data = await resp.json();

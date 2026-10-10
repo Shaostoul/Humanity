@@ -844,6 +844,28 @@ pub(crate) fn reload_planet_defs(state: &mut EngineState) {
 /// reconnect cycle (the operator's "app froze while watching chat" report,
 /// log-proven). The is_connected gate is honest now (ws_client::LinkState),
 /// so this does not even spawn while the relay is dark.
+/// The server room whose history the pump asks for, for the view that is open, or None.
+///
+/// Never a direct message, a P2P group or the scratchpad (`chat::is_private_channel`): their
+/// history lives on this device, and asking `/api/messages?channel=dm:<key>` put who the person was
+/// talking to into the server's request log, the very thing sealed-sender DMs keep from it
+/// (found 2026-10-10: opening a DM, or reconnecting with one open, made that request).
+///
+/// A Commons view fetches the underlying room's history, but only when the ACTIVE server actually
+/// carries the bridged room. A non-carrier's same-named local channel is a different room and must
+/// not be pulled into the merged view (carrier history comes from the background fetch in
+/// engine/bg_connections.rs instead).
+pub(crate) fn history_channel(gs: &crate::gui::GuiState) -> Option<String> {
+    let active = gs.chat_active_channel.as_str();
+    if crate::gui::pages::chat::is_private_channel(active) {
+        return None;
+    }
+    match crate::gui::pages::chat::commons_room_of(active) {
+        Some(room) => gs.chat_channels.iter().any(|c| c.id == room && c.federated).then(|| room.to_string()),
+        None => Some(active.to_string()),
+    }
+}
+
 pub(crate) fn chat_history_pump(state: &mut EngineState) {
     if !state.gui_state.history_fetched
         && state.gui_state.ws_client.as_ref().map_or(false, |c| c.is_connected())
@@ -852,26 +874,8 @@ pub(crate) fn chat_history_pump(state: &mut EngineState) {
     {
         state.gui_state.history_fetched = true;
         let base_url = state.gui_state.server_url.trim_end_matches('/').to_string();
-        // A Commons view fetches the underlying room's history -- but only
-        // when the ACTIVE server actually carries the bridged room. A
-        // non-carrier's same-named local channel is a different room and
-        // must not be pulled into the merged view (carrier history comes
-        // from the background fetch in engine/bg_connections.rs instead).
-        let channel = match crate::gui::pages::chat::commons_room_of(
-            &state.gui_state.chat_active_channel,
-        ) {
-            Some(room) => {
-                let carries = state
-                    .gui_state
-                    .chat_channels
-                    .iter()
-                    .any(|c| c.id == room && c.federated);
-                if !carries {
-                    return; // history_fetched stays true; nothing to fetch here
-                }
-                room.to_string()
-            }
-            None => state.gui_state.chat_active_channel.clone(),
+        let Some(channel) = history_channel(&state.gui_state) else {
+            return; // history_fetched stays true; nothing to ask the server for here
         };
         let api_url = format!("{}/api/messages?limit=50&channel={}", base_url, channel);
         let (tx, rx) = std::sync::mpsc::channel();
@@ -1016,6 +1020,27 @@ pub(crate) fn chat_history_pump(state: &mut EngineState) {
 
 #[cfg(test)]
 mod tests {
+    /// THE SERVER IS NEVER ASKED FOR A PRIVATE CONVERSATION'S HISTORY (2026-10-10): a DM, a P2P
+    /// group and the scratchpad give no channel to fetch, a room and a carried Commons room do, a
+    /// Commons room the server does not carry does not. Seen red 2026-10-10 against the pump as it
+    /// was (every channel but an uncarried Commons room was fetched): "a DM is never asked of the
+    /// server".
+    #[test]
+    fn the_server_is_never_asked_for_a_private_conversations_history() {
+        let mut gs = crate::gui::GuiState::default();
+        gs.chat_channels.push(crate::gui::ChatChannel { id: "garden".into(), name: "garden".into(), federated: true, ..Default::default() });
+        let at = |gs: &mut crate::gui::GuiState, ch: &str| {
+            gs.chat_active_channel = ch.to_string();
+            super::history_channel(gs)
+        };
+        assert_eq!(at(&mut gs, "dm:ab12"), None, "a DM is never asked of the server");
+        assert_eq!(at(&mut gs, "p2pgroup:g1"), None, "nor a P2P group");
+        assert_eq!(at(&mut gs, "scratchpad"), None, "nor the scratchpad");
+        assert_eq!(at(&mut gs, "general").as_deref(), Some("general"), "a room is");
+        assert_eq!(at(&mut gs, "commons:garden").as_deref(), Some("garden"), "a Commons room this server carries is, as its room");
+        assert_eq!(at(&mut gs, "commons:books"), None, "one it does not carry is not");
+    }
+
     use super::*;
 
     /// EVERY MESSAGE ABOUT THE PIECES THE SERVER KEEPS REACHES THE CLIENT (ship homes increment 5,

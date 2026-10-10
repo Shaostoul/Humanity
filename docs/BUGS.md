@@ -5437,3 +5437,34 @@ own welcome entry keeps all of theirs.
 The same release takes Block into the game (design section 4.5, "Game figure and name"): the key
 reaches the desktop's `RemotePlayer` from the join and the snapshot entry, and a blocked key's
 figure and name are not drawn (`engine/block.rs` `hides_player`).
+
+## BUG-186: a permission taken away on one device could be given back by the person's other device; the desktop asked the server for a DM's history (FIXED v0.1482.0, found 2026-10-10)
+
+Two read-only reviews of v0.1478.0 to v0.1481.0 (one per feature area, reading the server, desktop
+and web halves side by side), then spec 10m in `docs/design/blocking-and-safe-mode.md`:
+
+- **An untick could come back.** 10l holds a pass's self-copy until the server takes the pass. When
+  an untick's new pass was refused, the person's other device never heard the new choice: it saw
+  only the old pass withdrawn, and the web chat then minted the defaults, giving back what had been
+  unticked; the desktop kept showing the old pass. Now an untick's self-copy goes at once, before
+  the withdrawals, and a device that sees its pass withdrawn by another of the person's devices
+  marks that friend and sends them no pass of its own until it hears the choice (R2, R3).
+- **The desktop followed on a contact request the server refused** (R1); **an untick did not take
+  back a pass still waiting for its answer** when the standing one already matched (R4); **a late
+  echo of a pass being withdrawn was adopted again** (R5); **a second request could go while one
+  waited**, and Unfollow left a waiting send (R6).
+- **A pass refused by the friend's own setting was resent on every member list**, repeating a "Not
+  delivered" offer every minute (R7).
+- **The new ring check could drop a call the person allowed**: each app read its own group list,
+  which goes stale, under "Friends and people in my groups"; group membership is now the server's
+  call there (R8).
+- **A blocked player's name was still in the game's HUD list** (R9).
+- **The scratch pad sent a typing indicator on every key** on both apps; the desktop lost its
+  scratchpad notes (and so the only key to a file put there) on reopening; a few web scratch pad
+  rows still offered server actions (R10).
+- **Found while checking those: the desktop asked the server for a DM's history.** Opening a DM (and
+  reconnecting with one open) requested `/api/messages?channel=dm:<their key>`, which the server
+  answered with nothing but which put who the person talks to into the web server's request log.
+  Groups and the scratchpad did the same. Checked on the live server 2026-10-10: three such lines in
+  the oldest rotated nginx log, which rotates them out within a day; none in the relay's own log.
+  Now the desktop asks only for a server's own rooms (`engine/net_route.rs` `history_channel`).

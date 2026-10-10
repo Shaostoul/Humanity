@@ -742,6 +742,8 @@ function friendPassWithdrawn(serial) {
   if (!(window.hosDmStore && hosDmStore.ready && serial)) return;
   const marked = hosDmStore.withdrawalConfirmed(serial);
   if (Array.isArray(marked) && marked.length) {
+    // Any pass of mine still on its way to them went with it (chat-dm-store.js).
+    sendPendingWithdrawals();
     updateFriendIndicators();
     if (typeof renderSafetyPanel === 'function') renderSafetyPanel();
   }
