@@ -633,4 +633,48 @@ mod tests {
         assert_eq!(store.ticks(&cy), FriendTicks::default(), "an Unfollow from our other device clears it too");
         gs.dm_store.as_ref().unwrap().remove_file_for_test();
     }
+
+    /// Ring an idle app as `who`; true when it rang.
+    fn rings(gs: &mut GuiState, who: &str) -> bool {
+        gs.call_incoming = None;
+        crate::engine::call_relay::on_ring(gs, who.to_string(), "Someone".into());
+        gs.call_incoming.is_some()
+    }
+
+    /// A ring our own call setting would not let through is ignored here too (the relay checks
+    /// first; this is for a server that passes one on anyway): under the safe defaults (calls from
+    /// People I choose) a stranger's ring, and a friend's whose pass does not name calls, ring
+    /// nothing, leave no line and send nothing back; a friend whose pass names calls rings, and so
+    /// does one whose pass went unanswered (10l: the relay honours it if it stored it), whose DMs
+    /// are DMs too, not requests. Under Anyone a stranger rings.
+    /// Seen red 2026-10-10 two ways: without the check in `on_ring`, "a stranger's ring rings
+    /// nothing"; with `passes_held_by` reading the record only, "and so does one whose pass went
+    /// unanswered".
+    #[test]
+    fn rings_our_call_setting_refuses_are_ignored() {
+        let (my_seed, me) = identity(94);
+        let (_s, stranger) = identity(95);
+        let (_f, friend) = identity(96);
+        let (_c, caller) = identity(97);
+        let (_u, unsure) = identity(98);
+        let mut gs = app(&me, &my_seed, "reach-rings");
+        let (client, sent) = crate::net::ws_client::WsClient::recording();
+        gs.ws_client = Some(client);
+        let store = gs.dm_store.as_mut().unwrap();
+        store.record_pass_sent(&friend, SentPass { serial: "ab".repeat(16), may: "invite,message,trade,voice_message".into() });
+        store.record_pass_sent(&caller, SentPass { serial: "cd".repeat(16), may: "call,invite,message,trade,voice_message".into() });
+        store.pass_on_its_way(&unsure, SentPass { serial: "ef".repeat(16), may: "call,invite,message,trade,voice_message".into() });
+
+        assert!(!rings(&mut gs, &stranger), "a stranger's ring rings nothing under the defaults");
+        assert!(!rings(&mut gs, &friend), "nor a friend's whose pass does not name calls");
+        assert!(gs.pending_notices.is_empty(), "an ignored ring leaves no line");
+        assert!(sent.try_recv().is_err(), "and sends nothing back");
+        assert!(rings(&mut gs, &caller), "a friend whose pass names calls rings");
+        assert!(rings(&mut gs, &unsure), "and so does one whose pass went unanswered");
+        assert!(crate::engine::dm::ingest_dm(&mut gs, &inner(&unsure, &me, "hello")), "whose DM is a DM, not a request");
+
+        gs.dm_store.as_mut().unwrap().set_reach_settings(ReachSettings { call: Audience::Anyone, ..Default::default() });
+        assert!(rings(&mut gs, &stranger), "under Anyone a stranger rings");
+        gs.dm_store.as_ref().unwrap().remove_file_for_test();
+    }
 }

@@ -585,8 +585,23 @@ impl DmStore {
     /// this server last said it, or the safe defaults) let them through? `shares_group` is
     /// whether they are in a P2P group with us.
     pub fn admits_dm_from(&self, from: &str, shares_group: bool) -> bool {
-        let rel = super::reach::Relation { is_me: from == self.me, passes: self.passes_sent_to(from), shares_group };
-        !super::reach::shows_as_request(&self.body.reach_settings.unwrap_or_default(), &rel)
+        self.admits_from(super::reach::ReachKind::Message, from, shares_group)
+    }
+    /// Would our own "who can reach me" setting for `kind` (as this server last said it, or the
+    /// safe defaults) let `from` reach us? The relay's rule, applied by this app to what arrives
+    /// (a DM's text, a call's ring), so a server that let something through by mistake gains
+    /// nothing. `shares_group`: they are in a P2P group with us.
+    pub fn admits_from(&self, kind: super::reach::ReachKind, from: &str, shares_group: bool) -> bool {
+        let passes = self.passes_held_by(from);
+        let rel = super::reach::Relation { is_me: from == self.me, passes: &passes, shares_group };
+        super::reach::admits(self.body.reach_settings.unwrap_or_default().get(kind), kind, &rel)
+    }
+    /// The passes `peer` may hold from us: the ones on record and the ones sent whose answer never
+    /// came (10l), either of which the relay honours if it stored it. So a friend whose pass went
+    /// unanswered is not treated as a stranger here while the relay lets them through (the web
+    /// chat's `passMayHeld`).
+    pub fn passes_held_by(&self, peer: &str) -> Vec<SentPass> {
+        self.passes_sent_to(peer).iter().chain(self.passes_unanswered_to(peer)).cloned().collect()
     }
 
     // ── Reports about my groups (10j) ──

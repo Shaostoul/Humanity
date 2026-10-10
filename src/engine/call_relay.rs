@@ -124,6 +124,16 @@ pub(crate) fn missed_call_line(name: &str) -> String {
 /// automatic "reject" used to go back, which told a caller who cannot see us online (hidden
 /// status, BUG-172) that we were there after all (BUG-177, 2026-10-10).
 pub(crate) fn on_ring(gs: &mut GuiState, from: String, from_name: String) {
+    // Our own "who can reach me" setting for calls (10c), checked here as well as on the relay:
+    // a ring that an older or misconfigured server passes on anyway is ignored the way a blocked
+    // caller's is (engine/block.rs), with nothing sent back and no line, so it rings out on their
+    // side. With no DM store the relay's check stands, as for a DM (engine/reach.rs
+    // `file_if_refused`).
+    let shares = crate::engine::reach::shares_group(gs, &from);
+    if gs.dm_store.as_ref().is_some_and(|s| !s.admits_from(crate::net::reach::ReachKind::Call, &from, shares)) {
+        log::info!("call: a ring our call setting does not let through was ignored");
+        return;
+    }
     let busy = gs.call_active.is_some() || gs.call_incoming.is_some() || gs.call_outgoing.is_some() || gs.voice_active_room.is_some();
     if busy {
         gs.pending_notices.push(missed_call_line(&from_name));

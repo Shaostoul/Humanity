@@ -554,6 +554,8 @@ test("a blocked key's channel post is hidden, and so is the rest of what they do
 
 test("a ring from a blocked key sends nothing back, and their direct offer is not answered", async () => {
   const { ctx, sock, state, swNotes, chimes, handle, fn } = await loadChat();
+  // Calls from anyone, so only the block keeps Ben out (the call setting has its own test below).
+  await handle({ type: "reach_settings", settings: { message: "friends", call: "anyone", trade: "friends" } });
   await fn("blockKey")(BEN);
   sock.sent.length = 0;
   const ring = (from) => ({ type: "voice_call", from, from_name: "x", to: ME, action: "ring" });
@@ -753,4 +755,33 @@ test("web's old list of names is gone", () => {
     if (/humanity_blocks?\b|humanity_blocked\b|\bfunction (isBlocked|blockUser|unblockUser|getBlockList)\s*\(|\bisBlocked\(\s*(name|u\.name|author)\b/.test(s)) offenders.push(path.relative(WEB, f));
   }
   assert.deepEqual(offenders, [], "no name-based block list or its localStorage key remains in web/");
+});
+
+// A ring my own call setting refuses is ignored here too (the relay checks first; this is for a
+// server that passes one on anyway), the way a blocked caller's is, the desktop app's
+// engine/call_relay.rs on_ring. Seen red 2026-10-10 without ringIgnored in handleVoiceCallMessage:
+// "a stranger's ring shows no incoming-call screen under the defaults".
+test("a ring my call setting refuses shows nothing and sends nothing back; one it allows rings", async () => {
+  const { ctx, sock, state, swNotes, chimes, store, handle } = await loadChat();
+  const ring = (from) => ({ type: "voice_call", from, from_name: "x", to: ME, action: "ring" });
+  const idle = () => vm.runInContext("callState = 'idle'; callPeerKey = null", ctx);
+  state.hidden = true;
+  sock.sent.length = 0;
+  store.recordPassSent(ANN, "11".repeat(16), "invite,message,trade,voice_message");
+  store.recordPassSent(BEN, "22".repeat(16), "call,invite,message,trade,voice_message");
+
+  await handle(ring(CY));
+  assert.equal(vm.runInContext("callState", ctx), "idle", "a stranger's ring shows no incoming-call screen under the defaults");
+  await handle(ring(ANN));
+  assert.equal(vm.runInContext("callState", ctx), "idle", "nor a friend's whose pass does not name calls");
+  assert.equal(chimes.length, 0, "no chime");
+  assert.equal(swNotes.length, 0, "no system notification");
+  assert.deepEqual(sock.sent, [], "and nothing back");
+
+  await handle(ring(BEN));
+  assert.equal(vm.runInContext("callState", ctx), "ringing-in", "a friend whose pass names calls rings");
+  idle();
+  await handle({ type: "reach_settings", settings: { message: "friends", call: "anyone", trade: "friends" } });
+  await handle(ring(CY));
+  assert.equal(vm.runInContext("callState", ctx), "ringing-in", "under Anyone a stranger rings");
 });

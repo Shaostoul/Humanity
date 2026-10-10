@@ -816,6 +816,11 @@
       "date": "2026-10-10",
       "decision": "v0.1479.0 (BUG-183): the web scratch pad treats files like a private conversation (encrypted upload, marker kept in localStorage by app.js scratchPadKeep) and its rows are private rows (SCRATCH_PAD_ROW: no React, Edit, server Pin or Delete); the desktop is_private_channel counts \"scratchpad\" so its rows offer none either. The PRIORITIES follow-up line about the scratchpad was removed.",
       "why": "The follow-up list said the scratchpad still uploaded plain files; checking both clients showed the desktop had been fixed in v0.1477.0 but the web never was, and neither client hid the row actions that send a row's words to the server. A follow-up list has to be checked against both mirrors, not just the one that was fixed."
+    },
+    {
+      "date": "2026-10-10",
+      "decision": "v0.1480.0 (BUG-184): each app checks its own \"who can reach me\" setting for calls on an incoming ring (desktop on_ring via DmStore::admits_from, web ringIgnored), ignoring a refused ring like a blocked caller's; with no store or settings loaded the relay's check stands. The desktop DM screen now counts passes still waiting for an answer (passes_held_by), matching the web's passMayHeld.",
+      "why": "Closes the step B follow-up \"incoming rings are not also filtered by the callee's own app\", the same defence the DM screen already gives against a server that passes something on by mistake. Writing it exposed that the desktop half of 10l had not taught the DM screen about unanswered passes, which the web half had."
     }
   ],
   "active_scopes_to_avoid": [

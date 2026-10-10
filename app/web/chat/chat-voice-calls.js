@@ -344,11 +344,29 @@ function callerBlocked(key) {
   return typeof isBlockedKey === 'function' && isBlockedKey(key);
 }
 
+/**
+ * Would my own "who can reach me" setting for calls let `key` ring me (10c)?
+ * The relay checks before it passes a ring on; this app checks again, so a
+ * ring that an older or misconfigured server passes on anyway is ignored the
+ * way a blocked caller's is. Until my settings and passes are loaded the
+ * relay's check stands (the desktop app's engine/call_relay.rs on_ring).
+ */
+function callerAllowed(key) {
+  if (typeof reachAllowsFrom !== 'function' || typeof reachStore !== 'function' || !reachStore()) return true;
+  return reachAllowsFrom(key, 'call');
+}
+
+/** A ring nobody is told about: from someone I blocked, or someone my call setting refuses. */
+function ringIgnored(key) {
+  return callerBlocked(key) || !callerAllowed(key);
+}
+
 function handleVoiceCallMessage(msg) {
-  // A ring from someone I blocked is ignored without a word: no screen, no
-  // chime, and no "reject" back, which would tell them I am online (step C,
-  // docs/design/blocking-and-safe-mode.md 4.7). It rings out on their side.
-  if (msg.action === 'ring' && callerBlocked(msg.from)) return;
+  // A ring from someone I blocked, or from someone my call setting refuses, is
+  // ignored without a word: no screen, no chime, and no "reject" back, which
+  // would tell them I am online (step C, docs/design/blocking-and-safe-mode.md
+  // 4.7). It rings out on their side.
+  if (msg.action === 'ring' && ringIgnored(msg.from)) return;
   const fromName = resolveSenderName(msg.from_name, msg.from);
   switch (msg.action) {
     case 'ring':
@@ -470,7 +488,7 @@ handleMessage = function(msg) {
     sendSWNotification('DM from ' + senderName, msg.content || 'New message', 'dm-' + msg.from, '/chat');
   }
   // Notification for incoming call
-  if (msg.type === 'voice_call' && msg.action === 'ring' && document.hidden && !callerBlocked(msg.from)) {
+  if (msg.type === 'voice_call' && msg.action === 'ring' && document.hidden && !ringIgnored(msg.from)) {
     const callerName = resolveSenderName(msg.from_name, msg.from);
     sendSWNotification('Incoming call from ' + callerName, 'Tap to answer', 'call-' + msg.from, '/chat');
   }

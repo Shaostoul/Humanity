@@ -5407,3 +5407,18 @@ Fixed: the web treats the scratch pad as a private conversation for files
 `is_private_channel` counts `scratchpad`. Found by checking the PRIORITIES follow-up "the
 scratchpad still uploads a picked file as a plain public file" against both clients: the desktop
 half was done, the web half was not.
+
+## BUG-184: the desktop app could file a friend's DM as a contact request while their pass waited for the server's answer, and neither app checked its own call setting on a ring (FIXED v0.1480.0, found 2026-10-10)
+
+v0.1478.0 (spec 10l) keeps a pass that was sent but never answered as "perhaps given": the relay
+may have stored it, and then it lets that friend through. The web chat's own check on an
+arriving DM counted those passes (`passMayHeld`); the desktop app's (`DmStore::admits_dm_from`)
+read only the passes on record, so a friend whose pass answer was lost had their DM text dropped
+and filed under Requests while the relay had let it through. Now `passes_held_by` counts both,
+and `admits_from` serves every kind.
+
+And the follow-up from step B: a ring was checked only by the relay. Each app now checks its own
+"who can reach me" setting for calls too (desktop `engine/call_relay.rs` `on_ring`, web
+`chat-voice-calls.js` `ringIgnored`), so a ring an older or misconfigured server passes on anyway
+is ignored the way a blocked caller's is: no screen, no chime, no notification and nothing sent
+back. Until the app has its settings and passes loaded, the relay's check stands.
