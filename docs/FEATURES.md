@@ -541,7 +541,7 @@ Create, join, search, and manage guilds with invite codes.
 Points, levels, and leaderboard for community standing.
 - Server: `src/relay/storage/reputation.rs`
 
-### Safety: who can reach me, Block, reports, warnings, protected setup (dual UI, v0.1465 to v0.1473)
+### Safety: who can reach me, Block, reports, warnings, protected setup (dual UI, v0.1465 to v0.1474)
 Design: `docs/design/blocking-and-safe-mode.md` (steps A to G, sections 10b to 10h). Settings >
 Safety on both clients. **Who can reach me** (v0.1467): one audience per kind (messages, calls,
 trades: Nobody, People I choose, Friends, Friends and people in my groups, Anyone), safe by
@@ -557,7 +557,7 @@ person picks (`data/safety/outside_help.json`, from a dated finding). **Calls th
 server** (v0.1470): our own STUN and a room-scoped forwarder on UDP 3478, so nobody in a call sees
 another's address. **Warnings on messages and the recovery-phrase guard** (v0.1471): warnings
 from `data/safety/warnings.json` checked on the device only; a send holding 4 or more of your
-own recovery phrase's words in a row is stopped.
+own recovery phrase's words in a row is stopped. **An admin erases another person's data** (v0.1474): admins and the owner only, with the person's name typed to confirm, the same steps as erasing your own account; the erased person is told an admin did it (native `src/net/admin_erase.rs`, `src/gui/pages/server_settings/admin_erase.rs`; web `web/shared/admin-erase.js`; relay `src/relay/handlers/account_erase.rs`).
 - Native: `src/gui/pages/safety.rs`, `src/net/reach.rs`, `src/engine/reach.rs`,
   `src/engine/block.rs`, `src/engine/report.rs`, `src/net/report.rs`,
   `src/gui/pages/chat/report_dialog.rs`, `src/net/outside_help.rs`, `src/net/warnings.rs`,

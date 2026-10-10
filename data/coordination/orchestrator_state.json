@@ -786,6 +786,11 @@
       "date": "2026-10-10",
       "decision": "Step G, the protected setup (spec 10h), built on both clients from parallel worktrees and released as v0.1473.0, with every on-screen word in data/gui/safety_presets.json (sentences, lines and 26 labels). Review and alignment after the merge: the web added PIN gates for every copy of the identity (encrypted backup, identity file, device-link code, onboarding phrase step, the settings page); the desktop gained the same gate on its device-link QR; \"Forgot the PIN?\" got one rule on both apps (a recorded identity must match; a missing or malformed one, which only damage leaves, falls back to the identity in use); a mention in a hidden room no longer dings. BUG-176 found by reading the report dialog's snapshot: v0.1472.0's desktop report dialog hid Send; new widgets::dialog_scrolling.",
       "why": "The operator asked for a mode that protects kids from predators and scams. The dated finding set the words (never \"kid safe\" or \"compliant\") and the shape (review existing contacts, tell the person, no flag sent anywhere). Fail-closed on a damaged identity was rejected because it would lock a damaged setup for good (on the web, clearing site data, identity and all, would be the only way out). BUG-176 shipped because every test passed and nobody read the rendered dialog; the lesson went into BUGS.md and the UI-verification memory."
+    },
+    {
+      "date": "2026-10-10",
+      "decision": "Spec 10i built on the relay and both clients from three parallel worktrees and released as v0.1474.0: an admin or the owner erases another person's data with the person's name typed to confirm. The relay factored the self-erase into one shared function (handlers/account_erase.rs carry_out) both erases call; AccountErased gained by_admin; admin_erase_done carries the receipt; the log names nobody. Moderators cannot erase; admins and the owner cannot be erased this way. The public roadmap also gained the safety work.",
+      "why": "The children's online-safety finding (judgement call 7): an operator who learns a member is under 13 is expected to delete the child's information, and only a person could erase their own data. One shared function keeps the admin erase from ever doing less than the self-erase."
     }
   ],
   "active_scopes_to_avoid": [
