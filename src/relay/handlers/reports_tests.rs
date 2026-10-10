@@ -589,3 +589,19 @@ fn the_slash_commands_read_the_new_table() {
     assert!(slash(&ada, "/reports-clear")[0].contains("Cleared 1 decided"));
     assert!(st.db.report_by_id(open).unwrap().is_some() && st.db.report_by_id(decided).unwrap().is_none(), "the open report stays");
 }
+
+/// A reported post's uploaded file and its web links never reach admins as something they can
+/// open (2026-10-10, the report-duties finding). Seen red 2026-10-10 with `without_files_or_links`
+/// returning the text unchanged: "the upload's address reached the admins".
+#[test]
+fn a_reported_posts_files_and_links_are_not_shown_to_admins() {
+    let text = "look ![x](/uploads/abc123.png) and https://evil.example/path?q=1 or http://[::1]/y\nbye";
+    let shown = without_files_or_links(text);
+    assert!(!shown.contains("/uploads/"), "the upload's address reached the admins: {shown}");
+    assert!(!shown.contains("://"), "a link reached the admins: {shown}");
+    assert!(shown.contains("[a file posted here, not shown]"), "{shown}");
+    assert!(shown.contains("[a link to evil.example, not shown]"), "{shown}");
+    assert!(shown.contains("[a link, not shown]"), "a link with no plain host still goes: {shown}");
+    assert!(shown.starts_with("look ") && shown.ends_with("\nbye"), "the words and line breaks around them stay: {shown}");
+    assert_eq!(without_files_or_links("just words, no links"), "just words, no links");
+}

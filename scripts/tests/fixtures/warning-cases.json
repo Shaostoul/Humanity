@@ -103,6 +103,11 @@
       "expect": [
         "urgency_secrecy"
       ]
+    },
+    {
+      "text": "giftं card",
+      "from": "stranger",
+      "expect": []
     }
   ]
 }

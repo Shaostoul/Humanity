@@ -1360,8 +1360,12 @@ run of characters that are not letters or digits into one space, then trimming; 
 phrase the same way. A message matches an entry when `" " + text + " "` contains
 `" " + phrase + " "` for any phrase in `any`. So "I'm an admin!!" matches the phrase
 "i'm an admin" (both become "i m an admin"), and "admin" never matches inside "administer".
-Letters and digits are Unicode-aware (a JavaScript `\p{L}\p{N}` class and Rust's
-`char::is_alphanumeric`), and both clients lower-case with their standard Unicode lower-casing.
+Letters and digits are Unicode-aware and identical on both clients: Rust's
+`char::is_alphanumeric` (the Alphabetic property or a numeric category) and the JavaScript class
+`/[^\p{Alphabetic}\p{N}]+/gu` (CORRECTED in review, 2026-10-10: the first version said `\p{L}`,
+which treats combining marks such as Devanagari vowel signs as separators where Rust keeps them as
+part of the word; the shared cases include one that tells the two apart). Both clients lower-case
+with their standard Unicode lower-casing.
 
 **Where warnings show:** under a received direct message, and under a message in a P2P group,
 when its sender is someone the entry `applies_to`. `friends` means a mutual follow (you follow
