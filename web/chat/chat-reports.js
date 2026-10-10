@@ -15,6 +15,16 @@
 // refuses with a notice (a bad signature, an unknown reason, myself, more than
 // 3 an hour, the same person again within a day).
 //
+// Help outside this server (10e-ii, 2026-10-10): when the reason is that a
+// child or anyone may be in danger, a block under the reason's help gives the
+// emergency number and the official place to report a child being exploited
+// online, for a country picked in the block, from
+// /data/safety/outside_help.json (words and rules in /shared/report.js). The
+// first country is the last one picked on this device (localStorage), else
+// the region of navigator.language when it is listed, else "Another country".
+// The location is never looked up, and the country is never sent anywhere:
+// it is not part of the report.
+//
 // The Reports view for admins and mods: open and decided reports
 // (`reports_list` -> `reports`), each piece of evidence with "Signature
 // checked: sent by <name> to the reporter" or "Not proven", what a checked
@@ -93,6 +103,52 @@ function loadReportReasons() {
   return reportReasonsLoading;
 }
 
+// ── Help outside this server (data, 10e-ii) ──────────────────────────────
+
+let outsideHelp = null;        // outsideHelpFrom() output, once loaded
+let outsideHelpLoading = null; // the fetch in flight
+
+/**
+ * The outside help lines from the data file, or null when it could not be
+ * read. A failure is not kept, so the next dialog asks again.
+ */
+function loadOutsideHelp() {
+  if (outsideHelp) return Promise.resolve(outsideHelp);
+  if (!outsideHelpLoading) {
+    outsideHelpLoading = Promise.resolve()
+      .then(() => fetch(OUTSIDE_HELP_URL, { cache: 'no-cache' }))
+      .then((r) => (r && r.ok ? r.json() : null))
+      .then((j) => outsideHelpFrom(j))
+      .catch(() => null)
+      .then((help) => {
+        outsideHelpLoading = null;
+        if (help) outsideHelp = help;
+        return help;
+      });
+  }
+  return outsideHelpLoading;
+}
+
+/** The country last picked in the block on this device, or null. Storage can be off or full. */
+function outsideHelpSaved() {
+  try {
+    const v = localStorage.getItem(OUTSIDE_HELP_SAVED_KEY);
+    return typeof v === 'string' ? v : null;
+  } catch { return null; }
+}
+
+function outsideHelpSave(code) {
+  try { localStorage.setItem(OUTSIDE_HELP_SAVED_KEY, code); } catch { /* kept for this dialog only */ }
+}
+
+/** The device's language setting, the only hint used for the first country. */
+function outsideHelpLanguage() {
+  try {
+    const lang = typeof navigator !== 'undefined' && navigator ? navigator.language : null;
+    return typeof lang === 'string' ? lang : null;
+  } catch { return null; }
+}
+
 // ── The Report dialog ────────────────────────────────────────────────────
 
 // How many of their messages the DM picker lists (newest first). At most
@@ -148,6 +204,10 @@ async function openReportDialog(opts) {
     // The post or group message the report is about (not a choice).
     fixed: null,
     reasons: null,
+    // Help outside this server (10e-ii): the data once loaded, and the country
+    // shown, which stays on this device and is never part of the report.
+    outsideHelp: null,
+    country: null,
     error: '',
     sending: false,
   };
@@ -163,6 +223,14 @@ async function openReportDialog(opts) {
   }
   reportDialog = state;
   renderReportDialog();
+  // Not awaited: the reasons must never wait on this file, and a dialog with
+  // no outside help still sends reports.
+  loadOutsideHelp().then((help) => {
+    if (!help || reportDialog !== state) return;
+    state.outsideHelp = help;
+    state.country = outsideHelpFirstCountry(help, outsideHelpSaved(), outsideHelpLanguage());
+    renderReportDialog();
+  });
   const reasons = await loadReportReasons();
   if (reportDialog === state) {
     state.reasons = reasons;
@@ -214,6 +282,47 @@ function reportDialogSetBlock(on) {
   reportDialog.alsoBlock = !!on;
 }
 
+/**
+ * Pick the country the outside help block shows: a listed code or "Another
+ * country". Kept on this device for next time (10e-ii), never sent.
+ */
+function reportDialogSetCountry(code) {
+  const st = reportDialog;
+  if (!st || !st.outsideHelp) return false;
+  const ok = code === OUTSIDE_HELP_OTHER || st.outsideHelp.countries.some((c) => c.code === code);
+  if (!ok) return false;
+  st.country = code;
+  outsideHelpSave(code);
+  renderReportDialog();
+  return true;
+}
+
+/** The outside help block's HTML for a view (outsideHelpView); pure. */
+function outsideHelpHtml(v) {
+  const muted = 'color:var(--text-muted);font-size:var(--text-xs);line-height:1.4;margin:var(--space-xs) 0 0;';
+  let html = `<div class="report-outside-help" data-outside-help="${repEsc(v.code)}" style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:var(--space-sm) var(--space-md);margin:var(--space-sm) 0;color:var(--text);">`
+    + `<div style="font-weight:600;font-size:0.9rem;">${repEsc(v.title)}</div>`
+    + '<label style="display:flex;align-items:center;gap:var(--space-sm);margin:var(--space-xs) 0;color:var(--text);font-size:0.85rem;">Country:'
+    + '<select data-report-country aria-label="Country" style="background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:2px var(--space-xs);">'
+    + v.choices.map((c) => `<option value="${repEsc(c.code)}"${c.code === v.code ? ' selected' : ''}>${repEsc(c.name)}</option>`).join('')
+    + '</select></label>';
+  html += v.emergency
+    ? `<div class="report-outside-emergency" style="font-size:var(--text-lg);font-weight:700;margin:var(--space-xs) 0;">Emergency: ${repEsc(v.emergency)}</div>`
+    : `<div class="report-outside-emergency-text" style="font-size:1rem;font-weight:600;margin:var(--space-xs) 0;">${repEsc(v.emergencyText)}</div>`;
+  for (const a of v.also) {
+    html += `<div class="report-outside-also" style="font-size:0.85rem;"><strong>${repEsc(a.number)}</strong>${a.for ? ': ' + repEsc(a.for) : ''}</div>`;
+  }
+  if (v.child) {
+    // Opens in a new tab and tells that site nothing about this page.
+    const size = v.childSmall ? 'var(--text-xs)' : '0.9rem';
+    html += `<div class="report-outside-child${v.childSmall ? ' report-outside-child-small' : ''}" style="font-size:${size};margin-top:var(--space-sm);line-height:1.4;">`
+      + `${repEsc(v.childLead)} <a href="${repEsc(v.child.url)}" target="_blank" rel="noopener noreferrer"${v.child.title ? ` title="${repEsc(v.child.title)}"` : ''} style="color:var(--accent);">${repEsc(v.child.name)}</a></div>`;
+  }
+  if (v.note) html += `<p class="report-outside-note" style="${muted}">${repEsc(v.note)}</p>`;
+  if (v.dateLine) html += `<p class="report-outside-checked" style="${muted}">${repEsc(v.dateLine)}</p>`;
+  return html + '</div>';
+}
+
 /** The dialog's HTML for a state (pure, so it can be checked without a browser). */
 function reportDialogHtml(st) {
   const muted = 'color:var(--text-muted);font-size:var(--text-sm);line-height:1.4;margin:0 0 var(--space-sm);';
@@ -238,6 +347,9 @@ function reportDialogHtml(st) {
     if (chosen && chosen.help) {
       html += `<div class="report-help" data-report-help="${repEsc(chosen.id)}" style="border-left:3px solid var(--warning);background:var(--bg-secondary);padding:var(--space-sm) var(--space-md);margin:var(--space-sm) 0;color:var(--text);font-size:var(--text-sm);line-height:1.45;">${repEsc(chosen.help)}</div>`;
     }
+    // Under the reason's help, for the two danger reasons only (10e-ii).
+    const outside = chosen ? outsideHelpView(st.outsideHelp, chosen.id, st.country) : null;
+    if (outside) html += outsideHelpHtml(outside);
   }
 
   if (st.context === 'dm') {
@@ -320,6 +432,8 @@ function renderReportDialog() {
   card.innerHTML = reportDialogHtml(st);
   if (typeof card.querySelectorAll !== 'function') return;
   card.querySelectorAll('[data-report-reason]').forEach((r) => { r.onchange = () => reportDialogChoose(r.dataset.reportReason); });
+  const country = card.querySelector('[data-report-country]');
+  if (country) country.onchange = () => reportDialogSetCountry(country.value);
   const note = card.querySelector('[data-report-note]');
   if (note) note.oninput = () => reportDialogSetNote(note.value);
   card.querySelectorAll('[data-report-evidence]').forEach((c) => {
