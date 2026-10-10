@@ -66,8 +66,8 @@ fn revoke(st: &Arc<RelayState>, who: &str, serial: &str) -> (Vec<String>, Vec<St
 /// Bob's pass, so her DMs to him flow after her day's stranger budget is spent; Bob withdraws it
 /// (and is answered, so his client stops resending); the same pass now counts as none, and with
 /// the budget spent nothing more lands. Carol "withdrawing" Alice's other pass from Bob changes
-/// nothing: a withdrawal is recorded under the key that sent it, so nobody can take back a pass
-/// they did not give.
+/// nothing: a withdrawal is recorded under (a fingerprint of) the key that sent it, so nobody
+/// can take back a pass they did not give.
 /// Seen red 2026-10-09 with the withdrawal check removed from `friend_pass`
 /// (handlers/friend_passes.rs): "a withdrawn pass counts as none", left 2, right 1.
 #[test]
@@ -228,6 +228,35 @@ fn rings_and_offers_read_the_pass_and_refuse_nothing_new() {
     let challenge = RelayMessage::IdentifyChallenge { nonce: "ab".into(), server_did: st.db.server_did().unwrap() };
     let wire: serde_json::Value = serde_json::to_value(&challenge).unwrap();
     assert_eq!(wire["server_did"], st.db.server_did().unwrap(), "the challenge names the server a pass is signed for");
+}
+
+/// A server that cannot keep its fingerprint secret (a damaged `erased-accounts.key`, the
+/// erased-accounts module's "this run only" case) fails safe: a pass counts as withdrawn, so a
+/// friend's DM falls to the stranger's lane, and a withdrawal is neither recorded nor confirmed,
+/// so the issuer's client keeps resending it until a run can keep it.
+/// Seen red 2026-10-09 with `CannotKeep` answered like `Recorded` in `handle_cert_revoke`: "a
+/// withdrawal this run cannot keep is not confirmed: [\"8ac2d454..\"]" (the serial answered).
+#[test]
+fn a_server_that_cannot_keep_withdrawals_fails_safe() {
+    let dir = crate::test_temp::dir("passes_damaged_secret");
+    std::fs::write(dir.join(crate::relay::storage::erased_accounts::KEY_FILE), b"0123456789").unwrap();
+    let st = Arc::new(RelayState::new(Storage::open(&dir.join("relay.db")).expect("opens with a damaged secret")));
+    assert!(!st.db.erase_memory_kept(), "precondition: this run cannot keep its secret");
+    let (_alice_seed, alice) = identity(91);
+    let (bob_seed, bob) = identity(92);
+    st.db.register_name("Alice", &alice).unwrap();
+    st.db.register_name("Bob", &bob).unwrap();
+    let (pass, serial) = test_pass(&st, &bob_seed, &bob, &alice);
+    assert!(friend_pass(&st, &bob, &alice, Some(&pass)).is_none(), "the pass counts as withdrawn");
+    for _ in 0..DM_KNOCKS_PER_DAY {
+        dm(&st, &alice, "stranger_key", None);
+    }
+    dm(&st, &alice, &bob, Some(&pass));
+    assert_eq!(landed(&st, &bob), 0, "a friend's DM is in the stranger's lane, whose budget is spent");
+    let (acks, told) = revoke(&st, &bob, &serial);
+    assert!(acks.is_empty(), "a withdrawal this run cannot keep is not confirmed: {acks:?}");
+    assert!(told.is_empty(), "and the person is not shown an error their app will retry by itself: {told:?}");
+    assert_eq!(st.db.friend_cert_withdrawals_of(&bob), 0);
 }
 
 /// A withdrawal must name a pass serial; anything else is refused with a reason and records

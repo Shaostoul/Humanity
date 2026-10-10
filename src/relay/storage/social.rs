@@ -8,8 +8,8 @@
 //! is a client-held Dilithium pass the relay verifies statelessly
 //! at dm_put (`relay/core/pq_crypto.rs::verify_friend_cert`). The one thing
 //! kept about passes (v2, 2026-10-09) is the list of serials their issuers
-//! withdrew (storage/friend_passes.rs): random serials under the key that
-//! withdrew them, never who a pass was given to.
+//! withdrew (storage/friend_passes.rs): random serials under a keyed
+//! fingerprint of the key that withdrew them, never who a pass was given to.
 //!
 //! What a subpoena of this server yields about relationships: nothing,
 //! because nothing is recorded. Do NOT re-add follow storage here — if a

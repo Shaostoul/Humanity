@@ -317,14 +317,26 @@ The remaining server-held data classes and length/transport leaks, closed:
   outreach works without enabling floods.
 - **Withdrawn friendship passes (2026-10-09).** Since passes v2 a pass can be
   taken back: the issuer's own signed-in socket sends `cert_revoke {serial}`
-  and the relay keeps `friend_cert_revocations (issuer_key, serial,
-  revoked_day)` so the pass stops counting at once. A row names the key that
-  withdrew a random serial and the day, never who the pass was given to
-  (only the two friends hold the pass). Kept until the issuer erases their
-  account (it is in the account export and the erase), at most 4,096 per key.
-  A relay modified to log every pass presented could match a serial to its
-  holder, but that same modified relay could log who writes to whom today,
-  so this adds no new kind of exposure.
+  and the relay keeps `friend_cert_revocations (issuer_fingerprint, serial,
+  revoked_day)` so the pass stops counting at once. The fingerprint is BLAKE3
+  keyed with the relay's machine-local secret (`data/erased-accounts.key`,
+  the one the erased-accounts table uses, never in the backups) over
+  `hum/withdrawn-pass/v1\n` plus the lower-cased key, so a copy of the
+  database (a backup, a breach, a subpoena) cannot be checked against a list
+  of known keys, and the two tables cannot be matched to each other. A row is
+  that fingerprint, a random serial and the day; never who the pass was given
+  to (only the two friends hold the pass). **Kept for good, account erase
+  included:** a row names nobody, and deleting it would let someone who
+  erased and signed up again with the same recovery phrase bring back every
+  pass they had withdrawn. The person's own export still lists them (it
+  computes their fingerprint). At most 4,096 per issuer. If the secret file
+  is damaged, the relay records no withdrawal and counts every pass as
+  withdrawn until it is fixed; if it is lost (a server moved without it), a
+  new one is made and the earlier withdrawals stop matching, which brings
+  those passes back, so it travels with `relay.db` and `backup.key`. A relay
+  modified to log every pass presented could match a serial to its holder,
+  but that same modified relay could log who writes to whom today, so this
+  adds no new kind of exposure.
 - **DM length no longer leaks.** Sealed DM plaintext is padded up to size
   buckets (256 / 1024 / 4096 / 16384 bytes) before encryption, so ciphertext
   length no longer distinguishes "ok" from a paragraph.

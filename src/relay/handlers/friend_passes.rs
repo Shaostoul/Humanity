@@ -11,7 +11,10 @@
 //!   issuer's own signed-in socket withdraws the pass with that serial. The issuer is the socket
 //!   key, so no further signature is needed and nobody can withdraw a pass they did not give.
 //!   The answer, `cert_revoked {serial}`, goes to the issuer's own devices, which stop resending
-//!   it; a withdrawal sent while offline waits in the client until one is answered.
+//!   it; a withdrawal sent while offline waits in the client until one is answered. The row is
+//!   kept under a keyed fingerprint of the issuer's key, not the key, and outlives an account
+//!   erase (storage/friend_passes.rs). A run that cannot keep that fingerprint's secret records
+//!   nothing and confirms nothing, and counts every pass as withdrawn until it can.
 //!
 //! Until step B ("who can reach me") ships, a pass only does what v1's certificate did: a valid
 //! one lifts the stranger's daily budget on DMs and trade requests and keeps a trade note whole.
@@ -72,6 +75,13 @@ pub async fn handle_cert_revoke(state: &Arc<RelayState>, my_key: &str, raw: &ser
         }
         Ok(FriendCertWithdrawal::TooMany) => {
             tell("Withdrawal refused: this server already keeps the most friendship withdrawals it holds for one account.");
+        }
+        // Not confirmed, so the issuer's client keeps resending until a run can keep it. Every
+        // pass counts as withdrawn meanwhile (storage/friend_passes.rs), so nothing is lost by
+        // waiting. Said once per attempt in the log, never to the person (it is the server's
+        // file to fix, and their app retries by itself).
+        Ok(FriendCertWithdrawal::CannotKeep) => {
+            tracing::error!("friend passes: a withdrawal was not recorded: this run cannot keep its erased-accounts.key secret");
         }
         Err(e) => tracing::error!("friend passes: could not record a withdrawal: {e}"),
     }

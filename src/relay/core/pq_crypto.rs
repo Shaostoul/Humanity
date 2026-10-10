@@ -245,9 +245,9 @@ pub fn derive_kyber_seed(master_seed: &[u8]) -> [u8; KYBER_SEED_LEN] {
 // - `serial` is 16 random bytes in lowercase hex, chosen by the issuer's client. It is what
 //   makes ONE pass withdrawable without touching the others: the issuer sends
 //   `cert_revoke {serial}` on its own signed-in socket and the relay keeps
-//   `friend_cert_revocations (issuer_key, serial, revoked_day)` until the issuer erases their
-//   account (handlers/friend_passes.rs). Withdrawn on Unfollow, and later on Block and
-//   Remove friend.
+//   `friend_cert_revocations (issuer_fingerprint, serial, revoked_day)`, under a keyed one-way
+//   fingerprint of the issuer's key, for good (storage/friend_passes.rs). Withdrawn on Unfollow,
+//   and later on Block and Remove friend.
 // - `may` is what the friend may do: the sorted, comma-joined, de-duplicated subset of
 //   FRIEND_PASS_KINDS. Changing what a friend may do is a new pass (new serial) and a
 //   withdrawal of the old one. Until step B ("who can reach me") ships, the relay only reads
@@ -260,7 +260,8 @@ pub fn derive_kyber_seed(master_seed: &[u8]) -> [u8; KYBER_SEED_LEN] {
 // ITS OWN facts (its server DID, the person being reached as issuer, the sender's signed-in
 // socket key as grantee) plus the serial and `may` the pass carries, so a pass given to someone
 // else, by someone else or on another server is a bad signature. It stores no friends list;
-// the withdrawal table holds random serials under the key that withdrew them.
+// the withdrawal table holds random serials under a keyed fingerprint of the key that withdrew
+// them, which names nobody without the relay's secret.
 //
 // v1 (`hum/friend/v1\n{issuer}\n{grantee}`, no serial, no server, nothing withdrawable) stops
 // working outright: each client mints v2 passes for its current mutual follows on first run

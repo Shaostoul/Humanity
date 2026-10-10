@@ -502,11 +502,36 @@ unfollow notice the other side receives today stays; a block sends nothing.
 
 ### 5.3 What the relay learns
 
-The revocation table holds random serials. At rest (a backup, a court order)
-it names nobody. A relay modified to log every certificate presented at
-`dm_put` could match a serial to the person who presented it; that same
-modified relay could log sender and recipient pairs of every DM today, so this
-adds no new class of exposure. Say so in the Cryptography table.
+**[Built 2026-10-09, step A.]** The revocation table,
+`friend_cert_revocations (issuer_fingerprint, serial, revoked_day)`, holds
+random serials under a keyed one-way fingerprint of the key that withdrew
+them, never the key: BLAKE3 keyed with the relay's machine-local secret (the
+erased-accounts one, `data/erased-accounts.key`, kept beside the live database
+and never in the backups) over `hum/withdrawn-pass/v1\n` plus the lower-cased
+key. Public keys are public, so a plain key or a plain hash would let whoever
+holds a copy of the database (a backup, a breach, a court order) see who took
+back friendships and when; with the secret outside the database, a copy names
+nobody. The different first line means the same key gives unrelated values
+here and in `erased_accounts`, so the two tables cannot be matched, and one
+secret means one file to carry when a server moves.
+
+The rows are **kept when an account is erased**: they name nobody, and
+deleting them would let someone who erased and signed up again with the same
+recovery phrase revive every pass they had withdrawn. The person's own export
+lists them by computing their fingerprint.
+
+If the secret file is damaged (the relay then runs on a secret of its own and
+says so, `erase_memory: this_run_only`), the relay fails safe: it records and
+confirms no withdrawal (the issuer's client keeps resending) and counts every
+pass as withdrawn, so friends fall to the stranger's lane until it is fixed. A
+lost file is replaced with a new secret, as for erased accounts, and then the
+earlier withdrawals stop matching; that is why the file travels with the
+database.
+
+A relay modified to log every pass presented at `dm_put` could match a serial
+to the person who presented it; that same modified relay could log sender and
+recipient pairs of every DM today, so this adds no new class of exposure. The
+Cryptography table in CLAUDE.md says so.
 
 ### 5.4 Files and tests that change in the same commit
 
@@ -965,7 +990,8 @@ person away longer than its lifetime would find their family's messages refused 
 defaults until their app came back online and renewed. So a friendship pass has no end date;
 it ends only when one of the two ends it (unfriend, block), and that withdrawal works at once
 through the serial (section 5.2). The withdrawn-serial list then keeps its rows (random serials,
-a few dozen bytes each) until the issuer erases their account. Household permits keep their
+a few dozen bytes each) until the issuer erases their account (revised in review the same day:
+kept for good, erase included, under a keyed fingerprint of the issuer's key; see 5.3). Household permits keep their
 end dates: lending your plot is a temporary thing.
 
 **Our own address lookup (STUN) in the relay, and the port: yes.** "Let's do this." Combined
@@ -1010,9 +1036,10 @@ cert     = {"v":2,"serial":"...","may":"...","sig":"<base64 Dilithium3 over the 
 ```
 
 - **No end date** (10a). Withdrawal is by serial: the issuer sends `cert_revoke {serial}` on its
-  own signed-in socket; the relay keeps `friend_cert_revocations (issuer_key, serial,
-  revoked_day)` until the issuer erases their account. A new table, so a plain
-  `CREATE TABLE IF NOT EXISTS` (BUG-046 concerns ALTER-added columns only).
+  own signed-in socket; the relay keeps `friend_cert_revocations (issuer_fingerprint, serial,
+  revoked_day)`, under a keyed fingerprint of the issuer's key, for good (revised in review
+  the same day: not the key, and kept past an account erase; see 5.3). A new table, so a
+  plain `CREATE TABLE IF NOT EXISTS` (BUG-046 concerns ALTER-added columns only).
 - **What the friend may do lives in the pass.** The relay rebuilds the preimage from its own
   facts (its server DID, the recipient as issuer, the socket's key as grantee) plus the serial
   and `may` the pass carries, checks the signature and that the serial is not withdrawn, and
