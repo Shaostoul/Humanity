@@ -226,8 +226,8 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   decide on California AB 1043 first (`docs/reference/findings/2026-10-10-california-ab-1043-age-signals.md`):
   a listing would very likely require an age request at first launch.
   **Smaller follow-ups, not started:** the native fixes of BUG-173 still want seeing in a running
-  app (the click-to-load picture placeholder; a first call between two home networks, once the
-  port is open); the relay
+  app: a first call between two home networks, once the port is open (the click-to-load picture
+  placeholder was seen rendered 2026-10-10, `tests/snapshots/chat_click_to_load.png`); the relay
   cannot tell a text message from a voice message inside a sealed DM, so a pass's
   `voice_message` can only be enforced by the recipient's app. Done 2026-10-10 (v0.1476.0):
   files in DMs and P2P groups encrypted on both clients and shown inline on the desktop (10k), BUG-178
