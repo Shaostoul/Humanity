@@ -1997,6 +1997,81 @@ scratch pad. Words: "A request or pass to them is still waiting for this server 
 again in a moment." (`reach::STILL_WAITING`), and the web scratch pad's "Notes stay in this
 browser. A file is stored encrypted on the server, and only this browser has its key."
 
+## 10n. The choice for each friend syncs as its own note (2026-10-10)
+
+**Why.** Three reviews in one day (10l, 10m and a review of 10m) kept finding ways a choice made on
+one of a person's devices was lost or reversed on another: an untick made offline, a refused pass
+whose self-copy went out early, an older echo read after a newer one, a device that missed a
+withdrawal. Each came from the same root: every device rebuilt the ticks from echoes of passes, and
+echoes arrive late, out of order, or never. The house pattern for something a person keeps on
+several devices is the block list's (10d): a signed note to their own mailbox, applied once. The
+choice for each friend becomes such a note, and the passes follow the choice.
+
+**Wire (exact; both clients build the same bytes).** A DM from me to me, sealed to my own Kyber key
+with the ordinary signed inner (`hum/dm/v2`), whose text is exactly
+`[[hum:choice:v1]]<friend key>/<may>`: the friend's identity key (lower-case hex, as everywhere),
+a `/`, and the canonical `may` (the pass's own words, sorted and comma-joined; `invite` alone when
+nothing is ticked). The inner `ts` is when the choice was made. Constant `CTL_CHOICE` beside
+`CTL_BLOCK` (native `src/net/dm_pq.rs`, web `crypto.js`). A text that starts with the marker is never
+shown as a message, readable or not. Test vector both clients hold: friend `ab12`, may
+`invite,message,trade,voice_message` gives `[[hum:choice:v1]]ab12/invite,message,trade,voice_message`;
+`[[hum:choice:v1]]ab12/` and `[[hum:choice:v1]]/message` and `[[hum:choice:v1]]ab 12/message` and a
+may word outside the pass's five are not usable notes.
+
+**N1. Making a choice.** A tick changed on this device sets that friend's choice to {may, at = now}
+and sends the note to my own mailbox on every connected server. With none connected it waits (one
+per friend; a newer one replaces an older), kept across restarts, and goes on the next connection
+BEFORE that friend's withdrawals and passes.
+
+**N2. Receiving a choice.** A note from me about a friend is applied once (by its signature, as block
+notes are). It replaces the stored choice only if its `at` is newer; at an equal `at` the larger
+`may` text (plain string order) wins, so every device lands on the same choice. An older note
+changes nothing. A note about someone I blocked is ignored. A choice note from anyone else is dropped
+unread.
+
+**N3. Unfollow and Block clear the choice** (a friendship begun again starts from the defaults), as
+now. An Unfollow made with no server connected waits (both its copies, to them and to my mailbox) and
+goes on the next connection, like a note; until now it was simply lost, so my other devices kept
+following them.
+
+**N4. Passes follow the choice, on every device.**
+- Whenever the choice for a friend changes (made here, or received), every pass of mine to them,
+  on record or on its way, that grants beyond the choice (`grants_beyond` / `reachGrantsBeyond`) is
+  withdrawn at once.
+- An echo of my own pass is recorded as standing, unless it grants beyond the current choice (then
+  it is withdrawn at once) or this device is already withdrawing it (10m R5). An echo never changes
+  the choice and never withdraws another pass.
+- The sweep sends a pass carrying the choice to a friend who holds no pass carrying it and has none
+  on its way (except a friend marked under N6). With no choice stored, the choice is the defaults.
+
+**N5. 10m R2 is withdrawn.** Every pass's self-copy is held until `dm_put_ok` again: the choice now
+travels in its own note, so an early self-copy has no work left to do, and it was the source of
+other devices recording passes the server had refused. The refused-echo lists
+(`passes_refused_echoed`, `passesRefusedEchoed`) go with it.
+
+**N6. 10m R3 stays,** with three changes: a choice note for the friend clears the mark, as an echo
+does; while marked, the ticks are drawn empty and a tick gives exactly what is ticked (the desktop
+drew the old ticks, and one click there gave them back); and a marked person who is no longer a
+mutual follow is not listed (the web's rule, now both).
+
+**N7. On connect, the sweep waits for the mailbox.** It runs only once the mailbox fetch has been
+read and applied, so a device that was offline learns my notes before it sends anything.
+
+**N8. The web scratch pad moves into the encrypted DM store** (per identity and server, newest
+500), as the desktop's is; the old `hos_scratch_msgs` localStorage key, which held file keys in the
+clear and was shared by every identity in that browser, is removed.
+
+**N9. Web Unfollow drops a waiting contact request too** (10m R6 parity).
+
+**Known limit, unchanged:** the relay keeps at most 4,096 withdrawals per issuer
+(`src/relay/storage/friend_passes.rs`); every untick uses one. Long-horizon; in PRIORITIES.
+
+**Proof.** Each rule a test on both clients, seen failing once. The two-device sequences from the
+reviews, each as a test: an untick made offline on one device, the other opened later; an untick
+whose new pass is refused, the other device online and then offline; an older echo read after a
+newer one; an Unfollow made offline; a tick on a marked friend. The note's bytes and its parse
+checked against the vector above on both clients.
+
 ## 11. Docs to update as each piece ships
 
 - `docs/accord/conformance_gaps.md` ("Contact consent cannot be withdrawn")
