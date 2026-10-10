@@ -791,6 +791,11 @@
       "date": "2026-10-10",
       "decision": "Spec 10i built on the relay and both clients from three parallel worktrees and released as v0.1474.0: an admin or the owner erases another person's data with the person's name typed to confirm. The relay factored the self-erase into one shared function (handlers/account_erase.rs carry_out) both erases call; AccountErased gained by_admin; admin_erase_done carries the receipt; the log names nobody. Moderators cannot erase; admins and the owner cannot be erased this way. The public roadmap also gained the safety work.",
       "why": "The children's online-safety finding (judgement call 7): an operator who learns a member is under 13 is expected to delete the child's information, and only a person could erase their own data. One shared function keeps the admin erase from ever doing less than the self-erase."
+    },
+    {
+      "date": "2026-10-10",
+      "decision": "Spec 10j built (relay, then web first, then desktop matching the web's words; a shared byte-for-byte marker fixture) and released as v0.1475.0 with the step B follow-ups: a report about a P2P group goes to its creator as a flagged sealed DM through one narrow relay exception (both in a group the recipient created, 3 a day); the creator's app checks each item against its own copy; Remove changes the group key first (sealed to everyone but the removed person), on both clients. Also BUG-177 (a busy person's automatic reject told a hidden caller they were online; now it rings out with a missed-call line), a refused contact request marked request:true so neither app offers another, the ten-trade limit no longer counting requests sent to you, and the web Trade page (it never signed in) fixed.",
+      "why": "Server admins cannot read or check encrypted group messages, nor remove a member; the creator can. Rekeying on removal is what makes Remove mean anything: without it the removed person keeps reading. The follow-ups were in PRIORITIES from steps B and C; each was small and each closed a real leak or a broken page."
     }
   ],
   "active_scopes_to_avoid": [
