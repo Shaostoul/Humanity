@@ -5328,7 +5328,10 @@ builder's own red-first tests had passed. Confirmed and fixed, each with a test 
   a friendship pass as given once sent; a quick tick change, or a web Accept (follow, then pass),
   could leave a friend holding only a withdrawn pass for good. Now `dm_put` has its own bucket
   (8 at once, then one a second; `src/relay/handlers/dm_rate.rs`), and both apps pace a pass sweep
-  (six at once, then one a second). The channel-chat limiter's account age read milliseconds as
+  (web: six at once, then one per 1.1 s; desktop: three passes at once, then one per 2 s, because
+  it counts each pass's self-copy too). Pacing only made a dropped pass rarer; spec 10l (the
+  relay answers each tagged `dm_put` with `dm_put_ok` or `dm_put_refused`, and a pass counts as
+  given only on `dm_put_ok`) is the real fix, found by a second review the same day. The channel-chat limiter's account age read milliseconds as
   seconds (every untrusted account "new" for ten minutes after a restart): fixed.
 - **Reply carried private text into a public channel**: a reply begun on a DM or group message
   rode the next public post, with a file's marker and key on web and 80 bytes on desktop (where
@@ -5352,3 +5355,10 @@ builder's own red-first tests had passed. Confirmed and fixed, each with a test 
   confirmation said "everything" though moderation records are kept.
 
 v0.1476.0's own BUG-178 fix broke web group rows outright (BUG-180), shipped as v0.1476.1.
+
+**A side effect, accepted under the no-backwards-compatibility rule:** the desktop protected
+setup moved from config.json to its own `protected_setup.json`, so a setup turned on with
+v0.1473.0 to v0.1476.x reads as off after updating and has to be turned on again (said in the
+v0.1477.0 release notes). A second review of the fixes also found a re-seal refusal for members
+whose key was deleted, a re-invite left out of the group key, and a Windows panic in the chat
+limiter in the first minutes after boot; fixed in the next release.
