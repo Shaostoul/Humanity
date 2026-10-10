@@ -5225,3 +5225,24 @@ server clears the wait so its refresh still happens.
 
 **Test:** `scripts/tests/server-list-backoff.test.js` (in `just rig-tests`), seen red against the
 old file: 51 requests where 1 was expected, and 2 at load where 1 was expected.
+
+## BUG-176: the desktop report dialog hid its note, "Also block them" and the Send button (v0.1472.0, FIXED next release, found 2026-10-10)
+
+The help outside this server (design 10e-ii) can make the report dialog taller than a small
+window, so its build wrapped the dialog's body in a ScrollArea capped at the screen height. An
+egui window does not grow to fit a ScrollArea: it kept a short height, and everything after the
+scroll area, the note box, "Also block them" and the Send and Cancel buttons, was clipped, on
+every report, not only the tall ones. Every test passed, because none looked at the rendered
+dialog; the headless snapshot (`report_dialog.png`) showed it the first time anyone read it.
+
+**Fixed.** A new `widgets::dialog_scrolling` (`src/gui/widgets/dialog.rs`): the window itself
+scrolls, and is held to the height its content took last frame, up to the screen less a margin.
+A short report shows whole, as before; a long one fits the screen and scrolls down to Send. The
+report dialog uses it and no longer has an inner ScrollArea.
+
+**Test:** `gui::widgets::dialog::tests::a_scrolling_dialog_fits_its_content_and_stays_on_screen`
+(a 700 px body fits on a 1,000 px screen; a 2,000 px body stays on it), seen red without the
+measured height: a 468 px window. Both report-dialog snapshots were rendered and read.
+
+**Lesson:** a merged GUI change gets its snapshot rendered and READ before release, not just
+compiled; "the snapshot fixture compiles" is not evidence that the page draws.

@@ -47,7 +47,7 @@ pub use button::{primary_button, secondary_button, danger_button, compact_button
 // can write `widgets::form_row(...)`, `widgets::alert(...)`, `widgets::dialog(...)`.
 pub use form_row::{form_row, form_row_wide, form_row_with_help};
 pub use alert::{alert, alert_with_title, AlertKind};
-pub use dialog::{dialog, dialog_anchored};
+pub use dialog::{dialog, dialog_anchored, dialog_scrolling};
 pub use tree::{tree_node, tree_leaf, tree_leaf_colored, TreeState, TreeNodeResponse};
 
 /// Draw + expire the confirmation toasts (v0.861). Stacked at bottom-center, each

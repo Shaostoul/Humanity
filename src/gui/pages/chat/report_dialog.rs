@@ -79,13 +79,14 @@ pub(crate) fn draw_report_dialog(ctx: &egui::Context, theme: &Theme, state: &mut
     let mut picked = false;
     let name = if d.target_name.is_empty() { d.target.chars().take(8).collect() } else { d.target_name.clone() };
 
-    widgets::dialog(ctx, theme, "report_dialog", "Report", &mut open, |ui| {
+    // The two danger reasons add the help outside this server (10e-ii), which can make the dialog
+    // taller than a small window, so the whole dialog scrolls (`dialog_scrolling`) and Send is
+    // reached by scrolling. An inner ScrollArea was tried first and hid everything after it,
+    // Send included, because a window does not grow to fit one (seen in the snapshot, 2026-10-10).
+    widgets::dialog_scrolling(ctx, theme, "report_dialog", "Report", &mut open, |ui| {
         ui.set_min_width(440.0);
         ui.set_max_width(520.0);
-        // The two danger reasons add the help outside this server (10e-ii), which can make the
-        // dialog taller than a small window, so the body scrolls and Send stays on screen.
-        let body_height = (ctx.screen_rect().height() - 140.0).max(240.0);
-        egui::ScrollArea::vertical().id_salt("report_dialog_body").max_height(body_height).auto_shrink([false, true]).show(ui, |ui| {
+        ui.vertical(|ui| {
             ui.label(RichText::new(format!("Report {name}")).size(theme.font_size_heading).color(theme.text_primary()).strong());
             widgets::body_hint(
                 ui,
