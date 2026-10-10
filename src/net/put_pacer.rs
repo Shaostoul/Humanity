@@ -10,8 +10,9 @@
 //!
 //! So background sends draw on this budget: at most `BURST` puts at once, then no faster than
 //! `REFILL_PER_SEC`, which keeps them under the server's limit with room left for a message the
-//! person sends themselves. What does not fit waits (`held`) and goes out as the budget refills;
-//! nothing is recorded as given until it has been sent.
+//! person sends themselves. What does not fit waits (`held`) and goes out as the budget refills.
+//! The pace is a politeness, not the guarantee: since 10l a pass is recorded as given only once
+//! the server answers `dm_put_ok` for it (net/put_answers.rs), so one it refuses is sent again.
 
 use std::time::Instant;
 

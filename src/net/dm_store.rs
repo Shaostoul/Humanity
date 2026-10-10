@@ -30,6 +30,10 @@ use super::reach::{ContactRequest, FriendTicks, ReachSettings};
 /// other seed-derived key (identity, kyber, dm-aes).
 const STORE_KEY_DOMAIN: &str = "hum/dm-store/v1";
 
+/// Passes kept per friend on the list of passes the server never answered for (10l); older ones
+/// are withdrawn (`DmStore::pass_on_its_way`).
+const UNANSWERED_KEPT: usize = 4;
+
 /// One stored message. `dedupe` is the envelope's inner-signature hash —
 /// the same message arriving twice (live echo + fetch, or a replay) is
 /// dropped by it.
@@ -89,6 +93,14 @@ struct StoreBody {
     /// Resent on every connection until it does, so going offline cannot lose a withdrawal.
     #[serde(default)]
     withdrawals_pending: Vec<String>,
+    /// peer → passes I sent THEM that the server has not said it took (10l, 2026-10-10): on
+    /// their way, or whose answer never came (no answer in 30 seconds, the app closed first).
+    /// They never count as given, so the friend stays owed a pass and the sweep sends another.
+    /// But one may have reached them all the same, and a pass we hold no record of could never
+    /// be taken back, so these are withdrawn whenever the passes to that friend are. Kept on
+    /// disk for that reason: an answer lost to a closed app must not leave a pass nobody knows of.
+    #[serde(default)]
+    passes_unanswered: HashMap<String, Vec<SentPass>>,
     // ── Who can reach me (step B, 2026-10-09, blocking-and-safe-mode.md 10c) ──
     /// What this server last said our audiences are (`reach_settings`). Kept so that a DM
     /// fetched on the next connection, before the server has answered again, is judged by the
@@ -347,6 +359,7 @@ impl DmStore {
         if !self.body.pass_server.is_empty() {
             self.body.certs_from.clear();
             self.body.certs_sent.clear();
+            self.body.passes_unanswered.clear();
             self.body.withdrawals_pending.clear();
         }
         self.body.pass_server = did.to_string();
@@ -378,16 +391,71 @@ impl DmStore {
             list.push(pass);
         }
     }
-    /// Take back every pass I gave `peer`: they leave the record and their serials join the
+    /// Take back every pass I gave `peer`, and every one sent to them that the server never said
+    /// it took (10l: it may have reached them): they leave the record and their serials join the
     /// withdrawals waiting for the relay. Returns the serials withdrawn now.
     pub fn withdraw_passes_to(&mut self, peer: &str) -> Vec<String> {
-        let gone: Vec<String> = self.body.certs_sent.remove(peer).unwrap_or_default().into_iter().map(|p| p.serial).collect();
-        for s in &gone {
-            if !self.body.withdrawals_pending.contains(s) {
-                self.body.withdrawals_pending.push(s.clone());
+        self.withdraw_passes_to_except(peer, |_| false)
+    }
+    /// A pass to `peer` went out and waits for the server's answer (10l). It counts as given only
+    /// once `pass_taken`. At most UNANSWERED_KEPT per friend: beyond that the oldest is withdrawn
+    /// at once (a server that never answers would otherwise grow this list without end), which is
+    /// safe because the friend keeps the newest pass we sent.
+    pub fn pass_on_its_way(&mut self, peer: &str, pass: SentPass) {
+        let list = self.body.passes_unanswered.entry(peer.to_string()).or_default();
+        if !list.iter().any(|p| p.serial == pass.serial) {
+            list.push(pass);
+        }
+        let over = list.len().saturating_sub(UNANSWERED_KEPT);
+        let gone: Vec<String> = list.drain(..over).map(|p| p.serial).collect();
+        self.queue_withdrawals(gone);
+    }
+    /// The server took it (`dm_put_ok`): the pass moves from the unanswered list to the record.
+    /// False, recording nothing, when it is no longer waiting: withdrawn meanwhile (a tick taken
+    /// away, an unfollow, our other device's re-issue), so it must not come back as given.
+    pub fn pass_taken(&mut self, peer: &str, serial: &str) -> bool {
+        let Some(list) = self.body.passes_unanswered.get_mut(peer) else { return false };
+        let Some(at) = list.iter().position(|p| p.serial == serial) else { return false };
+        let pass = list.remove(at);
+        if list.is_empty() {
+            self.body.passes_unanswered.remove(peer);
+        }
+        self.record_pass_sent(peer, pass);
+        true
+    }
+    /// The server refused it (`dm_put_refused`): it was never stored, so it is simply forgotten.
+    /// Nothing is recorded and nothing withdrawn.
+    pub fn pass_refused(&mut self, peer: &str, serial: &str) {
+        if let Some(list) = self.body.passes_unanswered.get_mut(peer) {
+            list.retain(|p| p.serial != serial);
+            if list.is_empty() {
+                self.body.passes_unanswered.remove(peer);
             }
         }
+    }
+    /// Withdraw the passes to `peer` the server never answered for, except those `keep` keeps
+    /// (passes still on their way). Called once the server took a newer pass: the friend now holds
+    /// that one, and an older one whose answer was lost may have reached them too.
+    pub fn withdraw_unanswered_to_except(&mut self, peer: &str, keep: impl Fn(&SentPass) -> bool) -> Vec<String> {
+        let Some(list) = self.body.passes_unanswered.get_mut(peer) else { return Vec::new() };
+        let gone: Vec<String> = list.iter().filter(|p| !keep(p)).map(|p| p.serial.clone()).collect();
+        list.retain(|p| keep(p));
+        if list.is_empty() {
+            self.body.passes_unanswered.remove(peer);
+        }
+        self.queue_withdrawals(gone.clone());
         gone
+    }
+    /// The passes sent to `peer` that the server has not said it took.
+    pub fn passes_unanswered_to(&self, peer: &str) -> &[SentPass] {
+        self.body.passes_unanswered.get(peer).map(|v| v.as_slice()).unwrap_or(&[])
+    }
+    fn queue_withdrawals(&mut self, serials: Vec<String>) {
+        for s in serials {
+            if !self.body.withdrawals_pending.contains(&s) {
+                self.body.withdrawals_pending.push(s);
+            }
+        }
     }
     /// Withdrawals the relay has not confirmed yet.
     pub fn pending_withdrawals(&self) -> &[String] {
@@ -405,21 +473,23 @@ impl DmStore {
         out
     }
 
-    /// Take back every pass I gave `peer` that `keep` does not keep: they leave the record and
-    /// their serials join the waiting withdrawals. Used once a re-issued pass has gone out (keep
-    /// the new serial) and when our other device's re-issue is echoed (keep its `may`).
+    /// Take back every pass to `peer` that `keep` does not keep, given or never answered (10l):
+    /// they leave the record and their serials join the waiting withdrawals. Used once a re-issued
+    /// pass has been taken by the server (keep the new serial), when a tick is taken away (keep
+    /// what allows no more than the new ticks), and when our other device's re-issue is echoed
+    /// (keep its `may`). A pass still on its way that is withdrawn here is never recorded when its
+    /// answer comes (`pass_taken`).
     pub fn withdraw_passes_to_except(&mut self, peer: &str, keep: impl Fn(&SentPass) -> bool) -> Vec<String> {
-        let Some(list) = self.body.certs_sent.get_mut(peer) else { return Vec::new() };
-        let gone: Vec<String> = list.iter().filter(|p| !keep(p)).map(|p| p.serial.clone()).collect();
-        list.retain(|p| keep(p));
-        if list.is_empty() {
-            self.body.certs_sent.remove(peer);
-        }
-        for s in &gone {
-            if !self.body.withdrawals_pending.contains(s) {
-                self.body.withdrawals_pending.push(s.clone());
+        let mut gone = Vec::new();
+        for map in [&mut self.body.certs_sent, &mut self.body.passes_unanswered] {
+            let Some(list) = map.get_mut(peer) else { continue };
+            gone.extend(list.iter().filter(|p| !keep(p)).map(|p| p.serial.clone()));
+            list.retain(|p| keep(p));
+            if list.is_empty() {
+                map.remove(peer);
             }
         }
+        self.queue_withdrawals(gone.clone());
         gone
     }
 

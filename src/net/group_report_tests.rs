@@ -646,3 +646,55 @@ fn a_shared_history_groups_fresh_key_never_reuses_a_number() {
     assert!(api_v2::rekey_if_creator_needs(&url, &ben_seed, &gid).is_err(), "a current key that does not read makes no new key");
     assert!(posted.recv_timeout(std::time::Duration::from_millis(300)).is_err(), "and nothing is posted");
 }
+
+/// SOMEONE REMOVED AND LET BACK IN GETS THE GROUP KEY AGAIN (2026-10-10): this device removes Cy
+/// (new key without her, then the remove). While the server still lists her she is left out of
+/// every rekey. Once a member list without her has come back, the removal has landed, and when
+/// she rejoins with a new ticket the creator's next rekey seals the next key to her as to anyone;
+/// a slower list asked for before the removal was seen to land still leaves her out.
+/// Seen red 2026-10-10 two ways: with `left_out` never letting anyone go (the old behaviour, the
+/// list cleared only by a restart), "she rejoined: sealed to on the next rekey" failed (no rekey
+/// at all, Ok(None)); and with `left_out` dropping her the moment a list without her came back,
+/// "a list asked for before the removal landed still leaves her out" failed.
+#[test]
+fn someone_removed_then_let_back_in_is_sealed_to_again() {
+    let (ben_seed, ben) = person(91);
+    let (ann_seed, ann) = person(92);
+    let (cy_seed, cy) = person(93);
+    let (gid, group) = group_v1(&ben_seed, "Rowers");
+    let listing = |who: &[(&[u8], &str)]| {
+        let members: Vec<Value> = who.iter().map(|(s, k)| serde_json::json!({ "pubkey": k, "kyber_public": kyber(s) })).collect();
+        serde_json::json!({ "members": members })
+    };
+    let (b, a, c) = ((ben_seed.as_slice(), ben.as_str()), (ann_seed.as_slice(), ann.as_str()), (cy_seed.as_slice(), cy.as_str()));
+    let roster = vec![(ben.clone(), Some(kyber(&ben_seed))), (ann.clone(), Some(kyber(&ann_seed))), (cy.clone(), Some(kyber(&cy_seed)))];
+
+    let mut server = Recorder::new(Ok(None), Ok(roster.clone()), false);
+    remove_member(&mut server, &ben_seed, &gid, &cy).expect("removed");
+    let key_without_cy = serde_json::from_str::<Value>(&server.posted[0]).unwrap()["payload_b64"].as_str().unwrap().to_string();
+
+    // The server still lists her: left out.
+    let (url, posted) = group_server(group.clone(), Some(key_without_cy.clone()), listing(&[b, a, c]));
+    assert_eq!(api_v2::rekey_if_creator_needs(&url, &ben_seed, &gid), Ok(None), "still listed: left out, so nobody lacks the key");
+    assert!(posted.recv_timeout(std::time::Duration::from_millis(200)).is_err());
+    let before_landing = std::time::Instant::now();
+
+    // The removal has landed: a list without her.
+    let (url, _) = group_server(group.clone(), Some(key_without_cy.clone()), listing(&[b, a]));
+    assert_eq!(api_v2::rekey_if_creator_needs(&url, &ben_seed, &gid), Ok(None), "her removal landed: nobody lacks the key");
+    assert_eq!(
+        crate::net::group_remove::left_out(&gid, &roster, before_landing),
+        vec![cy.clone()],
+        "a list asked for before the removal landed still leaves her out"
+    );
+
+    // She rejoins with a new ticket: the next rekey seals the next key to her.
+    let (url, posted) = group_server(group, Some(key_without_cy), listing(&[b, a, c]));
+    let (epoch, key, added) = api_v2::rekey_if_creator_needs(&url, &ben_seed, &gid).expect("the rekey runs").expect("she rejoined: sealed to on the next rekey");
+    assert_eq!((epoch, added), (2, 1), "the next key, for the one member without it");
+    let sent = posted.recv_timeout(std::time::Duration::from_secs(10)).expect("the new key is posted");
+    let sealed = parse_group_epoch_key_payload(&api_v2::verify_submission_json(&sent).expect("signed").payload).unwrap();
+    let cy_kp = crate::net::dm_pq::DmPqKeypair::from_bip39_seed(&cy_seed).unwrap();
+    assert_eq!(open_epoch_key(&sealed, &fp(&cy), &cy_kp).unwrap(), (2, key), "and she can open it");
+    assert!(!crate::net::group_remove::removed_here(&gid).contains(&cy), "she is off the list");
+}

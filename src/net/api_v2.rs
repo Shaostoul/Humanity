@@ -847,12 +847,16 @@ pub fn rekey_if_creator_needs(
         current_epoch_payload_bytes = Some(payload_bytes);
     }
 
-    // 3. Current roster with each member's Kyber pub, without anyone this device removed from
-    //    the group in this run (net/group_remove.rs `removed_here`): the server may still list
-    //    them for a moment after the new key that leaves them out, and sealing to them then
-    //    would undo the removal.
+    // 3. Current roster with each member's Kyber pub, without anyone this device is removing from
+    //    the group (net/group_remove.rs `left_out`): the server may still list them for a moment
+    //    after the new key that leaves them out, and sealing to them then would undo the removal.
+    //    Once a list without them has come back, someone listed again has rejoined with a new
+    //    ticket and is sealed to like anyone else; `asked` tells a list asked for after that from
+    //    a slower one asked for before it.
+    let asked = std::time::Instant::now();
     let roster = fetch_group_members(server_url, group_id)?;
-    let (sealable, added) = roster_to_seal(roster, &covered, &super::group_remove::removed_here(group_id));
+    let left_out = super::group_remove::left_out(group_id, &roster, asked);
+    let (sealable, added) = roster_to_seal(roster, &covered, &left_out);
     if added == 0 {
         return Ok(None);
     }
