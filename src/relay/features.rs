@@ -441,6 +441,10 @@ pub const WS_ALWAYS_ON: &[&str] = &[
     // cannot be switched off either.) `account_erased` is the server's word to
     // the erasing client that it is done (BUG-135).
     "account_delete", "account_erased",
+    // An admin erasing another person's data (2026-10-10, handlers/account_erase.rs), and the
+    // receipt the admin is sent. A server can be expected to delete a child's information when
+    // it learns of them (blocking-and-safe-mode.md 10i), so no feature switch may take it away.
+    "admin_erase", "admin_erase_done",
     // Outbound notifications (server -> client echoes of state changes).
     "message_deleted", "pin_added", "pin_removed", "pins_sync", "reactions_sync",
     "channel_list", "channel_update", "profile_data", "announcements",
@@ -2882,6 +2886,273 @@ mod tests {
         assert_eq!(erased["partial"], true, "an erase with a failed part was reported as finished");
         holder.close(None).await.ok();
         server.abort();
+    }
+
+    // ── An admin erases another person's data (blocking-and-safe-mode.md 10i) ──
+
+    /// `admin_erase` from `sock`, and every frame it heard until quiet.
+    async fn admin_erase_from(sock: &mut TestSocket, target: &str, typed: &str) -> Vec<Value> {
+        send_json(sock, serde_json::json!({ "type": "admin_erase", "target": target, "confirm_name": typed })).await;
+        frames_until_quiet(sock, 700).await
+    }
+
+    /// Every log line the relay writes on this test's thread while the guard from `listen` lives.
+    /// `#[tokio::test]` runs on one thread and the relay's tasks run on the test's own runtime, so
+    /// a subscriber scoped to this thread hears the relay and no other test.
+    #[derive(Clone, Default)]
+    struct LogLines(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+    impl std::io::Write for LogLines {
+        fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(b);
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for LogLines {
+        type Writer = LogLines;
+        fn make_writer(&'a self) -> LogLines {
+            self.clone()
+        }
+    }
+    impl LogLines {
+        fn listen(&self) -> tracing::subscriber::DefaultGuard {
+            let sub = tracing_subscriber::fmt().with_writer(self.clone()).with_ansi(false).with_max_level(tracing::Level::TRACE).finish();
+            tracing::subscriber::set_default(sub)
+        }
+        fn text(&self) -> String {
+            String::from_utf8_lossy(&self.0.lock().unwrap()).into_owned()
+        }
+    }
+
+    /// The same rows for two accounts, so their erases can be compared: two messages, a sealed
+    /// DM waiting, a task, a "who can reach me" choice and a friend code.
+    fn seed_account(state: &crate::relay::relay::RelayState, key: &str, name: &str) {
+        for (n, text) in ["first", "second"].iter().enumerate() {
+            state
+                .db
+                .with_conn(|c| {
+                    c.execute(
+                        "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, raw_json) VALUES ('chat', ?1, ?2, ?3, ?4, '{}')",
+                        rusqlite::params![key, name, text, 1_000 + n as i64],
+                    )
+                })
+                .expect("a message is stored");
+        }
+        state.db.mailbox_put(key, "sealed").unwrap();
+        state.db.create_task("A task", "", "backlog", "medium", None, key, "").unwrap();
+        state.db.set_reach_settings(key, &[("message", "friends")]).unwrap();
+        let in_a_day = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64 + 86_400_000;
+        state.db.create_friend_code(key, in_a_day, 1).unwrap();
+    }
+
+    /// 10i, the refusals: a plain member, a moderator, the admin themselves, an unknown key, an
+    /// admin, the owner and a wrong name are each refused with a `Private` notice of their own
+    /// (handlers/account_erase.rs `Refused`), and nothing changes: the target keeps their name,
+    /// their membership and their sockets, nobody is told `account_erased` or `admin_erase_done`,
+    /// and no erase is remembered. Every case is checked before the test fails, so one run lists
+    /// every case that went wrong.
+    ///
+    /// Seen red 2026-10-10 with `handle_admin_erase` going on to `carry_out` after a refusal
+    /// (the notice still sent): "the target was erased by a refused admin_erase".
+    #[tokio::test]
+    async fn an_admin_erase_that_is_refused_changes_nothing_and_says_why() {
+        use crate::relay::handlers::account_erase::Refused;
+        let (state, port) = spawn_relay("admin_erase_refused", Features::all_enabled()).await;
+        let (mut admin, admin_key) = bind_socket(&state, port, [180u8; 32], Some("RefusingAdmin"), 1).await;
+        let (mut moderator, mod_key) = bind_socket(&state, port, [181u8; 32], Some("JustAModerator"), 1).await;
+        let (mut target, target_key) = bind_socket(&state, port, [182u8; 32], Some("StaysHere"), 1).await;
+        state.db.set_role(&admin_key, "admin").unwrap();
+        state.db.set_role(&mod_key, "mod").unwrap();
+        // Two more staff accounts with no socket: the check reads only the registration and role.
+        state.db.register_name("OtherAdmin", "0a0a").unwrap();
+        state.db.set_role("0a0a", "admin").unwrap();
+        state.db.register_name("TheOwner", "0b0b").unwrap();
+        state.db.set_role("0b0b", "owner").unwrap();
+        for sock in [&mut admin, &mut moderator, &mut target] {
+            frames_until_quiet(sock, 300).await;
+        }
+        let mut heard_all = Vec::new();
+        let mut wrong = Vec::new();
+        let mut expect = |case: &str, heard: Vec<Value>, why: Refused| {
+            if !heard.iter().any(|f| f["type"] == "system" && f["message"] == why.words()) {
+                wrong.push(format!("{case}: expected {why:?}, heard {heard:?}"));
+            }
+            heard_all.extend(heard);
+        };
+        expect("a plain member", admin_erase_from(&mut target, &mod_key, "JustAModerator").await, Refused::NotAnAdmin);
+        expect("a moderator", admin_erase_from(&mut moderator, &target_key, "StaysHere").await, Refused::NotAnAdmin);
+        expect("themselves", admin_erase_from(&mut admin, &admin_key, "RefusingAdmin").await, Refused::Yourself);
+        expect("an unknown key", admin_erase_from(&mut admin, "0c0c", "Nobody").await, Refused::NoAccount);
+        expect("an admin", admin_erase_from(&mut admin, "0a0a", "OtherAdmin").await, Refused::AnAdmin);
+        expect("the owner", admin_erase_from(&mut admin, "0b0b", "TheOwner").await, Refused::AnAdmin);
+        expect("a name in other letters", admin_erase_from(&mut admin, &target_key, "stayshere").await, Refused::WrongName);
+        expect("a different name", admin_erase_from(&mut admin, &target_key, "Stays Here").await, Refused::WrongName);
+        let erased_target = state.db.name_for_key(&target_key).unwrap().is_none() || !state.db.is_member(&target_key);
+        assert!(!erased_target, "the target was erased by a refused admin_erase");
+        assert!(wrong.is_empty(), "a refusal was not said as it should be:\n{}", wrong.join("\n"));
+        assert!(!state.db.erased_account_remembered(&target_key), "a refused erase was remembered");
+        for (key, name) in [(admin_key.as_str(), "RefusingAdmin"), ("0a0a", "OtherAdmin"), ("0b0b", "TheOwner"), (mod_key.as_str(), "JustAModerator")] {
+            assert_eq!(state.db.name_for_key(key).unwrap().as_deref(), Some(name), "{name} lost their registration");
+        }
+        assert!(
+            heard_all.iter().all(|f| f["type"] != "admin_erase_done" && f["type"] != "account_erased"),
+            "a refused erase was answered as done: {heard_all:?}"
+        );
+        let target_heard = frames_until_quiet(&mut target, 300).await;
+        assert!(target_heard.iter().all(|f| f["type"] != "account_erased"), "the target was told to leave: {target_heard:?}");
+        assert_eq!(live_count(&state, &target_key).await, 1, "the target's socket went");
+        for sock in [&mut admin, &mut moderator, &mut target] {
+            sock.close(None).await.ok();
+        }
+    }
+
+    /// 10i, a success: an admin's erase of someone removes exactly what that person's own erase
+    /// removes. Two accounts with the same rows (`seed_account`), both with a home on the ship;
+    /// one erases themselves, the admin erases the other, and the two receipts are the same.
+    /// Both are then fully gone and remembered. Only the erased person's own sockets (both of
+    /// them) are told `account_erased`, last, with `by_admin: true`; the person's own erase
+    /// still says `by_admin: false`. The admin is sent `admin_erase_done` with the name they
+    /// typed, the receipt and `partial: false`, in exactly those fields; nobody else hears
+    /// either. And the relay's log during the admin's erase says that an admin erased an
+    /// account, with the counts, and names neither key nor either name.
+    ///
+    /// Seen red 2026-10-10 with `by_admin: false` sent by `carry_out` for an admin's erase:
+    /// "the erased person was not told an admin did it". And with the admin's key and the
+    /// target's name put into the log line: "the log of an admin's erase names a key or a name".
+    #[tokio::test]
+    async fn an_admin_erase_removes_what_the_persons_own_erase_removes_and_tells_only_them() {
+        let path = plots_db("admin_erase_done");
+        let (state, port, server) = relay_on(&path).await;
+        let (mut admin, admin_key) = bind_socket(&state, port, [183u8; 32], Some("ErasingAdmin"), 1).await;
+        let (mut own, own_key) = bind_socket(&state, port, [184u8; 32], Some("ErasesSelf"), 1).await;
+        let (mut gone, gone_key) = bind_socket(&state, port, [185u8; 32], Some("ErasedByAdmin"), 1).await;
+        let (mut gone_too, _) = bind_socket(&state, port, [185u8; 32], Some("ErasedByAdmin"), 2).await;
+        let (mut bystander, _) = bind_socket(&state, port, [186u8; 32], Some("JustWatching"), 1).await;
+        state.db.set_role(&admin_key, "admin").unwrap();
+        welcome_after_join(&mut own, "ErasesSelf").await;
+        welcome_after_join(&mut gone, "ErasedByAdmin").await;
+        seed_account(&state, &own_key, "ErasesSelf");
+        seed_account(&state, &gone_key, "ErasedByAdmin");
+        for sock in [&mut admin, &mut own, &mut gone, &mut gone_too, &mut bystander] {
+            frames_until_quiet(sock, 300).await;
+        }
+
+        // The person's own erase: its receipt sentence holds the counts.
+        send_json(&mut own, serde_json::json!({ "type": "account_delete", "confirm_name": "ErasesSelf" })).await;
+        let own_heard = frames_until_quiet(&mut own, 1500).await;
+        let sentence = own_heard
+            .iter()
+            .find_map(|f| f["message"].as_str().filter(|m| m.starts_with("Your account and its data were erased")))
+            .unwrap_or_else(|| panic!("no receipt for the person's own erase: {own_heard:?}"))
+            .to_string();
+        let own_counts = sentence["Your account and its data were erased from this server (".len()..sentence.find("). Local data").unwrap()].to_string();
+        let own_told = own_heard.iter().find(|f| f["type"] == "account_erased").expect("the person's own erase tells them");
+        assert_eq!(own_told["by_admin"], false, "the person's own erase was said to be an admin's");
+        for sock in [&mut admin, &mut gone, &mut gone_too, &mut bystander] {
+            frames_until_quiet(sock, 300).await;
+        }
+
+        // The admin's erase, with what the relay logs while it runs.
+        let log = LogLines::default();
+        let listening = log.listen();
+        let admin_heard = admin_erase_from(&mut admin, &gone_key, "  ErasedByAdmin ").await;
+        let gone_heard = frames_until_quiet(&mut gone, 800).await;
+        let gone_too_heard = frames_until_quiet(&mut gone_too, 300).await;
+        drop(listening);
+        let done = admin_heard.iter().find(|f| f["type"] == "admin_erase_done");
+        let done = done.unwrap_or_else(|| panic!("the admin was never sent the receipt: {admin_heard:?}"));
+        let mut fields: Vec<&str> = done.as_object().unwrap().keys().map(|k| k.as_str()).collect();
+        fields.sort();
+        assert_eq!(fields, ["name", "partial", "receipt", "type"], "admin_erase_done is not the agreed shape: {done}");
+        assert_eq!(done["name"], "ErasedByAdmin", "the receipt names someone other than the name typed");
+        assert_eq!(done["partial"], false, "a whole erase was reported as unfinished");
+        let admin_counts: Vec<String> = done["receipt"]
+            .as_array()
+            .expect("the receipt is a list")
+            .iter()
+            .map(|row| format!("{}: {}", row[0].as_str().expect("a table"), row[1].as_u64().expect("a count")))
+            .collect();
+        let admin_counts = admin_counts.join(", ");
+        assert_eq!(admin_counts, own_counts, "the admin's erase removed different rows from the person's own");
+        for part in ["messages: 2", "dm_mailbox: 1", "friend_codes: 1", "tasks: 1", "membership: 1", "registered_name: 1", "reach_settings: 1", "ship_plots: 1"] {
+            assert!(admin_counts.contains(part), "the receipt is missing {part}: {admin_counts}");
+        }
+        assert!(admin_heard.iter().all(|f| f["type"] != "account_erased"), "the admin was told to leave: {admin_heard:?}");
+
+        // Both of the erased person's sockets are told, last, that an admin erased their data.
+        for (which, heard) in [("the first", &gone_heard), ("the second", &gone_too_heard)] {
+            let at = heard.iter().position(|f| f["type"] == "account_erased");
+            let at = at.unwrap_or_else(|| panic!("{which} socket of the erased person was never told: {heard:?}"));
+            assert_eq!(heard[at]["to"], gone_key.as_str());
+            assert_eq!(heard[at]["by_admin"], true, "the erased person was not told an admin did it");
+            assert_eq!(heard[at]["partial"], false);
+            assert_eq!(heard[at]["earlier"], false);
+            assert!(heard[at..].iter().all(|f| f["type"] != "full_user_list"), "a user list came after the signal: {heard:?}");
+            assert!(
+                heard.iter().all(|f| !f["message"].as_str().is_some_and(|m| m.starts_with("Your account and its data were erased"))),
+                "{which} socket was sent the words for the person's own erase: {heard:?}"
+            );
+            assert!(heard.iter().all(|f| f["type"] != "admin_erase_done"), "the erased person was sent the admin's receipt");
+        }
+        let others = frames_until_quiet(&mut bystander, 300).await;
+        assert!(
+            others.iter().all(|f| f["type"] != "account_erased" && f["type"] != "admin_erase_done"),
+            "someone else heard about the erase: {others:?}"
+        );
+
+        // Both accounts are gone, and both erases are remembered.
+        for (key, name) in [(&own_key, "ErasesSelf"), (&gone_key, "ErasedByAdmin")] {
+            assert_eq!(state.db.name_for_key(key).unwrap(), None, "{name} is still registered");
+            assert!(!state.db.erase_left_rows(key), "{name}'s erase left rows behind");
+            assert!(state.db.erased_account_remembered(key), "{name}'s erase is not remembered");
+        }
+        assert!(state.game_world.read().await.find_player_entity(&gone_key).is_none(), "the erased person still stands in the world");
+
+        // The log says what happened and names nobody.
+        let logged = log.text();
+        assert!(logged.contains(&format!("An admin erased an account ({admin_counts})")), "the admin's erase was not logged with its counts:\n{logged}");
+        let named: Vec<&str> = [admin_key.as_str(), gone_key.as_str(), "ErasingAdmin", "ErasedByAdmin"]
+            .into_iter()
+            .filter(|told| logged.contains(told))
+            .collect();
+        assert!(named.is_empty(), "the log of an admin's erase names a key or a name: {named:?}\n{logged}");
+
+        for sock in [&mut admin, &mut own, &mut gone, &mut gone_too, &mut bystander] {
+            sock.close(None).await.ok();
+        }
+        server.abort();
+    }
+
+    /// 10i: an admin's erase where a part fails says so to both sides, as the person's own erase
+    /// does (`an_erase_with_a_failed_part_says_it_did_not_finish`): the admin's receipt lists the
+    /// failed table and says `partial`, and the erased person's clients are told `partial` too.
+    ///
+    /// Seen red 2026-10-10 with `partial: false` in `handle_admin_erase`'s receipt: "the admin
+    /// was told a failed erase finished".
+    #[tokio::test]
+    async fn an_admin_erase_with_a_failed_part_says_so_to_both() {
+        let (state, port) = spawn_relay("admin_erase_partial", Features::all_enabled()).await;
+        let (mut admin, admin_key) = bind_socket(&state, port, [187u8; 32], Some("HalfwayAdmin"), 1).await;
+        let (mut gone, gone_key) = bind_socket(&state, port, [188u8; 32], Some("HalfErased"), 1).await;
+        state.db.set_role(&admin_key, "admin").unwrap();
+        frames_until_quiet(&mut admin, 300).await;
+        frames_until_quiet(&mut gone, 300).await;
+        state.db.with_conn(|c| c.execute_batch("DROP TABLE friend_codes")).expect("the table drops");
+        let heard = admin_erase_from(&mut admin, &gone_key, "HalfErased").await;
+        let done = heard.iter().find(|f| f["type"] == "admin_erase_done");
+        let done = done.unwrap_or_else(|| panic!("the admin was never sent the receipt: {heard:?}"));
+        assert_eq!(done["partial"], true, "the admin was told a failed erase finished");
+        let failed = done["receipt"].as_array().unwrap().iter().any(|row| row[0] == "friend_codes_FAILED");
+        assert!(failed, "the receipt does not list the part that failed: {done}");
+        let told = frames_until_quiet(&mut gone, 800).await;
+        let told = told.iter().find(|f| f["type"] == "account_erased").cloned();
+        let told = told.unwrap_or_else(|| panic!("the erased person was never told"));
+        assert_eq!(told["partial"], true, "the erased person was told a failed erase finished");
+        assert_eq!(told["by_admin"], true);
+        admin.close(None).await.ok();
+        gone.close(None).await.ok();
     }
 
     /// Review of BUG-135 option 2, second round, finding 10: every native sign-in now asks for

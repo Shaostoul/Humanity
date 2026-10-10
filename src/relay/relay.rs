@@ -1914,8 +1914,21 @@ pub enum RelayMessage {
     /// server and never redial it by itself. `partial`: part of the erase failed, so the client
     /// says to erase again instead of that Connect signs up again. `earlier`: the answer to an
     /// identify from a key erased here before, which signed nothing up (handlers/sign_ups.rs).
+    /// `by_admin`: an admin of this server erased it (`admin_erase`), so the client says so
+    /// instead of the words for the person's own erase; false from both of the above.
     #[serde(rename = "account_erased")]
-    AccountErased { to: String, partial: bool, #[serde(default)] earlier: bool },
+    AccountErased { to: String, partial: bool, #[serde(default)] earlier: bool, #[serde(default)] by_admin: bool },
+    /// An admin or the owner erases another person's data on this server (2026-10-10,
+    /// blocking-and-safe-mode.md 10i, handlers/account_erase.rs): `target` is their key,
+    /// `confirm_name` their registered name, typed. Both default to empty, so a frame missing one
+    /// is refused with a notice instead of failing to parse, which logs the raw text (the
+    /// target's key and name) in the "RelayMessage deserialization failed" warning.
+    #[serde(rename = "admin_erase")]
+    AdminErase { #[serde(default)] target: String, #[serde(default)] confirm_name: String },
+    /// Server -> the admin who erased: the name they typed, the per-table counts the person's own
+    /// erase reports, and whether a part failed. `to` routes it to that admin's sockets, unsent.
+    #[serde(rename = "admin_erase_done")]
+    AdminEraseDone { #[serde(skip)] to: String, name: String, receipt: Vec<(String, usize)>, partial: bool },
 
     /// Client updates presence privacy (privacy tiers, 2026-08-23).
     /// `hide_presence: true` = never appear online, no last_seen stored,
@@ -3287,8 +3300,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 if who != &my_key_for_broadcast { continue; }
             }
             // Reports (handlers/reports.rs): the receipt to its reporter, the list to whoever asked for it;
-            // call forwarder credentials (call_credentials.rs) to whoever asked for them.
-            if let RelayMessage::ReportReceived { to: ref who, .. } | RelayMessage::Reports { to: ref who, .. } | RelayMessage::CallCredentials { to: ref who, .. } = msg {
+            // call forwarder credentials (call_credentials.rs) to whoever asked for them; an admin's
+            // erase receipt (handlers/account_erase.rs) to that admin.
+            if let RelayMessage::ReportReceived { to: ref who, .. } | RelayMessage::Reports { to: ref who, .. } | RelayMessage::CallCredentials { to: ref who, .. } | RelayMessage::AdminEraseDone { to: ref who, .. } = msg {
                 if who != &my_key_for_broadcast { continue; }
             }
 
@@ -5997,6 +6011,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             // ── Account sovereignty (2026-08-23) ──
                             RelayMessage::AccountDelete { confirm_name } => {
                                 handle_account_delete(&state_clone, &my_key_for_recv, confirm_name).await;
+                            }
+                            RelayMessage::AdminErase { target, confirm_name } => {
+                                crate::relay::handlers::account_erase::handle_admin_erase(&state_clone, &my_key_for_recv, target, confirm_name).await;
                             }
                             // ── Privacy ──
                             RelayMessage::PrivacyUpdate { hide_presence } => {

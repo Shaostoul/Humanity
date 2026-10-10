@@ -1880,35 +1880,9 @@ pub async fn handle_account_delete(state: &Arc<RelayState>, my_key: &str, confir
         });
         return;
     }
-    // Remembered FIRST, for a limited time and as a one-way fingerprint, so this account's
-    // other devices are not signed up again by themselves (sign_ups.rs; BUG-135, 2026-10-04).
-    crate::relay::handlers::sign_ups::remember_erase(state, my_key);
-    // Out of the shared world, with their plot freed in the same step (home_plots.rs; ship
-    // homes 1b, round 4 of the review), before the rest is erased.
-    let left = crate::relay::handlers::home_plots::leave_world_for_erase(state, my_key).await;
-    let mut receipt = state.db.delete_account(my_key, &name);
-    left.add_to(&mut receipt); // the plot freed there, and the pieces that came down with it, count with the rest
-    let summary: Vec<String> = receipt
-        .iter()
-        .filter(|(_, n)| *n > 0)
-        .map(|(label, n)| format!("{label}: {n}"))
-        .collect();
-    tracing::warn!("An account was erased ({})", summary.join(", ")); // no key: the log outlives what the person was promised (sign_ups.rs)
-    let _ = state.broadcast_tx.send(RelayMessage::Private {
-        to: my_key.to_string(),
-        message: format!(
-            "Your account and its data were erased from this server ({}). Local data on your own devices is untouched. {} Goodbye; you are welcome back any time.",
-            if summary.is_empty() { "nothing was stored".to_string() } else { summary.join(", ") },
-            crate::relay::handlers::sign_ups::remembered_note(state)
-        ),
-    });
-    broadcast_full_user_list(state).await;
-    // Last, so nothing after it refills what the client clears (BUG-135): the account's
-    // clients disconnect from this server and redial it only when the person presses Connect.
-    // `partial` when a part of the erase failed (`<table>_FAILED`): leaving is still right, but
-    // the client must not say that Connect signs up again while the account partly exists.
-    let partial = receipt.iter().any(|(label, _)| label.ends_with("_FAILED"));
-    let _ = state.broadcast_tx.send(RelayMessage::AccountErased { to: my_key.to_string(), partial, earlier: false });
+    // The erase itself: the same steps an admin's erase of someone else takes (account_erase.rs
+    // `carry_out`, blocking-and-safe-mode.md 10i), so the two cannot drift apart.
+    crate::relay::handlers::account_erase::carry_out(state, my_key, &name, crate::relay::handlers::account_erase::ErasedBy::Themselves).await;
 }
 
 // (Legacy group handlers removed 2026-08-23: plaintext group storage

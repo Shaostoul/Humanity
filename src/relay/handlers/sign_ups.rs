@@ -166,18 +166,20 @@ pub fn log_name_for(state: &RelayState, key: &str) -> String {
 }
 
 /// The answer to an identify from a key erased here earlier: the same `account_erased` the
-/// erase itself ends with (msg_handlers.rs `handle_account_delete`), with `earlier` set, so
+/// erase itself ends with (account_erase.rs `carry_out`), with `earlier` set, so
 /// the clients do what they already do for an erase: leave this server, never redial it by
 /// themselves, and show the sentence that pressing Connect (or Enter) signs up again.
 /// `partial` says whether the erase left anything of the account here, read from the tables
 /// themselves (storage/account.rs `erase_left_rows`; review finding 16): a device that was
 /// offline during an erase that did not finish is then told to erase again, as the erasing
-/// device was, instead of being promised a fresh sign-up.
+/// device was, instead of being promised a fresh sign-up. `by_admin` is false even after an
+/// admin's erase: the erased-accounts entry keeps only the day, never who asked.
 pub fn erased_here_frame(state: &RelayState, public_key: &str) -> String {
     let msg = RelayMessage::AccountErased {
         to: public_key.to_string(),
         partial: state.db.erase_left_rows(public_key),
         earlier: true,
+        by_admin: false,
     };
     serde_json::to_string(&msg).unwrap_or_default()
 }
@@ -197,7 +199,8 @@ where
     let _ = ws_tx.close().await;
 }
 
-/// The erase is starting (msg_handlers.rs `handle_account_delete`, after its checks passed):
+/// The erase is starting (account_erase.rs `carry_out`, the person's own erase or an admin's,
+/// after its checks passed):
 /// remember it FIRST. That is what makes the game join safe: every join checks again while it
 /// holds the game world's write lock (msg_handlers.rs `handle_game_join`), and the erase takes
 /// that lock only after this record (home_plots.rs `leave_world_for_erase`), so a join either
@@ -295,7 +298,7 @@ mod tests {
     fn the_answer_is_the_existing_account_erased_message() {
         let state = fresh_state("frame");
         let v: serde_json::Value = serde_json::from_str(&erased_here_frame(&state, "abc")).unwrap();
-        assert_eq!(v, serde_json::json!({ "type": "account_erased", "to": "abc", "partial": false, "earlier": true }));
+        assert_eq!(v, serde_json::json!({ "type": "account_erased", "to": "abc", "partial": false, "earlier": true, "by_admin": false }));
         state.db.register_name("Left", "abc").unwrap();
         let v: serde_json::Value = serde_json::from_str(&erased_here_frame(&state, "abc")).unwrap();
         assert_eq!(v["partial"], true, "an unfinished erase was answered as finished");
@@ -304,8 +307,10 @@ mod tests {
     /// Review finding 2: the log lines about erased accounts name no key, not even its first
     /// characters (a 48-bit prefix picks a key out of any list of known keys, and the log
     /// outlives the window the person was promised). Read from the source: every log call in
-    /// this file's erase paths, the erase itself (msg_handlers.rs `handle_account_delete`), what
-    /// it calls to take the account out of the world (home_plots.rs `leave_world_for_erase`),
+    /// this file's erase paths, the erase itself (msg_handlers.rs `handle_account_delete`, and
+    /// all of account_erase.rs: the steps both erases share, and an admin's erase of someone
+    /// else, blocking-and-safe-mode.md 10i), what it calls to take the account out of the world
+    /// (home_plots.rs `leave_world_for_erase`),
     /// and the teardown that runs when the erasing client closes its socket a moment later
     /// (relay.rs, from "Another socket for this identity is still open" to the departure),
     /// which names whoever left through `log_name_for` so an erased key is not named there.
@@ -336,6 +341,9 @@ mod tests {
             from[..from.find("\n}\n").unwrap()].to_string()
         };
         let erase = body("src/relay/handlers/msg_handlers.rs", "pub async fn handle_account_delete");
+        let shared = read("src/relay/handlers/account_erase.rs");
+        let shared = shared.split("#[cfg(test)]").next().unwrap();
+        let erase = format!("{erase}\n{shared}");
         let leave = body("src/relay/handlers/home_plots.rs", "pub async fn leave_world_for_erase");
         let relay = read("src/relay/relay.rs");
         let teardown = &relay[relay.find("// ── Another socket for this identity is still open ──").unwrap()..];
@@ -497,8 +505,10 @@ mod tests {
             check.is_some_and(|c| c < assign),
             "handle_game_join does not check the erase again under the world lock before assign_home"
         );
-        // And the erase records before it takes that lock.
-        let erase = &src[src.find("pub async fn handle_account_delete").unwrap()..];
+        // And the erase records before it takes that lock: the steps both erases share
+        // (account_erase.rs `carry_out`, called by the person's own erase and an admin's).
+        let shared = std::fs::read_to_string(root.join("src/relay/handlers/account_erase.rs")).unwrap().replace("\r\n", "\n");
+        let erase = &shared[shared.find("pub async fn carry_out").unwrap()..];
         let record = erase.find("sign_ups::remember_erase(").expect("the erase records");
         let leave = erase.find("leave_world_for_erase(").expect("the erase leaves the world");
         assert!(record < leave, "the erase takes the world lock before it records");

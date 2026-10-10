@@ -69,10 +69,10 @@ pub async fn refused_join(state: &Arc<RelayState>, my_key: &str, join: &JoinHome
     true
 }
 
-/// An account is being erased (msg_handlers.rs `handle_account_delete`): take its figure out
-/// of the shared world and free its plot on this ship in ONE step, under the game world's write
-/// lock, which every join holds while it claims a plot (game_state.rs `assign_home`). Round 4
-/// of the 1b review: the erase freed the plot while the figure still stood on it and its game
+/// An account is being erased (account_erase.rs `carry_out`, by the person or an admin): take
+/// its figure out of the shared world and free its plot on this ship in ONE step, under the
+/// game world's write lock, which every join holds while it claims a plot (game_state.rs
+/// `assign_home`). Round 4 of the 1b review: the erase freed the plot while the figure still stood on it and its game
 /// still drew its home there, so the next joiner was handed a plot someone visibly lived on.
 /// Their progress is NOT saved on the way out (`despawn_player_now` would write a fresh
 /// `player_progress` row for an account being erased; the erase deletes any row they had).
