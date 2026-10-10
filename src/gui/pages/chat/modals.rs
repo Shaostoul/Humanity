@@ -401,12 +401,17 @@ pub(crate) fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut Gu
                 .show(&mut cols[0], theme)
             {
                 if let Some(ref client) = state.ws_client {
-                    let _ = client.send(&serde_json::json!({
+                    let mut ring = serde_json::json!({
                         "type": "voice_call",
                         "from": state.profile_public_key,
                         "to": key,
                         "action": "ring",
-                    }).to_string());
+                    });
+                    // The callee's friendship pass, when we hold one (passes v2, engine/dm.rs).
+                    if let Some(pass) = crate::engine::dm::pass_for(state, &key) {
+                        ring["friend_cert"] = serde_json::Value::String(pass);
+                    }
+                    let _ = client.send(&ring.to_string());
                 }
                 state.call_outgoing = Some((key.clone(), name.clone()));
                 state.call_outgoing_deadline =

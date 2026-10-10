@@ -14428,7 +14428,8 @@ mod native_app {
                             };
                             for json in outbound {
                                 if let Some(ref ws) = state.gui_state.ws_client {
-                                    ws.send(&json);
+                                    // A dc_offer carries the target's friendship pass (passes v2, engine/dm.rs).
+                                    ws.send(&crate::engine::dm::with_pass_on_offer(&state.gui_state, json));
                                 }
                             }
                             for ev in events {

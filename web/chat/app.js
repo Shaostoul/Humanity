@@ -942,6 +942,8 @@ async function handleMessage(msg) {
           if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'dm_fetch', after_id: (ok && hosDmStore.highWater) || 0 }));
           }
+          // Friendship passes owed and withdrawals unconfirmed (chat-social.js).
+          if (ok && typeof sweepFriendPasses === 'function') sweepFriendPasses();
         });
       }
       break;
@@ -951,6 +953,9 @@ async function handleMessage(msg) {
       // identify_response, only then does the relay bind the socket to
       // our claimed key. Closes HIGH-2 (identity spoofing).
       try {
+        // The server's own did:hum: what every friendship pass given or held
+        // here names (crypto.js pqBuildFriendCert / pqVerifyFriendCert).
+        window.hosServerDid = msg.server_did || null;
         const nonce = msg.nonce || '';
         if (!nonce || !myDilithiumSecret || typeof window.pqSignMessage !== 'function') {
           console.error('identify_challenge: missing nonce or PQ identity not ready');
@@ -1027,6 +1032,12 @@ async function handleMessage(msg) {
       break;
     case 'full_user_list':
       updateUserList(msg.users || []);
+      // The member list carries the DM keys passes are sealed to.
+      if (typeof sweepFriendPasses === 'function') sweepFriendPasses();
+      break;
+    case 'cert_revoked':
+      // The relay confirmed a friendship pass withdrawal (chat-social.js).
+      if (typeof friendPassWithdrawn === 'function') friendPassWithdrawn(msg.serial);
       break;
     case 'typing': {
       // Show "X is typing…" indicator, clear after 3 seconds.

@@ -230,64 +230,240 @@ pub fn derive_kyber_seed(master_seed: &[u8]) -> [u8; KYBER_SEED_LEN] {
     out
 }
 
-// ── Friendship certificates (follows-graph removal, 2026-08-24) ────────────
-// The `follows` table was the last server-side social graph. It is gone:
-// friendship is now a CLIENT-HELD credential. When two people become
-// friends, each issues the other a certificate:
+// ── Friendship passes, v2 (2026-10-09, docs/design/blocking-and-safe-mode.md 10b) ──
+// The `follows` table was the last server-side social graph and it went on 2026-08-24:
+// friendship is a CLIENT-HELD credential. When two people become friends (a mutual follow),
+// each gives the other a PASS:
 //
-//   cert = Dilithium_issuer("hum/friend/v1\n{issuer_hex}\n{grantee_hex}")
+//   preimage = "hum/friend/v2\n{server}\n{issuer}\n{grantee}\n{serial}\n{may}"
+//   cert     = {"v":2,"serial":"...","may":"...","sig":"<base64 Dilithium3 over the preimage>"}
 //
-// The grantee presents it on every dm_put addressed to the issuer (and on
-// friends-visibility profile requests). The relay verifies STATELESSLY and
-// stores nothing — a subpoena or breach finds no who-is-friends-with-whom
-// data because it is never recorded. Certs are minted by the CLIENT (the
-// issuer's seed never leaves their machine) and delivered over the sealed
-// mailbox; `build_friend_cert` below is that minting step.
-// Known v1 limitation (documented): certs do not expire and cannot be
-// server-side revoked; "unfriending" is client-side (your client stops
-// showing them; their mail still lands under the knock budget rules).
+// - `server` is the did:hum: of the server it is given on (`Storage::server_did`, which
+//   /api/server-info and every `identify_challenge` show). Friendship is formed over one
+//   server's mailbox and each client keeps its passes per server, so a pass copied to another
+//   server is useless there, and a withdrawal on this one is exact.
+// - `serial` is 16 random bytes in lowercase hex, chosen by the issuer's client. It is what
+//   makes ONE pass withdrawable without touching the others: the issuer sends
+//   `cert_revoke {serial}` on its own signed-in socket and the relay keeps
+//   `friend_cert_revocations (issuer_fingerprint, serial, revoked_day)`, under a keyed one-way
+//   fingerprint of the issuer's key, for good (storage/friend_passes.rs). Withdrawn on Unfollow,
+//   and later on Block and Remove friend.
+// - `may` is what the friend may do: the sorted, comma-joined, de-duplicated subset of
+//   FRIEND_PASS_KINDS. Changing what a friend may do is a new pass (new serial) and a
+//   withdrawal of the old one. Until step B ("who can reach me") ships, the relay only reads
+//   it; a valid pass lifts the knock budget, as v1 did.
+// - NO END DATE (the operator, 2026-10-09: "I never want to stop being friends with my parents
+//   and brothers"). A pass ends only when one of the two ends it, through the serial.
 //
-// MINT AND CHECK LIVE TOGETHER ON PURPOSE (2026-09-19). `build_friend_cert`
-// used to sit in `net::dm_pq`, which is native-gated, so the relay's own DM
-// tests reached across a feature boundary to mint a cert and the whole relay
-// test target stopped compiling. Nothing in the builder is native: it is the
-// three primitives already in this file (`derive_dilithium_seed`,
-// `DilithiumKeypair::sign`, `friend_cert_preimage`). Keeping the two halves of
-// one wire format side by side is also how they stay in agreement with the
-// web client, which builds the same string inline.
+// The grantee presents the pass on every contact path addressed to the issuer (dm_put,
+// trade_request, voice_call, a dc_offer, a profile request). The relay rebuilds the words from
+// ITS OWN facts (its server DID, the person being reached as issuer, the sender's signed-in
+// socket key as grantee) plus the serial and `may` the pass carries, so a pass given to someone
+// else, by someone else or on another server is a bad signature. It stores no friends list;
+// the withdrawal table holds random serials under a keyed fingerprint of the key that withdrew
+// them, which names nobody without the relay's secret.
+//
+// v1 (`hum/friend/v1\n{issuer}\n{grantee}`, no serial, no server, nothing withdrawable) stops
+// working outright: each client mints v2 passes for its current mutual follows on first run
+// (no compatibility branch before launch, CLAUDE.md).
+//
+// MINT AND CHECK LIVE TOGETHER ON PURPOSE (2026-09-19), and the minting refuses whatever the
+// check would refuse (the household permits' rule, below). `build_friend_cert` used to sit in
+// `net::dm_pq`, which is native-gated, so the relay's own tests reached across a feature
+// boundary to mint one. Keeping the two halves of one wire format side by side is also how they
+// stay in agreement with the web client, whose preimage builder is
+// web/shared/friend-pass.js, pinned to this file's test by scripts/tests/friend-pass.test.js.
 
-/// Certificate signature domain. Web MUST use the identical string.
-pub const FRIEND_CERT_DOMAIN: &str = "hum/friend/v1";
+/// Pass signature domain: the first line of what is signed. Web MUST use the identical string
+/// (web/shared/friend-pass.js).
+pub const FRIEND_CERT_DOMAIN: &str = "hum/friend/v2";
 
-/// The preimage an issuer signs to authorize a grantee.
-pub fn friend_cert_preimage(issuer_hex: &str, grantee_hex: &str) -> String {
-    format!("{FRIEND_CERT_DOMAIN}\n{issuer_hex}\n{grantee_hex}")
+/// The `v` a pass's JSON carries.
+pub const FRIEND_CERT_VERSION: u64 = 2;
+
+/// Every kind of contact a pass can allow, sorted: the vocabulary of `may`. A protocol word
+/// list, signed into every pass, so it lives here and in web/shared/friend-pass.js (pinned
+/// together by scripts/tests/friend-pass.test.js) rather than in a data file.
+pub const FRIEND_PASS_KINDS: [&str; 5] = ["call", "invite", "message", "trade", "voice_message"];
+
+/// What a pass allows when two people become friends (10b): everything but calls, which come
+/// only from people the person chooses (step B's "may call me" list).
+pub const FRIEND_PASS_DEFAULT_MAY: [&str; 4] = ["invite", "message", "trade", "voice_message"];
+
+/// A pass serial's length, bytes (it travels as twice as many lowercase hex characters).
+pub const FRIEND_CERT_SERIAL_BYTES: usize = 16;
+
+/// The longest pass the check reads, bytes. A Dilithium3 signature is 4,412 characters of
+/// base64; the rest is well under a hundred. Anything far longer is refused before it is parsed.
+pub const FRIEND_CERT_MAX_LEN: usize = 8_192;
+
+/// The words an issuer signs to give `grantee_hex` a pass on the server `server` (that server's
+/// own `did:hum:`): the serial that names this pass and what it allows (`may`, canonical form).
+pub fn friend_cert_preimage(server: &str, issuer_hex: &str, grantee_hex: &str, serial: &str, may: &str) -> String {
+    format!("{FRIEND_CERT_DOMAIN}\n{server}\n{issuer_hex}\n{grantee_hex}\n{serial}\n{may}")
 }
 
-/// Mint MY friendship certificate for `grantee_hex`: a base64 Dilithium3
-/// signature over `friend_cert_preimage`, made with the Dilithium key derived
-/// from my BIP39 `seed`. Handed to the grantee via a sealed control message;
-/// they present it on every dm_put addressed to me, and the relay checks it
-/// with `verify_friend_cert` without storing a thing.
-pub fn build_friend_cert(seed: &[u8], my_hex: &str, grantee_hex: &str) -> String {
-    use base64::{engine::general_purpose::STANDARD as B64, Engine};
-    let dil_seed = derive_dilithium_seed(seed);
-    let kp = DilithiumKeypair::from_seed(&dil_seed);
-    B64.encode(kp.sign(friend_cert_preimage(my_hex, grantee_hex).as_bytes()))
+/// Why a friendship pass was not minted, or does not count.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FriendCertError {
+    /// Not the v2 JSON shape (or too long to read), or a server, issuer or grantee that is
+    /// empty or holds a line break (which would let two different passes sign the same words).
+    Malformed,
+    /// A serial that is not 16 bytes of lowercase hex.
+    BadSerial,
+    /// A `may` that is empty, names a kind not in [`FRIEND_PASS_KINDS`], or (in a pass being
+    /// checked) is not in canonical form: sorted, comma-joined, each kind once.
+    BadMay,
+    /// The issuer's key or the signature is not well formed, or the signature is not the
+    /// issuer's over these words.
+    BadSignature,
 }
 
-/// Verify a friendship certificate: did `issuer_hex` really authorize
-/// `grantee_hex`? Stateless.
-pub fn verify_friend_cert(issuer_hex: &str, grantee_hex: &str, cert_b64: &str) -> bool {
+/// What a friendship pass allows: a sorted, de-duplicated, non-empty subset of
+/// [`FRIEND_PASS_KINDS`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FriendMay(Vec<&'static str>);
+
+impl FriendMay {
+    /// From kinds in any order, repeats allowed (the minting side). Refused when empty or when a
+    /// word is not one of [`FRIEND_PASS_KINDS`].
+    pub fn from_words<'a, I: IntoIterator<Item = &'a str>>(words: I) -> std::result::Result<Self, FriendCertError> {
+        let mut kinds: Vec<&'static str> = Vec::new();
+        for w in words {
+            let Some(k) = FRIEND_PASS_KINDS.iter().find(|k| **k == w) else { return Err(FriendCertError::BadMay) };
+            kinds.push(k);
+        }
+        kinds.sort_unstable();
+        kinds.dedup();
+        if kinds.is_empty() {
+            return Err(FriendCertError::BadMay);
+        }
+        Ok(Self(kinds))
+    }
+
+    /// From the `may` a pass carries (the checking side): only the canonical form is read, so
+    /// one set of kinds has exactly one spelling on the wire.
+    pub fn parse(wire: &str) -> std::result::Result<Self, FriendCertError> {
+        let may = Self::from_words(wire.split(','))?;
+        if may.wire() != wire {
+            return Err(FriendCertError::BadMay);
+        }
+        Ok(may)
+    }
+
+    /// The canonical form: sorted, comma-joined.
+    pub fn wire(&self) -> String {
+        self.0.join(",")
+    }
+
+    /// Does it allow `kind` (one of [`FRIEND_PASS_KINDS`])?
+    pub fn allows(&self, kind: &str) -> bool {
+        self.0.contains(&kind)
+    }
+
+    /// The kinds it allows, sorted.
+    pub fn kinds(&self) -> &[&'static str] {
+        &self.0
+    }
+}
+
+/// A friendship pass that checked out: its serial and what it allows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FriendPass {
+    pub serial: String,
+    pub may: FriendMay,
+}
+
+/// Is `serial` a pass serial: [`FRIEND_CERT_SERIAL_BYTES`] bytes as lowercase hex?
+pub fn friend_cert_serial_ok(serial: &str) -> bool {
+    serial.len() == FRIEND_CERT_SERIAL_BYTES * 2 && serial.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+/// A fresh random serial for a pass about to be minted, or None when the OS gives no randomness.
+pub fn new_friend_cert_serial() -> Option<String> {
+    let mut bytes = [0u8; FRIEND_CERT_SERIAL_BYTES];
+    os_random(&mut bytes).ok()?;
+    Some(bytes.iter().map(|b| format!("{b:02x}")).collect())
+}
+
+/// A server, issuer or grantee fit to sign: not empty, no line break.
+fn friend_cert_field_ok(s: &str) -> bool {
+    !s.is_empty() && !s.contains(|c: char| c == '\n' || c == '\r')
+}
+
+/// Read a pass's JSON without checking its signature: its serial and `may`, and the signature.
+/// Used by the check below, and by a client reading back a pass it issued itself (the echo of
+/// its own control message, so it knows which serial to withdraw later).
+pub fn parse_friend_cert(cert_json: &str) -> std::result::Result<(FriendPass, String), FriendCertError> {
+    if cert_json.len() > FRIEND_CERT_MAX_LEN {
+        return Err(FriendCertError::Malformed);
+    }
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(cert_json) else { return Err(FriendCertError::Malformed) };
+    let text = |k: &str| v.get(k).and_then(|x| x.as_str());
+    let (Some(serial), Some(may), Some(sig)) = (text("serial"), text("may"), text("sig")) else {
+        return Err(FriendCertError::Malformed);
+    };
+    if v.get("v").and_then(|x| x.as_u64()) != Some(FRIEND_CERT_VERSION) {
+        return Err(FriendCertError::Malformed);
+    }
+    if !friend_cert_serial_ok(serial) {
+        return Err(FriendCertError::BadSerial);
+    }
+    let may = FriendMay::parse(may)?;
+    Ok((FriendPass { serial: serial.to_string(), may }, sig.to_string()))
+}
+
+/// Mint MY friendship pass for `grantee_hex` on the server `server` (its own `did:hum:`, from
+/// its `identify_challenge` or /api/server-info), named by `serial` (from
+/// [`new_friend_cert_serial`]) and allowing `may` (any order, repeats folded): the v2 JSON, its
+/// signature made with the Dilithium key derived from my BIP39 `seed`. Handed to the grantee in
+/// a sealed control message; they present it whenever they reach me, and the relay checks it
+/// with [`verify_friend_cert`]. Refused, minting nothing, whenever that check would refuse it: a
+/// malformed id, a malformed serial, an empty `may` or a kind it does not know.
+pub fn build_friend_cert(
+    seed: &[u8],
+    server: &str,
+    my_hex: &str,
+    grantee_hex: &str,
+    serial: &str,
+    may: &[&str],
+) -> std::result::Result<String, FriendCertError> {
     use base64::{engine::general_purpose::STANDARD as B64, Engine};
-    let Ok(issuer_pk) = hex_decode_str(issuer_hex) else { return false };
-    let Ok(sig) = B64.decode(cert_b64.trim()) else { return false };
-    verify_dilithium(
-        &issuer_pk,
-        friend_cert_preimage(issuer_hex, grantee_hex).as_bytes(),
-        &sig,
-    )
-    .is_ok()
+    if ![server, my_hex, grantee_hex].into_iter().all(friend_cert_field_ok) {
+        return Err(FriendCertError::Malformed);
+    }
+    if !friend_cert_serial_ok(serial) {
+        return Err(FriendCertError::BadSerial);
+    }
+    let may = FriendMay::from_words(may.iter().copied())?.wire();
+    let kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(seed));
+    let sig = kp.sign(friend_cert_preimage(server, my_hex, grantee_hex, serial, &may).as_bytes());
+    Ok(serde_json::json!({ "v": FRIEND_CERT_VERSION, "serial": serial, "may": may, "sig": B64.encode(sig) }).to_string())
+}
+
+/// Did `issuer_hex` (a Dilithium3 public key, hex) really give `grantee_hex` this pass on the
+/// server `server`, and what does it allow? Stateless: whether the issuer has WITHDRAWN it is
+/// the relay's question (handlers/friend_passes.rs `friend_pass`, which every contact path
+/// calls). `server`, `issuer_hex` and `grantee_hex` must be the CHECKER's own facts (the relay's
+/// own `Storage::server_did`, the person being reached, the sender's signed-in socket key),
+/// never anything the pass claims; only the serial and `may` come from the pass. Checked
+/// cheapest first, so a malformed pass costs no signature check.
+pub fn verify_friend_cert(
+    server: &str,
+    issuer_hex: &str,
+    grantee_hex: &str,
+    cert_json: &str,
+) -> std::result::Result<FriendPass, FriendCertError> {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
+    let (pass, sig_b64) = parse_friend_cert(cert_json)?;
+    if ![server, issuer_hex, grantee_hex].into_iter().all(friend_cert_field_ok) {
+        return Err(FriendCertError::Malformed);
+    }
+    let Ok(issuer_pk) = hex_decode_str(issuer_hex) else { return Err(FriendCertError::BadSignature) };
+    let Ok(sig) = B64.decode(sig_b64.trim()) else { return Err(FriendCertError::BadSignature) };
+    let words = friend_cert_preimage(server, issuer_hex, grantee_hex, &pass.serial, &pass.may.wire());
+    verify_dilithium(&issuer_pk, words.as_bytes(), &sig).map_err(|_| FriendCertError::BadSignature)?;
+    Ok(pass)
 }
 
 // ── Household permits (ship homes increment 5, 2026-10-05) ─────────────────
@@ -675,31 +851,147 @@ mod tests {
         assert_eq!(ss_send, ss_recv);
     }
 
-    /// Friendship-certificate roundtrip + a PINNED preimage. The web
-    /// client builds the exact same string inline (chat-privacy/crypto.js
-    /// `pqBuildFriendCert`); if this format ever changes, cross-client
-    /// friendship silently breaks, so the preimage bytes are frozen here.
+    /// A person's identity key, hex, from the seed `[n; 32]`.
+    fn key_hex_of(n: u8) -> String {
+        hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&[n; 32])).public_key())
+    }
+
+    /// FRIENDSHIP PASS ROUND TRIP + A PINNED PREIMAGE (v2, blocking-and-safe-mode.md 10b). The
+    /// signed words are frozen here because the web client builds them too
+    /// (web/shared/friend-pass.js), and scripts/tests/friend-pass.test.js reads THIS literal
+    /// and compares the web builder's output with it. A pass minted by the SHIPPED builder
+    /// verifies and reads back its serial and `may`; the minting folds `may` into its one
+    /// canonical spelling; a pass is good only for the server, issuer and grantee it names.
+    /// Seen red 2026-10-09 with the server left out of `friend_cert_preimage`'s words: left
+    /// `"hum/friend/v2\nAABB\nCCDD\n00112233445566778899aabbccddeeff\nmessage,trade"`, right
+    /// `"hum/friend/v2\ndid:hum:srv\nAABB\nCCDD\n00112233445566778899aabbccddeeff\nmessage,trade"`.
     #[test]
     fn friend_cert_roundtrip_and_pinned_preimage() {
-        // Pinned wire format — web MUST match byte-for-byte.
         assert_eq!(
-            friend_cert_preimage("AABB", "CCDD"),
-            "hum/friend/v1\nAABB\nCCDD"
+            friend_cert_preimage("did:hum:srv", "AABB", "CCDD", "00112233445566778899aabbccddeeff", "message,trade"),
+            "hum/friend/v2\ndid:hum:srv\nAABB\nCCDD\n00112233445566778899aabbccddeeff\nmessage,trade"
         );
-        // Real issue + verify, through the SHIPPED minting function rather
-        // than a hand-rolled copy of it: a builder the tests re-implement is a
-        // builder nothing checks.
         let issuer_master = [0x11u8; 32];
-        let dil_seed = derive_dilithium_seed(&issuer_master);
-        let issuer = DilithiumKeypair::from_seed(&dil_seed);
-        let issuer_hex = hex::encode(issuer.public_key());
-        let grantee_hex = hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&[0x22u8; 32])).public_key());
-        let cert = build_friend_cert(&issuer_master, &issuer_hex, &grantee_hex);
-        assert!(verify_friend_cert(&issuer_hex, &grantee_hex, &cert), "valid cert must verify");
-        // Wrong grantee, wrong issuer, and garbage all fail.
-        assert!(!verify_friend_cert(&issuer_hex, "deadbeef", &cert));
-        assert!(!verify_friend_cert("deadbeef", &grantee_hex, &cert));
-        assert!(!verify_friend_cert(&issuer_hex, &grantee_hex, "bm90LWEtc2ln"));
+        let (issuer, grantee, other) = (key_hex_of(0x11), key_hex_of(0x22), key_hex_of(0x33));
+        let (server, other_server) = (server_did_of(0x55), server_did_of(0x66));
+        let serial = new_friend_cert_serial().expect("the OS gives randomness");
+        assert!(friend_cert_serial_ok(&serial), "a fresh serial is a serial: {serial}");
+        // Out of order, with a repeat: minted in the one canonical spelling.
+        let cert = build_friend_cert(&issuer_master, &server, &issuer, &grantee, &serial, &["trade", "message", "trade"])
+            .expect("a pass is minted");
+        let pass = verify_friend_cert(&server, &issuer, &grantee, &cert).expect("the pass it minted verifies");
+        assert_eq!(pass.serial, serial);
+        assert_eq!(pass.may.wire(), "message,trade");
+        assert!(pass.may.allows("message") && pass.may.allows("trade") && !pass.may.allows("call"));
+        let bad = Err(FriendCertError::BadSignature);
+        assert_eq!(verify_friend_cert(&other_server, &issuer, &grantee, &cert), bad, "another server");
+        assert_eq!(verify_friend_cert(&server, &issuer, &other, &cert), bad, "another grantee");
+        assert_eq!(verify_friend_cert(&server, &other, &grantee, &cert), bad, "another issuer");
+        assert_eq!(verify_friend_cert(&server, "zz", &grantee, &cert), bad, "not a key");
+        // The defaults when two people become friends: no calls (10b).
+        let defaults = build_friend_cert(&issuer_master, &server, &issuer, &grantee, &serial, &FRIEND_PASS_DEFAULT_MAY).unwrap();
+        let pass = verify_friend_cert(&server, &issuer, &grantee, &defaults).unwrap();
+        assert_eq!(pass.may.wire(), "invite,message,trade,voice_message");
+        assert!(!pass.may.allows("call"), "calls come only from people the person chooses");
+    }
+
+    /// WHAT A PASS ALLOWS IS SIGNED, AND READ IN ONE SPELLING ONLY. A pass whose `may` was
+    /// widened after signing (a friend giving themselves calls) is a bad signature; one with the
+    /// same kinds spelled out of order, repeated, empty or naming a kind nobody knows is refused
+    /// before any signature is checked, as is a malformed serial, a missing field, a v1 pass
+    /// (bare base64) and a `v` other than 2. The serial is signed too: changing it is a bad
+    /// signature, so a withdrawal of one serial cannot be dodged by renaming the pass.
+    /// Seen red 2026-10-09 with `may` left out of `friend_cert_preimage`'s words (on both the
+    /// minting and the checking side): "a widened may", left `Ok(FriendPass { serial: "0011..",
+    /// may: FriendMay(["call", "invite", "message", "trade", "voice_message"]) })`, right
+    /// `Err(BadSignature)`.
+    #[test]
+    fn a_tampered_or_malformed_pass_is_refused() {
+        let issuer_master = [0x11u8; 32];
+        let (issuer, grantee) = (key_hex_of(0x11), key_hex_of(0x22));
+        let server = server_did_of(0x55);
+        let serial = "00112233445566778899aabbccddeeff";
+        let cert = build_friend_cert(&issuer_master, &server, &issuer, &grantee, serial, &FRIEND_PASS_DEFAULT_MAY).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&cert).unwrap();
+        let with = |k: &str, val: serde_json::Value| {
+            let mut w = v.clone();
+            w[k] = val;
+            verify_friend_cert(&server, &issuer, &grantee, &w.to_string())
+        };
+        assert!(with("may", "invite,message,trade,voice_message".into()).is_ok(), "the untouched pass, rebuilt, still verifies");
+        assert_eq!(with("may", "call,invite,message,trade,voice_message".into()), Err(FriendCertError::BadSignature), "a widened may");
+        assert_eq!(with("may", "message".into()), Err(FriendCertError::BadSignature), "a narrowed may");
+        assert_eq!(with("serial", "ffeeddccbbaa99887766554433221100".into()), Err(FriendCertError::BadSignature), "another serial");
+        let bad_may = Err(FriendCertError::BadMay);
+        assert_eq!(with("may", "message,invite,trade,voice_message".into()), bad_may, "out of order");
+        assert_eq!(with("may", "invite,invite,message,trade,voice_message".into()), bad_may, "a kind twice");
+        assert_eq!(with("may", "".into()), bad_may, "nothing allowed");
+        assert_eq!(with("may", "invite,message,shout".into()), bad_may, "a kind nobody knows");
+        let bad_serial = Err(FriendCertError::BadSerial);
+        assert_eq!(with("serial", "00112233445566778899AABBCCDDEEFF".into()), bad_serial, "upper case");
+        assert_eq!(with("serial", "0011223344556677".into()), bad_serial, "too short");
+        assert_eq!(with("serial", "00112233445566778899aabbccddeefg".into()), bad_serial, "not hex");
+        let malformed = Err(FriendCertError::Malformed);
+        assert_eq!(with("v", 1.into()), malformed, "v1");
+        assert_eq!(with("sig", serde_json::Value::Null), malformed, "no signature");
+        assert_eq!(verify_friend_cert(&server, &issuer, &grantee, "bm90LWEtc2ln"), malformed, "a bare v1 signature");
+        assert_eq!(verify_friend_cert(&server, &issuer, &grantee, &"x".repeat(FRIEND_CERT_MAX_LEN + 1)), malformed, "too long to read");
+        assert_eq!(verify_friend_cert("", &issuer, &grantee, &cert), malformed, "no server");
+        assert_eq!(verify_friend_cert(&server, &issuer, "a\nb", &cert), malformed, "a line break in an id");
+        assert_eq!(with("sig", "bm90LWEtc2ln".into()), Err(FriendCertError::BadSignature), "words that are not a signature");
+    }
+
+    /// THE MINTING REFUSES WHAT THE CHECK REFUSES (the household permits' rule). Every pass the
+    /// builder refuses is one the check would refuse: no `may`, a kind it does not know, a
+    /// serial that is not 16 bytes of lowercase hex, an empty or line-broken id.
+    /// Seen red 2026-10-09 with the serial check removed from `build_friend_cert`: "a short
+    /// serial", left `None`, right `Some(BadSerial)` (it minted a pass the check then refused).
+    #[test]
+    fn the_minting_refuses_what_the_check_refuses() {
+        let m = [0x11u8; 32];
+        let (issuer, grantee) = (key_hex_of(0x11), key_hex_of(0x22));
+        let server = server_did_of(0x55);
+        let serial = "00112233445566778899aabbccddeeff";
+        let mint = |server: &str, issuer: &str, grantee: &str, serial: &str, may: &[&str]| {
+            build_friend_cert(&m, server, issuer, grantee, serial, may).err()
+        };
+        assert_eq!(mint(&server, &issuer, &grantee, serial, &[]), Some(FriendCertError::BadMay), "nothing allowed");
+        assert_eq!(mint(&server, &issuer, &grantee, serial, &["message", "shout"]), Some(FriendCertError::BadMay), "a kind nobody knows");
+        assert_eq!(mint(&server, &issuer, &grantee, "0011", &["message"]), Some(FriendCertError::BadSerial), "a short serial");
+        assert_eq!(mint(&server, &issuer, &grantee, &serial.to_uppercase(), &["message"]), Some(FriendCertError::BadSerial), "upper case");
+        assert_eq!(mint("", &issuer, &grantee, serial, &["message"]), Some(FriendCertError::Malformed), "no server");
+        assert_eq!(mint(&server, &issuer, "x\ny", serial, &["message"]), Some(FriendCertError::Malformed), "a line break");
+        assert_eq!(mint(&server, &issuer, &grantee, serial, &FRIEND_PASS_KINDS), None, "every kind at once is a pass");
+        // A wire `may` is read only in its canonical form; the words in any order mint it.
+        assert_eq!(FriendMay::parse("call,message").map(|m| m.wire()), Ok("call,message".to_string()));
+        assert_eq!(FriendMay::parse("message,call"), Err(FriendCertError::BadMay));
+        assert_eq!(FriendMay::from_words(["message", "call"]).map(|m| m.wire()), Ok("call,message".to_string()));
+        let mut sorted = FRIEND_PASS_KINDS;
+        sorted.sort_unstable();
+        assert_eq!(sorted, FRIEND_PASS_KINDS, "the vocabulary is kept sorted, so its order is the canonical one");
+    }
+
+    /// A PASS MINTED BY RUST FROM THE KAT SEED, FROZEN (pq_kat_friend_pass.json). ML-DSA signing
+    /// here is the deterministic variant, so the builder reproduces the fixture byte for byte;
+    /// scripts/pq-kat.mjs reads the same file, rebuilds the words with the web builder
+    /// (web/shared/friend-pass.js) and checks the signature with the vendored noble bundle the
+    /// web client ships, so the whole path, not only the string, agrees across the two.
+    /// Seen red 2026-10-09 with the fixture's cert edited to `"may":"message,invite"`: "the frozen
+    /// pass verifies: BadMay".
+    #[test]
+    fn friend_cert_kat_fixture_matches_the_builder() {
+        let fx: serde_json::Value = serde_json::from_str(include_str!("pq_kat_friend_pass.json")).expect("the fixture is JSON");
+        let s = |k: &str| fx[k].as_str().unwrap_or_else(|| panic!("fixture field {k}")).to_string();
+        let master = [fx["issuer_master_byte"].as_u64().unwrap() as u8; 32];
+        let grantee = key_hex_of(fx["grantee_master_byte"].as_u64().unwrap() as u8);
+        let issuer = hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&master)).public_key());
+        let may: Vec<String> = s("may").split(',').map(str::to_string).collect();
+        let may: Vec<&str> = may.iter().map(String::as_str).collect();
+        let minted = build_friend_cert(&master, &s("server"), &issuer, &grantee, &s("serial"), &may).unwrap();
+        let pass = verify_friend_cert(&s("server"), &issuer, &grantee, &s("cert")).expect("the frozen pass verifies");
+        assert_eq!(pass.serial, s("serial"));
+        assert_eq!(pass.may.wire(), s("may"));
+        assert_eq!(minted, s("cert"), "the builder reproduces the frozen pass byte for byte");
     }
 
     /// A server's `did:hum:` as `Storage::server_did` makes it: from the Dilithium key of its own

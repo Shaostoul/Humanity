@@ -169,7 +169,12 @@ function requestViewProfile(name, publicKey) {
   }
   // Request from server.
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'profile_request', name: name }));
+    // The owner's friendship pass, when we hold one, unlocks their friends-only
+    // fields (passes v2, chat-social.js; the relay checks it).
+    const req = { type: 'profile_request', name: name };
+    const pass = publicKey && typeof friendPassFor === 'function' ? friendPassFor(publicKey) : null;
+    if (pass) req.friend_cert = pass;
+    ws.send(JSON.stringify(req));
     // Show loading state.
     document.getElementById('view-profile-content').innerHTML =
       '<div style="color:var(--text-muted);font-style:italic;">Loading profile…</div>';

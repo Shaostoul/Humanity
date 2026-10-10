@@ -36,6 +36,9 @@ impl Storage {
         // The fingerprint an earlier erase of this key is remembered under, if one is
         // (storage/erased_accounts.rs, BUG-135).
         let erased_fingerprint = self.erased_account_fingerprint(key);
+        // The fingerprint this key's friendship pass withdrawals are kept under
+        // (storage/friend_passes.rs, 2026-10-09).
+        let withdrawal_fingerprint = self.friend_pass_withdrawal_fingerprint(key);
 
         self.with_read_conn(|conn| {
             let mut grab = |label: &str, sql: &str, binds: &[&dyn rusqlite::types::ToSql]| {
@@ -109,6 +112,13 @@ impl Storage {
             // player's lines, so the gaps in one player's numbers would say how much everyone
             // else did in between (the review's finding 8).
             grab("fleet_ledger", "SELECT kind, direction, item_id, quantity, value, game_time, real_day, give_id, home, adjusted FROM fleet_ledger WHERE public_key = ?1 ORDER BY id ASC", &[&key]);
+            // The friendship passes they took back (2026-10-09, storage/friend_passes.rs): the
+            // random serials and the day of each, held under a keyed fingerprint of their key,
+            // which is computed here to find them. Who a pass was given to is not here, because
+            // the server never knew it. The erase below leaves these (they name nobody, and
+            // keeping them stops a sign-up with the same key from reviving withdrawn passes), so
+            // export is wider than erase here, as the lint allows.
+            grab("friend_pass_withdrawals", "SELECT serial, revoked_day FROM friend_cert_revocations WHERE issuer_fingerprint = ?1 ORDER BY revoked_day ASC", &[&withdrawal_fingerprint]);
             // That this key erased its account here earlier, while this server still
             // remembers it (BUG-135, 2026-10-04): only the day and the window it is kept for,
             // under a one-way fingerprint of the key. It is listed because it is held about
@@ -269,6 +279,10 @@ impl Storage {
             del("game_progress", "DELETE FROM player_progress WHERE public_key = ?1", &[&key]);
             // Their fleet ledger (2026-10-04).
             del("fleet_ledger", "DELETE FROM fleet_ledger WHERE public_key = ?1", &[&key]);
+            // NOT erased: the friendship passes they took back (friend_cert_revocations,
+            // storage/friend_passes.rs). The rows hold a keyed fingerprint, not the key, so they
+            // name nobody, and deleting them would let a sign-up with the same key (the same
+            // recovery phrase) bring back every pass it had withdrawn.
             // Fold the secure_delete-zeroed pages out of the WAL.
             let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
             // What was kept on purpose above is said in the receipt as not erased, the way a
@@ -300,7 +314,10 @@ impl Storage {
     /// account, writes the cached copy back). The tables erased by NAME (profiles, statuses)
     /// and the listing images (reached through the listings) cannot be found from the key once
     /// the registration and the listings are gone, so `delete_account` keeps those two whenever
-    /// a delete that hangs off them fails, and reading those two here covers the rest.
+    /// a delete that hangs off them fails, and reading those two here covers the rest. Not
+    /// read either, because the erase keeps them on purpose: `friend_cert_revocations` (the
+    /// friendship passes the key withdrew, held under a keyed fingerprint that names nobody,
+    /// kept so a sign-up with the same key cannot revive them; storage/friend_passes.rs).
     pub fn erase_left_rows(&self, key: &str) -> bool {
         let plot_owner = super::plot_owner_id(key);
         let q = "SELECT EXISTS(SELECT 1 FROM messages WHERE from_key = ?1)

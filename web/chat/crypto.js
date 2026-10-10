@@ -905,26 +905,49 @@ const CTL_FOLLOW = '[[hum:follow]]';
 const CTL_UNFOLLOW = '[[hum:unfollow]]';
 const CTL_FRIEND_CERT = '[[hum:friend-cert]]';
 
-// Friendship certificates: cert = Dilithium_issuer("hum/friend/v1\n{issuer}\n{grantee}").
-// The issuer authorizes the grantee to DM them; the relay verifies it
-// STATELESSLY at dm_put (no server-side friends table exists).
-const FRIEND_CERT_DOMAIN = 'hum/friend/v1';
+// Friendship passes v2 (2026-10-09, docs/design/blocking-and-safe-mode.md 10b).
+// The issuer gives the grantee a pass naming this server's did:hum, a random
+// serial (what a withdrawal names) and what the friend may do; the relay checks
+// it against its own facts and its withdrawal list, with no friends table. The
+// words and the JSON shape come from /shared/friend-pass.js (loaded first),
+// which is pinned to the relay's builder by scripts/tests/friend-pass.test.js.
+// `window.hosServerDid` is the server's did:hum, from its identify_challenge
+// (app.js); nothing is minted or accepted before it is known.
 
-/** Build MY certificate authorizing `granteeHex` to DM me. */
-async function pqBuildFriendCert(granteeHex) {
-  if (!myDilithiumSecret || !myDilithiumPublicHex) return null;
-  const preimage = `${FRIEND_CERT_DOMAIN}\n${myDilithiumPublicHex}\n${granteeHex}`;
+/**
+ * Mint MY pass for `granteeHex` allowing `mayWords` (default: everything but
+ * calls). Returns {cert, serial, may}, or null when the identity or the
+ * server's did:hum is not ready.
+ */
+async function pqBuildFriendCert(granteeHex, mayWords) {
+  const server = window.hosServerDid;
+  if (!myDilithiumSecret || !myDilithiumPublicHex || !server) return null;
+  if (![server, myDilithiumPublicHex, granteeHex].every(friendPassFieldOk)) return null;
+  const may = friendPassMay(mayWords || FRIEND_PASS_DEFAULT_MAY);
+  if (!may) return null;
+  const serial = Array.from(crypto.getRandomValues(new Uint8Array(FRIEND_PASS_SERIAL_BYTES)))
+    .map((b) => b.toString(16).padStart(2, '0')).join('');
+  const preimage = friendPassPreimage(server, myDilithiumPublicHex, granteeHex, serial, may);
   const sig = await window.pqSignMessage(myDilithiumSecret, new TextEncoder().encode(preimage));
-  return sig ? btoa(String.fromCharCode(...sig)) : null;
+  if (!sig) return null;
+  return { cert: friendPassJson(serial, may, btoa(String.fromCharCode(...sig))), serial, may };
 }
 
-/** Verify that `issuerHex` authorized `granteeHex`. */
-async function pqVerifyFriendCert(issuerHex, granteeHex, certB64) {
+/**
+ * Check that `issuerHex` gave `granteeHex` this pass on this server. Returns
+ * {serial, may} when it did, null otherwise. (Whether the issuer withdrew it is
+ * the relay's to know; an issuer who unfollows us also tells us.)
+ */
+async function pqVerifyFriendCert(issuerHex, granteeHex, certJson) {
   try {
-    const sig = Uint8Array.from(atob(certB64), (c) => c.charCodeAt(0));
-    const preimage = `${FRIEND_CERT_DOMAIN}\n${issuerHex}\n${granteeHex}`;
-    return await window.pqVerifyMessage(_hexToBytes(issuerHex), new TextEncoder().encode(preimage), sig);
-  } catch { return false; }
+    const server = window.hosServerDid;
+    const pass = friendPassParse(certJson);
+    if (!pass || ![server, issuerHex, granteeHex].every(friendPassFieldOk)) return null;
+    const sig = Uint8Array.from(atob(pass.sig), (c) => c.charCodeAt(0));
+    const preimage = friendPassPreimage(server, issuerHex, granteeHex, pass.serial, pass.may);
+    const ok = await window.pqVerifyMessage(_hexToBytes(issuerHex), new TextEncoder().encode(preimage), sig);
+    return ok ? { serial: pass.serial, may: pass.may } : null;
+  } catch { return null; }
 }
 
 function _dmSigPreimage(from, to, ts, text) {

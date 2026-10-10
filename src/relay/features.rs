@@ -416,6 +416,10 @@ pub const WS_ALWAYS_ON: &[&str] = &[
     // Like account security, privacy controls must never be switch-off-able
     // by a feature toggle - hiding yourself has to work on every server.
     "privacy_update",
+    // Taking back a friendship pass you gave (2026-10-09, handlers/friend_passes.rs), and the
+    // server's answer that it is done. Withdrawing consent must work whatever the owner offers,
+    // for the same reason as privacy and account security above.
+    "cert_revoke", "cert_revoked",
     // A user's data sovereignty (2026-08-23): exporting and erasing your
     // own data must work regardless of which features the owner offers.
     // (account_export/account_export_data moved to POST /api/account/export on

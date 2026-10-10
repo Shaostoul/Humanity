@@ -315,6 +315,28 @@ The remaining server-held data classes and length/transport leaks, closed:
   about who follows or is friends with whom. Strangers without a certificate
   can still "knock" (sealed DMs, capped at 20 per sender per day) so cold
   outreach works without enabling floods.
+- **Withdrawn friendship passes (2026-10-09).** Since passes v2 a pass can be
+  taken back: the issuer's own signed-in socket sends `cert_revoke {serial}`
+  and the relay keeps `friend_cert_revocations (issuer_fingerprint, serial,
+  revoked_day)` so the pass stops counting at once. The fingerprint is BLAKE3
+  keyed with the relay's machine-local secret (`data/erased-accounts.key`,
+  the one the erased-accounts table uses, never in the backups) over
+  `hum/withdrawn-pass/v1\n` plus the lower-cased key, so a copy of the
+  database (a backup, a breach, a subpoena) cannot be checked against a list
+  of known keys, and the two tables cannot be matched to each other. A row is
+  that fingerprint, a random serial and the day; never who the pass was given
+  to (only the two friends hold the pass). **Kept for good, account erase
+  included:** a row names nobody, and deleting it would let someone who
+  erased and signed up again with the same recovery phrase bring back every
+  pass they had withdrawn. The person's own export still lists them (it
+  computes their fingerprint). At most 4,096 per issuer. If the secret file
+  is damaged, the relay records no withdrawal and counts every pass as
+  withdrawn until it is fixed; if it is lost (a server moved without it), a
+  new one is made and the earlier withdrawals stop matching, which brings
+  those passes back, so it travels with `relay.db` and `backup.key`. A relay
+  modified to log every pass presented could match a serial to its holder,
+  but that same modified relay could log who writes to whom today, so this
+  adds no new kind of exposure.
 - **DM length no longer leaks.** Sealed DM plaintext is padded up to size
   buckets (256 / 1024 / 4096 / 16384 bytes) before encryption, so ciphertext
   length no longer distinguishes "ok" from a paragraph.
@@ -351,8 +373,9 @@ The remaining server-held data classes and length/transport leaks, closed:
   inline decrypt is a tracked follow-up). Relay side: `?encrypted=1` upload
   mode stores an inert `.enc` blob, skipping format/EXIF handling on ciphertext.
 
-Remaining honest limits after this arc: certificates in v1 don't expire and
-can't be server-side revoked (unfriending is client-side); live traffic
+Remaining honest limits after this arc: certificates in v1 didn't expire and
+couldn't be server-side revoked (fixed 2026-10-09 by passes v2: still no end
+date, by the operator's choice, but withdrawn at once on Unfollow); live traffic
 analysis by an active wire observer on the clearnet endpoint is still a
 mixnet problem the onion service sidesteps but doesn't universally solve;
 group-chat attachments are not yet encrypted the way DM attachments are (a

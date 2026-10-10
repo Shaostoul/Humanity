@@ -86,6 +86,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         // our BIP39 seed and return `identify_response`.
                         // Closes HIGH-2 (identity spoofing at identify).
                         let nonce = val.get("nonce").and_then(|v| v.as_str()).unwrap_or("");
+                        crate::engine::dm::note_server_did(&mut state.gui_state, val.get("server_did").and_then(|v| v.as_str())); // what friendship passes here name
                         if nonce.is_empty() {
                             log::warn!("identify_challenge missing nonce");
                         } else if let Some(ref seed) = state.gui_state.private_key_bytes {
@@ -634,8 +635,10 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                             // are known (follows removal 2026-08-24: the local
                             // store holds the sets; chat_users supplies rows).
                             crate::engine::dm::refresh_social_mirrors(&mut state.gui_state);
+                            crate::engine::dm::sweep_friend_passes(&mut state.gui_state); // passes owed, withdrawals unconfirmed
                         }
                     }
+                    Some("cert_revoked") => crate::engine::dm::withdrawal_confirmed(&mut state.gui_state, &val),
                     Some("voice_channel_list") => {
                         // Voice channels received from server
                         if let Some(channels) = val.get("channels").and_then(|v| v.as_array()) {

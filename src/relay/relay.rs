@@ -768,6 +768,8 @@ pub enum RelayMessage {
     IdentifyChallenge {
         /// 32 random bytes, hex-encoded (64 chars). Fresh per socket.
         nonce: String,
+        /// This server's own did:hum, which every friendship pass given here names (pq_crypto.rs `friend_cert_preimage`).
+        #[serde(default, skip_serializing_if = "String::is_empty")] server_did: String,
     },
 
     /// Client's response to `identify_challenge`. Carries the Dilithium3
@@ -1297,6 +1299,8 @@ pub enum RelayMessage {
         from_name: Option<String>,
         to: String,
         action: String, // "ring" | "accept" | "reject" | "hangup"
+        /// The callee's friendship pass for the caller (handlers/friend_passes.rs); read by the relay, never forwarded.
+        #[serde(default, skip_serializing_if = "Option::is_none")] friend_cert: Option<String>,
     },
 
     /// WebRTC signaling (offer/answer/ICE) — forwarded peer-to-peer.
@@ -1317,7 +1321,14 @@ pub enum RelayMessage {
         to: String,
         signal_type: String, // "offer" | "answer" | "ice" (DataChannel: "dc_offer"|"dc_answer"|"dc_ice")
         data: serde_json::Value,
+        /// On a `dc_offer`: the target's friendship pass for the sender, as on `voice_call`; never forwarded.
+        #[serde(default, skip_serializing_if = "Option::is_none")] friend_cert: Option<String>,
     },
+
+    /// Server → the issuer: the friendship pass `serial` is withdrawn here (the answer to
+    /// `cert_revoke {serial}`, handlers/friend_passes.rs), so the client stops resending it.
+    #[serde(rename = "cert_revoked")]
+    CertRevoked { to: String, serial: String },
 
     /// Edit a message — identified by sender key + timestamp.
     #[serde(rename = "edit")]
@@ -2167,8 +2178,8 @@ pub enum RelayMessage {
         target_key: String,
         #[serde(default)]
         message: String,
-        /// The target's friendship certificate for the sender, when the sender
-        /// holds one: the same base64 string `dm_put` carries. With a valid one
+        /// The target's friendship pass for the sender, when the sender holds
+        /// one: the same v2 JSON `dm_put` carries. With a valid one
         /// the request is unlimited; without it, it spends a knock and its note
         /// is cut short (`handle_trade_request`, 2026-10-09). Optional so that
         /// clients which do not send it yet keep working. The relay reads this
@@ -2740,7 +2751,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             nonce: nonce.clone(),
                             sign_up_again,
                         });
-                        let challenge = RelayMessage::IdentifyChallenge { nonce };
+                        let challenge = RelayMessage::IdentifyChallenge { nonce, server_did: state.db.server_did().unwrap_or_default() };
                         let _ = ws_tx.send(Message::Text(serde_json::to_string(&challenge).unwrap().into())).await;
                         continue;
                     }
@@ -3225,15 +3236,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 }
             }
 
-            // VoiceCall: only deliver to the target peer.
-            if let RelayMessage::VoiceCall { ref to, .. } = msg {
-                if to != &my_key_for_broadcast {
-                    continue;
-                }
-            }
-
-            // WebrtcSignal: only deliver to the target peer.
-            if let RelayMessage::WebrtcSignal { ref to, .. } = msg {
+            // VoiceCall, WebrtcSignal and a pass withdrawal's answer: only deliver to the target.
+            if let RelayMessage::VoiceCall { ref to, .. } | RelayMessage::WebrtcSignal { ref to, .. } | RelayMessage::CertRevoked { ref to, .. } = msg {
                 if to != &my_key_for_broadcast {
                     continue;
                 }
@@ -3547,6 +3551,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 handle_raw_task_create(&state_clone, &my_key_for_recv, &raw).await;
                                 continue;
                             }
+                            Some("cert_revoke") => { crate::relay::handlers::friend_passes::handle_cert_revoke(&state_clone, &my_key_for_recv, &raw).await; continue; }
                             // ── Trade messages ──
                             Some("trade_request") => {
                                 handle_trade_request(&state_clone, &my_key_for_recv, &raw).await;
@@ -5821,12 +5826,12 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 handle_dm_fetch(&state_clone, &my_key_for_recv, after_id).await;
                             }
                             // Voice call signaling — forward to target peer.
-                            RelayMessage::VoiceCall { to, action, .. } => {
-                                handle_voice_call(&state_clone, &my_key_for_recv, to, action).await;
+                            RelayMessage::VoiceCall { to, action, friend_cert, .. } => {
+                                handle_voice_call(&state_clone, &my_key_for_recv, to, action, friend_cert).await;
                             }
                             // WebRTC signaling — forward to target peer.
-                            RelayMessage::WebrtcSignal { to, signal_type, data, .. } => {
-                                handle_webrtc_signal(&state_clone, &my_key_for_recv, to, signal_type, data).await;
+                            RelayMessage::WebrtcSignal { to, signal_type, data, friend_cert, .. } => {
+                                handle_webrtc_signal(&state_clone, &my_key_for_recv, to, signal_type, data, friend_cert).await;
                             }
                             // DM purge — the caller scrubs their own mailbox.
                             RelayMessage::DmPurge {} => {

@@ -362,12 +362,11 @@ async function initDataChannel(peerPubKey) {
   await pc.setLocalDescription(offer);
 
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({
-      type: 'webrtc_signal',
-      to: peerPubKey,
-      signal_type: 'dc_offer',
-      data: JSON.stringify(offer),
-    }));
+    const signal = { type: 'webrtc_signal', to: peerPubKey, signal_type: 'dc_offer', data: JSON.stringify(offer) };
+    // The target's friendship pass, when we hold one (passes v2, chat-social.js).
+    const pass = typeof friendPassFor === 'function' ? friendPassFor(peerPubKey) : null;
+    if (pass) signal.friend_cert = pass;
+    ws.send(JSON.stringify(signal));
   }
 }
 
