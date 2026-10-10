@@ -183,24 +183,17 @@ pub(crate) fn draw_warnings_switch(ui: &mut egui::Ui, theme: &Theme, state: &mut
 /// Above the list, one line saying when the ticks count and, directly under it, one saying
 /// which rows use them now, built from the person's settings as the server last said them
 /// (`shown`), so the ticks never look as though they decide a row set to "Friends".
-fn draw_chosen_list(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: egui::Color32, shown: ReachSettings) {
-    widgets::subsection_header(
-        ui,
-        theme,
-        accent,
-        "People I choose",
-        "Everyone you have given a pass, each with what they may do: message you, call you, or send \
-         you trade requests. Changing a tick re-issues the pass they hold from you, so the server \
-         goes by it at once. Unticking everything does not end a friendship.",
-    );
-    let Some(store) = state.dm_store.as_ref() else { return };
-    // Each person once (net/dm_store.rs `people_to_choose`: everyone holding a pass from us, and
-    // every mutual follow), with their ticks, and whether the pass they hold is not yet the one
-    // their ticks call for: a re-issue that could not go out (offline, or no DM key for them
-    // yet), or a first pass still owed. The pass sweep sends it on the next member list.
-    // The ticks stay live meanwhile: on this app a re-issue is minted, sent and recorded within
-    // the click, so two quick clicks cannot race, and a change of mind made offline is simply
-    // what the sweep sends.
+/// The rows of "People I choose": each person once (net/dm_store.rs `people_to_choose`: everyone
+/// holding a pass from us, every mutual follow, and everyone whose pass my other device withdrew,
+/// 10m R3), sorted by name, with their ticks, and whether the pass they hold is not yet the one
+/// their ticks call for, shown "(updating their pass)": a re-issue that could not go out (offline,
+/// or no DM key for them yet), a first pass still owed, or one left to my other device (R3). The
+/// pass sweep sends it on the next member list (not for R3: that device does, or the person's own
+/// tick here). The ticks stay live meanwhile: on this app a re-issue is minted and sent within the
+/// click, so two quick clicks cannot race, and a change of mind made offline is simply what the
+/// sweep sends.
+pub(crate) fn chosen_rows(state: &GuiState) -> Vec<(String, String, FriendTicks, bool)> {
+    let Some(store) = state.dm_store.as_ref() else { return Vec::new() };
     let out_of_step = store.passes_out_of_step();
     let mut friends: Vec<(String, String, FriendTicks, bool)> = store
         .people_to_choose()
@@ -212,6 +205,23 @@ fn draw_chosen_list(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, acce
         })
         .collect();
     friends.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
+    friends
+}
+
+fn draw_chosen_list(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: egui::Color32, shown: ReachSettings) {
+    widgets::subsection_header(
+        ui,
+        theme,
+        accent,
+        "People I choose",
+        "Everyone you have given a pass, each with what they may do: message you, call you, or send \
+         you trade requests. Changing a tick re-issues the pass they hold from you, so the server \
+         goes by it at once. Unticking everything does not end a friendship.",
+    );
+    if state.dm_store.is_none() {
+        return;
+    }
+    let friends = chosen_rows(state);
 
     let mut toggled: Option<(String, ReachKind, bool)> = None;
     widgets::card(ui, theme, |ui| {

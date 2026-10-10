@@ -465,6 +465,12 @@ pub struct ReachUi {
     /// A one-line result to show on the Safety page or in the notice (e.g. why a request could
     /// not be sent).
     pub status: String,
+    /// Friends whose pass the server refused for THEIR settings (`dm_put_refused` with reason
+    /// `reach`, 10m R7), in this run only. Two friends whose settings both say Friends and who
+    /// hold no pass from each other cannot give each other one, so re-sending it on every member
+    /// list only repeated the refusal. The sweep leaves them alone until their pass reaches us,
+    /// or the person follows, accepts or changes ticks for them (engine/dm.rs `person_chose`).
+    pub pass_refused: std::collections::HashSet<String>,
 }
 
 #[cfg(test)]

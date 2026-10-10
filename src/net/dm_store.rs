@@ -129,6 +129,52 @@ struct StoreBody {
     /// mailbox has already moved past it.
     #[serde(default)]
     group_reports_pending: Vec<super::group_report::PendingReport>,
+    // ── Passes across my own devices (10m, 2026-10-10) ──
+    /// Friends whose pass another of my devices withdrew, leaving them with none standing here
+    /// (R3: the server confirmed, `cert_revoked`, a serial this device held as given but did not
+    /// withdraw itself). That device saw a choice this one did not, so this one sends them no
+    /// pass on its own (the sweep would otherwise mint the defaults and give back what was
+    /// unticked) until an echo of a pass to them arrives, or the person changes their ticks,
+    /// follows or accepts them on this device. Kept across restarts; a new server identity clears
+    /// it with the passes.
+    #[serde(default)]
+    changed_elsewhere: HashSet<String>,
+    /// Serials of this device's own passes the server REFUSED after their self-copy had already
+    /// gone out (R2: a re-issue that takes something away sends it at once), newest
+    /// REFUSED_ECHOED_KEPT. That self-copy can still come back to this device (a mailbox fetch),
+    /// and adopting it would record as given a pass the friend never got, so the sweep would stop
+    /// owing them one. The web's `passesRefusedEchoed`. Kept across restarts for the same reason.
+    #[serde(default)]
+    passes_refused_echoed: Vec<String>,
+    /// The scratch pad's notes, oldest first, at most SCRATCHPAD_KEPT (R10). The scratch pad
+    /// sends nothing, so this is the only copy, and for a file put there it holds the only copy
+    /// of the file's key (its `[[hum:file:v1]]` marker).
+    #[serde(default)]
+    scratchpad: Vec<ScratchNote>,
+}
+
+/// Scratch pad notes kept, newest first to stay (10m R10, the web's number).
+pub const SCRATCHPAD_KEPT: usize = 500;
+
+/// Refused passes whose self-copy had already gone out, remembered (10m, the web's number).
+pub const REFUSED_ECHOED_KEPT: usize = 32;
+
+/// One scratch pad note: when, what, and the quote of what it replied to.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScratchNote {
+    pub ts: u64,
+    pub text: String,
+    #[serde(default)]
+    pub reply: Option<NoteReply>,
+}
+
+/// The message a scratch pad note replied to, as the note shows it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NoteReply {
+    pub sender_key: String,
+    pub sender_name: String,
+    pub preview: String,
+    pub timestamp_ms: u64,
 }
 
 /// A friendship pass I gave someone: what a withdrawal names, and what it allows.
@@ -361,6 +407,8 @@ impl DmStore {
             self.body.certs_sent.clear();
             self.body.passes_unanswered.clear();
             self.body.withdrawals_pending.clear();
+            self.body.changed_elsewhere.clear();
+            self.body.passes_refused_echoed.clear();
         }
         self.body.pass_server = did.to_string();
         true
@@ -394,7 +442,10 @@ impl DmStore {
     /// Take back every pass I gave `peer`, and every one sent to them that the server never said
     /// it took (10l: it may have reached them): they leave the record and their serials join the
     /// withdrawals waiting for the relay. Returns the serials withdrawn now.
+    /// A friend all of whose passes are taken back (Unfollow, Block) needs no "changed on my other
+    /// device" mark any more (10m R3), so it goes too.
     pub fn withdraw_passes_to(&mut self, peer: &str) -> Vec<String> {
+        self.body.changed_elsewhere.remove(peer);
         self.withdraw_passes_to_except(peer, |_| false)
     }
     /// A pass to `peer` went out and waits for the server's answer (10l). It counts as given only
@@ -461,9 +512,61 @@ impl DmStore {
     pub fn pending_withdrawals(&self) -> &[String] {
         &self.body.withdrawals_pending
     }
-    /// The relay confirmed a withdrawal (`cert_revoked {serial}`): stop resending it.
-    pub fn withdrawal_confirmed(&mut self, serial: &str) {
-        self.body.withdrawals_pending.retain(|s| s != serial);
+    /// The relay confirmed a withdrawal (`cert_revoked {serial}`, which it sends to every device
+    /// of mine): stop resending it.
+    ///
+    /// 10m R3: a serial this device did NOT withdraw but holds as given (or still on its way) was
+    /// withdrawn by another of my devices. It leaves the record here too (the server will not
+    /// honour it), and when that leaves the friend with no standing pass they are marked
+    /// "changed on my other device": that device saw a choice this one did not, and this one
+    /// must not replace the pass with the defaults and give back what was unticked. The passes
+    /// this device still has on their way to that friend go too (withdrawn, so an answer for one
+    /// records nothing): each was minted without seeing that choice. Fail safe: the friend falls
+    /// to what the person's settings allow strangers until a pass from the device that knows
+    /// arrives. Returns the friend marked.
+    pub fn withdrawal_confirmed(&mut self, serial: &str) -> Option<String> {
+        if self.body.withdrawals_pending.iter().any(|s| s == serial) {
+            self.body.withdrawals_pending.retain(|s| s != serial);
+            return None;
+        }
+        let holds = |map: &HashMap<String, Vec<SentPass>>| map.iter().find(|(_, v)| v.iter().any(|p| p.serial == serial)).map(|(k, _)| k.clone());
+        let peer = holds(&self.body.certs_sent).or_else(|| holds(&self.body.passes_unanswered))?;
+        for map in [&mut self.body.certs_sent, &mut self.body.passes_unanswered] {
+            if let Some(list) = map.get_mut(&peer) {
+                list.retain(|p| p.serial != serial);
+                if list.is_empty() {
+                    map.remove(&peer);
+                }
+            }
+        }
+        if self.cert_sent_to(&peer) {
+            return None; // another pass of ours still stands with them: nothing to mark
+        }
+        self.withdraw_passes_to(&peer);
+        self.body.changed_elsewhere.insert(peer.clone());
+        Some(peer)
+    }
+    /// The server refused a pass of ours whose self-copy had already gone out (10m R2): remember
+    /// its serial, newest REFUSED_ECHOED_KEPT, so its echo is never adopted as given.
+    pub fn refused_after_its_echo(&mut self, serial: &str) {
+        if !self.body.passes_refused_echoed.iter().any(|s| s == serial) {
+            self.body.passes_refused_echoed.push(serial.to_string());
+        }
+        let over = self.body.passes_refused_echoed.len().saturating_sub(REFUSED_ECHOED_KEPT);
+        self.body.passes_refused_echoed.drain(..over);
+    }
+    /// Was `serial` one of ours the server refused after its self-copy went out?
+    pub fn was_refused_after_its_echo(&self, serial: &str) -> bool {
+        self.body.passes_refused_echoed.iter().any(|s| s == serial)
+    }
+    /// Is `peer` marked "changed on my other device" (10m R3)?
+    pub fn changed_elsewhere(&self, peer: &str) -> bool {
+        self.body.changed_elsewhere.contains(peer)
+    }
+    /// Clear that mark: an echo of a pass to them arrived, or the person acted for them on this
+    /// device. True when there was one.
+    pub fn clear_changed_elsewhere(&mut self, peer: &str) -> bool {
+        self.body.changed_elsewhere.remove(peer)
     }
     /// Mutual follows I have no standing pass with: the ones the sweep mints for (after the v2
     /// change, after a server identity change, or when a send could not go out earlier).
@@ -549,11 +652,13 @@ impl DmStore {
     /// in someone we sent a contact request to. Plus every mutual follow, who is owed one: the
     /// pass sweep gives each a pass, and while it cannot yet (no DM key for them, or a pass taken
     /// back at once by an untick made offline, engine/dm.rs `reissue_pass`) they stay on the list
-    /// rather than vanishing the moment their ticks are changed.
+    /// rather than vanishing the moment their ticks are changed. And everyone marked "changed on
+    /// my other device" (10m R3), whose pass that device withdrew: they stay, shown as updating
+    /// their pass, rather than vanishing because this device holds no pass of theirs now.
     pub fn people_to_choose(&self) -> Vec<String> {
         let mut out: Vec<String> = self.body.certs_sent.iter().filter(|(_, v)| !v.is_empty()).map(|(k, _)| k.clone()).collect();
-        for peer in &self.body.following {
-            if self.is_follower(peer) && !out.contains(peer) {
+        for peer in self.body.following.iter().filter(|p| self.is_follower(p)).chain(&self.body.changed_elsewhere) {
+            if !out.contains(peer) {
                 out.push(peer.clone());
             }
         }
@@ -660,6 +765,19 @@ impl DmStore {
     /// How many kept reports are about this group (the count on it in the group list).
     pub fn group_report_count(&self, group_id: &str) -> usize {
         super::group_report::count(&self.body.group_reports, group_id)
+    }
+
+    // ── The scratch pad (10m R10) ──
+
+    /// Keep a scratch pad note. Past SCRATCHPAD_KEPT the oldest go.
+    pub fn add_scratch_note(&mut self, note: ScratchNote) {
+        self.body.scratchpad.push(note);
+        let over = self.body.scratchpad.len().saturating_sub(SCRATCHPAD_KEPT);
+        self.body.scratchpad.drain(..over);
+    }
+    /// The scratch pad's notes, oldest first.
+    pub fn scratch_notes(&self) -> &[ScratchNote] {
+        &self.body.scratchpad
     }
 
     /// For tests elsewhere in the crate: remove this store's file from disk.
@@ -848,6 +966,29 @@ mod tests {
         assert!(store.clear_ticks("ben"), "clearing forgets the choice");
         assert_eq!(store.ticks("ben"), FriendTicks::default(), "back to the defaults");
         assert!(store.passes_out_of_step().is_empty(), "and Ben's default pass is in step again");
+        let _ = std::fs::remove_file(&store.path);
+    }
+
+    /// THE SCRATCH PAD'S NOTES (10m R10): kept in order with their reply quotes across a restart,
+    /// the newest SCRATCHPAD_KEPT of them; a store from before them loads with none.
+    /// Seen red 2026-10-10 with `add_scratch_note` keeping every note (the drain line taken out):
+    /// "the newest 500 are kept" failed (left 502).
+    #[test]
+    fn scratch_notes_are_kept_newest_500() {
+        let (seed, me) = identity(71);
+        let server = temp_server();
+        let mut store = DmStore::load(&seed, &me, &server);
+        assert!(store.scratch_notes().is_empty(), "a store from before notes has none");
+        let quote = NoteReply { sender_key: me.clone(), sender_name: "Me".into(), preview: "the list".into(), timestamp_ms: 1 };
+        for i in 0..(SCRATCHPAD_KEPT as u64 + 2) {
+            store.add_scratch_note(ScratchNote { ts: i, text: format!("note {i}"), reply: (i == 9).then(|| quote.clone()) });
+        }
+        store.save();
+        let store = DmStore::load(&seed, &me, &server);
+        let notes = store.scratch_notes();
+        assert_eq!(notes.len(), SCRATCHPAD_KEPT, "the newest 500 are kept");
+        assert_eq!((notes[0].text.as_str(), notes.last().map(|n| n.ts)), ("note 2", Some(SCRATCHPAD_KEPT as u64 + 1)), "the oldest go, in order");
+        assert_eq!(notes[7].reply.as_ref(), Some(&quote), "with its reply quote, across a restart");
         let _ = std::fs::remove_file(&store.path);
     }
 

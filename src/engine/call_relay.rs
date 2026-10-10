@@ -128,8 +128,9 @@ pub(crate) fn on_ring(gs: &mut GuiState, from: String, from_name: String) {
     // a ring that an older or misconfigured server passes on anyway is ignored the way a blocked
     // caller's is (engine/block.rs), with nothing sent back and no line, so it rings out on their
     // side. With no DM store the relay's check stands, as for a DM (engine/reach.rs
-    // `file_if_refused`).
-    let shares = crate::engine::reach::shares_group(gs, &from);
+    // `file_if_refused`). Group membership is the server's call (10m R8): it rang through, so
+    // under "Friends and people in my groups" the caller counts as sharing one with us.
+    let shares = crate::engine::reach::LET_THROUGH_SHARES_GROUP;
     if gs.dm_store.as_ref().is_some_and(|s| !s.admits_from(crate::net::reach::ReachKind::Call, &from, shares)) {
         log::info!("call: a ring our call setting does not let through was ignored");
         return;

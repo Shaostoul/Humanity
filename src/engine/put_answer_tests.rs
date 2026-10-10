@@ -230,10 +230,12 @@ fn a_refused_or_unanswered_pass_records_nothing_and_goes_again_with_the_same_may
 /// out with a ref and nothing recorded; on `dm_put_ok` its pass is recorded and our self-copy goes
 /// out. A refused request records nothing and forgets its pass; one with no answer in 30 seconds
 /// records nothing either; after either, the conversation's notice offers Send request again and
-/// says the server did not confirm it.
+/// says the server did not confirm it. AND ASKING COUNTS AS FOLLOWING ONLY THEN (10m R1, as on the
+/// web): not while the request waits, and never for one refused or unanswered.
 /// Seen red 2026-10-10 with `send_held` (which the request goes out through) recording the pass as
 /// it was written to the socket, the old behaviour: "nothing recorded until the server took it"
-/// failed.
+/// failed. 10m R1 seen red 2026-10-10 with `send_contact_request` following at send time again
+/// (the old behaviour): "not following until the server took it" failed.
 #[test]
 fn a_contact_requests_pass_counts_only_once_the_server_took_it() {
     use crate::net::reach::Refusal;
@@ -255,10 +257,12 @@ fn a_contact_requests_pass_counts_only_once_the_server_took_it() {
     assert!(puts_to(&out, &me).is_empty(), "no self-copy yet");
     let store = gs.dm_store.as_ref().unwrap();
     assert!(store.passes_sent_to(&ben.1).is_empty(), "nothing recorded until the server took it");
-    assert!(store.is_following(&ben.1), "asking is following");
+    assert!(!store.is_following(&ben.1), "not following until the server took it");
     answer(&mut gs, &request[0], true, "");
     let out = frames(&sent);
     assert_eq!(gs.dm_store.as_ref().unwrap().passes_sent_to(&ben.1), [pass_in(&request[0], &ben.0)], "taken: its pass is recorded");
+    assert!(gs.dm_store.as_ref().unwrap().is_following(&ben.1), "taken: asking is following now");
+    assert!(gs.chat_following_keys.contains(&ben.1), "and the follow shows");
     assert_eq!(puts_to(&out, &me).len(), 1, "and our self-copy goes out");
     assert_eq!(gs.reach.refused.get(&ben.1), Some(&Refusal::RequestSent), "the notice says it was sent");
 
@@ -270,6 +274,7 @@ fn a_contact_requests_pass_counts_only_once_the_server_took_it() {
     let store = gs.dm_store.as_ref().unwrap();
     for (who, key) in [("refused", &cy.1), ("unanswered", &dee.1)] {
         assert!(store.passes_sent_to(key).is_empty(), "{who}: nothing recorded");
+        assert!(!store.is_following(key), "{who}: not following");
         assert_eq!(gs.reach.refused.get(key), Some(&Refusal::Refused), "{who}: the notice offers Send request again");
     }
     assert!(store.passes_unanswered_to(&cy.1).is_empty(), "the refused request's pass is forgotten");
@@ -355,3 +360,7 @@ fn a_pass_never_answered_is_taken_back_by_the_next_one_taken_and_by_block() {
     assert!(withdrawn.contains(&q1.serial) && withdrawn.contains(&q2.serial), "Block takes back both passes Cy never had answered: {withdrawn:?}");
     tidy(&gs);
 }
+
+/// Section 10m (passes across my own devices, and the review of v0.1478 to v0.1481).
+#[path = "put_answer_devices_tests.rs"]
+mod devices;

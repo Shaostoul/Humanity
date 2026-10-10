@@ -53,8 +53,10 @@ pub struct PendingPut {
     pub peer: String,
     /// The pass it carries: recorded as given on `dm_put_ok`, never before.
     pub pass: SentPass,
-    /// Our self-copy, sent on `dm_put_ok` and dropped otherwise.
-    pub self_copy: serde_json::Value,
+    /// Our self-copy, sent on `dm_put_ok` and dropped otherwise. None when it already went out
+    /// beside theirs: a re-issue that takes something away (10m R2, engine/dm.rs `reissue_pass`)
+    /// tells my other devices the new choice at once, and it is never sent a second time.
+    pub self_copy: Option<serde_json::Value>,
     pub held: Held,
     /// When it was written to the socket; ANSWER_WAIT after this it counts as not taken.
     pub at: Instant,
@@ -106,6 +108,16 @@ impl PendingPuts {
     /// so one friend never has two passes on their way at once.
     pub fn has_peer(&self, peer: &str) -> bool {
         self.list.iter().any(|p| p.peer == peer)
+    }
+
+    /// Forget every send to `peer` still waiting (10m R6: Unfollow and Block). Its answer then
+    /// finds nothing and records nothing, and a new pass or request to them need not wait for it.
+    /// The passes they carried stay among the unanswered in the DM store, which Unfollow and Block
+    /// withdraw. Returns how many were waiting.
+    pub fn drop_peer(&mut self, peer: &str) -> usize {
+        let before = self.list.len();
+        self.list.retain(|p| p.peer != peer);
+        before - self.list.len()
     }
 
     /// The serials of the passes on their way to `peer`.
@@ -161,7 +173,7 @@ mod tests {
             reference: reference.into(),
             peer: "ben".into(),
             pass: SentPass { serial: "00".repeat(16), may: "message".into() },
-            self_copy: serde_json::Value::Null,
+            self_copy: None,
             held: Held::Pass { reissue: false },
             at,
         };
