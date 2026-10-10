@@ -1330,6 +1330,49 @@ path with its rules, the 90-day cull, export and erase); a Node test that the we
 produces the relay's preimage (reading a pinned string out of the Rust tests); client unit tests;
 headless snapshots of the dialog and the Reports page; `just verify`, `just verify-relay`.
 
+### 10e-ii. Step D follow-up: help outside this server, in the report dialog (2026-10-10)
+
+The dated finding `docs/reference/findings/2026-10-09-outside-help-lines.md` now exists, so the
+per-country lines (section 8.3) can be shown. The data is `data/safety/outside_help.json`:
+`researched` (the date), `default` (for any country not listed: `emergency_text` instead of a
+number, and the INHOPE list for child reports), and `countries`, each `{code, name, emergency,
+also?, child_report (or null), note?, source}`. Both clients read it (native from
+`src/embedded_data.rs`, beside the other safety files; web from `/data/safety/outside_help.json`).
+
+**When it shows.** In the report dialog, when the chosen reason is `child_danger` or
+`someone_in_danger`, under that reason's help text: a block titled "Help outside this server".
+Never for other reasons.
+
+**What it shows.** A country picker ("Country: <name>", the listed countries by name, then
+"Another country"), and for the chosen entry:
+
+- the emergency number, large, with "Emergency:" before it (for "Another country", the
+  `emergency_text` sentence instead),
+- each `also` entry (its number and what it is for),
+- for `child_danger`, the `child_report` body's name as a link that opens in the browser
+  (for a country whose `child_report` is null, the default's INHOPE link with "Find the hotline
+  for your country"); for `someone_in_danger`, the child line is shown too, smaller, after the
+  emergency number,
+- the entry's `note` when it has one,
+- one small line: "Numbers checked on <researched>. If one is wrong, tell us." (the date from the
+  file, never typed into the code).
+
+**Which country first.** The last one this person picked on this device, kept in local settings
+(native config; web localStorage, wrapped in try/catch). With none saved: the region of the
+device's language setting when it names a listed country (web `navigator.language`, for example
+`en-GB` gives GB; native the same from the OS locale if the app already reads it, otherwise
+skip this step), else "Another country". **Never look up the person's location** (no IP lookup,
+no location service): the choice stays on the device and is never sent with the report or
+anywhere else.
+
+**Proof:** unit tests on both clients: the block shows for exactly the two reasons; a listed
+country shows its number, `also` lines and child body; a country with a null `child_report`
+falls back to the INHOPE link; "Another country" shows the sentence; the first-country rule
+(saved choice, then language region, then "Another country", and an unlisted region falls to
+"Another country"); the date line reads the file's date. Each seen failing once. Native: a
+snapshot fixture of the dialog with the block open (render only when no other HumanityOS
+instance runs). `just verify`.
+
 ## 10f. Step E specification: our own STUN and the room-scoped call forwarder (2026-10-09)
 
 The operator approved this (10a): our own STUN responder and a call forwarder on one UDP port,
