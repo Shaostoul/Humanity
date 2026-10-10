@@ -179,3 +179,11 @@ what we will say about it.
   "Contributions are deductible" (ruling April 2026), matching its own site;
   deducting still depends on the donor (Publication 526). A gift to the
   maintainer directly is not deductible.
+- [`2026-10-09-outside-help-lines.md`](2026-10-09-outside-help-lines.md),
+  where the report dialog sends someone outside the app when a child, or
+  anyone, is in danger: the emergency number and the official body for
+  reporting online child sexual exploitation in 18 countries, each quoted from
+  the government's or the body's own page, with INHOPE's member directory as
+  the fallback. The data is `data/safety/outside_help.json`. Canada is not in
+  INHOPE's directory; Mexico, the Philippines and Nigeria have INHOPE-member
+  hotlines but no confirmed government line.

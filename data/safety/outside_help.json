@@ -1,0 +1,290 @@
+{
+  "researched": "2026-10-09",
+  "findings": "docs/reference/findings/2026-10-09-outside-help-lines.md",
+  "fields": {
+    "emergency": "The number to show first when someone is in danger right now.",
+    "also": "Optional. Other numbers an official source named, with what each is for.",
+    "child_report": "The body that takes reports of a child being sexually exploited or abused online, or null.",
+    "note": "Optional. A caveat the findings document records for this entry.",
+    "source": "The pages that back this entry. Each is quoted and dated in the findings document."
+  },
+  "default": {
+    "emergency": null,
+    "emergency_text": "Call your local emergency number.",
+    "child_report": {
+      "name": "INHOPE member hotlines (find the one for your country)",
+      "url": "https://www.inhope.org/EN/our-members"
+    },
+    "source": ["https://www.inhope.org/EN/our-members"]
+  },
+  "countries": [
+    {
+      "code": "US",
+      "name": "United States",
+      "emergency": "911",
+      "child_report": {
+        "name": "NCMEC CyberTipline",
+        "url": "https://report.cybertip.org/"
+      },
+      "source": [
+        "https://www.911.gov/",
+        "https://www.missingkids.org/gethelpnow/cybertipline",
+        "https://report.cybertip.org/"
+      ]
+    },
+    {
+      "code": "CA",
+      "name": "Canada",
+      "emergency": "911",
+      "child_report": {
+        "name": "Cybertip.ca",
+        "url": "https://www.cybertip.ca/en/report/"
+      },
+      "source": [
+        "https://rcmp.ca/en/child-sexual-exploitation/online-child-sexual-exploitation",
+        "https://www.canada.ca/en/public-safety-canada/news/2018/02/funding_for_the_canadiancentreforchildprotection.html",
+        "https://www.cybertip.ca/en/report/"
+      ]
+    },
+    {
+      "code": "GB",
+      "name": "United Kingdom",
+      "emergency": "999",
+      "child_report": {
+        "name": "CEOP Safety Centre (National Crime Agency)",
+        "url": "https://www.ceop.police.uk/Safety-Centre/"
+      },
+      "source": [
+        "https://www.ceop.police.uk/ceop-reporting/",
+        "https://www.ceop.police.uk/Safety-Centre/"
+      ]
+    },
+    {
+      "code": "IE",
+      "name": "Ireland",
+      "emergency": "112",
+      "also": [
+        { "number": "999", "for": "emergency (either number works)" }
+      ],
+      "child_report": {
+        "name": "Hotline.ie (Irish Internet Hotline)",
+        "url": "https://hotline.ie/report/"
+      },
+      "source": [
+        "https://hotline.ie/",
+        "https://hotline.ie/report/",
+        "https://digital-strategy.ec.europa.eu/en/policies/112"
+      ]
+    },
+    {
+      "code": "AU",
+      "name": "Australia",
+      "emergency": "000",
+      "also": [
+        { "number": "112", "for": "emergency, from a mobile phone" }
+      ],
+      "child_report": {
+        "name": "Australian Centre to Counter Child Exploitation (ACCCE)",
+        "url": "https://www.accce.gov.au/report"
+      },
+      "source": [
+        "https://www.infrastructure.gov.au/media-communications/phone/triple-zero",
+        "https://www.accce.gov.au/report",
+        "https://www.accce.gov.au/"
+      ]
+    },
+    {
+      "code": "NZ",
+      "name": "New Zealand",
+      "emergency": "111",
+      "child_report": {
+        "name": "Department of Internal Affairs: Report Online Child Exploitation Material",
+        "url": "https://www.dia.govt.nz/Digital-Safety-Report-Online-Child-Exploitation-material"
+      },
+      "source": [
+        "https://www.police.govt.nz/contact-us/111-police-emergency",
+        "https://www.dia.govt.nz/Digital-Safety-Report-Online-Child-Exploitation-material"
+      ]
+    },
+    {
+      "code": "DE",
+      "name": "Germany",
+      "emergency": "112",
+      "also": [
+        { "number": "110", "for": "police" }
+      ],
+      "child_report": {
+        "name": "jugendschutz.net",
+        "url": "https://www.jugendschutz.net/verstoss-melden"
+      },
+      "source": [
+        "https://digital-strategy.ec.europa.eu/en/policies/112",
+        "https://www.bundesnetzagentur.de/DE/Fachthemen/Telekommunikation/Unternehmenspflichten/Notruf/start.html",
+        "https://www.berlin.de/polizei/service/so-erreichen-sie-uns/notruf/",
+        "https://www.jugendschutz.net/ueber-uns/wer-wir-sind",
+        "https://www.jugendschutz.net/verstoss-melden"
+      ]
+    },
+    {
+      "code": "FR",
+      "name": "France",
+      "emergency": "112",
+      "also": [
+        { "number": "17", "for": "police" },
+        { "number": "119", "for": "a child in danger" }
+      ],
+      "child_report": {
+        "name": "PHAROS (Ministère de l'Intérieur)",
+        "url": "https://www.internet-signalement.gouv.fr/"
+      },
+      "source": [
+        "https://www.service-public.gouv.fr/particuliers/vosdroits/F33954",
+        "https://internet-signalement.gouv.fr/assets/i18n/lang.json"
+      ]
+    },
+    {
+      "code": "ES",
+      "name": "Spain",
+      "emergency": "112",
+      "child_report": {
+        "name": "INCIBE: Línea de Reporte de Contenido de Abuso Sexual Infantil",
+        "url": "https://www.incibe.es/menores/hotline"
+      },
+      "source": [
+        "https://digital-strategy.ec.europa.eu/en/policies/112",
+        "https://www.incibe.es/menores/hotline",
+        "https://www.incibe.es/incibe/informacion-corporativa/que-es-incibe"
+      ]
+    },
+    {
+      "code": "IT",
+      "name": "Italy",
+      "emergency": "112",
+      "also": [
+        { "number": "113", "for": "law enforcement (the source gives 112 or 113)" }
+      ],
+      "child_report": {
+        "name": "Polizia Postale: Segnala online",
+        "url": "https://www.commissariatodips.it/segnalazioni/segnala-online/index.html"
+      },
+      "source": [
+        "https://www.commissariatodips.it/segnalazioni/segnala-online/index.html",
+        "https://www.commissariatodips.it/profilo/centro-nazionale-contrasto-pedopornografia-on-line/index.html"
+      ]
+    },
+    {
+      "code": "NL",
+      "name": "Netherlands",
+      "emergency": "112",
+      "child_report": {
+        "name": "Offlimits Meldpunt",
+        "url": "https://meldpunt.offlimits.nl/"
+      },
+      "source": [
+        "https://www.politie.nl/",
+        "https://meldpunt.offlimits.nl/wat-melden",
+        "https://meldpunt.offlimits.nl/over-ons"
+      ]
+    },
+    {
+      "code": "MX",
+      "name": "Mexico",
+      "emergency": "911",
+      "child_report": {
+        "name": "Te Protejo México",
+        "url": "https://teprotejomexico.org/"
+      },
+      "source": [
+        "https://www.gob.mx/911",
+        "https://teprotejomexico.org/"
+      ]
+    },
+    {
+      "code": "BR",
+      "name": "Brazil",
+      "emergency": "190",
+      "also": [
+        { "number": "192", "for": "ambulance (SAMU)" },
+        { "number": "193", "for": "fire brigade" },
+        { "number": "100", "for": "reporting violations of children's rights (Disque 100, not an emergency line)" }
+      ],
+      "child_report": {
+        "name": "SaferNet Brasil",
+        "url": "https://new.safernet.org.br/denuncie"
+      },
+      "source": [
+        "https://www.gov.br/mcom/pt-br/noticias/noticias_alt/2026/setembro/emergencia-voce-sabe-para-quem-ligar-quando-precisa-de-ajuda",
+        "https://new.safernet.org.br/denuncie",
+        "https://www.gov.br/pt-br/servicos/denunciar-violacao-de-direitos-humanos"
+      ]
+    },
+    {
+      "code": "IN",
+      "name": "India",
+      "emergency": "112",
+      "child_report": {
+        "name": "National Cyber Crime Reporting Portal",
+        "url": "https://cybercrime.gov.in/"
+      },
+      "source": [
+        "https://www.mha.gov.in/en/commoncontent/emergency-response-support-system-erss",
+        "https://cybercrime.gov.in/Webform/FAQ.aspx"
+      ]
+    },
+    {
+      "code": "PH",
+      "name": "Philippines",
+      "emergency": "911",
+      "child_report": {
+        "name": "ECPAT Philippines: eProtectKids hotline",
+        "url": "https://ecpat.org.ph/report/"
+      },
+      "source": [
+        "https://calabarzon.dilg.gov.ph/one-number-for-all-emergencies-unified-911-to-launch-nationwide/",
+        "https://ecpat.org.ph/report/"
+      ]
+    },
+    {
+      "code": "JP",
+      "name": "Japan",
+      "emergency": "110",
+      "child_report": {
+        "name": "Internet Hotline Center Japan",
+        "url": "https://www.internethotline.jp/"
+      },
+      "source": [
+        "https://www.pref.aichi.jp/police/anzen/110/index.html",
+        "https://www.internethotline.jp/",
+        "https://www.internethotline.jp/about/construction"
+      ]
+    },
+    {
+      "code": "ZA",
+      "name": "South Africa",
+      "emergency": "10111",
+      "child_report": {
+        "name": "Film and Publication Board Hotline",
+        "url": "https://apps.fpb.org.za/hotline/"
+      },
+      "source": [
+        "https://www.saps.gov.za/",
+        "https://apps.fpb.org.za/hotline/",
+        "https://www.fpb.org.za/"
+      ]
+    },
+    {
+      "code": "NG",
+      "name": "Nigeria",
+      "emergency": "112",
+      "note": "112 reaches the emergency centre of the caller's state; the source does not say every state has one running.",
+      "child_report": {
+        "name": "Action Against Child Sexual Abuse Initiative (ACSAI)",
+        "url": "https://acsaing.org/report.html"
+      },
+      "source": [
+        "https://ncc.gov.ng/node/3132",
+        "https://acsaing.org/report.html"
+      ]
+    }
+  ]
+}
