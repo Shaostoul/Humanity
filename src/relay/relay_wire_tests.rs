@@ -113,6 +113,49 @@ fn a_dm_puts_flags_make_one_ask() {
     assert_eq!(DmAsk::from_flags(true, true), DmAsk::ContactRequest, "both flags: a contact request");
 }
 
+/// The answer to a `dm_put` (spec 10l of blocking-and-safe-mode.md, handlers/dm_answer.rs),
+/// which both clients are built against: `dm_put_ok` carries exactly type and ref,
+/// `dm_put_refused` type, ref and reason (the sender's key routes both and is not sent), and the
+/// reasons are the four words of the spec. A `dm_put`'s `ref` is read when it is text; a ref of
+/// any other type is no ref, and the put itself still parses, so the DM is not lost over it.
+///
+/// Seen red 2026-10-10 with the `deserialize_with` taken off `DmPut::put_ref`: "a ref that is a
+/// number is no ref, and the put still parses" failed with "dm_put parses: invalid type: integer
+/// `5`, expected a string".
+#[test]
+fn a_dm_puts_answer_has_the_exact_shapes_the_clients_read() {
+    use crate::relay::handlers::dm_answer::DmPutRefusal;
+    let ok = RelayMessage::DmPutOk { sender: "me".into(), put_ref: "pass-1".into() };
+    assert_eq!(
+        serde_json::to_value(&ok).unwrap(),
+        serde_json::json!({ "type": "dm_put_ok", "ref": "pass-1" }),
+        "dm_put_ok carries exactly type and ref"
+    );
+    let no = RelayMessage::DmPutRefused { sender: "me".into(), put_ref: "pass-1".into(), reason: DmPutRefusal::Rate.word().into() };
+    assert_eq!(
+        serde_json::to_value(&no).unwrap(),
+        serde_json::json!({ "type": "dm_put_refused", "ref": "pass-1", "reason": "rate" }),
+        "dm_put_refused carries exactly type, ref and reason"
+    );
+    let words = [DmPutRefusal::Rate, DmPutRefusal::Reach, DmPutRefusal::Size, DmPutRefusal::Other].map(DmPutRefusal::word);
+    assert_eq!(words, ["rate", "reach", "size", "other"], "the reasons are the spec's words");
+
+    let read = |extra: serde_json::Value| -> Option<String> {
+        let mut v = serde_json::json!({ "type": "dm_put", "to": "them", "content": "{}" });
+        v.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        match serde_json::from_value::<RelayMessage>(v) {
+            Ok(RelayMessage::DmPut { put_ref, .. }) => put_ref,
+            Ok(other) => panic!("expected DmPut, got {other:?}"),
+            Err(e) => panic!("dm_put parses: {e}"),
+        }
+    };
+    assert_eq!(read(serde_json::json!({ "ref": "pass-1" })), Some("pass-1".to_string()), "a ref is read");
+    assert_eq!(read(serde_json::json!({})), None, "and absent is none");
+    assert_eq!(read(serde_json::json!({ "ref": 5 })), None, "a ref that is a number is no ref, and the put still parses");
+    assert_eq!(read(serde_json::json!({ "ref": null })), None);
+    assert_eq!(read(serde_json::json!({ "ref": { "id": "x" } })), None);
+}
+
 // ── A socket that fell behind the broadcast ring ──
 
 fn sys(n: usize) -> RelayMessage {

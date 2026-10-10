@@ -127,7 +127,7 @@ fn try_reach(st: &Arc<RelayState>, kind: Kind, sender: &str, target: &str, cert:
             let before = st.db.mailbox_fetch(target, 0, 1_000).unwrap().len();
             block(async {
                 st.dm_rate.forget(sender);
-                handle_dm_put(st, sender, target.to_string(), envelope(), cert.map(str::to_string), DmAsk::Ordinary).await;
+                handle_dm_put(st, sender, target.to_string(), envelope(), cert.map(str::to_string), DmAsk::Ordinary, None).await;
             });
             st.db.mailbox_fetch(target, 0, 1_000).unwrap().len() > before
         }
@@ -348,7 +348,7 @@ fn admins_and_moderators_are_bound() {
         }
         // A contact request is bound by nobody too.
         let mut rx = st.broadcast_tx.subscribe();
-        block(handle_dm_put(&st, &staff.key, target.key.clone(), envelope(), None, DmAsk::ContactRequest));
+        block(handle_dm_put(&st, &staff.key, target.key.clone(), envelope(), None, DmAsk::ContactRequest, None));
         assert_eq!(heard(&mut rx, &staff.key), vec![format!("reach_refused message {} request", target.key)]);
     }
 }
@@ -376,7 +376,7 @@ fn a_contact_request_gets_through_at_ordinary_size_and_the_reply_carrying_its_pa
         let mut rx = st.broadcast_tx.subscribe();
         block(async {
             st.dm_rate.forget(&stranger.key);
-            handle_dm_put(&st, &stranger.key, target.key.clone(), content, None, DmAsk::ContactRequest).await;
+            handle_dm_put(&st, &stranger.key, target.key.clone(), content, None, DmAsk::ContactRequest, None).await;
         });
         heard(&mut rx, &stranger.key)
     };
@@ -445,7 +445,7 @@ fn contact_requests_are_five_a_day_per_sender_and_separate_from_knocks() {
             } else {
                 st.dm_rate.drain(from); // the DM bucket holds a burst, so empty it to be slowed down
             }
-            handle_dm_put(&st, from, target.key.clone(), envelope(), None, DmAsk::ContactRequest).await;
+            handle_dm_put(&st, from, target.key.clone(), envelope(), None, DmAsk::ContactRequest, None).await;
         });
         heard(&mut rx, from)
     };

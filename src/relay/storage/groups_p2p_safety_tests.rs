@@ -82,6 +82,16 @@ fn fp(who: &DilithiumKeypair) -> String {
     author_fingerprint(&who.public_key())
 }
 
+/// Give `who` a registered name and a Kyber key on file here, as signing in from either app
+/// does. Only such a member is one a re-seal must cover (`epoch_key_refusal`): the apps can seal
+/// a key to nobody else.
+fn with_kyber(db: &Storage, who: &DilithiumKeypair, name: &str) {
+    let key = hex::encode(who.public_key());
+    db.register_name(name, &key).unwrap();
+    db.store_kyber_public(&key, "a3liZXItcHVibGlj").unwrap();
+    assert!(db.get_kyber_public(&key).unwrap().is_some(), "precondition: {name}'s Kyber key is on file");
+}
+
 /// A key object for `epoch` sealed to `to` (only the fingerprints matter to the relay).
 fn epoch_key(by: &DilithiumKeypair, gid: &str, epoch: u64, to: &[&DilithiumKeypair], created_at: u64) -> Object {
     let recipients = to
@@ -173,6 +183,9 @@ fn an_epochs_key_is_replaced_only_by_a_reseal_that_drops_no_member() {
     let db = db("epochs");
     let people: Vec<DilithiumKeypair> = (0..4).map(|_| DilithiumKeypair::generate().unwrap()).collect();
     let (creator, alice, bob, carol) = (&people[0], &people[1], &people[2], &people[3]);
+    for (who, name) in people.iter().zip(["Creator", "Alice", "Bob", "Carol"]) {
+        with_kyber(&db, who, name);
+    }
     let gid = group(&db, creator);
     let ticket = invite(&db, creator, &gid, b"t", Some(1_100));
     assert!(join(&db, alice, &gid, &ticket, b"t", 1_200));
@@ -211,6 +224,51 @@ fn an_epochs_key_is_replaced_only_by_a_reseal_that_drops_no_member() {
     // The same object again is not a replacement and is not refused.
     assert!(!put(&db, &e2), "a repeat is simply already stored");
     assert!(db.put_signed_object(&e2, None).is_ok());
+}
+
+/// A share-history group's re-seal may leave out a member with no Kyber key on file here, and
+/// may not while their key is on file. Both apps seal only to members whose Kyber key the server
+/// hands out, and that key goes with the member's registered name (a kick or ban, an erase,
+/// `/gc`) while the membership stays active, so counting such a member refused every re-seal for
+/// good and no one who joined later ever got the key.
+///
+/// Seen red 2026-10-10 against the old count (every active member the stored key covers): "with
+/// Bob's Kyber key gone, the re-seal to the creator and Carol is accepted" failed.
+#[test]
+fn a_reseal_may_leave_out_a_member_whose_kyber_key_is_gone() {
+    let db = db("reseal_no_kyber");
+    let people: Vec<DilithiumKeypair> = (0..3).map(|_| DilithiumKeypair::generate().unwrap()).collect();
+    let (creator, bob, carol) = (&people[0], &people[1], &people[2]);
+    for (who, name) in people.iter().zip(["Creator", "Bob", "Carol"]) {
+        with_kyber(&db, who, name);
+    }
+    let g = signed(creator, "group_v1", &[], Some(1_000), vec![("name", text("Shared")), ("share_history", Value::Integer(1.into()))]);
+    assert!(put(&db, &g));
+    let gid = id(&g);
+    let ticket = invite(&db, creator, &gid, b"t", Some(1_100));
+    assert!(join(&db, bob, &gid, &ticket, b"t", 1_200));
+    let e1 = epoch_key(creator, &gid, 1, &[creator, bob], 2_000);
+    assert!(put(&db, &e1));
+    assert!(join(&db, carol, &gid, &ticket, b"t", 2_100));
+
+    // Bob still has a key on file: a re-seal that leaves him out is refused, as before.
+    let reseal = epoch_key(creator, &gid, 1, &[creator, carol], 2_200);
+    let refused = db.put_signed_object(&reseal, None).unwrap_err().to_string();
+    assert!(refused.contains("not sealed to 1 member"), "with Bob's Kyber key on file, leaving him out is refused: {refused}");
+    assert_eq!(db.p2p_group_latest_epoch_object(&gid).unwrap(), Some(id(&e1)));
+
+    // A kick takes his registered name and the Kyber key with it; he stays an active member.
+    db.delete_registered_name(&hex::encode(bob.public_key())).unwrap();
+    assert!(db.p2p_group_has_member(&gid, &bob.public_key()).unwrap(), "precondition: still in the group");
+    assert!(db.get_kyber_public(&hex::encode(bob.public_key())).unwrap().is_none(), "precondition: no key on file");
+    assert!(put(&db, &reseal), "with Bob's Kyber key gone, the re-seal to the creator and Carol is accepted");
+    assert_eq!(db.p2p_group_latest_epoch_object(&gid).unwrap(), Some(id(&reseal)), "and it is the group's key now");
+
+    // Back with a key, he counts again: a re-seal that drops Carol, who has one, is refused.
+    with_kyber(&db, bob, "Bob");
+    let drops_carol = epoch_key(creator, &gid, 1, &[creator, bob], 2_300);
+    let refused = db.put_signed_object(&drops_carol, None).unwrap_err().to_string();
+    assert!(refused.contains("not sealed to 1 member"), "a member with a key on file still cannot be left out: {refused}");
 }
 
 // ── The newest messages ──

@@ -4,7 +4,7 @@
 use super::*;
 use crate::relay::handlers::msg_handlers::handle_dm_put;
 use crate::relay::handlers::reach::DmAsk;
-use crate::relay::relay::RateLimitState;
+use crate::relay::handlers::chat_rate::RateLimitState;
 use crate::relay::storage::Storage;
 
 fn fresh_state(tag: &str) -> Arc<RelayState> {
@@ -47,7 +47,7 @@ fn pair(st: &Arc<RelayState>) -> (&'static str, &'static str) {
 fn put(st: &Arc<RelayState>, from: &str, to: &str) -> (bool, Vec<String>) {
     let mut rx = st.broadcast_tx.subscribe();
     let before = st.db.mailbox_fetch(to, 0, 1_000).unwrap().len();
-    block(handle_dm_put(st, from, to.to_string(), envelope(), None, DmAsk::Ordinary));
+    block(handle_dm_put(st, from, to.to_string(), envelope(), None, DmAsk::Ordinary, None));
     let stored = st.db.mailbox_fetch(to, 0, 1_000).unwrap().len() > before;
     let mut told = Vec::new();
     while let Ok(msg) = rx.try_recv() {
@@ -205,7 +205,7 @@ fn channel_chat_limiter_is_unaffected() {
     let now = Instant::now();
     block(st.rate_limits.write()).insert(
         "rate_inbox".to_string(),
-        RateLimitState { first_seen: now, last_message_time: now, fib_index: crate::relay::relay::FIB_DELAYS.len() - 1 },
+        RateLimitState { new_until: None, last_message_time: Some(now), fib_index: crate::relay::relay::FIB_DELAYS.len() - 1 },
     );
     let back = put(&st, "rate_inbox", sender);
     assert_eq!(back, (true, vec![]), "a person channel chat has just slowed can still DM");

@@ -26,7 +26,7 @@ fn report_after(st: &Arc<RelayState>, sender: &str, target: &str, cert: Option<&
         } else {
             st.dm_rate.drain(sender);
         }
-        handle_dm_put(st, sender, target.to_string(), envelope(), cert.map(str::to_string), DmAsk::GroupReport).await;
+        handle_dm_put(st, sender, target.to_string(), envelope(), cert.map(str::to_string), DmAsk::GroupReport, None).await;
     });
     (st.db.mailbox_fetch(target, 0, 1_000).unwrap().len() > before, heard(&mut rx, sender))
 }
@@ -239,7 +239,7 @@ fn group_reports_are_three_a_day_per_sender_and_separate_from_knocks_and_contact
     for _ in 0..CONTACT_REQUESTS_PER_DAY {
         block(async {
             st.dm_rate.forget(&reporter.key);
-            handle_dm_put(&st, &reporter.key, asked.key.clone(), envelope(), None, DmAsk::ContactRequest).await;
+            handle_dm_put(&st, &reporter.key, asked.key.clone(), envelope(), None, DmAsk::ContactRequest, None).await;
         });
     }
     assert_eq!(contact_requests_spent(&st, &reporter.key), CONTACT_REQUESTS_PER_DAY, "precondition: the contact requests are spent");

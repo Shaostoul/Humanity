@@ -378,7 +378,7 @@ pub fn ws_message_feature(msg_type: &str) -> Option<Feature> {
         // Server→client DM frames (classified so the shared enum's rename
         // strings don't fail open; a client echoing one at the relay is
         // simply gated like any chat message).
-        | "dm_new" | "dm_batch" | "dm_purged" => {
+        | "dm_new" | "dm_batch" | "dm_purged" | "dm_put_ok" | "dm_put_refused" => {
             Some(Feature::Chat)
         }
         _ => None,
@@ -3687,6 +3687,47 @@ mod tests {
         assert_eq!(state.db.reach_audience_of(&key, "message").as_deref(), Some("anyone"), "and saved");
         use futures::SinkExt;
         sock.close(None).await.ok();
+    }
+
+    /// The answer to a `dm_put` over a real socket (spec 10l, handlers/dm_answer.rs): the sender
+    /// is answered `dm_put_ok` with their ref, and the recipient, signed in at the same moment,
+    /// gets the mail and never the answer (the send loop routes it by the sender's key; an
+    /// unrouted variant goes to everyone). With chat switched off the feature gate answers the
+    /// ref "other", so the app stops waiting at once instead of after its 30 seconds.
+    ///
+    /// Seen red 2026-10-10 with `DmPutOk` and `DmPutRefused` taken out of their routing line in
+    /// relay.rs's send loop: "the recipient was sent the sender's answer".
+    #[tokio::test]
+    async fn a_dm_puts_answer_reaches_only_its_sender() {
+        let is_answer = |v: &Value| v["type"].as_str().is_some_and(|t| t.starts_with("dm_put_"));
+        let envelope = serde_json::json!({ "v": 2, "ek_ct_b64": "QUJD", "nonce_b64": "REVG", "ct_b64": "R0hJ" }).to_string();
+        let (state, port) = spawn_relay("dm_answer", Features::all_enabled()).await;
+        let (mut sender, _) = bind_socket(&state, port, [91u8; 32], Some("Writer"), 1).await;
+        let (mut inbox, inbox_key) = bind_socket(&state, port, [92u8; 32], Some("Reader"), 1).await;
+        state.db.set_reach_settings(&inbox_key, &[("message", "anyone")]).unwrap();
+        frames_until_quiet(&mut inbox, 300).await;
+
+        send_json(&mut sender, serde_json::json!({ "type": "dm_put", "to": inbox_key, "content": envelope, "ref": "pass-91" })).await;
+        let answer = next_frame_with(&mut sender, |v| is_answer(v).then(|| v.clone())).await.expect("the sender is answered");
+        assert_eq!(answer, serde_json::json!({ "type": "dm_put_ok", "ref": "pass-91" }));
+        let seen = frames_until_quiet(&mut inbox, 700).await;
+        assert!(seen.iter().any(|v| v["type"] == "dm_new"), "the recipient gets the mail: {seen:?}");
+        assert!(!seen.iter().any(|v| is_answer(v)), "the recipient was sent the sender's answer");
+
+        // Chat switched off: the gate refuses the put, and answers its ref.
+        let mut off = Features::all_enabled();
+        off.set(Feature::Chat, false);
+        let (quiet, quiet_port) = spawn_relay("dm_answer_off", off).await;
+        let (mut gated, _) = bind_socket(&quiet, quiet_port, [93u8; 32], Some("Gated"), 1).await;
+        frames_until_quiet(&mut gated, 300).await;
+        send_json(&mut gated, serde_json::json!({ "type": "dm_put", "to": inbox_key, "content": envelope, "ref": "pass-93" })).await;
+        let frames = frames_until_quiet(&mut gated, 700).await;
+        let answers: Vec<&Value> = frames.iter().filter(|v| is_answer(v)).collect();
+        assert_eq!(
+            answers,
+            vec![&serde_json::json!({ "type": "dm_put_refused", "ref": "pass-93", "reason": "other" })],
+            "refused with chat off: {frames:?}"
+        );
     }
 
     /// Reporting over a real socket (handlers/reports.rs, blocking-and-safe-mode.md 10e), with
