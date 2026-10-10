@@ -1,6 +1,11 @@
 # Report System Design (v0.188+)
 
-> **Status: design complete, implementation pending.** This document answers the operator's questions about how the chat 🚩 Report button should behave across DM / Group / Server contexts, who receives reports, and what stops the feature from being abused. Implementation is split across v0.189–v0.191 per the phasing at the bottom.
+> **Superseded 2026-10-09 by `docs/design/blocking-and-safe-mode.md` sections 8 and 10e**, which
+> is what the code now does: reports by key, signed by the reporter, with DM evidence the relay
+> checks against the sender's own signature, never a message carrying a file, a Reports page for
+> admins and moderators, and reports kept 90 days after a decision. Kept below as history.
+
+> **Status (historical): design complete, implementation pending.** This document answers the operator's questions about how the chat 🚩 Report button should behave across DM / Group / Server contexts, who receives reports, and what stops the feature from being abused. Implementation is split across v0.189–v0.191 per the phasing at the bottom.
 
 ## Three contexts, three handlers
 
