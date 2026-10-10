@@ -1317,6 +1317,12 @@ pub(crate) fn pump_live_broadcast(state: &mut EngineState, frame_texture: &wgpu:
                 state.gui_state.studio.is_live = false;
                 return;
             }
+            // Step F's recovery-phrase guard on the stream title, which the server shows to everyone.
+            if crate::engine::warnings::holds_own_phrase(&state.gui_state, &[&state.gui_state.studio.stream_key]) {
+                state.gui_state.studio.broadcast_error = crate::net::warnings::GUARD_LINE.to_string();
+                state.gui_state.studio.is_live = false;
+                return;
+            }
 
             // The Studio server field is a chat WS URL ("wss://host/ws"); the live
             // publisher wants the plain origin.
