@@ -271,9 +271,9 @@ pub(crate) fn member_name(gs: &GuiState, key: &str) -> (String, bool) {
 // ── Sending, Accept, Ignore ─────────────────────────────────────────────────
 
 /// The two `dm_put` frames of a contact request to `peer` (theirs, flagged `contact_request`, and
-/// our self-copy, so our other devices learn the pass we gave), and the pass to record once they
-/// are sent. The pass is ours for them, with the default `may` (step A): asking someone to
-/// connect is consenting to hear back from them.
+/// our self-copy, so our other devices learn the pass we gave), and the pass to record once the
+/// server took theirs (10l). The pass is ours for them, with the default `may` (step A): asking
+/// someone to connect is consenting to hear back from them.
 pub(crate) fn contact_request_puts(gs: &GuiState, peer: &str) -> Result<(serde_json::Value, serde_json::Value, SentPass), String> {
     if crate::engine::block::is_blocked(gs, peer) {
         return Err("You blocked them. Unblock them first, in Settings > Safety > Blocked people.".into());
@@ -293,8 +293,10 @@ pub(crate) fn contact_request_puts(gs: &GuiState, peer: &str) -> Result<(serde_j
     Ok((theirs, ours, sent))
 }
 
-/// Send `peer` a contact request (the Send request button). It counts as following them, and
-/// the pass in it is recorded as given, so Unfollow withdraws it like any other.
+/// Send `peer` a contact request (the Send request button). It counts as following them. The pass
+/// in it counts as given only once the server took the request (10l, engine/put_answer.rs), and
+/// from then Unfollow withdraws it like any other; one not taken records nothing and the notice
+/// offers Send request again.
 pub(crate) fn send_contact_request(gs: &mut GuiState, peer: &str) -> Result<(), String> {
     // Step G: asking is following and gives them a pass, so with the protected setup on it
     // needs the PIN; nothing is sent until it has been entered (the prompt is open now).
@@ -305,11 +307,10 @@ pub(crate) fn send_contact_request(gs: &mut GuiState, peer: &str) -> Result<(), 
         return Err("Unlock your identity and connect first.".into());
     }
     let (theirs, ours, sent) = contact_request_puts(gs, peer)?;
-    let client = gs.ws_client.as_ref().filter(|c| c.is_connected()).ok_or("Connect to the server first.")?;
-    client.send(&theirs.to_string());
-    client.send(&ours.to_string());
+    if !crate::engine::dm::send_held(gs, peer, theirs, ours, sent, crate::net::put_answers::Held::Request) {
+        return Err("Connect to the server first.".into());
+    }
     if let Some(store) = gs.dm_store.as_mut() {
-        store.record_pass_sent(peer, sent);
         store.set_following(peer, true);
         store.save();
     }

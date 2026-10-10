@@ -373,7 +373,9 @@ fn a_pass_goes_only_to_friends_the_pin_holder_approved() {
     assert!(!gs.dm_store.as_ref().unwrap().cert_sent_to(&ben), "but no pass for a follow made before the setup");
     assert!(frames(&sent).iter().all(|f| f["type"] != "dm_put"), "nothing went to him");
     crate::engine::dm::sweep_friend_passes(&mut gs);
-    assert!(!gs.dm_store.as_ref().unwrap().cert_sent_to(&ben), "not from the pass sweep either");
+    // Since 10l a pass sent counts as given only once the server took it, so "sent" is also
+    // looked for among the passes on their way.
+    assert!(!gs.dm_store.as_ref().unwrap().cert_sent_to(&ben) && !gs.pending_puts.has_peer(&ben), "not from the pass sweep either");
 
     crate::engine::dm::set_follow(&mut gs, &cy, true);
     assert!(waiting(&gs).is_none() && gs.dm_store.as_ref().unwrap().is_following(&cy), "following someone kept in the review needs no PIN");
@@ -383,7 +385,7 @@ fn a_pass_goes_only_to_friends_the_pin_holder_approved() {
     assert_eq!(waiting(&gs), Some(ProtectedAction::Follow(ben.clone())), "befriending anyone else asks for the PIN");
     enter(&mut gs, "7391");
     assert!(gs.protected.setup.is_approved(&ben), "the PIN given puts him on the list");
-    assert!(gs.dm_store.as_ref().unwrap().cert_sent_to(&ben), "and his pass goes out now");
+    assert!(gs.pending_puts.has_peer(&ben), "and his pass goes out now (given once the server takes it, 10l)");
 
     crate::engine::dm::set_follow(&mut gs, &ben, false);
     assert!(!gs.protected.setup.is_approved(&ben), "Unfollow takes him off the list");
@@ -840,12 +842,50 @@ fn a_request_from_someone_followed_is_listed_for_the_pin() {
     enter(&mut gs, "7391");
     let store = gs.dm_store.as_ref().unwrap();
     assert!(store.is_friend(&ann) && store.requests().is_empty(), "with it, she is a friend");
-    assert!(gs.protected.setup.is_approved(&ann) && store.cert_sent_to(&ann), "approved, and our pass goes to her");
+    assert!(gs.protected.setup.is_approved(&ann) && gs.pending_puts.has_peer(&ann), "approved, and our pass goes to her (given once the server takes it, 10l)");
 
     let from_cy = request_from(&cy_seed, &cy, "protected-asked-cy");
     crate::engine::dm::ingest_dm(&mut gs, &from_cy);
     let store = gs.dm_store.as_ref().unwrap();
     assert!(store.is_follower(&cy) && store.requests().iter().all(|r| r.key != cy), "someone approved still completes at once");
+    tidy(&gs);
+}
+
+/// THE DESKTOP'S PHRASE LOCK SENDS NOBODY TO THE WEB CHAT (2026-10-10): the preset is shared with
+/// the web, and its `phrase_needs_pin` ends with the web's directions ("In the chat, open Safety
+/// and choose Show the recovery phrase."). Settings draws its locked phrase with its own Show
+/// button, which asks for the PIN, so what it draws is the preset's first sentence (why the PIN
+/// is needed) and the button, and none of the web's directions.
+/// Seen red 2026-10-10 with `phrase_lock` taking the whole `phrase_needs_pin` again: "no web
+/// directions" failed (the drawn text held "In the chat, open Safety ...").
+#[test]
+fn the_desktop_phrase_lock_draws_no_web_directions() {
+    crate::config::keep_saves_off_disk();
+    let (seed, me) = identity(184);
+    let (mut gs, _sent) = app(&me, &seed, "protected-phrase-desk");
+    protect(&mut gs, "7391", &[]);
+    let labels = preset(&gs).labels;
+    assert!(labels.phrase_needs_pin.contains("In the chat"), "the preset still carries the web's directions (else this test proves nothing)");
+    let lock = crate::gui::pages::safety_protected::phrase_lock(&mut gs).expect("on: locked");
+    let ctx = egui::Context::default();
+    let theme = crate::gui::theme::load_theme();
+    let out = ctx.run(egui::RawInput::default(), |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| crate::gui::pages::safety_protected::draw_phrase_lock(ui, &theme, &mut gs, &lock));
+    });
+    let mut drawn = Vec::new();
+    fn walk(shape: &egui::Shape, texts: &mut Vec<String>) {
+        match shape {
+            egui::Shape::Text(t) => texts.push(t.galley.job.text.clone()),
+            egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, texts)),
+            _ => {}
+        }
+    }
+    out.shapes.iter().for_each(|c| walk(&c.shape, &mut drawn));
+    let all = drawn.join(" | ");
+    assert!(!all.contains("In the chat") && !all.contains("open Safety"), "no web directions: {all}");
+    assert!(drawn.iter().any(|t| *t == labels.show_phrase), "its own button, which asks for the PIN: {all}");
+    let why = "While the protected setup is on, showing the recovery phrase or saving a backup of this identity needs the PIN.";
+    assert!(labels.phrase_needs_pin.starts_with(why) && drawn.iter().any(|t| t == why), "and the preset's first sentence, saying why: {all}");
     tidy(&gs);
 }
 
@@ -866,7 +906,8 @@ fn the_phrase_lock_and_the_section_say_only_the_presets_words() {
     protect(&mut gs, "7391", &[]);
     let labels = preset(&gs).labels;
     let lock = crate::gui::pages::safety_protected::phrase_lock(&mut gs).expect("on: locked");
-    assert_eq!((lock.button.as_str(), lock.line.as_str()), (labels.show_phrase.as_str(), labels.phrase_needs_pin.as_str()), "the preset's button and line");
+    assert_eq!(lock.button, labels.show_phrase, "the preset's button");
+    assert!(!lock.line.is_empty() && labels.phrase_needs_pin.starts_with(&lock.line), "and the preset's own words for its line: {:?}", lock.line);
     assert_eq!(labels.show_phrase, "Show the recovery phrase");
     let settings_src = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/gui/pages/settings.rs")).unwrap();
     assert_eq!(settings_src.matches("safety_protected::phrase_lock(state)").count(), 2, "the phrase and the QR each ask it");

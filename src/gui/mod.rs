@@ -2427,6 +2427,8 @@ pub struct GuiState {
     pub admin_erase: crate::net::admin_erase::AdminEraseUi,
     /// The pace of the friendship-pass sweep's `dm_put`s, under the server's limit (net/put_pacer.rs).
     pub pass_pacer: crate::net::put_pacer::PutPacer,
+    /// Pass sends waiting for the server's `dm_put_ok` / `dm_put_refused` (10l, net/put_answers.rs).
+    pub pending_puts: crate::net::put_answers::PendingPuts,
     /// Calls through the server (step E, 2026-10-09): the call or voice room whose credentials
     /// were asked for, and how far its connection through the server got (engine/call_relay.rs).
     pub call_relay: crate::net::call_relay::CallRelayUi,
@@ -3987,6 +3989,7 @@ impl Default for GuiState {
             reports: Default::default(),
             admin_erase: Default::default(),
             pass_pacer: Default::default(),
+            pending_puts: Default::default(),
             call_relay: Default::default(),
             warnings: Default::default(),
             protected: Default::default(),

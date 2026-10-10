@@ -54,7 +54,7 @@ pub(crate) fn accept_label(state: &mut GuiState) -> String {
 }
 
 /// The words of the locked recovery-phrase controls in Settings: the preset's `show_phrase`
-/// button and its `phrase_needs_pin` line.
+/// button and the first sentence of its `phrase_needs_pin` line (`first_sentence`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PhraseLock {
     pub button: String,
@@ -71,9 +71,21 @@ pub(crate) fn phrase_lock(state: &mut GuiState) -> Option<PhraseLock> {
         return None;
     }
     crate::engine::protected::ensure_preset(state);
-    let words = state.protected.preset.as_ref().map(|p| (p.labels.show_phrase.clone(), p.labels.phrase_needs_pin.clone()));
+    let words = state.protected.preset.as_ref().map(|p| (p.labels.show_phrase.clone(), first_sentence(&p.labels.phrase_needs_pin)));
     let (button, line) = words.unwrap_or_default();
     Some(PhraseLock { button, line })
+}
+
+/// The desktop's line beside the locked button: only the first sentence of the preset's
+/// `phrase_needs_pin`, which says why the PIN is needed. The preset is shared with the web chat,
+/// and its next sentence gives the web's directions ("In the chat, open Safety and choose Show
+/// the recovery phrase."), which would send a desktop user to another app; here the button
+/// beside the line asks for the PIN itself. Only the preset's own words, cut, never new ones.
+fn first_sentence(line: &str) -> String {
+    match line.find(". ") {
+        Some(end) => line[..=end].to_string(),
+        None => line.to_string(),
+    }
 }
 
 /// The locked controls drawn: the preset's line, and its button, which asks for the PIN

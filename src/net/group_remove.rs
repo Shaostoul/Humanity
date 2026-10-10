@@ -11,8 +11,9 @@
 //! list cannot be read, the key cannot be sealed, the server refuses it) removes no one: nobody
 //! is ever "removed" yet still able to read. The web client does the same in the same order
 //! (web/chat/chat-groups-p2p.js `rotateP2pGroupKey`, `removeP2pMember`). While the removal is on
-//! its way, and for the rest of the run, the creator's own rekey never seals a key to the person
-//! removed (`removed_here`).
+//! its way, the creator's own rekey never seals a key to the person removed (`left_out`); once
+//! the server's member list has dropped them, someone it lists again has rejoined with a new
+//! ticket and is sealed to like any member.
 //!
 //! They keep the keys to what they already saw: a new key protects only what is said next.
 //!
@@ -68,37 +69,79 @@ impl RemoveError {
 
 // ── Who this device removed, for this run ───────────────────────────────────────────────────
 
-/// The people this device removed from each group in this run of the app: group id, then their
-/// keys (lower-case hex). The creator's rekey (`api_v2::rekey_if_creator_needs`) runs on a worker
-/// thread every couple of seconds while the group is open, and seals a new key to every member
-/// the server LISTS who lacks one. Between our new key (which leaves the person out) and our
-/// removal reaching the server, the person is still listed and lacks the new key, so the rekey
-/// would seal them one at once and undo the removal. It reads this list and never seals to anyone
-/// on it. Process-wide because the rekey runs where no app state is reachable; kept only for the
-/// run, since after a restart the server's list no longer names them.
-static REMOVED_HERE: std::sync::Mutex<Vec<(String, String)>> = std::sync::Mutex::new(Vec::new());
+/// The people this device is removing from each group in this run of the app. The creator's rekey
+/// (`api_v2::rekey_if_creator_needs`) runs on a worker thread every couple of seconds while the
+/// group is open, and seals a new key to every member the server LISTS who lacks one. Between our
+/// new key (which leaves the person out) and our removal reaching the server, the person is still
+/// listed and lacks the new key, so the rekey would seal them one at once and undo the removal. It
+/// reads this list (`left_out`) and never seals to anyone on it while their removal is on its way.
+/// Process-wide because the rekey runs where no app state is reachable; kept only for the run,
+/// since after a restart the server's list no longer names them.
+///
+/// Once a member list the server gave no longer names them, the removal has landed, and from a
+/// list asked for after that, someone named again has REJOINED (a new invite ticket) and is sealed
+/// to like any member (`left_out`). Without that, a person removed and let back in was left out of
+/// every new key until the app restarted. "Asked for after" matters: two rekeys can overlap, and a
+/// list asked for before the removal landed still names them, so it must not count as a rejoin.
+static REMOVED_HERE: std::sync::Mutex<Vec<Removed>> = std::sync::Mutex::new(Vec::new());
 
-/// Note that this device is removing `member` from `group_id`. True when they were not on the
-/// list before.
+struct Removed {
+    group_id: String,
+    /// Lower-case hex.
+    key: String,
+    /// When a member list without them came back: the removal had landed by then.
+    gone_seen: Option<std::time::Instant>,
+}
+
+/// Note that this device is removing `member` from `group_id`. True when this is a new removal
+/// (so one that fails can be taken back with `forget_removed`): they were not on the list, or an
+/// earlier removal of theirs had landed, which means they are back and being removed again.
 pub fn note_removed(group_id: &str, member: &str) -> bool {
     let key = member.trim().to_ascii_lowercase();
     let mut list = REMOVED_HERE.lock().unwrap_or_else(|e| e.into_inner());
-    if list.iter().any(|(g, k)| g == group_id && *k == key) {
-        return false;
+    if let Some(r) = list.iter_mut().find(|r| r.group_id == group_id && r.key == key) {
+        // Removed again after rejoining: wait for this removal to land too.
+        return r.gone_seen.take().is_some();
     }
-    list.push((group_id.to_string(), key));
+    list.push(Removed { group_id: group_id.to_string(), key, gone_seen: None });
     true
 }
 
 /// Take `member` off the list for `group_id` (a removal that changed nothing after all).
 pub fn forget_removed(group_id: &str, member: &str) {
     let key = member.trim().to_ascii_lowercase();
-    REMOVED_HERE.lock().unwrap_or_else(|e| e.into_inner()).retain(|(g, k)| !(g == group_id && *k == key));
+    REMOVED_HERE.lock().unwrap_or_else(|e| e.into_inner()).retain(|r| !(r.group_id == group_id && r.key == key));
 }
 
-/// The people this device removed from `group_id` in this run (lower-case hex keys).
+/// The people this device removed from `group_id` in this run and has not seen rejoin (lower-case
+/// hex keys).
 pub fn removed_here(group_id: &str) -> Vec<String> {
-    REMOVED_HERE.lock().unwrap_or_else(|e| e.into_inner()).iter().filter(|(g, _)| g == group_id).map(|(_, k)| k.clone()).collect()
+    REMOVED_HERE.lock().unwrap_or_else(|e| e.into_inner()).iter().filter(|r| r.group_id == group_id).map(|r| r.key.clone()).collect()
+}
+
+/// Whom a creator's rekey leaves out of `group_id`, given the member list (`roster`, each key hex
+/// and its Kyber key) the server returned to a request made at `asked`. Someone the list no
+/// longer names has had their removal land: noted, and left on the list for now (a slower list,
+/// asked for earlier, may still name them). Someone it names again, asked for after a list
+/// without them came back, has rejoined: they leave the list and are sealed to normally.
+pub fn left_out(group_id: &str, roster: &[(String, Option<String>)], asked: std::time::Instant) -> Vec<String> {
+    let mut list = REMOVED_HERE.lock().unwrap_or_else(|e| e.into_inner());
+    let now = std::time::Instant::now();
+    list.retain_mut(|r| {
+        if r.group_id != group_id {
+            return true;
+        }
+        let named = roster.iter().any(|(k, _)| k.trim().eq_ignore_ascii_case(&r.key));
+        match (named, r.gone_seen) {
+            (false, None) => {
+                r.gone_seen = Some(now);
+                true
+            }
+            (true, Some(seen)) if asked > seen => false, // rejoined
+            _ => true,
+        }
+    });
+    list.iter().filter(|r| r.group_id == group_id).map(|r| r.key.clone()).collect()
 }
 
 /// Remove `member` (their key, hex) from `group_id`, signed with the identity of `seed` (the

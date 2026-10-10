@@ -86,6 +86,11 @@ pub mod protected_store;
 #[cfg(feature = "native")]
 pub mod put_pacer;
 
+/// Passes on their way: a `dm_put` that changes friendship state carries a `ref` and counts only
+/// once the server answers `dm_put_ok` for it (section 10l, 2026-10-10).
+#[cfg(feature = "native")]
+pub mod put_answers;
+
 /// An admin erases another person's data (section 10i of docs/design/blocking-and-safe-mode.md,
 /// 2026-10-10): who is offered it, the typed-name check, the `admin_erase` frame and the receipt.
 #[cfg(feature = "native")]

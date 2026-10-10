@@ -8,6 +8,9 @@
 
 pub mod color;
 pub mod dm;
+/// The server's answers to the `dm_put`s that change friendship state (10l, 2026-10-10): a pass
+/// counts as given only once the server took it.
+pub mod put_answer;
 /// "Who can reach me" (step B of docs/design/blocking-and-safe-mode.md, 2026-10-09): the
 /// relay's reach frames, contact requests sent and received, and the "People I choose" ticks.
 pub mod reach;
