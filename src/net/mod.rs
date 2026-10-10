@@ -66,6 +66,11 @@ pub mod warnings;
 #[cfg(feature = "native")]
 pub mod protected;
 
+/// An admin erases another person's data (section 10i of docs/design/blocking-and-safe-mode.md,
+/// 2026-10-10): who is offered it, the typed-name check, the `admin_erase` frame and the receipt.
+#[cfg(feature = "native")]
+pub mod admin_erase;
+
 /// Native client → relay v2 signed-object submission + invite ticket helpers
 /// (P2P groups). HTTP via the same blocking-ureq pattern as image upload.
 #[cfg(feature = "native")]

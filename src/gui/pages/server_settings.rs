@@ -32,6 +32,10 @@ use crate::gui::{GuiPage, GuiState};
 /// Reports the admins can check (step D, 2026-10-09): the Moderator section's Reports lists.
 pub(crate) mod reports;
 
+/// An admin erases another person's data (10i, 2026-10-10): the Members tab's "Erase their data",
+/// its confirm and the server's receipt.
+pub(crate) mod admin_erase;
+
 /// Section identity colors — match the nav bar grouping in escape_menu.rs.
 /// theme-exempt: these encode the privilege tier (red/green/blue) and are
 /// referenced by both `widgets::tinted_section` calls AND the design
@@ -125,6 +129,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     ui.add_space(theme.spacing_xl);
                 });
         });
+    // The Members tab's erase confirm (10i), a window over the page while it is open.
+    admin_erase::draw_confirm(ctx, theme, state);
 }
 
 /// Tab bar — Overview + Members. Channels and Reports merged into
@@ -3035,8 +3041,9 @@ fn channel_grid_header(ui: &mut egui::Ui, theme: &Theme) {
 // ── Members Tab ─────────────────────────────────────────────────────────────
 
 /// Members tab — list of server / group members with role + actions.
-/// Spreadsheet-style; v0.188 uses the existing slash-command surface
-/// (kick / mute / ban / promote) per row.
+/// Spreadsheet-style. Mute, Kick, Ban and Promote act on the Overview tab's
+/// Target user (or a name's menu in Chat); the one per-row action is an
+/// admin's "Erase their data" (10i, `admin_erase`).
 fn draw_members_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, is_mod: bool) {
     ui.vertical_centered(|ui| {
         ui.set_max_width(960.0);
@@ -3044,11 +3051,13 @@ fn draw_members_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, is_m
             widgets::subsection_label(ui, theme, "Members");
             widgets::body_hint(
                 ui, theme,
-                "Member roster will populate from the relay. Per-row actions \
-                 (Mute / Kick / Ban / Promote) trigger the existing slash-command \
-                 flow. v0.188 ships the layout; full inline actions land in v0.189.",
+                "Everyone this server lists, with their role. Mute, Kick, Ban and Promote \
+                 are in the Overview tab, or in the menu on a name in Chat. An admin or the \
+                 owner can also erase a member's data from this server here.",
             );
             ui.add_space(theme.spacing_md);
+            // The erase sent and not answered yet, or the server's receipt (10i).
+            admin_erase::draw_receipt(ui, theme, state);
 
             // Header
             ui.horizontal(|ui| {
@@ -3065,11 +3074,12 @@ fn draw_members_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, is_m
             ui.separator();
 
             let _ = is_mod;
-            // For v0.188, list the cached chat peers as a placeholder.
-            // v0.189 wires this to relay's server_members table.
-            let peers: Vec<(String, String)> = state.chat_users
+            // The relay's full user list (online and offline), with each member's role, which
+            // decides where "Erase their data" is offered (10i).
+            let viewer_role = current_user_role(state);
+            let peers: Vec<(String, String, String)> = state.chat_users
                 .iter()
-                .map(|p| (p.name.clone(), p.public_key.clone()))
+                .map(|p| (p.name.clone(), p.public_key.clone(), p.role.clone()))
                 .collect();
             if peers.is_empty() {
                 ui.add_space(theme.spacing_md);
@@ -3080,7 +3090,7 @@ fn draw_members_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, is_m
                         .italics(),
                 );
             } else {
-                for (name, key) in peers.iter().take(50) {
+                for (name, key, role) in peers.iter().take(50) {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 4.0;
                         ui.add_sized(
@@ -3096,16 +3106,13 @@ fn draw_members_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, is_m
                         );
                         ui.add_sized(
                             Vec2::new(90.0, CHANNEL_ROW_H),
-                            egui::Label::new(RichText::new("user").color(theme.text_secondary()).size(theme.font_size_small)),
+                            egui::Label::new(RichText::new(role_label(role)).color(theme.text_secondary()).size(theme.font_size_small)),
                         );
                         ui.add_sized(
                             Vec2::new(110.0, CHANNEL_ROW_H),
                             egui::Label::new(RichText::new(", ").color(theme.text_muted()).size(theme.font_size_small)),
                         );
-                        ui.add_sized(
-                            Vec2::new(200.0, CHANNEL_ROW_H),
-                            egui::Label::new(RichText::new("(actions in v0.189)").color(theme.text_muted()).italics().size(theme.font_size_small)),
-                        );
+                        admin_erase::draw_row_action(ui, theme, state, &viewer_role, key, name, role);
                     });
                 }
             }
@@ -3256,7 +3263,7 @@ fn role_label(role: &str) -> String {
     match role {
         "owner" => "Owner".into(),
         "admin" => "Admin".into(),
-        "mod"   => "Moderator".into(),
+        "mod" | "moderator" => "Moderator".into(),
         "member" | "" => "Member".into(),
         other => other.to_string(),
     }

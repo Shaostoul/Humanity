@@ -1357,6 +1357,36 @@ fn snapshot_report_reasons() -> Vec<crate::net::report::ReportReason> {
     });
 }
 
+// Server Settings > Members with the "Erase their data" confirm open (10i of
+// docs/design/blocking-and-safe-mode.md, 2026-10-10), as an admin sees it: the whole page drawn
+// by its own `draw`, the roster behind (the action on Dana's and Cy's rows, none on the admin's
+// own row, Bob the admin's or Zed the owner's), and over it 10i's words, the name field with
+// Dana's name typed in the wrong case so Erase is still dead. Built in memory; nothing is sent.
+#[test]
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_admin_erase_confirm() {
+    render_page_png("admin_erase_confirm", 960, 640, |ctx, theme, state| {
+        if state.admin_erase.confirm.is_none() {
+            state.profile_public_key = "me".to_string();
+            state.server_settings_tab = 1;
+            let user = |name: &str, key: &str, role: &str| ChatUser { name: name.into(), public_key: key.into(), role: role.into(), status: "online".into() };
+            state.chat_users = vec![
+                user("Sam", "me", "admin"),
+                user("Dana", "dana0000000000000000", "member"),
+                user("Bob", "bob00000000000000000", "admin"),
+                user("Cy", "cy000000000000000000", "mod"),
+                user("Zed", "zed00000000000000000", "owner"),
+            ];
+            state.admin_erase.confirm = Some(crate::net::admin_erase::EraseConfirm {
+                target: "dana0000000000000000".into(),
+                name: "Dana".into(),
+                typed: "dana".into(),
+            });
+        }
+        crate::gui::pages::server_settings::draw(ctx, theme, state);
+    });
+}
+
 #[test]
     #[ignore = "GPU snapshot; run via `just snapshots`"]
     fn snapshot_credits_settings() {
