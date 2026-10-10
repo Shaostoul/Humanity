@@ -1914,6 +1914,74 @@ self-copy. Client tests on both: a pass is recorded and the old one withdrawn on
 `dm_put_ok`; after `dm_put_refused` or a 30-second silence nothing is recorded or withdrawn and
 the next sweep re-sends with the same `may`. Each seen failing once.
 
+## 10m. Passes across my own devices, and the review of v0.1478 to v0.1481 (2026-10-10)
+
+Two read-only reviews of the day's releases found where the desktop app, the web chat and the
+spec still disagree. The rules below are what both clients now do; each is built with a test seen
+failing first.
+
+**R1. A contact request counts as following only once the server took it.** The desktop followed
+the moment the request was written to the socket; the web follows on `dm_put_ok`. Both follow on
+`dm_put_ok` only. Refused or unanswered: not following, and the notice offers Send request again.
+
+**R2. A re-issue that takes something away sends its self-copy at once.** 10l holds a pass's
+self-copy until `dm_put_ok`, so my other devices never adopt a pass the friend does not hold and
+withdraw the one they do. An untick already withdrew the passes it replaces, so that reason does
+not apply, and holding the self-copy left my other devices with the old choice when the new pass
+was refused (one went stale; the other minted the defaults and gave back what was unticked). So: a
+re-issue that takes something away (`grants_beyond`, `reachGrantsBeyond`) sends its self-copy with
+the recipient copy; and the new pass goes out BEFORE the withdrawals of the passes it replaces, so
+my other devices are told the new choice before they hear the old pass was withdrawn. An added tick
+keeps the held self-copy.
+
+**R3. A pass withdrawn by my other device is not replaced with the defaults.** When the server
+confirms (`cert_revoked`) a serial this device holds as standing but did not withdraw itself, another
+of my devices withdrew it. This device drops it from its record, and if that leaves the friend with
+no standing pass it marks them "changed on my other device": its sweep sends that friend no pass on
+its own until an echo of a pass to them arrives (then the mark clears), or the person changes their
+ticks, follows or accepts them on this device. Kept across restarts. The People I choose list keeps
+them, shown "(updating their pass)". Fail safe: a friend left without a pass falls to what the
+person's settings allow strangers; nothing withdrawn is ever given back by a device that did not
+see the choice.
+
+**R4. An untick always takes back what it unticked.** The desktop returned early when its standing
+pass already matched the ticks, before taking back an unanswered pass that still allowed the
+unticked kind. The take-back runs first, always.
+
+**R5. An echo of a pass this device is withdrawing is ignored** (the web's `adoptEchoedPass` rule),
+on the desktop too.
+
+**R6. One pass or request on its way per friend, on the desktop too** (a second Send request while
+one waits is refused with the web's sentence), and Unfollow drops a send still waiting for its
+answer, as on the web.
+
+**R7. A pass refused for "reach" is not resent on its own.** Two friends whose settings both say
+Friends and who hold no pass from each other cannot give each other one: each pass is refused by
+the other's setting. Re-sending on every member list repeated a "Not delivered" offer every minute.
+Now a pass refused with reason `reach` is not sent again automatically for the rest of the session,
+until their pass reaches us or the person follows, accepts, or changes ticks for them; the offer
+shows once.
+
+**R8. Group membership in the app's own checks is the server's call.** For a DM's text and a call's
+ring, each app checked its own list of groups, which goes stale (the web loads it on connect; the
+desktop refreshes it only while Chat is open), so an allowed ring from someone who had just joined
+a group was dropped. Under "Friends and people in my groups" the app now treats someone the server
+let through as sharing a group; the server checks group membership against its own records. The
+other audiences are unchanged.
+
+**R9. A blocked player's name is not in the game's HUD either** (the "N here: ..." list, desktop),
+like their figure and nameplate. Doors still open for them: they still stand there.
+
+**R10. The scratch pad stays on this device.**
+- No typing indicator is sent while the scratch pad is open (both apps sent one on every key).
+- The desktop keeps scratchpad entries, as the web does: in its encrypted DM store, newest 500,
+  across opening it again and restarting. A file's marker there is the only copy of its key.
+- Web: the rows a /command writes are private rows too; the send-time check counts the scratch pad
+  as a private view; a reply made there is kept on the note as a quote (as the desktop shows it) and
+  the reply bar clears.
+- Web labels: the header, the channel description and the row's tooltip say a note stays in this
+  browser and a file is stored encrypted, with its key kept only here.
+
 ## 11. Docs to update as each piece ships
 
 - `docs/accord/conformance_gaps.md` ("Contact consent cannot be withdrawn")

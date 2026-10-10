@@ -1246,6 +1246,30 @@ fn snapshot_chat_protected() {
     });
 }
 
+/// A picture from another website in a public room, with the protected setup off (BUG-173, seen
+/// rendered 2026-10-10): nothing is fetched, and the placeholder says whose picture it is and
+/// that loading it shows that website the reader's network address.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_chat_click_to_load() {
+    render_page_png("chat_click_to_load", 1280, 600, |ctx, theme, state| {
+        if !state.chat_messages.iter().any(|m| m.sender_key == "ann0") {
+            state.chat_messages.retain(|m| m.channel != "general");
+            state.chat_messages.push(ChatMessage {
+                sender_name: "Ann".into(),
+                sender_key: "ann0".into(),
+                content: "The garden this morning: https://example.com/garden.png".into(),
+                timestamp: "09:20".into(),
+                timestamp_ms: 1_791_481_200_000,
+                channel: "general".into(),
+                ..Default::default()
+            });
+            state.chat_active_channel = "general".into();
+        }
+        crate::gui::pages::chat::draw(ctx, theme, state);
+    });
+}
+
 /// Reasons for the report snapshots, built here (the real list is data/safety/report_reasons.json,
 /// written by the relay half of step D): enough to show the list and one help text.
 fn snapshot_report_reasons() -> Vec<crate::net::report::ReportReason> {
