@@ -4292,12 +4292,15 @@ pub(crate) mod turn {
         }
 
         /// Drive each client and read whatever the forwarder sent it, until
-        /// `done` holds or two seconds pass. Relayed data is collected per client.
+        /// `done` holds or twenty seconds pass. Relayed data is collected per client.
+        /// The bound is generous on purpose: it returns the moment `done` holds, and under
+        /// the whole library suite in parallel the forwarder thread can be starved past the
+        /// old 3 s ("all three allocated" failed that way twice on 2026-10-10).
         fn pump(
             clients: &mut [(&mut TurnClient, &UdpSocket, &mut Vec<(SocketAddr, Vec<u8>)>)],
             done: impl Fn(&[(&mut TurnClient, &UdpSocket, &mut Vec<(SocketAddr, Vec<u8>)>)]) -> bool,
         ) -> bool {
-            let deadline = Instant::now() + Duration::from_secs(3);
+            let deadline = Instant::now() + Duration::from_secs(20);
             let mut buf = [0u8; 2048];
             while Instant::now() < deadline {
                 for (client, udp, got) in clients.iter_mut() {

@@ -1579,8 +1579,11 @@ they ever differ. (Written 2026-10-10 before the builds started, so both clients
 
 **While it is on, these need the PIN** (a small PIN prompt; three wrong PINs in a row wait 60
 seconds before the next try): changing a "Who can reach me" row or a "People I choose" tick;
-making a friend in any way (Follow, Follow back, accepting a contact request, a friend code);
-joining a group by ticket; joining a voice room; turning warnings off or the pictures rule down;
+making a friend in any way (Follow, Follow back, accepting a contact request, making or redeeming a
+friend code, typed `/friend-code` and `/redeem` included); joining a group by ticket; starting a
+group; making or copying a group invite ticket (added 2026-10-10 after the batch review: a group
+started or shared without the PIN let anyone with the ticket in); joining a voice room; showing the
+recovery phrase or any copy of the identity; turning warnings off or the pictures rule down;
 showing public rooms; changing the PIN; turning the setup off. **Never locked:** Block, Report,
 Unfollow, leaving a group or room, muting: anything that reduces who can reach this device.
 
