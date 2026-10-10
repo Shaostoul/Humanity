@@ -237,7 +237,7 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   decision (the operator's answer); recommended: one year for the `child_danger` reason, 90 days
   for the rest. (3) Whether to ask NCMEC (ESPteam@ncmec.org) if a volunteer-run server counts as
   a provider and should register; recommended: yes, the operator writes it (an outside message
-  is his to send). The rest of this entry is the earlier note.
+  is the operator's to send). The rest of this entry is the earlier note.
 - **Legal research needed before reports go further (raised 2026-10-09).** Reports (design 10e)
   must never carry a way to open a reported file: a DM carrying an encrypted file holds the key
   in its text, so such messages cannot be evidence (refused by the relay, not offered by either
