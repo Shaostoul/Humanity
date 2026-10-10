@@ -44,7 +44,7 @@ fn app(seed: &[u8], me: &str, tag: &str, friends: &[(Vec<u8>, String)]) -> (GuiS
     let (client, sent) = crate::net::ws_client::WsClient::recording();
     gs.ws_client = Some(client);
     // This connection's mailbox has been read (10n N7), so the pass sweep and passes run.
-    (gs.dm_fetch_sent, gs.dm_fetch_done) = (true, true);
+    gs.dm_fetch = crate::net::mailbox_fetch::MailboxFetch::already_read();
     (gs, sent)
 }
 
@@ -386,3 +386,8 @@ mod devices;
 /// two-device sequences from the reviews. A child here so it shares this file's helpers.
 #[path = "choice_tests.rs"]
 mod choice;
+
+/// Section 10o (the parity review of 10n): a device's own mailbox pages (O1, here and on a parked
+/// server), and O3, O4, O5, O7. A child here so it shares this file's helpers.
+#[path = "parity_tests.rs"]
+mod parity;

@@ -197,7 +197,7 @@ pub(super) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
                         state.connected_server_url = state.server_url.clone();
                         // Fresh socket: identify handshake not yet complete (v0.794).
                         state.ws_identified = false;
-                        state.dm_fetch_sent = false;
+                        state.dm_fetch = Default::default();
                         state.ws_status = "Connecting...".to_string();
                         state.ws_manually_disconnected = false;
                         state.server_field_draft = false; // the typed address is dialled now
@@ -1109,7 +1109,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                 );
                                 state.connected_server_url = server.url.clone();
                                 state.ws_identified = false;
-                        state.dm_fetch_sent = false;
+                        state.dm_fetch = Default::default();
                                 state.ws_status = format!("Switching to {}...", server.name);
                                 state.ws_manually_disconnected = false;
                                 state.ws_reconnect_timer = 0.0;
@@ -1158,7 +1158,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                 );
                                 state.connected_server_url = server.url.clone();
                                 state.ws_identified = false;
-                        state.dm_fetch_sent = false;
+                        state.dm_fetch = Default::default();
                                 state.ws_status = format!("Switching to {}...", server.name);
                                 state.ws_manually_disconnected = false;
                                 state.ws_reconnect_timer = 0.0;
@@ -1251,7 +1251,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                             );
                                             state.connected_server_url = server.url.clone();
                                             state.ws_identified = false;
-                        state.dm_fetch_sent = false;
+                        state.dm_fetch = Default::default();
                                             state.ws_status =
                                                 format!("Switching to {}...", server.name);
                                             state.ws_manually_disconnected = false;

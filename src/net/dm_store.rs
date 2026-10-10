@@ -116,9 +116,9 @@ struct StoreBody {
     /// carry (what "People I choose" ticks for them: Message, Call, Trade, 10c-ii) and when it was
     /// chosen (ms). The passes follow it (engine/dm.rs `follow_choice`); the person's other devices
     /// learn it from a note to ourselves (net/choice.rs), the newer choice winning (`apply_choice`).
-    /// A friend with no entry has the defaults. Unfollow and Block set the defaults with their own
-    /// time rather than removing the entry, so an older note read later cannot bring a choice
-    /// back. 10c-ii's `friend_ticks` map, which this replaced, is simply not read any more, nor
+    /// A friend with no entry has the defaults. Unfollow and Block clear it with their own time
+    /// (the empty `may`, `CLEARED`, 10o O6; it gives the defaults) rather than removing the entry,
+    /// so an older note read later cannot bring a choice back. 10c-ii's `friend_ticks` map, which this replaced, is simply not read any more, nor
     /// step B's `may_call` set (no installed base to carry over, CLAUDE.md).
     #[serde(default)]
     choices: HashMap<String, Choice>,
@@ -175,10 +175,15 @@ pub const SCRATCHPAD_KEPT: usize = 500;
 /// the person's own clicks, so this is years of them.
 pub const NOTES_REMEMBERED: usize = 4_096;
 
+/// The `may` of a choice that Unfollow or Block cleared (10o O6, the web's `''`): the smallest
+/// text, so at an exactly equal time every note beats a clear, the same way on both clients. A
+/// cleared choice still gives, and draws, the defaults (`intended_may_wire`).
+pub const CLEARED: &str = "";
+
 /// The person's choice for one friend (10n): what their pass should allow, and when it was chosen.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Choice {
-    /// The canonical `may` (net/reach.rs `intended_may_wire` of the ticks).
+    /// The canonical `may` (net/reach.rs `intended_may_wire` of the ticks), or `CLEARED`.
     pub may: String,
     /// When it was chosen (ms since the epoch): the signed time of the note that brought it, or
     /// the moment of the click on this device.
@@ -674,11 +679,12 @@ impl DmStore {
     pub fn choice(&self, peer: &str) -> Option<&Choice> {
         self.body.choices.get(peer)
     }
-    /// The `may` a pass to `peer` should carry, canonical form: the choice, or the defaults.
+    /// The `may` a pass to `peer` should carry, canonical form: the choice, or the defaults when
+    /// there is none or it was cleared (`CLEARED`, 10o O6).
     pub fn intended_may_wire(&self, peer: &str) -> String {
         match self.body.choices.get(peer) {
-            Some(c) => c.may.clone(),
-            None => super::reach::intended_may_wire(FriendTicks::default()),
+            Some(c) if c.may != CLEARED => c.may.clone(),
+            _ => super::reach::intended_may_wire(FriendTicks::default()),
         }
     }
     /// `peer`'s ticks in "People I choose" (10c-ii): the choice, or the defaults.
@@ -712,22 +718,33 @@ impl DmStore {
         self.body.choices.insert(peer.to_string(), Choice { may: may.to_string(), at });
         true
     }
-    /// Our own Unfollow of `peer`, echoed from another device at `at`: the choice goes back to the
-    /// defaults as of then (10c-ii, a friendship begun again starts from the defaults), unless a
-    /// newer choice was made since.
+    /// Our own Unfollow of `peer`, echoed from another device at `at`: the choice is cleared as of
+    /// then (10c-ii, a friendship begun again starts from the defaults), unless a newer choice was
+    /// made since. A clear is kept as the empty `may` (`CLEARED`, 10o O6), which any note at the
+    /// same time beats, the same on both clients.
     pub fn clear_choice_at(&mut self, peer: &str, at: u64) -> bool {
-        self.apply_choice(peer, &super::reach::intended_may_wire(FriendTicks::default()), at)
+        self.apply_choice(peer, CLEARED, at)
     }
-    /// Block (10c-ii, 10n N3): the choice for `peer` goes back to the defaults whatever its time,
-    /// dated now, so a note older than this read later cannot bring it back (and notes about
-    /// someone blocked are ignored anyway). True when it was not the defaults already. (Unfollow
-    /// clears it as of its own signed time instead: engine/dm.rs `set_follow`, `clear_choice_at`.)
+    /// Our own Unfollow made on THIS device (engine/dm.rs `set_follow`): the choice for `peer` is
+    /// cleared, dated as [`DmStore::choose`] dates a click here. Returns its time, which the
+    /// Unfollow is signed with.
+    pub fn clear_choice_now(&mut self, peer: &str) -> u64 {
+        self.choose(peer, CLEARED)
+    }
+    /// Block (10c-ii, 10n N3): the choice for `peer` is cleared whatever its time, dated now, so a
+    /// note older than this read later cannot bring it back (and notes about someone blocked are
+    /// ignored anyway). A choice note for them still waiting to go out is dropped (10o O4, the
+    /// web's rule): sent after the Block, it gave my other devices a choice this one had cleared,
+    /// and the devices then fought over their passes. True when anything changed. (Unfollow clears
+    /// it as of its own signed time instead: engine/dm.rs `set_follow`, `clear_choice_at`.)
     pub fn clear_ticks(&mut self, peer: &str) -> bool {
-        let defaults = super::reach::intended_may_wire(FriendTicks::default());
-        if self.body.choices.get(peer).is_some_and(|c| c.may == defaults) {
-            return false;
+        let before = self.body.choices_pending.len();
+        self.body.choices_pending.retain(|p| p.peer != peer);
+        let dropped = self.body.choices_pending.len() != before;
+        if self.body.choices.get(peer).is_some_and(|c| c.may == CLEARED) {
+            return dropped;
         }
-        self.choose(peer, &defaults);
+        self.choose(peer, CLEARED);
         true
     }
     /// The first time a choice note (by its signature hash, `DmInner::dedupe_key`) is seen here:
@@ -1052,7 +1069,8 @@ mod tests {
     /// across a restart; a friend with no choice has the defaults; a friend holding no pass that
     /// carries the choice is owed one (Ben's default pass does not carry his choice); the list
     /// shows everyone holding a pass from us and every mutual follow, once each; clearing (Unfollow,
-    /// Block) sets the defaults with its own time, so an older choice read later cannot come back.
+    /// Block) clears it with its own time (to the defaults; stored as the empty may since 10o O6), so
+    /// an older choice read later cannot come back.
     /// A store written with 10c-ii's `friend_ticks` map, or step B's `may_call` set, loads, and
     /// neither is read (no migration).
     /// Seen red 2026-10-10 with `choices` marked `#[serde(skip)]` (kept in memory, never saved):
@@ -1096,7 +1114,7 @@ mod tests {
         assert_eq!(store.ticks("ben"), chosen, "kept across a restart");
         assert_eq!(store.choice("ben").map(|c| c.at), Some(at), "with its time");
         assert_eq!(store.intended_may_wire("ben"), "call,trade");
-        assert!(store.clear_ticks("ben"), "clearing sets the defaults");
+        assert!(store.clear_ticks("ben"), "clearing gives the defaults");
         assert!(!store.clear_ticks("ben"), "once");
         assert_eq!(store.ticks("ben"), FriendTicks::default(), "back to the defaults");
         assert!(!store.owed_passes().contains(&"ben".to_string()), "and Ben's default pass carries the choice again");
@@ -1154,6 +1172,40 @@ mod tests {
         assert!(!store.first_sight_note("note-1"), "and the notes already applied");
         assert_eq!(store.take_pending_choices().len(), 2);
         assert!(store.pending_choices().is_empty());
+        let _ = std::fs::remove_file(&store.path);
+    }
+
+    /// 10o O6: A CLEARED CHOICE IS THE EMPTY `may` (the web's `''`, the smallest text), stored and
+    /// compared as such, so at an exactly equal time every note beats a clear, and a clear never
+    /// beats a note, the same way on both clients. It still gives, and draws, the defaults. Block's
+    /// clear (`clear_ticks`) is the same, once, and drops a choice note for them still waiting to go
+    /// out (10o O4). "call,trade" is the test's note because it sorts below the defaults' text,
+    /// which is what the desktop stored for a clear before.
+    /// Seen red 2026-10-10 two ways: with `clear_choice_at` storing the defaults' text again (the
+    /// old desktop rule), "kept as the empty may, with its time" failed (left
+    /// "invite,message,trade,voice_message"); and with `clear_ticks` leaving the waiting note in
+    /// place, "and drops the note waiting for them, only theirs" failed (left ["dee", "eve"]).
+    #[test]
+    fn a_cleared_choice_is_the_empty_may() {
+        let (seed, me) = identity(63);
+        let mut store = DmStore::load(&seed, &me, &temp_server());
+        let t = 1_760_000_000_000;
+        let defaults = super::super::reach::intended_may_wire(FriendTicks::default());
+        assert!("call,trade" < defaults.as_str(), "the note this test needs");
+
+        store.apply_choice("ben", "trade", t);
+        assert!(store.clear_choice_at("ben", t + 5), "an Unfollow at t+5 clears it");
+        assert_eq!(store.choice("ben").map(|c| (c.may.as_str(), c.at)), Some((CLEARED, t + 5)), "kept as the empty may, with its time");
+        assert_eq!((store.ticks("ben"), store.intended_may_wire("ben")), (FriendTicks::default(), defaults.clone()), "drawn and given as the defaults");
+        assert!(store.apply_choice("ben", "call,trade", t + 5), "a note at exactly the clear's time beats it");
+        assert!(store.apply_choice("cy", "call,trade", t) && !store.clear_choice_at("cy", t), "and a clear at a note's own time does not beat the note");
+
+        store.queue_choice("dee", "call,trade", t);
+        store.queue_choice("eve", "trade", t);
+        assert!(store.clear_ticks("dee"), "Block clears the choice");
+        assert_eq!(store.choice("dee").map(|c| c.may.as_str()), Some(CLEARED));
+        assert_eq!(store.pending_choices().iter().map(|p| p.peer.as_str()).collect::<Vec<_>>(), ["eve"], "and drops the note waiting for them, only theirs");
+        assert!(!store.clear_ticks("dee"), "once");
         let _ = std::fs::remove_file(&store.path);
     }
 

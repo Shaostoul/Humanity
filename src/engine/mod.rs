@@ -20,6 +20,10 @@ pub mod block;
 /// The choice for each friend syncs as its own note (10n of docs/design/blocking-and-safe-mode.md,
 /// 2026-10-10): making it, the notes to oneself, and Unfollows that wait for a connection.
 pub mod choice;
+/// The mailbox of the server we are on, page by page and live (10o O1, 2026-10-10): only pages
+/// carrying this connection's own ref count, and a live DM moves the read position only once its
+/// own fetch is done.
+pub mod mailbox;
 /// Reports the admins can check (step D of docs/design/blocking-and-safe-mode.md, 2026-10-09):
 /// the Report dialog's opening and sending, and the relay's `report_received` and `reports`.
 pub mod report;

@@ -133,7 +133,7 @@ fn a_choice_made_offline_waits_and_goes_first_on_the_next_connection() {
     assert_eq!(a.dm_store.as_ref().unwrap().pending_choices().len(), 2, "kept across a restart");
 
     a.ws_client = link;
-    a.dm_fetch_done = false; // a new connection, its mailbox not read yet
+    a.dm_fetch.done = false; // a new connection, its mailbox not read yet
     sweep(&mut a);
     assert!(frames(&sent).is_empty(), "nothing before the mailbox was read (N7)");
     mailbox_read(&mut a);
@@ -201,7 +201,8 @@ fn a_note_is_applied_once_the_newer_winning_and_never_shown() {
     let bad = DmInner { text: format!("[[hum:choice:v1]]{} /trade", ben.1), ..bad };
     assert!(!crate::engine::dm::ingest_dm(&mut b, &bad), "a malformed note is never shown");
     let store = b.dm_store.as_ref().unwrap();
-    assert_eq!((store.choice(&cy.1).map(|c| c.may.as_str()), store.choice(&me)), (Some(defaults().as_str()), None), "one about someone I blocked, or naming me, changes nothing");
+    // Cy's choice is the Block's clear (the empty may since 10o O6), which the note did not replace.
+    assert_eq!((store.choice(&cy.1).map(|c| c.may.as_str()), store.choice(&me)), (Some(crate::net::dm_store::CLEARED), None), "one about someone I blocked, or naming me, changes nothing");
     assert!(store.conversation(&me).is_empty(), "and no note is ever stored as a message");
     tidy(&b);
 }
@@ -265,7 +266,7 @@ fn the_sweep_waits_until_the_mailbox_was_read() {
     let link = b.ws_client.take();
     crate::engine::reach::set_tick(&mut b, &dee.1, ReachKind::Call, true); // made offline
     b.ws_client = link;
-    b.dm_fetch_done = false;
+    b.dm_fetch.done = false;
 
     sweep(&mut b);
     let back = DmInner { from: cy.1.clone(), to: me.clone(), ts: 5, text: CTL_FOLLOW.into(), sig_b64: "cy-follows".into(), cert: None };
@@ -358,7 +359,7 @@ fn sequence_an_untick_made_offline_and_the_other_device_opened_later() {
     answer(&mut desk, &puts_to(&out, &ben.1)[0], true, "");
     let mailbox: Vec<Value> = out.into_iter().chain(frames(&desk_sent)).collect();
 
-    laptop.dm_fetch_done = false;
+    laptop.dm_fetch.done = false;
     deliver(&mut laptop, &mailbox, &me, &seed);
     mailbox_read(&mut laptop);
     let store = laptop.dm_store.as_ref().unwrap();
@@ -411,7 +412,7 @@ fn sequence_an_untick_whose_pass_is_refused_with_the_other_device_online_then_of
     answer(&mut desk, &again[0], true, "");
     let mailbox = frames(&desk_sent);
     laptop.ws_client = link;
-    laptop.dm_fetch_done = false;
+    laptop.dm_fetch.done = false;
     laptop.pending_puts = Default::default(); // its own put's answer was lost while offline
     deliver(&mut laptop, &mailbox, &me, &seed);
     mailbox_read(&mut laptop);
@@ -456,7 +457,7 @@ fn sequence_an_older_echo_read_after_a_newer_one() {
     let (n1, e1) = (mine(&steps[0])[0].clone(), mine(&steps[0])[1].clone());
     let (n2, e2) = (mine(&steps[1])[0].clone(), mine(&steps[1])[1].clone());
 
-    laptop.dm_fetch_done = false;
+    laptop.dm_fetch.done = false;
     deliver(&mut laptop, &[n2, n1, e2, e1], &me, &seed);
     mailbox_read(&mut laptop);
     let store = laptop.dm_store.as_ref().unwrap();
@@ -517,7 +518,7 @@ fn sequence_an_unfollow_made_offline() {
     assert_eq!((to_ben.text.as_str(), to_ben.ts), (CTL_UNFOLLOW, waiting[0].at), "signed with the time of the Unfollow");
     assert!(desk.dm_store.as_ref().unwrap().pending_unfollows().is_empty());
 
-    laptop.dm_fetch_done = false;
+    laptop.dm_fetch.done = false;
     deliver(&mut laptop, &out, &me, &seed);
     mailbox_read(&mut laptop);
     let store = laptop.dm_store.as_ref().unwrap();
