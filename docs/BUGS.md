@@ -5209,3 +5209,19 @@ it in its worktree and used this same command.
 
 **If it matters later:** linking test builds with LLVM's linker (`rust-lld`), which writes its own
 PDBs, might remove the limit; not tried.
+
+## BUG-175: the web chat asked for the federated server list in an endless loop when it failed (FIXED next release, found 2026-10-09)
+
+`renderServerList` (`web/chat/chat-ui.js`) fetched `/api/federation/servers` whenever the list
+was not loaded yet and redrew itself after every fetch, failed or not. A failed fetch left the
+list "not loaded", so the redraw fetched again at once: a 404 or an unreachable server became an
+unbroken stream of requests from every open chat tab, against our own server (the Block build's
+test looped on it, and in the browser it sent thousands). Also, with no one-at-a-time guard, the
+two redraws the page makes while loading each sent their own request.
+
+**Fixed.** One request at a time; the list redraws only when it arrived; after a failure the next
+request waits 30 seconds, doubling to at most 10 minutes, and a success resets the wait; adding a
+server clears the wait so its refresh still happens.
+
+**Test:** `scripts/tests/server-list-backoff.test.js` (in `just rig-tests`), seen red against the
+old file: 51 requests where 1 was expected, and 2 at load where 1 was expected.

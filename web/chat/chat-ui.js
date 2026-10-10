@@ -1331,6 +1331,14 @@ window.sendComposedContent = sendComposedContent;
 // Federated servers cache (fetched from API).
 var federatedServers = [];
 var federatedServersFetched = false;
+// One request at a time, and after a failure a wait before asking again (2026-10-09). A
+// failed fetch used to leave federatedServersFetched false, and the redraw it triggered
+// fetched again at once, so a 404 or an unreachable server became thousands of requests
+// (found by the Block build's test, which looped on it). The wait starts at 30 s and doubles
+// to at most 10 minutes; a success resets it.
+var federatedFetchInFlight = false;
+var federatedRetryAt = 0;
+var federatedRetryMs = 30000;
 
 (function initSidebarTabs() {
   const SIDEBAR_TAB_KEY = 'humanity_sidebar_tab';
@@ -1648,16 +1656,26 @@ var federatedServersFetched = false;
 
   // (moved above initSidebarTabs)
 
+  /** Fetch the federated server list once; true when it arrived (see the note at federatedRetryAt). */
   async function fetchFederatedServers() {
+    if (federatedFetchInFlight || Date.now() < federatedRetryAt) return false;
+    federatedFetchInFlight = true;
     try {
       const resp = await fetch('/api/federation/servers');
       if (resp.ok) {
         federatedServers = await resp.json();
         federatedServersFetched = true;
+        federatedRetryMs = 30000;
+        return true;
       }
     } catch (e) {
       console.warn('Failed to fetch federated servers:', e);
+    } finally {
+      federatedFetchInFlight = false;
     }
+    federatedRetryAt = Date.now() + federatedRetryMs;
+    federatedRetryMs = Math.min(federatedRetryMs * 2, 600000);
+    return false;
   }
 
   function renderServerList() {
@@ -1666,7 +1684,9 @@ var federatedServersFetched = false;
 
     // Fetch federated servers if not yet loaded.
     if (!federatedServersFetched) {
-      fetchFederatedServers().then(() => renderServerList());
+      // Redraw only when the list actually arrived: redrawing after a failure is what
+      // used to start the next request straight away.
+      fetchFederatedServers().then((arrived) => { if (arrived) renderServerList(); });
     }
 
     // Current server (always first, highlighted).
@@ -1783,7 +1803,7 @@ var federatedServersFetched = false;
       ws.send(JSON.stringify(msg));
     }
     // Refresh after a delay to pick up the new server.
-    setTimeout(() => { federatedServersFetched = false; renderServerList(); }, 3000);
+    setTimeout(() => { federatedServersFetched = false; federatedRetryAt = 0; renderServerList(); }, 3000);
   }
   window.promptAddServer = promptAddServer;
 
