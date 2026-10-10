@@ -1550,9 +1550,14 @@ kids", "family safe", "safe space", "child-proof", "protects your child", "compl
 **The preset is data:** `data/gui/safety_presets.json`, read by both clients (native embeds it
 in `src/embedded_data.rs`, web fetches `/data/gui/safety_presets.json`). One entry, `protected`,
 with: `reach` (`message: friends`, `call: chosen`, `trade: friends`), `warnings_on_friends: true`,
-`pictures_from_non_friends: "never"`, `public_rooms: "read_only_only"` (see below), and the
-on-screen sentences (`sentences`: the finding's sentences 1 to 5, then 6.5's sentences on
-encryption, new identities and the lock's reach, each exactly as written there).
+`pictures_from_non_friends: "never"`, `public_rooms: "read_only_only"` (see below), the PIN
+rules, and EVERY word this feature puts on screen: `sentences` (the reading step: the finding's
+sentences 1, 3 and 4, 6.5's sentences on encryption, new identities and the lock's reach, and
+the finding's sentence 5 reworded to avoid "certified"), `summary`, `review_intro`,
+`status_line`, `routes_line`, `public_rooms_hidden_line`, `public_rooms_explain`,
+`picture_hidden_line`, `accept_needs_pin`, `forgot_pin_explain`, and `avoid_words`, the list each
+client's words test reads. The quoted lines below are copies of those fields; the file wins if
+they ever differ. (Written 2026-10-10 before the builds started, so both clients share it.)
 
 **Turning it on, in order:**
 1. **Read.** The sentences from the preset, in order, and "Continue".

@@ -1,0 +1,44 @@
+{
+  "about": "Safety presets (docs/design/blocking-and-safe-mode.md 10h, 2026-10-10). Read by both clients: the desktop app embeds this file (src/embedded_data.rs), the web chat fetches /data/gui/safety_presets.json. The words follow the dated finding docs/reference/findings/2026-10-10-childrens-online-safety-rules.md (section 6): never 'kid safe', 'child safe', 'compliant' or 'certified', and nothing here says the app or anyone in it is safe. If a sentence stops being true of the build that ships, it comes off the screen the same day.",
+  "presets": [
+    {
+      "id": "protected",
+      "name": "Protected setup",
+      "button": "Turn on the protected setup",
+      "summary": "The protected setup locks these safety settings with a PIN on this device. It does not check anyone's age, and no setting can make an app, or the people in it, safe.",
+      "reach": { "message": "friends", "call": "chosen", "trade": "friends" },
+      "warnings_on_friends": true,
+      "pictures_from_non_friends": "never",
+      "public_rooms": "read_only_only",
+      "pin_digits_min": 4,
+      "pin_digits_max": 12,
+      "pin_wrong_tries_before_wait": 3,
+      "pin_wait_seconds": 60,
+      "sentences": [
+        "The protected setup locks these safety settings with a PIN on this device. It does not check anyone's age, and no setting can make an app, or the people in it, safe.",
+        "Warnings are simple checks for known patterns, run on this device only. They miss things. They never send your messages to anyone and never report anything.",
+        "Nothing about this setup is sent to any server. The server does not know this device is protected.",
+        "Messages are end-to-end encrypted. Nobody, including server admins, can read them to look for danger.",
+        "Anyone can make a new identity for free. Blocking stops that identity; letting only friends message this device stops everyone who is not a friend.",
+        "This lock protects the settings in this app on this device. It does not stop another app, another browser or another device. Your computer's or phone's own family controls can.",
+        "No regulator or outside body has reviewed HumanityOS under any children's privacy or online safety law. Our dated research notes are public."
+      ],
+      "review_intro": "These can already reach this device. Remove anyone you do not want here; the rest stay.",
+      "review_keep": "Keep the rest",
+      "status_line": "The protected setup is on: only friends can message you, and adding a friend needs the PIN.",
+      "routes_line": "With it on, only friends you approved can send direct messages, and adding a friend, joining a group or joining a voice room needs the PIN. Read-only rooms stay visible, and the server's admins can still send notices.",
+      "public_rooms_hidden_line": "Public rooms are hidden by the protected setup.",
+      "public_rooms_explain": "Public rooms are public: anyone on that server can post there.",
+      "picture_hidden_line": "A picture from someone who is not a friend is not shown.",
+      "accept_needs_pin": "Accept (needs the PIN)",
+      "forgot_pin_explain": "Whoever keeps the recovery phrase can change the PIN. Keep the recovery phrase away from the person this protects.",
+      "avoid_words": [
+        "kid safe", "child safe", "safe for kids", "family safe", "safe space", "child-proof",
+        "protects your child", "compliant", "certified", "approved by", "verified",
+        "filters", "blocks predators", "detects grooming", "moderated", "monitor",
+        "collects no personal information", "no personal data", "anonymous",
+        "parental consent", "for kids", "for children"
+      ]
+    }
+  ]
+}
