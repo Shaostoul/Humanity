@@ -18,8 +18,8 @@
 //! words test (net/protected_tests.rs) also reads this file's string literals and holds them to
 //! the preset's `avoid_words`.
 //!
-//! Persistence: the setup's state is `GuiState::protected.setup`, saved in config.json through
-//! `settings_dirty` like the other safety settings (config.rs `protected_setup`); the PINs and
+//! Persistence: the setup's state is `GuiState::protected.setup`, saved through `settings_dirty`
+//! with the other settings but into its own file (net/protected_store.rs); the PINs and
 //! phrases typed here are cleared as soon as they are checked or made into a verifier.
 
 use egui::RichText;
@@ -53,6 +53,41 @@ pub(crate) fn accept_label(state: &mut GuiState) -> String {
     "Accept".to_string()
 }
 
+/// The words of the locked recovery-phrase controls in Settings: the preset's `show_phrase`
+/// button and its `phrase_needs_pin` line.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PhraseLock {
+    pub button: String,
+    pub line: String,
+}
+
+/// Are the recovery phrase and the device-link QR (which carries the seed the phrase comes from)
+/// locked in Settings right now? While the setup is on and the PIN has not been entered for them
+/// in this run, yes, with the preset's words for the button and the line (10h, as built: whoever
+/// has the phrase can set a new PIN). Locked even when the preset could not be read (fail
+/// closed): then the words are empty and Settings shows no button, never the phrase.
+pub(crate) fn phrase_lock(state: &mut GuiState) -> Option<PhraseLock> {
+    if !crate::engine::protected::is_on(state) || state.protected.phrase_shown {
+        return None;
+    }
+    crate::engine::protected::ensure_preset(state);
+    let words = state.protected.preset.as_ref().map(|p| (p.labels.show_phrase.clone(), p.labels.phrase_needs_pin.clone()));
+    let (button, line) = words.unwrap_or_default();
+    Some(PhraseLock { button, line })
+}
+
+/// The locked controls drawn: the preset's line, and its button, which asks for the PIN
+/// (`ShowRecoveryPhrase`; the right PIN shows the phrase and the QR until the app closes).
+pub(crate) fn draw_phrase_lock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, lock: &PhraseLock) {
+    if !lock.line.is_empty() {
+        ui.label(RichText::new(&lock.line).size(theme.font_size_small).color(theme.text_muted()));
+        ui.add_space(theme.spacing_xs);
+    }
+    if !lock.button.is_empty() && widgets::secondary_button(ui, theme, &lock.button) {
+        crate::engine::protected::perform(state, ProtectedAction::ShowRecoveryPhrase);
+    }
+}
+
 /// Two masked PIN fields, hinted with the preset's "PIN" and "The same PIN again".
 fn pin_fields(ui: &mut egui::Ui, state: &mut GuiState, preset: &Preset) {
     ui.add(egui::TextEdit::singleline(&mut state.protected.pin_first).password(true).hint_text(&preset.labels.pin).desired_width(200.0));
@@ -62,10 +97,8 @@ fn pin_fields(ui: &mut egui::Ui, state: &mut GuiState, preset: &Preset) {
 /// The section, drawn last on Settings > Safety.
 pub(crate) fn draw_protected_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: egui::Color32) {
     if !crate::engine::protected::ensure_preset(state) {
-        // Without the preset there are no words to show it with; the reason is logged.
-        if let Some(e) = state.protected.preset_error.clone() {
-            widgets::body_hint(ui, theme, &e);
-        }
+        // Without the preset there are no words to show it with. The reason is in the log only:
+        // a parser's message on screen would be words the preset did not choose (10h, "Words").
         return;
     }
     let Some(preset) = state.protected.preset.clone() else { return };
@@ -224,6 +257,11 @@ fn draw_on(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, preset: &Pres
 /// in turn the PIN for the action waiting (with "Forgot the PIN?"), this identity's recovery
 /// phrase, and a new PIN twice. The preset's name heads it; its labels are its words.
 pub(crate) fn draw_pin_prompt(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    // What a locked action made after its PIN for the clipboard (a group's invite ticket): the
+    // PIN's answer had no context to copy with, and this runs every frame with one.
+    if let Some(text) = state.protected.copy_out.take() {
+        ctx.copy_text(text);
+    }
     let Some(mode) = state.protected.prompt.as_ref().map(|p| p.mode) else { return };
     if !crate::engine::protected::ensure_preset(state) {
         crate::engine::protected::cancel_prompt(state);

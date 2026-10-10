@@ -928,13 +928,19 @@ pub struct ChatMessage {
 
 /// Cached parent-message context for a thread reply.
 #[cfg(feature = "native")]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ReplyContext {
     pub sender_key: String,
     pub sender_name: String,
     /// Preview snippet of the parent message (truncated to ~100 chars by render).
     pub preview: String,
     pub timestamp_ms: u64,
+    /// The conversation the reply was started in (`chat_active_channel` then), and whether the
+    /// message replied to was private (a DM or a group). A reply goes only with a send in that
+    /// same conversation and a private one never onto the wire (chat/reply.rs). Empty and false
+    /// for a reply that arrived on someone else's message.
+    pub conversation: String,
+    pub private: bool,
 }
 
 /// One row in the search results list.

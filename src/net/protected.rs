@@ -17,18 +17,20 @@
 //! this code. A test holds all of them, and every string literal in the feature's files, to the
 //! preset's `avoid_words`.
 //!
-//! THE PIN is kept only as a verifier, `PinVerifier`: PBKDF2-SHA-256 at 600,000 iterations
-//! (`crate::config::pbkdf2_sha256`, the vault's own derivation and constant) under a random
-//! 16-byte salt. Neither the PIN nor anything it could be read back from is stored.
+//! THE PIN is kept only as a verifier, `PinVerifier`: PBKDF2-SHA-256 (`crate::config::pbkdf2_sha256`,
+//! the vault's derivation) under a random 16-byte salt, at `PIN_ITERATIONS` (600,000, the PIN's
+//! own constant) when made, and checked at whatever count it records. Neither the PIN nor
+//! anything it could be read back from is stored.
 //!
-//! PER DEVICE: `ProtectedSetup` lives in the app's config.json beside the other safety settings
-//! (config.rs `protected_setup`). It is never in a frame: not in the self-sync notes Block uses,
-//! not in the vault, not in any export. Turning it on sends one ordinary `reach_set`, the same
-//! frame any adult choosing the same rows would send, so no server can tell this device is
-//! protected. A stored setup that cannot be read counts as ON with no PIN that matches (fail
-//! closed): only the recovery phrase can then set a new PIN.
+//! PER DEVICE: `ProtectedSetup` lives in its own file beside config.json (net/protected_store.rs,
+//! written whole or not at all), so damage to config.json, or a config read that fails and falls
+//! back to the defaults, can never turn it off. It is never in a frame: not in the self-sync
+//! notes Block uses, not in the vault, not in any export. Turning it on sends one ordinary
+//! `reach_set`, the same frame any adult choosing the same rows would send, so no server can tell
+//! this device is protected. A missing file is off; one that cannot be read counts as ON with no
+//! PIN that matches (fail closed): only the recovery phrase can then set a new PIN.
 
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 
 use super::reach::{Audience, ReachKind, ReachSettings};
 
@@ -82,16 +84,22 @@ pub struct Labels {
     pub phrase_wrong: String,
     pub waiting_store: String,
     pub not_connected: String,
+    /// The locked Show button for the recovery phrase and the device-link QR (Settings), whose
+    /// right PIN shows both: the QR carries the seed the phrase comes from.
+    pub show_phrase: String,
+    /// The line beside that locked button, saying why it needs the PIN.
+    pub phrase_needs_pin: String,
 }
 
 impl Labels {
     /// Every label, for the words test and the empty-word check.
-    pub fn all(&self) -> [&str; 24] {
+    pub fn all(&self) -> [&str; 26] {
         [
             &self.continue_, &self.cancel, &self.remove, &self.forgot, &self.pin, &self.pin_again, &self.pin_rule,
             &self.pin_wrong, &self.pin_wait, &self.friends, &self.groups, &self.rooms, &self.none, &self.turn_off,
             &self.change_pin, &self.show_rooms, &self.hide_rooms, &self.pictures, &self.pictures_never,
             &self.pictures_click, &self.phrase, &self.phrase_wrong, &self.waiting_store, &self.not_connected,
+            &self.show_phrase, &self.phrase_needs_pin,
         ]
     }
 
@@ -228,9 +236,22 @@ pub fn load_preset(data_dir: &std::path::Path) -> Result<Preset, String> {
 
 // ── The PIN ─────────────────────────────────────────────────────────────────────────────────
 
-/// The PIN's iterations: the vault's own constant, so a future bump moves both (10h: "the same
-/// as the vaults").
-pub const PIN_ITERATIONS: u32 = crate::config::PBKDF2_ITERATIONS_NEW;
+/// The iterations a NEW PIN verifier is made with: 600,000, 10h's number. Its own constant, not
+/// the vault's (`config::PBKDF2_ITERATIONS_NEW`): a stored verifier carries the count it was made
+/// with and is checked at that count, so if this number is raised one day, every PIN already
+/// stored still opens. Tying it to the vault's constant, with the exact match `well_formed` once
+/// asked for, meant any future change to the vault would have locked every stored PIN for good
+/// (only the recovery phrase could then set a new one).
+pub const PIN_ITERATIONS: u32 = 600_000;
+
+/// The fewest iterations a STORED verifier may carry. Every verifier this app has ever made has
+/// 600,000, so one with fewer did not come from it (a hand-edited file) and counts as no PIN.
+pub const PIN_ITERATIONS_MIN: u32 = 600_000;
+
+/// The most iterations a stored verifier may carry. A PIN is checked on the frame, so a damaged
+/// count in the billions would freeze the app on every try; far above any count this app will
+/// make, far below one that hangs it.
+pub const PIN_ITERATIONS_MAX: u32 = 10_000_000;
 
 /// What is stored for the PIN (10h): a random 16-byte salt and PBKDF2-SHA-256 of the PIN under
 /// it, both base64, and the iteration count it was made with. Never the PIN.
@@ -258,22 +279,26 @@ impl PinVerifier {
         Self { salt: b64.encode(salt), hash: b64.encode(hash), iterations }
     }
 
-    /// Is this a verifier `new` made: the iteration count, a 16-byte salt, a 32-byte hash? A
-    /// stored one that is not counts as no PIN at all (`ProtectedSetup::from_stored`).
+    /// Is this a verifier this app could have made: an iteration count from `PIN_ITERATIONS_MIN`
+    /// to `PIN_ITERATIONS_MAX` (whatever `PIN_ITERATIONS` was when it was made), a 16-byte salt,
+    /// a 32-byte hash? A stored one that is not counts as no PIN at all
+    /// (`ProtectedSetup::from_stored`).
     pub fn well_formed(&self) -> bool {
         use base64::Engine;
         let b64 = base64::engine::general_purpose::STANDARD;
-        self.iterations == PIN_ITERATIONS
+        (PIN_ITERATIONS_MIN..=PIN_ITERATIONS_MAX).contains(&self.iterations)
             && b64.decode(&self.salt).is_ok_and(|s| s.len() == 16)
             && b64.decode(&self.hash).is_ok_and(|h| h.len() == 32)
     }
 
-    /// Is `pin` the PIN this verifier was made from? Compared in constant time.
+    /// Is `pin` the PIN this verifier was made from, at the iteration count it was made with?
+    /// Compared in constant time. A count over `PIN_ITERATIONS_MAX` is refused before any work,
+    /// so a damaged one can never freeze the app.
     pub fn matches(&self, pin: &str) -> bool {
         use base64::Engine;
         let b64 = base64::engine::general_purpose::STANDARD;
         let (Ok(salt), Ok(want)) = (b64.decode(&self.salt), b64.decode(&self.hash)) else { return false };
-        if want.len() != 32 || self.iterations == 0 || pin.is_empty() {
+        if want.len() != 32 || self.iterations == 0 || self.iterations > PIN_ITERATIONS_MAX || pin.is_empty() {
             return false;
         }
         let got = crate::config::pbkdf2_sha256(pin.as_bytes(), &salt, self.iterations);
@@ -297,8 +322,8 @@ pub enum PinTry {
     NoPin,
 }
 
-/// The setup's state on this device, kept in config.json (`AppConfig::protected_setup`) and
-/// nowhere else. Its default is off, with nothing stored.
+/// The setup's state on this device, kept in its own file beside config.json
+/// (net/protected_store.rs) and nowhere else. Its default is off, with nothing stored.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProtectedSetup {
     /// Whether the protected setup is on.
@@ -361,27 +386,39 @@ impl ProtectedSetup {
         }
     }
 
-    /// The setup from what config.json holds under `protected_setup`. Nothing there, or a setup
-    /// that says it is off, is off. ANYTHING ELSE that cannot be read counts as ON with no PIN
-    /// that matches and the preset's safe rules (fail closed, as the web chat does): a damaged
-    /// file must not be a way to turn it off. A stored verifier that is not one `new` makes counts
-    /// as no PIN. Only the recovery phrase can then set a new one.
+    /// The setup from what its file holds (net/protected_store.rs). Nothing there, or a setup
+    /// that says it is off, is off. ANYTHING ELSE counts as ON (fail closed, as the web chat
+    /// does): a damaged file must not be a way to turn it off.
+    ///
+    /// EACH FIELD IS READ ON ITS OWN (as the web's `protectedStateParse` does), so one damaged
+    /// field never costs the others: a bad `approved` list does not throw away the PIN, and a bad
+    /// `wait_until` does not throw away the approved friends. A field that does not read takes its
+    /// safe value: the rules on, no friends approved, no wait counted, and for the PIN no PIN at
+    /// all (a verifier that is not one this app makes, too), which only the recovery phrase can
+    /// then replace. (Reading the whole struct at once, as this did before, let a single bad field
+    /// reset every field, the PIN included.)
     pub fn from_stored(value: serde_json::Value) -> Self {
         if value.is_null() || value.get("on") == Some(&serde_json::Value::Bool(false)) {
             return Self::default();
         }
-        let parsed = serde_json::from_value::<ProtectedSetup>(value);
-        let mut setup = parsed.unwrap_or_else(|_| Self {
-            warnings_on_friends: true,
-            pictures_hidden: true,
-            public_rooms_hidden: true,
-            ..Self::default()
-        });
-        setup.on = true;
-        if !setup.pin.as_ref().is_some_and(PinVerifier::well_formed) {
-            setup.pin = None;
+        let field = |name: &str| value.get(name).cloned().unwrap_or(serde_json::Value::Null);
+        let rule = |name: &str| field(name).as_bool().unwrap_or(true);
+        let pin = serde_json::from_value::<PinVerifier>(field("pin")).ok().filter(PinVerifier::well_formed);
+        let approved = match field("approved") {
+            serde_json::Value::Array(keys) => keys.iter().filter_map(|k| k.as_str()).map(str::trim).filter(|k| !k.is_empty()).map(str::to_string).collect(),
+            _ => Vec::new(),
+        };
+        Self {
+            on: true,
+            pin,
+            identity: field("identity").as_str().unwrap_or_default().to_string(),
+            approved,
+            warnings_on_friends: rule("warnings_on_friends"),
+            pictures_hidden: rule("pictures_hidden"),
+            public_rooms_hidden: rule("public_rooms_hidden"),
+            wrong_tries: field("wrong_tries").as_u64().and_then(|n| u32::try_from(n).ok()).unwrap_or(0),
+            wait_until: field("wait_until").as_u64().unwrap_or(0),
         }
-        setup
     }
 
     /// One try at the PIN at `now` (Unix seconds), counting wrong tries in a row; the
@@ -438,13 +475,6 @@ impl ProtectedSetup {
     }
 }
 
-/// config.rs reads `protected_setup` through this, so a damaged stored state fails closed
-/// (`ProtectedSetup::from_stored`) instead of making the whole config unreadable, which would
-/// read as the setup off.
-pub fn deserialize_setup<'de, D: Deserializer<'de>>(d: D) -> Result<ProtectedSetup, D::Error> {
-    Ok(ProtectedSetup::from_stored(serde_json::Value::deserialize(d)?))
-}
-
 // ── What needs the PIN ──────────────────────────────────────────────────────────────────────
 
 /// Everything the setup has a rule for, locked or not (10h, "While it is on, these need the PIN"
@@ -464,8 +494,17 @@ pub enum ProtectedAction {
     SendRequest(String),
     /// Redeeming a friend code.
     RedeemFriendCode(String),
+    /// Making a friend code to hand out: whoever redeems it starts a friendship with this device
+    /// without asking (the web locks both halves under its one `friend_code`).
+    MakeFriendCode,
     /// Joining a group by ticket.
     JoinGroup(String),
+    /// Starting a group (the Create Group dialog's Create): a group is a way in that no friend
+    /// list covers, and its first invite ticket is made with it.
+    StartGroup,
+    /// Making (and copying) an invite ticket for a group: the group's id and its name, which
+    /// the ticket carries. A ticket lets in whoever holds it.
+    InviteToGroup(String, String),
     /// Joining a voice room.
     JoinVoice(String),
     /// Turning "Warnings on messages" off.
@@ -497,8 +536,9 @@ impl ProtectedAction {
     pub fn needs_pin(&self) -> bool {
         use ProtectedAction::*;
         match self {
-            ReachRow(..) | Tick(..) | Follow(_) | AcceptRequest(_) | SendRequest(_) | RedeemFriendCode(_) | JoinGroup(_)
-            | JoinVoice(_) | WarningsOff | ShowPictures | ShowPublicRooms | ChangePin | TurnOff | ShowRecoveryPhrase => true,
+            ReachRow(..) | Tick(..) | Follow(_) | AcceptRequest(_) | SendRequest(_) | RedeemFriendCode(_) | MakeFriendCode
+            | JoinGroup(_) | StartGroup | InviteToGroup(..) | JoinVoice(_) | WarningsOff | ShowPictures | ShowPublicRooms
+            | ChangePin | TurnOff | ShowRecoveryPhrase => true,
             Block(_) | Report(_) | Unfollow(_) | LeaveGroup(_) | LeaveRoom(_) => false,
         }
     }
@@ -514,15 +554,55 @@ impl ProtectedAction {
     }
 }
 
-/// A typed chat command that is a locked action: `/redeem <code>` makes a friend. None for
-/// anything else (an ordinary message, or a command the setup has no rule for).
+/// A typed chat command that is a locked action: `/redeem <code>` makes a friend, and
+/// `/friend-code` makes a code that lets someone else start one. None for anything else (an
+/// ordinary message, or a command the setup has no rule for).
 pub fn typed_command(text: &str) -> Option<ProtectedAction> {
     let mut words = text.trim().split_whitespace();
     let first = words.next()?;
     if first.eq_ignore_ascii_case("/redeem") {
         return Some(ProtectedAction::RedeemFriendCode(words.collect::<Vec<_>>().join(" ")));
     }
+    if first.eq_ignore_ascii_case("/friend-code") {
+        return Some(ProtectedAction::MakeFriendCode);
+    }
     None
+}
+
+// ── Files a message links to ────────────────────────────────────────────────────────────────
+
+/// The kinds of file a link names that the web chat turns into a player or a file card
+/// (web/chat/app.js `formatBody`: audio, video, then documents and archives), and so hides from
+/// non-friends with pictures while the setup is on (web/shared/protected.js
+/// `protectedHidePicturesHtml`). Pictures are the image cache's own list.
+pub const FILE_LINK_EXTS: &[&str] = &["mp3", "ogg", "wav", "mp4", "webm", "pdf", "txt", "md", "json", "zip", "tar.gz", "gz"];
+
+/// The links in `text` to a file of one of `FILE_LINK_EXTS`: a web address (`http://` or
+/// `https://`) or a server path (`/uploads/`) whose path ends in one, with any query after it, as
+/// the web's patterns match them. Trailing punctuation is not part of a link.
+pub fn file_urls(text: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for token in text.split_whitespace() {
+        let lower = token.to_ascii_lowercase();
+        let Some(start) = ["https://", "http://", "/uploads/"].iter().filter_map(|p| lower.find(p)).min() else { continue };
+        let link = token[start..].trim_end_matches(|c: char| ".,;:!?)]}'\"".contains(c));
+        let path = link.split(['?', '#']).next().unwrap_or("").to_ascii_lowercase();
+        let named = FILE_LINK_EXTS.iter().any(|ext| path.ends_with(&format!(".{ext}")));
+        if named && !out.iter().any(|u| u == link) {
+            out.push(link.to_string());
+        }
+    }
+    out
+}
+
+/// `text` without the links `file_urls` finds, the blank space they leave tidied.
+pub fn strip_file_urls(text: &str) -> String {
+    let mut out = text.to_string();
+    for link in file_urls(text) {
+        out = out.replace(&link, "");
+    }
+    let lines: Vec<String> = out.lines().map(|l| l.split_whitespace().collect::<Vec<_>>().join(" ")).filter(|l| !l.is_empty()).collect();
+    lines.join("\n")
 }
 
 // ── The review step ─────────────────────────────────────────────────────────────────────────
@@ -617,7 +697,7 @@ pub struct PinPrompt {
     pub mode: PromptMode,
 }
 
-/// Everything the app keeps for the setup: `setup` (saved in config.json) and what lives only
+/// Everything the app keeps for the setup: `setup` (saved in its own file) and what lives only
 /// while the app runs (the steps, the PIN prompt, a one-shot permission). PINs and phrases typed
 /// are held only until they are checked or made into a verifier, then cleared.
 #[derive(Debug, Default)]
@@ -625,7 +705,10 @@ pub struct ProtectedUi {
     pub setup: ProtectedSetup,
     /// The preset, loaded the first time it is needed.
     pub preset: Option<Preset>,
-    pub preset_error: Option<String>,
+    /// The preset could not be read (neither the data folder's copy nor the one built in). Only
+    /// a flag: the reason goes to the log, never to the screen, where a parser's message would be
+    /// words the preset did not choose (10h, "Words").
+    pub preset_failed: bool,
     /// Turning it on: the step reached, or None.
     pub step: Option<SetupStep>,
     /// The two PIN fields of a "choose a PIN" step (turning on, or a new PIN in the prompt).
@@ -646,6 +729,14 @@ pub struct ProtectedUi {
     /// The recovery phrase may be shown in Settings until the app closes (the PIN was entered
     /// for it).
     pub phrase_shown: bool,
+    /// A friend code was redeemed with the PIN, and the server has not yet said whose it was. The
+    /// PIN given for the code covers the friend it names, so its answer (engine/friend_code.rs)
+    /// follows them without asking again; used up by that answer.
+    pub code_redeemed: bool,
+    /// Text a locked action made after its PIN that belongs on the clipboard (a group's invite
+    /// ticket). The PIN's answer runs without the egui context that copies, so it waits here and
+    /// the PIN prompt's drawing, which has the context, copies it on the next frame.
+    pub copy_out: Option<String>,
     /// A one-line result for Settings > Safety's section.
     pub line: String,
 }

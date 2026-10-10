@@ -1688,6 +1688,8 @@ mod native_app {
             if let Some(config) = crate::config::AppConfig::load_if_exists() {
                 config.apply_to_gui_state(&mut gui_state);
             }
+            // The protected setup has its own file, read whether or not config.json exists or reads (10h).
+            gui_state.protected.setup = crate::config::AppConfig::load_protected_setup();
             // Resume the world clock where the save left it, and age the garden
             // by the time away when offline progression is on (2026-09-25).
             // Here and not at the apply above because the toggle is a setting,

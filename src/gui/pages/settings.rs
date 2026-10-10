@@ -667,12 +667,11 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             let salt = state.key_salt.clone();
             let iters = state.key_iterations;
             // Step G: while the protected setup is on, showing the phrase needs its PIN first,
-            // because whoever has the phrase can change the PIN (10h, "Forgot the PIN?").
-            let pin_ok = !crate::engine::protected::is_on(state) || state.protected.phrase_shown;
-            let reveal = if !pin_ok {
-                if widgets::secondary_button(ui, theme, "Show Recovery Phrase") {
-                    crate::engine::protected::perform(state, crate::net::protected::ProtectedAction::ShowRecoveryPhrase);
-                }
+            // because whoever has the phrase can change the PIN (10h, "Forgot the PIN?"). The
+            // locked button and its line are the preset's words (`show_phrase`, `phrase_needs_pin`).
+            let phrase_lock = crate::gui::pages::safety_protected::phrase_lock(state);
+            let reveal = if let Some(lock) = &phrase_lock {
+                crate::gui::pages::safety_protected::draw_phrase_lock(ui, theme, state, lock);
                 false
             } else if !enc.is_empty() && !salt.is_empty() {
                 let lock = state.section_locks.entry("seed_phrase".to_string()).or_default();
@@ -741,11 +740,9 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             // Step G: the QR carries the seed, from which the recovery phrase follows, so while the
             // protected setup is on it needs the PIN exactly as the phrase does (the same gate and
             // the same flag; the web chat gates its device-link code the same way).
-            let qr_pin_ok = !crate::engine::protected::is_on(state) || state.protected.phrase_shown;
-            let qr_reveal = if !qr_pin_ok {
-                if widgets::secondary_button(ui, theme, "Show device-link QR") {
-                    crate::engine::protected::perform(state, crate::net::protected::ProtectedAction::ShowRecoveryPhrase);
-                }
+            let qr_lock = crate::gui::pages::safety_protected::phrase_lock(state);
+            let qr_reveal = if let Some(lock) = &qr_lock {
+                crate::gui::pages::safety_protected::draw_phrase_lock(ui, theme, state, lock);
                 false
             } else if !enc.is_empty() && !salt.is_empty() {
                 let lock = state.section_locks.entry("link_device_qr".to_string()).or_default();

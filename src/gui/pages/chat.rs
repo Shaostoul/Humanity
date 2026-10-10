@@ -26,8 +26,8 @@ use crate::gui::widgets;
 mod p2p_groups;
 pub(crate) use p2p_groups::{
     broadcast_group_obj, drain_p2p_loaders, ensure_group_mesh, handle_p2p_group_obj,
-    join_group_with_ticket, leave_p2p_group, refresh_p2p_groups, spawn_group_load,
-    spawn_groups_list_refresh,
+    invite_to_group, join_group_with_ticket, leave_p2p_group, refresh_p2p_groups,
+    spawn_group_load, spawn_groups_list_refresh,
 };
 use p2p_groups::{
     apply_group_load, disband_p2p_group, mint_and_copy_p2p_invite, send_p2p_group_message,
@@ -47,7 +47,7 @@ use right_panel::{draw_live_strip, draw_right_panel};
 /// add-server, edit-channel, create/join group, the Commons explainer, the
 /// slash-command help, and the voice call. See `chat/modals.rs`.
 mod modals;
-pub(crate) use modals::{draw_call_bar, draw_incoming_call_modal, draw_user_modal};
+pub(crate) use modals::{create_p2p_group, draw_call_bar, draw_incoming_call_modal, draw_user_modal};
 use modals::{
     draw_add_server_modal, draw_commons_info_modal, draw_create_group_modal,
     draw_edit_channel_modal, draw_help_modal, draw_join_group_modal, draw_pins_modal,
@@ -79,6 +79,9 @@ pub(crate) use attach_send::upload_file_blocking;
 mod attach_view;
 #[cfg(test)]
 pub(crate) use attach_view::{cache_key as private_file_key, open as open_private_file};
+/// Quote / reply: a reply stays in its own conversation and never carries private words or a
+/// file's key. See `chat/reply.rs`.
+mod reply;
 
 // Maximum messages kept in the local chat buffer (was hardcoded, now uses theme.max_messages if needed).
 
@@ -91,6 +94,7 @@ const MAX_PANEL_WIDTH: f32 = 400.0;
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     crate::engine::warnings::ensure_loaded(state); // step F's patterns, read once
+    reply::drop_if_elsewhere(state); // a reply belongs to the conversation it was started in
     // ── Clipboard image paste detection ──
     // The Ctrl+V key event is detected at the RAW WINIT LAYER (see
     // src/lib.rs window_event) which sets state.pending_clipboard_paste.
@@ -683,10 +687,12 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     } else {
                         crate::gui::widgets::image_cache::extract_image_urls(&msg.content)
                     };
-                    // Step G: a non-friend's pictures and files are left out, one line instead.
-                    let pictures_hidden = (enc_att.is_some() || !image_urls.is_empty()) && crate::engine::protected::hides_pictures_from(state, &msg.sender_key);
-                    let display_text = if pictures_hidden && enc_att.is_some() {
-                        protected::picture_hidden_line(state).to_string()
+                    // Step G: a non-friend's pictures and files (audio, video, documents too) are
+                    // left out, one line instead (chat/protected.rs `withheld`).
+                    let withheld = protected::withheld(state, msg);
+                    let pictures_hidden = withheld.is_some();
+                    let display_text = if let Some(rest) = withheld {
+                        rest
                     } else if enc_att.is_some() {
                         String::new()
                     } else if image_urls.is_empty() {
@@ -733,11 +739,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             egui::Sense::hover(),
                         );
                         ui.painter().rect_filled(row_rect, 0.0, row_bg);
-                        let preview = if reply.preview.len() > 60 {
-                            format!("{}…", &reply.preview[..60])
-                        } else {
-                            reply.preview.clone()
-                        };
+                        let preview = reply::cut(&reply.preview, reply::QUOTE_CHARS); // never inside a character
                         // A reply to someone we blocked shows neither their name nor their words (step C).
                         let quoted = if crate::engine::block::is_blocked(state, &reply.sender_key) { "↩ a reply to someone you blocked".to_string() } else { format!("↩ {}: {}", reply.sender_name, preview) };
                         ui.painter().text(
@@ -953,17 +955,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             // ↩ U+21A9 is in the Arrows block which IS in the
                             // loaded font — safe to keep.
                             if msg.timestamp_ms > 0 && ui.button("↩ Quote / reply").clicked() {
-                                let preview = if msg.content.len() > 80 {
-                                    format!("{}…", &msg.content[..80])
-                                } else {
-                                    msg.content.clone()
-                                };
-                                pending_reply = Some(crate::gui::ReplyContext {
-                                    sender_key: msg.sender_key.clone(),
-                                    sender_name: msg.sender_name.clone(),
-                                    preview,
-                                    timestamp_ms: msg.timestamp_ms,
-                                });
+                                pending_reply = Some(reply::context_for(msg, &state.chat_active_channel, msg.timestamp_ms));
                                 ui.close_menu();
                             }
                             if msg.timestamp_ms > 0 && !is_private_channel(&msg.channel) && ui.button("Pin message").clicked() {
@@ -1211,15 +1203,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                                         .min_size(Vec2::new(26.0, 22.0))
                                                         .rounding(Rounding::same(4))
                                                 ).on_hover_text("Reply").clicked() {
-                                                    let preview = if msg.content.len() > 80 {
-                                                        format!("{}…", &msg.content[..80])
-                                                    } else { msg.content.clone() };
-                                                    pending_reply = Some(crate::gui::ReplyContext {
-                                                        sender_key: msg.sender_key.clone(),
-                                                        sender_name: msg.sender_name.clone(),
-                                                        preview,
-                                                        timestamp_ms: target_ts,
-                                                    });
+                                                    pending_reply = Some(reply::context_for(msg, &state.chat_active_channel, target_ts));
                                                 }
                                                 if !is_private_channel(&msg.channel) && ui.add(
                                                     egui::Button::new(RichText::new("Pin").size(theme.font_size_small).color(chan))
@@ -1552,17 +1536,13 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             .inner_margin(egui::Margin::symmetric(16, 8))
             .show(ui, |ui| {
                 // Reply banner — only shown when a reply context is active.
-                if let Some(ref reply) = state.chat_reply_to.clone() {
+                if let Some(ref target) = reply::made_in(state, &state.chat_active_channel) {
                     ui.horizontal(|ui| {
                         ui.label(
                             RichText::new(format!(
                                 "↩ Replying to {}: {}",
-                                reply.sender_name,
-                                if reply.preview.len() > 60 {
-                                    format!("{}…", &reply.preview[..60])
-                                } else {
-                                    reply.preview.clone()
-                                }
+                                target.sender_name,
+                                reply::cut(&target.preview, reply::QUOTE_CHARS)
                             ))
                             .size(theme.font_size_small)
                             .color(theme.text_muted()),
@@ -2180,6 +2160,7 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
     // before egui sees the key -- one close path, shared with the creature
     // editor, instead of two drifting copies. v0.779)
     crate::engine::warnings::ensure_loaded(state); // step F's patterns, read once
+    reply::drop_if_elsewhere(state); // a reply belongs to the conversation it was started in
     let active = state.chat_active_channel.clone();
     let connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
     let mut close = false;
@@ -2508,14 +2489,21 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                             .max_height(state.ingame_chat_panel_height)
                             .stick_to_bottom(true)
                             .show(ui, |ui| {
-                                let msgs: Vec<(&str, &str, Option<String>)> = state
+                                let msgs: Vec<(&str, String, Option<String>)> = state
                                     .chat_messages
                                     .iter()
                                     .filter(|m| m.channel == active)
                                     .map(|m| {
+                                        // Step G here too: a non-friend's pictures and files are left out, the preset's line instead.
+                                        let line = protected::picture_hidden_line(state);
+                                        let content = match protected::withheld(state, m) {
+                                            Some(rest) if rest.trim().is_empty() || rest == line => line.to_string(),
+                                            Some(rest) => format!("{rest} {line}"),
+                                            None => m.content.clone(),
+                                        };
                                         (
                                             if m.sender_name.is_empty() { "?" } else { m.sender_name.as_str() },
-                                            m.content.as_str(),
+                                            content,
                                             warnings::compact_line(state, m), // step F, short form
                                         )
                                     })
@@ -2536,7 +2524,7 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                                                 .size(theme.font_size_small),
                                         );
                                         ui.label(
-                                            RichText::new(*content)
+                                            RichText::new(content.as_str())
                                                 .color(theme.text_secondary())
                                                 .size(theme.font_size_small),
                                         );
@@ -2604,6 +2592,7 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
 
     if let Some(id) = switch_to {
         state.chat_active_channel = id.clone();
+        state.chat_reply_to = None; // a reply belongs to the conversation it was started in
         // Full switch, mirroring the Chat page (v0.779): CLEAR the shared
         // message vec so the re-fetched history doesn't append older messages
         // after newer live ones (nothing re-sorts on this path), and clear the
@@ -2807,7 +2796,9 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
                         "timestamp": ts,
                         "channel": wire_channel,
                     });
-                    if let Some(ref r) = state.chat_reply_to {
+                    // Only a reply started in this same conversation, and never one to a private
+                    // message: its words would land in a public room (chat/reply.rs).
+                    if let Some(r) = reply::wire_reply(state, &channel) {
                         chat_obj["reply_to"] = serde_json::json!({
                             "from": r.sender_key,
                             "from_name": r.sender_name,
@@ -2853,7 +2844,7 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
             "timestamp": ts,
             "channel": wire_channel,
         });
-        if let Some(ref r) = state.chat_reply_to {
+        if let Some(r) = reply::wire_reply(state, &channel) {
             chat_obj["reply_to"] = serde_json::json!({
                 "from": r.sender_key,
                 "from_name": r.sender_name,
@@ -2868,7 +2859,7 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
         }
         let json_str = chat_obj.to_string();
         let my_key = state.profile_public_key.clone();
-        let local_reply = state.chat_reply_to.clone();
+        let local_reply = reply::made_in(state, &channel);
         let now = chrono_now_str();
         let conn = &mut state.connections[ci];
         if let Some(ws) = conn.ws.as_ref() {
@@ -2911,7 +2902,7 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
     } else {
         "You".to_string()
     };
-    let local_reply_to = state.chat_reply_to.clone();
+    let local_reply_to = reply::made_in(state, &channel); // shown on our own copy only
     // Keep the DM sidebar preview current for our own sends (v0.715).
     if let Some(pk) = channel.strip_prefix("dm:") {
         if let Some(d) = state.chat_dms.iter_mut().find(|d| d.user_key == pk) {

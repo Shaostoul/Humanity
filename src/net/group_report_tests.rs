@@ -361,15 +361,25 @@ fn the_groups_creator_is_read_from_its_own_signed_record() {
 struct Recorder {
     log: Vec<String>,
     posted: Vec<String>,
-    epoch: Option<Vec<u8>>,
+    epoch: Result<Option<Vec<u8>>, String>,
     members: Result<Vec<(String, Option<String>)>, String>,
     refuse_posts: bool,
+    /// The group asked about, and who this device had on its removed list at each post.
+    gid: String,
+    removed_at_post: Vec<Vec<String>>,
+}
+
+impl Recorder {
+    fn new(epoch: Result<Option<Vec<u8>>, String>, members: Result<Vec<(String, Option<String>)>, String>, refuse_posts: bool) -> Self {
+        Self { log: vec![], posted: vec![], epoch, members, refuse_posts, gid: String::new(), removed_at_post: vec![] }
+    }
 }
 
 impl GroupServer for Recorder {
-    fn epoch_payload(&mut self, _group_id: &str) -> Result<Option<Vec<u8>>, String> {
+    fn epoch_payload(&mut self, group_id: &str) -> Result<Option<Vec<u8>>, String> {
         self.log.push("GET epoch".into());
-        Ok(self.epoch.clone())
+        self.gid = group_id.to_string();
+        self.epoch.clone()
     }
     fn members(&mut self, _group_id: &str) -> Result<Vec<(String, Option<String>)>, String> {
         self.log.push("GET members".into());
@@ -378,6 +388,7 @@ impl GroupServer for Recorder {
     fn post(&mut self, submission_json: &str) -> Result<(), String> {
         let v: Value = serde_json::from_str(submission_json).unwrap();
         self.log.push(format!("POST {}", v["object_type"].as_str().unwrap()));
+        self.removed_at_post.push(crate::net::group_remove::removed_here(&self.gid));
         if self.refuse_posts {
             return Err("HTTP 403".into());
         }
@@ -413,7 +424,7 @@ fn remove_posts_a_new_key_for_everyone_else_before_the_removal() {
     let (_, current_json) = api_v2::sign_submission(&ben_seed, current).unwrap();
     let current_payload = B64.decode(serde_json::from_str::<Value>(&current_json).unwrap()["payload_b64"].as_str().unwrap()).unwrap();
     let roster = vec![(ben.clone(), Some(kyber(&ben_seed))), (ann.clone(), Some(kyber(&ann_seed))), (cy.clone(), Some(kyber(&cy_seed)))];
-    let mut server = Recorder { log: vec![], posted: vec![], epoch: Some(current_payload.clone()), members: Ok(roster.clone()), refuse_posts: false };
+    let mut server = Recorder::new(Ok(Some(current_payload.clone())), Ok(roster.clone()), false);
 
     let (epoch, key) = remove_member(&mut server, &ben_seed, &gid, &cy).expect("removed");
     assert_eq!(server.log, ["GET epoch", "GET members", "POST group_epoch_key_v1", "POST group_member_v1"], "the new key, then the remove");
@@ -439,17 +450,76 @@ fn remove_posts_a_new_key_for_everyone_else_before_the_removal() {
     assert_eq!(field("subject").as_bytes().map(hex::encode), Some(cy.clone()), "with Cy as the subject");
 
     // The member list cannot be read: no key can be made, and no one is removed.
-    let mut down = Recorder { log: vec![], posted: vec![], epoch: Some(current_payload.clone()), members: Err("HTTP 502".into()), refuse_posts: false };
+    let mut down = Recorder::new(Ok(Some(current_payload.clone())), Err("HTTP 502".into()), false);
     assert!(matches!(remove_member(&mut down, &ben_seed, &gid, &cy), Err(RemoveError::NoKey(_))));
     assert!(down.posted.is_empty() && !down.log.iter().any(|l| l.starts_with("POST")), "nothing posted when the key cannot be made");
     // The server refuses the new key: the removal is never sent.
-    let mut refusing = Recorder { log: vec![], posted: vec![], epoch: None, members: Ok(roster), refuse_posts: true };
+    let mut refusing = Recorder::new(Ok(None), Ok(roster), true);
     assert!(matches!(remove_member(&mut refusing, &ben_seed, &gid, &cy), Err(RemoveError::NoKey(_))));
     assert_eq!(refusing.log.last().map(String::as_str), Some("POST group_epoch_key_v1"), "the key was tried, the remove never was");
     assert_eq!(
         RemoveError::NoKey(String::new()).sentence("Cy", "Hikers"),
         "Could not remove Cy from Hikers: a new group key could not be made."
     );
+}
+
+/// ONLY "NO KEY YET" IS EPOCH 1 (the 2026-10-10 review, item 2): when the group's current key
+/// cannot be asked for (the server is down) or what it holds does not read, a removal posts
+/// nothing at all, rather than guessing "no key yet" and posting epoch 1 over the real current
+/// key; only the server saying it holds none starts at epoch 1.
+/// Seen red 2026-10-10 with the old `.ok().flatten()...unwrap_or(0)` restored: "the current key
+/// cannot be asked for: no one is removed" failed.
+#[test]
+fn a_removal_that_cannot_read_the_current_key_posts_nothing() {
+    let (ben_seed, ben) = person(81);
+    let (ann_seed, ann) = person(82);
+    let (_cy_seed, cy) = person(83);
+    let (gid, _) = group_v1(&ben_seed, "Walkers");
+    let roster = vec![(ben.clone(), Some(kyber(&ben_seed))), (ann.clone(), Some(kyber(&ann_seed))), (cy.clone(), None)];
+    for (why, epoch) in [("the current key cannot be asked for", Err("HTTP 502".to_string())), ("the key the server holds does not read", Ok(Some(b"not a key payload".to_vec())))] {
+        let mut server = Recorder::new(epoch, Ok(roster.clone()), false);
+        assert!(matches!(remove_member(&mut server, &ben_seed, &gid, &cy), Err(RemoveError::NoKey(_))), "{why}: no one is removed");
+        assert!(!server.log.iter().any(|l| l.starts_with("POST")), "{why}: nothing is posted: {:?}", server.log);
+        assert!(!crate::net::group_remove::removed_here(&gid).contains(&cy), "{why}: they stay a member later keys reach");
+    }
+    let mut fresh = Recorder::new(Ok(None), Ok(roster), false);
+    assert_eq!(remove_member(&mut fresh, &ben_seed, &gid, &cy).map(|(e, _)| e), Ok(1), "the server holds no key: epoch 1");
+}
+
+/// THE REKEY NEVER SEALS TO SOMEONE BEING REMOVED (the review, item 2): the person is on this
+/// device's removed list BEFORE the new key is posted (so the creator's rekey, which runs every
+/// couple of seconds while the group is open, cannot seal them a copy in the moment the server
+/// still lists them), and the rekey's roster leaves them out while it lists everyone else; a key
+/// that could not be made takes them back off the list.
+/// Seen red 2026-10-10 two ways: with `note_removed` called after the key was posted, "on the
+/// list when the new key is posted" failed (an empty list at the first POST); and with
+/// `roster_to_seal` ignoring `left_out`, "the rekey leaves out the person removed" failed.
+#[test]
+fn the_creators_rekey_never_seals_to_someone_this_device_removed() {
+    let (ben_seed, ben) = person(84);
+    let (ann_seed, ann) = person(85);
+    let (cy_seed, cy) = person(86);
+    let (gid, _) = group_v1(&ben_seed, "Climbers");
+    let roster = vec![(ben.clone(), Some(kyber(&ben_seed))), (ann.clone(), Some(kyber(&ann_seed))), (cy.clone(), Some(kyber(&cy_seed)))];
+
+    let mut server = Recorder::new(Ok(None), Ok(roster.clone()), false);
+    remove_member(&mut server, &ben_seed, &gid, &cy).expect("removed");
+    assert_eq!(server.removed_at_post.first().cloned(), Some(vec![cy.clone()]), "on the list when the new key is posted");
+    assert!(crate::net::group_remove::removed_here(&gid).contains(&cy), "and after it, for this run");
+
+    // The rekey, while the server still lists Cy: the current key covers Ben and Ann only.
+    let covered: std::collections::HashSet<String> = [fp(&ben), fp(&ann)].into_iter().collect();
+    let (sealable, added) = api_v2::roster_to_seal(roster.clone(), &covered, &crate::net::group_remove::removed_here(&gid));
+    assert!(sealable.iter().all(|m| m.fp != fp(&cy)), "the rekey leaves out the person removed");
+    assert_eq!((sealable.len(), added), (2, 0), "so nobody is missing a key and no rekey runs");
+    let (_, others) = api_v2::roster_to_seal(roster.clone(), &covered, &[]);
+    assert_eq!(others, 1, "without the list Cy would have been sealed a key");
+
+    // A key that cannot be made removes no one, and leaves no one on the list.
+    let (dee_seed, dee) = person(87);
+    let mut refusing = Recorder::new(Ok(None), Ok(vec![(ben.clone(), Some(kyber(&ben_seed))), (dee.clone(), Some(kyber(&dee_seed)))]), true);
+    assert!(remove_member(&mut refusing, &ben_seed, &gid, &dee).is_err());
+    assert!(!crate::net::group_remove::removed_here(&gid).contains(&dee), "a failed removal takes them back off");
 }
 
 /// Kept and waiting reports live in the encrypted DM store and survive a restart; a report handed
@@ -481,4 +551,98 @@ fn reports_are_kept_in_the_encrypted_store_until_dismissed() {
     assert!(store.remove_group_report(&p.id), "Dismiss");
     assert!(store.group_reports().is_empty() && store.group_report_count(&rep.group_id) == 0, "gone from this device");
     store.remove_file_for_test();
+}
+
+/// A loopback server holding one group: GET of the group object, its latest key and its member
+/// list answer from `group`, `epoch_payload_b64` and `members`; every POST of a signed object is
+/// handed to the receiver and answered 200. Loopback only, so no firewall prompt.
+fn group_server(group: Value, epoch_payload_b64: Option<String>, members: Value) -> (String, std::sync::mpsc::Receiver<String>) {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a loopback port");
+    let url = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
+    let gid = group["object_id"].as_str().unwrap().to_string();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        for stream in listener.incoming().take(16) {
+            let Ok(mut s) = stream else { continue };
+            let _ = s.set_read_timeout(Some(std::time::Duration::from_secs(5)));
+            let mut buf = Vec::new();
+            let mut chunk = [0u8; 8192];
+            let (head, body) = loop {
+                let Ok(got) = s.read(&mut chunk) else { break (String::new(), String::new()) };
+                if got == 0 {
+                    break (String::new(), String::new());
+                }
+                buf.extend_from_slice(&chunk[..got]);
+                let text = String::from_utf8_lossy(&buf).to_string();
+                if let Some(end) = text.find("\r\n\r\n") {
+                    let len = text[..end].lines().find_map(|l| l.to_ascii_lowercase().strip_prefix("content-length:").map(|v| v.trim().parse::<usize>().unwrap_or(0))).unwrap_or(0);
+                    if buf.len() >= end + 4 + len {
+                        break (text[..end].to_string(), text[end + 4..].to_string());
+                    }
+                }
+            };
+            let line = head.lines().next().unwrap_or("").to_string();
+            let (status, answer) = if line.starts_with(&format!("GET /api/v2/objects/{gid} ")) {
+                (200, group.to_string())
+            } else if line.starts_with(&format!("GET /api/v2/groups/{gid}/epoch ")) {
+                match &epoch_payload_b64 {
+                    Some(p) => (200, serde_json::json!({ "payload_b64": p }).to_string()),
+                    None => (404, "{}".to_string()),
+                }
+            } else if line.starts_with(&format!("GET /api/v2/groups/{gid}/members ")) {
+                (200, members.to_string())
+            } else if line.starts_with("POST /api/v2/objects ") {
+                let _ = tx.send(body);
+                (200, "{}".to_string())
+            } else {
+                (404, "{}".to_string())
+            };
+            let _ = write!(s, "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{answer}", answer.len());
+        }
+    });
+    (url, rx)
+}
+
+/// A SHARED-HISTORY GROUP'S FRESH KEY TAKES THE NEXT NUMBER (the 2026-10-10 server review): when the
+/// creator cannot open the group's current key (epoch 3 here, sealed to others only), the rekey's
+/// fallback mints a fresh key as epoch 4, never epoch 1 again (which would put a second, different
+/// key under a number members already hold); and a current key that does not read at all makes no
+/// new key.
+/// Seen red 2026-10-10 two ways: with the fallback's epoch put back to 1, "the next number, not 1"
+/// failed (left: 1, right: 4); and with a current key that does not read taken as "no key yet"
+/// again, "a current key that does not read makes no new key" failed.
+#[test]
+fn a_shared_history_groups_fresh_key_never_reuses_a_number() {
+    let (ben_seed, ben) = person(88);
+    let (ann_seed, ann) = person(89);
+    let (cy_seed, cy) = person(90);
+    let payload = cbor_map(vec![("name", cbor_text("Readers")), ("share_history", crate::relay::core::encoding::cbor_int(1))]);
+    let builder = ObjectBuilder::new("group_v1").created_at(T0).payload_cbor(&payload).unwrap();
+    let (gid, json) = api_v2::sign_submission(&ben_seed, builder).unwrap();
+    let group = served(&gid, &json);
+    // The current key, epoch 3, sealed to Ann only: Ben, the creator, cannot open his copy.
+    let only_ann = [crate::net::group_e2ee::GroupMemberKey { fp: fp(&ann), kyber_pub_b64: kyber(&ann_seed) }];
+    let current = crate::net::group_e2ee::build_group_epoch_key_v1(&gid, 3, &random_epoch_key(), &only_ann).unwrap();
+    let (_, current_json) = api_v2::sign_submission(&ben_seed, current).unwrap();
+    let current_b64 = serde_json::from_str::<Value>(&current_json).unwrap()["payload_b64"].as_str().unwrap().to_string();
+    let members = serde_json::json!({ "members": [
+        { "pubkey": ben, "kyber_public": kyber(&ben_seed) },
+        { "pubkey": ann, "kyber_public": kyber(&ann_seed) },
+        { "pubkey": cy, "kyber_public": kyber(&cy_seed) },
+    ] });
+
+    let (url, posted) = group_server(group.clone(), Some(current_b64), members.clone());
+    let (epoch, key, added) = api_v2::rekey_if_creator_needs(&url, &ben_seed, &gid).expect("the rekey runs").expect("a new key");
+    assert_eq!(epoch, 4, "the next number, not 1");
+    assert_eq!(added, 2, "Ben and Cy lacked the current key");
+    let sent = posted.recv_timeout(std::time::Duration::from_secs(10)).expect("the new key is posted");
+    let sealed = parse_group_epoch_key_payload(&api_v2::verify_submission_json(&sent).expect("signed").payload).unwrap();
+    assert_eq!(sealed.epoch, 4, "posted under the next number");
+    let cy_kp = crate::net::dm_pq::DmPqKeypair::from_bip39_seed(&cy_seed).unwrap();
+    assert_eq!(open_epoch_key(&sealed, &fp(&cy), &cy_kp).unwrap(), (4, key), "and Cy can open it");
+
+    let (url, posted) = group_server(group, Some(B64.encode(b"not a key payload")), members);
+    assert!(api_v2::rekey_if_creator_needs(&url, &ben_seed, &gid).is_err(), "a current key that does not read makes no new key");
+    assert!(posted.recv_timeout(std::time::Duration::from_millis(300)).is_err(), "and nothing is posted");
 }

@@ -177,8 +177,13 @@ pub(crate) enum Arrival {
 
 /// A contact request (a verified DM whose text carries the marker) on any server's store; the
 /// caller saves. The pass must be the SIGNED sender's, for us, on this store's server; one that
-/// is not is dropped with the request. `me` is our key.
-pub(crate) fn contact_request_in(store: &mut DmStore, me: &str, inner: &DmInner) -> Arrival {
+/// is not is dropped with the request. `me` is our key. `may_complete` says whether a request
+/// from someone we already follow may finish the friendship by itself: false while the protected
+/// setup is on and they are not on its approved list (`ProtectedSetup::pass_allowed`), because
+/// finishing it then would store their pass and count them a friend while our own pass to them
+/// is refused, leaving them stuck as half a friend; such a request is listed instead, where
+/// Accept asks for the PIN (10h: "Contact requests show the name with Accept (needs the PIN)").
+pub(crate) fn contact_request_in(store: &mut DmStore, me: &str, inner: &DmInner, may_complete: bool) -> Arrival {
     let Some((_claimed_name, pass)) = crate::net::reach::parse_contact_request_text(&inner.text) else { return Arrival::Dropped };
     if inner.from == me {
         // Ours, from another device: the pass it gave is ours to withdraw later, and asking is
@@ -193,7 +198,7 @@ pub(crate) fn contact_request_in(store: &mut DmStore, me: &str, inner: &DmInner)
         log::warn!("contact request from {}… dropped: its pass failed its check ({e:?})", &inner.from[..12.min(inner.from.len())]);
         return Arrival::Dropped;
     }
-    if store.is_following(&inner.from) {
+    if store.is_following(&inner.from) && may_complete {
         store.store_cert_from(&inner.from, &pass);
         store.set_follower(&inner.from, true);
         store.remove_request(&inner.from);
@@ -210,8 +215,9 @@ pub(crate) fn contact_request_in(store: &mut DmStore, me: &str, inner: &DmInner)
 /// carrying theirs past their gate).
 pub(crate) fn ingest_contact_request(gs: &mut GuiState, inner: &DmInner) {
     let me = gs.profile_public_key.clone();
+    let may_complete = gs.protected.setup.pass_allowed(&inner.from);
     let Some(store) = gs.dm_store.as_mut() else { return };
-    let arrival = contact_request_in(store, &me, inner);
+    let arrival = contact_request_in(store, &me, inner, may_complete);
     store.save();
     match arrival {
         Arrival::Listed(true) => {
@@ -447,7 +453,7 @@ mod tests {
 
         // Ann's own request echoed to her other device: the pass she gave is recorded.
         let mut ann_other = app(&ann, &ann_seed, "reach-ann2");
-        assert_eq!(contact_request_in(ann_other.dm_store.as_mut().unwrap(), &ann, &open(&ours, &ann_seed)), Arrival::OwnEcho);
+        assert_eq!(contact_request_in(ann_other.dm_store.as_mut().unwrap(), &ann, &open(&ours, &ann_seed), true), Arrival::OwnEcho);
         let store = ann_other.dm_store.as_ref().unwrap();
         assert_eq!(store.passes_sent_to(&ben).iter().map(|p| p.serial.clone()).collect::<Vec<_>>(), vec![sent.serial.clone()]);
         assert!(store.is_following(&ben), "asking is following");
@@ -456,10 +462,10 @@ mod tests {
         let cy_pass = crate::relay::core::pq_crypto::build_friend_cert(&cy_seed, SERVER, &cy, &ben, &"cc".repeat(16), &crate::relay::core::pq_crypto::FRIEND_PASS_DEFAULT_MAY).unwrap();
         let forged = inner(&ann, &ben, &crate::net::reach::contact_request_text("Ann", &cy_pass));
         let mut ben_fresh = app(&ben, &ben_seed, "reach-ben2");
-        assert_eq!(contact_request_in(ben_fresh.dm_store.as_mut().unwrap(), &ben, &forged), Arrival::Dropped, "someone else's pass");
+        assert_eq!(contact_request_in(ben_fresh.dm_store.as_mut().unwrap(), &ben, &forged, true), Arrival::Dropped, "someone else's pass");
         let for_cy = crate::relay::core::pq_crypto::build_friend_cert(&ann_seed, SERVER, &ann, &cy, &"dd".repeat(16), &crate::relay::core::pq_crypto::FRIEND_PASS_DEFAULT_MAY).unwrap();
         let misaddressed = inner(&ann, &ben, &crate::net::reach::contact_request_text("Ann", &for_cy));
-        assert_eq!(contact_request_in(ben_fresh.dm_store.as_mut().unwrap(), &ben, &misaddressed), Arrival::Dropped, "a pass for someone else");
+        assert_eq!(contact_request_in(ben_fresh.dm_store.as_mut().unwrap(), &ben, &misaddressed, true), Arrival::Dropped, "a pass for someone else");
         assert!(ben_fresh.dm_store.as_ref().unwrap().requests().is_empty());
 
         for a in [&ann_app, &ben_app, &ann_other, &ben_fresh] {

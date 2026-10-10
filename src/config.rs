@@ -456,15 +456,16 @@ pub struct AppConfig {
     #[serde(default)]
     pub outside_help_country: String,
     /// Settings > Safety, the protected setup (step G of blocking-and-safe-mode.md 10h,
-    /// 2026-10-10): whether it is on, the PIN's verifier (a salt and a PBKDF2 hash, never the
-    /// PIN), and what was let through with the PIN. THIS DEVICE ONLY: config.json is never sent
-    /// anywhere, and nothing here goes into the self-sync notes or any export (10h, "Per device,
-    /// never synced"). Absent in older configs = off; present but unreadable = ON with no PIN
-    /// that matches (fail closed, `ProtectedSetup::from_stored`), so a damaged file is never a
-    /// way to turn it off. Only boot reads it into the app (`apply_to_gui_state`): there is no
-    /// settings import that could turn it off or replace the PIN.
-    #[serde(default, deserialize_with = "crate::net::protected::deserialize_setup")]
-    pub protected_setup: crate::net::protected::ProtectedSetup,
+    /// 2026-10-10), carried here only on its way to ITS OWN FILE beside config.json
+    /// (net/protected_store.rs): never serialized into config.json. Kept apart because an
+    /// unreadable config.json loads as the defaults, and the default setup is off, so keeping it
+    /// in this file let any damage to it turn the lock off (the 2026-10-10 review). `Some` only in
+    /// a snapshot of the running app (`from_gui_state`): a config loaded from disk and saved again
+    /// carries `None` and leaves the setup's file alone, so no other save path can write it off.
+    /// Boot reads the file itself (`load_protected_setup`); there is no settings import that
+    /// could turn it off or replace the PIN.
+    #[serde(skip)]
+    pub protected_setup: Option<crate::net::protected::ProtectedSetup>,
     /// UI font size. An accessibility setting, so losing it every launch is
     /// worse than losing a cosmetic one.
     #[serde(default = "default_font_size")]
@@ -1436,13 +1437,33 @@ impl AppConfig {
         if SAVES_OFF_DISK.with(|off| off.get()) {
             return;
         }
-        let path = Self::config_path();
+        self.save_at(&Self::config_path());
+    }
+
+    /// Save to `path` (config.json) and, when this is a snapshot of the running app, the
+    /// protected setup to its own file beside it. Each is written whole or not at all (a temp
+    /// file, then a rename: persistence.rs `write_atomic`), so a crash mid-save leaves the old
+    /// file rather than a torn one that would load as the defaults.
+    pub fn save_at(&self, path: &std::path::Path) {
         if let Ok(json) = serde_json::to_string_pretty(self) {
-            match std::fs::write(&path, &json) {
+            match crate::persistence::write_atomic(path, json.as_bytes()) {
                 Ok(_) => log::info!("Saved config to {}", path.display()),
                 Err(e) => log::warn!("Failed to save config to {}: {}", path.display(), e),
             }
         }
+        if let Some(setup) = self.protected_setup.as_ref() {
+            let beside = crate::net::protected_store::path_beside(path);
+            if let Err(e) = crate::net::protected_store::save(&beside, setup) {
+                log::warn!("Failed to save the protected setup to {}: {e}", beside.display());
+            }
+        }
+    }
+
+    /// The protected setup as this device keeps it, from its own file beside config.json:
+    /// missing = off, unreadable = on with no PIN that matches. Read at boot whether or not
+    /// config.json exists or reads, so neither a fresh config nor a damaged one can turn it off.
+    pub fn load_protected_setup() -> crate::net::protected::ProtectedSetup {
+        crate::net::protected_store::load(&crate::net::protected_store::path_beside(&Self::config_path()))
     }
 
     /// Returns true if this config has a legacy plaintext key that needs migration.
@@ -1485,7 +1506,7 @@ impl AppConfig {
             privacy_tier: state.settings.privacy_tier.clone(),
             warnings_on_messages: state.settings.warnings_on_messages,
             outside_help_country: state.settings.outside_help_country.clone(),
-            protected_setup: state.protected.setup.clone(),
+            protected_setup: Some(state.protected.setup.clone()),
             font_size: state.settings.font_size,
             dark_mode: state.settings.dark_mode,
             hint_display: state.settings.hint_display,
@@ -1665,7 +1686,8 @@ impl AppConfig {
         state.settings.privacy_tier = self.privacy_tier.clone();
         state.settings.warnings_on_messages = self.warnings_on_messages;
         state.settings.outside_help_country = self.outside_help_country.clone();
-        state.protected.setup = self.protected_setup.clone();
+        // The protected setup is NOT applied from here: it lives in its own file, which boot reads
+        // whether or not config.json exists or reads (`load_protected_setup`, lib.rs).
         // Clamp the ranges the UI enforces, so a hand-edited config cannot
         // produce an unusable window (a 0 font size or a 0 m far plane).
         state.settings.font_size = self.font_size.clamp(10.0, 24.0);

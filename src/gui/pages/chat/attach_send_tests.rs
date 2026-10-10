@@ -55,12 +55,43 @@ fn assert_private(label: &str, out: Result<String, String>, seen: Option<Upload>
 fn each_kind_of_conversation_says_whether_it_encrypts() {
     assert_eq!(Destination::of("dm:abc"), Destination::DirectMessage);
     assert_eq!(Destination::of("p2pgroup:g1"), Destination::Group);
-    for public in ["general", "announcements", "commons:general", "scratchpad", ""] {
+    assert_eq!(Destination::of("scratchpad"), Destination::Scratchpad);
+    for public in ["general", "announcements", "commons:general", ""] {
         assert_eq!(Destination::of(public), Destination::Public, "{public}");
     }
     assert!(Destination::DirectMessage.encrypts_file(), "a DM encrypts");
     assert!(Destination::Group.encrypts_file(), "a group encrypts");
+    assert!(Destination::Scratchpad.encrypts_file(), "the scratchpad encrypts");
     assert!(!Destination::Public.encrypts_file(), "a public channel does not");
+}
+
+/// THE SCRATCHPAD IS PRIVATE (the 2026-10-10 review, item 10): its label says local-only, so a
+/// file put there goes up encrypted like a DM's (ciphertext, `encrypted=1`, never shared, a 3D
+/// model included), and its marker, with the key, stays in the scratchpad on this device: nothing
+/// is sent over the socket.
+/// Seen red 2026-10-10 with `Destination::of` answering Public for "scratchpad" (the old rule):
+/// "scratchpad, picked: uploaded with encrypted=1" failed.
+#[test]
+fn a_file_in_the_scratchpad_is_encrypted_and_its_key_stays_on_this_device() {
+    let mut gs = viewing("scratchpad");
+    let picked = attach_job(&mut gs, "trail map.jpg", file_bytes()).expect("a picked file");
+    let (out, seen) = run_recorded(picked);
+    assert_private("scratchpad, picked", out.clone(), seen, &file_bytes(), "trail map.jpg", "image/jpeg");
+    let pasted = paste_job(&gs, file_bytes()).expect("a pasted image");
+    let (pasted_out, pasted_seen) = run_recorded(pasted);
+    assert_private("scratchpad, pasted", pasted_out, pasted_seen, &file_bytes(), "pasted-image.png", "image/png");
+    let model = attach_job(&mut gs, "bridge.stl", vec![1, 2, 3]).unwrap();
+    assert!(!model.share, "a model there is never shared to the public library");
+
+    let (client, sent) = crate::net::ws_client::WsClient::recording();
+    gs.ws_client = Some(client);
+    let (tx, rx) = std::sync::mpsc::channel();
+    tx.send(out).unwrap();
+    gs.clipboard_upload = Some(("scratchpad".to_string(), rx));
+    drain(&egui::Context::default(), &mut gs);
+    assert_eq!(gs.chat_messages.len(), 1, "the marker is kept in the scratchpad");
+    assert!(parse_file_marker(&gs.chat_messages[0].content).is_some() && gs.chat_messages[0].channel == "scratchpad");
+    assert!(sent.try_iter().next().is_none(), "and nothing is sent to the server");
 }
 
 /// The proof list's three private cases and the DM's picked file: a pasted image in a DM, a

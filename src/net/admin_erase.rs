@@ -29,11 +29,14 @@ pub const ACTION_LABEL: &str = "Erase their data";
 pub const TYPE_LABEL: &str = "Type their name exactly to confirm";
 
 /// What the confirm says, word for word from 10i: what the erase does and, as important, what it
-/// does not do, so an admin who wants the person kept out knows a ban is a separate step.
+/// does not do, so an admin who wants the person kept out knows a ban is a separate step, and
+/// knows the moderation records about them stay (corrected 2026-10-10: the first wording said
+/// "everything", but reports, bans and mutes about the person are kept, as with the self-erase).
 pub fn confirm_words(name: &str) -> String {
     format!(
         "This deletes everything this server stores about {name}: their messages, profile, uploads, \
-         membership and settings. It cannot be undone. It does not touch anything on their own \
+         membership and settings. Reports, bans and mutes about them are kept, as when someone \
+         erases their own account. It cannot be undone. It does not touch anything on their own \
          devices, and it does not stop them joining again (ban them too for that)."
     )
 }
@@ -101,6 +104,27 @@ pub struct AdminEraseUi {
     pub status: String,
     /// The last receipt, until it is dismissed or another arrives.
     pub receipt: Option<EraseReceipt>,
+    /// The member list's search box: a name or part of a key. The list draws at most
+    /// `MEMBER_ROWS_SHOWN` rows, so without it the action could never reach anyone past them.
+    pub member_search: String,
+}
+
+/// The most member rows Server Settings > Members draws at once: a server can list thousands, and
+/// every row is drawn every frame. Anyone past them is reached with the search box.
+pub const MEMBER_ROWS_SHOWN: usize = 50;
+
+/// The members the list shows for the search box's `query`: the indexes, in order, of every
+/// `(name, key)` whose name or key holds the typed text, letter case ignored (spaces around it
+/// trimmed); everyone when nothing is typed. Found 2026-10-10: the list drew only the first 50
+/// members and had no search, so "Erase their data" could not reach anyone after them.
+pub fn members_matching(members: &[(String, String)], query: &str) -> Vec<usize> {
+    let q = query.trim().to_lowercase();
+    members
+        .iter()
+        .enumerate()
+        .filter(|(_, (name, key))| q.is_empty() || name.to_lowercase().contains(&q) || key.to_lowercase().contains(&q))
+        .map(|(i, _)| i)
+        .collect()
 }
 
 /// Read an `admin_erase_done` frame. None for any other frame. A receipt row that is not a
@@ -264,16 +288,23 @@ mod tests {
         assert!(ui.receipt.is_none(), "another frame was taken for a receipt");
     }
 
-    /// The confirm's words are 10i's, with the name in its place.
+    /// The confirm's words are 10i's, READ FROM THE SPEC (the quoted sentence, its line wrapping
+    /// undone), with the name in its place, so a correction to the spec (2026-10-10: moderation
+    /// records about the person are kept) cannot leave the app saying the old words.
     ///
-    /// Seen red 2026-10-10 with "cannot" written "can not": the two sentences side by side.
+    /// Seen red 2026-10-10 with "cannot" written "can not": the two sentences side by side; and
+    /// again the same day against the corrected spec with the old words put back here: "the app
+    /// says the spec's words" failed, the spec's sentence holding "Reports, bans and mutes about
+    /// them are kept" and the app's not.
     #[test]
     fn the_confirm_says_what_it_does_and_does_not_do() {
-        assert_eq!(
-            confirm_words("Dana"),
-            "This deletes everything this server stores about Dana: their messages, profile, uploads, membership and \
-             settings. It cannot be undone. It does not touch anything on their own devices, and it does not stop them \
-             joining again (ban them too for that)."
-        );
+        let spec = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/design/blocking-and-safe-mode.md")).expect("the spec");
+        let ten_i = &spec[spec.find("## 10i.").expect("10i")..spec.find("## 10j.").expect("10j")];
+        let flat = ten_i.split_whitespace().collect::<Vec<_>>().join(" ");
+        let start = flat.find("\"This deletes everything").expect("the confirm's sentence in 10i") + 1;
+        let end = start + flat[start..].find("(ban them too for that).\"").expect("its end") + "(ban them too for that).".len();
+        let quoted = flat[start..end].replace("<name>", "Dana");
+        assert!(quoted.contains("Reports, bans and mutes about them are kept"), "the corrected sentence: {quoted}");
+        assert_eq!(confirm_words("Dana"), quoted, "the app says the spec's words");
     }
 }
