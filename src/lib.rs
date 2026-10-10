@@ -14391,9 +14391,10 @@ mod native_app {
                         // Lazy start.
                         if ws_connected && have_key && state.gui_state.webrtc.is_none() {
                             let my_key = state.gui_state.profile_public_key.clone();
-                            // TURN credentials come from the server this session
-                            // is connected to (ws/wss URL -> http/https base,
-                            // /ws suffix dropped), not a hardcoded host.
+                            // The server's own STUN entry comes from the server
+                            // this session is connected to (ws/wss URL -> http/https
+                            // base, /ws suffix dropped), not a hardcoded host. Call
+                            // credentials ride the chat socket (step E).
                             let relay_base = {
                                 let ws_url = state.gui_state.connected_server_url.trim();
                                 let ws_url = ws_url.trim_end_matches('/');
@@ -14504,9 +14505,16 @@ mod native_app {
                                             "WebRTC: channel CLOSED with {}", short(&peer)
                                         ));
                                     }
+                                    // Calls through the server (step E): ready, or cannot be had.
+                                    ev @ (crate::net::webrtc::WebrtcEvent::RelayReady { .. }
+                                    | crate::net::webrtc::WebrtcEvent::RelayUnavailable { .. }) => {
+                                        crate::engine::call_relay::on_event(&mut state.gui_state, ev)
+                                    }
                                 }
                             }
                         }
+                        // Ask for the call or voice room's credentials, end the one left (step E).
+                        crate::engine::call_relay::pump(&mut state.gui_state);
                     }
 
                     // Chat history fetch + drain (background thread, short

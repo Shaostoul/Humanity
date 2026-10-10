@@ -2423,6 +2423,9 @@ pub struct GuiState {
     pub block_list: Option<crate::net::block_list::BlockList>,
     /// Reports (step D, 2026-10-09): the Report dialog, the reasons, and the admins' list.
     pub reports: crate::net::report::ReportUi,
+    /// Calls through the server (step E, 2026-10-09): the call or voice room whose credentials
+    /// were asked for, and how far its connection through the server got (engine/call_relay.rs).
+    pub call_relay: crate::net::call_relay::CallRelayUi,
 
     // ── Cosmos page state (v0.203.0, Phase 3) ──
     /// Which view the Cosmos page is currently rendering.
@@ -3973,6 +3976,7 @@ impl Default for GuiState {
             reach: Default::default(),
             block_list: None,
             reports: Default::default(),
+            call_relay: Default::default(),
             server_settings: None,
             server_settings_requested: false,
             erase_memory_days: None,

@@ -62,6 +62,9 @@ mod blocking;
 /// Report (step D): the Report dialog and its buttons. See `chat/report_dialog.rs`.
 mod report_dialog;
 pub(crate) use report_dialog::draw_report_dialog;
+/// Calls through the server (step E): the line the call bar and the voice-room bar show when the
+/// server cannot carry the call. See `chat/call_relay_bar.rs`.
+mod call_relay_bar;
 
 // Maximum messages kept in the local chat buffer (was hardcoded, now uses theme.max_messages if needed).
 

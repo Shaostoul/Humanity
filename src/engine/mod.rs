@@ -17,6 +17,10 @@ pub mod block;
 /// Reports the admins can check (step D of docs/design/blocking-and-safe-mode.md, 2026-10-09):
 /// the Report dialog's opening and sending, and the relay's `report_received` and `reports`.
 pub mod report;
+/// Calls through the server (step E of docs/design/blocking-and-safe-mode.md, 2026-10-09): asking
+/// for a call or voice room's `call_credentials`, handing them to the WebRTC manager, and the line
+/// the call UI shows when the server cannot carry the call.
+pub mod call_relay;
 pub mod editor;
 pub mod frame_lock;
 pub mod geom;
