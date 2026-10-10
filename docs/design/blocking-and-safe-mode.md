@@ -1076,6 +1076,79 @@ allows them (section 4, increment 1 and 2 of section 9).
 After C: reports (section 8), warnings, our own STUN and the forwarder (7.4), the protected
 setup.
 
+## 10c. Step B specification: "Who can reach me" (2026-10-09)
+
+Step A (passes v2) shipped in v0.1466.0. This is step B, written so the relay and both clients
+can be built in parallel against one protocol.
+
+**Kinds the relay enforces now:** `message` (`dm_put`), `call` (`voice_call` rings and the call's
+`webrtc_signal`s), `trade` (`trade_request`). Not yet: `invite` (group invitations travel as
+tickets people paste into messages, so the message rule covers them) and `voice_message` (no
+voice messages exist yet); both stay valid words in a pass for later.
+
+**Audiences**, narrowest first, one per kind:
+
+| Audience | Who gets through |
+|---|---|
+| `nobody` | no one |
+| `chosen` | holders of a valid pass from you whose `may` includes this kind |
+| `friends` | holders of any valid pass from you |
+| `groups` | friends, plus people who share a P2P group with you (`p2p_groups_for_member` on both keys) |
+| `anyone` | everyone (strangers still spend the daily knock budget) |
+
+**Safe defaults** (a person with no saved settings): message `friends`, call `chosen`, trade
+`friends`. New friends' passes carry `invite,message,trade,voice_message` (step A), so by default
+no one can call until the person adds `call` to someone's pass. Admins and mods are bound too
+(10a question 5): no exemption at these gates.
+
+**Storage:** a new table `reach_settings (public_key TEXT, kind TEXT, audience TEXT,
+PRIMARY KEY(public_key, kind)) WITHOUT ROWID`, created with plain `CREATE TABLE IF NOT EXISTS`
+(no ALTER, so BUG-046 does not apply); a missing row means the default. Included in the account
+export, deleted by the account erase. Per server for now; sharing it across federated servers
+as a signed setting (10a) comes with federation work.
+
+**Protocol (exact names; all three parts build against these):**
+- client to relay: `{"type":"reach_set","settings":{"message":"friends","call":"chosen","trade":"friends"}}`
+  from the signed-in socket; any subset of kinds; unknown kinds or audiences refuse the whole
+  set with a Private notice and change nothing.
+- relay to client: `{"type":"reach_settings","settings":{"message":"...","call":"...","trade":"..."}}`
+  with all three kinds filled in (defaults included), sent after a successful identify and after
+  every `reach_set`.
+- a sender refused for `message` or `trade` gets `{"type":"reach_refused","kind":"message","to":"<target key>"}`
+  (the same for everyone refused, so it does not single anyone out, 4.7); nothing is stored or
+  delivered. A refused `call` gets nothing back at all (it rings out, and stays consistent with
+  hidden presence, BUG-172).
+- `dc_offer`: the relay also refuses (silently) an offer unless the sender holds a valid pass
+  from the target, shares a P2P group with them, or both are in the same voice room; this backs
+  up the clients' own gate (BUG-171, BUG-173).
+- **Contact requests:** a sender refused for `message` may send `dm_put` with
+  `"contact_request": true`. The relay lets it through whatever the audience (unless `message`
+  is `nobody`) when its sealed payload is no larger than the smallest padding bucket (256 bytes
+  of plaintext) and the sender has a contact request left today (5 a day per sender, separate
+  from the 20 knocks). The recipient's client shows only the sender's name and Accept or
+  Ignore, never any text it carries: Accept follows back (which exchanges passes), Ignore does
+  nothing and tells no one. Clients also treat any DM from someone their own settings would
+  refuse as a contact request (name only), so a modified client gains nothing by skipping the
+  flag.
+
+**Clients (native first, web mirrors):**
+- **Settings > Safety**: "Who can reach me", one row per kind (Messages, Calls, Trades) with the
+  five audiences in plain words ("Nobody", "People I choose", "Friends", "Friends and people in
+  my groups", "Anyone"), and a "People who may call me" list: choosing a friend re-issues their
+  pass with `call` added (withdraw the old serial, mint a new one), removing them re-issues
+  without it. Show a short line under each row saying what it means.
+- On `reach_refused` for a message: "This person only accepts messages from people they know. You
+  can send a contact request: they will see only your name." with a Send request button.
+- Contact requests appear in a Requests list with Accept and Ignore.
+- `reach_settings` from the relay is the source of truth for what the Safety page shows.
+
+**Proof:** relay tests for each kind under each audience (including the defaults with no row,
+`groups` with a shared P2P group, admins bound, a contact request let through at 256 bytes and
+refused at 1,024, the 5-a-day budget, a refused call getting no reply, a refused `dc_offer`); a
+storage test for the table, export and erase; client unit tests for the settings model and the
+"show as request" rule; a headless snapshot of Settings > Safety (`just snapshot`), only when no
+other HumanityOS instance runs; `just verify`, `just verify-relay`.
+
 ## 11. Docs to update as each piece ships
 
 - `docs/accord/conformance_gaps.md` ("Contact consent cannot be withdrawn")
