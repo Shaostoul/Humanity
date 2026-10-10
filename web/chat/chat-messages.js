@@ -488,27 +488,51 @@ async function handleFileAttachment(event) {
   const file = event.target.files[0];
   if (!file) return;
   event.target.value = ''; // Reset for re-selection
+  await sendAttachment(file);
+}
 
-  // In a DM, the FILE must be as private as the message (2026-08-24): encrypt
-  // it client-side, upload only ciphertext, and send an encrypted-attachment
-  // marker inside the sealed envelope. In a public channel, public is public,
-  // so keep the plain public-URL path.
-  if (typeof activeDmPartner !== 'undefined' && activeDmPartner) {
+/**
+ * The private conversation on screen: 'dm:<key>' for a direct message,
+ * 'group:<id>' for a P2P group, '' for a public channel.
+ */
+function privateConversationNow() {
+  if (typeof activeDmPartner !== 'undefined' && activeDmPartner) return 'dm:' + activeDmPartner;
+  if (window.activeP2pGroup && window.activeP2pGroup.id) return 'group:' + window.activeP2pGroup.id;
+  return '';
+}
+
+/**
+ * Send a picked, pasted or dropped file to the conversation on screen. In a
+ * DM or a P2P group the FILE must be as private as the message (2026-08-24
+ * for picked files in a DM; 10k, 2026-10-10, for everything else): it is
+ * encrypted on this device, only ciphertext is uploaded, and the marker with
+ * its key travels inside the sealed DM or the group's encrypted message. In a
+ * public channel, public is public: the plain upload and its address.
+ */
+async function sendAttachment(file) {
+  if (!file) return;
+  if (privateConversationNow()) {
     await sendEncryptedAttachment(file);
     return;
   }
-  const url = await uploadImage(file); // public channel / group path
+  const url = await uploadImage(file);
   if (url) await window.sendComposedContent(url);
 }
 
-/** Encrypt a file, upload the ciphertext, and send it as a sealed DM. */
+/** Encrypt a file, upload the ciphertext, and send it as a marker in the DM or group on screen. */
 async function sendEncryptedAttachment(file) {
-  // Same 6 MB cap applies to encrypted DM attachments (the ciphertext upload
+  // The conversation it goes to, fixed now: never a public channel (the marker
+  // holds the key, so it would make the file public).
+  const target = privateConversationNow();
+  if (!target) return;
+  // Same 6 MB cap applies to encrypted attachments (the ciphertext upload
   // hits the same nginx body limit). Guard before encrypting/uploading.
   if (attachmentTooLarge(file)) return;
   // The file's name rides in the sealed message: never my recovery phrase
   // (step F, chat-warnings.js).
   if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(file && file.name, 'The file was not sent.')) return;
+  // A group without its key yet cannot take the message: upload nothing.
+  if (target.startsWith('group:') && !(typeof window.p2pGroupCanSend === 'function' && window.p2pGroupCanSend())) return;
   const indicator = document.getElementById('upload-indicator');
   try {
     if (indicator) { indicator.textContent = `Encrypting ${file.name}…`; indicator.style.display = 'block'; }
@@ -531,7 +555,13 @@ async function sendEncryptedAttachment(file) {
       mime: file.type || 'application/octet-stream',
       size: file.size,
     });
-    // Goes through the exact DM send path (sealed envelope) as any message.
+    // Another conversation opened while it uploaded: it is not sent there.
+    if (privateConversationNow() !== target) {
+      addSystemMessage('The file was not sent because another conversation was opened while it uploaded.');
+      return;
+    }
+    // Goes through the exact send path as any message: the DM's seal, or the
+    // group's encrypted message (chat-ui.js sendComposedContent).
     await window.sendComposedContent(marker);
   } catch (e) {
     addSystemMessage(`Encrypted upload failed: ${e && e.message}`);
@@ -550,11 +580,9 @@ document.getElementById('msg-input').addEventListener('paste', async (e) => {
       e.preventDefault();
       const file = item.getAsFile();
       if (!file) return;
-
-      const url = await uploadImage(file);
-      // Route to the in-view target (channel / DM E2EE / group), never
-      // unconditionally to the public channel (privacy fix 2026-07-04).
-      if (url) await window.sendComposedContent(url);
+      // To the conversation in view, never unconditionally to the public
+      // channel (privacy fix 2026-07-04), and encrypted in a DM or a group (10k).
+      await sendAttachment(file);
       return;
     }
   }
@@ -570,10 +598,9 @@ chatArea.addEventListener('drop', async (e) => {
 
   for (const file of files) {
     if (file.type.startsWith('image/')) {
-      const url = await uploadImage(file);
-      // Route to the in-view target (channel / DM E2EE / group), never
-      // unconditionally to the public channel (privacy fix 2026-07-04).
-      if (url) await window.sendComposedContent(url);
+      // To the conversation in view, never unconditionally to the public
+      // channel (privacy fix 2026-07-04), and encrypted in a DM or a group (10k).
+      await sendAttachment(file);
     }
   }
 });
