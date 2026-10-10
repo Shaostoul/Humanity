@@ -327,11 +327,15 @@ function reachStore() {
   return (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
 }
 
-/** Would my settings let `peer` reach me for `kind`? The relay's rule, applied with what this client knows. */
+/**
+ * Would my settings let `peer` reach me for `kind`? The relay's rule, applied
+ * with what this client knows. A pass sent whose answer has not come counts
+ * (10l): the relay honours it if it stored it.
+ */
 function reachAllowsFrom(peer, kind) {
   const store = reachStore();
   return reachAllows(reachCurrent()[kind], kind, {
-    passMay: store ? store.passMayTo(peer) : null,
+    passMay: store ? store.passMayHeld(peer) : null,
     sharesGroup: reachSharesGroupWith(peer),
   });
 }
@@ -472,11 +476,14 @@ function ignoreContactRequest(id) {
 /**
  * Send `peer` a contact request (crypto.js pqBuildContactRequest): a signed,
  * sealed DM flagged `contact_request`, carrying my name and my pass for them
- * with the default `may`, plus the self-copy that tells my other devices. From
- * here I follow them and they hold my pass, so their acceptance gets through
- * and completes the friendship.
+ * with the default `may`, plus the self-copy that tells my other devices. Once
+ * the server takes it (10l: `dm_put_ok` for its ref, chat-social.js
+ * holdPassPut) I follow them and they hold my pass, so their acceptance gets
+ * through and completes the friendship; the self-copy goes then too. Returns
+ * true when it was sent; `opts.onAnswer({taken, outcome, reason})` hears how
+ * it went (the Send request button uses it).
  */
-async function sendContactRequest(peer) {
+async function sendContactRequest(peer, opts) {
   if (!peer || peer === myKey) return false;
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     reachSay('Not connected, so the request was not sent.');
@@ -489,22 +496,50 @@ async function sendContactRequest(peer) {
   }
   // A request carries my name: never my recovery phrase (step F, chat-warnings.js).
   if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(myName, 'The request was not sent.')) return false;
+  // One pass on its way to someone at a time (10l): a request while one is
+  // waiting for the server's answer would be a second pass for them.
+  if (typeof passPutInFlight === 'function' && passPutInFlight(peer)) {
+    reachSay('A request or pass to them is still waiting for this server to answer. Try again in a moment.');
+    return false;
+  }
   const built = await pqBuildContactRequest(peer, myName);
   if (!built) {
     reachSay('The request could not be sent yet: this person has not been online with a current client here, or your identity is still loading. Try again in a moment.');
     return false;
   }
-  ws.send(JSON.stringify(built.recipientPut));
-  ws.send(JSON.stringify(built.selfPut));
-  const store = reachStore();
-  if (store) {
-    store.recordPassSent(peer, built.serial, built.may);
-    store.setFollowing(peer, true);
+  // Recorded only when the server takes it; the self-copy is held until then.
+  const held = typeof holdPassPut === 'function' && holdPassPut(peer, built, {
+    serial: built.serial, may: built.may, kind: 'request',
+    onAnswer: (answer) => contactRequestAnswered(peer, answer, opts),
+  });
+  if (!held) {
+    reachSay('The request could not be sent yet: your settings on this device are still loading. Try again in a moment.');
+    return false;
   }
-  if (typeof myFollowing !== 'undefined') myFollowing.add(peer);
-  if (typeof updateFriendIndicators === 'function') updateFriendIndicators();
-  reachSay('Contact request sent. They will see only your name; if they accept, you become friends.');
+  ws.send(JSON.stringify(built.recipientPut));
   return true;
+}
+
+/**
+ * The server's answer to my contact request (10l). Taken: the pass I gave
+ * them is recorded (chat-social.js settlePassPut) and from here I follow them.
+ * Refused or unanswered: nothing is recorded and I do not follow them; the
+ * person is told, except for a reach refusal, which onReachRefused already
+ * explains (they are not taking requests).
+ */
+function contactRequestAnswered(peer, answer, opts) {
+  if (answer && answer.taken) {
+    const store = reachStore();
+    if (store) store.setFollowing(peer, true);
+    if (typeof myFollowing !== 'undefined') myFollowing.add(peer);
+    if (typeof updateFriendIndicators === 'function') updateFriendIndicators();
+    reachSay('Contact request sent. They will see only your name; if they accept, you become friends.');
+  } else if (answer && answer.outcome === 'refused' && answer.reason !== 'reach') {
+    reachSay(`Your contact request to ${reachDisplayName(peer)} was not delivered. Try again later.`);
+  } else if (answer && answer.outcome === 'timeout') {
+    reachSay(`This server did not say whether your contact request to ${reachDisplayName(peer)} arrived, so it was not counted as sent. Try again later.`);
+  }
+  if (opts && typeof opts.onAnswer === 'function') opts.onAnswer(answer);
 }
 
 /** The relay refused a send: for a message, the sentence and a Send request button. */
@@ -550,10 +585,22 @@ function onReachRefused(msg) {
     // They said no to requests since this was drawn: nothing is sent.
     if (reachNotTaking.has(to) || offer.retired) return;
     btn.disabled = true;
-    const ok = await sendContactRequest(to);
+    // "Request sent" only once the server took it (10l); a request it refused
+    // or never answered can be sent again from here.
+    const ok = await sendContactRequest(to, {
+      onAnswer: (answer) => {
+        if (offer.retired) return; // a refusal of the request took the button away
+        btn.textContent = answer && answer.taken ? 'Request sent' : 'Send request';
+        btn.disabled = !!(answer && answer.taken);
+      },
+    });
     if (offer.retired) return; // a refusal of the request arrived while it was on its way
-    btn.textContent = ok ? 'Request sent' : 'Send request';
-    if (!ok) btn.disabled = false;
+    if (!ok) {
+      btn.textContent = 'Send request';
+      btn.disabled = false;
+    } else if (btn.disabled && btn.textContent === 'Send request') {
+      btn.textContent = 'Sending...';
+    }
   };
   el.appendChild(status);
   el.appendChild(text);
@@ -651,15 +698,18 @@ function safetyModel() {
   });
   const store = reachStore();
   // "People I choose" (10c-ii): each friend I have given a pass, once, with
-  // the ticks that pass carries. The rows' audiences as shown (a choice being
-  // saved included) decide which rows the ticks count for.
+  // the ticks I chose for them: what their pass carries, or a newer choice
+  // whose pass the server has not taken yet (10l, chat-dm-store.js
+  // passMayIntended), so a refused pass never puts the ticks back. The rows'
+  // audiences as shown (a choice being saved included) decide which rows the
+  // ticks count for.
   const given = store ? Object.keys(store.certsSent).filter((p) => store.certSentTo(p)) : [];
   const shown = {};
   for (const r of rows) shown[r.kind] = r.audience;
   const chosen = given.map((key) => ({
     key,
     name: reachDisplayName(key),
-    ticks: reachTicksFromMay(store.passMayTo(key)),
+    ticks: reachTicksFromMay(store.passMayIntended(key)),
     updating: typeof friendPassUpdating === 'function' && friendPassUpdating(key),
   })).sort((a, b) => a.name.localeCompare(b.name));
   return {
@@ -770,9 +820,12 @@ function safetyWarningsHtml(model) {
 /**
  * A tick on the "People I choose" list changed: re-issue that friend's pass
  * (chat-social.js setFriendTick). The page is drawn again at once, so the
- * friend's ticks are held still while their pass is minted, and again when it
- * is done, showing what the pass now carries (or, if it could not be sent,
- * what it carried before). Returns true when it was sent.
+ * friend's ticks are held still while their pass is minted and while it waits
+ * for the server's answer (10l), and again when that comes (chat-social.js
+ * settlePassPut), showing my choice: a pass the server refused is sent again
+ * by the next sweep, and the ticks stay as chosen meanwhile. If it could not
+ * be sent at all, they show what they were before. Returns true when it was
+ * sent.
  */
 async function chooseFriendTick(peer, kind, on) {
   // With the protected setup on, the PIN first (10h): a cancelled prompt puts
@@ -787,7 +840,13 @@ async function chooseFriendTick(peer, kind, on) {
   const pending = setFriendTick(peer, kind, on);
   renderSafetyPanel();
   const ok = await pending.catch(() => false);
-  if (!ok) reachSay('Could not change that now: their key is not known here yet. Try again when they are online.');
+  if (!ok) {
+    // One pass at a time goes to a friend (10l): one may be waiting for the server's answer.
+    const busy = typeof friendPassUpdating === 'function' && friendPassUpdating(peer);
+    reachSay(busy
+      ? 'Could not change that now: their pass is still being updated. Try again in a moment.'
+      : 'Could not change that now: their key is not known here yet. Try again when they are online.');
+  }
   renderSafetyPanel();
   return ok;
 }

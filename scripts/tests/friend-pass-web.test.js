@@ -21,6 +21,12 @@
 //     echo of a pass we gave from another device records its serial.
 //  4. A DM, a call ring and a trade note carry the pass we hold (the ring here).
 //  5. A new server identity voids every pass held or given.
+//  6. 10l (2026-10-10): a pass put carries a ref and counts as given only after the relay's
+//     `dm_put_ok` (only then does the self-copy go); refused or unanswered for 30 seconds,
+//     nothing is recorded or withdrawn and the next member list sends it again; once one is
+//     taken, the one that went unanswered (perhaps standing) is withdrawn and the refused one is
+//     not; Unfollow withdraws a pass still on its way, and its answer records nothing. Every
+//     test answers the relay's way, since a pass counts as given only after that.
 //
 // Red first, 2026-10-09: with `withdrawPassesTo(peer)` taken out of setFollowLocal's unfollow,
 // "unfollowing withdraws the pass" failed (no cert_revoke sent); with the `cert_revoked` case
@@ -168,12 +174,25 @@ async function memberList(ctx) {
 const sentOf = (sock, type) => sock.sent.filter((m) => m.type === type);
 const passesSent = (sock) => sock.sent.filter((m) => m.type === "dm_put" && m.ctl === CTL_FRIEND_CERT && m.to !== ME);
 
+// The relay's answer (10l) to every put that carried a ref and has not been answered yet:
+// `dm_put_ok` as a relay that stored them sends, or `dm_put_refused` with `reason`.
+const answeredRefs = new Set();
+async function answerPuts(ctx, sock, type = "dm_put_ok", reason = "rate") {
+  for (const m of sock.sent) {
+    if (m.type !== "dm_put" || typeof m.ref !== "string" || answeredRefs.has(m.ref)) continue;
+    answeredRefs.add(m.ref);
+    await vm.runInContext("handleMessage", ctx)(type === "dm_put_ok" ? { type, ref: m.ref } : { type, ref: m.ref, reason });
+  }
+  await settle();
+}
+
 test("mutual follows get a pass on the member list, once; withdrawals resend until answered", async () => {
   const { ctx, sock, store } = await loadChat();
   const fp = require(path.join(WEB, "shared", "friend-pass.js"));
   for (const k of [ANN, BEN, CY]) store.setFollowing(k, true);
   for (const k of [ANN, BEN]) store.setFollower(k, true); // Cy does not follow back
   await memberList(ctx);
+  await answerPuts(ctx, sock); // the relay took them (10l)
 
   const given = passesSent(sock);
   assert.deepEqual(given.map((m) => m.to).sort(), [ANN, BEN].sort(), "a pass for each mutual follow, none for a one-way follow");
@@ -250,7 +269,13 @@ test("a sweep owing many passes sends six at once, then waits between the rest",
   const many = Array.from({ length: 10 }, (_, i) => (i + 10).toString(16).padStart(2, "0").repeat(32));
   for (const k of many) { store.setFollowing(k, true); store.setFollower(k, true); }
   const waits = [];
-  ctx.setTimeout = (fn, ms) => { waits.push({ ms, sentSoFar: passesSent(sock).length }); fn(); return 0; };
+  // The 30-second wait for the relay's answer (10l) is not the pacing: it is not run here.
+  ctx.setTimeout = (fn, ms) => {
+    if (ms >= 30000) return 0;
+    waits.push({ ms, sentSoFar: passesSent(sock).length });
+    fn();
+    return 0;
+  };
   const list = many.map((k, i) => ({ public_key: k, name: `M${i}`, role: "", kyber_public: "kyber-" + k.slice(0, 4) }));
   await vm.runInContext("handleMessage", ctx)({ type: "full_user_list", users: list });
   await settle();
@@ -260,3 +285,108 @@ test("a sweep owing many passes sends six at once, then waits between the rest",
   assert.equal(paced.length, 4, "the rest wait their turn: one wait before each pass after the sixth");
   assert.equal(paced[0].sentSoFar, 6, "six went at once before the first wait");
 });
+
+// ── 10l: a pass counts as given only once the server took it (2026-10-10) ──
+// docs/design/blocking-and-safe-mode.md 10l. Every put that gives a pass carries a `ref`; only
+// the relay's `dm_put_ok` for it records the pass as given and lets the self-copy go (my other
+// devices, and this page's own echo, would otherwise adopt a pass the friend never got). A
+// `dm_put_refused`, or 30 seconds with no answer, records nothing and the friend is owed a pass,
+// which the next member list sends again. Red first: see the end of this file.
+
+const REF_FORM = /^[A-Za-z0-9_-]{1,64}$/;
+const selfCopies = (sock) => sock.sent.filter((m) => m.type === "dm_put" && m.to === ME && m.ctl === CTL_FRIEND_CERT);
+
+test("10l: a first pass is recorded only after dm_put_ok; refused or unanswered, the next member list sends it again", async () => {
+  const { ctx, sock, store } = await loadChat();
+  const fp = require(path.join(WEB, "shared", "friend-pass.js"));
+  const answerWaits = [];
+  ctx.setTimeout = (fn, ms) => { if (ms === 30000) answerWaits.push(fn); return 0; };
+  const handle = (msg) => vm.runInContext("handleMessage", ctx)(msg);
+  store.setFollowing(ANN, true);
+  store.setFollower(ANN, true);
+
+  await memberList(ctx);
+  let puts = passesSent(sock);
+  assert.equal(puts.length, 1, "a pass goes to Ann");
+  const first = puts[0];
+  assert.equal(store.certSentTo(ANN), false, "not given until the server says so");
+  assert.ok(typeof first.ref === "string" && REF_FORM.test(first.ref), "the put carries a ref of 1 to 64 letters, digits, _ or -");
+  assert.equal(selfCopies(sock).length, 0, "and my other devices are not told yet");
+  await memberList(ctx);
+  assert.equal(passesSent(sock).length, 1, "one pass on its way at a time: the next list sends no second");
+
+  // Refused (the burst limit): nothing recorded, nothing withdrawn, nothing told.
+  await handle({ type: "dm_put_refused", ref: first.ref, reason: "rate" });
+  await settle();
+  assert.equal(store.certSentTo(ANN), false, "a refused pass is not given");
+  assert.equal(selfCopies(sock).length, 0);
+  assert.equal(sentOf(sock, "cert_revoke").length, 0, "and nothing is withdrawn");
+
+  // The next member list sends it again: the defaults, a new serial, a new ref.
+  await memberList(ctx);
+  puts = passesSent(sock);
+  assert.equal(puts.length, 2, "Ann is still owed a pass");
+  const second = puts[1];
+  assert.equal(fp.friendPassParse(second.cert).may, "invite,message,trade,voice_message", "with the same may");
+  assert.notEqual(second.ref, first.ref);
+  assert.notEqual(fp.friendPassParse(second.cert).serial, fp.friendPassParse(first.cert).serial);
+
+  // Thirty seconds of silence: nothing recorded or withdrawn, and a late answer changes nothing.
+  assert.equal(answerWaits.length, 2, "each put waits 30 seconds for its answer");
+  answerWaits[1]();
+  await settle();
+  assert.equal(store.certSentTo(ANN), false, "an unanswered pass is not given");
+  assert.equal(sentOf(sock, "cert_revoke").length, 0, "and nothing is withdrawn");
+  await handle({ type: "dm_put_ok", ref: second.ref });
+  await settle();
+  assert.equal(store.certSentTo(ANN), false, "an answer after the wait records nothing");
+  assert.equal(selfCopies(sock).length, 0);
+
+  // Again, and this time the server takes it.
+  await memberList(ctx);
+  puts = passesSent(sock);
+  assert.equal(puts.length, 3, "sent again after the silence");
+  const third = puts[2];
+  const thirdSerial = fp.friendPassParse(third.cert).serial;
+  await handle({ type: "dm_put_ok", ref: third.ref });
+  await settle();
+  assert.deepEqual(store.certsSent[ANN], [{ serial: thirdSerial, may: "invite,message,trade,voice_message" }], "given once the server took it");
+  assert.equal(selfCopies(sock).length, 1, "and my other devices are told now");
+  // The unanswered one may be standing on the server: Ann holds the new one, so it is withdrawn.
+  // The refused one was never stored, so nothing is sent for it.
+  assert.deepEqual(sentOf(sock, "cert_revoke").map((m) => m.serial), [fp.friendPassParse(second.cert).serial],
+    "the pass that went unanswered is withdrawn, the refused one is not");
+  await memberList(ctx);
+  assert.equal(passesSent(sock).length, 3, "nothing more is owed");
+
+  // A put that gives no pass carries no ref.
+  await vm.runInContext("setFollowLocal", ctx)(BEN, true);
+  const follow = sock.sent.find((m) => m.type === "dm_put" && m.to === BEN && m.ctl === CTL_FOLLOW);
+  assert.ok(follow && !("ref" in follow), "a follow notice carries no ref");
+});
+
+test("10l: Unfollow while a pass is on its way withdraws it, and its answer records nothing", async () => {
+  const { ctx, sock, store } = await loadChat();
+  const fp = require(path.join(WEB, "shared", "friend-pass.js"));
+  const handle = (msg) => vm.runInContext("handleMessage", ctx)(msg);
+  store.setFollowing(ANN, true);
+  store.setFollower(ANN, true);
+  await memberList(ctx);
+  const [put] = passesSent(sock);
+  const serial = fp.friendPassParse(put.cert).serial;
+  await vm.runInContext("setFollowLocal", ctx)(ANN, false);
+  await settle();
+  assert.deepEqual(sentOf(sock, "cert_revoke").map((m) => m.serial), [serial], "the pass on its way is withdrawn: the server may store it");
+  await handle({ type: "dm_put_ok", ref: put.ref });
+  await settle();
+  assert.equal(store.certSentTo(ANN), false, "its answer records nothing");
+  assert.equal(selfCopies(sock).length, 0, "and my other devices are not told of it");
+});
+
+// Red first, 2026-10-10 (10l). Both tests above were run against web/ as at b46441843 (before
+// 10l) through HOS_WEB_DIR and seen failing there: "not given until the server says so" (the pass
+// was recorded the moment it was sent) and "and my other devices are not told of it" (the
+// self-copy went with it). Then one break at a time in a copy of the fixed web/: the self-copy
+// sent at once failed "and my other devices are not told yet"; chat-dm-store.js withdrawPassesTo
+// leaving passes on their way failed "the pass on its way is withdrawn: the server may store it";
+// the 30-second wait settling as taken failed "an unanswered pass is not given".

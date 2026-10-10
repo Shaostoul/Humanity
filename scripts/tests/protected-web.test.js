@@ -779,7 +779,10 @@ const LOCKED = [
     name: "a People I choose tick",
     before: (c) => befriend(c, ANN, S1),
     run: (c) => c.fn("chooseFriendTick")(ANN, "call", true),
-    done: (c) => c.sock.sent.some((m) => m.type === "cert_revoke" && m.serial === S1) && putsTo(c, ANN).some((m) => opened(m).inner.text === CTL_FRIEND_CERT),
+    // The new pass goes out, waiting for the server's answer: the old one is
+    // withdrawn only once the server took it (10l, reach-web.test.js and
+    // friend-pass-web.test.js prove that part).
+    done: (c) => putsTo(c, ANN).some((m) => opened(m).inner.text === CTL_FRIEND_CERT && typeof m.ref === "string"),
   },
   {
     name: "Follow",

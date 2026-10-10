@@ -59,9 +59,10 @@
 //     refresh; a group row has no Pin for me, and draws where a control it lacks is null (as in a
 //     browser); a Remove makes no key over one it cannot read (only a 404 is "no key yet"), nor
 //     does the creator's re-key on open; someone removed is never sealed to again while the server
-//     still lists them; a received item's time must be a JSON whole number (the shared fixture's
-//     `parsed` cases); an HTTP error keeps the last group list; a refused removal says the desktop
-//     app's sentence.
+//     still lists them, and is sealed to again after a rejoin once its list stopped listing them
+//     (only a list that names me counts); a received item's time must be a JSON whole number (the
+//     shared fixture's `parsed` cases); an HTTP error keeps the last group list; a refused removal
+//     says the desktop app's sentence.
 //
 // Red first: see the end of this file for each deliberate break and the assertion it tripped.
 
@@ -1206,6 +1207,61 @@ test("someone this device removed is never sealed to again while the server stil
     assert.ok(!(await recipients(k)).includes(fx.fp(fx.cy.key)), "no key this device makes is sealed to Cy");
   }
   assert.deepEqual(page.posted.map((p) => p.object_type), [], "and none is needed: everyone else holds the current key");
+});
+
+// Someone the creator removed and later let back in with a new ticket, in the same page visit
+// (2026-10-10): this device's list of people it removed kept them for good, so every key it made
+// left them out until the page was loaded again. Now they leave that list once the server's
+// roster stops listing them (the removal landed), and a rejoin is sealed to like any new member.
+// Seen red against web/ as at b46441843 through HOS_WEB_DIR: "the creator's re-key on opening makes
+// a key for the returning member" (none was made: Cy was still left out). And in a copy of the fixed
+// web/ with _rosterSeen's "names me" check taken out: "while the removal is not seen to land, no key
+// is sealed to Cy".
+test("someone removed and let back in with a new ticket is sealed to once the server stopped listing them", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ben, { groups: GROUP_AS(fx, fx.ben, true) });
+  const { obj, blake3, verify } = fx.m;
+  page.relay.trackEpochs = true; // each new key becomes the one the server serves
+  const roster = (people) => {
+    page.relay.members = people.map((p) => ({ pubkey: p.key, kyber_public: kyberOf(p.key) }));
+    page.relay.groups = [{ group_id: fx.G, name: "Hikers", members: people.map((p) => p.key), is_creator: true }];
+  };
+  const recipients = async (sub) => obj.parseGroupEpochKeyPayload((await obj.verifyObjectSubmission(sub, { blake3, pqVerify: verify })).payload);
+  const keysPosted = () => page.posted.filter((p) => p.object_type === "group_epoch_key_v1");
+  // Open the group as the creator and wait until its re-key check has read the roster.
+  const openAndCheck = async () => {
+    page.posted.length = 0;
+    const before = page.fetched.length;
+    page.fn("openP2pGroup")(fx.G, "Hikers");
+    await waitFor(() => page.fetched.slice(before).filter((f) => f === `GET /api/v2/groups/${fx.G}/members`).length >= 2, "the roster and the re-key check both read the members");
+    await settle();
+    page.fn("closeP2pGroup")();
+    return Promise.all(keysPosted().map(recipients));
+  };
+
+  assert.equal(await page.fn("removeP2pMember")(fx.G, fx.cy.key), true, "Cy is removed (key 2 leaves Cy out)");
+  await settle();
+
+  // A roster that does not name me (the server answers an empty one when it cannot read its own)
+  // teaches nothing: Cy listed again after it is still left out.
+  roster([]);
+  await page.fn("loadP2pGroups")();
+  await openAndCheck();
+  roster([fx.ann, fx.ben, fx.cy]);
+  for (const k of await openAndCheck()) {
+    assert.ok(!k.recipients.map((r) => r.fp).includes(fx.fp(fx.cy.key)), "while the removal is not seen to land, no key is sealed to Cy");
+  }
+
+  // The removal lands: the server's roster no longer lists Cy.
+  roster([fx.ann, fx.ben]);
+  await page.fn("loadP2pGroups")();
+  // Cy joins again with a new ticket, and the server lists Cy again.
+  roster([fx.ann, fx.ben, fx.cy]);
+  const made = await openAndCheck();
+  assert.equal(made.length, 1, "the creator's re-key on opening makes a key for the returning member");
+  assert.ok(made[0].recipients.map((r) => r.fp).includes(fx.fp(fx.cy.key)), "the returning member is sealed to");
+  assert.deepEqual(made[0].recipients.map((r) => r.fp).sort(), [fx.ann, fx.ben, fx.cy].map((p) => fx.fp(p.key)).sort(), "with everyone in the group");
+  assert.equal(made[0].epoch, 3, "the key after the one that left Cy out");
 });
 
 test("a received item's time is a JSON number holding a whole number, as the desktop app reads it", () => {
