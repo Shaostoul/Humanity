@@ -1121,15 +1121,30 @@ as a signed setting (10a) comes with federation work.
 - `dc_offer`: the relay also refuses (silently) an offer unless the sender holds a valid pass
   from the target, shares a P2P group with them, or both are in the same voice room; this backs
   up the clients' own gate (BUG-171, BUG-173).
-- **Contact requests:** a sender refused for `message` may send `dm_put` with
-  `"contact_request": true`. The relay lets it through whatever the audience (unless `message`
-  is `nobody`) when its sealed payload is no larger than the smallest padding bucket (256 bytes
-  of plaintext) and the sender has a contact request left today (5 a day per sender, separate
-  from the 20 knocks). The recipient's client shows only the sender's name and Accept or
-  Ignore, never any text it carries: Accept follows back (which exchanges passes), Ignore does
-  nothing and tells no one. Clients also treat any DM from someone their own settings would
-  refuse as a contact request (name only), so a modified client gains nothing by skipping the
-  flag.
+- **Contact requests (AMENDED in review, 2026-10-09).** The first version (a name-only sealed
+  payload of at most 256 bytes) had two holes the web build found: under the safe defaults the
+  accepter's reply was refused at the requester's end (the accepter held no pass from the
+  requester), so no friendship could ever form; and 256 bytes cannot hold a signature, so anyone
+  could send a request under someone else's name. So a contact request is an ordinary sealed v2
+  DM (its inner payload is signed by the sender, as every DM's is), sent with
+  `"contact_request": true` on the `dm_put`, whose inner text is the control marker
+  `[[hum:contact-request:v1]]` followed by the JSON `{"name":"<sender's registered name>",
+  "pass":"<the sender's v2 pass for the recipient, as its JSON string>"}`. The pass is minted by
+  the requester for the recipient with the default `may` (`invite,message,trade,voice_message`):
+  asking someone to connect is consenting to hear back from them.
+  - **Relay:** lets a `contact_request` `dm_put` through whatever the recipient's `message`
+    audience, except `nobody`, when the sender has a contact request left today (5 a day per
+    sender, separate from the 20 knocks), with the ordinary DM size limits. It stores nothing
+    about who asked whom: the reply gets through because it carries the requester's pass.
+  - **Recipient's client:** verifies the inner signature as for any DM, parses the marker,
+    verifies the pass (issuer = the signed sender, grantee = itself, server = its server's
+    did:hum), and shows only the sender's registered name as the member list knows it for that
+    key (never the claimed `name` alone), with Accept and Ignore; any other text is never shown.
+    Accept follows back and sends its own pass, attaching the requester's pass as `friend_cert`
+    on that `dm_put` so the requester's relay gate admits it. Ignore does nothing and tells no
+    one. A request whose pass does not verify is dropped.
+  - Clients still treat any DM from someone their own settings would refuse as a request
+    (name only, text dropped), so a modified client gains nothing by skipping the flag.
 
 **Clients (native first, web mirrors):**
 - **Settings > Safety**: "Who can reach me", one row per kind (Messages, Calls, Trades) with the
