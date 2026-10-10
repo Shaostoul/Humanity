@@ -1860,6 +1860,37 @@ tampered key or ciphertext gives the failure line; the click-to-load and protect
 apply. Each seen failing once. Native: a snapshot of a group with an inline decrypted image
 (render only when no other instance runs).
 
+## 10l. A pass counts as given only once the server took it (2026-10-10)
+
+Found by the second review of the day's fixes: both apps record a friendship pass as given the
+moment it is written to the socket, and withdraw the old one, but the relay can refuse a `dm_put`
+(its burst limit, `src/relay/handlers/dm_rate.rs`; a new account's slower refill; a reach
+refusal) and never says which send it refused. Pacing made that rarer, not impossible: a run of
+tick changes, or a new account's sweep, still loses passes while the app shows them standing.
+
+**Protocol (exact; relay and both clients build against it):**
+- client to relay: a `dm_put` may carry `"ref": "<the client's id for this send, 1 to 64
+  characters of [A-Za-z0-9_-]>"`. Optional; a `dm_put` without one is handled exactly as today.
+- relay to the sender alone, for a recipient-addressed `dm_put` that carried a `ref`:
+  `{"type":"dm_put_ok","ref":"<ref>"}` once it is stored in the mailbox, or
+  `{"type":"dm_put_refused","ref":"<ref>","reason":"rate"|"reach"|"size"|"other"}` when it is not
+  (the existing notices and `reach_refused` still go as today). The self-copy gets neither.
+- Nothing else changes on the wire, and the relay stores no `ref`.
+
+**Clients (native first, web mirrors):** every `dm_put` that changes friendship state (a new pass,
+a re-issued pass, a contact request's pass) carries a `ref` and is held as pending until its
+answer. Only `dm_put_ok` records the new pass as given; only then are the passes it replaces
+withdrawn. `dm_put_refused`, or no answer within 30 seconds, records nothing and leaves the
+friend owed a pass, so the next sweep tries again with the same intended `may` (the ticks are kept
+apart from the record, so a refusal never resets a friend's ticks). The pacing stays as a
+politeness, not as the guarantee.
+
+**Proof:** relay tests: `dm_put_ok` for a stored put with a ref, `dm_put_refused` with the right
+reason for a rate refusal and a reach refusal, nothing for a put without a ref, nothing for the
+self-copy. Client tests on both: a pass is recorded and the old one withdrawn only after
+`dm_put_ok`; after `dm_put_refused` or a 30-second silence nothing is recorded or withdrawn and
+the next sweep re-sends with the same `may`. Each seen failing once.
+
 ## 11. Docs to update as each piece ships
 
 - `docs/accord/conformance_gaps.md` ("Contact consent cannot be withdrawn")
