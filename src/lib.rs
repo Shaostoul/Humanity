@@ -6823,18 +6823,12 @@ mod native_app {
                                 );
                                 // Mirror the shared-world roster into GuiState so the
                                 // paint-only HUD can show co-presence (v0.774): who else
-                                // is here right now. Names come from the RemotePlayer
-                                // entities net_sync maintains. NO dedup (v0.779): two
-                                // players who both kept the default "Wanderer" name are
-                                // two people -- the count is the entity count.
-                                let mut names: Vec<String> = state
-                                    .game_world
-                                    .world
-                                    .query::<&crate::net::sync::RemotePlayer>()
-                                    .iter()
-                                    .map(|(_, r)| r.name.clone())
-                                    .collect();
-                                names.sort();
+                                // is here right now, from the RemotePlayer entities
+                                // net_sync maintains, a blocked player left out (10m R9).
+                                let names = crate::engine::net_route::copresence_names(
+                                    &state.game_world.world,
+                                    &|r| crate::engine::block::hides_player(&state.gui_state, r),
+                                );
                                 state.gui_state.copresence_active = true;
                                 // Compare-before-assign: the roster only changes on
                                 // join/leave/rename, not every frame.

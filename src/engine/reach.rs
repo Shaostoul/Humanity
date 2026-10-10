@@ -115,7 +115,8 @@ pub(crate) fn current(gs: &GuiState) -> Option<ReachSettings> {
 /// Do we share a P2P group with `key`? The groups the relay lists for us and the open group's
 /// roster (the same facts the direct-connection gate reads, frame_ws_poll_offers.rs). Before the
 /// group list has loaded the answer is not known here, and then the relay's own check stands
-/// (true): a DM it let through is not turned into a request, which would drop its text for good.
+/// (true). Only for tidying the Requests list (`settle_requests`): the checks on what ARRIVES (a
+/// DM's text, a call's ring) take the server's word instead (`LET_THROUGH_SHARES_GROUP`).
 pub(crate) fn shares_group(gs: &GuiState, key: &str) -> bool {
     gs.p2p_groups_last_fetch.is_none()
         || gs.p2p_groups.iter().any(|g| g.members.iter().any(|m| m == key))
@@ -124,14 +125,21 @@ pub(crate) fn shares_group(gs: &GuiState, key: &str) -> bool {
 
 // ── Arrival ─────────────────────────────────────────────────────────────────
 
+/// Group membership in this app's own checks on what arrives is the SERVER's call (10m R8): under
+/// "Friends and people in my groups", someone the server let a DM or a ring through from counts as
+/// sharing a group with us, because the relay checked group membership against its own records
+/// before passing it on. This app's own list of groups goes stale (the desktop refreshes it only
+/// while Chat is open), and an allowed ring from someone who had just joined a group was dropped.
+/// It only matters under that audience; every other one ignores it.
+pub(crate) const LET_THROUGH_SHARES_GROUP: bool = true;
+
 /// THE "show as a request" rule on arrival (10c): a verified DM from someone our own message
 /// setting would refuse goes to the Requests list, name only, and its text is dropped here,
 /// never stored. Returns true when it was screened out (the caller renders nothing).
 pub(crate) fn file_if_refused(gs: &mut GuiState, inner: &DmInner) -> bool {
-    let shares = shares_group(gs, &inner.from);
     let Some(store) = gs.dm_store.as_mut() else { return false };
     let before = store.requests().len();
-    let screened = file_if_refused_in(store, shares, inner);
+    let screened = file_if_refused_in(store, inner);
     if screened {
         let listed = store.requests().len() > before;
         store.save();
@@ -147,12 +155,13 @@ pub(crate) fn file_if_refused(gs: &mut GuiState, inner: &DmInner) -> bool {
 /// engine/bg_connections.rs); the caller saves. Control messages and contact requests are never
 /// screened here: they carry no words of the sender's, and the friendship handshake rides them.
 /// Under "Nobody" nothing is listed either (the server turns contact requests away there too);
-/// the text is still dropped.
-pub(crate) fn file_if_refused_in(store: &mut DmStore, shares_group: bool, inner: &DmInner) -> bool {
+/// the text is still dropped. Whether the sender shares a group with us is the server's call
+/// (`LET_THROUGH_SHARES_GROUP`, 10m R8).
+pub(crate) fn file_if_refused_in(store: &mut DmStore, inner: &DmInner) -> bool {
     use crate::net::dm_pq::{CTL_FOLLOW, CTL_FRIEND_CERT, CTL_UNFOLLOW};
     let control = [CTL_FOLLOW, CTL_UNFOLLOW, CTL_FRIEND_CERT].contains(&inner.text.as_str())
         || inner.text.starts_with(crate::net::reach::CONTACT_REQUEST_MARKER);
-    if control || store.admits_dm_from(&inner.from, shares_group) {
+    if control || store.admits_dm_from(&inner.from, LET_THROUGH_SHARES_GROUP) {
         return false;
     }
     if store.reach_settings().unwrap_or_default().message != Audience::Nobody {
@@ -191,6 +200,8 @@ pub(crate) fn contact_request_in(store: &mut DmStore, me: &str, inner: &DmInner,
         let Ok((given, _)) = crate::relay::core::pq_crypto::parse_friend_cert(&pass) else { return Arrival::Dropped };
         store.record_pass_sent(&inner.to, SentPass { serial: given.serial, may: given.may.wire() });
         store.set_following(&inner.to, true);
+        // An echo of a pass to them: the device that knows has spoken (10m R3).
+        store.clear_changed_elsewhere(&inner.to);
         return Arrival::OwnEcho;
     }
     let server = store.pass_server().unwrap_or("").to_string();
@@ -225,6 +236,8 @@ pub(crate) fn ingest_contact_request(gs: &mut GuiState, inner: &DmInner) {
             gs.pending_notices.push(format!("{name} sent you a contact request. Accept or ignore it under Requests, in Chat or Settings > Safety."));
         }
         Arrival::Completes => {
+            // Their pass reached us with it (10m R7): ours rides it past their gate now.
+            gs.reach.pass_refused.remove(&inner.from);
             crate::engine::dm::send_friend_cert(gs, &inner.from);
             crate::engine::dm::refresh_social_mirrors(gs);
         }
@@ -293,10 +306,15 @@ pub(crate) fn contact_request_puts(gs: &GuiState, peer: &str) -> Result<(serde_j
     Ok((theirs, ours, sent))
 }
 
-/// Send `peer` a contact request (the Send request button). It counts as following them. The pass
-/// in it counts as given only once the server took the request (10l, engine/put_answer.rs), and
-/// from then Unfollow withdraws it like any other; one not taken records nothing and the notice
-/// offers Send request again.
+/// What Send request says while a request or pass to that person still waits for the server's
+/// answer (10m R6, word for word as the web chat says it): one on its way per friend at a time.
+pub(crate) const STILL_WAITING: &str = "A request or pass to them is still waiting for this server to answer. Try again in a moment.";
+
+/// Send `peer` a contact request (the Send request button). The pass in it counts as given, and
+/// asking counts as following them, only once the server took the request (10l; 10m R1, as on the
+/// web: engine/put_answer.rs), and from then Unfollow withdraws it like any other; one not taken
+/// records nothing, follows no one, and the notice offers Send request again. Refused while a
+/// request or pass to them still waits for its answer (R6).
 pub(crate) fn send_contact_request(gs: &mut GuiState, peer: &str) -> Result<(), String> {
     // Step G: asking is following and gives them a pass, so with the protected setup on it
     // needs the PIN; nothing is sent until it has been entered (the prompt is open now).
@@ -306,15 +324,13 @@ pub(crate) fn send_contact_request(gs: &mut GuiState, peer: &str) -> Result<(), 
     if !crate::engine::dm::ensure_dm_store(gs) {
         return Err("Unlock your identity and connect first.".into());
     }
+    if gs.pending_puts.has_peer(peer) {
+        return Err(STILL_WAITING.into());
+    }
     let (theirs, ours, sent) = contact_request_puts(gs, peer)?;
-    if !crate::engine::dm::send_held(gs, peer, theirs, ours, sent, crate::net::put_answers::Held::Request) {
+    if !crate::engine::dm::send_held(gs, peer, theirs, ours, sent, crate::net::put_answers::Held::Request, false) {
         return Err("Connect to the server first.".into());
     }
-    if let Some(store) = gs.dm_store.as_mut() {
-        store.set_following(peer, true);
-        store.save();
-    }
-    crate::engine::dm::refresh_social_mirrors(gs);
     gs.reach.refused.insert(peer.to_string(), crate::net::reach::Refusal::RequestSent);
     gs.reach.status.clear();
     Ok(())
@@ -330,6 +346,9 @@ pub(crate) fn accept_request(gs: &mut GuiState, key: &str) {
     }
     if !crate::engine::dm::ensure_dm_store(gs) {
         return;
+    }
+    if gs.dm_store.as_ref().is_some_and(|s| s.requests().iter().any(|r| r.key == key)) {
+        crate::engine::dm::person_chose(gs, key); // the person's own choice, made here (10m)
     }
     let Some(store) = gs.dm_store.as_mut() else { return };
     let Some(req) = store.remove_request(key) else { return };
@@ -361,6 +380,8 @@ pub(crate) fn set_tick(gs: &mut GuiState, peer: &str, kind: ReachKind, on: bool)
     if !crate::engine::protected::allows(gs, crate::net::protected::ProtectedAction::Tick(peer.to_string(), kind, on)) {
         return;
     }
+    // The person's own choice for them, made here (10m R3, R7): the pass goes out from it.
+    crate::engine::dm::person_chose(gs, peer);
     if let Some(store) = gs.dm_store.as_mut() {
         let mut ticks = store.ticks(peer);
         ticks.set(kind, on);
@@ -676,5 +697,37 @@ mod tests {
         gs.dm_store.as_mut().unwrap().set_reach_settings(ReachSettings { call: Audience::Anyone, ..Default::default() });
         assert!(rings(&mut gs, &stranger), "under Anyone a stranger rings");
         gs.dm_store.as_ref().unwrap().remove_file_for_test();
+    }
+
+    /// 10m R8: GROUP MEMBERSHIP IN THIS APP'S OWN CHECKS IS THE SERVER'S CALL. Under "Friends and
+    /// people in my groups" someone the server let a DM or a ring through from counts as sharing
+    /// a group: this app's own group list goes stale (refreshed only while Chat is open), and
+    /// here it has loaded empty, as a stale one is when Gus has just joined. His DM is a DM, not a
+    /// request, on the active server and on a parked server's store, and his ring rings. Under
+    /// Friends nothing changes: the same DM is a request.
+    /// Seen red 2026-10-10 two ways: with `file_if_refused_in` given the stale list's answer (no
+    /// group) instead of the server's, "a DM the server let through under Groups is a DM" failed;
+    /// and with `on_ring` asking `shares_group` (the stale list) again, "and his ring rings".
+    #[test]
+    fn group_membership_is_the_servers_call() {
+        let (my_seed, me) = identity(84);
+        let (_g, gus) = identity(85);
+        let mut gs = app(&me, &my_seed, "reach-groups");
+        gs.p2p_groups_last_fetch = Some(std::time::Instant::now());
+        assert!(!shares_group(&gs, &gus), "the setup: this app's own list knows no group with Gus");
+        let groups = ReachSettings { message: Audience::Groups, call: Audience::Groups, ..Default::default() };
+        gs.dm_store.as_mut().unwrap().set_reach_settings(groups);
+        assert!(crate::engine::dm::ingest_dm(&mut gs, &inner(&gus, &me, "see you at the garden")), "a DM the server let through under Groups is a DM");
+        assert!(rings(&mut gs, &gus), "and his ring rings");
+        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+        let mut parked = DmStore::load(&my_seed, &me, &format!("wss://reach-parked-{nanos}.example"));
+        parked.set_reach_settings(groups);
+        assert!(!file_if_refused_in(&mut parked, &inner(&gus, &me, "on another server")), "and on a parked server's store");
+
+        gs.dm_store.as_mut().unwrap().set_reach_settings(ReachSettings::default());
+        assert!(!crate::engine::dm::ingest_dm(&mut gs, &inner(&gus, &me, "under Friends")), "under Friends it is a request");
+        assert!(gs.dm_store.as_ref().unwrap().requests().iter().any(|r| r.key == gus));
+        gs.dm_store.as_ref().unwrap().remove_file_for_test();
+        parked.remove_file_for_test();
     }
 }

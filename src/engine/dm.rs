@@ -144,6 +144,60 @@ pub(crate) fn reload_dm_channel(gui_state: &mut GuiState, peer: &str) {
     gui_state.chat_messages.extend(msgs);
 }
 
+/// Keep a scratch pad note in the encrypted DM store (10m R10, as the web keeps its own): the
+/// scratch pad sends nothing, so this is the only copy, and for a file the only copy of its key.
+/// Per identity and server, like the store. Nothing is kept while the identity is locked or no
+/// server is chosen (there is no store to key it by); the note still shows until the view
+/// changes, as before.
+pub(crate) fn keep_scratch_note(gui_state: &mut GuiState, ts: u64, text: &str, reply: Option<&crate::gui::ReplyContext>) {
+    if !ensure_dm_store(gui_state) {
+        return;
+    }
+    let reply = reply.map(|r| crate::net::dm_store::NoteReply {
+        sender_key: r.sender_key.clone(),
+        sender_name: r.sender_name.clone(),
+        preview: r.preview.clone(),
+        timestamp_ms: r.timestamp_ms,
+    });
+    if let Some(store) = gui_state.dm_store.as_mut() {
+        store.add_scratch_note(crate::net::dm_store::ScratchNote { ts, text: text.to_string(), reply });
+        store.save();
+    }
+}
+
+/// The scratch pad was opened: its kept notes into the shared message list (the standard
+/// renderer draws them), each with its reply quote, under the person's own name.
+pub(crate) fn load_scratchpad(gui_state: &mut GuiState) {
+    gui_state.chat_messages.retain(|m| m.channel != "scratchpad");
+    if !ensure_dm_store(gui_state) {
+        return;
+    }
+    let Some(store) = gui_state.dm_store.as_ref() else { return };
+    let name = if gui_state.user_name.is_empty() { "You".to_string() } else { gui_state.user_name.clone() };
+    let notes: Vec<crate::gui::ChatMessage> = store
+        .scratch_notes()
+        .iter()
+        .map(|n| crate::gui::ChatMessage {
+            sender_name: name.clone(),
+            sender_key: gui_state.profile_public_key.clone(),
+            content: n.text.clone(),
+            timestamp: crate::gui::pages::chat::format_timestamp(n.ts),
+            timestamp_ms: n.ts,
+            channel: "scratchpad".to_string(),
+            reply_to: n.reply.as_ref().map(|r| crate::gui::ReplyContext {
+                sender_key: r.sender_key.clone(),
+                sender_name: r.sender_name.clone(),
+                preview: r.preview.clone(),
+                timestamp_ms: r.timestamp_ms,
+                conversation: "scratchpad".to_string(),
+                private: true,
+            }),
+            ..Default::default()
+        })
+        .collect();
+    gui_state.chat_messages.extend(notes);
+}
+
 /// Ingest one verified inner payload: store it, refresh the sidebar, and
 /// (when its conversation is on screen) append it to the visible list.
 /// Returns true when the message was new (not a duplicate).
@@ -243,6 +297,9 @@ fn ingest_control(gui_state: &mut GuiState, inner: &DmInner) {
     let mut withdraw_from: Option<String> = None;
     let mut forget_approval: Option<String> = None;
     let mut send_withdrawals = false;
+    // This device's own passes still waiting for the server's answer (10m: their self-copy can
+    // come back before it, since an untick sends it at once).
+    let on_its_way = gui_state.pending_puts.serials_to(&peer);
     if let Some(store) = gui_state.dm_store.as_mut() {
         match inner.text.as_str() {
             crate::net::dm_pq::CTL_FOLLOW => {
@@ -286,8 +343,24 @@ fn ingest_control(gui_state: &mut GuiState, inner: &DmInner) {
                             // out once the server took it (10l) and so comes back after it was
                             // recorded. Nothing to learn, and the ticks may have moved on since.
                             Ok((pass, _)) if store.passes_sent_to(&peer).iter().any(|p| p.serial == pass.serial) => {}
+                            // One this device is withdrawing (10m R5, the web's `adoptEchoedPass`):
+                            // an echo arriving late must not bring back a pass, or the ticks it
+                            // allowed, that the person took back here.
+                            Ok((pass, _)) if store.pending_withdrawals().contains(&pass.serial) => {}
+                            // This device's own pass, echoed before the server answered for it
+                            // (on its way, or never answered) or after it refused it (10m, the
+                            // web's rule): it says nothing new, and recording it as given would
+                            // stop the sweep owing the friend a pass the server may never have
+                            // taken. The answer, `dm_put_ok`, records it if it comes.
+                            Ok((pass, _))
+                                if on_its_way.contains(&pass.serial)
+                                    || store.passes_unanswered_to(&peer).iter().any(|p| p.serial == pass.serial)
+                                    || store.was_refused_after_its_echo(&pass.serial) => {}
                             Ok((pass, _)) => {
                                 let may = pass.may.wire();
+                                // The device that knows has spoken for them (10m R3): this one may
+                                // look after their pass on its own again.
+                                store.clear_changed_elsewhere(&peer);
                                 store.set_ticks(&peer, crate::net::reach::FriendTicks::from_may(&may));
                                 store.record_pass_sent(&peer, SentPass { serial: pass.serial, may: may.clone() });
                                 if !store.withdraw_passes_to_except(&peer, |p| p.may == may).is_empty() {
@@ -304,6 +377,11 @@ fn ingest_control(gui_state: &mut GuiState, inner: &DmInner) {
                                 // Their pass gets us past their gate now: the refusal notice in
                                 // our conversation with them (step B) has done its job.
                                 gui_state.reach.refused.remove(&inner.from);
+                                // And ours, refused by their settings before (10m R7), can go now:
+                                // it rides their pass, so the pacer sends it soon.
+                                if gui_state.reach.pass_refused.remove(&inner.from) {
+                                    gui_state.pass_pacer.held = true;
+                                }
                             }
                             Err(e) => log::warn!("friendship pass from {} failed its check ({e:?}); dropped", &inner.from[..12.min(inner.from.len())]),
                         }
@@ -381,8 +459,30 @@ pub(crate) fn control_puts(gui_state: &GuiState, peer: &str, text: &str, cert: O
 /// next member list tries again.
 pub(crate) fn send_friend_cert(gui_state: &mut GuiState, peer: &str) {
     // One on its way already (10l): its answer settles it, and a second would be a second pass.
-    if gui_state.dm_store.as_ref().is_some_and(|s| !s.cert_sent_to(peer)) && !gui_state.pending_puts.has_peer(peer) {
-        mint_and_send_pass(gui_state, peer, Held::Pass { reissue: false });
+    // And none on its own for a friend this device leaves alone (10m R3, R7); the person's own
+    // acts (Follow, Accept) clear that first (`person_chose`).
+    if gui_state.dm_store.as_ref().is_some_and(|s| !s.cert_sent_to(peer)) && !gui_state.pending_puts.has_peer(peer) && !left_alone(gui_state, peer) {
+        mint_and_send_pass(gui_state, peer, Held::Pass { reissue: false }, false);
+    }
+}
+
+/// A friend this device sends no pass ON ITS OWN (the sweep, a follow-back arriving, a contact
+/// request completing a friendship), 10m: one whose pass my other device withdrew (R3, the DM
+/// store's "changed on my other device" mark), and one whose pass the server refused this run
+/// for THEIR settings (R7), where sending it again would only be refused again.
+pub(crate) fn left_alone(gui_state: &GuiState, peer: &str) -> bool {
+    gui_state.reach.pass_refused.contains(peer) || gui_state.dm_store.as_ref().is_some_and(|s| s.changed_elsewhere(peer))
+}
+
+/// The person acted for `peer` on this device (changed their ticks, followed or unfollowed them,
+/// accepted their request): whatever this device was leaving alone for them (`left_alone`) it
+/// looks after again, from what the person has just chosen here.
+pub(crate) fn person_chose(gui_state: &mut GuiState, peer: &str) {
+    gui_state.reach.pass_refused.remove(peer);
+    if let Some(store) = gui_state.dm_store.as_mut() {
+        if store.clear_changed_elsewhere(peer) {
+            store.save();
+        }
     }
 }
 
@@ -390,8 +490,9 @@ pub(crate) fn send_friend_cert(gui_state: &mut GuiState, peer: &str) {
 /// "People I choose" (10c-ii; the step A defaults when nothing was chosen) and send it. True once
 /// it is on its way: it counts as given only when the server answers `dm_put_ok` (10l,
 /// engine/put_answer.rs). False when it cannot go out yet (no server identity, no DM key for
-/// them, locked, offline), which the pass sweep on the next member list retries.
-fn mint_and_send_pass(gui_state: &mut GuiState, peer: &str, held: Held) -> bool {
+/// them, locked, offline), which the pass sweep on the next member list retries. `copy_now`: our
+/// self-copy goes beside theirs instead of waiting for the answer (`send_held`).
+fn mint_and_send_pass(gui_state: &mut GuiState, peer: &str, held: Held, copy_now: bool) -> bool {
     if crate::engine::block::is_blocked(gui_state, peer) {
         return false; // never a pass for someone we blocked (step C), whatever a stray echo says
     }
@@ -401,25 +502,33 @@ fn mint_and_send_pass(gui_state: &mut GuiState, peer: &str, held: Held) -> bool 
     }
     let Some((cert, sent)) = mint_pass(gui_state, peer, &crate::net::reach::intended_may(ticks)) else { return false };
     let Some((theirs, ours)) = control_puts(gui_state, peer, crate::net::dm_pq::CTL_FRIEND_CERT, Some(&cert)) else { return false };
-    send_held(gui_state, peer, theirs, ours, sent, held)
+    send_held(gui_state, peer, theirs, ours, sent, held, copy_now)
 }
 
 /// Send `theirs`, a `dm_put` that changes friendship state, with a fresh `ref`, and hold it until
 /// the server answers (10l): `ours`, the self-copy, waits with it and goes out only once the
 /// server took theirs, so our other devices never learn of a pass the friend never got; the pass
-/// waits on the store's list of unanswered passes, never yet on the record. False, sending
-/// nothing, while not connected.
-pub(crate) fn send_held(gui_state: &mut GuiState, peer: &str, mut theirs: serde_json::Value, ours: serde_json::Value, pass: SentPass, held: Held) -> bool {
+/// waits on the store's list of unanswered passes, never yet on the record. With `copy_now` the
+/// self-copy goes right after theirs instead, and nothing is held back for it (10m R2: a re-issue
+/// that takes something away, whose old passes are withdrawn whatever the answer, so my other
+/// devices must hear the new choice now). False, sending nothing, while not connected.
+pub(crate) fn send_held(gui_state: &mut GuiState, peer: &str, mut theirs: serde_json::Value, ours: serde_json::Value, pass: SentPass, held: Held, copy_now: bool) -> bool {
     let Some(client) = gui_state.ws_client.as_ref().filter(|c| c.is_connected()) else { return false };
     let Some(reference) = crate::net::put_answers::new_ref() else { return false };
     theirs["ref"] = serde_json::Value::String(reference.clone());
     client.send(&theirs.to_string());
+    let self_copy = if copy_now {
+        client.send(&ours.to_string());
+        None
+    } else {
+        Some(ours)
+    };
     if let Some(store) = gui_state.dm_store.as_mut() {
         store.pass_on_its_way(peer, pass.clone());
         store.save();
     }
     let at = std::time::Instant::now();
-    gui_state.pending_puts.hold(PendingPut { reference, peer: peer.to_string(), pass, self_copy: ours, held, at });
+    gui_state.pending_puts.hold(PendingPut { reference, peer: peer.to_string(), pass, self_copy, held, at });
     true
 }
 
@@ -451,39 +560,50 @@ pub(crate) fn mint_pass(gui_state: &GuiState, peer: &str, may: &[&str]) -> Optio
 /// Bring the pass `peer` holds from us in line with what the person ticked for them (Settings >
 /// Safety, "People I choose", 10c-ii): send the new pass, and withdraw the old ones only once the
 /// server took it (10l, engine/put_answer.rs), so a friend is never left between passes, even when
-/// the server refuses the new one. A change that TAKES SOMETHING AWAY (an untick of Message, Call
-/// or Trade) is the exception: the passes allowing it, given or still unanswered, are withdrawn at
-/// once whether or not the new one goes out (consent taken back takes effect now; the friend
-/// falls back to whatever the person's settings allow strangers until the new pass is taken). An
-/// added tick simply waits. True when a new pass went out.
+/// the server refuses the new one. An added tick simply waits. True when a new pass went out.
+///
+/// A change that TAKES SOMETHING AWAY (an untick of Message, Call or Trade) is the exception: the
+/// passes allowing it, given or still unanswered, are withdrawn at once whether or not the new one
+/// goes out (consent taken back takes effect now; the friend falls back to whatever the person's
+/// settings allow strangers until the new pass is taken). 10m sets the order of that:
+/// - R4: the take-back runs ALWAYS, also when the standing pass already matches the ticks or a
+///   pass is on its way, so an untick made before an earlier tick's pass was answered still takes
+///   that pass back (it allows what was just unticked, and the server may yet store it).
+/// - R2: the new pass goes out BEFORE the withdrawals, with its self-copy at once rather than on
+///   `dm_put_ok`, so my other devices hear the new choice before they hear the old pass was
+///   withdrawn. Holding the self-copy left them with the old choice when the new pass was refused
+///   (one stale, another minting the defaults and giving back what was unticked).
 pub(crate) fn reissue_pass(gui_state: &mut GuiState, peer: &str) -> bool {
-    let Some(store) = gui_state.dm_store.as_mut() else { return false };
+    let Some(store) = gui_state.dm_store.as_ref() else { return false };
     let want = store.intended_may_wire(peer);
-    let standing = store.passes_sent_to(peer);
-    if !standing.is_empty() && standing.iter().all(|p| p.may == want) {
-        return false; // already in step
-    }
     // Only the kinds the relay checks count as taken away (net/reach.rs `grants_beyond`), so
     // ticking something for a friend with nothing ticked never withdraws their only pass early.
     // A pass still on its way counts too: once taken it would allow what was just unticked.
     let beyond = |p: &SentPass| crate::net::reach::grants_beyond(&p.may, &want);
-    if standing.iter().chain(store.passes_unanswered_to(peer)).any(beyond) {
-        store.withdraw_passes_to_except(peer, |p| !beyond(p));
-        store.save();
+    let standing = store.passes_sent_to(peer);
+    let takes_away = standing.iter().chain(store.passes_unanswered_to(peer)).any(beyond);
+    let in_step = !standing.is_empty() && standing.iter().all(|p| p.may == want);
+    // In step already, or one on its way (its answer re-runs the sweep, which re-issues if still
+    // out of step): no new pass now.
+    let sent = !in_step && !gui_state.pending_puts.has_peer(peer) && mint_and_send_pass(gui_state, peer, Held::Pass { reissue: true }, takes_away);
+    if takes_away {
+        if let Some(store) = gui_state.dm_store.as_mut() {
+            store.withdraw_passes_to_except(peer, |p| !beyond(p));
+            store.save();
+        }
         send_pending_withdrawals(gui_state);
     }
-    // One on its way already: its answer re-runs the sweep, which re-issues if still out of step.
-    if gui_state.pending_puts.has_peer(peer) {
-        return false;
-    }
-    mint_and_send_pass(gui_state, peer, Held::Pass { reissue: true })
+    sent
 }
 
 /// Take back every pass I gave `peer` (on Unfollow; Block does the same through
 /// engine/block.rs `enforce_on_store`, which also unfollows without telling them): the
 /// store moves their serials to the waiting withdrawals, and those go to the relay now if we
-/// are connected, or on the next connection.
+/// are connected, or on the next connection. A send to them still waiting for its answer is
+/// dropped (10m R6, as on the web): its answer records nothing, and a new pass or request need
+/// not wait for it.
 pub(crate) fn withdraw_passes(gui_state: &mut GuiState, peer: &str) {
+    gui_state.pending_puts.drop_peer(peer);
     if let Some(store) = gui_state.dm_store.as_mut() {
         store.withdraw_passes_to(peer);
         store.save();
@@ -505,12 +625,22 @@ pub(crate) fn send_pending_withdrawals(gui_state: &GuiState) {
     }
 }
 
-/// The relay's `cert_revoked {serial}`: that withdrawal is done.
+/// The relay's `cert_revoked {serial}`: that withdrawal is done. When it was another of my
+/// devices that withdrew it (10m R3), the pass leaves this device's record too, and a friend left
+/// without one is marked "changed on my other device" (net/dm_store.rs `withdrawal_confirmed`):
+/// this device sends them no pass on its own (`left_alone`) and its People I choose list shows
+/// them as updating their pass. Any withdrawal that queued is sent.
 pub(crate) fn withdrawal_confirmed(gui_state: &mut GuiState, frame: &serde_json::Value) {
     let Some(serial) = frame.get("serial").and_then(|v| v.as_str()) else { return };
+    let mut marked = None;
     if let Some(store) = gui_state.dm_store.as_mut() {
-        store.withdrawal_confirmed(serial);
+        marked = store.withdrawal_confirmed(serial);
         store.save();
+    }
+    if let Some(peer) = marked {
+        log::info!("a pass to {}… was withdrawn on another of my devices; left to that device", &peer[..12.min(peer.len())]);
+        send_pending_withdrawals(gui_state);
+        refresh_social_mirrors(gui_state);
     }
 }
 
@@ -559,19 +689,21 @@ pub(crate) fn send_owed_passes(gui_state: &mut GuiState, now: std::time::Instant
     crate::engine::put_answer::expire(gui_state, now);
     let owed = gui_state.dm_store.as_ref().map(|s| s.friends_without_pass()).unwrap_or_default();
     for peer in owed {
-        if gui_state.pending_puts.has_peer(&peer) {
+        // On its way already, or left alone (10m R3 and R7: no pass of this device's own idea).
+        if gui_state.pending_puts.has_peer(&peer) || left_alone(gui_state, &peer) {
             continue;
         }
         if !gui_state.pass_pacer.has(PUTS_PER_CONTROL, now) {
             return true;
         }
-        if gui_state.dm_store.as_ref().is_some_and(|s| !s.cert_sent_to(&peer)) && mint_and_send_pass(gui_state, &peer, Held::Pass { reissue: false }) {
+        if gui_state.dm_store.as_ref().is_some_and(|s| !s.cert_sent_to(&peer)) && mint_and_send_pass(gui_state, &peer, Held::Pass { reissue: false }, false) {
             gui_state.pass_pacer.spend(PUTS_PER_CONTROL, now);
         }
     }
     let out_of_step = gui_state.dm_store.as_ref().map(|s| s.passes_out_of_step()).unwrap_or_default();
     for peer in out_of_step {
-        if gui_state.pending_puts.has_peer(&peer) {
+        // A re-issue refused for their settings (R7) would only be refused again.
+        if gui_state.pending_puts.has_peer(&peer) || left_alone(gui_state, &peer) {
             continue;
         }
         if !gui_state.pass_pacer.has(PUTS_PER_CONTROL, now) {
@@ -642,6 +774,8 @@ pub(crate) fn set_follow(gui_state: &mut GuiState, peer: &str, on: bool) {
         gui_state.pending_notices.push("You blocked them. Unblock them first, in Settings > Safety > Blocked people.".to_string());
         return;
     }
+    // The person's own choice for them, made here (10m R3, R7).
+    person_chose(gui_state, peer);
     if let Some(store) = gui_state.dm_store.as_mut() {
         store.set_following(peer, on);
         if !on {

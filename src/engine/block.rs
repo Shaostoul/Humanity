@@ -295,6 +295,9 @@ pub(crate) fn sweep(gs: &mut GuiState) {
 /// PIN.
 fn take_back(gs: &mut GuiState, key: &str) {
     crate::engine::protected::forget(gs, key);
+    // A pass or request to them still waiting for its answer is dropped (10m R6): its answer
+    // records nothing (the pass it carried is withdrawn with the rest below).
+    gs.pending_puts.drop_peer(key);
     if !crate::engine::dm::ensure_dm_store(gs) {
         return; // not on a server yet: `sweep` does it on the next member list
     }
@@ -707,6 +710,9 @@ mod tests {
     /// (both places read `hides_player`); anyone else, and a player whose key has not come yet,
     /// is drawn. Seen red 2026-10-10 two ways: `hides_player` answering false, "no name over the
     /// blocked player"; and the figure pass in lib.rs without its check, "the figure pass asks it".
+    /// 10m R9, the HUD's co-presence list too: seen red 2026-10-10 with `copresence_names`
+    /// ignoring `hidden`, "the blocked player is not in the HUD's list" (Cy listed); and with
+    /// lib.rs handing it `&|_| false`, the count assertion (left 2, right 3).
     #[test]
     fn a_blocked_players_figure_and_name_are_not_drawn() {
         use crate::net::protocol::NetMessage;
@@ -747,8 +753,16 @@ mod tests {
         assert!(!names.contains(&"Cy".to_string()), "no name over the blocked player: {names:?}");
         assert_eq!(names, vec!["Dee".to_string(), "Player 9".to_string()], "everyone else is named, a player with no key yet too");
 
+        // 10m R9: nor in the HUD's "N here: ..." list, which counts every other player.
+        let here = crate::engine::net_route::copresence_names(&world, &|p| hides_player(&gs, p));
+        assert_eq!(here, vec!["Dee".to_string(), "Player 9".to_string()], "the blocked player is not in the HUD's list");
+
         let lib = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/lib.rs")).unwrap();
-        assert_eq!(lib.matches("crate::engine::block::hides_player(&state.gui_state").count(), 2, "the figure pass asks it, and so do the nameplates");
+        assert_eq!(
+            lib.matches("crate::engine::block::hides_player(&state.gui_state").count(),
+            3,
+            "the figure pass asks it, and so do the nameplates and the HUD's co-presence list"
+        );
         tidy(&gs);
     }
 }

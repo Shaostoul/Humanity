@@ -397,6 +397,22 @@ pub(crate) fn nameplate_labels(world: &hecs::World, station_off: glam::Vec3, hid
     labels
 }
 
+/// The HUD's co-presence list (v0.774, "N here: ...", gui/pages/hud.rs): the name of every other
+/// player here, sorted. NO dedup (v0.779): two players who both kept the default name are two
+/// people, so the count is the player count. Someone `hidden` leaves out is not named (10m R9:
+/// a blocked player, engine/block.rs `hides_player`, is not named here either, as they are not
+/// drawn and have no name over them). Doors still open for them: they still stand there.
+pub(crate) fn copresence_names(world: &hecs::World, hidden: &dyn Fn(&crate::net::sync::RemotePlayer) -> bool) -> Vec<String> {
+    let mut names: Vec<String> = world
+        .query::<&crate::net::sync::RemotePlayer>()
+        .iter()
+        .filter(|(_, r)| !hidden(r))
+        .map(|(_, r)| r.name.clone())
+        .collect();
+    names.sort();
+    names
+}
+
 /// A part of another player's figure (2026-09-29, appearance sync rung 2),
 /// and of a crew member's (2026-10-03).
 #[derive(Debug, Clone, Copy, PartialEq)]

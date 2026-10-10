@@ -1692,31 +1692,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             .hint_text(hint),
                     );
 
-                    // v0.282.0 outgoing typing event. Fire when the input
-                    // CHANGED (egui's response.changed() debounces to "actual
-                    // edit, not focus/scroll") AND we haven't sent one in
-                    // the last 3 seconds. Matches the relay's silent-drop
-                    // rate limit so we never waste bandwidth on rejected
-                    // sends. Skipped on empty input (clearing the box isn't
-                    // "typing"). Skipped when not connected.
-                    if response.changed() && !state.chat_input.is_empty() {
-                        let now = std::time::Instant::now();
-                        let should_send = state.chat_typing_last_sent
-                            .map(|t| now.duration_since(t).as_secs() >= 3)
-                            .unwrap_or(true);
-                        if should_send {
-                            if let Some(ref client) = state.ws_client {
-                                if client.is_connected() {
-                                    let m = serde_json::json!({
-                                        "type": "typing",
-                                        "from": state.profile_public_key,
-                                        "from_name": state.user_name,
-                                    });
-                                    client.send(&m.to_string());
-                                    state.chat_typing_last_sent = Some(now);
-                                }
-                            }
-                        }
+                    // v0.282.0 outgoing typing event, on an actual edit
+                    // (egui's response.changed() debounces to "edit, not
+                    // focus/scroll"); the rules are in `send_typing`.
+                    if response.changed() {
+                        send_typing(state, std::time::Instant::now());
                     }
 
                     // (Clipboard image paste detection moved to the top of
@@ -2903,6 +2883,11 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
         "You".to_string()
     };
     let local_reply_to = reply::made_in(state, &channel); // shown on our own copy only
+    if is_scratchpad {
+        // Kept on this device, encrypted, as the web does (10m R10): typed notes and a file's
+        // marker (attach_send.rs drains into here), whose key exists nowhere else.
+        crate::engine::dm::keep_scratch_note(state, ts, content, local_reply_to.as_ref());
+    }
     // Keep the DM sidebar preview current for our own sends (v0.715).
     if let Some(pk) = channel.strip_prefix("dm:") {
         if let Some(d) = state.chat_dms.iter_mut().find(|d| d.user_key == pk) {
@@ -3802,6 +3787,27 @@ pub(crate) fn is_private_channel(channel: &str) -> bool {
     channel.starts_with("dm:") || channel.starts_with("p2pgroup:") || channel == "scratchpad"
 }
 
+/// The composer was edited (v0.282.0): send `typing`, at most once every 3 seconds (the relay's
+/// own silent-drop limit, so nothing is sent only to be dropped), not when the box was cleared
+/// (that is not typing), not while disconnected, and never while the scratch pad is open (10m
+/// R10: it sends nothing, so nobody should hear that the person is writing there).
+pub(crate) fn send_typing(state: &mut GuiState, now: std::time::Instant) {
+    if state.chat_input.is_empty() || state.chat_active_channel == "scratchpad" {
+        return;
+    }
+    if state.chat_typing_last_sent.is_some_and(|t| now.duration_since(t).as_secs() < 3) {
+        return;
+    }
+    let Some(client) = state.ws_client.as_ref().filter(|c| c.is_connected()) else { return };
+    let m = serde_json::json!({
+        "type": "typing",
+        "from": state.profile_public_key,
+        "from_name": state.user_name,
+    });
+    client.send(&m.to_string());
+    state.chat_typing_last_sent = Some(now);
+}
+
 pub fn notice_channel(active_channel: &str) -> String {
     if active_channel.starts_with("p2pgroup:") || active_channel.starts_with("dm:") {
         "general".to_string()
@@ -4493,5 +4499,86 @@ mod private_channel_tests {
         for room in ["general", "announcements", "local", "commons:garden", ""] {
             assert!(!super::is_private_channel(room), "{room:?} is not private");
         }
+    }
+}
+
+/// 10m R10: the scratch pad stays on this device, and keeps what is put in it.
+#[cfg(test)]
+mod scratchpad_tests {
+    use super::*;
+
+    /// One headless frame (no GPU) of the left panel, a click on `text` in it.
+    fn click(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, text: &str) {
+        let frame = |state: &mut GuiState, events: Vec<egui::Event>| {
+            let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(320.0, 900.0))), events, ..Default::default() };
+            ctx.run(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| draw_left_panel(ui, theme, state));
+            })
+        };
+        let out = frame(state, Vec::new());
+        let pos = crate::gui::screen_surface::find_text_in_shapes(&out.shapes, text).unwrap_or_else(|| panic!("{text} is not drawn")).rect.center();
+        let m = egui::Modifiers::default();
+        frame(state, vec![egui::Event::PointerMoved(pos)]);
+        frame(state, vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: m }]);
+        frame(state, vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: m }]);
+    }
+
+    /// THE DESKTOP KEEPS SCRATCH PAD NOTES (10m R10, as the web does): a typed note (with its reply
+    /// quote) and a file's marker (the only copy of its key) are kept in the encrypted DM store, so
+    /// opening the scratch pad again, from its row in the left rail, and restarting both bring them
+    /// back; and no typing indicator goes out while it is open, as one does in a channel.
+    /// Seen red 2026-10-10 two ways: with the `keep_scratch_note` call taken out of
+    /// `send_composed_content`, "kept across opening it again" failed (0 notes, the old behaviour);
+    /// and with `send_typing` not asking about the scratch pad, "no typing indicator from the
+    /// scratch pad" failed.
+    #[test]
+    fn scratchpad_notes_are_kept_and_it_sends_no_typing() {
+        crate::config::keep_saves_off_disk();
+        let mut state = GuiState::default();
+        state.onboarding_complete = true;
+        state.user_name = "Ada".to_string();
+        state.private_key_bytes = Some(vec![171u8; 32]);
+        state.apply_pq_identity();
+        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+        state.server_url = format!("https://scratch-{nanos}.example");
+        state.block_list = Some(crate::net::block_list::BlockList::in_temp(&[171u8; 32], &state.profile_public_key, "scratch"));
+        let (client, sent) = crate::net::ws_client::WsClient::recording();
+        state.ws_client = Some(client);
+        let (ctx, theme) = (egui::Context::default(), crate::gui::theme::load_theme());
+        crate::gui::fonts::install_font_fallbacks(&ctx);
+        theme.apply_to_egui(&ctx);
+
+        state.chat_active_channel = "general".into();
+        click(&ctx, &theme, &mut state, "# scratchpad");
+        assert_eq!(state.chat_active_channel, "scratchpad");
+        state.chat_input = "x".into();
+        send_typing(&mut state, std::time::Instant::now());
+        assert!(sent.try_iter().next().is_none(), "no typing indicator from the scratch pad");
+
+        state.chat_reply_to = Some(crate::gui::ReplyContext { sender_name: "Ada".into(), preview: "seeds to buy".into(), timestamp_ms: 5, conversation: "scratchpad".into(), private: true, ..Default::default() });
+        assert!(send_composed_content(&mut state, "beans, squash"));
+        let marker = crate::net::dm_pq::build_file_marker(&crate::net::dm_pq::DmAttachment { url: "/uploads/a.enc".into(), k: "k".into(), n: "n".into(), name: "map.jpg".into(), mime: "image/jpeg".into(), size: 3 });
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(Ok(marker.clone())).unwrap();
+        state.clipboard_upload = Some(("scratchpad".to_string(), rx));
+        attach_send::drain(&ctx, &mut state);
+        assert!(sent.try_iter().next().is_none(), "the scratch pad sends nothing");
+
+        let shown = |state: &GuiState| state.chat_messages.iter().filter(|m| m.channel == "scratchpad").map(|m| (m.content.clone(), m.reply_to.as_ref().map(|r| r.preview.clone()))).collect::<Vec<_>>();
+        let want = vec![("beans, squash".to_string(), Some("seeds to buy".to_string())), (marker.clone(), None)];
+        state.chat_active_channel = "general".into();
+        state.chat_messages.clear();
+        click(&ctx, &theme, &mut state, "# scratchpad");
+        assert_eq!(shown(&state), want, "kept across opening it again");
+        state.dm_store = None; // a restart: the store is read from disk again
+        state.chat_active_channel = "general".into();
+        click(&ctx, &theme, &mut state, "# scratchpad");
+        assert_eq!(shown(&state), want, "and across a restart");
+
+        state.chat_active_channel = "general".into();
+        send_typing(&mut state, std::time::Instant::now());
+        assert_eq!(sent.try_iter().filter(|f| f.contains("\"typing\"")).count(), 1, "a channel still sends one");
+        state.dm_store.as_ref().unwrap().remove_file_for_test();
+        state.block_list.as_ref().unwrap().remove_file_for_test();
     }
 }

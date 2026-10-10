@@ -354,8 +354,7 @@ fn bg_screen(state: &mut EngineState, store: &mut crate::net::dm_store::DmStore,
         crate::engine::group_report::take_into(store, &state.gui_state.profile_public_key, inner);
         return true;
     }
-    let shares = crate::engine::reach::shares_group(&state.gui_state, &inner.from);
-    crate::engine::reach::file_if_refused_in(store, shares, inner)
+    crate::engine::reach::file_if_refused_in(store, inner)
 }
 
 /// Fold one verified sealed-sender DM into a parked connection's sidebar

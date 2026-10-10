@@ -281,6 +281,7 @@ fn draw_scratchpad_row(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // active row is a no-op (BUG-035 — used to nuke local-echoed unsent text).
         state.chat_active_channel = "scratchpad".to_string();
         state.chat_messages.clear();
+        crate::engine::dm::load_scratchpad(state); // its kept notes (10m R10)
         state.history_fetched = false;
     }
     if resp.hovered() {

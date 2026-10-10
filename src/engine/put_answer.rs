@@ -18,8 +18,10 @@
 //! One pass put per friend is on its way at a time: the sweep, a re-issue and a new pass all
 //! leave a friend alone while one waits for its answer.
 //!
-//! A contact request's pass is settled the same way; one not taken also puts the conversation's
-//! notice back to offering Send request, saying the server did not confirm it.
+//! A contact request's pass is settled the same way, and only once it is taken do we follow them
+//! (10m R1); one not taken also puts the conversation's notice back to offering Send request,
+//! saying the server did not confirm it. A pass refused for the friend's own settings (`reach`)
+//! is not sent again on its own this run (10m R7).
 //!
 //! The message pump (frame_ws_poll.rs) reaches this file through one call in its catch-all chain,
 //! `on_frame`; it sits at its file-size budget.
@@ -65,6 +67,11 @@ fn taken(gs: &mut GuiState, put: PendingPut) {
         if put.held == (Held::Pass { reissue: true }) {
             store.withdraw_passes_to_except(&put.peer, |p| p.serial == serial);
         }
+        // A contact request counts as following them only now that the server took it (10m R1,
+        // as on the web's `contactRequestAnswered`): refused or unanswered, we follow no one.
+        if put.held == Held::Request {
+            store.set_following(&put.peer, true);
+        }
         // An older pass whose answer was lost may be standing with them too: the server may
         // have stored it. They hold this one now, so that one goes.
         store.withdraw_unanswered_to_except(&put.peer, |p| on_its_way.contains(&p.serial));
@@ -79,8 +86,9 @@ fn taken(gs: &mut GuiState, put: PendingPut) {
     if !recorded {
         return;
     }
-    if let Some(client) = gs.ws_client.as_ref().filter(|c| c.is_connected()) {
-        client.send(&put.self_copy.to_string());
+    // None: it went out beside theirs already (10m R2), and once is enough.
+    if let (Some(client), Some(copy)) = (gs.ws_client.as_ref().filter(|c| c.is_connected()), put.self_copy.as_ref()) {
+        client.send(&copy.to_string());
     }
     crate::engine::dm::send_pending_withdrawals(gs);
     crate::engine::dm::refresh_social_mirrors(gs);
@@ -93,8 +101,19 @@ fn not_taken(gs: &mut GuiState, put: PendingPut, reason: Option<&str>) {
     if reason.is_some() {
         if let Some(store) = gs.dm_store.as_mut() {
             store.pass_refused(&put.peer, &put.pass.serial);
+            // Its self-copy already went out (10m R2): when that comes back here it must not be
+            // adopted as a pass given (engine/dm.rs `ingest_control`).
+            if put.self_copy.is_none() {
+                store.refused_after_its_echo(&put.pass.serial);
+            }
             store.save();
         }
+    }
+    // A pass their own settings turned away (10m R7) would be turned away again: it is not sent
+    // on its own again this run (engine/dm.rs `left_alone`). The conversation's notice
+    // (`reach_refused`) says so once; resending used to repeat it on every member list.
+    if reason == Some("reach") && matches!(put.held, Held::Pass { .. }) {
+        gs.reach.pass_refused.insert(put.peer.clone());
     }
     let sent_line = gs.reach.refused.get(&put.peer) == Some(&crate::net::reach::Refusal::RequestSent);
     // Turned away by their settings: `reach_refused` says so in the conversation already.
