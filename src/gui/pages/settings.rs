@@ -635,7 +635,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             // No identity on this device — let the user CREATE one. This
             // is the primitive native was missing entirely (web had it):
             // without it a first-time native user can never get a seed.
-            ui.label(RichText::new("No identity on this device yet. Generate one (creates a fresh 24-word seed, your only backup), or recover an existing seed below.").color(theme.text_muted()).size(theme.font_size_small));
+            ui.label(RichText::new("No identity on this device yet. Generate one (it gives you a new 24-word recovery phrase, your only backup), or restore one from its recovery phrase below.").color(theme.text_muted()).size(theme.font_size_small));
             ui.add_space(theme.spacing_xs);
             if widgets::primary_button(ui, theme, "  Generate New Identity  ") {
                 let seed = crate::net::identity::generate_new_seed();
@@ -691,7 +691,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                 // previously a stub that always said "not generated yet").
                 let phrase = state.private_key_bytes.as_ref()
                     .and_then(|s| crate::net::identity::mnemonic_from_seed(s))
-                    .unwrap_or_else(|| "(cannot render, key is not a 32-byte BIP39 seed)".to_string());
+                    .unwrap_or_else(|| "(this identity has no recovery phrase to show)".to_string());
                 // Recovery-phrase box: a warm wash of the warning token (it holds the
                 // single most dangerous string in the app), derived from the token
                 // via alpha rather than a hardcoded brown.
@@ -736,7 +736,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             ui.add_space(theme.spacing_lg);
             ui.label(RichText::new("Link a Device").color(theme.text_secondary()).strong());
             ui.add_space(theme.spacing_xs);
-            ui.label(RichText::new("Show a QR another device can scan to bring this identity onto it (on that device: chat > your identity > \"Link this device to me\" > \"Scan a QR code\"). The QR contains your seed, so unlocking is required.").color(theme.text_muted()).size(theme.font_size_small));
+            ui.label(RichText::new("Show a QR another device can scan to bring this identity onto it (on that device: chat > your identity > \"Link this device to me\" > \"Scan a QR code\"). The QR carries your identity (its recovery phrase can be worked out from it), so unlocking is required.").color(theme.text_muted()).size(theme.font_size_small));
             ui.add_space(theme.spacing_xs);
             // Step G: the QR carries the seed, from which the recovery phrase follows, so while the
             // protected setup is on it needs the PIN exactly as the phrase does (the same gate and
@@ -785,7 +785,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                         }
                     }
                     None => {
-                        ui.label(RichText::new("(Cannot build QR: key is not a 32-byte BIP39 seed.)").color(theme.text_muted()).size(theme.font_size_small));
+                        ui.label(RichText::new("(Cannot build the QR code for this identity.)").color(theme.text_muted()).size(theme.font_size_small));
                     }
                 }
             }
@@ -799,7 +799,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             ui.add_space(theme.spacing_lg);
             ui.label(RichText::new("Replace Identity").color(theme.text_secondary()).strong());
             ui.add_space(theme.spacing_xs);
-            ui.label(RichText::new("Generate a brand-new identity (new seed + keys) on this device, replacing the current one -- for rotating away from a compromised or exposed key. Back up your current seed above first if you still need it.").color(theme.text_muted()).size(theme.font_size_small));
+            ui.label(RichText::new("Generate a brand-new identity (a new recovery phrase and keys) on this device, replacing the current one, for moving away from a key that was exposed. Write down your current recovery phrase above first if you still need it.").color(theme.text_muted()).size(theme.font_size_small));
             ui.add_space(theme.spacing_xs);
             let regen_id = egui::Id::new("regen_identity_confirm");
             let regen_confirming = ui.ctx().data(|d| d.get_temp::<bool>(regen_id).unwrap_or(false));
@@ -808,7 +808,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                     ui.ctx().data_mut(|d| d.insert_temp(regen_id, true));
                 }
             } else {
-                ui.label(RichText::new("This permanently replaces the identity on THIS device. Your current seed is gone unless you backed it up. Continue?").color(theme.warning()).size(theme.font_size_small));
+                ui.label(RichText::new("This permanently replaces the identity on THIS device. Your current identity is gone unless you wrote down its recovery phrase. Continue?").color(theme.warning()).size(theme.font_size_small));
                 ui.add_space(theme.spacing_xs);
                 if widgets::primary_button(ui, theme, "  Yes, generate a new identity  ") {
                     let seed = crate::net::identity::generate_new_seed();
@@ -1028,7 +1028,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                 .color(theme.text_muted()).size(theme.font_size_small));
         } else {
             ui.label(RichText::new(
-                "OS keychain (Windows Credential Manager / macOS Keychain) holds your seed. Silent unlock on launch.")
+                "OS keychain (Windows Credential Manager / macOS Keychain) holds your key. Silent unlock on launch.")
                 .color(theme.text_muted()).size(theme.font_size_small));
         }
         ui.add_space(theme.spacing_xs);
@@ -4473,7 +4473,7 @@ pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
 
         ui.label(RichText::new("Danger Zone").color(theme.danger()).strong());
         ui.add_space(theme.spacing_xs);
-        widgets::setting_hint(ui, theme, hint, "Permanently delete your account and all associated data. (Not wired up yet; deleting your identity means removing your seed and data folders, see the paths above.)");
+        widgets::setting_hint(ui, theme, hint, "Permanently delete your account and all associated data. (Not wired up yet; deleting your identity means removing your identity and data folders, see the paths above.)");
         let _ = widgets::danger_button(ui, theme, "Delete Account");
     });
 }

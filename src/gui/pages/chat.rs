@@ -2454,7 +2454,7 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                                 ui.add_space(theme.spacing_xs);
                                 ui.label(
                                     RichText::new(
-                                        "Identity locked. Your seed is encrypted; unlock it to send DMs (they need it for the post-quantum key).",
+                                        "Your identity is locked. Unlock it to send direct messages.",
                                     )
                                     .color(theme.warning())
                                     .size(theme.font_size_small),

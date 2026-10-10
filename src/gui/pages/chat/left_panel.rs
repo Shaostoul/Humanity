@@ -82,7 +82,7 @@ pub(super) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
                             .strong(),
                     );
                     ui.label(
-                        RichText::new("Your seed is encrypted. Unlock it to connect (DMs need it for the post-quantum key).")
+                        RichText::new("Your identity is locked. Unlock it to connect.")
                             .size(theme.font_size_small)
                             .color(theme.text_muted()),
                     );
@@ -156,7 +156,7 @@ pub(super) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
                     // Full-PQ guard: refuse to connect with a locked seed —
                     // it would register a keyless name-squatter on the relay.
                     if state.private_key_bytes.is_none() {
-                        state.ws_status = "Unlock your identity first (Settings → Security → Unlock, or Recover from seed). Connecting locked would squat your name with no encryption key.".to_string();
+                        state.ws_status = "Unlock your identity first (Settings → Security → Unlock, or Restore from recovery phrase). Connecting locked would squat your name with no encryption key.".to_string();
                     } else if crate::engine::warnings::holds_own_phrase(state, &[&state.user_name]) {
                         state.ws_status = crate::net::warnings::GUARD_LINE.to_string(); // step F: the name is sent at connect
                         state.user_name = crate::config::AppConfig::load().user_name; // back to the name last saved

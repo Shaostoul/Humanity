@@ -51,6 +51,22 @@ const SCAN: &[&str] = &[
     "README.md",
     "CREDITS.md",
 ];
+/// Phrases where "seed" can only mean the account's key (2026-10-10). Kept specific so a plant's
+/// or a world's seed never matches.
+const ACCOUNT_SEED: &[&str] = &[
+    "24-word seed",
+    "12-word seed",
+    "splits your seed",
+    "existing seed",
+    "recover from seed",
+    "restore from seed",
+    "your seed is",
+    "contains your seed",
+    "holds your seed",
+    "your current seed",
+    "back up your seed",
+    "backup your seed",
+];
 /// Records, not copy: what was posted or sent stays as it was.
 const SKIP: &[&str] = &["docs/outreach/posts", "docs/outreach/applications"];
 
@@ -124,6 +140,12 @@ fn account_words_are_the_plain_ones() {
             // command" (review of 2026-09-29).
             if lower.contains("<code>/seed</code>") || lower.contains("'/seed'") || lower.contains("\"/seed\"") {
                 bad.push(format!("{rel}:{}: the chat command is /recovery now, not /seed", n + 1));
+            }
+            // "Seed" alone for the account key (2026-10-10): the Settings page still said "a fresh
+            // 24-word seed" and "recover an existing seed" after "seed phrase" was retired. These
+            // phrases only ever mean the account's key, never a plant or a world seed.
+            if !alias && ACCOUNT_SEED.iter().any(|p| lower.contains(p)) {
+                bad.push(format!("{rel}:{}: \"seed\" for the account key -> say \"recovery phrase\" (or \"key\")", n + 1));
             }
             if says_no_account(&lower) {
                 bad.push(format!("{rel}:{}: \"no account\" -> say \"no sign-up\" (people do have an account; it is theirs)", n + 1));

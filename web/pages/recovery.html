@@ -76,17 +76,17 @@
   <div class="container">
     <header class="rec-hero">
       <h1>Social Key <em>Recovery</em></h1>
-      <p style="color: var(--text-muted);">Lose your device, recover your identity. Your BIP39 seed splits via Shamir secret sharing across trusted guardians, encrypted to each guardian's Kyber768 key. The relay stores only opaque ciphertext.</p>
+      <p style="color: var(--text-muted);">Lose your device, recover your identity. Your recovery phrase splits via Shamir secret sharing across trusted guardians, encrypted to each guardian's Kyber768 key. The relay stores only opaque ciphertext.</p>
     </header>
 
     <div class="explainer">
       <h3>How it works</h3>
       <ol>
         <li>Pick <strong>N</strong> trusted guardians (friends, family, partner servers). Decide a threshold <strong>M</strong> (e.g., 3 of 5).</li>
-        <li>Your client splits your seed into N Shamir shares, encrypts each to a guardian's Kyber768 pubkey, and posts <code>recovery_share_v1</code> signed objects.</li>
+        <li>Your client splits your recovery phrase into N Shamir shares, encrypts each to a guardian's Kyber768 pubkey, and posts <code>recovery_share_v1</code> signed objects.</li>
         <li>If you lose your device, generate a new Dilithium3 keypair and post a <code>recovery_request_v1</code> signed by the new key.</li>
         <li>Guardians review the request and post <code>recovery_approval_v1</code>. When M approvals arrive, the request flips to <code>ready</code>.</li>
-        <li>Your client collects the M decrypted shares (out-of-band, e.g. via DM), reassembles the seed via Shamir, and posts a <code>key_rotation_v1</code>. Done.</li>
+        <li>Your client collects the M decrypted shares (out-of-band, e.g. via DM), reassembles the recovery phrase via Shamir, and posts a <code>key_rotation_v1</code>. Done.</li>
       </ol>
     </div>
 

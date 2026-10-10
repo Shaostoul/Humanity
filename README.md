@@ -157,7 +157,7 @@ No compiler, no Docker. Under 10 minutes from download to live. Building from so
 | **Privilege** | Non-root systemd service with hardened sandboxing |
 | **Audit** | Ongoing cadence → [SECURITY-CADENCE.md](docs/SECURITY-CADENCE.md) (initial Feb 2026 audit archived at [docs/history/SECURITY_AUDIT_2026-02-12.md](docs/history/SECURITY_AUDIT_2026-02-12.md)) |
 
-Solana wallet support is **optional** and decoupled from your identity. Using HumanityOS doesn't require any blockchain. If you opt in, the wallet is the Ed25519 keypair derived from your same 24-word seed (your post-quantum chat identity is a separate Dilithium3 key).
+Solana wallet support is **optional** and decoupled from your identity. Using HumanityOS doesn't require any blockchain. If you opt in, the wallet is the Ed25519 keypair derived from your same 24-word recovery phrase (your post-quantum chat identity is a separate Dilithium3 key).
 
 ---
 

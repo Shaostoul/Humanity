@@ -14,7 +14,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 widgets::section_header(ui, theme, "Social Key Recovery");
                 ui.label(
                     RichText::new(
-                        "Lose your device, recover your identity. Your BIP39 seed splits via Shamir \
+                        "Lose your device, recover your identity. Your recovery phrase splits via Shamir \
                          secret sharing across trusted guardians, encrypted to each guardian's Kyber768 \
                          key. The relay stores only opaque ciphertext.",
                     )
@@ -26,10 +26,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 widgets::card_with_header(ui, theme, "How it works", |ui| {
                     let steps = [
                         "1. Pick N trusted guardians and a threshold M (e.g., 3 of 5).",
-                        "2. Your client splits your seed into N Shamir shares, encrypts each to a guardian's Kyber768 pubkey, posts recovery_share_v1 signed_objects.",
+                        "2. Your client splits your recovery phrase into N Shamir shares, encrypts each to a guardian's Kyber768 pubkey, posts recovery_share_v1 signed_objects.",
                         "3. If you lose your device, generate a new Dilithium3 keypair and post recovery_request_v1 signed by the new key.",
                         "4. Guardians review the request and post recovery_approval_v1. When M approvals arrive, request status flips to ready.",
-                        "5. Your client collects the M decrypted shares (out-of-band), reassembles the seed via Shamir, posts a key_rotation_v1.",
+                        "5. Your client collects the M decrypted shares (out-of-band), reassembles the recovery phrase via Shamir, posts a key_rotation_v1.",
                     ];
                     for step in steps {
                         ui.label(RichText::new(step).color(theme.text_secondary()).size(theme.font_size_small));
