@@ -562,6 +562,10 @@ pub(crate) fn route_trade_frame(
     if let Some(payload) = msg.strip_prefix("__trade_data__:") {
         if let Some(t) = parse(payload).as_ref().and_then(|v| v.get("trade")) {
             let gt = GuiTrade::from_relay_json(t);
+            // A request from someone we blocked is never listed and never answered (step C).
+            if crate::engine::block::hides_trade(gs, &gt) {
+                return true;
+            }
             let id = gt.id.clone();
             match gs.trades.iter_mut().find(|x| x.id == gt.id) {
                 Some(slot) => *slot = gt,
@@ -574,7 +578,8 @@ pub(crate) fn route_trade_frame(
     if let Some(payload) = msg.strip_prefix("__trade_list__:") {
         with_state(|ts| ts.auto_list_pending = false);
         if let Some(arr) = parse(payload).as_ref().and_then(|v| v.get("trades")).and_then(|x| x.as_array()) {
-            gs.trades = arr.iter().map(GuiTrade::from_relay_json).collect();
+            let listed: Vec<GuiTrade> = arr.iter().map(GuiTrade::from_relay_json).filter(|t| !crate::engine::block::hides_trade(gs, t)).collect();
+            gs.trades = listed;
             let done: Vec<String> = gs.trades.iter().filter(|t| t.status == "completed").map(|t| t.id.clone()).collect();
             settle_and_report(gs, world, &done, &known, true);
         }
@@ -1288,6 +1293,32 @@ mod trade_moves_tests {
         // and is not marked settled: the list fetched for it settles it.
         assert!(route_trade_frame(&mut gs, &mut world, known, &delivered(trade_complete("t-10"))));
         assert!(!world.get::<&TradeSettlements>(p).unwrap().knows("t-10"));
+    }
+
+    /// Block (step C, 2026-10-09): a trade request from someone we blocked is never listed and
+    /// never answered, alone or in the list; a finished trade with them stays and still settles.
+    /// Seen red 2026-10-09 with the `hides_trade` check taken out of the `__trade_data__` branch:
+    /// "a blocked person's request is not listed" failed (t-20 listed).
+    #[test]
+    fn a_trade_request_from_someone_blocked_is_not_listed() {
+        let (mut world, p) = world_with_player();
+        let mut gs = GuiState::default();
+        gs.profile_public_key = "bob".into();
+        let mut list = crate::net::block_list::BlockList::in_temp(&[72u8; 32], "bob", "trade");
+        list.block("alice", 1);
+        gs.block_list = Some(list);
+        carry(&mut world, p, "wheat_0", 5);
+        let known = |_: &str| true;
+        let request = delivered(trade_data(payload("t-20", "pending", vec![], vec![])));
+        assert!(route_trade_frame(&mut gs, &mut world, known, &request), "taken, so never shown in chat");
+        assert!(gs.trades.is_empty(), "a blocked person's request is not listed");
+        let listing = delivered(trade_list(vec![
+            payload("t-20", "pending", vec![], vec![]),
+            payload("t-21", "completed", vec![relay_item(Some("hammer_0"), "Hammer", 1)], vec![relay_item(Some("wheat_0"), "Wheat", 2)]),
+        ]));
+        assert!(route_trade_frame(&mut gs, &mut world, known, &listing));
+        assert_eq!(gs.trades.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), ["t-21"], "nor in the list, where a finished trade stays");
+        assert_eq!(queued(&world, p).len(), 1, "and still settles");
     }
 
     /// FINDING 2a (2026-10-02): a confirmation is withdrawn when the offered

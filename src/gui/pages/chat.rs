@@ -57,6 +57,8 @@ use modals::{
 /// Who can reach me (step B): the refused-message notice and the Requests rail section.
 /// See `chat/reach.rs`.
 mod reach;
+/// Block (step C): the DM header's, the profile's and the member row's Block buttons.
+mod blocking;
 
 // Maximum messages kept in the local chat buffer (was hardcoded, now uses theme.max_messages if needed).
 
@@ -414,13 +416,14 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     let partner_name = state.chat_dms.iter()
                         .find(|d| d.user_key == partner_key)
                         .map(|d| d.user_name.clone())
-                        .unwrap_or_else(|| partner_key.to_string());
+                        .unwrap_or_else(|| crate::engine::dm::dm_display_name(state, partner_key)); // e.g. blocked: not in the list
                     ui.label(
                         RichText::new(format!("DM: {}", partner_name))
                             .size(theme.font_size_heading)
                             .color(theme.dm_accent())
                             .strong(),
                     );
+                    blocking::draw_dm_header_block(ui, theme, state, partner_key); // step C
                 } else if let Some(gid) = ac.strip_prefix("p2pgroup:") {
                     // P2P group header: back button + name + a Copy-invite
                     // action. Leave / Disband live in the left-rail cog/
@@ -618,6 +621,8 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             .filter(|m| m.channel == active_channel)
                             .collect()
                     };
+                // Step C: a post by someone we blocked is not drawn, in any channel, group or DM.
+                let filtered: Vec<&ChatMessage> = filtered.into_iter().filter(|m| !crate::engine::block::hides_message(state, m)).collect();
 
                 if filtered.is_empty() {
                     ui.vertical_centered(|ui| {
@@ -700,6 +705,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 let mut pending_edit_cancel = false;
                 // Report button clicks (from context menu) — buffered to send /report slash command.
                 let mut pending_reports: Vec<(String, String)> = Vec::new();
+                let mut pending_blocks: Vec<String> = Vec::new(); // Block beside Report (step C)
                 // v0.281.0: Delete button clicks (from context menu) — buffered
                 // so the borrow on `state.chat_messages` ends before we mutate
                 // state to send WS. Pairs as (sender_key, timestamp_ms); the
@@ -791,10 +797,12 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         } else {
                             reply.preview.clone()
                         };
+                        // A reply to someone we blocked shows neither their name nor their words (step C).
+                        let quoted = if crate::engine::block::is_blocked(state, &reply.sender_key) { "↩ a reply to someone you blocked".to_string() } else { format!("↩ {}: {}", reply.sender_name, preview) };
                         ui.painter().text(
                             egui::pos2(row_rect.left() + 40.0, row_rect.center().y),
                             egui::Align2::LEFT_CENTER,
-                            &format!("↩ {}: {}", reply.sender_name, preview),
+                            &quoted,
                             egui::FontId::proportional(theme.font_size_small),
                             theme.text_muted(),
                         );
@@ -855,7 +863,9 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         // paint_timestamp_pill draws or the reserved space
                         // in message_row will be wrong and content text
                         // overlaps the pill (operator-reported bug).
-                        let pill_width = compute_pill_width(ui.ctx(), theme, &msg.timestamp, &msg.reactions);
+                        // Reactions of people we blocked are not counted or shown (step C).
+                        let reactions = crate::engine::block::visible_reactions(state, &msg.reactions);
+                        let pill_width = compute_pill_width(ui.ctx(), theme, &msg.timestamp, &reactions);
 
                         // Parse @mentions that resolve to a known user, for
                         // accent highlighting + click-to-open-modal (Discord-
@@ -959,7 +969,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 theme,
                                 pill_rect_for_msg,
                                 &msg.timestamp,
-                                &msg.reactions,
+                                &reactions,
                                 &state.profile_public_key,
                                 msg.timestamp_ms,
                                 msg.sender_key.clone(),
@@ -1046,6 +1056,13 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             ui.separator();
                             if ui.button("Report").clicked() {
                                 pending_reports.push((msg.sender_name.clone(), msg.content.clone()));
+                                ui.close_menu();
+                            }
+                            // A person's own key only: never ours, never a bridged line's server id.
+                            if !is_own && !msg.sender_key.is_empty() && msg.origin_server.is_empty()
+                                && ui.button("Block").on_hover_text(blocking::BLOCK_TIP).clicked()
+                            {
+                                pending_blocks.push(msg.sender_key.clone());
                                 ui.close_menu();
                             }
                         });
@@ -1489,6 +1506,9 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     state.chat_edit_target = None;
                 }
 
+                for key in pending_blocks {
+                    crate::engine::block::block(state, &key); // nothing is sent to them (step C)
+                }
                 // Send pending report slash commands.
                 for (sender_name, _content) in pending_reports {
                     if let Some(ref client) = state.ws_client {

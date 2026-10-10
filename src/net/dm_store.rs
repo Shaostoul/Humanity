@@ -128,7 +128,8 @@ pub struct DmStore {
 impl DmStore {
     /// Directory for DM stores: `%APPDATA%/HumanityOS/dms/` (same base the
     /// config and saves use), falling back to `./dms` in portable setups.
-    fn store_dir() -> PathBuf {
+    /// The block list (net/block_list.rs) keeps its own file here too.
+    pub(crate) fn store_dir() -> PathBuf {
         if let Ok(appdata) = std::env::var("APPDATA") {
             PathBuf::from(appdata).join("HumanityOS").join("dms")
         } else if let Some(home) = std::env::var_os("HOME") {

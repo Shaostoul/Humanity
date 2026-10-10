@@ -11,6 +11,9 @@ pub mod dm;
 /// "Who can reach me" (step B of docs/design/blocking-and-safe-mode.md, 2026-10-09): the
 /// relay's reach frames, contact requests sent and received, and the "may call me" ticks.
 pub mod reach;
+/// Block (step C of docs/design/blocking-and-safe-mode.md, 2026-10-09): Block and Unblock, the
+/// notes to oneself, and the rules that hide a blocked key on every path in.
+pub mod block;
 pub mod editor;
 pub mod frame_lock;
 pub mod geom;

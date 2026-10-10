@@ -1,8 +1,9 @@
 //! Settings > Safety (step B of docs/design/blocking-and-safe-mode.md, section 10c, 2026-10-09):
 //! "Who can reach me", one row per kind of contact the server checks (Messages, Calls, Trades)
 //! with the five audiences in plain words and a line under each saying what the current choice
-//! means; "People who may call me", the person's friends with a tick each; and the Requests
-//! list (also in Chat, under DMs).
+//! means; "People who may call me", the person's friends with a tick each; the Requests
+//! list (also in Chat, under DMs), where a request can also be blocked; and Blocked people
+//! (step C, 10d), each with the date and Unblock.
 //!
 //! What the rows show is what the SERVER last said (`reach_settings`, kept in the DM store per
 //! server), never what was clicked: a click sends `reach_set` and the row moves when the server
@@ -10,7 +11,8 @@
 //! friend's pass with or without `call` (engine/dm.rs `reissue_pass`).
 //!
 //! Persistence: nothing here is an AppConfig setting. The audiences live on the server (and in
-//! the encrypted DM store as the last word heard), the ticks and requests in the DM store.
+//! the encrypted DM store as the last word heard), the ticks and requests in the DM store, and
+//! the block list in its own encrypted file per identity (net/block_list.rs).
 
 use egui::RichText;
 
@@ -37,6 +39,8 @@ pub(crate) fn draw_safety_content(ui: &mut egui::Ui, theme: &Theme, state: &mut 
             "Connect to a server (with your identity unlocked) to choose who can reach you there. \
              Each server keeps its own settings.",
         );
+        // The block list is this device's, not a server's, so it is shown offline too.
+        draw_blocked_people(ui, theme, state, accent);
         return;
     }
     let server_said = crate::engine::reach::current(state);
@@ -99,6 +103,8 @@ pub(crate) fn draw_safety_content(ui: &mut egui::Ui, theme: &Theme, state: &mut 
         ui.set_min_width(ui.available_width());
         draw_requests_list(ui, theme, state);
     });
+
+    draw_blocked_people(ui, theme, state, accent);
 }
 
 /// "People who may call me": each friend (a mutual follow) with a tick. Ticking re-issues the
@@ -166,6 +172,7 @@ pub(crate) fn draw_requests_list(ui: &mut egui::Ui, theme: &Theme, state: &mut G
     enum Act {
         Accept(String),
         Ignore(String),
+        Block(String),
     }
     let mut act: Option<Act> = None;
     for req in &requests {
@@ -185,12 +192,79 @@ pub(crate) fn draw_requests_list(ui: &mut egui::Ui, theme: &Theme, state: &mut G
             if widgets::Button::secondary("Ignore").tooltip("Remove this request. They are not told.").show(ui, theme) {
                 act = Some(Act::Ignore(req.key.clone()));
             }
+            // Instead of Ignore, for someone you never want to hear from (step C).
+            if widgets::Button::danger("Block")
+                .tooltip("Remove this request and hide everything from them from now on. They are not told.")
+                .show(ui, theme)
+            {
+                act = Some(Act::Block(req.key.clone()));
+            }
         });
         ui.add_space(theme.spacing_xs);
     }
     match act {
         Some(Act::Accept(did)) => crate::engine::reach::accept_request(state, &did),
         Some(Act::Ignore(did)) => crate::engine::reach::ignore_request(state, &did),
+        Some(Act::Block(did)) => crate::engine::block::block(state, &did),
         None => {}
     }
+}
+
+/// Settings > Safety > Blocked people (step C of docs/design/blocking-and-safe-mode.md, 10d): each
+/// person by the member list's name (or the start of their key), the date they were blocked, and
+/// Unblock. The list is this identity's on this device, so it is the same on every server.
+pub(crate) fn draw_blocked_people(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: egui::Color32) {
+    widgets::subsection_header(
+        ui,
+        theme,
+        accent,
+        "Blocked people",
+        "You see nothing from someone you block: no messages, posts, reactions, calls, trade requests \
+         or contact requests, on every server you use from this device. Blocking also takes back the \
+         pass you gave them. They are not told. Your other devices on the same server learn it too.",
+    );
+    widgets::card(ui, theme, |ui| {
+        ui.set_min_width(ui.available_width());
+        crate::engine::block::ensure_block_list(state);
+        let entries = state.block_list.as_ref().map(|l| l.entries()).unwrap_or_default();
+        if state.block_list.is_none() {
+            widgets::body_hint(ui, theme, "Unlock your identity to see the people you blocked.");
+        } else if entries.is_empty() {
+            widgets::body_hint(ui, theme, "Nobody. Block someone from a message's menu, their profile, a DM or a contact request.");
+        }
+        let mut lift: Option<String> = None;
+        for (key, at) in &entries {
+            let (name, on_list) = crate::engine::reach::member_name(state, key);
+            ui.horizontal_wrapped(|ui| {
+                ui.label(RichText::new(&name).size(theme.font_size_body).color(theme.text_primary()).strong());
+                if !on_list {
+                    ui.label(RichText::new("(not on this server's member list right now)").size(theme.font_size_small).color(theme.text_muted()));
+                }
+                ui.label(RichText::new(format!("Blocked {}", blocked_on(*at))).size(theme.font_size_small).color(theme.text_muted()));
+                if widgets::Button::secondary("Unblock")
+                    .tooltip("Show their messages again. They are not told, and nothing is given back: to be friends again, follow them.")
+                    .show(ui, theme)
+                {
+                    lift = Some(key.clone());
+                }
+            });
+            ui.add_space(theme.spacing_xs);
+        }
+        if let Some(key) = lift {
+            crate::engine::block::unblock(state, &key);
+        }
+    });
+    widgets::body_hint(
+        ui,
+        theme,
+        "What blocking cannot do: it cannot stop them seeing your public posts or public profile, cannot stop \
+         someone making a new key, cannot remove them from a public channel, voice room or group you do not \
+         run, and cannot stop them standing near you in a shared world.",
+    );
+}
+
+/// The day a block was made, `YYYY-MM-DD` (UTC).
+fn blocked_on(ms: u64) -> String {
+    let stamp = crate::gui::pages::game_admin::format_ban_date(ms as i64);
+    stamp.split(' ').next().unwrap_or("").to_string()
 }

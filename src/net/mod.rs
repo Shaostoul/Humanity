@@ -34,6 +34,11 @@ pub mod dm_store;
 #[cfg(feature = "native")]
 pub mod reach;
 
+/// Block (step C of docs/design/blocking-and-safe-mode.md, 2026-10-09): the identity's block
+/// list, encrypted on this device, and the notes to oneself that sync it to its other devices.
+#[cfg(feature = "native")]
+pub mod block_list;
+
 /// Native client → relay v2 signed-object submission + invite ticket helpers
 /// (P2P groups). HTTP via the same blocking-ureq pattern as image upload.
 #[cfg(feature = "native")]

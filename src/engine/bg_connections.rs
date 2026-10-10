@@ -334,7 +334,15 @@ fn bg_dm_store(state: &EngineState, ci: usize) -> Option<crate::net::dm_store::D
 /// listed there (its pass checked, engine/reach.rs `contact_request_in`), and a DM our settings
 /// there would refuse is listed in its place, name only. True when the DM was taken either way,
 /// so the caller stores nothing as a message.
-fn bg_screen(state: &EngineState, store: &mut crate::net::dm_store::DmStore, inner: &crate::net::dm_pq::DmInner) -> bool {
+///
+/// Block (step C, 2026-10-09) first: a note to ourselves about the block list is applied (the
+/// list is the identity's, so a note that came by way of a parked server counts everywhere, and
+/// a block also takes back what we gave on that server), and anything from a key we blocked is
+/// dropped before it is listed or stored.
+fn bg_screen(state: &mut EngineState, store: &mut crate::net::dm_store::DmStore, inner: &crate::net::dm_pq::DmInner) -> bool {
+    if crate::engine::block::screens_dm_parked(&mut state.gui_state, store, inner) {
+        return true;
+    }
     if inner.text.starts_with(crate::net::reach::CONTACT_REQUEST_MARKER) {
         crate::engine::reach::contact_request_in(store, &state.gui_state.profile_public_key, inner);
         return true;
@@ -544,7 +552,8 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
                 .and_then(|v| v.as_str())
                 .unwrap_or("general")
                 .to_string();
-            if content.is_empty() {
+            // Someone we blocked (step C): no unread dot, and nothing kept to draw.
+            if content.is_empty() || crate::engine::block::is_blocked(&state.gui_state, &sender_key) {
                 return;
             }
             // The open Commons view of this room counts as "on screen":
