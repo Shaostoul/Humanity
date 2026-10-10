@@ -1761,6 +1761,45 @@ shape, the 20-item and size limits, no file, the creator's checks against their 
 not found, altered text, wrong sender), a report about a group they do not hold dropped, and the
 three actions. Each seen failing once. `just verify`, `just verify-relay`.
 
+**As built (web first, 2026-10-10; the desktop app matches these words).** The words and rules
+are `web/shared/group-report.js`, tested by `scripts/tests/group-report-web.test.js`.
+- *A third admins-only case:* when the creator cannot be found out (the group's own signed
+  `group_v1` record does not load, or its signature does not check), only the admins remain, with
+  "Who created this group could not be found out here, so this goes to the server's admins." While
+  it is being found: "Finding out who created this group..." and Send waits.
+- *The dialog:* "Send this report to" sits under the first line, which follows the choice: "This
+  goes to the group's creator.", "This goes to the group's creator and to this server's admins and
+  moderators." or the admins' line as before, each ending "<name> is not told who reported them."
+  Under the group message, step D's not-proven line shows when the admins are chosen, and "The
+  group's creator can check these words against their own copy of the group." when the creator is.
+  The note reads "What the group's creator should know" or "What they should know" for Both. After
+  sending: "Report sent to the group's creator." If the server refuses it (a `reach_refused` for
+  the creator within a minute): "Your report did not reach the group's creator: this server did not
+  let it through. You can send it to this server's admins instead." For Both, both are built
+  before either is sent. No self-copy goes to the reporter's own mailbox.
+- *The creator's side:* "Reports about your groups" shows when there is a report or when you
+  created a group, with "Members of a group you created can report one of its messages to you.
+  Each report names who sent it. Reports stay on this device until you dismiss them, and are never
+  sent to any server." and, when empty, "No reports about your groups." Each report: "<person>:
+  <reason label>", then "In <group> · reported by <reporter> · <date>", "Their note: ...", the
+  items with their badge (or "No messages were included."), and the actions. The group's name is
+  the one the creator's own list has, never the report's. On arrival: "<reporter> sent you a
+  report about <person> in <group>. It is in Safety, under Reports about your groups." The count
+  on the group is a small number after its name, titled "1 report about this group. See Reports
+  about your groups in Safety." (or "N reports ..."), and opens Safety.
+- *Kept or dropped:* kept only when addressed to me, about a group I hold AS ITS CREATOR (a
+  group I only joined counts as not held), from a current member, and not about me.
+- *The check:* found needs the object's own bytes to hash to the item's id (a server cannot move
+  an id onto other bytes, even an identical message of the same person), a signature that checks,
+  the group's id as its first reference, and the same sender, time and text.
+- *Remove them from the group:* a three-second hold, "Remove <person> from "<group>"? They can come
+  back only with a new invite ticket.", then a NEW GROUP KEY sealed to everyone but them (left
+  out even while the server still lists them), then the signed remove. The key goes first so a key
+  that cannot be made removes no one ("Could not remove <person> from <group>: a new group key
+  could not be made."). Afterwards: "<person> was removed from <group>." and "Removed from the
+  group." on the report; "They are not in the group now." when they already left. Block them shows
+  "You have blocked them." once done; the report stays until Dismiss.
+
 ## 11. Docs to update as each piece ships
 
 - `docs/accord/conformance_gaps.md` ("Contact consent cannot be withdrawn")

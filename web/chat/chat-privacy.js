@@ -625,6 +625,8 @@ function safetyModel() {
     chosen,
     ticksInUse: reachTicksInUse(shown),
     requests: store ? store.contactRequestList() : [],
+    // Reports about my groups (10j, chat-reports.js); null when there is nothing to show.
+    groupReports: typeof groupReportsModel === 'function' ? groupReportsModel() : null,
     // Blocked people (step C): newest first, by the member list's name (or short key).
     blocked: store ? store.blockedList().map((b) => ({ key: b.key, name: reachDisplayName(b.key), ts: b.ts, date: blockDateLabel(b.ts) })) : [],
     // Warnings on messages (step F, chat-warnings.js): On by default; the
@@ -684,6 +686,8 @@ function safetyPanelHtml(model) {
   html += `<h3 style="${SAFETY_H3}">Requests</h3>`
     + `<p style="${SAFETY_NOTE}">People who asked to reach you. You see only their name. Accept makes you friends; Ignore tells no one.</p>`
     + contactRequestsHtml(model.requests);
+  // Reports about your groups (10j, chat-reports.js): when there are any, or I created a group.
+  if (model.groupReports && typeof groupReportsSafetyHtml === 'function') html += groupReportsSafetyHtml(model.groupReports);
   html += `<h3 style="${SAFETY_H3}">Blocked people</h3>`
     + `<p style="${SAFETY_NOTE}">You see nothing from the people here, on any of your devices, and they are not told. Blocking does not stop them seeing what you post in public. Unblock lets them reach you again as your settings above allow; it does not make you friends again.</p>`;
   if (model.blocked.length) {
@@ -781,6 +785,7 @@ function renderSafetyPanel() {
     box.onchange = () => chooseFriendTick(box.dataset.tickKey, box.dataset.tickKind, box.checked);
   });
   wireContactRequestButtons(card);
+  if (typeof wireGroupReportButtons === 'function') wireGroupReportButtons(card);
   card.querySelectorAll('[data-unblock]').forEach((b) => {
     b.onclick = () => { b.disabled = true; unblockKey(b.dataset.unblock); };
   });

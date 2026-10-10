@@ -687,6 +687,11 @@
        (step D, 2026-10-09), shared with Node tests that pin it to the relay. Before
        crypto.js (pqBuildReport) and chat-reports.js. -->
   <script src="/shared/report.js?v=2"></script>
+  <!-- group-report.js: a report about a group reaches the group's creator (10j, 2026-10-10): the
+       marker, the limits, the dialog's choices and words, and the creator's checks against their
+       own copy of the group, shared with Node tests. After report.js (its file rule), before
+       crypto.js (pqBuildGroupReport) and chat-reports.js. -->
+  <script src="/shared/group-report.js?v=1"></script>
   <!-- warnings.js: the message-warning matcher, the words on screen and the rule that holds a
        stranger's links (step F, 2026-10-10), shared with Node tests that run it over the cases the
        desktop app also runs. Before chat-warnings.js. -->
@@ -700,7 +705,7 @@
        it, the name check, the frame, the receipt and the erased person's words, shared with Node
        tests. Before app.js (account_erased) and chat-ui.js (the member menu and its confirm). -->
   <script src="/shared/admin-erase.js?v=1"></script>
-  <script src="/chat/crypto.js?v=12"></script>
+  <script src="/chat/crypto.js?v=13"></script>
   <!-- pq.js: post-quantum (Dilithium3) identity, derived from the same
        BIP39 seed as the Ed25519 key. Must load before app.js calls
        attachPqIdentity(). Self-loads the vendored same-origin bundle. -->
@@ -709,16 +714,16 @@
        2026-08-23). The relay no longer stores readable DM history; this
        IndexedDB store, keyed from the seed, is the archive. Load before
        app.js so the dm_new/dm_batch handlers can use it. -->
-  <script src="/chat/chat-dm-store.js?v=6"></script>
+  <script src="/chat/chat-dm-store.js?v=7"></script>
   <!-- Clean view modules (docs/design/chat-layout.md), one per native draw_*.
        Load before app.js so its renderers can call them. -->
   <script src="/chat/view/timestampPill.js?v=1"></script>
   <script src="/chat/view/messageRow.js?v=1"></script>
-  <script src="/chat/app.js?v=19"></script>
+  <script src="/chat/app.js?v=20"></script>
   <script src="/chat/chat-messages.js?v=8"></script>
   <script src="/chat/chat-dms.js?v=11"></script>
-  <script src="/chat/chat-social.js?v=13"></script>
-  <script src="/chat/chat-groups-p2p.js?v=11"></script>
+  <script src="/chat/chat-social.js?v=14"></script>
+  <script src="/chat/chat-groups-p2p.js?v=12"></script>
   <script src="/chat/chat-ui.js?v=12"></script>
   <script src="/chat/chat-voice-rooms.js?v=6"></script>
   <script src="/chat/chat-voice-calls.js?v=4"></script>
@@ -732,12 +737,12 @@
   <!-- chat-privacy.js: privacy tiers (2026-08-23) — first-connect chooser
        (default: maximum privacy) + tier application. Needs chat-profile.js
        (profile privacy merge) loaded first. -->
-  <script src="/chat/chat-privacy.js?v=8"></script>
+  <script src="/chat/chat-privacy.js?v=9"></script>
   <!-- Game Admin: game-world bans (separate from chat moderation), admin-only -->
   <script src="/chat/chat-game-admin.js?v=3"></script>
   <!-- Reports (step D, 2026-10-09): the Report dialog and the Reports view for admins
        and moderators. After chat-privacy.js (Block, which the dialog can run). -->
-  <script src="/chat/chat-reports.js?v=3"></script>
+  <script src="/chat/chat-reports.js?v=4"></script>
   <!-- Warnings on messages and the recovery-phrase guard (step F, 2026-10-10): warnings under
        received DMs and group messages, the stranger link line, the Safety switch, and the check
        every send path runs before anything I wrote leaves. -->
@@ -754,7 +759,7 @@
   <script src="/chat/chat-onboarding.js?v=2"></script>
   <!-- qrcode-generator (public domain, ~18 KB), used by chat-p2p.js for contact card QR codes -->
   <script src="/shared/qrcode.js?v=4" onerror="console.warn('qrcode.js not found, QR codes will be unavailable')"></script>
-  <script src="/chat/chat-p2p.js?v=13"></script>
+  <script src="/chat/chat-p2p.js?v=14"></script>
 
   <!-- Populate pg-ico spans once icons.js is loaded (shell.js loads it dynamically) -->
   <script>

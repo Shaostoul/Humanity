@@ -1202,6 +1202,10 @@ async function handleMessage(msg) {
       // A contact request (step B, 2026-10-09): its pass checked, listed under Requests by the
       // member list's name for the signed sender (chat-privacy.js), never rendered.
       if (typeof ingestContactRequest === 'function' && await ingestContactRequest(inner)) break;
+      // A report about a group I created (10j): checked against my copy of the group and kept
+      // under Reports about your groups (chat-reports.js), never rendered. Before the reach screen,
+      // because a group's members need not be my friends.
+      if (typeof ingestGroupReport === 'function' && await ingestGroupReport(inner)) break;
       // From someone my "who can reach me" settings refuse: a request, name only, its text dropped.
       if (typeof reachScreenDm === 'function' && reachScreenDm(inner)) break;
       const isNew = (window.hosDmStore && hosDmStore.ready) ? await hosDmStore.insert(inner) : true;
@@ -1236,6 +1240,7 @@ async function handleMessage(msg) {
         if (typeof blockScreenDm === 'function' && blockScreenDm(inner)) continue;
         if (typeof ingestDmControl === 'function' && await ingestDmControl(inner)) continue;
         if (typeof ingestContactRequest === 'function' && await ingestContactRequest(inner)) continue;
+        if (typeof ingestGroupReport === 'function' && await ingestGroupReport(inner)) continue;
         if (typeof reachScreenDm === 'function' && reachScreenDm(inner)) continue;
         if (window.hosDmStore && hosDmStore.ready) {
           if (await hosDmStore.insert(inner)) ingested++;
@@ -1841,12 +1846,16 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
 
   // Context menu on author name click. It knows the message it was opened on,
   // so its Report can name this post (or, in a P2P group, carry the words seen):
-  // chat-reports.js, step D.
+  // chat-reports.js, step D. In a group it also knows which group, and the
+  // message's signed-object id, which chat-groups-p2p.js puts on the row once
+  // it is drawn: a report to the group's creator names the message by it (10j).
   const authorEl = el.querySelector('.author');
   if (authorEl) {
-    const menuMessage = { timestamp, text: body, group: !!window.activeP2pGroup };
+    const ag = window.activeP2pGroup;
+    const menuMessage = { timestamp, text: body, group: !!ag, groupId: ag ? ag.id : '', groupName: ag ? (ag.name || '') : '' };
     authorEl.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (menuMessage.group) menuMessage.id = (el.dataset && el.dataset.groupObjectId) || '';
       showUserContextMenu(e, author, fromKey, menuMessage);
     });
   }
