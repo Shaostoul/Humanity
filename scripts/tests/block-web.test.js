@@ -785,3 +785,26 @@ test("a ring my call setting refuses shows nothing and sends nothing back; one i
   await handle(ring(CY));
   assert.equal(vm.runInContext("callState", ctx), "ringing-in", "under Anyone a stranger rings");
 });
+
+// 10m R8 (2026-10-10, docs/design/blocking-and-safe-mode.md): group membership in the app's own
+// check is the server's call. Under "Friends and people in my groups" a ring the server let
+// through rings, whatever this page's own list of groups says: the relay checked membership
+// against its own records, and this page's list loads on connect and after my own group changes,
+// so someone who joined a group since was dropped. The other audiences do not look at groups.
+// Seen red 2026-10-10 against web/ as at bf8c4c582 (HOS_WEB_DIR): "a ring from someone who joined
+// my group since rings" (callState stayed idle).
+test("10m R8: under Groups, a ring the server let through rings whatever this page's group list says", async () => {
+  const { ctx, sock, handle } = await loadChat();
+  const ring = (from) => ({ type: "voice_call", from, from_name: "x", to: ME, action: "ring" });
+  await handle({ type: "reach_settings", settings: { message: "friends", call: "groups", trade: "friends" } });
+  // This page loaded its groups before Cy joined one of them.
+  ctx._p2pGroups = [{ group_id: "g1", name: "Hikers", members: [ME, ANN] }];
+  sock.sent.length = 0;
+  await handle(ring(CY));
+  assert.equal(vm.runInContext("callState", ctx), "ringing-in", "a ring from someone who joined my group since rings");
+  vm.runInContext("callState = 'idle'; callPeerKey = null", ctx);
+  // Under People I choose, groups are not looked at: a stranger's ring stays quiet.
+  await handle({ type: "reach_settings", settings: { message: "friends", call: "chosen", trade: "friends" } });
+  await handle(ring(CY));
+  assert.equal(vm.runInContext("callState", ctx), "idle", "under People I choose a stranger's ring shows nothing");
+});

@@ -312,31 +312,30 @@ function reachDisplayName(key) {
   return (p && p.display_name) || (typeof shortKey === 'function' ? shortKey(key) : String(key).slice(0, 8));
 }
 
-/**
- * Do we share a P2P group (the `groups` audience)? From the group list
- * chat-groups-p2p.js keeps. Until that list has loaded the answer is not
- * known here, and then the relay's own check stands: a DM it let through is
- * not turned into a request, which would drop its text for good.
- */
-function reachSharesGroupWith(peer) {
-  if (!Array.isArray(window._p2pGroups)) return true;
-  return window._p2pGroups.some((g) => g && Array.isArray(g.members) && g.members.includes(peer));
-}
-
 function reachStore() {
   return (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
 }
 
 /**
  * Would my settings let `peer` reach me for `kind`? The relay's rule, applied
- * with what this client knows. A pass sent whose answer has not come counts
- * (10l): the relay honours it if it stored it.
+ * with what this client knows, to something the relay already let through (a
+ * DM's text, reachScreenDm; a call's ring, chat-voice-calls.js callerAllowed).
+ * A pass sent whose answer has not come counts (10l): the relay honours it if
+ * it stored it.
+ *
+ * Group membership is the server's call (10m R8): under "Friends and people in
+ * my groups" someone it let through counts as sharing a group, because it
+ * checked their membership against its own records. This page's own list of
+ * groups (window._p2pGroups) loads on connect and after my own group changes,
+ * so someone who joined a group since was dropped: their allowed ring never
+ * rang, their DM became a request with its text gone. The other audiences do
+ * not look at groups.
  */
 function reachAllowsFrom(peer, kind) {
   const store = reachStore();
   return reachAllows(reachCurrent()[kind], kind, {
     passMay: store ? store.passMayHeld(peer) : null,
-    sharesGroup: reachSharesGroupWith(peer),
+    sharesGroup: true,
   });
 }
 
@@ -458,6 +457,9 @@ async function acceptContactRequest(id) {
     return protectedAskThen('befriend', () => acceptContactRequest(id));
   }
   store.removeContactRequest(id);
+  // Accepting is the person's own word about them (10m R3, R7): a pass to them
+  // is no longer held back (setFollowLocal below says so too).
+  if (typeof passPersonChoseFor === 'function') passPersonChoseFor(key);
   if (req.pass && await pqVerifyFriendCert(key, myKey, req.pass)) store.storeCertFrom(key, req.pass);
   store.setFollower(key, true);
   if (typeof myFollowers !== 'undefined') myFollowers.add(key);
@@ -707,12 +709,22 @@ function safetyModel() {
   const given = store ? store.passFriends() : [];
   const shown = {};
   for (const r of rows) shown[r.kind] = r.audience;
-  const chosen = given.map((key) => ({
-    key,
-    name: reachDisplayName(key),
-    ticks: reachTicksFromMay(store.passMayIntended(key)),
-    updating: typeof friendPassUpdating === 'function' && friendPassUpdating(key),
-  })).sort((a, b) => a.name.localeCompare(b.name));
+  // A friend whose pass another of my devices withdrew (10m R3) is drawn
+  // "(updating their pass)" too, with no tick given (chat-social.js
+  // friendTicks), but their ticks stay free: a tick made here is the person's
+  // own choice, and clears the mark. Only a pass being minted or waiting for
+  // the server's answer holds the ticks still (`held`).
+  const chosen = given.map((key) => {
+    const held = typeof friendPassUpdating === 'function' && friendPassUpdating(key);
+    const elsewhere = typeof friendPassChangedElsewhere === 'function' && friendPassChangedElsewhere(key);
+    return {
+      key,
+      name: reachDisplayName(key),
+      ticks: typeof friendTicks === 'function' ? friendTicks(key) : reachTicksFromMay(store.passMayIntended(key)),
+      updating: held || elsewhere,
+      held,
+    };
+  }).sort((a, b) => a.name.localeCompare(b.name));
   return {
     known,
     rows,
@@ -771,7 +783,7 @@ function safetyPanelHtml(model) {
         '<label style="display:inline-flex;align-items:center;gap:var(--space-xs);color:var(--text);cursor:pointer;">'
         + `<input type="checkbox" data-tick-key="${reachEsc(c.key)}" data-tick-kind="${kind}"`
         + ` aria-label="${reachEsc(c.name)}: ${reachEsc(REACH_TICK_LABELS[kind])}"`
-        + `${c.ticks[kind] ? ' checked' : ''}${c.updating ? ' disabled' : ''}>`
+        + `${c.ticks[kind] ? ' checked' : ''}${c.held ? ' disabled' : ''}>`
         + `<span>${reachEsc(REACH_TICK_LABELS[kind])}</span></label>`).join('')
       + '</div>').join('');
   } else {

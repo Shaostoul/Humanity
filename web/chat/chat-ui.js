@@ -1718,7 +1718,8 @@ var federatedRetryMs = 30000;
       scratchRow.id = 'unified-scratch-row';
       scratchRow.type = 'button';
       scratchRow.className = 'unified-scratch-row';
-      scratchRow.title = 'Local workspace. Nothing sent to anyone.';
+      // What it keeps where (app.js SCRATCH_PAD_NOTE, 10m R10).
+      scratchRow.title = 'Your scratch pad. ' + SCRATCH_PAD_NOTE;
       scratchRow.textContent = '# scratch-pad';
       scratchRow.onclick = function() {
         if (typeof switchChannel === 'function') switchChannel('__scratch__');
