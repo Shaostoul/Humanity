@@ -8,7 +8,9 @@
 // idle-waiting settle() included, this copies): the real report.js, friend-pass.js, reach.js,
 // block.js, crypto.js, chat-dm-store.js (over a stand-in IndexedDB), app.js, chat-messages.js,
 // chat-dms.js, chat-social.js, chat-groups-p2p.js, chat-ui.js, chat-voice-rooms.js,
-// chat-voice-calls.js, chat-privacy.js, chat-reports.js and chat-p2p.js, in index.html's order.
+// chat-voice-calls.js, chat-voice-modal.js, chat-privacy.js, chat-reports.js and chat-p2p.js, in
+// index.html's order. The stub DOM keeps the click listeners a script adds, so a test can press a
+// button the voice modal built.
 // BLAKE3 is the REAL one, the vendored bundle the page loads (web/shared/vendor/noble-pq.bundle.js),
 // so the evidence hash here is the one the relay recomputes. Only the Dilithium and Kyber
 // primitives are stand-ins: "signing" returns the signed words, so a test reads exactly what was
@@ -40,6 +42,13 @@
 //     relay leaves the reporter out, Delete the post only for a post, and report_decide sent exactly;
 //     a plain member cannot open it.
 //  6. The privacy explanation carries 10e's sentence.
+//  7. A message with a file (its text carries the key that opens the file, and the signature covers
+//     the whole text, so it cannot be cut out) is never offered in the DM picker, never made into an
+//     item, refused by the frame builder, and never travels; the dialog says "Messages with files
+//     cannot be included in a report." A group message with a file is left out the same way.
+//  8. The voice modal's Block, Unblock, Follow, Direct message, a moderation action and Report reach
+//     the person (chat-ui.js setCtxMenuTarget; setting window.ctxMenuTarget never reached chat-ui's
+//     `let ctxMenuTarget`, so these did nothing before 2026-10-09).
 //
 // Red first, 2026-10-09: each mutation made in a fresh copy of web/, this test run against it with
 // HOS_WEB_DIR, and seen failing with the assertion named (each passing again on the real web/):
@@ -59,6 +68,14 @@
 //     reportsViewModel naming the target when the relay leaves the reporter out: "a member, when
 //     the relay leaves the reporter out" (and "a mod sees a member").
 //  6: chat-privacy.js privacyExplanationText without the sentence: "the privacy explanation".
+//  7: each file guard taken out alone, each caught by its own assertion: reportDmCandidates without
+//     its reportTextHasFile filter: "the picker never offers a message with a file";
+//     dmEvidenceItem's check: "dmEvidenceItem gives no item for a file"; groupEvidenceItem's:
+//     "groupEvidenceItem gives no item for a file"; reportEvidenceProblem's: "the frame builder
+//     refuses a file item put there by hand"; the sentence left out of the DM dialog: "the dialog
+//     says so".
+//  8: chat-voice-modal.js withTarget setting window.ctxMenuTarget again, as before the fix:
+//     "Block blocks them".
 
 const test = require("node:test");
 const assert = require("node:assert");
@@ -108,9 +125,11 @@ function anything() {
 // An element that keeps what is written to it (text, children, handlers, style) and absorbs the
 // rest. Until its HTML is written, its innerHTML is its text escaped, as a browser's is.
 const escapeText = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+// Its listeners are kept too, so a test can click a button a script built (the voice modal).
 function fakeElement(tag) {
-  const own = { tag, children: [], style: {}, dataset: {}, className: "", textContent: "", value: "", disabled: false };
+  const own = { tag, children: [], style: {}, dataset: {}, className: "", textContent: "", value: "", disabled: false, listeners: {} };
   own.appendChild = (c) => { own.children.push(c); return c; };
+  own.addEventListener = (type, fn) => { (own.listeners[type] = own.listeners[type] || []).push(fn); };
   return new Proxy(own, {
     get(t, prop) {
       if (prop === "then") return undefined;
@@ -128,7 +147,7 @@ function fakeDocument(state) {
   const kept = (map, k) => { if (!map.has(k)) map.set(k, fakeElement(k)); return map.get(k); };
   return new Proxy({}, {
     get(_t, prop) {
-      if (prop === "createElement") return fakeElement;
+      if (prop === "createElement") return (tag) => { const e = fakeElement(tag); state.created.push(e); return e; };
       if (prop === "getElementById") return (id) => kept(byId, id);
       if (prop === "querySelector") return (sel) => (String(sel).startsWith(".reactions[") ? kept(bySelector, sel) : anything());
       if (prop === "querySelectorAll") return (sel) => (sel === ".message[data-from]" ? state.appended.filter((el) => el && el.dataset && el.dataset.from) : []);
@@ -231,7 +250,7 @@ const b64 = (s) => Buffer.from(s, "utf8").toString("base64");
 const unb64 = (s) => Buffer.from(s, "base64").toString("utf8");
 
 async function loadChat(opts = {}) {
-  const state = { appended: [], hidden: false };
+  const state = { appended: [], hidden: false, created: [] };
   const notified = [];
   const fetched = [];
   const serviceWorker = { register: () => Promise.resolve({ scope: "/" }), ready: new Promise(() => {}), controller: null, addEventListener() {} };
@@ -299,6 +318,7 @@ async function loadChat(opts = {}) {
   run("chat/chat-ui.js");
   run("chat/chat-voice-rooms.js");
   run("chat/chat-voice-calls.js");
+  run("chat/chat-voice-modal.js");
   run("chat/chat-privacy.js");
   run("chat/chat-reports.js");
   run("chat/chat-p2p.js");
@@ -799,4 +819,92 @@ test("the privacy explanation carries 10e's sentence", async () => {
   const body = ui.slice(ui.indexOf("function reportUser()"), ui.indexOf("function blockFromCtx()"));
   assert.ok(!/prompt\(|\/report \$\{/.test(body), "reportUser opens the dialog");
   assert.ok(fs.readFileSync(path.join(WEB, "chat", "app.js"), "utf8").includes("showUserContextMenu(e, author, fromKey, menuMessage)"), "a message's menu knows its message");
+});
+
+test("a message with a file is never offered, built or sent: its text carries the key to the file", async () => {
+  const { ctx, sock, handle, fn, el, dialog } = await loadChat();
+  // The client's own marker is the one the report words refuse (any version of it).
+  const FILE_MARKER = vm.runInContext("FILE_MARKER", ctx);
+  assert.ok(FILE_MARKER.startsWith(report.REPORT_FILE_MARKER_PREFIX), "crypto.js's file marker is the one report.js refuses");
+  assert.equal(report.REPORT_NO_FILES, "Messages with files cannot be included in a report.");
+  const KEY = "S0VZLVRIQVQtT1BFTlMtVEhFLUZJTEU=";
+  const fileText = fn("pqBuildFileMarker")({ name: "photo.jpg", mime: "image/jpeg", size: 12, url: "/uploads/x.enc", k: KEY, n: "Tk9OQ0U=" });
+  assert.ok(fileText.startsWith(FILE_MARKER));
+
+  // Ben: a plain message, then a file, then words with a marker inside them.
+  await handle({ type: "dm_new", id: 301, content: envelope(BEN, ME, "plain words", 1760000001000) });
+  await handle({ type: "dm_new", id: 302, content: envelope(BEN, ME, fileText, 1760000002000) });
+  await handle({ type: "dm_new", id: 303, content: envelope(BEN, ME, "look " + fileText, 1760000003000) });
+  assert.equal(fn("hosDmStore").conversation(BEN).length, 3, "all three are kept in the conversation");
+  assert.deepEqual(fn("reportDmCandidates")(BEN).map((m) => m.text), ["plain words"], "the picker never offers a message with a file");
+
+  vm.runInContext("(k) => { activeDmPartner = k; activeDmPartnerName = 'Ben'; }", ctx)(BEN);
+  await fn("reportActiveDm")();
+  const st = dialog();
+  assert.deepEqual(st.picks.map((p) => [p.item.text, p.picked]), [["plain words", true]], "the most recent message without a file is ticked");
+  const html = el("report-card").innerHTML;
+  assert.ok(html.includes("Messages with files cannot be included in a report."), "the dialog says so");
+  assert.ok(!html.includes("photo.jpg") && !html.includes(KEY) && !html.includes("hum:file"), "nothing of the file is shown");
+  fn("reportDialogChoose")("unwanted_sexual");
+  sock.sent.length = 0;
+  sock.raw.length = 0;
+  assert.equal(await fn("submitReportDialog")(), true);
+  await settle();
+  const [f] = reportFrames(sock);
+  assert.deepEqual(f.evidence.map((it) => it.text), ["plain words"]);
+  assert.ok(!sock.raw.some((s) => s.includes("hum:file") || s.includes(KEY)), "no frame carries the marker or the key");
+
+  // Each layer refuses on its own: the item builders, and the frame builder.
+  const inner = { from: BEN, to: ME, ts: 1, text: fileText, sig: "c2ln" };
+  assert.equal(report.dmEvidenceItem(inner), null, "dmEvidenceItem gives no item for a file");
+  assert.equal(report.dmEvidenceItem({ ...inner, text: "see " + FILE_MARKER.replace("v1", "v2") + "x" }), null, "nor for another version of the marker");
+  assert.equal(report.groupEvidenceItem(BEN, 1, fileText), null, "groupEvidenceItem gives no item for a file");
+  const forced = await fn("pqBuildReport")({ target: BEN, context: "dm", reason: "spam", evidence: [{ kind: "dm", ...inner }] });
+  assert.ok(!forced.frame && forced.error === report.REPORT_NO_FILES, "the frame builder refuses a file item put there by hand");
+  const forcedGroup = await fn("pqBuildReport")({ target: BEN, context: "group", reason: "spam", evidence: [{ kind: "group_text", from: BEN, ts: 1, text: fileText }] });
+  assert.ok(!forcedGroup.frame && forcedGroup.error === report.REPORT_NO_FILES, "and a group file item");
+
+  // A group message with a file: nothing of it is included, and the dialog says so.
+  fn("showUserContextMenu")(ev, "Ann", ANN, { timestamp: 1760000000888, text: fileText, group: true });
+  fn("reportUser")();
+  await settle();
+  assert.equal(dialog().context, "group");
+  assert.deepEqual(Array.from(fn("reportDialogEvidence")(dialog())), [], "a group file message is not evidence");
+  const g = el("report-card").innerHTML;
+  assert.ok(g.includes("Messages with files cannot be included in a report.") && !g.includes(KEY), "and the group dialog says so");
+  fn("closeReportDialog")();
+});
+
+test("the voice modal's Block, Unblock, Follow, Direct message and moderation actions reach the person", async () => {
+  const { ctx, sock, store, state, fn, dialog } = await loadChat({ myRole: "mod" });
+  // Click the newest button the voice modal built with this label.
+  const click = async (label) => {
+    const b = state.created.filter((e) => e.tag === "button" && e.textContent === label).pop();
+    assert.ok(b, `the voice modal has ${label}`);
+    for (const h of b.listeners.click || []) h({ target: b, preventDefault() {}, stopPropagation() {} });
+    await settle();
+  };
+  const open = () => fn("openVoiceUserModal")("Ben", BEN);
+
+  open();
+  await click("Block");
+  assert.ok(store.isBlocked(BEN), "Block blocks them");
+  open();
+  await click("Unblock");
+  assert.equal(store.isBlocked(BEN), false, "Unblock unblocks them");
+  open();
+  await click("Follow");
+  assert.ok(vm.runInContext("(k) => myFollowing.has(k)", ctx)(BEN), "Follow follows them");
+  open();
+  await click("Direct message");
+  assert.equal(vm.runInContext("activeDmPartner", ctx), BEN, "Direct message opens the conversation");
+  sock.sent.length = 0;
+  open();
+  await click("Text mute");
+  assert.ok(sock.sent.some((m) => m.type === "chat" && m.content === "/mute Ben"), "a moderation action goes out for them");
+  open();
+  await click("Report");
+  assert.deepEqual([dialog().target, dialog().context], [BEN, "profile"], "Report opens the dialog for them");
+  fn("closeReportDialog")();
+  assert.equal(typeof fn("setCtxMenuTarget"), "function", "chat-ui exposes the setter the modal uses");
 });

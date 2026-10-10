@@ -23,6 +23,8 @@
 //   {"kind":"post","from","timestamp"}             a public post; the relay looks it up
 //   {"kind":"group_text","from","ts","text"}       from a P2P group; never proven
 // At most 20 items and 64 KB of evidence in all; a note of at most 500 characters.
+// Never a message with a file: its text carries the key that opens the file
+// (see REPORT_NO_FILES below).
 //
 // A classic script in the browser (its names land on window), a CommonJS
 // module under Node. Load before crypto.js.
@@ -65,6 +67,18 @@
   const REPORT_NOT_PROVEN = 'Not proven';
   const REPORT_GROUP_UNPROVEN = 'From a group: this server cannot check who wrote these words, so they are sent as you saw them and marked as not proven.';
   const REPORT_DM_EVIDENCE_HELP = 'Tick the messages to include. Each carries their signature, so the admins can check they wrote it and sent it to you. Nothing else in the conversation is sent.';
+
+  // Messages with files are never evidence. A DM's encrypted-file marker
+  // ([[hum:file:v1]], crypto.js FILE_MARKER) carries the key that opens the
+  // file, and the signature covers the whole text, so it cannot be cut out: a
+  // report would hand an admin the means to open what could be abuse imagery,
+  // which belongs with official hotlines, not a server's volunteers. Any
+  // version of the marker counts. The relay refuses such evidence too.
+  const REPORT_FILE_MARKER_PREFIX = '[[hum:file:';
+  const REPORT_NO_FILES = 'Messages with files cannot be included in a report.';
+  function reportTextHasFile(text) {
+    return typeof text === 'string' && text.includes(REPORT_FILE_MARKER_PREFIX);
+  }
 
   /** The badge on a proven DM item (10e). */
   function reportCheckedBadge(name) {
@@ -117,12 +131,15 @@
 
   /**
    * A DM's verified inner payload as evidence: the fields the relay rebuilds
-   * the DM signature from, unchanged. Null when it carries no signature.
+   * the DM signature from, unchanged. Null when it carries no signature, or
+   * carries a file (REPORT_NO_FILES).
    */
   function dmEvidenceItem(m) {
     if (!m || typeof m.sig !== 'string' || !m.sig) return null;
     if (typeof m.from !== 'string' || typeof m.to !== 'string') return null;
-    return { kind: 'dm', from: m.from, to: m.to, ts: Number(m.ts) || 0, text: String(m.text == null ? '' : m.text), sig: m.sig };
+    const text = String(m.text == null ? '' : m.text);
+    if (reportTextHasFile(text)) return null;
+    return { kind: 'dm', from: m.from, to: m.to, ts: Number(m.ts) || 0, text, sig: m.sig };
   }
 
   /** A public post as evidence: the relay finds it by its author and time. */
@@ -130,9 +147,11 @@
     return { kind: 'post', from: String(from), timestamp: Number(timestamp) || 0 };
   }
 
-  /** Words seen in a P2P group as evidence: never proven. */
+  /** Words seen in a P2P group as evidence: never proven. Null when they carry a file. */
   function groupEvidenceItem(from, ts, text) {
-    return { kind: 'group_text', from: String(from), ts: Number(ts) || 0, text: String(text == null ? '' : text) };
+    const t = String(text == null ? '' : text);
+    if (reportTextHasFile(t)) return null;
+    return { kind: 'group_text', from: String(from), ts: Number(ts) || 0, text: t };
   }
 
   /** Why this evidence would be refused, or null when it is fine. */
@@ -150,6 +169,7 @@
       } else {
         return 'An item of evidence is of a kind this server does not take.';
       }
+      if (reportTextHasFile(it.text)) return REPORT_NO_FILES;
     }
     if (utf8(reportEvidenceJson(evidence)).length > REPORT_MAX_EVIDENCE_BYTES) {
       return 'The messages chosen are too long to send together (64 KB at most). Untick some.';
@@ -278,8 +298,8 @@
     REPORT_DOMAIN, REPORT_CONTEXTS, REPORT_DECISIONS, REPORT_DECISION_LABELS, REPORT_CONTEXT_LABELS,
     REPORT_MAX_ITEMS, REPORT_MAX_EVIDENCE_BYTES, REPORT_NOTE_MAX, REPORT_REASONS_URL,
     REPORT_PRIVACY_SENTENCE, REPORT_RECEIVED_LINE, REPORT_SIGNATURE_LIMITS, REPORT_NOT_PROVEN,
-    REPORT_GROUP_UNPROVEN, REPORT_DM_EVIDENCE_HELP,
-    reportCheckedBadge, reportPostFoundBadge, reportKeyNorm, reportPreimage, reportEvidenceJson,
+    REPORT_GROUP_UNPROVEN, REPORT_DM_EVIDENCE_HELP, REPORT_FILE_MARKER_PREFIX, REPORT_NO_FILES,
+    reportTextHasFile, reportCheckedBadge, reportPostFoundBadge, reportKeyNorm, reportPreimage, reportEvidenceJson,
     reportNoteNorm, dmEvidenceItem, postEvidenceItem, groupEvidenceItem, reportEvidenceProblem,
     buildReportFrame, reportReasonsFrom, reportItemView, reportEvidenceBadge, reportMs,
   };

@@ -5,7 +5,8 @@
 //
 // The Report dialog, from a message's menu (the post itself, or the words seen
 // in a group), a DM conversation's header (their messages to tick as
-// evidence, the most recent ticked) and a person's entry in the member list:
+// evidence, the most recent ticked, never one with a file: its text carries the
+// key that opens the file) and a person's entry in the member list:
 // the reasons from /data/safety/report_reasons.json with their help text shown
 // when chosen, an optional note, and "Also block them", ticked for DM reports,
 // which runs Block (chat-privacy.js blockKey). The report is signed with my
@@ -104,16 +105,17 @@ let reportDialog = null; // the open dialog's state, or null
  * Their messages in my conversation with them that can be evidence: sent by
  * them to me, kept with their signature, newest first. Notes the clients
  * send each other (follow notices, passes, contact requests) are not
- * messages; an encrypted file is, and is listed by its name.
+ * messages. A message with a file is NEVER offered (REPORT_NO_FILES in
+ * /shared/report.js): its text carries the key that opens the file, and the
+ * signature covers the whole text, so it cannot be sent without the key.
  */
 function reportDmCandidates(target) {
   const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
   if (!store) return [];
   const me = typeof myKey === 'string' ? myKey : '';
-  const fileMarker = typeof FILE_MARKER === 'string' ? FILE_MARKER : '[[hum:file:v1]]';
   return store.conversation(target)
     .filter((m) => m && repSameKey(m.from, target) && repSameKey(m.to, me) && typeof m.sig === 'string' && m.sig)
-    .filter((m) => !String(m.text || '').startsWith('[[hum:') || String(m.text).startsWith(fileMarker))
+    .filter((m) => !reportTextHasFile(m.text) && !String(m.text || '').startsWith('[[hum:'))
     .slice()
     .sort((a, b) => b.ts - a.ts)
     .slice(0, REPORT_PICK_SHOWN);
@@ -150,13 +152,14 @@ async function openReportDialog(opts) {
     sending: false,
   };
   if (context === 'dm') {
-    state.picks = reportDmCandidates(target).map((m, i) => ({ item: dmEvidenceItem(m), picked: i === 0 }));
+    state.picks = reportDmCandidates(target).map((m) => ({ item: dmEvidenceItem(m), picked: false })).filter((p) => p.item);
+    if (state.picks.length) state.picks[0].picked = true;
   } else if ((context === 'post' || context === 'group') && o.message) {
     const ts = Number(o.message.timestamp) || 0;
-    state.fixed = {
-      item: context === 'post' ? postEvidenceItem(target, ts) : groupEvidenceItem(target, ts, o.message.text),
-      text: String(o.message.text == null ? '' : o.message.text),
-    };
+    const item = context === 'post' ? postEvidenceItem(target, ts) : groupEvidenceItem(target, ts, o.message.text);
+    // A group message with a file is never included (groupEvidenceItem gives null).
+    if (item) state.fixed = { item, text: String(o.message.text == null ? '' : o.message.text) };
+    else state.fileLeftOut = true;
   }
   reportDialog = state;
   renderReportDialog();
@@ -240,7 +243,8 @@ function reportDialogHtml(st) {
   if (st.context === 'dm') {
     const n = st.picks.filter((p) => p.picked).length;
     html += `<h3 style="${h3}">Their messages to include</h3>`
-      + `<p style="${muted}">${repEsc(REPORT_DM_EVIDENCE_HELP)}</p>`;
+      + `<p style="${muted}">${repEsc(REPORT_DM_EVIDENCE_HELP)}</p>`
+      + `<p class="report-no-files" style="${muted}">${repEsc(REPORT_NO_FILES)}</p>`;
     if (!st.picks.length) {
       html += `<p class="report-no-evidence" style="${muted}">None of their messages in this conversation can be included: only messages they sent you that this device keeps with their signature can be.</p>`;
     } else {
@@ -260,6 +264,9 @@ function reportDialogHtml(st) {
     html += st.context === 'post'
       ? `<p style="${muted}margin-top:var(--space-xs);">The server finds this post itself, so the admins see it as it was posted.</p>`
       : `<p style="${muted}margin-top:var(--space-xs);">${repEsc(REPORT_GROUP_UNPROVEN)}</p>`;
+  } else if (st.fileLeftOut) {
+    html += `<h3 style="${h3}">The group message</h3>`
+      + `<p class="report-no-files" style="${muted}">${repEsc(REPORT_NO_FILES)} Describe what happened in the note instead.</p>`;
   }
 
   html += `<h3 style="${h3}">Anything to add (optional)</h3>`

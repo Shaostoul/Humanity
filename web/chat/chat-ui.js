@@ -435,6 +435,18 @@ function streamingBadge(isLive) {
 let ctxMenuTarget = null; // { name, publicKey, message } (message: the post or group message the menu was opened on)
 const ctxMenu = document.getElementById('user-context-menu');
 
+/**
+ * Point the menu's actions (blockFromCtx, dmFromCtx, followFromCtx, ctxCommand
+ * and the rest) at a person without opening the menu: the voice modal
+ * (chat-voice-modal.js withTarget) reuses them this way. `ctxMenuTarget` is a
+ * `let` of this script, not a property of window, so setting
+ * window.ctxMenuTarget from another script never reached it.
+ */
+function setCtxMenuTarget(name, publicKey) {
+  ctxMenuTarget = publicKey ? { name, publicKey, message: null } : null;
+}
+window.setCtxMenuTarget = setCtxMenuTarget;
+
 function showUserContextMenu(e, name, publicKey, message) {
   e.preventDefault();
   e.stopPropagation();
