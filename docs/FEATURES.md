@@ -541,6 +541,35 @@ Create, join, search, and manage guilds with invite codes.
 Points, levels, and leaderboard for community standing.
 - Server: `src/relay/storage/reputation.rs`
 
+### Safety: who can reach me, Block, reports, warnings (dual UI, v0.1465 to v0.1472)
+Design: `docs/design/blocking-and-safe-mode.md` (steps A to G, sections 10b to 10h). Settings >
+Safety on both clients. **Who can reach me** (v0.1467): one audience per kind (messages, calls,
+trades: Nobody, People I choose, Friends, Friends and people in my groups, Anyone), safe by
+default, enforced by the relay for everyone, admins included; strangers can send a contact
+request that shows only their name. **People I choose** (v0.1472): a Message, Call and Trade tick
+per friend, carried in the friendship pass (v2, never expires, withdrawn on Unfollow or Block).
+**Block** (v0.1468): hides everything from that person, withdraws the pass, they are not told,
+synced to your own devices. **Reports the admins can check** (v0.1469): signed reports with the
+reported person's own signed DMs as evidence, never a file; Reports page for admins and
+moderators; kept 90 days. **Help outside this server** (v0.1472): for a child or someone in
+danger, the report dialog shows the emergency number and child-report body for a country the
+person picks (`data/safety/outside_help.json`, from a dated finding). **Calls through the
+server** (v0.1470): our own STUN and a room-scoped forwarder on UDP 3478, so nobody in a call sees
+another's address. **Warnings on messages and the recovery-phrase guard** (v0.1471): warnings
+from `data/safety/warnings.json` checked on the device only; a send holding 4 or more of your
+own recovery phrase's words in a row is stopped.
+- Native: `src/gui/pages/safety.rs`, `src/net/reach.rs`, `src/engine/reach.rs`,
+  `src/engine/block.rs`, `src/engine/report.rs`, `src/net/report.rs`,
+  `src/gui/pages/chat/report_dialog.rs`, `src/net/outside_help.rs`, `src/net/warnings.rs`,
+  `src/gui/pages/chat/warnings.rs`, `src/net/dm_store.rs` (passes, ticks, block list)
+- Web: `web/shared/reach.js`, `web/shared/block.js`, `web/shared/report.js`,
+  `web/shared/warnings.js`, `web/shared/friend-pass.js`, `web/chat/chat-privacy.js` (Safety),
+  `web/chat/chat-social.js`, `web/chat/chat-reports.js`, `web/chat/chat-warnings.js`
+- Server: `src/relay/handlers/reach.rs`, `src/relay/handlers/friend_passes.rs`,
+  `src/relay/handlers/reports.rs`, `src/relay/call_forwarder.rs`, `src/relay/call_credentials.rs`
+- Data: `data/safety/` (warnings, report reasons, outside help), `data/gui/safety_presets.json`
+  (the protected setup, step G, being built)
+
 ---
 
 ## Wallet and Funding
