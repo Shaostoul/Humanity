@@ -176,3 +176,38 @@ fn report_messages_have_the_exact_shapes_the_clients_read() {
         "the list carries exactly type, state and items"
     );
 }
+
+// ── An admin erasing someone on the wire (handlers/account_erase.rs) ──
+
+/// The exact shapes of docs/design/blocking-and-safe-mode.md 10i: `admin_erase` reads `target`
+/// and `confirm_name`; `admin_erase_done` carries `name`, `receipt` as `[table, rows]` pairs and
+/// `partial`, and never the admin it is routed to; `account_erased` carries `by_admin`, and one
+/// without it (a relay from before 10i) reads as the person's own erase.
+///
+/// Seen red 2026-10-10 with the `#[serde(skip)]` taken off `AdminEraseDone::to`: "the receipt
+/// carries exactly type, name, receipt and partial" (it carried `to` as well).
+#[test]
+fn admin_erase_messages_have_the_exact_shapes_the_clients_read() {
+    let asked: RelayMessage = serde_json::from_str(r#"{"type":"admin_erase","target":"abc","confirm_name":"Sam"}"#).expect("admin_erase parses");
+    match asked {
+        RelayMessage::AdminErase { target, confirm_name } => assert_eq!((target.as_str(), confirm_name.as_str()), ("abc", "Sam")),
+        other => panic!("admin_erase parsed as something else: {other:?}"),
+    }
+    // A frame missing a field still parses (and is then refused with a notice), rather than
+    // failing to parse and having its raw text, the target's key and name, logged.
+    let short: RelayMessage = serde_json::from_str(r#"{"type":"admin_erase","target":"abc"}"#).expect("a short admin_erase parses");
+    assert!(matches!(short, RelayMessage::AdminErase { ref confirm_name, .. } if confirm_name.is_empty()));
+    let done = RelayMessage::AdminEraseDone { to: "admin".into(), name: "Sam".into(), receipt: vec![("messages".into(), 2), ("membership".into(), 1)], partial: false };
+    assert_eq!(
+        serde_json::to_value(&done).unwrap(),
+        serde_json::json!({ "type": "admin_erase_done", "name": "Sam", "receipt": [["messages", 2], ["membership", 1]], "partial": false }),
+        "the receipt carries exactly type, name, receipt and partial"
+    );
+    let told = RelayMessage::AccountErased { to: "abc".into(), partial: false, earlier: false, by_admin: true };
+    assert_eq!(
+        serde_json::to_value(&told).unwrap(),
+        serde_json::json!({ "type": "account_erased", "to": "abc", "partial": false, "earlier": false, "by_admin": true })
+    );
+    let before: RelayMessage = serde_json::from_str(r#"{"type":"account_erased","to":"abc","partial":false}"#).expect("an older account_erased parses");
+    assert!(matches!(before, RelayMessage::AccountErased { by_admin: false, earlier: false, .. }), "a missing by_admin did not read as false");
+}

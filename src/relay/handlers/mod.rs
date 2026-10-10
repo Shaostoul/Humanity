@@ -1,6 +1,7 @@
 //! Handler submodules for the relay server.
 //! Each submodule contains logically grouped functions extracted from relay.rs.
 
+pub mod account_erase;
 pub mod announce;
 pub mod broadcast;
 pub mod federation;
