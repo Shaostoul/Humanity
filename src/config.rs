@@ -445,6 +445,10 @@ pub struct AppConfig {
     /// Chosen privacy tier id (empty = never chosen; first-connect modal asks). 2026-08-23.
     #[serde(default)]
     pub privacy_tier: String,
+    /// Settings > Safety, "Warnings on messages" (step F of blocking-and-safe-mode.md 10g,
+    /// 2026-10-10). On by default, so a config written before it existed warns.
+    #[serde(default = "default_true")]
+    pub warnings_on_messages: bool,
     /// UI font size. An accessibility setting, so losing it every launch is
     /// worse than losing a cosmetic one.
     #[serde(default = "default_font_size")]
@@ -1465,6 +1469,7 @@ impl AppConfig {
             profile_visible: state.settings.profile_visible,
             online_status_visible: state.settings.online_status_visible,
             privacy_tier: state.settings.privacy_tier.clone(),
+            warnings_on_messages: state.settings.warnings_on_messages,
             font_size: state.settings.font_size,
             dark_mode: state.settings.dark_mode,
             hint_display: state.settings.hint_display,
@@ -1642,6 +1647,7 @@ impl AppConfig {
         state.settings.profile_visible = self.profile_visible;
         state.settings.online_status_visible = self.online_status_visible;
         state.settings.privacy_tier = self.privacy_tier.clone();
+        state.settings.warnings_on_messages = self.warnings_on_messages;
         // Clamp the ranges the UI enforces, so a hand-edited config cannot
         // produce an unusable window (a 0 font size or a 0 m far plane).
         state.settings.font_size = self.font_size.clamp(10.0, 24.0);
@@ -2257,6 +2263,25 @@ mod play_mode_tests {
         assert!(!fresh.settings.readable_web);
         saved.apply_to_gui_state(&mut fresh);
         assert!(fresh.settings.readable_web, "apply_to_gui_state must carry the opt-in");
+    }
+
+    /// "Warnings on messages" (step F of blocking-and-safe-mode.md 10g): On for a config written
+    /// before it existed, and a chosen Off survives a save and a load (the GUI state, the JSON and
+    /// back). Seen red 2026-10-10 with `from_gui_state` writing `warnings_on_messages: true`: "the
+    /// switch is written".
+    #[test]
+    fn warnings_on_messages_starts_on_and_off_survives_a_restart() {
+        let old: AppConfig = serde_json::from_str(r#"{"server_url":""}"#).unwrap();
+        assert!(old.warnings_on_messages, "on by default, old configs included");
+        let mut state = crate::gui::GuiState::default();
+        assert!(state.settings.warnings_on_messages, "on in a fresh app");
+        state.settings.warnings_on_messages = false;
+        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
+        assert!(json.contains("\"warnings_on_messages\":false"), "the switch is written: {json}");
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        let mut fresh = crate::gui::GuiState::default();
+        back.apply_to_gui_state(&mut fresh);
+        assert!(!fresh.settings.warnings_on_messages, "Off must STAY off across a restart");
     }
 
     /// The two realism switches (BUG-136 carrying weight, and body heat,

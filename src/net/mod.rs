@@ -49,6 +49,11 @@ pub mod report;
 #[cfg(feature = "native")]
 pub mod call_relay;
 
+/// Warnings, and the recovery-phrase guard (step F of docs/design/blocking-and-safe-mode.md,
+/// 2026-10-10): the warnings file, the matching rule both clients share, and the guard's test.
+#[cfg(feature = "native")]
+pub mod warnings;
+
 /// Native client → relay v2 signed-object submission + invite ticket helpers
 /// (P2P groups). HTTP via the same blocking-ureq pattern as image upload.
 #[cfg(feature = "native")]

@@ -1986,6 +1986,15 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         );
     });
 
+    // Step F's recovery-phrase guard: a channel name or description holding it is not sent.
+    let create_clicked = create_clicked && {
+        let draft = &state.server_settings_new_channel;
+        let held = crate::engine::warnings::holds_own_phrase(state, &[&draft.name, &draft.description]);
+        if held {
+            state.server_settings_status = crate::net::warnings::GUARD_LINE.to_string();
+        }
+        !held
+    };
     if create_clicked {
         let name = state.server_settings_new_channel.name.trim().to_string();
         let desc = state.server_settings_new_channel.description.trim().to_string();
@@ -2005,7 +2014,9 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     // Apply pending row actions.
     if let Some(id) = save_id {
-        if let Some(draft) = state.server_settings_channel_drafts.get(&id).cloned() {
+        // Step F's recovery-phrase guard: a draft holding it is neither applied nor sent.
+        let draft = state.server_settings_channel_drafts.get(&id).cloned();
+        if let Some(draft) = draft.filter(|d| !crate::engine::warnings::guard_stops(state, &[&d.name, &d.description])) {
             // 1. Apply locally so the chat UI updates immediately.
             if let Some(ch) = state.chat_channels.iter_mut().find(|c| c.id == id) {
                 ch.name = draft.name.trim().to_string();

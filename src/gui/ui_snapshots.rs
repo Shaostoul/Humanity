@@ -1021,10 +1021,11 @@ fn settings_panel(
 // and trades), three friends in "People who may call me" (one ticked, one ticked whose pass is
 // still being re-issued, one not), and two requests: one the member list names, one from someone
 // not on it right now. The store is built in memory and never saved, so nothing lands on disk.
+// Taller since step F (10g, 2026-10-10) so the Warnings section and its switch are in the picture.
 #[test]
     #[ignore = "GPU snapshot; run via `just snapshots`"]
     fn snapshot_safety_settings() {
-    render_page_png("safety_settings", 960, 900, |ctx, theme, state| {
+    render_page_png("safety_settings", 960, 1400, |ctx, theme, state| {
         if state.dm_store.is_none() {
             use crate::net::dm_store::SentPass;
             use crate::net::reach::{intended_may_wire, Audience, ContactRequest, ReachSettings};
@@ -1613,6 +1614,36 @@ fn snapshot_chat_commons() {
             &[("Bela", "hello from server B", 2000), ("Bix", "hey all", 4000)],
         ));
         state.chat_active_channel = "commons:general".into();
+        crate::gui::pages::chat::draw(ctx, theme, state);
+    });
+}
+
+/// Step F (docs/design/blocking-and-safe-mode.md 10g): a direct message from someone who is not a
+/// friend, asking for a gift card while claiming to be an admin, with both warnings under it,
+/// and a second holding a link, with the link line and its Open button. Built in memory from the
+/// shipped warnings file; nothing is sent.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_chat_warning() {
+    render_page_png("chat_warning", 1280, 900, |ctx, theme, state| {
+        if state.chat_active_channel != "dm:dana0" {
+            state.profile_public_key = "me".into();
+            state.warnings.list = Some(
+                crate::net::warnings::parse_warnings(crate::embedded_data::WARNINGS_JSON.as_bytes()).expect("the shipped warnings"),
+            );
+            let dm = |text: &str, ts: u64, at: &str| ChatMessage {
+                sender_name: "Dana".into(),
+                sender_key: "dana0".into(),
+                content: text.into(),
+                timestamp: at.into(),
+                timestamp_ms: ts,
+                channel: "dm:dana0".into(),
+                ..Default::default()
+            };
+            state.chat_messages.push(dm("Hi! I'm an admin here. To keep your account open, buy a gift card and send me the code.", 1_791_500_000_000, "12:40"));
+            state.chat_messages.push(dm("Here is the form: https://example.com/verify", 1_791_500_060_000, "12:41"));
+            state.chat_active_channel = "dm:dana0".into();
+        }
         crate::gui::pages::chat::draw(ctx, theme, state);
     });
 }

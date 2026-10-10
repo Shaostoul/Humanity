@@ -2,17 +2,20 @@
 //! "Who can reach me", one row per kind of contact the server checks (Messages, Calls, Trades)
 //! with the five audiences in plain words and a line under each saying what the current choice
 //! means; "People who may call me", the person's friends with a tick each; the Requests
-//! list (also in Chat, under DMs), where a request can also be blocked; and Blocked people
-//! (step C, 10d), each with the date and Unblock.
+//! list (also in Chat, under DMs), where a request can also be blocked; Warnings (step F, 10g),
+//! the "Warnings on messages" switch; and Blocked people (step C, 10d), each with the date and
+//! Unblock.
 //!
 //! What the rows show is what the SERVER last said (`reach_settings`, kept in the DM store per
 //! server), never what was clicked: a click sends `reach_set` and the row moves when the server
 //! answers, so the page cannot show a choice the server is not enforcing. A tick re-issues that
 //! friend's pass with or without `call` (engine/dm.rs `reissue_pass`).
 //!
-//! Persistence: nothing here is an AppConfig setting. The audiences live on the server (and in
-//! the encrypted DM store as the last word heard), the ticks and requests in the DM store, and
-//! the block list in its own encrypted file per identity (net/block_list.rs).
+//! Persistence: one AppConfig setting, "Warnings on messages" (step F, 10g, saved through
+//! `settings_dirty` and checked by tests/settings_persistence_lint.rs, which scans this file as
+//! well as settings.rs). The audiences live on the server (and in the encrypted DM store as the
+//! last word heard), the ticks and requests in the DM store, and the block list in its own
+//! encrypted file per identity (net/block_list.rs).
 
 use egui::RichText;
 
@@ -39,7 +42,9 @@ pub(crate) fn draw_safety_content(ui: &mut egui::Ui, theme: &Theme, state: &mut 
             "Connect to a server (with your identity unlocked) to choose who can reach you there. \
              Each server keeps its own settings.",
         );
-        // The block list is this device's, not a server's, so it is shown offline too.
+        // The warnings switch and the block list are this device's, not a server's, so they are
+        // shown offline too.
+        draw_warnings_switch(ui, theme, state, accent);
         draw_blocked_people(ui, theme, state, accent);
         return;
     }
@@ -104,7 +109,56 @@ pub(crate) fn draw_safety_content(ui: &mut egui::Ui, theme: &Theme, state: &mut 
         draw_requests_list(ui, theme, state);
     });
 
+    draw_warnings_switch(ui, theme, state, accent);
     draw_blocked_people(ui, theme, state, accent);
+}
+
+/// Settings > Safety > Warnings (step F of docs/design/blocking-and-safe-mode.md, 10g): the
+/// "Warnings on messages" switch, On by default and saved with the other settings (AppConfig
+/// `warnings_on_messages`, through `settings_dirty`), and the plain account of what the warnings
+/// and the recovery-phrase guard do and cannot do (6.5).
+pub(crate) fn draw_warnings_switch(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: egui::Color32) {
+    widgets::subsection_header(
+        ui,
+        theme,
+        accent,
+        "Warnings",
+        "A short explanation under a direct message or a group message that asks for money or for \
+         your recovery phrase, claims to be staff, wants to move you to another app, or pushes you \
+         to hurry or keep a secret. A warning never blocks a message and never reports anyone.",
+    );
+    widgets::card(ui, theme, |ui| {
+        ui.set_min_width(ui.available_width());
+        if widgets::toggle(ui, theme, "Warnings on messages", &mut state.settings.warnings_on_messages) {
+            state.settings_dirty = true;
+        }
+        widgets::body_hint(
+            ui,
+            theme,
+            "On: warnings show under messages from people who are not your friends, and the ones about \
+             money and your recovery phrase under friends' messages too, because a friend's account can \
+             be taken over. Off: no warnings are shown.",
+        );
+        widgets::body_hint(
+            ui,
+            theme,
+            "Whatever this switch says, links in a direct message from someone who is not your friend \
+             open only when you choose Open, the way their pictures wait for a click.",
+        );
+        widgets::body_hint(
+            ui,
+            theme,
+            "Messages are end-to-end encrypted. Nobody, including server admins, can read them to look \
+             for danger. Warnings are checked on this device only.",
+        );
+        widgets::body_hint(
+            ui,
+            theme,
+            "Your recovery phrase is never sent, and this has no switch: if anything you are about to \
+             send holds four or more of its words in order, it stops and nothing leaves this device. \
+             This works while your identity is unlocked.",
+        );
+    });
 }
 
 /// "People who may call me": each friend (a mutual follow) with a tick. Ticking re-issues the

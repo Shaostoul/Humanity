@@ -328,6 +328,17 @@ fn now_ms() -> i64 {
         .unwrap_or(0)
 }
 
+/// Step F's recovery-phrase guard on a shop or offering about to be signed and sent: true (and
+/// the form says why, keeping what was typed) when its text holds the phrase. The payload's
+/// debug text keeps each field's words together, which is all the guard's test needs.
+fn phrase_stops(state: &GuiState, payload: &ciborium::Value) -> bool {
+    let stops = crate::engine::warnings::holds_own_phrase(state, &[&format!("{payload:?}")]);
+    if stops {
+        with_pub(|ps| ps.error = crate::net::warnings::GUARD_LINE.to_string());
+    }
+    stops
+}
+
 /// Validate locally, sign, POST. Runs entirely off the UI thread: Dilithium
 /// keygen + sign is tens of milliseconds, the POST is the network.
 fn spawn_publish(
@@ -608,6 +619,9 @@ pub fn draw(
                         state.private_key_bytes.clone().unwrap_or_default(),
                     )
                 });
+                if phrase_stops(state, &payload) {
+                    return;
+                }
                 let rx = spawn_publish(
                     base.to_string(),
                     seed,
@@ -838,6 +852,9 @@ pub fn draw(
                         state.private_key_bytes.clone().unwrap_or_default(),
                     )
                 });
+                if phrase_stops(state, &payload) {
+                    return;
+                }
                 let rx = spawn_publish(
                     base.to_string(),
                     seed,

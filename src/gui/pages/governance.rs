@@ -538,7 +538,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         }
                         ui.add_enabled_ui(ready, |ui| {
                             if widgets::primary_button(ui, theme, "Submit proposal") {
-                                if let Some(seed) = state.private_key_bytes.clone() {
+                                let words = [state.governance_new_title.clone(), state.governance_new_body.clone()];
+                                if crate::engine::warnings::guard_stops(state, &[&words[0], &words[1]]) {
+                                    // Step F's guard: nothing is signed or sent, and the text stays.
+                                } else if let Some(seed) = state.private_key_bytes.clone() {
                                     let (tx, rx) = std::sync::mpsc::channel();
                                     let url = base.clone();
                                     let ptype = PROPOSAL_TYPES[state.governance_new_type_idx.min(2)].0.to_string();

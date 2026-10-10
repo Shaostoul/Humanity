@@ -65,6 +65,8 @@ pub(crate) use report_dialog::draw_report_dialog;
 /// Calls through the server (step E): the line the call bar and the voice-room bar show when the
 /// server cannot carry the call. See `chat/call_relay_bar.rs`.
 mod call_relay_bar;
+/// Warnings (step F): what is drawn under a received message. See `chat/warnings.rs`.
+mod warnings;
 
 // Maximum messages kept in the local chat buffer (was hardcoded, now uses theme.max_messages if needed).
 
@@ -76,6 +78,7 @@ const MAX_PANEL_WIDTH: f32 = 400.0;
 // Section tint colors now come from theme.ron (theme.dm_bg(), theme.group_bg(), theme.server_bg(), etc.)
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    crate::engine::warnings::ensure_loaded(state); // step F's patterns, read once
     // ── Clipboard image paste detection ──
     // The Ctrl+V key event is detected at the RAW WINIT LAYER (see
     // src/lib.rs window_event) which sets state.pending_clipboard_paste.
@@ -791,6 +794,9 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             _ => None,
                         })
                         .collect();
+                    // Step F: a stranger's DM holds its links for the link line's Open (chat/warnings.rs).
+                    let links_held = !link_targets.is_empty() && crate::engine::warnings::links_held(state, msg);
+                    let format_spans = warnings::hold_links(format_spans, links_held);
 
                     // ── Reply-to context (if this is a reply) ──
                     if let Some(ref reply) = msg.reply_to {
@@ -1462,6 +1468,10 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             }
                         }
                     }
+                    // Step F: the warnings and the stranger link line under a received DM or group message.
+                    if let Some(act) = warnings::draw_under_message(ui, theme, state, msg, &link_targets) {
+                        warnings::apply(&mut state.warnings, act); // "Got it" or Open, for the session
+                    }
                 }
 
                 ui.add_space(8.0);
@@ -1492,8 +1502,9 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     state.chat_edit_target = None;
                 }
 
-                // Apply pending edit save (send the WS edit message + clear edit target).
-                if let Some((ts, new_content)) = pending_edit_save.take() {
+                // Apply pending edit save (send the WS edit message + clear edit target). An edit
+                // holding the recovery phrase is stopped (step F) and its editor stays open.
+                if let Some((ts, new_content)) = pending_edit_save.take().filter(|(_, c)| !crate::engine::warnings::guard_stops(state, &[c])) {
                     if let Some(ref client) = state.ws_client {
                         if client.is_connected() {
                             let msg = serde_json::json!({
@@ -2224,6 +2235,7 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
     // (Esc-close is owned by the winit modal guard in lib.rs, which fires
     // before egui sees the key -- one close path, shared with the creature
     // editor, instead of two drifting copies. v0.779)
+    crate::engine::warnings::ensure_loaded(state); // step F's patterns, read once
     let active = state.chat_active_channel.clone();
     let connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
     let mut close = false;
@@ -2550,7 +2562,7 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                             .max_height(state.ingame_chat_panel_height)
                             .stick_to_bottom(true)
                             .show(ui, |ui| {
-                                let msgs: Vec<(&str, &str)> = state
+                                let msgs: Vec<(&str, &str, Option<String>)> = state
                                     .chat_messages
                                     .iter()
                                     .filter(|m| m.channel == active)
@@ -2558,6 +2570,7 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                                         (
                                             if m.sender_name.is_empty() { "?" } else { m.sender_name.as_str() },
                                             m.content.as_str(),
+                                            warnings::compact_line(state, m), // step F, short form
                                         )
                                     })
                                     .collect();
@@ -2568,7 +2581,7 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                                             .size(theme.font_size_small),
                                     );
                                 }
-                                for (name, content) in msgs.iter().rev().take(40).rev() {
+                                for (name, content, warn) in msgs.iter().rev().take(40).rev() {
                                     ui.horizontal_wrapped(|ui| {
                                         ui.label(
                                             RichText::new(format!("{name}:"))
@@ -2582,6 +2595,9 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                                                 .size(theme.font_size_small),
                                         );
                                     });
+                                    if let Some(line) = warn {
+                                        ui.label(RichText::new(line).color(theme.warning()).size(theme.font_size_small));
+                                    }
                                 }
                             });
                     }
@@ -2695,6 +2711,10 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
 /// a failed P2P-group send) -- the composer keeps its input in that case.
 fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
     let channel = state.chat_active_channel.clone();
+    // Step F: the recovery-phrase guard, before anything leaves (the local scratchpad sends nothing).
+    if channel != "scratchpad" && crate::engine::warnings::guard_stops(state, &[content]) {
+        return false; // nothing leaves; the draft stays so the phrase can be removed
+    }
     // Single timestamp for both the WS send and the local echo so
     // reaction-targeting (which keys on sender + ts) matches.
     let ts = std::time::SystemTime::now()
