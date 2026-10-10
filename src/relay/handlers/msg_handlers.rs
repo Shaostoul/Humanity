@@ -780,10 +780,12 @@ async fn deposit_dm(
     Ok(())
 }
 
+/// `fetch_ref`: the asking device's id for this fetch (spec 10o), echoed on its page when valid.
 pub async fn handle_dm_fetch(
     state: &Arc<RelayState>,
     my_key: &str,
     after_id: i64,
+    fetch_ref: Option<String>,
 ) {
     // Fetch one extra row to learn whether more pages remain.
     let mut rows = match state.db.mailbox_fetch(my_key, after_id, DM_FETCH_PAGE + 1) {
@@ -803,6 +805,7 @@ pub async fn handle_dm_fetch(
         target: Some(my_key.to_string()),
         messages,
         done,
+        fetch_ref: fetch_ref.filter(|r| super::dm_answer::valid_put_ref(r)),
     });
 }
 
@@ -4387,11 +4390,14 @@ mod dm_mailbox_tests {
         }
         st.db.mailbox_put("carol_key", "not-bobs").unwrap();
         let mut rx = st.broadcast_tx.subscribe();
-        block(handle_dm_fetch(&st, "bob_key", 0));
+        block(handle_dm_fetch(&st, "bob_key", 0, Some("fetch-1".into())));
         let mut first_page = None;
         while let Ok(msg) = rx.try_recv() {
-            if let RelayMessage::DmBatch { target, messages, done } = msg {
+            if let RelayMessage::DmBatch { target, messages, done, fetch_ref } = msg {
                 assert_eq!(target.as_deref(), Some("bob_key"));
+                // Spec 10o: the page carries the asking device's ref, so only that device counts
+                // it as its own (every device of Bob's receives it).
+                assert_eq!(fetch_ref.as_deref(), Some("fetch-1"), "the page carries its fetch's ref");
                 first_page = Some((messages, done));
             }
         }
@@ -4400,14 +4406,25 @@ mod dm_mailbox_tests {
         assert!(!done, "a full page + remainder means more to fetch");
         // Second page from the last id → the remaining 3, done.
         let after = messages.last().unwrap().id;
-        block(handle_dm_fetch(&st, "bob_key", after));
+        block(handle_dm_fetch(&st, "bob_key", after, Some("not a ref!".into())));
         let mut second = None;
         while let Ok(msg) = rx.try_recv() {
-            if let RelayMessage::DmBatch { messages, done, .. } = msg {
+            if let RelayMessage::DmBatch { messages, done, fetch_ref, .. } = msg {
+                assert_eq!(fetch_ref, None, "an invalid ref is not echoed");
                 second = Some((messages.len(), done));
             }
         }
         assert_eq!(second, Some((3, true)));
+        // Serialized: the ref rides as `ref`, and is left out when there is none.
+        let page = serde_json::to_value(RelayMessage::DmBatch { target: None, messages: vec![], done: true, fetch_ref: Some("f2".into()) }).unwrap();
+        assert_eq!(page["ref"], "f2");
+        let bare = serde_json::to_value(RelayMessage::DmBatch { target: None, messages: vec![], done: true, fetch_ref: None }).unwrap();
+        assert!(bare.get("ref").is_none(), "no ref field without a ref: {bare}");
+        // And read from a dm_fetch as `ref`, leniently.
+        let asked: RelayMessage = serde_json::from_value(serde_json::json!({ "type": "dm_fetch", "after_id": 5, "ref": "f3" })).unwrap();
+        assert!(matches!(asked, RelayMessage::DmFetch { after_id: 5, fetch_ref: Some(ref r) } if r == "f3"));
+        let odd: RelayMessage = serde_json::from_value(serde_json::json!({ "type": "dm_fetch", "after_id": 5, "ref": 7 })).unwrap();
+        assert!(matches!(odd, RelayMessage::DmFetch { fetch_ref: None, .. }), "a ref that is not text is no ref");
         // Purge: Bob's queue only; Carol's mail survives.
         block(handle_dm_purge(&st, "bob_key"));
         assert!(st.db.mailbox_fetch("bob_key", 0, 10).unwrap().is_empty());

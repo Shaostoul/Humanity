@@ -1282,6 +1282,13 @@ pub enum RelayMessage {
     DmFetch {
         #[serde(default)]
         after_id: i64,
+        /// The asking device's own id for this fetch (spec 10o): 1 to 64 characters of
+        /// [A-Za-z0-9_-], echoed on every page it gets back. Every device signed in as this person
+        /// receives every page (they share one mailbox), so a device counts its mailbox as read,
+        /// and moves its read position, only on pages carrying its own ref. Read leniently, like
+        /// a dm_put's ref: anything that is not a valid ref is no ref.
+        #[serde(default, rename = "ref", deserialize_with = "crate::relay::handlers::dm_answer::lenient_put_ref", skip_serializing_if = "Option::is_none")]
+        fetch_ref: Option<String>,
     },
 
     /// Client deletes everything currently queued in its own mailbox
@@ -1310,6 +1317,9 @@ pub enum RelayMessage {
         target: Option<String>,
         messages: Vec<DmMailItem>,
         done: bool,
+        /// The fetch's `ref`, when it carried a valid one (spec 10o).
+        #[serde(default, rename = "ref", skip_serializing_if = "Option::is_none")]
+        fetch_ref: Option<String>,
     },
 
     /// Server → client: purge confirmation.
@@ -5771,8 +5781,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 handle_dm_put(&state_clone, &my_key_for_recv, to, content, friend_cert, ask, put_ref).await;
                             }
                             // DM fetch — page the caller's own mailbox.
-                            RelayMessage::DmFetch { after_id } => {
-                                handle_dm_fetch(&state_clone, &my_key_for_recv, after_id).await;
+                            RelayMessage::DmFetch { after_id, fetch_ref } => {
+                                handle_dm_fetch(&state_clone, &my_key_for_recv, after_id, fetch_ref).await;
                             }
                             // Voice call signaling — forward to target peer.
                             RelayMessage::VoiceCall { to, action, friend_cert, .. } => {

@@ -5468,3 +5468,16 @@ and web halves side by side), then spec 10m in `docs/design/blocking-and-safe-mo
   Groups and the scratchpad did the same. Checked on the live server 2026-10-10: three such lines in
   the oldest rotated nginx log, which rotates them out within a day; none in the relay's own log.
   Now the desktop asks only for a server's own rooms (`engine/net_route.rs` `history_channel`).
+
+## BUG-187: a friend's ticks were rebuilt from pass echoes, so a choice made on one device could be lost or reversed on another (FIXED v0.1483.0, found 2026-10-10)
+
+A review of 10m (BUG-186) found more orderings in which a person's own devices disagreed about what
+a friend may do: an untick made offline on the desktop, then a tick on the web, gave the unticked
+permission back; the desktop drew a marked friend's old ticks, so one click re-granted them; an
+older pass echo read after a newer one left the friend with no pass while a device believed one
+stood; the refused pass of an early self-copy was recorded as given on the other device; an Unfollow
+made offline never reached the person's other devices; and the web kept scratch pad notes (with any
+file's key) in plain browser storage shared by every identity. All came from one root: the ticks
+were rebuilt from echoes of passes, which arrive late, out of order or not at all. Spec 10n makes
+the choice its own signed note to the person's own mailbox, the block list's pattern, with passes
+following it on every device. Each two-device sequence is a test on both clients.

@@ -841,6 +841,11 @@
       "date": "2026-10-10",
       "decision": "Spec 10n (commit 91ac73d78): the choice for each friend syncs as its own signed self-note [[hum:choice:v1]]<key>/<may> (newer at wins, equal at: larger may text), the block-notes pattern; passes follow the choice on every device (withdraw beyond at once, echoes never change the choice); 10m R2 withdrawn (self-copies held until dm_put_ok again, refused-echo lists removed); offline Unfollow queued; sweep waits for the mailbox on connect; web scratch pad into the encrypted DM store. Desktop and web built in parallel worktrees.",
       "why": "A third critic, reviewing 10m, found more two-device orderings that lost or reversed a choice (an offline untick undone from the web; a marked friend re-granted with one click; an older echo winning). All share one root: ticks rebuilt from pass echoes that arrive late, out of order or never. Patching orderings one by one does not converge; syncing the choice itself as state, like the block list, does."
+    },
+    {
+      "date": "2026-10-10",
+      "decision": "v0.1483.0 (BUG-187): spec 10n merged from both halves. The web settled the open details (Unfollow clears as of its signed time, Block regardless; choices survive a server identity change; sweep targets mutual follows and existing pass holders; a tick always succeeds once the store is loaded; contact-request echo under the pass echo rule; 128-bit applied-note hashes) and the desktop matched them. A narrow parity critic ran on the merge.",
+      "why": "One spec, two builders, the web going first on details; the parity critic is the last check that both apps reach the same state for the same events."
     }
   ],
   "active_scopes_to_avoid": [

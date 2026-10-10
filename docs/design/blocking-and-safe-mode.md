@@ -2072,6 +2072,67 @@ whose new pass is refused, the other device online and then offline; an older ec
 newer one; an Unfollow made offline; a tick on a marked friend. The note's bytes and its parse
 checked against the vector above on both clients.
 
+**As built (v0.1483.0, desktop and web in parallel; the web went first on the open details and
+the desktop matched them).** Native: `CTL_CHOICE` in `src/net/dm_pq.rs`, `src/net/choice.rs` (the
+note's text and parse), `src/engine/choice.rs` (make, queue, flush, apply), the stored `choices`
+{may, at} in `src/net/dm_store.rs` (replacing the old ticks map), `follow_choice` and
+`withdraw_beyond_choice` in `src/engine/dm.rs`. Web: `CTL_CHOICE` and the note's builder, reader
+and tie rule in `web/shared/friend-pass.js`, `passChoice` in `chat-dm-store.js`, `makeFriendChoice`,
+`ingestChoiceNote` and `applyChoiceToPasses` in `chat-social.js`. Details settled while building:
+Unfollow clears the choice as of its own signed time (so a choice made later on another device
+still wins there, and every device agrees), Block clears it regardless; choices survive a change
+of server identity (only passes and marks are cleared); the sweep gives passes only to mutual
+follows and to people already holding one of my passes; a tick always succeeds once the store is
+loaded (offline, or with the friend's key not yet known), the note and pass following when they
+can; applied notes are remembered as 128-bit hashes (desktop: newest 4,096); a received note
+withdraws what goes beyond it at once and leaves the new pass to the next sweep, so two devices do
+not mint for the same change at once; the web handles sealed mail one item at a time in arrival
+order, and block notes sent late keep the time they were made. Known limits: if a server never
+sends the last mailbox page, no sweep runs on that connection until it reconnects; a parked server
+that redials does not fetch its mailbox again (as before).
+
+## 10o. The parity review of 10n (2026-10-10)
+
+A read-only review of the two 10n halves side by side found where they still reach different
+states. The rules below close each; built on both clients with a test seen failing once.
+
+**O1. A device's own mailbox pages (server and both clients).** Every device signed in as a person
+receives every `dm_batch` page (they share one mailbox), and both apps counted any last page as
+"my mailbox was read" (10n N7), and moved their read position on any page and on any live DM. So
+one device's fetch could start another's sweep before that device had read its own mail, and with a
+backlog over one page, a live DM moved the position past rows never read (choice notes included).
+Wire, exact: a `dm_fetch` may carry `"ref"` (1 to 64 characters of `[A-Za-z0-9_-]`, random per
+fetch, never reused), and the relay echoes it on that fetch's `dm_batch` as `"ref"` (absent when
+the fetch had none or an invalid one; `src/relay/handlers/msg_handlers.rs` `handle_dm_fetch`). A
+client sends a fresh ref with every fetch, ignores a page carrying another ref entirely (its own
+fetch brings the same rows), counts its mailbox as read only on the last page (`done`) carrying its
+own ref, and pages from the last id of its own previous page. While its own fetch is unfinished, a
+live DM (`dm_new`) is handled as usual but does not move the read position.
+
+**O2. A sweep gives a pass only to a mutual follow or someone already holding one of my passes
+(the desktop's rule; web `passesOwed` also owed one to anyone with an unanswered pass, so a contact
+request that timed out was followed by an ordinary pass to someone I do not follow).** A pass sent
+and never answered does not make anyone owed a new one.
+
+**O3. A queued Unfollow is dropped, not sent, when by the time it would go I follow them again or
+have blocked them** (the desktop's rule): checked when the queue is flushed, and the queued Unfollow
+is cleared by the echo of my own follow and by Block.
+
+**O4. A queued choice note is dropped when Block clears the choice** (the web's rule; the desktop
+sent it after a Block learned later, so two devices held different choices and fought over passes).
+
+**O5. Queued choice notes go before any withdrawal** (the web's rule): every path that sends
+withdrawals flushes waiting choice notes first (desktop `send_pending_withdrawals` is reached from a
+note's arrival, an echo, `cert_revoked` and Block).
+
+**O6. A cleared choice compares as the empty `may` on both** (the web's `''`, smallest), so at an
+exactly equal time every note beats a clear the same way on both; the desktop stored the defaults'
+text for a clear.
+
+**O7. Two smaller alignments:** a note about someone I blocked is not recorded as seen (so after an
+Unblock a redelivered note could still apply; the desktop's order); the echo of my own contact
+request sets following only if its pass is not being withdrawn (10m R5, the desktop's order).
+
 ## 11. Docs to update as each piece ships
 
 - `docs/accord/conformance_gaps.md` ("Contact consent cannot be withdrawn")
