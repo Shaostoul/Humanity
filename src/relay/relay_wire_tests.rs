@@ -73,11 +73,18 @@ fn reach_messages_have_the_exact_shapes_the_clients_read() {
         serde_json::json!({ "type": "reach_settings", "settings": { "message": "friends", "call": "chosen", "trade": "friends" } }),
         "the settings carry exactly type and settings"
     );
-    let refused = RelayMessage::ReachRefused { sender: "me".into(), kind: "message".into(), to: "them".into() };
+    let refused = RelayMessage::ReachRefused { sender: "me".into(), kind: "message".into(), to: "them".into(), request: false };
     assert_eq!(
         serde_json::to_value(&refused).unwrap(),
         serde_json::json!({ "type": "reach_refused", "kind": "message", "to": "them" }),
         "the refusal carries exactly type, kind and to"
+    );
+    // A refused contact request says so (2026-10-10), so the sender's app stops offering one.
+    let refused = RelayMessage::ReachRefused { sender: "me".into(), kind: "message".into(), to: "them".into(), request: true };
+    assert_eq!(
+        serde_json::to_value(&refused).unwrap(),
+        serde_json::json!({ "type": "reach_refused", "kind": "message", "to": "them", "request": true }),
+        "a refused contact request carries request: true"
     );
     let put = |extra: serde_json::Value| -> (bool, bool) {
         let mut v = serde_json::json!({ "type": "dm_put", "to": "them", "content": "{}" });

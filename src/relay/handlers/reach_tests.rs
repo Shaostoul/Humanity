@@ -96,7 +96,9 @@ fn heard_in(all: &[RelayMessage], who: &str) -> Vec<String> {
     let mut out = Vec::new();
     for m in all {
         match m {
-            RelayMessage::ReachRefused { sender, kind, to } if sender == who => out.push(format!("reach_refused {kind} {to}")),
+            RelayMessage::ReachRefused { sender, kind, to, request } if sender == who => {
+                out.push(format!("reach_refused {kind} {to}{}", if *request { " request" } else { "" }))
+            }
             RelayMessage::Private { to, message } if to == who => {
                 out.push(if message.starts_with("__trade_data__:") { "trade_data".to_string() } else { message.clone() })
             }
@@ -347,7 +349,7 @@ fn admins_and_moderators_are_bound() {
         // A contact request is bound by nobody too.
         let mut rx = st.broadcast_tx.subscribe();
         block(handle_dm_put(&st, &staff.key, target.key.clone(), envelope(), None, DmAsk::ContactRequest));
-        assert_eq!(heard(&mut rx, &staff.key), vec![format!("reach_refused message {}", target.key)]);
+        assert_eq!(heard(&mut rx, &staff.key), vec![format!("reach_refused message {} request", target.key)]);
     }
 }
 
@@ -399,7 +401,9 @@ fn a_contact_request_gets_through_at_ordinary_size_and_the_reply_carrying_its_pa
     set(&st, &target.key, Kind::Message, Audience::Nobody);
     let back = request(envelope());
     assert_eq!(landed(&st), 4, "nobody means no contact requests either");
-    assert_eq!(back, vec![format!("reach_refused message {}", target.key)], "with the refusal everyone gets");
+    // The same refusal everyone gets, marked as a refused contact request (2026-10-10), so the
+    // requester's app says the person is not taking requests instead of offering one again.
+    assert_eq!(back, vec![format!("reach_refused message {} request", target.key)], "with the refusal everyone gets, marked as a request");
 
     // The accepter replies. The requester keeps the default (messages from friends) and the relay
     // keeps nothing about the request: the requester's pass for the accepter, which the request

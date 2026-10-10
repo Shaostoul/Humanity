@@ -11,7 +11,7 @@ use super::*;
 /// for word, and a Send request button; once sent, what happens next. Drawn at the top of the
 /// conversation with them and on their profile card; nothing when nothing was refused.
 pub(super) fn draw_refusal_notice(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, peer: &str) {
-    let Some(&sent) = state.reach.refused.get(peer) else { return };
+    let Some(&refusal) = state.reach.refused.get(peer) else { return };
     let mut send = false;
     Frame::NONE
         .fill(theme.bg_card())
@@ -19,7 +19,9 @@ pub(super) fn draw_refusal_notice(ui: &mut egui::Ui, theme: &Theme, state: &mut 
         .inner_margin(egui::Margin::symmetric(12, 8))
         .show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            if sent {
+            if refusal == crate::net::reach::Refusal::NotTakingRequests {
+                ui.label(RichText::new(crate::net::reach::NOT_TAKING_REQUESTS).size(theme.font_size_body).color(theme.text_primary()));
+            } else if refusal == crate::net::reach::Refusal::RequestSent {
                 ui.label(
                     RichText::new("Contact request sent. They will see only your name, and can accept or ignore it.")
                         .size(theme.font_size_body)

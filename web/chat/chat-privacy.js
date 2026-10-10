@@ -281,6 +281,9 @@ const REACH_SAVE_WAIT_MS = 8000;
 // One refusal offer per person a minute: one refused send is often several
 // puts (a follow notice, then the message), and each is refused.
 const reachOfferShown = new Map();
+// People whose contact request was refused this session (`reach_refused` with `request: true`):
+// they are not taking requests, so no Send request button is offered to them again.
+const reachNotTaking = new Set();
 const REACH_OFFER_QUIET_MS = 60000;
 
 /** The settings in force: the relay's word, or the safe defaults until it has spoken. */
@@ -510,6 +513,16 @@ function onReachRefused(msg) {
     return;
   }
   if (msg.kind !== 'message') return;
+  // A refused contact request (only "Nobody" refuses one; the relay marks it `request: true`,
+  // 2026-10-10): say they are not taking requests, once, and never offer one to them again
+  // this session, where the offer used to come back each minute (the desktop app does the same).
+  if (msg.request === true) {
+    if (reachNotTaking.has(to)) return;
+    reachNotTaking.add(to);
+    reachSay(`Not delivered to ${reachDisplayName(to)}. ${REACH_NOT_TAKING_REQUESTS}`);
+    return;
+  }
+  if (reachNotTaking.has(to)) return;
   const last = reachOfferShown.get(to) || 0;
   if (Date.now() - last < REACH_OFFER_QUIET_MS) return;
   reachOfferShown.set(to, Date.now());

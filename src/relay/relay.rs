@@ -1354,8 +1354,18 @@ pub enum RelayMessage {
 
     /// Server -> a sender refused by "who can reach me": `to` is the person they tried to reach,
     /// `kind` "message" or "trade"; the same for everyone refused. `sender` routes it, unsent.
+    /// `request` is true (and only then sent) when what was refused was a contact request, which
+    /// only "Nobody" refuses: the sender already knows they asked, so it tells them nothing new,
+    /// and lets their app say the person is not taking requests instead of offering one again.
     #[serde(rename = "reach_refused")]
-    ReachRefused { #[serde(skip)] sender: String, kind: String, to: String },
+    ReachRefused {
+        #[serde(skip)]
+        sender: String,
+        kind: String,
+        to: String,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        request: bool,
+    },
 
     /// Server -> the reporter: their report was kept as `id` (handlers/reports.rs). `to` routes it, unsent.
     #[serde(rename = "report_received")]

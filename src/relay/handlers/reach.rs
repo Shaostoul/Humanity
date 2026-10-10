@@ -353,6 +353,7 @@ pub fn admit(state: &Arc<RelayState>, target: &str, sender: &str, kind: Kind, ce
         sender: sender.to_string(),
         kind: kind.word().to_string(),
         to: target.to_string(),
+        request: false,
     });
     None
 }
@@ -414,6 +415,7 @@ pub fn dm_gate(state: &Arc<RelayState>, sender: &str, to: &str, cert: Option<&st
             sender: sender.to_string(),
             kind: Kind::Message.word().to_string(),
             to: to.to_string(),
+            request: ask == DmAsk::ContactRequest,
         });
         None
     };

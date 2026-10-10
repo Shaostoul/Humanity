@@ -66,7 +66,13 @@ fn on_reach_refused(gs: &mut GuiState, frame: &serde_json::Value) {
         // same way, and a notice for each would read as an error the person never made. The
         // conversation shows it where a message was written.
         Some(ReachKind::Message) => {
-            gs.reach.refused.entry(to.to_string()).or_insert(false);
+            // A refused contact request (only "Nobody" refuses one) says so, and the notice stops
+            // offering another; a refused message offers one.
+            if frame.get("request").and_then(|v| v.as_bool()) == Some(true) {
+                gs.reach.refused.insert(to.to_string(), crate::net::reach::Refusal::NotTakingRequests);
+            } else {
+                gs.reach.refused.entry(to.to_string()).or_insert(crate::net::reach::Refusal::Refused);
+            }
         }
         Some(ReachKind::Trade) => {
             let line = format!(
@@ -299,7 +305,7 @@ pub(crate) fn send_contact_request(gs: &mut GuiState, peer: &str) -> Result<(), 
         store.save();
     }
     crate::engine::dm::refresh_social_mirrors(gs);
-    gs.reach.refused.insert(peer.to_string(), true);
+    gs.reach.refused.insert(peer.to_string(), crate::net::reach::Refusal::RequestSent);
     gs.reach.status.clear();
     Ok(())
 }
@@ -500,7 +506,13 @@ mod tests {
         assert!(gs.reach.refused.is_empty(), "a refused call says nothing");
         let notices = gs.pending_notices.len();
         on_frame(&mut gs, &serde_json::json!({ "type": "reach_refused", "kind": "message", "to": stranger }));
-        assert_eq!(gs.reach.refused.get(&stranger), Some(&false), "a refused message marks the conversation");
+        assert_eq!(gs.reach.refused.get(&stranger), Some(&crate::net::reach::Refusal::Refused), "a refused message marks the conversation");
+        // A refused contact request (2026-10-10): the notice stops offering another. Seen red with
+        // the `request` flag ignored: "a refused request says they are not taking requests".
+        on_frame(&mut gs, &serde_json::json!({ "type": "reach_refused", "kind": "message", "to": stranger, "request": true }));
+        assert_eq!(gs.reach.refused.get(&stranger), Some(&crate::net::reach::Refusal::NotTakingRequests), "a refused request says they are not taking requests");
+        on_frame(&mut gs, &serde_json::json!({ "type": "reach_refused", "kind": "message", "to": stranger }));
+        assert_eq!(gs.reach.refused.get(&stranger), Some(&crate::net::reach::Refusal::NotTakingRequests), "and a later refused message does not offer one again");
         assert_eq!(gs.pending_notices.len(), notices, "with no notice of its own");
         gs.dm_store.as_ref().unwrap().remove_file_for_test();
     }

@@ -439,6 +439,22 @@ test("a refusal offers a contact request, and the button sends one", async () =>
   assert.ok(appended.some((el) => textOf(el).includes(reach.REACH_REFUSED_TRADE)), "a refused trade says so");
 });
 
+// A refused contact request (only "Nobody" refuses one; the relay marks it `request: true`,
+// 2026-10-10) says they are not taking requests, once, and no Send request button is offered to
+// them again, where the offer used to return each minute. Seen red with the `request` branch
+// taken out of onReachRefused: "says they are not taking requests".
+test("a refused contact request says they are not taking requests, and no offer comes back", async () => {
+  const { appended, handle } = await loadChat();
+  await handle({ type: "reach_refused", kind: "message", to: CY, request: true });
+  const said = appended.filter((el) => textOf(el).includes(reach.REACH_NOT_TAKING_REQUESTS));
+  assert.equal(said.length, 1, "says they are not taking requests");
+  assert.ok(textOf(said[0]).includes("Not delivered to Cy."), "and who it did not reach");
+  await handle({ type: "reach_refused", kind: "message", to: CY, request: true });
+  assert.equal(appended.filter((el) => textOf(el).includes(reach.REACH_NOT_TAKING_REQUESTS)).length, 1, "once");
+  await handle({ type: "reach_refused", kind: "message", to: CY });
+  assert.ok(!appended.some((el) => textOf(el).includes(reach.REACH_REFUSED_MESSAGE)), "and a later refused message offers no request");
+});
+
 test("a contact request goes out as a signed DM, flagged, carrying my name and my pass for them", async () => {
   const { sock, store, fn } = await loadChat();
   assert.equal(await fn("sendContactRequest")(ANN), true);

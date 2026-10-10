@@ -441,13 +441,27 @@ pub fn chosen_in_use_line(settings: &ReachSettings) -> String {
 /// The Safety page's state that lives only in this run: what we asked the relay for and are
 /// waiting to hear back about, and which people refused our messages (for the notice in their
 /// conversation). Reset with the other per-server transients on a server switch.
+/// Where a refused message to someone stands, for the notice in our conversation with them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Refusal {
+    /// Their gate refused a message: the notice offers a contact request.
+    Refused,
+    /// We sent them a contact request.
+    RequestSent,
+    /// Our contact request was refused too, which only "Nobody" does (the relay marks it
+    /// `request: true`, 2026-10-10): the notice says so and offers nothing more.
+    NotTakingRequests,
+}
+
+/// The notice's words when someone is not taking contact requests (the web chat says the same).
+pub const NOT_TAKING_REQUESTS: &str = "They are not taking contact requests right now, so nothing was sent.";
+
 #[derive(Debug, Default)]
 pub struct ReachUi {
     /// A `reach_set` sent and not yet answered by a `reach_settings`, and when.
     pub asked: Option<(ReachSettings, std::time::Instant)>,
-    /// People whose gate refused a message from us (`reach_refused`), by key: false = refused,
-    /// true = we have since sent them a contact request.
-    pub refused: std::collections::HashMap<String, bool>,
+    /// People whose gate refused a message from us (`reach_refused`), by key, and where that stands.
+    pub refused: std::collections::HashMap<String, Refusal>,
     /// A one-line result to show on the Safety page or in the notice (e.g. why a request could
     /// not be sent).
     pub status: String,

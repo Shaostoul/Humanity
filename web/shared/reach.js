@@ -87,6 +87,9 @@
   // The sentence a refused sender sees (10c), and its trade twin.
   const REACH_REFUSED_MESSAGE = 'This person only accepts messages from people they know. You can send a contact request: they will see only your name.';
   const REACH_REFUSED_TRADE = 'This person only accepts trade requests from people they know.';
+  // A refused contact request (only "Nobody" refuses one; the relay marks it `request: true`,
+  // 2026-10-10): the same words the desktop app shows, and no button to ask again.
+  const REACH_NOT_TAKING_REQUESTS = 'They are not taking contact requests right now, so nothing was sent.';
 
   // The control marker a contact request's text starts with. Must match native.
   const CONTACT_REQUEST_MARKER = '[[hum:contact-request:v1]]';
@@ -268,7 +271,7 @@
 
   const api = {
     REACH_KINDS, REACH_AUDIENCES, REACH_DEFAULTS, REACH_KIND_LABELS, REACH_AUDIENCE_LABELS,
-    REACH_REFUSED_MESSAGE, REACH_REFUSED_TRADE, CONTACT_REQUEST_MARKER, REACH_NAME_RE,
+    REACH_REFUSED_MESSAGE, REACH_REFUSED_TRADE, REACH_NOT_TAKING_REQUESTS, CONTACT_REQUEST_MARKER, REACH_NAME_RE,
     REACH_TICK_LABELS, REACH_TICK_DEFAULTS, REACH_TICK_WORDS, REACH_EMPTY_MAY,
     REACH_TICKS_NOTE, REACH_TICKS_UNUSED, REACH_THROUGH,
     reachExplain, reachSettingsFrom, reachSetFrame, reachAllows,
