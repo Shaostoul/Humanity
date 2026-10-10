@@ -1206,6 +1206,80 @@ round-trip between the two clients' builders (a Node test reading the Rust const
 test does), and a note addressed to someone else is ignored. A headless snapshot of Blocked
 people when no other HumanityOS instance runs. `just verify` and `just rig-tests`.
 
+## 10e. Step D specification: reports the admins can check (2026-10-09)
+
+Section 8 is the design; this fixes the protocol so the relay and both clients can be built in
+parallel. Report retention is 90 days after a decision (10a).
+
+**Reasons** live in `data/safety/report_reasons.json`: an ordered list of `{ "id", "label",
+"help" }` with ids `spam`, `scam`, `harassment`, `threats`, `hate`, `unwanted_sexual`,
+`impersonation`, `child_danger`, `someone_in_danger`, `other`. For `child_danger` and
+`someone_in_danger` the `help` text says, before sending: "If anyone is in danger right now,
+contact your local emergency number. This server's admins are volunteers, not police." The
+per-country list of outside reporting lines (section 8.3) is NOT in this step: it needs a dated
+findings document from primary sources first (CLAUDE.md, "Research a legal question, then write
+it down and date it").
+
+**Evidence items**, chosen by the reporter:
+- `{"kind":"dm","from","to","ts","text","sig"}`: a DM's verified inner payload, as the
+  reporter's client already holds it after opening the seal. The relay checks the Dilithium3
+  signature over the DM v2 inner preimage (find the exact words in `src/net/dm_pq.rs`
+  `build_signed_inner` and web `crypto.js`; the relay must rebuild them byte for byte) against
+  the TARGET's key, with `from` = target and `to` = reporter. Proven items are marked
+  `checked: true`; anything else `checked: false` and kept.
+- `{"kind":"post","from","timestamp"}`: a public post; the relay looks it up in `messages` by
+  author key and timestamp and stores the text it has.
+- `{"kind":"group_text","from","ts","text"}`: from a P2P group; stored unproven and labelled so.
+- At most 20 items, and at most 64 KB of evidence in all.
+
+**Protocol:**
+- client to relay: `{"type":"report_v2","target","context","reason","note","evidence":[...],
+  "ts","sig"}`, `context` one of `dm`, `post`, `group`, `profile`; `note` at most 500
+  characters; `sig` the reporter's Dilithium3 signature over
+  `"hum/report/v1\n{reporter}\n{target}\n{reason}\n{evidence_hash}\n{ts}"`, where
+  `evidence_hash` is the lowercase hex BLAKE3 of the `evidence` array serialised exactly as sent
+  (the relay hashes the JSON text of the `evidence` value as it received it; clients send compact
+  JSON) and `reporter` is the signed-in socket's key. Refused (with a Private notice): a bad
+  signature, an unknown reason, a self-report, more than 3 reports an hour from one reporter, or
+  a second report of the same target by the same reporter within 24 hours.
+- relay to reporter on success: `{"type":"report_received","id"}`.
+- admins and mods: `{"type":"reports_list","state":"open"|"decided"}` returns
+  `{"type":"reports","items":[...]}` with each report's id, target key and name, context,
+  reason, note, evidence (with `checked`), created time, state, and decision; the reporter's
+  identity is included only for admins (mods see "a member"), and the target is never told who
+  reported them.
+- `{"type":"report_decide","id","decision","note"}`, `decision` one of `dismiss`, `warn`, `mute`,
+  `kick`, `ban`, `delete_post` (the reported post), carried out through the existing moderation
+  path (`handle_mod_action` and its storage) so its rules (a mod cannot act on an admin, and so
+  on) still apply; the report records reviewer, decision and time. Admins and mods only.
+- Storage: a new table `reports_v2` (plain `CREATE TABLE IF NOT EXISTS`; any index over its own
+  columns may sit in the same new-table batch), culled 90 days after `decided_at` by
+  `src/relay/storage/expiry.rs`. Open reports are not culled. In the reporter's account export;
+  on the reporter's account erase the reporter key is blanked, the report stays for the admins.
+  The old name-and-reason report path is replaced (the `/reports` command reads the new table).
+
+**Clients (native first, web mirrors):**
+- **Report dialog** from a message's menu, a DM conversation's header, and a person's entry in
+  the member list: the reasons from the data file (with their help text shown when chosen), an
+  optional note, and for a DM report a list of that person's messages in the conversation to
+  tick as evidence (the most recent one ticked by default); for a post, the post itself.
+  "Also block them" is ticked by default for DM reports (it runs step C's Block).
+- **Reports page for admins and mods**, native in the admin or moderation area that exists
+  (find it), web in the admin page's equivalent: open and decided lists, each report's evidence
+  with a "Signature checked: sent by <name> to the reporter" badge on proven items and
+  "Not proven" on the rest, and the decision buttons. The page says what a checked signature
+  does not prove: the time is the sender's own clock, and the reporter chose which messages to
+  include.
+- The privacy explanation gains one sentence: any direct message you send carries your
+  signature, so the person you sent it to can prove to others that you wrote it.
+
+**Proof:** relay tests (a genuine DM item checked, a forged one and one pinned on someone else
+not checked, a post looked up, the evidence hash and the reporter signature, each refusal case,
+the cooldowns, admin and mod listing differences, a decision carried out through the moderation
+path with its rules, the 90-day cull, export and erase); a Node test that the web report builder
+produces the relay's preimage (reading a pinned string out of the Rust tests); client unit tests;
+headless snapshots of the dialog and the Reports page; `just verify`, `just verify-relay`.
+
 ## 11. Docs to update as each piece ships
 
 - `docs/accord/conformance_gaps.md` ("Contact consent cannot be withdrawn")
