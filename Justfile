@@ -382,13 +382,20 @@ tasks-board:
 check:
     cargo check --features native
 
+# The library's unit tests, all or filtered: `just test-lib`, `just test-lib net::webrtc`,
+# `just test-lib dm_store --nocapture`. Use this rather than a bare
+# `cargo test --features native --lib`: on Windows the bare form fails to link
+# (LNK1318, BUG-174) and scripts/lib-tests.js links the test program without a debug file.
+test-lib *args:
+    node scripts/lib-tests.js {{args}}
+
 # One-shot DATA validation (~0.2 s once built): every data-file loader +
 # data-wiring test in the lib suite -- item/recipe/plant/skill/blueprint/kit
 # registries, RON/CSV parsers, shipped-data lints (recipes reference real items,
 # kits resolve, machines exist). Run after editing anything under data/ for a
 # fast signal without the full verify. The filters are OR'd libtest substrings.
 validate-data:
-    cargo test --features native --lib -- registry parses data_is_wired shipped from_csv from_ron
+    node scripts/lib-tests.js registry parses data_is_wired shipped from_csv from_ron
 
 # Full local verification: both feature builds + lib tests + the GUI lints.
 # Mirrors what CI cares about (the relay build is the one CI deploys with).
@@ -408,7 +415,7 @@ verify:
     # verify overnight (the run normally takes about 3 minutes once built) and
     # held the night's release for hours. 40 minutes covers a full rebuild;
     # past it the verify FAILS, naming the stall, instead of waiting forever.
-    timeout 2400 cargo test --features native --lib || { echo "FAILED: the library tests failed or ran past 40 minutes (a hung test: rerun and look for 'has been running for over 60 seconds')"; exit 1; }
+    timeout 2400 node scripts/lib-tests.js || { echo "FAILED: the library tests failed or ran past 40 minutes (a hung test: rerun and look for 'has been running for over 60 seconds')"; exit 1; }
     just verify-relay-compiles
     just lints
     just rig-tests
@@ -430,7 +437,7 @@ verify:
 # about 200 s on top of the 53 s compile (measured 2026-09-19), and it would be
 # re-running tests that finished minutes earlier in the same recipe: `native`
 # IMPLIES `relay` in Cargo.toml, so every one of these 1,508 tests already ran
-# in the `cargo test --features native --lib` line above, over the same code.
+# in the library-test line above (scripts/lib-tests.js), over the same code.
 # There are ZERO `cfg(feature = "native")` branches anywhere under `src/relay/`,
 # so no relay test can take a different path under the two feature sets; what
 # the relay build changes is which code EXISTS, and that is a compile question.
@@ -696,7 +703,7 @@ verify-shared-build *ARGS:
 # run still exits 0, so a green line here is not evidence that anything rendered -
 # read the output. Open the PNGs after. For ONE page use `just snapshot <name>`.
 snapshots:
-    cargo test --features native --lib snapshot_ -- --ignored --test-threads=1 --nocapture
+    node scripts/lib-tests.js snapshot_ --ignored --test-threads=1 --nocapture
     @echo "UI snapshots written to tests/snapshots/, open them to review."
 
 # Render ONE named page to tests/snapshots/<name>.png. Names are the test suffix in
@@ -709,7 +716,7 @@ snapshots:
 # `echo "Wrote ..."`. A typo reported success and rendered nothing.
 snapshot name:
     @node scripts/snapshot-name.js {{name}}
-    cargo test --features native --lib snapshot_{{name}} -- --ignored --nocapture
+    node scripts/lib-tests.js snapshot_{{name}} --ignored --nocapture
     @echo "Wrote tests/snapshots/{{name}}.png (a GPU-less run SKIPS and still exits 0 - check the lines above)"
 
 # Pre-push checklist: the recurring CI gotchas in one shot (untracked source

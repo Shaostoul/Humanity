@@ -5181,3 +5181,31 @@ home networks connects as reliably now that the public address arrives a moment 
 a packet capture showing no traffic to Google in a chat-only session. **Left:** Google is still
 the STUN server once a call starts (design 7.4 step 2); group and call peers still see each
 other's address.
+
+## BUG-174: the library test program stopped linking on Windows, failing `just verify` (WORKED AROUND 2026-10-09)
+
+**What happened.** `cargo test --features native --lib` failed to link with
+"LNK1318: Unexpected PDB error; LIMIT (12)", so `just verify` failed before running a test.
+Linux CI was never affected (it writes no PDB), and the same tests linked on 2026-10-05. The
+debug file (PDB) of the failing link was 1,084,010,496 bytes.
+
+**What it was not (each measured that day):**
+- the PDB's size: with `debug = "line-tables-only"` for every test build it fell to 487 MB and
+  the link still failed;
+- the number of object files: about 2,300 across the crate and its 517 libraries;
+- `strip = "debuginfo"` in the test profile: rustc's MSVC link passes `/DEBUG` regardless, so
+  nothing changed;
+- a stuck `mspdbsrv.exe` (none was running).
+
+Which internal limit Microsoft's PDB writer hits is still unknown.
+
+**Worked around.** `scripts/lib-tests.js` (and `just test-lib`) builds the library's test program
+with `cargo rustc --features native --lib --profile test -- -C link-arg=/DEBUG:NONE`, so this one
+link writes no PDB and no dependency rebuilds, then runs it from the package root. `just verify`,
+`validate-data`, `snapshots` and `snapshot` go through it. First run: 3,367 passed, 0 failed. The
+cost: a panicking test's stack trace shows addresses instead of names; an assertion failure still
+names its file and line. Release builds keep their PDB. Found by the desktop safety job, which hit
+it in its worktree and used this same command.
+
+**If it matters later:** linking test builds with LLVM's linker (`rust-lld`), which writes its own
+PDBs, might remove the limit; not tried.
