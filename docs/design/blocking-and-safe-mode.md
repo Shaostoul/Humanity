@@ -1215,6 +1215,19 @@ Message drops `message`, `invite` and `voice_message` and nothing else; ticking 
 snapshot fixture in `src/gui/ui_snapshots.rs` shows the new list (render only when no other
 HumanityOS instance runs). `just verify`.
 
+**As built (web first, 2026-10-10; the desktop app matches these words).** The "In use now" line
+sits directly under the note line, both above the list. Rows not on "People I choose" are grouped
+by audience in the page's order into one sentence each: "<Rows> are set to <Audience>, so <who>
+for those.", with <who> "no one gets through" (Nobody), "every friend gets through" (Friends),
+"every friend and everyone in your groups gets through" (Friends and people in my groups),
+"anyone gets through" (Anyone); lists read "A", "A and B", "A, B and C". Each row's help under
+"People I choose": 'Only the friends you tick for <Message, Call or Trade> on your "People I
+choose" list can <verb>.', and for Messages also "Anyone else can send a contact request that
+shows you only their name." The list holds everyone I have given a pass. While a friend's pass
+is being re-issued, their ticks are held still and the row says "(updating their pass)", so two
+quick clicks cannot race. With all three off, `invite` is the filler, so ticking Call from there
+gives `call` alone.
+
 ## 10d. Step C specification: Block, on both clients (2026-10-09)
 
 Steps A and B shipped (v0.1466.0, v0.1467.0). Block is client side (section 4.4's option A),
@@ -1372,6 +1385,21 @@ falls back to the INHOPE link; "Another country" shows the sentence; the first-c
 "Another country"); the date line reads the file's date. Each seen failing once. Native: a
 snapshot fixture of the dialog with the block open (render only when no other HumanityOS
 instance runs). `just verify`.
+
+**As built (web first, 2026-10-10; the desktop app matches these words).** For a listed country
+whose `child_report` is null, the link text is "Find the hotline for your country" and the
+default's INHOPE name is its hover text; "Another country" is the default entry itself, so its
+link shows the default's own name. Before the child link: "To report a child being sexually
+exploited or abused online:" (the data file's own description of the field). Each `also` line
+reads "<number>: <what it is for>". The date shows exactly as the file writes it. Order, for
+both reasons: the emergency number, the `also` lines, the child line (smaller for
+`someone_in_danger`), the note, the date line. Only `https://` links are taken from the file, so
+a damaged file cannot put another kind of address behind a hotline's name. "Another country" is
+a saved choice too (stored as `other`); a saved code no longer listed falls through to the next
+rule. The language region skips a script or extended-language subtag (`zh-Hant-TW` reads as TW);
+a numeric region such as `es-419` names no one country. The desktop app has no language step:
+its first country is the saved choice, else "Another country". The country is never part of the
+report frame.
 
 ## 10f. Step E specification: our own STUN and the room-scoped call forwarder (2026-10-09)
 
