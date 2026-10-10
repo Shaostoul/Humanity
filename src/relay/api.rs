@@ -358,6 +358,25 @@ fn dir_total_size(dir: &std::path::Path) -> u64 {
         .unwrap_or(0)
 }
 
+/// Absolute ceiling on one upload, whatever a role allows (v0.482): it only stops a misconfigured
+/// role from asking for something absurd. The real limit is the uploader's role's
+/// `max_upload_mb` (Server Settings > Roles), and the server-wide `max_total_upload_mb` keeps the
+/// disk from filling.
+pub const UPLOAD_HARD_CEILING: u64 = 1024 * 1024 * 1024; // 1 GB
+/// What a multipart form adds around the file itself (boundaries, headers, the file name), allowed
+/// on top of a role's limit when the request's declared size is checked.
+pub const UPLOAD_FORM_OVERHEAD: u64 = 64 * 1024;
+/// The body limit on the upload route (src/relay/mod.rs): the ceiling plus the form's overhead.
+pub const UPLOAD_BODY_LIMIT: usize = (UPLOAD_HARD_CEILING + UPLOAD_FORM_OVERHEAD) as usize;
+/// Where an upload is streamed while it arrives, apart from data/uploads (which is served to the
+/// public): a part file is never reachable by its address.
+const UPLOAD_PART_DIR: &str = "data/uploads-part";
+
+/// The most `role_def`'s holder may upload in one file, in bytes.
+pub fn role_upload_limit(role_def: &crate::relay::storage::RoleDef) -> u64 {
+    (role_def.max_upload_mb.max(1) as u64).saturating_mul(1024 * 1024).min(UPLOAD_HARD_CEILING)
+}
+
 /// POST /api/upload — upload a file (images, audio, video, documents, archives).
 /// Returns a JSON object with the file URL, filename, size, and type.
 /// Requires `?token=<upload_token>` or `?key=<public_key>`.
@@ -365,16 +384,9 @@ fn dir_total_size(dir: &std::path::Path) -> u64 {
 pub async fn upload_file(
     State(state): State<Arc<RelayState>>,
     Query(query): Query<UploadQuery>,
+    headers: axum::http::HeaderMap,
     mut multipart: axum::extract::Multipart,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    // Absolute safety backstop on a SINGLE upload (v0.482). The real per-upload
-    // limit is the uploader's per-role max_upload_mb (set in Server Settings ->
-    // Roles); this 1 GB ceiling only stops a misconfigured role from requesting
-    // something absurd. Disk exhaustion is separately prevented by the
-    // server-wide max_total_upload_mb check below. Previously a hardcoded 10/20
-    // MB wall silently capped the per-role value, so raising a role above 10/20
-    // MB did nothing -- that dead wall is removed here.
-    const HARD_UPLOAD_CEILING: usize = 1024 * 1024 * 1024; // 1 GB
     const ALLOWED_TYPES: &[&str] = &[
         "image/png", "image/jpeg", "image/gif", "image/webp",
         "audio/mpeg", "audio/ogg", "audio/wav", "audio/webm", "audio/mp4",
@@ -449,8 +461,16 @@ pub async fn upload_file(
     // here + the per-role upload-size cap inside the field loop.
     let uploader_rdef = state.db.role_def(&uploader_role);
     let max_uploads_per_user = uploader_rdef.max_uploads_kept.max(1);
+    // Max size for ONE upload = the uploader's per-role max_upload_mb, bounded only by the 1 GB
+    // ceiling (`role_upload_limit`). A request that says up front it is bigger is refused before a
+    // byte of it is read, so nobody can push a large file at the server only to have it refused at
+    // the end (a stranger's role allows a few MB).
+    let max_size = role_upload_limit(&uploader_rdef);
+    if let Some(refusal) = declared_too_large(&headers, max_size) {
+        return Err(refusal);
+    }
 
-    while let Some(field) = multipart.next_field().await.map_err(|e| {
+    while let Some(mut field) = multipart.next_field().await.map_err(|e| {
         (StatusCode::BAD_REQUEST, format!("Multipart error: {e}"))
     })? {
         let content_type = field.content_type().unwrap_or("application/octet-stream").to_string();
@@ -508,29 +528,24 @@ pub async fn upload_file(
             }
         }
 
-        let data = field.bytes().await.map_err(|e| {
-            (StatusCode::BAD_REQUEST, format!("Failed to read file: {e}"))
-        })?;
+        // The file arrives into a part file, never into memory whole (a video can be a GB), and is
+        // refused the moment it passes the role's limit (a client that did not say its size up
+        // front, or said it wrongly).
+        let part = stream_to_part(&mut field, max_size as usize, std::path::Path::new(UPLOAD_PART_DIR)).await?;
 
-        // Max size for THIS upload = the uploader's per-role max_upload_mb,
-        // bounded only by the 1 GB hard backstop. The admin-set per-role cap is
-        // now the effective limit for every file type (the old 10/20 MB wall that
-        // silently overrode it is gone). The server-wide disk cap below still
-        // prevents total exhaustion.
-        let role_cap = (uploader_rdef.max_upload_mb.max(1) as usize)
-            .saturating_mul(1024 * 1024);
-        let max_size = role_cap.min(HARD_UPLOAD_CEILING);
-
-        if data.len() > max_size {
-            return Err((StatusCode::BAD_REQUEST, format!(
-                "File too large ({} bytes, max {} MB for your role — an admin can raise it in Server Settings -> Roles).",
-                data.len(), max_size / (1024 * 1024)
-            )));
-        }
+        // An image is read back (images are small) for the magic check and the metadata strip
+        // below; anything else is moved into place as it arrived.
+        let is_image = content_type.starts_with("image/") && !is_encrypted;
+        let data = if is_image {
+            let bytes = tokio::fs::read(&part.path).await;
+            let _ = tokio::fs::remove_file(&part.path).await;
+            axum::body::Bytes::from(bytes.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read the upload back: {e}")))?)
+        } else {
+            axum::body::Bytes::new()
+        };
 
         // Validate magic bytes for images (strict). Encrypted blobs match no
         // magic and are exempt (they are opaque ciphertext by design).
-        let is_image = content_type.starts_with("image/") && !is_encrypted;
         if is_image {
             let magic_ok = match content_type.as_str() {
                 "image/png"  => data.len() >= 4 && &data[..4] == b"\x89PNG",
@@ -552,6 +567,7 @@ pub async fn upload_file(
         // trouble. See relay/core/strip_metadata.rs.
         let data = if is_image {
             let stripped = crate::relay::core::strip_metadata::strip_image_metadata(&content_type, &data);
+            let stripped: Vec<u8> = stripped.into();
             if stripped.len() != data.len() {
                 tracing::info!(
                     "Upload metadata strip: {} shed {} bytes of embedded metadata",
@@ -622,7 +638,9 @@ pub async fn upload_file(
         // URL. record_upload (DB) + remove_file (cleanup) keep their
         // log-on-error-but-don't-fail-the-request semantics. A panicked task
         // fails closed as a 500 (it never silently "succeeds").
-        let data_len = data.len();
+        // What goes to disk: an image's (stripped) bytes, or anything else's part file, moved.
+        let body = if is_image { UploadBody::Bytes(data) } else { UploadBody::Part(part.path.clone()) };
+        let data_len = if is_image { body.len_hint() } else { part.len };
         let state_fs = state.clone();
         let public_key_fs = public_key.clone();
         let unique_name_fs = unique_name.clone();
@@ -641,7 +659,8 @@ pub async fn upload_file(
 
             // Check global disk usage before writing.
             let total_size = dir_total_size(upload_dir);
-            if total_size + data.len() as u64 > max_total_upload_bytes {
+            if total_size + data_len as u64 > max_total_upload_bytes {
+                body.discard();
                 return Err((
                     StatusCode::INSUFFICIENT_STORAGE,
                     format!("Upload storage full ({:.1} MB / {:.0} MB). Please try again later.",
@@ -651,7 +670,7 @@ pub async fn upload_file(
             }
 
             let file_path = upload_dir.join(&unique_name_fs);
-            std::fs::write(&file_path, &data).map_err(|e| {
+            body.put(&file_path).map_err(|e| {
                 (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write file: {e}"))
             })?;
 
@@ -693,6 +712,96 @@ pub async fn upload_file(
     }
 
     Err((StatusCode::BAD_REQUEST, "No file provided.".to_string()))
+}
+
+/// An upload on its way to disk: an image's bytes, or a part file to move into place.
+enum UploadBody {
+    Bytes(axum::body::Bytes),
+    Part(std::path::PathBuf),
+}
+
+impl UploadBody {
+    fn len_hint(&self) -> usize {
+        match self {
+            UploadBody::Bytes(b) => b.len(),
+            UploadBody::Part(p) => std::fs::metadata(p).map(|m| m.len() as usize).unwrap_or(0),
+        }
+    }
+    /// Put it at `path`: write the bytes, or move the part file there.
+    fn put(&self, path: &std::path::Path) -> std::io::Result<()> {
+        match self {
+            UploadBody::Bytes(b) => std::fs::write(path, b),
+            UploadBody::Part(p) => std::fs::rename(p, path).or_else(|_| {
+                // A part directory on another disk: copy, then remove the part.
+                std::fs::copy(p, path)?;
+                std::fs::remove_file(p)
+            }),
+        }
+    }
+    /// Not stored after all: a part file is removed.
+    fn discard(&self) {
+        if let UploadBody::Part(p) = self {
+            let _ = std::fs::remove_file(p);
+        }
+    }
+}
+
+/// A file streamed to `UPLOAD_PART_DIR`, and its length.
+struct PartFile {
+    path: std::path::PathBuf,
+    len: usize,
+}
+
+/// A request whose declared size (`Content-Length`) is already over `max` plus the form's overhead:
+/// refused before a byte of it is read.
+fn declared_too_large(headers: &axum::http::HeaderMap, max: u64) -> Option<(StatusCode, String)> {
+    let declared = headers
+        .get(axum::http::header::CONTENT_LENGTH)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.parse::<u64>().ok())?;
+    (declared > max.saturating_add(UPLOAD_FORM_OVERHEAD)).then(|| upload_too_large(declared, max))
+}
+
+/// Stream one form field to a part file in `dir`, refusing it (and removing the part) the moment it
+/// passes `max` bytes.
+async fn stream_to_part(field: &mut axum::extract::multipart::Field<'_>, max: usize, dir: &std::path::Path) -> Result<PartFile, (StatusCode, String)> {
+    use tokio::io::AsyncWriteExt;
+    tokio::fs::create_dir_all(dir).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create upload dir: {e}")))?;
+    let mut name = [0u8; 12];
+    getrandom::getrandom(&mut name).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to name the upload: {e}")))?;
+    let path = dir.join(format!("{}.part", hex::encode(name)));
+    let mut file = tokio::fs::File::create(&path).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to start the upload: {e}")))?;
+    let mut len = 0usize;
+    let outcome: Result<(), (StatusCode, String)> = async {
+        while let Some(chunk) = field.chunk().await.map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to read file: {e}")))? {
+            len += chunk.len();
+            if len > max {
+                return Err(upload_too_large(len as u64, max as u64));
+            }
+            file.write_all(&chunk).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write file: {e}")))?;
+        }
+        file.flush().await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write file: {e}")))
+    }
+    .await;
+    drop(file);
+    if let Err(e) = outcome {
+        let _ = tokio::fs::remove_file(&path).await;
+        return Err(e);
+    }
+    Ok(PartFile { path, len })
+}
+
+#[cfg(test)]
+#[path = "api_upload_tests.rs"]
+mod upload_tests;
+
+/// The refusal for a file over the uploader's limit, in words a person can act on.
+fn upload_too_large(len: u64, max: u64) -> (StatusCode, String) {
+    (StatusCode::PAYLOAD_TOO_LARGE, format!(
+        "File too large ({:.1} MB; your limit on this server is {} MB. An admin can raise it in Server Settings > Roles).",
+        len as f64 / (1024.0 * 1024.0),
+        max / (1024 * 1024)
+    ))
 }
 
 /// GitHub push event payload (subset of fields we care about).
@@ -1443,6 +1552,7 @@ pub async fn get_peers(
                 status: "online".to_string(),
                 status_text: String::new(),
                 kyber_public: p.kyber_public.clone(),
+                upload_limit_mb: None,
             }
         })
         .collect();

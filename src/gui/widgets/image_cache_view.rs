@@ -32,7 +32,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
         });
 
     // Image + controls window
-    egui::Window::new("Image")
+    let window = egui::Window::new("Image")
         .id(egui::Id::new("hos_image_viewer_window"))
         .title_bar(false)
         .collapsible(false)
@@ -179,11 +179,66 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
             });
         });
 
+    // Keep the window ABOVE its backdrop, every frame. Both live in the same layer order, and egui
+    // raises whichever was clicked last: clicking the backdrop to close one picture left the
+    // backdrop on top, so the NEXT picture opened behind the dimmed screen, and a click on its
+    // Download landed on the backdrop and closed it (operator, 2026-10-10). The shared dialog
+    // widget fixed the same thing in v0.849 the same way (widgets/dialog.rs).
+    if let Some(w) = window {
+        ctx.move_to_top(w.response.layer_id);
+    }
+
     if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
         should_close = true;
     }
 
     if should_close {
         state.image_viewer_url = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::gui::GuiState;
+
+    fn frame(ctx: &egui::Context, theme: &crate::gui::theme::Theme, state: &mut GuiState, events: Vec<egui::Event>) {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))),
+            events,
+            ..Default::default()
+        };
+        let _ = ctx.run(input, |ctx| super::draw(ctx, theme, state));
+    }
+
+    fn click(at: egui::Pos2, pressed: bool) -> Vec<egui::Event> {
+        vec![
+            egui::Event::PointerMoved(at),
+            egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::default() },
+        ]
+    }
+
+    /// THE NEXT PICTURE OPENS ABOVE THE DIMMED SCREEN (operator, 2026-10-10): after a picture was
+    /// closed by clicking the backdrop, the next one opened behind it, and its Download closed it.
+    /// Seen red 2026-10-10 without the `move_to_top`: "the second picture's window is on top" found
+    /// the backdrop's layer at the centre of the screen.
+    #[test]
+    fn the_next_picture_opens_above_the_dimmed_screen() {
+        let ctx = egui::Context::default();
+        let theme = crate::gui::theme::load_theme();
+        let mut state = GuiState::default();
+        state.image_viewer_url = Some("https://example.com/first.png".into());
+        frame(&ctx, &theme, &mut state, vec![]);
+        frame(&ctx, &theme, &mut state, vec![]);
+        let corner = egui::pos2(6.0, 6.0);
+        frame(&ctx, &theme, &mut state, click(corner, true));
+        frame(&ctx, &theme, &mut state, click(corner, false));
+        assert!(state.image_viewer_url.is_none(), "a click on the dimmed screen closes the picture");
+
+        state.image_viewer_url = Some("https://example.com/second.png".into());
+        for _ in 0..3 {
+            frame(&ctx, &theme, &mut state, vec![]);
+        }
+        let top = ctx.layer_id_at(egui::pos2(640.0, 400.0));
+        assert_eq!(top.map(|l| l.id), Some(egui::Id::new("hos_image_viewer_window")), "the second picture's window is on top: {top:?}");
     }
 }

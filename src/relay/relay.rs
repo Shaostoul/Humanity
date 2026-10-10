@@ -2568,6 +2568,12 @@ pub struct PeerInfo {
     /// Kyber768 encapsulation key (base64) for E2EE DMs.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub kyber_public: Option<String>,
+    /// The most this person may upload in one file on this server, in MB (their role's
+    /// `max_upload_mb`, Server Settings > Roles, bounded by the 1 GB ceiling): only on the
+    /// recipient's own entry, like the upload token, so each app offers what the server will take
+    /// instead of a fixed 6 MB (2026-10-10).
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub upload_limit_mb: Option<u64>,
 }
 
 fn default_true() -> bool { true }
@@ -3109,6 +3115,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                         } else {
                             None
                         };
+                        let upload_limit_mb = (p.public_key_hex == public_key)
+                            .then(|| crate::relay::api::role_upload_limit(&state.db.role_def(&role)) / (1024 * 1024));
                         let name_lower = p.display_name.as_ref().map(|n| n.to_lowercase()).unwrap_or_default();
                         let (user_status, user_status_text) = statuses_snap.get(&name_lower).cloned().unwrap_or(("online".to_string(), String::new()));
                         // Kyber DM key: from the in-memory peer (if online) or DB.
@@ -3121,6 +3129,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             status: user_status,
                             status_text: user_status_text,
                             kyber_public: kyber_pub,
+                            upload_limit_mb,
                         }
                     })
                     .collect();

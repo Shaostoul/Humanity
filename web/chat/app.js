@@ -2328,6 +2328,12 @@ function updatePeerList(peers) {
     if (p.public_key === myKey && p.upload_token) {
       myUploadToken = p.upload_token;
     }
+    // And my own upload limit on this server (my role's, from Server
+    // Settings; 2026-10-10), so a file is checked against what the server
+    // will take, not a fixed 6 MB (chat-messages.js attachmentTooLarge).
+    if (p.public_key === myKey && Number.isFinite(p.upload_limit_mb) && p.upload_limit_mb > 0) {
+      window.myUploadLimitBytes = p.upload_limit_mb * 1024 * 1024;
+    }
     // Track our role for UI rendering (federation admin buttons, etc.).
     if (p.public_key === myKey && p.role) {
       window.myPeerRole = p.role;

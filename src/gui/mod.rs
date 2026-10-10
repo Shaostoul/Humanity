@@ -784,6 +784,11 @@ pub struct GuiState {
     pub server_field_draft: bool,
     /// Whether currently connected to a server.
     pub server_connected: bool,
+    /// The most this person may upload in one file on the connected server, in bytes: their own
+    /// role's limit, from their own entry of the server's peer list (`upload_limit_mb`). None
+    /// until the server says (`chat::ATTACH_MAX_BYTES` then). Private conversations keep
+    /// `ATTACH_MAX_BYTES` (chat/attach_send.rs `limit_for`).
+    pub upload_limit_bytes: Option<u64>,
     /// Onboarding step 1's "Connect" button (v0.643) used to just set
     /// `server_connected = true` unconditionally with no real check -- the
     /// full WS identify handshake genuinely can't happen yet at this step
@@ -3317,6 +3322,7 @@ impl Default for GuiState {
             connected_server_url: String::new(),
             server_field_draft: false,
             server_connected: false,
+            upload_limit_bytes: None,
             server_check_rx: None,
             history_rx: None,
             server_check_error: String::new(),

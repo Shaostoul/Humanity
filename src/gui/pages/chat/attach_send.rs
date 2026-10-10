@@ -76,6 +76,46 @@ pub(crate) struct AttachJob {
     /// only from a public channel: sharing a private file publicly would undo the encryption.
     pub share: bool,
     pub to: Destination,
+    /// The most this job may upload: `limit_for` its destination.
+    pub limit: u64,
+}
+
+/// The most a file sent to `to` may be: in a private conversation `ATTACH_MAX_BYTES` (the
+/// receiving side decrypts in memory and refuses more); in a server's room, the person's own limit
+/// there (`server_limit`, from the server), or `ATTACH_MAX_BYTES` until the server has said.
+pub(crate) fn limit_for(server_limit: Option<u64>, to: Destination) -> u64 {
+    if to.encrypts_file() {
+        ATTACH_MAX_BYTES
+    } else {
+        server_limit.unwrap_or(ATTACH_MAX_BYTES)
+    }
+}
+
+/// Keep this person's own upload limit from their entry of the server's `peer_list`
+/// (`upload_limit_mb`, 2026-10-10). Another entry, or none, changes nothing.
+pub(crate) fn note_upload_limit(state: &mut GuiState, peer_list: &serde_json::Value) {
+    let me = state.profile_public_key.clone();
+    let mine = peer_list
+        .get("peers")
+        .and_then(|p| p.as_array())
+        .and_then(|peers| peers.iter().find(|p| p.get("public_key").and_then(|k| k.as_str()) == Some(me.as_str())));
+    if let Some(mb) = mine.and_then(|p| p.get("upload_limit_mb")).and_then(|v| v.as_u64()) {
+        state.upload_limit_bytes = Some(mb.saturating_mul(1024 * 1024));
+    }
+}
+
+/// The line shown when a file is over the limit for where it is going.
+pub(crate) fn too_large_line(filename: &str, len: u64, limit: u64, to: Destination) -> String {
+    let mb = |b: u64| b as f64 / (1024.0 * 1024.0);
+    if to.encrypts_file() {
+        format!(
+            "{filename} is {:.1} MB. Files in a private conversation can be up to {} MB for now; a bigger one can go in a server's room, where your limit may be higher.",
+            mb(len),
+            limit / (1024 * 1024)
+        )
+    } else {
+        format!("{filename} is {:.1} MB, over your {} MB limit on this server. An admin can raise it in Server Settings > Roles.", mb(len), limit / (1024 * 1024))
+    }
 }
 
 /// Exactly what one POST to `/api/upload` carries. What `run` hands its uploader.
@@ -93,14 +133,16 @@ pub(crate) struct Upload {
 /// phrase (step F's guard: the name travels inside the marker, where the guard on the message
 /// text cannot read it, so it is checked here).
 pub(crate) fn attach_job(state: &mut GuiState, filename: &str, bytes: Vec<u8>) -> Option<AttachJob> {
-    if bytes.len() as u64 > ATTACH_MAX_BYTES {
-        log::warn!("Attach rejected: {filename} is {} bytes (max {ATTACH_MAX_BYTES})", bytes.len());
+    let to = Destination::of(&state.chat_active_channel);
+    let limit = limit_for(state.upload_limit_bytes, to);
+    if bytes.len() as u64 > limit {
+        log::warn!("Attach rejected: {filename} is {} bytes (max {limit})", bytes.len());
+        state.ws_status = too_large_line(filename, bytes.len() as u64, limit, to);
         return None;
     }
     if crate::engine::warnings::guard_stops(state, &[filename]) {
         return None;
     }
-    let to = Destination::of(&state.chat_active_channel);
     let share = !to.encrypts_file()
         && crate::gui::widgets::file_browser::name_matches_ext(filename, SHARE_EXTS);
     Some(AttachJob {
@@ -111,6 +153,7 @@ pub(crate) fn attach_job(state: &mut GuiState, filename: &str, bytes: Vec<u8>) -
         bytes,
         share,
         to,
+        limit,
     })
 }
 
@@ -118,8 +161,10 @@ pub(crate) fn attach_job(state: &mut GuiState, filename: &str, bytes: Vec<u8>) -
 /// a fixed name). The same size cap as Attach: a big screenshot is refused here rather than by
 /// the server after the upload.
 pub(crate) fn paste_job(state: &GuiState, png: Vec<u8>) -> Option<AttachJob> {
-    if png.len() as u64 > ATTACH_MAX_BYTES {
-        log::warn!("Paste rejected: the image is {} bytes (max {ATTACH_MAX_BYTES})", png.len());
+    let to = Destination::of(&state.chat_active_channel);
+    let limit = limit_for(state.upload_limit_bytes, to);
+    if png.len() as u64 > limit {
+        log::warn!("Paste rejected: the image is {} bytes (max {limit})", png.len());
         return None;
     }
     Some(AttachJob {
@@ -129,7 +174,8 @@ pub(crate) fn paste_job(state: &GuiState, png: Vec<u8>) -> Option<AttachJob> {
         mime: "image/png".to_string(),
         bytes: png,
         share: false,
-        to: Destination::of(&state.chat_active_channel),
+        to,
+        limit,
     })
 }
 
@@ -141,9 +187,11 @@ pub(crate) fn run<U>(job: AttachJob, upload: U) -> Result<String, String>
 where
     U: FnOnce(&str, &str, Upload) -> Result<String, String>,
 {
-    // Checked again here, so no path can reach an upload past the cap.
-    if job.bytes.len() as u64 > ATTACH_MAX_BYTES {
-        return Err(format!("the file is {} bytes, over the {ATTACH_MAX_BYTES} limit", job.bytes.len()));
+    // Checked again here, so no path can reach an upload past the cap (a private conversation's
+    // never past ATTACH_MAX_BYTES, whatever the job says).
+    let limit = job.limit.min(limit_for(Some(job.limit), job.to));
+    if job.bytes.len() as u64 > limit {
+        return Err(format!("the file is {} bytes, over the {limit} limit", job.bytes.len()));
     }
     if !job.to.encrypts_file() {
         let plain = Upload { filename: job.filename, mime: job.mime, bytes: job.bytes, share: job.share, encrypted: false };

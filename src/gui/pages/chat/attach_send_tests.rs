@@ -154,6 +154,7 @@ fn nothing_over_the_size_cap_is_uploaded_on_any_path() {
             bytes: big.clone(),
             share: false,
             to: Destination::of(channel),
+            limit: ATTACH_MAX_BYTES,
         };
         let out = run(job, |_, _, _| panic!("{channel}: the uploader was called over the cap"));
         assert!(out.is_err(), "{channel}");
@@ -219,4 +220,37 @@ fn a_private_files_marker_is_sent_only_to_the_conversation_it_was_made_for() {
     drain(&ctx, &mut gs);
     assert_eq!(gs.chat_messages.len(), 2, "a plain URL still goes to the view on screen");
     assert_eq!(gs.chat_messages[1].content, FAKE_URL);
+}
+
+/// EACH FILE GETS THE LIMIT FOR WHERE IT IS GOING (2026-10-10): in a server's room the person's
+/// own limit on that server, from their entry of its peer list (only theirs is read); until the
+/// server has said, 6 MB; in a private conversation 6 MB whatever the server allows (the
+/// receiving side decrypts in memory). A file over the limit is refused with a line saying why.
+/// Seen red 2026-10-10 with `limit_for` returning the server's limit for private conversations
+/// too: "a DM keeps the 6 MB limit".
+#[test]
+fn each_file_gets_the_limit_for_where_it_is_going() {
+    let mb = 1024 * 1024;
+    assert_eq!(limit_for(Some(300 * mb), Destination::Public), 300 * mb, "a room: my limit on this server");
+    assert_eq!(limit_for(None, Destination::Public), ATTACH_MAX_BYTES, "until the server says, the fallback");
+    for private in [Destination::DirectMessage, Destination::Group, Destination::Scratchpad] {
+        assert_eq!(limit_for(Some(300 * mb), private), ATTACH_MAX_BYTES, "a DM keeps the 6 MB limit ({private:?})");
+    }
+
+    let mut gs = viewing("general");
+    gs.profile_public_key = "me".into();
+    note_upload_limit(&mut gs, &serde_json::json!({ "type": "peer_list", "peers": [
+        { "public_key": "someone", "upload_limit_mb": 999 },
+        { "public_key": "me", "upload_limit_mb": 300 },
+    ] }));
+    assert_eq!(gs.upload_limit_bytes, Some(300 * mb), "only my own entry is read");
+    note_upload_limit(&mut gs, &serde_json::json!({ "type": "peer_list", "peers": [{ "public_key": "me" }] }));
+    assert_eq!(gs.upload_limit_bytes, Some(300 * mb), "a list without it changes nothing");
+
+    let ten_mb = vec![7u8; 10 * mb as usize];
+    assert!(attach_job(&mut gs, "clip.mp4", ten_mb.clone()).is_some(), "a 10 MB video goes into a room");
+    let mut dm = viewing("dm:abc");
+    dm.upload_limit_bytes = Some(300 * mb);
+    assert!(attach_job(&mut dm, "clip.mp4", ten_mb).is_none(), "but not into a DM");
+    assert!(dm.ws_status.contains("private conversation can be up to 6 MB"), "and the person is told why: {}", dm.ws_status);
 }

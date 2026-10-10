@@ -209,6 +209,7 @@ pub async fn broadcast_peer_list(state: &Arc<RelayState>) {
                 status: user_status,
                 status_text: user_status_text,
                 kyber_public: kyber_pub,
+                upload_limit_mb: None,
             }
         })
         .collect();

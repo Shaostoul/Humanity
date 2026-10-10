@@ -437,14 +437,29 @@ function loadImage(placeholder, url) {
   placeholder.replaceWith(img);
 }
 
-// Server cap is 6 MB (nginx client_max_body_size 6m). Guard client-side so an
-// oversize file fails fast with a clear message instead of a generic 413, and
-// so we never waste an upload that the server will reject.
+// The largest file sent into a private conversation (a DM, a group, the
+// scratch pad), and the fallback for a server's room until the server says my
+// own limit (window.myUploadLimitBytes, from my peer-list entry, 2026-10-10).
+// A private file is decrypted in memory on the receiving side, which refuses
+// more (the desktop app's chat/attach_view.rs MAX_CIPHERTEXT), so a bigger one
+// would upload and never open.
 const MAX_ATTACHMENT_BYTES = 6 * 1024 * 1024;
+
+/** The most a file may be for where it is going now: the desktop app's attach_send.rs limit_for. */
+function attachmentLimit() {
+  if (privateConversationNow()) return MAX_ATTACHMENT_BYTES;
+  const mine = Number(window.myUploadLimitBytes);
+  return Number.isFinite(mine) && mine > 0 ? mine : MAX_ATTACHMENT_BYTES;
+}
+
 function attachmentTooLarge(file) {
-  if (file && file.size > MAX_ATTACHMENT_BYTES) {
+  const limit = attachmentLimit();
+  if (file && file.size > limit) {
     const sizeMB = (file.size / 1024 / 1024).toFixed(1);
-    addSystemMessage(`File "${file.name}" is ${sizeMB}MB, over the 6 MB max. Try compressing it or sending a smaller file.`);
+    const limitMB = Math.round(limit / 1024 / 1024);
+    addSystemMessage(privateConversationNow()
+      ? `"${file.name}" is ${sizeMB} MB. Files in a private conversation can be up to ${limitMB} MB for now; a bigger one can go in a server's room, where your limit may be higher.`
+      : `"${file.name}" is ${sizeMB} MB, over your ${limitMB} MB limit on this server. An admin can raise it in Server Settings > Roles.`);
     return true;
   }
   return false;
@@ -477,9 +492,11 @@ async function uploadImage(file) {
       const text = await resp.text();
       // Make error messages more user-friendly
       let friendly = text;
-      if (text.includes('too large')) {
+      if (resp.status === 413 || text.includes('too large')) {
+        // The server says the person's own limit in its words (2026-10-10);
+        // a refusal from in front of it (an HTML page) gets plain words here.
         const sizeMB = (file.size / 1024 / 1024).toFixed(1);
-        friendly = `File "${file.name}" is ${sizeMB}MB, over the 6 MB max. Try compressing the image or using a smaller file.`;
+        friendly = text.includes('your limit on this server') ? text : `"${file.name}" (${sizeMB} MB) is too large for this server.`;
       } else if (text.includes('Unsupported')) {
         friendly = `File type not allowed. Supported: images (png, jpg, gif, webp), documents (pdf, txt), audio (mp3, ogg, wav), video (mp4, webm).`;
       }

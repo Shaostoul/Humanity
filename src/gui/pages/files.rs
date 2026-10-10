@@ -264,6 +264,8 @@ fn draw_shared_files_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
     let server = state.server_url.clone();
     let my_key = state.profile_public_key.clone();
     let seed = state.private_key_bytes.clone();
+    // My own upload limit on this server (its peer list says; 2026-10-10), the chat's fallback until then.
+    let upload_limit = state.upload_limit_bytes.unwrap_or(crate::gui::pages::chat::ATTACH_MAX_BYTES);
     // Admin = server-known role for my key (from the chat user list). Admins can
     // remove any file; everyone can remove their own. The server enforces this
     // regardless of what the button shows.
@@ -366,7 +368,7 @@ fn draw_shared_files_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
         with_state(|fs| {
             fs.shared_picker = Some(widgets::file_browser::FilePickerState::new(
                 crate::gui::pages::chat::ATTACH_EXTS,
-                crate::gui::pages::chat::ATTACH_MAX_BYTES,
+                upload_limit,
             ));
         });
     }
@@ -443,7 +445,7 @@ fn draw_shared_files_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
                     .unwrap_or("file")
                     .to_string();
                 match std::fs::read(&path) {
-                    Ok(bytes) if (bytes.len() as u64) <= crate::gui::pages::chat::ATTACH_MAX_BYTES => {
+                    Ok(bytes) if (bytes.len() as u64) <= upload_limit => {
                         let mime = "application/octet-stream".to_string();
                         let server = server.clone();
                         let key = my_key.clone();
@@ -463,7 +465,7 @@ fn draw_shared_files_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
                     }
                     Ok(_) => {
                         with_state(|fs| fs.shared_status =
-                            "File is too large (6 MB max).".to_string());
+                            format!("File is too large ({} MB max for you on this server).", upload_limit / (1024 * 1024)));
                     }
                     Err(e) => {
                         with_state(|fs| fs.shared_status = format!("Read failed: {e}"));

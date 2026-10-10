@@ -75,6 +75,7 @@ pub(crate) use voice_room::set_voice_room;
 /// Sending a file (10k): encrypted for a DM or a group, plain for a public channel. See `chat/attach_send.rs`.
 mod attach_send;
 pub(crate) use attach_send::upload_file_blocking;
+pub(crate) use attach_send::note_upload_limit; // the server tells each person their own upload limit (2026-10-10)
 /// Showing a private file (10k): the picture inline, or a card with Save. See `chat/attach_view.rs`.
 mod attach_view;
 #[cfg(test)]
@@ -82,6 +83,8 @@ pub(crate) use attach_view::{cache_key as private_file_key, open as open_private
 /// Quote / reply: a reply stays in its own conversation and never carries private words or a
 /// file's key. See `chat/reply.rs`.
 mod reply;
+#[cfg(test)]
+mod composer_tests; // the composer grows upward and stays on screen (2026-10-10)
 
 // Maximum messages kept in the local chat buffer (was hardcoded, now uses theme.max_messages if needed).
 
@@ -482,9 +485,16 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             .any(|(_, t)| now.duration_since(*t) < std::time::Duration::from_secs(3))
     };
     let typing_h: f32 = if typing_active { 22.0 } else { 0.0 };
-    let input_height = 52.0 + reply_banner_h + typing_h;
-
     let available = ui.available_rect_before_wrap();
+    // The text box's lines beyond the first, measured last frame (`COMPOSER_EXTRA_ID`, written
+    // where the box is drawn). The bar was a fixed 52 px while the multiline box grew with the
+    // text, so a long post spilled DOWN past the window's bottom edge and could not be read back
+    // (operator, 2026-10-10). Now the bar takes the box's height and the messages give way, up to
+    // COMPOSER_MAX_SHARE of the chat area; past that the box scrolls inside.
+    let composer_extra = ui.ctx().data(|d| d.get_temp::<f32>(egui::Id::new(COMPOSER_EXTRA_ID))).unwrap_or(0.0);
+    let composer_cap = composer_extra_cap(available.height());
+    let input_height = 52.0 + reply_banner_h + typing_h + composer_extra.min(composer_cap);
+
     let messages_rect = egui::Rect::from_min_size(
         available.min,
         Vec2::new(available.width(), available.height() - input_height),
@@ -1667,30 +1677,46 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // shifts the composer, so the focused id changed under
                     // the caret. A fixed id keeps focus across any layout
                     // shift (typing rows, reply banners, resizes).
-                    let response = ui.add(
-                        // Multiline (v0.1206.x composer expand) so a
-                        // multi-paragraph post can be written AND proofread in
-                        // place instead of a cramped single line (operator
-                        // 2026-08-24: "never expands to show the whole post;
-                        // editing is miserable"). desired_rows(1) keeps it
-                        // one line tall until you actually write more, then it
-                        // grows with the content. Enter still SENDS (the
-                        // universal chat gesture + matches the web client);
-                        // return_key = Shift+Enter makes Shift+Enter the
-                        // newline. NOTE: with a non-plain return_key, egui does
-                        // NOT surrender focus on plain Enter for a multiline box
-                        // (see egui text_edit builder.rs ~L990) -- so the send
-                        // trigger below uses has_focus()+Enter, NOT lost_focus().
-                        egui::TextEdit::multiline(&mut state.chat_input)
-                            .id(egui::Id::new("chat_composer_input"))
-                            .desired_width(composer_text_w)
-                            .desired_rows(1)
-                            .return_key(Some(egui::KeyboardShortcut::new(
-                                egui::Modifiers::SHIFT,
-                                egui::Key::Enter,
-                            )))
-                            .hint_text(hint),
-                    );
+                    // Multiline (v0.1206.x composer expand) so a
+                    // multi-paragraph post can be written AND proofread in
+                    // place instead of a cramped single line (operator
+                    // 2026-08-24: "never expands to show the whole post;
+                    // editing is miserable"). desired_rows(1) keeps it
+                    // one line tall until you actually write more, then it
+                    // grows with the content. Enter still SENDS (the
+                    // universal chat gesture + matches the web client);
+                    // return_key = Shift+Enter makes Shift+Enter the
+                    // newline. NOTE: with a non-plain return_key, egui does
+                    // NOT surrender focus on plain Enter for a multiline box
+                    // (see egui text_edit builder.rs ~L990) -- so the send
+                    // trigger below uses has_focus()+Enter, NOT lost_focus().
+                    // Past COMPOSER_MAX_SHARE of the chat area the box scrolls inside (its
+                    // reserved height is capped there, in `draw_center_panel` above), so the
+                    // box grows UPWARD and a long post can be read back (operator, 2026-10-10).
+                    let composer = egui::ScrollArea::vertical()
+                        .id_salt("chat_composer_scroll")
+                        .max_height(COMPOSER_ONE_LINE_H + composer_cap)
+                        .auto_shrink([true, true])
+                        .show(ui, |ui| {
+                            egui::TextEdit::multiline(&mut state.chat_input)
+                                .id(egui::Id::new("chat_composer_input"))
+                                .desired_width(composer_text_w)
+                                .desired_rows(1)
+                                .return_key(Some(egui::KeyboardShortcut::new(
+                                    egui::Modifiers::SHIFT,
+                                    egui::Key::Enter,
+                                )))
+                                .hint_text(hint)
+                                .show(ui)
+                        });
+                    // Lines beyond the first, for next frame's bar height.
+                    let extra = composer_extra_of(&composer.inner.galley);
+                    let extra_id = egui::Id::new(COMPOSER_EXTRA_ID);
+                    if (extra - ui.ctx().data(|d| d.get_temp::<f32>(extra_id)).unwrap_or(0.0)).abs() > 0.5 {
+                        ui.ctx().data_mut(|d| d.insert_temp(extra_id, extra));
+                        ui.ctx().request_repaint();
+                    }
+                    let response = composer.inner.response;
 
                     // v0.282.0 outgoing typing event, on an actual edit
                     // (egui's response.changed() debounces to "edit, not
@@ -1904,17 +1930,15 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
                     // In-app file attach (v0.708, all-in-one direction: our
                     // OWN browser widget, not an OS dialog).
-                    if widgets::Button::secondary("Attach")
-                        .tooltip("Attach a file from your computer (images, documents, \
-                                  3D models - up to 6 MB). 3D files are also published \
-                                  to the server's Shared Files library.")
-                        .show(ui, theme)
-                    {
+                    let attach_limit = attach_send::limit_for(state.upload_limit_bytes, attach_send::Destination::of(&state.chat_active_channel));
+                    let attach_tip = format!(
+                        "Attach a file from your computer (images, documents, video, 3D models - up to {} MB here). \
+                         3D files from a server's room are also published to its Shared Files library.",
+                        attach_limit / (1024 * 1024)
+                    );
+                    if widgets::Button::secondary("Attach").tooltip(&attach_tip).show(ui, theme) {
                         state.chat_attach_picker = Some(
-                            crate::gui::widgets::file_browser::FilePickerState::new(
-                                ATTACH_EXTS,
-                                ATTACH_MAX_BYTES,
-                            ),
+                            crate::gui::widgets::file_browser::FilePickerState::new(ATTACH_EXTS, attach_limit),
                         );
                     }
                     let send_clicked = widgets::Button::primary("Send")
@@ -2929,9 +2953,32 @@ pub(crate) const ATTACH_EXTS: &[&str] = &[
 /// (upload with ?share=1), exactly like the web client.
 const SHARE_EXTS: &[&str] = &["blend", "stl", "obj", "gltf", "glb"];
 
-/// The real upload ceiling: nginx caps /api/upload bodies at 6 MB
-/// (client_max_body_size 6m in scripts/nginx/humanity.conf).
+/// The largest file sent into a private conversation (a DM, a P2P group, the scratchpad), and the
+/// fallback limit for a public one until the server says the person's own
+/// (`GuiState::upload_limit_bytes`). A private file is decrypted in memory on the receiving side,
+/// which refuses anything bigger (chat/attach_view.rs `MAX_CIPHERTEXT`), so a bigger one would
+/// upload and never open.
 pub(crate) const ATTACH_MAX_BYTES: u64 = 6 * 1024 * 1024;
+
+/// Where the composer's measured extra height (its lines beyond the first) is kept between frames.
+pub(crate) const COMPOSER_EXTRA_ID: &str = "chat_composer_extra_h";
+/// The most of the chat area the composer may take before its text scrolls inside: the web's
+/// `autoResizeTextarea` cap (45% of the window), so both clients behave alike.
+pub(crate) const COMPOSER_MAX_SHARE: f32 = 0.45;
+/// About one line of the composer, for the scroll area's height (the bar's fixed 52 px holds it).
+pub(crate) const COMPOSER_ONE_LINE_H: f32 = 22.0;
+
+/// How much the composer's extra lines may add to the bar in a chat area `area_h` tall.
+pub(crate) fn composer_extra_cap(area_h: f32) -> f32 {
+    (area_h * COMPOSER_MAX_SHARE - 52.0).max(0.0)
+}
+
+/// The height of a laid-out composer's lines beyond the first.
+pub(crate) fn composer_extra_of(galley: &egui::Galley) -> f32 {
+    let rows = galley.rows.len().max(1) as f32;
+    let row_h = galley.rows.first().map(|r| r.height()).unwrap_or(COMPOSER_ONE_LINE_H);
+    (rows - 1.0) * row_h
+}
 
 /// Best-effort MIME from the filename extension (server re-checks anyway).
 fn mime_for_filename(name: &str) -> &'static str {

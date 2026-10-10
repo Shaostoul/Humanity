@@ -1171,7 +1171,10 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         .route("/api/stats", get(api::get_stats))
         .route("/api/reactions", get(api::get_reactions))
         .route("/api/pins", get(api::get_pins))
-        .route("/api/upload", post(api::upload_file))
+        // The body limit is the hard ceiling here, not axum's 2 MB default (which turned a 3 MB
+        // video into "Error parsing multipart/form-data request" whatever the role allowed); the
+        // handler refuses anything over the uploader's own role limit as soon as it sees the size.
+        .route("/api/upload", post(api::upload_file).layer(axum::extract::DefaultBodyLimit::max(api::UPLOAD_BODY_LIMIT)))
         // Shared-file library (v0.675): public listing of ?share=1 uploads.
         .route("/api/uploads", get(api::list_shared_uploads))
         // Remove a shared file (owner or admin), v0.709.

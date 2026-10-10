@@ -957,7 +957,7 @@ test("a file named with my recovery phrase or over 6 MB is not uploaded or sent,
   assert.ok(guardSaid(), "the guard says the file was not sent");
   await paste(page, picture("big.png", big));
   nothingWent("a DM, over 6 MB");
-  assert.ok(page.systemLines.some((l) => l.includes("over the 6 MB max")), "and says it is over 6 MB");
+  assert.ok(page.systemLines.some((l) => l.includes("a private conversation can be up to 6 MB")), "and says a private conversation takes up to 6 MB");
 
   page.systemLines.length = 0;
   await openGroup(page);
@@ -969,7 +969,7 @@ test("a file named with my recovery phrase or over 6 MB is not uploaded or sent,
   assert.ok(guardSaid(), "the guard says the file was not sent");
   await paste(page, picture("big.png", big));
   nothingWent("a group, over 6 MB");
-  assert.ok(page.systemLines.some((l) => l.includes("over the 6 MB max")), "and says it is over 6 MB");
+  assert.ok(page.systemLines.some((l) => l.includes("a private conversation can be up to 6 MB")), "and says a private conversation takes up to 6 MB");
 });
 
 // ── 9. Leaving the conversation while it uploads ────────────────────────
@@ -1372,3 +1372,23 @@ test("10n N8: the scratch pad's notes are kept in the encrypted DM store, per id
 // app.js scratchPadKeep writing to localStorage again: "the note is kept in the store"; the splice
 // taken out of chat-dm-store.js addScratchNote: "the newest 500 are kept"; the record kept unencrypted
 // (its box the plain list): "which does not hold the words in the clear".
+
+// A server's room takes what MY limit on that server allows, as its peer list says
+// (window.myUploadLimitBytes, 2026-10-10); a private conversation stays at 6 MB. Seen red
+// 2026-10-10 against the web before this: "and says so" (the old words named a flat 6 MB max);
+// with that line removed, "a 10 MB picture goes into a room within my 300 MB limit".
+test("a room takes a file up to my own limit on the server; with no limit said, 6 MB", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  const MB = 1024 * 1024;
+  const ten = new Uint8Array(10 * MB);
+  ten.set(PNG, 0);
+  await paste(page, picture("big.png", ten));
+  assert.equal(page.uploads.length, 0, "with no limit said, the 6 MB fallback holds");
+  assert.ok(page.systemLines.some((l) => l.includes("over your 6 MB limit on this server")), "and says so");
+
+  page.set("(b) => { window.myUploadLimitBytes = b; }", 300 * MB);
+  await paste(page, picture("big.png", ten));
+  assert.equal(page.uploads.length, 1, "a 10 MB picture goes into a room within my 300 MB limit");
+  assert.ok(!/encrypted=1/.test(page.uploads[0].query), "as a room's plain upload");
+});

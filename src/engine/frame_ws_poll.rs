@@ -230,6 +230,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         log::info!("peer_list received: {} peers", peer_count);
                         crate::debug::push_debug(format!("Identified OK, {} peers online", peer_count));
                         state.gui_state.chat_users.clear();
+                        crate::gui::pages::chat::note_upload_limit(&mut state.gui_state, &val); // this person's own upload limit here
                         state.gui_state.ws_status = "Connected".to_string();
                         state.gui_state.server_connected = true;
                         // First post-bind message: the identify handshake is
