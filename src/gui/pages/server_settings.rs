@@ -331,9 +331,14 @@ fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rol
                               follow each other automatically.")
                     .show(ui, theme)
                 {
-                    let cmd = format!("/redeem {}", state.redeem_code_draft.trim());
-                    send_slash(state, &cmd);
-                    state.server_settings_status = format!("Sent: {} - result appears in Chat.", cmd);
+                    let code = state.redeem_code_draft.trim().to_string();
+                    let cmd = format!("/redeem {}", code);
+                    // Step G: redeeming makes a friend, so the protected setup asks its PIN
+                    // first; a right PIN sends it (engine/protected.rs `perform`).
+                    if crate::engine::protected::allows(state, crate::net::protected::ProtectedAction::RedeemFriendCode(code)) {
+                        send_slash(state, &cmd);
+                        state.server_settings_status = format!("Sent: {} - result appears in Chat.", cmd);
+                    }
                     state.redeem_code_draft.clear();
                 }
             });

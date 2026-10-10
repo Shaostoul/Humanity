@@ -283,7 +283,10 @@ pub(crate) fn sweep(gs: &mut GuiState) {
 }
 
 /// Take back what we gave `key` on the server we are on, and send the withdrawals now if we can.
+/// They also leave the protected setup's approved list (step G): befriending them again needs its
+/// PIN.
 fn take_back(gs: &mut GuiState, key: &str) {
+    crate::engine::protected::forget(gs, key);
     if !crate::engine::dm::ensure_dm_store(gs) {
         return; // not on a server yet: `sweep` does it on the next member list
     }

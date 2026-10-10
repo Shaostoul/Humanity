@@ -15469,6 +15469,8 @@ mod native_app {
                                 if state.gui_state.passphrase_needed {
                                     crate::gui::pages::passphrase_modal::draw(ctx, &state.theme, &mut state.gui_state);
                                 }
+                                // The protected setup's PIN prompt, while a locked action waits for it (step G).
+                                crate::gui::pages::safety_protected::draw_pin_prompt(ctx, &state.theme, &mut state.gui_state);
 
                                 // Planet info tooltip when targeting a hologram pin
                                 if let Some(ref planet_name) = state.targeted_planet {

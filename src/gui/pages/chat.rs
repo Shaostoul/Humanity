@@ -26,11 +26,11 @@ use crate::gui::widgets;
 mod p2p_groups;
 pub(crate) use p2p_groups::{
     broadcast_group_obj, drain_p2p_loaders, ensure_group_mesh, handle_p2p_group_obj,
-    refresh_p2p_groups, spawn_group_load, spawn_groups_list_refresh,
+    join_group_with_ticket, leave_p2p_group, refresh_p2p_groups, spawn_group_load,
+    spawn_groups_list_refresh,
 };
 use p2p_groups::{
-    apply_group_load, disband_p2p_group, leave_p2p_group, mint_and_copy_p2p_invite,
-    send_p2p_group_message,
+    apply_group_load, disband_p2p_group, mint_and_copy_p2p_invite, send_p2p_group_message,
 };
 
 /// The left rail: DMs, Groups, Commons, Servers and the expanded server's
@@ -67,6 +67,11 @@ pub(crate) use report_dialog::draw_report_dialog;
 mod call_relay_bar;
 /// Warnings (step F): what is drawn under a received message. See `chat/warnings.rs`.
 mod warnings;
+/// The protected setup (step G): the rail's line, left-out rooms and pictures. See `chat/protected.rs`.
+mod protected;
+/// Joining and leaving a channel's voice room. See `chat/voice_room.rs`.
+mod voice_room;
+pub(crate) use voice_room::set_voice_room;
 
 // Maximum messages kept in the local chat buffer (was hardcoded, now uses theme.max_messages if needed).
 
@@ -394,6 +399,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 // ─────────────────────────────── CENTER PANEL ─────────────────────────────
 
 fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    if protected::draws_hidden_room(ui, theme, state) {
+        return; // step G: a public room the protected setup leaves out shows one line instead
+    }
     // ── Channel header ──
     // Lock buttons moved OUT of the header in v0.189.x — operator wanted
     // them tucked into the actual panel CORNERS, not next to the channel
@@ -758,7 +766,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     } else {
                         crate::gui::widgets::image_cache::extract_image_urls(&msg.content)
                     };
-                    let display_text = if let Some(ref att) = enc_att {
+                    // Step G: a non-friend's pictures and files are left out, one line instead.
+                    let pictures_hidden = (enc_att.is_some() || !image_urls.is_empty()) && crate::engine::protected::hides_pictures_from(state, &msg.sender_key);
+                    let display_text = if pictures_hidden && enc_att.is_some() {
+                        protected::picture_hidden_line(state).to_string()
+                    } else if let Some(ref att) = enc_att {
                         let kb = (att.size as f64 / 1024.0).max(1.0).round() as u64;
                         let kind = if att.mime.starts_with("image/") { "photo" } else { "file" };
                         format!("Encrypted {kind}: {} ({} KB). Open in the web app to view.", att.name, kb)
@@ -1365,7 +1377,10 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
                     // Render each attached image as a clickable thumbnail
                     // indented under the message text.
-                    if !image_urls.is_empty() {
+                    if pictures_hidden && enc_att.is_none() {
+                        protected::draw_picture_hidden(ui, theme, row_bg, 40.0, protected::picture_hidden_line(state));
+                    }
+                    if !image_urls.is_empty() && !pictures_hidden {
                         // The server this message came through (its
                         // connection's address), so a relative /uploads/ path
                         // resolves against, and "our own server" means, the
@@ -2339,7 +2354,7 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                     // rows under the public tab -- even for one frame -- would
                     // leak private text.
                     let show_messages = match state.ingame_chat_mode {
-                        crate::gui::IngameChatMode::Channels => !dm_open && !group_open,
+                        crate::gui::IngameChatMode::Channels => !dm_open && !group_open && !crate::engine::protected::hides_active_room(state),
                         crate::gui::IngameChatMode::Dms => dm_open,
                         crate::gui::IngameChatMode::Groups => group_open,
                         crate::gui::IngameChatMode::Options => false,
@@ -2357,8 +2372,10 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                             let chans: Vec<(String, String, bool)> = state
                                 .chat_channels
                                 .iter()
+                                .filter(|c| crate::engine::protected::lists_channel(state, c)) // step G
                                 .map(|c| (c.id.clone(), c.name.clone(), c.unread))
                                 .collect();
+                            protected::draw_hidden_rooms_line(ui, theme, state);
                             ui.horizontal_wrapped(|ui| {
                                 for (id, name, unread) in &chans {
                                     let is_active = active == *id;
@@ -2711,8 +2728,9 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
 /// a failed P2P-group send) -- the composer keeps its input in that case.
 fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
     let channel = state.chat_active_channel.clone();
-    // Step F: the recovery-phrase guard, before anything leaves (the local scratchpad sends nothing).
-    if channel != "scratchpad" && crate::engine::warnings::guard_stops(state, &[content]) {
+    // Step F: the recovery-phrase guard, before anything leaves (the local scratchpad sends nothing);
+    // step G: a typed `/redeem` makes a friend, so the protected setup asks its PIN first.
+    if channel != "scratchpad" && (crate::engine::warnings::guard_stops(state, &[content]) || !crate::engine::protected::allows_typed(state, content)) {
         return false; // nothing leaves; the draft stays so the phrase can be removed
     }
     // Single timestamp for both the WS send and the local echo so
@@ -3434,7 +3452,8 @@ pub(crate) fn commons_rooms(state: &GuiState) -> Vec<CommonsRoom> {
 /// servers, each rendered ONCE. Clicking opens the room exactly like a
 /// normal channel (the center view then merges every carrier's copy).
 fn draw_commons_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let rooms = commons_rooms(state);
+    // Step G: with the protected setup on, only read-only rooms are listed.
+    let rooms: Vec<CommonsRoom> = commons_rooms(state).into_iter().filter(|r| crate::engine::protected::lists_commons_room(state, &r.name)).collect();
     if rooms.is_empty() {
         return; // no bridged rooms, no section -- zero noise for solo servers
     }
@@ -4229,7 +4248,8 @@ pub fn format_timestamp(ts: u64) -> String {
 }
 
 /// Send a slash command as a chat message (server handles moderation via slash commands).
-fn send_slash_command(state: &mut GuiState, command: &str) {
+/// `pub(crate)` for the protected setup, which sends a `/redeem` once its PIN is entered.
+pub(crate) fn send_slash_command(state: &mut GuiState, command: &str) {
     if let Some(ref client) = state.ws_client {
         if client.is_connected() {
             let ts = std::time::SystemTime::now()

@@ -222,7 +222,7 @@ pub(super) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
             // ── Scratchpad (local-only, above everything) ──
             draw_scratchpad_row(ui, theme, state);
 
-            // ── DMs Section (red tint) ──
+            super::protected::draw_sidebar_line(ui, theme, state); // step G's line, then the DMs Section (red tint)
             draw_dm_section(ui, theme, state);
             super::reach::draw_requests_section(ui, theme, state); // only when someone asked (step B)
 
@@ -942,6 +942,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
                 ui.spacing_mut().item_spacing.y = 0.0;
+                super::protected::draw_hidden_rooms_line(ui, theme, state); // step G, above every server's list
                 // Every server renders IN ITS SAVED ORDER: the active one
                 // expands in place (draw_active_server_entry below) instead
                 // of being pulled out to the top, so the list never
@@ -989,7 +990,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         let commons: std::collections::HashSet<String> =
                             commons_rooms(state).into_iter().map(|r| r.name).collect();
                         let filter_map = |ch: &crate::gui::ChatChannel| {
-                            if ch.local_only || (ch.federated && commons.contains(&ch.id)) {
+                            if ch.local_only || (ch.federated && commons.contains(&ch.id)) || !crate::engine::protected::lists_channel(state, ch) {
                                 None
                             } else {
                                 Some((
@@ -1757,7 +1758,7 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                         // bridged rooms live ONLY in COMMONS, and #local is
                         // the server name itself -- neither repeats here.
                         // This is what keeps the list short at many servers.
-                        if (ch.federated && commons_names.contains(&ch.id)) || ch.local_only {
+                        if (ch.federated && commons_names.contains(&ch.id)) || ch.local_only || !crate::engine::protected::lists_channel(state, ch) {
                             continue;
                         }
                         let is_commons = false;
@@ -1982,37 +1983,10 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                     // the relay, so native join never registered). Phase C, v0.491.
                     if let Some((idx, joining)) = voice_toggle_idx {
                         // Voice is per-channel (v0.493): the room id IS this text
-                        // channel's own id. Join/leave that directly.
-                        let (ch_name, ch_id) = match state.chat_channels.get_mut(idx) {
-                            Some(ch) => {
-                                ch.voice_joined = joining;
-                                (ch.name.clone(), ch.id.clone())
-                            }
-                            None => (String::new(), String::new()),
-                        };
-                        if !ch_id.is_empty() {
-                            let action = if joining { "join" } else { "leave" };
-                            log::info!("Voice {} requested: {} (room_id {})", action, ch_name, ch_id);
-                            crate::debug::push_debug(format!("Voice: {} for '{}' (id {})", action, ch_name, ch_id));
-                            // Phase C: track the active room so the roster handler
-                            // dials the incumbents (newcomer-offers rule). Reset the
-                            // incumbent-capture flag on each join.
-                            if joining {
-                                state.voice_active_room = Some(ch_id.clone());
-                                state.voice_incumbents_captured = false;
-                            } else {
-                                state.voice_active_room = None;
-                            }
-                            if let Some(ref client) = state.ws_client {
-                                if client.is_connected() {
-                                    let msg = serde_json::json!({
-                                        "type": "voice_room",
-                                        "action": action,
-                                        "room_id": ch_id,
-                                    });
-                                    client.send(&msg.to_string());
-                                }
-                            }
+                        // channel's own id. Join/leave it through chat/voice_room.rs,
+                        // which asks the protected setup's PIN before a join (step G).
+                        if let Some(id) = channels.get(idx).map(|c| c.id.clone()) {
+                            super::set_voice_room(state, &id, joining);
                         }
                     }
 

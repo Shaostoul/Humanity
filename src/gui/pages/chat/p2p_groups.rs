@@ -395,12 +395,44 @@ pub(super) fn mint_and_copy_p2p_invite(
     }
 }
 
+/// Join a P2P group by its invite ticket (the Join group modal's Join): decode the ticket and
+/// POST a `group_join_v1` revealing the secret; the relay's roster fold admits us iff
+/// BLAKE3(secret) matches the creator-signed invite and it has not expired. With the protected
+/// setup on (step G) it needs the PIN first, and the PIN prompt's right answer runs it again
+/// (engine/protected.rs `perform`). Moved here from the modal so that second run has a function
+/// to call.
+pub(crate) fn join_group_with_ticket(state: &mut GuiState, ticket: &str) {
+    if !crate::engine::protected::allows(state, crate::net::protected::ProtectedAction::JoinGroup(ticket.to_string())) {
+        return;
+    }
+    let server_url = state.server_url.clone();
+    let Some(seed) = state.private_key_bytes.clone() else {
+        state.join_group_status = "No identity loaded. Connect first.".to_string();
+        return;
+    };
+    match crate::net::api_v2::join_group_by_ticket(&server_url, &seed, ticket) {
+        Ok((group_id, name)) => {
+            log::info!("Joined P2P group: {} ({})", name, group_id);
+            crate::debug::push_debug(format!("Joined P2P group '{}'", name));
+            state.join_group_status.clear();
+            state.join_group_result = Some(if name.is_empty() { "(unnamed)".to_string() } else { name });
+            // Refresh so the joined group appears in the left-panel list once the user clicks Done.
+            refresh_p2p_groups(state);
+        }
+        Err(e) => {
+            state.join_group_status = format!("Join failed: {e}");
+            log::error!("join P2P group failed: {e}");
+        }
+    }
+}
+
 /// Leave a P2P group (self-remove from the roster). Submits a
 /// `group_member_v1` remove for my own key, then drops the view back to
-/// #general and refreshes the group list so the row disappears.
-// `pub(super)` only because its caller (the Groups section's row menu) stayed
-// in `chat.rs`.
-pub(super) fn leave_p2p_group(state: &mut GuiState, group_id: &str) {
+/// #general and refreshes the group list so the row disappears. Never needs
+/// the protected setup's PIN; its review step's Remove for a group is this.
+// `pub(crate)` for the Groups section's row menu in `chat.rs` and the
+// protected setup's review step (engine/protected.rs).
+pub(crate) fn leave_p2p_group(state: &mut GuiState, group_id: &str) {
     let server_url = state.server_url.clone();
     let seed = match state.private_key_bytes.clone() {
         Some(s) if !s.is_empty() => s,

@@ -83,6 +83,10 @@ fn on_reach_refused(gs: &mut GuiState, frame: &serde_json::Value) {
 /// Ask the server to set one kind's audience (`reach_set`). The page keeps showing what the
 /// server last said until its `reach_settings` answer arrives.
 pub(crate) fn ask(gs: &mut GuiState, kind: ReachKind, audience: Audience) {
+    // Step G: while the protected setup is on, changing a row needs the PIN.
+    if !crate::engine::protected::allows(gs, crate::net::protected::ProtectedAction::ReachRow(kind, audience)) {
+        return;
+    }
     let Some(client) = gs.ws_client.as_ref().filter(|c| c.is_connected()) else {
         gs.reach.status = "Not connected, so nothing was changed. Connect to the server to change who can reach you there.".to_string();
         return;
@@ -277,6 +281,11 @@ pub(crate) fn contact_request_puts(gs: &GuiState, peer: &str) -> Result<(serde_j
 /// Send `peer` a contact request (the Send request button). It counts as following them, and
 /// the pass in it is recorded as given, so Unfollow withdraws it like any other.
 pub(crate) fn send_contact_request(gs: &mut GuiState, peer: &str) -> Result<(), String> {
+    // Step G: asking is following and gives them a pass, so with the protected setup on it
+    // needs the PIN; nothing is sent until it has been entered (the prompt is open now).
+    if !crate::engine::protected::allows(gs, crate::net::protected::ProtectedAction::SendRequest(peer.to_string())) {
+        return Ok(());
+    }
     if !crate::engine::dm::ensure_dm_store(gs) {
         return Err("Unlock your identity and connect first.".into());
     }
@@ -299,6 +308,10 @@ pub(crate) fn send_contact_request(gs: &mut GuiState, peer: &str) -> Result<(), 
 /// stands for their follow, and the pass it brought is now held, so our pass and our follow go
 /// to them carrying it (`friend_cert`, engine/dm.rs `control_puts`) past their own gate.
 pub(crate) fn accept_request(gs: &mut GuiState, key: &str) {
+    // Step G: accepting makes a friend, so with the protected setup on it needs the PIN.
+    if !crate::engine::protected::allows(gs, crate::net::protected::ProtectedAction::AcceptRequest(key.to_string())) {
+        return;
+    }
     if !crate::engine::dm::ensure_dm_store(gs) {
         return;
     }
@@ -328,6 +341,10 @@ pub(crate) fn ignore_request(gs: &mut GuiState, key: &str) {
 /// kept, and their pass is re-issued to allow exactly what is ticked now (the new one minted
 /// first, then the old one withdrawn, so the relay honours the change at once).
 pub(crate) fn set_tick(gs: &mut GuiState, peer: &str, kind: ReachKind, on: bool) {
+    // Step G: while the protected setup is on, changing a tick needs the PIN.
+    if !crate::engine::protected::allows(gs, crate::net::protected::ProtectedAction::Tick(peer.to_string(), kind, on)) {
+        return;
+    }
     if let Some(store) = gs.dm_store.as_mut() {
         let mut ticks = store.ticks(peer);
         ticks.set(kind, on);

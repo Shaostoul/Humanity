@@ -24,6 +24,10 @@ pub mod call_relay;
 /// Warnings, and the recovery-phrase guard (step F of docs/design/blocking-and-safe-mode.md,
 /// 2026-10-10): which messages get which warnings, "Got it", and the guard every send path calls.
 pub mod warnings;
+/// The protected setup (step G of docs/design/blocking-and-safe-mode.md, 2026-10-10): the PIN
+/// gate every locked action asks, turning it on (one `reach_set`, nothing else), the review
+/// step's Remove, and what the chat leaves out while it is on.
+pub mod protected;
 pub mod editor;
 pub mod frame_lock;
 pub mod geom;

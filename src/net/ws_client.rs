@@ -107,6 +107,25 @@ impl WsClient {
         }
     }
 
+    /// Test-only: a client that counts as connected and hands every frame sent through it to
+    /// the returned receiver instead of a network thread, so a test can record exactly what a
+    /// feature sends (the protected setup's proof, 10h: turning it on sends one `reach_set` and
+    /// nothing else). Nothing ever arrives on it.
+    #[cfg(test)]
+    pub fn recording() -> (Self, mpsc::Receiver<String>) {
+        let (tx, sent) = mpsc::channel::<String>();
+        let (_none, receiver) = mpsc::channel::<String>();
+        let client = Self {
+            sender: Some(tx),
+            receiver,
+            state: LinkState::Connected,
+            server_url: "wss://recording.invalid/ws".to_string(),
+            user_name: String::new(),
+            public_key: String::new(),
+        };
+        (client, sent)
+    }
+
     /// Send a raw JSON message string to the server.
     pub fn send(&self, msg: &str) {
         if let Some(ref tx) = self.sender {

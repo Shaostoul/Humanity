@@ -1083,6 +1083,167 @@ fn settings_panel(
     });
 }
 
+/// The protected setup's snapshots (step G of docs/design/blocking-and-safe-mode.md 10h,
+/// 2026-10-10): the preset from the file built into the exe, and a DM store built in memory and
+/// never saved, with two friends (Ann, Ben), a request from Dana, and the safe defaults as the
+/// server's word. `on` turns the setup on behind a quick PIN verifier (the PIN is never drawn).
+fn protected_fixture(state: &mut GuiState, on: bool) {
+    use crate::net::dm_store::SentPass;
+    use crate::net::reach::{ContactRequest, ReachSettings};
+    state.profile_public_key = "me".to_string();
+    let preset = crate::net::protected::parse_presets(crate::embedded_data::SAFETY_PRESETS_JSON.as_bytes()).expect("the built-in presets");
+    if on {
+        let quick = crate::net::protected::PinVerifier::with_salt("1234", &[1u8; 16], 1_000);
+        state.protected.setup = crate::net::protected::ProtectedSetup::applied(&preset, quick, "me", vec!["ann".into(), "ben".into()]);
+    }
+    state.protected.preset = Some(preset);
+    let mut store = crate::net::dm_store::DmStore::load(&[7u8; 32], "me", "wss://snapshot.protected.invalid");
+    store.set_reach_settings(ReachSettings::default());
+    for (key, name) in [("ann", "Ann"), ("ben", "Ben")] {
+        store.set_following(key, true);
+        store.set_follower(key, true);
+        store.record_pass_sent(key, SentPass { serial: format!("{key:0>32}"), may: "invite,message,trade,voice_message".into() });
+        state.chat_users.push(crate::gui::ChatUser { name: name.into(), public_key: key.into(), role: String::new(), status: "online".into() });
+    }
+    state.chat_users.push(crate::gui::ChatUser { name: "Dana Okafor".into(), public_key: "dana".into(), role: String::new(), status: "online".into() });
+    store.add_request(ContactRequest { key: "dana".into(), ts: 1, pass: String::new() });
+    state.dm_store = Some(store);
+}
+
+/// Settings > Safety > Protected setup, step 1 (10h): the preset's seven sentences in order,
+/// then Continue and Cancel.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_protected_read() {
+    render_page_png("protected_read", 960, 760, |ctx, theme, state| {
+        if state.protected.preset.is_none() {
+            protected_fixture(state, false);
+            state.protected.step = Some(crate::net::protected::SetupStep::Read);
+        }
+        settings_panel(ctx, theme, state, |ui, theme, state| {
+            crate::gui::pages::safety_protected::draw_protected_section(ui, theme, state, theme.info())
+        });
+    });
+}
+
+/// Step 2: choose a PIN of 4 to 12 digits, twice (the fields masked), after two PINs that did not
+/// agree, with the preset's rule repeated under them.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_protected_pin() {
+    render_page_png("protected_pin", 960, 420, |ctx, theme, state| {
+        if state.protected.preset.is_none() {
+            protected_fixture(state, false);
+            state.protected.step = Some(crate::net::protected::SetupStep::ChoosePin);
+            state.protected.pin_first = "4821".into();
+            state.protected.line = state.protected.preset.as_ref().unwrap().pin_rule();
+        }
+        settings_panel(ctx, theme, state, |ui, theme, state| {
+            crate::gui::pages::safety_protected::draw_protected_section(ui, theme, state, theme.info())
+        });
+    });
+}
+
+/// Step 3: who can already reach this device, each with Remove: two friends, a group, a voice
+/// room joined; then "Keep the rest".
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_protected_review() {
+    render_page_png("protected_review", 960, 640, |ctx, theme, state| {
+        if state.protected.preset.is_none() {
+            protected_fixture(state, false);
+            state.protected.step = Some(crate::net::protected::SetupStep::Review);
+            state.p2p_groups.push(crate::net::api_v2::P2pGroupInfo { group_id: "g1".into(), name: "Book club".into(), members: vec!["me".into()], is_creator: false });
+            state.chat_channels.push(ChatChannel { id: "lounge".into(), name: "lounge".into(), voice_enabled: true, voice_joined: true, ..Default::default() });
+        }
+        settings_panel(ctx, theme, state, |ui, theme, state| {
+            crate::gui::pages::safety_protected::draw_protected_section(ui, theme, state, theme.info())
+        });
+    });
+}
+
+/// Settings > Safety with the setup on: the always-visible line first, the rows as the server
+/// last said them, the Requests list's "Accept (needs the PIN)", and at the bottom the section
+/// with the routes line, the public rooms and pictures switches, and Change the PIN, Turn off and
+/// "Forgot the PIN?".
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_safety_protected_on() {
+    render_page_png("safety_protected_on", 960, 2000, |ctx, theme, state| {
+        if state.protected.preset.is_none() {
+            protected_fixture(state, true);
+        }
+        settings_panel(ctx, theme, state, |ui, theme, state| {
+            crate::gui::pages::safety::draw_safety_content(ui, theme, state, theme.info())
+        });
+    });
+}
+
+/// The PIN prompt in its three modes, over an empty page: `mode` with Follow waiting.
+fn protected_prompt_snapshot(name: &str, mode: crate::net::protected::PromptMode, line: fn(&crate::net::protected::Preset) -> String) {
+    render_page_png(name, 720, 420, |ctx, theme, state| {
+        if state.protected.preset.is_none() {
+            protected_fixture(state, true);
+            state.protected.prompt = Some(crate::net::protected::PinPrompt { action: Some(crate::net::protected::ProtectedAction::Follow("ben".into())), mode });
+            state.protected.prompt_line = line(state.protected.preset.as_ref().unwrap());
+        }
+        theme.apply_to_egui(ctx);
+        egui::CentralPanel::default().show(ctx, |_| {});
+        crate::gui::pages::safety_protected::draw_pin_prompt(ctx, theme, state);
+    });
+}
+
+/// The PIN prompt a locked action opens (here Follow), after three wrong PINs: the preset's wait
+/// line, then Continue, Cancel and "Forgot the PIN?".
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_protected_pin_prompt() {
+    protected_prompt_snapshot("protected_pin_prompt", crate::net::protected::PromptMode::Pin, |p| p.labels.pin_wait(60));
+}
+
+/// "Forgot the PIN?" in the prompt: who can use it (the preset's line), the masked field for the
+/// recovery phrase, after a phrase that did not match.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_protected_forgot() {
+    protected_prompt_snapshot("protected_forgot", crate::net::protected::PromptMode::Forgot, |p| p.labels.phrase_wrong.clone());
+}
+
+/// The new PIN, twice, after the recovery phrase matched (the prompt then asks for it before
+/// Follow runs).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_protected_new_pin() {
+    protected_prompt_snapshot("protected_new_pin", crate::net::protected::PromptMode::NewPin, |_| String::new());
+}
+
+/// The chat with the setup on: the always-visible line above the direct messages, "Public rooms
+/// are hidden by the protected setup." above the servers' lists, #announcements (read-only) open,
+/// and a post there from someone who is not a friend whose picture is left out with the preset's
+/// line.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_chat_protected() {
+    render_page_png("chat_protected", 1280, 900, |ctx, theme, state| {
+        if state.protected.preset.is_none() {
+            protected_fixture(state, true);
+            state.chat_channels.push(ChatChannel { id: "announcements".into(), name: "announcements".into(), read_only: true, ..Default::default() });
+            state.chat_channels.push(ChatChannel { id: "general".into(), name: "general".into(), ..Default::default() });
+            state.chat_messages.push(ChatMessage {
+                sender_name: "Server admin".into(),
+                sender_key: "admin0".into(),
+                content: "New rules are up. https://example.com/rules.png".into(),
+                timestamp: "09:15".into(),
+                timestamp_ms: 1_791_480_900_000,
+                channel: "announcements".into(),
+                ..Default::default()
+            });
+            state.chat_active_channel = "announcements".into();
+        }
+        crate::gui::pages::chat::draw(ctx, theme, state);
+    });
+}
+
 /// Reasons for the report snapshots, built here (the real list is data/safety/report_reasons.json,
 /// written by the relay half of step D): enough to show the list and one help text.
 fn snapshot_report_reasons() -> Vec<crate::net::report::ReportReason> {

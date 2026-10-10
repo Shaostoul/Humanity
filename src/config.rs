@@ -455,6 +455,16 @@ pub struct AppConfig {
     /// only: never looked up from their location, never sent with a report or anywhere else.
     #[serde(default)]
     pub outside_help_country: String,
+    /// Settings > Safety, the protected setup (step G of blocking-and-safe-mode.md 10h,
+    /// 2026-10-10): whether it is on, the PIN's verifier (a salt and a PBKDF2 hash, never the
+    /// PIN), and what was let through with the PIN. THIS DEVICE ONLY: config.json is never sent
+    /// anywhere, and nothing here goes into the self-sync notes or any export (10h, "Per device,
+    /// never synced"). Absent in older configs = off; present but unreadable = ON with no PIN
+    /// that matches (fail closed, `ProtectedSetup::from_stored`), so a damaged file is never a
+    /// way to turn it off. Only boot reads it into the app (`apply_to_gui_state`): there is no
+    /// settings import that could turn it off or replace the PIN.
+    #[serde(default, deserialize_with = "crate::net::protected::deserialize_setup")]
+    pub protected_setup: crate::net::protected::ProtectedSetup,
     /// UI font size. An accessibility setting, so losing it every launch is
     /// worse than losing a cosmetic one.
     #[serde(default = "default_font_size")]
@@ -1180,6 +1190,16 @@ fn default_voice_gain() -> f32 { 1.0 }
 fn default_voice_ptt_key() -> String { "CapsLock".to_string() }
 fn default_voice_vad_threshold() -> f32 { 0.05 }
 
+/// PBKDF2-HMAC-SHA-256 of `secret` under `salt`, `iterations` rounds, 32 bytes out: the one
+/// derivation the vault and the protected setup's PIN verifier (net/protected.rs) share, so
+/// both stay on the same function and the same iteration constant.
+#[cfg(feature = "native")]
+pub fn pbkdf2_sha256(secret: &[u8], salt: &[u8], iterations: u32) -> [u8; 32] {
+    let mut out = [0u8; 32];
+    pbkdf2::pbkdf2_hmac::<sha2::Sha256>(secret, salt, iterations, &mut out);
+    out
+}
+
 /// Encrypt a private key with AES-256-GCM using a passphrase.
 ///
 /// Always uses `PBKDF2_ITERATIONS_NEW` (600_000) — the bumped iteration
@@ -1201,13 +1221,7 @@ pub fn encrypt_private_key(key_bytes: &[u8], passphrase: &str) -> Result<(String
     getrandom::getrandom(&mut salt).map_err(|e| format!("RNG failed: {}", e))?;
 
     // Derive 32-byte AES key via PBKDF2-SHA256
-    let mut derived_key = [0u8; 32];
-    pbkdf2::pbkdf2_hmac::<sha2::Sha256>(
-        passphrase.as_bytes(),
-        &salt,
-        PBKDF2_ITERATIONS_NEW,
-        &mut derived_key,
-    );
+    let derived_key = pbkdf2_sha256(passphrase.as_bytes(), &salt, PBKDF2_ITERATIONS_NEW);
 
     // Generate random 12-byte IV
     let mut iv = [0u8; 12];
@@ -1262,13 +1276,7 @@ pub fn decrypt_private_key(encrypted: &str, salt: &str, passphrase: &str, iterat
     // for vaults written by absurdly-old or fuzzed binaries.
     let iters = iterations.max(PBKDF2_ITERATIONS_LEGACY);
 
-    let mut derived_key = [0u8; 32];
-    pbkdf2::pbkdf2_hmac::<sha2::Sha256>(
-        passphrase.as_bytes(),
-        &salt_bytes,
-        iters,
-        &mut derived_key,
-    );
+    let derived_key = pbkdf2_sha256(passphrase.as_bytes(), &salt_bytes, iters);
 
     // AES-256-GCM decrypt
     let cipher = Aes256Gcm::new(GenericArray::from_slice(&derived_key));
@@ -1477,6 +1485,7 @@ impl AppConfig {
             privacy_tier: state.settings.privacy_tier.clone(),
             warnings_on_messages: state.settings.warnings_on_messages,
             outside_help_country: state.settings.outside_help_country.clone(),
+            protected_setup: state.protected.setup.clone(),
             font_size: state.settings.font_size,
             dark_mode: state.settings.dark_mode,
             hint_display: state.settings.hint_display,
@@ -1656,6 +1665,7 @@ impl AppConfig {
         state.settings.privacy_tier = self.privacy_tier.clone();
         state.settings.warnings_on_messages = self.warnings_on_messages;
         state.settings.outside_help_country = self.outside_help_country.clone();
+        state.protected.setup = self.protected_setup.clone();
         // Clamp the ranges the UI enforces, so a hand-edited config cannot
         // produce an unusable window (a 0 font size or a 0 m far plane).
         state.settings.font_size = self.font_size.clamp(10.0, 24.0);

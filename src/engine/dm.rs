@@ -234,6 +234,7 @@ fn ingest_control(gui_state: &mut GuiState, inner: &DmInner) {
     let peer = if from_me { inner.to.clone() } else { inner.from.clone() };
     let mut want_cert_for: Option<String> = None;
     let mut withdraw_from: Option<String> = None;
+    let mut forget_approval: Option<String> = None;
     let mut send_withdrawals = false;
     if let Some(store) = gui_state.dm_store.as_mut() {
         match inner.text.as_str() {
@@ -257,6 +258,8 @@ fn ingest_control(gui_state: &mut GuiState, inner: &DmInner) {
                     store.set_following(&peer, false);
                     store.clear_ticks(&peer);
                     withdraw_from = Some(peer.clone());
+                    // Step G: off the protected setup's approved list here too.
+                    forget_approval = Some(peer.clone());
                 } else {
                     store.set_follower(&peer, false);
                     store.forget_cert_from(&peer);
@@ -305,6 +308,9 @@ fn ingest_control(gui_state: &mut GuiState, inner: &DmInner) {
     }
     if let Some(peer) = withdraw_from {
         withdraw_passes(gui_state, &peer);
+    }
+    if let Some(peer) = forget_approval {
+        crate::engine::protected::forget(gui_state, &peer);
     }
     if send_withdrawals {
         send_pending_withdrawals(gui_state);
@@ -396,6 +402,12 @@ fn mint_and_send_pass(gui_state: &mut GuiState, peer: &str) -> Option<String> {
 /// identity is known (its `identify_challenge`), or while the identity is locked.
 pub(crate) fn mint_pass(gui_state: &GuiState, peer: &str, may: &[&str]) -> Option<(String, SentPass)> {
     use crate::relay::core::pq_crypto::{build_friend_cert, new_friend_cert_serial, FriendMay};
+    // Step G: with the protected setup on, a pass goes only to a friend the PIN holder let be one
+    // (kept in its review, or befriended with the PIN), so no route makes a friend without it: not
+    // even a follow made before the setup and followed back after it.
+    if !crate::engine::protected::pass_allowed(gui_state, peer) {
+        return None;
+    }
     let server = gui_state.dm_store.as_ref()?.pass_server()?;
     let seed = gui_state.private_key_bytes.as_ref()?;
     let serial = new_friend_cert_serial()?;
@@ -555,6 +567,11 @@ pub(crate) fn set_follow(gui_state: &mut GuiState, peer: &str, on: bool) {
     if !ensure_dm_store(gui_state) {
         return;
     }
+    // Step G: with the protected setup on, Follow and Follow back make a friend and need the PIN
+    // (Unfollow never does).
+    if on && !crate::engine::protected::allows(gui_state, crate::net::protected::ProtectedAction::Follow(peer.to_string())) {
+        return;
+    }
     if on && crate::engine::block::is_blocked(gui_state, peer) {
         // A block takes the follow back (step C); following again starts with Unblock.
         gui_state.pending_notices.push("You blocked them. Unblock them first, in Settings > Safety > Blocked people.".to_string());
@@ -568,6 +585,10 @@ pub(crate) fn set_follow(gui_state: &mut GuiState, peer: &str, on: bool) {
             store.clear_ticks(peer);
         }
         store.save();
+    }
+    if !on {
+        // Step G: off the protected setup's approved list; a new friendship needs the PIN again.
+        crate::engine::protected::forget(gui_state, peer);
     }
     let text = if on { crate::net::dm_pq::CTL_FOLLOW } else { crate::net::dm_pq::CTL_UNFOLLOW };
     let _ = send_dm_control(gui_state, peer, text, None);

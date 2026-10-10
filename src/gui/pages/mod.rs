@@ -20,6 +20,9 @@ pub mod tasks;
 pub mod privacy;
 /// Settings > Safety: who can reach me, People I choose, contact requests (step B, 2026-10-09).
 pub mod safety;
+/// Settings > Safety > Protected setup, and the PIN prompt its locked actions open (step G,
+/// 2026-10-10).
+pub mod safety_protected;
 pub mod profile;
 pub mod real;
 // v0.415.0: play module removed (the dead v0.360 Crafting/Studio fold —

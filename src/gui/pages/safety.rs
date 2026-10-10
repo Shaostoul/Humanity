@@ -3,8 +3,10 @@
 //! with the five audiences in plain words and a line under each saying what the current choice
 //! means; "People I choose" (10c-ii), the person's friends, each once with three ticks
 //! (Message, Call, Trade); the Requests list (also in Chat, under DMs), where a request can
-//! also be blocked; Warnings (step F, 10g), the "Warnings on messages" switch; and Blocked
-//! people (step C, 10d), each with the date and Unblock.
+//! also be blocked; Warnings (step F, 10g), the "Warnings on messages" switch; Blocked people
+//! (step C, 10d), each with the date and Unblock; and the Protected setup (step G, 10h), drawn by
+//! safety_protected.rs, whose always-visible line heads the page while it is on. While it is on,
+//! a row, a tick, Accept and turning the warnings off ask its PIN (engine/protected.rs).
 //!
 //! What the rows show is what the SERVER last said (`reach_settings`, kept in the DM store per
 //! server), never what was clicked: a click sends `reach_set` and the row moves when the server
@@ -27,6 +29,8 @@ use crate::net::reach::{Audience, FriendTicks, ReachKind, ReachSettings};
 /// The section's content, drawn inside its tinted band by `pages::settings::draw`. `accent` is
 /// the band's colour, which the subsection headers wear.
 pub(crate) fn draw_safety_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: egui::Color32) {
+    // Step G: the protected setup's always-visible line, first on the page while it is on (10h).
+    super::safety_protected::draw_status_line(ui, theme, state);
     widgets::subsection_header(
         ui,
         theme,
@@ -46,6 +50,7 @@ pub(crate) fn draw_safety_content(ui: &mut egui::Ui, theme: &Theme, state: &mut 
         // shown offline too.
         draw_warnings_switch(ui, theme, state, accent);
         draw_blocked_people(ui, theme, state, accent);
+        super::safety_protected::draw_protected_section(ui, theme, state, accent);
         return;
     }
     let server_said = crate::engine::reach::current(state);
@@ -111,6 +116,7 @@ pub(crate) fn draw_safety_content(ui: &mut egui::Ui, theme: &Theme, state: &mut 
 
     draw_warnings_switch(ui, theme, state, accent);
     draw_blocked_people(ui, theme, state, accent);
+    super::safety_protected::draw_protected_section(ui, theme, state, accent);
 }
 
 /// Settings > Safety > Warnings (step F of docs/design/blocking-and-safe-mode.md, 10g): the
@@ -129,8 +135,15 @@ pub(crate) fn draw_warnings_switch(ui: &mut egui::Ui, theme: &Theme, state: &mut
     );
     widgets::card(ui, theme, |ui| {
         ui.set_min_width(ui.available_width());
-        if widgets::toggle(ui, theme, "Warnings on messages", &mut state.settings.warnings_on_messages) {
-            state.settings_dirty = true;
+        let mut on = state.settings.warnings_on_messages;
+        if widgets::toggle(ui, theme, "Warnings on messages", &mut on) {
+            if on {
+                state.settings.warnings_on_messages = true;
+                state.settings_dirty = true;
+            } else {
+                // Step G: with the protected setup on, turning them off needs the PIN.
+                crate::engine::protected::perform(state, crate::net::protected::ProtectedAction::WarningsOff);
+            }
         }
         widgets::body_hint(
             ui,
@@ -254,6 +267,8 @@ fn draw_chosen_list(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, acce
 /// Safety and the chat page's left rail, so the two never drift.
 pub(crate) fn draw_requests_list(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let requests = state.dm_store.as_ref().map(|s| s.requests().to_vec()).unwrap_or_default();
+    // Step G: while the protected setup is on, Accept says it needs the PIN (10h).
+    let accept = super::safety_protected::accept_label(state);
     if requests.is_empty() {
         widgets::body_hint(ui, theme, "No requests.");
         return;
@@ -275,7 +290,7 @@ pub(crate) fn draw_requests_list(ui: &mut egui::Ui, theme: &Theme, state: &mut G
             }
         });
         ui.horizontal_wrapped(|ui| {
-            if widgets::Button::success("Accept").tooltip("Follow them back: you become friends and can message each other.").show(ui, theme) {
+            if widgets::Button::success(&accept).tooltip("Follow them back: you become friends and can message each other.").show(ui, theme) {
                 act = Some(Act::Accept(req.key.clone()));
             }
             if widgets::Button::secondary("Ignore").tooltip("Remove this request. They are not told.").show(ui, theme) {

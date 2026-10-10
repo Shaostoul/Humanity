@@ -2428,6 +2428,9 @@ pub struct GuiState {
     pub call_relay: crate::net::call_relay::CallRelayUi,
     /// Warnings under received messages (step F, 2026-10-10): the patterns, and the ones dismissed.
     pub warnings: crate::net::warnings::WarningsUi,
+    /// The protected setup (step G, 2026-10-10): its saved state (config.json only) and the PIN
+    /// prompt, the steps of turning it on, and a one-shot permission (engine/protected.rs).
+    pub protected: crate::net::protected::ProtectedUi,
 
     // ── Cosmos page state (v0.203.0, Phase 3) ──
     /// Which view the Cosmos page is currently rendering.
@@ -3980,6 +3983,7 @@ impl Default for GuiState {
             reports: Default::default(),
             call_relay: Default::default(),
             warnings: Default::default(),
+            protected: Default::default(),
             server_settings: None,
             server_settings_requested: false,
             erase_memory_days: None,
