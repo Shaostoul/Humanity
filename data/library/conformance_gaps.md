@@ -18,7 +18,7 @@ the code. Until it closes, a reader is entitled to know.
 **Do not read a silence here as conformance.** This list contains what an audit
 has found. It is not proof that nothing else is missing.
 
-Last reviewed: 2026-09-14, from the library documentation audit recorded in
+Last reviewed: 2026-10-09 (the contact-consent gap closed); before that 2026-09-14, from the library documentation audit recorded in
 `docs/history/2026-09-14-library-audit.md`.
 
 ---
@@ -72,7 +72,7 @@ governance votes are public signed objects by design, naming the trade-off.
 
 ---
 
-## Contact consent cannot be withdrawn
+## Contact consent cannot be withdrawn (CLOSED 2026-10-09, with the limits below)
 
 **The Accord says** (Communication and Association, Consent in contact): "A user
 must be able to restrict who can contact them" and "A user must be able to close
@@ -80,22 +80,31 @@ contact pathways without escalating to moderators." Consent and Control adds tha
 consent "must be revocable: immediately, without justification, without loss of
 essential function", and lists "irreversible lock-in" as a prohibited pattern.
 
-**The software does** issue friendship certificates whose signed preimage is a
-domain tag plus the two public keys, and nothing else:
-`friend_cert_preimage` in `src/relay/core/pq_crypto.rs`. There is no serial, no
-expiry and no nonce, and `verify_friend_cert` is stateless, so it consults no
-revocation list. The DM path in `src/relay/handlers/msg_handlers.rs` gates on
-mute state, certificate validity, a daily knock budget and the rate limiter;
-there is no recipient-side deny list.
+**Until 2026-10-09 the software did not:** a friendship certificate, once given,
+granted its holder unlimited direct messages forever, unfollowing did not close
+the pathway, and nobody could block anyone.
 
-**So** a certificate, once issued, grants its holder unlimited direct-message
-access permanently. Unfollowing does not close the pathway. The only way to
-invalidate a certificate is to abandon the identity key, which is also the
-account and the wallet address.
+**The software now does** (`docs/design/blocking-and-safe-mode.md`):
+- **Withdrawable friendship passes** (v0.1466.0): each pass carries a serial and
+  what the friend may do; Unfollow and Block withdraw it at once (`cert_revoke`,
+  checked by `friend_pass` in `src/relay/handlers/friend_passes.rs`).
+- **Who can reach me** (v0.1467.0): for messages, calls and trades, each person
+  chooses Nobody, People I choose, Friends, Friends and people in my groups, or
+  Anyone, and the relay enforces it for everyone, admins included
+  (`src/relay/handlers/reach.rs`). By default only friends can message or trade
+  and only chosen people can call.
+- **Block** (v0.1468.0), on both clients, without asking a moderator: it withdraws
+  the passes you gave, hides everything from that person, and tells them nothing.
 
-**To close it**, add a serial to the preimage plus a recipient-published
-revocation object the relay checks at `dm_put`, or an expiry with renewal, and a
-recipient-side block enforced in the DM handler.
+**What it still cannot do**, so nobody is told more than is true:
+- Block is carried out by your own app and by withdrawing passes. If you set
+  Messages to "Anyone", a blocked person's messages still reach your mailbox (up
+  to the 20 a day any stranger may send) and your app discards them unread; only
+  a narrower setting makes the server refuse them.
+- A blocked person can still read your public posts, and can be in a voice room
+  you do not run. In the game, blocking does not yet hide their figure or name.
+- These settings and passes are per server for now; sharing them across
+  federated servers comes with the federation work.
 
 ---
 

@@ -541,16 +541,17 @@ menu. It files a report about the sender with the server and tells the
 server's admins and moderators who are online; the server accepts only
 a few reports from each person per hour. The Governance page is how a
 group on a server writes down a decision; [Making an Agreement That
-Holds](/library#making-an-agreement-that-holds) describes it. And the Accord's
-promise that you can close a contact pathway without asking a moderator
-is not yet kept. A friendship certificate, once given, cannot be
-withdrawn, and unfollowing does not close the message pathway, so a
-friend can go on messaging you. There is no way to have the server block
-a sender, and someone you have not befriended can still send you
-messages, up to the 20 a day the server allows each sender without a
-friendship certificate. The web chat's block list only hides messages in
-that browser, and the desktop app has none. [Where the Software Falls
-Short](/library#conformance-gaps) says so plainly.
+Holds](/library#making-an-agreement-that-holds) describes it. And you
+can close a contact pathway yourself, without asking a moderator, as the
+Accord promises. Block (in a message's menu, a conversation's header, or a
+person's entry in the member list) hides everything from that person and takes back the
+friendship pass you gave them, and they are not told. The Safety settings
+(Who can reach me) set who may message, call or trade with you; unless you
+change it, only friends can message you and only people you choose can
+call. Someone you do not know can still send a contact request, which shows
+you only their name. What blocking cannot do (it cannot hide your public
+posts from them, for one) is in [Where the Software Falls
+Short](/library#conformance-gaps).
 
 What the game leaves out, so you do not learn it from the game: the
 whole of this guide. People, real ones, get angry, misunderstand each
@@ -748,11 +749,11 @@ wording is not.
   with the sender's name) and `src/relay/relay.rs` (the report stored,
   online admins and moderators told, three an hour, or five for some
   roles).
-- Contact controls: the daily allowance of 20 messages for a sender
-  without a friendship certificate (`DM_KNOCKS_PER_DAY` in
-  `src/relay/handlers/msg_handlers.rs`), no recipient-side block on the
-  server, the web chat's block list kept in the browser
-  (`web/chat/chat-profile.js`), and none in the desktop chat.
+- Contact controls: who can reach me (`src/relay/handlers/reach.rs`, with
+  the daily allowance of 20 messages for a sender without a friendship pass,
+  `DM_KNOCKS_PER_DAY`), friendship passes and their withdrawal
+  (`src/relay/handlers/friend_passes.rs`), and Block on both clients
+  (`src/engine/block.rs`, `web/chat/chat-privacy.js`).
 - The Humanity Accord: [Conflict
   Resolution](/library#conflict-resolution), [Communication and
   Association](/library#communication-and-association),

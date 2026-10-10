@@ -751,6 +751,11 @@
       "date": "2026-10-09",
       "decision": "Step B (who can reach me, design 10c) merged from three parallel worktrees: relay (reach_settings table, reach_set/reach_settings/reach_refused, enforcement at dm_put, voice_call and its signals, trade_request and dc_offer, the groups audience, open calls tracked in memory as a hash of the two keys, contact requests 5 a day), desktop (Settings > Safety, People who may call me re-issuing passes, refusal notice, Requests list), web (the mirror, plus window.peerData exposed so names resolve). Safe defaults: messages friends, calls chosen, trades friends; admins bound.",
       "why": "The operator: safe by default, choose individuals for calls. The web build found the first contact-request design could never form a friendship under the defaults and could be spoofed (256 bytes cannot hold a signature); amended mid-build so a request is an ordinary signed sealed DM carrying the requester s pass, and the accepter s reply attaches it, keeping the relay free of who-asked-whom records. The relay build found the 256-byte rule could never have worked anyway (every signed DM pads to 16,384)."
+    },
+    {
+      "date": "2026-10-09",
+      "decision": "Step C (Block, design 10d) merged from two parallel worktrees and released as v0.1468.0: Block by key withdraws your passes and unfollows locally, hides the person on every client path, syncs devices by a sealed note to yourself ([[hum:block:v1]] / [[hum:unblock:v1]], identical on both clients, checked by a Node test reading the Rust constants), Settings > Safety > Blocked people. Also fixed: BUG-175 (web server list fetch loop), the flaky reach-web test. Docs: conformance_gaps marks the contact-consent gap closed with its remaining limits; the Accord chapter note and the conflict guide rewritten; Library resynced.",
+      "why": "The operator: give users the tools to protect themselves. The three Block decisions (local unfollow, note format, their pass kept) were settled by the web build and sent to the desktop build mid-flight so both clients match. Remaining limits stated publicly rather than hidden: under Anyone a blocked person still reaches the mailbox, public posts stay visible, game nameplates not yet hidden."
     }
   ],
   "active_scopes_to_avoid": [

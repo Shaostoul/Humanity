@@ -26,8 +26,10 @@ Does not define implementation details. Those belong in design documentation.
 - A user must be able to restrict who can contact them.
 - A user must be able to close contact pathways without escalating to moderators.
 
-> In the current build a friendship certificate cannot be revoked and
-> unfollowing does not close the DM pathway. See conformance_gaps.md.
+> Since 2026-10-09 (v0.1466.0 to v0.1468.0) the software keeps these: each person
+> chooses who can message, call or trade with them, unfollowing or blocking
+> withdraws a friendship at once, and Block needs no moderator. What blocking still
+> cannot do is listed in conformance_gaps.md.
 
 ### Clear boundaries of authority
 - Authority must be explicit and attributable.
