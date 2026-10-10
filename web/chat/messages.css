@@ -669,3 +669,19 @@
 }
 .enc-attach-dl:hover { background: var(--bg-hover); }
 .enc-attach-dl:disabled { opacity: 0.6; cursor: default; }
+/* A picture from someone who is not a friend loads on a click (10k), and a
+   file that cannot be fetched or opened says so in one line. */
+.enc-attach-load {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-sm);
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--accent);
+  cursor: pointer;
+}
+.enc-attach-load:hover { background: var(--bg-hover); }
+.enc-attach-failed { font-size: var(--text-xs); color: var(--text-muted); }

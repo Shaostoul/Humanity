@@ -872,9 +872,11 @@ test("every other send path awaits the guard before it sends, and index.html loa
     ["chat/app.js", "async function handleSkillVerifyRequest(", "ws.send("],
     ["chat/app.js", "async function sendGameBan(", "ws.send("],
     ["chat/chat-ui.js", "async function sendComposedContent(", "ws.send("],
+    // A file's marker in a P2P group (10k) leaves sendComposedContent here.
+    ["chat/chat-ui.js", "async function sendComposedContent(", "sendToActiveP2pGroup("],
     ["chat/chat-ui.js", "async function promptAddServer(", "ws.send("],
     ["chat/chat-ui.js", "async function doSearch(", "ws.send("],
-    ["chat/chat-groups-p2p.js", "sendMessage = async function ()", "sendGroupMessage("],
+    ["chat/chat-groups-p2p.js", "sendMessage = async function ()", "sendToActiveP2pGroup("],
     ["chat/chat-messages.js", "saveBtn.onclick = async", "ws.send("],
     ["chat/chat-messages.js", "async function sendThreadReply(", "ws.send("],
     ["chat/chat-messages.js", "async function uploadImage(", "fetch("],

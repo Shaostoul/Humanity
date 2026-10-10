@@ -1727,7 +1727,10 @@ async function sendChatCommand(command, channelOverride) {
 }
 
 // ── Rendering ──
-function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, replyTo, threadCount, isFederated, messageId) {
+// `opts.privateFiles` (a P2P group's messages, chat-groups-p2p.js): a body that
+// is a file's [[hum:file:v1]] marker is drawn as a DM's is (10k, chat-dms.js
+// privateFileHtml), never as its text, which holds the file's key.
+function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, replyTo, threadCount, isFederated, messageId, opts) {
   // Posts, replies and group messages from someone I blocked are never drawn
   // (by key, step C; chat-privacy.js hides the ones already on screen).
   if (fromKey && isBlockedKey(fromKey)) return;
@@ -1799,7 +1802,10 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   let bodyHtml;
   const isTodoChannel = activeChannel === 'todo';
   const isHeronBot = fromKey && fromKey.startsWith('bot_') && (author === 'Heron 🪶' || author === 'Heron');
-  if (isTodoChannel && isHeronBot) {
+  const fileMeta = (opts && opts.privateFiles && typeof pqParseFileMarker === 'function') ? pqParseFileMarker(body) : null;
+  if (fileMeta) {
+    bodyHtml = privateFileHtml(fileMeta, fromKey);
+  } else if (isTodoChannel && isHeronBot) {
     const todoHtml = formatTodoMessage(body);
     bodyHtml = todoHtml || formatBody(body, fromKey);
   } else {
@@ -1954,6 +1960,8 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   }
 
   appendMessage(el);
+  // A file: shown, offered or held back as its sender allows (chat-dms.js).
+  if (fileMeta) hydratePrivateFile(el, fileMeta, fromKey);
   if (window.twemoji) twemoji.parse(el);
   // The row, so a P2P group can put its warnings under it (chat-groups-p2p.js, step F).
   return el;

@@ -254,7 +254,7 @@
       const fromKey = (ag.fpToKey && ag.fpToKey[authorFp]) || res.authorPubHex;
       if (typeof addChatMessage === 'function') {
         const ts = res.createdAt || Date.now();
-        const el = addChatMessage(name, text, ts, fromKey, true, false, null, null);
+        const el = addGroupMessage(name, text, ts, fromKey, true);
         markGroupObjectId(el, res.objectId);
         if (!isMe) groupMessageWarnings(el, text, fromKey, ts, name);
       }
@@ -691,10 +691,21 @@
         ? (window.myName || 'You')
         : (labelFromMap || (m.author_fp || '').slice(0, 12) + '…');
       const fromKey = isMe ? myKey : (ag.fpToKey && ag.fpToKey[m.author_fp]) || m.author_fp;
-      const el = addChatMessage(authorName, m.text, m.created_at, fromKey, true, false, null, null);
+      const el = addGroupMessage(authorName, m.text, m.created_at, fromKey, true);
       markGroupObjectId(el, m.object_id);
       if (!isMe) groupMessageWarnings(el, m.text, fromKey, m.created_at, authorName);
     }
+  }
+
+  /**
+   * Draw one group message through the channel renderer (app.js
+   * addChatMessage), with a file's [[hum:file:v1]] marker drawn as a DM's is
+   * (10k, chat-dms.js privateFileHtml): never as its text, which holds the
+   * file's key. Returns the row.
+   */
+  function addGroupMessage(name, text, ts, fromKey, isHistory) {
+    if (typeof addChatMessage !== 'function') return null;
+    return addChatMessage(name, text, ts, fromKey, isHistory, false, null, null, false, null, { privateFiles: true });
   }
 
   /**
@@ -932,6 +943,41 @@
       return _origOpenGroupP2p.apply(this, arguments);
     };
   }
+  /** Can the group on screen take a message now? Says why not (no group key yet). */
+  function p2pGroupCanSend() {
+    const ag = window.activeP2pGroup;
+    if (!ag) return false;
+    if (!ag.epochKey) {
+      if (typeof addNotice === 'function') addNotice('Waiting for the group epoch key. The group creator must open the group once first.', 'orange', 6);
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Send `text` as an encrypted message in the group on screen: a typed
+   * message, or a file's [[hum:file:v1]] marker (chat-ui.js
+   * sendComposedContent routes the attachment paths here, 10k). True when it
+   * was sent; false (having said why) when it was not.
+   */
+  async function sendToActiveP2pGroup(text) {
+    const ag = window.activeP2pGroup;
+    if (!ag || !text) return false;
+    if (!p2pGroupCanSend()) return false;
+    try {
+      await sendGroupMessage(ag.id, ag.epoch || 1, ag.epochKey, text);
+    } catch (e) {
+      if (typeof addNotice === 'function') addNotice('Send failed: ' + e.message, 'red', 6);
+      return false;
+    }
+    // Optimistic local echo so the user sees their message land
+    // immediately, the next poll-refresh reconciles with what the relay
+    // stored (dedup by author_fp + created_at).
+    addGroupMessage(window.myName || 'You', text, Date.now(), myKey, false);
+    _p2pRefresh();
+    return true;
+  }
+
   // sendMessage routing: when a P2P group is active, the composer sends to it.
   if (typeof sendMessage === 'function') {
     const _origSendMsgP2p = sendMessage;
@@ -946,23 +992,14 @@
       if (!text) return;
       // Never my recovery phrase (step F, chat-warnings.js): stopped, the text stays to edit.
       if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(text)) return;
-      if (!ag.epochKey) {
-        if (typeof addNotice === 'function') addNotice('Waiting for the group epoch key. The group creator must open the group once first.', 'orange', 6);
-        return;
-      }
+      if (!p2pGroupCanSend()) return;
       input.disabled = true;
       if (sendBtn) sendBtn.disabled = true;
       try {
-        await sendGroupMessage(ag.id, ag.epoch || 1, ag.epochKey, text);
-        input.value = '';
-        input.style.height = 'auto';
-        // Optimistic local echo so the user sees their message land
-        // immediately, the next poll-refresh reconciles with what the relay
-        // stored (dedup by author_fp + created_at).
-        addChatMessage(window.myName || 'You', text, Date.now(), myKey, false, false, null, null);
-        _p2pRefresh();
-      } catch (e) {
-        if (typeof addNotice === 'function') addNotice('Send failed: ' + e.message, 'red', 6);
+        if (await sendToActiveP2pGroup(text)) {
+          input.value = '';
+          input.style.height = 'auto';
+        }
       } finally {
         input.disabled = false;
         if (sendBtn) sendBtn.disabled = false;
@@ -982,6 +1019,10 @@
   window.loadP2pGroups = loadP2pGroups;
   window.openP2pGroup = openP2pGroup;
   window.closeP2pGroup = closeP2pGroup;
+  // 10k: chat-ui.js sendComposedContent sends a file's marker to the group on
+  // screen through these (and chat-messages.js asks before uploading).
+  window.sendToActiveP2pGroup = sendToActiveP2pGroup;
+  window.p2pGroupCanSend = p2pGroupCanSend;
   // Phase 3: chat-p2p.js's onDCMessage dispatches `p2p_group_obj` frames here.
   window.handleP2pGroupObj = handleP2pGroupObj;
   // Back-compat alias: anything still calling the old name gets routed into

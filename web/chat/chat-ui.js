@@ -1474,13 +1474,23 @@ sendMessage = async function() {
 // note appears once per conversation per session rather than on every send.
 const knockNoticeShown = new Set();
 async function sendComposedContent(content) {
-  if (!content || !ws || ws.readyState !== WebSocket.OPEN) return false;
+  if (!content) return false;
+  // A P2P group's messages are posted over the web API, not this socket.
+  if (!window.activeP2pGroup && (!ws || ws.readyState !== WebSocket.OPEN)) return false;
   // Never my recovery phrase (step F, chat-warnings.js): a DM or a post is
   // stopped before anything is built, and the text stays in the composer.
   if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(content)) return false;
 
-  // (Legacy group_msg branch removed 2026-08-23; the P2P group composer
-  // patch in chat-groups-p2p.js routes E2EE group sends before this runs.)
+  // P2P group view -> the group's encrypted message, FAIL CLOSED: never the
+  // public channel underneath it. A typed message reaches the group through
+  // chat-groups-p2p.js's composer patch; this is for what the attachment
+  // paths send (a file's [[hum:file:v1]] marker, 10k), which used to fall
+  // through to the public post below.
+  if (window.activeP2pGroup) {
+    if (typeof window.sendToActiveP2pGroup !== 'function') return false;
+    return !!(await window.sendToActiveP2pGroup(content));
+  }
+  if (!ws || ws.readyState !== WebSocket.OPEN) return false;
 
   // DM view -> Kyber E2EE, FAIL CLOSED. Never transmit plaintext to the
   // relay and never fall back to a public channel. Mirrors the text-DM path.
@@ -1526,6 +1536,13 @@ async function sendComposedContent(content) {
     addDmMessage(myName, content, sentTs, myKey, activeDmPartner, true);
     upsertDmConversation(activeDmPartner, activeDmPartnerName || (peerData[activeDmPartner]?.display_name || shortKey(activeDmPartner)), content, sentTs, false);
     return true;
+  }
+
+  // A file's marker holds the key that opens the file: it is never posted in a
+  // public channel, even if the view changed while it was on its way (10k).
+  if (typeof content === 'string' && content.startsWith('[[hum:file:')) {
+    addSystemMessage('The file was not sent.');
+    return false;
   }
 
   // Channel view -> public Dilithium-signed chat with local echo.
