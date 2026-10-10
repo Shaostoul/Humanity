@@ -186,6 +186,8 @@ pub struct RelayState {
     pub reach: crate::relay::handlers::reach::ReachState,
     /// The reasons a report may give, from data/safety/report_reasons.json at start (handlers/reports.rs).
     pub report_reasons: crate::relay::handlers::reports::ReportReasons,
+    /// The call forwarder's keys (made at start, never stored) and where it listens (call_credentials.rs).
+    pub calls: crate::relay::call_credentials::CallService,
     /// Last account-export time per key, for the per-minute limit on
     /// POST /api/account/export. In-memory only: a missed limit after a
     /// restart is harmless, a persisted one would be a new per-user table
@@ -464,6 +466,7 @@ impl RelayState {
             dm_knocks: RwLock::new(HashMap::new()),
             reach: Default::default(),
             report_reasons: crate::relay::handlers::reports::ReportReasons::load(),
+            calls: Default::default(),
             account_export_last: RwLock::new(HashMap::new()),
             lockdown: RwLock::new(effective_lockdown),
             auto_lockdown: RwLock::new(false),
@@ -1359,6 +1362,11 @@ pub enum RelayMessage {
     /// sockets alone, unsent.
     #[serde(rename = "reports")]
     Reports { #[serde(skip)] to: String, state: String, items: Vec<serde_json::Value> },
+
+    /// Server -> the asker: credentials for the call forwarder, for one voice room or call
+    /// (call_credentials.rs). `to` routes it to that person's sockets alone, unsent.
+    #[serde(rename = "call_credentials")]
+    CallCredentials { #[serde(skip)] to: String, #[serde(flatten)] creds: crate::relay::call_credentials::CallCredentials },
 
     /// Edit a message — identified by sender key + timestamp.
     #[serde(rename = "edit")]
@@ -3278,8 +3286,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
             if let RelayMessage::ReachSettings { to: ref who, .. } | RelayMessage::ReachRefused { sender: ref who, .. } = msg {
                 if who != &my_key_for_broadcast { continue; }
             }
-            // Reports (handlers/reports.rs): the receipt to its reporter, the list to whoever asked for it.
-            if let RelayMessage::ReportReceived { to: ref who, .. } | RelayMessage::Reports { to: ref who, .. } = msg {
+            // Reports (handlers/reports.rs): the receipt to its reporter, the list to whoever asked for it;
+            // call forwarder credentials (call_credentials.rs) to whoever asked for them.
+            if let RelayMessage::ReportReceived { to: ref who, .. } | RelayMessage::Reports { to: ref who, .. } | RelayMessage::CallCredentials { to: ref who, .. } = msg {
                 if who != &my_key_for_broadcast { continue; }
             }
 
@@ -3546,6 +3555,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         ),
                                     };
                                     let _ = state_clone.broadcast_tx.send(private);
+                                    // A call client waits for its credentials reply: refuse at once (call_credentials.rs).
+                                    if msg_type == "call_credentials" { crate::relay::call_credentials::refused_reply(&state_clone, &my_key_for_recv, &raw); }
                                     continue;
                                 }
                             }
@@ -3593,6 +3604,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             }
                             Some("cert_revoke") => { crate::relay::handlers::friend_passes::handle_cert_revoke(&state_clone, &my_key_for_recv, &raw).await; continue; }
                             Some("reach_set") => { crate::relay::handlers::reach::handle_reach_set(&state_clone, &my_key_for_recv, &raw).await; continue; }
+                            Some("call_credentials") => { crate::relay::call_credentials::handle(&state_clone, &my_key_for_recv, &raw).await; continue; }
                             Some(kind @ ("report_v2" | "reports_list" | "report_decide")) => { crate::relay::handlers::reports::handle(&state_clone, &my_key_for_recv, kind, &raw, &text).await; continue; }
                             // ── Trade messages ──
                             Some("trade_request") => {

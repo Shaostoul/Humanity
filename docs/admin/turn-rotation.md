@@ -1,5 +1,11 @@
 # Rotating the TURN credential
 
+> **Superseded 2026-10-09.** coturn is gone from the server (the 2026-08-07 incident) and the
+> relay no longer reads `TURN_STATIC_SECRET`: `/api/turn-credentials` now offers only the
+> relay's own STUN entry, and calls go through the relay's own forwarder, whose credentials
+> come from a secret made at each start and never stored, so there is nothing to rotate. See
+> [call-forwarder.md](call-forwarder.md). What follows is kept as the record of the old setup.
+
 > **Why this exists:** until v0.857 the TURN password was a static string committed in
 > the clients (`src/net/webrtc.rs` and `web/chat/chat-voice-rooms.js`). Anyone who read
 > the repo or the served JS could use the TURN relay as free bandwidth. v0.857 moved the

@@ -444,6 +444,13 @@ pub fn call_may_pass(state: &Arc<RelayState>, caller: &str, callee: &str, action
     ok
 }
 
+/// Is a call between `a` and `b` open (a ring let through, not ended, not idle)? The call
+/// forwarder's credentials are given for an open call (call_credentials.rs). Refreshes it when it
+/// is, as a signal between the two would.
+pub fn call_is_open(state: &RelayState, a: &str, b: &str) -> bool {
+    a != b && state.reach.in_call(a, b)
+}
+
 /// May this `webrtc_signal` from `sender` to `to` go on? A `dc_offer` meets
 /// [`dc_offer_may_pass`]. Its answer and candidates (`dc_answer`, `dc_ice`) go through as they
 /// always have: they answer an offer, and one to an offer that was never let through finds no

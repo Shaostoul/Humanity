@@ -16,7 +16,7 @@ test = false
 [features]
 default = ["native"]
 native = ["winit", "relay", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:ureq", "dep:url", "dep:html5ever", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:rav1d", "dep:libc"]
-relay = ["dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:r2d2_sqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:sha1", "dep:hmac", "dep:web-push-native", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2", "dep:aes-gcm"]
+relay = ["dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:r2d2_sqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:sha1", "dep:hmac", "dep:web-push-native", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2", "dep:aes-gcm", "dep:md-5"]
 mesh = ["relay", "dep:serialport"]
 wasm = [
     "dep:web-sys", "dep:js-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures",
@@ -127,7 +127,8 @@ str0m = { version = "0.20", optional = true, default-features = false, features 
 # These are small pure-Rust RustCrypto crates on the same `digest 0.10` family as
 # the rest of our stack (sha2, hmac) — no new digest version is pulled into the
 # graph. `hmac` is already declared above (a relay dep); we just add it to the
-# `native` feature list. native feature only — relay/wasm never run a TURN client.
+# `native` feature list. The relay uses both too since 2026-10-09: its own
+# call forwarder (src/relay/call_forwarder.rs) checks the same MESSAGE-INTEGRITY.
 sha1 = { version = "0.10", optional = true }
 md-5 = { version = "0.10", optional = true }
 # === Native voice audio (v0.485) ===

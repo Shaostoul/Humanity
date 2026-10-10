@@ -32,9 +32,14 @@ pub mod transport;
 /// Live video fanout (v0.853.0). A separate BINARY WebSocket path — video never
 /// touches the chat relay. See `docs/design/streaming.md`.
 pub mod live;
-/// Ephemeral TURN credentials (v0.857). Replaces the static committed TURN
-/// password with short-lived HMAC credentials so no secret ships to clients.
+/// `/api/turn-credentials`: since step E (2026-10-09) only our own STUN entry.
 pub mod turn;
+/// Our own STUN responder and the room-scoped call forwarder on one UDP port, the
+/// credentials for it over the signed-in socket, and the STUN/TURN wire codec they
+/// share (docs/design/blocking-and-safe-mode.md 10f).
+pub mod call_forwarder;
+pub mod call_credentials;
+pub mod stun_wire;
 /// Server→Services privilege bridge (v0.262.16). Tightly-allowlisted
 /// daemon start/stop for operator feature control. SECURITY-SENSITIVE —
 /// see the module docs; the allowlist is the trust boundary.
@@ -780,6 +785,13 @@ pub async fn run_relay() {
                 tracing::info!("Federation: initiated connections to {} servers", count);
             }
         });
+    }
+
+    // Our own STUN responder and the call forwarder (call_forwarder.rs): one UDP port, opened
+    // only when the owner offers voice, before the HTTP side starts so /health answering means
+    // it is already listening (scripts/provision-vps.sh checks that only the relay holds it).
+    if state.features.enabled(features::Feature::Voice) {
+        call_forwarder::start(&state, listen_addr.ip()).await;
     }
 
     // ── The game server. A chat-only host pays for the shared world whether or

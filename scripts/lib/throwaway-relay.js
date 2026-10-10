@@ -192,7 +192,7 @@ function checkExtraEnv(extra) {
 function relayEnv(port, dbPath, extra = null) {
   const own = checkExtraEnv(extra);
   const env = {};
-  const drop = new Set(["API_SECRET", "ADMIN_KEYS", "WEBHOOK_URL", "WEBHOOK_TOKEN", "PORT", "DATABASE_PATH", "RUST_LOG", "BIND_ADDRESS"]);
+  const drop = new Set(["API_SECRET", "ADMIN_KEYS", "WEBHOOK_URL", "WEBHOOK_TOKEN", "PORT", "DATABASE_PATH", "RUST_LOG", "BIND_ADDRESS", "TURN_BIND", "TURN_PORT"]);
   for (const [k, v] of Object.entries(process.env)) {
     const K = k.toUpperCase();
     if (K.startsWith("HUMANITY_") || drop.has(K)) continue;
@@ -204,10 +204,15 @@ function relayEnv(port, dbPath, extra = null) {
   // relay opens no window (the whole rig asks the same way).
   // BIND_ADDRESS: loopback only, so Windows never raises a firewall prompt
   // for this temp copy (see the top of this file). startRelay() checks it.
+  // TURN_BIND / TURN_PORT: the relay's call forwarder (src/relay/call_forwarder.rs)
+  // opens a UDP port of its own; keep it on loopback too, on a port the system
+  // picks, so two rigs (or a rig beside the operator's own node) never share 3478.
   Object.assign(env, {
     PORT: String(port),
     DATABASE_PATH: dbPath,
     BIND_ADDRESS: LOOPBACK_BIND,
+    TURN_BIND: LOOPBACK_BIND,
+    TURN_PORT: "0",
     HUMANITY_NO_FOCUS: "1",
     RUST_LOG: "info",
   });
