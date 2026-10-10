@@ -511,7 +511,8 @@ async function handleFileAttachment(event) {
  */
 function privateConversationNow() {
   // The scratch pad is local only: a file there is encrypted like a DM's, and
-  // its marker (with the key) is kept in this browser (app.js scratchPadKeep).
+  // its marker (with the key) is kept in this browser, in the encrypted DM
+  // store (app.js scratchPadKeep).
   if (typeof isScratchPad === 'function' && isScratchPad()) return 'scratch';
   if (typeof activeDmPartner !== 'undefined' && activeDmPartner) return 'dm:' + activeDmPartner;
   if (window.activeP2pGroup && window.activeP2pGroup.id) return 'group:' + window.activeP2pGroup.id;
@@ -551,6 +552,12 @@ async function sendEncryptedAttachment(file) {
   if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(file && file.name, 'The file was not sent.')) return;
   // A group without its key yet cannot take the message: upload nothing.
   if (target.startsWith('group:') && !(typeof window.p2pGroupCanSend === 'function' && window.p2pGroupCanSend())) return;
+  // The scratch pad keeps the marker (the file's key) in the encrypted DM
+  // store (10n N8): while that is still loading, upload nothing.
+  if (target === 'scratch' && typeof window.scratchPadReady === 'function' && !window.scratchPadReady()) {
+    if (typeof SCRATCH_PAD_LOADING === 'string') addSystemMessage(SCRATCH_PAD_LOADING);
+    return;
+  }
   const indicator = document.getElementById('upload-indicator');
   try {
     if (indicator) { indicator.textContent = `Encrypting ${file.name}…`; indicator.style.display = 'block'; }

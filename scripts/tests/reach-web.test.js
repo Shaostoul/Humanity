@@ -47,14 +47,17 @@
 //     the same `may`; a reply on a pass that went unanswered is not dropped as a stranger's, and
 //     Block withdraws that pass. Tests that go on to use a pass answer the relay's way first
 //     (answerPuts), since it counts as given only then.
-//  8. 10m (2026-10-10, passes across my own devices): an untick sends its self-copy at once,
-//     before the withdrawals, and dm_put_ok sends it no second time; an added tick holds it; my
-//     own echo of a refused one is not adopted (also after a reload). A pass my other device
-//     withdrew is not replaced with the defaults: the friend is marked, kept across a reload,
-//     listed "(updating their pass)" with free ticks, and given nothing by the sweep or their
-//     follow until the echo of that device's pass arrives or I tick, follow or accept here. A
-//     pass refused for "reach" is not sent again by itself, so its offer shows once. See the
-//     block at the end of this file.
+//  8. 10m (2026-10-10, passes across my own devices): a pass my other device withdrew is not
+//     replaced with the defaults: the friend is marked, kept across a reload, listed "(updating
+//     their pass)" with free ticks, and given nothing by the sweep or their follow until that
+//     device's choice note arrives (10n) or I tick, follow or accept here. A pass refused for
+//     "reach" is not sent again by itself, so its offer shows once. See the block at the end of
+//     this file. (10m R2, an untick's self-copy sent at once, was withdrawn by 10n N5: see 9.)
+//  9. 10n (2026-10-10, the choice for each friend syncs as its own note): an echo of my own pass
+//     is only a pass (N4: it stands unless it grants beyond my choice, and never changes the
+//     choice or withdraws another pass); every pass's self-copy waits for dm_put_ok again, an
+//     untick's too, and the choice reaches my other devices in its note first (N5). The rest
+//     of 10n, with the two-device sequences, is scripts/tests/choice-web.test.js.
 //
 // Red first, 2026-10-09 (each mutation made in a copy of web/, run, seen failing; tests 0, 4 and 5
 // seen red again after the amendment):
@@ -98,7 +101,9 @@
 //     button is turned off".
 //  chat-social.js: an echoed pass only added beside the old ones: "the ticks are the echoed
 //     pass's, not the union with the old one". With adoptEchoedPass not skipping a serial this
-//     device already withdrew: "a pass already taken back here is not standing again".
+//     device already withdrew: "a pass already taken back here is not standing again". (10n N4
+//     reversed the first of these: the choice travels in its own note, and an echo stands beside
+//     the others. That test is now the 10n N4 one.)
 //
 // Red first, 2026-10-10 (10l parity with the desktop app; one break at a time through HOS_WEB_DIR):
 //  chat-social.js: reissuePassTo not withdrawing the passes an untick takes away: "the pass
@@ -344,6 +349,10 @@ function dmEnvelope(from, text, ts = 1760000000000) {
   const inner = JSON.stringify({ v: 2, from, to: ME, ts, text, sig });
   return JSON.stringify({ v: 2, ek_ct_b64: b64(MY_KYBER), nonce_b64: "AAAA", ct_b64: b64(inner) });
 }
+// My choice for `peer` (10n), as one arriving from my other device sets it: no note is queued here.
+function chose(store, peer, may, at = 1) {
+  assert.ok(store.applyChoiceNote(peer, may, at) || store.choiceMay(peer) === may, `the choice for ${peer.slice(0, 4)} is ${may}`);
+}
 // A pass `issuer` gave `grantee` on `server` (the stand-in signature is the signed words).
 function passFrom(issuer, grantee = ME, server = SERVER, serial = "0123456789abcdef0123456789abcdef", may = "invite,message,trade,voice_message") {
   return fp.friendPassJson(serial, may, b64(fp.friendPassPreimage(server, issuer, grantee, serial, may)));
@@ -437,7 +446,9 @@ test("reach_settings drives what the Safety page shows", async () => {
   assert.ok(!rowHtml("message").includes(" disabled"), "and they can be changed");
   assert.ok(page.includes(reach.REACH_TICKS_UNUSED), "the People I choose list says no row uses it");
 
-  // The list comes from the passes I gave: Ann's includes call, Ben's does not.
+  // The list is the friends I gave a pass, each with my choice for them (10n): Ann's includes
+  // call, Ben has the defaults (no choice made).
+  chose(store, ANN, "call,invite,message,trade,voice_message");
   store.recordPassSent(ANN, "aa".repeat(16), "call,invite,message,trade,voice_message");
   store.recordPassSent(BEN, "bb".repeat(16), "invite,message,trade,voice_message");
   m = model();
@@ -887,6 +898,8 @@ test("10c-ii: Settings > Safety > People I choose, each friend once with three t
   const box = (key, kind) => card.boxes.find((b) => b.dataset.tickKey === key && b.dataset.tickKind === kind);
 
   await handle({ type: "reach_settings", settings: { message: "friends", call: "chosen", trade: "friends" } });
+  chose(store, ANN, "call,invite,message,trade,voice_message");
+  chose(store, CY, "invite");
   store.recordPassSent(ANN, "aa".repeat(16), "call,invite,message,trade,voice_message");
   store.recordPassSent(BEN, "bb".repeat(16), "invite,message,trade,voice_message");
   store.recordPassSent(CY, "cc".repeat(16), "invite");
@@ -895,7 +908,7 @@ test("10c-ii: Settings > Safety > People I choose, each friend once with three t
     ["Ann", { message: true, call: true, trade: true }],
     ["Ben", { message: true, call: false, trade: true }],
     ["Cy", { message: false, call: false, trade: false }],
-  ], "each friend I gave a pass, by name, with the ticks the pass carries");
+  ], "each friend I gave a pass, by name, with the ticks I chose (the defaults for Ben, who has no choice)");
   assert.equal(m.ticksInUse, "In use now: Calls. Messages and Trades are set to Friends, so every friend gets through for those.");
 
   fn("renderSafetyPanel")();
@@ -994,27 +1007,46 @@ function selfEnvelope(to, text, cert, ts = 1760000005000) {
   return JSON.stringify({ v: 2, ek_ct_b64: b64(MY_KYBER), nonce_b64: "AAAA", ct_b64: b64(inner) });
 }
 
-test("a pass echoed from another of my devices replaces this one's record of the friend: a tick taken away there stays away", async () => {
+// 10n N4 (2026-10-10) replaced the rule this test used to hold. Until 10n an echo of my own pass
+// from another device was taken as that device's word on the choice: it replaced this device's
+// record and withdrew every pass that said otherwise. Since 10n the choice travels in its own note
+// (choice-web.test.js) and an echo is only a pass: recorded as standing unless it grants beyond my
+// choice for them (then withdrawn at once) or this device is already withdrawing it (10m R5); it
+// never changes the choice and never withdraws another pass. Seen red 2026-10-10 against web/ as
+// at 91ac73d78 (HOS_WEB_DIR): "an echo within my choice stands beside the pass already there"
+// (the old rule withdrew the old pass for it).
+test("10n N4: an echo of my own pass is only a pass: it stands unless beyond my choice, and changes nothing else", async () => {
   const { sock, store, handle, fn } = await loadChat();
   const OLD = "00112233445566778899aabbccddeeff";
-  const NEW = "ffeeddccbbaa99887766554433221100";
-  store.recordPassSent(ANN, OLD, "invite,message,trade,voice_message");
-  // My other device gave Ann Call and took Trade away: its new pass, echoed to me.
-  const may = "call,invite,message,voice_message";
-  const cert = fp.friendPassJson(NEW, may, b64(fp.friendPassPreimage(SERVER, ME, ANN, NEW, may)));
+  const LESS = "ffeeddccbbaa99887766554433221100";
+  const MORE = "0f0e0d0c0b0a09080706050403020100";
+  const certOf = (serial, may) => fp.friendPassJson(serial, may, b64(fp.friendPassPreimage(SERVER, ME, ANN, serial, may)));
+  const revoked = () => sock.sent.filter((m) => m.type === "cert_revoke").map((m) => m.serial);
+  store.recordPassSent(ANN, OLD, DEFAULT_MAY); // no choice made: the choice is the defaults
+
+  // My other device's pass taking Trade away, echoed here without its note: within the choice.
   sock.sent.length = 0;
-  await handle({ type: "dm_new", id: 81, content: selfEnvelope(ANN, CTL_FRIEND_CERT, cert) });
+  await handle({ type: "dm_new", id: 81, content: selfEnvelope(ANN, CTL_FRIEND_CERT, certOf(LESS, "invite,message,voice_message")) });
   await settle();
-  assert.deepEqual(fn("friendTicks")(ANN), { message: true, call: true, trade: false }, "the ticks are the echoed pass's, not the union with the old one");
-  assert.deepEqual(store.certsSent[ANN].map((p) => p.serial), [NEW], "the echoed pass is the record");
-  assert.ok(sock.sent.some((m) => m.type === "cert_revoke" && m.serial === OLD), "the pass it replaced is withdrawn here too");
-  // My own earlier pass, echoing back late after the newer one replaced it: it does not come back.
-  const oldCert = fp.friendPassJson(OLD, "invite,message,trade,voice_message", b64(fp.friendPassPreimage(SERVER, ME, ANN, OLD, "invite,message,trade,voice_message")));
+  assert.deepEqual(store.certsSent[ANN].map((p) => p.serial).sort(), [OLD, LESS].sort(), "an echo within my choice stands beside the pass already there");
+  assert.deepEqual(revoked(), [], "and withdraws no other pass");
+  assert.deepEqual(fn("friendTicks")(ANN), { message: true, call: false, trade: true }, "nor changes the choice (the defaults)");
+
+  // One allowing calls, which my choice does not: withdrawn at once, and only it.
   sock.sent.length = 0;
-  await handle({ type: "dm_new", id: 82, content: selfEnvelope(ANN, CTL_FRIEND_CERT, oldCert, 1760000004000) });
+  await handle({ type: "dm_new", id: 82, content: selfEnvelope(ANN, CTL_FRIEND_CERT, certOf(MORE, WITH_CALL), 1760000005500) });
   await settle();
-  assert.deepEqual(store.certsSent[ANN].map((p) => p.serial), [NEW], "a pass already taken back here is not standing again");
-  assert.ok(!sock.sent.some((m) => m.type === "cert_revoke" && m.serial === NEW), "and the newer one is not withdrawn for it");
+  assert.deepEqual(revoked(), [MORE], "an echo beyond my choice is withdrawn at once, and nothing else");
+  assert.ok(!store.certsSent[ANN].some((p) => p.serial === MORE), "and never stands");
+  assert.deepEqual(fn("friendTicks")(ANN), { message: true, call: false, trade: true }, "the choice is still the defaults");
+
+  // My own earlier pass, echoing back after this device took it back (10m R5): not standing again.
+  store.withdrawPassesWhere(ANN, (p) => p.serial === OLD);
+  sock.sent.length = 0;
+  await handle({ type: "dm_new", id: 83, content: selfEnvelope(ANN, CTL_FRIEND_CERT, certOf(OLD, DEFAULT_MAY), 1760000004000) });
+  await settle();
+  assert.deepEqual(store.certsSent[ANN].map((p) => p.serial), [LESS], "a pass already taken back here is not standing again");
+  assert.ok(!revoked().includes(LESS), "and the other is not withdrawn for it");
 });
 
 // ── 10l: a pass counts as given only once the server took it (2026-10-10) ──
@@ -1028,7 +1060,11 @@ test("a pass echoed from another of my devices replaces this one's record of the
 
 const memberUsers = () => [[ANN, "Ann"], [BEN, "Ben"], [CY, "Cy"]].map(([k, name]) => ({ public_key: k, name, role: "", kyber_public: kyberOf(k) }));
 const passOf = (put) => fp.friendPassParse(JSON.parse(opened(put).plain).cert);
-const selfCopiesOf = (sock) => sock.sent.filter((m) => m.type === "dm_put" && m.to === ME);
+// The self-copies of passes and contact requests (to my own mailbox); a choice note (10n) goes
+// there too, and is counted apart.
+const toMe = (sock) => sock.sent.filter((m) => m.type === "dm_put" && m.to === ME);
+const selfCopiesOf = (sock) => toMe(sock).filter((m) => !fp.isChoiceNoteText(JSON.parse(opened(m).plain).text));
+const choiceNotesOf = (sock) => toMe(sock).filter((m) => fp.isChoiceNoteText(JSON.parse(opened(m).plain).text));
 const DEFAULT_MAY = "invite,message,trade,voice_message";
 const WITH_CALL = "call,invite,message,trade,voice_message";
 
@@ -1060,7 +1096,7 @@ test("10l: a re-issued pass is recorded, and the old one withdrawn, only after d
   assert.equal(opened(self[0]).sealedTo, MY_KYBER);
   assert.equal(JSON.parse(opened(self[0]).plain).cert, JSON.parse(opened(put).plain).cert, "of the pass the server took");
   assert.equal(fn("friendPassUpdating")(ANN), false);
-  assert.equal(store.passIntent[ANN], undefined, "the choice is the record now");
+  assert.equal(store.choiceMay(ANN), WITH_CALL, "my choice stays (10n), and the pass on record carries it");
 });
 
 test("10l: refused or unanswered, nothing is recorded or withdrawn, the ticks stay, and the next sweep sends the same may", async () => {
@@ -1201,6 +1237,7 @@ test("10l: a tick taken away withdraws the passes allowing it at once; the frien
   store.setFollowing(ANN, true);
   store.setFollower(ANN, true);
   const OLD = "00112233445566778899aabbccddeeff";
+  chose(store, ANN, WITH_CALL);
   store.recordPassSent(ANN, OLD, WITH_CALL);
   const putsToAnn = () => sock.sent.filter((m) => m.type === "dm_put" && m.to === ANN);
   const row = () => fn("safetyModel")().chosen.find((c) => c.key === ANN);
@@ -1229,9 +1266,9 @@ test("10l: a tick taken away withdraws the passes allowing it at once; the frien
 });
 
 // ── 10m: passes across my own devices (2026-10-10) ──────────────────────
-// docs/design/blocking-and-safe-mode.md 10m. R2: a re-issue that takes something away sends its
-// self-copy at once, before the withdrawals, and the server's answer sends it no second time; my
-// own echo of one the server refused is not adopted here. R3: a pass withdrawn by my other device
+// docs/design/blocking-and-safe-mode.md 10m. (R2, a re-issue that takes something away sending
+// its self-copy at once, was withdrawn by 10n N5; its two tests became the 10n N5 test below.)
+// R3: a pass withdrawn by my other device
 // leaves the friend marked "changed on my other device", and this tab gives them no pass by
 // itself until that device's choice arrives or the person decides here. R7: a pass refused for
 // "reach" is not sent again by itself this session. R8 is the "Groups" lines of the receiving
@@ -1251,73 +1288,57 @@ function controlEnvelope(from, text, cert, ts = 1760000006000) {
 }
 const NO_TICKS = { message: false, call: false, trade: false };
 
-test("10m R2: an untick sends its self-copy at once, before the withdrawals; dm_put_ok sends it no second time", async () => {
-  const { sock, store, handle, fn } = await loadChat();
-  const OLD = "00112233445566778899aabbccddeeff";
-  store.recordPassSent(ANN, OLD, WITH_CALL);
-  const putsToAnn = () => sock.sent.filter((m) => m.type === "dm_put" && m.to === ANN);
-
-  assert.equal(await fn("setFriendTick")(ANN, "call", false), true, "Call unticked: the new pass goes");
-  await settle();
-  const [put] = putsToAnn();
-  const self = selfCopiesOf(sock);
-  assert.equal(self.length, 1, "its self-copy goes at once, with the pass");
-  assert.equal(JSON.parse(opened(self[0]).plain).cert, JSON.parse(opened(put).plain).cert, "a copy of the new pass");
-  assert.equal(opened(self[0]).sealedTo, MY_KYBER, "sealed to me");
-  const revoke = sock.sent.find((m) => m.type === "cert_revoke" && m.serial === OLD);
-  assert.ok(revoke, "the pass allowing calls is withdrawn at once");
-  assert.ok(sock.sent.indexOf(put) < sock.sent.indexOf(self[0]) && sock.sent.indexOf(self[0]) < sock.sent.indexOf(revoke),
-    "the new pass, then its self-copy, then the withdrawal: my other devices hear the new choice first");
-  assert.equal(store.certSentTo(ANN), false, "the record changes only on dm_put_ok");
-
-  await handle({ type: "dm_put_ok", ref: put.ref });
-  await settle();
-  assert.equal(selfCopiesOf(sock).length, 1, "dm_put_ok does not send the self-copy a second time");
-  assert.deepEqual(store.certsSent[ANN], [{ serial: passOf(put).serial, may: DEFAULT_MAY }], "and records the pass then");
-
-  // An added tick keeps its self-copy held until the server took the pass (10l).
-  sock.sent.length = 0;
-  assert.equal(await fn("setFriendTick")(ANN, "call", true), true);
-  await settle();
-  const [added] = putsToAnn();
-  assert.equal(passOf(added).may, WITH_CALL);
-  assert.equal(selfCopiesOf(sock).length, 0, "an added tick holds its self-copy");
-  await handle({ type: "dm_put_ok", ref: added.ref });
-  await settle();
-  assert.equal(selfCopiesOf(sock).length, 1, "until the server took the pass");
-});
-
-test("10m R2: my own echo of an untick the server refused is not adopted here, even after a reload; the next sweep sends it again", async () => {
+// 10n N5 (2026-10-10) withdrew 10m R2, which sent an untick's self-copy at once: the choice
+// travels in its own note now, and the early self-copy was how my other devices came to record
+// passes the server had refused. Every pass's self-copy waits for dm_put_ok again, an untick's
+// too, and the list of refused passes whose echo was not to be adopted is gone. Seen red
+// 2026-10-10 with chat-social.js sendDmControl sending a pass's self-copy at once again (10m R2's
+// way, in a copy of web/ through HOS_WEB_DIR): "an untick's pass sends no self-copy before the
+// server's answer". (Against web/ as at 91ac73d78 it stops sooner: there is no choice to set.)
+test("10n N5: every pass's self-copy waits for dm_put_ok, an untick's too; the choice goes first, in its note", async () => {
   const t = await loadChat();
   const { sock, store, handle, fn } = t;
   await befriendBoth(t, ANN);
   const OLD = "00112233445566778899aabbccddeeff";
+  chose(store, ANN, WITH_CALL);
   store.recordPassSent(ANN, OLD, WITH_CALL);
   const putsToAnn = () => sock.sent.filter((m) => m.type === "dm_put" && m.to === ANN);
 
-  assert.equal(await fn("setFriendTick")(ANN, "call", false), true);
+  assert.equal(await fn("setFriendTick")(ANN, "call", false), true, "Call unticked");
   await settle();
   const [put] = putsToAnn();
-  const cert = JSON.parse(opened(put).plain).cert;
-  await handle({ type: "dm_put_refused", ref: put.ref, reason: "rate" });
-  await settle();
-  // The self-copy of that pass (it may have gone with it) comes back to this tab from my mailbox.
-  await handle({ type: "dm_new", id: 95, content: selfEnvelope(ANN, CTL_FRIEND_CERT, cert, 1760000007000) });
-  await settle();
-  assert.equal(store.certSentTo(ANN), false, "my own echo of a pass the server refused is not counted as given");
-  assert.equal(store.passIntent[ANN], DEFAULT_MAY, "my choice is still owed to her");
+  assert.equal(passOf(put).may, DEFAULT_MAY, "the new pass goes, without calls");
+  assert.equal(selfCopiesOf(sock).length, 0, "an untick's pass sends no self-copy before the server's answer");
+  const [note] = choiceNotesOf(sock);
+  assert.ok(note, "my other devices hear the choice in its note instead");
+  assert.equal(opened(note).sealedTo, MY_KYBER, "sealed to me");
+  assert.equal(JSON.parse(opened(note).plain).text, fp.choiceNoteText(ANN, DEFAULT_MAY));
+  const revoke = sock.sent.find((m) => m.type === "cert_revoke" && m.serial === OLD);
+  assert.ok(revoke, "the pass allowing calls is withdrawn at once");
+  assert.ok(sock.sent.indexOf(note) < sock.sent.indexOf(revoke) && sock.sent.indexOf(revoke) < sock.sent.indexOf(put),
+    "the note, then the withdrawal, then the new pass");
 
-  // Across a reload the refusal is still known.
+  await handle({ type: "dm_put_ok", ref: put.ref });
   await settle();
-  assert.ok(await store.init(ME, "localhost"), "the store loads again");
-  await handle({ type: "dm_new", id: 96, content: selfEnvelope(ANN, CTL_FRIEND_CERT, cert, 1760000008000) });
-  await settle();
-  assert.equal(store.certSentTo(ANN), false, "nor after a reload");
+  const self = selfCopiesOf(sock);
+  assert.equal(self.length, 1, "the self-copy goes once the server took the pass");
+  assert.equal(JSON.parse(opened(self[0]).plain).cert, JSON.parse(opened(put).plain).cert, "a copy of that pass");
+  assert.deepEqual(store.certsSent[ANN], [{ serial: passOf(put).serial, may: DEFAULT_MAY }], "and it is recorded then");
 
+  // Refused: its self-copy never goes, nothing is recorded, and the next sweep sends my choice again.
+  sock.sent.length = 0;
+  assert.equal(await fn("setFriendTick")(ANN, "call", true), true);
+  await settle();
+  const [added] = putsToAnn();
+  await handle({ type: "dm_put_refused", ref: added.ref, reason: "rate" });
+  await settle();
+  assert.equal(selfCopiesOf(sock).length, 0, "a refused pass's self-copy never goes");
+  assert.equal(store.passesRefusedEchoed, undefined, "and there is no list of refused echoes to keep");
+  assert.equal(store.choiceMay(ANN), WITH_CALL, "my choice stays");
   await handle({ type: "full_user_list", users: memberUsers() });
   await settle();
   const again = putsToAnn()[1];
-  assert.ok(again && passOf(again).may === DEFAULT_MAY, "the next sweep sends a pass without calls again");
+  assert.ok(again && passOf(again).may === WITH_CALL, "the next sweep sends a pass carrying it");
 });
 
 test("10m R3: a pass my other device withdrew is not replaced with the defaults", async () => {
@@ -1357,15 +1378,20 @@ test("10m R3: a pass my other device withdrew is not replaced with the defaults"
   await settle();
   assert.deepEqual(putsToBen(), [], "and still no pass goes");
 
-  // The desktop's pass, echoed: adopted, the mark clears, his ticks are the desktop's choice.
-  const NEW = "ffeeddccbbaa99887766554433221100";
+  // The desktop's choice reaches this tab in its note (10n N6): the mark clears and his ticks are
+  // that choice. (Until 10n the echo of its pass carried the choice; now it is only a pass.)
   const may = "invite,message,voice_message";
-  const cert = fp.friendPassJson(NEW, may, b64(fp.friendPassPreimage(SERVER, ME, BEN, NEW, may)));
-  await handle({ type: "dm_new", id: 71, content: selfEnvelope(BEN, CTL_FRIEND_CERT, cert) });
+  await handle({ type: "dm_new", id: 74, content: selfEnvelope(ME, fp.choiceNoteText(BEN, may), undefined, 1760000005000) });
   await settle();
-  assert.equal(store.passChangedOnOtherDevice(BEN), false, "the echo clears the mark");
+  assert.equal(store.passChangedOnOtherDevice(BEN), false, "its choice note clears the mark");
   assert.deepEqual(fn("friendTicks")(BEN), { message: true, call: false, trade: false }, "Trade stays away");
   assert.equal(row().updating, false);
+  // Its pass, echoed: it carries the choice, so it stands, and nothing more is owed.
+  const NEW = "ffeeddccbbaa99887766554433221100";
+  const cert = fp.friendPassJson(NEW, may, b64(fp.friendPassPreimage(SERVER, ME, BEN, NEW, may)));
+  await handle({ type: "dm_new", id: 71, content: selfEnvelope(BEN, CTL_FRIEND_CERT, cert, 1760000006000) });
+  await settle();
+  assert.deepEqual(store.certsSent[BEN], [{ serial: NEW, may }], "its pass stands");
   await handle({ type: "full_user_list", users: memberUsers() });
   await settle();
   assert.deepEqual(putsToBen(), [], "and nothing more is owed");
@@ -1478,9 +1504,9 @@ test("10m R7: a pass refused for reach is not sent again by itself; the offer sh
 
 // Red first, 2026-10-10 (10m). Each test above was run against web/ as at bf8c4c582 (before 10m)
 // through HOS_WEB_DIR and seen failing there:
-//  R2: "its self-copy goes at once, with the pass" (it was held until dm_put_ok); "my own echo of
-//    a pass the server refused is not counted as given" (adoptEchoedPass took it, and the sweep
-//    stopped sending her the pass).
+//  R2 (withdrawn since by 10n N5, its tests replaced): "its self-copy goes at once, with the
+//    pass" (it was held until dm_put_ok); "my own echo of a pass the server refused is not
+//    counted as given" (adoptEchoedPass took it, and the sweep stopped sending her the pass).
 //  R3: "this tab sends Ben no pass: not one with trade, not one at all" (the sweep gave him the
 //    defaults, Trade included); "a tick for a marked friend sends a pass" (he had left the list).
 //  R7: "it is not sent again by itself" (every member list sent it, and the offer came back).

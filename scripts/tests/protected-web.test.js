@@ -1456,7 +1456,7 @@ test("index.html loads protected.js before chat-privacy.js, and every gate sits 
     ["chat/chat-groups-p2p.js", "async function createP2pInvite(", "protectedTake('group_invite')", "postObject("],
     ["chat/chat-ui.js", "sendMessage = async function() {", "protectedTypedCommand(val)", "await _origSendMessage2();"],
     ["chat/chat-messages.js", "async function sendThreadReply(", "protectedTypedCommand(content)", "ws.send("],
-    ["chat/chat-social.js", "async function setFriendTick(", "protectedTake('reach_tick')", "reissuePassTo("],
+    ["chat/chat-social.js", "async function setFriendTick(", "protectedTake('reach_tick')", "makeFriendChoice("],
     ["chat/chat-social.js", "async function sendFriendCertTo(", "protectedPassAllowed(", "pqBuildFriendCert("],
     ["chat/chat-groups-p2p.js", "async function joinP2pGroupByTicket(", "protectedTake('join_group')", "postObject("],
     ["chat/chat-voice-rooms.js", "async function joinVoiceRoom(", "protectedTake('join_voice_room')", "ws.send("],

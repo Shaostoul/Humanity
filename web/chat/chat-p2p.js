@@ -598,6 +598,9 @@ async function onDCMessage(event, peerKey) {
   // From someone I blocked (or a block note, which never comes this way):
   // dropped before it is stored or notified, as for mail (chat-privacy.js).
   if (typeof blockScreenDm === 'function' && blockScreenDm(inner)) return;
+  // A choice note (10n) only ever goes to my own mailbox: one coming this way
+  // is someone else's, dropped unread, and its text is never shown.
+  if (typeof isChoiceNoteText === 'function' && isChoiceNoteText(inner.text)) return;
   // A contact request, or a DM from someone my "who can reach me" settings
   // refuse (step B): a request, name only, its text dropped, as for mail
   // (chat-privacy.js ingestContactRequest, reachScreenDm).

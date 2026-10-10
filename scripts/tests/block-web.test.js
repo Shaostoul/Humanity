@@ -728,14 +728,19 @@ test("Settings > Safety > Blocked people, the commands, the menus, and a Block m
   // Offline: the list changes at once; the note goes on the next connection.
   sock.sent.length = 0;
   sock.readyState = 3;
+  const madeAt = Date.now();
   await fn("unblockKey")(CY);
   assert.equal(store.isBlocked(CY), false);
   assert.deepEqual(sock.sent, [], "nothing sent while offline");
-  assert.deepEqual(store.blockNotesPending, [{ action: "unblock", key: CY }], "kept until it can go");
+  assert.deepEqual(store.blockNotesPending.map(({ action, key }) => ({ action, key })), [{ action: "unblock", key: CY }], "kept until it can go");
+  // With the time it was made (10n): the note is signed with it when it goes, however late.
+  const at = store.blockNotesPending[0].at;
+  assert.ok(Number.isFinite(at) && at >= madeAt, "kept with the time it was made");
   sock.readyState = 1;
   fn("onBlockListLoaded")();
   await settle();
   assert.deepEqual(sock.sent.map((p) => opened(p).inner.text), ["[[hum:unblock:v1]]" + CY], "sent on reconnect");
+  assert.equal(opened(sock.sent[0]).inner.ts, at, "signed with the time it was made, not the time it went");
   assert.deepEqual(store.blockNotesPending, []);
 });
 

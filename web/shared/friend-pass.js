@@ -13,6 +13,9 @@
 // may: what the friend may do, the sorted, comma-joined, de-duplicated subset
 // of FRIEND_PASS_KINDS. No end date: a pass ends when one of the two ends it.
 //
+// Also here: the note that carries what I chose for each friend between my
+// own devices (10n, CTL_CHOICE below).
+//
 // A classic script in the browser (its names land on window), a CommonJS
 // module under Node. Load before crypto.js.
 // ──────────────────────────────────────────────────────────────────────────
@@ -76,10 +79,92 @@
     return JSON.stringify({ v: FRIEND_PASS_VERSION, serial, may, sig: sigB64 });
   }
 
+  // ── The choice for each friend (10n, 2026-10-10) ──
+  // What a friend's pass lets them do is the person's CHOICE, kept on every
+  // device of theirs: a tick changed on one device reaches the others as a
+  // sealed note to myself only (an ordinary signed v2 DM from me to me, sealed
+  // to my own DM key, deposited in my own mailbox), whose text is exactly
+  //   [[hum:choice:v1]]<friend key>/<may>
+  // the friend's identity key in lowercase hex, a slash, and the canonical
+  // `may` (the pass's own words, sorted and comma-joined; `invite` alone when
+  // nothing is ticked). The note's signed time is when the choice was made:
+  // the newest choice wins on every device, and at an equal time the larger
+  // `may` text (plain string order), so every device lands on the same one.
+  // The marker must match the desktop app's CTL_CHOICE (src/net/dm_pq.rs)
+  // exactly; scripts/tests/choice-web.test.js holds this one to the spec's
+  // test vector. A text that starts with the marker is never shown.
+  const CTL_CHOICE = '[[hum:choice:v1]]';
+  // A friend's key in a note: lowercase hex, never empty (the spec's vector
+  // uses the short `ab12`), and no longer than any key could be.
+  const CHOICE_KEY_RE = /^[0-9a-f]{1,8192}$/;
+
+  /** Does this text start with the choice marker (whatever follows)? Such text is never shown. */
+  function isChoiceNoteText(text) {
+    return typeof text === 'string' && text.startsWith(CTL_CHOICE);
+  }
+
+  /**
+   * The note's text for a choice about `friendKey`: `may` as words (any order)
+   * or as comma-joined text. Null when the key is not lowercase hex or the
+   * words are not a pass's (an unknown one, or none).
+   */
+  function choiceNoteText(friendKey, may) {
+    if (typeof friendKey !== 'string' || !CHOICE_KEY_RE.test(friendKey)) return null;
+    const words = Array.isArray(may) ? may : (typeof may === 'string' ? may.split(',') : null);
+    const canonical = words ? friendPassMay(words) : null;
+    if (!canonical) return null;
+    return `${CTL_CHOICE}${friendKey}/${canonical}`;
+  }
+
+  /**
+   * Read a note's text: {key, may}, or null when it is not exactly the marker,
+   * a lowercase hex key, a slash, and a canonical `may` of the pass's words.
+   */
+  function choiceNoteParse(text) {
+    if (!isChoiceNoteText(text)) return null;
+    const rest = text.slice(CTL_CHOICE.length);
+    const slash = rest.indexOf('/');
+    if (slash <= 0) return null;
+    const key = rest.slice(0, slash);
+    const may = rest.slice(slash + 1);
+    if (!CHOICE_KEY_RE.test(key)) return null;
+    if (!may || friendPassMay(may.split(',')) !== may) return null;
+    return { key, may };
+  }
+
+  /**
+   * The note an opened, signature-checked DM carries when it is one I sent to
+   * myself: from me, to me, about someone other than me. Anything else is null
+   * (a choice note from anyone else is dropped unread).
+   */
+  function choiceNoteFromSelf(inner, me) {
+    if (!inner || typeof me !== 'string' || !me) return null;
+    const mine = me.toLowerCase();
+    if (String(inner.from || '').toLowerCase() !== mine || String(inner.to || '').toLowerCase() !== mine) return null;
+    const note = choiceNoteParse(inner.text);
+    if (!note || note.key === mine) return null;
+    return note;
+  }
+
+  /**
+   * Does a choice allowing `may`, made at `at`, replace the one kept (`kept`:
+   * {may, at}, or null for none)? The newer wins; at an equal time the larger
+   * `may` text wins (an empty one, a choice cleared by Unfollow or Block, is
+   * the smallest); an older one changes nothing.
+   */
+  function choiceWins(may, at, kept) {
+    if (!kept) return true;
+    const a = Number(at) || 0;
+    const k = Number(kept.at) || 0;
+    if (a !== k) return a > k;
+    return String(may || '') > String(kept.may || '');
+  }
+
   const api = {
     FRIEND_PASS_DOMAIN, FRIEND_PASS_VERSION, FRIEND_PASS_KINDS, FRIEND_PASS_DEFAULT_MAY,
     FRIEND_PASS_SERIAL_BYTES, FRIEND_PASS_MAX_LEN,
     friendPassMay, friendPassSerialOk, friendPassPreimage, friendPassFieldOk, friendPassParse, friendPassJson,
+    CTL_CHOICE, CHOICE_KEY_RE, isChoiceNoteText, choiceNoteText, choiceNoteParse, choiceNoteFromSelf, choiceWins,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else Object.assign(root, api);

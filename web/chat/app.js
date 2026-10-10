@@ -42,6 +42,11 @@ window.addEventListener('hashchange', () => {
 let ws = null;
 let myKey = '';
 let dmFetchSent = false; // one-time mailbox fetch per socket (sealed-sender DMs)
+// True from a new socket until its mailbox fetch was read and applied (the
+// last dm_batch page, handleDmBatch). The friendship-pass sweep waits for it
+// (10n N7, chat-social.js sweepFriendPasses): a device that was offline learns
+// my notes (a choice, an Unfollow, a Block) before it sends anything.
+let dmMailboxUnread = false;
 let myName = '';
 let myIdentity = null; // { publicKeyHex, privateKey, publicKey, canSign }
 let reconnectTimer = null;
@@ -185,37 +190,73 @@ function scratchPadOpen() {
 // is_private_channel, 2026-10-10).
 const SCRATCH_PAD_ROW = Object.freeze({ privateFiles: true, privateRow: true });
 
+// Where the notes are kept (10n N8, 2026-10-10): in the encrypted DM store
+// (chat-dm-store.js scratch), for this identity on this server, newest 500, as
+// the desktop app keeps its own. Until then they sat in localStorage under
+// `hos_scratch_msgs`, in the clear (a file's key included) and shared by every
+// identity in this browser; that key is removed, not read.
+try { localStorage.removeItem('hos_scratch_msgs'); } catch (e) { /* storage off */ }
+const SCRATCH_PAD_LOADING = 'Your scratch pad is still loading. Its notes are kept encrypted with your messages, and open once this page has connected.';
+
+/** Is the store that keeps the scratch pad's notes loaded (this identity on this server)? */
+function scratchPadReady() {
+  return !!(window.hosDmStore && hosDmStore.ready && !hosDmStore.readOnly);
+}
+
 /**
- * Keep `content` in the scratch pad (this browser only) and draw it: typed
- * text, or the marker of a file encrypted here (chat-messages.js
- * sendEncryptedAttachment), whose key is then held nowhere but here.
- * `replyTo` ({from, from_name, content, timestamp}, replyRefForChannel): the
- * note it answers, kept with it as a quote and drawn the way a reply is
- * (10m R10, as the desktop app shows it).
+ * Keep `content` in the scratch pad (this browser only, in the encrypted DM
+ * store) and draw it: typed text, or the marker of a file encrypted here
+ * (chat-messages.js sendEncryptedAttachment), whose key is then held nowhere
+ * but here. `replyTo` ({from, from_name, content, timestamp},
+ * replyRefForChannel): the note it answers, kept with it as a quote and drawn
+ * the way a reply is (10m R10, as the desktop app shows it). Returns false,
+ * keeping nothing, while the store is still loading.
  */
 function scratchPadKeep(content, replyTo) {
+  if (!scratchPadReady()) {
+    addSystemMessage(SCRATCH_PAD_LOADING);
+    return false;
+  }
   const timestamp = Date.now();
-  const msg = { from_name: myName || 'You', from: myKey || '__local__', content, timestamp };
-  if (replyTo) msg.replyTo = replyTo;
-  const msgs = loadScratchPadMessages();
-  msgs.push(msg);
-  saveScratchPadMessages(msgs);
-  addChatMessage(msg.from_name, content, timestamp, msg.from, false, false, replyTo || null, null, false, null, SCRATCH_PAD_ROW);
+  // Every note is mine: who wrote it is not kept on each (scratchPadAuthor).
+  const note = { content, timestamp };
+  if (replyTo) note.replyTo = replyTo;
+  hosDmStore.addScratchNote(note);
+  const by = scratchPadAuthor();
+  addChatMessage(by.name, content, timestamp, by.key, false, false, replyTo || null, null, false, null, SCRATCH_PAD_ROW);
+  return true;
+}
+
+/** Who a scratch pad note is drawn as written by: me. */
+function scratchPadAuthor() {
+  return { name: myName || 'You', key: myKey || '__local__' };
 }
 window.scratchPadKeep = scratchPadKeep;
+window.scratchPadReady = scratchPadReady;
 
-/** Load scratch pad messages from localStorage. */
+/** The scratch pad's notes, oldest first (none while the store is loading). */
 function loadScratchPadMessages() {
-  try {
-    return JSON.parse(localStorage.getItem('hos_scratch_msgs') || '[]');
-  } catch { return []; }
+  return scratchPadReady() ? hosDmStore.scratchNotes() : [];
 }
 
-/** Save scratch pad messages to localStorage. */
-function saveScratchPadMessages(msgs) {
-  // Keep last 500 messages to avoid bloating storage.
-  if (msgs.length > 500) msgs = msgs.slice(-500);
-  localStorage.setItem('hos_scratch_msgs', JSON.stringify(msgs));
+/** Draw the scratch pad: its notes as private rows, or the line for an empty or loading pad. */
+function renderScratchPadNotes() {
+  const msgsEl = document.getElementById('messages');
+  if (msgsEl) msgsEl.innerHTML = '';
+  if (typeof resetMsgStripe === 'function') resetMsgStripe();
+  if (!scratchPadReady()) {
+    addSystemMessage('Scratch Pad: your private workspace. ' + SCRATCH_PAD_LOADING);
+    return;
+  }
+  const msgs = loadScratchPadMessages();
+  const by = scratchPadAuthor();
+  msgs.forEach(m => {
+    const replyTo = (m.replyTo && typeof m.replyTo === 'object') ? m.replyTo : null;
+    addChatMessage(by.name, m.content, m.timestamp, by.key, false, false, replyTo, null, false, null, SCRATCH_PAD_ROW);
+  });
+  if (msgs.length === 0) {
+    addSystemMessage('Scratch Pad: your private workspace. ' + SCRATCH_PAD_NOTE + ' Type /help for commands.');
+  }
 }
 
 /**
@@ -231,7 +272,8 @@ function handleScratchCommand(content) {
 
   switch (cmd) {
     case '/clear':
-      saveScratchPadMessages([]);
+      if (!scratchPadReady()) { addSystemMessage(SCRATCH_PAD_LOADING); return true; }
+      hosDmStore.clearScratch();
       document.getElementById('messages').innerHTML = '';
       addSystemMessage('Scratch pad cleared.');
       return true;
@@ -264,7 +306,8 @@ function handleScratchCommand(content) {
     }
     case '/export': {
       const msgs = loadScratchPadMessages();
-      const text = msgs.map(m => '[' + new Date(m.timestamp).toLocaleString() + '] ' + m.from_name + ': ' + m.content).join('\n');
+      const by = scratchPadAuthor().name;
+      const text = msgs.map(m => '[' + new Date(m.timestamp).toLocaleString() + '] ' + by + ': ' + m.content).join('\n');
       navigator.clipboard.writeText(text).then(() => {
         addSystemMessage('Copied ' + msgs.length + ' messages to clipboard.');
       });
@@ -922,8 +965,10 @@ function openSocket(opts) {
   }
   const signUpAgain = !!(opts && opts.signUpAgain);
 
-  // Fresh socket: re-arm the one-time DM mailbox fetch (sealed-sender).
+  // Fresh socket: re-arm the one-time DM mailbox fetch (sealed-sender), and
+  // hold the pass sweep until that fetch is read (10n N7).
   dmFetchSent = false;
+  dmMailboxUnread = true;
 
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${proto}//${location.host}/ws`);
@@ -1002,6 +1047,100 @@ function scheduleReconnect() {
 }
 
 // ── Message Handling ──
+// Sealed mail is handled one frame at a time, in the order it arrived (10n,
+// 2026-10-10): the socket does not wait for one frame before handing over the
+// next, and a choice note and the echo of the pass that carries it, or a block
+// note and the follow it overrides, must apply in the order they were sent.
+let dmQueue = Promise.resolve();
+function dmInOrder(fn) {
+  const next = dmQueue.then(fn, fn);
+  dmQueue = next.catch(() => {});
+  return next;
+}
+
+/** One sealed-sender envelope, live-delivered (`dm_new`). */
+async function handleDmNew(msg) {
+  // The wire carries NO sender: decrypt with our own key and trust only the
+  // Dilithium-verified inner payload (crypto.js pqOpenDmEnvelope).
+  const inner = await pqOpenDmEnvelope(msg.content);
+  if (window.hosDmStore && hosDmStore.ready && msg.id) hosDmStore.setHighWater(msg.id);
+  if (!inner) return; // not ours / tampered / spoofed — never rendered
+  // Block (step C, 2026-10-09): a note to myself from another of my devices is
+  // acted on, never rendered; anything from someone I blocked (a message, a
+  // follow notice, a pass, a contact request) is dropped here, before it is
+  // stored or notified (chat-privacy.js).
+  if (typeof blockScreenDm === 'function' && blockScreenDm(inner)) return;
+  // Social control messages (follows removal 2026-08-24): act, never render.
+  if (typeof ingestDmControl === 'function' && await ingestDmControl(inner)) return;
+  // A contact request (step B, 2026-10-09): its pass checked, listed under Requests by the
+  // member list's name for the signed sender (chat-privacy.js), never rendered.
+  if (typeof ingestContactRequest === 'function' && await ingestContactRequest(inner)) return;
+  // A report about a group I created (10j): checked against my copy of the group and kept
+  // under Reports about your groups (chat-reports.js), never rendered. Before the reach screen,
+  // because a group's members need not be my friends.
+  if (typeof ingestGroupReport === 'function' && await ingestGroupReport(inner)) return;
+  // From someone my "who can reach me" settings refuse: a request, name only, its text dropped.
+  if (typeof reachScreenDm === 'function' && reachScreenDm(inner)) return;
+  const isNew = (window.hosDmStore && hosDmStore.ready) ? await hosDmStore.insert(inner) : true;
+  if (!isNew) return; // duplicate (echo of our own send, refetch, replay)
+  const isFromMe = inner.from === myKey;
+  const peer = isFromMe ? inner.to : inner.from;
+  const peerName = peerData[peer]?.display_name || shortKey(peer);
+  // Encrypted-attachment markers show a friendly label in the sidebar
+  // and notification, but render as a decrypt card in the thread.
+  const previewText = (typeof dmSafePreview === 'function') ? dmSafePreview(inner.text) : inner.text;
+  upsertDmConversation(peer, peerName, previewText, inner.ts, !isFromMe);
+  if (activeDmPartner === peer) {
+    addDmMessage(isFromMe ? myName : peerName, inner.text, inner.ts, inner.from, inner.to, true);
+    if (window.hosDmStore && hosDmStore.ready) hosDmStore.markRead(peer, inner.ts);
+  }
+  if (!isFromMe) {
+    notifyNewMessage(peerName, previewText, true);
+  }
+}
+
+/**
+ * A page of our sealed mailbox (`dm_batch`, the reply to dm_fetch): decrypt and
+ * verify each envelope into the local store, in mailbox order; page until done.
+ * The last page means the mailbox was read and applied on this connection, so
+ * the friendship-pass sweep may run now (10n N7, chat-social.js).
+ */
+async function handleDmBatch(msg) {
+  const items = msg.messages || [];
+  let lastId = 0;
+  let ingested = 0;
+  for (const item of items) {
+    if (item.id > lastId) lastId = item.id;
+    if (!item.content) continue;
+    const inner = await pqOpenDmEnvelope(item.content);
+    if (!inner) continue; // undecryptable/spoofed — skip, high-water still advances
+    if (typeof blockScreenDm === 'function' && blockScreenDm(inner)) continue;
+    if (typeof ingestDmControl === 'function' && await ingestDmControl(inner)) continue;
+    if (typeof ingestContactRequest === 'function' && await ingestContactRequest(inner)) continue;
+    if (typeof ingestGroupReport === 'function' && await ingestGroupReport(inner)) continue;
+    if (typeof reachScreenDm === 'function' && reachScreenDm(inner)) continue;
+    if (window.hosDmStore && hosDmStore.ready) {
+      if (await hosDmStore.insert(inner)) ingested++;
+    }
+  }
+  if (window.hosDmStore && hosDmStore.ready) {
+    hosDmStore.setHighWater(lastId);
+    if (typeof loadDmListFromStore === 'function') loadDmListFromStore();
+    // Refresh the open conversation so fetched history appears in place.
+    if (activeDmPartner && typeof renderDmConversationFromStore === 'function') {
+      renderDmConversationFromStore(activeDmPartner);
+    }
+  }
+  if (ingested > 0) console.log(`DM batch: ${ingested} new message(s)`);
+  if (msg.done === false && ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'dm_fetch', after_id: (window.hosDmStore && hosDmStore.highWater) || lastId }));
+  }
+  if (msg.done !== false && dmMailboxUnread) {
+    dmMailboxUnread = false;
+    if (typeof sweepFriendPasses === 'function') sweepFriendPasses();
+  }
+}
+
 async function handleMessage(msg) {
   switch (msg.type) {
     case 'chat': {
@@ -1072,11 +1211,14 @@ async function handleMessage(msg) {
           if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'dm_fetch', after_id: (ok && hosDmStore.highWater) || 0 }));
           }
-          // Friendship passes owed and withdrawals unconfirmed (chat-social.js).
-          if (ok && typeof sweepFriendPasses === 'function') sweepFriendPasses();
+          // Friendship passes owed and withdrawals unconfirmed (chat-social.js
+          // sweepFriendPasses) wait for that fetch's last page (10n N7,
+          // handleDmBatch), so this device hears my notes before it sends.
           // The block list is loaded: hide what was drawn before it was, and send
           // any note to my other devices that could not go earlier (chat-privacy.js).
           if (ok && typeof onBlockListLoaded === 'function') onBlockListLoaded();
+          // The scratch pad's notes are in the store (10n N8): draw them if it is open.
+          if (ok && scratchPadOpen()) renderScratchPadNotes();
         });
       }
       break;
@@ -1285,81 +1427,12 @@ async function handleMessage(msg) {
       }
       break;
     }
-    case 'dm_new': {
-      // Sealed-sender envelope, live-delivered. The wire carries NO
-      // sender — decrypt with our own key and trust only the
-      // Dilithium-verified inner payload (crypto.js pqOpenDmEnvelope).
-      const inner = await pqOpenDmEnvelope(msg.content);
-      if (window.hosDmStore && hosDmStore.ready && msg.id) hosDmStore.setHighWater(msg.id);
-      if (!inner) break; // not ours / tampered / spoofed — never rendered
-      // Block (step C, 2026-10-09): a note to myself from another of my devices is
-      // acted on, never rendered; anything from someone I blocked (a message, a
-      // follow notice, a pass, a contact request) is dropped here, before it is
-      // stored or notified (chat-privacy.js).
-      if (typeof blockScreenDm === 'function' && blockScreenDm(inner)) break;
-      // Social control messages (follows removal 2026-08-24): act, never render.
-      if (typeof ingestDmControl === 'function' && await ingestDmControl(inner)) break;
-      // A contact request (step B, 2026-10-09): its pass checked, listed under Requests by the
-      // member list's name for the signed sender (chat-privacy.js), never rendered.
-      if (typeof ingestContactRequest === 'function' && await ingestContactRequest(inner)) break;
-      // A report about a group I created (10j): checked against my copy of the group and kept
-      // under Reports about your groups (chat-reports.js), never rendered. Before the reach screen,
-      // because a group's members need not be my friends.
-      if (typeof ingestGroupReport === 'function' && await ingestGroupReport(inner)) break;
-      // From someone my "who can reach me" settings refuse: a request, name only, its text dropped.
-      if (typeof reachScreenDm === 'function' && reachScreenDm(inner)) break;
-      const isNew = (window.hosDmStore && hosDmStore.ready) ? await hosDmStore.insert(inner) : true;
-      if (!isNew) break; // duplicate (echo of our own send, refetch, replay)
-      const isFromMe = inner.from === myKey;
-      const peer = isFromMe ? inner.to : inner.from;
-      const peerName = peerData[peer]?.display_name || shortKey(peer);
-      // Encrypted-attachment markers show a friendly label in the sidebar
-      // and notification, but render as a decrypt card in the thread.
-      const previewText = (typeof dmSafePreview === 'function') ? dmSafePreview(inner.text) : inner.text;
-      upsertDmConversation(peer, peerName, previewText, inner.ts, !isFromMe);
-      if (activeDmPartner === peer) {
-        addDmMessage(isFromMe ? myName : peerName, inner.text, inner.ts, inner.from, inner.to, true);
-        if (window.hosDmStore && hosDmStore.ready) hosDmStore.markRead(peer, inner.ts);
-      }
-      if (!isFromMe) {
-        notifyNewMessage(peerName, previewText, true);
-      }
+    case 'dm_new':
+      await dmInOrder(() => handleDmNew(msg));
       break;
-    }
-    case 'dm_batch': {
-      // A page of our sealed mailbox (reply to dm_fetch). Decrypt +
-      // verify each envelope into the local store; page until done.
-      const items = msg.messages || [];
-      let lastId = 0;
-      let ingested = 0;
-      for (const item of items) {
-        if (item.id > lastId) lastId = item.id;
-        if (!item.content) continue;
-        const inner = await pqOpenDmEnvelope(item.content);
-        if (!inner) continue; // undecryptable/spoofed — skip, high-water still advances
-        if (typeof blockScreenDm === 'function' && blockScreenDm(inner)) continue;
-        if (typeof ingestDmControl === 'function' && await ingestDmControl(inner)) continue;
-        if (typeof ingestContactRequest === 'function' && await ingestContactRequest(inner)) continue;
-        if (typeof ingestGroupReport === 'function' && await ingestGroupReport(inner)) continue;
-        if (typeof reachScreenDm === 'function' && reachScreenDm(inner)) continue;
-        if (window.hosDmStore && hosDmStore.ready) {
-          if (await hosDmStore.insert(inner)) ingested++;
-        }
-      }
-      if (window.hosDmStore && hosDmStore.ready) {
-        hosDmStore.setHighWater(lastId);
-        if (typeof loadDmListFromStore === 'function') loadDmListFromStore();
-        // Refresh the open conversation so fetched history appears in place.
-        if (activeDmPartner && typeof renderDmConversationFromStore === 'function') {
-          renderDmConversationFromStore(activeDmPartner);
-        }
-      }
-      if (ingested > 0) console.log(`DM batch: ${ingested} new message(s)`);
-      if (msg.done === false && ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'dm_fetch', after_id: (window.hosDmStore && hosDmStore.highWater) || lastId }));
-      }
+    case 'dm_batch':
+      await dmInOrder(() => handleDmBatch(msg));
       break;
-    }
     // (account_export_data removed 2026-09-06: the export is an authenticated
     // HTTP download now, built in chat-privacy.js. See the note there.)
     case 'dm_purged': {
@@ -1573,6 +1646,12 @@ async function sendMessage() {
 
   // ── Scratch Pad: handle locally, never send to server ──
   if (isScratchPad()) {
+    // Its notes are kept in the encrypted DM store (10n N8): while that is
+    // still loading, the words stay in the composer.
+    if (!content.startsWith('/') && !scratchPadReady()) {
+      addSystemMessage(SCRATCH_PAD_LOADING);
+      return;
+    }
     input.value = '';
     input.style.height = 'auto';
     // Check for slash commands first.
@@ -2295,16 +2374,9 @@ function switchChannel(channelId) {
   updateChannelHeader();
   updateInputForChannel();
 
-  // ── Scratch Pad: load from localStorage instead of server ──
+  // ── Scratch Pad: drawn from the encrypted DM store, never the server (10n N8) ──
   if (channelId === SCRATCH_PAD_ID) {
-    const msgs = loadScratchPadMessages();
-    msgs.forEach(m => {
-      const replyTo = (m.replyTo && typeof m.replyTo === 'object') ? m.replyTo : null;
-      addChatMessage(m.from_name, m.content, m.timestamp, m.from, false, false, replyTo, null, false, null, SCRATCH_PAD_ROW);
-    });
-    if (msgs.length === 0) {
-      addSystemMessage('Scratch Pad: your private workspace. ' + SCRATCH_PAD_NOTE + ' Type /help for commands.');
-    }
+    renderScratchPadNotes();
     return;
   }
 
