@@ -10,7 +10,7 @@
 //!     (`group_invite_v1` + base64-of-JSON, matching `encodeInviteTicket`),
 //!   - join via a ticket (parse it + `group_join_v1`).
 //!
-//! HTTP is the existing blocking-ureq pattern (see `upload_image_png_blocking`).
+//! HTTP is the existing blocking-ureq pattern (see `upload_file_blocking`).
 //! Promote to a background tokio task if it ever feels janky in the UI.
 
 use base64::Engine;

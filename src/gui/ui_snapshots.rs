@@ -1998,6 +1998,67 @@ fn snapshot_chat_warning() {
         crate::gui::pages::chat::draw(ctx, theme, state);
     });
 }
+
+/// 10k of docs/design/blocking-and-safe-mode.md: files in a P2P group. Our own photo, encrypted
+/// and then decrypted from its ciphertext in this fixture (there is no server), drawn inline
+/// with its name, size and Save under it; a photo from someone who is not a friend waiting for a
+/// click; and a PDF from them as a card with Save. The group's background reloads are marked as
+/// just done so none replaces these messages mid-render. Nothing is sent or saved.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_chat_group_private_files() {
+    render_page_png("chat_group_private_files", 1280, 900, |ctx, theme, state| {
+        if state.chat_active_channel != "p2pgroup:g7" {
+            use crate::net::dm_pq::{build_file_marker, encrypt_attachment, DmAttachment};
+            let (me, cy) = ("a1".repeat(32), "c3".repeat(32));
+            state.profile_public_key = me.clone();
+            state.user_name = "Shaostoul".into();
+            state.p2p_groups.push(crate::net::api_v2::P2pGroupInfo { group_id: "g7".into(), name: "Riverside Hikers".into(), members: vec![me.clone(), cy.clone()], is_creator: true });
+            state.p2p_group_active_id = "g7".into();
+            state.p2p_group_chat_epoch = 1;
+            state.p2p_group_chat_epoch_key = Some(vec![7u8; 32]);
+            state.p2p_group_last_fetch = Some(std::time::Instant::now());
+            state.p2p_groups_last_fetch = Some(std::time::Instant::now());
+            // The trailhead photo: a sky-to-ground gradient, encoded as the paste path would.
+            let img = image::RgbaImage::from_fn(480, 300, |x, y| {
+                let t = y as f32 / 300.0;
+                let g = if y < 190 { (150.0 + 80.0 * t) as u8 } else { (110.0 - 40.0 * t) as u8 };
+                image::Rgba([(90.0 + 60.0 * t) as u8, g, (230.0 - 150.0 * t + x as f32 * 0.05) as u8, 255])
+            });
+            let mut picture = Vec::new();
+            image::DynamicImage::ImageRgba8(img)
+                .write_to(&mut std::io::Cursor::new(&mut picture), image::ImageFormat::Png)
+                .expect("encode the photo");
+            let (ct, k, n) = encrypt_attachment(&picture).expect("encrypt the photo");
+            let att = |url: &str, k: &str, n: &str, name: &str, mime: &str, size: u64| DmAttachment {
+                url: url.into(), k: k.into(), n: n.into(), name: name.into(), mime: mime.into(), size,
+            };
+            let photo = att("/uploads/5f2c9e.enc", &k, &n, "trailhead.png", "image/png", picture.len() as u64);
+            let opened = crate::gui::pages::chat::open_private_file(&photo.url, &photo.k, &photo.n, |_, _| Ok(ct.clone()))
+                .expect("the photo decrypts");
+            state.image_cache.insert_for_test(ctx, &crate::gui::pages::chat::private_file_key(&photo), &opened).expect("the photo decodes");
+            let (_, k2, n2) = encrypt_attachment(b"map").expect("a key");
+            let map = att("/uploads/7a01d4.enc", &k2, &n2, "ridge-map.jpg", "image/jpeg", 214_000);
+            let notes = att("/uploads/91be33.enc", &k2, &n2, "route-notes.pdf", "application/pdf", 48 * 1024);
+            let post = |from: &str, name: &str, content: String, ts: u64, at: &str| ChatMessage {
+                sender_name: name.into(),
+                sender_key: from.into(),
+                content,
+                timestamp: at.into(),
+                timestamp_ms: ts,
+                channel: "p2pgroup:g7".into(),
+                ..Default::default()
+            };
+            state.chat_messages.push(post(&me, "Shaostoul", "Saturday's start, from the car park.".into(), 1_791_510_000_000, "08:40"));
+            state.chat_messages.push(post(&me, "Shaostoul", build_file_marker(&photo), 1_791_510_010_000, "08:40"));
+            state.chat_messages.push(post(&cy, "Cy", "Here is the ridge route and my notes.".into(), 1_791_510_300_000, "08:45"));
+            state.chat_messages.push(post(&cy, "Cy", build_file_marker(&map), 1_791_510_310_000, "08:45"));
+            state.chat_messages.push(post(&cy, "Cy", build_file_marker(&notes), 1_791_510_320_000, "08:45"));
+            state.chat_active_channel = "p2pgroup:g7".into();
+        }
+        crate::gui::pages::chat::draw(ctx, theme, state);
+    });
+}
 /// Maps, Solar System view. The page opens on TODAY's sky and reads the wall
 /// clock for "days from today", so it is pinned to 2026-09-27 12:00 UTC
 /// (843,782,400 s after J2000.0); unpinned, the picture changed on every run.

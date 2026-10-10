@@ -113,6 +113,18 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
             ui.separator();
             ui.add_space(theme.spacing_sm);
 
+            // A file decrypted for a private conversation has no web address to
+            // show, download or copy: the address holds only ciphertext, and its
+            // key lives in the message. Close only; Save is under the message.
+            if url.starts_with(super::image_cache::PRIVATE_KEY_PREFIX) {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button(RichText::new("Close").size(theme.font_size_body).color(theme.text_primary())).clicked() {
+                        should_close = true;
+                    }
+                });
+                return;
+            }
+
             // Actions: URL, Download, Close
             ui.horizontal(|ui| {
                 ui.label(
