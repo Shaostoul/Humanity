@@ -415,7 +415,7 @@ offering "Only friends can message me" if you are not already set that way.
 | Group messages | Hide by author key | None (a creator can remove them) |
 | Groups they made that added you | Hide; fix defect 3.7.4 so it cannot happen | `groups_p2p.rs` consent fix |
 | Profile, friends-only fields | n/a | Withdrawn certificate fails `verify_friend_cert` v2 |
-| Game figure and name | Skip in `nameplate_labels` and the figure pass; needs the player's key on `RemotePlayer` (`src/net/sync.rs` keeps only `player_id` and `name`; the relay snapshot has an `owner` field) | None |
+| Game figure and name | Skip in `nameplate_labels` and the figure pass (`engine/block.rs` `hides_player`, v0.1481.0); the player's key reaches `RemotePlayer` from the join and the snapshot entry | The relay stamps each player's key beside their name; since v0.1481.0 another player is sent only a player's name, look and key (`game_interest.rs` `PLAYER_FIELDS_SEEN_BY_OTHERS`) |
 
 The block list is a set of identity keys, never names. On native it lives
 with the identity's settings; on web in the encrypted local store. Devices of

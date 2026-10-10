@@ -9121,6 +9121,10 @@ mod native_app {
                                 .query::<(&crate::ecs::components::Transform, &crate::net::sync::RemotePlayer)>()
                                 .iter()
                             {
+                                // Someone we blocked is not drawn (engine/block.rs hides_player).
+                                if crate::engine::block::hides_player(&state.gui_state, r) {
+                                    continue;
+                                }
                                 let look_mats = r.look.map(|l| {
                                     let key = crate::engine::net_route::look_material_key(&l);
                                     *state.remote_look_materials.entry(key).or_insert_with(|| {
@@ -15313,6 +15317,7 @@ mod native_app {
                                 state.gui_state.crew_labels = crate::engine::net_route::nameplate_labels(
                                     &state.game_world.world,
                                     state.station_off,
+                                    &|p| crate::engine::block::hides_player(&state.gui_state, p),
                                 );
 
                                 // Draw HUD when in-game. SKIP it during the showroom AND the

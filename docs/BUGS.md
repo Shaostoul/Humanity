@@ -5422,3 +5422,18 @@ And the follow-up from step B: a ring was checked only by the relay. Each app no
 `chat-voice-calls.js` `ringIgnored`), so a ring an older or misconfigured server passes on anyway
 is ignored the way a blocked caller's is: no screen, no chime, no notification and nothing sent
 back. Until the app has its settings and passes loaded, the relay's check stands.
+
+## BUG-185: every player in view was sent another player's health, inventory, experience and quests (FIXED v0.1481.0, found 2026-10-10)
+
+The relay told anyone with a player in view all of that player's game components, less only
+their home plot (`game_interest.rs` `components_seen_by_others`, used by the welcome, `game_in_view`,
+`game_interact_result` and `game_entity_detail`): health, stamina, inventory, experience,
+reputation, completed quests and the current quest. No client read any of it for anyone but
+themselves. Found while adding the player's key to the same entry, so that Block reaches the game.
+Now another player is sent only a player's name, look and identity key
+(`PLAYER_FIELDS_SEEN_BY_OTHERS`); a crew member or a thing keeps its components, and a player's
+own welcome entry keeps all of theirs.
+
+The same release takes Block into the game (design section 4.5, "Game figure and name"): the key
+reaches the desktop's `RemotePlayer` from the join and the snapshot entry, and a blocked key's
+figure and name are not drawn (`engine/block.rs` `hides_player`).

@@ -821,6 +821,11 @@
       "date": "2026-10-10",
       "decision": "v0.1480.0 (BUG-184): each app checks its own \"who can reach me\" setting for calls on an incoming ring (desktop on_ring via DmStore::admits_from, web ringIgnored), ignoring a refused ring like a blocked caller's; with no store or settings loaded the relay's check stands. The desktop DM screen now counts passes still waiting for an answer (passes_held_by), matching the web's passMayHeld.",
       "why": "Closes the step B follow-up \"incoming rings are not also filtered by the callee's own app\", the same defence the DM screen already gives against a server that passes something on by mistake. Writing it exposed that the desktop half of 10l had not taught the DM screen about unanswered passes, which the web half had."
+    },
+    {
+      "date": "2026-10-10",
+      "decision": "v0.1481.0 (BUG-185): the relay stamps each player's identity key beside their name (components.key, and key on game_player_joined); the desktop keeps it on RemotePlayer and skips a blocked key in the figure pass (lib.rs) and nameplate_labels (engine/block.rs hides_player). And components_seen_by_others sends another player only name, appearance and key (PLAYER_FIELDS_SEEN_BY_OTHERS); crew and things keep theirs, a player's own welcome entry keeps all.",
+      "why": "Closes the last client-side Block gap (design 4.5, \"Game figure and name\"). Sending the key was judged no new exposure: the members list already pairs every key with its name. Adding it showed that everyone in view was sent each player's health, inventory, experience and quests, which no client read for anyone else, so that went in the same release. The operator checked in mid-work (\"it's been like 12 hours\") and was given the status."
     }
   ],
   "active_scopes_to_avoid": [

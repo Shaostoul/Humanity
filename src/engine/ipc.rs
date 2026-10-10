@@ -3917,6 +3917,7 @@ mod remote_player_recorder_tests {
                 player_id: 7,
                 name: "TestBotWalker".to_string(),
                 look: None,
+                key: None,
                 last_position: drawn,
                 target_position: target,
                 last_rotation: Quat::IDENTITY,

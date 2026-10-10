@@ -3102,6 +3102,10 @@ pub async fn handle_game_join(
     if let Some(e) = world.entities.get_mut(&player_id) {
         if let Some(obj) = e.components.as_object_mut() {
             obj.insert("name".to_string(), serde_json::json!(player_name));
+            // Their identity key, like the name, so a player who blocked them can leave their
+            // figure and name undrawn (blocking-and-safe-mode.md 4.5). The members list already
+            // shows every key beside its name, so this tells nobody anything new.
+            obj.insert("key".to_string(), serde_json::json!(my_key));
             if let Some(l) = look {
                 obj.insert("appearance".to_string(), l.to_json());
             }
@@ -3204,6 +3208,7 @@ pub async fn handle_game_join(
             "type": "game_player_joined",
             "player_id": player_id,
             "name": player_name,
+            "key": my_key,
             "position": entity_pos,
             "appearance": look.map(|l| l.to_json()),
         });

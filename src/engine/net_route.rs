@@ -80,11 +80,13 @@ pub(crate) fn route_game_message(state: &mut EngineState, payload: &str) {
             ) {
                 let name = v.get("name").and_then(|x| x.as_str()).unwrap_or("Player").to_string();
                 let look = v.get("appearance").and_then(crate::player_look::PlayerLook::from_json);
+                let key = v.get("key").and_then(|k| k.as_str()).map(str::to_string);
                 state.net_sync.queue_messages(vec![NetMessage::PlayerJoined {
                     player_id: id as u32,
                     name,
                     position: pos,
                     look,
+                    key,
                 }]);
             }
         }
@@ -240,11 +242,13 @@ pub(crate) fn snapshot_entry_messages(e: &serde_json::Value, own_id: Option<u32>
             .get("components")
             .and_then(|c| c.get("appearance"))
             .and_then(crate::player_look::PlayerLook::from_json);
+        let key = e.get("components").and_then(|c| c.get("key")).and_then(|k| k.as_str()).map(str::to_string);
         msgs.push(NetMessage::PlayerJoined {
             player_id: eid as u32,
             name,
             position: pos,
             look,
+            key,
         });
         return msgs;
     }
@@ -361,7 +365,7 @@ pub(crate) fn position_update_from(v: &serde_json::Value, joined: bool) -> Optio
 /// now reaches past), `crew_figure_parts` for a crew member (2026-10-03: it
 /// was a fixed 1.0 m over their position).
 /// `station_off` is the same offset the scene pass puts on home content.
-pub(crate) fn nameplate_labels(world: &hecs::World, station_off: glam::Vec3) -> Vec<crate::gui::CrewLabel> {
+pub(crate) fn nameplate_labels(world: &hecs::World, station_off: glam::Vec3, hidden: &dyn Fn(&crate::net::sync::RemotePlayer) -> bool) -> Vec<crate::gui::CrewLabel> {
     use crate::ecs::components::Transform;
     use crate::net::sync::{RemoteNpc, RemotePlayer};
     let mut labels = Vec::new();
@@ -375,6 +379,10 @@ pub(crate) fn nameplate_labels(world: &hecs::World, station_off: glam::Vec3) -> 
         });
     }
     for (_e, (t, player)) in world.query::<(&Transform, &RemotePlayer)>().iter() {
+        // Someone we blocked: no name over them (engine/block.rs `hides_player`).
+        if hidden(player) {
+            continue;
+        }
         labels.push(crate::gui::CrewLabel {
             pos: glam::Vec3::new(
                 t.position.x,
@@ -1496,6 +1504,7 @@ mod tests {
                 interpolation_t: 1.0,
                 last_update_time: 0.0,
                 look: None,
+                key: None,
             },
         ));
         let tallest = crate::player_look::PlayerLook { skin: [0.6, 0.4, 0.3], hair: [0.1, 0.05, 0.02], height: crate::player_look::HEIGHT_MAX };
@@ -1512,9 +1521,10 @@ mod tests {
                 interpolation_t: 1.0,
                 last_update_time: 0.0,
                 look: Some(tallest),
+                key: None,
             },
         ));
-        let labels = nameplate_labels(&world, Vec3::new(0.0, 0.0, 10.0));
+        let labels = nameplate_labels(&world, Vec3::new(0.0, 0.0, 10.0), &|_| false);
         // The tallest look's name clears their hair (2026-10-02). Red check, run:
         // the old fixed eye + 0.3 m put it 0.27 m down inside their head.
         let tall = labels.iter().find(|l| l.name == "Tall Pilot").expect("the tall player is labelled");

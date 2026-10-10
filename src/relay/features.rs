@@ -2401,6 +2401,8 @@ mod tests {
         step_applied(&mut b, next, 0).await;
         let came = next_game_of(&mut a, &["game_in_view"]).await.expect("the mover came into view");
         assert_eq!(came["entity"]["components"]["name"], "ViewB", "sent whole, with its name: {came}");
+        // And its identity key (2026-10-10), so a player who blocked them can leave them undrawn.
+        assert_eq!(came["entity"]["components"]["key"], serde_json::json!(b_key), "and with its key: {came}");
         let moved = next_game_of(&mut a, &["game_position_update"]).await.expect("and its move followed");
         assert_eq!(moved["position"], serde_json::json!(next));
         let to_chat: Vec<Value> = game_messages_for(&mut chat, 300).await.into_iter().filter(|g| g["type"] == "game_position_update").collect();

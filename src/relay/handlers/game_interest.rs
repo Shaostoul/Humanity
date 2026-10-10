@@ -71,6 +71,9 @@ impl Interest {
     }
 }
 
+/// The only parts of a player's components anyone else is sent (`components_seen_by_others`).
+pub const PLAYER_FIELDS_SEEN_BY_OTHERS: [&str; 3] = ["name", "appearance", "key"];
+
 /// True for a crew member (an entity with a chore loop, game_state.rs `populate_ship_entities`).
 fn is_crew(e: &super::game_state::GameEntity) -> bool {
     e.components.get("chore_agent").is_some()
@@ -83,7 +86,22 @@ fn is_crew(e: &super::game_state::GameEntity) -> bool {
 /// rules; nobody else is told it (the design, section 5.10: "No endpoint lists who lives
 /// where"; the review of increment 4, P7). Nothing in the game reads another player's plot: a
 /// neighbour's home is drawn from the ship file's plots (src/ship/neighbours.rs).
+///
+/// And of another PLAYER, only what draws and names them (2026-10-10): their name, their look
+/// and their identity key (the key so someone who blocked them can leave them undrawn). Their
+/// health, stamina, inventory, experience, reputation and quests are their own business, and
+/// the game reads none of it for anyone else (engine/net_route.rs `snapshot_entry_messages`
+/// reads the name, the look and the key). A crew member or a thing keeps its components, less
+/// any `home_plot`: talking to the crew and using the ship's stores read them.
 pub fn components_seen_by_others(e: &super::game_state::GameEntity) -> serde_json::Value {
+    if e.entity_type == "player" {
+        let mine = e.components.as_object();
+        let shown = PLAYER_FIELDS_SEEN_BY_OTHERS
+            .iter()
+            .filter_map(|k| mine.and_then(|o| o.get(*k)).map(|v| (k.to_string(), v.clone())))
+            .collect::<serde_json::Map<_, _>>();
+        return serde_json::Value::Object(shown);
+    }
     let mut c = e.components.clone();
     if let Some(o) = c.as_object_mut() {
         o.remove("home_plot");
@@ -424,5 +442,35 @@ mod tests {
         let came = world.entity_entry_json(b).expect("b's entry");
         assert!(!says_where(&came["components"]), "game_in_view says where b lives: {}", came["components"]);
         assert_eq!(came["components"]["name"], "Bea", "their name is still said");
+    }
+
+    /// ANOTHER PLAYER IS SENT ONLY WHAT DRAWS AND NAMES SOMEONE (2026-10-10): their name, look
+    /// and key, never their health, stamina, inventory, experience, reputation or quests; their
+    /// own welcome entry keeps all of it. Seen red 2026-10-10 on the code before the change:
+    /// "b's game_in_view carries more than the name, look and key".
+    #[test]
+    fn another_player_is_sent_only_a_players_name_look_and_key() {
+        let mut world = GameWorld::new();
+        let a = world.spawn_player("e11e00f3", [53.5, 1.7, 40.5]);
+        let b = world.spawn_player("e11e00f4", [53.5, 1.7, 45.5]);
+        if let Some(o) = world.entities.get_mut(&b).and_then(|e| e.components.as_object_mut()) {
+            o.insert("name".to_string(), serde_json::json!("Bea"));
+            o.insert("key".to_string(), serde_json::json!("e11e00f4"));
+            o.insert("appearance".to_string(), serde_json::json!({ "skin": [0.6, 0.4, 0.3] }));
+        }
+        world.rejudge_view(a);
+        world.rejudge_view(b);
+        let fields = |c: &serde_json::Value| {
+            let mut k: Vec<String> = c.as_object().map(|o| o.keys().cloned().collect()).unwrap_or_default();
+            k.sort();
+            k
+        };
+        let came = world.entity_entry_json(b).expect("b's entry");
+        assert_eq!(fields(&came["components"]), ["appearance", "key", "name"], "b's game_in_view carries more than the name, look and key: {}", came["components"]);
+        let snap = world.snapshot_for(a);
+        let theirs = snap.iter().find(|s| s.entity_id == b).expect("b is in a's welcome");
+        assert_eq!(fields(&theirs.components), ["appearance", "key", "name"], "nor does a's welcome: {}", theirs.components);
+        let own = snap.iter().find(|s| s.entity_id == a).expect("a is in their own welcome");
+        assert!(own.components.get("inventory").is_some() && own.components.get("current_quest").is_some(), "a's own entry keeps their state");
     }
 }

@@ -26,6 +26,10 @@ pub struct RemotePlayer {
     pub name: String,
     /// How they look, when their client sent it (2026-09-29).
     pub look: Option<crate::player_look::PlayerLook>,
+    /// Their identity key, when the relay sent it (2026-10-10): someone we blocked is not drawn
+    /// and their name is not shown (engine/block.rs `hides_player`). None until their join or a
+    /// snapshot names it (a lazy spawn from a position update knows only the number).
+    pub key: Option<String>,
     /// Start of the step the figure is being drawn across: the older of the
     /// two updates the drawn moment falls between.
     pub last_position: Vec3,
@@ -934,7 +938,7 @@ impl System for NetSyncSystem {
                     }
                 }
 
-                NetMessage::PlayerJoined { player_id, name, position, look } => {
+                NetMessage::PlayerJoined { player_id, name, position, look, key } => {
                     // Never spawn a remote avatar for ourselves (the relay echoes our join).
                     if self.local_player_id == Some(player_id) {
                         continue;
@@ -956,9 +960,12 @@ impl System for NetSyncSystem {
                             if !name.is_empty() && r.name != name {
                                 r.name = name.clone();
                             }
-                            // Same for the look: a lazy-spawned figure has none.
+                            // Same for the look: a lazy-spawned figure has none. And the key.
                             if look.is_some() {
                                 r.look = look;
+                            }
+                            if key.is_some() {
+                                r.key = key.clone();
                             }
                             break;
                         }
@@ -981,6 +988,7 @@ impl System for NetSyncSystem {
                             player_id,
                             name: name.clone(),
                             look,
+                            key,
                             last_position: pos,
                             target_position: pos,
                             last_rotation: Quat::IDENTITY,
@@ -1066,6 +1074,7 @@ impl System for NetSyncSystem {
                             player_id,
                             name: format!("Player {player_id}"),
                             look: None,
+                            key: None,
                             last_position: pos,
                             target_position: pos,
                             last_rotation: rot,
@@ -1329,6 +1338,7 @@ mod tests {
             name: "Test Pilot A".to_string(),
             position: [1.0, 0.0, 2.0],
             look: Some(look),
+            key: Some("pilot-a-key".into()),
         }]);
         sys.tick(&mut world, 0.016, &data);
         let named: Vec<(String, u32)> = world
@@ -1342,12 +1352,16 @@ mod tests {
         let looks: Vec<Option<crate::player_look::PlayerLook>> =
             world.query_mut::<&RemotePlayer>().into_iter().map(|(_, r)| r.look).collect();
         assert_eq!(looks, vec![Some(look)], "the look replaced the placeholder's none");
+        // And the key, which Block needs to leave a figure undrawn (2026-10-10).
+        let keys: Vec<Option<String>> = world.query_mut::<&RemotePlayer>().into_iter().map(|(_, r)| r.key.clone()).collect();
+        assert_eq!(keys, vec![Some("pilot-a-key".to_string())], "the key replaced the placeholder's none");
         // A fresh join (no earlier position update) spawns with its look.
         sys.queue_messages(vec![NetMessage::PlayerJoined {
             player_id: 43,
             name: "Test Pilot B".to_string(),
             position: [0.0, 0.0, 0.0],
             look: Some(look),
+            key: None,
         }]);
         sys.tick(&mut world, 0.016, &data);
         let b = world.query_mut::<&RemotePlayer>().into_iter().find(|(_, r)| r.player_id == 43).map(|(_, r)| r.look);
@@ -2184,7 +2198,7 @@ mod tests {
         let npc_update = || NetMessage::NpcUpdate { entity_id: 9, name: "Cook Ana".to_string(), position: [80.0, 1.7, 30.0], activity: "Cooking".to_string(), working: true };
         sys.queue_messages(vec![
             NetMessage::Welcome { player_id: 1, world_snapshot: Vec::new() },
-            NetMessage::PlayerJoined { player_id: 5, name: "Ada".to_string(), position: [10.0, 1.7, 10.0], look: None },
+            NetMessage::PlayerJoined { player_id: 5, name: "Ada".to_string(), position: [10.0, 1.7, 10.0], look: None, key: None },
             NetMessage::NpcProfile { entity_id: 9, name: "Cook Ana".to_string(), role: "cook".to_string(), position: [80.0, 1.7, 30.0], activity: String::new(), dialog: lines(&["Soup's on."]), greetings: Vec::new() },
             NetMessage::EntityDespawn { entity_id: 5 },
             NetMessage::EntityDespawn { entity_id: 9 },
@@ -2197,7 +2211,7 @@ mod tests {
         assert_eq!(players(&mut world), Vec::new(), "a player out of view was drawn again by an update sent before it went");
         assert_eq!(crew(&mut world), Vec::<u64>::new(), "a crew member out of view was drawn again by an update sent before it went");
         // In view again: drawn, and its updates count again.
-        sys.queue_messages(vec![NetMessage::PlayerJoined { player_id: 5, name: "Ada".to_string(), position: [30.0, 1.7, 10.0], look: None }, update([31.0, 1.7, 10.0])]);
+        sys.queue_messages(vec![NetMessage::PlayerJoined { player_id: 5, name: "Ada".to_string(), position: [30.0, 1.7, 10.0], look: None, key: None }, update([31.0, 1.7, 10.0])]);
         sys.tick(&mut world, 0.016, &data);
         assert_eq!(players(&mut world), vec![(5, "Ada".to_string())], "back in view, drawn again under its name");
         sys.queue_messages(vec![NetMessage::NpcProfile { entity_id: 9, name: "Cook Ana".to_string(), role: "cook".to_string(), position: [80.0, 1.7, 30.0], activity: String::new(), dialog: lines(&["Soup's on."]), greetings: Vec::new() }, npc_update()]);
