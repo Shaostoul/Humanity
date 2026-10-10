@@ -1821,6 +1821,40 @@ read by both clients' tests. Where the desktop differs in form, not in words:
   could not be made. A removal the server refuses after the key went out says "Could not remove
   <person> from <group>: the server refused it."
 
+## 10k. Files in private conversations are encrypted too (2026-10-10)
+
+Found while reviewing the follow-ups: a file in a private conversation is only as private as the
+conversation if the FILE is encrypted, not just the link to it. Today (checked in code):
+
+- Web, a DM: a file picked with the attach button is encrypted (`sendEncryptedAttachment` in
+  `web/chat/chat-messages.js`), but **a pasted image is uploaded as a plain public file** and only
+  its link travels sealed.
+- Web and desktop, a P2P group: **every file is uploaded as a plain public file** (the desktop's
+  `prepare_attachment_send` encrypts only for channels starting `dm:`; the web's group path calls
+  `uploadImage`).
+- Desktop, receiving: an encrypted attachment shows as a labelled card; the web decrypts and shows
+  it inline.
+
+**The rule:** anything sent into a DM or a P2P group, attached or pasted, is encrypted on the
+device with a fresh AES-256-GCM key (the existing `encrypt_attachment` / `pqEncryptFile`),
+uploaded as ciphertext with `encrypted=1`, and sent as the existing `[[hum:file:v1]]` marker
+inside the DM's seal or the group's encrypted message. Public channels keep the plain upload
+(public is public). No relay change: the encrypted upload mode exists.
+
+**Receiving, both clients:** a marker in a DM or a group message is shown the same way: an image
+(by its `mime`) is fetched, decrypted and shown inline, under the same click-to-load rule as any
+picture from someone who is not a friend (and never shown while the protected setup hides
+non-friends' pictures); anything else is a card with its name and size and a Save button that
+decrypts on save. A marker whose download or decryption fails says "This file could not be
+opened." and never shows the ciphertext.
+
+**Proof:** tests on both clients: a pasted image in a DM, a picked file in a group and a pasted
+image in a group each upload ciphertext with `encrypted=1` and send a marker (never a plain URL);
+a public channel still uploads plainly; a marker in a group message decrypts and shows inline; a
+tampered key or ciphertext gives the failure line; the click-to-load and protected-setup rules
+apply. Each seen failing once. Native: a snapshot of a group with an inline decrypted image
+(render only when no other instance runs).
+
 ## 11. Docs to update as each piece ships
 
 - `docs/accord/conformance_gaps.md` ("Contact consent cannot be withdrawn")
