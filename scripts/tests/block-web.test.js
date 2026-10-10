@@ -54,7 +54,9 @@
 //     post already on screen is hidden".
 //  5: handleVoiceCallMessage's blocked-ring line and blockScreenFrame's `voice_call` case taken
 //     out: "no incoming-call screen"; mayAnswerDirectOffer's isBlockedKey line taken out: "the
-//     direct-offer gate refuses them".
+//     direct-offer gate refuses them". (Step E, the same day, made that gate answer my own devices
+//     only, so the isBlockedKey line went; with the gate answering contacts again, the same
+//     assertion fails.)
 //  6: blockScreenDm reading a note with blockNoteParse instead of blockNoteFromSelf: "no one is
 //     blocked by them" (Ann's note to me blocked Cy).
 //  7: unblockKey also calling setFollowLocal(key, true): "one note, to my own mailbox, nothing else".
@@ -574,16 +576,20 @@ test("a ring from a blocked key sends nothing back, and their direct offer is no
   await handle(ring(CY));
   assert.equal(vm.runInContext("callState", ctx), "ringing-in", "Cy's ring rings");
 
-  // A direct-connection offer: not answered, even from a contact.
+  // A direct-connection offer: not answered, even from a contact. (Since step E, 2026-10-09,
+  // only my own devices are answered at all, so Ann's, a contact not blocked, is not either;
+  // scripts/tests/p2p-direct-offers.test.js.)
   sock.sent.length = 0;
   vm.runInContext("(a, b) => { p2pContacts[a] = { name: 'Ben' }; p2pContacts[b] = { name: 'Ann' }; }", ctx)(BEN, ANN);
   const offer = (from) => ({ type: "webrtc_signal", from, to: ME, signal_type: "dc_offer", data: JSON.stringify({ type: "offer", sdp: "v=0 x" }) });
   assert.equal(fn("mayAnswerDirectOffer")(BEN), false, "the direct-offer gate refuses them");
   await handle(offer(BEN));
   await handle(offer(ANN));
+  await handle(offer(ME));
   const answers = (k) => sock.sent.filter((m) => m.type === "webrtc_signal" && m.signal_type === "dc_answer" && m.to === k);
   assert.deepEqual(answers(BEN), [], "their offer is not answered");
-  assert.equal(answers(ANN).length, 1, "Ann's, a contact not blocked, is");
+  assert.deepEqual(answers(ANN), [], "nor Ann's: direct links are my own devices only");
+  assert.equal(answers(ME).length, 1, "while my own other device's is");
 });
 
 test("the notes round-trip between my devices, and a note to anyone else is ignored", async () => {

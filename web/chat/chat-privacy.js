@@ -148,31 +148,10 @@ async function maybeShowPrivacyTierModal() {
   };
 }
 
-// ── Call IP privacy (2026-08-23) ─────────────────────────────────────────
-// WebRTC's classic property: a direct call reveals your IP address to the
-// person you call. "Relay my calls" forces every call through the server's
-// TURN relay instead (iceTransportPolicy: 'relay'). FAIL CLOSED: if no
-// TURN allocation is available the call fails rather than leaking your
-// address — which is what a privacy switch must do.
-function applyRelayCallsPreference() {
-  const on = localStorage.getItem('humanity_relay_calls_only') === '1';
-  try {
-    if (typeof rtcConfig === 'object' && rtcConfig) {
-      if (on) rtcConfig.iceTransportPolicy = 'relay';
-      else delete rtcConfig.iceTransportPolicy;
-    }
-  } catch {}
-}
-function setRelayCallsOnly(on) {
-  localStorage.setItem('humanity_relay_calls_only', on ? '1' : '0');
-  applyRelayCallsPreference();
-  if (typeof addSystemMessage === 'function') {
-    addSystemMessage(on
-      ? 'Calls will be relayed through the server: people you call cannot learn your IP address. If the server has no relay capacity, calls fail rather than leak.'
-      : 'Calls connect directly again (lower latency; the other party can see your IP address, which is how WebRTC normally works).');
-  }
-}
-setTimeout(applyRelayCallsPreference, 300);
+// (The "Relay my calls" switch that stood here since 2026-08-23 is gone: since
+// step E every call and voice room goes through the server for everyone, with
+// no direct option to switch to. chat-voice-rooms.js, "Calls go through the
+// server".)
 
 // ── Account sovereignty controls (2026-08-23) ────────────────────────────
 // Export + erase, injected into the account/identity block so they are
@@ -280,13 +259,6 @@ function injectAccountDataButtons() {
     + '<button class="vr-btn" style="flex:1;font-size:0.7rem;" onclick="exportMyAccountData()" title="Download everything this server stores about you as a JSON file.">Export my data</button>'
     + '<button class="vr-btn" style="flex:1;font-size:0.7rem;color:var(--danger);" onclick="deleteMyAccount()" title="Erase your account and its data from this server. Self-service, permanent.">Erase account</button>';
   host.appendChild(div);
-  const relayRow = document.createElement('label');
-  relayRow.style.cssText = 'display:flex;align-items:center;gap:6px;margin-top:6px;font-size:0.72rem;color:var(--text-muted);cursor:pointer;';
-  const relayOn = localStorage.getItem('humanity_relay_calls_only') === '1';
-  relayRow.innerHTML = '<input type="checkbox" id="relay-calls-toggle"' + (relayOn ? ' checked' : '')
-    + '> Relay my calls (hide my IP from people I call)';
-  relayRow.querySelector('input').onchange = (e) => setRelayCallsOnly(e.target.checked);
-  host.appendChild(relayRow);
 }
 setTimeout(injectAccountDataButtons, 500);
 
@@ -1062,4 +1034,3 @@ window.reassertPrivacyTier = reassertPrivacyTier;
 window.exportMyAccountData = exportMyAccountData;
 window.deleteMyAccount = deleteMyAccount;
 window.eraseMemorySentence = eraseMemorySentence;
-window.setRelayCallsOnly = setRelayCallsOnly;

@@ -3,9 +3,17 @@
 // call UI (ringing, in-call controls), call state management,
 // WebSocket disconnect auto-hangup, web push notifications for calls/DMs.
 //
-// Depends on: chat-voice-rooms.js (rtcConfig, getMicConstraints, ws, myKey,
+// Depends on: chat-voice-rooms.js (requestCallCredentials, relayOnlyRtcConfig,
+//   sayCallsNeedServer, getMicConstraints), app.js (ws, myKey,
 //   addSystemMessage, esc, hosIcon, resolveSenderName, playNotificationChime,
 //   openSocket)
+//
+// A call connects only through the server (step E, 2026-10-09,
+// docs/design/blocking-and-safe-mode.md 10f): once it is accepted, each side
+// asks the relay for `call_credentials` for this call and builds its peer
+// connection from exactly the reply, relay only, so the other person sees the
+// server's address and never yours. No credentials: the call ends and the call
+// bar says why; there is no direct fallback.
 // ─────────────────────────────────────────────────────────────────────────
 
 // ── Voice Call / WebRTC (1-on-1 DM calls) ──
@@ -19,6 +27,23 @@ let localStream = null;
 let callTimerInterval = null;
 let callStartTime = null;
 let isMuted = false;
+// This call's credentials request: { peer, promise }. Asked once per call, by
+// the callee as it accepts and by the caller as the accept arrives.
+let callCredentials = null;
+
+/** The credentials for the call with `peerKey` (chat-voice-rooms.js requestCallCredentials). */
+function callCredentialsFor(peerKey) {
+  if (!callCredentials || callCredentials.peer !== peerKey) {
+    callCredentials = { peer: peerKey, promise: requestCallCredentials({ call: peerKey }) };
+  }
+  return callCredentials.promise;
+}
+
+/** The call cannot go through the server: end it (telling the other side) and say why. */
+function callCannotConnect() {
+  hangupCall();
+  sayCallsNeedServer();
+}
 
 function startCall(targetKey, targetName) {
   if (callState !== 'idle') {
@@ -61,6 +86,9 @@ function acceptIncomingCall() {
     to: callPeerKey,
     action: 'accept'
   }));
+  // Ask for this call's credentials now (the relay opened the call at the ring),
+  // so they are usually here by the time the caller's offer is.
+  callCredentialsFor(callPeerKey);
 
   // Callee waits for the offer from caller
   showCallBar();
@@ -113,6 +141,7 @@ function resetCallState() {
   callState = 'idle';
   callPeerKey = null;
   callPeerName = '';
+  callCredentials = null;
   isMuted = false;
   if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
   callStartTime = null;
@@ -150,7 +179,16 @@ function toggleMute() {
 }
 
 async function setupPeerConnection(isCaller) {
-  peerConnection = new RTCPeerConnection(rtcConfig);
+  // Through the server only (step E): this call's credentials, or no connection.
+  const peer = callPeerKey;
+  const creds = await callCredentialsFor(peer);
+  if (callState !== 'in-call' || callPeerKey !== peer) return false; // ended while waiting
+  if (!creds) { callCannotConnect(); return false; }
+  const pc = new RTCPeerConnection(relayOnlyRtcConfig(creds));
+  peerConnection = pc;
+  // Addresses the forwarder gave this connection. None by the end of gathering
+  // means the server's call port did not answer, so no connection can form.
+  let relayAddresses = 0;
 
   // Get microphone
   try {
@@ -158,6 +196,12 @@ async function setupPeerConnection(isCaller) {
   } catch (e) {
     addSystemMessage('⚠️ Microphone access denied. Cannot make voice call.');
     hangupCall();
+    return false;
+  }
+  if (peerConnection !== pc) {
+    // The call ended while the microphone was being asked for.
+    localStream.getTracks().forEach(t => t.stop());
+    localStream = null;
     return false;
   }
 
@@ -185,6 +229,7 @@ async function setupPeerConnection(isCaller) {
 
   // ICE candidates → send to peer
   peerConnection.onicecandidate = (event) => {
+    if (event.candidate) relayAddresses++;
     if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: 'webrtc_signal',
@@ -196,8 +241,19 @@ async function setupPeerConnection(isCaller) {
     }
   };
 
+  peerConnection.onicegatheringstatechange = () => {
+    if (pc.iceGatheringState === 'complete' && relayAddresses === 0 && peerConnection === pc) {
+      callCannotConnect();
+    }
+  };
+
   peerConnection.onconnectionstatechange = () => {
     if (peerConnection && (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed')) {
+      // Never a direct retry: the call is through the server or not at all.
+      if (peerConnection.connectionState === 'failed' && relayAddresses === 0) {
+        callCannotConnect();
+        return;
+      }
       addSystemMessage('Call disconnected.');
       cleanupCall();
     }
@@ -334,8 +390,8 @@ function handleVoiceCallMessage(msg) {
 
 function handleWebrtcSignalMessage(msg) {
   // DataChannel P2P signals are handled by chat-p2p.js; route them there first.
-  // handleDCOffer answers only people mayAnswerDirectOffer allows (your own
-  // devices, contacts, group members, call and voice-room partners).
+  // handleDCOffer answers only your own devices (mayAnswerDirectOffer): a direct
+  // link to anyone else would show them your address (step E).
   if (msg.signal_type === 'dc_offer')  { handleDCOffer(msg);  return; }
   if (msg.signal_type === 'dc_answer') { handleDCAnswer(msg); return; }
   if (msg.signal_type === 'dc_ice')    { handleDCIce(msg);    return; }

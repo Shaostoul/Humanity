@@ -5,7 +5,9 @@
 //
 // Shared state exposed as window globals for other voice modules:
 //   window._voiceChannels, window._roomPeerConnections,
-//   window._roomLocalStream, window._currentRoomId, rtcConfig
+//   window._roomLocalStream, window._currentRoomId
+// Shared with chat-voice-calls.js: requestCallCredentials, relayOnlyRtcConfig,
+//   sayCallsNeedServer (calls go through the server, below).
 //
 // Depends on: app.js globals (ws, myKey, myName, peerData, esc,
 //   addSystemMessage, openDmConversation, isFriend, shortKey, hosIcon,
@@ -14,43 +16,136 @@
 //   activeGroupId, dmConversations)
 // ─────────────────────────────────────────────────────────────────────────
 
-// ── WebRTC Config (shared by rooms, 1-on-1 calls, and P2P) ──
-// Starts STUN-only. The TURN entries carry a SHORT-LIVED credential fetched from
-// the relay (/api/turn-credentials) rather than a static password committed here,
-// so no secret ships in this served JS and rotation is a server-side change.
-// rtcConfig is a shared mutable object: every `new RTCPeerConnection(rtcConfig)`
-// reads iceServers at connection time, so refreshing it below updates them all.
-const rtcConfig = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-  ],
-};
+// ── Calls go through the server (step E, 2026-10-09) ──
+// docs/design/blocking-and-safe-mode.md 10f. A voice room or a 1:1 call
+// connects ONLY through this server's call forwarder ("relay only": the
+// browser's iceTransportPolicy 'relay'), so the other people in the call see
+// the server's address and never yours. No third party's address lookup
+// (STUN) is asked any more, and there is no direct fallback: when the server
+// cannot carry the call, the page says so and connects nothing.
+//
+// Before a room or a call connects, the page asks the relay over the
+// signed-in chat socket, exactly as 10f fixes it:
+//   {"type":"call_credentials","room":"<voice room id>"}
+//   {"type":"call_credentials","call":"<the other person's key>"}
+// and waits for the reply, which carries `urls`, `username`, `credential` and
+// `ttl` (seconds). The relay answers only someone in that voice room, or in an
+// open call with that person; anyone else gets no reply at all. So no reply
+// within CALL_CREDENTIALS_WAIT_MS, or a reply missing any of the three fields,
+// means no credentials. The peer connection is built from exactly the reply's
+// three fields (relayOnlyRtcConfig). Credentials die with the relay process,
+// which is why they are asked for per room or call and never kept on disk.
+// Tests: scripts/tests/calls-through-server.test.js
 
-// Fetch fresh TURN credentials and splice them into rtcConfig. Called on load and
-// on a timer before the ~1h credential expires. On any failure we keep whatever
-// iceServers we already have (STUN at minimum), so voice degrades to STUN-only
-// rather than breaking, exactly as it did whenever a TURN allocation failed.
-async function refreshTurnCredentials() {
-  try {
-    const r = await fetch('/api/turn-credentials', { cache: 'no-store' });
-    if (!r.ok) return;
-    const data = await r.json();
-    if (Array.isArray(data.iceServers) && data.iceServers.length) {
-      rtcConfig.iceServers = data.iceServers;
-    }
-    // Re-fetch a minute before expiry so long calls never run on a stale credential.
-    const ttlMs = Math.max(60, (data.ttl || 3600) - 60) * 1000;
-    clearTimeout(window._turnRefreshTimer);
-    window._turnRefreshTimer = setTimeout(refreshTurnCredentials, ttlMs);
-  } catch (_) {
-    // Network hiccup: keep the current (at least STUN) config, try again in 5 min.
-    clearTimeout(window._turnRefreshTimer);
-    window._turnRefreshTimer = setTimeout(refreshTurnCredentials, 5 * 60 * 1000);
+/** How long to wait for the relay's `call_credentials` reply. */
+const CALL_CREDENTIALS_WAIT_MS = 8000;
+
+/** What a person sees when a call cannot go through the server (10f, word for word). */
+const CALLS_NEED_SERVER = 'Calls go through the server to keep your address private; this server is not set up for that yet.';
+
+/** Requests waiting for their reply: "room:<id>" or "call:<key>" -> { promise, resolve, timer }. */
+const callCredentialWaits = new Map();
+
+/** The key a request and its reply are matched on. Keys compare without regard to letter case. */
+function callScopeKey(scope) {
+  if (!scope) return '';
+  if (scope.room !== undefined && scope.room !== null && String(scope.room) !== '') return 'room:' + String(scope.room);
+  if (typeof scope.call === 'string' && scope.call !== '') return 'call:' + scope.call.toLowerCase();
+  return '';
+}
+
+/**
+ * Ask the relay for this room's or call's credentials and wait for the reply.
+ * Resolves to { urls, username, credential, expiresAt } or to null when none
+ * came. A second ask for the same room or call while one waits shares it.
+ */
+function requestCallCredentials(scope) {
+  const key = callScopeKey(scope);
+  if (!key) return Promise.resolve(null);
+  const waiting = callCredentialWaits.get(key);
+  if (waiting) return waiting.promise;
+  if (!ws || ws.readyState !== WebSocket.OPEN) return Promise.resolve(null);
+  const entry = { promise: null, resolve: null, timer: 0 };
+  entry.promise = new Promise((resolve) => {
+    entry.resolve = (creds) => {
+      clearTimeout(entry.timer);
+      if (callCredentialWaits.get(key) === entry) callCredentialWaits.delete(key);
+      resolve(creds);
+    };
+  });
+  callCredentialWaits.set(key, entry);
+  entry.timer = setTimeout(() => entry.resolve(null), CALL_CREDENTIALS_WAIT_MS);
+  const ask = { type: 'call_credentials' };
+  if (key.startsWith('room:')) ask.room = String(scope.room);
+  else ask.call = scope.call;
+  ws.send(JSON.stringify(ask));
+  return entry.promise;
+}
+
+/** The credentials in a relay reply, or null unless it carries urls, a username and a credential. */
+function callCredentialsFromReply(msg) {
+  if (!msg || !Array.isArray(msg.urls) || msg.urls.length === 0) return null;
+  if (!msg.urls.every((u) => typeof u === 'string' && u !== '')) return null;
+  if (typeof msg.username !== 'string' || msg.username === '') return null;
+  if (typeof msg.credential !== 'string' || msg.credential === '') return null;
+  const ttl = Number(msg.ttl) > 0 ? Number(msg.ttl) : 3600;
+  return { urls: msg.urls.slice(), username: msg.username, credential: msg.credential, expiresAt: Date.now() + ttl * 1000 };
+}
+
+/** A `call_credentials` reply: hand it to whoever is waiting for that room or call. */
+function onCallCredentials(msg) {
+  const scope = msg.room !== undefined && msg.room !== null ? { room: msg.room } : { call: msg.call };
+  const entry = callCredentialWaits.get(callScopeKey(scope));
+  if (!entry) return; // nobody asked, or the wait already ran out
+  entry.resolve(callCredentialsFromReply(msg));
+}
+
+/**
+ * The peer-connection settings for a room or call: exactly the relay's urls,
+ * username and credential, and 'relay' so the browser offers the other side
+ * only the forwarder's address (never its own, never one learned elsewhere).
+ */
+function relayOnlyRtcConfig(creds) {
+  return {
+    iceServers: [{ urls: creds.urls.slice(), username: creds.username, credential: creds.credential }],
+    iceTransportPolicy: 'relay',
+  };
+}
+
+/** Say, in the call bar's status line and in the chat, that the server cannot carry the call. */
+function sayCallsNeedServer() {
+  addSystemMessage(CALLS_NEED_SERVER);
+  const status = document.getElementById('ringing-status');
+  if (status) {
+    status.textContent = CALLS_NEED_SERVER;
+    status.classList.add('active');
+    // Hidden again after a while, unless a new call has put its own words there.
+    setTimeout(() => {
+      if (status.textContent === CALLS_NEED_SERVER) status.classList.remove('active');
+    }, 15000);
   }
 }
-// Prime it as soon as this script loads so credentials are ready before any call.
-refreshTurnCredentials();
+
+// This room's credentials while in it: { roomId, creds }. Asked for again a
+// minute before they run out, so someone joining an hour in still connects.
+let roomCredentials = null;
+
+/** The credentials for the voice room `roomId`, asked for when there are none yet. */
+async function roomCallCredentials(roomId) {
+  const id = String(roomId);
+  if (roomCredentials && roomCredentials.roomId === id && Date.now() < roomCredentials.creds.expiresAt - 60000) {
+    return roomCredentials.creds;
+  }
+  const creds = await requestCallCredentials({ room: id });
+  if (creds && String(window._currentRoomId) === id) roomCredentials = { roomId: id, creds };
+  return creds;
+}
+
+/** The room cannot connect through the server: leave it rather than sit in it unheard, and say why. */
+function roomCannotConnect() {
+  if (window._currentRoomId) leaveVoiceRoom();
+  sayCallsNeedServer();
+}
 
 // ── Voice Channels (Persistent, SQLite-backed) ──
 window._voiceChannels = [];
@@ -66,16 +161,34 @@ function createVoiceRoom() {
   }
 }
 
-function joinVoiceRoom(roomId) {
+async function joinVoiceRoom(roomId) {
   if (window._currentRoomId) {
     addSystemMessage('Leave your current voice channel first.');
     return;
   }
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'voice_room', action: 'join', room_id: String(roomId) }));
-    window._currentRoomId = String(roomId);
-    setupRoomAudio();
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  const id = String(roomId);
+  ws.send(JSON.stringify({ type: 'voice_room', action: 'join', room_id: id }));
+  window._currentRoomId = id;
+  // The relay gives a room's credentials only to someone on its roster, so they
+  // are asked for after the join (the socket keeps the order). The microphone
+  // is asked for only once they came: a server that cannot carry the call never
+  // prompts for it.
+  const creds = await roomCallCredentials(id);
+  if (window._currentRoomId !== id) return; // left while waiting
+  if (!creds) { roomCannotConnect(); return; }
+  ensureRoomAudio();
+}
+
+// One microphone request at a time: joining and an early offer from someone
+// already in the room can both need it before the first has finished.
+let roomAudioStarting = null;
+function ensureRoomAudio() {
+  if (window._roomLocalStream) return Promise.resolve();
+  if (!roomAudioStarting) {
+    roomAudioStarting = Promise.resolve(setupRoomAudio()).finally(() => { roomAudioStarting = null; });
   }
+  return roomAudioStarting;
 }
 
 // Keep our place in voice through a reconnect (2026-10-02). The WebRTC audio
@@ -91,6 +204,9 @@ function resendVoiceJoin() {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'voice_room', action: 'join', room_id: String(window._currentRoomId) }));
   }
+  // A new socket may mean a restarted relay, whose credentials died with the old
+  // process: the next connection in this room asks again.
+  roomCredentials = null;
 }
 if (window.hos && typeof hos.on === 'function') hos.on('socket-identified', resendVoiceJoin);
 
@@ -160,6 +276,7 @@ function cleanupRoomAudio() {
   }
   window._roomPeerConnections = {};
   window._currentRoomId = null;
+  roomCredentials = null;
   // Tear down the per-peer gain graphs (v0.484).
   if (typeof window.teardownAllPeerAudio === 'function') window.teardownAllPeerAudio();
   // Remove room audio elements
@@ -171,8 +288,18 @@ function cleanupRoomAudio() {
 
 async function connectToRoomPeer(peerKey, peerName, roomId, isCaller) {
   if (window._roomPeerConnections[peerKey]) return; // already connected
-  const pc = new RTCPeerConnection(rtcConfig);
+  const id = String(roomId);
+  if (String(window._currentRoomId) !== id) return; // only within the room I am in
+  // Through the server only (step E): this room's credentials, or no connection.
+  const creds = await roomCallCredentials(id);
+  if (String(window._currentRoomId) !== id) return; // left while waiting
+  if (!creds) { roomCannotConnect(); return; }
+  if (window._roomPeerConnections[peerKey]) return; // made while we waited
+  const pc = new RTCPeerConnection(relayOnlyRtcConfig(creds));
   window._roomPeerConnections[peerKey] = pc;
+  // Addresses the forwarder gave this connection. None by the end of gathering
+  // means the server's call port did not answer, so no connection can form.
+  let relayAddresses = 0;
 
   if (window._roomLocalStream) {
     window._roomLocalStream.getTracks().forEach(t => pc.addTrack(t, window._roomLocalStream));
@@ -211,6 +338,7 @@ async function connectToRoomPeer(peerKey, peerName, roomId, isCaller) {
   };
 
   pc.onicecandidate = (event) => {
+    if (event.candidate) relayAddresses++;
     if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: 'voice_room_signal',
@@ -228,11 +356,13 @@ async function connectToRoomPeer(peerKey, peerName, roomId, isCaller) {
     if (pc.connectionState === 'connected') {
       addSystemMessage(`🔊 Voice connected to peer`);
     } else if (pc.connectionState === 'failed') {
-      addSystemMessage(`⚠️ Voice connection failed, may need TURN server for NAT traversal`);
       pc.close();
       delete window._roomPeerConnections[peerKey];
       const audioEl = document.querySelector(`.room-remote-audio[data-peer-key="${peerKey}"]`);
       if (audioEl) audioEl.remove();
+      // Never a direct retry: the connection is through the server or not at all.
+      if (relayAddresses === 0) roomCannotConnect();
+      else addSystemMessage('⚠️ Voice connection to a peer failed.');
     } else if (pc.connectionState === 'disconnected') {
       // Give it a moment, might recover
       setTimeout(() => {
@@ -247,6 +377,10 @@ async function connectToRoomPeer(peerKey, peerName, roomId, isCaller) {
   };
   pc.onicegatheringstatechange = () => {
     console.log(`Voice ICE gathering: ${pc.iceGatheringState}`);
+    if (pc.iceGatheringState === 'complete' && relayAddresses === 0
+        && window._roomPeerConnections[peerKey] === pc) {
+      roomCannotConnect();
+    }
   };
 
   if (isCaller) {
@@ -266,6 +400,10 @@ async function connectToRoomPeer(peerKey, peerName, roomId, isCaller) {
 // Handle voice_channel_list, voice_room_update, and voice_room_signal
 const _origHandleMessageVR = handleMessage;
 handleMessage = function(msg) {
+  if (msg.type === 'call_credentials') {
+    onCallCredentials(msg);
+    return;
+  }
   if (msg.type === 'voice_channel_list') {
     window._voiceChannels = (msg.channels || []).map(c => ({
       id: c.id,
@@ -328,10 +466,19 @@ async function handleVoiceRoomSignal(msg) {
   }
 
   if (msg.signal_type === 'offer') {
+    // Only for the room I am in: an offer for any other room (or while I am in
+    // none) neither turns my microphone on nor gets a connection.
+    if (!window._currentRoomId || String(window._currentRoomId) !== String(roomId)) return;
+    // Through the server only (step E): no microphone and no answer until this
+    // room's credentials came; without them the room is left, saying why.
+    if (!await roomCallCredentials(roomId)) {
+      if (String(window._currentRoomId) === String(roomId)) roomCannotConnect();
+      return;
+    }
     // Ensure our mic stream exists before answering, if not set up yet the
     // RTCPeerConnection will have no audio tracks and createAnswer() produces
     // a=recvonly SDP, meaning the remote peer never receives our audio.
-    if (!window._roomLocalStream) await setupRoomAudio();
+    if (!window._roomLocalStream) await ensureRoomAudio();
     if (!window._roomLocalStream) return; // mic denied, can't send audio
     // Someone is sending us an offer, create connection and answer
     await connectToRoomPeer(peerKey, '', roomId, false);

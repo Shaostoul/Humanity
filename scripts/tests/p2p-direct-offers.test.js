@@ -1,24 +1,27 @@
-// Web answers a direct-connection offer only from people it already connects
-// with (2026-10-09).
+// Web answers a direct-connection offer only from your own devices (2026-10-09).
 //
 // Run:  node --test scripts/tests/p2p-direct-offers.test.js
 //
 // Why it matters: answering a direct-connection offer (`dc_offer`) hands the
 // other side this device's network address, which gives away a rough location
 // and the internet provider, and opens a channel to them. The relay forwards an
-// offer from anyone online, and until this date web/chat/chat-p2p.js
-// (handleDCOffer) answered every one, so anyone could learn your address
-// without a call (docs/design/blocking-and-safe-mode.md, defects 3.7.1 and
-// 3.7.2, section 7.1 item 4). Now only these get an answer: your own key, a
-// contact you added, a member of a P2P group you are in, the person you are in
-// an accepted call with, and someone in your voice room. Anyone else gets no
-// answer at all.
+// offer from more people than your own devices, and until this date
+// web/chat/chat-p2p.js (handleDCOffer) answered every one, so anyone could
+// learn your address without a call (docs/design/blocking-and-safe-mode.md,
+// defects 3.7.1 and 3.7.2, section 7.1 item 4). The first fix answered your own
+// key, a contact you added, a member of a P2P group you are in, the person you
+// are in an accepted call with, and someone in your voice room: the people a
+// call or the group mesh connected directly anyway. Since step E the same day
+// (10f) calls and rooms go through the server and the mesh is gone, so only
+// your own devices are answered (data sync); anyone else gets no answer at all.
+// scripts/tests/calls-through-server.test.js covers the rest of step E.
 //
 // The second half is the same mistake in the 1:1 call path
 // (chat-voice-calls.js, handleWebrtcSignalMessage): a call `offer` was taken
 // from someone who was only RINGING you, and handleOffer turned the microphone
 // on and answered before Accept was pressed. Call signals now count only once
-// the call is accepted.
+// the call is accepted (and, since step E, connect once the call's credentials
+// came from the relay).
 //
 // The page scripts run as they do in the browser, in one shared global scope
 // (node:vm), with the DOM replaced by a stub, as in p2p-sync-own-devices.test.js.
@@ -163,8 +166,8 @@ const answersTo = (sock, key, kind = "dc_answer") =>
 // Seen red 2026-10-09 two ways: against the code before the fix (HOS_WEB_DIR
 // pointed at HEAD's web/), and with only the mayAnswerDirectOffer line in
 // handleDCOffer disabled. Both times the stranger got a dc_answer here, and the
-// group, voice-room and call tests below failed on their stranger or
-// still-ringing case.
+// group and voice-room tests then below failed on their stranger case, the call
+// test on its still-ringing case.
 test("a stranger's direct-connection offer gets no answer", async () => {
   const { ctx, sock } = loadChat();
   await relaySends(ctx, dcOffer(STRANGER));
@@ -178,46 +181,37 @@ test("your own device's offer is answered", async () => {
   assert.strictEqual(answersTo(sock, ME).length, 1);
 });
 
-test("a contact you added is answered", async () => {
+// Seen red 2026-10-09 against the step C version of web/ (HOS_WEB_DIR at HEAD's
+// web/ before step E), where all three got a dc_answer ("a contact you added
+// gets no answer" failed first), and with mayAnswerDirectOffer in chat-p2p.js
+// also returning true for a contact (the same assertion).
+test("a contact, a group member and someone in your voice room get no answer either: direct links are your own devices only", async () => {
   const { ctx, sock } = loadChat();
   vm.runInContext("(k) => { p2pContacts[k] = { name: 'Contact', kyber_pub: null, added_at: 1, dc_status: 'idle' }; }", ctx)(CONTACT);
-  await relaySends(ctx, dcOffer(CONTACT));
-  assert.strictEqual(answersTo(sock, CONTACT).length, 1);
-});
-
-test("a member of one of your P2P groups is answered, from the group list or the open group's roster", async () => {
-  const { ctx, sock } = loadChat();
   // The group list loaded on connect (the shape /api/v2/groups?pubkey= returns).
   ctx._p2pGroups = [{ group_id: "g1", name: "Garden", members: [ME, GROUP_MATE], is_creator: false }];
-  // The open group's roster, fingerprint to key (ensureGroupMesh offers to these).
+  // The open group's roster, fingerprint to key.
   ctx.activeP2pGroup = { id: "g2", name: "Build", fpToKey: { fp_me: ME, fp_mate: ROSTER_MATE } };
-  await relaySends(ctx, dcOffer(GROUP_MATE));
-  await relaySends(ctx, dcOffer(ROSTER_MATE));
-  await relaySends(ctx, dcOffer(STRANGER));
-  assert.strictEqual(answersTo(sock, GROUP_MATE).length, 1, "a member from the group list is answered");
-  assert.strictEqual(answersTo(sock, ROSTER_MATE).length, 1, "a member of the open group is answered");
-  assert.deepStrictEqual(answersTo(sock, STRANGER), [], "someone in no group of yours is not");
-});
-
-test("someone in your voice room is answered; someone in another room is not", async () => {
-  const { ctx, sock } = loadChat();
-  ctx._voiceChannels = [
-    { id: 1, name: "Lounge", participants: [{ public_key: ME }, { public_key: ROOM_MATE }] },
-    { id: 2, name: "Other", participants: [{ public_key: STRANGER }] },
-  ];
+  ctx._voiceChannels = [{ id: 1, name: "Lounge", participants: [{ public_key: ME }, { public_key: ROOM_MATE }] }];
   ctx._currentRoomId = "1";
-  await relaySends(ctx, dcOffer(ROOM_MATE));
-  await relaySends(ctx, dcOffer(STRANGER));
-  assert.strictEqual(answersTo(sock, ROOM_MATE).length, 1);
-  assert.deepStrictEqual(answersTo(sock, STRANGER), []);
+  for (const k of [CONTACT, GROUP_MATE, ROSTER_MATE, ROOM_MATE]) await relaySends(ctx, dcOffer(k));
+  assert.deepStrictEqual(answersTo(sock, CONTACT), [], "a contact you added gets no answer");
+  assert.deepStrictEqual(answersTo(sock, GROUP_MATE), [], "nor a member from the group list");
+  assert.deepStrictEqual(answersTo(sock, ROSTER_MATE), [], "nor a member of the open group");
+  assert.deepStrictEqual(answersTo(sock, ROOM_MATE), [], "nor someone in your voice room");
+  for (const k of [CONTACT, GROUP_MATE, ROSTER_MATE, ROOM_MATE]) {
+    assert.strictEqual(vm.runInContext("(k) => k in p2pConnections", ctx)(k), false, "no connection is kept for them");
+  }
 });
 
 // Seen red 2026-10-09 with only the call line in handleWebrtcSignalMessage put
 // back as it was (`if (msg.from !== callPeerKey) return;`): while CALLER was
 // only ringing, its call `offer` got an `answer` ("no call answer while it
 // rings" failed), which means handleOffer had already asked for the microphone.
-// Against HEAD's web/ it failed one step earlier, on the dc_answer.
-test("a caller is answered only after you accept: no microphone and no answer while it rings", async () => {
+// Against HEAD's web/ it failed one step earlier, on the dc_answer. Since step
+// E, against the step C web/ it fails on "not before the call's credentials
+// came" (the offer was answered at once, over a direct connection).
+test("a caller is answered only after you accept and the call's credentials came: no microphone and no answer while it rings", async () => {
   const { ctx, sock, media } = loadChat();
   await relaySends(ctx, { type: "voice_call", from: CALLER, from_name: "Caller", to: ME, action: "ring" });
   assert.strictEqual(vm.runInContext("callState", ctx), "ringing-in");
@@ -229,25 +223,30 @@ test("a caller is answered only after you accept: no microphone and no answer wh
   assert.deepStrictEqual(answersTo(sock, CALLER, "answer"), [], "no call answer while it rings");
   assert.strictEqual(media.asked, 0, "the microphone is not asked for while it rings");
 
-  // Accepted: the call connects as before, and the partner may open a direct connection.
+  // Accepted: the call connects once the relay sent this call's credentials
+  // (step E); the partner still may not open a direct connection.
   vm.runInContext("acceptIncomingCall", ctx)();
   assert.strictEqual(vm.runInContext("callState", ctx), "in-call");
   await relaySends(ctx, { type: "webrtc_signal", from: CALLER, to: ME, signal_type: "offer", data: { type: "offer", sdp: "v=0 x" } });
+  assert.strictEqual(media.asked, 0, "not before the call's credentials came");
+  assert.deepStrictEqual(answersTo(sock, CALLER, "answer"), [], "no answer before them either");
+  await relaySends(ctx, { type: "call_credentials", call: CALLER, urls: ["turn:calls.example.org:3478?transport=udp"], username: "1:t", credential: "c", ttl: 3600 });
   assert.strictEqual(media.asked, 1, "the microphone is asked for after Accept");
   assert.strictEqual(answersTo(sock, CALLER, "answer").length, 1, "the call offer is answered after Accept");
   await relaySends(ctx, dcOffer(CALLER));
-  assert.strictEqual(answersTo(sock, CALLER).length, 1, "the call partner's direct-connection offer is answered");
+  assert.deepStrictEqual(answersTo(sock, CALLER), [], "the call partner's direct-connection offer is not answered");
 });
 
-test("the group mesh still connects: an offer you send is completed by the member's answer", async () => {
-  // The offering side of ensureGroupMesh is unchanged: it offers to a roster
-  // member, and that member's dc_answer is applied to the connection.
+test("a link to your own other device still connects: an offer you send is completed by its answer", async () => {
+  // Own-device data sync is unchanged by step E: initDataChannel offers to your
+  // own key, and that device's dc_answer is applied to the connection.
   const { ctx, sock } = loadChat();
-  await vm.runInContext("initDataChannel", ctx)(GROUP_MATE);
-  const offers = sock.sent.filter((m) => m.signal_type === "dc_offer" && m.to === GROUP_MATE);
+  await vm.runInContext("initDataChannel", ctx)(ME);
+  await settle();
+  const offers = sock.sent.filter((m) => m.signal_type === "dc_offer" && m.to === ME);
   assert.strictEqual(offers.length, 1, "the offer goes out");
-  await relaySends(ctx, { type: "webrtc_signal", from: GROUP_MATE, to: ME, signal_type: "dc_answer", data: JSON.stringify({ type: "answer", sdp: "v=0 a" }) });
-  const pc = vm.runInContext("(k) => p2pConnections[k]", ctx)(GROUP_MATE);
+  await relaySends(ctx, { type: "webrtc_signal", from: ME, to: ME, signal_type: "dc_answer", data: JSON.stringify({ type: "answer", sdp: "v=0 a" }) });
+  const pc = vm.runInContext("(k) => p2pConnections[k]", ctx)(ME);
   // (Through JSON: the object was made inside the page's realm, with its own Object.)
   assert.deepStrictEqual(JSON.parse(JSON.stringify(pc.remote)), { type: "answer", sdp: "v=0 a" }, "the answer is applied");
 });

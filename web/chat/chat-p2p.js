@@ -42,9 +42,10 @@
 //   sharing a server.
 //
 // Phase 3b, WebRTC DataChannel
-//   Once a contact card has been imported, a direct DataChannel is opened so DMs
-//   travel peer-to-peer (encrypted with ECDH+AES-256-GCM).  The relay is used
-//   only for ICE signaling; it never sees DM content.
+//   A direct DataChannel is now opened ONLY between your own devices (step E,
+//   2026-10-09, see "Direct links" below): one to anyone else would show them
+//   your network address. DMs to contacts go through the relay mailbox, sealed
+//   end to end as always; the channel code below carries own-device sync.
 //
 // Depends on (from app.js / crypto.js):
 //   ws, myKey, myName, myIdentity, addSystemMessage, esc,
@@ -328,19 +329,62 @@ async function verifyContactCardSignature(message, sigHex, pubKeyHex) {
 }
 
 // ── Phase 3b: WebRTC DataChannel ──
-// (Implementation in progress, signaling infrastructure below)
+
+// DIRECT LINKS: YOUR OWN DEVICES ONLY (step E, 2026-10-09). Calls and voice
+// rooms now go through the server so that the other people see only the
+// server's address (docs/design/blocking-and-safe-mode.md 10f). A direct link
+// to another person would hand them your address all the same, so this browser
+// neither opens one nor answers an offer of one, except between your own
+// devices (the same identity key: devices signed in with your recovery phrase),
+// which is what data sync needs. That ends what used to run here: the P2P group
+// mesh (group messages reach members through the relay, polled every 4 seconds
+// in chat-groups-p2p.js) and contact-card channels (DMs go through the relay
+// mailbox). Design 7.2 and 7.4 step 3.
+// Tests: scripts/tests/calls-through-server.test.js, p2p-direct-offers.test.js
+
+/** The same key? Hex keys are compared without regard to letter case. */
+function sameKeyHex(a, b) {
+  return typeof a === 'string' && typeof b === 'string' && a !== '' && a.toLowerCase() === b.toLowerCase();
+}
+
+/** May this browser have a direct link with `peerKey`? Only another of my own devices. */
+function mayLinkDirectly(peerKey) {
+  return sameKeyHex(typeof myKey === 'string' ? myKey : '', peerKey);
+}
 
 /**
- * Open a WebRTC DataChannel to a peer so future DMs travel P2P.
- * The relay is used only for ICE signaling; message content stays off-server.
- * Falls back to relay DMs automatically if the channel closes.
+ * Settings for a link between my own devices: the address lookup this server
+ * offers at /api/turn-credentials (its own STUN entry, 10f), so two of my
+ * devices on different networks can still find each other. Showing my address
+ * to my own device, and to my own server, gives nothing away. With no answer,
+ * none: devices on one network still connect.
+ */
+async function ownDeviceRtcConfig() {
+  try {
+    const r = await fetch('/api/turn-credentials', { cache: 'no-store' });
+    if (r.ok) {
+      const data = await r.json();
+      if (Array.isArray(data.iceServers)) return { iceServers: data.iceServers };
+    }
+  } catch (_) {}
+  return { iceServers: [] };
+}
+
+/**
+ * Open a WebRTC DataChannel to another of my own devices (for data sync).
+ * The relay is used only for ICE signaling. Anyone else: nothing is opened.
  *
- * @param {string} peerPubKey - Ed25519 public key hex of the target peer
+ * @param {string} peerPubKey - identity key hex of the target device (my own)
  */
 async function initDataChannel(peerPubKey) {
+  if (!mayLinkDirectly(peerPubKey)) {
+    console.info('No direct link opened to ' + String(peerPubKey || '').slice(0, 12)
+      + '…: direct links are between your own devices only.');
+    return;
+  }
   if (p2pDataChannels[peerPubKey]?.readyState === 'open') return; // already open
 
-  const pc = new RTCPeerConnection(rtcConfig);
+  const pc = new RTCPeerConnection(await ownDeviceRtcConfig());
   p2pConnections[peerPubKey] = pc;
 
   const dc = pc.createDataChannel('dm', { ordered: true });
@@ -370,74 +414,23 @@ async function initDataChannel(peerPubKey) {
   }
 }
 
-// WHO MAY OPEN A DIRECT CONNECTION TO THIS BROWSER (2026-10-09). Answering a
+// WHO MAY OPEN A DIRECT CONNECTION TO THIS BROWSER. Answering a
 // direct-connection offer hands the other side this device's network address
 // (which gives away a rough location and the internet provider) and opens a
-// channel to them. Until this date handleDCOffer answered every offer, and the
-// relay forwards one from anyone online, so anyone could learn your address
-// without a call, and open a channel to try the data sync on
-// (docs/design/blocking-and-safe-mode.md, defects 3.7.1 and 3.7.2, section 7.1
-// item 4). Now an offer is answered only from:
-//   - your own key (your other devices, signed in with your recovery phrase),
-//   - a contact you added from their contact card (p2pContacts),
-//   - a member of a P2P group you are in (your group list, or the open group's roster),
-//   - the person you are in a call with, once the call was accepted,
-//   - someone in the voice room you are in.
-// Anyone else gets no answer at all, so they learn nothing, not even that the
-// offer arrived. Someone you blocked gets none either, even when they are one
-// of the people above (step C). These are the people every feature that opens a direct
-// connection reaches anyway: the group mesh (ensureGroupMesh) offers only to
-// roster members, and a call or a voice room already connects its people
-// directly. Test: scripts/tests/p2p-direct-offers.test.js
+// channel to them, and the relay forwards an offer from more people than your
+// own devices. Until 2026-10-09 handleDCOffer answered every offer (defects
+// 3.7.1 and 3.7.2 in docs/design/blocking-and-safe-mode.md); later that day it
+// answered contacts, group members and call or voice-room partners too, the
+// people a call or the group mesh connected directly anyway. Now calls and
+// rooms go through the server and the mesh is gone (step E, above), so only
+// your own devices are answered. Anyone else, someone you blocked included,
+// gets no answer at all, so they learn nothing, not even that the offer
+// arrived. Tests: scripts/tests/p2p-direct-offers.test.js, block-web.test.js
 
-/** The same key? Hex keys are compared without regard to letter case. */
-function sameKeyHex(a, b) {
-  return typeof a === 'string' && typeof b === 'string' && a !== '' && a.toLowerCase() === b.toLowerCase();
-}
-
-/** Is `peerKey` in the roster of a P2P group this browser knows you are in? */
-function isP2pGroupMate(peerKey) {
-  // The group list (loaded on connect, from /api/v2/groups?pubkey=) carries
-  // each group's members.
-  for (const g of (window._p2pGroups || [])) {
-    if (g && Array.isArray(g.members) && g.members.some(k => sameKeyHex(k, peerKey))) return true;
-  }
-  // The open group's roster, loaded when it was opened (it can be newer than the list).
-  const ag = window.activeP2pGroup;
-  if (ag && ag.fpToKey && Object.values(ag.fpToKey).some(k => sameKeyHex(k, peerKey))) return true;
-  return false;
-}
-
-/** Is `peerKey` the person you are in a call with, or someone in your voice room? */
-function isCallOrRoomPartner(peerKey) {
-  // A 1:1 call counts only once it was accepted: someone who is merely ringing
-  // you is not a partner yet (chat-voice-calls.js).
-  if (typeof callState !== 'undefined' && callState === 'in-call'
-      && typeof callPeerKey !== 'undefined' && sameKeyHex(callPeerKey, peerKey)) return true;
-  // The voice room you are in (chat-voice-rooms.js): its roster from the relay,
-  // or a voice connection already made to them in this room.
-  const roomId = window._currentRoomId;
-  if (roomId) {
-    const room = (window._voiceChannels || []).find(c => String(c.id) === String(roomId));
-    if (room && (room.participants || []).some(p => p && sameKeyHex(p.public_key, peerKey))) return true;
-    if (window._roomPeerConnections && Object.keys(window._roomPeerConnections).some(k => sameKeyHex(k, peerKey))) return true;
-  }
-  return false;
-}
-
-/**
- * May this browser answer a direct-connection offer from `peerKey`? See the
- * note above. Never someone I blocked (step C, 2026-10-09), whatever else
- * they are to me: a contact, a group mate, a voice-room neighbour.
- */
+/** May this browser answer a direct-connection offer from `peerKey`? Only from my own devices. */
 function mayAnswerDirectOffer(peerKey) {
   if (typeof peerKey !== 'string' || peerKey === '') return false;
-  if (sameKeyHex(typeof myKey === 'string' ? myKey : '', peerKey)) return true;
-  if (typeof isBlockedKey === 'function' && isBlockedKey(peerKey)) return false;
-  if (Object.keys(p2pContacts).some(k => sameKeyHex(k, peerKey))) return true;
-  if (isP2pGroupMate(peerKey)) return true;
-  if (isCallOrRoomPartner(peerKey)) return true;
-  return false;
+  return mayLinkDirectly(peerKey);
 }
 
 /**
@@ -452,12 +445,12 @@ async function handleDCOffer(signal) {
     // Silent on screen on purpose (a stranger could otherwise fill the chat
     // with notices); the console line is for whoever is debugging a connection.
     console.info('Ignored a direct-connection offer from ' + String(peerKey || '').slice(0, 12)
-      + '…: not your own device, a contact, a group member, or a call or voice-room partner.');
+      + '…: direct links are between your own devices only.');
     return;
   }
   const offer = JSON.parse(signal.data);
 
-  const pc = new RTCPeerConnection(rtcConfig);
+  const pc = new RTCPeerConnection(await ownDeviceRtcConfig());
   p2pConnections[peerKey] = pc;
 
   pc.ondatachannel = ({ channel }) => {
