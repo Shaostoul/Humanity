@@ -72,6 +72,13 @@ mod protected;
 /// Joining and leaving a channel's voice room. See `chat/voice_room.rs`.
 mod voice_room;
 pub(crate) use voice_room::set_voice_room;
+/// Sending a file (10k): encrypted for a DM or a group, plain for a public channel. See `chat/attach_send.rs`.
+mod attach_send;
+pub(crate) use attach_send::upload_file_blocking;
+/// Showing a private file (10k): the picture inline, or a card with Save. See `chat/attach_view.rs`.
+mod attach_view;
+#[cfg(test)]
+pub(crate) use attach_view::{cache_key as private_file_key, open as open_private_file};
 
 // Maximum messages kept in the local chat buffer (was hardcoded, now uses theme.max_messages if needed).
 
@@ -99,114 +106,26 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // want it uploaded to the active channel (same as Discord/Slack).
     // Text-only clipboards return None from try_grab_clipboard_image_as_png
     // so egui's TextEdit handles regular text paste normally.
-    // File-attach picker modal (v0.708). On pick: validate, read, and upload
-    // on a worker thread; the finished upload drains through the same
-    // clipboard_upload receiver below and routes via send_composed_content.
+    // File-attach picker modal (v0.708). On pick: read it and upload it on a
+    // worker thread (chat/attach_send.rs: encrypted for a DM or a group, 10k);
+    // the finished upload drains below and routes via send_composed_content.
     if let Some(mut picker) = state.chat_attach_picker.take() {
         use crate::gui::widgets::file_browser::{file_picker_modal, FilePickerResult};
         match file_picker_modal(ctx, theme, &mut picker, "Attach a file") {
-            FilePickerResult::Open => {
-                state.chat_attach_picker = Some(picker);
-            }
+            FilePickerResult::Open => state.chat_attach_picker = Some(picker),
             FilePickerResult::Cancelled => {}
-            FilePickerResult::Picked(path) => {
-                let filename = path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("file")
-                    .to_string();
-                match std::fs::read(&path) {
-                    Ok(bytes) if (bytes.len() as u64) <= ATTACH_MAX_BYTES => {
-                        let share = crate::gui::widgets::file_browser::name_matches_ext(
-                            &filename,
-                            SHARE_EXTS,
-                        );
-                        let mime = mime_for_filename(&filename).to_string();
-                        let server = state.server_url.clone();
-                        let pk = state.profile_public_key.clone();
-                        // DM attachments are encrypted client-side (2026-08-24):
-                        // the file must be as private as the message.
-                        let is_dm = state.chat_active_channel.starts_with("dm:");
-                        let (tx, rx) = std::sync::mpsc::channel();
-                        std::thread::spawn(move || {
-                            let result = prepare_attachment_send(
-                                &server, &pk, &filename, &mime, bytes, share, is_dm,
-                            )
-                            .map_err(|e| e.to_string());
-                            let _ = tx.send(result);
-                        });
-                        state.clipboard_upload =
-                            Some((state.chat_active_channel.clone(), rx));
-                    }
-                    Ok(bytes) => {
-                        log::warn!(
-                            "Attach rejected: {} is {} bytes (max {})",
-                            filename,
-                            bytes.len(),
-                            ATTACH_MAX_BYTES
-                        );
-                    }
-                    Err(e) => {
-                        log::warn!("Attach read failed for {filename}: {e}");
-                    }
-                }
-            }
+            FilePickerResult::Picked(path) => attach_send::start_attach(state, &path),
         }
     }
 
-    let ctrl_v_pressed = std::mem::take(&mut state.pending_clipboard_paste);
-    if ctrl_v_pressed {
+    if std::mem::take(&mut state.pending_clipboard_paste) {
+        // Grab the PNG on the main thread (clipboard access); the upload runs on a
+        // worker thread. If there is no image, egui's TextEdit handles the text paste.
         if let Some(png_bytes) = try_grab_clipboard_image_as_png() {
-            // Grab the PNG on the main thread (clipboard access), but run the
-            // (potentially seconds-long) network upload on a WORKER thread so a
-            // big paste doesn't freeze the UI. The drain block below sends the
-            // chat message with the returned URL once the upload finishes.
-            let server = state.server_url.clone();
-            let pk = state.profile_public_key.clone();
-            let channel = state.chat_active_channel.clone();
-            // Pasting an image into a DM encrypts it too (2026-08-24).
-            let is_dm = channel.starts_with("dm:");
-            let (tx, rx) = std::sync::mpsc::channel();
-            std::thread::spawn(move || {
-                let result = prepare_attachment_send(
-                    &server, &pk, "pasted-image.png", "image/png", png_bytes, false, is_dm,
-                )
-                .map_err(|e| e.to_string());
-                let _ = tx.send(result);
-            });
-            state.clipboard_upload = Some((channel, rx));
-        }
-        // If no image on clipboard, fall through — egui's TextEdit
-        // sees the Ctrl+V key event normally and handles text paste.
-    }
-
-    // Drain a finished clipboard-image upload: on success, send the chat
-    // message carrying the image URL (ws + Dilithium sign on the main thread).
-    if let Some((channel, rx)) = state.clipboard_upload.as_ref() {
-        match rx.try_recv() {
-            Ok(Ok(url)) => {
-                state.clipboard_upload = None;
-                // Route through the single content authority (v0.708): the
-                // old code sent a raw chat message with the captured channel,
-                // which BYPASSED DM encryption and the scratchpad's local-only
-                // promise -- the same privacy-leak class the web client fixed
-                // in v0.698.2. Sends to the CURRENT view, like the web.
-                let sent = send_composed_content(state, &url);
-                log::info!("Upload finished; routed send (sent={sent}): {url}");
-            }
-            Ok(Err(e)) => {
-                state.clipboard_upload = None;
-                log::warn!("Clipboard image upload failed: {e}");
-            }
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                state.clipboard_upload = None;
-                log::warn!("Clipboard image upload worker stopped unexpectedly");
-            }
-            Err(std::sync::mpsc::TryRecvError::Empty) => {
-                ctx.request_repaint_after(std::time::Duration::from_millis(120));
-            }
+            attach_send::start_paste(state, png_bytes);
         }
     }
+    attach_send::drain(ctx, state); // a finished upload: its text goes out like typed text
 
     // ── LIVE STRIP (v0.1150, operator direction: "expandable tab at the top
     // of the chat page" for streaming). Declared BEFORE the side panels so
@@ -753,12 +672,10 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     let icon_letter = msg.sender_name.chars().next().unwrap_or('?');
                     let channeling = state.chat_user_modal_open
                         && msg.sender_key == state.chat_user_modal_key;
-                    // Encrypted DM attachment (2026-08-24): a FILE_MARKER carries
-                    // an opaque ciphertext reference, not text or an image URL.
-                    // Show a clean label instead of the raw base64 (full native
-                    // inline decrypt is a tracked follow-up; the web client
-                    // renders it inline today).
-                    let enc_att = crate::net::dm_pq::parse_file_marker(&msg.content);
+                    // A private file (10k): a FILE_MARKER carries an encrypted
+                    // file's address and key, never text. It has no words of its
+                    // own; chat/attach_view.rs draws it under the row.
+                    let enc_att = attach_view::file_in(msg);
                     // Extract image URLs from the message so we can render them
                     // as inline thumbnails instead of raw /uploads/... text.
                     let image_urls = if enc_att.is_some() {
@@ -770,10 +687,8 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     let pictures_hidden = (enc_att.is_some() || !image_urls.is_empty()) && crate::engine::protected::hides_pictures_from(state, &msg.sender_key);
                     let display_text = if pictures_hidden && enc_att.is_some() {
                         protected::picture_hidden_line(state).to_string()
-                    } else if let Some(ref att) = enc_att {
-                        let kb = (att.size as f64 / 1024.0).max(1.0).round() as u64;
-                        let kind = if att.mime.starts_with("image/") { "photo" } else { "file" };
-                        format!("Encrypted {kind}: {} ({} KB). Open in the web app to view.", att.name, kb)
+                    } else if enc_att.is_some() {
+                        String::new()
                     } else if image_urls.is_empty() {
                         msg.content.clone()
                     } else {
@@ -1484,6 +1399,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 }
                             }
                         }
+                    }
+                    // A private file (10k): its picture inline, or a card with Save.
+                    if let Some(ref att) = enc_att {
+                        let plan = attach_view::plan(state, msg, att);
+                        attach_view::draw(ui, theme, &mut state.image_cache, &mut state.image_viewer_url, &msg.sender_name, att, &plan, row_bg);
                     }
                     // Step F: the warnings and the stranger link line under a received DM or group message.
                     if let Some(act) = warnings::draw_under_message(ui, theme, state, msg, &link_targets) {
@@ -2995,7 +2915,8 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
     // Keep the DM sidebar preview current for our own sends (v0.715).
     if let Some(pk) = channel.strip_prefix("dm:") {
         if let Some(d) = state.chat_dms.iter_mut().find(|d| d.user_key == pk) {
-            d.last_message = format!("You: {}", content);
+            // A file's marker carries its key; the preview says "Photo" or its name instead.
+            d.last_message = format!("You: {}", crate::engine::dm::dm_preview_text(content));
             d.timestamp = now.clone();
             d.unread = false;
         }
@@ -3263,44 +3184,11 @@ fn draw_role_badges(
 /// why in plain words: loading the picture shows that website the reader's
 /// network address. The web client shows every picture this way; native loads
 /// its own server's pictures by itself and asks only for other websites'.
-/// Returns true on the click that allows it.
+/// Returns true on the click that allows it. The box itself is
+/// `attach_view::draw_ask_box`, shared with a private file's picture.
 fn draw_click_to_load(ui: &mut egui::Ui, theme: &Theme, row_bg: Color32, indent: f32, host: &str) -> bool {
-    let row_w = ui.available_width();
-    let box_h = theme.font_size_small * 2.0 + 18.0;
-    let (row_rect, resp) = ui.allocate_exact_size(Vec2::new(row_w, box_h + 4.0), egui::Sense::click());
-    ui.painter().rect_filled(row_rect, 0.0, row_bg);
-    let box_w = (row_w - indent - 8.0).clamp(160.0, 480.0);
-    let box_rect = egui::Rect::from_min_size(
-        egui::pos2(row_rect.left() + indent, row_rect.top() + 2.0),
-        Vec2::new(box_w, box_h),
-    );
-    let hovered = resp.hovered();
-    let fill = if hovered { theme.bg_tertiary() } else { row_bg };
-    ui.painter().rect_filled(box_rect, Rounding::same(4), fill);
-    ui.painter().rect_stroke(box_rect, Rounding::same(4), Stroke::new(1.0, theme.border()), egui::StrokeKind::Inside);
-    // Clipped to the box, so a long website name cannot spill over the chat.
-    let painter = ui.painter_at(box_rect.shrink(1.0));
-    let line_h = theme.font_size_small + 4.0;
-    let left = box_rect.left() + 8.0;
-    let top = box_rect.top() + 6.0 + theme.font_size_small / 2.0;
-    painter.text(
-        egui::pos2(left, top),
-        egui::Align2::LEFT_CENTER,
-        format!("Picture from {host}. Click to load it."),
-        egui::FontId::proportional(theme.font_size_small),
-        theme.text_primary(),
-    );
-    painter.text(
-        egui::pos2(left, top + line_h),
-        egui::Align2::LEFT_CENTER,
-        format!("Loading this shows {host} your network address."),
-        egui::FontId::proportional(theme.font_size_small),
-        theme.text_muted(),
-    );
-    if hovered {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-    }
-    resp.clicked()
+    let first = format!("Picture from {host}. Click to load it.");
+    attach_view::draw_ask_box(ui, theme, row_bg, indent, &first, &format!("Loading this shows {host} your network address."))
 }
 
 /// Get the viewer's own role by matching their public key in the user list.
@@ -3961,119 +3849,6 @@ fn try_grab_clipboard_image_as_png() -> Option<Vec<u8>> {
         return None;
     }
     Some(png_bytes)
-}
-
-/// Blocking upload of a clipboard PNG -- thin wrapper over
-/// `upload_file_blocking` (kept for the existing paste call sites).
-fn upload_image_png_blocking(
-    server_url: &str,
-    public_key: &str,
-    png_bytes: Vec<u8>,
-) -> Result<String, String> {
-    upload_file_blocking(server_url, public_key, "clipboard.png", "image/png", png_bytes, false)
-}
-
-/// Blocking multipart upload of any file to `<server_url>/api/upload?key=<pk>`
-/// (v0.708; `share=true` adds `&share=1` so 3D/model files publish to the
-/// public Shared Files library, matching the web client). Returns the URL
-/// from the JSON response. Runs on a worker thread at every call site, so
-/// blocking here never freezes a frame. nginx caps the body at 6 MB.
-pub(crate) fn upload_file_blocking(
-    server_url: &str,
-    public_key: &str,
-    filename: &str,
-    mime: &str,
-    bytes: Vec<u8>,
-    share: bool,
-) -> Result<String, String> {
-    upload_file_blocking_ext(server_url, public_key, filename, mime, bytes, share, false)
-}
-
-/// Prepare an attachment for sending and return the message CONTENT string to
-/// route through the normal send path (2026-08-24). For a DM the file is
-/// encrypted client-side, the ciphertext is uploaded, and a FILE_MARKER
-/// (carrying the key inside the sealed envelope) is returned. For a public
-/// channel the plain file is uploaded and its URL is returned. Runs on the
-/// upload worker thread.
-pub(crate) fn prepare_attachment_send(
-    server_url: &str,
-    public_key: &str,
-    filename: &str,
-    mime: &str,
-    bytes: Vec<u8>,
-    share: bool,
-    is_dm: bool,
-) -> Result<String, String> {
-    if is_dm {
-        let size = bytes.len() as u64;
-        let (ciphertext, k, n) = crate::net::dm_pq::encrypt_attachment(&bytes)?;
-        let url = upload_file_blocking_ext(
-            server_url, public_key, "attachment.enc", "application/octet-stream",
-            ciphertext, false, true,
-        )?;
-        Ok(crate::net::dm_pq::build_file_marker(&crate::net::dm_pq::DmAttachment {
-            url,
-            k,
-            n,
-            name: filename.to_string(),
-            mime: mime.to_string(),
-            size,
-        }))
-    } else {
-        upload_file_blocking(server_url, public_key, filename, mime, bytes, share)
-    }
-}
-
-/// As `upload_file_blocking`, plus an `encrypted` flag. When set, the body is
-/// opaque ciphertext and the server skips format/EXIF handling
-/// (`?encrypted=1`). Used for private DM attachments (2026-08-24).
-pub(crate) fn upload_file_blocking_ext(
-    server_url: &str,
-    public_key: &str,
-    filename: &str,
-    mime: &str,
-    bytes: Vec<u8>,
-    share: bool,
-    encrypted: bool,
-) -> Result<String, String> {
-    let base = server_url.trim_end_matches('/');
-    let share_q = if share { "&share=1" } else { "" };
-    let enc_q = if encrypted { "&encrypted=1" } else { "" };
-    let upload_url = format!("{base}/api/upload?key={key}{share_q}{enc_q}", base = base, key = public_key);
-    let boundary = format!("HumanityOSBoundary{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis()
-    );
-    // Sanitize the filename for the multipart header (quotes/CRLF would
-    // corrupt the form-data framing).
-    let safe_name: String = filename
-        .chars()
-        .map(|c| if c == '"' || c == '\r' || c == '\n' { '_' } else { c })
-        .collect();
-    let preamble = format!(
-        "--{b}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{f}\"\r\nContent-Type: {m}\r\n\r\n",
-        b = boundary, f = safe_name, m = mime,
-    );
-    let epilogue = format!("\r\n--{b}--\r\n", b = boundary);
-    let mut body: Vec<u8> = Vec::with_capacity(preamble.len() + bytes.len() + epilogue.len());
-    body.extend_from_slice(preamble.as_bytes());
-    body.extend_from_slice(&bytes);
-    body.extend_from_slice(epilogue.as_bytes());
-
-    let resp = ureq::post(&upload_url)
-        .set("Content-Type", &format!("multipart/form-data; boundary={}", boundary))
-        .send_bytes(&body)
-        .map_err(|e| format!("HTTP POST failed: {e}"))?;
-    let body_str = resp.into_string()
-        .map_err(|e| format!("read response: {e}"))?;
-    let val: serde_json::Value = serde_json::from_str(&body_str)
-        .map_err(|e| format!("parse JSON: {e}; body={body_str}"))?;
-    val.get("url")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
-        .ok_or_else(|| format!("response missing 'url' field: {body_str}"))
 }
 
 /// Convert an HTTPS URL to a WSS URL for the relay.

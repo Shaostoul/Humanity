@@ -16,6 +16,11 @@
 //!   Failed(err)` so the chat UI can show a spinner or an error pill.
 //! - Downloads are orthogonal: `download(url, dest)` spawns a thread that
 //!   writes the raw bytes to `dest` and posts a completion event.
+//! - A file encrypted for a private conversation (10k of
+//!   docs/design/blocking-and-safe-mode.md) goes through `request_bytes` and
+//!   `save_with` instead: the caller's job fetches and decrypts on the worker,
+//!   so neither the download nor the decryption ever runs on the frame, and
+//!   the decrypted bytes live only in memory until the person chooses Save.
 
 use egui::{ColorImage, Context, TextureHandle};
 use std::collections::{HashMap, HashSet};
@@ -62,6 +67,9 @@ pub struct ImageCache {
     errors: HashMap<String, String>,
     /// Last successful download path (path toast). Keyed by URL.
     downloads: HashMap<String, std::path::PathBuf>,
+    /// Keys whose `save_with` job is still running, so the Save button can
+    /// say so and is not pressed twice.
+    saving: HashSet<String>,
     /// Pictures from another website that the person clicked to load
     /// (`route_image` sends those to a click-to-load placeholder). This session
     /// only, one picture at a time, the way the web client's placeholder works.
@@ -86,6 +94,7 @@ impl ImageCache {
             fetching: HashSet::new(),
             errors: HashMap::new(),
             downloads: HashMap::new(),
+            saving: HashSet::new(),
             allowed: HashSet::new(),
             max_pixels: 8_294_400, // 3840x2160
             tx,
@@ -151,6 +160,84 @@ impl ImageCache {
             .ok();
     }
 
+    /// Load a picture whose bytes come from `load` rather than from a plain GET
+    /// of a URL: a file encrypted for a private conversation, whose ciphertext
+    /// must be fetched AND decrypted before there is anything to decode. `key`
+    /// names it in this cache (`PRIVATE_KEY_PREFIX` plus a hash, never the
+    /// file's key). `load` runs on a worker thread, the bytes are decoded there
+    /// too, and only the pixels come back. Idempotent like `request`, and a
+    /// failure is final for the session, also like `request`.
+    pub fn request_bytes<F>(&mut self, key: &str, load: F)
+    where
+        F: FnOnce() -> Result<Vec<u8>, String> + Send + 'static,
+    {
+        if self.textures.contains_key(key) || self.fetching.contains(key) || self.errors.contains_key(key) {
+            return;
+        }
+        self.fetching.insert(key.to_string());
+        let key_owned = key.to_string();
+        let tx = self.tx.clone();
+        let max_pixels = self.max_pixels;
+        thread::Builder::new()
+            .name("image-open".to_string())
+            .spawn(move || {
+                let msg = match load().and_then(|bytes| decode_bytes(&bytes, max_pixels)) {
+                    Ok((width, height, rgba)) => BgResult::Decoded { url: key_owned, width, height, rgba },
+                    Err(err) => BgResult::Failed { url: key_owned, err },
+                };
+                let _ = tx.send(msg);
+            })
+            .ok();
+    }
+
+    /// Run `job` on a worker thread: it fetches, decrypts and writes a private
+    /// file, returning where it went. Reported through `downloaded_path(key)`
+    /// and `save_failed(key)`, the way `download` is. A second press while it
+    /// runs does nothing; a press after a failure tries again.
+    pub fn save_with<F>(&mut self, key: &str, job: F)
+    where
+        F: FnOnce() -> Result<std::path::PathBuf, String> + Send + 'static,
+    {
+        if self.saving.contains(key) {
+            return;
+        }
+        self.errors.remove(&format!("dl:{key}"));
+        self.saving.insert(key.to_string());
+        let key_owned = key.to_string();
+        let tx = self.tx.clone();
+        thread::Builder::new()
+            .name("file-save".to_string())
+            .spawn(move || {
+                let msg = match job() {
+                    Ok(path) => BgResult::Downloaded { url: key_owned, path },
+                    Err(err) => BgResult::DownloadFailed { url: key_owned, err },
+                };
+                let _ = tx.send(msg);
+            })
+            .ok();
+    }
+
+    /// Whether a `save_with` job for `key` is still running.
+    pub fn is_saving(&self, key: &str) -> bool {
+        self.saving.contains(key)
+    }
+
+    /// Whether the last `save_with` job for `key` failed.
+    pub fn save_failed(&self, key: &str) -> bool {
+        self.errors.contains_key(&format!("dl:{key}"))
+    }
+
+    /// Put an already decoded picture under `key`, for the snapshot fixtures,
+    /// which have no server to fetch from. Never used by the app itself, which
+    /// must not decode on the frame.
+    #[cfg(test)]
+    pub fn insert_for_test(&mut self, ctx: &Context, key: &str, bytes: &[u8]) -> Result<(), String> {
+        let (width, height, rgba) = decode_bytes(bytes, self.max_pixels)?;
+        let _ = self.tx.send(BgResult::Decoded { url: key.to_string(), width, height, rgba });
+        self.poll(ctx);
+        Ok(())
+    }
+
     /// Drain any completed background results and upload textures. Call this
     /// once per frame (cheap if nothing is ready). `ctx` is an egui Context.
     pub fn poll(&mut self, ctx: &Context) {
@@ -175,9 +262,11 @@ impl ImageCache {
                     self.errors.insert(url, err);
                 }
                 BgResult::Downloaded { url, path } => {
+                    self.saving.remove(&url);
                     self.downloads.insert(url, path);
                 }
                 BgResult::DownloadFailed { url, err } => {
+                    self.saving.remove(&url);
                     self.errors.insert(format!("dl:{}", url), err);
                 }
             }
@@ -229,8 +318,12 @@ pub const MAX_IMAGE_BYTES: usize = 16 * 1024 * 1024;
 
 /// Blocking HTTP GET via ureq + decode with the `image` crate.
 fn fetch_and_decode(url: &str, max_pixels: u32) -> Result<(u32, u32, Vec<u8>), String> {
-    let bytes = download_bytes(url, MAX_IMAGE_BYTES)?;
-    let img = image::load_from_memory(&bytes).map_err(|e| format!("decode: {e}"))?;
+    decode_bytes(&download_bytes(url, MAX_IMAGE_BYTES)?, max_pixels)
+}
+
+/// Decode a picture's file bytes to RGBA pixels, downsampled to `max_pixels`.
+fn decode_bytes(bytes: &[u8], max_pixels: u32) -> Result<(u32, u32, Vec<u8>), String> {
+    let img = image::load_from_memory(bytes).map_err(|e| format!("decode: {e}"))?;
     let (w, h) = (img.width(), img.height());
 
     // Downsample if the raw image exceeds the cap (keeps memory bounded).
@@ -262,7 +355,7 @@ fn fetch_and_decode(url: &str, max_pixels: u32) -> Result<(u32, u32, Vec<u8>), S
 /// gate would refuse. Production passes [`MAX_IMAGE_BYTES`]; the tests pass
 /// a small cap so they can prove the refusal against a loopback server
 /// without pushing 16 MB through a socket.
-fn download_bytes(url: &str, max_bytes: usize) -> Result<Vec<u8>, String> {
+pub(crate) fn download_bytes(url: &str, max_bytes: usize) -> Result<Vec<u8>, String> {
     let resp = ureq::get(url)
         .timeout(std::time::Duration::from_secs(20))
         .call()
@@ -360,6 +453,11 @@ mod download_cap_tests {
         assert!(download_bytes(&url, 1024).is_err(), "one byte over the cap must be refused");
     }
 }
+
+/// The start of every `ImageCache` key that names a file encrypted for a
+/// private conversation rather than a URL. The image viewer reads it to leave
+/// out "Download" and "Copy URL", which would fetch or show the ciphertext.
+pub const PRIVATE_KEY_PREFIX: &str = "private-file:";
 
 /// Which pictures named in a message load by themselves (2026-10-09, defect
 /// 3.7.6 of docs/design/blocking-and-safe-mode.md): the server's own, and no

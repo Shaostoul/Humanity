@@ -525,8 +525,9 @@ pub(crate) fn hides_active_room(gs: &GuiState) -> bool {
 
 /// Who counts as a friend for the pictures rule (as on the web chat): a mutual follow who also
 /// holds a pass from us. Before this server's settings have loaded nobody does, so nothing from
-/// anyone shows early.
-fn picture_friend(gs: &GuiState, key: &str) -> bool {
+/// anyone shows early. Also who a private file's picture loads by itself for (10k,
+/// gui/pages/chat/attach_view.rs), so the two rules never disagree about who is a friend.
+pub(crate) fn picture_friend(gs: &GuiState, key: &str) -> bool {
     gs.dm_store.as_ref().is_some_and(|s| s.is_friend(key) && s.cert_sent_to(key))
 }
 

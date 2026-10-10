@@ -1,0 +1,304 @@
+//! Sending a file into the chat: the Attach picker and a pasted image (10k of
+//! docs/design/blocking-and-safe-mode.md, 2026-10-10).
+//!
+//! THE RULE: a file is only as private as the conversation if the FILE is encrypted, not just
+//! the link to it. So anything sent into a direct message or a P2P group, attached or pasted,
+//! is encrypted on this device with a fresh AES-256-GCM key (`dm_pq::encrypt_attachment`),
+//! uploaded as ciphertext with `encrypted=1`, and sent as a `[[hum:file:v1]]` marker
+//! (`dm_pq::build_file_marker`) carrying that key. The marker then travels inside the DM's seal
+//! or inside the group's encrypted message, through `send_composed_content` like typed text.
+//! A public channel keeps the plain upload: public is public.
+//!
+//! Before this, only a picked file in a DM was encrypted (`is_dm: bool`); a pasted image there
+//! and every file in a group went up as a plain public file. `Destination` replaces that flag so
+//! the next kind of private conversation has to say which it is.
+//!
+//! The upload itself always runs on a worker thread; `run` takes the uploader as an argument so
+//! the tests can see exactly what would be posted without a network.
+//!
+//! Takes `use super::*` like the page's other children.
+
+use super::*;
+
+/// Where a file is going, which decides whether the file itself is encrypted.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Destination {
+    /// A direct message (`dm:<key>`): the marker rides inside the DM's seal.
+    DirectMessage,
+    /// A P2P group (`p2pgroup:<id>`): the marker rides inside the group's encrypted message.
+    Group,
+    /// A server channel, and anything else: the plain upload, as before.
+    Public,
+}
+
+impl Destination {
+    /// The destination of the chat view `channel` (`GuiState::chat_active_channel`).
+    pub(crate) fn of(channel: &str) -> Self {
+        if channel.starts_with("dm:") {
+            Self::DirectMessage
+        } else if channel.starts_with("p2pgroup:") {
+            Self::Group
+        } else {
+            Self::Public
+        }
+    }
+
+    /// Whether the file is encrypted on this device before it leaves. No wildcard arm, so a new
+    /// kind of conversation cannot be added without deciding this.
+    pub(crate) fn encrypts_file(self) -> bool {
+        match self {
+            Self::DirectMessage | Self::Group => true,
+            Self::Public => false,
+        }
+    }
+}
+
+/// One file waiting to be sent: everything the worker thread needs, taken from the app state
+/// on the frame, so the worker never touches `GuiState`.
+#[derive(Debug, Clone)]
+pub(crate) struct AttachJob {
+    pub server: String,
+    pub public_key: String,
+    pub filename: String,
+    pub mime: String,
+    pub bytes: Vec<u8>,
+    /// 3D model files also go to the server's public Shared Files library (`?share=1`), but
+    /// only from a public channel: sharing a private file publicly would undo the encryption.
+    pub share: bool,
+    pub to: Destination,
+}
+
+/// Exactly what one POST to `/api/upload` carries. What `run` hands its uploader.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Upload {
+    pub filename: String,
+    pub mime: String,
+    pub bytes: Vec<u8>,
+    pub share: bool,
+    pub encrypted: bool,
+}
+
+/// The job for a file picked with Attach, sent to the conversation on screen. None, with
+/// nothing sent, when it is over the size cap or its NAME holds the person's own recovery
+/// phrase (step F's guard: the name travels inside the marker, where the guard on the message
+/// text cannot read it, so it is checked here).
+pub(crate) fn attach_job(state: &mut GuiState, filename: &str, bytes: Vec<u8>) -> Option<AttachJob> {
+    if bytes.len() as u64 > ATTACH_MAX_BYTES {
+        log::warn!("Attach rejected: {filename} is {} bytes (max {ATTACH_MAX_BYTES})", bytes.len());
+        return None;
+    }
+    if crate::engine::warnings::guard_stops(state, &[filename]) {
+        return None;
+    }
+    let to = Destination::of(&state.chat_active_channel);
+    let share = !to.encrypts_file()
+        && crate::gui::widgets::file_browser::name_matches_ext(filename, SHARE_EXTS);
+    Some(AttachJob {
+        server: state.server_url.clone(),
+        public_key: state.profile_public_key.clone(),
+        filename: filename.to_string(),
+        mime: mime_for_filename(filename).to_string(),
+        bytes,
+        share,
+        to,
+    })
+}
+
+/// The job for an image pasted from the clipboard (always a PNG the app encoded itself, under
+/// a fixed name). The same size cap as Attach: a big screenshot is refused here rather than by
+/// the server after the upload.
+pub(crate) fn paste_job(state: &GuiState, png: Vec<u8>) -> Option<AttachJob> {
+    if png.len() as u64 > ATTACH_MAX_BYTES {
+        log::warn!("Paste rejected: the image is {} bytes (max {ATTACH_MAX_BYTES})", png.len());
+        return None;
+    }
+    Some(AttachJob {
+        server: state.server_url.clone(),
+        public_key: state.profile_public_key.clone(),
+        filename: "pasted-image.png".to_string(),
+        mime: "image/png".to_string(),
+        bytes: png,
+        share: false,
+        to: Destination::of(&state.chat_active_channel),
+    })
+}
+
+/// Upload `job` with `upload(server, public_key, what)` and return the message text to send:
+/// the `[[hum:file:v1]]` marker for a private conversation, the file's URL for a public one.
+/// For a private one the uploader only ever sees ciphertext under a neutral name and type; the
+/// real name and type ride inside the marker with the key. Runs on the upload worker.
+pub(crate) fn run<U>(job: AttachJob, upload: U) -> Result<String, String>
+where
+    U: FnOnce(&str, &str, Upload) -> Result<String, String>,
+{
+    // Checked again here, so no path can reach an upload past the cap.
+    if job.bytes.len() as u64 > ATTACH_MAX_BYTES {
+        return Err(format!("the file is {} bytes, over the {ATTACH_MAX_BYTES} limit", job.bytes.len()));
+    }
+    if !job.to.encrypts_file() {
+        let plain = Upload { filename: job.filename, mime: job.mime, bytes: job.bytes, share: job.share, encrypted: false };
+        return upload(&job.server, &job.public_key, plain);
+    }
+    let size = job.bytes.len() as u64;
+    let (ciphertext, k, n) = crate::net::dm_pq::encrypt_attachment(&job.bytes)?;
+    let sealed = Upload {
+        filename: "attachment.enc".to_string(),
+        mime: "application/octet-stream".to_string(),
+        bytes: ciphertext,
+        share: false,
+        encrypted: true,
+    };
+    let url = upload(&job.server, &job.public_key, sealed)?;
+    Ok(crate::net::dm_pq::build_file_marker(&crate::net::dm_pq::DmAttachment {
+        url,
+        k,
+        n,
+        name: job.filename,
+        mime: job.mime,
+        size,
+    }))
+}
+
+/// Start sending `job` to the conversation on screen: the upload on a worker thread, its result
+/// drained by `drain` on a later frame.
+fn start(state: &mut GuiState, job: AttachJob) {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(run(job, |server, key, up| {
+            upload_file_blocking_ext(server, key, &up.filename, &up.mime, up.bytes, up.share, up.encrypted)
+        }));
+    });
+    state.clipboard_upload = Some((state.chat_active_channel.clone(), rx));
+}
+
+/// The Attach picker chose `path`: read it and start sending it.
+pub(super) fn start_attach(state: &mut GuiState, path: &std::path::Path) {
+    let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("file").to_string();
+    match std::fs::read(path) {
+        Ok(bytes) => {
+            if let Some(job) = attach_job(state, &filename, bytes) {
+                start(state, job);
+            }
+        }
+        Err(e) => log::warn!("Attach read failed for {filename}: {e}"),
+    }
+}
+
+/// An image was pasted (Ctrl+V with a picture on the clipboard): start sending it.
+pub(super) fn start_paste(state: &mut GuiState, png: Vec<u8>) {
+    if let Some(job) = paste_job(state, png) {
+        start(state, job);
+    }
+}
+
+/// What is said when a private file's upload finishes after the person has left the
+/// conversation it was for.
+pub(crate) const LEFT_BEFORE_UPLOAD: &str =
+    "The file was not sent, because you left the conversation before it finished uploading.";
+
+/// Drain a finished upload: send its text through the single content authority
+/// (`send_composed_content`), which seals a DM, encrypts a group message and keeps the
+/// scratchpad local. (Before v0.708 this sent a raw chat message, which bypassed DM encryption:
+/// the privacy-leak class the web client fixed in v0.698.2.) It goes to the view on screen,
+/// like the web, except that a marker goes only to the conversation it was made for: its key
+/// would let anyone in another view (a public channel, say) open the file. Nothing about the
+/// upload is logged but whether it went, since a marker's text holds the file's key.
+pub(super) fn drain(ctx: &egui::Context, state: &mut GuiState) {
+    let Some((channel, rx)) = state.clipboard_upload.as_ref() else { return };
+    let made_for = channel.clone();
+    match rx.try_recv() {
+        Ok(Ok(content)) => {
+            state.clipboard_upload = None;
+            let is_marker = crate::net::dm_pq::parse_file_marker(&content).is_some();
+            if is_marker && made_for != state.chat_active_channel {
+                state.pending_notices.push(LEFT_BEFORE_UPLOAD.to_string());
+                return;
+            }
+            let sent = send_composed_content(state, &content);
+            log::info!("Upload finished; routed send (sent={sent}, private={is_marker})");
+        }
+        Ok(Err(e)) => {
+            state.clipboard_upload = None;
+            log::warn!("Attachment upload failed: {e}");
+        }
+        Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+            state.clipboard_upload = None;
+            log::warn!("Attachment upload worker stopped unexpectedly");
+        }
+        Err(std::sync::mpsc::TryRecvError::Empty) => {
+            ctx.request_repaint_after(std::time::Duration::from_millis(120));
+        }
+    }
+}
+
+/// Blocking multipart upload of any file to `<server_url>/api/upload?key=<pk>`
+/// (v0.708; `share=true` adds `&share=1` so 3D/model files publish to the
+/// public Shared Files library, matching the web client). Returns the URL
+/// from the JSON response. Runs on a worker thread at every call site, so
+/// blocking here never freezes a frame. nginx caps the body at 6 MB.
+pub(crate) fn upload_file_blocking(
+    server_url: &str,
+    public_key: &str,
+    filename: &str,
+    mime: &str,
+    bytes: Vec<u8>,
+    share: bool,
+) -> Result<String, String> {
+    upload_file_blocking_ext(server_url, public_key, filename, mime, bytes, share, false)
+}
+
+/// As `upload_file_blocking`, plus an `encrypted` flag. When set, the body is
+/// opaque ciphertext and the server skips format/EXIF handling
+/// (`?encrypted=1`). Used for files in private conversations.
+pub(crate) fn upload_file_blocking_ext(
+    server_url: &str,
+    public_key: &str,
+    filename: &str,
+    mime: &str,
+    bytes: Vec<u8>,
+    share: bool,
+    encrypted: bool,
+) -> Result<String, String> {
+    let base = server_url.trim_end_matches('/');
+    let share_q = if share { "&share=1" } else { "" };
+    let enc_q = if encrypted { "&encrypted=1" } else { "" };
+    let upload_url = format!("{base}/api/upload?key={key}{share_q}{enc_q}", base = base, key = public_key);
+    let boundary = format!("HumanityOSBoundary{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+    );
+    // Sanitize the filename for the multipart header (quotes/CRLF would
+    // corrupt the form-data framing).
+    let safe_name: String = filename
+        .chars()
+        .map(|c| if c == '"' || c == '\r' || c == '\n' { '_' } else { c })
+        .collect();
+    let preamble = format!(
+        "--{b}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{f}\"\r\nContent-Type: {m}\r\n\r\n",
+        b = boundary, f = safe_name, m = mime,
+    );
+    let epilogue = format!("\r\n--{b}--\r\n", b = boundary);
+    let mut body: Vec<u8> = Vec::with_capacity(preamble.len() + bytes.len() + epilogue.len());
+    body.extend_from_slice(preamble.as_bytes());
+    body.extend_from_slice(&bytes);
+    body.extend_from_slice(epilogue.as_bytes());
+
+    let resp = ureq::post(&upload_url)
+        .set("Content-Type", &format!("multipart/form-data; boundary={}", boundary))
+        .send_bytes(&body)
+        .map_err(|e| format!("HTTP POST failed: {e}"))?;
+    let body_str = resp.into_string()
+        .map_err(|e| format!("read response: {e}"))?;
+    let val: serde_json::Value = serde_json::from_str(&body_str)
+        .map_err(|e| format!("parse JSON: {e}; body={body_str}"))?;
+    val.get("url")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| format!("response missing 'url' field: {body_str}"))
+}
+
+#[cfg(test)]
+#[path = "attach_send_tests.rs"]
+mod tests;
