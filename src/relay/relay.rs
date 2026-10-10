@@ -184,6 +184,8 @@ pub struct RelayState {
     pub dm_knocks: RwLock<HashMap<String, (i64, u32)>>,
     /// "Who can reach me", in memory only: calls let through, contact requests sent today (handlers/reach.rs).
     pub reach: crate::relay::handlers::reach::ReachState,
+    /// The reasons a report may give, from data/safety/report_reasons.json at start (handlers/reports.rs).
+    pub report_reasons: crate::relay::handlers::reports::ReportReasons,
     /// Last account-export time per key, for the per-minute limit on
     /// POST /api/account/export. In-memory only: a missed limit after a
     /// restart is harmless, a persisted one would be a new per-user table
@@ -461,6 +463,7 @@ impl RelayState {
             rate_limits: RwLock::new(HashMap::new()),
             dm_knocks: RwLock::new(HashMap::new()),
             reach: Default::default(),
+            report_reasons: crate::relay::handlers::reports::ReportReasons::load(),
             account_export_last: RwLock::new(HashMap::new()),
             lockdown: RwLock::new(effective_lockdown),
             auto_lockdown: RwLock::new(false),
@@ -1346,6 +1349,16 @@ pub enum RelayMessage {
     /// `kind` "message" or "trade"; the same for everyone refused. `sender` routes it, unsent.
     #[serde(rename = "reach_refused")]
     ReachRefused { #[serde(skip)] sender: String, kind: String, to: String },
+
+    /// Server -> the reporter: their report was kept as `id` (handlers/reports.rs). `to` routes it, unsent.
+    #[serde(rename = "report_received")]
+    ReportReceived { #[serde(skip)] to: String, id: i64 },
+
+    /// Server -> an admin or moderator: the `state` ("open" or "decided") reports they asked for
+    /// (handlers/reports.rs `item_json`). Evidence is readable text: `to` routes it to that person's
+    /// sockets alone, unsent.
+    #[serde(rename = "reports")]
+    Reports { #[serde(skip)] to: String, state: String, items: Vec<serde_json::Value> },
 
     /// Edit a message — identified by sender key + timestamp.
     #[serde(rename = "edit")]
@@ -3265,6 +3278,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
             if let RelayMessage::ReachSettings { to: ref who, .. } | RelayMessage::ReachRefused { sender: ref who, .. } = msg {
                 if who != &my_key_for_broadcast { continue; }
             }
+            // Reports (handlers/reports.rs): the receipt to its reporter, the list to whoever asked for it.
+            if let RelayMessage::ReportReceived { to: ref who, .. } | RelayMessage::Reports { to: ref who, .. } = msg {
+                if who != &my_key_for_broadcast { continue; }
+            }
 
             // ProfileData: when target is set deliver only to that client; when None broadcast to all.
             if let RelayMessage::ProfileData { ref target, .. } = msg {
@@ -3576,6 +3593,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             }
                             Some("cert_revoke") => { crate::relay::handlers::friend_passes::handle_cert_revoke(&state_clone, &my_key_for_recv, &raw).await; continue; }
                             Some("reach_set") => { crate::relay::handlers::reach::handle_reach_set(&state_clone, &my_key_for_recv, &raw).await; continue; }
+                            Some(kind @ ("report_v2" | "reports_list" | "report_decide")) => { crate::relay::handlers::reports::handle(&state_clone, &my_key_for_recv, kind, &raw, &text).await; continue; }
                             // ── Trade messages ──
                             Some("trade_request") => {
                                 handle_trade_request(&state_clone, &my_key_for_recv, &raw).await;
@@ -3877,7 +3895,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                 "  /link — Generate a code to link another device".to_string(),
                                                 "  /revoke <key_prefix> — Remove a stolen/lost device from your name".to_string(),
                                                 "  /users — List all registered users (online/offline)".to_string(),
-                                                "  /report <name> [reason] — Report a user".to_string(),
+                                                "  /report - How to report someone (Report on their message, conversation or name)".to_string(),
                                                 "  /dms — List your DM conversations".to_string(),
                                                 "  /edit <text> — Edit your last message".to_string(),
                                                 "  /pins — List pinned messages".to_string(),
@@ -3894,6 +3912,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                 help_text.push("  /unmute <name> — Unmute a user".to_string());
                                                 help_text.push("  /pin — Pin the last message in the channel".to_string());
                                                 help_text.push("  /unpin <N> — Unpin a message by its index".to_string());
+                                                help_text.push("  /reports - List the latest reports (the Reports page shows their evidence)".to_string());
                                             }
                                             if role == "admin" || role == "mod" {
                                                 help_text.push("  /invite — Generate a one-time invite code for lockdown bypass".to_string());
@@ -3918,8 +3937,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                 help_text.push("  /channel-readonly <name> — Toggle read-only on a channel".to_string());
                                                 help_text.push("  /channel-reorder <name> <pos> — Set channel sort order (lower = higher)".to_string());
                                                 help_text.push("  /name-release <name> — Release a name (for account recovery)".to_string());
-                                                help_text.push("  /reports — View recent reports".to_string());
-                                                help_text.push("  /reports-clear — Clear all reports".to_string());
+                                                help_text.push("  /reports-clear - Delete the decided reports (open ones stay)".to_string());
                                                 help_text.push("".to_string());
                                                 help_text.push("🌐 Federation:".to_string());
                                                 help_text.push("  /server-add <url> [name] — Add a federated server".to_string());
@@ -4479,118 +4497,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                 broadcast_full_user_list(&state_clone).await;
                                             }
                                         }
-                                        "/report" => {
-                                            // /report <name> [reason] — available to all users.
-                                            let parts: Vec<&str> = trimmed.splitn(3, char::is_whitespace).collect();
-                                            let target_name = parts.get(1).unwrap_or(&"").to_string();
-                                            let reason = parts.get(2).unwrap_or(&"").to_string();
-                                            if target_name.is_empty() {
-                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /report <name> [reason]".to_string() };
-                                                let _ = state_clone.broadcast_tx.send(private);
-                                            } else if target_name.eq_ignore_ascii_case(&display) {
-                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "You can't report yourself.".to_string() };
-                                                let _ = state_clone.broadcast_tx.send(private);
-                                            } else {
-                                                // Check target exists.
-                                                match state_clone.db.keys_for_name(&target_name) {
-                                                    Ok(keys) if !keys.is_empty() => {
-                                                        // Rate limit check.
-                                                        let now_ms = std::time::SystemTime::now()
-                                                            .duration_since(std::time::UNIX_EPOCH)
-                                                            .unwrap_or_default()
-                                                            .as_millis() as i64;
-                                                        let one_hour_ago = now_ms - 3_600_000;
-                                                        let recent_count = state_clone.db.count_recent_reports(&my_key_for_recv, one_hour_ago).unwrap_or(0);
-                                                        let reporter_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                                        let max_reports: usize = if reporter_role == "verified" || reporter_role == "donor" { 5 } else { 3 };
-                                                        if recent_count >= max_reports {
-                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("You've reached the report limit ({} per hour). Please wait.", max_reports) };
-                                                            let _ = state_clone.broadcast_tx.send(private);
-                                                        } else {
-                                                            // Store report.
-                                                            if let Err(e) = state_clone.db.add_report(&my_key_for_recv, &target_name, &reason) {
-                                                                tracing::error!("Failed to add report: {e}");
-                                                            }
-                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("✅ Report submitted for {}.", target_name) };
-                                                            let _ = state_clone.broadcast_tx.send(private);
-                                                            // Notify all online admins.
-                                                            let reason_display = if reason.is_empty() { "(no reason)".to_string() } else { reason.clone() };
-                                                            let peers = state_clone.peers.read().await;
-                                                            for p in peers.values() {
-                                                                let pr = state_clone.db.get_role(&p.public_key_hex).unwrap_or_default();
-                                                                if pr == "admin" || pr == "mod" {
-                                                                    let notif = RelayMessage::Private {
-                                                                        to: p.public_key_hex.clone(),
-                                                                        message: format!("⚠️ New report: {} reported {} — {}", display, target_name, reason_display),
-                                                                    };
-                                                                    let _ = state_clone.broadcast_tx.send(notif);
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                    _ => {
-                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("User '{}' not found.", target_name) };
-                                                        let _ = state_clone.broadcast_tx.send(private);
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        "/reports" => {
-                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" && role != "mod" {
-                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can view reports.".to_string() };
-                                                let _ = state_clone.broadcast_tx.send(private);
-                                            } else {
-                                                match state_clone.db.get_reports(20) {
-                                                    Ok(reports) if reports.is_empty() => {
-                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "No reports.".to_string() };
-                                                        let _ = state_clone.broadcast_tx.send(private);
-                                                    }
-                                                    Ok(reports) => {
-                                                        let now_ms = std::time::SystemTime::now()
-                                                            .duration_since(std::time::UNIX_EPOCH)
-                                                            .unwrap_or_default()
-                                                            .as_millis() as i64;
-                                                        let mut lines = vec!["📋 Recent reports:".to_string()];
-                                                        for (id, reporter_key, reported_name, reason, created_at) in &reports {
-                                                            let ago_secs = ((now_ms - created_at) / 1000).max(0);
-                                                            let time_ago = if ago_secs < 60 { format!("{}s ago", ago_secs) }
-                                                                else if ago_secs < 3600 { format!("{}m ago", ago_secs / 60) }
-                                                                else if ago_secs < 86400 { format!("{}h ago", ago_secs / 3600) }
-                                                                else { format!("{}d ago", ago_secs / 86400) };
-                                                            let reporter_short = if reporter_key.len() > 8 { &reporter_key[..8] } else { reporter_key };
-                                                            let reason_display = if reason.is_empty() { "(no reason)" } else { reason.as_str() };
-                                                            lines.push(format!("  {} | {}… → {} | {} | {}", id, reporter_short, reported_name, reason_display, time_ago));
-                                                        }
-                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: lines.join("\n") };
-                                                        let _ = state_clone.broadcast_tx.send(private);
-                                                    }
-                                                    Err(e) => {
-                                                        tracing::error!("Failed to get reports: {e}");
-                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Error: {e}") };
-                                                        let _ = state_clone.broadcast_tx.send(private);
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        "/reports-clear" => {
-                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
-                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can clear reports.".to_string() };
-                                                let _ = state_clone.broadcast_tx.send(private);
-                                            } else {
-                                                match state_clone.db.clear_reports() {
-                                                    Ok(count) => {
-                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("🧹 Cleared {} report(s).", count) };
-                                                        let _ = state_clone.broadcast_tx.send(private);
-                                                    }
-                                                    Err(e) => {
-                                                        tracing::error!("Failed to clear reports: {e}");
-                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Error: {e}") };
-                                                        let _ = state_clone.broadcast_tx.send(private);
-                                                    }
-                                                }
-                                            }
+                                        // Reports (handlers/reports.rs): /report says how reports are made now, /reports reads
+                                        // reports_v2, /reports-clear deletes the decided ones.
+                                        "/report" | "/reports" | "/reports-clear" => {
+                                            crate::relay::handlers::reports::handle_slash(&state_clone, &my_key_for_recv, &cmd).await;
                                         }
                                         "/dm" => {
                                             // v0.279.0 LOW-1 cleanup: the old `/dm <name> <msg>`

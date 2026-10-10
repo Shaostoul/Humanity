@@ -151,3 +151,28 @@ async fn a_closed_channel_still_ends_the_loop() {
         "a closed channel must end the loop, or shutdown would spin forever"
     );
 }
+
+// ── Reports on the wire (handlers/reports.rs) ──
+
+/// The exact shapes of docs/design/blocking-and-safe-mode.md 10e that the relay sends:
+/// `report_received` carries only `id`, and `reports` only `state` and `items`; the key each is
+/// routed by is never sent (a list's evidence is readable text, so a `to` that leaked onto the
+/// wire would also be a routing field someone could forget).
+///
+/// Seen red 2026-10-09 with the `#[serde(skip)]` taken off `Reports::to`: "the list carries
+/// exactly type, state and items" (it carried `to` as well).
+#[test]
+fn report_messages_have_the_exact_shapes_the_clients_read() {
+    let received = RelayMessage::ReportReceived { to: "me".into(), id: 7 };
+    assert_eq!(
+        serde_json::to_value(&received).unwrap(),
+        serde_json::json!({ "type": "report_received", "id": 7 }),
+        "the receipt carries exactly type and id"
+    );
+    let list = RelayMessage::Reports { to: "me".into(), state: "open".into(), items: vec![serde_json::json!({ "id": 7 })] };
+    assert_eq!(
+        serde_json::to_value(&list).unwrap(),
+        serde_json::json!({ "type": "reports", "state": "open", "items": [{ "id": 7 }] }),
+        "the list carries exactly type, state and items"
+    );
+}

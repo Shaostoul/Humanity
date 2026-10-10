@@ -1397,6 +1397,9 @@ pub async fn handle_task_comments_request(
 ///   - mod:  set target's role to "mod"
 ///   - unmod: set target's role to "member"
 ///
+///   - warn: tells the target (every key under their name) that a moderator warned them; nothing
+///     is stored. Added 2026-10-09 for a report's decision (handlers/reports.rs).
+///
 /// All actions report success / failure as a Private message to the caller.
 pub async fn handle_mod_action(
     state: &Arc<RelayState>,
@@ -1405,34 +1408,39 @@ pub async fn handle_mod_action(
     target: &str,
     target_name: &str,
 ) {
+    if let Some(why) = mod_action_refusal(state, my_key, action, target, target_name) {
+        let _ = state.broadcast_tx.send(RelayMessage::Private { to: my_key.to_string(), message: why });
+        return;
+    }
+    // The first eight characters, never bytes: a byte cut through a character panics.
+    let display_name = if !target.is_empty() {
+        state.db.name_for_key(target).ok().flatten().unwrap_or_else(|| target.chars().take(8).collect())
+    } else {
+        target_name.to_string()
+    };
+    mod_action_carry_out(state, my_key, action, target, target_name, display_name).await;
+}
+
+/// Why the moderation rules refuse `my_key` taking `action` against `target` (a key) and/or
+/// `target_name`, or None when they allow it. The rules: only a moderator or admin acts; ban,
+/// mod, unmod, verify and unverify are for admins; a key or a name must be given; nobody kicks,
+/// bans, mutes or warns themselves; and only an admin acts on an admin. `handle_mod_action` and a
+/// report's decision (handlers/reports.rs `handle_decide`) both ask this, so one set of rules
+/// holds for both (split out of `handle_mod_action` unchanged, 2026-10-09).
+pub fn mod_action_refusal(state: &RelayState, my_key: &str, action: &str, target: &str, target_name: &str) -> Option<String> {
     let my_role = state.db.get_role(my_key).unwrap_or_default();
     let is_admin = my_role == "admin";
     let is_mod = is_admin || my_role == "moderator" || my_role == "mod";
     if !is_mod {
-        let private = RelayMessage::Private {
-            to: my_key.to_string(),
-            message: "You don't have permission to perform moderation actions.".to_string(),
-        };
-        let _ = state.broadcast_tx.send(private);
-        return;
+        return Some("You don't have permission to perform moderation actions.".to_string());
     }
     // Admin-only actions.
     if matches!(action, "ban" | "mod" | "unmod" | "verify" | "unverify") && !is_admin {
-        let private = RelayMessage::Private {
-            to: my_key.to_string(),
-            message: format!("'{action}' requires admin privileges."),
-        };
-        let _ = state.broadcast_tx.send(private);
-        return;
+        return Some(format!("'{action}' requires admin privileges."));
     }
     // Caller must supply at least one identifier (key OR name).
     if target.is_empty() && target_name.is_empty() {
-        let private = RelayMessage::Private {
-            to: my_key.to_string(),
-            message: format!("{action}: no target specified."),
-        };
-        let _ = state.broadcast_tx.send(private);
-        return;
+        return Some(format!("{action}: no target specified."));
     }
     // Resolve EVERY public key this action could touch: the explicit
     // target key (if any) PLUS every key registered under target_name
@@ -1452,18 +1460,13 @@ pub async fn handle_mod_action(
     candidate_keys.sort();
     candidate_keys.dedup();
 
-    // Never let someone kick/ban/mute themselves through the moderation
+    // Never let someone kick/ban/mute/warn themselves through the moderation
     // UI — checked against the resolved key set so a name-only
     // self-target is caught too (previously only `target == my_key`).
-    if matches!(action, "kick" | "ban" | "mute")
+    if matches!(action, "kick" | "ban" | "mute" | "warn")
         && candidate_keys.iter().any(|k| k == my_key)
     {
-        let private = RelayMessage::Private {
-            to: my_key.to_string(),
-            message: format!("You can't {action} yourself."),
-        };
-        let _ = state.broadcast_tx.send(private);
-        return;
+        return Some(format!("You can't {action} yourself."));
     }
     // Don't allow non-admins to act on a protected (admin/owner)
     // account. Now checks ALL resolved keys — if ANY registration under
@@ -1475,22 +1478,34 @@ pub async fn handle_mod_action(
             r == "admin" || r == "owner"
         });
         if touches_protected {
-            let private = RelayMessage::Private {
-                to: my_key.to_string(),
-                message: "Only an admin can act on another admin.".to_string(),
-            };
-            let _ = state.broadcast_tx.send(private);
-            return;
+            return Some("Only an admin can act on another admin.".to_string());
         }
     }
+    None
+}
 
-    let display_name = if !target.is_empty() {
-        state.db.name_for_key(target).ok().flatten().unwrap_or_else(|| target[..8.min(target.len())].to_string())
-    } else {
-        target_name.to_string()
-    };
-
+/// The effect of a moderation action `mod_action_refusal` allowed (`handle_mod_action`).
+async fn mod_action_carry_out(state: &Arc<RelayState>, my_key: &str, action: &str, target: &str, target_name: &str, display_name: String) {
     match action {
+        "warn" => {
+            let mut keys: Vec<String> = Vec::new();
+            if !target.is_empty() {
+                keys.push(target.to_string());
+            }
+            if !target_name.is_empty() {
+                keys.extend(state.db.keys_for_name(target_name).unwrap_or_default());
+            }
+            keys.retain(|k| !k.is_empty());
+            keys.sort();
+            keys.dedup();
+            for k in &keys {
+                let _ = state.broadcast_tx.send(RelayMessage::Private {
+                    to: k.clone(),
+                    message: "A moderator has warned you. Please keep to this server's rules: more trouble can lead to a mute or a ban.".to_string(),
+                });
+            }
+            let _ = state.broadcast_tx.send(RelayMessage::Private { to: my_key.to_string(), message: format!("✓ Warned {display_name}.") });
+        }
         "kick" | "ban" => {
             // Delete by public_key (preferred) AND/OR by name (fallback
             // for users with empty/unknown key — e.g. DesktopUser_4000

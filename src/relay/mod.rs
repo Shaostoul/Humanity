@@ -1404,7 +1404,11 @@ async fn ws_handler(
         .or_else(|| headers.get("x-real-ip").and_then(|v| v.to_str().ok()).map(|s| s.trim().to_string()))
         .unwrap_or_else(|| "unknown".to_string());
 
-    ws.max_frame_size(65_536)       // 64KB max frame
+    // One frame may be as large as one message (2026-10-09): browsers send a message as a
+    // single frame, and a report may carry 64 KB of evidence plus its keys and signature
+    // (handlers/reports.rs), more than the old 64 KB frame. The memory bound is unchanged: a
+    // message could already reach 128 KB in several frames.
+    ws.max_frame_size(131_072)      // 128KB max frame
       .max_message_size(131_072)    // 128KB max message
       .on_upgrade(move |socket| handle_socket(socket, state.0, client_ip))
       .into_response()
