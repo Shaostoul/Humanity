@@ -49,6 +49,15 @@
 //  8. The voice modal's Block, Unblock, Follow, Direct message, a moderation action and Report reach
 //     the person (chat-ui.js setCtxMenuTarget; setting window.ctxMenuTarget never reached chat-ui's
 //     `let ctxMenuTarget`, so these did nothing before 2026-10-09).
+//  9. Help outside this server (10e-ii, 2026-10-10), over the shipped data/safety/outside_help.json
+//     (its pure rules are in scripts/tests/outside-help-web.test.js): the block under the reason's
+//     help for the two danger reasons only; the picker (the countries by name, then Another
+//     country) starting on the language's country; the number, the child body as a link opening in
+//     a new tab with rel="noopener noreferrer", smaller for someone in danger; the date from the
+//     file; a pick kept in localStorage and winning when the dialog opens again, a saved value no
+//     longer listed falling through; storage that refuses changes nothing else; the country is
+//     never sent and nothing looks up where I am; with the file unreadable, no block and the
+//     report still goes.
 //
 // Red first, 2026-10-09: each mutation made in a fresh copy of web/, this test run against it with
 // HOS_WEB_DIR, and seen failing with the assertion named (each passing again on the real web/):
@@ -76,6 +85,17 @@
 //     says so".
 //  8: chat-voice-modal.js withTarget setting window.ctxMenuTarget again, as before the fix:
 //     "Block blocks them".
+//  9 (2026-10-10), each alone: report.js OUTSIDE_HELP_REASONS with 'threats' added: "the block for
+//     threats? only for the two danger reasons"; outsideHelpView dropping the also lines: "Germany's
+//     number and its also line"; its sentence for Another country left out: "Another country gives
+//     the sentence"; outsideHelpFirstCountry asking the language first: "reopened, the saved choice
+//     wins over the language"; and taking any saved string: "a saved value no longer listed falls
+//     through to the language". chat-reports.js: the link without rel: "the child report body as a
+//     link that opens in a new tab and tells the site nothing"; outsideHelpSave keeping nothing:
+//     "the pick is kept on this device"; the block drawn as for child_danger whatever the reason:
+//     "the block for spam? only for the two danger reasons"; the country added to the sent frame:
+//     "the country is never sent"; outsideHelpSaved without its try/catch: the test fails on the
+//     storage error.
 
 const test = require("node:test");
 const assert = require("node:assert");
@@ -257,17 +277,28 @@ async function loadChat(opts = {}) {
   const ctx = {
     console: { log() {}, warn() {}, error() {}, info() {}, debug() {} },
     document: fakeDocument(state),
-    navigator: new Proxy({}, { get: (_t, p) => (p === "serviceWorker" ? serviceWorker : anything()), has: () => true }),
+    // opts.navSeen, when given, records every property read, so a test can say what was never asked.
+    navigator: new Proxy({}, {
+      get: (_t, p) => {
+        if (opts.navSeen) opts.navSeen.push(String(p));
+        return p === "serviceWorker" ? serviceWorker : (p === "language" && "language" in opts) ? opts.language : anything();
+      },
+      has: () => true,
+    }),
     location: { hash: "", host: "localhost", protocol: "https:", pathname: "/chat", search: "", reload() {} },
-    localStorage: fakeStorage(),
+    localStorage: opts.storage || fakeStorage(),
     sessionStorage: fakeStorage(),
     indexedDB: fakeIndexedDB(),
-    // No network but the two files the page asks this server for here.
+    // No network but the files the page asks this server for here (the outside help lines only
+    // when a test serves them: the shipped file, data/safety/outside_help.json).
     fetch: (url) => {
       fetched.push(String(url));
       if (String(url).startsWith("/api/federation/servers")) return Promise.resolve({ ok: true, json: async () => [] });
       if (String(url).startsWith(report.REPORT_REASONS_URL)) {
         return opts.noReasons ? Promise.reject(new Error("offline")) : Promise.resolve({ ok: true, json: async () => JSON.parse(JSON.stringify(STUB_REASONS)) });
+      }
+      if (opts.outsideHelp && String(url).startsWith("/data/safety/outside_help.json")) {
+        return Promise.resolve({ ok: true, json: async () => JSON.parse(JSON.stringify(opts.outsideHelp)) });
       }
       return Promise.reject(new Error("no network in tests"));
     },
@@ -907,4 +938,114 @@ test("the voice modal's Block, Unblock, Follow, Direct message and moderation ac
   assert.deepEqual([dialog().target, dialog().context], [BEN, "profile"], "Report opens the dialog for them");
   fn("closeReportDialog")();
   assert.equal(typeof fn("setCtxMenuTarget"), "function", "chat-ui exposes the setter the modal uses");
+});
+
+test("the danger reasons show help outside this server; the country stays on this device", async () => {
+  const OUTSIDE = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "safety", "outside_help.json"), "utf8"));
+  const KEY = report.OUTSIDE_HELP_SAVED_KEY;
+  const OTHER = report.OUTSIDE_HELP_OTHER;
+  const unesc = (s) => s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+  const country = (code) => OUTSIDE.countries.find((c) => c.code === code);
+  const storage = fakeStorage();
+  const navSeen = [];
+  const { sock, fetched, fn, el, dialog } = await loadChat({ outsideHelp: OUTSIDE, language: "en-GB", storage, navSeen });
+  await fn("openReportDialog")({ target: BEN, name: "Ben", context: "profile" });
+  await settle();
+  assert.ok(fetched.includes(report.OUTSIDE_HELP_URL), "the lines come from the data file");
+  assert.equal(dialog().country, "GB", "nothing saved: the language's region (en-GB gives GB)");
+
+  // Never for the other reasons.
+  for (const r of STUB_REASONS.reasons) {
+    assert.ok(fn("reportDialogChoose")(r.id));
+    const want = r.id === "child_danger" || r.id === "someone_in_danger";
+    assert.equal(el("report-card").innerHTML.includes("Help outside this server"), want, `the block for ${r.id}? only for the two danger reasons`);
+  }
+
+  // A child in danger, the United Kingdom first.
+  assert.ok(fn("reportDialogChoose")("child_danger"));
+  let html = el("report-card").innerHTML;
+  const helpAt = html.indexOf('data-report-help="child_danger"');
+  assert.ok(helpAt >= 0 && helpAt < html.indexOf("Help outside this server"), "under the reason's help");
+  assert.ok(html.includes('data-outside-help="GB"') && html.includes("Country:"));
+  const options = [...html.matchAll(/<option value="([^"]*)"( selected)?>([^<]*)<\/option>/g)];
+  assert.deepEqual(options.map((m) => unesc(m[3])), OUTSIDE.countries.map((c) => c.name).concat(["Another country"]), "the countries by name, then Another country");
+  assert.deepEqual(options.filter((m) => m[2]).map((m) => m[1]), ["GB"], "the language's country is the one chosen");
+  assert.ok(html.includes("Emergency: 999"), "the number, with Emergency: before it");
+  const link = html.match(/<a href="([^"]*)" target="_blank" rel="noopener noreferrer"[^>]*>([^<]*)<\/a>/);
+  assert.ok(link, "the child report body as a link that opens in a new tab and tells the site nothing");
+  assert.deepEqual([unesc(link[1]), unesc(link[2])], [country("GB").child_report.url, country("GB").child_report.name]);
+  assert.ok(!html.includes("report-outside-child-small"), "for a child in danger the child line is the main one");
+  assert.ok(html.includes(`Numbers checked on ${OUTSIDE.researched}. If one is wrong, tell us.`), "the date line, from the file");
+
+  // Someone in danger: the child line too, smaller, after the number.
+  assert.ok(fn("reportDialogChoose")("someone_in_danger"));
+  html = el("report-card").innerHTML;
+  assert.ok(html.includes("report-outside-child-small") && html.indexOf("Emergency: 999") < html.indexOf("report-outside-child-small"), "for someone in danger the child line is shown smaller, after the number");
+
+  // Germany: its also line; the pick is kept on this device.
+  assert.ok(fn("reportDialogSetCountry")("DE"));
+  assert.equal(storage.getItem(KEY), "DE", "the pick is kept on this device");
+  html = el("report-card").innerHTML;
+  assert.ok(html.includes("Emergency: 112") && html.includes("<strong>110</strong>: police"), "Germany's number and its also line");
+  assert.equal(fn("reportDialogSetCountry")("XX"), false, "only a listed country or Another country");
+  assert.equal(dialog().country, "DE");
+  // Another country: the sentence instead of a number.
+  assert.ok(fn("reportDialogSetCountry")(OTHER));
+  html = el("report-card").innerHTML;
+  assert.ok(html.includes(OUTSIDE.default.emergency_text) && !html.includes("Emergency:"), "Another country gives the sentence");
+  assert.equal(storage.getItem(KEY), OTHER);
+  assert.ok(fn("reportDialogSetCountry")("DE"));
+
+  // Sent: the country is never part of the report, and nothing is looked up.
+  assert.ok(fn("reportDialogChoose")("child_danger"));
+  assert.equal(await fn("submitReportDialog")(), true);
+  await settle();
+  const sent = reportFrames(sock);
+  assert.equal(sent.length, 1);
+  assert.deepEqual(Object.keys(sent[0]), ["type", "target", "context", "reason", "note", "evidence", "ts", "sig"], "the country is never sent");
+  assert.deepEqual(sock.sent.map((m) => m.type), ["report_v2"], "nothing else is sent");
+  assert.ok(!sock.raw.some((r) => /country|"DE"/.test(r)), "the country is never sent");
+  // The page's own data files and its server list, nothing that could look up where I am, and no
+  // address carrying the country.
+  assert.deepEqual(fetched.filter((u) => !u.startsWith("/data/") && !u.startsWith("/api/federation/servers")), [], "only the data files are asked for: no location lookup");
+  assert.ok(!fetched.some((u) => /\b(DE|GB)\b/.test(u)), "no address carries the country");
+  assert.ok(!navSeen.includes("geolocation"), "the location service is never asked");
+
+  // Reopened: the saved pick wins over the language.
+  await fn("openReportDialog")({ target: BEN, context: "profile" });
+  await settle();
+  assert.equal(dialog().country, "DE", "reopened, the saved choice wins over the language");
+  fn("closeReportDialog")();
+
+  // A saved value no longer listed falls through to the language.
+  const old = fakeStorage();
+  old.setItem(KEY, "TW");
+  const b = await loadChat({ outsideHelp: OUTSIDE, language: "en-GB", storage: old });
+  await b.fn("openReportDialog")({ target: BEN, context: "profile" });
+  await settle();
+  assert.equal(b.dialog().country, "GB", "a saved value no longer listed falls through to the language");
+
+  // Storage that refuses, and a language naming no listed country: Another country, and a pick
+  // still works for this dialog.
+  const refusing = fakeStorage();
+  const get = refusing.getItem, set = refusing.setItem;
+  refusing.getItem = (k) => { if (k === KEY) throw new Error("storage is off"); return get(k); };
+  refusing.setItem = (k, v) => { if (k === KEY) throw new Error("storage is off"); return set(k, v); };
+  const c = await loadChat({ outsideHelp: OUTSIDE, language: "en", storage: refusing });
+  await c.fn("openReportDialog")({ target: BEN, context: "profile" });
+  await settle();
+  assert.equal(c.dialog().country, OTHER, "en alone gives Another country");
+  assert.ok(c.fn("reportDialogChoose")("child_danger"));
+  assert.ok(c.el("report-card").innerHTML.includes(OUTSIDE.default.emergency_text));
+  assert.ok(c.fn("reportDialogSetCountry")("FR"), "a pick works for this dialog when it cannot be kept");
+  assert.ok(c.el("report-card").innerHTML.includes("Emergency: 112"));
+
+  // The file not loading: no block, and the report still goes.
+  const d = await loadChat({ language: "en-GB" });
+  await d.fn("openReportDialog")({ target: BEN, context: "profile" });
+  await settle();
+  assert.ok(d.fn("reportDialogChoose")("child_danger"));
+  html = d.el("report-card").innerHTML;
+  assert.ok(html.includes('data-report-help="child_danger"') && !html.includes("Help outside this server"), "no block while the lines cannot be read");
+  assert.equal(await d.fn("submitReportDialog")(), true, "and the report still goes");
 });
