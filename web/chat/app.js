@@ -1122,6 +1122,12 @@ async function handleMessage(msg) {
       // The relay confirmed a friendship pass withdrawal (chat-social.js).
       if (typeof friendPassWithdrawn === 'function') friendPassWithdrawn(msg.serial);
       break;
+    case 'dm_put_ok':
+    case 'dm_put_refused':
+      // The relay's answer to a put that gave a friendship pass (10l): only
+      // dm_put_ok records it as given (chat-social.js settlePassPut).
+      if (typeof friendPassPutAnswered === 'function') friendPassPutAnswered(msg);
+      break;
     case 'typing': {
       // Someone I blocked is never shown typing (by key, step C).
       if (isBlockedKey(msg.from)) break;

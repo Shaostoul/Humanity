@@ -38,6 +38,14 @@
 //     new pass went; Unfollow and Block clear the choice, so a friendship begun again starts from
 //     the defaults; the "In use now" line for every mix of row settings; the page lists each
 //     friend once with three ticks, wired, held still while their pass is minted.
+//  7. 10l (2026-10-10): a re-issued pass (a tick) and a contact request's pass carry a ref and
+//     count as given only after the relay's `dm_put_ok`, which is also when the passes they
+//     replace are withdrawn, the self-copy goes and (for a request) I follow them; refused or
+//     unanswered for 30 seconds, nothing is recorded or withdrawn, the ticks stay as chosen
+//     (also on the Safety page), a request says it was not delivered, and the next sweep sends
+//     the same `may`; a reply on a pass that went unanswered is not dropped as a stranger's, and
+//     Block withdraws that pass. Tests that go on to use a pass answer the relay's way first
+//     (answerPuts), since it counts as given only then.
 //
 // Red first, 2026-10-09 (each mutation made in a copy of web/, run, seen failing; tests 0, 4 and 5
 // seen red again after the amendment):
@@ -202,6 +210,19 @@ async function settle() {
 
 const b64 = (s) => Buffer.from(s, "utf8").toString("base64");
 const unb64 = (s) => Buffer.from(s, "base64").toString("utf8");
+
+// The relay's answer (10l, 2026-10-10) to every put that carried a ref and has not been answered
+// yet: `dm_put_ok`, as a relay that stored them sends, or `dm_put_refused` with `reason`. A pass
+// counts as given only after `dm_put_ok`, so tests that go on to use a pass answer first.
+const answeredRefs = new Set();
+async function answerPuts(t, type = "dm_put_ok", reason = "rate") {
+  for (const m of [...t.sock.sent]) {
+    if (m.type !== "dm_put" || typeof m.ref !== "string" || answeredRefs.has(m.ref)) continue;
+    answeredRefs.add(m.ref);
+    await t.handle(type === "dm_put_ok" ? { type, ref: m.ref } : { type, ref: m.ref, reason });
+  }
+  await settle();
+}
 
 async function loadChat() {
   const appended = [];
@@ -429,7 +450,8 @@ test("a changed row sends reach_set with only that kind, and shows the answer", 
 });
 
 test("a refusal offers a contact request, and the button sends one", async () => {
-  const { sock, appended, handle } = await loadChat();
+  const t = await loadChat();
+  const { sock, appended, handle } = t;
   await handle({ type: "reach_refused", kind: "message", to: CY });
   const offer = appended.find((el) => textOf(el).includes(reach.REACH_REFUSED_MESSAGE));
   assert.ok(offer, "the spec's sentence is shown");
@@ -443,7 +465,14 @@ test("a refusal offers a contact request, and the button sends one", async () =>
   await button.onclick();
   const put = sock.sent.find((m) => m.type === "dm_put" && m.contact_request === true);
   assert.ok(put && put.to === CY, "pressing it sends a contact request to them");
+  // "Request sent" once the server took it (10l); refused, the button can send again.
+  assert.ok(button.disabled && button.textContent !== "Request sent", "not called sent before the server says so");
+  await answerPuts(t, "dm_put_refused", "rate");
+  assert.ok(!button.disabled && button.textContent === "Send request", "refused: it can be sent again");
+  await button.onclick();
+  await answerPuts(t);
   assert.equal(button.textContent, "Request sent");
+  assert.ok(button.disabled);
 
   await handle({ type: "reach_refused", kind: "trade", to: ANN });
   assert.ok(appended.some((el) => textOf(el).includes(reach.REACH_REFUSED_TRADE)), "a refused trade says so");
@@ -466,8 +495,12 @@ test("a refused contact request says they are not taking requests, and no offer 
 });
 
 test("a contact request goes out as a signed DM, flagged, carrying my name and my pass for them", async () => {
-  const { sock, store, fn } = await loadChat();
+  const t = await loadChat();
+  const { sock, store, fn } = t;
   assert.equal(await fn("sendContactRequest")(ANN), true);
+  // The self-copy follows once the server took the request (10l).
+  assert.equal(sock.sent.filter((m) => m.type === "dm_put" && m.to === ME).length, 0, "no self-copy before the server's answer");
+  await answerPuts(t);
   const puts = sock.sent.filter((m) => m.type === "dm_put");
   const toAnn = puts.filter((m) => m.to === ANN);
   const toMe = puts.filter((m) => m.to === ME);
@@ -554,6 +587,7 @@ test("receiving a request; a DM my settings refuse; Accept and Ignore", async ()
   assert.ok(texts.includes(CTL_FRIEND_CERT), "and gives them my pass");
   for (const m of toBen) assert.equal(m.friend_cert, bensPass, "each reply carries the pass Ben's request gave me");
   assert.equal(store.certFor(BEN), bensPass);
+  await answerPuts({ sock, handle }); // my pass counts as given once the server took it (10l)
   assert.ok(store.certSentTo(BEN));
   assert.deepEqual(store.contactRequestList(), []);
 
@@ -710,7 +744,13 @@ test("10c-ii: a tick re-issues the pass with the new may, then withdraws the old
     assert.equal(inner.text, CTL_FRIEND_CERT);
     return { pass: fp.friendPassParse(inner.cert), at: sock.sent.indexOf(put) };
   };
-  const tick = async (kind, on) => { sock.sent.length = 0; return fn("setFriendTick")(ANN, kind, on); };
+  // Each tick's pass is answered as a relay that stored it answers (10l), so the old one is withdrawn.
+  const tick = async (kind, on) => {
+    sock.sent.length = 0;
+    const sent = await fn("setFriendTick")(ANN, kind, on);
+    await answerPuts({ sock, handle });
+    return sent;
+  };
 
   // Call ticked: everything she had, plus call; the old serial withdrawn after the new pass went.
   assert.equal(await tick("call", true), true);
@@ -752,7 +792,8 @@ test("10c-ii: a tick re-issues the pass with the new may, then withdraws the old
 });
 
 test("10c-ii: Unfollow and Block clear the choice; a friendship begun again starts from the defaults", async () => {
-  const { ctx, sock, store, fn } = await loadChat();
+  const { ctx, sock, store, fn, handle } = await loadChat();
+  const answer = () => answerPuts({ sock, handle }); // the relay took the pass (10l)
   const befriend = vm.runInContext(`(k) => {
     myFollowers.add(k); myFollowing.add(k);
     hosDmStore.setFollower(k, true); hosDmStore.setFollowing(k, true);
@@ -763,8 +804,11 @@ test("10c-ii: Unfollow and Block clear the choice; a friendship begun again star
   };
   const chosenKeys = () => fn("safetyModel")().chosen.map((c) => c.key);
   const custom = async () => {
+    await answer();
     assert.equal(await fn("setFriendTick")(ANN, "call", true), true);
+    await answer();
     assert.equal(await fn("setFriendTick")(ANN, "trade", false), true);
+    await answer();
     assert.deepEqual(fn("friendTicks")(ANN), { message: true, call: true, trade: false }, "a choice of my own");
   };
 
@@ -866,6 +910,9 @@ test("10c-ii: Settings > Safety > People I choose, each friend once with three t
   const put = sock.sent.find((x) => x.type === "dm_put" && x.to === BEN);
   assert.ok(put, "a new pass goes to Ben");
   assert.equal(fp.friendPassParse(JSON.parse(opened(put).plain).cert).may, "call,invite,message,trade,voice_message");
+  // Until the server answers, his pass is still being updated (10l).
+  assert.ok(card.innerHTML.includes("(updating their pass)"), "still updating until the server answers");
+  await answerPuts({ sock, handle });
   assert.ok(sock.sent.some((x) => x.type === "cert_revoke" && x.serial === "bb".repeat(16)), "and the old one is withdrawn");
   assert.ok(box(BEN, "call").checked && !box(BEN, "call").disabled, "drawn again, ticked");
   assert.ok(!card.innerHTML.includes("(updating their pass)"));
@@ -953,3 +1000,182 @@ test("a pass echoed from another of my devices replaces this one's record of the
   assert.deepEqual(store.certsSent[ANN].map((p) => p.serial), [NEW], "a pass already taken back here is not standing again");
   assert.ok(!sock.sent.some((m) => m.type === "cert_revoke" && m.serial === NEW), "and the newer one is not withdrawn for it");
 });
+
+// ── 10l: a pass counts as given only once the server took it (2026-10-10) ──
+// docs/design/blocking-and-safe-mode.md 10l. A re-issued pass (a tick) and a contact request's
+// pass each carry a `ref`; only the relay's `dm_put_ok` for it records the pass, withdraws the
+// ones it replaces and lets the self-copy go. A `dm_put_refused`, or 30 seconds with no answer,
+// records nothing, withdraws nothing and keeps the ticks as chosen; the next sweep sends the same
+// `may` again. Red first: each test below was run against web/ as at b46441843 (before 10l)
+// through HOS_WEB_DIR and seen failing there with the assertion named in the list at the end of
+// this file.
+
+const memberUsers = () => [[ANN, "Ann"], [BEN, "Ben"], [CY, "Cy"]].map(([k, name]) => ({ public_key: k, name, role: "", kyber_public: kyberOf(k) }));
+const passOf = (put) => fp.friendPassParse(JSON.parse(opened(put).plain).cert);
+const selfCopiesOf = (sock) => sock.sent.filter((m) => m.type === "dm_put" && m.to === ME);
+const DEFAULT_MAY = "invite,message,trade,voice_message";
+const WITH_CALL = "call,invite,message,trade,voice_message";
+
+test("10l: a re-issued pass is recorded, and the old one withdrawn, only after dm_put_ok", async () => {
+  const { sock, store, handle, fn } = await loadChat();
+  const OLD = "00112233445566778899aabbccddeeff";
+  store.recordPassSent(ANN, OLD, DEFAULT_MAY);
+  assert.equal(await fn("setFriendTick")(ANN, "call", true), true, "Call ticked: the new pass goes");
+  await settle();
+  const put = sock.sent.find((m) => m.type === "dm_put" && m.to === ANN);
+  assert.ok(put, "a new pass goes to Ann");
+  const pass = passOf(put);
+  assert.equal(pass.may, WITH_CALL);
+  assert.deepEqual(store.certsSent[ANN], [{ serial: OLD, may: DEFAULT_MAY }], "not given until the server says so: the old pass is still the record");
+  assert.ok(!sock.sent.some((m) => m.type === "cert_revoke"), "and the old one is not withdrawn yet");
+  assert.equal(selfCopiesOf(sock).length, 0, "nor are my other devices told");
+  assert.ok(typeof put.ref === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(put.ref), "the put carries a ref");
+  assert.deepEqual(fn("friendTicks")(ANN), { message: true, call: true, trade: true }, "the ticks show my choice meanwhile");
+  assert.equal(fn("friendPassUpdating")(ANN), true, "and the page holds them still");
+
+  await handle({ type: "dm_put_ok", ref: put.ref });
+  await settle();
+  assert.deepEqual(store.certsSent[ANN], [{ serial: pass.serial, may: WITH_CALL }], "given once the server took it");
+  const at = sock.sent.indexOf(put);
+  const revoked = sock.sent.findIndex((m) => m.type === "cert_revoke" && m.serial === OLD);
+  assert.ok(revoked > at, "the old pass is withdrawn then");
+  const self = selfCopiesOf(sock);
+  assert.equal(self.length, 1, "and my other devices are told");
+  assert.equal(opened(self[0]).sealedTo, MY_KYBER);
+  assert.equal(JSON.parse(opened(self[0]).plain).cert, JSON.parse(opened(put).plain).cert, "of the pass the server took");
+  assert.equal(fn("friendPassUpdating")(ANN), false);
+  assert.equal(store.passIntent[ANN], undefined, "the choice is the record now");
+});
+
+test("10l: refused or unanswered, nothing is recorded or withdrawn, the ticks stay, and the next sweep sends the same may", async () => {
+  const { ctx, sock, store, handle, fn } = await loadChat();
+  const answerWaits = [];
+  ctx.setTimeout = (cb, ms) => { if (ms === 30000) answerWaits.push(cb); return 0; };
+  const OLD = "00112233445566778899aabbccddeeff";
+  store.recordPassSent(ANN, OLD, DEFAULT_MAY);
+  const putsToAnn = () => sock.sent.filter((m) => m.type === "dm_put" && m.to === ANN);
+  const nothingChanged = (why) => {
+    assert.deepEqual(store.certsSent[ANN], [{ serial: OLD, may: DEFAULT_MAY }], `${why}: nothing is recorded`);
+    assert.ok(!sock.sent.some((m) => m.type === "cert_revoke"), `${why}: nothing is withdrawn`);
+    assert.equal(selfCopiesOf(sock).length, 0, `${why}: my other devices are told nothing`);
+    assert.deepEqual(fn("friendTicks")(ANN), { message: true, call: true, trade: true }, `${why}: the ticks stay as I chose`);
+    const row = fn("safetyModel")().chosen.find((c) => c.key === ANN);
+    assert.ok(row && row.ticks.call === true && row.updating === false, `${why}: the Safety page draws Call ticked, not held`);
+  };
+
+  // Refused (a new account's slower refill, say).
+  assert.equal(await fn("setFriendTick")(ANN, "call", true), true);
+  await settle();
+  const [first] = putsToAnn();
+  await handle({ type: "dm_put_refused", ref: first.ref, reason: "rate" });
+  await settle();
+  nothingChanged("refused");
+
+  // The next sweep (on the member list) sends the same may again.
+  await handle({ type: "full_user_list", users: memberUsers() });
+  await settle();
+  const second = putsToAnn()[1];
+  assert.ok(second, "the next sweep sends Ann's pass again");
+  assert.equal(passOf(second).may, WITH_CALL, "with the same may");
+  assert.notEqual(passOf(second).serial, passOf(first).serial, "under a new serial");
+
+  // Thirty seconds without an answer.
+  assert.equal(answerWaits.length, 2);
+  answerWaits[1]();
+  await settle();
+  nothingChanged("unanswered");
+  await handle({ type: "dm_put_ok", ref: second.ref });
+  await settle();
+  nothingChanged("answered after the wait");
+
+  // The next sweep again; this time the server takes it.
+  await handle({ type: "full_user_list", users: memberUsers() });
+  await settle();
+  const third = putsToAnn()[2];
+  assert.ok(third && passOf(third).may === WITH_CALL, "sent again with the same may");
+  await handle({ type: "dm_put_ok", ref: third.ref });
+  await settle();
+  assert.deepEqual(store.certsSent[ANN], [{ serial: passOf(third).serial, may: WITH_CALL }], "given once the server took it");
+  const revoked = sock.sent.filter((m) => m.type === "cert_revoke").map((m) => m.serial).sort();
+  assert.deepEqual(revoked, [OLD, passOf(second).serial].sort(), "the old pass and the unanswered one are withdrawn; the refused one never stood");
+  await handle({ type: "full_user_list", users: memberUsers() });
+  await settle();
+  assert.equal(putsToAnn().length, 3, "nothing more is owed");
+});
+
+test("10l: a contact request's pass, and the follow, count only once the server took it", async () => {
+  const t = await loadChat();
+  const { ctx, sock, store, appended, handle, fn } = t;
+  const answerWaits = [];
+  ctx.setTimeout = (cb, ms) => { if (ms === 30000) answerWaits.push(cb); return 0; };
+  const said = () => appended.map(textOf).join("\n");
+  const requestTo = (k) => sock.sent.filter((m) => m.type === "dm_put" && m.to === k && m.contact_request === true);
+  const requestPass = (k) => fp.friendPassParse(reach.contactRequestParse(JSON.parse(opened(requestTo(k)[0]).plain).text).pass);
+
+  // Taken.
+  assert.equal(await fn("sendContactRequest")(ANN), true);
+  const toAnn = requestTo(ANN)[0];
+  assert.deepEqual(store.certsSent[ANN] || [], [], "not given until the server says so");
+  assert.ok(!store.following.has(ANN), "nor do I follow them yet");
+  assert.equal(selfCopiesOf(sock).length, 0, "and my other devices are not told");
+  assert.ok(typeof toAnn.ref === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(toAnn.ref), "the request carries a ref");
+  assert.ok(!said().includes("Contact request sent."), "nor is it called sent");
+  await handle({ type: "dm_put_ok", ref: toAnn.ref });
+  await settle();
+  assert.deepEqual(store.certsSent[ANN], [{ serial: requestPass(ANN).serial, may: DEFAULT_MAY }], "the pass it carried is given");
+  assert.ok(store.following.has(ANN), "I follow them");
+  assert.equal(selfCopiesOf(sock).length, 1, "my other devices are told");
+  assert.ok(said().includes("Contact request sent."), "and it is called sent");
+
+  // Refused (the burst limit).
+  assert.equal(await fn("sendContactRequest")(BEN), true);
+  await handle({ type: "dm_put_refused", ref: requestTo(BEN)[0].ref, reason: "rate" });
+  await settle();
+  assert.deepEqual(store.certsSent[BEN] || [], [], "refused: nothing is given");
+  assert.ok(!store.following.has(BEN), "nor followed");
+  assert.equal(selfCopiesOf(sock).length, 1, "nor told to my other devices");
+  assert.ok(said().includes("Your contact request to Ben was not delivered."), "and it says so");
+  assert.ok(!sock.sent.some((m) => m.type === "cert_revoke"), "nothing is withdrawn");
+
+  // Unanswered.
+  assert.equal(await fn("sendContactRequest")(CY), true);
+  answerWaits[answerWaits.length - 1]();
+  await settle();
+  assert.deepEqual(store.certsSent[CY] || [], [], "unanswered: nothing is given");
+  assert.ok(!store.following.has(CY), "nor followed");
+  assert.ok(said().includes("This server did not say whether your contact request to Cy arrived"), "and it says so");
+  await handle({ type: "dm_put_ok", ref: requestTo(CY)[0].ref });
+  await settle();
+  assert.deepEqual(store.certsSent[CY] || [], [], "a late answer records nothing");
+  assert.equal(selfCopiesOf(sock).length, 1);
+  // But the server may have stored it, and then Cy holds my pass: a message from Cy that the relay
+  // let through on it is not dropped as a stranger's (Messages: Friends).
+  await handle({ type: "reach_settings", settings: { message: "friends", call: "chosen", trade: "friends" } });
+  await handle({ type: "dm_new", id: 91, content: dmEnvelope(CY, "yes, let us talk") });
+  await settle();
+  assert.equal(store.conversation(CY).length, 1, "Cy's reply on the pass I may have given is kept");
+  // And Block withdraws that pass, though it was never counted as given.
+  const cySerial = requestPass(CY).serial;
+  sock.sent.length = 0;
+  assert.equal(await fn("blockKey")(CY), true);
+  await settle();
+  assert.ok(sock.sent.some((m) => m.type === "cert_revoke" && m.serial === cySerial), "Block withdraws the pass that may be standing");
+});
+
+// Red first, 2026-10-10 (10l). The three 10l tests were run against web/ as at b46441843 (before
+// 10l) through HOS_WEB_DIR and seen failing there: "not given until the server says so: the old
+// pass is still the record", "refused: nothing is recorded" and "not given until the server says
+// so" (each pass was recorded the moment it was sent); so did the three earlier tests given a
+// 10l assertion ("not called sent before the server says so", "no self-copy before the server's
+// answer", "still updating until the server answers"). Then one break at a time in a copy of the
+// fixed web/:
+//  chat-social.js: the sweep without its re-issue loop: "the next sweep sends Ann's pass again";
+//    friendTicks reading the record instead of the choice: "the ticks show my choice meanwhile"
+//    and "refused: the ticks stay as I chose"; a refusal recorded as given: "refused: nothing is
+//    recorded" and "refused: nothing is given".
+//  chat-dm-store.js: passTaken not withdrawing the passes still waiting: "the old pass and the
+//    unanswered one are withdrawn; the refused one never stood".
+//  app.js: dm_put_ok not routed: every test that answers failed (the 10l re-issue test at "given
+//    once the server took it").
+//  chat-privacy.js: reachAllowsFrom reading only the passes on record: "Cy's reply on the pass I
+//    may have given is kept".

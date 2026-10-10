@@ -314,10 +314,14 @@
     // (3) Current roster with each member's Kyber public key.
     let allMembers = [];
     try {
+      const readNo = _rosterReadStart();
       const r = await fetch('/api/v2/groups/' + encodeURIComponent(groupId) + '/members');
       if (!r.ok) return null;
       const data = await r.json();
       allMembers = data.members || [];
+      // Someone this device removed whom the server no longer lists has left:
+      // if they come back with a new ticket, they are sealed to again.
+      _rosterSeen(groupId, allMembers.map((m) => m && m.pubkey), readNo);
     } catch (e) { return null; }
 
     // (4) Compute each member's fingerprint; identify gaps. Members without a
@@ -577,9 +581,11 @@
     const currentEpoch = current.epoch;
     let members = [];
     try {
+      const readNo = _rosterReadStart();
       const r = await fetch('/api/v2/groups/' + encodeURIComponent(groupId) + '/members');
       if (!r.ok) return null;
       members = ((await r.json()).members) || [];
+      _rosterSeen(groupId, members.map((m) => m && m.pubkey), readNo);
     } catch (e) { return null; }
     const gone = String(without || '').toLowerCase();
     const sealable = [];
@@ -629,13 +635,12 @@
     // creator's own rekey on open (rekeyIfCreatorNeeds, which seals to the
     // server's list) cannot seal to them while the server still lists them
     // between the new key and the removal.
-    const removed = _removedSet(groupId);
-    const already = removed.has(key);
-    removed.add(key);
+    const already = _wasRemoved(groupId, key);
+    _markRemoved(groupId, key);
     let rotated = null;
     try { rotated = await rotateP2pGroupKey(groupId, key); } catch (e) { rotated = null; }
     if (!rotated) {
-      if (!already) removed.delete(key); // no one was removed, so they are not left out of later keys
+      if (!already) _removedMarks(groupId).delete(key); // no one was removed, so they are not left out of later keys
       throw _removeError('a new group key could not be made');
     }
     try {
@@ -657,20 +662,52 @@
     return e;
   }
 
-  // ── Who this device removed, for this page visit ──
-  // Group id -> the keys (lowercase hex) this device removed from it. Never
-  // sealed to again by any key this device makes, even while the server still
-  // lists them. Kept in memory only: the server's list catches up, and a new
-  // page load starts from it.
+  // ── Who this device removed, until the server's list catches up ──
+  // Group id -> Map(key (lowercase hex) -> the roster read count when it was
+  // marked). Never sealed to by any key this device makes while the server
+  // still lists them (between the new key and the removal landing). Once a
+  // roster read that began after the mark no longer lists them, the removal
+  // has landed and they leave this list: from then the server's roster is the
+  // truth, so someone the creator lets back in with a new ticket is sealed to
+  // like any new member. (Until 2026-10-10 the mark lasted the whole page
+  // visit, so a person let back in was left out of every key this device made
+  // until the page was loaded again.) In memory only.
   const _removedFrom = new Map();
-  function _removedSet(groupId) {
-    let s = _removedFrom.get(groupId);
-    if (!s) { s = new Set(); _removedFrom.set(groupId, s); }
-    return s;
+  // Counts roster reads (and marks), so a list fetched before someone was
+  // marked can never count as the removal having landed.
+  let _rosterReads = 0;
+  function _removedMarks(groupId) {
+    let m = _removedFrom.get(groupId);
+    if (!m) { m = new Map(); _removedFrom.set(groupId, m); }
+    return m;
   }
   function _wasRemoved(groupId, pubkey) {
-    const s = _removedFrom.get(groupId);
-    return !!(s && typeof pubkey === 'string' && s.has(pubkey.toLowerCase()));
+    const m = _removedFrom.get(groupId);
+    return !!(m && typeof pubkey === 'string' && m.has(pubkey.toLowerCase()));
+  }
+  /** Mark `key` removed from `groupId` by this device. */
+  function _markRemoved(groupId, key) {
+    _removedMarks(groupId).set(String(key).toLowerCase(), ++_rosterReads);
+  }
+  /** A roster read is starting: its number, for _rosterSeen. */
+  function _rosterReadStart() {
+    return ++_rosterReads;
+  }
+  /**
+   * The server's roster for `groupId`, from a read numbered `readNo`: anyone
+   * marked removed before that read began whom it no longer lists has left the
+   * group, so the mark goes. `keys` are member keys (hex). A list that does not
+   * name me is not one to learn from (the server answers an empty roster when
+   * it cannot read its own), so it changes nothing.
+   */
+  function _rosterSeen(groupId, keys, readNo) {
+    const marks = _removedFrom.get(groupId);
+    if (!marks || !marks.size || !Array.isArray(keys)) return;
+    const listed = new Set(keys.filter((k) => typeof k === 'string').map((k) => k.toLowerCase()));
+    if (typeof myKey !== 'string' || !listed.has(myKey.toLowerCase())) return;
+    for (const [key, markedAt] of marks) {
+      if (readNo > markedAt && !listed.has(key)) marks.delete(key);
+    }
   }
 
   /**
@@ -709,10 +746,17 @@
     if (typeof myKey !== 'string' || !myKey) return;
     window._p2pGroupsFetched = true;
     try {
+      const readNo = _rosterReadStart();
       const res = await fetch('/api/v2/groups?pubkey=' + encodeURIComponent(myKey));
       const data = res && res.ok ? await res.json() : null;
-      if (data && Array.isArray(data.groups)) window._p2pGroups = data.groups;
-      else window._p2pGroups = window._p2pGroups || [];
+      if (data && Array.isArray(data.groups)) {
+        window._p2pGroups = data.groups;
+        // Each group's roster, as the removal check reads it (removeP2pMember
+        // ends here, so a removal that landed is seen at once).
+        for (const g of data.groups) if (g && g.group_id) _rosterSeen(g.group_id, g.members, readNo);
+      } else {
+        window._p2pGroups = window._p2pGroups || [];
+      }
     } catch (e) {
       window._p2pGroups = window._p2pGroups || [];
     }
@@ -816,9 +860,11 @@
   // member's fingerprint. Best-effort: failures are silent (fall back to short fp).
   async function _loadRosterIndex(ag) {
     try {
+      const readNo = _rosterReadStart();
       const r = await fetch('/api/v2/groups/' + encodeURIComponent(ag.id) + '/members');
       if (!r.ok) return;
       const data = await r.json();
+      _rosterSeen(ag.id, (data.members || []).map((m) => m && m.pubkey), readNo);
       const { blake3 } = await mods();
       ag.fpToName = {};
       ag.fpToKey = {};
