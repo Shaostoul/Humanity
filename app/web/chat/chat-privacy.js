@@ -255,7 +255,7 @@ function injectAccountDataButtons() {
   div.id = 'account-data-controls';
   div.style.cssText = 'display:flex;gap:6px;margin-top:8px;';
   div.innerHTML =
-    '<button class="vr-btn" style="flex:1;font-size:0.7rem;" onclick="openSafetyPanel()" title="Choose who can message you, call you and send you trade requests, answer contact requests, and see who you blocked.">Safety</button>'
+    '<button class="vr-btn" style="flex:1;font-size:0.7rem;" onclick="openSafetyPanel()" title="Choose who can message you, call you and send you trade requests, answer contact requests, see who you blocked, and turn warnings on messages on or off.">Safety</button>'
     + '<button class="vr-btn" style="flex:1;font-size:0.7rem;" onclick="exportMyAccountData()" title="Download everything this server stores about you as a JSON file.">Export my data</button>'
     + '<button class="vr-btn" style="flex:1;font-size:0.7rem;color:var(--danger);" onclick="deleteMyAccount()" title="Erase your account and its data from this server. Self-service, permanent.">Erase account</button>';
   host.appendChild(div);
@@ -268,9 +268,10 @@ setTimeout(injectAccountDataButtons, 500);
 // one of five audiences; the words, defaults and rules are /shared/reach.js.
 // The relay enforces the choice and its `reach_settings` is the source of
 // truth for what this page shows: a change goes out as `reach_set` and the
-// row shows the relay's answer, not our guess. Also here: the "People who
-// may call me" list (a friend's pass re-issued with or without `call`,
-// chat-social.js setFriendMayCall), the refusal sentence with a Send request
+// row shows the relay's answer, not our guess. Also here: the "People I
+// choose" list (10c-ii: each friend with a Message, Call and Trade tick; a
+// change re-issues their pass with the `may` the ticks give, chat-social.js
+// setFriendTick), the refusal sentence with a Send request
 // button (`reach_refused`), and the Requests list (contact requests, and
 // DMs from people these settings refuse, shown by name only).
 
@@ -280,6 +281,12 @@ const REACH_SAVE_WAIT_MS = 8000;
 // One refusal offer per person a minute: one refused send is often several
 // puts (a follow notice, then the message), and each is refused.
 const reachOfferShown = new Map();
+// People whose contact request was refused this session (`reach_refused` with `request: true`):
+// they are not taking requests, so no Send request button is offered to them again.
+const reachNotTaking = new Set();
+// The Send request offers drawn this session, by person ({text, btn, retired}),
+// so a later "not taking requests" can take their buttons away.
+const reachOffers = new Map();
 const REACH_OFFER_QUIET_MS = 60000;
 
 /** The settings in force: the relay's word, or the safe defaults until it has spoken. */
@@ -320,11 +327,15 @@ function reachStore() {
   return (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
 }
 
-/** Would my settings let `peer` reach me for `kind`? The relay's rule, applied with what this client knows. */
+/**
+ * Would my settings let `peer` reach me for `kind`? The relay's rule, applied
+ * with what this client knows. A pass sent whose answer has not come counts
+ * (10l): the relay honours it if it stored it.
+ */
 function reachAllowsFrom(peer, kind) {
   const store = reachStore();
   return reachAllows(reachCurrent()[kind], kind, {
-    passMay: store ? store.passMayTo(peer) : null,
+    passMay: store ? store.passMayHeld(peer) : null,
     sharesGroup: reachSharesGroupWith(peer),
   });
 }
@@ -343,6 +354,13 @@ function onReachSettings(settings) {
 function chooseReachAudience(kind, audience) {
   const frame = reachSetFrame({ [kind]: audience });
   if (!frame || !reachKnown) return false;
+  // With the protected setup on, a row needs the PIN (10h, /shared/protected.js):
+  // the row is drawn back as it was, and the change goes out once the PIN is given.
+  if (typeof protectedTake === 'function' && !protectedTake('reach_row')) {
+    protectedAskThen('reach_row', () => chooseReachAudience(kind, audience));
+    renderSafetyPanel();
+    return false;
+  }
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     reachSay('Not connected, so the setting was not changed.');
     renderSafetyPanel();
@@ -434,6 +452,11 @@ async function acceptContactRequest(id) {
   const req = store && store.contactRequests[id];
   if (!req || !req.key) return false;
   const key = req.key;
+  // Accepting makes a friend: with the protected setup on it needs the PIN
+  // (10h), and the request stays listed until it is given.
+  if (typeof protectedBefriendAllowed === 'function' && !protectedBefriendAllowed(key)) {
+    return protectedAskThen('befriend', () => acceptContactRequest(id));
+  }
   store.removeContactRequest(id);
   if (req.pass && await pqVerifyFriendCert(key, myKey, req.pass)) store.storeCertFrom(key, req.pass);
   store.setFollower(key, true);
@@ -453,14 +476,30 @@ function ignoreContactRequest(id) {
 /**
  * Send `peer` a contact request (crypto.js pqBuildContactRequest): a signed,
  * sealed DM flagged `contact_request`, carrying my name and my pass for them
- * with the default `may`, plus the self-copy that tells my other devices. From
- * here I follow them and they hold my pass, so their acceptance gets through
- * and completes the friendship.
+ * with the default `may`, plus the self-copy that tells my other devices. Once
+ * the server takes it (10l: `dm_put_ok` for its ref, chat-social.js
+ * holdPassPut) I follow them and they hold my pass, so their acceptance gets
+ * through and completes the friendship; the self-copy goes then too. Returns
+ * true when it was sent; `opts.onAnswer({taken, outcome, reason})` hears how
+ * it went (the Send request button uses it).
  */
-async function sendContactRequest(peer) {
+async function sendContactRequest(peer, opts) {
   if (!peer || peer === myKey) return false;
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     reachSay('Not connected, so the request was not sent.');
+    return false;
+  }
+  // A request carries my pass for them and follows them: it makes a friend
+  // once they accept, so with the protected setup on it needs the PIN (10h).
+  if (typeof protectedBefriendAllowed === 'function' && !protectedBefriendAllowed(peer)) {
+    return protectedAskThen('befriend', () => sendContactRequest(peer));
+  }
+  // A request carries my name: never my recovery phrase (step F, chat-warnings.js).
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(myName, 'The request was not sent.')) return false;
+  // One pass on its way to someone at a time (10l): a request while one is
+  // waiting for the server's answer would be a second pass for them.
+  if (typeof passPutInFlight === 'function' && passPutInFlight(peer)) {
+    reachSay('A request or pass to them is still waiting for this server to answer. Try again in a moment.');
     return false;
   }
   const built = await pqBuildContactRequest(peer, myName);
@@ -468,17 +507,39 @@ async function sendContactRequest(peer) {
     reachSay('The request could not be sent yet: this person has not been online with a current client here, or your identity is still loading. Try again in a moment.');
     return false;
   }
-  ws.send(JSON.stringify(built.recipientPut));
-  ws.send(JSON.stringify(built.selfPut));
-  const store = reachStore();
-  if (store) {
-    store.recordPassSent(peer, built.serial, built.may);
-    store.setFollowing(peer, true);
+  // Recorded only when the server takes it; the self-copy is held until then.
+  const held = typeof holdPassPut === 'function' && holdPassPut(peer, built, {
+    serial: built.serial, may: built.may, kind: 'request',
+    onAnswer: (answer) => contactRequestAnswered(peer, answer, opts),
+  });
+  if (!held) {
+    reachSay('The request could not be sent yet: your settings on this device are still loading. Try again in a moment.');
+    return false;
   }
-  if (typeof myFollowing !== 'undefined') myFollowing.add(peer);
-  if (typeof updateFriendIndicators === 'function') updateFriendIndicators();
-  reachSay('Contact request sent. They will see only your name; if they accept, you become friends.');
+  ws.send(JSON.stringify(built.recipientPut));
   return true;
+}
+
+/**
+ * The server's answer to my contact request (10l). Taken: the pass I gave
+ * them is recorded (chat-social.js settlePassPut) and from here I follow them.
+ * Refused or unanswered: nothing is recorded and I do not follow them; the
+ * person is told, except for a reach refusal, which onReachRefused already
+ * explains (they are not taking requests).
+ */
+function contactRequestAnswered(peer, answer, opts) {
+  if (answer && answer.taken) {
+    const store = reachStore();
+    if (store) store.setFollowing(peer, true);
+    if (typeof myFollowing !== 'undefined') myFollowing.add(peer);
+    if (typeof updateFriendIndicators === 'function') updateFriendIndicators();
+    reachSay('Contact request sent. They will see only your name; if they accept, you become friends.');
+  } else if (answer && answer.outcome === 'refused' && answer.reason !== 'reach') {
+    reachSay(`Your contact request to ${reachDisplayName(peer)} was not delivered. Try again later.`);
+  } else if (answer && answer.outcome === 'timeout') {
+    reachSay(`This server did not say whether your contact request to ${reachDisplayName(peer)} arrived, so it was not counted as sent. Try again later.`);
+  }
+  if (opts && typeof opts.onAnswer === 'function') opts.onAnswer(answer);
 }
 
 /** The relay refused a send: for a message, the sentence and a Send request button. */
@@ -490,6 +551,20 @@ function onReachRefused(msg) {
     return;
   }
   if (msg.kind !== 'message') return;
+  // A refused contact request (only "Nobody" refuses one; the relay marks it `request: true`,
+  // 2026-10-10): say they are not taking requests, once, and never offer one to them again
+  // this session, where the offer used to come back each minute (the desktop app does the same).
+  if (msg.request === true) {
+    // Every offer already on screen for them goes too: its Send request
+    // button would only ask again (the desktop app replaces its one notice
+    // with these words the same way).
+    reachRetireOffers(to);
+    if (reachNotTaking.has(to)) return;
+    reachNotTaking.add(to);
+    reachSay(`Not delivered to ${reachDisplayName(to)}. ${REACH_NOT_TAKING_REQUESTS}`);
+    return;
+  }
+  if (reachNotTaking.has(to)) return;
   const last = reachOfferShown.get(to) || 0;
   if (Date.now() - last < REACH_OFFER_QUIET_MS) return;
   reachOfferShown.set(to, Date.now());
@@ -505,16 +580,51 @@ function onReachRefused(msg) {
   const btn = document.createElement('button');
   btn.className = 'vr-btn';
   btn.textContent = 'Send request';
+  const offer = { text, btn };
   btn.onclick = async () => {
+    // They said no to requests since this was drawn: nothing is sent.
+    if (reachNotTaking.has(to) || offer.retired) return;
     btn.disabled = true;
-    const ok = await sendContactRequest(to);
-    btn.textContent = ok ? 'Request sent' : 'Send request';
-    if (!ok) btn.disabled = false;
+    // "Request sent" only once the server took it (10l); a request it refused
+    // or never answered can be sent again from here.
+    const ok = await sendContactRequest(to, {
+      onAnswer: (answer) => {
+        if (offer.retired) return; // a refusal of the request took the button away
+        btn.textContent = answer && answer.taken ? 'Request sent' : 'Send request';
+        btn.disabled = !!(answer && answer.taken);
+      },
+    });
+    if (offer.retired) return; // a refusal of the request arrived while it was on its way
+    if (!ok) {
+      btn.textContent = 'Send request';
+      btn.disabled = false;
+    } else if (btn.disabled && btn.textContent === 'Send request') {
+      btn.textContent = 'Sending...';
+    }
   };
   el.appendChild(status);
   el.appendChild(text);
   el.appendChild(btn);
+  if (!reachOffers.has(to)) reachOffers.set(to, []);
+  reachOffers.get(to).push(offer);
   if (typeof appendMessage === 'function') appendMessage(el);
+}
+
+/**
+ * They are not taking contact requests (a `reach_refused` with `request:
+ * true`): every Send request offer drawn for them earlier says so instead, and
+ * its button goes, so it cannot ask again.
+ */
+function reachRetireOffers(to) {
+  const list = reachOffers.get(to) || [];
+  for (const offer of list) {
+    offer.retired = true;
+    offer.text.textContent = REACH_NOT_TAKING_REQUESTS;
+    offer.btn.disabled = true;
+    offer.btn.style.display = 'none';
+    offer.btn.onclick = null;
+  }
+  reachOffers.delete(to);
 }
 
 // ── Drawing ──
@@ -526,10 +636,12 @@ function contactRequestsHtml(requests, opts) {
     return compact ? '' : '<div style="color:var(--text-muted);font-size:var(--text-sm);">No requests.</div>';
   }
   // In the narrow DMs rail the name takes its own line and the buttons sit under it.
+  // With the protected setup on, Accept says it needs the PIN (10h).
+  const accept = (typeof protectedAcceptLabel === 'function' && protectedAcceptLabel()) || 'Accept';
   return requests.map((r) =>
     `<div class="reach-request${compact ? ' dm-item' : ''}" data-req-id="${reachEsc(r.id)}" style="display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-xs) ${compact ? 'var(--space-md);flex-wrap:wrap' : '0'};">`
     + `<span class="dm-name" style="flex:1 1 ${compact ? '100%' : '0'};min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${reachEsc(r.key ? reachDisplayName(r.key) : r.name)}</span>`
-    + `<button class="vr-btn" data-req-accept="${reachEsc(r.id)}" style="font-size:0.7rem;">Accept</button>`
+    + `<button class="vr-btn" data-req-accept="${reachEsc(r.id)}" style="font-size:0.7rem;">${reachEsc(accept)}</button>`
     + `<button class="vr-btn" data-req-ignore="${reachEsc(r.id)}" style="font-size:0.7rem;">Ignore</button>`
     + `<button class="vr-btn" data-req-block="${reachEsc(r.id)}" title="Block them: you will not see anything from them, and they are not told." style="font-size:0.7rem;color:var(--danger);">Block</button>`
     + '</div>').join('');
@@ -585,19 +697,36 @@ function safetyModel() {
     };
   });
   const store = reachStore();
-  const given = store ? Object.keys(store.certsSent).filter((p) => store.certSentTo(p)) : [];
-  const named = (keys) => keys.map((key) => ({ key, name: reachDisplayName(key) }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-  const mayCall = (p) => { const m = store.passMayTo(p); return !!m && m.split(',').includes('call'); };
+  // "People I choose" (10c-ii): each friend I have given a pass (or one on its
+  // way, chat-dm-store.js passFriends), once, with
+  // the ticks I chose for them: what their pass carries, or a newer choice
+  // whose pass the server has not taken yet (10l, chat-dm-store.js
+  // passMayIntended), so a refused pass never puts the ticks back. The rows'
+  // audiences as shown (a choice being saved included) decide which rows the
+  // ticks count for.
+  const given = store ? store.passFriends() : [];
+  const shown = {};
+  for (const r of rows) shown[r.kind] = r.audience;
+  const chosen = given.map((key) => ({
+    key,
+    name: reachDisplayName(key),
+    ticks: reachTicksFromMay(store.passMayIntended(key)),
+    updating: typeof friendPassUpdating === 'function' && friendPassUpdating(key),
+  })).sort((a, b) => a.name.localeCompare(b.name));
   return {
     known,
     rows,
-    callAudience: settings.call,
-    callers: named(given.filter(mayCall)),
-    others: named(given.filter((p) => !mayCall(p))),
+    chosen,
+    ticksInUse: reachTicksInUse(shown),
     requests: store ? store.contactRequestList() : [],
+    // Reports about my groups (10j, chat-reports.js); null when there is nothing to show.
+    groupReports: typeof groupReportsModel === 'function' ? groupReportsModel() : null,
     // Blocked people (step C): newest first, by the member list's name (or short key).
     blocked: store ? store.blockedList().map((b) => ({ key: b.key, name: reachDisplayName(b.key), ts: b.ts, date: blockDateLabel(b.ts) })) : [],
+    // Warnings on messages (step F, chat-warnings.js): On by default; the
+    // switch waits for the local store, where it is kept.
+    warningsOn: typeof messageWarningsOn === 'function' ? messageWarningsOn() : true,
+    warningsReady: !!store,
   };
 }
 
@@ -609,6 +738,8 @@ function safetyPanelHtml(model) {
   let html = '<div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-sm);">'
     + '<h2 style="margin:0;">Safety</h2>'
     + '<button class="vr-btn" data-safety-close style="font-size:0.75rem;">Close</button></div>';
+  // The protected setup's always-visible line, at the top while it is on (10h).
+  if (typeof protectedStatusLineHtml === 'function') html += protectedStatusLineHtml('safety');
   html += `<h3 style="${SAFETY_H3}">Who can reach me</h3>`
     + `<p style="${SAFETY_NOTE}">Choose who can reach you for each kind of contact. This server enforces your choice.</p>`;
   if (!model.known) {
@@ -624,29 +755,33 @@ function safetyPanelHtml(model) {
       + `<div class="safety-explain" style="${SAFETY_NOTE}margin-top:var(--space-xs);">${reachEsc(row.explain)}${row.saving ? ' (Saving...)' : ''}</div>`
       + '</div>';
   }
-  html += `<h3 style="${SAFETY_H3}">People who may call me</h3>`;
-  if (model.callAudience !== 'chosen') {
-    html += `<p style="${SAFETY_NOTE}">Calls are set to "${reachEsc(REACH_AUDIENCE_LABELS[model.callAudience] || model.callAudience)}", so this list is used only when Calls is set to "People I choose".</p>`;
-  }
-  if (model.callers.length) {
-    html += model.callers.map((c) =>
-      `<div class="safety-caller" style="display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-xs) 0;">`
-      + `<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--text);">${reachEsc(c.name)}</span>`
-      + `<button class="vr-btn" data-call-remove="${reachEsc(c.key)}" style="font-size:0.7rem;">Remove</button></div>`).join('');
+  // "People I choose" (10c-ii): one line saying what the ticks are for, one
+  // saying which rows use them now, then each friend once with three ticks.
+  // A row wraps on a narrow screen: the name above, the ticks under it.
+  html += `<h3 style="${SAFETY_H3}">People I choose</h3>`
+    + `<p class="safety-ticks-note" style="${SAFETY_NOTE}">${reachEsc(REACH_TICKS_NOTE)}</p>`
+    + `<p class="safety-ticks-use" style="${SAFETY_NOTE}">${reachEsc(model.ticksInUse)}</p>`;
+  if (model.chosen.length) {
+    html += model.chosen.map((c) =>
+      `<div class="safety-chosen" data-chosen-key="${reachEsc(c.key)}" style="display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-xs) var(--space-md);padding:var(--space-xs) 0;border-top:1px solid var(--border);">`
+      + `<span style="flex:1 1 8rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);">${reachEsc(c.name)}`
+      + (c.updating ? ` <span style="color:var(--text-muted);font-size:var(--text-sm);">(updating their pass)</span>` : '')
+      + '</span>'
+      + REACH_KINDS.map((kind) =>
+        '<label style="display:inline-flex;align-items:center;gap:var(--space-xs);color:var(--text);cursor:pointer;">'
+        + `<input type="checkbox" data-tick-key="${reachEsc(c.key)}" data-tick-kind="${kind}"`
+        + ` aria-label="${reachEsc(c.name)}: ${reachEsc(REACH_TICK_LABELS[kind])}"`
+        + `${c.ticks[kind] ? ' checked' : ''}${c.updating ? ' disabled' : ''}>`
+        + `<span>${reachEsc(REACH_TICK_LABELS[kind])}</span></label>`).join('')
+      + '</div>').join('');
   } else {
-    html += `<p style="${SAFETY_NOTE}">Nobody yet.</p>`;
-  }
-  if (model.others.length) {
-    html += '<div style="display:flex;gap:var(--space-sm);align-items:center;margin-top:var(--space-xs);">'
-      + `<select data-call-add-pick aria-label="A friend to let call you" style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:var(--space-xs);">`
-      + model.others.map((o) => `<option value="${reachEsc(o.key)}">${reachEsc(o.name)}</option>`).join('')
-      + '</select><button class="vr-btn" data-call-add style="font-size:0.7rem;">Add</button></div>';
-  } else if (!model.callers.length) {
     html += `<p style="${SAFETY_NOTE}">Friends appear here once you have some.</p>`;
   }
   html += `<h3 style="${SAFETY_H3}">Requests</h3>`
     + `<p style="${SAFETY_NOTE}">People who asked to reach you. You see only their name. Accept makes you friends; Ignore tells no one.</p>`
     + contactRequestsHtml(model.requests);
+  // Reports about your groups (10j, chat-reports.js): when there are any, or I created a group.
+  if (model.groupReports && typeof groupReportsSafetyHtml === 'function') html += groupReportsSafetyHtml(model.groupReports);
   html += `<h3 style="${SAFETY_H3}">Blocked people</h3>`
     + `<p style="${SAFETY_NOTE}">You see nothing from the people here, on any of your devices, and they are not told. Blocking does not stop them seeing what you post in public. Unblock lets them reach you again as your settings above allow; it does not make you friends again.</p>`;
   if (model.blocked.length) {
@@ -659,7 +794,62 @@ function safetyPanelHtml(model) {
   } else {
     html += `<p style="${SAFETY_NOTE}">Nobody is blocked.</p>`;
   }
+  html += safetyWarningsHtml(model);
+  // The protected setup (10h, chat-protected.js): its own section, last.
+  if (typeof protectedSafetyHtml === 'function') html += protectedSafetyHtml();
   return html;
+}
+
+/**
+ * Warnings on messages (step F, 2026-10-10, blocking-and-safe-mode.md 10g):
+ * the switch, what it does, that it runs on this device only (6.5), and the
+ * two rules that have no switch. Empty when /shared/warnings.js is not loaded.
+ */
+function safetyWarningsHtml(model) {
+  if (typeof WARNINGS_SWITCH_LABEL !== 'string') return '';
+  return `<h3 style="${SAFETY_H3}">${reachEsc(WARNINGS_SWITCH_LABEL)}</h3>`
+    + '<label class="safety-warnings" style="display:flex;align-items:center;gap:var(--space-sm);color:var(--text);cursor:pointer;">'
+    + `<input type="checkbox" data-warnings-switch aria-label="${reachEsc(WARNINGS_SWITCH_LABEL)}"${model.warningsOn ? ' checked' : ''}${model.warningsReady ? '' : ' disabled'}>`
+    + `<span>${reachEsc(WARNINGS_SWITCH_LABEL)}</span></label>`
+    + (model.warningsReady ? '' : `<p style="${SAFETY_NOTE}margin-top:var(--space-xs);">Waiting for your settings on this device to load.</p>`)
+    + `<p style="${SAFETY_NOTE}margin-top:var(--space-xs);">${reachEsc(WARNINGS_SWITCH_HELP)}</p>`
+    + `<p style="${SAFETY_NOTE}">${reachEsc(WARNINGS_ON_DEVICE_SENTENCE)}</p>`
+    + `<p style="${SAFETY_NOTE}">Links in a direct message from someone who is not your friend open only when you press Open under it.</p>`
+    + `<p style="${SAFETY_NOTE}">Your recovery phrase is never sent: anything you write that holds it is stopped before it leaves this device. This is always on.</p>`;
+}
+
+/**
+ * A tick on the "People I choose" list changed: re-issue that friend's pass
+ * (chat-social.js setFriendTick). The page is drawn again at once, so the
+ * friend's ticks are held still while their pass is minted and while it waits
+ * for the server's answer (10l), and again when that comes (chat-social.js
+ * settlePassPut), showing my choice: a pass the server refused is sent again
+ * by the next sweep, and the ticks stay as chosen meanwhile. If it could not
+ * be sent at all, they show what they were before. Returns true when it was
+ * sent.
+ */
+async function chooseFriendTick(peer, kind, on) {
+  // With the protected setup on, the PIN first (10h): a cancelled prompt puts
+  // the tick back as it was and says nothing else. The PIN opens this one
+  // change only: setFriendTick takes it, and it is gone when this returns.
+  if (typeof protectedNeedsPin === 'function' && protectedNeedsPin('reach_tick')) {
+    let asked = false;
+    const done = await protectedAskThen('reach_tick', () => { asked = true; return chooseFriendTick(peer, kind, on); });
+    if (!asked) renderSafetyPanel();
+    return done;
+  }
+  const pending = setFriendTick(peer, kind, on);
+  renderSafetyPanel();
+  const ok = await pending.catch(() => false);
+  if (!ok) {
+    // One pass at a time goes to a friend (10l): one may be waiting for the server's answer.
+    const busy = typeof friendPassUpdating === 'function' && friendPassUpdating(peer);
+    reachSay(busy
+      ? 'Could not change that now: their pass is still being updated. Try again in a moment.'
+      : 'Could not change that now: their key is not known here yet. Try again when they are online.');
+  }
+  renderSafetyPanel();
+  return ok;
 }
 
 /** Open Settings > Safety. */
@@ -697,26 +887,19 @@ function renderSafetyPanel() {
   card.querySelectorAll('select[data-reach-kind]').forEach((sel) => {
     sel.onchange = () => chooseReachAudience(sel.dataset.reachKind, sel.value);
   });
-  card.querySelectorAll('[data-call-remove]').forEach((b) => {
-    b.onclick = async () => {
-      b.disabled = true;
-      if (!await setFriendMayCall(b.dataset.callRemove, false)) reachSay('Could not change that now: their key is not known here yet. Try again when they are online.');
-      renderSafetyPanel();
-    };
+  card.querySelectorAll('input[data-tick-key]').forEach((box) => {
+    box.onchange = () => chooseFriendTick(box.dataset.tickKey, box.dataset.tickKind, box.checked);
   });
-  const add = card.querySelector('[data-call-add]');
-  const pick = card.querySelector('[data-call-add-pick]');
-  if (add && pick) {
-    add.onclick = async () => {
-      add.disabled = true;
-      if (!await setFriendMayCall(pick.value, true)) reachSay('Could not change that now: their key is not known here yet. Try again when they are online.');
-      renderSafetyPanel();
-    };
-  }
   wireContactRequestButtons(card);
+  if (typeof wireGroupReportButtons === 'function') wireGroupReportButtons(card);
   card.querySelectorAll('[data-unblock]').forEach((b) => {
     b.onclick = () => { b.disabled = true; unblockKey(b.dataset.unblock); };
   });
+  const warningsSwitch = card.querySelector('[data-warnings-switch]');
+  if (warningsSwitch && typeof setMessageWarningsOn === 'function') {
+    warningsSwitch.onchange = () => setMessageWarningsOn(warningsSwitch.checked);
+  }
+  if (typeof wireProtectedSafety === 'function') wireProtectedSafety(card);
 }
 
 // ── Block (step C, 2026-10-09) ───────────────────────────────────────────
@@ -817,6 +1000,8 @@ function renderBlockEverywhere() {
 function blockLocally(key, ts) {
   const store = reachStore();
   if (!store || !store.setBlocked(key, true, ts)) return false;
+  // Block never needs the PIN; with the protected setup on, being friends again needs it (10h).
+  if (typeof protectedForget === 'function') protectedForget(key);
   store.setFollowing(key, false);
   if (typeof myFollowing !== 'undefined' && myFollowing) myFollowing.delete(key);
   if (typeof withdrawPassesTo === 'function') withdrawPassesTo(key);
@@ -997,6 +1182,8 @@ function onBlockListLoaded() {
   const store = reachStore();
   if (!store) return;
   for (const b of store.blockedList()) applyBlockToView(b.key, true);
+  // Warnings drawn before the store loaded used the default (On): follow the kept switch (step F).
+  if (typeof applyWarningsSwitchToView === 'function') applyWarningsSwitchToView();
   renderBlockEverywhere();
   flushBlockNotes();
 }

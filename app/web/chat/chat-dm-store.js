@@ -14,8 +14,15 @@
 //
 // Depends on: crypto.js (getDmStoreKey). Loaded before app.js so the
 // message handlers can use it. All methods are safe to call before
-// init() — they no-op / return empties.
+// init() — they no-op / return empties. The Trade page loads this file
+// without crypto.js: it reads the store read-only (init's `readOnly`) and
+// supplies window.getDmStoreKey itself, the same key derived from the same
+// seed (/shared/pq-relay-auth.js getPqDmStoreKey).
 // ─────────────────────────────────────────────────────────────────────────
+
+// Passes kept per friend whose answer never came (10l, passSending); older
+// ones are withdrawn. The desktop app's UNANSWERED_KEPT in src/net/dm_store.rs.
+const PASSES_UNSURE_KEPT = 4;
 
 const hosDmStore = {
   _db: null,
@@ -40,6 +47,22 @@ const hosDmStore = {
   certsFrom: {},       // peer -> the pass THEY gave ME (v2 JSON), presented whenever I reach them
   certsSent: {},       // peer -> [{serial, may}] passes I gave them that still stand
   withdrawalsPending: [], // serials I withdrew that the relay has not confirmed yet
+  // ── A pass counts as given only once the server took it (10l, 2026-10-10).
+  // A pass is in certsSent only after the relay's `dm_put_ok`. Until then it
+  // waits here: sent, perhaps given. The relay may have stored it without the
+  // answer reaching this page (30 seconds of silence, a closed socket, a
+  // reload), and a pass nobody knows was given could never be withdrawn: after
+  // an Unfollow that friend could still reach me with it. So each one is kept
+  // until the server answers or it is withdrawn: Unfollow and Block withdraw
+  // these too, and a pass the server did take withdraws every other one still
+  // waiting for that friend (they hold the taken one, so none is needed).
+  passesUnsure: {},    // peer -> [{serial, may}] passes sent that the relay has not said it took
+  // What I want each friend's pass to let them do (the ticks on "People I
+  // choose", 10c-ii), kept apart from the record so a refused or unanswered
+  // re-issue never puts the ticks back: the pass sweep keeps re-sending this
+  // `may` until a pass carrying it is taken. Cleared once it is, and by
+  // Unfollow and Block (a friendship begun again starts from the defaults).
+  passIntent: {},      // peer -> may (sorted, comma-joined)
   // ── Contact requests ("who can reach me", step B, 2026-10-09, 10c): people
   // who asked to reach me, shown by name only with Accept and Ignore, keyed by
   // their (signed) key. `pass` is the pass their request carried, which my
@@ -54,6 +77,15 @@ const hosDmStore = {
   // Notes to myself not sent yet (Block or Unblock while not connected),
   // oldest first, at most one per key: [{action, key}].
   blockNotesPending: [],
+  // ── Warnings on messages (step F, 2026-10-10, blocking-and-safe-mode.md
+  // 10g): the Safety switch, On unless the person turned it off. Kept here,
+  // encrypted, with the block list.
+  warningsOn: true,
+  // ── Reports about my groups (10j, 2026-10-10, blocking-and-safe-mode.md):
+  // reports members of a group I created sent me, each item already checked
+  // against my own copy of the group. Kept here, encrypted, until I dismiss
+  // them; never sent to any server.
+  groupReports: {},    // id -> {id, from, ts, group_id, group_name, target, reason, note, items, removed}
 
   async _sha256hex(s) {
     const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
@@ -106,9 +138,21 @@ const hosDmStore = {
     });
   },
 
-  /** Load (or start empty) the store for this identity on this server. */
-  async init(meHex, serverUrl) {
+  // True when this page only reads the store (init's `readOnly`): nothing is ever written.
+  readOnly: false,
+
+  /**
+   * Load (or start empty) the store for this identity on this server.
+   *
+   * `opts.readOnly` (the Trade page, 2026-10-10): load only the encrypted meta
+   * box (the passes, follows and settings), never the message records, and
+   * never write. Chat owns the store; a write from another page would put that
+   * page's older copy of the meta box over Chat's newer one, and a page that
+   * only needs a friend's pass has no business decrypting the messages.
+   */
+  async init(meHex, serverUrl, opts) {
     try {
+      this.readOnly = !!(opts && opts.readOnly);
       const keyPromise = (typeof window.getDmStoreKey === 'function') ? window.getDmStoreKey() : null;
       if (!keyPromise || !meHex) return false;
       this._key = await keyPromise;
@@ -126,9 +170,13 @@ const hosDmStore = {
       this.certsFrom = {};
       this.certsSent = {};
       this.withdrawalsPending = [];
+      this.passesUnsure = {};
+      this.passIntent = {};
       this.contactRequests = {};
       this.blocked = {};
       this.blockNotesPending = [];
+      this.warningsOn = true;
+      this.groupReports = {};
       // Meta first (high-water + read marks + social sets).
       const meta = await this._idb(this._tx('meta', 'readonly').get(this.scope)).catch(() => null);
       if (meta) {
@@ -142,11 +190,16 @@ const hosDmStore = {
           if (m && m.passesFrom && typeof m.passesFrom === 'object') this.certsFrom = m.passesFrom;
           if (m && m.passesSent && typeof m.passesSent === 'object') this.certsSent = m.passesSent;
           if (m && Array.isArray(m.withdrawalsPending)) this.withdrawalsPending = m.withdrawalsPending;
+          if (m && m.passesUnsure && typeof m.passesUnsure === 'object') this.passesUnsure = m.passesUnsure;
+          if (m && m.passIntent && typeof m.passIntent === 'object') this.passIntent = m.passIntent;
           if (m && m.contactRequests && typeof m.contactRequests === 'object') this.contactRequests = m.contactRequests;
           if (m && m.blocked && typeof m.blocked === 'object') this.blocked = m.blocked;
           if (m && Array.isArray(m.blockNotesPending)) this.blockNotesPending = m.blockNotesPending;
+          if (m && typeof m.warningsOn === 'boolean') this.warningsOn = m.warningsOn;
+          if (m && m.groupReports && typeof m.groupReports === 'object') this.groupReports = m.groupReports;
         }
       }
+      if (this.readOnly) return true;
       // All records in this scope.
       const rows = await this._idb(this._tx('msgs', 'readonly').index('scope').getAll(this.scope)).catch(() => []);
       for (const row of rows || []) {
@@ -169,7 +222,7 @@ const hosDmStore = {
   get ready() { return !!(this._db && this._key && this.scope); },
 
   async _persistMeta() {
-    if (!this.ready) return;
+    if (!this.ready || this.readOnly) return;
     const box = await this._encrypt({
       lastRead: this.lastRead,
       following: Array.from(this.following),
@@ -178,9 +231,13 @@ const hosDmStore = {
       passesFrom: this.certsFrom,
       passesSent: this.certsSent,
       withdrawalsPending: this.withdrawalsPending,
+      passesUnsure: this.passesUnsure,
+      passIntent: this.passIntent,
       contactRequests: this.contactRequests,
       blocked: this.blocked,
       blockNotesPending: this.blockNotesPending,
+      warningsOn: this.warningsOn,
+      groupReports: this.groupReports,
     });
     await this._idb(this._tx('meta', 'readwrite').put({ scope: this.scope, hw: this.highWater, box })).catch(() => {});
   },
@@ -208,6 +265,10 @@ const hosDmStore = {
       this.certsFrom = {};
       this.certsSent = {};
       this.withdrawalsPending = [];
+      // Passes still waiting for an answer named the old identity too, and
+      // what each friend may do starts again from the defaults with them.
+      this.passesUnsure = {};
+      this.passIntent = {};
     }
     this.passServer = did;
     this._persistMeta();
@@ -223,18 +284,25 @@ const hosDmStore = {
     if (!list.some((p) => p.serial === serial)) list.push({ serial, may });
     this._persistMeta();
   },
-  /** Take back every pass I gave `peer`: their serials wait for the relay to confirm. */
+  /**
+   * Take back every pass I gave `peer`: their serials wait for the relay to
+   * confirm. That includes the ones sent whose answer has not come (10l): one
+   * of them may be standing on the server. The choice of what they may do goes
+   * too, so a friendship begun again starts from the defaults.
+   */
   withdrawPassesTo(peer) {
-    const gone = (this.certsSent[peer] || []).map((p) => p.serial);
+    const gone = (this.certsSent[peer] || []).concat(this.passesUnsure[peer] || []).map((p) => p.serial);
     delete this.certsSent[peer];
+    delete this.passesUnsure[peer];
+    delete this.passIntent[peer];
     for (const s of gone) if (!this.withdrawalsPending.includes(s)) this.withdrawalsPending.push(s);
     this._persistMeta();
     return gone;
   },
   /**
    * Replace every pass I gave `peer` with this one (what a friend may do
-   * changed, and the new pass is already on its way). The old serials wait for
-   * the relay to confirm their withdrawal.
+   * changed, and the server took the new pass: passTaken). The old serials
+   * wait for the relay to confirm their withdrawal.
    */
   replacePassTo(peer, serial, may) {
     const old = (this.certsSent[peer] || []).map((p) => p.serial).filter((s) => s !== serial);
@@ -242,6 +310,166 @@ const hosDmStore = {
     for (const s of old) if (!this.withdrawalsPending.includes(s)) this.withdrawalsPending.push(s);
     this._persistMeta();
     return old;
+  },
+  /**
+   * A pass I gave `peer`, echoed from another of my devices: it is that
+   * device's latest word on what they may do, so it is recorded and every
+   * other pass to them whose `may` differs is withdrawn (their serials wait
+   * for the relay to confirm), the desktop app's rule (src/net/dm_store.rs
+   * withdraw_passes_to_except). One with the same `may` stands beside it:
+   * withdrawing it would take nothing away. Returns the serials withdrawn.
+   * A pass this device has already taken back (its withdrawal still waiting
+   * for the relay) is never standing again: that is this device's own pass
+   * echoing back after a newer one replaced it, and adopting it would
+   * withdraw the newer pass the friend now holds.
+   */
+  adoptEchoedPass(peer, serial, may) {
+    if (this.withdrawalsPending.includes(serial)) return [];
+    // Already on record here: this device's own pass coming back (its
+    // self-copy goes out once the server took it, 10l), or one adopted
+    // before. It says nothing new, and acting on it again would withdraw a
+    // newer pass this device has sent since.
+    if ((this.certsSent[peer] || []).some((p) => p.serial === serial)) return [];
+    const norm = (m) => String(m || '').split(',').filter(Boolean).sort().join(',');
+    const want = norm(may);
+    const list = this.certsSent[peer] || [];
+    // A pass this device sent whose answer has not come is withdrawn by the
+    // same rule when it says otherwise (10l): the echo is the newer word, and
+    // if the server took this device's pass too it would outlive the choice.
+    const unsure = (this.passesUnsure[peer] || []).filter((p) => p.serial !== serial);
+    const gone = list.concat(unsure).filter((p) => p.serial !== serial && norm(p.may) !== want).map((p) => p.serial);
+    const kept = list.filter((p) => p.serial !== serial && norm(p.may) === want);
+    this.certsSent[peer] = kept.concat([{ serial, may }]);
+    const unsureKept = unsure.filter((p) => norm(p.may) === want);
+    if (unsureKept.length) this.passesUnsure[peer] = unsureKept; else delete this.passesUnsure[peer];
+    // What this device meant to give them gives way to it as well.
+    delete this.passIntent[peer];
+    for (const s of gone) if (!this.withdrawalsPending.includes(s)) this.withdrawalsPending.push(s);
+    this._persistMeta();
+    return gone;
+  },
+  // ── Passes on their way (10l) ──
+  /**
+   * A pass put is going out to `peer`: perhaps given from now until the server
+   * answers. At most PASSES_UNSURE_KEPT wait per friend: beyond that the
+   * oldest are withdrawn (the desktop app's UNANSWERED_KEPT), so a server that
+   * never answers cannot grow the list without end. Returns the serials
+   * withdrawn, for the caller to send.
+   */
+  passSending(peer, serial, may) {
+    const list = this.passesUnsure[peer] || (this.passesUnsure[peer] = []);
+    if (!list.some((p) => p.serial === serial)) list.push({ serial, may });
+    const over = list.splice(0, Math.max(0, list.length - PASSES_UNSURE_KEPT)).map((p) => p.serial);
+    for (const s of over) if (!this.withdrawalsPending.includes(s)) this.withdrawalsPending.push(s);
+    this._persistMeta();
+    return over;
+  },
+  /**
+   * The friends on the "People I choose" list: a pass from me standing, one
+   * on its way or never answered, or a choice of what it lets them do still
+   * waiting for a pass the server takes (10l). Not only the standing passes:
+   * a tick taken away withdraws those at once (withdrawPassesWhere), and the
+   * friend stays on the list while the new pass is on its way. Not anyone I
+   * blocked.
+   */
+  passFriends() {
+    const keys = new Set();
+    for (const map of [this.certsSent, this.passesUnsure]) {
+      for (const p of Object.keys(map)) if (Array.isArray(map[p]) && map[p].length) keys.add(p);
+    }
+    for (const p of Object.keys(this.passIntent)) keys.add(p);
+    return Array.from(keys).filter((p) => !this.isBlocked(p));
+  },
+  /**
+   * Withdraw at once every pass to `peer`, standing or still unanswered, for
+   * which `pred({serial, may})` is true: a tick taken away takes effect now,
+   * whether or not the re-issued pass goes out (10l; the desktop app's
+   * src/engine/dm.rs reissue_pass). Their serials wait for the relay to
+   * confirm. Returns the serials withdrawn.
+   */
+  withdrawPassesWhere(peer, pred) {
+    const gone = [];
+    for (const map of [this.certsSent, this.passesUnsure]) {
+      const list = map[peer] || [];
+      const kept = list.filter((p) => !pred(p));
+      for (const p of list) if (pred(p)) gone.push(p.serial);
+      if (kept.length) map[peer] = kept; else delete map[peer];
+    }
+    for (const s of gone) if (!this.withdrawalsPending.includes(s)) this.withdrawalsPending.push(s);
+    if (gone.length) this._persistMeta();
+    return gone;
+  },
+  _dropUnsure(peer, serial) {
+    const list = this.passesUnsure[peer] || [];
+    const kept = list.filter((p) => p.serial !== serial);
+    if (kept.length === list.length) return false;
+    if (kept.length) this.passesUnsure[peer] = kept; else delete this.passesUnsure[peer];
+    return true;
+  },
+  /**
+   * The server refused the put (`dm_put_refused`): the pass was never given,
+   * so nothing about it is kept and nothing is withdrawn. Their pass, if one
+   * stands, stands; what I meant to give them stays, for the next sweep.
+   */
+  passRefused(peer, serial) {
+    if (this._dropUnsure(peer, serial)) this._persistMeta();
+  },
+  /**
+   * The server took the put (`dm_put_ok`): from now the pass is given. A
+   * re-issue (`replace`) replaces every pass to them, whose serials are
+   * withdrawn; a first pass is added. Every other pass still waiting for them
+   * is withdrawn too: they hold this one, so none of those is needed. Returns
+   * false, recording nothing, for a pass no longer waiting: withdrawn
+   * meanwhile (Unfollow, Block, a newer word from another device) or voided by
+   * a new server identity.
+   */
+  passTaken(peer, serial, may, replace) {
+    if (!this._dropUnsure(peer, serial)) return false;
+    const others = (this.passesUnsure[peer] || []).map((p) => p.serial);
+    delete this.passesUnsure[peer];
+    for (const s of others) if (!this.withdrawalsPending.includes(s)) this.withdrawalsPending.push(s);
+    const norm = (m) => String(m || '').split(',').filter(Boolean).sort().join(',');
+    if (this.passIntent[peer] !== undefined && norm(this.passIntent[peer]) === norm(may)) delete this.passIntent[peer];
+    if (replace) this.replacePassTo(peer, serial, may); else this.recordPassSent(peer, serial, may);
+    return true;
+  },
+  /**
+   * What the passes `peer` may hold from me let them do: the ones that stand
+   * and the ones whose answer has not come, either of which the relay honours
+   * if it stored it (sorted, comma-joined), or null for none. For deciding
+   * whether a message from them got through as the relay would: a friend whose
+   * pass went unanswered must not have their words dropped as a stranger's.
+   */
+  passMayHeld(peer) {
+    const words = new Set();
+    for (const p of (this.certsSent[peer] || []).concat(this.passesUnsure[peer] || [])) {
+      for (const w of String(p.may || '').split(',')) if (w) words.add(w);
+    }
+    return words.size ? Array.from(words).sort().join(',') : null;
+  },
+  /** Keep what I want `peer`'s pass to let them do (sorted, comma-joined), until a pass carrying it is taken. */
+  setPassIntent(peer, may) {
+    const words = String(may || '').split(',').filter(Boolean).sort().join(',');
+    if (!words) return;
+    this.passIntent[peer] = words;
+    this._persistMeta();
+  },
+  /** What `peer` should be able to do: what I last chose for them, else what the passes I gave them let them do; null for neither. */
+  passMayIntended(peer) {
+    const intent = this.passIntent[peer];
+    return (typeof intent === 'string' && intent) ? intent : this.passMayTo(peer);
+  },
+  /**
+   * Friends holding a pass that does not carry what I chose for them (a
+   * re-issue refused or unanswered): [{peer, may}], for the sweep to send
+   * again. Not anyone I blocked.
+   */
+  passReissuesOwed() {
+    const norm = (m) => String(m || '').split(',').filter(Boolean).sort().join(',');
+    return Object.keys(this.passIntent)
+      .filter((p) => this.certSentTo(p) && !this.isBlocked(p) && norm(this.passIntent[p]) !== norm(this.passMayTo(p)))
+      .sort()
+      .map((p) => ({ peer: p, may: this.passIntent[p] }));
   },
   /** What the passes I gave `peer` that still stand let them do (sorted, comma-joined), or null when none stands. */
   passMayTo(peer) {
@@ -266,6 +494,10 @@ const hosDmStore = {
         changed = true;
         if (kept.length) this.certsSent[peer] = kept; else delete this.certsSent[peer];
       }
+    }
+    // A withdrawn pass is not waiting for anything any more (10l).
+    for (const peer of Object.keys(this.passesUnsure)) {
+      if (this._dropUnsure(peer, serial)) changed = true;
     }
     if (changed) this._persistMeta();
   },
@@ -348,6 +580,44 @@ const hosDmStore = {
     if (this.blockNotesPending.length !== before) this._persistMeta();
   },
 
+  // ── Warnings on messages (step F) ──
+  /** Turn the warnings switch on or off. Returns true when it changed. */
+  setWarningsOn(on) {
+    const v = !!on;
+    if (this.warningsOn === v) return false;
+    this.warningsOn = v;
+    this._persistMeta();
+    return true;
+  },
+
+  // ── Reports about my groups (10j) ──
+  /** Keep a report (a checked record with its own id). Returns true when it is new. */
+  addGroupReport(rec) {
+    if (!rec || !rec.id || this.groupReports[rec.id]) return false;
+    this.groupReports[rec.id] = rec;
+    this._persistMeta();
+    return true;
+  },
+  /** Dismiss: the report is gone from this device. */
+  removeGroupReport(id) {
+    if (!this.groupReports[id]) return false;
+    delete this.groupReports[id];
+    this._persistMeta();
+    return true;
+  },
+  /** Mark that the reported person was removed from the group. */
+  setGroupReportRemoved(id) {
+    const r = this.groupReports[id];
+    if (!r) return false;
+    r.removed = true;
+    this._persistMeta();
+    return true;
+  },
+  /** Every kept report, newest first. */
+  groupReportList() {
+    return Object.values(this.groupReports).filter((r) => r && r.id).sort((a, b) => (Number(b.ts) || 0) - (Number(a.ts) || 0));
+  },
+
   setHighWater(id) {
     const n = Number(id) || 0;
     if (n > this.highWater) {
@@ -360,7 +630,7 @@ const hosDmStore = {
 
   /** Insert a VERIFIED inner payload. Returns false on duplicate. */
   async insert(inner) {
-    if (!this.ready || !inner || !inner.sig) return false;
+    if (!this.ready || this.readOnly || !inner || !inner.sig) return false;
     const dedupe = await this._sha256hex(inner.sig);
     if (this._seen.has(dedupe)) return false;
     this._seen.add(dedupe);
@@ -414,6 +684,7 @@ const hosDmStore = {
 
   /** Delete one whole conversation locally. */
   async deleteConversation(peer) {
+    if (this.readOnly) return;
     const msgs = this.conversations.get(peer) || [];
     this.conversations.delete(peer);
     delete this.lastRead[peer];

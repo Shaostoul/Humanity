@@ -153,9 +153,11 @@ window._roomPeerConnections = {}; // key → RTCPeerConnection for mesh
 window._roomLocalStream = null;
 window._currentRoomId = null;
 
-function createVoiceRoom() {
+async function createVoiceRoom() {
   const name = prompt('Voice channel name:');
   if (!name || !name.trim()) return;
+  // Never my recovery phrase (step F, chat-warnings.js).
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(name, 'The voice channel was not created.')) return;
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'voice_room', action: 'create', room_name: name.trim() }));
   }
@@ -165,6 +167,11 @@ async function joinVoiceRoom(roomId) {
   if (window._currentRoomId) {
     addSystemMessage('Leave your current voice channel first.');
     return;
+  }
+  // With the protected setup on, joining a voice room needs the PIN (10h,
+  // /shared/protected.js), also when rejoining after a reload. Leaving never does.
+  if (typeof protectedTake === 'function' && !protectedTake('join_voice_room')) {
+    return protectedAskThen('join_voice_room', () => joinVoiceRoom(roomId));
   }
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   const id = String(roomId);
@@ -939,6 +946,8 @@ async function handleVoiceRoomSignal(msg) {
               addNotice('Not connected. Reconnect, then retry voice rename.', 'red', 8);
               return;
             }
+            // Never my recovery phrase (step F, chat-warnings.js).
+            if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(newName, 'The voice channel was not renamed.')) return;
             ws.send(JSON.stringify({ type: 'voice_room', action: 'rename', room_id: String(id), room_name: newName.trim() }));
             addNotice('Voice channel rename sent.', 'cyan', 4);
           }

@@ -1,9 +1,12 @@
 // ── chat-dms.js ───────────────────────────────────────────────────────────
-// DM state, conversation list, and DM message rendering.
+// DM state, conversation list, and DM message rendering, and how a file in a
+// private conversation (a DM or a P2P group) is drawn (10k, privateFileHtml).
 // Depends on: app.js (ws, myKey, myName, activeChannel, esc, formatBody,
 //   appendMessage, formatTime, generateIdenticon, shortKey, switchChannel,
 //   renderChannelList)
 // chat-ui.js (isMobile, closeSidebars, switchSidebarTab)
+// crypto.js (pqParseFileMarker, pqDecryptFile), chat-protected.js
+//   (protectedHidesPicturesFrom, protectedPictureHiddenHtml)
 // ─────────────────────────────────────────────────────────────────────────
 
 // ── DM State ──
@@ -52,6 +55,8 @@ function openDmConversation(partnerKey, partnerName) {
   const resolvedName = partnerName ||
     (window.peerData && window.peerData[partnerKey]?.display_name) ||
     (typeof shortKey === 'function' ? shortKey(partnerKey) : partnerKey.slice(0, 8));
+  // A reply belongs to the view it was made in: a new view starts without one (app.js).
+  if (typeof clearReplyTarget === 'function') clearReplyTarget();
   activeDmPartner = partnerKey;
   activeDmPartnerName = resolvedName;
   // Clear group context so sendMessage doesn't accidentally route to the active group.
@@ -218,23 +223,67 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
   const metaHtml = `<div class="meta"><span class="author${isMe ? ' you' : ''}">${esc(author)}</span></div>`;
 
   // Encrypted attachment (2026-08-24): a [[hum:file:v1]] marker renders as a
-  // decrypt-on-view card, not raw text. The file's ciphertext is public but
-  // useless; the key rode in this sealed message.
+  // card, never as its text (the text holds the file's key). The file's
+  // ciphertext is public but useless; the key rode in this sealed message.
+  // Drawn the same way as one in a P2P group (10k, privateFileHtml below);
+  // with the protected setup on, one from someone who is not a friend is not
+  // shown and never fetched or opened: one line in its place (10h).
   const fileMeta = (typeof pqParseFileMarker === 'function') ? pqParseFileMarker(body) : null;
-  const bodyHtml = fileMeta ? encAttachmentPlaceholder(fileMeta) : formatBody(body);
+  const bodyHtml = fileMeta ? privateFileHtml(fileMeta, fromKey) : formatBody(body, fromKey);
+
+  // Step F (2026-10-10, chat-warnings.js): a stranger's links are held until
+  // the line under the message's Open is pressed, and the warnings the message
+  // matches show under it. Never on my own messages.
+  const received = !!fromKey && !isMe;
+  const holdLinks = received && !fileMeta && typeof dmLinksHeld === 'function' && typeof holdLinksHtml === 'function'
+    && dmLinksHeld(fromKey, timestamp, body);
 
   el.innerHTML = messageRowHTML({
     isContinuation,
     identiconHtml,
     metaHtml,
     pillHtml: timestampPillHTML({ time: formatTimePill(timestamp), extra: e2eeBadge }),
-    bodyHtml,
+    bodyHtml: holdLinks ? holdLinksHtml(bodyHtml) : bodyHtml,
   });
 
   appendMessage(el);
-  if (fileMeta) hydrateEncAttachment(el, fileMeta);
+  if (received && typeof addMessageSafetyLines === 'function') {
+    addMessageSafetyLines(el, { text: body, from: fromKey, ts: timestamp, context: 'dm', name: author, liveBodyHtml: holdLinks ? bodyHtml : null });
+  }
+  if (fileMeta) hydratePrivateFile(el, fileMeta, fromKey);
   if (window.twemoji) twemoji.parse(el);
+  return el;
 }
+
+// ── Files in private conversations (10k, 2026-10-10) ────────────────────────
+// docs/design/blocking-and-safe-mode.md 10k. A [[hum:file:v1]] marker in a
+// direct message (addDmMessage above) or in a P2P group message (app.js
+// addChatMessage, for chat-groups-p2p.js) is drawn the same way, here:
+//  - with the protected setup hiding pictures from someone who is not a
+//    friend (10h, chat-protected.js), its one line, and nothing is fetched or
+//    opened;
+//  - a picture (by its `mime`: png, jpeg, gif or webp) is fetched, opened with
+//    the key from the marker and shown inline: at once when it is mine or a
+//    friend's (a mutual follow, the test the warnings use), and after a click
+//    on "Image (click to load)" when the sender is not a friend, as any picture
+//    link from them is (app.js formatBody);
+//  - anything else is a card with its name and size and a Save button, which
+//    fetches and opens it only when pressed;
+//  - a fetch or an opening that fails says "This file could not be opened.",
+//    and the ciphertext is never shown.
+// Only a file on this server is fetched (a `/uploads/` path, which is what the
+// encrypted upload answers): a marker naming any other address is not
+// followed, so a message cannot make this device reach another site.
+// Sending is chat-messages.js (sendEncryptedAttachment).
+// Test: scripts/tests/private-files-web.test.js
+
+const PRIVATE_FILE_FAILED = 'This file could not be opened.';
+// The picture types shown inline, the ones formatBody shows from a link. Any
+// other type (an SVG, which can carry a script) is a card with Save instead.
+const PRIVATE_FILE_PICTURE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+// The files the reader chose to load, by address, for this page only, so a
+// conversation drawn again (a group redraws on each new message) keeps them.
+const privateFilesLoaded = new Set();
 
 function _fmtBytes(n) {
   n = Number(n) || 0;
@@ -243,68 +292,129 @@ function _fmtBytes(n) {
   return (n / 1024 / 1024).toFixed(1) + ' MB';
 }
 
-/** The card shown before (and instead of, for non-images) decryption. */
-function encAttachmentPlaceholder(meta) {
-  const isImg = (meta.mime || '').startsWith('image/');
+/** Is this file a picture shown inline? */
+function privateFileIsPicture(meta) {
+  return PRIVATE_FILE_PICTURE_TYPES.includes(String((meta && meta.mime) || '').toLowerCase());
+}
+
+/**
+ * Is a file from `fromKey` shown without a click: mine, or a friend's? A
+ * friend here is the desktop app's: a mutual follow who also holds a pass from
+ * me (someone I let through under "Friends"), not a mutual follow alone. Before
+ * the local store loads nobody is, so nothing from anyone opens early.
+ */
+function privateFileFromFriend(fromKey) {
+  if (!fromKey || typeof fromKey !== 'string') return false;
+  if (typeof myKey === 'string' && myKey && fromKey.toLowerCase() === myKey.toLowerCase()) return true;
+  const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
+  if (!store) return false;
+  return !!(store.isFriendPeer(fromKey) && store.certSentTo(fromKey));
+}
+
+/** Are files from `fromKey` not shown now (the protected setup's pictures rule)? */
+function privateFileHidden(fromKey) {
+  return typeof protectedHidesPicturesFrom === 'function' && protectedHidesPicturesFrom(fromKey);
+}
+
+/** The body of a message that is a file: the protected setup's line, or the card. */
+function privateFileHtml(meta, fromKey) {
+  if (privateFileHidden(fromKey) && typeof protectedPictureHiddenHtml === 'function') return protectedPictureHiddenHtml();
+  const isPicture = privateFileIsPicture(meta);
+  const now = isPicture && (privateFileFromFriend(fromKey) || privateFilesLoaded.has(meta.url));
   return `<div class="enc-attach" data-enc="1">
     <div class="enc-attach-head">${hosIcon('lock', 12)} <span>${esc(meta.name || 'file')}</span>
       <span class="enc-attach-size">${_fmtBytes(meta.size)}</span></div>
-    <div class="enc-attach-body">${isImg
-      ? '<div class="enc-attach-loading">Decrypting image…</div>'
-      : '<button class="enc-attach-dl">Decrypt & download</button>'}</div>
+    <div class="enc-attach-body">${!isPicture
+      ? '<button type="button" class="enc-attach-dl">Save</button>'
+      : now
+        ? '<div class="enc-attach-loading">Opening image…</div>'
+        : '<button type="button" class="enc-attach-load">' + hosIcon('image', 14) + ' Image (click to load)</button>'}</div>
   </div>`;
 }
 
-/** Fetch the ciphertext, decrypt with the in-envelope key, render/offer it. */
-async function hydrateEncAttachment(el, meta) {
-  const card = el.querySelector('.enc-attach');
-  const bodyEl = card && card.querySelector('.enc-attach-body');
-  if (!bodyEl) return;
-  const isImg = (meta.mime || '').startsWith('image/');
+/**
+ * Fetch a file's ciphertext from this server and open it with the key in its
+ * marker. A Blob of the opened bytes, or null when the address is not a file
+ * on this server, the fetch fails, or the bytes do not open (a wrong key or
+ * altered bytes): the caller then says the file could not be opened.
+ */
+async function openPrivateFile(meta) {
   try {
-    const decryptToBlob = async () => {
-      const resp = await fetch(meta.url);
-      if (!resp.ok) throw new Error('fetch ' + resp.status);
-      const ct = new Uint8Array(await resp.arrayBuffer());
-      const plain = await pqDecryptFile(ct, meta.k, meta.n);
-      if (!plain) throw new Error('decrypt failed');
-      return new Blob([plain], { type: meta.mime || 'application/octet-stream' });
-    };
-    if (isImg) {
-      const blob = await decryptToBlob();
-      const url = URL.createObjectURL(blob);
-      const img = document.createElement('img');
-      img.src = url;
-      img.alt = meta.name || 'image';
-      img.className = 'enc-attach-img';
-      img.loading = 'lazy';
-      img.onclick = () => window.open(url, '_blank');
-      bodyEl.innerHTML = '';
-      bodyEl.appendChild(img);
-    } else {
-      const btn = bodyEl.querySelector('.enc-attach-dl');
-      if (btn) {
-        btn.onclick = async () => {
-          btn.disabled = true; btn.textContent = 'Decrypting…';
-          try {
-            const blob = await decryptToBlob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = meta.name || 'attachment';
-            document.body.appendChild(a); a.click(); a.remove();
-            setTimeout(() => URL.revokeObjectURL(url), 4000);
-            btn.textContent = 'Downloaded';
-          } catch (e) {
-            btn.disabled = false; btn.textContent = 'Decrypt & download';
-            addSystemMessage('Could not decrypt attachment.');
-          }
-        };
-      }
-    }
+    const url = meta && typeof meta.url === 'string' ? meta.url : '';
+    if (!/^\/uploads\/[^\s?#\\]+$/.test(url) || url.includes('..')) return null;
+    const resp = await fetch(url);
+    if (!resp || !resp.ok) return null;
+    const ct = new Uint8Array(await resp.arrayBuffer());
+    const plain = await pqDecryptFile(ct, meta.k, meta.n);
+    if (!plain) return null;
+    const type = privateFileIsPicture(meta) ? String(meta.mime).toLowerCase() : 'application/octet-stream';
+    return new Blob([plain], { type });
   } catch (e) {
-    bodyEl.innerHTML = '<div class="enc-attach-loading">🔒 Attachment unavailable (expired or unreachable).</div>';
+    return null;
   }
 }
+
+/** Wire a drawn file card: show a picture (now, or on its click), or Save. Never runs while the file is hidden. */
+async function hydratePrivateFile(el, meta, fromKey) {
+  if (privateFileHidden(fromKey)) return;
+  const card = el && el.querySelector('.enc-attach');
+  const bodyEl = card && card.querySelector('.enc-attach-body');
+  if (!bodyEl) return;
+  const failed = () => { bodyEl.innerHTML = '<div class="enc-attach-failed">' + esc(PRIVATE_FILE_FAILED) + '</div>'; };
+
+  if (!privateFileIsPicture(meta)) {
+    const btn = bodyEl.querySelector('.enc-attach-dl');
+    if (!btn) return;
+    btn.onclick = async (e) => {
+      if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+      const blob = await openPrivateFile(meta);
+      if (!blob) { failed(); return; }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = meta.name || 'file';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      btn.disabled = false;
+      btn.textContent = 'Save';
+    };
+    return;
+  }
+
+  const show = async () => {
+    bodyEl.innerHTML = '<div class="enc-attach-loading">Opening image…</div>';
+    const blob = await openPrivateFile(meta);
+    if (!blob) { failed(); return; }
+    const url = URL.createObjectURL(blob);
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = meta.name || 'image';
+    img.className = 'enc-attach-img';
+    img.loading = 'lazy';
+    img.onclick = () => window.open(url, '_blank');
+    bodyEl.innerHTML = '';
+    bodyEl.appendChild(img);
+  };
+  if (privateFileFromFriend(fromKey) || privateFilesLoaded.has(meta.url)) {
+    await show();
+    return;
+  }
+  const load = bodyEl.querySelector('.enc-attach-load');
+  if (!load) return;
+  load.onclick = async (e) => {
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+    privateFilesLoaded.add(meta.url);
+    await show();
+  };
+}
+
+window.privateFileHtml = privateFileHtml;
+window.hydratePrivateFile = hydratePrivateFile;
+window.PRIVATE_FILE_FAILED = PRIVATE_FILE_FAILED;
 
 // DM previews loaded from the zero-knowledge relay arrive as the raw E2EE
 // envelope ({"v":1,"r":{...}}), the relay can't decrypt them. Never show that
@@ -336,7 +446,10 @@ function renderDmList() {
     + '<span class="hold-hint">hold</span></div>';
   // Contact requests ("who can reach me", step B): name only, Accept and
   // Ignore, above the conversations (chat-privacy.js draws and wires them).
-  const requestsHtml = (typeof contactRequestsSidebarHtml === 'function') ? contactRequestsSidebarHtml() : '';
+  // Above them, while the protected setup is on, its always-visible line
+  // (10h, chat-protected.js): the person it protects is told.
+  const statusHtml = (typeof protectedStatusLineHtml === 'function') ? protectedStatusLineHtml('dm') : '';
+  const requestsHtml = statusHtml + ((typeof contactRequestsSidebarHtml === 'function') ? contactRequestsSidebarHtml() : '');
   if (dmConversations.length === 0) {
     list.innerHTML = requestsHtml + '<div style="font-size:0.7rem;color:var(--text-muted);padding:var(--space-sm) var(--space-md);">No conversations yet</div>' + purgeRow;
     if (typeof wireContactRequestButtons === 'function') wireContactRequestButtons(list);

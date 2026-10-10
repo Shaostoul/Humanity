@@ -5361,4 +5361,32 @@ setup moved from config.json to its own `protected_setup.json`, so a setup turne
 v0.1473.0 to v0.1476.x reads as off after updating and has to be turned on again (said in the
 v0.1477.0 release notes). A second review of the fixes also found a re-seal refusal for members
 whose key was deleted, a re-invite left out of the group key, and a Windows panic in the chat
-limiter in the first minutes after boot; fixed in the next release.
+limiter in the first minutes after boot; fixed in v0.1478.0 (BUG-182).
+
+## BUG-182: a friendship pass the server refused still counted as given, and a removed member let back in never got the group key (FIXED v0.1478.0, found 2026-10-10)
+
+A second review, of BUG-181's own fixes, found six more:
+
+- **A refused pass counted as given.** Pacing (BUG-181) made the relay's refusals rarer, but the
+  relay still never said which `dm_put` it refused, and both apps recorded a pass as given the
+  moment it was written to the socket, withdrawing the one it replaced. A refused re-issue left a
+  friend with no pass while the app showed one standing, and a pass recorded as given is never
+  sent again. Spec 10l: a pass put carries a `ref`; the relay answers `dm_put_ok` or
+  `dm_put_refused` to the sender alone (`src/relay/handlers/dm_answer.rs`); a pass counts as given
+  only on `dm_put_ok`, and its self-copy (how my other devices learn of it) waits for that too. A
+  pass never answered is kept as "perhaps given" (desktop `passes_unanswered`, web
+  `passesUnsure`, at most four per friend) and withdrawn with the rest, and by the next pass the
+  server takes. An untick still takes effect at once: the passes allowing what was unticked are
+  withdrawn as the new pass goes out, not when it is taken.
+- **A removed member let back in never got the key.** Both apps remembered a removal so that a
+  slow re-key could not undo it, and never forgot it. Now a member list asked for after the
+  removal that names the person again counts as a rejoin (web `_rosterSeen`, desktop
+  `group_remove::left_out`).
+- **A re-seal was refused for a member with no key on file**: the relay now counts only members
+  whose Kyber key it holds.
+- **The chat limiter could panic on Windows** in the first minutes after boot (an `Instant`
+  subtraction below the clock's start); it no longer subtracts.
+- **The desktop's recovery-phrase lock line pointed to the web chat**; it now draws only its
+  first sentence.
+- **The protected setup turning off on update** (BUG-181's accepted side effect) was confirmed and
+  left as documented.

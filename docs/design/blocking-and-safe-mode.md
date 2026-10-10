@@ -1893,6 +1893,21 @@ so does the next pass the server does take, because the relay may have stored it
 was lost. One pass put per friend is in flight at a time. The relay half must be live before (or
 with) the clients' halves: a client whose `ref` is never answered records no pass at all.
 
+**As built, the desktop app and the rules both clients now share (v0.1478.0):** the `ref` is 32
+random hex characters (web: "pass-" and 24), never the pass's serial, so the relay cannot match a
+put to a later withdrawal. Passes never answered are kept across restarts (desktop
+`passes_unanswered` in `src/net/dm_store.rs`, web `passesUnsure`), at most four per friend; past
+that the oldest is withdrawn. One exception to "only then are the passes it replaces withdrawn":
+a change that TAKES SOMETHING AWAY (an untick of Message, Call or Trade) withdraws the passes
+allowing it, standing or unanswered, as soon as the new pass goes out, because consent taken back
+takes effect now (desktop `reissue_pass`, web `reissuePassTo`, both through `grants_beyond` /
+`reachGrantsBeyond`); until the new pass is taken that friend gets what the person's settings
+allow strangers, and stays on the "People I choose" list. An added tick simply waits. My own
+self-copy echoing back for a pass already recorded changes nothing. A contact request whose put
+is not taken puts the conversation's notice back to Send request, with "The server did not
+confirm the request. You can send it again." On the desktop the message pump reaches the answers
+through `src/engine/put_answer.rs`, and the held sends live in `src/net/put_answers.rs`.
+
 **Proof:** relay tests: `dm_put_ok` for a stored put with a ref, `dm_put_refused` with the right
 reason for a rate refusal and a reach refusal, nothing for a put without a ref, nothing for the
 self-copy. Client tests on both: a pass is recorded and the old one withdrawn only after

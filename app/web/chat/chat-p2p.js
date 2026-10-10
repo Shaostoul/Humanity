@@ -534,6 +534,8 @@ function bindDataChannel(dc, peerKey) {
  * @param {string} text       - Plaintext message
  */
 async function sendP2PMessage(peerPubKey, text) {
+  // Never my recovery phrase (step F, chat-warnings.js), on a direct channel or through the relay.
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(text)) return;
   const dc = p2pDataChannels[peerPubKey];
   const contact = p2pContacts[peerPubKey];
 
@@ -600,6 +602,8 @@ async function onDCMessage(event, peerKey) {
   // refuse (step B): a request, name only, its text dropped, as for mail
   // (chat-privacy.js ingestContactRequest, reachScreenDm).
   if (typeof ingestContactRequest === 'function' && await ingestContactRequest(inner)) return;
+  // A report about a group (10j, chat-reports.js ingestGroupReport): never stored as a message.
+  if (typeof ingestGroupReport === 'function' && await ingestGroupReport(inner)) return;
   if (typeof reachScreenDm === 'function' && reachScreenDm(inner)) return;
   if (window.hosDmStore && hosDmStore.ready) {
     const isNew = await hosDmStore.insert(inner);

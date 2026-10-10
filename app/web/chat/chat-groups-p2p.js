@@ -135,7 +135,9 @@
       if (!key) continue;                       // no key for this epoch (e.g. an epoch before we joined)
       const text = await obj.aesGcmDecrypt(key, parsed.nonce, parsed.ct);
       if (text === null) continue;
-      out.push({ author_fp: m.author_fp, created_at: m.created_at, text });
+      // The signed-object id goes with the words: a report to the group's
+      // creator names the message by it (10j).
+      out.push({ object_id: m.object_id, author_fp: m.author_fp, created_at: m.created_at, text });
     }
     return out;
   }
@@ -251,7 +253,10 @@
         : ((ag.fpToName && ag.fpToName[authorFp]) || (res.authorPubHex || '').slice(0, 12) + '…');
       const fromKey = (ag.fpToKey && ag.fpToKey[authorFp]) || res.authorPubHex;
       if (typeof addChatMessage === 'function') {
-        addChatMessage(name, text, res.createdAt || Date.now(), fromKey, true, false, null, null);
+        const ts = res.createdAt || Date.now();
+        const el = addGroupMessage(name, text, ts, fromKey, true);
+        markGroupObjectId(el, res.objectId);
+        if (!isMe) groupMessageWarnings(el, text, fromKey, ts, name);
       }
     } catch (_e) { /* never let a bad frame break the channel */ }
   }
@@ -294,31 +299,29 @@
 
     // (2) Current epoch + already-covered recipient fingerprints. Keep the raw
     //     payload bytes so a SHARED-history re-seal can unseal the current key.
-    let currentEpoch = 0;
+    //     Only the server's plain "no key yet" (404) counts as epoch 0; any
+    //     other failure, or a key that cannot be read, skips the re-key this
+    //     time rather than minting a key numbered 1 over the group's real one.
+    const current = await _currentEpochOf(groupId, obj);
+    if (!current) return null;
+    const currentEpoch = current.epoch;
+    const currentEpochPayloadBytes = current.payloadBytes;
     const coveredFps = new Set();
-    let currentEpochPayloadBytes = null;
-    try {
-      const r = await fetch('/api/v2/groups/' + encodeURIComponent(groupId) + '/epoch');
-      if (r.ok) {
-        const epochObj = await r.json();
-        currentEpochPayloadBytes = b64ToBytes(epochObj.payload_b64);
-        const parsed = obj.parseGroupEpochKeyPayload(currentEpochPayloadBytes);
-        if (parsed) {
-          currentEpoch = parsed.epoch || 0;
-          for (const rcp of parsed.recipients) {
-            if (rcp && rcp.fp) coveredFps.add(rcp.fp);
-          }
-        }
-      }
-    } catch (e) { /* no epoch yet, treat as currentEpoch=0, empty set */ }
+    for (const rcp of (current.parsed && Array.isArray(current.parsed.recipients)) ? current.parsed.recipients : []) {
+      if (rcp && rcp.fp) coveredFps.add(rcp.fp);
+    }
 
     // (3) Current roster with each member's Kyber public key.
     let allMembers = [];
     try {
+      const readNo = _rosterReadStart();
       const r = await fetch('/api/v2/groups/' + encodeURIComponent(groupId) + '/members');
       if (!r.ok) return null;
       const data = await r.json();
       allMembers = data.members || [];
+      // Someone this device removed whom the server no longer lists has left:
+      // if they come back with a new ticket, they are sealed to again.
+      _rosterSeen(groupId, allMembers.map((m) => m && m.pubkey), readNo);
     } catch (e) { return null; }
 
     // (4) Compute each member's fingerprint; identify gaps. Members without a
@@ -328,6 +331,9 @@
     let hasGap = false;
     for (const m of allMembers) {
       if (!m.kyber_public || !m.pubkey) continue;
+      // Someone this device removed is never sealed to again, even while the
+      // server still lists them (between the new key and the removal).
+      if (_wasRemoved(groupId, m.pubkey)) continue;
       const pubBytes = hexToBytes(m.pubkey);
       const h = blake3(pubBytes);
       let fp = '';
@@ -337,7 +343,9 @@
     }
 
     if (!hasGap) return null; // all current members already covered
-    const addedCount = sealable.length - coveredFps.size;
+    // The members the current key does not cover (not a difference of counts:
+    // someone removed is covered by the old key and left out of the new one).
+    const addedCount = sealable.filter((s) => !coveredFps.has(s.fp)).length;
 
     // (5) Cover the new member(s).
     if (shareHistory && currentEpoch >= 1 && currentEpochPayloadBytes) {
@@ -374,6 +382,11 @@
   }
 
   async function createP2pGroup(name, shareHistory) {
+    // With the protected setup on, starting a group needs the PIN (its
+    // members can post to this device, and the status line says so).
+    if (typeof protectedTake === 'function' && !protectedTake('start_group')) {
+      return protectedAskThen('start_group', () => createP2pGroup(name, shareHistory));
+    }
     if (!pqReady()) return notReady();
     name = (name || '').trim();
     if (!name) return;
@@ -410,6 +423,13 @@
 
   // Mint a creator-signed invite for `groupId`, returning a shareable ticket string.
   async function createP2pInvite(groupId, groupName) {
+    // With the protected setup on, making (or copying) an invite ticket needs
+    // the PIN: each ticket lets someone into a group with this device in it.
+    // Resolves null when the PIN is not given.
+    if (typeof protectedTake === 'function' && !protectedTake('group_invite')) {
+      const t = await protectedAskThen('group_invite', () => createP2pInvite(groupId, groupName));
+      return t || null;
+    }
     if (!pqReady()) { notReady(); return null; }
     const { obj, blake3 } = await mods();
     const secret = obj.randomInviteSecret();
@@ -421,6 +441,11 @@
   }
 
   async function joinP2pGroupByTicket(ticketStr) {
+    // With the protected setup on, joining a group needs the PIN (10h,
+    // /shared/protected.js). Leaving one never does.
+    if (typeof protectedTake === 'function' && !protectedTake('join_group')) {
+      return protectedAskThen('join_group', () => joinP2pGroupByTicket(ticketStr));
+    }
     if (!pqReady()) return notReady();
     const { obj, blake3 } = await mods();
     let t;
@@ -433,16 +458,23 @@
     await loadP2pGroups();
   }
 
+  // The one remove path: a signed group_member_v1 {action:"remove", subject}.
+  // The relay honours it from the subject themselves (leaving) or from the
+  // group's creator (removing someone).
+  async function postMemberRemove(groupId, subjectBytes) {
+    const { obj, blake3 } = await mods();
+    const { submission } = await obj.buildGroupMemberV1({
+      groupId, action: 'remove', subjectPubkey: subjectBytes,
+      authorPublicKey: authorPub(), sign: signer(), blake3,
+    });
+    await postObject(submission);
+  }
+
   // Leave a group I'm in: post a group_member_v1 {action:"remove", subject:me}.
   // The relay authorizes self-removal for any member (you can always leave).
   async function leaveP2pGroup(groupId) {
     if (!pqReady()) return notReady();
-    const { obj, blake3 } = await mods();
-    const { submission } = await obj.buildGroupMemberV1({
-      groupId, action: 'remove', subjectPubkey: authorPub(),
-      authorPublicKey: authorPub(), sign: signer(), blake3,
-    });
-    await postObject(submission);
+    await postMemberRemove(groupId, authorPub());
     // If I'm currently viewing it, drop back to a normal channel.
     if (window.activeP2pGroup && window.activeP2pGroup.id === groupId) {
       if (typeof closeP2pGroup === 'function') closeP2pGroup();
@@ -469,18 +501,262 @@
     await loadP2pGroups();
   }
 
+  // ── A report about a group reaches its creator (10j, 2026-10-10) ──────────
+  // docs/design/blocking-and-safe-mode.md 10j; the words and rules are in
+  // /shared/group-report.js, the dialog and the Safety section in
+  // chat-reports.js. What lives here is what needs the group's signed objects.
+
+  // Group id -> its creator's key (lowercase hex), once found. A group's
+  // creator never changes, so it is asked for once per page.
+  const _creatorOf = new Map();
+
+  /**
+   * The group's creator: the author of its group_v1 object, whose signature is
+   * checked here and whose bytes hash to the group's id, so the server cannot
+   * name someone else. Null when it cannot be found out.
+   */
+  async function p2pGroupCreatorKey(groupId) {
+    if (typeof groupId !== 'string' || !groupId) return null;
+    if (_creatorOf.has(groupId)) return _creatorOf.get(groupId);
+    try {
+      const r = await fetch('/api/v2/objects/' + encodeURIComponent(groupId));
+      if (!r.ok) return null;
+      const groupObj = await r.json();
+      const { obj, blake3 } = await mods();
+      const v = await obj.verifyObjectSubmission(groupObj, { blake3, pqVerify: window.pqVerifyMessage });
+      if (!v || !v.ok || v.objectId !== groupId || groupObj.object_type !== 'group_v1') return null;
+      const key = String(v.authorPubHex || '').toLowerCase();
+      if (!key) return null;
+      _creatorOf.set(groupId, key);
+      return key;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * Check a report's items against MY copy of the group (the creator's side,
+   * /shared/group-report.js groupReportCheck): the group's message objects,
+   * each signature checked here, opened with the group keys I hold. Returns the
+   * items with `found` and `signer`; every item "not found" when the copy
+   * cannot be read.
+   */
+  async function checkGroupReportItems(report) {
+    const notFound = () => (report.items || []).map((it) => ({ ...it, found: false, signer: '' }));
+    if (typeof groupReportCheck !== 'function') return notFound();
+    try {
+      const { obj, blake3 } = await mods();
+      const [raw, keys] = await Promise.all([_fetchGroupMessagesRaw(report.group_id), fetchAllEpochKeys(report.group_id)]);
+      return await groupReportCheck(report, raw, {
+        verify: (o) => obj.verifyObjectSubmission(o, { blake3, pqVerify: window.pqVerifyMessage }),
+        open: async (payload) => {
+          const parsed = obj.parseGroupMsgPayload(payload);
+          const key = parsed && keys && keys.map ? keys.map.get(parsed.epoch) : null;
+          if (!key) return null;
+          return obj.aesGcmDecrypt(key, parsed.nonce, parsed.ct);
+        },
+      });
+    } catch (e) {
+      console.warn('checkGroupReportItems:', e && e.message);
+      return notFound();
+    }
+  }
+
+  /**
+   * A new group key sealed to everyone in the group now except `without`, so
+   * someone being removed cannot read what is said from here on: they keep
+   * the keys to what they already saw. Only the creator's key is accepted by
+   * the server, as for every group key. The open view sends under it at once.
+   * Returns {epoch, epochKey}, or null when it could not be made.
+   */
+  async function rotateP2pGroupKey(groupId, without) {
+    if (!pqReady() || typeof window.pqDmSeal !== 'function') return null;
+    const { obj, blake3 } = await mods();
+    // The group's current key number. Only the server's plain "no key yet"
+    // (404) means this is the first; any other failure, or a key that cannot
+    // be read, makes no key at all: guessing 0 would post a key numbered 1
+    // over the group's real one (the batch review, 2026-10-10).
+    const current = await _currentEpochOf(groupId, obj);
+    if (!current) return null;
+    const currentEpoch = current.epoch;
+    let members = [];
+    try {
+      const readNo = _rosterReadStart();
+      const r = await fetch('/api/v2/groups/' + encodeURIComponent(groupId) + '/members');
+      if (!r.ok) return null;
+      members = ((await r.json()).members) || [];
+      _rosterSeen(groupId, members.map((m) => m && m.pubkey), readNo);
+    } catch (e) { return null; }
+    const gone = String(without || '').toLowerCase();
+    const sealable = [];
+    for (const m of members) {
+      if (!m || !m.pubkey || !m.kyber_public) continue;
+      if (gone && String(m.pubkey).toLowerCase() === gone) continue; // even if the server still lists them
+      if (_wasRemoved(groupId, m.pubkey)) continue; // nor anyone else this device removed
+      sealable.push({ fp: fpFromPubHex(m.pubkey, blake3), kyber_public: m.kyber_public });
+    }
+    const epoch = currentEpoch + 1;
+    const epochKey = obj.randomEpochKey();
+    // A key that cannot be built, or that the server refuses, is a key that
+    // could not be made (the desktop app counts it the same way).
+    try {
+      const ek = await obj.buildGroupEpochKeyV1({
+        groupId, epoch, epochKey, members: sealable, seal: window.pqDmSeal,
+        authorPublicKey: authorPub(), sign: signer(), blake3,
+      });
+      await postObject(ek.submission);
+    } catch (e) {
+      console.warn('rotateP2pGroupKey:', e && e.message);
+      return null;
+    }
+    const ag = window.activeP2pGroup;
+    if (ag && ag.id === groupId) {
+      ag.epoch = epoch;
+      ag.epochKey = epochKey;
+      if (!ag.epochKeys) ag.epochKeys = new Map();
+      ag.epochKeys.set(epoch, epochKey);
+      ag.fpToName = null; // the roster changed: reload the names next refresh
+    }
+    return { epoch, epochKey };
+  }
+
+  /**
+   * Remove someone from a group I created ("Remove them from the group", 10j):
+   * a new group key for everyone else first, then the same signed remove a
+   * leave posts, with them as the subject. The key goes first so that a key
+   * which cannot be made changes nothing: no one is removed yet still able to
+   * read. Throws (saying what failed) when either step does not go through.
+   */
+  async function removeP2pMember(groupId, memberKey) {
+    if (!pqReady()) { notReady(); return false; }
+    const key = String(memberKey || '').toLowerCase();
+    if (!/^[0-9a-f]+$/.test(key) || key.length % 2 !== 0) return false;
+    // Counted as removed from the moment their key is being replaced, so the
+    // creator's own rekey on open (rekeyIfCreatorNeeds, which seals to the
+    // server's list) cannot seal to them while the server still lists them
+    // between the new key and the removal.
+    const already = _wasRemoved(groupId, key);
+    _markRemoved(groupId, key);
+    let rotated = null;
+    try { rotated = await rotateP2pGroupKey(groupId, key); } catch (e) { rotated = null; }
+    if (!rotated) {
+      if (!already) _removedMarks(groupId).delete(key); // no one was removed, so they are not left out of later keys
+      throw _removeError('a new group key could not be made');
+    }
+    try {
+      await postMemberRemove(groupId, hexToBytes(key));
+    } catch (e) {
+      // Never the server's own words ("HTTP 500"): the desktop app's sentence.
+      // They stay out of every key this device makes: the new one already left them out.
+      console.warn('removeP2pMember:', e && e.message);
+      throw _removeError('the server refused it');
+    }
+    await loadP2pGroups();
+    return true;
+  }
+
+  /** An error saying why a removal did not go through, in the words the report's line uses. */
+  function _removeError(reason) {
+    const e = new Error(reason);
+    e.removeReason = reason;
+    return e;
+  }
+
+  // ── Who this device removed, until the server's list catches up ──
+  // Group id -> Map(key (lowercase hex) -> the roster read count when it was
+  // marked). Never sealed to by any key this device makes while the server
+  // still lists them (between the new key and the removal landing). Once a
+  // roster read that began after the mark no longer lists them, the removal
+  // has landed and they leave this list: from then the server's roster is the
+  // truth, so someone the creator lets back in with a new ticket is sealed to
+  // like any new member. (Until 2026-10-10 the mark lasted the whole page
+  // visit, so a person let back in was left out of every key this device made
+  // until the page was loaded again.) In memory only.
+  const _removedFrom = new Map();
+  // Counts roster reads (and marks), so a list fetched before someone was
+  // marked can never count as the removal having landed.
+  let _rosterReads = 0;
+  function _removedMarks(groupId) {
+    let m = _removedFrom.get(groupId);
+    if (!m) { m = new Map(); _removedFrom.set(groupId, m); }
+    return m;
+  }
+  function _wasRemoved(groupId, pubkey) {
+    const m = _removedFrom.get(groupId);
+    return !!(m && typeof pubkey === 'string' && m.has(pubkey.toLowerCase()));
+  }
+  /** Mark `key` removed from `groupId` by this device. */
+  function _markRemoved(groupId, key) {
+    _removedMarks(groupId).set(String(key).toLowerCase(), ++_rosterReads);
+  }
+  /** A roster read is starting: its number, for _rosterSeen. */
+  function _rosterReadStart() {
+    return ++_rosterReads;
+  }
+  /**
+   * The server's roster for `groupId`, from a read numbered `readNo`: anyone
+   * marked removed before that read began whom it no longer lists has left the
+   * group, so the mark goes. `keys` are member keys (hex). A list that does not
+   * name me is not one to learn from (the server answers an empty roster when
+   * it cannot read its own), so it changes nothing.
+   */
+  function _rosterSeen(groupId, keys, readNo) {
+    const marks = _removedFrom.get(groupId);
+    if (!marks || !marks.size || !Array.isArray(keys)) return;
+    const listed = new Set(keys.filter((k) => typeof k === 'string').map((k) => k.toLowerCase()));
+    if (typeof myKey !== 'string' || !listed.has(myKey.toLowerCase())) return;
+    for (const [key, markedAt] of marks) {
+      if (readNo > markedAt && !listed.has(key)) marks.delete(key);
+    }
+  }
+
+  /**
+   * The group's current key number, from the server: {epoch, payloadBytes}, with
+   * {epoch: 0, payloadBytes: null} only for the server's plain "no key yet"
+   * (404). Null for any other failure, or for a key that cannot be read: then
+   * nobody may guess the number (a guessed 0 would post a key numbered 1 over
+   * the group's real one).
+   */
+  async function _currentEpochOf(groupId, obj) {
+    try {
+      const r = await fetch('/api/v2/groups/' + encodeURIComponent(groupId) + '/epoch');
+      if (r.status === 404) return { epoch: 0, payloadBytes: null, parsed: null };
+      if (!r.ok) return null;
+      const epochObj = await r.json();
+      const payloadBytes = b64ToBytes(epochObj.payload_b64);
+      const parsed = obj.parseGroupEpochKeyPayload(payloadBytes);
+      const epoch = parsed ? Number(parsed.epoch) : NaN;
+      if (!parsed || !Number.isSafeInteger(epoch) || epoch < 1) return null;
+      return { epoch, payloadBytes, parsed };
+    } catch (e) {
+      return null;
+    }
+  }
+
   // Fetch my P2P groups + rosters from the relay projection and re-render.
   // Sets `_p2pGroupsFetched` only once a real fetch is attempted (myKey ready)
   //, otherwise the lazy trigger in renderGroupList would burn the flag before
   // identity loads and the groups would never appear until the user interacted
   // (the "no groups on first load" bug).
+  // A reply that is not a list (an HTTP error, which fetch does not throw for,
+  // or a body without `groups`) keeps the last list: setting it empty would
+  // make a group report arriving meanwhile look like one about a group I do
+  // not hold, and it would be dropped for good (chat-reports.js).
   async function loadP2pGroups() {
     if (typeof myKey !== 'string' || !myKey) return;
     window._p2pGroupsFetched = true;
     try {
+      const readNo = _rosterReadStart();
       const res = await fetch('/api/v2/groups?pubkey=' + encodeURIComponent(myKey));
-      const data = await res.json();
-      window._p2pGroups = (data && Array.isArray(data.groups)) ? data.groups : [];
+      const data = res && res.ok ? await res.json() : null;
+      if (data && Array.isArray(data.groups)) {
+        window._p2pGroups = data.groups;
+        // Each group's roster, as the removal check reads it (removeP2pMember
+        // ends here, so a removal that landed is seen at once).
+        for (const g of data.groups) if (g && g.group_id) _rosterSeen(g.group_id, g.members, readNo);
+      } else {
+        window._p2pGroups = window._p2pGroups || [];
+      }
     } catch (e) {
       window._p2pGroups = window._p2pGroups || [];
     }
@@ -545,17 +821,50 @@
         ? (window.myName || 'You')
         : (labelFromMap || (m.author_fp || '').slice(0, 12) + '…');
       const fromKey = isMe ? myKey : (ag.fpToKey && ag.fpToKey[m.author_fp]) || m.author_fp;
-      addChatMessage(authorName, m.text, m.created_at, fromKey, true, false, null, null);
+      const el = addGroupMessage(authorName, m.text, m.created_at, fromKey, true);
+      markGroupObjectId(el, m.object_id);
+      if (!isMe) groupMessageWarnings(el, m.text, fromKey, m.created_at, authorName);
     }
+  }
+
+  /**
+   * Draw one group message through the channel renderer (app.js
+   * addChatMessage), with a file's [[hum:file:v1]] marker drawn as a DM's is
+   * (10k, chat-dms.js privateFileHtml): never as its text, which holds the
+   * file's key. Returns the row.
+   */
+  function addGroupMessage(name, text, ts, fromKey, isHistory) {
+    if (typeof addChatMessage !== 'function') return null;
+    return addChatMessage(name, text, ts, fromKey, isHistory, false, null, null, false, null, { privateFiles: true, privateRow: true });
+  }
+
+  /**
+   * Put a group message's signed-object id on its row (10j): the author menu's
+   * Report reads it there (app.js), so a report to the group's creator names
+   * the message the creator can look up in their own copy.
+   */
+  function markGroupObjectId(el, objectId) {
+    if (el && el.dataset && typeof objectId === 'string' && objectId) el.dataset.groupObjectId = objectId;
+  }
+
+  /**
+   * The warnings a group message matches, under it (step F, 2026-10-10,
+   * chat-warnings.js): by whether its author is a friend. Never on my own.
+   */
+  function groupMessageWarnings(el, text, fromKey, ts, name) {
+    if (!el || typeof addMessageSafetyLines !== 'function') return;
+    addMessageSafetyLines(el, { text, from: fromKey, ts, context: 'group', name });
   }
 
   // Populate ag.fpToName + ag.fpToKey by fetching the roster + matching each
   // member's fingerprint. Best-effort: failures are silent (fall back to short fp).
   async function _loadRosterIndex(ag) {
     try {
+      const readNo = _rosterReadStart();
       const r = await fetch('/api/v2/groups/' + encodeURIComponent(ag.id) + '/members');
       if (!r.ok) return;
       const data = await r.json();
+      _rosterSeen(ag.id, (data.members || []).map((m) => m && m.pubkey), readNo);
       const { blake3 } = await mods();
       ag.fpToName = {};
       ag.fpToKey = {};
@@ -573,6 +882,39 @@
     } catch (e) { /* best effort */ }
   }
 
+  /**
+   * Is there a newer group key than the one `ag` sends under (the creator
+   * made one, as after removing someone)? When it is sealed to me, switch to
+   * it: sending uses it from now on, and it joins the keys history is opened
+   * with. True when it switched. A newer key not sealed to me (I was removed)
+   * changes nothing here; the server refuses my posts then anyway.
+   */
+  async function _adoptNewerEpoch(ag) {
+    if (!ag || !pqReady() || typeof window.pqDmOpen !== 'function' || !myKyberSecret) return false;
+    try {
+      const r = await fetch('/api/v2/groups/' + encodeURIComponent(ag.id) + '/epoch');
+      if (!r.ok) return false;
+      const epochObj = await r.json();
+      const { obj } = await mods();
+      const payload = b64ToBytes(epochObj.payload_b64);
+      const parsed = obj.parseGroupEpochKeyPayload(payload);
+      const newer = parsed ? Number(parsed.epoch) : NaN;
+      if (!Number.isSafeInteger(newer) || newer <= (Number(ag.epoch) || 0)) return false;
+      const fp = ag.myFp || await myFingerprint();
+      const opened = await obj.openGroupEpochKey(payload, fp, window.pqDmOpen, myKyberSecret);
+      if (!opened || !opened.epochKey || !(Number(opened.epoch) > (Number(ag.epoch) || 0))) return false;
+      if (window.activeP2pGroup !== ag) return false; // the view changed meanwhile
+      ag.epoch = Number(opened.epoch);
+      ag.epochKey = opened.epochKey;
+      if (!ag.epochKeys) ag.epochKeys = new Map();
+      ag.epochKeys.set(ag.epoch, opened.epochKey);
+      ag.fpToName = null; // the roster changed with it: reload the names next refresh
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   async function _p2pRefresh() {
     const ag = window.activeP2pGroup;
     if (!ag || _p2pRefreshing) return;
@@ -587,8 +929,12 @@
 
       const rosterP = ag.fpToName ? Promise.resolve() : _loadRosterIndex(ag);
       const rawP = _fetchGroupMessagesRaw(ag.id);            // GET messages (no decrypt yet)
+      // With a key in hand, still ask on every refresh whether there is a newer
+      // one (as the desktop app does on each load): after the creator removes
+      // someone, everyone else must send under the new key at once, never on
+      // under the old one the removed person still holds.
       const keyP = ag.epochKey
-        ? Promise.resolve()
+        ? _adoptNewerEpoch(ag)
         : fetchAllEpochKeys(ag.id).then((all) => {
             if (all) {
               ag.epochKeys = all.map;        // epoch → key, for decrypting the full multi-epoch history
@@ -652,6 +998,10 @@
    */
   function openP2pGroup(groupId, name) {
     if (!pqReady()) { notReady(); return; }
+    // A reply belongs to the view it was made in: a new view starts without
+    // one (app.js), so a reply begun elsewhere never rides a group message
+    // and one begun here never rides a post elsewhere.
+    if (typeof clearReplyTarget === 'function') clearReplyTarget();
     // (a) Clear competing contexts (DM, legacy group). Leave `activeChannel`
     //     untouched so switching back to a channel restores it.
     if (typeof activeDmPartner !== 'undefined') { activeDmPartner = null; activeDmPartnerName = ''; }
@@ -735,6 +1085,8 @@
   function closeP2pGroup() {
     _stopP2pPoll();
     _p2pRenderedKey = '';
+    // A reply made in the group stays in the group (app.js clearReplyTarget).
+    if (window.activeP2pGroup && typeof clearReplyTarget === 'function') clearReplyTarget();
     if (window.activeP2pGroup) window.activeP2pGroup = null;
   }
 
@@ -766,6 +1118,44 @@
       return _origOpenGroupP2p.apply(this, arguments);
     };
   }
+  /** Can the group on screen take a message now? Says why not (no group key yet). */
+  function p2pGroupCanSend() {
+    const ag = window.activeP2pGroup;
+    if (!ag) return false;
+    if (!ag.epochKey) {
+      if (typeof addNotice === 'function') addNotice('Waiting for the group epoch key. The group creator must open the group once first.', 'orange', 6);
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Send `text` as an encrypted message in the group on screen: a typed
+   * message, or a file's [[hum:file:v1]] marker (chat-ui.js
+   * sendComposedContent routes the attachment paths here, 10k). True when it
+   * was sent; false (having said why) when it was not.
+   */
+  async function sendToActiveP2pGroup(text) {
+    const ag = window.activeP2pGroup;
+    if (!ag || !text) return false;
+    if (!p2pGroupCanSend()) return false;
+    try {
+      await sendGroupMessage(ag.id, ag.epoch || 1, ag.epochKey, text);
+    } catch (e) {
+      if (typeof addNotice === 'function') addNotice('Send failed: ' + e.message, 'red', 6);
+      return false;
+    }
+    // A group message carries no reply: the reply bar, if one was open, has
+    // done its job here and never goes on to a post anywhere else (app.js).
+    if (typeof clearReplyTarget === 'function') clearReplyTarget();
+    // Optimistic local echo so the user sees their message land
+    // immediately, the next poll-refresh reconciles with what the relay
+    // stored (dedup by author_fp + created_at).
+    addGroupMessage(window.myName || 'You', text, Date.now(), myKey, false);
+    _p2pRefresh();
+    return true;
+  }
+
   // sendMessage routing: when a P2P group is active, the composer sends to it.
   if (typeof sendMessage === 'function') {
     const _origSendMsgP2p = sendMessage;
@@ -778,23 +1168,16 @@
       if (!input) return;
       const text = (input.value || '').trim();
       if (!text) return;
-      if (!ag.epochKey) {
-        if (typeof addNotice === 'function') addNotice('Waiting for the group epoch key. The group creator must open the group once first.', 'orange', 6);
-        return;
-      }
+      // Never my recovery phrase (step F, chat-warnings.js): stopped, the text stays to edit.
+      if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(text)) return;
+      if (!p2pGroupCanSend()) return;
       input.disabled = true;
       if (sendBtn) sendBtn.disabled = true;
       try {
-        await sendGroupMessage(ag.id, ag.epoch || 1, ag.epochKey, text);
-        input.value = '';
-        input.style.height = 'auto';
-        // Optimistic local echo so the user sees their message land
-        // immediately, the next poll-refresh reconciles with what the relay
-        // stored (dedup by author_fp + created_at).
-        addChatMessage(window.myName || 'You', text, Date.now(), myKey, false, false, null, null);
-        _p2pRefresh();
-      } catch (e) {
-        if (typeof addNotice === 'function') addNotice('Send failed: ' + e.message, 'red', 6);
+        if (await sendToActiveP2pGroup(text)) {
+          input.value = '';
+          input.style.height = 'auto';
+        }
       } finally {
         input.disabled = false;
         if (sendBtn) sendBtn.disabled = false;
@@ -808,9 +1191,16 @@
   window.joinP2pGroupByTicket = joinP2pGroupByTicket;
   window.leaveP2pGroup = leaveP2pGroup;
   window.disbandP2pGroup = disbandP2pGroup;
+  window.removeP2pMember = removeP2pMember;
+  window.p2pGroupCreatorKey = p2pGroupCreatorKey;
+  window.checkGroupReportItems = checkGroupReportItems;
   window.loadP2pGroups = loadP2pGroups;
   window.openP2pGroup = openP2pGroup;
   window.closeP2pGroup = closeP2pGroup;
+  // 10k: chat-ui.js sendComposedContent sends a file's marker to the group on
+  // screen through these (and chat-messages.js asks before uploading).
+  window.sendToActiveP2pGroup = sendToActiveP2pGroup;
+  window.p2pGroupCanSend = p2pGroupCanSend;
   // Phase 3: chat-p2p.js's onDCMessage dispatches `p2p_group_obj` frames here.
   window.handleP2pGroupObj = handleP2pGroupObj;
   // Back-compat alias: anything still calling the old name gets routed into

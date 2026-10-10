@@ -1474,7 +1474,7 @@
     <!-- Security -->
     <section class="settings-section" id="sec-security">
       <h1>Security</h1>
-      <p class="section-desc">Protect your identity and manage your devices. Your Dilithium3 key (post-quantum) is your passport, keep its 24-word seed safe and consider setting up social key recovery via guardians at /recovery.</p>
+      <p class="section-desc">Protect your identity and manage your devices. Your Dilithium3 key (post-quantum) is your passport, keep its 24-word recovery phrase safe and consider setting up social key recovery via guardians at /recovery.</p>
 
       <div id="backup-warning" class="settings-group" style="background:rgba(229,85,85,0.08);border:1px solid rgba(229,85,85,0.3);border-radius:10px;padding:var(--space-xl) var(--space-2xl);margin-bottom:var(--space-2xl);">
         <div style="display:flex;align-items:flex-start;gap:var(--space-lg);">
@@ -2151,7 +2151,7 @@
 <!-- `pq.js` installs window.pqDeriveIdentity + window.pqSignMessage; -->
 <!-- `pq-relay-auth.js` installs window.getPqSignedAuth used by vault sync. -->
 <script src="/chat/pq.js?v=1"></script>
-<script src="/shared/pq-relay-auth.js?v=1"></script>
+<script src="/shared/pq-relay-auth.js?v=2"></script>
 <script src="/shared/defaults.js"></script>
 <script src="/shared/hold-confirm.js?v=1"></script>
 <script src="/pages/settings-app.js"></script>

@@ -456,8 +456,10 @@ function showUserContextMenu(e, name, publicKey, message) {
   const targetPeer = peerData[publicKey] || {};
   const targetRole = targetPeer.role || 'user';
   const myRole = (peerData[myKey] && peerData[myKey].role) || 'user';
-  const amMod   = myRole === 'mod' || myRole === 'admin';
-  const amAdmin  = myRole === 'admin';
+  // The owner manages members as an admin does (the relay checks admin or owner for
+  // each of these commands, as the voice modal already did).
+  const amMod   = myRole === 'mod' || myRole === 'admin' || myRole === 'owner';
+  const amAdmin  = myRole === 'admin' || myRole === 'owner';
 
   // Color-coded ctx-item: user=default, mod=green left border, admin=blue, danger=red
   const ci = (onclick, label, tier) => {
@@ -522,6 +524,10 @@ function showUserContextMenu(e, name, publicKey, message) {
         html += ci("ctxCommand('/mod')", '\u2B06\uFE0F Promote to Mod', 'admin');
         html += ci("ctxCommand('/unmod')", '\u2B07\uFE0F Demote', 'admin');
         html += ci("ctxCommand('/unban')", '\uD83D\uDD13 Unban', 'admin');
+        // 10i: never for a moderator, never on an admin's or the owner's row.
+        if (adminEraseOfferedFor(publicKey)) {
+          html += ci("adminEraseFromCtx()", '\uD83D\uDDD1\uFE0F ' + esc(ADMIN_ERASE_LABEL), 'danger');
+        }
       }
     }
   }
@@ -610,6 +616,187 @@ function unblockFromCtx() {
   const key = ctxMenuTarget.publicKey;
   hideContextMenu();
   if (typeof unblockKey === 'function') unblockKey(key);
+}
+
+// ── Erase their data (10i, docs/design/blocking-and-safe-mode.md) ──
+// An admin or the owner erases everything this server stores about a member,
+// from the member menu above and the voice modal (chat-voice-modal.js). The
+// rules and the words are /shared/admin-erase.js, and the relay checks every
+// rule again. The confirm says what the erase does and does not do, and its
+// Erase button is enabled only while the typed name, trimmed, is exactly their
+// registered name. The relay answers `admin_erase_done` (app.js calls
+// showAdminEraseReceipt) or refuses with a notice in the chat.
+let adminEraseDialog = null; // { target, name, typed } while the confirm is open
+let adminEraseUi = null;     // the drawn overlay and its input, button and error line
+
+/** Is "Erase their data" offered to me on this person's row? */
+function adminEraseOfferedFor(key) {
+  if (typeof adminEraseOffered !== 'function') return false;
+  const peers = (typeof peerData !== 'undefined' && peerData) ? peerData : {};
+  const myRole = (peers[myKey] && peers[myKey].role) || window.myPeerRole || '';
+  const targetRole = (key && peers[key] && peers[key].role) || '';
+  return adminEraseOffered({ myRole, myKey, targetKey: key, targetRole });
+}
+
+function adminEraseFromCtx() {
+  if (!ctxMenuTarget) return;
+  const t = ctxMenuTarget;
+  hideContextMenu();
+  openAdminEraseDialog({ target: t.publicKey, name: t.name });
+}
+
+/** Take the dialog off the screen (the state stays as the caller leaves it). */
+function adminEraseTakeDown() {
+  if (adminEraseUi && adminEraseUi.overlay && typeof adminEraseUi.overlay.remove === 'function') adminEraseUi.overlay.remove();
+  adminEraseUi = null;
+}
+
+function closeAdminEraseDialog() {
+  adminEraseDialog = null;
+  adminEraseTakeDown();
+}
+
+/** A themed overlay and card, built with createElement (no inline handlers). */
+function adminEraseCard(title) {
+  adminEraseTakeDown();
+  const overlay = document.createElement('div');
+  overlay.id = 'admin-erase-overlay';
+  overlay.className = 'profile-modal-overlay open';
+  overlay.style.zIndex = '10000';
+  overlay.addEventListener('click', (e) => { if (e && e.target === overlay) closeAdminEraseDialog(); });
+  const card = document.createElement('div');
+  card.className = 'profile-modal';
+  card.setAttribute('role', 'dialog');
+  card.setAttribute('aria-label', title);
+  overlay.appendChild(card);
+  const h2 = document.createElement('h2');
+  h2.textContent = title;
+  h2.style.margin = '0 0 var(--space-md)';
+  card.appendChild(h2);
+  if (document.body) document.body.appendChild(overlay);
+  adminEraseUi = { overlay, card };
+  return card;
+}
+
+function adminEraseButtonRow(card) {
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-sm);margin-top:var(--space-lg);';
+  card.appendChild(row);
+  return row;
+}
+
+function adminEraseShowError(text) {
+  if (!adminEraseUi || !adminEraseUi.error) return;
+  adminEraseUi.error.textContent = text;
+  adminEraseUi.error.style.display = text ? 'block' : 'none';
+}
+
+/**
+ * Open the confirm for this person ({ target, name }). Nothing opens unless
+ * I may erase their data (adminEraseOffered).
+ */
+function openAdminEraseDialog(opts) {
+  const o = opts || {};
+  if (!o.target || !adminEraseOfferedFor(o.target)) return null;
+  const peers = (typeof peerData !== 'undefined' && peerData) ? peerData : {};
+  const p = peers[o.target] || {};
+  // The name the relay holds them under (the member list's), else the menu's.
+  const name = String(p.display_name || p.name || o.name || '');
+  if (!name) { addSystemMessage('Their name is not known here yet, so their data cannot be erased from here.'); return null; }
+  const st = { target: o.target, name, typed: '' };
+  adminEraseDialog = st;
+
+  const card = adminEraseCard(ADMIN_ERASE_LABEL);
+  const what = document.createElement('p');
+  what.className = 'admin-erase-what';
+  what.textContent = adminEraseConfirmText(name);
+  what.style.cssText = 'color:var(--text);font-size:var(--text-sm);line-height:1.45;margin:0;overflow-wrap:anywhere;';
+  card.appendChild(what);
+
+  const label = document.createElement('label');
+  label.textContent = ADMIN_ERASE_TYPE_LABEL;
+  label.htmlFor = 'admin-erase-name';
+  card.appendChild(label);
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.id = 'admin-erase-name';
+  input.autocomplete = 'off';
+  input.spellcheck = false;
+  input.setAttribute('aria-label', ADMIN_ERASE_TYPE_LABEL);
+  input.style.boxSizing = 'border-box';
+  card.appendChild(input);
+
+  const error = document.createElement('p');
+  error.className = 'admin-erase-error';
+  error.setAttribute('role', 'alert');
+  error.style.cssText = 'display:none;color:var(--danger);font-size:var(--text-sm);margin:var(--space-sm) 0 0;';
+  card.appendChild(error);
+
+  const row = adminEraseButtonRow(card);
+  const cancel = document.createElement('button');
+  cancel.className = 'vr-btn';
+  cancel.textContent = 'Cancel';
+  cancel.style.fontSize = '0.8rem';
+  cancel.addEventListener('click', () => closeAdminEraseDialog());
+  row.appendChild(cancel);
+  const send = document.createElement('button');
+  send.className = 'vr-btn admin-erase-send';
+  send.textContent = ADMIN_ERASE_BUTTON;
+  send.disabled = true;
+  send.style.cssText = 'font-size:0.8rem;color:var(--danger);';
+  send.addEventListener('click', () => submitAdminEraseDialog());
+  row.appendChild(send);
+
+  Object.assign(adminEraseUi, { input, send, error });
+  // Enabled only while the typed name matches exactly.
+  input.addEventListener('input', () => {
+    st.typed = String(input.value == null ? '' : input.value);
+    send.disabled = !adminEraseNameMatches(st.typed, st.name);
+    adminEraseShowError('');
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e && e.key === 'Enter' && !send.disabled) { e.preventDefault(); submitAdminEraseDialog(); }
+  });
+  if (typeof input.focus === 'function') { try { input.focus(); } catch (e) { /* not focusable yet */ } }
+  return st;
+}
+
+/** Send the erase when the typed name matches; true when the frame went out. */
+function submitAdminEraseDialog() {
+  const st = adminEraseDialog;
+  if (!st) return false;
+  if (adminEraseUi && adminEraseUi.input && typeof adminEraseUi.input.value === 'string') st.typed = adminEraseUi.input.value;
+  const frame = adminEraseFrame(st.target, st.typed, st.name);
+  if (!frame) { adminEraseShowError('The name does not match. Type ' + st.name + ' exactly.'); return false; }
+  if (typeof ws === 'undefined' || !ws || ws.readyState !== WebSocket.OPEN) {
+    adminEraseShowError('Not connected to the server, so nothing was erased. Try again once connected.');
+    return false;
+  }
+  ws.send(JSON.stringify(frame));
+  closeAdminEraseDialog();
+  addSystemMessage('Asked the server to erase ' + st.name + "'s data. Its receipt appears when it is done.");
+  return true;
+}
+
+/** `admin_erase_done`: the receipt, in the chat and in a dialog. */
+function showAdminEraseReceipt(msg) {
+  if (typeof adminEraseReceiptText !== 'function') return;
+  const text = adminEraseReceiptText(msg);
+  addSystemMessage(text);
+  adminEraseDialog = null;
+  const card = adminEraseCard(adminErasePartial(msg) ? 'Erase not finished' : 'Data erased');
+  const p = document.createElement('p');
+  p.className = 'admin-erase-receipt';
+  p.textContent = text;
+  p.style.cssText = 'color:var(--text);font-size:var(--text-sm);line-height:1.45;margin:0;overflow-wrap:anywhere;';
+  card.appendChild(p);
+  const row = adminEraseButtonRow(card);
+  const close = document.createElement('button');
+  close.className = 'vr-btn';
+  close.textContent = 'Close';
+  close.style.fontSize = '0.8rem';
+  close.addEventListener('click', () => closeAdminEraseDialog());
+  row.appendChild(close);
 }
 
 function followFromCtx(doFollow) {
@@ -1271,6 +1458,22 @@ sendMessage = async function() {
     }
     return;
   }
+  // /friend-code and /redeem <code> make a friend. In a public channel, where
+  // the relay would act on them as typed, they go through the same paths as
+  // the buttons (chat-social.js), so with the protected setup on, typing one
+  // asks for the PIN as the button does (10h; they used to go straight to the
+  // relay as a chat command, round the lock).
+  if (!window.activeP2pGroup && !(typeof isScratchPad === 'function' && isScratchPad())
+      && typeof protectedTypedCommand === 'function') {
+    const typed = protectedTypedCommand(val);
+    if (typed) {
+      input.value = '';
+      input.style.height = 'auto';
+      if (typed.command === 'friend-code') sendFriendCodeRequest();
+      else redeemFriendCode(typed.code);
+      return;
+    }
+  }
   await _origSendMessage2();
 };
 
@@ -1287,10 +1490,23 @@ sendMessage = async function() {
 // note appears once per conversation per session rather than on every send.
 const knockNoticeShown = new Set();
 async function sendComposedContent(content) {
-  if (!content || !ws || ws.readyState !== WebSocket.OPEN) return false;
+  if (!content) return false;
+  // A P2P group's messages are posted over the web API, not this socket.
+  if (!window.activeP2pGroup && (!ws || ws.readyState !== WebSocket.OPEN)) return false;
+  // Never my recovery phrase (step F, chat-warnings.js): a DM or a post is
+  // stopped before anything is built, and the text stays in the composer.
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(content)) return false;
 
-  // (Legacy group_msg branch removed 2026-08-23; the P2P group composer
-  // patch in chat-groups-p2p.js routes E2EE group sends before this runs.)
+  // P2P group view -> the group's encrypted message, FAIL CLOSED: never the
+  // public channel underneath it. A typed message reaches the group through
+  // chat-groups-p2p.js's composer patch; this is for what the attachment
+  // paths send (a file's [[hum:file:v1]] marker, 10k), which used to fall
+  // through to the public post below.
+  if (window.activeP2pGroup) {
+    if (typeof window.sendToActiveP2pGroup !== 'function') return false;
+    return !!(await window.sendToActiveP2pGroup(content));
+  }
+  if (!ws || ws.readyState !== WebSocket.OPEN) return false;
 
   // DM view -> Kyber E2EE, FAIL CLOSED. Never transmit plaintext to the
   // relay and never fall back to a public channel. Mirrors the text-DM path.
@@ -1327,6 +1543,9 @@ async function sendComposedContent(content) {
     }
     ws.send(JSON.stringify(built.recipientPut));
     ws.send(JSON.stringify(built.selfPut));
+    // A DM carries no reply: the reply bar, if one was open, has done its job
+    // here and never goes on to a post anywhere else (app.js).
+    if (typeof clearReplyTarget === 'function') clearReplyTarget();
     // Persist our copy locally right away; the relay echo of the
     // self-copy dedupes against this via the inner signature.
     if (window.hosDmStore && hosDmStore.ready) {
@@ -1336,6 +1555,13 @@ async function sendComposedContent(content) {
     addDmMessage(myName, content, sentTs, myKey, activeDmPartner, true);
     upsertDmConversation(activeDmPartner, activeDmPartnerName || (peerData[activeDmPartner]?.display_name || shortKey(activeDmPartner)), content, sentTs, false);
     return true;
+  }
+
+  // A file's marker holds the key that opens the file: it is never posted in a
+  // public channel, even if the view changed while it was on its way (10k).
+  if (typeof content === 'string' && content.startsWith('[[hum:file:')) {
+    addSystemMessage('The file was not sent.');
+    return false;
   }
 
   // Channel view -> public Dilithium-signed chat with local echo.
@@ -1722,7 +1948,13 @@ var federatedRetryMs = 30000;
     // Property badges after the name match native's channel status icons
     // (src/gui/pages/chat.rs ~1027): eye = read-only, node-graph = federated,
     // both drawn in muted color.
-    const channelsHtml = channelList.map(ch => {
+    // With the protected setup on, only read-only rooms are listed, and one line
+    // says the rest are hidden (10h, /shared/protected.js).
+    const rooms = (typeof protectedChannelsShown === 'function' && typeof protectedCurrent === 'function')
+      ? protectedChannelsShown(channelList, protectedCurrent())
+      : { shown: channelList, hidden: 0 };
+    const roomsHiddenHtml = rooms.hidden && typeof protectedRoomsHiddenHtml === 'function' ? protectedRoomsHiddenHtml() : '';
+    const channelsHtml = rooms.shown.map(ch => {
       const isActive = ch.id === activeChannel && !activeDmPartner && !activeGroupId;
       const title = ch.description ? ` title="${esc(ch.description)}"` : '';
       const badges = (ch.read_only ? CH_BADGE_READONLY : '') + (ch.federated ? CH_BADGE_FEDERATED : '');
@@ -1771,11 +2003,13 @@ var federatedRetryMs = 30000;
         <span class="collapse-arrow">▼</span>
         <span class="srv-name">🟢 ${esc(location.host || 'united-humanity.us')}</span>
       </div>
-      <div class="server-group-channels">${channelsHtml}${createChannelBtn}</div>
+      <div class="server-group-channels">${channelsHtml}${roomsHiddenHtml}${createChannelBtn}</div>
     </div>`;
 
-    // Federated servers.
-    if (federatedServers.length > 0) {
+    // Federated servers. Each leads to another server's public rooms, so the
+    // protected setup hides them with this server's (10h).
+    const fedHidden = typeof protectedHidesRooms === 'function' && protectedHidesRooms();
+    if (federatedServers.length > 0 && !fedHidden) {
       html += '<div style="padding:var(--space-sm) var(--space-md) var(--space-xs);font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Federation</div>';
       for (const s of federatedServers) {
         const tierBadge = s.trust_tier === 3 ? '🟢' : s.trust_tier === 2 ? '🟡' : s.trust_tier === 1 ? '🔵' : '⚪';
@@ -1815,11 +2049,13 @@ var federatedRetryMs = 30000;
   window.switchSidebarTab = switchSidebarTab;
 
   // Prompt to add a federated server via /server-add command.
-  function promptAddServer() {
+  async function promptAddServer() {
     const url = prompt('Enter server URL (e.g. https://chat.example.com):');
     if (!url) return;
     const name = prompt('Server name (optional):') || '';
     const cmd = name ? `/server-add ${url} ${name}` : `/server-add ${url}`;
+    // Never my recovery phrase (step F, chat-warnings.js).
+    if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(cmd, 'The server was not added.')) return;
     // Send the command as a chat message (the server intercepts slash commands).
     if (ws && ws.readyState === WebSocket.OPEN) {
       const msg = { type: 'chat', content: cmd, timestamp: Date.now(), channel: activeChannel || 'general' };
@@ -2318,7 +2554,7 @@ window.closeSearch = function() {
   document.getElementById('search-count').textContent = '';
 };
 
-function doSearch() {
+async function doSearch() {
   const query = document.getElementById('search-input').value.trim();
   const fromUser = document.getElementById('search-from').value.trim();
   if (query.length < 2) {
@@ -2337,6 +2573,8 @@ function doSearch() {
     // Don't filter by channel, search all. User can filter from dropdown later.
   }
   if (fromUser) msg.from = fromUser;
+  // Never my recovery phrase (step F, chat-warnings.js): a search goes to the server too.
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops([query, fromUser], 'Not searched.')) return;
   if (typeof ws !== 'undefined' && ws && ws.readyState === 1) {
     ws.send(JSON.stringify(msg));
   }

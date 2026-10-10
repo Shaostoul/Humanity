@@ -96,14 +96,18 @@ if (savedName && location.hash.indexOf('devicelink=') === -1) {
 // connect box (src/gui/connections.rs ERASED_CONNECT_NOTE, which names its Connect button).
 // The flag holds 'erased', or 'unfinished' when part of the erase failed on the server (the
 // relay's `partial`): then the old account may still partly exist, so the note says to erase
-// again instead of promising a fresh sign-up (native: ERASE_UNFINISHED_NOTE).
+// again instead of promising a fresh sign-up (native: ERASE_UNFINISHED_NOTE). It holds
+// 'admin' when a server admin erased the account (`by_admin`, 10i of
+// docs/design/blocking-and-safe-mode.md): the note then says so in its own words
+// (/shared/admin-erase.js ERASED_BY_ADMIN_NOTE) instead of the self-erase words.
 const ERASED_FLAG = 'humanity_account_erased';
 const ERASED_ENTER_NOTE = 'Your account on this server was erased, so pressing Enter signs you up again as a new account on this server.';
 const ERASE_UNFINISHED_NOTE = 'The erase of your account on this server did not finish, so press Enter and use Erase account again.';
 function showErasedNote(kind) {
   const el = document.getElementById('login-note');
   if (!el) return;
-  const text = kind === 'unfinished' ? ERASE_UNFINISHED_NOTE : kind === 'erased' ? ERASED_ENTER_NOTE : '';
+  const byAdmin = typeof ERASED_BY_ADMIN_NOTE === 'string' ? ERASED_BY_ADMIN_NOTE : ERASED_ENTER_NOTE;
+  const text = kind === 'unfinished' ? ERASE_UNFINISHED_NOTE : kind === 'erased' ? ERASED_ENTER_NOTE : kind === 'admin' ? byAdmin : '';
   el.textContent = text;
   el.style.display = text ? 'block' : 'none';
 }
@@ -116,7 +120,7 @@ function showErasedNote(kind) {
 // and if the server still remembers the erase it says so and the note comes back. Mirrors
 // native src/gui/connections.rs `take_sign_up_again`.
 function signUpAgainChoice(how, erasedFlag) {
-  return how === 'enter' && (erasedFlag === 'erased' || erasedFlag === 'unfinished');
+  return how === 'enter' && (erasedFlag === 'erased' || erasedFlag === 'unfinished' || erasedFlag === 'admin');
 }
 try {
   if (!savedName) showErasedNote(localStorage.getItem(ERASED_FLAG));
@@ -255,9 +259,35 @@ function resolveSenderName(rawName, fromKey) {
 }
 
 // ── Reply Bar ──
+// A reply belongs to the view it was made in (the batch review, 2026-10-10): a
+// reply started on a P2P group's message or in a DM is never attached to a post
+// anywhere else, and changing the view takes the reply bar down. It used to
+// stay, and the next post in a public channel carried the group's decrypted
+// words (a file's marker, key and all) to the server as `reply_to.content`.
+
+/** The view a reply made now belongs to: 'group:<id>', 'dm:<key>' or 'channel:<id>'. */
+function replyScopeNow() {
+  const ag = window.activeP2pGroup;
+  if (ag && ag.id) return 'group:' + ag.id;
+  if (typeof activeDmPartner !== 'undefined' && activeDmPartner) return 'dm:' + activeDmPartner;
+  if (typeof activeGroupId !== 'undefined' && activeGroupId) return 'legacy-group:' + activeGroupId;
+  return 'channel:' + activeChannel;
+}
+
+/**
+ * The words a reply quotes: never a file's [[hum:file: marker, nor any part of
+ * one (it carries the key that opens the file), so a message holding one is
+ * quoted with no words at all.
+ */
+function replyQuoteText(body) {
+  const s = String(body == null ? '' : body);
+  return /\[\[hum:file:/i.test(s) ? '' : s;
+}
+
 function setReplyTarget(author, body, fromKey, timestamp, element) {
-  const shortBody = body.length > 80 ? body.substring(0, 80) + '…' : body;
-  replyTarget = { author, body, fromKey, timestamp, element };
+  const quoted = replyQuoteText(body);
+  const shortBody = quoted.length > 80 ? quoted.substring(0, 80) + '…' : quoted;
+  replyTarget = { author, body: quoted, fromKey, timestamp, element, scope: replyScopeNow() };
   const bar = document.getElementById('reply-bar');
   document.getElementById('reply-preview').innerHTML =
     `<span class="reply-author">${esc(author)}</span> ${esc(shortBody)}`;
@@ -267,8 +297,26 @@ function setReplyTarget(author, body, fromKey, timestamp, element) {
 
 function clearReplyTarget() {
   replyTarget = null;
-  document.getElementById('reply-bar').style.display = 'none';
-  document.getElementById('reply-preview').innerHTML = '';
+  const bar = document.getElementById('reply-bar');
+  if (bar) bar.style.display = 'none';
+  const preview = document.getElementById('reply-preview');
+  if (preview) preview.innerHTML = '';
+}
+window.clearReplyTarget = clearReplyTarget;
+
+/**
+ * The `reply_to` a post in public channel `channel` may carry: the reply made
+ * in that same channel, its words with no file marker; null for any other
+ * reply (made in a group, a DM, or another channel), which is never attached.
+ */
+function replyRefForChannel(target, channel) {
+  if (!target || target.scope !== 'channel:' + channel) return null;
+  return {
+    from: target.fromKey,
+    from_name: target.author,
+    content: replyQuoteText(target.body),
+    timestamp: target.timestamp,
+  };
 }
 
 // Click reply preview → scroll to the original message.
@@ -453,6 +501,17 @@ async function connect(how) {
     return;
   }
   myKey = myIdentity.publicKeyHex; // now the Dilithium3 public-key hex
+
+  // Never my recovery phrase (step F, chat-warnings.js): my name goes out with
+  // every message and every contact request, so a name made of the phrase's
+  // words does not connect.
+  if (typeof recoveryPhraseIn === 'function' && await recoveryPhraseIn(myName)) {
+    const errEl = document.getElementById('login-error');
+    errEl.textContent = 'That name was not used. ' + PHRASE_GUARD_SENTENCE;
+    errEl.style.display = 'block';
+    document.getElementById('crypto-status').textContent = '';
+    return;
+  }
 
   // Stay on login screen, we switch to chat only after server confirms identity.
   identityConfirmed = false;
@@ -736,6 +795,10 @@ async function loadHistory() {
   // loadHistory can be called directly before any channel switch).
   const _mc = document.getElementById('messages');
   if (_mc && !_mc.dataset.ctx) { _mc.dataset.ctx = 'channel'; }
+  // A room the protected setup hides is never loaded, including the one saved
+  // from last time before the server's list says what it is (10h,
+  // chat-protected.js, which moves to a listed room when the list arrives).
+  if (typeof protectedChannelHidden === 'function' && protectedChannelHidden(activeChannel)) return;
   try {
     const resp = await fetch(`/api/messages?limit=100&channel=${encodeURIComponent(activeChannel)}`);
     const data = await resp.json();
@@ -1059,6 +1122,12 @@ async function handleMessage(msg) {
       // The relay confirmed a friendship pass withdrawal (chat-social.js).
       if (typeof friendPassWithdrawn === 'function') friendPassWithdrawn(msg.serial);
       break;
+    case 'dm_put_ok':
+    case 'dm_put_refused':
+      // The relay's answer to a put that gave a friendship pass (10l): only
+      // dm_put_ok records it as given (chat-social.js settlePassPut).
+      if (typeof friendPassPutAnswered === 'function') friendPassPutAnswered(msg);
+      break;
     case 'typing': {
       // Someone I blocked is never shown typing (by key, step C).
       if (isBlockedKey(msg.from)) break;
@@ -1183,6 +1252,10 @@ async function handleMessage(msg) {
       // A contact request (step B, 2026-10-09): its pass checked, listed under Requests by the
       // member list's name for the signed sender (chat-privacy.js), never rendered.
       if (typeof ingestContactRequest === 'function' && await ingestContactRequest(inner)) break;
+      // A report about a group I created (10j): checked against my copy of the group and kept
+      // under Reports about your groups (chat-reports.js), never rendered. Before the reach screen,
+      // because a group's members need not be my friends.
+      if (typeof ingestGroupReport === 'function' && await ingestGroupReport(inner)) break;
       // From someone my "who can reach me" settings refuse: a request, name only, its text dropped.
       if (typeof reachScreenDm === 'function' && reachScreenDm(inner)) break;
       const isNew = (window.hosDmStore && hosDmStore.ready) ? await hosDmStore.insert(inner) : true;
@@ -1217,6 +1290,7 @@ async function handleMessage(msg) {
         if (typeof blockScreenDm === 'function' && blockScreenDm(inner)) continue;
         if (typeof ingestDmControl === 'function' && await ingestDmControl(inner)) continue;
         if (typeof ingestContactRequest === 'function' && await ingestContactRequest(inner)) continue;
+        if (typeof ingestGroupReport === 'function' && await ingestGroupReport(inner)) continue;
         if (typeof reachScreenDm === 'function' && reachScreenDm(inner)) continue;
         if (window.hosDmStore && hosDmStore.ready) {
           if (await hosDmStore.insert(inner)) ingested++;
@@ -1254,7 +1328,9 @@ async function handleMessage(msg) {
         const bodyEl = msgEl.querySelector('.body');
         if (bodyEl) {
           for (const p of msg.previews.slice(0, 3)) {
-            bodyEl.after(buildLinkPreviewCard(p));
+            // The protected setup shows no picture from someone who is not a friend (10h).
+            const shownPreview = typeof protectedPreviewFor === 'function' ? protectedPreviewFor(p, msg.from) : p;
+            bodyEl.after(buildLinkPreviewCard(shownPreview));
           }
         }
       }
@@ -1409,8 +1485,12 @@ async function handleMessage(msg) {
       // name, so a reload does not sign in. Every client of this identity gets this, so a
       // second tab stops too. The login screen's Enter is the way back, and says first that
       // it signs up again, or, when part of the erase failed (`partial`), to erase again
-      // (showErasedNote). Same steps as name_taken above.
-      const erasedKind = msg.partial === true ? 'unfinished' : 'erased';
+      // (showErasedNote). Same steps as name_taken above. `by_admin` (10i): a server admin
+      // erased it, and the note says so instead of the self-erase words (erasedKindOf,
+      // /shared/admin-erase.js; the fallback below only covers that file failing to load).
+      const erasedKind = typeof erasedKindOf === 'function'
+        ? erasedKindOf(msg)
+        : (msg.partial === true ? 'unfinished' : 'erased');
       clearTimeout(reconnectTimer);
       reconnectDelay = 1000;
       try {
@@ -1420,7 +1500,8 @@ async function handleMessage(msg) {
       identityConfirmed = false;
       endCallBeforeLeaving();
       if (ws) { ws.onclose = null; ws.close(); ws = null; }
-      setStatus('disconnected', erasedKind === 'unfinished' ? 'Erase not finished' : 'Account erased');
+      setStatus('disconnected', erasedKind === 'unfinished' ? 'Erase not finished'
+        : erasedKind === 'admin' ? 'Erased by a server admin' : 'Account erased');
       document.getElementById('login-screen').style.display = 'flex';
       document.getElementById('chat-screen').style.display = 'none';
       document.getElementById('login-error').style.display = 'none';
@@ -1428,6 +1509,10 @@ async function handleMessage(msg) {
       showErasedNote(erasedKind);
       break;
     }
+    case 'admin_erase_done':
+      // 10i: the receipt of an erase this admin asked for (chat-ui.js draws it).
+      if (typeof showAdminEraseReceipt === 'function') showAdminEraseReceipt(msg);
+      break;
   }
 }
 
@@ -1466,15 +1551,15 @@ async function sendMessage() {
     return;
   }
 
-  // Build reply_to reference if replying.
+  // Never my recovery phrase (step F, chat-warnings.js): a post, a reply or a
+  // command for the server is stopped, and the text and the reply stay to edit.
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(content)) return;
+
+  // Build reply_to reference if replying: only a reply made in this channel
+  // (replyRefForChannel), never one made in a group or a DM.
   let replyRef = null;
   if (replyTarget) {
-    replyRef = {
-      from: replyTarget.fromKey,
-      from_name: replyTarget.author,
-      content: replyTarget.body,
-      timestamp: replyTarget.timestamp,
-    };
+    replyRef = replyRefForChannel(replyTarget, activeChannel);
     clearReplyTarget();
   }
 
@@ -1560,10 +1645,12 @@ function handleChannelAdminFeedback(message) {
  * Sends a skill_verify_response back to the relay if approved.
  * @param {{from_key, from_name, skill_id, level}} d
  */
-function handleSkillVerifyRequest(d) {
+async function handleSkillVerifyRequest(d) {
   const msg = `${d.from_name || 'A peer'} is asking to verify your "${d.skill_id}" skill (level ${d.level}). Approve?`;
   if (!confirm(msg)) return;
   const note = prompt('Optional note for the endorsement:', 'Verified!') ?? 'Verified';
+  // Never my recovery phrase (step F, chat-warnings.js).
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(note, 'Your endorsement was not sent.')) return;
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({
       type: 'skill_verify_response',
@@ -1621,9 +1708,12 @@ function requestSkillEndorsements(userKey) {
  * @param {string} targetKey Player public key (their identity), NOT a display name.
  * @param {string} reason    Operator-visible reason (may be empty).
  */
-function sendGameBan(targetKey, reason) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+async function sendGameBan(targetKey, reason) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+  // Never my recovery phrase (step F, chat-warnings.js): the reason is something I wrote.
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(reason || '', 'The ban was not sent.')) return false;
   ws.send(JSON.stringify({ type: 'game_ban', target: targetKey, reason: reason || '' }));
+  return true;
 }
 
 /**
@@ -1651,6 +1741,8 @@ async function sendChatCommand(command, channelOverride) {
     addSystemMessage('Not connected. Please reconnect and try again.');
     return false;
   }
+  // Never my recovery phrase (step F): a channel's new name is something I wrote.
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(command)) return false;
 
   const timestamp = Date.now();
   const msg = {
@@ -1681,7 +1773,10 @@ async function sendChatCommand(command, channelOverride) {
 }
 
 // ── Rendering ──
-function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, replyTo, threadCount, isFederated, messageId) {
+// `opts.privateFiles` (a P2P group's messages, chat-groups-p2p.js): a body that
+// is a file's [[hum:file:v1]] marker is drawn as a DM's is (10k, chat-dms.js
+// privateFileHtml), never as its text, which holds the file's key.
+function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, replyTo, threadCount, isFederated, messageId, opts) {
   // Posts, replies and group messages from someone I blocked are never drawn
   // (by key, step C; chat-privacy.js hides the ones already on screen).
   if (fromKey && isBlockedKey(fromKey)) return;
@@ -1721,17 +1816,27 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   // Action buttons: react, reply, edit (own), pin (admin/mod), delete (own).
   const myRole = (peerData[myKey] && peerData[myKey].role) ? peerData[myKey].role : '';
   const isStaff = myRole === 'admin' || myRole === 'mod';
+  // A P2P group's row (opts.privateRow) is encrypted end to end: no reaction, edit, server pin
+  // or delete, each of which sends the message's text or who reacted to it to the server
+  // (BUG-178, 2026-10-10). Nor Pin for me (the batch review, 2026-10-10): it kept the
+  // decrypted words, a file's marker and key included, in this browser's storage under the
+  // PUBLIC channel's name, so they showed in that channel's pin bar. Reply stays: it belongs
+  // to the group's view and is never attached to a post anywhere else (replyRefForChannel).
+  // The relay refuses the server-side ones too.
+  const privateRow = !!(opts && opts.privateRow);
   let actions = '<div class="msg-actions">';
-  actions += '<button class="react-btn" title="React">😀</button>';
+  if (!privateRow) actions += '<button class="react-btn" title="React">😀</button>';
   actions += '<button class="reply-btn" title="Reply">↩</button>';
-  if (isMe) {
+  if (isMe && !privateRow) {
     actions += '<button class="edit-btn" title="Edit">✏️</button>';
   }
-  if (isStaff) {
+  if (isStaff && !privateRow) {
     actions += '<button class="pin-btn" title="Pin (server)">' + hosIcon('pin', 14) + '</button>';
   }
-  actions += '<button class="mypin-btn" title="Pin for me">⭐</button>';
-  if (isMe) {
+  if (!privateRow) actions += '<button class="mypin-btn" title="Pin for me">⭐</button>';
+  if (privateRow) {
+    // nothing: see above
+  } else if (isMe) {
     actions += '<button class="delete-btn" title="Delete">✕</button>';
   } else if (isStaff) {
     // Moderators/admins can delete others' messages (native parity). The relay
@@ -1753,11 +1858,14 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   let bodyHtml;
   const isTodoChannel = activeChannel === 'todo';
   const isHeronBot = fromKey && fromKey.startsWith('bot_') && (author === 'Heron 🪶' || author === 'Heron');
-  if (isTodoChannel && isHeronBot) {
+  const fileMeta = (opts && opts.privateFiles && typeof pqParseFileMarker === 'function') ? pqParseFileMarker(body) : null;
+  if (fileMeta) {
+    bodyHtml = privateFileHtml(fileMeta, fromKey);
+  } else if (isTodoChannel && isHeronBot) {
     const todoHtml = formatTodoMessage(body);
-    bodyHtml = todoHtml || formatBody(body);
+    bodyHtml = todoHtml || formatBody(body, fromKey);
   } else {
-    bodyHtml = formatBody(body);
+    bodyHtml = formatBody(body, fromKey);
   }
 
   // Reply indicator HTML.
@@ -1800,25 +1908,36 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
 
   // Context menu on author name click. It knows the message it was opened on,
   // so its Report can name this post (or, in a P2P group, carry the words seen):
-  // chat-reports.js, step D.
+  // chat-reports.js, step D. In a group it also knows which group, and the
+  // message's signed-object id, which chat-groups-p2p.js puts on the row once
+  // it is drawn: a report to the group's creator names the message by it (10j).
   const authorEl = el.querySelector('.author');
   if (authorEl) {
-    const menuMessage = { timestamp, text: body, group: !!window.activeP2pGroup };
+    const ag = window.activeP2pGroup;
+    const menuMessage = { timestamp, text: body, group: !!ag, groupId: ag ? ag.id : '', groupName: ag ? (ag.name || '') : '' };
     authorEl.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (menuMessage.group) menuMessage.id = (el.dataset && el.dataset.groupObjectId) || '';
       showUserContextMenu(e, author, fromKey, menuMessage);
     });
   }
 
-  // Click react button → show emoji picker.
-  el.querySelector('.react-btn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    showReactionPicker(e.target, fromKey, timestamp, el);
-  });
+  // Click react button → show emoji picker. A private row has none, and no
+  // picker on its pill's thorn either (a reaction tells the server who reacted
+  // to what). Each control is looked up before it is hooked: in a browser a
+  // button the row does not have is null, and hooking null threw, so no group
+  // message was drawn at all.
+  const reactBtn = privateRow ? null : el.querySelector('.react-btn');
+  if (reactBtn) {
+    reactBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showReactionPicker(e.target, fromKey, timestamp, el);
+    });
+  }
 
   // Click the Þ in the timestamp pill → reaction picker (native parity:
   // the pill's thorn is the primary add-reaction affordance).
-  const thornEl = el.querySelector('.ts-thorn');
+  const thornEl = privateRow ? null : el.querySelector('.ts-thorn');
   if (thornEl) {
     thornEl.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1827,14 +1946,17 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   }
 
   // Click reply button → show reply preview bar above input.
-  el.querySelector('.reply-btn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    setReplyTarget(author, body, fromKey, timestamp, el);
-    document.getElementById('msg-input').focus();
-  });
+  const replyBtn = el.querySelector('.reply-btn');
+  if (replyBtn) {
+    replyBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setReplyTarget(author, body, fromKey, timestamp, el);
+      document.getElementById('msg-input').focus();
+    });
+  }
 
   // Click edit button → inline edit mode.
-  const editBtn = el.querySelector('.edit-btn');
+  const editBtn = privateRow ? null : el.querySelector('.edit-btn');
   if (editBtn) {
     editBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1843,7 +1965,7 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   }
 
   // Click pin button → server pin (admin/mod).
-  const pinBtn = el.querySelector('.pin-btn');
+  const pinBtn = privateRow ? null : el.querySelector('.pin-btn');
   if (pinBtn) {
     pinBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1851,8 +1973,8 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
     });
   }
 
-  // Click ⭐ button → personal pin.
-  const mypinBtn = el.querySelector('.mypin-btn');
+  // Click ⭐ button → personal pin (never on a private row: see the actions above).
+  const mypinBtn = privateRow ? null : el.querySelector('.mypin-btn');
   if (mypinBtn) {
     mypinBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1861,7 +1983,7 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   }
 
   // Click delete button → send delete request.
-  const delBtn = el.querySelector('.delete-btn');
+  const delBtn = privateRow ? null : el.querySelector('.delete-btn');
   if (delBtn) {
     delBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1904,7 +2026,11 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   }
 
   appendMessage(el);
+  // A file: shown, offered or held back as its sender allows (chat-dms.js).
+  if (fileMeta) hydratePrivateFile(el, fileMeta, fromKey);
   if (window.twemoji) twemoji.parse(el);
+  // The row, so a P2P group can put its warnings under it (chat-groups-p2p.js, step F).
+  return el;
 }
 
 function addSystemMessage(text) {
@@ -2074,7 +2200,10 @@ function updateChannelList(channels) {
 function renderChannelList() {
   // Legacy hidden channel-list (kept for compatibility)
   const list = document.getElementById('channel-list');
-  list.innerHTML = channelList.map(ch => {
+  // The protected setup lists only read-only rooms (10h, /shared/protected.js).
+  const shown = (typeof protectedChannelsShown === 'function' && typeof protectedCurrent === 'function')
+    ? protectedChannelsShown(channelList, protectedCurrent()).shown : channelList;
+  list.innerHTML = shown.map(ch => {
     const isActive = ch.id === activeChannel && !activeDmPartner;
     const title = ch.description ? ` title="${esc(ch.description)}"` : '';
     const lock = ch.read_only ? ' ' + hosIcon('lock', 14) : '';
@@ -2089,6 +2218,8 @@ function renderChannelList() {
 }
 
 function switchChannel(channelId) {
+  // A reply belongs to the view it was made in: a new view starts without one.
+  clearReplyTarget();
   // Clear DM view if active.
   activeDmPartner = null;
   activeDmPartnerName = '';
@@ -2282,7 +2413,7 @@ function isMessageContinuation(fromKey, timestamp) {
   return dt < 5 * 60 * 1000;
 }
 
-function formatBody(text) {
+function formatBody(text, fromKey) {
   // Step 1: Extract code blocks BEFORE escaping (they get special treatment).
   const codeBlocks = [];
   const CODE_PLACEHOLDER = '\x00CB';
@@ -2410,6 +2541,11 @@ function formatBody(text) {
     const langLabel = block.lang ? `<span class="code-lang">${esc(block.lang)}</span>` : '';
     return `<div class="code-block-wrapper">${langLabel}<button class="code-copy" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').textContent);this.innerHTML='✓ Copied';setTimeout(()=>this.innerHTML=hosIcon('copy',14)+' Copy',1500)">${hosIcon('copy', 14)} Copy</button><pre><code>${escapedCode}</code></pre></div>`;
   });
+
+  // Step 7: with the protected setup on, pictures and files from someone who is
+  // not a friend are not shown at all, one line in place of each (10h,
+  // chat-protected.js). Only when the caller says who wrote it.
+  if (fromKey && typeof protectedBodyHtml === 'function') safe = protectedBodyHtml(safe, fromKey);
 
   return safe;
 }

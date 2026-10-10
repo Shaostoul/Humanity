@@ -52,8 +52,14 @@ function showReactionPicker(btn, targetFrom, targetTs, msgEl) {
   }, 0);
 }
 
+/** A P2P group is open: nothing that sends a message's text or reactions to the server (BUG-178). */
+function privateViewOpen() {
+  return !!(typeof window !== 'undefined' && window.activeP2pGroup);
+}
+
 function sendReaction(targetFrom, targetTs, emoji) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  if (privateViewOpen()) return;
   ws.send(JSON.stringify({
     type: 'reaction',
     target_from: targetFrom,
@@ -162,11 +168,14 @@ function startEditMode(msgEl, originalBody, fromKey, timestamp) {
   const saveBtn = document.createElement('button');
   saveBtn.className = 'edit-save';
   saveBtn.textContent = 'Save';
-  saveBtn.onclick = (e) => {
+  saveBtn.onclick = async (e) => {
     e.stopPropagation();
     const newContent = textarea.value.trim();
     if (!newContent || newContent.length > getMaxMsgLength()) return;
-    // Send edit via WebSocket.
+    // Never my recovery phrase (step F, chat-warnings.js): the edit stays open to fix.
+    if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(newContent, 'Your edit was not saved.')) return;
+    // Send edit via WebSocket; never from a group, whose text is encrypted (BUG-178).
+    if (privateViewOpen()) return;
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: 'edit',
@@ -216,7 +225,9 @@ function applyEditToDOM(fromKey, timestamp, newContent) {
   if (!msgEl) return;
   const bodyEl = msgEl.querySelector('.body');
   if (!bodyEl) return;
-  bodyEl.innerHTML = formatBody(newContent);
+  // Who wrote it goes along, so an edit cannot bring back a picture the
+  // protected setup does not show (10h).
+  bodyEl.innerHTML = formatBody(newContent, fromKey);
   // Add (edited) marker if not present.
   if (!bodyEl.querySelector('.edited-marker')) {
     const marker = document.createElement('span');
@@ -331,6 +342,7 @@ async function loadPinsForChannel(channelId) {
 }
 
 function pinMessageFromUI(fromKey, fromName, content, timestamp) {
+  if (privateViewOpen()) return; // a group message's text never goes to the server (BUG-178)
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({
       type: 'pin_request',
@@ -435,6 +447,9 @@ function attachmentTooLarge(file) {
 async function uploadImage(file) {
   // Client-side size guard: abort before uploading anything over the 6 MB cap.
   if (attachmentTooLarge(file)) return null;
+  // The file's name goes to the server with it: never my recovery phrase
+  // (step F, chat-warnings.js).
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(file && file.name, 'The file was not sent.')) return null;
   const indicator = document.getElementById('upload-indicator');
   indicator.textContent = `Uploading ${file.name}…`;
   indicator.style.display = 'block';
@@ -481,24 +496,51 @@ async function handleFileAttachment(event) {
   const file = event.target.files[0];
   if (!file) return;
   event.target.value = ''; // Reset for re-selection
+  await sendAttachment(file);
+}
 
-  // In a DM, the FILE must be as private as the message (2026-08-24): encrypt
-  // it client-side, upload only ciphertext, and send an encrypted-attachment
-  // marker inside the sealed envelope. In a public channel, public is public,
-  // so keep the plain public-URL path.
-  if (typeof activeDmPartner !== 'undefined' && activeDmPartner) {
+/**
+ * The private conversation on screen: 'dm:<key>' for a direct message,
+ * 'group:<id>' for a P2P group, '' for a public channel.
+ */
+function privateConversationNow() {
+  if (typeof activeDmPartner !== 'undefined' && activeDmPartner) return 'dm:' + activeDmPartner;
+  if (window.activeP2pGroup && window.activeP2pGroup.id) return 'group:' + window.activeP2pGroup.id;
+  return '';
+}
+
+/**
+ * Send a picked, pasted or dropped file to the conversation on screen. In a
+ * DM or a P2P group the FILE must be as private as the message (2026-08-24
+ * for picked files in a DM; 10k, 2026-10-10, for everything else): it is
+ * encrypted on this device, only ciphertext is uploaded, and the marker with
+ * its key travels inside the sealed DM or the group's encrypted message. In a
+ * public channel, public is public: the plain upload and its address.
+ */
+async function sendAttachment(file) {
+  if (!file) return;
+  if (privateConversationNow()) {
     await sendEncryptedAttachment(file);
     return;
   }
-  const url = await uploadImage(file); // public channel / group path
+  const url = await uploadImage(file);
   if (url) await window.sendComposedContent(url);
 }
 
-/** Encrypt a file, upload the ciphertext, and send it as a sealed DM. */
+/** Encrypt a file, upload the ciphertext, and send it as a marker in the DM or group on screen. */
 async function sendEncryptedAttachment(file) {
-  // Same 6 MB cap applies to encrypted DM attachments (the ciphertext upload
+  // The conversation it goes to, fixed now: never a public channel (the marker
+  // holds the key, so it would make the file public).
+  const target = privateConversationNow();
+  if (!target) return;
+  // Same 6 MB cap applies to encrypted attachments (the ciphertext upload
   // hits the same nginx body limit). Guard before encrypting/uploading.
   if (attachmentTooLarge(file)) return;
+  // The file's name rides in the sealed message: never my recovery phrase
+  // (step F, chat-warnings.js).
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(file && file.name, 'The file was not sent.')) return;
+  // A group without its key yet cannot take the message: upload nothing.
+  if (target.startsWith('group:') && !(typeof window.p2pGroupCanSend === 'function' && window.p2pGroupCanSend())) return;
   const indicator = document.getElementById('upload-indicator');
   try {
     if (indicator) { indicator.textContent = `Encrypting ${file.name}…`; indicator.style.display = 'block'; }
@@ -521,7 +563,13 @@ async function sendEncryptedAttachment(file) {
       mime: file.type || 'application/octet-stream',
       size: file.size,
     });
-    // Goes through the exact DM send path (sealed envelope) as any message.
+    // Another conversation opened while it uploaded: it is not sent there.
+    if (privateConversationNow() !== target) {
+      addSystemMessage('The file was not sent because another conversation was opened while it uploaded.');
+      return;
+    }
+    // Goes through the exact send path as any message: the DM's seal, or the
+    // group's encrypted message (chat-ui.js sendComposedContent).
     await window.sendComposedContent(marker);
   } catch (e) {
     addSystemMessage(`Encrypted upload failed: ${e && e.message}`);
@@ -540,11 +588,9 @@ document.getElementById('msg-input').addEventListener('paste', async (e) => {
       e.preventDefault();
       const file = item.getAsFile();
       if (!file) return;
-
-      const url = await uploadImage(file);
-      // Route to the in-view target (channel / DM E2EE / group), never
-      // unconditionally to the public channel (privacy fix 2026-07-04).
-      if (url) await window.sendComposedContent(url);
+      // To the conversation in view, never unconditionally to the public
+      // channel (privacy fix 2026-07-04), and encrypted in a DM or a group (10k).
+      await sendAttachment(file);
       return;
     }
   }
@@ -560,10 +606,9 @@ chatArea.addEventListener('drop', async (e) => {
 
   for (const file of files) {
     if (file.type.startsWith('image/')) {
-      const url = await uploadImage(file);
-      // Route to the in-view target (channel / DM E2EE / group), never
-      // unconditionally to the public channel (privacy fix 2026-07-04).
-      if (url) await window.sendComposedContent(url);
+      // To the conversation in view, never unconditionally to the public
+      // channel (privacy fix 2026-07-04), and encrypted in a DM or a group (10k).
+      await sendAttachment(file);
     }
   }
 });
@@ -580,7 +625,7 @@ function openThreadPanel(fromKey, timestamp, author, body) {
   messagesDiv.innerHTML = `<div class="thread-msg thread-parent">
     <span class="thread-msg-author">${esc(author)}</span>
     <span class="thread-msg-time">${formatTime(timestamp)}</span>
-    <div class="thread-msg-body">${formatBody(body)}</div>
+    <div class="thread-msg-body">${formatBody(body, fromKey)}</div>
   </div>
   <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:var(--space-md);">Loading replies...</div>`;
   // Request thread from server.
@@ -604,7 +649,7 @@ function renderThreadMessages(messages) {
   const parentHtml = `<div class="thread-msg thread-parent">
     <span class="thread-msg-author">${esc(currentThread.author)}</span>
     <span class="thread-msg-time">${formatTime(currentThread.timestamp)}</span>
-    <div class="thread-msg-body">${formatBody(currentThread.body)}</div>
+    <div class="thread-msg-body">${formatBody(currentThread.body, currentThread.from)}</div>
   </div>`;
   let repliesHtml = '';
   if (messages.length === 0) {
@@ -614,7 +659,7 @@ function renderThreadMessages(messages) {
       repliesHtml += `<div class="thread-msg">
         <span class="thread-msg-author">${esc(m.from_name || 'Unknown')}</span>
         <span class="thread-msg-time">${formatTime(m.timestamp)}</span>
-        <div class="thread-msg-body">${formatBody(m.content)}</div>
+        <div class="thread-msg-body">${formatBody(m.content, m.from)}</div>
       </div>`;
     }
   }
@@ -627,6 +672,17 @@ async function sendThreadReply() {
   const input = document.getElementById('thread-input');
   const content = input.value.trim();
   if (!content || !ws || ws.readyState !== WebSocket.OPEN || !currentThread) return;
+  // Never my recovery phrase (step F, chat-warnings.js): the reply stays in its box to edit.
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(content)) return;
+  // /friend-code and /redeem <code> typed here would reach the relay as commands
+  // too: they take the buttons' gated paths (chat-social.js), as in the composer.
+  const typed = typeof protectedTypedCommand === 'function' ? protectedTypedCommand(content) : null;
+  if (typed) {
+    input.value = '';
+    if (typed.command === 'friend-code') sendFriendCodeRequest();
+    else redeemFriendCode(typed.code);
+    return;
+  }
 
   const timestamp = Date.now();
 
@@ -640,7 +696,8 @@ async function sendThreadReply() {
     reply_to: {
       from: currentThread.from,
       from_name: currentThread.author,
-      content: currentThread.body,
+      // Never a file's marker, nor any part of one: it holds the file's key (app.js replyQuoteText).
+      content: typeof replyQuoteText === 'function' ? replyQuoteText(currentThread.body) : '',
       timestamp: currentThread.timestamp,
     },
   };

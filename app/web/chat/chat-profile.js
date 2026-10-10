@@ -109,6 +109,14 @@ function buildProfileUpdate(local) {
   };
 }
 
+/** Every field of the stored profile a person writes (for the recovery-phrase guard). */
+function profileFieldTexts(local) {
+  const out = [local.bio, local.avatar_url, local.banner_url, local.pronouns, local.location, local.website];
+  const socials = local.socials && typeof local.socials === 'object' ? local.socials : {};
+  for (const v of Object.values(socials)) out.push(v);
+  return out.filter((v) => typeof v === 'string' && v);
+}
+
 let profilePushTimer = null;
 
 /**
@@ -119,10 +127,17 @@ let profilePushTimer = null;
  * Self-throttled to one update per 30s (the server's rate limit). A save inside
  * that window is DEFERRED, not dropped, so the last edit always lands.
  */
-function pushProfileToRelay() {
+async function pushProfileToRelay() {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   const local = loadProfileLocal();
   if (!hasProfileData(local)) return;
+  // Never my recovery phrase in a profile field (step F, chat-warnings.js).
+  // Checked before the throttle below, which then runs without a pause, so
+  // two pushes at once still send once. Said here, in the chat, because the
+  // profile page itself holds no identity to check with.
+  if (typeof recoveryPhraseGuardStops === 'function'
+      && await recoveryPhraseGuardStops(profileFieldTexts(local), 'Your profile was not sent to this server.')) return;
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
   const waitMs = 30000 - (Date.now() - lastProfileUpdateSent);
   if (waitMs > 0) {
@@ -479,6 +494,12 @@ function closeViewProfileOverlay() {
  * The user can copy the phrase or write it on paper for offline recovery.
  */
 async function openSeedPhraseModal() {
+  // The protected setup (step G, docs/design/blocking-and-safe-mode.md 10h):
+  // while it is on, the PIN first, because whoever has these words can set a
+  // new PIN through "Forgot the PIN?". Every way here goes through this line:
+  // the Seed button and /recovery (confirmRevealSeedPhrase), the onboarding
+  // launch pad, and Safety's Show the recovery phrase.
+  if (!protectedTake('show_phrase')) return protectedAskThen('show_phrase', () => openSeedPhraseModal());
   let mnemonic;
   try {
     mnemonic = await generateMnemonic();
@@ -734,6 +755,9 @@ async function confirmRevealSeedPhrase() {
  * an AES-256-GCM encrypted identity backup file they can store anywhere.
  */
 function openEncryptedBackupModal() {
+  // The protected setup (10h): the file holds the identity the recovery phrase
+  // comes from, so while it is on, the PIN first (as for the phrase itself).
+  if (!protectedTake('show_phrase')) { protectedAskThen('show_phrase', () => openEncryptedBackupModal()); return; }
   const overlay = document.createElement('div');
   overlay.id = 'encrypted-backup-overlay';
   overlay.style.cssText = `
@@ -1239,6 +1263,9 @@ async function syncSystemProfile() {
     alert('No system profile saved yet. Click Save first.');
     return;
   }
+  // Never my recovery phrase in a field I typed (step F, chat-warnings.js).
+  if (typeof recoveryPhraseGuardStops === 'function'
+      && await recoveryPhraseGuardStops(Object.values(saved).map((v) => (typeof v === 'string' ? v : JSON.stringify(v))), 'Your system profile was not sent.')) return;
   const timestamp = Date.now();
   const sig = await pqSignChatMessage('system_profile', timestamp); // full-PQ: Dilithium3 over system_profile\nts
   if (!sig) { alert('Signing failed.'); return; }

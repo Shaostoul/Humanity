@@ -168,6 +168,35 @@
     return id;
   }
 
+  /**
+   * The key Chat's local store (/chat/chat-dm-store.js) is encrypted under,
+   * for a standalone page that only READS that store: the Trade page reads the
+   * friendship pass a friend gave this person, to present it with a trade
+   * request. Derived from the same seed exactly as Chat derives it
+   * (getDmStoreKey in /chat/crypto.js): HKDF-SHA-256 with an empty salt and
+   * the info "hum/dm-store-web/v1", to a non-extractable AES-256-GCM key.
+   * Decrypt only, since a page reading Chat's store must never write to it.
+   * scripts/tests/trade-page-web.test.js opens a store that Chat's own code
+   * wrote, so the two derivations cannot drift apart unnoticed.
+   *
+   * @returns {Promise<CryptoKey|null>} null without a readable seed.
+   */
+  async function getPqDmStoreKey() {
+    const seed = await _loadSeed();
+    if (!seed) return null;
+    try {
+      const base = await crypto.subtle.importKey('raw', seed, 'HKDF', false, ['deriveKey']);
+      return await crypto.subtle.deriveKey(
+        { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0),
+          info: new TextEncoder().encode('hum/dm-store-web/v1') },
+        base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+    } catch (e) {
+      console.warn('pq-relay-auth: could not derive the local store key', e);
+      return null;
+    }
+  }
+
   window.getPqSignedAuth = getPqSignedAuth;
   window.getPqIdentity = getPqIdentity;
+  window.getPqDmStoreKey = getPqDmStoreKey;
 })();

@@ -353,10 +353,11 @@ function handleVoiceCallMessage(msg) {
   switch (msg.action) {
     case 'ring':
       if (callState !== 'idle') {
-        // Already busy, auto-reject
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'voice_call', from: myKey, to: msg.from, action: 'reject' }));
-        }
+        // Busy: nothing goes back, and it rings out on the caller's side, the way a blocked
+        // caller's ring does. An automatic "reject" used to go back, which told a caller who
+        // cannot see us online (hidden status) that we were there after all (BUG-177,
+        // 2026-10-10; the desktop app's engine/call_relay.rs `on_ring` does the same).
+        addSystemMessage(`Missed call from ${fromName}: you were in another call or a voice room.`);
         return;
       }
       callState = 'ringing-in';

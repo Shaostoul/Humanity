@@ -448,7 +448,9 @@ async function openLinkDeviceModal() {
   }
 }
 
-function labelDevice(publicKey, label) {
+async function labelDevice(publicKey, label) {
+  // Never my recovery phrase (step F, chat-warnings.js).
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(label, 'The device name was not saved.')) return;
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'device_label', public_key: publicKey, label: label }));
   }
@@ -1109,6 +1111,39 @@ async function pqBuildReport(fields) {
     });
   } catch (e) {
     console.warn('pqBuildReport failed:', e && e.message);
+    return { error: 'Your report could not be built.' };
+  }
+}
+
+// ── A report about a group, to the group's creator (10j, 2026-10-10) ────────
+// An ordinary signed, sealed v2 DM to the creator (the server sees nothing of
+// it), whose text is /shared/group-report.js's marker and JSON, deposited with
+// `"group_report": true` so the creator's relay lets it through their "who can
+// reach me" setting (unless it is Nobody) when we share a group they created,
+// 3 a day. No self-copy goes to my own mailbox: my other devices have nothing
+// to do with a report I sent, and they would only drop it.
+
+/**
+ * Build my report to a group's creator: {put, inner, text} for ws.send, or
+ * {error} saying why not. `fields`: {creator, group_id, group_name, target,
+ * reason, note, items}.
+ */
+async function pqBuildGroupReport(fields) {
+  try {
+    if (typeof groupReportText !== 'function') return { error: 'Reporting is not loaded on this page.' };
+    const f = fields || {};
+    const built = groupReportText(f);
+    if (!built || !built.text) return { error: (built && built.error) || 'Your report could not be built.' };
+    const creator = typeof f.creator === 'string' ? f.creator.toLowerCase() : '';
+    if (!creator || !getPeerEcdhPublic(creator)) {
+      return { error: "The group's creator has not been online with a current client here, so the report cannot be sealed for them yet. Try again later, or send it to this server's admins." };
+    }
+    const dm = await pqBuildDmPuts(built.text, creator, Date.now());
+    if (!dm || !dm.recipientPut) return { error: 'Your identity is not ready yet. Try again in a moment.' };
+    dm.recipientPut.group_report = true;
+    return { put: dm.recipientPut, inner: dm.inner, text: built.text };
+  } catch (e) {
+    console.warn('pqBuildGroupReport failed:', e && e.message);
     return { error: 'Your report could not be built.' };
   }
 }

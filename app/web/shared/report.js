@@ -1,8 +1,8 @@
 // ── report.js ─────────────────────────────────────────────────────────────
 // Reports the admins can check (step D, 2026-10-09,
 // docs/design/blocking-and-safe-mode.md section 8 and 10e): the words a report
-// signs, the evidence items, and the words the Report dialog and the Reports
-// view show. Shared by the web chat client (web/chat/crypto.js builds and signs
+// signs, the evidence items, the words the Report dialog and the Reports view
+// show, and the dialog's help outside this server (10e-ii). Shared by the web chat client (web/chat/crypto.js builds and signs
 // a report with it, web/chat/chat-reports.js draws the dialog and the view) and
 // by Node, where scripts/tests/report-web.test.js holds it to the relay.
 //
@@ -294,6 +294,163 @@
     return { checked: true, text: reportCheckedBadge(name) };
   }
 
+  // ── Help outside this server (10e-ii, 2026-10-10) ──
+  // When the reason is that a child or anyone may be in danger, the dialog
+  // shows, under the reason's help, the emergency number and the official place
+  // to report a child being exploited online, for a country the person picks.
+  // The numbers are data, data/safety/outside_help.json, every entry backed by
+  // the dated finding docs/reference/findings/2026-10-09-outside-help-lines.md;
+  // nothing here types a number or the date it was checked.
+  //
+  // The country is the person's choice and stays on the device: never looked up
+  // (no IP lookup, no location service), never sent with the report. The first
+  // one shown is the last one picked here, else the region of the device's
+  // language when that names a listed country, else "Another country".
+  const OUTSIDE_HELP_URL = '/data/safety/outside_help.json';
+  const OUTSIDE_HELP_REASONS = Object.freeze(['child_danger', 'someone_in_danger']);
+  // "Another country" as a choice: lower case, so it can never be a listed
+  // country's code (those are upper case), and it is kept when picked so the
+  // person who chose it is not moved to their language's country next time.
+  const OUTSIDE_HELP_OTHER = 'other';
+  // Where the web keeps the last pick (localStorage; native keeps it in its config).
+  const OUTSIDE_HELP_SAVED_KEY = 'humanity_outside_help_country';
+  const OUTSIDE_HELP_TITLE = 'Help outside this server';
+  const OUTSIDE_HELP_OTHER_LABEL = 'Another country';
+  const OUTSIDE_HELP_FIND_HOTLINE = 'Find the hotline for your country';
+  // Said before the child line's link: what that body takes reports of, in the
+  // data file's own description of the field.
+  const OUTSIDE_HELP_CHILD_LEAD = 'To report a child being sexually exploited or abused online:';
+  const OUTSIDE_HELP_CODE_RE = /^[A-Z]{2}$/;
+  const OUTSIDE_HELP_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+  /** Is the block offered for this reason? Only the two danger reasons (10e-ii). */
+  function outsideHelpShows(reason) {
+    return OUTSIDE_HELP_REASONS.includes(reason);
+  }
+
+  // A link the dialog will open: only https, so a damaged or hostile data file
+  // cannot put a javascript: or plain-http address behind a hotline's name.
+  function outsideHelpLink(v) {
+    if (!v || typeof v !== 'object') return null;
+    if (typeof v.name !== 'string' || !v.name.trim()) return null;
+    if (typeof v.url !== 'string' || !/^https:\/\/[^\s"'<>]+$/.test(v.url)) return null;
+    return { name: v.name.trim(), url: v.url };
+  }
+
+  /**
+   * The data file read into what the dialog needs, or null when it is not the
+   * file 10e-ii describes. Entries that are not whole (no code, name or
+   * number) are left out rather than shown half.
+   */
+  function outsideHelpFrom(data) {
+    if (!data || typeof data !== 'object' || !Array.isArray(data.countries)) return null;
+    const d = data.default && typeof data.default === 'object' ? data.default : null;
+    if (!d || typeof d.emergency_text !== 'string' || !d.emergency_text.trim()) return null;
+    const seen = new Set();
+    const countries = [];
+    for (const c of data.countries) {
+      if (!c || typeof c !== 'object') continue;
+      if (typeof c.code !== 'string' || !OUTSIDE_HELP_CODE_RE.test(c.code) || seen.has(c.code)) continue;
+      if (typeof c.name !== 'string' || !c.name.trim()) continue;
+      if (typeof c.emergency !== 'string' || !c.emergency.trim()) continue;
+      seen.add(c.code);
+      countries.push({
+        code: c.code,
+        name: c.name.trim(),
+        emergency: c.emergency.trim(),
+        also: (Array.isArray(c.also) ? c.also : [])
+          .filter((a) => a && typeof a.number === 'string' && a.number.trim())
+          .map((a) => ({ number: a.number.trim(), for: typeof a.for === 'string' ? a.for.trim() : '' })),
+        child: outsideHelpLink(c.child_report),
+        note: typeof c.note === 'string' ? c.note.trim() : '',
+      });
+    }
+    return {
+      researched: typeof data.researched === 'string' && OUTSIDE_HELP_DATE_RE.test(data.researched) ? data.researched : '',
+      default: {
+        emergencyText: d.emergency_text.trim(),
+        child: outsideHelpLink(d.child_report),
+        note: typeof d.note === 'string' ? d.note.trim() : '',
+      },
+      countries,
+    };
+  }
+
+  /**
+   * The country a language tag names (`navigator.language`, such as "en-GB"),
+   * upper case, or null. BCP 47: language, then an optional extended language
+   * (three letters) and script (four letters, such as zh-Hant-TW), then the
+   * region; a numeric region such as es-419 names no one country.
+   */
+  function outsideHelpRegion(tag) {
+    if (typeof tag !== 'string') return null;
+    const parts = tag.trim().split(/[-_]/);
+    for (let i = 1; i < parts.length; i++) {
+      const p = parts[i];
+      if (i === 1 && /^[A-Za-z]{3}$/.test(p)) continue;
+      if (/^[A-Za-z]{4}$/.test(p)) continue;
+      if (/^[A-Za-z]{2}$/.test(p)) return p.toUpperCase();
+      break;
+    }
+    return null;
+  }
+
+  /**
+   * Which country the block starts on (10e-ii): the saved pick when it is
+   * still a choice (a listed code, or "Another country"), else the language
+   * tag's region when it is listed, else "Another country".
+   */
+  function outsideHelpFirstCountry(help, saved, languageTag) {
+    const listed = (code) => !!(help && help.countries.some((c) => c.code === code));
+    if (saved === OUTSIDE_HELP_OTHER) return OUTSIDE_HELP_OTHER;
+    if (typeof saved === 'string' && listed(saved.trim().toUpperCase())) return saved.trim().toUpperCase();
+    const region = outsideHelpRegion(languageTag);
+    if (region && listed(region)) return region;
+    return OUTSIDE_HELP_OTHER;
+  }
+
+  /** The block's last line, with the date read from the file. */
+  function outsideHelpDateLine(researched) {
+    return `Numbers checked on ${researched}. If one is wrong, tell us.`;
+  }
+
+  /**
+   * What the block shows for a reason and a chosen country, or null when the
+   * reason does not offer it or the file is not loaded. `code` not listed
+   * reads as "Another country".
+   */
+  function outsideHelpView(help, reason, code) {
+    if (!outsideHelpShows(reason) || !help) return null;
+    const entry = help.countries.find((c) => c.code === code) || null;
+    const chosen = entry ? entry.code : OUTSIDE_HELP_OTHER;
+    let child = null;
+    if (entry && entry.child) child = { name: entry.child.name, url: entry.child.url, fallback: false };
+    else if (help.default.child) {
+      // A listed country with no body of its own gets the INHOPE directory,
+      // named for what it does; "Another country" is the default entry itself,
+      // so it shows the default's own name.
+      child = entry
+        ? { name: OUTSIDE_HELP_FIND_HOTLINE, url: help.default.child.url, fallback: true, title: help.default.child.name }
+        : { name: help.default.child.name, url: help.default.child.url, fallback: true };
+    }
+    return {
+      title: OUTSIDE_HELP_TITLE,
+      choices: help.countries.map((c) => ({ code: c.code, name: c.name }))
+        .concat([{ code: OUTSIDE_HELP_OTHER, name: OUTSIDE_HELP_OTHER_LABEL }]),
+      code: chosen,
+      name: entry ? entry.name : OUTSIDE_HELP_OTHER_LABEL,
+      emergency: entry ? entry.emergency : null,
+      emergencyText: entry ? '' : help.default.emergencyText,
+      also: entry ? entry.also.map((a) => ({ ...a })) : [],
+      child,
+      childLead: OUTSIDE_HELP_CHILD_LEAD,
+      // For someone in danger the child line is there too, smaller (10e-ii).
+      childSmall: reason === 'someone_in_danger',
+      note: entry ? entry.note : help.default.note,
+      dateLine: help.researched ? outsideHelpDateLine(help.researched) : '',
+    };
+  }
+
   const api = {
     REPORT_DOMAIN, REPORT_CONTEXTS, REPORT_DECISIONS, REPORT_DECISION_LABELS, REPORT_CONTEXT_LABELS,
     REPORT_MAX_ITEMS, REPORT_MAX_EVIDENCE_BYTES, REPORT_NOTE_MAX, REPORT_REASONS_URL,
@@ -302,6 +459,10 @@
     reportTextHasFile, reportCheckedBadge, reportPostFoundBadge, reportKeyNorm, reportPreimage, reportEvidenceJson,
     reportNoteNorm, dmEvidenceItem, postEvidenceItem, groupEvidenceItem, reportEvidenceProblem,
     buildReportFrame, reportReasonsFrom, reportItemView, reportEvidenceBadge, reportMs,
+    OUTSIDE_HELP_URL, OUTSIDE_HELP_REASONS, OUTSIDE_HELP_OTHER, OUTSIDE_HELP_SAVED_KEY, OUTSIDE_HELP_TITLE,
+    OUTSIDE_HELP_OTHER_LABEL, OUTSIDE_HELP_FIND_HOTLINE, OUTSIDE_HELP_CHILD_LEAD,
+    outsideHelpShows, outsideHelpFrom, outsideHelpRegion, outsideHelpFirstCountry, outsideHelpDateLine,
+    outsideHelpView,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else Object.assign(root, api);
