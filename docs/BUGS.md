@@ -5316,3 +5316,39 @@ the v0.1476.0 code with "Cannot read properties of null (reading 'addEventListen
 
 **Lesson:** a fake DOM that answers every lookup cannot catch a missing element. When a change
 removes a control, test with a page that returns null for what is not there.
+
+## BUG-181: a batch review of the week's safety work found about 30 defects at the seams (FIXED v0.1476.1 and v0.1477.0, found 2026-10-10)
+
+After steps A to G and 10i to 10k shipped (v0.1466.0 to v0.1476.0), three read-only critics each
+took one feature area and asked where the server, desktop and web halves disagree. Every
+builder's own red-first tests had passed. Confirmed and fixed, each with a test seen failing:
+
+- **Protocol messages dropped.** The relay's one-a-second limiter (shared with channel chat,
+  measured in whole seconds) dropped a second `dm_put` in the same second, while both apps counted
+  a friendship pass as given once sent; a quick tick change, or a web Accept (follow, then pass),
+  could leave a friend holding only a withdrawn pass for good. Now `dm_put` has its own bucket
+  (8 at once, then one a second; `src/relay/handlers/dm_rate.rs`), and both apps pace a pass sweep
+  (six at once, then one a second). The channel-chat limiter's account age read milliseconds as
+  seconds (every untrusted account "new" for ten minutes after a restart): fixed.
+- **Reply carried private text into a public channel**: a reply begun on a DM or group message
+  rode the next public post, with a file's marker and key on web and 80 bytes on desktop (where
+  the byte cut could also crash on non-Latin text). A reply now belongs to the conversation it was
+  begun in and never carries a marker.
+- **Group removal**: web members kept sending under the old key; a removed person could rejoin
+  with their old ticket and be re-keyed; a Remove that could not read the current key overwrote
+  an old one; group history returned the oldest 200 messages. All fixed on the relay
+  (`invite_postdates_removal`, `epoch_key_refusal`, newest 200) and both apps.
+- **Reports**: a reported admin or moderator saw (and could decide) the report about themselves;
+  `owner` was left out of staff. Fixed on the relay.
+- **Protected setup**: the status line promised "only friends" while groups stayed open; starting
+  a group, invites and friend codes were not locked; a web PIN opened a 10-second window; a
+  damaged desktop config turned the lock off (it now has its own atomically written file); the
+  two apps disagreed on the approved list, the files hidden from non-friends and a request from
+  someone already followed. All aligned.
+- **Smaller**: web "Pin for me" on group rows stored private text under the public channel; a web
+  pass echoed from another device was added, not replaced; reach words differed between the apps;
+  Send request stayed live after a refusal; the desktop members list stopped at 50 (now searchable);
+  the scratchpad uploaded files in the clear (now encrypted, marker kept locally); the admin erase
+  confirmation said "everything" though moderation records are kept.
+
+v0.1476.0's own BUG-178 fix broke web group rows outright (BUG-180), shipped as v0.1476.1.
