@@ -34,6 +34,14 @@
 //  Sequences: an untick made offline on one device, the other opened later; an untick whose new
 //  pass is refused, the other device online and then offline; an older echo read after a newer
 //  one; an Unfollow made offline (N3); a tick on a marked friend (N6).
+//  10o, the parity review of 10n: O1 a page counts only mailbox pages carrying its own fetch's ref
+//    (another device's last page starts nothing), pages from its own last id, and a live DM
+//    during its fetch does not move the read position, so no row is skipped; O2 an unanswered
+//    pass makes no one owed one; O3 a waiting Unfollow is void once I follow them again (the
+//    echo of my own follow clears it; the flush checks) or block them; O4 Block drops a waiting
+//    choice note; O5 every path that sends withdrawals sends a waiting choice note first; O6 a
+//    cleared choice is the empty may; O7 a note about someone I blocked is not recorded as seen,
+//    and my own contact request's echo does not follow them again while its pass is withdrawn.
 // (N5, every pass's self-copy held until dm_put_ok again, and the N4 rule for echoes, are in
 // reach-web.test.js beside the 10l and 10m tests they replaced. N8, the scratch pad, is in
 // private-files-web.test.js beside the other scratch pad tests.)
@@ -49,6 +57,7 @@ const vm = require("node:vm");
 const WEB = process.env.HOS_WEB_DIR || path.join(__dirname, "..", "..", "web");
 const ROOT = path.join(__dirname, "..", "..");
 const fp = require(path.join(WEB, "shared", "friend-pass.js"));
+const reach = require(path.join(WEB, "shared", "reach.js"));
 
 function anything() {
   const fn = function () {};
@@ -330,12 +339,29 @@ async function memberList(dev) {
   await settle();
 }
 
+/** The page's latest mailbox fetch (`dm_fetch`), the one its next page answers. */
+const lastFetch = (dev) => dev.sock.sent.filter((m) => m.type === "dm_fetch").pop();
+
 /**
- * The page connects again, the way app.js does it: a new socket, the challenge, the channel list
- * (which loads the store and asks for the mailbox), the member list, and then the mailbox
- * (`mailbox`: what reached it meanwhile). Returns what the page sent before the mailbox came.
+ * The relay's answer to the page's latest fetch, from `mailbox` (rows {id, content} in id order):
+ * the rows after its after_id, at most `pageSize`, carrying its ref (10o O1; the relay echoes a
+ * fetch's ref on its page, and every device of mine receives every page).
  */
-async function reconnect(dev, mailbox = []) {
+async function serveFetch(dev, mailbox, pageSize = 200) {
+  const f = lastFetch(dev);
+  assert.ok(f, "the page asked for its mailbox");
+  const after = mailbox.filter((r) => r.id > (Number(f.after_id) || 0));
+  await dev.handle({ type: "dm_batch", ref: f.ref, messages: after.slice(0, pageSize), done: after.length <= pageSize });
+  await settle();
+  return f;
+}
+
+/**
+ * The page starts connecting again, the way app.js does it: a new socket, the challenge, the
+ * channel list (which loads the store and asks for the mailbox) and the member list. The mailbox
+ * is not answered yet. Returns the new socket.
+ */
+async function reconnectStart(dev) {
   dev.sock.readyState = 3;
   dev.fn("openSocket")();
   const sock = dev.sock;
@@ -345,8 +371,17 @@ async function reconnect(dev, mailbox = []) {
   await settle();
   assert.ok(sock.sent.some((m) => m.type === "dm_fetch"), "the page asks for its mailbox");
   await memberList(dev);
+  return sock;
+}
+
+/**
+ * The page connects again (reconnectStart), and then the mailbox comes, on the page answering its
+ * own fetch (`mailbox`: what reached it meanwhile). Returns what the page sent before it came.
+ */
+async function reconnect(dev, mailbox = []) {
+  const sock = await reconnectStart(dev);
   const early = sock.sent.filter((m) => !["identify", "identify_response", "dm_fetch"].includes(m.type));
-  await dev.handle({ type: "dm_batch", messages: mailbox.map((p) => ({ id: ++nextId, content: p.content || p })), done: true });
+  await dev.handle({ type: "dm_batch", ref: lastFetch(dev).ref, messages: mailbox.map((p) => ({ id: ++nextId, content: p.content || p })), done: true });
   await settle();
   return early;
 }
@@ -786,6 +821,266 @@ test("10n sequence: a tick on a marked friend gives exactly what is ticked, and 
   assert.equal(a.store.choiceMay(BEN), NO_TRADE, "my other device takes the same choice");
   assert.ok(revokes(a).includes(P), "and withdraws its pass allowing trade");
 });
+
+// ── 10o: the parity review of 10n ────────────────────────────────────────
+
+test("10o O1: a device counts only its own mailbox pages; another device's last page starts nothing", async () => {
+  const a = await loadDevice();
+  const b = await loadDevice();
+  for (const d of [a, b]) befriend(d, BEN);
+  // My mailbox while both were away: two DMs I sent Ann from a third device (their self-copies),
+  // then that device's choice for Ben.
+  const row = (content) => ({ id: ++nextId, content });
+  const mailbox = [
+    row(selfEnvelope(ANN, "one", undefined, 1001)),
+    row(selfEnvelope(ANN, "two", undefined, 1002)),
+    row(choiceNote(BEN, NO_TRADE, 1003)),
+  ];
+  const hw = b.store.highWater;
+  // Both pages of mine connect; each asks for the mailbox with its own ref.
+  await reconnectStart(a);
+  await reconnectStart(b);
+  const fa = lastFetch(a);
+  const fb = lastFetch(b);
+  const unread = () => b.fn("dmMailboxUnread");
+  const sentNothing = (why) => assert.deepEqual(b.sock.sent.filter((m) => m.type === "dm_put" || m.type === "cert_revoke"), [], why);
+
+  // Device A's last page reaches B first (the relay sends every page to every device of mine).
+  await b.handle({ type: "dm_batch", ref: fa.ref, messages: mailbox, done: true });
+  await settle();
+  assert.equal(unread(), true, "another device's last page does not count as my mailbox read");
+  sentNothing("and starts no sweep");
+  assert.equal(b.store.highWater, hw, "nor moves my read position");
+  assert.deepEqual(b.store.conversation(ANN), [], "nothing of it is taken in");
+  assert.equal(b.store.choiceOf(BEN), null, "not even my choice: my own fetch brings it");
+  // A page carrying no ref is not mine either.
+  await b.handle({ type: "dm_batch", messages: mailbox, done: true });
+  await settle();
+  assert.equal(unread(), true, "a page with no ref is not mine");
+  assert.equal(b.store.highWater, hw);
+  // (The wire: every fetch carries a ref of 1 to 64 [A-Za-z0-9_-], each page its own.)
+  for (const f of [fa, fb]) assert.ok(typeof f.ref === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(f.ref), "every fetch carries a ref");
+  assert.notEqual(fa.ref, fb.ref, "each page its own");
+
+  // A live DM during my fetch (the mailbox is longer than a page): handled, the position unmoved.
+  const liveRow = row(selfEnvelope(CY, "live", undefined, 1004));
+  mailbox.push(liveRow);
+  await b.handle({ type: "dm_new", id: liveRow.id, content: liveRow.content });
+  await settle();
+  assert.equal(b.store.conversation(CY).length, 1, "a live DM during my fetch is handled as usual");
+  assert.equal(b.store.highWater, hw, "but does not move my read position");
+
+  // My own first page (two rows a page here).
+  await serveFetch(b, mailbox, 2);
+  assert.equal(b.store.conversation(ANN).length, 2, "my own page is taken in");
+  assert.equal(b.store.highWater, mailbox[1].id, "and moves my read position to its last row");
+  assert.equal(unread(), true, "not the last page: the mailbox is not read yet");
+  sentNothing("so still no sweep");
+  const fb2 = lastFetch(b);
+  assert.notEqual(fb2, fb, "the next page is asked for");
+  assert.notEqual(fb2.ref, fb.ref, "with a fresh ref");
+  assert.equal(fb2.after_id, mailbox[1].id, "from the last id of my own page, not the live DM's");
+
+  // My own last page.
+  await serveFetch(b, mailbox, 2);
+  assert.equal(b.store.choiceMay(BEN), NO_TRADE, "the row past the page boundary is read: my choice for Ben");
+  assert.equal(b.store.conversation(CY).length, 1, "the live DM fetched again is kept once");
+  assert.equal(b.store.highWater, liveRow.id, "my read position is the last row now");
+  assert.equal(unread(), false, "my own last page: the mailbox is read");
+  const [toBen] = passesTo(b, BEN);
+  assert.ok(toBen && passOf(toBen).may === NO_TRADE, "only now the sweep runs, and gives Ben a pass carrying my choice");
+});
+
+test("10o O1: a live DM during a fetch of more than one page makes it skip no row", async () => {
+  const b = await loadDevice();
+  befriend(b, BEN);
+  const row = (content) => ({ id: ++nextId, content });
+  const mailbox = [
+    row(selfEnvelope(ANN, "one", undefined, 2001)),
+    row(selfEnvelope(ANN, "two", undefined, 2002)),
+    row(choiceNote(BEN, NO_TRADE, 2003)),
+  ];
+  await reconnectStart(b);
+  // A live DM arrives after my fetch went and before its first page; its row lies past the
+  // choice note, which my second page holds.
+  const liveRow = row(selfEnvelope(CY, "live", undefined, 2004));
+  mailbox.push(liveRow);
+  await b.handle({ type: "dm_new", id: liveRow.id, content: liveRow.content });
+  await settle();
+  await serveFetch(b, mailbox, 2);
+  if (b.fn("dmMailboxUnread")) await serveFetch(b, mailbox, 2);
+  assert.equal(b.store.choiceMay(BEN), NO_TRADE, "the choice note before the live DM is read, not skipped");
+  assert.equal(b.store.conversation(ANN).length, 2);
+  assert.equal(b.store.conversation(CY).length, 1);
+});
+
+test("10o O2: a pass sent and never answered makes no one owed an ordinary pass", async () => {
+  const a = await loadDevice();
+  const waits = [];
+  a.ctx.setTimeout = (cb, ms) => { if (ms === 30000) waits.push(cb); return 0; };
+  befriend(a, BEN);
+  // A contact request to Cy, whom I do not follow, that the server never answers.
+  assert.equal(await a.fn("sendContactRequest")(CY), true);
+  await settle();
+  const [req] = puts(a).filter((m) => m.to === CY && m.contact_request === true);
+  assert.ok(req && waits.length, "set up: a contact request to Cy is on its way");
+  waits[waits.length - 1]();
+  await settle();
+  assert.equal(a.fn("passPutInFlight")(CY), false, "set up: thirty seconds without an answer");
+  assert.equal(a.store.following.has(CY), false, "set up: so I do not follow Cy");
+  a.sock.sent.length = 0;
+  await memberList(a);
+  assert.deepEqual(passesTo(a, CY), [], "the sweep gives Cy no ordinary pass: the unanswered request makes no one owed");
+  assert.ok(!a.store.passesOwed().includes(CY), "Cy is not owed one");
+  assert.equal(passesTo(a, BEN).length, 1, "while a mutual follow is given one");
+});
+
+test("10o O3: the echo of my own follow clears a waiting Unfollow, and it is never sent", async () => {
+  const a = await loadDevice();
+  befriend(a, ANN);
+  a.sock.readyState = 3;
+  await a.fn("setFollowLocal")(ANN, false);
+  await settle();
+  assert.deepEqual(a.store.unfollowsPending.map((u) => u.peer), [ANN], "set up: the Unfollow made offline waits");
+  // My other device followed her again; the echo of that follow is in my mailbox.
+  await reconnectStart(a);
+  const echo = selfEnvelope(ANN, CTL_FOLLOW, undefined, Date.now() + 1000);
+  await a.handle({ type: "dm_batch", ref: lastFetch(a).ref, messages: [{ id: ++nextId, content: echo }], done: false });
+  await settle();
+  assert.ok(a.store.following.has(ANN), "I follow her again, from my other device");
+  assert.deepEqual(a.store.unfollowsPending, [], "the echo of my own follow clears the waiting Unfollow");
+  await serveFetch(a, []);
+  assert.deepEqual(puts(a).filter((m) => textOf(m) === CTL_UNFOLLOW), [], "and no Unfollow is sent, to her or to my mailbox");
+  assert.ok(a.store.following.has(ANN), "I still follow her");
+});
+
+test("10o O3: a waiting Unfollow of someone I follow again by the time it would go is dropped, not sent", async () => {
+  const a = await loadDevice();
+  befriend(a, ANN);
+  a.sock.readyState = 3;
+  await a.fn("setFollowLocal")(ANN, false);
+  await settle();
+  assert.deepEqual(a.store.unfollowsPending.map((u) => u.peer), [ANN], "set up: the Unfollow waits");
+  // My other device sent her a contact request meanwhile: its echo makes me follow her again
+  // (and does not itself clear the Unfollow; the check when it would go does).
+  const pass = passJson(ANN, "c1".repeat(16), DEFAULT_MAY);
+  const request = selfEnvelope(ANN, reach.contactRequestText("Me_1", pass), undefined, Date.now() + 1000);
+  await reconnect(a, [request]);
+  assert.ok(a.store.following.has(ANN), "set up: I follow her again");
+  assert.deepEqual(puts(a).filter((m) => textOf(m) === CTL_UNFOLLOW), [], "the waiting Unfollow is not sent");
+  assert.deepEqual(a.store.unfollowsPending, [], "it is dropped");
+});
+
+test("10o O3, O4: Block drops a waiting Unfollow and a waiting choice note; nothing about them goes", async () => {
+  const a = await loadDevice();
+  for (const k of [ANN, BEN]) befriend(a, k);
+  chose(a, BEN, WITH_CALL);
+  a.sock.readyState = 3;
+  await a.fn("setFollowLocal")(ANN, false);
+  assert.equal(await a.fn("setFriendTick")(BEN, "call", false), true);
+  await settle();
+  assert.deepEqual(a.store.unfollowsPending.map((u) => u.peer), [ANN], "set up: an Unfollow of Ann waits");
+  assert.deepEqual(a.store.choiceNotesPending.map((n) => n.peer), [BEN], "set up: a choice note about Ben waits");
+  await a.fn("blockKey")(ANN);
+  await a.fn("blockKey")(BEN);
+  await settle();
+  assert.deepEqual(a.store.unfollowsPending, [], "O3: Block clears the waiting Unfollow");
+  assert.deepEqual(a.store.choiceNotesPending, [], "O4: Block drops the waiting choice note");
+  assert.equal(a.store.passChoice[BEN].may, "", "O6: the cleared choice is kept as the empty may, the smallest");
+  await reconnect(a);
+  assert.deepEqual(puts(a).filter((m) => m.to === ANN || m.to === BEN), [], "nothing is ever sent to them");
+  assert.deepEqual(toMe(a).filter((m) => textOf(m) === CTL_UNFOLLOW), [], "no Unfollow goes to my mailbox");
+  assert.deepEqual(notesOf(a), [], "nor any choice note");
+  for (const k of [ANN, BEN]) assert.ok(toMe(a).some((m) => textOf(m) === "[[hum:block:v1]]" + k), "the block notes go, and say it");
+});
+
+// O5 (the web's rule, kept): every path that sends withdrawals sends a waiting choice note first.
+for (const [name, trigger] of [
+  ["Block", async (a) => { await a.fn("blockKey")(BEN); }],
+  ["a choice note's arrival", async (a) => { await live(a, [choiceNote(BEN, DEFAULT_MAY, Date.now() + 5000)]); }],
+  ["an echo of my own pass", async (a) => { await live(a, [selfEnvelope(BEN, CTL_FRIEND_CERT, passJson(BEN, "e5".repeat(16), WITH_CALL), Date.now() + 5000)]); }],
+  ["cert_revoked from my other device", async (a) => { await a.handle({ type: "cert_revoked", to: ME, serial: "f6".repeat(16) }); }],
+]) {
+  test(`10o O5: a waiting choice note goes before any withdrawal (${name})`, async () => {
+    const a = await loadDevice();
+    for (const k of [ANN, BEN]) befriend(a, k);
+    const P = "a7".repeat(16);
+    chose(a, ANN, WITH_CALL);
+    a.store.recordPassSent(ANN, P, WITH_CALL);
+    // Ben: my choice the defaults, or Call when the trigger takes it away; his pass on record.
+    if (name === "a choice note's arrival") chose(a, BEN, WITH_CALL);
+    a.store.recordPassSent(BEN, "f6".repeat(16), name === "a choice note's arrival" ? WITH_CALL : DEFAULT_MAY);
+    // Offline: Call unticked for Ann. Its note and the withdrawal of her pass wait.
+    a.sock.readyState = 3;
+    assert.equal(await a.fn("setFriendTick")(ANN, "call", false), true);
+    await settle();
+    assert.equal(a.store.choiceNotesPending.length, 1, "set up: the note waits");
+    // Connected, the mailbox not read yet (so the sweep has not run): the trigger.
+    await reconnectStart(a);
+    assert.deepEqual(a.sock.sent.filter((m) => m.type === "dm_put" || m.type === "cert_revoke"), [], "set up: nothing went yet");
+    await trigger(a);
+    await settle();
+    const [note] = notesOf(a);
+    const revoke = a.sock.sent.find((m) => m.type === "cert_revoke");
+    assert.ok(note && revoke, `${name}: the note and a withdrawal go`);
+    assert.ok(at(a, note) < at(a, revoke), `${name}: the waiting choice note goes before any withdrawal`);
+  });
+}
+
+test("10o O7: a choice note about someone I blocked is not recorded as seen; after Unblock it can apply", async () => {
+  const b = await loadDevice();
+  befriend(b, CY);
+  await b.fn("blockKey")(CY);
+  await settle();
+  const note = choiceNote(CY, NO_TRADE, Date.now() + 1000);
+  await live(b, [note]);
+  assert.equal(b.store.choiceOf(CY), null, "set up: ignored while Cy is blocked");
+  await b.fn("unblockKey")(CY);
+  await settle();
+  await live(b, [note]);
+  assert.equal(b.store.choiceMay(CY), NO_TRADE, "the same note delivered again after Unblock applies");
+});
+
+test("10o O7: the echo of my own contact request does not bring the follow back while its pass is being withdrawn", async () => {
+  const a = await loadDevice();
+  assert.equal(await a.fn("sendContactRequest")(ANN), true);
+  await settle();
+  const [req] = puts(a).filter((m) => m.to === ANN && m.contact_request === true);
+  await answer(a, req);
+  const echo = toMe(a).find((m) => reach.isContactRequestText(textOf(m)));
+  assert.ok(echo && a.store.following.has(ANN), "set up: the request was taken, I follow Ann, and its self-copy went");
+  await a.fn("setFollowLocal")(ANN, false);
+  await settle();
+  const serial = fp.friendPassParse(reach.contactRequestParse(textOf(echo)).pass).serial;
+  assert.ok(a.store.withdrawalsPending.includes(serial), "set up: its pass is being withdrawn");
+  // The self-copy comes back to this page (late, or fetched again) before the relay confirms.
+  await live(a, [echo]);
+  assert.equal(a.store.following.has(ANN), false, "the echo does not follow her again");
+  assert.equal(a.fn("isFollowing")(ANN), false, "not in the member list's marks either");
+});
+
+// Seen red, 2026-10-10 (10o). Against web/ as at d283cffc5 (`git archive d283cffc5 web`, through
+// HOS_WEB_DIR), each of these failed on the assertion named:
+//  O1 sequence: "another device's last page does not count as my mailbox read" (any last page
+//    cleared it and started the sweep). O1 skip: "the choice note before the live DM is read, not
+//    skipped" (the live DM moved the read position, and the next page was asked for from it).
+//  O2: "the sweep gives Cy no ordinary pass: the unanswered request makes no one owed".
+//  O3 echo: "the echo of my own follow clears the waiting Unfollow". O3 flush: "the waiting
+//    Unfollow is not sent". O3/O4 Block: "O3: Block clears the waiting Unfollow".
+//  O7 note: "the same note delivered again after Unblock applies". O7 request: "the echo does not
+//    follow her again".
+// O4, O5 and O6 were already the web's rules, so they pass there; each was broken in a copy of the
+// finished web/ instead: chat-dm-store.js clearChoice keeping choiceNotesPending: "O4: Block
+// drops the waiting choice note"; sendPendingWithdrawals sending the withdrawals and then the
+// waiting notes: all four O5 cases, "the waiting choice note goes before any withdrawal"; the
+// clear storing the defaults' text: "O6: the cleared choice is kept as the empty may, the
+// smallest". And the finished code broken one rule at a time: the ref check taken out of
+// handleDmBatch: "another device's last page does not count as my mailbox read"; dm_new moving
+// the read position during a fetch: "but does not move my read position"; that and paging from
+// the read position again: the skip test, "the choice note before the live DM is read, not
+// skipped"; sendQueuedSelfNotes without its check: "the waiting Unfollow is not sent";
+// blockLocally without dropQueuedUnfollow (the check kept): "O3: Block clears the waiting
+// Unfollow"; the follow echo without it: "the echo of my own follow clears the waiting Unfollow".
 
 // Red first, 2026-10-10. Against web/ as at 91ac73d78 (before 10n) through HOS_WEB_DIR every test
 // above fails: N9 on its assertion "Unfollow drops the request waiting for its answer", the rest

@@ -416,6 +416,10 @@ async function ingestContactRequest(inner) {
       return true;
     }
     if (store && pass && inner.to) {
+      // A pass this device is already withdrawing (10m R5: I unfollowed them
+      // here) brings nothing back, not even the follow (10o O7, the desktop
+      // app's order).
+      if (store.withdrawalsPending.includes(pass.serial)) return true;
       // An echo of my own pass, like any other (10n N4): standing, unless it
       // grants beyond my choice for them (then withdrawn at once).
       if (store.adoptEchoedPass(inner.to, pass.serial, pass.may).length && typeof sendPendingWithdrawals === 'function') sendPendingWithdrawals();
@@ -1015,6 +1019,9 @@ function blockLocally(key, ts) {
   if (typeof protectedForget === 'function') protectedForget(key);
   store.setFollowing(key, false);
   if (typeof myFollowing !== 'undefined' && myFollowing) myFollowing.delete(key);
+  // An Unfollow of them still waiting to go is dropped, never sent (10o O3):
+  // nothing goes to someone I blocked, and the block note tells my other devices.
+  store.dropQueuedUnfollow(key);
   // My choice for them is cleared whatever its time (10n N3; a choice note
   // about someone I blocked is ignored, so every device ends cleared).
   if (typeof withdrawPassesTo === 'function') withdrawPassesTo(key, ts, true);

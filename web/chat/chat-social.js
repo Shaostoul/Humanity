@@ -757,12 +757,19 @@ async function sendQueuedSelfNotes() {
     ws.send(JSON.stringify(built.put));
     store.choiceNoteSent(n.peer, n.at);
   }
+  // An Unfollow of someone I follow again by now, or have blocked since, is
+  // void: dropped, never sent (10o O3, the desktop app's rule). Nothing is ever
+  // sent to someone I blocked, and the block's own note already tells my other
+  // devices to stop following them.
+  const voided = (peer) => store.following.has(peer) || store.isBlocked(peer);
   for (const u of store.unfollowsPending.slice()) {
+    if (voided(u.peer)) { store.dropQueuedUnfollow(u.peer); continue; }
     const built = await pqBuildDmPuts(CTL_UNFOLLOW, u.peer, u.at);
     if (!built) continue; // their DM key is not known here yet: it waits for the member list
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     // A follow made while it was sealed replaced it.
     if (!store.unfollowsPending.some((x) => x.peer === u.peer && x.at === u.at)) continue;
+    if (voided(u.peer)) { store.dropQueuedUnfollow(u.peer); continue; }
     ws.send(JSON.stringify(built.recipientPut));
     ws.send(JSON.stringify(built.selfPut));
     store.dropQueuedUnfollow(u.peer);
@@ -997,8 +1004,11 @@ async function ingestChoiceNote(inner) {
   const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
   const note = (store && typeof choiceNoteFromSelf === 'function') ? choiceNoteFromSelf(inner, myKey) : null;
   if (!note) return;
-  if (!await store.selfNoteFirstSight(inner.sig)) return;
+  // One about someone I blocked is ignored before it is recorded as seen
+  // (10o O7, the desktop app's order): after an Unblock, the same note
+  // delivered again can still apply.
   if (store.isBlocked(note.key)) return;
+  if (!await store.selfNoteFirstSight(inner.sig)) return;
   if (store.applyChoiceNote(note.key, note.may, inner.ts)) applyChoiceToPasses(note.key);
   updateFriendIndicators();
   if (typeof renderSafetyPanel === 'function') renderSafetyPanel();
@@ -1032,7 +1042,13 @@ async function ingestDmControl(inner) {
   }
   if (inner.text === CTL_FOLLOW) {
     if (fromMe) {
-      if (store) store.setFollowing(peer, true);
+      // My own follow, echoed from another device: an Unfollow of them still
+      // waiting to go from this one is void (10o O3), as a follow made here
+      // voids it (setFollowLocal).
+      if (store) {
+        store.setFollowing(peer, true);
+        store.dropQueuedUnfollow(peer);
+      }
       myFollowing.add(peer);
     } else {
       if (store) store.setFollower(peer, true);
