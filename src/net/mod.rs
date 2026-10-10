@@ -44,6 +44,11 @@ pub mod block_list;
 #[cfg(feature = "native")]
 pub mod report;
 
+/// Calls through the server (step E of docs/design/blocking-and-safe-mode.md, 2026-10-09): the
+/// `call_credentials` request and reply, and the state the call UI shows while it is asked.
+#[cfg(feature = "native")]
+pub mod call_relay;
+
 /// Native client → relay v2 signed-object submission + invite ticket helpers
 /// (P2P groups). HTTP via the same blocking-ureq pattern as image upload.
 #[cfg(feature = "native")]

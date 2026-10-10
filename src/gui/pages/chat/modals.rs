@@ -1411,9 +1411,11 @@ pub(crate) fn draw_call_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
 
     let (peer_key, peer_name) = match state.call_active.clone() {
         Some(p) => p,
-        None => return,
+        None => return super::call_relay_bar::draw_room_bar(ctx, theme, state), // step E's line for a voice room
     };
     let connected = state.voice_connected_peers.contains(&peer_key);
+    // Step E: when the call cannot go through the server, say so instead of "connecting...".
+    let relay_line = state.call_relay.line_for(&crate::net::call_relay::CallScope::Call(peer_key.clone()));
     let mut hangup = false;
     let mut toggle_mute = false;
     let muted = state.call_muted;
@@ -1433,6 +1435,8 @@ pub(crate) fn draw_call_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
                 );
                 let (status, color) = if connected {
                     ("connected", theme.success())
+                } else if relay_line.is_some() {
+                    ("not connected", theme.warning())
                 } else {
                     ("connecting...", theme.warning())
                 };
@@ -1451,6 +1455,9 @@ pub(crate) fn draw_call_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
                         .size(theme.font_size_small)
                         .color(theme.warning()),
                 );
+            }
+            if let Some(line) = relay_line {
+                super::call_relay_bar::relay_line(ui, theme, line);
             }
         });
     if toggle_mute {

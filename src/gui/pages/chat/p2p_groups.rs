@@ -540,6 +540,12 @@ pub(super) fn send_p2p_group_message(state: &mut GuiState, channel: &str, conten
 /// and the periodic refresh, so the mesh tracks roster changes.
 #[cfg(feature = "native")]
 pub(crate) fn ensure_group_mesh(state: &GuiState) {
+    // Not opened while calls hide this device's address (step E, 10f): a mesh connection shows
+    // each member this device's address, and every group message already reaches them through
+    // the relay and its 4-second poll. `DIRECT_CONNECTIONS` (src/net/webrtc.rs) says why.
+    if !crate::net::webrtc::DIRECT_CONNECTIONS {
+        return;
+    }
     let webrtc = match &state.webrtc {
         Some(w) => w,
         None => return, // manager not started yet (pre-connect)
