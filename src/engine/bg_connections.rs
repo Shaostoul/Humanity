@@ -343,6 +343,10 @@ fn bg_screen(state: &mut EngineState, store: &mut crate::net::dm_store::DmStore,
     if crate::engine::block::screens_dm_parked(&mut state.gui_state, store, inner) {
         return true;
     }
+    // 10n: a choice note to ourselves is applied to that server's choice and passes, never shown.
+    if crate::engine::choice::screens_dm_parked(&mut state.gui_state, store, inner) {
+        return true;
+    }
     if inner.text.starts_with(crate::net::reach::CONTACT_REQUEST_MARKER) {
         // The protected setup is the device's, so it holds on a parked server too (10h).
         let may_complete = state.gui_state.protected.setup.pass_allowed(&inner.from);
@@ -535,12 +539,13 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
                 let after_id = bg_dm_store(state, ci)
                     .map(|s| s.high_water())
                     .unwrap_or(0);
-                let conn = &state.gui_state.connections[ci];
+                let conn = &mut state.gui_state.connections[ci];
                 if let Some(ws) = conn.ws.as_ref() {
                     ws.send(
                         &serde_json::json!({ "type": "dm_fetch", "after_id": after_id })
                             .to_string(),
                     );
+                    conn.mailbox = (true, false); // 10n N7: read once its last page is in
                 }
             }
         }
@@ -716,7 +721,11 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
                 let is_from_me = inner.from == me;
                 bg_apply_dm(state, ci, inner, is_from_me);
             }
-            if !done {
+            if done {
+                // Its mailbox is read: once this server is the active one, its pass sweep may run
+                // (10n N7, carried by unpark).
+                state.gui_state.connections[ci].mailbox.1 = true;
+            } else {
                 let after_id = store.high_water();
                 let conn = &state.gui_state.connections[ci];
                 if let Some(ws) = conn.ws.as_ref() {

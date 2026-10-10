@@ -189,7 +189,8 @@ pub struct DmInner {
     /// 2026-08-24) use reserved markers: `[[hum:follow]]`,
     /// `[[hum:unfollow]]`, `[[hum:friend-cert]]`, and the notes to
     /// oneself `[[hum:block:v1]]<key>` / `[[hum:unblock:v1]]<key>`
-    /// (2026-10-09). Clients act on them instead of rendering them.
+    /// (2026-10-09) and `[[hum:choice:v1]]<key>/<may>` (2026-10-10).
+    /// Clients act on them instead of rendering them.
     pub text: String,
     /// Base64 Dilithium3 signature (kept for dedupe keying).
     pub sig_b64: String,
@@ -211,6 +212,10 @@ pub const CTL_FRIEND_CERT: &str = "[[hum:friend-cert]]";
 /// anything. Must match the web client exactly.
 pub const CTL_BLOCK: &str = "[[hum:block:v1]]";
 pub const CTL_UNBLOCK: &str = "[[hum:unblock:v1]]";
+/// The choice for each friend (10n of docs/design/blocking-and-safe-mode.md, 2026-10-10): a note
+/// a person sends only to themselves, like a block note, carrying what one friend may do:
+/// `[[hum:choice:v1]]<friend key>/<may>` (net/choice.rs). Must match the web client exactly.
+pub const CTL_CHOICE: &str = "[[hum:choice:v1]]";
 
 /// Encrypted-attachment marker (2026-08-24). A DM whose text starts with this
 /// carries a base64 JSON payload `{url,k,n,name,mime,size}` instead of prose:

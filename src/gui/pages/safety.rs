@@ -12,7 +12,7 @@
 //! What the rows show is what the SERVER last said (`reach_settings`, kept in the DM store per
 //! server), never what was clicked: a click sends `reach_set` and the row moves when the server
 //! answers, so the page cannot show a choice the server is not enforcing. A tick re-issues that
-//! friend's pass to allow exactly what is ticked (engine/dm.rs `reissue_pass`).
+//! friend's pass to allow exactly what is ticked (engine/dm.rs `follow_choice`).
 //!
 //! Persistence: one AppConfig setting, "Warnings on messages" (step F, 10g, saved through
 //! `settings_dirty` and checked by tests/settings_persistence_lint.rs, which scans this file as
@@ -184,24 +184,28 @@ pub(crate) fn draw_warnings_switch(ui: &mut egui::Ui, theme: &Theme, state: &mut
 /// which rows use them now, built from the person's settings as the server last said them
 /// (`shown`), so the ticks never look as though they decide a row set to "Friends".
 /// The rows of "People I choose": each person once (net/dm_store.rs `people_to_choose`: everyone
-/// holding a pass from us, every mutual follow, and everyone whose pass my other device withdrew,
-/// 10m R3), sorted by name, with their ticks, and whether the pass they hold is not yet the one
-/// their ticks call for, shown "(updating their pass)": a re-issue that could not go out (offline,
-/// or no DM key for them yet), a first pass still owed, or one left to my other device (R3). The
-/// pass sweep sends it on the next member list (not for R3: that device does, or the person's own
-/// tick here). The ticks stay live meanwhile: on this app a re-issue is minted and sent within the
-/// click, so two quick clicks cannot race, and a change of mind made offline is simply what the
-/// sweep sends.
+/// holding a pass from us and every mutual follow; someone whose pass my other device withdrew,
+/// 10m R3, only while still a mutual follow, 10n N6), sorted by name, with their ticks (the choice,
+/// 10n; nothing ticked for one marked R3), and whether they hold no pass carrying the choice yet,
+/// shown "(updating their pass)": a pass that could not go out (offline, or no DM key for them
+/// yet), a first pass still owed, or one left to my other device (R3). The pass sweep sends it on
+/// the next member list (not for R3: a note from that device, or the person's own tick here,
+/// frees the row). The ticks stay live meanwhile: a change of mind made offline is kept with its
+/// time and is simply what the sweep sends.
 pub(crate) fn chosen_rows(state: &GuiState) -> Vec<(String, String, FriendTicks, bool)> {
     let Some(store) = state.dm_store.as_ref() else { return Vec::new() };
-    let out_of_step = store.passes_out_of_step();
+    let owed = store.owed_passes();
     let mut friends: Vec<(String, String, FriendTicks, bool)> = store
         .people_to_choose()
         .into_iter()
         .map(|k| {
-            let updating = out_of_step.contains(&k) || !store.cert_sent_to(&k);
-            let (name, ticks) = (crate::engine::dm::dm_display_name(state, &k), store.ticks(&k));
-            (k, name, ticks, updating)
+            // 10n N6: a friend marked "changed on my other device" is drawn with nothing ticked:
+            // this device does not know the choice made there, and drawing the old ticks let one
+            // click give back what that device took away. A tick here gives exactly what is ticked.
+            let marked = store.changed_elsewhere(&k);
+            let updating = marked || owed.contains(&k);
+            let ticks = if marked { FriendTicks::NONE } else { store.ticks(&k) };
+            (k.clone(), crate::engine::dm::dm_display_name(state, &k), ticks, updating)
         })
         .collect();
     friends.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));

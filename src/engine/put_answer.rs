@@ -6,10 +6,11 @@
 //!
 //! - `dm_put_ok`: the pass is recorded as given, the passes a re-issue replaces are withdrawn, and
 //!   so is any older pass to them whose answer never came; our self-copy goes out (our other
-//!   devices learn of it only now, so they never adopt a pass the server had not taken).
+//!   devices learn of it only now, so they never adopt a pass the server had not taken). Every
+//!   pass's self-copy waits for this, with no exception (10n N5).
 //! - `dm_put_refused`: never stored, so nothing is recorded or withdrawn and it is forgotten. The
-//!   friend stays owed a pass, and the next sweep sends one with the same intended `may` (the
-//!   ticks live apart from the record, so they are untouched).
+//!   friend stays owed a pass, and the next sweep sends one carrying the same choice (the choice
+//!   lives apart from the record, net/dm_store.rs `choices`, so it is untouched).
 //! - No answer in 30 seconds: the same, except that the pass stays on the store's list of passes
 //!   never answered ("perhaps given"), because the server may have stored it after its answer was
 //!   lost; it never counts as given, and is withdrawn by Unfollow, by Block, by a tick taken away,
@@ -79,16 +80,15 @@ fn taken(gs: &mut GuiState, put: PendingPut) {
     store.save();
     // A tick changed again while this one was on its way, or it was withdrawn on the way: the
     // sweep runs again at the server's pace (engine/dm.rs `pace_owed_passes`).
-    let behind = store.friends_without_pass().contains(&put.peer) || store.passes_out_of_step().contains(&put.peer);
+    let behind = store.owed_passes().contains(&put.peer);
     if behind {
         gs.pass_pacer.held = true;
     }
     if !recorded {
         return;
     }
-    // None: it went out beside theirs already (10m R2), and once is enough.
-    if let (Some(client), Some(copy)) = (gs.ws_client.as_ref().filter(|c| c.is_connected()), put.self_copy.as_ref()) {
-        client.send(&copy.to_string());
+    if let Some(client) = gs.ws_client.as_ref().filter(|c| c.is_connected()) {
+        client.send(&put.self_copy.to_string());
     }
     crate::engine::dm::send_pending_withdrawals(gs);
     crate::engine::dm::refresh_social_mirrors(gs);
@@ -101,11 +101,6 @@ fn not_taken(gs: &mut GuiState, put: PendingPut, reason: Option<&str>) {
     if reason.is_some() {
         if let Some(store) = gs.dm_store.as_mut() {
             store.pass_refused(&put.peer, &put.pass.serial);
-            // Its self-copy already went out (10m R2): when that comes back here it must not be
-            // adopted as a pass given (engine/dm.rs `ingest_control`).
-            if put.self_copy.is_none() {
-                store.refused_after_its_echo(&put.pass.serial);
-            }
             store.save();
         }
     }

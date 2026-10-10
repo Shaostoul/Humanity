@@ -111,13 +111,33 @@ struct StoreBody {
     /// only, never their text). Kept until Accept or Ignore.
     #[serde(default)]
     requests: Vec<ContactRequest>,
-    /// Each friend's ticks in "People I choose" (10c-ii, 2026-10-10): Message, Call and Trade.
-    /// The pass they hold from us is re-issued to allow exactly what is ticked. A friend with
-    /// no entry has the defaults (`FriendTicks::default`), and an entry equal to the defaults is
-    /// not kept, so "no choice" has one spelling. Step B's `may_call` set, which this replaced,
-    /// is simply not read any more (no installed base to carry over, CLAUDE.md).
+    // ── The choice for each friend (10n, 2026-10-10) ──
+    /// The person's choice for each friend: the canonical `may` the pass they hold from us should
+    /// carry (what "People I choose" ticks for them: Message, Call, Trade, 10c-ii) and when it was
+    /// chosen (ms). The passes follow it (engine/dm.rs `follow_choice`); the person's other devices
+    /// learn it from a note to ourselves (net/choice.rs), the newer choice winning (`apply_choice`).
+    /// A friend with no entry has the defaults. Unfollow and Block set the defaults with their own
+    /// time rather than removing the entry, so an older note read later cannot bring a choice
+    /// back. 10c-ii's `friend_ticks` map, which this replaced, is simply not read any more, nor
+    /// step B's `may_call` set (no installed base to carry over, CLAUDE.md).
     #[serde(default)]
-    friend_ticks: HashMap<String, FriendTicks>,
+    choices: HashMap<String, Choice>,
+    /// Choice notes made while the server we are on was not connected (N1), oldest first, one per
+    /// friend (a newer one replaces an older). Sent on the next connection before that friend's
+    /// withdrawals and passes (engine/choice.rs `flush`).
+    #[serde(default)]
+    choices_pending: Vec<PendingChoice>,
+    /// Unfollows whose notice could not go out (N3): both its copies (to them, and to my own
+    /// mailbox for my other devices) wait here and go on the next connection, signed with the
+    /// time of the Unfollow. Until 10n such an Unfollow was simply lost, so my other devices kept
+    /// following them.
+    #[serde(default)]
+    unfollows_pending: Vec<PendingUnfollow>,
+    /// Signature hashes of the choice notes applied or sent here, newest last, at most
+    /// NOTES_REMEMBERED: each note is applied once (N2), so a relay that delivers an old one again
+    /// cannot undo a later choice, and the echo of a note this device sent is not applied again.
+    #[serde(default)]
+    choice_notes_seen: Vec<String>,
     // ── Reports about my groups (10j, 2026-10-10, blocking-and-safe-mode.md) ──
     /// Reports members of a group I created sent me, each item already checked against my own
     /// copy of the group, newest last. Kept here, encrypted, until I dismiss them; never sent to
@@ -139,13 +159,8 @@ struct StoreBody {
     /// it with the passes.
     #[serde(default)]
     changed_elsewhere: HashSet<String>,
-    /// Serials of this device's own passes the server REFUSED after their self-copy had already
-    /// gone out (R2: a re-issue that takes something away sends it at once), newest
-    /// REFUSED_ECHOED_KEPT. That self-copy can still come back to this device (a mailbox fetch),
-    /// and adopting it would record as given a pass the friend never got, so the sweep would stop
-    /// owing them one. The web's `passesRefusedEchoed`. Kept across restarts for the same reason.
-    #[serde(default)]
-    passes_refused_echoed: Vec<String>,
+    // 10m's `passes_refused_echoed` went with 10m R2 (10n N5): every pass's self-copy waits for
+    // `dm_put_ok` again, so no echo of a refused pass can come back.
     /// The scratch pad's notes, oldest first, at most SCRATCHPAD_KEPT (R10). The scratch pad
     /// sends nothing, so this is the only copy, and for a file put there it holds the only copy
     /// of the file's key (its `[[hum:file:v1]]` marker).
@@ -156,8 +171,39 @@ struct StoreBody {
 /// Scratch pad notes kept, newest first to stay (10m R10, the web's number).
 pub const SCRATCHPAD_KEPT: usize = 500;
 
-/// Refused passes whose self-copy had already gone out, remembered (10m, the web's number).
-pub const REFUSED_ECHOED_KEPT: usize = 32;
+/// Choice notes remembered (by signature hash) so each is applied once (10n N2). Notes come from
+/// the person's own clicks, so this is years of them.
+pub const NOTES_REMEMBERED: usize = 4_096;
+
+/// The person's choice for one friend (10n): what their pass should allow, and when it was chosen.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Choice {
+    /// The canonical `may` (net/reach.rs `intended_may_wire` of the ticks).
+    pub may: String,
+    /// When it was chosen (ms since the epoch): the signed time of the note that brought it, or
+    /// the moment of the click on this device.
+    pub at: u64,
+}
+
+/// A choice note made while not connected (10n N1), waiting to be sent.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PendingChoice {
+    pub peer: String,
+    pub may: String,
+    pub at: u64,
+}
+
+/// An Unfollow whose notice could not go out (10n N3), waiting to be sent.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PendingUnfollow {
+    pub peer: String,
+    /// When the person unfollowed (ms): the notice is signed with it.
+    pub at: u64,
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+}
 
 /// One scratch pad note: when, what, and the quote of what it replied to.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -408,7 +454,6 @@ impl DmStore {
             self.body.passes_unanswered.clear();
             self.body.withdrawals_pending.clear();
             self.body.changed_elsewhere.clear();
-            self.body.passes_refused_echoed.clear();
         }
         self.body.pass_server = did.to_string();
         true
@@ -546,18 +591,11 @@ impl DmStore {
         self.body.changed_elsewhere.insert(peer.clone());
         Some(peer)
     }
-    /// The server refused a pass of ours whose self-copy had already gone out (10m R2): remember
-    /// its serial, newest REFUSED_ECHOED_KEPT, so its echo is never adopted as given.
-    pub fn refused_after_its_echo(&mut self, serial: &str) {
-        if !self.body.passes_refused_echoed.iter().any(|s| s == serial) {
-            self.body.passes_refused_echoed.push(serial.to_string());
-        }
-        let over = self.body.passes_refused_echoed.len().saturating_sub(REFUSED_ECHOED_KEPT);
-        self.body.passes_refused_echoed.drain(..over);
-    }
-    /// Was `serial` one of ours the server refused after its self-copy went out?
-    pub fn was_refused_after_its_echo(&self, serial: &str) -> bool {
-        self.body.passes_refused_echoed.iter().any(|s| s == serial)
+    /// Withdraw one pass of ours by its serial: the echo of a pass that allows more than the
+    /// choice for its friend (10n N4), which is never recorded. Its serial joins the withdrawals
+    /// waiting for the relay.
+    pub fn withdraw_serial(&mut self, serial: &str) {
+        self.queue_withdrawals(vec![serial.to_string()]);
     }
     /// Is `peer` marked "changed on my other device" (10m R3)?
     pub fn changed_elsewhere(&self, peer: &str) -> bool {
@@ -568,8 +606,9 @@ impl DmStore {
     pub fn clear_changed_elsewhere(&mut self, peer: &str) -> bool {
         self.body.changed_elsewhere.remove(peer)
     }
-    /// Mutual follows I have no standing pass with: the ones the sweep mints for (after the v2
-    /// change, after a server identity change, or when a send could not go out earlier).
+    /// Mutual follows I have no standing pass with at all (after the v2 change, after a server
+    /// identity change, or when a send could not go out earlier). The sweep goes by the wider
+    /// [`DmStore::owed_passes`] (10n: no pass carrying the choice), which takes these in.
     pub fn friends_without_pass(&self) -> Vec<String> {
         let mut out: Vec<String> = self.body.following.iter().filter(|p| self.is_follower(p) && !self.cert_sent_to(p)).cloned().collect();
         out.sort();
@@ -629,35 +668,127 @@ impl DmStore {
         let at = self.body.requests.iter().position(|r| r.key == key)?;
         Some(self.body.requests.remove(at))
     }
-    /// `peer`'s ticks in "People I choose" (10c-ii): what the person chose, or the defaults.
-    pub fn ticks(&self, peer: &str) -> FriendTicks {
-        self.body.friend_ticks.get(peer).copied().unwrap_or_default()
+    // ── The choice for each friend (10n) ──
+
+    /// The choice stored for `peer`, if any (none: the defaults).
+    pub fn choice(&self, peer: &str) -> Option<&Choice> {
+        self.body.choices.get(peer)
     }
-    /// Keep the person's choice for `peer`. A choice equal to the defaults is the same as none,
-    /// so it is not stored (a friend with no entry has the defaults).
-    pub fn set_ticks(&mut self, peer: &str, ticks: FriendTicks) {
-        if ticks == FriendTicks::default() {
-            self.body.friend_ticks.remove(peer);
-        } else {
-            self.body.friend_ticks.insert(peer.to_string(), ticks);
+    /// The `may` a pass to `peer` should carry, canonical form: the choice, or the defaults.
+    pub fn intended_may_wire(&self, peer: &str) -> String {
+        match self.body.choices.get(peer) {
+            Some(c) => c.may.clone(),
+            None => super::reach::intended_may_wire(FriendTicks::default()),
         }
     }
-    /// Forget the person's choice for `peer`, back to the defaults (our Unfollow, and Block,
-    /// 10c-ii). True when there was one to forget.
+    /// `peer`'s ticks in "People I choose" (10c-ii): the choice, or the defaults.
+    pub fn ticks(&self, peer: &str) -> FriendTicks {
+        FriendTicks::from_may(&self.intended_may_wire(peer))
+    }
+    /// A choice the person made on THIS device: it always applies, dated now, or one millisecond
+    /// after the stored choice when this device's clock is behind the device that made that one
+    /// (so a click here is never lost to a choice dated in the future). Returns its time, which
+    /// its note is signed with.
+    pub fn choose(&mut self, peer: &str, may: &str) -> u64 {
+        let at = self.body.choices.get(peer).map_or(0, |c| c.at.saturating_add(1)).max(now_ms());
+        self.body.choices.insert(peer.to_string(), Choice { may: may.to_string(), at });
+        at
+    }
+    /// [`DmStore::choose`] from ticks (the Safety page's three boxes).
+    pub fn set_ticks(&mut self, peer: &str, ticks: FriendTicks) -> u64 {
+        self.choose(peer, &super::reach::intended_may_wire(ticks))
+    }
+    /// A choice that came from elsewhere, dated `at` (a choice note's signed time, 10n N2, or our
+    /// own Unfollow echoed from another device): it replaces the stored one only when it is
+    /// newer; at an equal time the larger `may` text (plain string order) wins, so every device
+    /// lands on the same choice whatever order the notes came in. An older one changes nothing.
+    /// True when it changed the choice.
+    pub fn apply_choice(&mut self, peer: &str, may: &str, at: u64) -> bool {
+        if let Some(have) = self.body.choices.get(peer) {
+            if at < have.at || (at == have.at && may <= have.may.as_str()) {
+                return false;
+            }
+        }
+        self.body.choices.insert(peer.to_string(), Choice { may: may.to_string(), at });
+        true
+    }
+    /// Our own Unfollow of `peer`, echoed from another device at `at`: the choice goes back to the
+    /// defaults as of then (10c-ii, a friendship begun again starts from the defaults), unless a
+    /// newer choice was made since.
+    pub fn clear_choice_at(&mut self, peer: &str, at: u64) -> bool {
+        self.apply_choice(peer, &super::reach::intended_may_wire(FriendTicks::default()), at)
+    }
+    /// Block (10c-ii, 10n N3): the choice for `peer` goes back to the defaults whatever its time,
+    /// dated now, so a note older than this read later cannot bring it back (and notes about
+    /// someone blocked are ignored anyway). True when it was not the defaults already. (Unfollow
+    /// clears it as of its own signed time instead: engine/dm.rs `set_follow`, `clear_choice_at`.)
     pub fn clear_ticks(&mut self, peer: &str) -> bool {
-        self.body.friend_ticks.remove(peer).is_some()
+        let defaults = super::reach::intended_may_wire(FriendTicks::default());
+        if self.body.choices.get(peer).is_some_and(|c| c.may == defaults) {
+            return false;
+        }
+        self.choose(peer, &defaults);
+        true
+    }
+    /// The first time a choice note (by its signature hash, `DmInner::dedupe_key`) is seen here:
+    /// true, and it is remembered; every later time: false (10n N2). A note this device sends is
+    /// remembered as it goes out, so its echo is not applied again. Only the first 128 bits of the
+    /// hash are kept (the web chat keeps the same), newest NOTES_REMEMBERED of them.
+    pub fn first_sight_note(&mut self, note_id: &str) -> bool {
+        let id = &note_id[..note_id.len().min(32)];
+        if self.body.choice_notes_seen.iter().any(|n| n == id) {
+            return false;
+        }
+        self.body.choice_notes_seen.push(id.to_string());
+        let over = self.body.choice_notes_seen.len().saturating_sub(NOTES_REMEMBERED);
+        self.body.choice_notes_seen.drain(..over);
+        true
+    }
+    /// Keep a choice note made while not connected (N1): one per friend, the newer replacing the
+    /// older.
+    pub fn queue_choice(&mut self, peer: &str, may: &str, at: u64) {
+        self.body.choices_pending.retain(|p| p.peer != peer);
+        self.body.choices_pending.push(PendingChoice { peer: peer.to_string(), may: may.to_string(), at });
+    }
+    /// The choice notes waiting to be sent, oldest first.
+    pub fn pending_choices(&self) -> &[PendingChoice] {
+        &self.body.choices_pending
+    }
+    /// Take them to send (the caller queues again any that could not go).
+    pub fn take_pending_choices(&mut self) -> Vec<PendingChoice> {
+        std::mem::take(&mut self.body.choices_pending)
+    }
+    /// Keep an Unfollow whose notice could not go out (N3): one per friend.
+    pub fn queue_unfollow(&mut self, peer: &str, at: u64) {
+        self.body.unfollows_pending.retain(|p| p.peer != peer);
+        self.body.unfollows_pending.push(PendingUnfollow { peer: peer.to_string(), at });
+    }
+    /// The person followed `peer` again: an Unfollow still waiting for them is void. True when
+    /// there was one.
+    pub fn drop_pending_unfollow(&mut self, peer: &str) -> bool {
+        let before = self.body.unfollows_pending.len();
+        self.body.unfollows_pending.retain(|p| p.peer != peer);
+        self.body.unfollows_pending.len() != before
+    }
+    /// The Unfollows waiting to be sent, oldest first.
+    pub fn pending_unfollows(&self) -> &[PendingUnfollow] {
+        &self.body.unfollows_pending
+    }
+    /// Take them to send (the caller queues again any that could not go).
+    pub fn take_pending_unfollows(&mut self) -> Vec<PendingUnfollow> {
+        std::mem::take(&mut self.body.unfollows_pending)
     }
     /// Who the "People I choose" list shows (10c-ii, sorted by key; the page sorts by name):
     /// everyone holding a pass from us, the spec's "someone I have given a pass", which also takes
     /// in someone we sent a contact request to. Plus every mutual follow, who is owed one: the
     /// pass sweep gives each a pass, and while it cannot yet (no DM key for them, or a pass taken
-    /// back at once by an untick made offline, engine/dm.rs `reissue_pass`) they stay on the list
-    /// rather than vanishing the moment their ticks are changed. And everyone marked "changed on
-    /// my other device" (10m R3), whose pass that device withdrew: they stay, shown as updating
-    /// their pass, rather than vanishing because this device holds no pass of theirs now.
+    /// back at once by an untick made offline) they stay on the list rather than vanishing the
+    /// moment their ticks are changed. A mutual follow marked "changed on my other device" (10m
+    /// R3) is listed this way too, shown as updating their pass; one marked who is no longer a
+    /// mutual follow is not listed (10n N6, the web's rule).
     pub fn people_to_choose(&self) -> Vec<String> {
         let mut out: Vec<String> = self.body.certs_sent.iter().filter(|(_, v)| !v.is_empty()).map(|(k, _)| k.clone()).collect();
-        for peer in self.body.following.iter().filter(|p| self.is_follower(p)).chain(&self.body.changed_elsewhere) {
+        for peer in self.body.following.iter().filter(|p| self.is_follower(p)) {
             if !out.contains(peer) {
                 out.push(peer.clone());
             }
@@ -665,25 +796,23 @@ impl DmStore {
         out.sort();
         out
     }
-    /// The `may` a pass to `peer` should carry, canonical form.
-    pub fn intended_may_wire(&self, peer: &str) -> String {
-        super::reach::intended_may_wire(self.ticks(peer))
-    }
-    /// People holding a pass from us that does not allow what the person chose for them (a tick
-    /// added or taken away whose re-issue could not go out yet): the ones the pass sweep
-    /// re-issues for.
-    pub fn passes_out_of_step(&self) -> Vec<String> {
-        let mut out: Vec<String> = self
-            .body
-            .certs_sent
-            .iter()
-            .filter(|(peer, passes)| {
-                let want = self.intended_may_wire(peer);
-                passes.iter().any(|p| p.may != want)
+    /// The friends owed a pass (10n N4): every mutual follow, and everyone holding a pass from us,
+    /// who holds no pass carrying the choice for them. The pass sweep sends each one (unless one
+    /// is on its way, or this device leaves them alone, engine/dm.rs `left_alone`). Covers a first
+    /// pass, one the server refused, and a choice changed whose pass could not go out yet.
+    pub fn owed_passes(&self) -> Vec<String> {
+        let friends = self.body.following.iter().filter(|p| self.is_follower(p));
+        let holders = self.body.certs_sent.iter().filter(|(_, v)| !v.is_empty()).map(|(k, _)| k);
+        let mut out: Vec<String> = friends
+            .chain(holders)
+            .filter(|p| {
+                let want = self.intended_may_wire(p);
+                !self.passes_sent_to(p).iter().any(|x| x.may == want)
             })
-            .map(|(peer, _)| peer.clone())
+            .cloned()
             .collect();
         out.sort();
+        out.dedup();
         out
     }
     /// The "show as a request" rule (10c) for a DM from `from`: does our message setting (as
@@ -919,36 +1048,38 @@ mod tests {
         let _ = std::fs::remove_file(&store.path);
     }
 
-    /// "People I choose" (10c-ii): a friend's ticks are kept across a restart; a friend with no
-    /// choice, or a choice equal to the defaults, has the defaults and no entry; a pass that does
-    /// not match the ticks is listed for re-issue; the list shows everyone holding a pass from us
-    /// and every mutual follow, once each; clearing forgets the choice. A store written with step
-    /// B's `may_call` set loads, and that set is not read (no migration).
-    /// Seen red 2026-10-10 with `friend_ticks` marked `#[serde(skip)]` (kept in memory, never
-    /// saved): "kept across a restart" failed (Ben read back as the defaults); and with
-    /// `people_to_choose` listing mutual follows only, as step B's list did: "pass holders and
-    /// mutual follows, once each" failed (Cy, who holds a pass, missing).
+    /// "People I choose" (10c-ii) with the choice of 10n: a friend's choice is kept with its time
+    /// across a restart; a friend with no choice has the defaults; a friend holding no pass that
+    /// carries the choice is owed one (Ben's default pass does not carry his choice); the list
+    /// shows everyone holding a pass from us and every mutual follow, once each; clearing (Unfollow,
+    /// Block) sets the defaults with its own time, so an older choice read later cannot come back.
+    /// A store written with 10c-ii's `friend_ticks` map, or step B's `may_call` set, loads, and
+    /// neither is read (no migration).
+    /// Seen red 2026-10-10 with `choices` marked `#[serde(skip)]` (kept in memory, never saved):
+    /// "kept across a restart" failed (Ben read back as the defaults); and with `clear_ticks`
+    /// removing the entry instead of dating the defaults: "an older choice cannot come back
+    /// after clearing" failed.
     #[test]
-    fn friend_ticks_are_kept_and_step_b_may_call_is_not_read() {
+    fn the_choice_is_kept_and_the_old_ticks_are_not_read() {
         let (seed, me) = identity(61);
         let server = temp_server();
         let store = DmStore::load(&seed, &me, &server);
         write_body(&store, &serde_json::json!({
             "high_water": 3, "conversations": {}, "last_read": {},
             "following": ["ann", "ben"], "followers": ["ann", "ben"], "may_call": ["ann"],
+            "friend_ticks": { "ann": { "message": false, "call": true, "trade": false } },
         }));
         let mut store = DmStore::load(&seed, &me, &server);
-        assert_eq!(store.high_water(), 3, "a store with the old field loads");
-        assert_eq!(store.ticks("ann"), FriendTicks::default(), "the old may_call set is not read");
+        assert_eq!(store.high_water(), 3, "a store with the old fields loads");
+        assert_eq!(store.ticks("ann"), FriendTicks::default(), "the old may_call set and friend_ticks map are not read");
+        assert_eq!(store.choice("ann"), None);
 
         let chosen = FriendTicks { message: false, call: true, trade: true };
-        store.set_ticks("ben", chosen);
-        store.set_ticks("ann", FriendTicks::default());
-        assert!(!store.clear_ticks("ann"), "a choice equal to the defaults is not stored");
+        let at = store.set_ticks("ben", chosen);
         let default_may = super::super::reach::intended_may_wire(FriendTicks::default());
         store.record_pass_sent("ann", SentPass { serial: "aa".repeat(16), may: default_may.clone() });
         store.record_pass_sent("ben", SentPass { serial: "bb".repeat(16), may: default_may });
-        assert_eq!(store.passes_out_of_step(), vec!["ben".to_string()], "Ben's pass does not match his ticks yet");
+        assert_eq!(store.owed_passes(), vec!["ben".to_string()], "Ben's pass does not carry his choice yet");
 
         // The list: everyone holding a pass from us (Cy, sent one with a contact request) and
         // every mutual follow (Eve, whose pass has not gone out yet); not someone we only follow.
@@ -958,14 +1089,71 @@ mod tests {
             store.set_follower(peer, follows_us);
         }
         assert_eq!(store.people_to_choose(), ["ann", "ben", "cy", "eve"], "pass holders and mutual follows, once each");
+        assert_eq!(store.owed_passes(), ["ben", "eve"], "and those holding none carrying their choice are owed one");
         store.save();
 
         let mut store = DmStore::load(&seed, &me, &server);
         assert_eq!(store.ticks("ben"), chosen, "kept across a restart");
+        assert_eq!(store.choice("ben").map(|c| c.at), Some(at), "with its time");
         assert_eq!(store.intended_may_wire("ben"), "call,trade");
-        assert!(store.clear_ticks("ben"), "clearing forgets the choice");
+        assert!(store.clear_ticks("ben"), "clearing sets the defaults");
+        assert!(!store.clear_ticks("ben"), "once");
         assert_eq!(store.ticks("ben"), FriendTicks::default(), "back to the defaults");
-        assert!(store.passes_out_of_step().is_empty(), "and Ben's default pass is in step again");
+        assert!(!store.owed_passes().contains(&"ben".to_string()), "and Ben's default pass carries the choice again");
+        assert!(!store.apply_choice("ben", "call,trade", at), "an older choice cannot come back after clearing");
+        let _ = std::fs::remove_file(&store.path);
+    }
+
+    /// 10n N2 on the store: a choice from elsewhere replaces the stored one only when it is newer;
+    /// at an equal time the larger `may` text wins, whichever order the two came in; an older one
+    /// changes nothing. A choice made here always applies, dated after the stored one even when
+    /// that one is dated in the future. Each note is applied once by its signature hash. Notes made
+    /// offline wait, one per friend (the newer replacing the older), as do Unfollows, across a
+    /// restart.
+    /// Seen red 2026-10-10 two ways: with `apply_choice` comparing `at` with `<=` both ways (no
+    /// tie-break), "at an equal time the larger may wins, in either order" failed; and with
+    /// `queue_choice` not replacing: "one per friend, the newer replacing the older" failed.
+    #[test]
+    fn a_newer_choice_wins_and_notes_apply_once() {
+        let (seed, me) = identity(62);
+        let server = temp_server();
+        let mut store = DmStore::load(&seed, &me, &server);
+        assert!(store.apply_choice("ab", "trade", 100), "a first choice applies");
+        assert!(!store.apply_choice("ab", "call,trade", 99), "an older one changes nothing");
+        assert!(store.apply_choice("ab", "call,trade", 101), "a newer one replaces it");
+        assert_eq!(store.intended_may_wire("ab"), "call,trade");
+        for (first, second) in [("invite", "message"), ("message", "invite")] {
+            let mut s = DmStore::load(&seed, &me, &temp_server());
+            s.apply_choice("cd", first, 200);
+            s.apply_choice("cd", second, 200);
+            assert_eq!(s.intended_may_wire("cd"), "message", "at an equal time the larger may wins, in either order ({first} first)");
+        }
+
+        store.apply_choice("ef", "trade", u64::MAX - 5);
+        let at = store.choose("ef", "invite");
+        assert_eq!((store.intended_may_wire("ef"), at), ("invite".to_string(), u64::MAX - 4), "a choice made here always applies");
+
+        assert!(store.first_sight_note("note-1"), "a note is applied the first time");
+        assert!(!store.first_sight_note("note-1"), "and never again");
+
+        store.queue_choice("ab", "trade", 300);
+        store.queue_choice("cd", "invite", 310);
+        store.queue_choice("ab", "invite", 320);
+        assert_eq!(
+            store.pending_choices(),
+            [PendingChoice { peer: "cd".into(), may: "invite".into(), at: 310 }, PendingChoice { peer: "ab".into(), may: "invite".into(), at: 320 }],
+            "one per friend, the newer replacing the older"
+        );
+        store.queue_unfollow("ab", 400);
+        store.queue_unfollow("cd", 410);
+        assert!(store.drop_pending_unfollow("cd") && !store.drop_pending_unfollow("cd"), "following again voids a waiting Unfollow");
+        store.save();
+        let mut store = DmStore::load(&seed, &me, &server);
+        assert_eq!(store.pending_choices().len(), 2, "kept across a restart");
+        assert_eq!(store.pending_unfollows(), [PendingUnfollow { peer: "ab".into(), at: 400 }]);
+        assert!(!store.first_sight_note("note-1"), "and the notes already applied");
+        assert_eq!(store.take_pending_choices().len(), 2);
+        assert!(store.pending_choices().is_empty());
         let _ = std::fs::remove_file(&store.path);
     }
 
