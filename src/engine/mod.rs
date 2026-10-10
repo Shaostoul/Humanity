@@ -8,6 +8,9 @@
 
 pub mod color;
 pub mod dm;
+/// "Who can reach me" (step B of docs/design/blocking-and-safe-mode.md, 2026-10-09): the
+/// relay's reach frames, contact requests sent and received, and the "may call me" ticks.
+pub mod reach;
 pub mod editor;
 pub mod frame_lock;
 pub mod geom;

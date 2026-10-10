@@ -54,6 +54,10 @@ use modals::{
     draw_search_modal,
 };
 
+/// Who can reach me (step B): the refused-message notice and the Requests rail section.
+/// See `chat/reach.rs`.
+mod reach;
+
 // Maximum messages kept in the local chat buffer (was hardcoded, now uses theme.max_messages if needed).
 
 /// Minimum panel width in points.
@@ -506,6 +510,12 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
             });
         });
+
+    // A message to this person was refused by their "who can reach me" (step B): say so, with
+    // Send request, above the conversation.
+    if let Some(peer) = state.chat_active_channel.strip_prefix("dm:").map(str::to_string) {
+        reach::draw_refusal_notice(ui, theme, state, &peer);
+    }
 
     // ── Message area ──
     let active_channel = state.chat_active_channel.clone();

@@ -330,6 +330,19 @@ fn bg_dm_store(state: &EngineState, ci: usize) -> Option<crate::net::dm_store::D
     ))
 }
 
+/// "Who can reach me" (step B, 2026-10-09) on a parked server's store: a contact request is
+/// listed there (its pass checked, engine/reach.rs `contact_request_in`), and a DM our settings
+/// there would refuse is listed in its place, name only. True when the DM was taken either way,
+/// so the caller stores nothing as a message.
+fn bg_screen(state: &EngineState, store: &mut crate::net::dm_store::DmStore, inner: &crate::net::dm_pq::DmInner) -> bool {
+    if inner.text.starts_with(crate::net::reach::CONTACT_REQUEST_MARKER) {
+        crate::engine::reach::contact_request_in(store, &state.gui_state.profile_public_key, inner);
+        return true;
+    }
+    let shares = crate::engine::reach::shares_group(&state.gui_state, &inner.from);
+    crate::engine::reach::file_if_refused_in(store, shares, inner)
+}
+
 /// Fold one verified sealed-sender DM into a parked connection's sidebar
 /// entry + message buffer (so unpark restores a current picture).
 fn bg_apply_dm(
@@ -621,6 +634,13 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
             match crate::engine::dm::open_verify_dm(&raw_env, &state.gui_state) {
                 Ok(inner) => {
                     let Some(mut store) = bg_dm_store(state, ci) else { return };
+                    // Step B: a contact request, or a DM our settings there would refuse, goes
+                    // to that server's Requests and is never stored as a message.
+                    if bg_screen(state, &mut store, &inner) {
+                        store.set_high_water(mail_id);
+                        store.save();
+                        return;
+                    }
                     let is_new = store.insert(&inner);
                     store.set_high_water(mail_id);
                     store.save();
@@ -665,7 +685,9 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
                         continue;
                     }
                     if let Ok(inner) = crate::engine::dm::open_verify_dm(raw, &state.gui_state) {
-                        if store.insert(&inner) {
+                        // Step B: a contact request, or a DM our settings there would refuse,
+                        // goes to that server's Requests instead.
+                        if !bg_screen(state, &mut store, &inner) && store.insert(&inner) {
                             fresh.push(inner);
                         }
                     }
@@ -692,6 +714,14 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
         }
         // BUG-135: an erase confirmed after the person switched away from that server.
         Some("account_erased") => crate::engine::account_erase::on_parked_server(state, ci, &val),
+        // Who can reach me there (step B, 2026-10-09): kept in that server's store, where its
+        // "show as a request" rule and, once it is active again, the Safety page read it.
+        Some("reach_settings") => {
+            if let (Some(settings), Some(mut store)) = (crate::net::reach::ReachSettings::from_frame(&val), bg_dm_store(state, ci)) {
+                store.set_reach_settings(settings);
+                store.save();
+            }
+        }
         Some("name_taken") => {
             // Retrying with the same name would loop forever; stop redialing
             // and surface why. The user resolves it from the active side.

@@ -639,6 +639,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         }
                     }
                     Some("cert_revoked") => crate::engine::dm::withdrawal_confirmed(&mut state.gui_state, &val),
+                    Some("reach_settings") | Some("reach_refused") => crate::engine::reach::on_frame(&mut state.gui_state, &val), // who can reach me (step B)
                     Some("voice_channel_list") => {
                         // Voice channels received from server
                         if let Some(channels) = val.get("channels").and_then(|v| v.as_array()) {

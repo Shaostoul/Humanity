@@ -156,6 +156,16 @@ pub(crate) fn ingest_dm(gui_state: &mut GuiState, inner: &DmInner) -> bool {
         ingest_control(gui_state, inner);
         return false; // acted on; nothing to render
     }
+    // Step B (2026-10-09, blocking-and-safe-mode.md 10c): a contact request is a control message
+    // too (its pass checked, its sender listed under Requests); and a DM from someone our own
+    // message setting would refuse is listed the same way, name only, its text never stored.
+    if inner.text.starts_with(crate::net::reach::CONTACT_REQUEST_MARKER) {
+        crate::engine::reach::ingest_contact_request(gui_state, inner);
+        return false;
+    }
+    if crate::engine::reach::file_if_refused(gui_state, inner) {
+        return false;
+    }
     let peer = {
         let store = gui_state.dm_store.as_mut().unwrap();
         if !store.insert(inner) {
@@ -212,6 +222,7 @@ fn ingest_control(gui_state: &mut GuiState, inner: &DmInner) {
     let peer = if from_me { inner.to.clone() } else { inner.from.clone() };
     let mut want_cert_for: Option<String> = None;
     let mut withdraw_from: Option<String> = None;
+    let mut send_withdrawals = false;
     if let Some(store) = gui_state.dm_store.as_mut() {
         match inner.text.as_str() {
             crate::net::dm_pq::CTL_FOLLOW => {
@@ -240,15 +251,31 @@ fn ingest_control(gui_state: &mut GuiState, inner: &DmInner) {
             crate::net::dm_pq::CTL_FRIEND_CERT => {
                 if let Some(cert) = inner.cert.as_deref() {
                     if from_me {
-                        // A pass we gave, echoed from another device: remember its serial.
+                        // A pass we gave, echoed from another device: remember its serial. Its
+                        // `may` is that device's latest word on whether they may call (step B), so
+                        // the tick follows it, and our record of passes saying otherwise is
+                        // withdrawn (that device withdrew them too; a repeat is harmless), which
+                        // keeps this device from re-issuing what the other one already did.
                         match crate::relay::core::pq_crypto::parse_friend_cert(cert) {
-                            Ok((pass, _)) => store.record_pass_sent(&peer, SentPass { serial: pass.serial, may: pass.may.wire() }),
+                            Ok((pass, _)) => {
+                                let may = pass.may.wire();
+                                store.set_may_call(&peer, pass.may.allows(crate::net::reach::ReachKind::Call.wire()));
+                                store.record_pass_sent(&peer, SentPass { serial: pass.serial, may: may.clone() });
+                                if !store.withdraw_passes_to_except(&peer, |p| p.may == may).is_empty() {
+                                    send_withdrawals = true;
+                                }
+                            }
                             Err(e) => log::warn!("our own friendship pass echoed unreadable ({e:?}); ignored"),
                         }
                     } else {
                         let server = store.pass_server().unwrap_or("").to_string();
                         match crate::relay::core::pq_crypto::verify_friend_cert(&server, &inner.from, &me, cert) {
-                            Ok(_) => store.store_cert_from(&inner.from, cert),
+                            Ok(_) => {
+                                store.store_cert_from(&inner.from, cert);
+                                // Their pass gets us past their gate now: the refusal notice in
+                                // our conversation with them (step B) has done its job.
+                                gui_state.reach.refused.remove(&inner.from);
+                            }
                             Err(e) => log::warn!("friendship pass from {} failed its check ({e:?}); dropped", &inner.from[..12.min(inner.from.len())]),
                         }
                     }
@@ -264,6 +291,9 @@ fn ingest_control(gui_state: &mut GuiState, inner: &DmInner) {
     if let Some(peer) = withdraw_from {
         withdraw_passes(gui_state, &peer);
     }
+    if send_withdrawals {
+        send_pending_withdrawals(gui_state);
+    }
     refresh_social_mirrors(gui_state);
 }
 
@@ -271,78 +301,125 @@ fn ingest_control(gui_state: &mut GuiState, inner: &DmInner) {
 /// exactly like a chat DM so other devices stay in sync). Returns false
 /// when we can't seal yet (no kyber key for the peer).
 pub(crate) fn send_dm_control(gui_state: &mut GuiState, peer: &str, text: &str, cert: Option<String>) -> bool {
-    let Some(seed) = gui_state.private_key_bytes.clone() else { return false };
-    let me = gui_state.profile_public_key.clone();
-    let Some(peer_kyber) = gui_state.peer_kyber_keys.get(peer).cloned() else {
-        log::warn!("control '{text}' to {}… not sent: no kyber key yet (they must come online once)", &peer[..12.min(peer.len())]);
-        return false;
-    };
-    let Ok(my_kp) = crate::net::dm_pq::DmPqKeypair::from_bip39_seed(&seed) else { return false };
-    let ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    let Ok(inner_json) = crate::net::dm_pq::build_signed_inner_ext(&seed, &me, peer, ts, text, cert.as_deref()) else {
-        return false;
-    };
-    let (Ok(env_peer), Ok(env_self)) = (
-        crate::net::dm_pq::seal_v2(&peer_kyber, &inner_json),
-        crate::net::dm_pq::seal_v2(&my_kp.public_base64(), &inner_json),
-    ) else {
-        return false;
-    };
-    // Attach THEIR cert (if we hold one) so the control rides the friend
-    // lane instead of spending knock budget.
-    let their_cert = gui_state
-        .dm_store
-        .as_ref()
-        .and_then(|s| s.cert_for(peer).map(|c| c.to_string()));
+    let Some((put_peer, put_self)) = control_puts(gui_state, peer, text, cert.as_deref()) else { return false };
     let Some(ref client) = gui_state.ws_client else { return false };
     if !client.is_connected() {
         return false;
     }
-    let mut put_peer = serde_json::json!({ "type": "dm_put", "to": peer, "content": env_peer });
-    if let Some(c) = their_cert {
-        put_peer["friend_cert"] = serde_json::Value::String(c);
-    }
     client.send(&put_peer.to_string());
-    client.send(&serde_json::json!({ "type": "dm_put", "to": me, "content": env_self }).to_string());
+    client.send(&put_self.to_string());
     true
+}
+
+/// The two `dm_put` frames of one control message to `peer` (theirs, then our self-copy), built
+/// without sending, so what goes on the wire can be tested. Theirs carries the pass THEY gave us
+/// when we hold one (`friend_cert`), so it rides the friend lane past their "who can reach me"
+/// gate: after Accept that is the pass their contact request brought (step B). None when it
+/// cannot be sealed yet (locked, or no DM key for them: they must come online once).
+pub(crate) fn control_puts(gui_state: &GuiState, peer: &str, text: &str, cert: Option<&str>) -> Option<(serde_json::Value, serde_json::Value)> {
+    let seed = gui_state.private_key_bytes.as_ref()?;
+    let me = &gui_state.profile_public_key;
+    let Some(peer_kyber) = gui_state.peer_kyber_keys.get(peer) else {
+        let what: String = text.chars().take(26).collect(); // the marker, not a whole pass
+        log::warn!("control '{what}' to {}… not sent: no kyber key yet (they must come online once)", &peer[..12.min(peer.len())]);
+        return None;
+    };
+    let my_kp = crate::net::dm_pq::DmPqKeypair::from_bip39_seed(seed).ok()?;
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    let inner_json = crate::net::dm_pq::build_signed_inner_ext(seed, me, peer, ts, text, cert).ok()?;
+    let env_peer = crate::net::dm_pq::seal_v2(peer_kyber, &inner_json).ok()?;
+    let env_self = crate::net::dm_pq::seal_v2(&my_kp.public_base64(), &inner_json).ok()?;
+    let mut put_peer = serde_json::json!({ "type": "dm_put", "to": peer, "content": env_peer });
+    if let Some(c) = gui_state.dm_store.as_ref().and_then(|s| s.cert_for(peer)) {
+        put_peer["friend_cert"] = serde_json::Value::String(c.to_string());
+    }
+    Some((put_peer, serde_json::json!({ "type": "dm_put", "to": me, "content": env_self })))
 }
 
 /// Issue + deliver MY friendship pass to `peer` (idempotent: nothing when one stands).
 ///
 /// v2 (2026-10-09): the pass names this server's did:hum (from its `identify_challenge`), a
 /// fresh random serial and what the friend may do: the defaults two new friends get, which
-/// leave out calls (calls come only from people the person chooses, step B's "may call me"
-/// list). Nothing is minted until the server and the peer's DM key are known; the sweep on the
-/// next member list tries again.
+/// leave out calls (calls come only from people the person chooses), plus `call` for someone
+/// ticked in Settings > Safety's "People who may call me" (step B). Nothing is minted until the
+/// server and the peer's DM key are known; the sweep on the next member list tries again.
 pub(crate) fn send_friend_cert(gui_state: &mut GuiState, peer: &str) {
-    use crate::relay::core::pq_crypto::{build_friend_cert, new_friend_cert_serial, FriendMay, FRIEND_PASS_DEFAULT_MAY};
-    let Some(server) = gui_state.dm_store.as_ref().filter(|s| !s.cert_sent_to(peer)).and_then(|s| s.pass_server().map(str::to_string)) else {
-        return;
-    };
-    if !gui_state.peer_kyber_keys.contains_key(peer) {
-        return; // cannot seal to them yet; no point signing a pass that cannot be sent
+    if gui_state.dm_store.as_ref().is_some_and(|s| !s.cert_sent_to(peer)) {
+        mint_and_send_pass(gui_state, peer);
     }
-    let Some(seed) = gui_state.private_key_bytes.clone() else { return };
-    let Some(serial) = new_friend_cert_serial() else { return };
-    let me = gui_state.profile_public_key.clone();
+}
+
+/// Mint a new pass for `peer` allowing what the person chose for them (the step A defaults,
+/// plus `call` when ticked in Settings > Safety, step B) and deliver it. Returns the new serial
+/// once it is sent and recorded; None when it cannot go out yet (no server identity, no DM key
+/// for them, locked, offline), which the pass sweep on the next member list retries.
+fn mint_and_send_pass(gui_state: &mut GuiState, peer: &str) -> Option<String> {
+    let may_call = gui_state.dm_store.as_ref()?.may_call(peer);
+    if !gui_state.peer_kyber_keys.contains_key(peer) {
+        return None; // cannot seal to them yet; no point signing a pass that cannot be sent
+    }
+    let (cert, sent) = mint_pass(gui_state, peer, &crate::net::reach::intended_may(may_call))?;
+    if !send_dm_control(gui_state, peer, crate::net::dm_pq::CTL_FRIEND_CERT, Some(cert)) {
+        return None;
+    }
+    let store = gui_state.dm_store.as_mut()?;
+    store.record_pass_sent(peer, sent.clone());
+    store.save();
+    Some(sent.serial)
+}
+
+/// Sign MY pass for `peer` on this server allowing `may`, under a fresh serial: the pass JSON,
+/// and the record to keep once it has gone out. Nothing is recorded here. None until the server's
+/// identity is known (its `identify_challenge`), or while the identity is locked.
+pub(crate) fn mint_pass(gui_state: &GuiState, peer: &str, may: &[&str]) -> Option<(String, SentPass)> {
+    use crate::relay::core::pq_crypto::{build_friend_cert, new_friend_cert_serial, FriendMay};
+    let server = gui_state.dm_store.as_ref()?.pass_server()?;
+    let seed = gui_state.private_key_bytes.as_ref()?;
+    let serial = new_friend_cert_serial()?;
     // The minting step lives with its check in relay::core::pq_crypto, so both feature sets can
     // reach it (the relay's own tests mint passes too).
-    let cert = match build_friend_cert(&seed, &server, &me, peer, &serial, &FRIEND_PASS_DEFAULT_MAY) {
-        Ok(c) => c,
+    match build_friend_cert(seed, server, &gui_state.profile_public_key, peer, &serial, may) {
+        Ok(cert) => Some((cert, SentPass { serial, may: FriendMay::from_words(may.iter().copied()).ok()?.wire() })),
         Err(e) => {
             log::warn!("friendship pass not minted: {e:?}");
-            return;
+            None
         }
-    };
-    let may = FriendMay::from_words(FRIEND_PASS_DEFAULT_MAY).map(|m| m.wire()).unwrap_or_default();
-    if send_dm_control(gui_state, peer, crate::net::dm_pq::CTL_FRIEND_CERT, Some(cert)) {
-        if let Some(store) = gui_state.dm_store.as_mut() {
-            store.record_pass_sent(peer, SentPass { serial, may });
-            store.save();
+    }
+}
+
+/// Bring the pass `peer` holds from us in line with what the person chose for them (Settings >
+/// Safety, "People who may call me", step B of 10c): mint the new pass first, then withdraw the
+/// old ones, so a friend is never left between passes. When the new one cannot go out yet and
+/// the change TAKES AWAY calling, the old passes are withdrawn at once anyway (consent taken back
+/// takes effect now; the friend falls back to whatever the person's settings allow strangers
+/// until the sweep delivers the new pass). An added tick simply waits for the sweep.
+pub(crate) fn reissue_pass(gui_state: &mut GuiState, peer: &str) {
+    let Some(store) = gui_state.dm_store.as_ref() else { return };
+    let want = store.intended_may_wire(peer);
+    let standing = store.passes_sent_to(peer);
+    if !standing.is_empty() && standing.iter().all(|p| p.may == want) {
+        return; // already in step
+    }
+    let takes_away_call = !store.may_call(peer) && standing.iter().any(|p| p.may.split(',').any(|k| k == "call"));
+    match mint_and_send_pass(gui_state, peer) {
+        Some(new_serial) => {
+            if let Some(store) = gui_state.dm_store.as_mut() {
+                store.withdraw_passes_to_except(peer, |p| p.serial == new_serial);
+                store.save();
+            }
+            send_pending_withdrawals(gui_state);
         }
+        None if takes_away_call => {
+            if let Some(store) = gui_state.dm_store.as_mut() {
+                store.withdraw_passes_to_except(peer, |p| !p.may.split(',').any(|k| k == "call"));
+                store.save();
+            }
+            send_pending_withdrawals(gui_state);
+        }
+        None => {}
     }
 }
 
@@ -407,6 +484,14 @@ pub(crate) fn sweep_friend_passes(gui_state: &mut GuiState) {
     for peer in owed {
         send_friend_cert(gui_state, &peer);
     }
+    // Step B: passes whose "may call" no longer matches the person's choice (a re-issue that
+    // could not go out when the tick changed), and Requests from people who have since become
+    // friends.
+    let out_of_step = gui_state.dm_store.as_ref().map(|s| s.passes_out_of_step()).unwrap_or_default();
+    for peer in out_of_step {
+        reissue_pass(gui_state, &peer);
+    }
+    crate::engine::reach::settle_requests(gui_state);
 }
 
 /// The pass `peer` gave me, to attach whenever I reach them (dm_put, a trade request, a call
