@@ -921,6 +921,9 @@ pub struct ChatMessage {
     /// to `server`. Dedup key across carriers is (origin_server, sender_key,
     /// timestamp_ms) per docs/design/federation-ux.md.
     pub origin_server: String,
+    /// A P2P group message's signed-object id (empty otherwise): a report to the group's creator
+    /// names the message by it, so they can find it in their own copy (10j).
+    pub group_object_id: String,
 }
 
 /// Cached parent-message context for a thread reply.

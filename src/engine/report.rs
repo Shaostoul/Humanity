@@ -85,6 +85,9 @@ pub(crate) fn open_for_message(gs: &mut GuiState, msg: &crate::gui::ChatMessage)
         (ReportContext::Post, Some(Evidence::Post { from: msg.sender_key.clone(), timestamp: msg.timestamp_ms }))
     };
     let fixed_text = if item.is_some() { msg.content.clone() } else { String::new() };
+    // A group message can also go to the group's creator (10j): its group, the message by its
+    // signed-object id, and a lookup of who created the group, started as the dialog opens.
+    let group = crate::engine::group_report::target_for(gs, msg);
     open(
         gs,
         ReportDialog {
@@ -93,9 +96,11 @@ pub(crate) fn open_for_message(gs: &mut GuiState, msg: &crate::gui::ChatMessage)
             context: Some(context),
             fixed: item,
             fixed_text,
+            group,
             ..Default::default()
         },
     );
+    crate::engine::group_report::start_finding(gs);
 }
 
 /// A DM conversation (its header, or one of its messages): that person's messages to us,
@@ -165,8 +170,10 @@ pub(crate) fn prepare_send(gs: &GuiState, ts: u64) -> Result<(String, Option<Str
     Ok((frame, d.also_block.then(|| d.target.clone())))
 }
 
-/// The dialog's Send: the report goes to this server and the dialog closes, and with "Also block
-/// them" ticked the person is blocked too. When it cannot go, the dialog stays open and says why.
+/// The dialog's Send: the report goes to this server (or, for a group message, to the group's
+/// creator, or both: 10j, engine/group_report.rs, everything built before anything is sent) and
+/// the dialog closes, and with "Also block them" ticked the person is blocked too. When it cannot
+/// go, the dialog stays open and says why.
 pub(crate) fn send(gs: &mut GuiState) {
     if !gs.ws_client.as_ref().is_some_and(|c| c.is_connected()) {
         if let Some(d) = gs.reports.dialog.as_mut() {
@@ -182,19 +189,23 @@ pub(crate) fn send(gs: &mut GuiState) {
         }
         return;
     }
-    match prepare_send(gs, now_ms()) {
-        Ok((frame, block)) => {
-            if let Some(client) = gs.ws_client.as_ref() {
-                client.send(&frame);
+    match crate::engine::group_report::prepare(gs, now_ms()) {
+        Ok(out) => {
+            if let (Some((creator, put)), Some(client)) = (out.to_creator.as_ref(), gs.ws_client.as_ref()) {
+                client.send(&put.to_string());
+                crate::engine::group_report::note_sent(gs, creator);
+            }
+            if let (Some(frame), Some(client)) = (out.to_admins.as_ref(), gs.ws_client.as_ref()) {
+                client.send(frame);
             }
             gs.reports.dialog = None;
-            if let Some(key) = block {
+            if let Some(key) = out.block {
                 crate::engine::block::block(gs, &key); // step C: nothing is sent to them
             }
         }
         Err(problem) => {
             if let Some(d) = gs.reports.dialog.as_mut() {
-                d.problem = problem.sentence().to_string();
+                d.problem = problem;
             }
         }
     }

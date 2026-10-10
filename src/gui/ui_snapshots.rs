@@ -1328,6 +1328,122 @@ fn snapshot_report_reasons() -> Vec<crate::net::report::ReportReason> {
     });
 }
 
+// The Report dialog for a P2P group message (10j of docs/design/blocking-and-safe-mode.md,
+// 2026-10-10): the group's creator found, "Send this report to" with the three destinations and
+// the creator ticked by default, "The group's creator will see that you sent this.", the message
+// with the line saying the creator can check it against their own copy, and the note addressed to
+// the creator. Built in memory; nothing is sent or saved.
+#[test]
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_report_dialog_group() {
+    render_page_png("report_dialog_group", 760, 1040, |ctx, theme, state| {
+        if state.reports.dialog.is_none() {
+            use crate::net::group_report::{GroupTarget, Item};
+            use crate::net::report::{Evidence, ReportContext, ReportDialog};
+            let (me, cy, ben) = ("a1".repeat(32), "c3".repeat(32), "b2".repeat(32));
+            state.profile_public_key = me;
+            state.reports.reasons = snapshot_report_reasons();
+            let text = "Nobody here wants you. Leave or I will make you.";
+            let ts = 1_791_503_600_000;
+            state.reports.dialog = Some(ReportDialog {
+                target: cy.clone(),
+                target_name: "Cy Moreau".into(),
+                context: Some(ReportContext::Group),
+                reason: "harassment".into(),
+                note: "He has said this to three of us this week.".into(),
+                fixed: Some(Evidence::GroupText { from: cy.clone(), ts, text: text.into() }),
+                fixed_text: text.into(),
+                group: Some(GroupTarget {
+                    id: "ab".repeat(32),
+                    name: "Riverside Hikers".into(),
+                    item: Some(Item { id: "01".repeat(32), from: cy, ts, text: text.into() }),
+                    creator: Some(ben),
+                    finding: false,
+                    send_to: None,
+                }),
+                ..Default::default()
+            });
+        }
+        egui::CentralPanel::default().show(ctx, |_| {});
+        crate::gui::pages::chat::draw_report_dialog(ctx, theme, state);
+    });
+}
+
+// Settings > Safety > Reports about your groups (10j, 2026-10-10), as the creator of "Riverside
+// Hikers" sees it: Ann's report about Cy with her note and two messages, one found in the
+// creator's copy (signed by Cy) and one not, and the three actions; and an older report about Dee
+// already acted on, with "Removed from the group." and "You have blocked them.". The DM store and
+// the block list are built in memory and never saved, so nothing lands on disk.
+#[test]
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_safety_group_reports() {
+    render_page_png("safety_group_reports", 960, 900, |ctx, theme, state| {
+        if state.dm_store.is_none() {
+            use crate::net::group_report::{CheckedItem, KeptReport};
+            let (me, ann, cy, dee) = ("a1".repeat(32), "b2".repeat(32), "c3".repeat(32), "d4".repeat(32));
+            let g = "ab".repeat(32);
+            state.profile_public_key = me.clone();
+            state.reports.reasons = snapshot_report_reasons();
+            for (name, key) in [("Ann Lindqvist", &ann), ("Cy Moreau", &cy), ("Dee Park", &dee)] {
+                state.chat_users.push(crate::gui::ChatUser { name: name.into(), public_key: key.clone(), role: String::new(), status: "online".into() });
+            }
+            state.p2p_groups = vec![crate::net::api_v2::P2pGroupInfo {
+                group_id: g.clone(),
+                name: "Riverside Hikers".into(),
+                members: vec![me.clone(), ann.clone(), cy.clone()],
+                is_creator: true,
+            }];
+            let mut list = crate::net::block_list::BlockList::in_temp(&[7u8; 32], &me, "snapshot-group-reports");
+            list.block(&dee, 1_791_417_600_000);
+            state.block_list = Some(list);
+            let item = |n: u8, ts: u64, text: &str, found: bool| CheckedItem {
+                id: format!("{n:02x}").repeat(32),
+                from: cy.clone(),
+                ts,
+                text: text.into(),
+                found,
+                signer: if found { cy.clone() } else { String::new() },
+            };
+            let mut store = crate::net::dm_store::DmStore::load(&[7u8; 32], &me, "wss://snapshot.group-reports.invalid");
+            for kept in [
+                KeptReport {
+                    id: "r1".into(),
+                    from: ann.clone(),
+                    ts: 1_791_504_000_000,
+                    group_id: g.clone(),
+                    group_name: "Riverside Hikers".into(),
+                    target: cy.clone(),
+                    reason: "harassment".into(),
+                    note: "He has said this to three of us this week.".into(),
+                    items: vec![
+                        item(1, 1_791_503_600_000, "Nobody here wants you. Leave or I will make you.", true),
+                        item(2, 1_791_503_700_000, "I know where the Saturday walk starts.", false),
+                    ],
+                    removed: false,
+                },
+                KeptReport {
+                    id: "r2".into(),
+                    from: ann.clone(),
+                    ts: 1_791_331_200_000,
+                    group_id: g.clone(),
+                    group_name: "Riverside Hikers".into(),
+                    target: dee.clone(),
+                    reason: "spam".into(),
+                    note: String::new(),
+                    items: vec![],
+                    removed: true,
+                },
+            ] {
+                store.settle_group_report(&kept.id.clone(), Some(kept));
+            }
+            state.dm_store = Some(store);
+        }
+        settings_panel(ctx, theme, state, |ui, theme, state| {
+            crate::gui::pages::safety_group_reports::draw_section(ui, theme, state, theme.info())
+        });
+    });
+}
+
 // Server Settings > Moderator > Reports as an admin sees it (step D, 10e): an open DM report with
 // one item whose signature the server checked and one it could not prove, the sentence on what a
 // checked signature does not prove, and the decision buttons (Ban shown, as for an admin). Built

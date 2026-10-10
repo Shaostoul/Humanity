@@ -3,8 +3,9 @@
 //! with the five audiences in plain words and a line under each saying what the current choice
 //! means; "People I choose" (10c-ii), the person's friends, each once with three ticks
 //! (Message, Call, Trade); the Requests list (also in Chat, under DMs), where a request can
-//! also be blocked; Warnings (step F, 10g), the "Warnings on messages" switch; Blocked people
-//! (step C, 10d), each with the date and Unblock; and the Protected setup (step G, 10h), drawn by
+//! also be blocked; Reports about your groups (10j), drawn by safety_group_reports.rs; Warnings
+//! (step F, 10g), the "Warnings on messages" switch; Blocked people (step C, 10d), each with the
+//! date and Unblock; and the Protected setup (step G, 10h), drawn by
 //! safety_protected.rs, whose always-visible line heads the page while it is on. While it is on,
 //! a row, a tick, Accept and turning the warnings off ask its PIN (engine/protected.rs).
 //!
@@ -113,6 +114,8 @@ pub(crate) fn draw_safety_content(ui: &mut egui::Ui, theme: &Theme, state: &mut 
         ui.set_min_width(ui.available_width());
         draw_requests_list(ui, theme, state);
     });
+    // 10j: reports members of a group I created sent me (safety_group_reports.rs).
+    super::safety_group_reports::draw_section(ui, theme, state, accent);
 
     draw_warnings_switch(ui, theme, state, accent);
     draw_blocked_people(ui, theme, state, accent);

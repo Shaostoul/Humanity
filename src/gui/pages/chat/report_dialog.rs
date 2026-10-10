@@ -15,9 +15,18 @@
 //! exploited online, for a country picked in the block (rules and words: src/net/outside_help.rs).
 //! The pick is kept on this device for the next dialog and never sent.
 //!
+//! A report about a group message (10j, 2026-10-10): "Send this report to", with "The group's
+//! creator" (the default), "This server's admins" and "Both", or only the admins with the sentence
+//! saying why (I created the group; they did; who created it could not be found out). While the
+//! creator is being found the section says so and Send waits. The first line, the line under the
+//! group message and the note's label follow the choice, in the web's words
+//! (net/group_report.rs); choosing the creator says "The group's creator will see that you sent
+//! this." before anything is sent.
+//!
 //! Takes `use super::*` like the page's other children.
 
 use super::*;
+use crate::net::group_report::{self as gr, Dest, GroupTarget};
 use crate::net::outside_help;
 use crate::net::report::{ReportContext, FILES_NOT_INCLUDED, MAX_EVIDENCE_ITEMS, MAX_NOTE_CHARS, REASONS_FILE};
 
@@ -78,6 +87,7 @@ pub(crate) fn draw_report_dialog(ctx: &egui::Context, theme: &Theme, state: &mut
     let mut cancel = false;
     let mut picked = false;
     let name = if d.target_name.is_empty() { d.target.chars().take(8).collect() } else { d.target_name.clone() };
+    let me = state.profile_public_key.clone();
 
     // The two danger reasons add the help outside this server (10e-ii), which can make the dialog
     // taller than a small window, so the whole dialog scrolls (`dialog_scrolling`) and Send is
@@ -88,11 +98,15 @@ pub(crate) fn draw_report_dialog(ctx: &egui::Context, theme: &Theme, state: &mut
         ui.set_max_width(520.0);
         ui.vertical(|ui| {
             ui.label(RichText::new(format!("Report {name}")).size(theme.font_size_heading).color(theme.text_primary()).strong());
-            widgets::body_hint(
-                ui,
-                theme,
-                &format!("This goes to this server's admins and moderators, signed with your key. {name} is not told who reported them."),
-            );
+            // Who reads it: the admins (step D's line), or for a group message the group's
+            // creator too, as chosen under "Send this report to" (10j).
+            let lead = gr::lead_line(destination(&d, &me), &name).unwrap_or_else(|| {
+                format!("This goes to this server's admins and moderators, signed with your key. {name} is not told who reported them.")
+            });
+            widgets::body_hint(ui, theme, &lead);
+            if let Some(g) = d.group.as_mut() {
+                draw_send_to(ui, theme, g, &me, &d.target);
+            }
             ui.add_space(theme.spacing_sm);
 
             // ── Reason ──
@@ -139,12 +153,19 @@ pub(crate) fn draw_report_dialog(ctx: &egui::Context, theme: &Theme, state: &mut
                     widgets::card(ui, theme, |ui| {
                         ui.label(RichText::new(one_line(&d.fixed_text, 300)).color(theme.text_secondary()));
                     });
-                    widgets::body_hint(
-                        ui,
-                        theme,
-                        "Group messages are encrypted for the group, so the server's admins cannot check who wrote this. \
-                         It is sent as text and marked Not proven.",
-                    );
+                    // The admins cannot check a group's words (step D); the creator can (10j).
+                    let dest = destination(&d, &me);
+                    if dest.is_none_or(Dest::to_admins) {
+                        widgets::body_hint(
+                            ui,
+                            theme,
+                            "Group messages are encrypted for the group, so the server's admins cannot check who wrote this. \
+                             It is sent as text and marked Not proven.",
+                        );
+                    }
+                    if dest.is_some_and(Dest::to_creator) {
+                        widgets::body_hint(ui, theme, gr::CREATOR_CHECKS);
+                    }
                 }
                 _ => widgets::body_hint(
                     ui,
@@ -154,8 +175,13 @@ pub(crate) fn draw_report_dialog(ctx: &egui::Context, theme: &Theme, state: &mut
             }
             ui.add_space(theme.spacing_sm);
 
-            // ── Note ──
-            widgets::subsection_label(ui, theme, "Anything else they should know (optional)");
+            // ── Note ── (addressed to whoever reads it, 10j)
+            let note_label = match destination(&d, &me) {
+                Some(Dest::Creator) => "What the group's creator should know (optional)",
+                Some(Dest::Both) => "What they should know (optional)",
+                _ => "Anything else they should know (optional)",
+            };
+            widgets::subsection_label(ui, theme, note_label);
             ui.add(
                 egui::TextEdit::multiline(&mut d.note)
                     .desired_rows(3)
@@ -177,10 +203,19 @@ pub(crate) fn draw_report_dialog(ctx: &egui::Context, theme: &Theme, state: &mut
         }
         ui.add_space(theme.spacing_md);
         ui.horizontal(|ui| {
-            let ready = !reasons.is_empty() && !d.reason.is_empty();
+            // A group message's report waits while its creator is being found (10j).
+            let finding = d.group.as_ref().is_some_and(|g| g.finding);
+            let ready = !reasons.is_empty() && !d.reason.is_empty() && !finding;
+            let tip = if finding {
+                gr::FINDING_CREATOR
+            } else if ready {
+                REPORT_TIP
+            } else {
+                "Choose what is happening first."
+            };
             if widgets::Button::danger("Send report")
                 .disabled(!ready)
-                .tooltip(if ready { REPORT_TIP } else { "Choose what is happening first." })
+                .tooltip(tip)
                 .show(ui, theme)
             {
                 send = true;
@@ -199,6 +234,41 @@ pub(crate) fn draw_report_dialog(ctx: &egui::Context, theme: &Theme, state: &mut
         crate::engine::report::send(state); // closes the dialog when it went, says why when not
     } else if open && !cancel {
         state.reports.dialog = Some(d);
+    }
+}
+
+/// Where the open report goes now: None while a group's creator is being found, and for any
+/// report that is not about a group message (both read as the admins, step D's only way).
+fn destination(d: &crate::net::report::ReportDialog, me: &str) -> Option<Dest> {
+    d.group.as_ref().and_then(|g| g.destination(me, &d.target))
+}
+
+/// "Send this report to" (10j): the destinations offered, with the creator ticked by default; or,
+/// when only the admins remain, why; and before anything goes to the creator, that they will see
+/// who sent it. While the creator is being found it says so (the answer arrives off the frame,
+/// engine/group_report.rs `pump`, so the dialog repaints until then).
+fn draw_send_to(ui: &mut egui::Ui, theme: &Theme, g: &mut GroupTarget, me: &str, target: &str) {
+    ui.add_space(theme.spacing_sm);
+    widgets::subsection_label(ui, theme, gr::SEND_TO);
+    let c = g.choices(me, target);
+    if c.finding {
+        widgets::body_hint(ui, theme, gr::FINDING_CREATOR);
+        ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
+        return;
+    }
+    let mut pick = g.destination(me, target);
+    for dest in &c.choices {
+        ui.radio_value(&mut pick, Some(*dest), RichText::new(dest.label()).color(theme.text_primary()));
+    }
+    if pick != g.destination(me, target) {
+        g.send_to = pick;
+    }
+    if let Some(line) = c.line {
+        widgets::body_hint(ui, theme, line);
+    }
+    if pick.is_some_and(Dest::to_creator) {
+        ui.add_space(theme.spacing_xs);
+        widgets::alert(ui, theme, widgets::AlertKind::Info, gr::CREATOR_SEES);
     }
 }
 

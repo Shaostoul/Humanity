@@ -23,6 +23,9 @@ pub mod safety;
 /// Settings > Safety > Protected setup, and the PIN prompt its locked actions open (step G,
 /// 2026-10-10).
 pub mod safety_protected;
+/// Settings > Safety > Reports about your groups, and the count on a group in the chat (10j,
+/// 2026-10-10).
+pub mod safety_group_reports;
 pub mod profile;
 pub mod real;
 // v0.415.0: play module removed (the dead v0.360 Crafting/Studio fold —

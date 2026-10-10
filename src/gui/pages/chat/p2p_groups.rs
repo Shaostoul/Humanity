@@ -183,6 +183,7 @@ fn replace_p2p_messages(
             timestamp_ms: m.created_at as u64,
             channel: channel.to_string(),
             server: norm_server_url(&state.server_url),
+            group_object_id: m.object_id, // a report to the creator names it (10j)
             ..Default::default()
         });
     }
@@ -748,6 +749,7 @@ pub(crate) fn handle_p2p_group_obj(state: &mut GuiState, _peer: &str, frame_text
         timestamp_ms: created_ms,
         channel,
         server: norm_server_url(&state.server_url),
+        group_object_id: verified.object_id.clone(), // a report to the creator names it (10j)
         ..Default::default()
     });
     state.chat_messages.sort_by_key(|m| m.timestamp_ms);

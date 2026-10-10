@@ -66,9 +66,12 @@ fn on_reach_refused(gs: &mut GuiState, frame: &serde_json::Value) {
         // same way, and a notice for each would read as an error the person never made. The
         // conversation shows it where a message was written.
         Some(ReachKind::Message) => {
-            // A refused contact request (only "Nobody" refuses one) says so, and the notice stops
+            // A report to a group's creator that their server did not let through (10j) is said
+            // as such, not turned into an offer of a contact request. A refused contact request
+            // (only "Nobody" refuses one) says they are not taking requests, and the notice stops
             // offering another; a refused message offers one.
-            if frame.get("request").and_then(|v| v.as_bool()) == Some(true) {
+            if crate::engine::group_report::refused(gs, to) {
+            } else if frame.get("request").and_then(|v| v.as_bool()) == Some(true) {
                 gs.reach.refused.insert(to.to_string(), crate::net::reach::Refusal::NotTakingRequests);
             } else {
                 gs.reach.refused.entry(to.to_string()).or_insert(crate::net::reach::Refusal::Refused);

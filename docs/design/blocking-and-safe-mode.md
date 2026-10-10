@@ -1800,6 +1800,27 @@ are `web/shared/group-report.js`, tested by `scripts/tests/group-report-web.test
   group." on the report; "They are not in the group now." when they already left. Block them shows
   "You have blocked them." once done; the report stays until Dismiss.
 
+**As built (desktop app, 2026-10-10), matching the web's words.** Rules in `src/net/group_report.rs`,
+the removal in `src/net/group_remove.rs`, the app glue in `src/engine/group_report.rs`, the dialog in
+`src/gui/pages/chat/report_dialog.rs`, the Safety section and the count in
+`src/gui/pages/safety_group_reports.rs`. The marker is held byte for byte to the web's by
+`scripts/tests/fixtures/group-report-marker.json`, generated from `web/shared/group-report.js` and
+read by both clients' tests. Where the desktop differs in form, not in words:
+- *Checked off the frame:* a report that arrives waits in the encrypted DM store until its check
+  (this server's group list, the group's messages and my keys, fetched on a worker thread) keeps it
+  or drops it; one that arrives over a server the app is parked on waits in that server's store and
+  is checked when that server is the active one. A group list that cannot be read uses the one the
+  app last had, and with none at all the check is tried again later.
+- *The group's rows carry their signed-object id* (`ChatMessage::group_object_id`), which is how a
+  report names the message.
+- *The admins' first line* keeps step D's desktop words ("... signed with your key."). The note's
+  label reads "What the group's creator should know (optional)" or "What they should know
+  (optional)" for Both.
+- *Remove* asks inline: the confirmation sentence, then "Hold to confirm" (three seconds) and
+  "Cancel", the labels the web's hold confirm uses. A new key the server refuses counts as one that
+  could not be made. A removal the server refuses after the key went out says "Could not remove
+  <person> from <group>: the server refused it."
+
 ## 11. Docs to update as each piece ships
 
 - `docs/accord/conformance_gaps.md` ("Contact consent cannot be withdrawn")

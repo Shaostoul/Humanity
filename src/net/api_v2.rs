@@ -186,17 +186,33 @@ pub fn submit_group_join_v1(
 pub fn submit_group_leave(server_url: &str, seed: &[u8], group_id: &str) -> Result<(), String> {
     let identity = derive_pq_identity(seed).map_err(|e| format!("derive identity: {e}"))?;
     let my_pub = hex::decode(&identity.dilithium_hex).map_err(|e| format!("dilithium hex: {e}"))?;
+    submit_signed_object(server_url, seed, member_remove_builder(group_id, &my_pub)?)?;
+    Ok(())
+}
+
+/// THE remove: a `group_member_v1` `{action:"remove", subject}`. The relay honours it from the
+/// subject themselves (a leave, above) or from the group's creator (removing someone, 10j,
+/// net/group_remove.rs), so both build it here.
+pub fn member_remove_builder(group_id: &str, subject: &[u8]) -> Result<ObjectBuilder, String> {
     let payload = cbor_map(vec![
         ("action", cbor_text("remove")),
-        ("subject", cbor_bytes(&my_pub)),
+        ("subject", cbor_bytes(subject)),
     ]);
-    let builder = ObjectBuilder::new("group_member_v1")
+    ObjectBuilder::new("group_member_v1")
         .reference(group_id)
         .created_at(now_millis())
         .payload_cbor(&payload)
-        .map_err(|e| format!("payload: {e}"))?;
-    submit_signed_object(server_url, seed, builder)?;
-    Ok(())
+        .map_err(|e| format!("payload: {e}"))
+}
+
+/// Sign a built object with the identity of `seed` and return its id (hex) and its submission
+/// JSON, without posting it: the caller posts it when its turn comes (10j's removal posts the new
+/// group key and the remove in a fixed order, net/group_remove.rs).
+pub fn sign_submission(seed: &[u8], builder: ObjectBuilder) -> Result<(String, String), String> {
+    let kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(seed));
+    let obj = builder.sign(&kp).map_err(|e| format!("sign: {e}"))?;
+    let object_id = obj.object_id().map_err(|e| format!("object_id: {e}"))?.to_hex();
+    Ok((object_id, object_to_submission_json(&obj)))
 }
 
 /// Build + submit a creator-signed `group_disband_v1` tearing the group down
@@ -580,6 +596,17 @@ fn fetch_group_messages_raw(server_url: &str, group_id: &str) -> Result<Vec<RawG
         });
     }
     Ok(out)
+}
+
+/// GET the group's message objects exactly as the server serves them (full signed objects, still
+/// encrypted): what a creator checks a report against (10j, `group_report::check_items`), each
+/// signature checked there over the object's own bytes.
+pub fn fetch_group_message_objects(server_url: &str, group_id: &str) -> Result<Vec<serde_json::Value>, String> {
+    let url = format!("{}/api/v2/groups/{}/messages", server_url.trim_end_matches('/'), urlencoded(group_id));
+    let resp = ureq::get(&url).call().map_err(|e| format!("GET {url}: {e}"))?;
+    let body = resp.into_string().map_err(|e| format!("read: {e}"))?;
+    let v: serde_json::Value = serde_json::from_str(&body).map_err(|e| format!("json: {e}"))?;
+    Ok(v.get("messages").and_then(|x| x.as_array()).cloned().unwrap_or_default())
 }
 
 /// Decrypt a raw message log (from `fetch_group_messages_raw`) under a set of
