@@ -149,7 +149,7 @@ impl DmRateLimits {
 /// inline limiter this replaced subtracted it from a count of seconds, which always gave 0, so
 /// every account that was not trusted was treated as new for its first ten minutes after each
 /// restart.
-fn account_age(state: &RelayState, key: &str) -> u64 {
+pub(crate) fn account_age(state: &RelayState, key: &str) -> u64 {
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()

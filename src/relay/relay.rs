@@ -3822,18 +3822,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     let rl = rate_limits.entry(my_key_for_recv.clone()).or_insert_with(|| {
                                         // Use DB registered_at so relay restarts don't retroactively
                                         // slow-mode established accounts (in-memory first_seen resets on restart).
-                                        let unix_now = std::time::SystemTime::now()
-                                            .duration_since(std::time::UNIX_EPOCH)
-                                            .unwrap_or_default().as_secs();
-                                        let reg_at = {
-                                            let conn = state_clone.db.conn.lock().unwrap();
-                                            conn.query_row(
-                                                "SELECT MIN(registered_at) FROM registered_names WHERE public_key = ?1",
-                                                rusqlite::params![&my_key_for_recv],
-                                                |row| row.get::<_, Option<i64>>(0),
-                                            ).ok().flatten().unwrap_or(unix_now as i64) as u64
-                                        };
-                                        let account_age = unix_now.saturating_sub(reg_at);
+                                        // Read through dm_rate's account_age: registered_at is in milliseconds,
+                                        // and this inline copy used to subtract it from seconds (always 0), so
+                                        // every untrusted account was "new" for ten minutes after each restart.
+                                        let account_age = crate::relay::handlers::dm_rate::account_age(&state_clone, &my_key_for_recv);
                                         let first_seen = if account_age >= NEW_ACCOUNT_WINDOW_SECS {
                                             now - std::time::Duration::from_secs(NEW_ACCOUNT_WINDOW_SECS + 1)
                                         } else {

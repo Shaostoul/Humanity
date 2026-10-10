@@ -257,3 +257,17 @@ fn full_buckets_are_dropped_past_the_cap_and_others_kept() {
     };
     assert_eq!(left, ["busy", "someone"], "every full bucket was dropped, the refilling one kept");
 }
+
+/// `account_age` reads `registered_at` as milliseconds, so an hour-old account is an hour old;
+/// channel chat's limiter now uses it too (relay.rs), where an inline copy that took the value as
+/// seconds made every account "new" for ten minutes after each restart (2026-10-10). An unknown
+/// key counts as brand new. Seen red 2026-10-10 with the `/ 1000` taken out: "an hour-old
+/// account is about an hour old" (it read some 3.6 million seconds).
+#[test]
+fn account_age_reads_milliseconds() {
+    let st = fresh_state("dm_rate_age");
+    member(&st, "Hour", "age_hour", 3_600);
+    let age = account_age(&st, "age_hour");
+    assert!((3_590..=3_700).contains(&age), "an hour-old account is about an hour old: {age}");
+    assert_eq!(account_age(&st, "nobody_here"), 0, "an unknown key counts as new");
+}
