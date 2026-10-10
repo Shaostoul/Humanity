@@ -2,7 +2,9 @@
 // "Who can reach me" (step B, 2026-10-09, docs/design/blocking-and-safe-mode.md
 // 10c): the words, the safe defaults and the rules, shared by the web chat
 // client (web/chat/chat-privacy.js draws Settings > Safety from them,
-// web/chat/crypto.js builds and opens contact requests with them) and by Node,
+// web/chat/crypto.js builds and opens contact requests with them,
+// web/chat/chat-social.js gives a friend the pass their "People I choose"
+// ticks call for, 10c-ii) and by Node,
 // where scripts/tests/reach-web.test.js holds them to the spec.
 //
 // One audience per kind of contact, narrowest first:
@@ -49,6 +51,39 @@
     anyone: 'Anyone',
   });
 
+  // "People I choose" (10c-ii, 2026-10-10): each friend once, with a tick per
+  // kind, labelled in the singular. The ticks decide what the pass I give that
+  // friend allows, and so who gets through a row set to "People I choose".
+  const REACH_TICK_LABELS = Object.freeze({ message: 'Message', call: 'Call', trade: 'Trade' });
+  // A friend with no saved choice: Message and Trade ticked, Call not, which is
+  // exactly what a new pass carries (step A's FRIEND_PASS_DEFAULT_MAY).
+  const REACH_TICK_DEFAULTS = Object.freeze({ message: true, call: false, trade: true });
+  // What each tick puts in the pass. An invitation and a voice message are
+  // forms of messaging, so they travel with Message (the relay enforces only
+  // `message` today).
+  const REACH_TICK_WORDS = Object.freeze({
+    message: Object.freeze(['invite', 'message', 'voice_message']),
+    call: Object.freeze(['call']),
+    trade: Object.freeze(['trade']),
+  });
+  // The pass a friend keeps with all three ticks off. The pass format refuses
+  // an empty `may` (FriendMay::from_words in src/relay/core/pq_crypto.rs, and
+  // friendPassMay in /shared/friend-pass.js), and `invite` gives nothing the
+  // relay enforces today, so it is the harmless word that keeps the pass valid.
+  // Unticking everything does not end the friendship: under "Friends" this
+  // friend still gets through.
+  const REACH_EMPTY_MAY = Object.freeze(['invite']);
+  // The sentences under the list (10c-ii): which rows use the ticks now.
+  const REACH_TICKS_NOTE = 'These ticks count for a row set to People I choose.';
+  const REACH_TICKS_UNUSED = 'Not in use now: no row is set to People I choose.';
+  // For a row not set to "People I choose": who gets through instead.
+  const REACH_THROUGH = Object.freeze({
+    nobody: 'no one gets through',
+    friends: 'every friend gets through',
+    groups: 'every friend and everyone in your groups gets through',
+    anyone: 'anyone gets through',
+  });
+
   // The sentence a refused sender sees (10c), and its trade twin.
   const REACH_REFUSED_MESSAGE = 'This person only accepts messages from people they know. You can send a contact request: they will see only your name.';
   const REACH_REFUSED_TRADE = 'This person only accepts trade requests from people they know.';
@@ -67,10 +102,15 @@
         return kind === 'message'
           ? 'No one can message you, and no one can send you a contact request.'
           : `No one can ${verb}.`;
-      case 'chosen':
-        return kind === 'call'
-          ? 'Only the friends on your "People who may call me" list can call you.'
-          : `Only friends you have allowed to ${verb} can.`;
+      case 'chosen': {
+        // Names the list the ticks are on (10c-ii). A contact request still
+        // gets through under "People I choose" (the relay refuses one only
+        // under "Nobody"), so the Messages line says so, as its Friends line does.
+        const only = `Only the friends you tick for ${REACH_TICK_LABELS[kind]} on your "People I choose" list can ${verb}.`;
+        return kind === 'message'
+          ? `${only} Anyone else can send a contact request that shows you only their name.`
+          : only;
+      }
       case 'friends':
         return kind === 'message'
           ? 'Only your friends can message you. Anyone else can send a contact request that shows you only their name.'
@@ -135,6 +175,69 @@
   }
 
   /**
+   * A friend's ticks on the "People I choose" list, read from the `may` of the
+   * passes I gave them (comma-joined): the pass itself is the record (10c-ii),
+   * so there is no second list to fall out of step with it. With no pass, the
+   * defaults, which is what the next pass minted for them will carry.
+   */
+  function reachTicksFromMay(may) {
+    if (typeof may !== 'string' || !may) return Object.assign({}, REACH_TICK_DEFAULTS);
+    const words = may.split(',');
+    const out = {};
+    for (const kind of REACH_KINDS) out[kind] = words.includes(kind);
+    return out;
+  }
+
+  /**
+   * The `may` words (sorted, the canonical order) of the pass a friend with
+   * these ticks holds: Message gives message, invite and voice_message; Call
+   * gives call; Trade gives trade; a kind not given in `ticks` takes its
+   * default. All three off gives `invite` alone (see REACH_EMPTY_MAY).
+   */
+  function reachMayFromTicks(ticks) {
+    const words = [];
+    for (const kind of REACH_KINDS) {
+      const on = ticks && typeof ticks[kind] === 'boolean' ? ticks[kind] : REACH_TICK_DEFAULTS[kind];
+      if (on) for (const w of REACH_TICK_WORDS[kind]) if (!words.includes(w)) words.push(w);
+    }
+    return (words.length ? words : REACH_EMPTY_MAY.slice()).sort();
+  }
+
+  /** "A", "A and B", "A, B and C". */
+  function reachListWords(items) {
+    if (items.length <= 1) return items.join('');
+    return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+  }
+
+  /**
+   * The line under "These ticks count for a row set to People I choose."
+   * (10c-ii): which rows use the ticks now, and for the rows that do not, who
+   * gets through instead, in plain words. `settings` is {message, call, trade}
+   * as the Safety page shows them (unknown words read as the defaults).
+   */
+  function reachTicksInUse(settings) {
+    const s = reachSettingsFrom(settings);
+    const used = REACH_KINDS.filter((k) => s[k] === 'chosen');
+    if (used.length === 0) return REACH_TICKS_UNUSED;
+    let line = `In use now: ${reachListWords(used.map((k) => REACH_KIND_LABELS[k]))}.`;
+    // The other rows, grouped by their audience in the page's order, so two
+    // rows on the same audience read as one sentence ("Messages and Trades
+    // are set to Friends"). The row names are plural nouns, so "are" fits each.
+    const groups = [];
+    for (const kind of REACH_KINDS) {
+      if (s[kind] === 'chosen') continue;
+      let g = groups.find((x) => x.audience === s[kind]);
+      if (!g) groups.push(g = { audience: s[kind], kinds: [] });
+      g.kinds.push(kind);
+    }
+    for (const g of groups) {
+      line += ` ${reachListWords(g.kinds.map((k) => REACH_KIND_LABELS[k]))} are set to ${REACH_AUDIENCE_LABELS[g.audience]},`
+        + ` so ${REACH_THROUGH[g.audience]} for those.`;
+    }
+    return line;
+  }
+
+  /**
    * The text of a contact request from `name` carrying `passJson` (the
    * sender's pass for the recipient), or null when the name is not a
    * registered-name word or there is no pass.
@@ -166,7 +269,10 @@
   const api = {
     REACH_KINDS, REACH_AUDIENCES, REACH_DEFAULTS, REACH_KIND_LABELS, REACH_AUDIENCE_LABELS,
     REACH_REFUSED_MESSAGE, REACH_REFUSED_TRADE, CONTACT_REQUEST_MARKER, REACH_NAME_RE,
+    REACH_TICK_LABELS, REACH_TICK_DEFAULTS, REACH_TICK_WORDS, REACH_EMPTY_MAY,
+    REACH_TICKS_NOTE, REACH_TICKS_UNUSED, REACH_THROUGH,
     reachExplain, reachSettingsFrom, reachSetFrame, reachAllows,
+    reachTicksFromMay, reachMayFromTicks, reachListWords, reachTicksInUse,
     contactRequestText, isContactRequestText, contactRequestParse,
   };
   if (typeof module === 'object' && module && module.exports) module.exports = api;

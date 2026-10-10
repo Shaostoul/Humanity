@@ -268,9 +268,10 @@ setTimeout(injectAccountDataButtons, 500);
 // one of five audiences; the words, defaults and rules are /shared/reach.js.
 // The relay enforces the choice and its `reach_settings` is the source of
 // truth for what this page shows: a change goes out as `reach_set` and the
-// row shows the relay's answer, not our guess. Also here: the "People who
-// may call me" list (a friend's pass re-issued with or without `call`,
-// chat-social.js setFriendMayCall), the refusal sentence with a Send request
+// row shows the relay's answer, not our guess. Also here: the "People I
+// choose" list (10c-ii: each friend with a Message, Call and Trade tick; a
+// change re-issues their pass with the `may` the ticks give, chat-social.js
+// setFriendTick), the refusal sentence with a Send request
 // button (`reach_refused`), and the Requests list (contact requests, and
 // DMs from people these settings refuse, shown by name only).
 
@@ -587,16 +588,23 @@ function safetyModel() {
     };
   });
   const store = reachStore();
+  // "People I choose" (10c-ii): each friend I have given a pass, once, with
+  // the ticks that pass carries. The rows' audiences as shown (a choice being
+  // saved included) decide which rows the ticks count for.
   const given = store ? Object.keys(store.certsSent).filter((p) => store.certSentTo(p)) : [];
-  const named = (keys) => keys.map((key) => ({ key, name: reachDisplayName(key) }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-  const mayCall = (p) => { const m = store.passMayTo(p); return !!m && m.split(',').includes('call'); };
+  const shown = {};
+  for (const r of rows) shown[r.kind] = r.audience;
+  const chosen = given.map((key) => ({
+    key,
+    name: reachDisplayName(key),
+    ticks: reachTicksFromMay(store.passMayTo(key)),
+    updating: typeof friendPassUpdating === 'function' && friendPassUpdating(key),
+  })).sort((a, b) => a.name.localeCompare(b.name));
   return {
     known,
     rows,
-    callAudience: settings.call,
-    callers: named(given.filter(mayCall)),
-    others: named(given.filter((p) => !mayCall(p))),
+    chosen,
+    ticksInUse: reachTicksInUse(shown),
     requests: store ? store.contactRequestList() : [],
     // Blocked people (step C): newest first, by the member list's name (or short key).
     blocked: store ? store.blockedList().map((b) => ({ key: b.key, name: reachDisplayName(b.key), ts: b.ts, date: blockDateLabel(b.ts) })) : [],
@@ -630,24 +638,26 @@ function safetyPanelHtml(model) {
       + `<div class="safety-explain" style="${SAFETY_NOTE}margin-top:var(--space-xs);">${reachEsc(row.explain)}${row.saving ? ' (Saving...)' : ''}</div>`
       + '</div>';
   }
-  html += `<h3 style="${SAFETY_H3}">People who may call me</h3>`;
-  if (model.callAudience !== 'chosen') {
-    html += `<p style="${SAFETY_NOTE}">Calls are set to "${reachEsc(REACH_AUDIENCE_LABELS[model.callAudience] || model.callAudience)}", so this list is used only when Calls is set to "People I choose".</p>`;
-  }
-  if (model.callers.length) {
-    html += model.callers.map((c) =>
-      `<div class="safety-caller" style="display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-xs) 0;">`
-      + `<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--text);">${reachEsc(c.name)}</span>`
-      + `<button class="vr-btn" data-call-remove="${reachEsc(c.key)}" style="font-size:0.7rem;">Remove</button></div>`).join('');
+  // "People I choose" (10c-ii): one line saying what the ticks are for, one
+  // saying which rows use them now, then each friend once with three ticks.
+  // A row wraps on a narrow screen: the name above, the ticks under it.
+  html += `<h3 style="${SAFETY_H3}">People I choose</h3>`
+    + `<p class="safety-ticks-note" style="${SAFETY_NOTE}">${reachEsc(REACH_TICKS_NOTE)}</p>`
+    + `<p class="safety-ticks-use" style="${SAFETY_NOTE}">${reachEsc(model.ticksInUse)}</p>`;
+  if (model.chosen.length) {
+    html += model.chosen.map((c) =>
+      `<div class="safety-chosen" data-chosen-key="${reachEsc(c.key)}" style="display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-xs) var(--space-md);padding:var(--space-xs) 0;border-top:1px solid var(--border);">`
+      + `<span style="flex:1 1 8rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);">${reachEsc(c.name)}`
+      + (c.updating ? ` <span style="color:var(--text-muted);font-size:var(--text-sm);">(updating their pass)</span>` : '')
+      + '</span>'
+      + REACH_KINDS.map((kind) =>
+        '<label style="display:inline-flex;align-items:center;gap:var(--space-xs);color:var(--text);cursor:pointer;">'
+        + `<input type="checkbox" data-tick-key="${reachEsc(c.key)}" data-tick-kind="${kind}"`
+        + ` aria-label="${reachEsc(c.name)}: ${reachEsc(REACH_TICK_LABELS[kind])}"`
+        + `${c.ticks[kind] ? ' checked' : ''}${c.updating ? ' disabled' : ''}>`
+        + `<span>${reachEsc(REACH_TICK_LABELS[kind])}</span></label>`).join('')
+      + '</div>').join('');
   } else {
-    html += `<p style="${SAFETY_NOTE}">Nobody yet.</p>`;
-  }
-  if (model.others.length) {
-    html += '<div style="display:flex;gap:var(--space-sm);align-items:center;margin-top:var(--space-xs);">'
-      + `<select data-call-add-pick aria-label="A friend to let call you" style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:var(--space-xs);">`
-      + model.others.map((o) => `<option value="${reachEsc(o.key)}">${reachEsc(o.name)}</option>`).join('')
-      + '</select><button class="vr-btn" data-call-add style="font-size:0.7rem;">Add</button></div>';
-  } else if (!model.callers.length) {
     html += `<p style="${SAFETY_NOTE}">Friends appear here once you have some.</p>`;
   }
   html += `<h3 style="${SAFETY_H3}">Requests</h3>`
@@ -687,6 +697,22 @@ function safetyWarningsHtml(model) {
     + `<p style="${SAFETY_NOTE}">Your recovery phrase is never sent: anything you write that holds it is stopped before it leaves this device. This is always on.</p>`;
 }
 
+/**
+ * A tick on the "People I choose" list changed: re-issue that friend's pass
+ * (chat-social.js setFriendTick). The page is drawn again at once, so the
+ * friend's ticks are held still while their pass is minted, and again when it
+ * is done, showing what the pass now carries (or, if it could not be sent,
+ * what it carried before). Returns true when it was sent.
+ */
+async function chooseFriendTick(peer, kind, on) {
+  const pending = setFriendTick(peer, kind, on);
+  renderSafetyPanel();
+  const ok = await pending.catch(() => false);
+  if (!ok) reachSay('Could not change that now: their key is not known here yet. Try again when they are online.');
+  renderSafetyPanel();
+  return ok;
+}
+
 /** Open Settings > Safety. */
 function openSafetyPanel() {
   let overlay = document.getElementById('safety-overlay');
@@ -722,22 +748,9 @@ function renderSafetyPanel() {
   card.querySelectorAll('select[data-reach-kind]').forEach((sel) => {
     sel.onchange = () => chooseReachAudience(sel.dataset.reachKind, sel.value);
   });
-  card.querySelectorAll('[data-call-remove]').forEach((b) => {
-    b.onclick = async () => {
-      b.disabled = true;
-      if (!await setFriendMayCall(b.dataset.callRemove, false)) reachSay('Could not change that now: their key is not known here yet. Try again when they are online.');
-      renderSafetyPanel();
-    };
+  card.querySelectorAll('input[data-tick-key]').forEach((box) => {
+    box.onchange = () => chooseFriendTick(box.dataset.tickKey, box.dataset.tickKind, box.checked);
   });
-  const add = card.querySelector('[data-call-add]');
-  const pick = card.querySelector('[data-call-add-pick]');
-  if (add && pick) {
-    add.onclick = async () => {
-      add.disabled = true;
-      if (!await setFriendMayCall(pick.value, true)) reachSay('Could not change that now: their key is not known here yet. Try again when they are online.');
-      renderSafetyPanel();
-    };
-  }
   wireContactRequestButtons(card);
   card.querySelectorAll('[data-unblock]').forEach((b) => {
     b.onclick = () => { b.disabled = true; unblockKey(b.dataset.unblock); };

@@ -6,7 +6,7 @@
 //
 // The page scripts run as they do in the browser, in one shared global scope (node:vm), with
 // the DOM replaced by a stub, as in friend-pass-web.test.js: the real friend-pass.js, reach.js,
-// crypto.js, chat-dm-store.js (over a stand-in IndexedDB), app.js, chat-dms.js, chat-social.js
+// block.js, crypto.js, chat-dm-store.js (over a stand-in IndexedDB), app.js, chat-dms.js, chat-social.js
 // and chat-privacy.js. Only the Dilithium and Kyber primitives are stand-ins: "signing" returns
 // the signed words and "checking" compares them; "sealing" base64s the plaintext and names the
 // key it was sealed to, so a test can read exactly what would travel inside the ciphertext.
@@ -31,8 +31,13 @@
 //     device records the pass I gave. A DM from someone my settings refuse is listed by name with
 //     its text dropped; "nobody" lists neither; "groups" lets in someone who shares a P2P group
 //     and no one else. And window.peerData is the member list app.js keeps.
-//  6. "People who may call me": adding a friend re-issues their pass with `call`, removing
-//     re-issues without it, and each time the old serial is withdrawn after the new pass went.
+//  6. "People I choose" (10c-ii, 2026-10-10, which replaced "People who may call me"): a friend
+//     with no choice gets the default `may`; unticking Message drops exactly `message`, `invite`
+//     and `voice_message`; ticking Call adds only `call`; all three unticked still gives a valid
+//     pass, `invite` alone; each tick re-issues the pass and withdraws the old serial after the
+//     new pass went; Unfollow and Block clear the choice, so a friendship begun again starts from
+//     the defaults; the "In use now" line for every mix of row settings; the page lists each
+//     friend once with three ticks, wired, held still while their pass is minted.
 //
 // Red first, 2026-10-09 (each mutation made in a copy of web/, run, seen failing; tests 0, 4 and 5
 // seen red again after the amendment):
@@ -53,7 +58,20 @@
 //     failed "receiving a request; a DM my settings refuse". Without `window.peerData = peerData`
 //     in app.js it failed too.
 //  6: sendPendingWithdrawals() taken out of chat-social.js reissuePassTo failed "the call list
-//     re-issues the pass" (no cert_revoke for the old serial).
+//     re-issues the pass" (no cert_revoke for the old serial). That test became the 10c-ii ones.
+//
+// Red first, 2026-10-10 (10c-ii; one break at a time in a copy of web/ named by HOS_WEB_DIR):
+//  reach.js: Message giving `message` alone failed "the ticks and the pass they give", "a tick
+//     re-issues" and the page test; all three off giving an empty `may` failed the first two;
+//     Call ticked by default failed the first; "In use now" without grouping rows on one
+//     audience failed "the lines above the list" and the page test; the old call-row sentence
+//     failed the same two.
+//  chat-social.js: setFriendTick adding or dropping only the kind's own word (the old call
+//     tick's way) failed "a tick re-issues" ('call,invite,trade,voice_message' for 'call,trade');
+//     Unfollow without withdrawPassesTo failed "Unfollow and Block clear the choice".
+//  chat-privacy.js: blockLocally without withdrawPassesTo failed "Unfollow and Block clear the
+//     choice"; the tick boxes not wired, and the model reading every friend as the defaults,
+//     each failed the page test.
 
 const test = require("node:test");
 const assert = require("node:assert");
@@ -213,6 +231,7 @@ async function loadChat() {
   run("shared/events.js");
   run("shared/friend-pass.js");
   run("shared/reach.js");
+  run("shared/block.js"); // Block's words, for the 10c-ii test that blocks a friend
   run("chat/crypto.js");
   run("chat/chat-dm-store.js");
   run("chat/app.js");
@@ -368,15 +387,14 @@ test("reach_settings drives what the Safety page shows", async () => {
   assert.ok(rowHtml("call").includes('<option value="friends" selected>'), "Calls shows Friends");
   assert.ok(rowHtml("trade").includes('<option value="nobody" selected>'), "Trades shows Nobody");
   assert.ok(!rowHtml("message").includes(" disabled"), "and they can be changed");
-  assert.ok(page.includes('so this list is used only when Calls is set to "People I choose"'), "the call list says when it applies");
+  assert.ok(page.includes(reach.REACH_TICKS_UNUSED), "the People I choose list says no row uses it");
 
-  // The call list comes from the passes I gave: Ann's includes call, Ben's does not.
+  // The list comes from the passes I gave: Ann's includes call, Ben's does not.
   store.recordPassSent(ANN, "aa".repeat(16), "call,invite,message,trade,voice_message");
   store.recordPassSent(BEN, "bb".repeat(16), "invite,message,trade,voice_message");
   m = model();
-  assert.deepEqual(m.callers.map((c) => c.name), ["Ann"]);
-  assert.deepEqual(m.others.map((c) => c.name), ["Ben"]);
-  assert.ok(html(m).includes(`data-call-remove="${ANN}"`) && html(m).includes(`<option value="${BEN}">Ben</option>`));
+  assert.deepEqual(m.chosen.map((c) => [c.name, c.ticks.call]), [["Ann", true], ["Ben", false]]);
+  assert.ok(/data-tick-key="[0-9a-f]+" data-tick-kind="call"[^>]* checked/.test(html(m)), "a ticked Call is drawn ticked");
 });
 
 test("a changed row sends reach_set with only that kind, and shows the answer", async () => {
@@ -554,36 +572,286 @@ test("receiving a request; a DM my settings refuse; Accept and Ignore", async ()
   assert.equal(store.conversation(EVE).length, 1, "anyone lets it through");
 });
 
-test("the call list re-issues the pass, then withdraws the old serial", async () => {
+// ── 10c-ii: a tick per friend for Messages, Calls and Trades ─────────────
+
+// Every mix of ticks, as {message, call, trade}.
+const TICK_MIXES = [];
+for (const message of [false, true]) for (const call of [false, true]) for (const trade of [false, true]) TICK_MIXES.push({ message, call, trade });
+const minus = (a, b) => a.filter((w) => !b.includes(w)).sort();
+
+test("10c-ii: the ticks and the pass they give", () => {
+  // A friend with no saved choice: Message and Trade, not Call, the same as a new pass (step A).
+  assert.deepEqual(reach.REACH_TICK_DEFAULTS, { message: true, call: false, trade: true });
+  for (const none of [null, undefined, ""]) {
+    assert.deepEqual(reach.reachTicksFromMay(none), { message: true, call: false, trade: true }, "no pass: the defaults");
+  }
+  assert.deepEqual(reach.reachMayFromTicks(reach.REACH_TICK_DEFAULTS), fp.FRIEND_PASS_DEFAULT_MAY, "the defaults give the default may");
+  assert.deepEqual(reach.reachMayFromTicks({}), fp.FRIEND_PASS_DEFAULT_MAY, "and so does no choice at all");
+  assert.deepEqual(reach.reachMayFromTicks(null), fp.FRIEND_PASS_DEFAULT_MAY);
+  assert.deepEqual(reach.reachMayFromTicks(reach.reachTicksFromMay(null)), fp.FRIEND_PASS_DEFAULT_MAY);
+
+  for (const t of TICK_MIXES) {
+    const words = reach.reachMayFromTicks(t);
+    assert.equal(fp.friendPassMay(words), words.join(","), `${JSON.stringify(t)}: a valid pass, in canonical order`);
+    assert.deepEqual(reach.reachTicksFromMay(words.join(",")), t, `${JSON.stringify(t)}: the pass reads back as the same ticks`);
+  }
+
+  // Unticking Message drops message, invite and voice_message and nothing else.
+  for (const t of TICK_MIXES.filter((x) => x.message && (x.call || x.trade))) {
+    const before = reach.reachMayFromTicks(t);
+    const after = reach.reachMayFromTicks({ ...t, message: false });
+    assert.deepEqual(minus(before, after), ["invite", "message", "voice_message"], `${JSON.stringify(t)}: unticking Message drops exactly those`);
+    assert.deepEqual(minus(after, before), [], "and adds nothing");
+  }
+  // Ticking Call adds call and nothing else.
+  for (const t of TICK_MIXES.filter((x) => !x.call && (x.message || x.trade))) {
+    const before = reach.reachMayFromTicks(t);
+    const after = reach.reachMayFromTicks({ ...t, call: true });
+    assert.deepEqual(minus(after, before), ["call"], `${JSON.stringify(t)}: ticking Call adds only call`);
+    assert.deepEqual(minus(before, after), [], "and takes nothing away");
+  }
+  assert.deepEqual(reach.reachMayFromTicks({ message: true, call: true, trade: true }), ["call", "invite", "message", "trade", "voice_message"]);
+
+  // All three unticked: still a valid pass, `invite` alone (the format refuses an empty may).
+  const none = reach.reachMayFromTicks({ message: false, call: false, trade: false });
+  assert.deepEqual(none, ["invite"], "invite alone");
+  assert.equal(fp.friendPassMay(none), "invite", "which the pass format accepts");
+  assert.equal(fp.friendPassMay([]), null, "(an empty may it refuses)");
+  assert.deepEqual(reach.reachTicksFromMay("invite"), { message: false, call: false, trade: false }, "and it reads back as nothing ticked");
+  // The edges of the filler: it is there only when nothing else is.
+  assert.deepEqual(reach.reachMayFromTicks({ message: false, call: true, trade: false }), ["call"]);
+  assert.deepEqual(reach.reachMayFromTicks({ message: false, call: false, trade: true }), ["trade"]);
+});
+
+test("10c-ii: the lines above the list, and each row's help sentence", () => {
+  assert.equal(reach.REACH_TICKS_NOTE, "These ticks count for a row set to People I choose.");
+  const use = reach.reachTicksInUse;
+  const S = (message, call, trade) => ({ message, call, trade });
+  // None set to People I choose.
+  assert.equal(use(S("friends", "friends", "friends")), "Not in use now: no row is set to People I choose.");
+  assert.equal(use(S("nobody", "anyone", "groups")), "Not in use now: no row is set to People I choose.");
+  // One: the spec's own example, which is also the safe defaults.
+  assert.equal(use(S("friends", "chosen", "friends")), "In use now: Calls. Messages and Trades are set to Friends, so every friend gets through for those.");
+  assert.equal(use(null), use(S("friends", "chosen", "friends")), "the defaults read as the spec's example");
+  assert.equal(use(S("anyone", "nobody", "chosen")),
+    "In use now: Trades. Messages are set to Anyone, so anyone gets through for those. Calls are set to Nobody, so no one gets through for those.");
+  assert.equal(use(S("chosen", "friends", "nobody")),
+    "In use now: Messages. Calls are set to Friends, so every friend gets through for those. Trades are set to Nobody, so no one gets through for those.");
+  // Two.
+  assert.equal(use(S("chosen", "chosen", "groups")),
+    "In use now: Messages and Calls. Trades are set to Friends and people in my groups, so every friend and everyone in your groups gets through for those.");
+  assert.equal(use(S("chosen", "anyone", "chosen")), "In use now: Messages and Trades. Calls are set to Anyone, so anyone gets through for those.");
+  // All three.
+  assert.equal(use(S("chosen", "chosen", "chosen")), "In use now: Messages, Calls and Trades.");
+
+  // Every one of the 125 mixes: each row named once, a chosen one under "In use now", any
+  // other beside its audience's name.
+  for (const m of reach.REACH_AUDIENCES) for (const c of reach.REACH_AUDIENCES) for (const t of reach.REACH_AUDIENCES) {
+    const s = S(m, c, t);
+    const line = use(s);
+    const chosen = reach.REACH_KINDS.filter((k) => s[k] === "chosen");
+    if (!chosen.length) { assert.equal(line, reach.REACH_TICKS_UNUSED); continue; }
+    const head = line.slice(0, line.indexOf("."));
+    for (const k of reach.REACH_KINDS) {
+      const label = reach.REACH_KIND_LABELS[k];
+      assert.equal(line.split(label).length - 1, 1, `${JSON.stringify(s)}: ${label} named once in "${line}"`);
+      assert.equal(head.includes(label), s[k] === "chosen", `${JSON.stringify(s)}: ${label} is in use exactly when chosen`);
+    }
+    for (const a of new Set(reach.REACH_KINDS.map((k) => s[k]).filter((x) => x !== "chosen"))) {
+      assert.ok(line.includes(`set to ${reach.REACH_AUDIENCE_LABELS[a]}, so ${reach.REACH_THROUGH[a]} for those.`), `${JSON.stringify(s)}: says what ${a} lets through`);
+    }
+  }
+
+  // The rows' help under People I choose names the new list, for all three kinds.
+  assert.equal(reach.reachExplain("call", "chosen"), 'Only the friends you tick for Call on your "People I choose" list can call you.');
+  assert.equal(reach.reachExplain("trade", "chosen"), 'Only the friends you tick for Trade on your "People I choose" list can send you trade requests.');
+  assert.equal(reach.reachExplain("message", "chosen"),
+    'Only the friends you tick for Message on your "People I choose" list can message you. Anyone else can send a contact request that shows you only their name.');
+  for (const k of reach.REACH_KINDS) for (const a of reach.REACH_AUDIENCES) {
+    assert.ok(!reach.reachExplain(k, a).includes("People who may call me"), "the old list's name is gone");
+  }
+});
+
+test("10c-ii: a tick re-issues the pass with the new may, then withdraws the old serial", async () => {
   const { sock, store, handle, fn } = await loadChat();
   const OLD = "00112233445566778899aabbccddeeff";
   store.recordPassSent(ANN, OLD, "invite,message,trade,voice_message");
-  assert.equal(fn("friendMayCall")(ANN), false);
+  assert.deepEqual(fn("friendTicks")(ANN), { message: true, call: false, trade: true }, "a new friend: the defaults");
+  const sentPass = () => {
+    const put = sock.sent.find((m) => m.type === "dm_put" && m.to === ANN);
+    assert.ok(put, "a new pass goes to Ann");
+    const inner = JSON.parse(opened(put).plain);
+    assert.equal(inner.text, CTL_FRIEND_CERT);
+    return { pass: fp.friendPassParse(inner.cert), at: sock.sent.indexOf(put) };
+  };
+  const tick = async (kind, on) => { sock.sent.length = 0; return fn("setFriendTick")(ANN, kind, on); };
 
-  assert.equal(await fn("setFriendMayCall")(ANN, true), true);
-  const passOut = sock.sent.findIndex((m) => m.type === "dm_put" && m.to === ANN);
-  const revokeOut = sock.sent.findIndex((m) => m.type === "cert_revoke" && m.serial === OLD);
-  assert.ok(passOut >= 0, "a new pass goes to Ann");
-  const sent = JSON.parse(opened(sock.sent[passOut]).plain);
-  assert.equal(sent.text, CTL_FRIEND_CERT);
-  const pass = fp.friendPassParse(sent.cert);
-  assert.equal(pass.may, "call,invite,message,trade,voice_message", "everything she had, plus call");
-  assert.notEqual(pass.serial, OLD, "a new serial");
-  assert.ok(revokeOut > passOut, "the old serial is withdrawn, after the new pass went");
-  assert.deepEqual(store.certsSent[ANN], [{ serial: pass.serial, may: pass.may }]);
-  assert.ok(fn("friendMayCall")(ANN));
+  // Call ticked: everything she had, plus call; the old serial withdrawn after the new pass went.
+  assert.equal(await tick("call", true), true);
+  const first = sentPass();
+  assert.equal(first.pass.may, "call,invite,message,trade,voice_message");
+  assert.notEqual(first.pass.serial, OLD, "a new serial");
+  const revoked = sock.sent.findIndex((m) => m.type === "cert_revoke" && m.serial === OLD);
+  assert.ok(revoked > first.at, "the old serial is withdrawn, after the new pass went");
+  assert.deepEqual(store.certsSent[ANN], [{ serial: first.pass.serial, may: first.pass.may }], "the new pass is the record");
+  assert.deepEqual(fn("friendTicks")(ANN), { message: true, call: true, trade: true });
 
-  // Off again: re-issued without call, the call pass withdrawn.
-  sock.sent.length = 0;
-  assert.equal(await fn("setFriendMayCall")(ANN, false), true);
-  const again = fp.friendPassParse(JSON.parse(opened(sock.sent.find((m) => m.type === "dm_put" && m.to === ANN)).plain).cert);
-  assert.equal(again.may, "invite,message,trade,voice_message");
-  assert.ok(sock.sent.some((m) => m.type === "cert_revoke" && m.serial === pass.serial));
-  assert.equal(fn("friendMayCall")(ANN), false);
+  // Message unticked: message, invite and voice_message go, nothing else.
+  assert.equal(await tick("message", false), true);
+  const second = sentPass();
+  assert.equal(second.pass.may, "call,trade");
+  assert.deepEqual(minus(first.pass.may.split(","), second.pass.may.split(",")), ["invite", "message", "voice_message"]);
+  assert.ok(sock.sent.some((m) => m.type === "cert_revoke" && m.serial === first.pass.serial));
+
+  // Down to nothing ticked: a valid pass that carries invite alone.
+  assert.equal(await tick("trade", false), true);
+  assert.equal(sentPass().pass.may, "call");
+  assert.equal(await tick("call", false), true);
+  const empty = sentPass();
+  assert.ok(empty.pass, "still a pass the format accepts");
+  assert.equal(empty.pass.may, "invite");
+  assert.deepEqual(fn("friendTicks")(ANN), { message: false, call: false, trade: false });
+  assert.ok(store.certSentTo(ANN), "unticking does not end the friendship");
+
+  // A tick that already stands sends nothing; nothing for someone with no pass, or an unknown kind.
+  assert.equal(await tick("call", false), true);
+  assert.deepEqual(sock.sent, [], "nothing to change, nothing sent");
+  assert.equal(await fn("setFriendTick")(CY, "call", true), false, "only for someone I gave a pass");
+  assert.equal(await fn("setFriendTick")(ANN, "voice", true), false, "only the three kinds");
 
   // Another device of mine still listing a withdrawn serial drops it when the relay confirms.
-  store.recordPassSent(ANN, pass.serial, pass.may);
-  await handle({ type: "cert_revoked", to: ME, serial: pass.serial });
-  assert.deepEqual(store.certsSent[ANN].map((p) => p.serial), [again.serial]);
-  assert.equal(await fn("setFriendMayCall")(CY, true), false, "only for someone I gave a pass");
+  store.recordPassSent(ANN, first.pass.serial, first.pass.may);
+  await handle({ type: "cert_revoked", to: ME, serial: first.pass.serial });
+  assert.deepEqual(store.certsSent[ANN].map((p) => p.serial), [empty.pass.serial]);
+});
+
+test("10c-ii: Unfollow and Block clear the choice; a friendship begun again starts from the defaults", async () => {
+  const { ctx, sock, store, fn } = await loadChat();
+  const befriend = vm.runInContext(`(k) => {
+    myFollowers.add(k); myFollowing.add(k);
+    hosDmStore.setFollower(k, true); hosDmStore.setFollowing(k, true);
+  }`, ctx);
+  const passTo = (peer) => {
+    const put = [...sock.sent].reverse().find((m) => m.type === "dm_put" && m.to === peer && JSON.parse(opened(m).plain).text === CTL_FRIEND_CERT);
+    return put ? fp.friendPassParse(JSON.parse(opened(put).plain).cert) : null;
+  };
+  const chosenKeys = () => fn("safetyModel")().chosen.map((c) => c.key);
+  const custom = async () => {
+    assert.equal(await fn("setFriendTick")(ANN, "call", true), true);
+    assert.equal(await fn("setFriendTick")(ANN, "trade", false), true);
+    assert.deepEqual(fn("friendTicks")(ANN), { message: true, call: true, trade: false }, "a choice of my own");
+  };
+
+  // Unfollow.
+  befriend(ANN);
+  store.recordPassSent(ANN, "aa".repeat(16), "invite,message,trade,voice_message");
+  await custom();
+  const chosenSerial = store.certsSent[ANN][0].serial;
+  sock.sent.length = 0;
+  await fn("setFollowLocal")(ANN, false);
+  assert.ok(sock.sent.some((m) => m.type === "cert_revoke" && m.serial === chosenSerial), "Unfollow withdraws the pass that held the choice");
+  assert.equal(store.passMayTo(ANN), null, "no pass to her stands");
+  assert.ok(!chosenKeys().includes(ANN), "she leaves the People I choose list");
+  assert.deepEqual(fn("friendTicks")(ANN), reach.REACH_TICK_DEFAULTS, "and her choice is cleared");
+  // Following again (she still follows me): the new pass carries the defaults, not the old choice.
+  sock.sent.length = 0;
+  await fn("setFollowLocal")(ANN, true);
+  await settle();
+  assert.equal(passTo(ANN).may, "invite,message,trade,voice_message", "a friendship begun again starts from the defaults");
+  assert.deepEqual(fn("friendTicks")(ANN), { message: true, call: false, trade: true });
+
+  // Block.
+  await custom();
+  const blockedSerial = store.certsSent[ANN][0].serial;
+  sock.sent.length = 0;
+  assert.equal(await fn("blockKey")(ANN), true);
+  await settle();
+  assert.ok(sock.sent.some((m) => m.type === "cert_revoke" && m.serial === blockedSerial), "Block withdraws the pass that held the choice");
+  assert.equal(store.passMayTo(ANN), null);
+  assert.ok(!chosenKeys().includes(ANN), "she leaves the list");
+  assert.deepEqual(fn("friendTicks")(ANN), reach.REACH_TICK_DEFAULTS, "and her choice is cleared");
+  assert.equal(await fn("unblockKey")(ANN), true);
+  await settle();
+  assert.equal(store.certSentTo(ANN), false, "Unblock gives no pass by itself");
+  sock.sent.length = 0;
+  await fn("setFollowLocal")(ANN, true);
+  await settle();
+  assert.equal(passTo(ANN).may, "invite,message,trade,voice_message", "following again after Unblock starts from the defaults");
+});
+
+test("10c-ii: Settings > Safety > People I choose, each friend once with three ticks", async () => {
+  const { ctx, sock, store, handle, fn } = await loadChat();
+  // A Safety card that keeps its HTML and answers for the tick boxes drawn in it, so the
+  // page's own handlers can be pressed.
+  const card = { innerHTML: "", boxes: [] };
+  card.querySelector = () => null;
+  card.querySelectorAll = (sel) => {
+    if (sel !== "input[data-tick-key]") return [];
+    card.boxes = [...card.innerHTML.matchAll(/<input type="checkbox" data-tick-key="([^"]+)" data-tick-kind="([^"]+)"[^>]*>/g)]
+      .map((m) => ({ dataset: { tickKey: m[1], tickKind: m[2] }, checked: / checked\b/.test(m[0]), disabled: / disabled\b/.test(m[0]), onchange: null }));
+    return card.boxes;
+  };
+  const overlay = { classList: { contains: () => true, add() {}, remove() {} } };
+  ctx.document = new Proxy({}, {
+    get(_t, prop) {
+      if (prop === "getElementById") return (id) => (id === "safety-overlay" ? overlay : id === "safety-card" ? card : null);
+      return anything();
+    },
+  });
+  const box = (key, kind) => card.boxes.find((b) => b.dataset.tickKey === key && b.dataset.tickKind === kind);
+
+  await handle({ type: "reach_settings", settings: { message: "friends", call: "chosen", trade: "friends" } });
+  store.recordPassSent(ANN, "aa".repeat(16), "call,invite,message,trade,voice_message");
+  store.recordPassSent(BEN, "bb".repeat(16), "invite,message,trade,voice_message");
+  store.recordPassSent(CY, "cc".repeat(16), "invite");
+  const m = fn("safetyModel")();
+  assert.deepEqual(m.chosen.map((c) => [c.name, c.ticks]), [
+    ["Ann", { message: true, call: true, trade: true }],
+    ["Ben", { message: true, call: false, trade: true }],
+    ["Cy", { message: false, call: false, trade: false }],
+  ], "each friend I gave a pass, by name, with the ticks the pass carries");
+  assert.equal(m.ticksInUse, "In use now: Calls. Messages and Trades are set to Friends, so every friend gets through for those.");
+
+  fn("renderSafetyPanel")();
+  const page = card.innerHTML;
+  assert.ok(page.includes(">People I choose</h3>"), "the list is called People I choose");
+  assert.ok(!page.includes("People who may call me"), "the old name is gone");
+  const note = page.indexOf(reach.REACH_TICKS_NOTE);
+  const inUse = page.indexOf(m.ticksInUse);
+  const firstFriend = page.indexOf("data-chosen-key=");
+  assert.ok(note >= 0 && inUse > note && firstFriend > inUse, "the line about the ticks, then which rows use them, then the friends");
+  for (const key of [ANN, BEN, CY]) {
+    assert.equal(page.split(`data-chosen-key="${key}"`).length - 1, 1, "each friend once");
+    assert.deepEqual(card.boxes.filter((b) => b.dataset.tickKey === key).map((b) => b.dataset.tickKind), ["message", "call", "trade"], "with three ticks");
+  }
+  assert.ok(page.includes(`aria-label="Ben: Message"`) && page.includes("<span>Call</span>") && page.includes("<span>Trade</span>"), "labelled Message, Call and Trade");
+  assert.deepEqual([box(BEN, "message").checked, box(BEN, "call").checked, box(BEN, "trade").checked], [true, false, true], "drawn as the pass has them");
+  assert.deepEqual([box(CY, "message").checked, box(CY, "call").checked, box(CY, "trade").checked], [false, false, false]);
+
+  // Ticking Call for Ben, through the page's own box.
+  const benCall = box(BEN, "call");
+  assert.equal(typeof benCall.onchange, "function", "each tick is wired");
+  sock.sent.length = 0;
+  benCall.checked = true;
+  benCall.onchange();
+  assert.ok(card.innerHTML.includes("(updating their pass)"), "while his pass is minted the page says so");
+  assert.ok(box(BEN, "message").disabled && box(BEN, "trade").disabled && !box(ANN, "call").disabled, "and holds his ticks still, only his");
+  await settle();
+  const put = sock.sent.find((x) => x.type === "dm_put" && x.to === BEN);
+  assert.ok(put, "a new pass goes to Ben");
+  assert.equal(fp.friendPassParse(JSON.parse(opened(put).plain).cert).may, "call,invite,message,trade,voice_message");
+  assert.ok(sock.sent.some((x) => x.type === "cert_revoke" && x.serial === "bb".repeat(16)), "and the old one is withdrawn");
+  assert.ok(box(BEN, "call").checked && !box(BEN, "call").disabled, "drawn again, ticked");
+  assert.ok(!card.innerHTML.includes("(updating their pass)"));
+
+  // The line follows the rows.
+  await handle({ type: "reach_settings", settings: { message: "chosen", call: "chosen", trade: "nobody" } });
+  assert.ok(card.innerHTML.includes("In use now: Messages and Calls. Trades are set to Nobody, so no one gets through for those."));
+  await handle({ type: "reach_settings", settings: { message: "friends", call: "anyone", trade: "friends" } });
+  assert.ok(card.innerHTML.includes(reach.REACH_TICKS_UNUSED));
+
+  // No friends yet.
+  for (const k of [ANN, BEN, CY]) store.withdrawPassesTo(k);
+  fn("renderSafetyPanel")();
+  assert.ok(card.innerHTML.includes("Friends appear here once you have some.") && !card.innerHTML.includes("data-chosen-key"));
 });
