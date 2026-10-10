@@ -2723,9 +2723,18 @@ pub async fn handle_trade_request(
         return;
     }
 
-    // Limit active trades per user (max 10).
+    // Limit active trades per user (max 10): the ones this person started and has not finished,
+    // and the received ones they took up. Requests others sent them that they have not answered
+    // do not count (2026-10-10): otherwise ten strangers' pending requests stopped a person from
+    // starting a trade of their own (strangers' requests are already capped by the knock budget).
     if let Ok(trades) = state.db.get_trades_for_user(my_key) {
-        let active = trades.iter().filter(|t| t.status == "pending" || t.status == "active").count();
+        let active = trades
+            .iter()
+            .filter(|t| {
+                (t.initiator_key == my_key && (t.status == "pending" || t.status == "active"))
+                    || (t.recipient_key == my_key && t.status == "active")
+            })
+            .count();
         if active >= 10 {
             let private = RelayMessage::Private {
                 to: my_key.to_string(),

@@ -221,8 +221,9 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   (BUG-177, fixed 2026-10-10: it now rings out, with a missed-call line);
   the desktop app sends `friend_cert` on trade requests (checked 2026-10-10), but the web Trade
   page never signed in at all (it answered no `identify_challenge`) and sent no pass, so it could
-  not send a trade; being fixed 2026-10-10; the 10-active-trades limit counts received trades, so strangers'
-  pending requests can block someone starting their own. Next is its increment 0 (the other five defects),
+  not send a trade; being fixed 2026-10-10; the 10-active-trades limit counted received trades, so strangers'
+  pending requests could block someone starting their own (fixed 2026-10-10: it counts trades
+  you started and received ones you took up). Next is its increment 0 (the other five defects),
   then increment 1 (block on both clients). Eight questions for the operator sit in its summary,
   each with a recommendation. Voice: route calls through a room-scoped forwarder in the relay
   plus our own STUN on one UDP port, Google removed (section 7; the port is the operator's call).

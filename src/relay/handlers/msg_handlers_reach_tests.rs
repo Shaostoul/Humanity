@@ -305,3 +305,55 @@ fn a_strangers_trade_note_is_cut_and_a_friends_is_not() {
     assert_eq!(mine.len(), 1);
     assert_eq!(mine[0].message.as_deref(), Some(long_note.as_str()), "a friend's note is kept whole");
 }
+
+/// The ten-active-trades limit counts the trades a person started and the received ones they
+/// took up, never requests others sent them that they have not answered: ten strangers'
+/// pending requests used to stop a person from starting a trade of their own (2026-10-10).
+/// Their own ten still stop an eleventh.
+///
+/// Seen red 2026-10-10 with every pending trade counted again (the old filter): "ten requests
+/// sent to Ann do not stop her starting her own" failed (her own request was refused).
+#[test]
+fn requests_sent_to_someone_do_not_fill_their_trade_limit() {
+    let st = fresh_state();
+    let ann = "ann_key";
+    st.db.register_name("Ann", ann).unwrap();
+    connect(&st, ann);
+    st.db.set_reach_settings(ann, &[("trade", "anyone")]).unwrap();
+    for i in 0..10 {
+        let sender = format!("sender_{i}");
+        st.db.register_name(&format!("Sender{i}"), &sender).unwrap();
+        connect(&st, &sender);
+        block(handle_trade_request(&st, &sender, &serde_json::json!({ "target_key": ann, "message": "hi" })));
+    }
+    assert_eq!(st.db.get_trades_for_user(ann).unwrap().len(), 10, "ten requests sent to Ann, all pending");
+
+    let mut targets = Vec::new();
+    for i in 0..11 {
+        let t = format!("target_{i}");
+        st.db.register_name(&format!("Target{i}"), &t).unwrap();
+        connect(&st, &t);
+        st.db.set_reach_settings(&t, &[("trade", "anyone")]).unwrap();
+        targets.push(t);
+    }
+    let started = |st: &Arc<RelayState>| st.db.get_trades_for_user(ann).unwrap().iter().filter(|t| t.initiator_key == ann).count();
+    block(async {
+        st.rate_limits.write().await.remove(ann);
+        handle_trade_request(&st, ann, &serde_json::json!({ "target_key": targets[0], "message": "mine" })).await;
+    });
+    assert_eq!(started(&st), 1, "ten requests sent to Ann do not stop her starting her own");
+    for t in &targets[1..10] {
+        block(async {
+            st.rate_limits.write().await.remove(ann);
+            handle_trade_request(&st, ann, &serde_json::json!({ "target_key": t, "message": "mine" })).await;
+        });
+    }
+    assert_eq!(started(&st), 10);
+    let mut rx = st.broadcast_tx.subscribe();
+    block(async {
+        st.rate_limits.write().await.remove(ann);
+        handle_trade_request(&st, ann, &serde_json::json!({ "target_key": targets[10], "message": "one more" })).await;
+    });
+    assert_eq!(started(&st), 10, "her own ten stop an eleventh");
+    assert!(replies_to(&mut rx, ann).iter().any(|m| m.contains("Too many active trades")), "and she is told why");
+}
