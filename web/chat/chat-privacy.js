@@ -82,6 +82,19 @@ async function reassertPrivacyTier() {
   }
 }
 
+/**
+ * The privacy explanation above the choice. Its second sentence (step D,
+ * docs/design/blocking-and-safe-mode.md 10e, REPORT_PRIVACY_SENTENCE in
+ * /shared/report.js) is the other side of reports the admins can check: a DM
+ * is signed, so whoever receives it can show others who wrote it.
+ */
+function privacyExplanationText() {
+  const signed = typeof REPORT_PRIVACY_SENTENCE === 'string' ? ' ' + REPORT_PRIVACY_SENTENCE : '';
+  return 'Your messages are end-to-end encrypted whatever you pick, and this server keeps no record of who you message.'
+    + signed
+    + ' This only controls whether others can see you online and find you in directories. You can change it any time.';
+}
+
 /** First-connect chooser. Called from app.js once identity is confirmed. */
 async function maybeShowPrivacyTierModal() {
   if (_privacyModalShown) return;
@@ -109,9 +122,7 @@ async function maybeShowPrivacyTierModal() {
     <div style="max-width:520px;width:100%;max-height:90vh;overflow-y:auto;background:var(--bg-primary);border:1px solid var(--border);border-radius:12px;padding:18px;">
       <h2 style="margin:0 0 6px;font-size:1.05rem;">How visible do you want to be?</h2>
       <p style="margin:0 0 12px;color:var(--text-muted);font-size:0.8rem;line-height:1.45;">
-        Your messages are end-to-end encrypted whatever you pick, and this server keeps no
-        record of who you message. This only controls whether others can see you online and
-        find you in directories. You can change it any time.
+        ${esc(privacyExplanationText())}
       </p>
       ${cards}
       <button id="privacy-tier-apply" class="vr-btn" style="width:100%;margin-top:8px;font-size:0.85rem;padding:10px;">Use this privacy level</button>

@@ -260,7 +260,10 @@
       row(std, isFollowing ? 'Unfollow' : 'Follow', 'tier-standard', function () { withTarget(name, key, function () { if (typeof followFromCtx === 'function') followFromCtx(!isFollowing); }); });
       var blocked = (typeof isBlockedKey === 'function' && isBlockedKey(key));
       row(std, blocked ? 'Unblock' : 'Block', 'tier-standard', function () { withTarget(name, key, function () { if (blocked) { if (typeof unblockFromCtx === 'function') unblockFromCtx(); } else { if (typeof blockFromCtx === 'function') blockFromCtx(); } }); }, { danger: !blocked });
-      row(std, 'Report', 'tier-standard', function () { withTarget(name, key, function () { if (typeof reportUser === 'function') reportUser(); }); }, { danger: true });
+      // Report opens the Report dialog by key (chat-reports.js, step D). Called
+      // directly: withTarget sets window.ctxMenuTarget, which is not the
+      // `let ctxMenuTarget` chat-ui.js's reportUser reads.
+      row(std, 'Report', 'tier-standard', function () { closeVoiceUserModal(); if (typeof openReportDialog === 'function') openReportDialog({ target: key, name: name, context: 'profile' }); }, { danger: true });
     } else {
       var meNote = document.createElement('p');
       meNote.className = 'vmodal-note';

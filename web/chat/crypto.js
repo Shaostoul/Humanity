@@ -1083,6 +1083,36 @@ async function pqBuildSelfNote(text, ts) {
   return built ? { put: built.selfPut, inner: built.inner } : null;
 }
 
+// ── Reports the admins can check (step D, 2026-10-09) ───────────────────────
+// docs/design/blocking-and-safe-mode.md 10e. The words, the evidence items and
+// the frame's shape come from /shared/report.js (loaded first), which
+// scripts/tests/report-web.test.js holds to the relay's pinned preimage. Here
+// the report gets my key and my signature:
+//   sig = Dilithium3 over "hum/report/v1\n{me}\n{target}\n{reason}\n{blake3(evidence JSON)}\n{ts}"
+// in standard base64, the hash taken over the evidence array exactly as it is
+// sent (ws.send(JSON.stringify(frame)) writes the same compact JSON).
+
+/**
+ * Build my signed report: {frame} for ws.send, or {error} saying why not.
+ * `fields`: {target, context, reason, note, evidence}.
+ */
+async function pqBuildReport(fields) {
+  try {
+    if (typeof buildReportFrame !== 'function') return { error: 'Reporting is not loaded on this page.' };
+    if (!myDilithiumPublicHex || !myDilithiumSecret
+        || typeof window.pqSignMessage !== 'function' || typeof window.pqBlake3 !== 'function') {
+      return { error: 'Your identity is not ready yet. Try again in a moment.' };
+    }
+    return await buildReportFrame({ ...fields, reporter: myDilithiumPublicHex, ts: Date.now() }, {
+      blake3: (bytes) => window.pqBlake3(bytes),
+      sign: (bytes) => window.pqSignMessage(myDilithiumSecret, bytes),
+    });
+  } catch (e) {
+    console.warn('pqBuildReport failed:', e && e.message);
+    return { error: 'Your report could not be built.' };
+  }
+}
+
 // ── Encrypted private attachments (2026-08-24) ──────────────────────────────
 // A file shared in a DM must be as private as the message. We encrypt it with
 // a fresh random AES-256-GCM key BEFORE upload; the server stores only opaque

@@ -1798,12 +1798,15 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
     actionsHtml: actions,
   });
 
-  // Context menu on author name click.
+  // Context menu on author name click. It knows the message it was opened on,
+  // so its Report can name this post (or, in a P2P group, carry the words seen):
+  // chat-reports.js, step D.
   const authorEl = el.querySelector('.author');
   if (authorEl) {
+    const menuMessage = { timestamp, text: body, group: !!window.activeP2pGroup };
     authorEl.addEventListener('click', (e) => {
       e.stopPropagation();
-      showUserContextMenu(e, author, fromKey);
+      showUserContextMenu(e, author, fromKey, menuMessage);
     });
   }
 

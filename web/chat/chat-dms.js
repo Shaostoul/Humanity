@@ -99,9 +99,10 @@ function openDmConversation(partnerKey, partnerName) {
 }
 
 /**
- * The open conversation's header: Back, their name, and Block (Unblock while
- * they are blocked; step C, 2026-10-09). Redrawn by chat-privacy.js when a
- * block changes.
+ * The open conversation's header: Back, their name, Block (Unblock while they
+ * are blocked; step C, 2026-10-09) and Report (step D: their messages here can
+ * go to the admins as evidence, chat-reports.js). Redrawn by chat-privacy.js
+ * when a block changes.
  */
 function renderDmHeader() {
   const header = document.getElementById('channel-header');
@@ -111,7 +112,8 @@ function renderDmHeader() {
     ? 'Unblock them: they can reach you again as your safety settings allow.'
     : 'Block them: you will not see anything from them, and they are not told.';
   header.innerHTML = `<span class="ch-name" style="cursor:pointer;" onclick="closeDmView()">← Back</span> <span class="ch-name">${hosIcon('chat', 16)} ${esc(activeDmPartnerName)}</span>`
-    + `<button class="vr-btn dm-block-btn" onclick="toggleBlockActiveDm()" title="${esc(blockTitle)}" style="float:right;font-size:0.7rem;${blocked ? '' : 'color:var(--danger);'}">${blocked ? 'Unblock' : 'Block'}</button>`;
+    + `<button class="vr-btn dm-block-btn" onclick="toggleBlockActiveDm()" title="${esc(blockTitle)}" style="float:right;font-size:0.7rem;${blocked ? '' : 'color:var(--danger);'}">${blocked ? 'Unblock' : 'Block'}</button>`
+    + `<button class="vr-btn dm-report-btn" onclick="reportActiveDm()" title="Report them to this server's admins, with their messages you choose as evidence. They are not told who reported them." style="float:right;font-size:0.7rem;margin-right:var(--space-xs);color:var(--danger);">Report</button>`;
   header.style.display = 'block';
 }
 

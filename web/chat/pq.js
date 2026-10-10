@@ -213,7 +213,24 @@ async function pqDmOpen(kyberSecret, ekCtB64, nonceB64, ctB64) {
   }
 }
 
+/**
+ * BLAKE3 (plain hash, 32 bytes) of `bytes`, from the vendored bundle: the
+ * report's evidence hash (step D, docs/design/blocking-and-safe-mode.md 10e),
+ * which the relay recomputes with the Rust blake3 crate. Null on failure.
+ */
+async function pqBlake3(bytes) {
+  try {
+    const m = await _pqLoad();
+    if (!m || !bytes) return null;
+    return m.blake3.create({ dkLen: 32 }).update(bytes).digest();
+  } catch (e) {
+    console.warn('pqBlake3 failed:', e && e.message);
+    return null;
+  }
+}
+
 // Exposed globally (the chat client is classic scripts, not modules).
+window.pqBlake3 = pqBlake3;
 window.pqDeriveIdentity = pqDeriveIdentity;
 window.pqSignMessage = pqSignMessage;
 window.pqVerifyMessage = pqVerifyMessage;
