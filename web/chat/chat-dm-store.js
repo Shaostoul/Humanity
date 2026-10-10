@@ -23,9 +23,12 @@
 // Passes kept per friend whose answer never came (10l, passSending); older
 // ones are withdrawn. The desktop app's UNANSWERED_KEPT in src/net/dm_store.rs.
 const PASSES_UNSURE_KEPT = 4;
-// Refused passes whose self-copy already went (10m R2) remembered, so their
-// echo is not adopted here (passesRefusedEchoed).
-const PASSES_REFUSED_KEPT = 32;
+// Choice notes (10n) remembered by signature hash, so each is applied once.
+// They come from the person's own clicks, so this is years of them (the
+// desktop app keeps as many block notes, src/net/block_list.rs).
+const SELF_NOTES_REMEMBERED = 4096;
+// The scratch pad's notes kept (10n N8; the desktop app's SCRATCHPAD_KEPT).
+const SCRATCH_KEPT = 500;
 
 const hosDmStore = {
   _db: null,
@@ -60,26 +63,40 @@ const hosDmStore = {
   // these too, and a pass the server did take withdraws every other one still
   // waiting for that friend (they hold the taken one, so none is needed).
   passesUnsure: {},    // peer -> [{serial, may}] passes sent that the relay has not said it took
-  // What I want each friend's pass to let them do (the ticks on "People I
-  // choose", 10c-ii), kept apart from the record so a refused or unanswered
-  // re-issue never puts the ticks back: the pass sweep keeps re-sending this
-  // `may` until a pass carrying it is taken. Cleared once it is, and by
-  // Unfollow and Block (a friendship begun again starts from the defaults).
-  passIntent: {},      // peer -> may (sorted, comma-joined)
-  // ── Passes across my own devices (10m R2 and R3, 2026-10-10) ──
+  // ── The choice for each friend (10n, 2026-10-10, blocking-and-safe-mode.md) ──
+  // What I chose each friend's pass to let them do (the ticks on "People I
+  // choose", 10c-ii), with when it was made (ms). The same on every device of
+  // mine: a choice made here goes to my other devices as a sealed note to
+  // myself (chat-social.js), one made there arrives the same way, and the
+  // newest wins everywhere (friend-pass.js choiceWins). The passes follow it:
+  // a pass granting beyond it is withdrawn, and the sweep gives a friend who
+  // holds none carrying it a new one. It stays when a pass carrying it is
+  // taken (until 10n it was cleared then, and rebuilt from echoes of passes,
+  // which arrive late, out of order, or never). Unfollow and Block clear it: an
+  // empty `may` with the time they were made, kept so an older note cannot
+  // bring it back, and a friendship begun again starts from the defaults. No
+  // entry means the defaults.
+  passChoice: {},      // peer -> {may, at}
+  // Choice notes not sent yet (made while not connected, or before the
+  // identity could seal one), at most one per friend, a newer replacing an
+  // older: [{peer, may, at}]. They go first on the next connection, before
+  // that friend's withdrawals and passes.
+  choiceNotesPending: [],
+  // Unfollows not sent yet (made while not connected): both copies, to them
+  // and to my own mailbox for my other devices, wait: [{peer, at}].
+  unfollowsPending: [],
+  // Signature hashes of the choice notes applied or sent here, newest last, at
+  // most SELF_NOTES_REMEMBERED: each note is applied once.
+  selfNotesSeen: [],
+  // ── Passes across my own devices (10m R3, 2026-10-10) ──
   // Friends whose pass another of my devices withdrew (the relay's
   // `cert_revoked` for a serial this device held and did not withdraw itself),
   // leaving them none from me (withdrawalConfirmed). That device made a choice
-  // this one did not see, so this one gives them no pass by itself until it
-  // hears what it was (the echo of a pass to them, adoptEchoedPass) or the
-  // person decides here (ticks, follow, accept): nothing withdrawn is ever
-  // given back by a device that did not see the choice.
+  // this one may not have seen yet, so this one gives them no pass by itself
+  // until it hears what it was (its choice note, or the echo of a pass to
+  // them) or the person decides here (ticks, follow, accept): nothing
+  // withdrawn is ever given back by a device that did not see the choice.
   passChangedElsewhere: {}, // peer -> when it was marked (ms)
-  // Serials of re-issued passes whose self-copy went out at once (an untick,
-  // 10m R2) and which the server then refused: my own echo of one is not
-  // adopted here, where the refusal is known (the friend never held it, and
-  // the next sweep sends it again). Newest last, at most PASSES_REFUSED_KEPT.
-  passesRefusedEchoed: [],
   // ── Contact requests ("who can reach me", step B, 2026-10-09, 10c): people
   // who asked to reach me, shown by name only with Accept and Ignore, keyed by
   // their (signed) key. `pass` is the pass their request carried, which my
@@ -92,8 +109,20 @@ const hosDmStore = {
   // through a sealed note to myself (chat-privacy.js), the server never.
   blocked: {},         // key -> {ts}
   // Notes to myself not sent yet (Block or Unblock while not connected),
-  // oldest first, at most one per key: [{action, key}].
+  // oldest first, at most one per key: [{action, key, at}], `at` when it was
+  // made, which the note is signed with (so every device dates it the same,
+  // and clears the choice for them as of that time, 10n).
   blockNotesPending: [],
+  // ── The scratch pad (10n N8, 2026-10-10): its notes, oldest first, at most
+  // SCRATCH_KEPT, each {content, timestamp, replyTo?} (every note is mine, so
+  // no key is kept on each: a key is 3,904 characters). Kept here, encrypted,
+  // for this identity on this server, in their own record beside the meta box
+  // (so the box written on every pass change does not carry them). Until 10n
+  // they sat in localStorage `hos_scratch_msgs`, in the clear, file keys and
+  // all, shared by every identity in the browser.
+  scratch: [],
+  _scratchSaving: null, // the save in progress (one at a time; changes meanwhile go in the next)
+  _scratchDirty: false,
   // ── Warnings on messages (step F, 2026-10-10, blocking-and-safe-mode.md
   // 10g): the Safety switch, On unless the person turned it off. Kept here,
   // encrypted, with the block list.
@@ -188,14 +217,17 @@ const hosDmStore = {
       this.certsSent = {};
       this.withdrawalsPending = [];
       this.passesUnsure = {};
-      this.passIntent = {};
+      this.passChoice = {};
+      this.choiceNotesPending = [];
+      this.unfollowsPending = [];
+      this.selfNotesSeen = [];
       this.passChangedElsewhere = {};
-      this.passesRefusedEchoed = [];
       this.contactRequests = {};
       this.blocked = {};
       this.blockNotesPending = [];
       this.warningsOn = true;
       this.groupReports = {};
+      this.scratch = [];
       // Meta first (high-water + read marks + social sets).
       const meta = await this._idb(this._tx('meta', 'readonly').get(this.scope)).catch(() => null);
       if (meta) {
@@ -210,9 +242,11 @@ const hosDmStore = {
           if (m && m.passesSent && typeof m.passesSent === 'object') this.certsSent = m.passesSent;
           if (m && Array.isArray(m.withdrawalsPending)) this.withdrawalsPending = m.withdrawalsPending;
           if (m && m.passesUnsure && typeof m.passesUnsure === 'object') this.passesUnsure = m.passesUnsure;
-          if (m && m.passIntent && typeof m.passIntent === 'object') this.passIntent = m.passIntent;
+          if (m && m.passChoice && typeof m.passChoice === 'object') this.passChoice = m.passChoice;
+          if (m && Array.isArray(m.choiceNotesPending)) this.choiceNotesPending = m.choiceNotesPending;
+          if (m && Array.isArray(m.unfollowsPending)) this.unfollowsPending = m.unfollowsPending;
+          if (m && Array.isArray(m.selfNotesSeen)) this.selfNotesSeen = m.selfNotesSeen;
           if (m && m.passChangedElsewhere && typeof m.passChangedElsewhere === 'object') this.passChangedElsewhere = m.passChangedElsewhere;
-          if (m && Array.isArray(m.passesRefusedEchoed)) this.passesRefusedEchoed = m.passesRefusedEchoed;
           if (m && m.contactRequests && typeof m.contactRequests === 'object') this.contactRequests = m.contactRequests;
           if (m && m.blocked && typeof m.blocked === 'object') this.blocked = m.blocked;
           if (m && Array.isArray(m.blockNotesPending)) this.blockNotesPending = m.blockNotesPending;
@@ -221,6 +255,12 @@ const hosDmStore = {
         }
       }
       if (this.readOnly) return true;
+      // The scratch pad's notes (10n N8), in their own encrypted record.
+      const pad = await this._idb(this._tx('meta', 'readonly').get(this._scratchScope())).catch(() => null);
+      if (pad && pad.box) {
+        const notes = await this._decrypt(pad.box);
+        if (Array.isArray(notes)) this.scratch = notes.slice(-SCRATCH_KEPT);
+      }
       // All records in this scope.
       const rows = await this._idb(this._tx('msgs', 'readonly').index('scope').getAll(this.scope)).catch(() => []);
       for (const row of rows || []) {
@@ -253,9 +293,11 @@ const hosDmStore = {
       passesSent: this.certsSent,
       withdrawalsPending: this.withdrawalsPending,
       passesUnsure: this.passesUnsure,
-      passIntent: this.passIntent,
+      passChoice: this.passChoice,
+      choiceNotesPending: this.choiceNotesPending,
+      unfollowsPending: this.unfollowsPending,
+      selfNotesSeen: this.selfNotesSeen,
       passChangedElsewhere: this.passChangedElsewhere,
-      passesRefusedEchoed: this.passesRefusedEchoed,
       contactRequests: this.contactRequests,
       blocked: this.blocked,
       blockNotesPending: this.blockNotesPending,
@@ -288,13 +330,13 @@ const hosDmStore = {
       this.certsFrom = {};
       this.certsSent = {};
       this.withdrawalsPending = [];
-      // Passes still waiting for an answer named the old identity too, and
-      // what each friend may do starts again from the defaults with them.
+      // Passes still waiting for an answer named the old identity too.
       this.passesUnsure = {};
-      this.passIntent = {};
-      // And what my other devices did with them (10m) is about the old passes.
+      // And what my other devices did with them (10m R3) is about the old
+      // passes. What I chose for each friend (10n) is not: it is mine, not the
+      // server's, my other devices keep theirs, and the sweep gives each
+      // friend a new pass carrying it.
       this.passChangedElsewhere = {};
-      this.passesRefusedEchoed = [];
     }
     this.passServer = did;
     this._persistMeta();
@@ -315,23 +357,25 @@ const hosDmStore = {
   /**
    * Take back every pass I gave `peer`: their serials wait for the relay to
    * confirm. That includes the ones sent whose answer has not come (10l): one
-   * of them may be standing on the server. The choice of what they may do goes
-   * too, so a friendship begun again starts from the defaults.
+   * of them may be standing on the server. The choice of what they may do is
+   * cleared too (10n N3, clearChoice, as of `at`: the Unfollow's or the
+   * Block's own time when it has one; `force` for a Block), so a friendship
+   * begun again starts from the defaults.
    */
-  withdrawPassesTo(peer) {
+  withdrawPassesTo(peer, at, force) {
     const gone = (this.certsSent[peer] || []).concat(this.passesUnsure[peer] || []).map((p) => p.serial);
     delete this.certsSent[peer];
     delete this.passesUnsure[peer];
-    delete this.passIntent[peer];
+    this.clearChoice(peer, at, force);
     delete this.passChangedElsewhere[peer];
     for (const s of gone) if (!this.withdrawalsPending.includes(s)) this.withdrawalsPending.push(s);
     this._persistMeta();
     return gone;
   },
   /**
-   * Replace every pass I gave `peer` with this one (what a friend may do
-   * changed, and the server took the new pass: passTaken). The old serials
-   * wait for the relay to confirm their withdrawal.
+   * Replace every pass I gave `peer` with this one (the server took a pass
+   * carrying my choice for them: passTaken). The old serials wait for the
+   * relay to confirm their withdrawal.
    */
   replacePassTo(peer, serial, may) {
     const old = (this.certsSent[peer] || []).map((p) => p.serial).filter((s) => s !== serial);
@@ -342,50 +386,43 @@ const hosDmStore = {
     return old;
   },
   /**
-   * A pass I gave `peer`, echoed from another of my devices: it is that
-   * device's latest word on what they may do, so it is recorded and every
-   * other pass to them whose `may` differs is withdrawn (their serials wait
-   * for the relay to confirm), the desktop app's rule (src/net/dm_store.rs
-   * withdraw_passes_to_except). One with the same `may` stands beside it:
-   * withdrawing it would take nothing away. Returns the serials withdrawn.
-   * A pass this device has already taken back (its withdrawal still waiting
-   * for the relay) is never standing again: that is this device's own pass
-   * echoing back after a newer one replaced it, and adopting it would
-   * withdraw the newer pass the friend now holds.
+   * A pass I gave `peer`, echoed from another of my devices (its self-copy,
+   * sent once the server took it, 10l). Since 10n the choice travels in its
+   * own note, so an echo is only a pass: it is recorded as standing, unless it
+   * grants beyond my choice for them (then it is withdrawn at once: the choice
+   * is newer than that pass) or this device is already withdrawing it (10m R5:
+   * this device's own pass echoing back after a newer one replaced it). An
+   * echo never changes the choice and never withdraws another pass. It does
+   * clear a mark "changed on my other device" (10m R3): a pass of mine stands
+   * with them again. Returns the serials withdrawn (this one, or none).
    */
   adoptEchoedPass(peer, serial, may) {
     if (this.withdrawalsPending.includes(serial)) return [];
-    // Already on record here: this device's own pass coming back (its
-    // self-copy goes out once the server took it, 10l), or one adopted
-    // before. It says nothing new, and acting on it again would withdraw a
-    // newer pass this device has sent since.
+    // Already on record here: this device's own pass coming back, or one
+    // recorded before. It says nothing new.
     if ((this.certsSent[peer] || []).some((p) => p.serial === serial)) return [];
-    // This device's own pass, whose self-copy went out with it (an untick,
-    // 10m R2): still waiting for the server's answer, or refused by it. The
-    // answer decides here, never the echo: adopting a refused one would count
-    // a pass the friend does not hold, and the sweep would stop sending it.
+    // This device's own pass still waiting for the server's answer: the answer
+    // decides here, never the echo.
     if ((this.passesUnsure[peer] || []).some((p) => p.serial === serial)) return [];
-    if (this.passesRefusedEchoed.includes(serial)) return [];
-    const norm = (m) => String(m || '').split(',').filter(Boolean).sort().join(',');
-    const want = norm(may);
-    const list = this.certsSent[peer] || [];
-    // A pass this device sent whose answer has not come is withdrawn by the
-    // same rule when it says otherwise (10l): the echo is the newer word, and
-    // if the server took this device's pass too it would outlive the choice.
-    const unsure = (this.passesUnsure[peer] || []).filter((p) => p.serial !== serial);
-    const gone = list.concat(unsure).filter((p) => p.serial !== serial && norm(p.may) !== want).map((p) => p.serial);
-    const kept = list.filter((p) => p.serial !== serial && norm(p.may) === want);
-    this.certsSent[peer] = kept.concat([{ serial, may }]);
-    const unsureKept = unsure.filter((p) => norm(p.may) === want);
-    if (unsureKept.length) this.passesUnsure[peer] = unsureKept; else delete this.passesUnsure[peer];
-    // What this device meant to give them gives way to it as well, and a
-    // friend marked as changed on my other device is not any more (10m R3):
-    // this is that device's word.
-    delete this.passIntent[peer];
-    delete this.passChangedElsewhere[peer];
-    for (const s of gone) if (!this.withdrawalsPending.includes(s)) this.withdrawalsPending.push(s);
-    this._persistMeta();
-    return gone;
+    if (this.grantsBeyondChoice(peer, may)) {
+      this.withdrawalsPending.push(serial);
+      this._persistMeta();
+      return [serial];
+    }
+    this.recordPassSent(peer, serial, may);
+    return [];
+  },
+  /**
+   * Would a pass allowing `may` let `peer` through for something my choice for
+   * them does not (a kind the relay checks: message, call, trade)? The rule is
+   * /shared/reach.js reachGrantsBeyond, the desktop app's `grants_beyond`.
+   */
+  grantsBeyondChoice(peer, may) {
+    const want = this.choiceMay(peer);
+    if (typeof reachGrantsBeyond === 'function') return reachGrantsBeyond(may, want);
+    // (Without reach.js, any word the choice lacks counts: never less safe.)
+    const have = String(want || '').split(',');
+    return String(may || '').split(',').some((w) => w && !have.includes(w));
   },
   // ── Passes on their way (10l) ──
   /**
@@ -405,10 +442,9 @@ const hosDmStore = {
   },
   /**
    * The friends on the "People I choose" list: a pass from me standing, one
-   * on its way or never answered, or a choice of what it lets them do still
-   * waiting for a pass the server takes (10l). Not only the standing passes:
-   * a tick taken away withdraws those at once (withdrawPassesWhere), and the
-   * friend stays on the list while the new pass is on its way. Not anyone I
+   * on its way or never answered, or a choice of mine for someone I follow
+   * (10n: the choice stays, so a friend whose pass carrying it was refused, or
+   * whose pass a tick taken away withdrew, stays on the list). Not anyone I
    * blocked.
    */
   passFriends() {
@@ -416,7 +452,10 @@ const hosDmStore = {
     for (const map of [this.certsSent, this.passesUnsure]) {
       for (const p of Object.keys(map)) if (Array.isArray(map[p]) && map[p].length) keys.add(p);
     }
-    for (const p of Object.keys(this.passIntent)) keys.add(p);
+    for (const p of Object.keys(this.passChoice)) {
+      // (A marked friend only while still a mutual follow, below: 10n N6.)
+      if (this.choiceOf(p) && this.following.has(p) && !this.passChangedOnOtherDevice(p)) keys.add(p);
+    }
     // And a friend whose pass my other device just changed (10m R3): still mine
     // to choose for, while they are a friend here (an Unfollow made there
     // clears the mark when its note arrives, withdrawPassesTo).
@@ -467,36 +506,30 @@ const hosDmStore = {
   /**
    * The server refused the put (`dm_put_refused`): the pass was never given,
    * so nothing about it is kept and nothing is withdrawn. Their pass, if one
-   * stands, stands; what I meant to give them stays, for the next sweep.
+   * stands, stands; my choice for them stays, for the next sweep. (Its
+   * self-copy never went: every pass's self-copy waits for `dm_put_ok`, 10n N5.)
    */
-  passRefused(peer, serial, selfCopySent) {
-    let changed = this._dropUnsure(peer, serial);
-    // Its self-copy already went to my mailbox (10m R2): its echo, when it
-    // comes back here, is not a pass the friend holds (adoptEchoedPass).
-    if (selfCopySent && !this.passesRefusedEchoed.includes(serial)) {
-      this.passesRefusedEchoed.push(serial);
-      this.passesRefusedEchoed.splice(0, Math.max(0, this.passesRefusedEchoed.length - PASSES_REFUSED_KEPT));
-      changed = true;
-    }
-    if (changed) this._persistMeta();
+  passRefused(peer, serial) {
+    if (this._dropUnsure(peer, serial)) this._persistMeta();
   },
   /**
-   * The server took the put (`dm_put_ok`): from now the pass is given. A
-   * re-issue (`replace`) replaces every pass to them, whose serials are
-   * withdrawn; a first pass is added. Every other pass still waiting for them
-   * is withdrawn too: they hold this one, so none of those is needed. Returns
-   * false, recording nothing, for a pass no longer waiting: withdrawn
-   * meanwhile (Unfollow, Block, a newer word from another device) or voided by
-   * a new server identity.
+   * The server took the put (`dm_put_ok`): from now the pass is given. One
+   * carrying my choice for them replaces every pass to them, whose serials are
+   * withdrawn (10l: only now are the passes it replaces withdrawn); one that
+   * does not (the choice changed while it was on its way, adding something) is
+   * recorded beside them, and the sweep sends one carrying the choice. Every
+   * other pass still waiting for them is withdrawn too: they hold this one, so
+   * none of those is needed. Returns false, recording nothing, for a pass no
+   * longer waiting: withdrawn meanwhile (Unfollow, Block, a choice that took
+   * away what it allows) or voided by a new server identity.
    */
-  passTaken(peer, serial, may, replace) {
+  passTaken(peer, serial, may) {
     if (!this._dropUnsure(peer, serial)) return false;
     const others = (this.passesUnsure[peer] || []).map((p) => p.serial);
     delete this.passesUnsure[peer];
     for (const s of others) if (!this.withdrawalsPending.includes(s)) this.withdrawalsPending.push(s);
-    const norm = (m) => String(m || '').split(',').filter(Boolean).sort().join(',');
-    if (this.passIntent[peer] !== undefined && norm(this.passIntent[peer]) === norm(may)) delete this.passIntent[peer];
-    if (replace) this.replacePassTo(peer, serial, may); else this.recordPassSent(peer, serial, may);
+    if (this._canonMay(may) === this.choiceMay(peer)) this.replacePassTo(peer, serial, may);
+    else this.recordPassSent(peer, serial, may);
     return true;
   },
   /**
@@ -513,29 +546,169 @@ const hosDmStore = {
     }
     return words.size ? Array.from(words).sort().join(',') : null;
   },
-  /** Keep what I want `peer`'s pass to let them do (sorted, comma-joined), until a pass carrying it is taken. */
-  setPassIntent(peer, may) {
-    const words = String(may || '').split(',').filter(Boolean).sort().join(',');
-    if (!words) return;
-    this.passIntent[peer] = words;
-    this._persistMeta();
+  // ── The choice for each friend (10n) ──
+  /** `may` (words, or comma-joined text) in the pass's canonical form, or null when it is not a pass's. */
+  _canonMay(may) {
+    const words = Array.isArray(may) ? may : String(may || '').split(',').filter(Boolean);
+    if (typeof friendPassMay === 'function') return friendPassMay(words);
+    return words.length ? Array.from(new Set(words)).sort().join(',') : null;
   },
-  /** What `peer` should be able to do: what I last chose for them, else what the passes I gave them let them do; null for neither. */
-  passMayIntended(peer) {
-    const intent = this.passIntent[peer];
-    return (typeof intent === 'string' && intent) ? intent : this.passMayTo(peer);
+  /** Does a choice allowing `may`, made at `at`, replace the one kept (friend-pass.js choiceWins)? */
+  _choiceWins(may, at, kept) {
+    return typeof choiceWins === 'function' && choiceWins(may, at, kept || null);
+  },
+  /** The choice kept for `peer`, {may, at}; null for none (or one Unfollow or Block cleared). */
+  choiceOf(peer) {
+    const c = this.passChoice[peer];
+    return (c && typeof c.may === 'string' && c.may) ? { may: c.may, at: Number(c.at) || 0 } : null;
+  },
+  /** What `peer`'s pass should let them do: my choice, else the defaults for two new friends (canonical). */
+  choiceMay(peer) {
+    const c = this.choiceOf(peer);
+    if (c) return c.may;
+    return this._canonMay(typeof FRIEND_PASS_DEFAULT_MAY !== 'undefined' ? FRIEND_PASS_DEFAULT_MAY : ['invite', 'message', 'trade', 'voice_message']);
   },
   /**
-   * Friends holding a pass that does not carry what I chose for them (a
-   * re-issue refused or unanswered): [{peer, may}], for the sweep to send
-   * again. Not anyone I blocked.
+   * The time for a change about `peer` made on this device now: never earlier
+   * than the one kept, so it wins here (a tick and an Unfollow within the same
+   * millisecond still land in the order they were made).
    */
-  passReissuesOwed() {
-    const norm = (m) => String(m || '').split(',').filter(Boolean).sort().join(',');
-    return Object.keys(this.passIntent)
-      .filter((p) => this.certSentTo(p) && !this.isBlocked(p) && norm(this.passIntent[p]) !== norm(this.passMayTo(p)))
-      .sort()
-      .map((p) => ({ peer: p, may: this.passIntent[p] }));
+  choiceTimeNow(peer) {
+    const kept = this.passChoice[peer];
+    return Math.max(Date.now(), kept ? (Number(kept.at) || 0) + 1 : 0);
+  },
+  /**
+   * The person chose here (N1): `may` for `peer`, made at `at` (default now).
+   * Kept, and queued as a note for my other devices (replacing an older one
+   * still waiting). A mark "changed on my other device" goes: this is the
+   * person's own word. Returns the canonical `may`, or null for words that
+   * are not a pass's.
+   */
+  makeChoice(peer, may, at) {
+    const canonical = this._canonMay(may);
+    if (!peer || !canonical) return null;
+    const when = Number(at) || this.choiceTimeNow(peer);
+    this.passChoice[peer] = { may: canonical, at: when };
+    this.choiceNotesPending = this.choiceNotesPending.filter((n) => n.peer !== peer);
+    this.choiceNotesPending.push({ peer, may: canonical, at: when });
+    delete this.passChangedElsewhere[peer];
+    this._persistMeta();
+    return canonical;
+  },
+  /**
+   * A choice note from my other device (N2), already checked to be mine and
+   * seen here for the first time: it replaces the choice kept only when it
+   * wins (newer; at an equal time the larger `may` text). Win or lose, it is
+   * that device's word, so a mark "changed on my other device" goes (N6). A
+   * note still waiting here that it beats is dropped (it would lose on every
+   * device). Returns true when what they may do changed.
+   */
+  applyChoiceNote(peer, may, at) {
+    const canonical = this._canonMay(may);
+    if (!peer || !canonical) return false;
+    const kept = this.passChoice[peer] || null;
+    let changed = false;
+    if (this._choiceWins(canonical, at, kept)) {
+      changed = this.choiceMay(peer) !== canonical;
+      this.passChoice[peer] = { may: canonical, at: Number(at) || 0 };
+      this.choiceNotesPending = this.choiceNotesPending.filter((n) => n.peer !== peer);
+    }
+    delete this.passChangedElsewhere[peer];
+    this._persistMeta();
+    return changed;
+  },
+  /**
+   * Unfollow or Block (N3): the choice for `peer` is cleared as of `at` (their
+   * own time, the same on every device: the unfollow's or the block note's
+   * signed time), kept as an empty one so an older note cannot bring it back.
+   * Without `at`, a time that wins here now, and nothing when there is no
+   * choice to clear. An Unfollow clears it only when it is the newer word, as
+   * any choice note would (so a tick made on my other device after it, before
+   * that device heard of it, ends the same on every device); a Block (`force`)
+   * clears it whatever its time, because a choice note about someone I blocked
+   * is ignored (N2), so every device ends cleared. A choice note still waiting
+   * for them goes. Returns true when it cleared one.
+   */
+  clearChoice(peer, at, force) {
+    if (!peer) return false;
+    const kept = this.passChoice[peer] || null;
+    let when = Number(at) || 0;
+    if (!when) {
+      if (!this.choiceOf(peer)) return false;
+      when = this.choiceTimeNow(peer);
+    }
+    if (force) {
+      when = Math.max(when, kept ? Number(kept.at) || 0 : 0);
+      if (kept && kept.may === '' && (Number(kept.at) || 0) === when) return false;
+    } else if (!this._choiceWins('', when, kept)) {
+      return false;
+    }
+    this.passChoice[peer] = { may: '', at: when };
+    this.choiceNotesPending = this.choiceNotesPending.filter((n) => n.peer !== peer);
+    this._persistMeta();
+    return true;
+  },
+  /** A queued choice note went out (one made since stays queued). */
+  choiceNoteSent(peer, at) {
+    const before = this.choiceNotesPending.length;
+    this.choiceNotesPending = this.choiceNotesPending.filter((n) => !(n.peer === peer && n.at === at));
+    if (this.choiceNotesPending.length !== before) this._persistMeta();
+  },
+  /**
+   * A choice note's signature (one sent here, or one received): true the
+   * first time, and it is remembered (by hash, the newest
+   * SELF_NOTES_REMEMBERED), so each note is applied once.
+   */
+  async selfNoteFirstSight(sig) {
+    if (typeof sig !== 'string' || !sig) return false;
+    // 128 bits of the hash: plenty to tell my notes apart, and half the room
+    // in the meta box, which is written on every change.
+    const h = (await this._sha256hex(sig)).slice(0, 32);
+    if (this.selfNotesSeen.includes(h)) return false;
+    this.selfNotesSeen.push(h);
+    this.selfNotesSeen.splice(0, Math.max(0, this.selfNotesSeen.length - SELF_NOTES_REMEMBERED));
+    this._persistMeta();
+    return true;
+  },
+  /**
+   * Does `peer` hold no standing pass from me carrying my choice for them (so
+   * the sweep owes them one, N4)?
+   */
+  passOwed(peer) {
+    const want = this.choiceMay(peer);
+    return !(this.certsSent[peer] || []).some((p) => this._canonMay(p.may) === want);
+  },
+  /**
+   * The people the sweep owes a pass carrying my choice (N4): every mutual
+   * follow, and anyone who holds a pass of mine (standing, or sent and never
+   * answered), so it keeps up with my choice for them; each holding no
+   * standing pass carrying it, not blocked. (Not one marked "changed on my
+   * other device", nor one with a pass on its way: the sweep checks those.)
+   */
+  passesOwed() {
+    const keys = new Set();
+    for (const p of this.following) if (this.followers.has(p)) keys.add(p);
+    for (const map of [this.certsSent, this.passesUnsure]) {
+      for (const p of Object.keys(map)) if (Array.isArray(map[p]) && map[p].length) keys.add(p);
+    }
+    return Array.from(keys)
+      .filter((p) => !this.isBlocked(p) && this.passOwed(p))
+      .sort();
+  },
+  // ── Unfollows made while not connected (N3) ──
+  /** Queue an unfollow of `peer` made at `at` (one per person). */
+  queueUnfollow(peer, at) {
+    this.unfollowsPending = this.unfollowsPending.filter((u) => u.peer !== peer);
+    this.unfollowsPending.push({ peer, at: Number(at) || Date.now() });
+    this._persistMeta();
+  },
+  /** A queued unfollow went (both copies), or a follow made since replaced it. Returns true when one was queued. */
+  dropQueuedUnfollow(peer) {
+    const before = this.unfollowsPending.length;
+    this.unfollowsPending = this.unfollowsPending.filter((u) => u.peer !== peer);
+    if (this.unfollowsPending.length === before) return false;
+    this._persistMeta();
+    return true;
   },
   /** What the passes I gave `peer` that still stand let them do (sorted, comma-joined), or null when none stands. */
   passMayTo(peer) {
@@ -551,9 +724,9 @@ const hosDmStore = {
    * A serial this device did not withdraw itself was withdrawn by another of
    * my devices (10m R3). When that leaves the friend with no pass from me, on
    * record or on its way, they are marked "changed on my other device"
-   * (passChangedElsewhere): that device made a choice this one did not see,
-   * so this one gives them nothing by itself, and what it meant to give them
-   * before (passIntent) is dropped as older than that choice. Returns the
+   * (passChangedElsewhere): that device may have made a choice this one has
+   * not heard yet, so this one gives them nothing by itself until its note
+   * (or an echo of its pass) arrives or the person decides here. Returns the
    * friends marked now.
    */
   withdrawalConfirmed(serial) {
@@ -591,7 +764,6 @@ const hosDmStore = {
         delete this.passesUnsure[peer];
         changed = true;
         this.passChangedElsewhere[peer] = Date.now();
-        delete this.passIntent[peer];
         marked.push(peer);
       }
     }
@@ -668,11 +840,11 @@ const hosDmStore = {
       .map((key) => ({ key, ts: Number(this.blocked[key] && this.blocked[key].ts) || 0 }))
       .sort((a, b) => b.ts - a.ts);
   },
-  /** Queue a note to myself; a newer one for the same key replaces the older. */
-  queueBlockNote(action, key) {
+  /** Queue a note to myself made at `at` (default now); a newer one for the same key replaces the older. */
+  queueBlockNote(action, key, at) {
     const k = this._blockKey(key);
     this.blockNotesPending = this.blockNotesPending.filter((n) => n.key !== k);
-    this.blockNotesPending.push({ action, key: k });
+    this.blockNotesPending.push({ action, key: k, at: Number(at) || Date.now() });
     this._persistMeta();
   },
   /** A queued note went out. */
@@ -718,6 +890,56 @@ const hosDmStore = {
   /** Every kept report, newest first. */
   groupReportList() {
     return Object.values(this.groupReports).filter((r) => r && r.id).sort((a, b) => (Number(b.ts) || 0) - (Number(a.ts) || 0));
+  },
+
+  // ── The scratch pad (10n N8) ──
+  /** The scratch pad's own record, beside the meta box: this identity on this server. */
+  _scratchScope() { return `${this.scope}:scratch`; },
+  /**
+   * Write the scratch pad's record. One write at a time: notes kept while one
+   * is being written go in one more write after it, never one write each (a
+   * burst of notes would otherwise encrypt the whole pad once per note, all
+   * at once). Each write takes the notes and the scope as they are when it
+   * starts.
+   */
+  _persistScratch() {
+    if (!this.ready || this.readOnly) return Promise.resolve();
+    if (this._scratchSaving) {
+      this._scratchDirty = true;
+      return this._scratchSaving;
+    }
+    const run = async () => {
+      try {
+        do {
+          this._scratchDirty = false;
+          if (!this.ready || this.readOnly) break;
+          const scope = this._scratchScope();
+          const box = await this._encrypt(this.scratch.slice());
+          await this._idb(this._tx('meta', 'readwrite').put({ scope, box })).catch(() => {});
+        } while (this._scratchDirty);
+      } finally {
+        this._scratchSaving = null;
+      }
+    };
+    this._scratchSaving = run();
+    return this._scratchSaving;
+  },
+  /** The scratch pad's notes, oldest first (a copy). */
+  scratchNotes() { return this.scratch.slice(); },
+  /** Keep a note ({content, timestamp, replyTo?}); past SCRATCH_KEPT the oldest go. */
+  addScratchNote(note) {
+    if (!this.ready || this.readOnly || !note) return false;
+    this.scratch.push(note);
+    this.scratch.splice(0, Math.max(0, this.scratch.length - SCRATCH_KEPT));
+    this._persistScratch();
+    return true;
+  },
+  /** The scratch pad's /clear. */
+  clearScratch() {
+    if (!this.ready || this.readOnly) return false;
+    this.scratch = [];
+    this._persistScratch();
+    return true;
   },
 
   setHighWater(id) {

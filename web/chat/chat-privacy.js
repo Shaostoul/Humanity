@@ -416,7 +416,9 @@ async function ingestContactRequest(inner) {
       return true;
     }
     if (store && pass && inner.to) {
-      store.recordPassSent(inner.to, pass.serial, pass.may);
+      // An echo of my own pass, like any other (10n N4): standing, unless it
+      // grants beyond my choice for them (then withdrawn at once).
+      if (store.adoptEchoedPass(inner.to, pass.serial, pass.may).length && typeof sendPendingWithdrawals === 'function') sendPendingWithdrawals();
       store.setFollowing(inner.to, true);
     }
     if (inner.to && typeof myFollowing !== 'undefined') myFollowing.add(inner.to);
@@ -700,12 +702,11 @@ function safetyModel() {
   });
   const store = reachStore();
   // "People I choose" (10c-ii): each friend I have given a pass (or one on its
-  // way, chat-dm-store.js passFriends), once, with
-  // the ticks I chose for them: what their pass carries, or a newer choice
-  // whose pass the server has not taken yet (10l, chat-dm-store.js
-  // passMayIntended), so a refused pass never puts the ticks back. The rows'
-  // audiences as shown (a choice being saved included) decide which rows the
-  // ticks count for.
+  // way, or a choice of mine, chat-dm-store.js passFriends), once, with the
+  // ticks I chose for them (10n: the choice kept per friend, the same on all
+  // my devices, chat-dm-store.js choiceMay), so a refused pass never puts the
+  // ticks back. The rows' audiences as shown (a choice being saved included)
+  // decide which rows the ticks count for.
   const given = store ? store.passFriends() : [];
   const shown = {};
   for (const r of rows) shown[r.kind] = r.audience;
@@ -720,7 +721,7 @@ function safetyModel() {
     return {
       key,
       name: reachDisplayName(key),
-      ticks: typeof friendTicks === 'function' ? friendTicks(key) : reachTicksFromMay(store.passMayIntended(key)),
+      ticks: typeof friendTicks === 'function' ? friendTicks(key) : reachTicksFromMay(store.choiceMay(key)),
       updating: held || elsewhere,
       held,
     };
@@ -831,14 +832,15 @@ function safetyWarningsHtml(model) {
 }
 
 /**
- * A tick on the "People I choose" list changed: re-issue that friend's pass
- * (chat-social.js setFriendTick). The page is drawn again at once, so the
+ * A tick on the "People I choose" list changed: it is my new choice for that
+ * friend (chat-social.js setFriendTick, 10n), kept here and sent to my other
+ * devices, and their pass follows it. The page is drawn again at once, so the
  * friend's ticks are held still while their pass is minted and while it waits
  * for the server's answer (10l), and again when that comes (chat-social.js
  * settlePassPut), showing my choice: a pass the server refused is sent again
- * by the next sweep, and the ticks stay as chosen meanwhile. If it could not
- * be sent at all, they show what they were before. Returns true when it was
- * sent.
+ * by the next sweep, and the ticks stay as chosen meanwhile. With no server
+ * connected the choice is kept and goes on the next connection. Returns true
+ * when the choice was made.
  */
 async function chooseFriendTick(peer, kind, on) {
   // With the protected setup on, the PIN first (10h): a cancelled prompt puts
@@ -853,13 +855,10 @@ async function chooseFriendTick(peer, kind, on) {
   const pending = setFriendTick(peer, kind, on);
   renderSafetyPanel();
   const ok = await pending.catch(() => false);
-  if (!ok) {
-    // One pass at a time goes to a friend (10l): one may be waiting for the server's answer.
-    const busy = typeof friendPassUpdating === 'function' && friendPassUpdating(peer);
-    reachSay(busy
-      ? 'Could not change that now: their pass is still being updated. Try again in a moment.'
-      : 'Could not change that now: their key is not known here yet. Try again when they are online.');
-  }
+  // (Since 10n a choice is kept even when their pass cannot go yet: their key
+  // not known here, one still waiting for an answer, or no server connected;
+  // the sweep sends it. Only a page whose settings have not loaded refuses.)
+  if (!ok) reachSay('Could not change that now: your settings on this device are still loading. Try again in a moment.');
   renderSafetyPanel();
   return ok;
 }
@@ -1016,7 +1015,9 @@ function blockLocally(key, ts) {
   if (typeof protectedForget === 'function') protectedForget(key);
   store.setFollowing(key, false);
   if (typeof myFollowing !== 'undefined' && myFollowing) myFollowing.delete(key);
-  if (typeof withdrawPassesTo === 'function') withdrawPassesTo(key);
+  // My choice for them is cleared whatever its time (10n N3; a choice note
+  // about someone I blocked is ignored, so every device ends cleared).
+  if (typeof withdrawPassesTo === 'function') withdrawPassesTo(key, ts, true);
   store.removeContactRequest(key);
   applyBlockToView(key, true);
   renderBlockEverywhere();
@@ -1050,7 +1051,10 @@ async function sendPendingBlockNotes() {
   for (const note of store.blockNotesPending.slice()) {
     const text = blockNoteText(note.action, note.key);
     if (!text) { store.blockNoteSent(note.action, note.key); continue; }
-    const built = typeof pqBuildSelfNote === 'function' ? await pqBuildSelfNote(text) : null;
+    // Signed with the time it was made (one sent late keeps its own), which is
+    // the date my other devices show and the time they clear my choice for
+    // them as of (10n).
+    const built = typeof pqBuildSelfNote === 'function' ? await pqBuildSelfNote(text, note.at) : null;
     if (!built || !ws || ws.readyState !== WebSocket.OPEN) return; // tried again on the next connection
     ws.send(JSON.stringify(built.put));
     store.blockNoteSent(note.action, note.key);
@@ -1065,8 +1069,9 @@ async function blockKey(rawKey) {
   const store = reachStore();
   if (!store) { reachSay('Your block list is still loading. Try again in a moment.'); return false; }
   if (store.isBlocked(key)) { reachSay(`${reachDisplayName(key)} is already blocked.`); return true; }
-  blockLocally(key, Date.now());
-  store.queueBlockNote('block', key);
+  const at = Date.now();
+  blockLocally(key, at);
+  store.queueBlockNote('block', key, at);
   await flushBlockNotes();
   reachSay(BLOCKED_LINE);
   return true;
@@ -1079,7 +1084,7 @@ async function unblockKey(rawKey) {
   if (!key || !store) return false;
   if (!store.isBlocked(key)) { reachSay(`${reachDisplayName(key)} is not blocked.`); return true; }
   unblockLocally(key);
-  store.queueBlockNote('unblock', key);
+  store.queueBlockNote('unblock', key, Date.now());
   await flushBlockNotes();
   reachSay(UNBLOCKED_LINE);
   return true;

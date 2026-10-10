@@ -394,6 +394,9 @@ async function loadChat(me, opts = {}) {
   // every setTimeout the page asks for, {cb, ms}, none of which runs by itself (a test may run one,
   // such as chat-ui.js initUnifiedLeftSidebar, which the page queues as it loads).
   const state = { appended: [], honest: !!opts.honest, absent: new Set(opts.absentIds || []) };
+  // opts.stored: what this browser's localStorage held before the page loaded ({key: text}).
+  const local = fakeStorage();
+  for (const [k, v] of Object.entries(opts.stored || {})) local.setItem(k, v);
   const posted = [];
   const fetched = [];   // every fetch, "METHOD url"
   const uploads = [];   // { url, query, name, type, bytes } for each POST /api/upload
@@ -434,7 +437,7 @@ async function loadChat(me, opts = {}) {
     document: fakeDom(state),
     navigator: new Proxy({}, { get: (_t, p) => (p === "serviceWorker" ? serviceWorker : anything()), has: () => true }),
     location: { hash: "", host: "localhost", protocol: "https:", pathname: "/chat", search: "", origin: "https://localhost", reload() {} },
-    localStorage: fakeStorage(),
+    localStorage: local,
     sessionStorage: fakeStorage(),
     indexedDB: fakeIndexedDB(),
     fetch: (url, init) => {
@@ -1106,7 +1109,7 @@ test("the scratch pad: a file is encrypted and its marker kept in this browser; 
   const up = oneEncryptedUpload(page, PNG);
   assert.equal(page.sock.raw.length, 0, "nothing goes on the socket");
   assert.equal(page.posted.length, 0, "nor is anything posted");
-  const kept = JSON.parse(page.ctx.localStorage.getItem("hos_scratch_msgs") || "[]");
+  const kept = page.store.scratchNotes();
   assert.equal(kept.length, 1, "the scratch pad keeps one entry");
   const meta = markerMeta(kept[0].content);
   assert.ok(meta, "its marker");
@@ -1243,13 +1246,13 @@ test("10m R10: a reply made in the scratch pad is kept on the note as a quote, a
   await openScratchPad(page);
   await typeAndSend(page, "buy seeds for the garden");
   const first = page.state.appended.find((e) => e && e.dataset && e.dataset.from === fx.ann.key);
-  const kept1 = JSON.parse(page.ctx.localStorage.getItem("hos_scratch_msgs") || "[]");
+  const kept1 = page.store.scratchNotes();
   assert.equal(kept1.length, 1);
   page.fn("setReplyTarget")("Ann", kept1[0].content, fx.ann.key, kept1[0].timestamp, first);
   assert.equal(page.el("reply-bar").style.display, "flex", "the reply bar shows");
 
   await typeAndSend(page, "done, and the trowel too");
-  const kept = JSON.parse(page.ctx.localStorage.getItem("hos_scratch_msgs") || "[]");
+  const kept = page.store.scratchNotes();
   assert.equal(kept.length, 2, "the answer is kept");
   assert.deepEqual(kept[1].replyTo, { from: fx.ann.key, from_name: "Ann", content: "buy seeds for the garden", timestamp: kept1[0].timestamp },
     "with the note it answers kept on it as a quote");
@@ -1303,3 +1306,69 @@ test("10m R10: the scratch pad's header, channel description and row tooltip say
 //  "none of them reaches the socket" (a reaction, a Pin request, an edit and a delete went);
 //  "with the note it answers kept on it as a quote" (the note was kept with no reply);
 //  "the header says it" (it said "Local only. Nothing sent to anyone.").
+
+// ── 10n N8: the scratch pad moves into the encrypted DM store (2026-10-10) ──
+// docs/design/blocking-and-safe-mode.md 10n N8: its notes are kept in the encrypted DM store, for
+// this identity on this server, newest 500, as the desktop app keeps its own; the old
+// localStorage key `hos_scratch_msgs`, which held file keys in the clear and was shared by every
+// identity in the browser, is removed (not read). While the store is still loading nothing is
+// kept and the words stay in the composer.
+test("10n N8: the scratch pad's notes are kept in the encrypted DM store, per identity and server, newest 500", async () => {
+  const fx = await fixture();
+  const OLD_NOTE = "the old pad's note, with a file's key in the clear";
+  const page = await loadChat(fx.ann, {
+    honest: true,
+    stored: { hos_scratch_msgs: JSON.stringify([{ from_name: "Ann", from: fx.ann.key, content: OLD_NOTE, timestamp: T0 }]) },
+  });
+  assert.equal(page.ctx.localStorage.getItem("hos_scratch_msgs"), null, "the old key is gone from this browser");
+  await openScratchPad(page);
+  const drawn = () => page.systemLines.concat(page.state.appended.map((e) => (e && e.innerHTML) || "")).join("\n");
+  assert.ok(!drawn().includes(OLD_NOTE), "and its notes are not read");
+
+  const NOTE = "bulbs go in after the first frost";
+  await typeAndSend(page, NOTE);
+  assert.deepEqual(page.store.scratchNotes().map((n) => n.content), [NOTE], "the note is kept in the store");
+  assert.equal(page.ctx.localStorage.getItem("hos_scratch_msgs"), null, "and not in localStorage");
+  await settle();
+  const rec = page.ctx.indexedDB.stores.meta.get(`${page.store.scope}:scratch`);
+  assert.ok(rec && rec.box && Array.isArray(rec.box.ct), "in its own encrypted record beside the meta box");
+  assert.ok(!Buffer.from(rec.box.ct).toString("latin1").includes("bulbs") && !JSON.stringify(rec).includes("bulbs"),
+    "which does not hold the words in the clear");
+
+  // Across a reload, for this identity on this server only.
+  assert.ok(await page.store.init(fx.ann.key, "localhost"));
+  assert.deepEqual(page.store.scratchNotes().map((n) => n.content), [NOTE], "kept across a reload");
+  assert.ok(await page.store.init(fx.ann.key, "elsewhere.example"));
+  assert.deepEqual(page.store.scratchNotes(), [], "another server's pad is its own");
+  assert.ok(await page.store.init(fx.ben.key, "localhost"));
+  assert.deepEqual(page.store.scratchNotes(), [], "and another identity's");
+  assert.ok(await page.store.init(fx.ann.key, "localhost"));
+  assert.deepEqual(page.store.scratchNotes().map((n) => n.content), [NOTE], "and back again");
+
+  // The newest 500.
+  for (let i = 0; i < 505; i++) page.store.addScratchNote({ content: `note ${i}`, timestamp: T0 + i });
+  await settle();
+  const kept = page.store.scratchNotes();
+  assert.equal(kept.length, 500, "the newest 500 are kept");
+  assert.equal(kept[0].content, "note 5", "the oldest go first");
+  assert.ok(await page.store.init(fx.ann.key, "localhost"));
+  assert.equal(page.store.scratchNotes().length, 500, "and so after a reload");
+
+  // While the store is still loading, nothing is kept and the words stay in the composer.
+  const key = page.store._key;
+  page.store._key = null;
+  page.systemLines.length = 0;
+  page.el("msg-input").value = "a note too early";
+  await page.fn("sendMessage")();
+  assert.equal(page.el("msg-input").value, "a note too early", "the words stay in the composer");
+  assert.ok(page.systemLines.some((l) => l.includes("still loading")), "and the page says the pad is still loading");
+  page.store._key = key;
+  assert.ok(!page.store.scratchNotes().some((n) => n.content === "a note too early"), "nothing was kept");
+});
+
+// Red first, 2026-10-10 (10n N8), against web/ as at 91ac73d78 through HOS_WEB_DIR: "the old key is
+// gone from this browser" (it stayed, with its note readable). Then one break at a time in a copy of
+// the fixed web/: the removeItem line taken out of app.js: "the old key is gone from this browser";
+// app.js scratchPadKeep writing to localStorage again: "the note is kept in the store"; the splice
+// taken out of chat-dm-store.js addScratchNote: "the newest 500 are kept"; the record kept unencrypted
+// (its box the plain list): "which does not hold the words in the clear".
