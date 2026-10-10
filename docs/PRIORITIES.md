@@ -247,17 +247,11 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   for the rest. (3) Whether to ask NCMEC (ESPteam@ncmec.org) if a volunteer-run server counts as
   a provider and should register; recommended: yes, the operator writes it (an outside message
   is the operator's to send). The rest of this entry is the earlier note.
-- **Legal research needed before reports go further (raised 2026-10-09).** Reports (design 10e)
-  must never carry a way to open a reported file: a DM carrying an encrypted file holds the key
-  in its text, so such messages cannot be evidence (refused by the relay, not offered by either
-  client). Still to research into a dated findings document (CLAUDE.md, "Research a legal
-  question"): what a server operator must and must not do on receiving a report that may
-  involve child sexual abuse material (for example the United States' 18 U.S.C. 2258A duties of
-  electronic communication service providers, and the equivalents elsewhere), including whether
-  a volunteer-run server counts as a provider, what must be preserved, and where it must be
-  reported. Until then, the reports UI tells people to contact emergency services and their
-  country's official reporting line, and admins are never shown files. The per-country list of
-  official lines is being researched in `docs/reference/findings/2026-10-09-outside-help-lines.md`.
+- **Legal research for reports: DONE 2026-10-10.** The question raised 2026-10-09 (a server's
+  duties on a report that may involve child sexual abuse material) is answered in
+  `docs/reference/findings/2026-10-10-report-duties-child-abuse-material.md`; its three decisions
+  are the "Report duties" item above. Reports never carry a way to open a reported file, and
+  admins are never shown files or links.
 - **Signing in where cameras can see (raised 2026-10-09; the operator's PIN was once watched
   and money was stolen).** Found: the desktop "Quick PIN" unlock (`src/auto_unlock.rs`,
   KeychainPin) has no limit on wrong guesses, and the guessing can be done offline by anyone who
