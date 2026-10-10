@@ -499,7 +499,9 @@ async function sendFriendCertTo(peer) {
     const built = await pqBuildFriendCert(peer);
     if (built && await sendDmControl(peer, CTL_FRIEND_CERT, built.cert)) {
       store.recordPassSent(peer, built.serial, built.may);
+      return true;
     }
+    return false;
   } finally {
     _passMinting.delete(peer);
   }
@@ -528,12 +530,30 @@ function withdrawPassesTo(peer) {
  * follow with none standing. Covers the first run after v2 (old v1 records are
  * not read), a server whose identity changed, and a send that failed earlier.
  */
+// The server takes a burst of 8 private messages from one sender, then one a second
+// (src/relay/handlers/dm_rate.rs); a pass sent past that is refused while this page has already
+// counted it as given, which would leave that friend without one. So a sweep sends at most
+// SWEEP_BURST passes at once, then one every SWEEP_GAP_MS, and only one sweep runs at a time
+// (2026-10-10 batch review).
+const SWEEP_BURST = 6;
+const SWEEP_GAP_MS = 1100;
+let _sweeping = false;
+
 async function sweepFriendPasses() {
   const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
-  if (!store || !window.hosServerDid) return;
-  store.setPassServer(window.hosServerDid);
-  sendPendingWithdrawals();
-  for (const peer of store.friendsWithoutPass()) await sendFriendCertTo(peer);
+  if (!store || !window.hosServerDid || _sweeping) return;
+  _sweeping = true;
+  try {
+    store.setPassServer(window.hosServerDid);
+    sendPendingWithdrawals();
+    let sent = 0;
+    for (const peer of store.friendsWithoutPass()) {
+      if (sent >= SWEEP_BURST) await new Promise((resolve) => setTimeout(resolve, SWEEP_GAP_MS));
+      if (await sendFriendCertTo(peer)) sent++;
+    }
+  } finally {
+    _sweeping = false;
+  }
 }
 window.sweepFriendPasses = sweepFriendPasses;
 

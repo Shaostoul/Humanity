@@ -240,3 +240,23 @@ test("a friend's pass is checked, kept, carried and dropped when they unfollow",
   assert.ok(store.setPassServer("did:hum:another"));
   assert.ok(!store.certSentTo(CY) && store.certFor(BEN) === null);
 });
+
+// The relay takes a burst of 8 private messages, then one a second (handlers/dm_rate.rs); a pass
+// sent past that is refused while the page counts it as given. A sweep sends at most 6 at once,
+// then one per 1.1 s, and only one sweep runs at a time (2026-10-10 batch review). Seen red with
+// the pause taken out of sweepFriendPasses: "the rest wait their turn" (no waits recorded).
+test("a sweep owing many passes sends six at once, then waits between the rest", async () => {
+  const { ctx, sock, store } = await loadChat();
+  const many = Array.from({ length: 10 }, (_, i) => (i + 10).toString(16).padStart(2, "0").repeat(32));
+  for (const k of many) { store.setFollowing(k, true); store.setFollower(k, true); }
+  const waits = [];
+  ctx.setTimeout = (fn, ms) => { waits.push({ ms, sentSoFar: passesSent(sock).length }); fn(); return 0; };
+  const list = many.map((k, i) => ({ public_key: k, name: `M${i}`, role: "", kyber_public: "kyber-" + k.slice(0, 4) }));
+  await vm.runInContext("handleMessage", ctx)({ type: "full_user_list", users: list });
+  await settle();
+  await settle();
+  const paced = waits.filter((w) => w.ms >= 1000);
+  assert.equal(passesSent(sock).length, 10, "every friend gets a pass");
+  assert.equal(paced.length, 4, "the rest wait their turn: one wait before each pass after the sixth");
+  assert.equal(paced[0].sentSoFar, 6, "six went at once before the first wait");
+});
