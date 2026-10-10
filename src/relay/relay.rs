@@ -1259,6 +1259,10 @@ pub enum RelayMessage {
         /// through unless the recipient takes messages from nobody, 5 a day (handlers/reach.rs).
         #[serde(default)]
         contact_request: bool,
+        /// A report about a P2P group to its creator: let through to someone who created a group
+        /// both are in, unless they take messages from nobody, 3 a day (handlers/reach.rs, 10j).
+        #[serde(default)]
+        group_report: bool,
     },
 
     /// Client asks for its mailbox contents after a rowid high-water mark.
@@ -5778,8 +5782,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 handle_profile_request(&state_clone, &my_key_for_recv, name, friend_cert).await;
                             }
                             // DM — deposit a sealed envelope into a mailbox.
-                            RelayMessage::DmPut { to, content, friend_cert, contact_request } => {
-                                handle_dm_put(&state_clone, &my_key_for_recv, to, content, friend_cert, contact_request).await;
+                            RelayMessage::DmPut { to, content, friend_cert, contact_request, group_report } => {
+                                let ask = crate::relay::handlers::reach::DmAsk::from_flags(contact_request, group_report);
+                                handle_dm_put(&state_clone, &my_key_for_recv, to, content, friend_cert, ask).await;
                             }
                             // DM fetch — page the caller's own mailbox.
                             RelayMessage::DmFetch { after_id } => {

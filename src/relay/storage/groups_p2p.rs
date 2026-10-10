@@ -487,6 +487,31 @@ impl Storage {
         })
     }
 
+    /// Did `creator` create a P2P group, not disbanded, that both `creator` and `member` are
+    /// active members of now? This is the question the "a report about a group reaches its
+    /// creator" exception asks (handlers/reach.rs, docs/design/blocking-and-safe-mode.md 10j):
+    /// the same answer as `p2p_groups_for_member` on both keys plus each shared group's
+    /// `creator_pubkey`, in one query. The roster is keyed by fingerprint, so members are matched
+    /// that way; the group's creator is matched by the full public key too, so a fingerprint
+    /// alone never stands in for the person a report is addressed to. A creator who left their
+    /// own group (a self-leave) is no longer an active member, so the answer is then no.
+    pub fn p2p_group_created_by_with(&self, creator: &[u8], member: &[u8]) -> Result<bool, rusqlite::Error> {
+        let (creator_fp, member_fp) = (author_fingerprint(creator), author_fingerprint(member));
+        self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT EXISTS (
+                   SELECT 1 FROM p2p_groups g
+                   JOIN p2p_group_roster c
+                     ON c.group_id = g.group_id AND c.member_fp = ?1 AND c.active = 1
+                   JOIN p2p_group_roster m
+                     ON m.group_id = g.group_id AND m.member_fp = ?3 AND m.active = 1
+                   WHERE g.creator_fp = ?1 AND g.creator_pubkey = ?2 AND g.disbanded = 0)",
+                params![creator_fp, creator, member_fp],
+                |row| row.get::<_, bool>(0),
+            )
+        })
+    }
+
     /// Whether a public key is an active member of a P2P group.
     pub fn p2p_group_has_member(&self, group_id: &str, pubkey: &[u8]) -> Result<bool, rusqlite::Error> {
         let fp = author_fingerprint(pubkey);
