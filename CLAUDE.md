@@ -823,6 +823,7 @@ notification_prefs (public_key, dm_enabled, mentions_enabled, tasks_enabled, dnd
 server_members (public_key, name, role, joined_at, last_seen, hide_presence)
 dm_mailbox     (id, to_key, content, received_day)  -- sealed-sender DMs; NO sender column by design
 erased_accounts (fingerprint, erased_day, ttl_days)  -- BUG-135: keyed BLAKE3 of the key (secret in data/erased-accounts.key), the day and the window promised; WITHOUT ROWID; culled by storage/expiry.rs
+reach_settings (public_key, kind, audience)  -- "who can reach me" (step B, storage/reach.rs + handlers/reach.rs): one audience per kind (message, call, trade); no row = the safe default; WITHOUT ROWID; exported and erased
 friend_cert_revocations (issuer_fingerprint, serial, revoked_day)  -- withdrawn friendship passes (v2, 2026-10-09); keyed BLAKE3 of the issuer's key (the erased-accounts secret, domain hum/withdrawn-pass/v1); WITHOUT ROWID; kept for good, account erase included; at most 4,096 per issuer
 ```
 

@@ -1322,6 +1322,21 @@ impl Storage {
             ) WITHOUT ROWID;"
         )?;
 
+        // "Who can reach me" (2026-10-09, storage/reach.rs; blocking-and-safe-mode.md 10c): the
+        // audience a person chose for each kind of contact. No row means the safe default for that
+        // kind, so nobody needs a row to be protected. Listed by the account export and deleted by
+        // the account erase. A new table in a batch of its own, its key over its own CREATE TABLE
+        // columns, so a live database from before it simply gains it (BUG-046 concerns ALTER-added
+        // columns only).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS reach_settings (
+                public_key TEXT NOT NULL,
+                kind       TEXT NOT NULL,
+                audience   TEXT NOT NULL,
+                PRIMARY KEY (public_key, kind)
+            ) WITHOUT ROWID;"
+        )?;
+
 
         // ── v0.1132 — guaranteed local-only room toggle. Default ON: every
         // server keeps a #local channel that refuses federation, so members
@@ -2563,6 +2578,8 @@ pub use fleet_ledger::{Adjusted, FleetBalance, FleetEntry, FleetGiveRecord, Flee
 // Withdrawn friendship passes (2026-10-09, blocking-and-safe-mode.md 10b).
 mod friend_passes;
 pub use friend_passes::{FriendCertWithdrawal, FRIEND_CERT_WITHDRAWALS_MAX};
+// "Who can reach me": the audience each person chose per kind of contact (2026-10-09, 10c).
+mod reach;
 pub mod docs_accord;
 
 pub use civilization::CivilizationStats;

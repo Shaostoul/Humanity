@@ -38,7 +38,7 @@ fn connect(st: &Arc<RelayState>, key: &str) {
 fn dm(st: &Arc<RelayState>, from: &str, to: &str, pass: Option<&str>) {
     block(async {
         st.rate_limits.write().await.remove(from);
-        handle_dm_put(st, from, to.to_string(), envelope(), pass.map(str::to_string)).await;
+        handle_dm_put(st, from, to.to_string(), envelope(), pass.map(str::to_string), false).await;
     });
 }
 
@@ -81,6 +81,11 @@ fn a_withdrawn_pass_falls_back_to_the_strangers_lane() {
     }
     let (pass, serial) = test_pass(&st, &bob_seed, &bob, &alice);
     let (other_pass, other_serial) = test_pass(&st, &bob_seed, &bob, &alice);
+    // Both take strangers' mail ("who can reach me", handlers/reach.rs), so the stranger's lane
+    // is the daily knock budget rather than a refusal.
+    for k in ["stranger_key", bob.as_str()] {
+        st.db.set_reach_settings(k, &[("message", "anyone")]).unwrap();
+    }
 
     // Alice spends her day's knocks on a stranger.
     for _ in 0..DM_KNOCKS_PER_DAY {
@@ -148,6 +153,9 @@ fn a_trade_request_follows_the_pass_and_its_withdrawal() {
         connect(&st, k);
     }
     let (pass, serial) = test_pass(&st, &target_seed, &target, &friend);
+    // The target takes strangers' trade requests (handlers/reach.rs), so a withdrawn pass makes
+    // this a stranger's request rather than a refused one.
+    st.db.set_reach_settings(&target, &[("trade", "anyone")]).unwrap();
     let note = "a".repeat(200);
     let send = || {
         block(handle_trade_request(
@@ -168,25 +176,29 @@ fn a_trade_request_follows_the_pass_and_its_withdrawal() {
     assert_eq!(got, vec![TRADE_NOTE_MAX_CHARS_NON_FRIEND, 200], "after the withdrawal the note is a stranger's");
 }
 
-/// A ring and a direct-connection offer read the pass they carry (step A: nothing is refused
-/// for lacking one yet) and never forward it: the target gets the ring or the offer either way,
-/// without the pass, which only the relay needs. On the wire both accept `friend_cert`, and the
-/// relay's challenge names its own did:hum, which is what a client signs a pass for.
+/// A ring and a direct-connection offer read the pass they carry and never forward it: the target
+/// gets the ring or the offer without the pass, which only the relay needs. On the wire both
+/// accept `friend_cert`, and the relay's challenge names its own did:hum, which is what a client
+/// signs a pass for. Since step B ("who can reach me", handlers/reach.rs) the pass also decides:
+/// with the callee taking calls from friends, a valid pass lets the ring and the offer through,
+/// a forged one or none lets neither (the offer has no shared group or voice room to fall back
+/// on), and nothing comes back to the caller either way.
 /// Seen red 2026-10-09 with handle_voice_call forwarding the caller's `friend_cert` instead of
 /// `None`: "the ring reaches the callee without the pass".
 #[test]
-fn rings_and_offers_read_the_pass_and_refuse_nothing_new() {
+fn rings_and_offers_read_the_pass_and_never_forward_it() {
     let st = fresh_state();
     let (_caller_seed, caller) = identity(78);
     let (callee_seed, callee) = identity(79);
     connect(&st, &caller);
     connect(&st, &callee);
+    st.db.set_reach_settings(&callee, &[("call", "friends")]).unwrap();
     let (pass, serial) = test_pass(&st, &callee_seed, &callee, &caller);
     assert_eq!(
-        read_contact_pass(&st, &callee, &caller, Some(&pass), "test").map(|p| p.may.wire()).as_deref(),
+        friend_pass(&st, &callee, &caller, Some(&pass)).map(|p| p.may.wire()).as_deref(),
         Some("invite,message,trade,voice_message")
     );
-    assert!(read_contact_pass(&st, &callee, &caller, None, "test").is_none());
+    assert!(friend_pass(&st, &callee, &caller, None).is_none());
 
     // From the wire, as a client sends it.
     let ring: RelayMessage = serde_json::from_value(serde_json::json!({
@@ -205,7 +217,7 @@ fn rings_and_offers_read_the_pass_and_refuse_nothing_new() {
         let mut rx = st.broadcast_tx.subscribe();
         block(handle_voice_call(&st, &caller, to.clone(), action.clone(), cert.clone()));
         block(handle_webrtc_signal(&st, &caller, callee.clone(), "dc_offer".into(), serde_json::json!("{}"), cert.clone()));
-        let (mut rings, mut offers) = (0, 0);
+        let (mut rings, mut offers, mut to_caller) = (0, 0, 0);
         while let Ok(m) = rx.try_recv() {
             match m {
                 RelayMessage::VoiceCall { to, friend_cert, .. } if to == callee => {
@@ -217,13 +229,15 @@ fn rings_and_offers_read_the_pass_and_refuse_nothing_new() {
                     assert!(!serde_json::to_string(&m).unwrap().contains("friend_cert"), "and the wire form has no such field");
                     offers += 1;
                 }
+                RelayMessage::Private { ref to, .. } | RelayMessage::ReachRefused { sender: ref to, .. } if *to == caller => to_caller += 1,
                 _ => {}
             }
         }
-        assert_eq!((rings, offers), (1, 1), "nothing refused for the pass {cert:?}");
+        let through = usize::from(cert.as_deref() == Some(pass.as_str()));
+        assert_eq!((rings, offers, to_caller), (through, through, 0), "the pass {cert:?} decides, and the caller hears nothing back");
     }
     revoke(&st, &callee, &serial);
-    assert!(read_contact_pass(&st, &callee, &caller, Some(&pass), "test").is_none(), "a withdrawn pass reads as none");
+    assert!(friend_pass(&st, &callee, &caller, Some(&pass)).is_none(), "a withdrawn pass reads as none");
 
     let challenge = RelayMessage::IdentifyChallenge { nonce: "ab".into(), server_did: st.db.server_did().unwrap() };
     let wire: serde_json::Value = serde_json::to_value(&challenge).unwrap();
@@ -247,6 +261,9 @@ fn a_server_that_cannot_keep_withdrawals_fails_safe() {
     st.db.register_name("Alice", &alice).unwrap();
     st.db.register_name("Bob", &bob).unwrap();
     let (pass, serial) = test_pass(&st, &bob_seed, &bob, &alice);
+    for k in ["stranger_key", bob.as_str()] {
+        st.db.set_reach_settings(k, &[("message", "anyone")]).unwrap(); // the stranger's lane is the knock budget
+    }
     assert!(friend_pass(&st, &bob, &alice, Some(&pass)).is_none(), "the pass counts as withdrawn");
     for _ in 0..DM_KNOCKS_PER_DAY {
         dm(&st, &alice, "stranger_key", None);

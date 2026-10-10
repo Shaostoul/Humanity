@@ -420,6 +420,10 @@ pub const WS_ALWAYS_ON: &[&str] = &[
     // server's answer that it is done. Withdrawing consent must work whatever the owner offers,
     // for the same reason as privacy and account security above.
     "cert_revoke", "cert_revoked",
+    // Choosing who can reach you, and the server's answers (2026-10-09, handlers/reach.rs): the
+    // settings and the refusal a sender is given. Changing who can reach you must work whatever
+    // the owner offers, for the same reason: it is a person's own protection.
+    "reach_set", "reach_settings", "reach_refused",
     // A user's data sovereignty (2026-08-23): exporting and erasing your
     // own data must work regardless of which features the owner offers.
     // (account_export/account_export_data moved to POST /api/account/export on
@@ -3261,6 +3265,38 @@ mod tests {
              ws_message_feature, or add it to WS_ALWAYS_ON with a reason.",
             unclassified.join("\n  ")
         );
+    }
+
+    /// "Who can reach me" over a real socket (handlers/reach.rs, blocking-and-safe-mode.md 10c):
+    /// the relay sends the person's settings, every kind filled in, as soon as they are signed
+    /// in, and `reach_set` changes them and is answered, with EVERY feature switched off.
+    /// Choosing who can reach you is a person's own protection, so no owner's choice of features
+    /// can take it away (`WS_ALWAYS_ON`).
+    ///
+    /// Seen red 2026-10-09 with "reach_set" mapped to `Feature::Chat` in `ws_message_feature`:
+    /// "reach_set is answered with every feature off" (the relay sent its feature-disabled
+    /// notice instead, and no settings came back).
+    #[tokio::test]
+    async fn who_can_reach_me_works_over_the_socket_with_every_feature_off() {
+        let mut off = Features::all_enabled();
+        for f in Feature::ALL {
+            off.set(f, false);
+        }
+        let (state, port) = spawn_relay("reach_all_off", off).await;
+        let (mut sock, key) = bind_socket(&state, port, [77u8; 32], Some("Reacher"), 1).await;
+        let settings_frame = |v: &Value| (v["type"] == "reach_settings").then(|| v.clone());
+        let first = next_frame_with(&mut sock, settings_frame).await.expect("the settings arrive after identify");
+        assert_eq!(
+            first,
+            serde_json::json!({ "type": "reach_settings", "settings": { "message": "friends", "call": "chosen", "trade": "friends" } }),
+            "the safe defaults, every kind filled in"
+        );
+        send_json(&mut sock, serde_json::json!({ "type": "reach_set", "settings": { "message": "anyone" } })).await;
+        let answer = next_frame_with(&mut sock, settings_frame).await.expect("reach_set is answered with every feature off");
+        assert_eq!(answer["settings"]["message"], "anyone", "{answer}");
+        assert_eq!(state.db.reach_audience_of(&key, "message").as_deref(), Some("anyone"), "and saved");
+        use futures::SinkExt;
+        sock.close(None).await.ok();
     }
 
     // ── Increment 5: building only on your own plot ───────────────────────────

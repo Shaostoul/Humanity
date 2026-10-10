@@ -119,6 +119,9 @@ impl Storage {
             // keeping them stops a sign-up with the same key from reviving withdrawn passes), so
             // export is wider than erase here, as the lint allows.
             grab("friend_pass_withdrawals", "SELECT serial, revoked_day FROM friend_cert_revocations WHERE issuer_fingerprint = ?1 ORDER BY revoked_day ASC", &[&withdrawal_fingerprint]);
+            // Who can reach them (2026-10-09, storage/reach.rs): the audience they chose for each
+            // kind of contact. A kind with no row is at its default, which is not stored.
+            grab("reach_settings", "SELECT kind, audience FROM reach_settings WHERE public_key = ?1 ORDER BY kind ASC", &[&key]);
             // That this key erased its account here earlier, while this server still
             // remembers it (BUG-135, 2026-10-04): only the day and the window it is kept for,
             // under a one-way fingerprint of the key. It is listed because it is held about
@@ -279,6 +282,8 @@ impl Storage {
             del("game_progress", "DELETE FROM player_progress WHERE public_key = ?1", &[&key]);
             // Their fleet ledger (2026-10-04).
             del("fleet_ledger", "DELETE FROM fleet_ledger WHERE public_key = ?1", &[&key]);
+            // Who can reach them (2026-10-09, storage/reach.rs).
+            del("reach_settings", "DELETE FROM reach_settings WHERE public_key = ?1", &[&key]);
             // NOT erased: the friendship passes they took back (friend_cert_revocations,
             // storage/friend_passes.rs). The rows hold a keyed fingerprint, not the key, so they
             // name nobody, and deleting them would let a sign-up with the same key (the same
@@ -336,7 +341,8 @@ impl Storage {
             OR EXISTS(SELECT 1 FROM game_plots WHERE owner_did = ?2)
             OR EXISTS(SELECT 1 FROM world_pieces WHERE owner_did = ?2)
             OR EXISTS(SELECT 1 FROM player_progress WHERE public_key = ?1)
-            OR EXISTS(SELECT 1 FROM fleet_ledger WHERE public_key = ?1)";
+            OR EXISTS(SELECT 1 FROM fleet_ledger WHERE public_key = ?1)
+            OR EXISTS(SELECT 1 FROM reach_settings WHERE public_key = ?1)";
         self.with_read_conn(|conn| conn.query_row(q, params![key, plot_owner], |r| r.get::<_, bool>(0)))
             .unwrap_or_else(|e| {
                 // Unknown is said as "not finished": that note only asks the person to erase
