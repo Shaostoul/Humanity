@@ -836,38 +836,26 @@ pub fn rekey_if_creator_needs(
     let mut covered = std::collections::HashSet::new();
     let mut current_epoch_payload_bytes: Option<Vec<u8>> = None;
     if let Some(payload_bytes) = fetch_group_epoch_payload(server_url, group_id)? {
-        if let Ok(parsed) = parse_group_epoch_key_payload(&payload_bytes) {
-            current_epoch = parsed.epoch;
-            for r in &parsed.recipients {
-                covered.insert(r.fp.clone());
-            }
+        // A key the server holds that does not read makes no new one: reading it as "no key yet"
+        // would number the new key 1, the same number as a key members already hold (2026-10-10).
+        let parsed = parse_group_epoch_key_payload(&payload_bytes)
+            .map_err(|e| format!("the group's current key does not read ({e}); no new key is made"))?;
+        current_epoch = parsed.epoch;
+        for r in &parsed.recipients {
+            covered.insert(r.fp.clone());
         }
         current_epoch_payload_bytes = Some(payload_bytes);
     }
 
-    // 3. Current roster with each member's Kyber pub.
+    // 3. Current roster with each member's Kyber pub, without anyone this device removed from
+    //    the group in this run (net/group_remove.rs `removed_here`): the server may still list
+    //    them for a moment after the new key that leaves them out, and sealing to them then
+    //    would undo the removal.
     let roster = fetch_group_members(server_url, group_id)?;
-    let mut sealable: Vec<GroupMemberKey> = Vec::new();
-    let mut has_gap = false;
-    for (pubkey_hex, kyber_opt) in roster {
-        let kyber = match kyber_opt {
-            Some(k) => k,
-            None => continue,
-        };
-        let pub_bytes = match hex::decode(&pubkey_hex) {
-            Ok(b) => b,
-            Err(_) => continue,
-        };
-        let fp = author_fingerprint_hex(&pub_bytes);
-        if !covered.contains(&fp) {
-            has_gap = true;
-        }
-        sealable.push(GroupMemberKey { fp, kyber_pub_b64: kyber });
-    }
-    if !has_gap {
+    let (sealable, added) = roster_to_seal(roster, &covered, &super::group_remove::removed_here(group_id));
+    if added == 0 {
         return Ok(None);
     }
-    let added = sealable.iter().filter(|m| !covered.contains(&m.fp)).count();
 
     // 4. Cover the new member(s).
     if share_history {
@@ -889,10 +877,14 @@ pub fn rekey_if_creator_needs(
                 }
             }
         }
-        // Fallback (no current epoch / couldn't unseal): seed epoch 1 fresh.
+        // Fallback (no current key yet, or ours cannot be opened): a fresh key under the NEXT
+        // epoch number, never an existing one. This used to be epoch 1 always, which for a group
+        // already at epoch 3 put a second, different key under a number members hold: messages
+        // under it could no longer be told apart (the 2026-10-10 server review).
+        let fresh = current_epoch + 1;
         let key = random_epoch_key();
-        submit_group_epoch_key_v1(server_url, seed, group_id, 1, &key, &sealable)?;
-        return Ok(Some((1, key, added)));
+        submit_group_epoch_key_v1(server_url, seed, group_id, fresh, &key, &sealable)?;
+        return Ok(Some((fresh, key, added)));
     }
 
     // PRIVATE (default): mint a NEW epoch sealed to the full roster — members who
@@ -901,6 +893,27 @@ pub fn rekey_if_creator_needs(
     let new_key = random_epoch_key();
     submit_group_epoch_key_v1(server_url, seed, group_id, new_epoch, &new_key, &sealable)?;
     Ok(Some((new_epoch, new_key, added)))
+}
+
+/// The members a creator's rekey seals to, from the server's `roster` (each key, hex, and its
+/// Kyber key): everyone with a Kyber key, except anyone in `left_out` (keys this device removed
+/// from the group, any case). Also how many of them `covered` (the fingerprints the current key
+/// was sealed to) lacks: none means no rekey is needed.
+pub(crate) fn roster_to_seal(
+    roster: Vec<(String, Option<String>)>,
+    covered: &std::collections::HashSet<String>,
+    left_out: &[String],
+) -> (Vec<GroupMemberKey>, usize) {
+    let sealable: Vec<GroupMemberKey> = roster
+        .into_iter()
+        .filter(|(key, _)| !left_out.iter().any(|gone| gone.eq_ignore_ascii_case(key.trim())))
+        .filter_map(|(key, kyber)| {
+            let bytes = hex::decode(&key).ok()?;
+            Some(GroupMemberKey { fp: author_fingerprint_hex(&bytes), kyber_pub_b64: kyber? })
+        })
+        .collect();
+    let added = sealable.iter().filter(|m| !covered.contains(&m.fp)).count();
+    (sealable, added)
 }
 
 /// Fetch + unseal MY copy of the group's latest epoch key. Returns

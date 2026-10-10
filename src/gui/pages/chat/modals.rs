@@ -825,6 +825,61 @@ pub(super) fn draw_edit_channel_modal(ctx: &egui::Context, theme: &Theme, state:
 
 // ─────────────────────────────── Create Group Modal ─────────────────────
 
+/// The Create Group dialog's Create: start a P2P group named `new_group_name` with its first
+/// invite ticket. With the protected setup on it needs the PIN (a group is a way in that no
+/// friend list covers, and the routes line says starting one needs the PIN), and the PIN prompt's
+/// right answer runs it again (engine/protected.rs `perform`); the dialog stays open meanwhile.
+pub(crate) fn create_p2p_group(state: &mut GuiState) {
+    let group_name = state.new_group_name.trim().to_string();
+    if group_name.is_empty() {
+        return;
+    }
+    if crate::engine::warnings::holds_own_phrase(state, &[&group_name]) {
+        state.create_group_status = crate::net::warnings::GUARD_LINE.to_string(); // step F's guard
+        return;
+    }
+    if !crate::engine::protected::allows(state, crate::net::protected::ProtectedAction::StartGroup) {
+        return;
+    }
+    // P2P signed-object create: build group_v1 + an initial 7-day
+    // creator-signed invite_v1, all via POST /api/v2/objects.
+    // Replaces the legacy WS group_create path (which never
+    // produced a working invite URL).
+    let server_url = state.server_url.clone();
+    let name = group_name;
+    let seed_opt = state.private_key_bytes.clone();
+    match seed_opt {
+        Some(seed) => {
+            match crate::net::api_v2::create_group_and_first_invite(&server_url, &seed, &name, state.new_group_share_history) {
+                Ok((group_id, ticket)) => {
+                    state.create_group_ticket = Some(ticket);
+                    state.create_group_status.clear();
+                    log::info!("P2P group created ({}), first invite minted", group_id);
+                    crate::debug::push_debug(format!("P2P group create: {} ({})", name, group_id));
+                    // Refresh the projection cache so the new group
+                    // appears in the left panel when the modal closes.
+                    refresh_p2p_groups(state);
+                    // Auto-switch into the new group so the creator
+                    // lands in it immediately and its epoch key is
+                    // live right away (the keygen happens on create;
+                    // entering also runs the rekey path). The ticket
+                    // modal stays open over it for copying.
+                    state.chat_active_channel = format!("p2pgroup:{}", group_id);
+                    state.chat_messages.retain(|m| !m.channel.starts_with("p2pgroup:"));
+                    spawn_group_load(state, &group_id, true);
+                }
+                Err(e) => {
+                    state.create_group_status = format!("Create failed: {e}");
+                    log::error!("create P2P group failed: {e}");
+                }
+            }
+        }
+        None => {
+            state.create_group_status = "No identity loaded. Connect first.".to_string();
+        }
+    }
+}
+
 // `pub(super)` only because its caller (`draw`, the page frame) stayed in
 // `chat.rs`.
 pub(super) fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
@@ -952,47 +1007,8 @@ pub(super) fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state:
                     state.create_group_status.clear();
                 }
             });
-            let group_name = state.new_group_name.clone();
-            if (do_create || enter_pressed) && crate::engine::warnings::holds_own_phrase(state, &[&group_name]) {
-                state.create_group_status = crate::net::warnings::GUARD_LINE.to_string(); // step F's guard
-            } else if do_create || enter_pressed {
-                // P2P signed-object create: build group_v1 + an initial 7-day
-                // creator-signed invite_v1, all via POST /api/v2/objects.
-                // Replaces the legacy WS group_create path (which never
-                // produced a working invite URL).
-                let server_url = state.server_url.clone();
-                let name = state.new_group_name.trim().to_string();
-                let seed_opt = state.private_key_bytes.clone();
-                match seed_opt {
-                    Some(seed) => {
-                        match crate::net::api_v2::create_group_and_first_invite(&server_url, &seed, &name, state.new_group_share_history) {
-                            Ok((group_id, ticket)) => {
-                                state.create_group_ticket = Some(ticket);
-                                state.create_group_status.clear();
-                                log::info!("P2P group created ({}), first invite minted", group_id);
-                                crate::debug::push_debug(format!("P2P group create: {} ({})", name, group_id));
-                                // Refresh the projection cache so the new group
-                                // appears in the left panel when the modal closes.
-                                refresh_p2p_groups(state);
-                                // Auto-switch into the new group so the creator
-                                // lands in it immediately and its epoch key is
-                                // live right away (the keygen happens on create;
-                                // entering also runs the rekey path). The ticket
-                                // modal stays open over it for copying.
-                                state.chat_active_channel = format!("p2pgroup:{}", group_id);
-                                state.chat_messages.retain(|m| !m.channel.starts_with("p2pgroup:"));
-                                spawn_group_load(state, &group_id, true);
-                            }
-                            Err(e) => {
-                                state.create_group_status = format!("Create failed: {e}");
-                                log::error!("create P2P group failed: {e}");
-                            }
-                        }
-                    }
-                    None => {
-                        state.create_group_status = "No identity loaded. Connect first.".to_string();
-                    }
-                }
+            if do_create || enter_pressed {
+                create_p2p_group(state);
             }
         }
     });

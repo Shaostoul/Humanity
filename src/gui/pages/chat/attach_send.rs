@@ -7,7 +7,9 @@
 //! uploaded as ciphertext with `encrypted=1`, and sent as a `[[hum:file:v1]]` marker
 //! (`dm_pq::build_file_marker`) carrying that key. The marker then travels inside the DM's seal
 //! or inside the group's encrypted message, through `send_composed_content` like typed text.
-//! A public channel keeps the plain upload: public is public.
+//! The scratchpad, local-only by its label, is private too: encrypted the same way, its marker
+//! kept only in the scratchpad on this device. A public channel keeps the plain upload: public
+//! is public.
 //!
 //! Before this, only a picked file in a DM was encrypted (`is_dm: bool`); a pasted image there
 //! and every file in a group went up as a plain public file. `Destination` replaces that flag so
@@ -27,6 +29,12 @@ pub(crate) enum Destination {
     DirectMessage,
     /// A P2P group (`p2pgroup:<id>`): the marker rides inside the group's encrypted message.
     Group,
+    /// The scratchpad, the private note channel its label calls local-only: the file is
+    /// encrypted like a DM's, and its marker (with the key) stays in the scratchpad on this
+    /// device, which sends nothing (chat.rs `send_composed_content`). Before the 2026-10-10
+    /// review it counted as public: the file went up as a plain public file, and a 3D model was
+    /// even published to the server's Shared Files library.
+    Scratchpad,
     /// A server channel, and anything else: the plain upload, as before.
     Public,
 }
@@ -38,6 +46,8 @@ impl Destination {
             Self::DirectMessage
         } else if channel.starts_with("p2pgroup:") {
             Self::Group
+        } else if channel == "scratchpad" {
+            Self::Scratchpad
         } else {
             Self::Public
         }
@@ -47,7 +57,7 @@ impl Destination {
     /// kind of conversation cannot be added without deciding this.
     pub(crate) fn encrypts_file(self) -> bool {
         match self {
-            Self::DirectMessage | Self::Group => true,
+            Self::DirectMessage | Self::Group | Self::Scratchpad => true,
             Self::Public => false,
         }
     }

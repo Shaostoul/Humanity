@@ -32,6 +32,9 @@ pub mod warnings;
 /// gate every locked action asks, turning it on (one `reach_set`, nothing else), the review
 /// step's Remove, and what the chat leaves out while it is on.
 pub mod protected;
+/// Friend codes (2026-10-10): making one (locked by the protected setup), showing the code the
+/// server made, and following a redeemed code's owner through Follow's own gate.
+pub mod friend_code;
 pub mod editor;
 pub mod frame_lock;
 pub mod geom;

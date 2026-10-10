@@ -103,8 +103,8 @@ fn the_pin_verifier_opens_with_the_right_pin_only() {
     assert_ne!(v.hash, other_salt.hash, "the salt changes the hash");
 
     let real = PinVerifier::new("907153").expect("a verifier");
-    assert_eq!(real.iterations, 600_000, "the vault's 600,000 iterations");
-    assert_eq!(PIN_ITERATIONS, crate::config::PBKDF2_ITERATIONS_NEW);
+    assert_eq!(real.iterations, 600_000, "10h's 600,000 iterations");
+    assert_eq!(PIN_ITERATIONS, 600_000, "the PIN's own constant");
     assert_eq!(b64.decode(&real.salt).unwrap().len(), 16, "a 16-byte salt");
     assert_eq!(b64.decode(&real.hash).unwrap().len(), 32);
     assert_ne!(PinVerifier::new("907153").unwrap().salt, real.salt, "a fresh salt each time");
@@ -149,8 +149,10 @@ fn a_pin_is_four_to_twelve_digits() {
 }
 
 /// What needs the PIN (10h): every action on the locked list does, every action on the
-/// never-locked list does not, and a typed `/redeem` is a locked action.
-/// Seen red 2026-10-10 with `Unfollow` moved into the locked arm: "Unfollow never needs it".
+/// never-locked list does not, and a typed `/redeem` or `/friend-code` is a locked action.
+/// Seen red 2026-10-10 with `Unfollow` moved into the locked arm: "Unfollow never needs it"; and
+/// again the same day with `typed_command` not knowing `/friend-code` (as before the batch
+/// review): "making a code is locked too" failed (left: None).
 #[test]
 fn locked_and_never_locked_actions() {
     use ProtectedAction::*;
@@ -163,7 +165,10 @@ fn locked_and_never_locked_actions() {
         AcceptRequest("ben".into()),
         SendRequest("ben".into()),
         RedeemFriendCode("ABCD1234".into()),
+        MakeFriendCode,
         JoinGroup("ticket".into()),
+        StartGroup,
+        InviteToGroup("g1".into(), "Book club".into()),
         JoinVoice("lounge".into()),
         WarningsOff,
         ShowPictures,
@@ -180,7 +185,10 @@ fn locked_and_never_locked_actions() {
     }
     assert_eq!(typed_command("/redeem ABCD1234"), Some(RedeemFriendCode("ABCD1234".into())));
     assert_eq!(typed_command("  /REDEEM   AB12  "), Some(RedeemFriendCode("AB12".into())), "any case, any spacing");
-    assert_eq!(typed_command("/friend-code"), None, "making a code is not making a friend");
+    // Making a code lets whoever redeems it start a friendship without asking, so it is locked
+    // with redeeming (the 2026-10-10 review; it was left open before).
+    assert_eq!(typed_command("/friend-code"), Some(MakeFriendCode), "making a code is locked too");
+    assert_eq!(typed_command(" /Friend-Code "), Some(MakeFriendCode), "any case, any spacing");
     assert_eq!(typed_command("redeem this"), None, "an ordinary message");
 }
 
@@ -287,7 +295,7 @@ fn string_literals(src: &str) -> Vec<String> {
 fn every_string_the_feature_shows_avoids_the_words() {
     let p = preset();
     assert!(p.avoid_words.len() >= 20, "the finding's list");
-    assert_eq!(p.shown_words().len(), 12 + p.sentences.len() + 24, "every line, sentence and label");
+    assert_eq!(p.shown_words().len(), 12 + p.sentences.len() + 26, "every line, sentence and label");
     let mut checked: Vec<(String, String)> = Vec::new();
     for w in p.shown_words() {
         checked.push(("the preset".into(), w.to_string()));
@@ -351,11 +359,34 @@ fn a_damaged_stored_setup_fails_closed() {
         assert_eq!(locked.try_pin(pin, 10 + i as u64, 3, 60), PinTry::Wrong, "no PIN opens it");
     }
     assert_eq!(locked.try_pin("", 12, 3, 60), PinTry::WaitStarted(60), "and wrong tries still count toward the wait");
+}
 
-    let config: crate::config::AppConfig = serde_json::from_str(r#"{"protected_setup":"garbage","user_name":"Ann"}"#).expect("the rest of the config still reads");
-    assert!(config.protected_setup.on && config.user_name == "Ann", "through config.rs's reader");
-    let fresh: crate::config::AppConfig = serde_json::from_str(r#"{"user_name":"Ann"}"#).unwrap();
-    assert!(!fresh.protected_setup.on, "a config from before the setup existed: off");
+/// THE PIN KEEPS ITS OWN ITERATION COUNT (the 2026-10-10 review, item 8): a stored verifier made
+/// at another count than today's (as one made after a future change would be, or one made before
+/// it) is still a verifier, is kept when the setup is read back, and is checked at the count it
+/// records; only a count no version of this app makes (under 600,000, or far over any) is not.
+/// Seen red 2026-10-10 with `well_formed` asking for `iterations == PIN_ITERATIONS` again (the
+/// old rule): "a verifier made at 1200000 is one" failed, which would have dropped every stored
+/// PIN the day the count changed.
+#[test]
+fn a_stored_pin_keeps_the_count_it_was_made_with() {
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD;
+    let made_at = |iterations: u32| PinVerifier { salt: b64.encode([9u8; 16]), hash: b64.encode([8u8; 32]), iterations };
+    for count in [PIN_ITERATIONS, 1_200_000, PIN_ITERATIONS_MAX] {
+        assert!(made_at(count).well_formed(), "a verifier made at {count} is one");
+        let stored = serde_json::json!({ "on": true, "pin": made_at(count), "identity": "ab" });
+        assert_eq!(ProtectedSetup::from_stored(stored).pin, Some(made_at(count)), "a verifier made at {count} is kept");
+    }
+    for count in [0, 1_000, PIN_ITERATIONS_MIN - 1, PIN_ITERATIONS_MAX + 1, u32::MAX] {
+        assert!(!made_at(count).well_formed(), "{count} is no count this app makes");
+    }
+    // Checked at the count it records: the same PIN and salt at another count is another hash.
+    let quick = PinVerifier::with_salt("2580", &[6u8; 16], 1_000);
+    assert!(quick.matches("2580"), "at its own count it opens");
+    let relabelled = PinVerifier { iterations: 1_001, ..quick.clone() };
+    assert!(!relabelled.matches("2580"), "the count recorded is the count used");
+    assert!(!PinVerifier { iterations: u32::MAX, ..quick }.matches("2580"), "a count far over any is refused before any work");
 }
 
 /// THE APPROVED LIST (as on the web chat): while it is on, a pass may go only to a friend the PIN

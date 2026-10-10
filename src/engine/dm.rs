@@ -517,6 +517,8 @@ pub(crate) fn note_server_did(gui_state: &mut GuiState, did: Option<&str>) {
 /// with the DM keys the passes are sealed to): resend unconfirmed withdrawals, and give a pass
 /// to every mutual follow that has none standing. That covers the first run after v2 (the v1
 /// records are not read), a server whose identity changed, and a send that could not go out.
+/// The passes go out at the server's pace (`send_owed_passes`); what does not fit is held and
+/// sent as the budget refills (`pace_owed_passes`, every frame).
 pub(crate) fn sweep_friend_passes(gui_state: &mut GuiState) {
     if !ensure_dm_store(gui_state) {
         return;
@@ -525,18 +527,53 @@ pub(crate) fn sweep_friend_passes(gui_state: &mut GuiState) {
     // nothing below hands a blocked person a pass.
     crate::engine::block::sweep(gui_state);
     send_pending_withdrawals(gui_state);
+    gui_state.pass_pacer.held = send_owed_passes(gui_state, std::time::Instant::now());
+    crate::engine::reach::settle_requests(gui_state);
+}
+
+/// Give a pass to every mutual follow owed one, and re-issue the passes that no longer allow what
+/// the person ticked for that friend (step B, 10c-ii: a re-issue that could not go out when a
+/// tick changed), within the background budget (net/put_pacer.rs): the server refuses, and does
+/// not deliver, a `dm_put` over its burst, and a pass recorded as given is never sent again, so
+/// a pass goes out only while there is budget for its two puts and is recorded only once sent.
+/// True when some had to wait for the budget to refill.
+pub(crate) fn send_owed_passes(gui_state: &mut GuiState, now: std::time::Instant) -> bool {
+    use crate::net::put_pacer::PUTS_PER_CONTROL;
     let owed = gui_state.dm_store.as_ref().map(|s| s.friends_without_pass()).unwrap_or_default();
     for peer in owed {
-        send_friend_cert(gui_state, &peer);
+        if !gui_state.pass_pacer.has(PUTS_PER_CONTROL, now) {
+            return true;
+        }
+        if gui_state.dm_store.as_ref().is_some_and(|s| !s.cert_sent_to(&peer)) && mint_and_send_pass(gui_state, &peer).is_some() {
+            gui_state.pass_pacer.spend(PUTS_PER_CONTROL, now);
+        }
     }
-    // Step B: passes that no longer allow what the person ticked for that friend (10c-ii: a
-    // re-issue that could not go out when a tick changed), and Requests from people who have
-    // since become friends.
     let out_of_step = gui_state.dm_store.as_ref().map(|s| s.passes_out_of_step()).unwrap_or_default();
     for peer in out_of_step {
+        if !gui_state.pass_pacer.has(PUTS_PER_CONTROL, now) {
+            return true;
+        }
+        let before = gui_state.dm_store.as_ref().map(|s| s.passes_sent_to(&peer).len()).unwrap_or(0);
         reissue_pass(gui_state, &peer);
+        // A re-issue that went out recorded a new pass (the old ones are withdrawn after it).
+        let sent = gui_state.dm_store.as_ref().is_some_and(|s| s.passes_sent_to(&peer).len() != before || !s.passes_out_of_step().contains(&peer));
+        if sent {
+            gui_state.pass_pacer.spend(PUTS_PER_CONTROL, now);
+        }
     }
-    crate::engine::reach::settle_requests(gui_state);
+    false
+}
+
+/// Every frame: passes the sweep held back for want of budget go out as it refills, at the
+/// server's pace, while connected (frame_ws_poll.rs, top of the pump).
+pub(crate) fn pace_owed_passes(gui_state: &mut GuiState, now: std::time::Instant) {
+    if !gui_state.pass_pacer.held || !gui_state.pass_pacer.has(crate::net::put_pacer::PUTS_PER_CONTROL, now) {
+        return;
+    }
+    if !gui_state.ws_client.as_ref().is_some_and(|c| c.is_connected()) || gui_state.dm_store.is_none() {
+        return;
+    }
+    gui_state.pass_pacer.held = send_owed_passes(gui_state, now);
 }
 
 /// The pass `peer` gave me, to attach whenever I reach them (dm_put, a trade request, a call
@@ -633,6 +670,10 @@ pub(crate) fn refresh_social_mirrors(gui_state: &mut GuiState) {
 /// The native client's half of friendship passes v2 (2026-10-09), without a socket: what
 /// `ingest_control` keeps, drops and withdraws, and what an outgoing offer carries. (The web
 /// client's half is scripts/tests/friend-pass-web.test.js; the relay's, its own tests.)
+#[cfg(test)]
+#[path = "dm_pace_tests.rs"]
+mod pace_tests;
+
 #[cfg(test)]
 mod pass_tests {
     use super::*;

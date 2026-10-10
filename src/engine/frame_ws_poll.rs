@@ -52,6 +52,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
     // The server's settings, asked for once on every socket whose sign-in has completed
     // (gui/connections.rs `socket_signed_in`, `ask_server_settings_once`).
     state.gui_state.ask_server_settings_once();
+    crate::engine::dm::pace_owed_passes(&mut state.gui_state, std::time::Instant::now()); // passes the sweep held back, at the server's pace
     // ── Poll WebSocket messages from relay server ──
     let mut ws_dropped = false;
     if let Some(ref mut ws) = state.gui_state.ws_client {
@@ -170,6 +171,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                 sender_name: from_name,
                                 preview,
                                 timestamp_ms: ts,
+                                ..Default::default()
                             })
                         });
                         // Sidebar unread dot: flag the channel when the message
@@ -1625,7 +1627,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                     _ => {
                         // Log unhandled message types to debug console
                         let msg_type = val.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
-                        if !crate::engine::report::on_frame(&mut state.gui_state, &val) && !crate::engine::call_relay::on_frame(&mut state.gui_state, &val) && !crate::net::admin_erase::on_frame(&mut state.gui_state.admin_erase, &val) { crate::debug::push_debug(format!("Unhandled WS type: {}", msg_type)); } // report_received, reports: step D (engine/report.rs); call_credentials: step E (engine/call_relay.rs); admin_erase_done: 10i (net/admin_erase.rs)
+                        if !crate::engine::report::on_frame(&mut state.gui_state, &val) && !crate::engine::call_relay::on_frame(&mut state.gui_state, &val) && !crate::net::admin_erase::on_frame(&mut state.gui_state.admin_erase, &val) && !crate::engine::friend_code::on_frame(&mut state.gui_state, &val) { crate::debug::push_debug(format!("Unhandled WS type: {}", msg_type)); } // report_received, reports: step D (engine/report.rs); call_credentials: step E (engine/call_relay.rs); admin_erase_done: 10i (net/admin_erase.rs); friend_code_*: engine/friend_code.rs
                     }
                 }
             }

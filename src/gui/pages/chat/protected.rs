@@ -60,6 +60,31 @@ pub(super) fn draws_hidden_room(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
     true
 }
 
+/// What a message row shows of its text while the setup leaves out the sender's pictures and
+/// files (10h: "Pictures and files from non-friends are not shown at all"): None when there is
+/// nothing to leave out (no picture, no file) or the rule does not apply to this sender. Some
+/// otherwise: for a private file's marker, the preset's line itself; for a message with links,
+/// its text without every picture link and every link to an audio, video or document file
+/// (`net::protected::file_urls`, the web's list), the row then drawing the line below it.
+/// (Before the 2026-10-10 review only pictures and private files were left out here, while the
+/// web also left out audio, video and document links.)
+pub(super) fn withheld(state: &GuiState, msg: &ChatMessage) -> Option<String> {
+    let marker = attach_view::file_in(msg).is_some();
+    let pictures = crate::gui::widgets::image_cache::extract_image_urls(&msg.content);
+    let files = crate::net::protected::file_urls(&msg.content);
+    if !marker && pictures.is_empty() && files.is_empty() {
+        return None;
+    }
+    if !crate::engine::protected::hides_pictures_from(state, &msg.sender_key) {
+        return None;
+    }
+    if marker {
+        return Some(picture_hidden_line(state).to_string());
+    }
+    let without_pictures = crate::gui::widgets::image_cache::strip_image_urls(&msg.content);
+    Some(crate::net::protected::strip_file_urls(&without_pictures))
+}
+
 /// The preset's `picture_hidden_line` ("A picture from someone who is not a friend is not
 /// shown."), for a message row whose pictures or file `engine::protected::hides_pictures_from`
 /// leaves out. Empty when the preset is not loaded (then nothing is shown in its place either).
@@ -80,3 +105,7 @@ pub(super) fn draw_picture_hidden(ui: &mut egui::Ui, theme: &Theme, row_bg: Colo
         theme.text_muted(),
     );
 }
+
+#[cfg(test)]
+#[path = "protected_tests.rs"]
+mod tests;

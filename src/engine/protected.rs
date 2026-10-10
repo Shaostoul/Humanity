@@ -7,8 +7,9 @@
 //!
 //! THE GATE (`allows`): every locked action's own entry point asks it first (the "Who can reach
 //! me" row and tick in engine/reach.rs, Follow in engine/dm.rs, Accept and Send request in
-//! engine/reach.rs, the friend-code and group-ticket and voice-room joins on the chat page, and
-//! the setup's own switches through `perform`). With the setup off, or for an action that never
+//! engine/reach.rs, the friend-code and group-ticket and voice-room joins on the chat page, making
+//! a friend code in engine/friend_code.rs, starting a group and making a group's invite ticket on
+//! the chat page, and the setup's own switches through `perform`). With the setup off, or for an action that never
 //! needs the PIN, it says yes. Otherwise it opens the PIN prompt for that action and says no; a
 //! right PIN leaves a one-shot permission for exactly that action and runs it again (`perform`),
 //! so each action has one code path whether or not the PIN was asked for.
@@ -24,7 +25,8 @@
 //! `reach_set` and everything else is local. It needs a live connection (offline it says so and
 //! stays off), and it is never sent again on a reconnect. Nothing else is sent, no flag is set
 //! anywhere a server can see, and nothing about it is written into the self-sync notes or any
-//! export: the state is `GuiState::protected.setup`, saved in config.json only.
+//! export: the state is `GuiState::protected.setup`, saved only in its own file beside
+//! config.json (net/protected_store.rs).
 //!
 //! It never asks the operating system for anyone's age (10h, and the California finding).
 
@@ -37,13 +39,14 @@ pub(crate) fn now_secs() -> u64 {
 }
 
 /// Load the preset (data/gui/safety_presets.json, or the copy built into the exe) the first time
-/// it is needed. A file that cannot be read is logged once; without a preset the setup cannot be
-/// turned on.
+/// it is needed. A file that cannot be read is logged once, and only logged: the parser's message
+/// is not the preset's words, so it never reaches the screen. Without a preset the setup cannot
+/// be turned on.
 pub(crate) fn ensure_preset(gs: &mut GuiState) -> bool {
     if gs.protected.preset.is_some() {
         return true;
     }
-    if gs.protected.preset_error.is_some() {
+    if gs.protected.preset_failed {
         return false;
     }
     match crate::net::protected::load_preset(&crate::data_dir()) {
@@ -53,7 +56,7 @@ pub(crate) fn ensure_preset(gs: &mut GuiState) -> bool {
         }
         Err(e) => {
             log::warn!("{e}; the protected setup cannot be turned on in this run");
-            gs.protected.preset_error = Some(e);
+            gs.protected.preset_failed = true;
             false
         }
     }
@@ -87,6 +90,11 @@ pub(crate) fn allows(gs: &mut GuiState, action: ProtectedAction) -> bool {
         gs.protected.granted = None;
         if let Some(key) = action.befriends() {
             approve(gs, key);
+        }
+        if matches!(action, ProtectedAction::RedeemFriendCode(_)) {
+            // The code names its friend only in the server's answer; the PIN given now covers
+            // them (engine/friend_code.rs follows them without asking again).
+            gs.protected.code_redeemed = true;
         }
         return true;
     }
@@ -280,7 +288,19 @@ pub(crate) fn perform(gs: &mut GuiState, action: ProtectedAction) {
                 }
             }
         }
+        MakeFriendCode => {
+            if crate::engine::friend_code::request_code(gs) && gs.chat_input.trim().eq_ignore_ascii_case("/friend-code") {
+                gs.chat_input.clear(); // a typed command that waited for the PIN has gone now
+            }
+        }
         JoinGroup(ticket) => crate::gui::pages::chat::join_group_with_ticket(gs, &ticket),
+        StartGroup => crate::gui::pages::chat::create_p2p_group(gs),
+        InviteToGroup(id, name) => {
+            // The PIN's answer has no egui context to copy with: the prompt's drawing copies it.
+            if let Some(ticket) = crate::gui::pages::chat::invite_to_group(gs, &id, &name) {
+                gs.protected.copy_out = Some(ticket);
+            }
+        }
         JoinVoice(room) => crate::gui::pages::chat::set_voice_room(gs, &room, true),
         WarningsOff => {
             if allows(gs, WarningsOff) {
@@ -341,7 +361,8 @@ fn turn_off(gs: &mut GuiState) {
 /// lists the friends kept there.
 pub(crate) fn begin(gs: &mut GuiState) {
     if !ensure_preset(gs) {
-        gs.protected.line = gs.protected.preset_error.clone().unwrap_or_default();
+        // Nothing to say it with: the preset holds every word, and the reason is in the log.
+        gs.protected.line.clear();
         return;
     }
     if !crate::engine::dm::ensure_dm_store(gs) {
@@ -380,7 +401,7 @@ fn clear_pin_fields(gs: &mut GuiState) {
 fn verifier_from_fields(gs: &mut GuiState) -> Result<PinVerifier, String> {
     let first = std::mem::take(&mut gs.protected.pin_first);
     let second = std::mem::take(&mut gs.protected.pin_second);
-    let preset = gs.protected.preset.as_ref().ok_or_else(|| gs.protected.preset_error.clone().unwrap_or_default())?;
+    let preset = gs.protected.preset.as_ref().ok_or_else(String::new)?;
     if !preset.pin_shape_ok(&first) || first != second {
         return Err(preset.pin_rule());
     }

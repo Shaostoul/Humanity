@@ -2425,6 +2425,8 @@ pub struct GuiState {
     pub reports: crate::net::report::ReportUi,
     /// An admin erases another person's data (10i, 2026-10-10): the member list's confirm and receipt.
     pub admin_erase: crate::net::admin_erase::AdminEraseUi,
+    /// The pace of the friendship-pass sweep's `dm_put`s, under the server's limit (net/put_pacer.rs).
+    pub pass_pacer: crate::net::put_pacer::PutPacer,
     /// Calls through the server (step E, 2026-10-09): the call or voice room whose credentials
     /// were asked for, and how far its connection through the server got (engine/call_relay.rs).
     pub call_relay: crate::net::call_relay::CallRelayUi,
@@ -3984,6 +3986,7 @@ impl Default for GuiState {
             block_list: None,
             reports: Default::default(),
             admin_erase: Default::default(),
+            pass_pacer: Default::default(),
             call_relay: Default::default(),
             warnings: Default::default(),
             protected: Default::default(),

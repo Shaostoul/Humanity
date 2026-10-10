@@ -367,12 +367,26 @@ pub(super) fn mint_and_copy_p2p_invite(
     group_id: &str,
     group_name: &str,
 ) {
+    if let Some(ticket) = invite_to_group(state, group_id, group_name) {
+        ctx.copy_text(ticket);
+    }
+}
+
+/// Mint a fresh 7-day invite ticket for `group_id` and return it (the caller copies it). With
+/// the protected setup on it needs the PIN, as the routes line says (a ticket lets in whoever
+/// holds it); the PIN prompt's right answer runs it again and its drawing copies the ticket
+/// (engine/protected.rs `perform`, `ProtectedUi::copy_out`). Sets the group header's status line.
+pub(crate) fn invite_to_group(state: &mut GuiState, group_id: &str, group_name: &str) -> Option<String> {
+    let invite = crate::net::protected::ProtectedAction::InviteToGroup(group_id.to_string(), group_name.to_string());
+    if !crate::engine::protected::allows(state, invite) {
+        return None;
+    }
     let server_url = state.server_url.clone();
     let seed = match state.private_key_bytes.clone() {
         Some(s) if !s.is_empty() => s,
         _ => {
             state.p2p_group_invite_status = "Connect first, no identity loaded.".to_string();
-            return;
+            return None;
         }
     };
     let mut secret = vec![0u8; 32];
@@ -387,11 +401,12 @@ pub(super) fn mint_and_copy_p2p_invite(
     match crate::net::api_v2::submit_group_invite_v1(&server_url, &seed, group_id, expires_at, &secret_hash) {
         Ok(invite_id) => {
             let ticket = crate::net::api_v2::encode_invite_ticket(group_id, group_name, &invite_id, &secret);
-            ctx.copy_text(ticket);
             state.p2p_group_invite_status = "Invite ticket copied, share within 7 days.".to_string();
+            Some(ticket)
         }
         Err(e) => {
             state.p2p_group_invite_status = format!("Invite failed: {e}");
+            None
         }
     }
 }

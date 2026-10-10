@@ -139,18 +139,32 @@ fn turning_it_on_stores_a_verifier_and_never_the_pin() {
     assert!(is_on(&gs), "it is on");
     assert_eq!(gs.protected.setup.identity, me, "under this identity");
 
-    let saved = serde_json::to_string(&crate::config::AppConfig::from_gui_state(&gs)).expect("the config serializes");
-    assert!(saved.contains("\"protected_setup\""), "it is saved with the settings");
-    assert!(!saved.contains("48213907"), "the PIN is not in config.json");
     let verifier = gs.protected.setup.pin.clone().expect("a verifier");
     assert_eq!(verifier.iterations, 600_000);
     use base64::Engine;
     assert_eq!(base64::engine::general_purpose::STANDARD.decode(&verifier.salt).unwrap().len(), 16, "a 16-byte salt");
 
+    // Saved with the settings, into its own file beside config.json (never into config.json),
+    // in a scratch folder rather than the person's real one.
+    let dir = std::env::temp_dir().join(format!("protected-save-{}-{}", std::process::id(), now_secs()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let config_path = dir.join("config.json");
+    crate::config::AppConfig::from_gui_state(&gs).save_at(&config_path);
+    let config_text = std::fs::read_to_string(&config_path).expect("config.json written");
+    assert!(!config_text.contains("protected_setup") && !config_text.contains(&verifier.salt), "nothing of it in config.json");
+    let setup_text = std::fs::read_to_string(crate::net::protected_store::path_beside(&config_path)).expect("its own file");
+    assert!(setup_text.contains(&verifier.salt) && !setup_text.contains("48213907"), "its file holds the verifier, never the PIN");
+
     let mut fresh = GuiState::default();
-    serde_json::from_str::<crate::config::AppConfig>(&saved).unwrap().apply_to_gui_state(&mut fresh);
+    fresh.protected.setup = crate::net::protected_store::load(&crate::net::protected_store::path_beside(&config_path));
     assert!(fresh.protected.setup.on, "it is still on after a restart");
     assert_eq!(fresh.protected.setup.pin, gs.protected.setup.pin, "with its verifier read back whole");
+
+    // A damaged config.json (which loads as the defaults) cannot turn it off: the file beside it
+    // is read on its own (the 2026-10-10 review, item 7).
+    std::fs::write(&config_path, "{ not json").unwrap();
+    assert!(crate::net::protected_store::load(&crate::net::protected_store::path_beside(&config_path)).on, "still on beside a damaged config.json");
+    let _ = std::fs::remove_dir_all(&dir);
     assert!(ensure_preset(&mut fresh));
     assert_eq!(try_pin(&mut fresh, "48213906", 10), PinTry::Wrong, "a wrong PIN is refused");
     assert_eq!(try_pin(&mut fresh, "48213907", 11), PinTry::Right, "the right PIN opens it");
@@ -708,5 +722,208 @@ fn the_setup_stays_out_of_the_self_sync_notes_and_the_export() {
     let mut keys: Vec<&str> = export.as_object().unwrap().keys().map(String::as_str).collect();
     keys.sort();
     assert_eq!(keys, ["key", "sig", "timestamp"], "the export request is the key, the time and the signature");
+    tidy(&gs);
+}
+
+/// THE ROUTES THE NEW WORDS NAME ARE LOCKED (the 2026-10-10 review, items 6 and 12): making a
+/// friend code (the button and a typed `/friend-code`), starting a group and making a group's
+/// invite ticket are each refused without the PIN, with nothing sent or made and the prompt open
+/// for exactly that action; a wrong PIN does nothing more; the right one does it, through the
+/// action's own entry point.
+/// Seen red 2026-10-10 four ways, one gate at a time taken out: with `request_code` asking no
+/// gate, and again with `typed_command` not knowing `/friend-code`, "MakeFriendCode is refused
+/// without the PIN" failed; with `create_p2p_group` asking none, "StartGroup is refused without
+/// the PIN" failed; with `invite_to_group` asking none, "InviteToGroup(\"g1\", \"Book club\") is
+/// refused without the PIN" failed.
+#[test]
+fn starting_or_inviting_to_a_group_and_making_a_friend_code_need_the_pin() {
+    crate::config::keep_saves_off_disk();
+    let (seed, me) = identity(178);
+    let (mut gs, sent) = app(&me, &seed, "protected-groups");
+    gs.new_group_name = "Book club".into();
+    protect(&mut gs, "7391", &[]);
+    let preset = preset(&gs);
+    assert!(preset.status_line.contains("starting a group") && preset.routes_line.contains("inviting someone to a group"), "the words that name these routes");
+
+    type Done = fn(&GuiState, &[serde_json::Value]) -> bool;
+    let cases: Vec<(ProtectedAction, Box<dyn Fn(&mut GuiState)>, Done)> = vec![
+        (
+            ProtectedAction::MakeFriendCode,
+            Box::new(|gs: &mut GuiState| {
+                crate::engine::friend_code::request_code(gs);
+            }),
+            |_: &GuiState, f: &[serde_json::Value]| f.iter().any(|f| f["content"] == "/friend-code"),
+        ),
+        (
+            ProtectedAction::MakeFriendCode,
+            Box::new(|gs: &mut GuiState| {
+                if allows_typed(gs, "/friend-code") {
+                    crate::gui::pages::chat::send_slash_command(gs, "/friend-code");
+                }
+            }),
+            |_: &GuiState, f: &[serde_json::Value]| f.iter().any(|f| f["content"] == "/friend-code"),
+        ),
+        (
+            ProtectedAction::StartGroup,
+            Box::new(|gs: &mut GuiState| crate::gui::pages::chat::create_p2p_group(gs)),
+            |gs: &GuiState, _: &[serde_json::Value]| gs.create_group_status.starts_with("Create failed"),
+        ),
+        (
+            ProtectedAction::InviteToGroup("g1".into(), "Book club".into()),
+            Box::new(|gs: &mut GuiState| {
+                let _ = crate::gui::pages::chat::invite_to_group(gs, "g1", "Book club");
+            }),
+            |gs: &GuiState, _: &[serde_json::Value]| gs.p2p_group_invite_status.starts_with("Invite failed"),
+        ),
+    ];
+    for (action, run, done) in cases {
+        gs.create_group_status.clear();
+        gs.p2p_group_invite_status.clear();
+        run(&mut gs);
+        let out = frames(&sent);
+        assert!(!done(&gs, &out), "{action:?} is refused without the PIN");
+        assert!(out.is_empty(), "{action:?}: nothing is sent without the PIN: {out:?}");
+        assert_eq!(waiting(&gs), Some(action.clone()), "{action:?}: the PIN prompt opens for it");
+        enter(&mut gs, "0000");
+        assert!(!done(&gs, &frames(&sent)), "{action:?}: a wrong PIN does nothing");
+        enter(&mut gs, "7391");
+        assert!(done(&gs, &frames(&sent)), "{action:?} is done with the PIN ({} / {})", gs.create_group_status, gs.p2p_group_invite_status);
+        assert!(gs.protected.granted.is_none() && gs.protected.prompt.is_none(), "{action:?}: nothing left over");
+    }
+    tidy(&gs);
+}
+
+/// A CONTACT REQUEST FROM SOMEONE WE ALREADY FOLLOW (the 2026-10-10 review, item 5): with the
+/// setup on and them not on its approved list, the request does NOT complete the friendship by
+/// itself (which stored their pass and counted them a friend while our own pass to them was
+/// refused, leaving them stuck): it is listed, the Requests list says "Accept (needs the PIN)",
+/// and Accept asks for the PIN, after which they are a friend and our pass goes to them. Someone
+/// on the approved list still completes at once, as with the setup off.
+/// Seen red 2026-10-10 with `contact_request_in` ignoring `may_complete`: "listed, not
+/// completed" failed.
+#[test]
+fn a_request_from_someone_followed_is_listed_for_the_pin() {
+    crate::config::keep_saves_off_disk();
+    let (seed, me) = identity(179);
+    let (ann_seed, ann) = identity(180);
+    let (cy_seed, cy) = identity(181);
+    let (mut gs, sent) = app(&me, &seed, "protected-asked");
+    gs.peer_kyber_keys.insert(ann.clone(), crate::net::dm_pq::DmPqKeypair::from_bip39_seed(&ann_seed).unwrap().public_base64());
+    {
+        let store = gs.dm_store.as_mut().unwrap();
+        store.set_following(&ann, true); // followed before the setup
+        store.set_following(&cy, true);
+    }
+    protect(&mut gs, "7391", &[&cy]);
+    let _ = frames(&sent);
+
+    // Ann and Cy each send us a contact request, as their own apps make them.
+    let mine = crate::net::dm_pq::DmPqKeypair::from_bip39_seed(&seed).unwrap();
+    let request_from = |asker_seed: &[u8], key: &str, tag: &str| {
+        let (mut asker, _s) = app(key, asker_seed, tag);
+        asker.user_name = "Asker".into();
+        asker.peer_kyber_keys.insert(me.clone(), mine.public_base64());
+        let (theirs, _ours, _pass) = crate::engine::reach::contact_request_puts(&asker, &me).expect("a request");
+        tidy(&asker);
+        crate::net::dm_pq::parse_verify_inner(&crate::net::dm_pq::open_v2(&mine, theirs["content"].as_str().unwrap()).unwrap()).unwrap()
+    };
+    let from_ann = request_from(&ann_seed, &ann, "protected-asked-ann");
+    assert!(!crate::engine::dm::ingest_dm(&mut gs, &from_ann), "a request is never a message");
+    let store = gs.dm_store.as_ref().unwrap();
+    assert!(store.requests().iter().any(|r| r.key == ann), "listed, not completed");
+    assert!(!store.is_follower(&ann) && store.cert_for(&ann).is_none(), "her pass is not taken until Accept");
+    assert!(frames(&sent).is_empty(), "and nothing goes to her");
+    assert_eq!(crate::gui::pages::safety_protected::accept_label(&mut gs), preset(&gs).accept_needs_pin, "Accept (needs the PIN)");
+
+    crate::engine::reach::accept_request(&mut gs, &ann);
+    assert_eq!(waiting(&gs), Some(ProtectedAction::AcceptRequest(ann.clone())), "Accept asks for the PIN");
+    enter(&mut gs, "7391");
+    let store = gs.dm_store.as_ref().unwrap();
+    assert!(store.is_friend(&ann) && store.requests().is_empty(), "with it, she is a friend");
+    assert!(gs.protected.setup.is_approved(&ann) && store.cert_sent_to(&ann), "approved, and our pass goes to her");
+
+    let from_cy = request_from(&cy_seed, &cy, "protected-asked-cy");
+    crate::engine::dm::ingest_dm(&mut gs, &from_cy);
+    let store = gs.dm_store.as_ref().unwrap();
+    assert!(store.is_follower(&cy) && store.requests().iter().all(|r| r.key != cy), "someone approved still completes at once");
+    tidy(&gs);
+}
+
+/// THE RECOVERY PHRASE'S LOCKED CONTROLS AND THE SETUP'S SECTION SAY ONLY THE PRESET'S WORDS (the
+/// 2026-10-10 review, item 9): while the setup is on, Settings' phrase and device-link QR show the
+/// preset's `show_phrase` button and `phrase_needs_pin` line (both from Settings' code, which asks
+/// `phrase_lock` for each); after the PIN, nothing is locked; off, nothing is locked. A preset that
+/// could not be read shows no words of its own: no parser's message, in the section or its line.
+/// Seen red 2026-10-10 two ways: with `phrase_lock` answering the old typed words "Show Recovery
+/// Phrase", "the preset's button and line" failed; and with the section drawing a parser's message
+/// again (`body_hint`), "nothing is drawn when the preset cannot be read" failed.
+#[test]
+fn the_phrase_lock_and_the_section_say_only_the_presets_words() {
+    crate::config::keep_saves_off_disk();
+    let (seed, me) = identity(182);
+    let (mut gs, _sent) = app(&me, &seed, "protected-phrase");
+    assert_eq!(crate::gui::pages::safety_protected::phrase_lock(&mut gs), None, "off: nothing locked");
+    protect(&mut gs, "7391", &[]);
+    let labels = preset(&gs).labels;
+    let lock = crate::gui::pages::safety_protected::phrase_lock(&mut gs).expect("on: locked");
+    assert_eq!((lock.button.as_str(), lock.line.as_str()), (labels.show_phrase.as_str(), labels.phrase_needs_pin.as_str()), "the preset's button and line");
+    assert_eq!(labels.show_phrase, "Show the recovery phrase");
+    let settings_src = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/gui/pages/settings.rs")).unwrap();
+    assert_eq!(settings_src.matches("safety_protected::phrase_lock(state)").count(), 2, "the phrase and the QR each ask it");
+    assert!(!settings_src.contains("\"Show device-link QR\")"), "no locked button typed into Settings");
+    perform(&mut gs, ProtectedAction::ShowRecoveryPhrase);
+    enter(&mut gs, "7391");
+    assert_eq!(crate::gui::pages::safety_protected::phrase_lock(&mut gs), None, "after the PIN: shown");
+    tidy(&gs);
+
+    // A preset that could not be read: the section draws nothing at all, and Turn on says nothing.
+    let mut broken = GuiState::default();
+    broken.protected.preset_failed = true;
+    begin(&mut broken);
+    assert!(broken.protected.line.is_empty() && broken.protected.step.is_none(), "turning it on says nothing and does not start");
+    let ctx = egui::Context::default();
+    let theme = crate::gui::theme::load_theme();
+    let out = ctx.run(egui::RawInput::default(), |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| crate::gui::pages::safety_protected::draw_protected_section(ui, &theme, &mut broken, theme.accent()));
+    });
+    let mut texts = Vec::new();
+    fn walk(shape: &egui::Shape, texts: &mut Vec<String>) {
+        match shape {
+            egui::Shape::Text(t) => texts.push(t.galley.job.text.clone()),
+            egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, texts)),
+            _ => {}
+        }
+    }
+    out.shapes.iter().for_each(|c| walk(&c.shape, &mut texts));
+    assert!(texts.is_empty(), "nothing is drawn when the preset cannot be read: {texts:?}");
+}
+
+/// THE ALWAYS-VISIBLE LINE AND THE ROUTES LINE ARE THE FILE'S (the 2026-10-10 review, item 12: the
+/// words changed to name groups): Settings > Safety draws data/gui/safety_presets.json's
+/// `status_line` at its top and its `routes_line` in the section, read from the data file on disk
+/// (the built-in copy is held to be the same bytes).
+/// Seen red 2026-10-10 with `draw_status_line` drawing the old sentence typed into the code
+/// instead of the preset's: "the file's status line is drawn" failed.
+#[test]
+fn the_status_and_routes_lines_are_the_files() {
+    crate::config::keep_saves_off_disk();
+    let (seed, me) = identity(183);
+    let (mut gs, _sent) = app(&me, &seed, "protected-lines");
+    protect(&mut gs, "7391", &[]);
+    let file = std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/gui/safety_presets.json")).unwrap();
+    let on_disk = crate::net::protected::parse_presets(&file).unwrap();
+    assert!(on_disk.status_line.contains("direct messages") && on_disk.status_line.contains("starting a group"), "the corrected words");
+    let ctx = egui::Context::default();
+    crate::gui::fonts::install_font_fallbacks(&ctx);
+    let theme = crate::gui::theme::load_theme();
+    let out = ctx.run(egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1600.0, 1600.0))), ..Default::default() }, |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            crate::gui::pages::safety_protected::draw_status_line(ui, &theme, &mut gs);
+            crate::gui::pages::safety_protected::draw_protected_section(ui, &theme, &mut gs, theme.accent());
+        });
+    });
+    for (what, line) in [("status line", &on_disk.status_line), ("routes line", &on_disk.routes_line)] {
+        assert!(crate::gui::screen_surface::find_text_in_shapes(&out.shapes, line).is_some_and(|f| f.text == *line), "the file's {what} is drawn");
+    }
     tidy(&gs);
 }

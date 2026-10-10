@@ -35,6 +35,7 @@ pub(crate) mod reports;
 /// An admin erases another person's data (10i, 2026-10-10): the Members tab's "Erase their data",
 /// its confirm and the server's receipt.
 pub(crate) mod admin_erase;
+use crate::net::admin_erase as admin_erase_rules;
 
 /// Section identity colors — match the nav bar grouping in escape_menu.rs.
 /// theme-exempt: these encode the privilege tier (red/green/blue) and are
@@ -310,12 +311,15 @@ fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rol
             }
             ui.add_space(theme.spacing_sm);
             if widgets::Button::secondary("Generate friend code")
-                .tooltip("Create a shareable code. When someone redeems it, you both \
-                          follow each other automatically. Appears privately in Chat.")
+                .tooltip("Create a shareable code. Whoever redeems it follows you; you are \
+                          friends once you follow them back. Appears privately in Chat.")
                 .show(ui, theme)
             {
-                send_slash(state, "/friend-code");
-                state.server_settings_status = "Sent: /friend-code - the code appears privately in Chat.".into();
+                // The protected setup locks making a code as it locks redeeming one: the code lets
+                // someone else start a friendship without asking (engine/friend_code.rs).
+                if crate::engine::friend_code::request_code(state) {
+                    state.server_settings_status = "Sent: /friend-code - the code appears privately in Chat.".into();
+                }
             }
         });
         ui.add_space(theme.spacing_xs);
@@ -3059,6 +3063,18 @@ fn draw_members_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, is_m
             // The erase sent and not answered yet, or the server's receipt (10i).
             admin_erase::draw_receipt(ui, theme, state);
 
+            // The search box: at most MEMBER_ROWS_SHOWN rows are drawn, so this is how anyone
+            // after them is reached (found 2026-10-10: "Erase their data" stopped at the 50th).
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Find a member:").size(theme.font_size_small).color(theme.text_secondary()));
+                ui.add(
+                    egui::TextEdit::singleline(&mut state.admin_erase.member_search)
+                        .desired_width(260.0)
+                        .hint_text("a name or part of a key"),
+                );
+            });
+            ui.add_space(theme.spacing_xs);
+
             // Header
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
@@ -3090,15 +3106,29 @@ fn draw_members_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, is_m
                         .italics(),
                 );
             } else {
-                for (name, key, role) in peers.iter().take(50) {
+                let named: Vec<(String, String)> = peers.iter().map(|(n, k, _)| (n.clone(), k.clone())).collect();
+                let found = admin_erase_rules::members_matching(&named, &state.admin_erase.member_search);
+                let shown = found.len().min(admin_erase_rules::MEMBER_ROWS_SHOWN);
+                if found.is_empty() {
+                    ui.label(RichText::new("No member's name or key holds that.").size(theme.font_size_small).color(theme.text_muted()).italics());
+                } else if shown < found.len() {
+                    ui.label(
+                        RichText::new(format!("Showing {shown} of {} members. Type a name or part of a key above to find anyone else.", found.len()))
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
+                }
+                for (name, key, role) in found.iter().take(shown).map(|&i| &peers[i]) {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 4.0;
                         ui.add_sized(
                             Vec2::new(160.0, CHANNEL_ROW_H),
                             egui::Label::new(RichText::new(name).color(theme.text_primary())),
                         );
-                        let short = if key.len() > 16 {
-                            format!("{}…{}", &key[..6], &key[key.len()-6..])
+                        // Cut between characters: a key is hex, but a row must never panic on one that is not.
+                        let chars: Vec<char> = key.chars().collect();
+                        let short = if chars.len() > 16 {
+                            format!("{}…{}", chars[..6].iter().collect::<String>(), chars[chars.len() - 6..].iter().collect::<String>())
                         } else { key.clone() };
                         ui.add_sized(
                             Vec2::new(200.0, CHANNEL_ROW_H),
@@ -3382,5 +3412,49 @@ mod tests {
         let add = find_text_in_shapes(&out.shapes, "edit ship").expect("the add-a-role form has the box").rect.center();
         click_at(&ctx, &theme, &mut state, add);
         assert!(state.new_role_draft.can_edit_ship, "ticking it in the add-a-role form gives the new role the rank");
+    }
+
+    /// One headless frame of the Members tab, tall enough for every row it draws.
+    fn members_frame(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) -> egui::FullOutput {
+        let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1400.0, 2400.0))), ..Default::default() };
+        ctx.run(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| draw_members_tab(ui, theme, state, true));
+        })
+    }
+
+    /// ANY MEMBER CAN BE REACHED (the 2026-10-10 review, item 3): the list draws at most 50 rows,
+    /// says so when there are more, and its search box finds anyone by name or by part of their
+    /// key, so "Erase their data" reaches the 100th member as it does the first.
+    /// Seen red 2026-10-10 with the rows drawn from `peers.iter().take(50)` again (the search
+    /// ignored): "the search finds the 100th member" failed.
+    #[test]
+    fn the_member_list_finds_anyone_past_the_rows_it_draws() {
+        let ctx = egui::Context::default();
+        crate::gui::fonts::install_font_fallbacks(&ctx);
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        let mut state = GuiState::default();
+        state.profile_public_key = "a".repeat(64);
+        state.chat_users.push(crate::gui::ChatUser { name: "Me".into(), public_key: "a".repeat(64), role: "admin".into(), status: "online".into() });
+        for i in 0..120u32 {
+            state.chat_users.push(crate::gui::ChatUser { name: format!("Walker {i:03}"), public_key: format!("{i:064x}"), role: "member".into(), status: "offline".into() });
+        }
+        let out = members_frame(&ctx, &theme, &mut state);
+        assert!(find_text_in_shapes(&out.shapes, "Walker 000").is_some(), "the first rows are drawn");
+        assert!(find_text_in_shapes(&out.shapes, "Walker 099").is_none(), "but not past the 50th");
+        assert!(find_text_in_shapes(&out.shapes, "Showing 50 of 121 members").is_some(), "and it says so");
+
+        state.admin_erase.member_search = " walker 099 ".into();
+        let out = members_frame(&ctx, &theme, &mut state);
+        assert!(find_text_in_shapes(&out.shapes, "Walker 099").is_some(), "the search finds the 100th member");
+        assert!(find_text_in_shapes(&out.shapes, crate::net::admin_erase::ACTION_LABEL).is_some(), "with Erase their data on the row");
+        assert!(find_text_in_shapes(&out.shapes, "Walker 000").is_none(), "and only them");
+
+        state.admin_erase.member_search = format!("{:x}", 0x69u32 + 0x1000_0000); // no one's key
+        let out = members_frame(&ctx, &theme, &mut state);
+        assert!(find_text_in_shapes(&out.shapes, "No member's name or key holds that.").is_some(), "nothing found says so");
+        state.admin_erase.member_search = format!("{:064x}", 105u32)[50..].to_string(); // part of a key
+        let out = members_frame(&ctx, &theme, &mut state);
+        assert!(find_text_in_shapes(&out.shapes, "Walker 105").is_some(), "a part of a key finds them too");
     }
 }

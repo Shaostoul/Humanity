@@ -76,6 +76,16 @@ pub mod warnings;
 #[cfg(feature = "native")]
 pub mod protected;
 
+/// Where the protected setup is kept: its own file beside config.json, read field by field and
+/// written whole or not at all, so damage to config.json can never turn it off (2026-10-10).
+#[cfg(feature = "native")]
+pub mod protected_store;
+
+/// The pace of background `dm_put`s (the friendship-pass sweep): a burst of six, then one a
+/// second, under the server's limit so nothing sent in the background is refused (2026-10-10).
+#[cfg(feature = "native")]
+pub mod put_pacer;
+
 /// An admin erases another person's data (section 10i of docs/design/blocking-and-safe-mode.md,
 /// 2026-10-10): who is offered it, the typed-name check, the `admin_erase` frame and the receipt.
 #[cfg(feature = "native")]

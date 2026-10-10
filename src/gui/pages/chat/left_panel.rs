@@ -1895,6 +1895,7 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                                 // chat_messages and re-fetch history, which nuked any
                                 // local-echoed unsent reply (BUG-035). Now it's a no-op.
                                 state.chat_active_channel = ch.id.clone();
+                                state.chat_reply_to = None; // a reply stays in its own conversation
                                 state.chat_messages.clear();
                                 state.history_fetched = false;
                                 // Opening the channel clears its unread dot. (v0.718)

@@ -344,7 +344,9 @@ fn bg_screen(state: &mut EngineState, store: &mut crate::net::dm_store::DmStore,
         return true;
     }
     if inner.text.starts_with(crate::net::reach::CONTACT_REQUEST_MARKER) {
-        crate::engine::reach::contact_request_in(store, &state.gui_state.profile_public_key, inner);
+        // The protected setup is the device's, so it holds on a parked server too (10h).
+        let may_complete = state.gui_state.protected.setup.pass_allowed(&inner.from);
+        crate::engine::reach::contact_request_in(store, &state.gui_state.profile_public_key, inner, may_complete);
         return true;
     }
     // A report about a group (10j) waits in that server's store, checked once it is the active one.
