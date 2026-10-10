@@ -143,8 +143,33 @@ const CTL_FRIEND_CERT = "[[hum:friend-cert]]";
 const MY_KYBER = "my-kyber";
 const kyberOf = (k) => "kyber-" + k.slice(0, 4);
 
+// Wait until the page is idle, not for a fixed number of turns (2026-10-09): the page's real
+// asynchronous work is WebCrypto (the store hashes and encrypts every record), and a fixed 12
+// turns was outrun on a loaded machine, failing about 2 runs in 12. Counting the WebCrypto calls
+// in flight is block-web.test.js's way; settle() now waits for 12 idle turns in a row.
+let cryptoInFlight = 0;
+const countedSubtle = new Proxy(globalThis.crypto.subtle, {
+  get(t, prop) {
+    const v = t[prop];
+    if (typeof v !== "function") return v;
+    return (...args) => {
+      cryptoInFlight++;
+      return Promise.resolve(v.apply(t, args)).finally(() => { cryptoInFlight--; });
+    };
+  },
+});
+const countedCrypto = {
+  subtle: countedSubtle,
+  getRandomValues: (a) => globalThis.crypto.getRandomValues(a),
+  randomUUID: () => globalThis.crypto.randomUUID(),
+};
+
 async function settle() {
-  for (let i = 0; i < 12; i++) await new Promise((r) => setImmediate(r));
+  let idle = 0;
+  for (let i = 0; i < 5000 && idle < 12; i++) {
+    await new Promise((r) => setImmediate(r));
+    idle = cryptoInFlight === 0 ? idle + 1 : 0;
+  }
 }
 
 const b64 = (s) => Buffer.from(s, "utf8").toString("base64");
@@ -173,7 +198,7 @@ async function loadChat() {
     matchMedia: () => anything(),
     requestAnimationFrame: () => 0,
     Notification: anything(),
-    crypto: globalThis.crypto,
+    crypto: countedCrypto,
     btoa: globalThis.btoa,
     atob: globalThis.atob,
     TextEncoder,
