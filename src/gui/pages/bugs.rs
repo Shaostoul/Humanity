@@ -393,6 +393,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     bs.status_message = "Title is required.".into();
                                 } else if description.is_empty() {
                                     bs.status_message = "Description is required.".into();
+                                } else if crate::engine::warnings::holds_own_phrase(state, &[&title, &description, &my_name]) {
+                                    bs.status_message = crate::net::warnings::GUARD_LINE.into(); // step F's guard
                                 } else {
                                     let severity = severities
                                         .get(bs.severity_idx)

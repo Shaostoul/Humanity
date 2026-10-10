@@ -259,6 +259,11 @@ fn draw_network_profile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         .size(theme.font_size_small),
                 );
             }
+            // Step F's recovery-phrase guard on the fields this sends: nothing leaves, the text stays.
+            let saved = saved && {
+                let fields = [state.profile_network_bio.clone(), state.profile_network_avatar.clone()];
+                !crate::engine::warnings::guard_stops(state, &[&fields[0], &fields[1]])
+            };
             if saved {
                 if let Some(ref client) = state.ws_client {
                     let privacy = if state.profile_directory_listed {

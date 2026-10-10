@@ -787,7 +787,15 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         let has_identity = state.private_key_bytes.is_some();
         if has_identity {
             if widgets::primary_button(ui, theme, "  Finish Setup  ") {
-                state.onboarding_step = 3;
+                // Step F's recovery-phrase guard on the display name (it is sent whenever the app
+                // connects): holding the phrase, setup stops there and the field goes back to the
+                // name last saved.
+                let typed = state.user_name.clone();
+                if crate::engine::warnings::guard_stops(state, &[&typed]) {
+                    state.user_name = crate::config::AppConfig::load().user_name;
+                } else {
+                    state.onboarding_step = 3;
+                }
             }
         } else {
             // Cannot finish without an identity — that was the ghost-

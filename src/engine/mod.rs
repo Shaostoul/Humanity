@@ -21,6 +21,9 @@ pub mod report;
 /// for a call or voice room's `call_credentials`, handing them to the WebRTC manager, and the line
 /// the call UI shows when the server cannot carry the call.
 pub mod call_relay;
+/// Warnings, and the recovery-phrase guard (step F of docs/design/blocking-and-safe-mode.md,
+/// 2026-10-10): which messages get which warnings, "Got it", and the guard every send path calls.
+pub mod warnings;
 pub mod editor;
 pub mod frame_lock;
 pub mod geom;

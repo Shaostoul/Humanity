@@ -140,6 +140,10 @@ pub(super) fn draw_search_modal(ctx: &egui::Context, theme: &Theme, state: &mut 
                 if widgets::Button::primary("Search").show(ui, theme)
                     || (resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)))
                 {
+                    let query = state.chat_search_query.clone(); // a search goes to the server: step F's guard
+                    if crate::engine::warnings::guard_stops(state, &[&query]) {
+                        return;
+                    }
                     if let Some(ref client) = state.ws_client {
                         if client.is_connected() {
                             let msg = serde_json::json!({
@@ -743,6 +747,10 @@ pub(super) fn draw_edit_channel_modal(ctx: &egui::Context, theme: &Theme, state:
             let name_valid = !state.edit_channel_name.trim().is_empty();
             ui.add_enabled_ui(name_valid, |ui| {
                 if widgets::Button::primary("Save").show(ui, theme) {
+                    let fields = [state.edit_channel_name.clone(), state.edit_channel_description.clone()];
+                    if crate::engine::warnings::guard_stops(state, &[&fields[0], &fields[1]]) {
+                        return; // step F's guard: nothing is sent, and the editor stays open
+                    }
                     if let Some(ref client) = state.ws_client {
                         if client.is_connected() {
                             // `channel_update` — NOT the old `channel_edit`, which
@@ -942,7 +950,10 @@ pub(super) fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state:
                     state.create_group_status.clear();
                 }
             });
-            if do_create || enter_pressed {
+            let group_name = state.new_group_name.clone();
+            if (do_create || enter_pressed) && crate::engine::warnings::holds_own_phrase(state, &[&group_name]) {
+                state.create_group_status = crate::net::warnings::GUARD_LINE.to_string(); // step F's guard
+            } else if do_create || enter_pressed {
                 // P2P signed-object create: build group_v1 + an initial 7-day
                 // creator-signed invite_v1, all via POST /api/v2/objects.
                 // Replaces the legacy WS group_create path (which never

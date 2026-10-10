@@ -150,6 +150,14 @@ pub(crate) fn send(gs: &mut GuiState) {
         }
         return;
     }
+    // Step F's recovery-phrase guard on the note we wrote (the evidence is the other person's).
+    let note = gs.reports.dialog.as_ref().map(|d| d.note.clone()).unwrap_or_default();
+    if crate::engine::warnings::holds_own_phrase(gs, &[&note]) {
+        if let Some(d) = gs.reports.dialog.as_mut() {
+            d.problem = crate::net::warnings::GUARD_LINE.to_string();
+        }
+        return;
+    }
     match prepare_send(gs, now_ms()) {
         Ok((frame, block)) => {
             if let Some(client) = gs.ws_client.as_ref() {
@@ -213,6 +221,10 @@ pub(crate) fn decide(gs: &mut GuiState, id: &serde_json::Value, decision: report
         gs.reports.status = "Not connected to the server, so no decision was sent.".to_string();
         return;
     };
+    if crate::engine::warnings::holds_own_phrase(gs, &[note]) {
+        gs.reports.status = crate::net::warnings::GUARD_LINE.to_string(); // step F's guard
+        return;
+    }
     client.send(&report::decide_frame(id, decision, note.trim()));
     request_list(gs);
     gs.reports.status = format!("Sent: {}.", decision.label());

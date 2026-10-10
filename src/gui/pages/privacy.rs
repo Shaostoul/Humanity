@@ -95,6 +95,10 @@ pub fn apply_tier(state: &mut GuiState, tier_id: &str) {
     let Some(tier) = state.privacy_tiers_cache.iter().find(|t| t.id == tier_id).cloned() else {
         return;
     };
+    // Step F's recovery-phrase guard on the profile text step 2 re-sends: holding the phrase, the
+    // profile update is not sent (the presence flag still is) and the sentence says why.
+    let fields = [state.profile_network_bio.clone(), state.profile_network_avatar.clone()];
+    let profile_ok = !crate::engine::warnings::guard_stops(state, &[&fields[0], &fields[1]]);
     // 1) Presence (server-enforced).
     if let Some(ref client) = state.ws_client {
         if client.is_connected() {
@@ -119,7 +123,9 @@ pub fn apply_tier(state: &mut GuiState, tier_id: &str) {
             if !avatar.is_empty() {
                 msg["avatar_url"] = serde_json::Value::String(avatar.to_string());
             }
-            client.send(&msg.to_string());
+            if profile_ok {
+                client.send(&msg.to_string());
+            }
         }
     }
     state.profile_directory_listed = !tier.directory_unlisted;
@@ -279,7 +285,10 @@ pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         )
         .changed()
     {
-        if let Some(ref client) = state.ws_client {
+        // Step F's recovery-phrase guard on the bio this re-sends: holding the phrase, nothing is sent.
+        let bio = state.profile_network_bio.clone();
+        let profile_ok = !crate::engine::warnings::guard_stops(state, &[&bio]);
+        if let (Some(client), true) = (state.ws_client.as_ref(), profile_ok) {
             if client.is_connected() {
                 let privacy = if state.profile_directory_listed {
                     "{}".to_string()

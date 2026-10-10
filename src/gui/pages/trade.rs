@@ -734,7 +734,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             if widgets::primary_button(ui, theme, "Send request")
                                 && !ts.new_recipient.trim().is_empty()
                             {
-                                if connected {
+                                if crate::engine::warnings::holds_own_phrase(state, &[&ts.new_message]) {
+                                    state.trade_status = crate::net::warnings::GUARD_LINE.to_string(); // step F's guard
+                                } else if connected {
                                     if let Some(ws) = &state.ws_client {
                                         let target = ts.new_recipient.trim();
                                         let mut req = serde_json::json!({

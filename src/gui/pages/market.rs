@@ -417,7 +417,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                             .desired_width(220.0),
                                     );
                                     if widgets::secondary_button(ui, theme, "Submit review") {
-                                        if connected {
+                                        if crate::engine::warnings::holds_own_phrase(state, &[&state.review_comment_draft]) {
+                                            state.listing_status = crate::net::warnings::GUARD_LINE.to_string(); // step F's guard
+                                        } else if connected {
                                             if let Some(ws) = &state.ws_client {
                                                 ws.send(
                                                     &serde_json::json!({
@@ -598,7 +600,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         ui.add_space(theme.spacing_sm);
                         ui.horizontal(|ui| {
                             if widgets::Button::primary("Publish").show(ui, theme) && !state.listing_new_title.trim().is_empty() {
-                                if connected {
+                                let fields = [&state.listing_new_title, &state.listing_new_description, &state.listing_new_price];
+                                if crate::engine::warnings::holds_own_phrase(state, &fields.map(|s| s.as_str())) {
+                                    state.listing_status = crate::net::warnings::GUARD_LINE.to_string(); // step F's guard
+                                } else if connected {
                                     // Same contract as web: client mints the id,
                                     // the relay stores + broadcasts listing_new
                                     // (which is what adds it to our list - no

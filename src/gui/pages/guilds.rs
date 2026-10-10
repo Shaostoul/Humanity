@@ -109,6 +109,11 @@ fn spawn_guild_action(
     body: Option<serde_json::Value>,
     ok_msg: &'static str,
 ) {
+    // Step F's recovery-phrase guard on what this sends (a guild's name and description).
+    if body.as_ref().is_some_and(|b| crate::engine::warnings::holds_own_phrase(state, &[&b.to_string()])) {
+        state.guild_status = crate::net::warnings::GUARD_LINE.to_string();
+        return;
+    }
     let (tx, rx) = std::sync::mpsc::channel();
     state.guild_action_rx = Some(rx);
     state.guild_status = "Working...".to_string();

@@ -261,6 +261,10 @@ pub(crate) fn contact_request_puts(gs: &GuiState, peer: &str) -> Result<(serde_j
     if !gs.peer_kyber_keys.contains_key(peer) {
         return Err("Their key is not known yet. They need to have been online on this server once.".into());
     }
+    // Step F's recovery-phrase guard: a request carries our name, so a name holding the phrase stops it.
+    if crate::engine::warnings::holds_own_phrase(gs, &[&gs.user_name]) {
+        return Err(crate::net::warnings::GUARD_LINE.into());
+    }
     let (pass, sent) = crate::engine::dm::mint_pass(gs, peer, &crate::relay::core::pq_crypto::FRIEND_PASS_DEFAULT_MAY)
         .ok_or("The request could not be made yet: this server's identity is not known. Try again in a moment.")?;
     let text = crate::net::reach::contact_request_text(&gs.user_name, &pass);

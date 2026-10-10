@@ -3,7 +3,8 @@
 //! A setting is only real if it survives a restart. That means making the whole
 //! round trip:
 //!
-//!   bound to a widget in src/gui/pages/settings.rs
+//!   bound to a widget in src/gui/pages/settings.rs (or a section it draws
+//!   from another file: SETTINGS_FILES)
 //!     -> field on `AppConfig`            (src/config.rs)
 //!     -> written by `from_gui_state`     (the save leg)
 //!     -> read by `apply_to_state`        (the load leg)
@@ -44,10 +45,16 @@ const INTENTIONALLY_TRANSIENT: &[&str] = &[
     "seed_phrase_recovery_status", // transient status line
 ];
 
-/// Pull every `state.settings.<field>` that settings.rs binds to a widget or
-/// assigns to. Those are the fields a person can actually change.
+/// The files whose controls are drawn inside the Settings page: settings.rs
+/// itself, and the sections it hands to another file. Settings > Safety lives in
+/// safety.rs, and its "Warnings on messages" switch (step F, 2026-10-10) is an
+/// AppConfig setting like any other, so the scan covers that file too.
+const SETTINGS_FILES: &[&str] = &["src/gui/pages/settings.rs", "src/gui/pages/safety.rs"];
+
+/// Pull every `state.settings.<field>` that the Settings files bind to a widget
+/// or assign to. Those are the fields a person can actually change.
 fn bound_settings() -> HashSet<String> {
-    let src = read("src/gui/pages/settings.rs");
+    let src: String = SETTINGS_FILES.iter().map(|f| read(f)).collect::<Vec<_>>().join("\n");
     let mut out = HashSet::new();
     for pat in ["&mut state.settings.", "state.settings."] {
         let mut from = 0usize;
@@ -100,6 +107,24 @@ fn assigns_in(haystack: &str, lhs: &str) -> bool {
     false
 }
 
+/// config.rs up to its first test module (`#[cfg(test)]` then `mod`). The load
+/// leg is looked for here only: config.rs's own tests set fields on a GuiState
+/// before saving it (`state.settings.x = false;`), and counting those as the
+/// load leg let a setting with no load leg at all pass (found 2026-10-10 while
+/// proving this lint red for step F's "Warnings on messages").
+fn production_code(config: &str) -> &str {
+    let mut from = 0usize;
+    while let Some(i) = config[from..].find("#[cfg(test)]") {
+        let at = from + i;
+        let rest = config[at + "#[cfg(test)]".len()..].trim_start();
+        if rest.starts_with("mod ") {
+            return &config[..at];
+        }
+        from = at + 1;
+    }
+    config
+}
+
 /// Every user-changeable setting must complete the save/load round trip.
 #[test]
 fn every_setting_the_ui_exposes_is_persisted() {
@@ -128,8 +153,11 @@ fn every_setting_the_ui_exposes_is_persisted() {
         // are loaded through a conditional or a match that spans lines
         // (`state.settings.sky_glow_tier = if self.sky_glow_tier == "ultra" {`),
         // and an exact `= self.<field>` match reports all of those as missing.
-        let loaded = assigns_in(&config, &format!("state.settings.{field}"))
-            || assigns_in(&config, &format!("state.{field}"));
+        // Searched in the production code only (`production_code`): a test that
+        // sets the field before a save is not a load.
+        let production = production_code(&config);
+        let loaded = assigns_in(production, &format!("state.settings.{field}"))
+            || assigns_in(production, &format!("state.{field}"));
 
         if !on_config || !saved || !loaded {
             let mut missing = Vec::new();

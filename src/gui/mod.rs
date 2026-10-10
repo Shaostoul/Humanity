@@ -2426,6 +2426,8 @@ pub struct GuiState {
     /// Calls through the server (step E, 2026-10-09): the call or voice room whose credentials
     /// were asked for, and how far its connection through the server got (engine/call_relay.rs).
     pub call_relay: crate::net::call_relay::CallRelayUi,
+    /// Warnings under received messages (step F, 2026-10-10): the patterns, and the ones dismissed.
+    pub warnings: crate::net::warnings::WarningsUi,
 
     // ── Cosmos page state (v0.203.0, Phase 3) ──
     /// Which view the Cosmos page is currently rendering.
@@ -3977,6 +3979,7 @@ impl Default for GuiState {
             block_list: None,
             reports: Default::default(),
             call_relay: Default::default(),
+            warnings: Default::default(),
             server_settings: None,
             server_settings_requested: false,
             erase_memory_days: None,
@@ -4578,6 +4581,8 @@ pub struct SettingsState {
     /// Chosen privacy tier id (data/gui/privacy_tiers.json). Empty =
     /// never chosen; the first-connect modal asks once. (2026-08-23)
     pub privacy_tier: String,
+    /// Settings > Safety, "Warnings on messages" (step F, 10g): On by default; Off hides them all.
+    pub warnings_on_messages: bool,
     // Data
     pub seed_phrase_visible: bool,
     // Restoring from the recovery phrase
@@ -4682,6 +4687,7 @@ impl Default for SettingsState {
             profile_visible: true,
             online_status_visible: true,
             privacy_tier: String::new(),
+            warnings_on_messages: true,
             seed_phrase_visible: false,
             seed_phrase_input: String::new(),
             seed_phrase_recovery_status: String::new(),

@@ -194,6 +194,10 @@ pub const PROPOSAL_TYPES_RON: &str = include_str!("../data/governance/proposal_t
 /// desktop app can still offer Report when the data folder lacks the file; the relay builds in
 /// its own copy in src/relay/handlers/reports.rs.
 pub const REPORT_REASONS_JSON: &str = include_str!("../data/safety/report_reasons.json");
+/// The warnings shown under received messages (design blocking-and-safe-mode.md 6.3 and 10g).
+/// Built in so the desktop app still warns when the data folder lacks the file (net/warnings.rs
+/// `load_warnings`); the web client reads the same file.
+pub const WARNINGS_JSON: &str = include_str!("../data/safety/warnings.json");
 
 // ── Lookup helper ───────────────────────────────────────────────────
 
@@ -398,6 +402,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "economy.ron" => Some(ECONOMY_RON),
         "equipment.csv" => Some(EQUIPMENT_CSV),
         "safety/report_reasons.json" => Some(REPORT_REASONS_JSON),
+        "safety/warnings.json" => Some(WARNINGS_JSON),
 
         _ => None,
     }

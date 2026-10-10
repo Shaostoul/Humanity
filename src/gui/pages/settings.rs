@@ -570,7 +570,13 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                     .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
                     .take(24)
                     .collect();
-                if !cleaned.is_empty() {
+                // Step F's recovery-phrase guard, on what was typed (the cleaning drops the spaces
+                // between words): a name holding the phrase is never saved or registered, and the
+                // field goes back to the name last saved.
+                let typed = state.user_name.clone();
+                if crate::engine::warnings::guard_stops(state, &[&typed, &cleaned]) {
+                    state.user_name = crate::config::AppConfig::load().user_name;
+                } else if !cleaned.is_empty() {
                     state.user_name = cleaned;
                     // Persist immediately, then reconnect so the relay
                     // re-registers this name to our key.
