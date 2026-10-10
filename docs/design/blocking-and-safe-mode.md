@@ -1280,6 +1280,75 @@ path with its rules, the 90-day cull, export and erase); a Node test that the we
 produces the relay's preimage (reading a pinned string out of the Rust tests); client unit tests;
 headless snapshots of the dialog and the Reports page; `just verify`, `just verify-relay`.
 
+## 10f. Step E specification: our own STUN and the room-scoped call forwarder (2026-10-09)
+
+The operator approved this (10a): our own STUN responder and a call forwarder on one UDP port,
+Google removed from every list, calls and voice rooms through the server by default. This fixes
+the protocol so the relay and both clients can be built in parallel. The port is opened on the
+VPS firewall by the operator once this is built and its refusal checks pass; until then nothing
+listens publicly and calls fall back as today.
+
+**One UDP port**, `TURN_PORT` (default 3478), bound to `TURN_BIND` (default `0.0.0.0` on a
+server; every dev rig and test binds `127.0.0.1`, CLAUDE.md "No Windows Firewall prompts"). The
+address the relay tells clients is `TURN_PUBLIC_HOST` (default the host name it already uses for
+`/api/turn-credentials`). It serves two things:
+- **STUN Binding** (RFC 5389): a Binding request gets a Binding success with
+  XOR-MAPPED-ADDRESS, nothing else. Rate limited per source address (say 20 a second with a
+  small burst, refusing silently past it) so it cannot be used to flood anyone; a reply is never
+  larger than the request plus a few dozen bytes.
+- **A closed TURN forwarder** (the RFC 5766 subset WebRTC uses: Allocate over UDP, Refresh,
+  CreatePermission, ChannelBind, Send and Data indications, ChannelData), long-term credentials
+  with realm `humanityos`. **Relayed addresses are virtual**: each allocation gets the public
+  host's address with a unique virtual port, never bound to a socket. A permission, a channel or
+  a Send is accepted ONLY for a peer address that is another live allocation of the SAME room;
+  anything else is refused (403) and nothing is ever sent to an address outside the forwarder.
+  Data from allocation A to allocation B is delivered inside the process to B's client as a Data
+  indication or ChannelData from A's relayed address. So the forwarder cannot reach the outside
+  internet at all, which is what made the 2026-08-07 reflector possible.
+
+**Credentials, over the signed-in socket only:**
+- client to relay: `{"type":"call_credentials","room":"<voice room id>"}` or
+  `{"type":"call_credentials","call":"<the other person's key>"}`.
+- The relay answers only if the asker is in that voice room (its live roster) or in an open call
+  with that person (`reach.rs`'s open calls): `{"type":"call_credentials","room"|"call",
+  "urls":["turn:<host>:<port>?transport=udp","stun:<host>:<port>"],"username","credential",
+  "ttl":3600}`. `username` is `"{expiry}:{room_tag}"` where `room_tag` is a hash of the room id
+  (or of the two call keys, sorted) plus a per-request nonce; `credential` is the base64 HMAC-SHA1
+  of `username` under a secret the relay makes at start and never stores (so credentials die with
+  the process). An allocation made with them belongs to that room.
+- Anything else gets no credentials (and no reply that says why beyond a Private notice).
+- `/api/turn-credentials` (HTTP, unauthenticated) now returns only our own STUN entry; Google is
+  gone from it, and it never returns TURN.
+
+**Clients (native first, web mirrors):**
+- Every Google STUN entry is removed (`STUN_SERVERS` in `src/net/webrtc.rs`, `rtcConfig` in
+  `web/chat/chat-voice-rooms.js`, anywhere else).
+- Joining a voice room or an accepted call asks `call_credentials` first and connects
+  **relay only** (web `iceTransportPolicy: 'relay'`; native: str0m with only relay candidates
+  through our TURN, building on the TURN client work already in `webrtc.rs`, inc-3b). So the
+  other people in the call see only the server's address.
+- Until the operator opens the port, a relay-only connection cannot form; the clients say so
+  plainly ("Calls go through the server to keep your address private; this server is not set up
+  for that yet.") rather than falling back to a direct connection.
+- The P2P group mesh and contact-card channels are not opened in this mode (they already fall
+  back to the server: group messages through the relay and its 4-second poll; design 7.2 and 7.4
+  step 3). Own-device sync is unchanged.
+- A direct, lower-delay connection both people opt into is a later step; not in this one.
+
+**Provisioning:** `scripts/provision-vps.sh` sets `TURN_PORT` and asserts after start that only
+the relay listens on it; the firewall rule itself is the operator's (the exact command goes in
+`docs/admin/` with this step).
+
+**Proof:** relay tests on loopback: a STUN Binding answered with the right XOR-MAPPED-ADDRESS;
+the rate limit; Allocate refused without valid credentials and with credentials for another room;
+two allocations of one room exchange data both ways through Send, ChannelBind and ChannelData; a
+permission or Send toward any address that is not an allocation of the same room is refused and
+NO packet leaves for it (assert on a listening socket at that address); credentials refused to
+someone not in the room or call; credentials stop working after the process restarts. Client
+tests: no Google entry anywhere (a lint-style test that greps both clients), the credential
+request and relay-only configuration. A loopback rig with two clients in one room, if it can be
+built without booting the game; otherwise say so.
+
 ## 11. Docs to update as each piece ships
 
 - `docs/accord/conformance_gaps.md` ("Contact consent cannot be withdrawn")
