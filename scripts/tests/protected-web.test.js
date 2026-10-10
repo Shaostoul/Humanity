@@ -115,9 +115,10 @@
 //     off: "the same answer as protected.js for \"null\"".
 // 20: protectedForgotSubmit without the identity check: "another identity: even its own correct
 //     phrase is refused"; protectedSetupApply not handing over the identity: "turning it on keeps
-//     the identity in use" (and test 14's "the right phrase lets a new PIN be chosen"); Forgot
-//     letting a setup with no stored identity through (the desktop app's rule): "a missing
-//     identity: the right phrase is refused".
+//     the identity in use" (and test 14's "the right phrase lets a new PIN be chosen"); a
+//     missing stored identity refusing every phrase (fail closed, which would lock a damaged setup
+//     for good; replaced 2026-10-10 by the desktop app's rule): "a missing identity: the phrase of
+//     the identity in use opens it".
 
 const test = require("node:test");
 const assert = require("node:assert");
@@ -1652,7 +1653,8 @@ test("forgot the PIN takes only the phrase of the identity the setup was turned 
     if (bad === undefined) delete raw.identity; else raw.identity = bad;
     const parsed = P.protectedStateParse(JSON.stringify(raw));
     assert.ok(parsed, "a damaged identity leaves the setup on");
-    assert.equal(P.protectedIdentityMatches(parsed, ME), false, `a ${JSON.stringify(bad)} identity matches none (fail closed)`);
+    assert.equal(P.protectedIdentityMatches(parsed, ME), true, `a ${JSON.stringify(bad)} identity falls back to the identity in use`);
+    assert.equal(P.protectedIdentityMatches(parsed, ""), false, "but never to no identity");
   }
 
   const forgot = async (c, typed) => {
@@ -1686,14 +1688,15 @@ test("forgot the PIN takes only the phrase of the identity the setup was turned 
   assert.equal(await P.protectedPinMatches(PIN, other.saved().pin), true, "the PIN is unchanged");
   await cancelPin(other);
 
-  // A missing or damaged stored identity matches none: even the right phrase is refused.
+  // A missing or damaged stored identity (only damage leaves one) falls back to the identity in
+  // use, so the right phrase still opens a damaged setup rather than it locking for good.
   for (const [what, bad] of [["missing", undefined], ["damaged", "not a key!"]]) {
     const raw = JSON.parse(chat.storage.getItem(P.PROTECTED_STORAGE_KEY));
     if (bad === undefined) delete raw.identity; else raw.identity = bad;
     const s = fakeStorage();
     s.setItem(P.PROTECTED_STORAGE_KEY, JSON.stringify(raw));
     const c = await loadChat({ localStorage: s });
-    assert.equal(await forgot(c, mine), "forgot", `a ${what} identity: the right phrase is refused`);
+    assert.equal(await forgot(c, mine), "newpin", `a ${what} identity: the phrase of the identity in use opens it`);
     await cancelPin(c);
   }
 

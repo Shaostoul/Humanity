@@ -738,7 +738,16 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             ui.add_space(theme.spacing_xs);
             ui.label(RichText::new("Show a QR another device can scan to bring this identity onto it (on that device: chat > your identity > \"Link this device to me\" > \"Scan a QR code\"). The QR contains your seed, so unlocking is required.").color(theme.text_muted()).size(theme.font_size_small));
             ui.add_space(theme.spacing_xs);
-            let qr_reveal = if !enc.is_empty() && !salt.is_empty() {
+            // Step G: the QR carries the seed, from which the recovery phrase follows, so while the
+            // protected setup is on it needs the PIN exactly as the phrase does (the same gate and
+            // the same flag; the web chat gates its device-link code the same way).
+            let qr_pin_ok = !crate::engine::protected::is_on(state) || state.protected.phrase_shown;
+            let qr_reveal = if !qr_pin_ok {
+                if widgets::secondary_button(ui, theme, "Show device-link QR") {
+                    crate::engine::protected::perform(state, crate::net::protected::ProtectedAction::ShowRecoveryPhrase);
+                }
+                false
+            } else if !enc.is_empty() && !salt.is_empty() {
                 let lock = state.section_locks.entry("link_device_qr".to_string()).or_default();
                 widgets::lockable_gate(ui, theme, lock, "Show device-link QR", |pass| {
                     crate::config::decrypt_private_key(&enc, &salt, pass, iters).is_ok()

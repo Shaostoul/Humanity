@@ -1632,9 +1632,15 @@ preset's `labels`. Choices where the spec was open, the same on both clients:
   spec's list, taken literally). Unblock is not locked.
 - A damaged stored state counts as ON with no PIN that matches (fail closed); only the recovery
   phrase can then set a new PIN. A settings import (web) cannot turn it off or replace the PIN.
-- **Showing the recovery phrase needs the PIN**, and **"Forgot the PIN?" takes only the phrase
-  of the identity the setup was turned on under** (desktop first; the web follows): otherwise the
-  person it protects could read the phrase, or make a new identity, and set their own PIN.
+- **Showing the recovery phrase needs the PIN**, and so does everything the phrase can be read
+  back out of: the device-link QR or code (it carries the seed), and on the web the encrypted
+  backup and the identity file, the onboarding guide's phrase step, and the separate settings
+  page (which refuses with the preset's `phrase_needs_pin` line). **"Forgot the PIN?" takes only
+  the phrase of the identity the setup was turned on under**: otherwise the person it protects
+  could read the phrase, or make a new identity, and set their own PIN. A missing or malformed
+  recorded identity, which only damage leaves (turning it on always records one), falls back to
+  the identity in use, so a damaged setup can still be opened by its phrase rather than locking
+  for good; on the web the only other way out would be clearing the site's data, identity and all.
 - Web hides the federated server list with public rooms (each entry leads to another server's
   public rooms); the desktop app has no such list in the chat.
 

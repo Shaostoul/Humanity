@@ -60,7 +60,9 @@
         "phrase": "Recovery phrase",
         "phrase_wrong": "That is not the recovery phrase of this identity.",
         "waiting_store": "Waiting for your settings on this device to load.",
-        "not_connected": "Not connected, so the setting was not changed."
+        "not_connected": "Not connected, so the setting was not changed.",
+        "show_phrase": "Show the recovery phrase",
+        "phrase_needs_pin": "While the protected setup is on, showing the recovery phrase or saving a backup of this identity needs the PIN. In the chat, open Safety and choose Show the recovery phrase."
       },
       "avoid_words": [
         "kid safe",

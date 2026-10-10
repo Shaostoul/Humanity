@@ -660,6 +660,18 @@ fn forgot_the_pin_takes_this_identitys_recovery_phrase() {
     gs.protected.forgot_phrase = crate::net::identity::mnemonic_from_seed(&other_seed).unwrap();
     assert!(!submit_phrase(&mut gs), "another identity's phrase does not");
     assert_eq!(gs.protected.prompt_line, labels.phrase_wrong);
+    // A missing or malformed recorded identity (only damage leaves one) falls back to the identity
+    // in use, so a damaged setup can still be opened by its phrase rather than locking for good;
+    // the web chat follows the same rule. Seen red 2026-10-10 with a malformed identity compared
+    // as recorded: "a malformed recorded identity falls back" failed.
+    for damaged in ["", "not a key!"] {
+        gs.protected.setup.identity = damaged.to_string();
+        open_forgot(&mut gs);
+        gs.protected.forgot_phrase = crate::net::identity::mnemonic_from_seed(&other_seed).unwrap();
+        assert!(submit_phrase(&mut gs), "a malformed recorded identity falls back to the one in use ({damaged:?})");
+        cancel_prompt(&mut gs);
+    }
+    gs.protected.setup.identity = me.clone();
     gs.profile_public_key = me;
     gs.private_key_bytes = None;
     gs.protected.forgot_phrase = phrase.clone();

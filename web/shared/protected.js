@@ -462,7 +462,12 @@
   function protectedIdentityMatches(state, key) {
     const want = state ? protectedIdentityKey(state.identity) : '';
     const got = protectedIdentityKey(key);
-    return !!(want && got && want === got);
+    if (!state || !got) return false;
+    // A missing or malformed recorded identity, which only damage to what storage holds can
+    // leave (turning the setup on always records one), falls back to the identity in use, so
+    // the recovery phrase can still open a damaged setup instead of it locking for good; a
+    // recorded identity that differs never matches (the desktop app's rule, 10h as built).
+    return !want || want === got;
   }
 
   /** Is `typed` this identity's phrase (`words`, as derived on this device), word for word? */

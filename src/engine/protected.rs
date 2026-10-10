@@ -203,8 +203,13 @@ pub(crate) fn submit_phrase(gs: &mut GuiState) -> bool {
     if !gs.protected.setup.on || !gs.protected.prompt.as_ref().is_some_and(|p| p.mode == PromptMode::Forgot) {
         return false;
     }
-    let setup_identity = gs.protected.setup.identity.clone();
-    let same_identity = setup_identity.is_empty() || setup_identity == gs.profile_public_key;
+    // A recorded identity must be the one in use; a missing or malformed one, which only damage to
+    // the saved setup can leave (turning it on always records one), falls back to the identity in
+    // use, so the recovery phrase still opens a damaged setup instead of it locking for good. The
+    // web chat follows the same rule (`protectedIdentityMatches`, 10h as built).
+    let recorded = gs.protected.setup.identity.trim().to_ascii_lowercase();
+    let well_formed = !recorded.is_empty() && recorded.chars().all(|c| c.is_ascii_hexdigit());
+    let same_identity = !gs.profile_public_key.is_empty() && (!well_formed || recorded == gs.profile_public_key.to_ascii_lowercase());
     let derived = gs.private_key_bytes.as_deref().and_then(crate::net::identity::mnemonic_from_seed);
     let matched = same_identity && derived.as_deref().is_some_and(|d| crate::net::protected::phrase_matches(&typed, d));
     if !matched {
