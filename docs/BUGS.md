@@ -5299,3 +5299,20 @@ happened, never the content.
 **Not undone by the fix:** a log written before it keeps those lines. A person who sent DM files
 from the desktop app before this release can delete `run.log` (and its rotated copies) in
 `%APPDATA%/HumanityOS/logs/`.
+
+## BUG-180: group conversations did not draw in the web chat (v0.1476.0 only, FIXED v0.1476.1, found 2026-10-10)
+
+BUG-178's fix left the React button off P2P group rows, but `addChatMessage` (`web/chat/app.js`)
+still looked that button up and hooked it unconditionally:
+`el.querySelector('.react-btn').addEventListener(...)`. In a browser the lookup returns null, so
+every group row threw before it was added and a group conversation showed nothing. Every test
+passed: the test pages' fake DOM returned an element for any lookup. Found by the web fix batch
+of the same day's review, a few hours after v0.1476.0 shipped.
+
+**Fixed.** Every row control is looked up and checked before it is hooked, and a group row hooks
+none of the controls it does not draw. The test harness gained an "honest page" option, where a
+lookup the row's HTML does not hold returns null, and the group-row test uses it; it failed on
+the v0.1476.0 code with "Cannot read properties of null (reading 'addEventListener')".
+
+**Lesson:** a fake DOM that answers every lookup cannot catch a missing element. When a change
+removes a control, test with a page that returns null for what is not there.
