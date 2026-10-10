@@ -89,6 +89,14 @@
     .add-item-form .item-type{max-width:100px}
     .add-item-form .btn-primary{font-size:.75rem;padding:var(--space-sm) var(--space-md)}
 
+    /* Where the page stands: signing in, why it cannot, what the server said about a request. */
+    .trade-status{color:var(--text-muted);font-size:.85rem;margin:0 0 var(--space-lg) 0}
+    .trade-status-warn{color:var(--warning)}
+    .trade-status .trade-retry{margin-left:var(--space-sm)}
+    .trade-request-label{font-size:.75rem;color:var(--text-muted)}
+    .trade-request-note{color:var(--text-muted);font-size:.75rem;margin:0 0 var(--space-lg) 0}
+    .trade-request-msg{color:var(--warning);font-size:.8rem;margin:0 0 var(--space-lg) 0}
+
     .ob-error{color:var(--danger);text-align:center}
     .ob-empty{color:var(--text-muted);text-align:center;padding:var(--space-xl)}
     .ob-history-empty{color:var(--text-muted);font-size:.85rem}
@@ -119,10 +127,13 @@
     <button class="btn btn-primary" onclick="openTradeRequestModal()" id="trade-new-btn" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:.8rem;display:none;">+ New Trade</button>
   </div>
 
+  <!-- Signing in, why the page cannot, or what the server said about a request (trade-app.js tradeSay) -->
+  <p id="trade-status" class="trade-status" role="status" style="display:none;"></p>
+
   <!-- Trade list -->
   <div id="trade-section-list">
     <div id="trade-list-container">
-      <p style="color:var(--text-muted);text-align:center;padding:var(--space-2xl);">Connect to see your trades...</p>
+      <p class="trade-empty">Signing in to see your trades...</p>
     </div>
   </div>
 
@@ -190,18 +201,31 @@
 <div id="trade-request-modal">
   <div class="modal-content">
     <h3 style="margin:0 0 var(--space-xl) 0;font-size:1rem;">Start a Trade</h3>
-    <label style="font-size:.75rem;color:var(--text-muted);">Trade partner (public key or name)</label>
-    <input type="text" id="trade-target-input" placeholder="Enter public key or display name" style="width:100%;margin-bottom:var(--space-lg);font-size:.85rem;">
-    <label style="font-size:.75rem;color:var(--text-muted);">Message (optional)</label>
-    <input type="text" id="trade-message-input" placeholder="Hey, want to trade?" maxlength="200" style="width:100%;margin-bottom:var(--space-xl);font-size:.85rem;">
+    <label class="trade-request-label" for="trade-target-input">Trade partner: their name or public key</label>
+    <input type="text" id="trade-target-input" placeholder="Their name, or the key from their profile in Chat" style="width:100%;margin-bottom:var(--space-lg);font-size:.85rem;">
+    <label class="trade-request-label" for="trade-message-input">Message (optional)</label>
+    <input type="text" id="trade-message-input" placeholder="Hey, want to trade?" maxlength="200" style="width:100%;margin-bottom:var(--space-lg);font-size:.85rem;">
+    <p class="trade-request-note">Most people accept trade requests only from friends. A request to a friend carries the friendship pass they gave you, which Chat keeps in this browser.</p>
+    <p id="trade-request-msg" class="trade-request-msg" role="alert" style="display:none;"></p>
     <div style="display:flex;gap:var(--space-md);justify-content:flex-end;">
       <button class="btn-cancel" onclick="closeTradeRequestModal()">Cancel</button>
-      <button class="btn-primary" onclick="sendTradeRequest()">Send Request</button>
+      <button class="btn-primary" id="trade-send-btn" onclick="sendTradeRequest()">Send Request</button>
     </div>
   </div>
 </div>
 
 <script src="/shared/hold-confirm.js?v=1"></script>
-<script src="/pages/trade-app.js"></script>
+<!-- Dilithium identity for the live socket: the relay binds it to a person -->
+<!-- only after the page signs the relay's identify challenge with that key. -->
+<!-- `pq.js` installs window.pqDeriveIdentity + window.pqSignMessage; -->
+<!-- `pq-relay-auth.js` installs window.getPqIdentity and getPqDmStoreKey, which -->
+<!-- read the seed from the localStorage backup Chat writes. -->
+<script src="/chat/pq.js?v=2"></script>
+<script src="/shared/pq-relay-auth.js?v=2"></script>
+<!-- REACH_REFUSED_TRADE: the chat's sentence when a trade request is refused. -->
+<script src="/shared/reach.js?v=2"></script>
+<!-- Chat's local store, opened read-only for the friendship pass a friend gave you. -->
+<script src="/chat/chat-dm-store.js?v=8"></script>
+<script src="/pages/trade-app.js?v=2"></script>
 </body>
 </html>

@@ -14,7 +14,10 @@
 //
 // Depends on: crypto.js (getDmStoreKey). Loaded before app.js so the
 // message handlers can use it. All methods are safe to call before
-// init() — they no-op / return empties.
+// init() — they no-op / return empties. The Trade page loads this file
+// without crypto.js: it reads the store read-only (init's `readOnly`) and
+// supplies window.getDmStoreKey itself, the same key derived from the same
+// seed (/shared/pq-relay-auth.js getPqDmStoreKey).
 // ─────────────────────────────────────────────────────────────────────────
 
 const hosDmStore = {
@@ -115,9 +118,21 @@ const hosDmStore = {
     });
   },
 
-  /** Load (or start empty) the store for this identity on this server. */
-  async init(meHex, serverUrl) {
+  // True when this page only reads the store (init's `readOnly`): nothing is ever written.
+  readOnly: false,
+
+  /**
+   * Load (or start empty) the store for this identity on this server.
+   *
+   * `opts.readOnly` (the Trade page, 2026-10-10): load only the encrypted meta
+   * box (the passes, follows and settings), never the message records, and
+   * never write. Chat owns the store; a write from another page would put that
+   * page's older copy of the meta box over Chat's newer one, and a page that
+   * only needs a friend's pass has no business decrypting the messages.
+   */
+  async init(meHex, serverUrl, opts) {
     try {
+      this.readOnly = !!(opts && opts.readOnly);
       const keyPromise = (typeof window.getDmStoreKey === 'function') ? window.getDmStoreKey() : null;
       if (!keyPromise || !meHex) return false;
       this._key = await keyPromise;
@@ -160,6 +175,7 @@ const hosDmStore = {
           if (m && m.groupReports && typeof m.groupReports === 'object') this.groupReports = m.groupReports;
         }
       }
+      if (this.readOnly) return true;
       // All records in this scope.
       const rows = await this._idb(this._tx('msgs', 'readonly').index('scope').getAll(this.scope)).catch(() => []);
       for (const row of rows || []) {
@@ -182,7 +198,7 @@ const hosDmStore = {
   get ready() { return !!(this._db && this._key && this.scope); },
 
   async _persistMeta() {
-    if (!this.ready) return;
+    if (!this.ready || this.readOnly) return;
     const box = await this._encrypt({
       lastRead: this.lastRead,
       following: Array.from(this.following),
@@ -413,7 +429,7 @@ const hosDmStore = {
 
   /** Insert a VERIFIED inner payload. Returns false on duplicate. */
   async insert(inner) {
-    if (!this.ready || !inner || !inner.sig) return false;
+    if (!this.ready || this.readOnly || !inner || !inner.sig) return false;
     const dedupe = await this._sha256hex(inner.sig);
     if (this._seen.has(dedupe)) return false;
     this._seen.add(dedupe);
@@ -467,6 +483,7 @@ const hosDmStore = {
 
   /** Delete one whole conversation locally. */
   async deleteConversation(peer) {
+    if (this.readOnly) return;
     const msgs = this.conversations.get(peer) || [];
     this.conversations.delete(peer);
     delete this.lastRead[peer];

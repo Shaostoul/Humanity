@@ -1,64 +1,240 @@
 /* trade-app.js, Peer-to-peer trading UI */
 
+/* ── Relay socket: signed in as the person, or not at all ──
+ * The relay binds a socket to a person only after proof of the key (Inc3b,
+ * src/relay/relay.rs). The page sends `identify` with the person's Dilithium3
+ * public key, the relay replies `identify_challenge {nonce}`, and the page signs
+ *   "hum/identify/v1\n" + nonce + "\n" + public_key_hex
+ * and returns `identify_response {sig_b64}`. Until that check passes the relay
+ * drops every trade message on the socket without a reply, and closes the
+ * socket after 30 seconds. Its `peer_list` is the sign the check passed.
+ * The key comes from the identity Chat keeps in this browser (getPqIdentity in
+ * /shared/pq-relay-auth.js, derived by /chat/pq.js), the same way the Tasks
+ * page signs in (tasks-app.js). Nothing is sent, and the New trade button stays
+ * hidden, until the socket is signed in; no key is ever made up.
+ *
+ * Who can reach me (step B, docs/design/blocking-and-safe-mode.md 10c): a
+ * trade request reaches someone only if their Trades audience lets the sender
+ * through, Friends by default, which the relay checks with the friendship pass
+ * they gave the sender, carried as `friend_cert`. Chat keeps the passes it
+ * holds in its encrypted local store (/chat/chat-dm-store.js); this page opens
+ * that store read-only, with the key Chat derives from the same seed
+ * (getPqDmStoreKey in /shared/pq-relay-auth.js), and sends the pass. When the
+ * relay still says no (`reach_refused`, kind "trade"), the page says so in the
+ * chat's own words (REACH_REFUSED_TRADE in /shared/reach.js). */
 let tradeWs = null;
-let tradeMyKey = '';
-let tradeMyName = 'Visitor';
+let tradeWsBound = false;     // true once the relay accepted the proof (its peer_list arrived)
+let tradeWsRefusal = '';      // the relay's reason when it refused this page's sign-in
+let tradeWsRetryMs = 5000;    // reconnect delay, doubles up to a minute while the link keeps dropping
+let tradeWsRetryTimer = null;
+let tradeIdentity = null;     // { dilithiumPublicHex, dilithiumSecret } once derived
+let tradeMyKey = '';          // the signed-in key: empty until the relay has accepted the proof
+let tradePendingTarget = '';  // who the last trade request went to, until the server answers
 let trades = [];
 let activeTrade = null; // currently viewed trade
 
 function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-// ── WebSocket connection ──
-
-function tradeConnect() {
-  var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  tradeWs = new WebSocket(proto + '//' + location.host + '/ws');
-  tradeWs.onopen = function() {
-    var storedKey = localStorage.getItem('humanity_key');
-    if (!storedKey) {
-      try {
-        var backup = JSON.parse(localStorage.getItem('humanity_key_backup') || 'null');
-        if (backup && backup.publicKeyHex) storedKey = backup.publicKeyHex;
-      } catch(e) {}
-    }
-    var storedName = localStorage.getItem('humanity_name');
-    if (storedKey) {
-      tradeMyKey = storedKey;
-      tradeMyName = storedName || 'Anonymous';
-      tradeWs.send(JSON.stringify({ type: 'identify', public_key: storedKey, display_name: storedName || null }));
-    } else {
-      tradeMyKey = 'viewer_' + Math.random().toString(36).slice(2, 10);
-      tradeWs.send(JSON.stringify({ type: 'identify', public_key: tradeMyKey, display_name: null }));
-    }
-    // Show the new-trade button once connected with a real key
-    if (storedKey) {
-      document.getElementById('trade-new-btn').style.display = '';
-    }
-    // Request trade list
-    setTimeout(function() {
-      tradeWs.send(JSON.stringify({ type: 'trade_list_request' }));
-    }, 500);
-  };
-  window._humanityWs = tradeWs;
-  tradeWs.onmessage = function(e) {
-    try {
-      var msg = JSON.parse(e.data);
-      handleTradeMessage(msg);
-    } catch(ex) {}
-  };
-  tradeWs.onclose = function() { setTimeout(tradeConnect, 3000); };
-  tradeWs.onerror = function() {};
+/** The exact bytes the relay verifies: format!("hum/identify/v1\n{}\n{}", nonce, public_key). */
+function tradeIdentifyPreimage(nonce, publicKeyHex) {
+  return new TextEncoder().encode('hum/identify/v1\n' + nonce + '\n' + publicKeyHex);
 }
 
-// ── Message handling ──
+/** Standard base64 (what the relay's B64.decode expects), without spreading 3309 bytes into one call. */
+function tradeBytesToB64(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s);
+}
+
+/** The identify_response message answering the relay's challenge, or null if signing failed. */
+async function tradeIdentifyResponse(identity, nonce) {
+  if (!identity || !identity.dilithiumSecret || !identity.dilithiumPublicHex || !nonce) return null;
+  if (typeof window.pqSignMessage !== 'function') return null;
+  const sig = await window.pqSignMessage(identity.dilithiumSecret, tradeIdentifyPreimage(nonce, identity.dilithiumPublicHex));
+  if (!sig) return null;
+  return { type: 'identify_response', sig_b64: tradeBytesToB64(sig) };
+}
+
+/** This browser's Dilithium3 identity, or null when Chat has not set one up here. */
+async function loadTradeIdentity() {
+  if (tradeIdentity) return tradeIdentity;
+  if (typeof window.getPqIdentity !== 'function') return null;
+  try { tradeIdentity = await window.getPqIdentity(); } catch (e) { tradeIdentity = null; }
+  return tradeIdentity;
+}
+
+/** Is the socket signed in as this person right now? */
+function tradeSignedIn() {
+  return !!(tradeWs && tradeWsBound && tradeWs.readyState === WebSocket.OPEN && tradeMyKey);
+}
+
+/** Send one frame on the signed-in socket. Returns false, sending nothing, when it is not signed in. */
+function tradeSend(frame) {
+  if (!tradeSignedIn()) return false;
+  tradeWs.send(JSON.stringify(frame));
+  return true;
+}
+
+/** One line above the list saying where the page stands. `warn` colours it; `retry` adds Try again. */
+function tradeSay(text, opts) {
+  const el = document.getElementById('trade-status');
+  if (!el) return;
+  el.textContent = text || '';
+  el.className = 'trade-status' + (opts && opts.warn ? ' trade-status-warn' : '');
+  el.style.display = text ? '' : 'none';
+  if (text && opts && opts.retry) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn-primary btn-sm trade-retry';
+    btn.textContent = 'Try again';
+    btn.onclick = tradeRetryNow;
+    el.appendChild(document.createTextNode(' '));
+    el.appendChild(btn);
+  }
+}
+
+/** What to tell the person when the page cannot sign in. */
+function tradeSignInHelp() {
+  if (tradeWsRefusal) return 'The server did not accept this page\'s sign-in: ' + tradeWsRefusal;
+  if (!localStorage.getItem('humanity_key_backup')) {
+    return 'Not signed in on this page. Open Chat in this browser first (it keeps your identity here), then press Try again. A passphrase-protected identity cannot be read by this page yet.';
+  }
+  return 'Could not sign in to the server from this page. Check the connection and press Try again.';
+}
+
+/** Show what needs the signed-in socket only while it is signed in. */
+function tradeShowSignedIn() {
+  const on = tradeSignedIn();
+  const btn = document.getElementById('trade-new-btn');
+  if (btn) btn.style.display = on ? '' : 'none';
+  const create = document.getElementById('ob-create-section');
+  const book = document.getElementById('trade-section-orderbook');
+  if (create) create.style.display = on && book && book.style.display !== 'none' ? '' : 'none';
+}
+
+/** The relay said no: remember why, stop retrying, and close (it would hold the socket open 30s). */
+function refuseTradeWs(ws, reason) {
+  tradeWsRefusal = reason || 'The server refused the sign-in.';
+  console.warn('[trade] sign-in refused:', tradeWsRefusal);
+  tradeSay(tradeSignInHelp(), { warn: true, retry: true });
+  try { ws.close(); } catch (e) {}
+}
+
+/** Try again pressed: an earlier refusal gets one more try. */
+function tradeRetryNow() {
+  tradeWsRefusal = '';
+  tradeWsRetryMs = 5000;
+  clearTimeout(tradeWsRetryTimer);
+  tradeStart();
+}
+
+/** Sign in, or say why this page cannot. */
+async function tradeStart() {
+  if (tradeWs) return;
+  tradeSay('Signing in to the server...');
+  const started = await ensureTradeWs();
+  if (!started) {
+    tradeSay(tradeSignInHelp(), { warn: true, retry: true });
+    const list = document.getElementById('trade-list-container');
+    if (list) list.innerHTML = '<p class="trade-empty">Your trades show here once this page is signed in.</p>';
+  }
+}
+
+/** Open the socket and sign in. Resolves true if a socket is open or on its way, false if there is no identity. */
+async function ensureTradeWs() {
+  if (tradeWs) return true;
+  const id = await loadTradeIdentity();
+  if (!id) return false;
+  if (tradeWs) return true; // another call opened it while the key was being derived
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(proto + '//' + location.host + '/ws');
+  tradeWs = ws;
+  tradeWsBound = false;
+  ws.addEventListener('open', function() {
+    // A placeholder name is never sent: the relay registers any real-looking
+    // name to the key. The name is the one Chat saved in this browser; with
+    // none, the relay signs the socket in under the name already registered.
+    const name = (localStorage.getItem('humanity_name') || '').trim() || null;
+    ws.send(JSON.stringify({ type: 'identify', public_key: id.dilithiumPublicHex, display_name: name }));
+  });
+  ws.addEventListener('message', function(e) {
+    if (tradeWs !== ws) return;
+    let m;
+    try { m = JSON.parse(e.data); } catch (ex) { return; }
+    // ── Sign-in phase: nothing else counts until the relay accepts the proof ──
+    if (!tradeWsBound) {
+      if (m.type === 'identify_challenge') {
+        tradeIdentifyResponse(id, m.nonce).then(function(resp) {
+          if (!resp) { refuseTradeWs(ws, 'this page could not sign the server\'s sign-in check with your identity.'); return; }
+          if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(resp));
+        });
+      } else if (m.type === 'peer_list') {
+        // The relay sends peer_list first thing after it binds the socket.
+        tradeWsBound = true;
+        tradeWsRefusal = '';
+        tradeWsRetryMs = 5000;
+        tradeMyKey = id.dilithiumPublicHex;
+        tradeSay('');
+        tradeShowSignedIn();
+        if (!trades.length) {
+          const list = document.getElementById('trade-list-container');
+          if (list) list.innerHTML = '<p class="trade-empty">Loading your trades...</p>';
+        }
+        tradeSend({ type: 'trade_list_request' });
+      } else if (m.type === 'account_erased') {
+        // This identity's account was erased on this server (BUG-135). Coming
+        // back is the person's choice, made on the Chat page.
+        refuseTradeWs(ws, m.partial === true
+          ? 'the erase of your account on this server did not finish, so open Chat, press Enter and use Erase account again.'
+          : 'your account on this server was erased, so open Chat and press Enter there to sign up again.');
+      } else if (m.type === 'name_taken' || m.type === 'system') {
+        const text = String(m.message || '');
+        // The per-connection throttle: the relay closes the socket, and the close handler backs off.
+        if (m.type === 'system' && text.startsWith('Too many connection attempts')) return;
+        refuseTradeWs(ws, text);
+      }
+      return;
+    }
+    handleTradeMessage(m);
+  });
+  ws.addEventListener('close', function() {
+    if (tradeWs !== ws) return;
+    tradeWs = null;
+    tradeWsBound = false;
+    tradeShowSignedIn();
+    // After a refusal, retrying would only repeat it (and spend the relay's
+    // per-connection allowance); Try again starts over instead.
+    if (tradeWsRefusal) return;
+    clearTimeout(tradeWsRetryTimer);
+    tradeSay('Lost the connection to the server. Trying again in ' + Math.round(tradeWsRetryMs / 1000) + ' seconds.', { warn: true });
+    tradeWsRetryTimer = setTimeout(tradeStart, tradeWsRetryMs);
+    tradeWsRetryMs = Math.min(tradeWsRetryMs * 2, 60000);
+  });
+  return true;
+}
+
+// ── Message handling (signed-in socket only) ──
 
 function handleTradeMessage(msg) {
+  // "Who can reach me" refused the request: the chat's own sentence.
+  if (msg.type === 'reach_refused') {
+    if (msg.kind === 'trade') {
+      tradePendingTarget = '';
+      tradeSay(typeof REACH_REFUSED_TRADE === 'string' ? REACH_REFUSED_TRADE : 'This person did not accept your trade request.', { warn: true });
+    }
+    return;
+  }
   if (msg.type === 'system' && msg.message) {
     // Trade data pushed from server
     if (msg.message.startsWith('__trade_data__:')) {
       try {
         var payload = JSON.parse(msg.message.slice('__trade_data__:'.length));
         if (payload.trade) {
+          if (tradePendingTarget && payload.trade.initiator_key === tradeMyKey && payload.trade.recipient_key === tradePendingTarget) {
+            tradePendingTarget = '';
+            tradeSay('Trade request sent.');
+          }
           upsertTrade(payload.trade);
         }
       } catch(e) {}
@@ -77,14 +253,14 @@ function handleTradeMessage(msg) {
     }
     // Trade complete notification
     if (msg.message.startsWith('__trade_complete__:')) {
-      try {
-        var payload = JSON.parse(msg.message.slice('__trade_complete__:'.length));
-        // Refresh trade data
-        if (tradeWs && tradeWs.readyState === 1) {
-          tradeWs.send(JSON.stringify({ type: 'trade_list_request' }));
-        }
-      } catch(e) {}
+      tradeSend({ type: 'trade_list_request' });
       return;
+    }
+    // The server's own words about a trade (not online, too many trades, the
+    // daily limit for people who have not befriended you, a shortened note).
+    if (!msg.message.startsWith('__') && /trade|items format/i.test(msg.message)) {
+      tradePendingTarget = '';
+      tradeSay(msg.message, { warn: true });
     }
   }
 }
@@ -243,7 +419,6 @@ function renderTwoColumns(t, isInitiator, editable) {
 
   // Actions
   if (editable) {
-    var bothConfirmed = myConfirmed && theirConfirmed;
     html += '<div class="trade-actions">';
     if (!myConfirmed) {
       html += '<button class="btn-confirm" onclick="confirmTrade(\'' + escHtml(t.id) + '\')">Confirm Trade</button>';
@@ -270,11 +445,9 @@ function showTradeSection(section) {
     activeTrade = null;
   } else if (section === 'orderbook') {
     document.getElementById('trade-nav-orderbook').classList.add('active');
-    // Show create section if connected
-    if (tradeMyKey && !tradeMyKey.startsWith('viewer_')) {
-      document.getElementById('ob-create-section').style.display = '';
-      loadTradeHistory();
-    }
+    // Selling and history need the signed-in identity.
+    tradeShowSignedIn();
+    if (tradeSignedIn()) loadTradeHistory();
   }
 }
 
@@ -287,9 +460,11 @@ function viewTrade(tradeId) {
 }
 
 function openTradeRequestModal() {
+  if (!tradeSignedIn()) return;
   document.getElementById('trade-request-modal').style.display = 'flex';
   document.getElementById('trade-target-input').value = '';
   document.getElementById('trade-message-input').value = '';
+  tradeRequestSay('');
   document.getElementById('trade-target-input').focus();
 }
 
@@ -297,26 +472,97 @@ function closeTradeRequestModal() {
   document.getElementById('trade-request-modal').style.display = 'none';
 }
 
-function sendTradeRequest() {
-  var target = document.getElementById('trade-target-input').value.trim();
-  var message = document.getElementById('trade-message-input').value.trim();
-  if (!target) { alert('Please enter a trade partner key or name.'); return; }
-  if (!tradeWs || tradeWs.readyState !== 1) { alert('Not connected.'); return; }
-  tradeWs.send(JSON.stringify({
-    type: 'trade_request',
-    target_key: target,
-    message: message
-  }));
-  closeTradeRequestModal();
+/** A line inside the New trade form (a missing partner, a name not found). */
+function tradeRequestSay(text) {
+  const el = document.getElementById('trade-request-msg');
+  if (!el) return;
+  el.textContent = text || '';
+  el.style.display = text ? '' : 'none';
+}
+
+// A registered name: what the relay allows (REACH_NAME_RE in /shared/reach.js).
+const TRADE_NAME_RE = /^[A-Za-z0-9_-]{1,24}$/;
+// A public key as the relay holds it: lowercase hex (a Dilithium3 key is 3904 characters).
+const TRADE_KEY_RE = /^[0-9a-f]{64,}$/;
+const TRADE_KEY_HINT = 'In Chat, open their profile and click the key to copy it.';
+
+/**
+ * The key of the person a trade request is for: {key}, or {error} saying why
+ * not. A key is taken as given (in lowercase); a name is looked up in this
+ * server's member list, and only a single exact match counts. The relay itself
+ * takes keys only, so a name is never sent as one.
+ */
+async function tradeResolveTarget(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return { error: 'Enter their name or public key.' };
+  if (TRADE_KEY_RE.test(text.toLowerCase())) return { key: text.toLowerCase() };
+  if (!TRADE_NAME_RE.test(text)) return { error: 'That is neither a name nor a public key. ' + TRADE_KEY_HINT };
+  let data = null;
+  try {
+    const r = await fetch('/api/members?search=' + encodeURIComponent(text) + '&limit=50');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    data = await r.json();
+  } catch (e) {
+    return { error: 'Could not look that name up. Check the connection, or paste their public key instead.' };
+  }
+  const want = text.toLowerCase();
+  const keys = [];
+  ((data && data.members) || []).forEach(function(m) {
+    if (!m || typeof m.name !== 'string' || typeof m.public_key !== 'string') return;
+    const key = m.public_key.toLowerCase();
+    if (m.name.toLowerCase() === want && keys.indexOf(key) < 0) keys.push(key);
+  });
+  if (keys.length === 1) return { key: keys[0] };
+  if (keys.length === 0) return { error: 'No one named "' + text + '" is listed on this server. Paste their public key instead. ' + TRADE_KEY_HINT };
+  return { error: 'More than one person is listed as "' + text + '". Paste their public key instead. ' + TRADE_KEY_HINT };
+}
+
+/**
+ * The friendship pass `peer` gave this person, read from Chat's store in this
+ * browser, or null. Read afresh for each request, so a pass Chat received after
+ * this page opened counts. Read-only: this page never writes Chat's store.
+ */
+async function tradePassFor(peer) {
+  if (!tradeIdentity || !window.hosDmStore || typeof window.getPqDmStoreKey !== 'function') return null;
+  // chat-dm-store.js asks window.getDmStoreKey for its key. Chat's crypto.js
+  // defines it; this page does not load crypto.js and hands it the same key,
+  // derived from the same seed.
+  if (typeof window.getDmStoreKey !== 'function') window.getDmStoreKey = window.getPqDmStoreKey;
+  try {
+    const ok = await window.hosDmStore.init(tradeIdentity.dilithiumPublicHex, location.host, { readOnly: true });
+    return ok ? window.hosDmStore.certFor(peer) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function sendTradeRequest() {
+  const sendBtn = document.getElementById('trade-send-btn');
+  if (!tradeSignedIn()) { tradeRequestSay('This page is not signed in to the server right now.'); return; }
+  const message = document.getElementById('trade-message-input').value.trim();
+  if (sendBtn) sendBtn.disabled = true;
+  try {
+    const target = await tradeResolveTarget(document.getElementById('trade-target-input').value);
+    if (target.error) { tradeRequestSay(target.error); return; }
+    if (target.key === tradeMyKey) { tradeRequestSay('That is your own key.'); return; }
+    const frame = { type: 'trade_request', target_key: target.key, message: message };
+    const pass = await tradePassFor(target.key);
+    if (pass) frame.friend_cert = pass;
+    if (!tradeSend(frame)) { tradeRequestSay('This page is not signed in to the server right now.'); return; }
+    tradePendingTarget = target.key;
+    closeTradeRequestModal();
+    tradeSay('Sending the trade request...');
+  } finally {
+    if (sendBtn) sendBtn.disabled = false;
+  }
 }
 
 function respondToTrade(tradeId, accepted) {
-  if (!tradeWs || tradeWs.readyState !== 1) return;
-  tradeWs.send(JSON.stringify({
+  tradeSend({
     type: 'trade_response',
     trade_id: tradeId,
     accepted: accepted
-  }));
+  });
 }
 
 function addMyItem() {
@@ -333,11 +579,11 @@ function addMyItem() {
   var myItems = isInitiator ? (activeTrade.initiator_items || []).slice() : (activeTrade.recipient_items || []).slice();
   myItems.push({ item_type: itemType, name: name, quantity: qty, description: '' });
 
-  tradeWs.send(JSON.stringify({
+  if (!tradeSend({
     type: 'trade_update_items',
     trade_id: activeTrade.id,
     items: myItems
-  }));
+  })) return;
   nameEl.value = '';
   qtyEl.value = '1';
 }
@@ -347,31 +593,45 @@ function removeMyItem(idx) {
   var isInitiator = activeTrade.initiator_key === tradeMyKey;
   var myItems = isInitiator ? (activeTrade.initiator_items || []).slice() : (activeTrade.recipient_items || []).slice();
   myItems.splice(idx, 1);
-  tradeWs.send(JSON.stringify({
+  tradeSend({
     type: 'trade_update_items',
     trade_id: activeTrade.id,
     items: myItems
-  }));
+  });
 }
 
 function confirmTrade(tradeId) {
-  if (!tradeWs || tradeWs.readyState !== 1) return;
-  tradeWs.send(JSON.stringify({
+  tradeSend({
     type: 'trade_confirm',
     trade_id: tradeId
-  }));
+  });
 }
 
 async function cancelTrade(tradeId) {
   if (!await holdConfirm('Cancel this trade?', { seconds: 3 })) return;
-  if (!tradeWs || tradeWs.readyState !== 1) return;
-  tradeWs.send(JSON.stringify({
+  tradeSend({
     type: 'trade_cancel',
     trade_id: tradeId
-  }));
+  });
 }
 
 // ── Order Book functions ──
+
+/**
+ * Sign an order book request the way the relay checks it
+ * (verify_dilithium_signature in src/relay/handlers/broadcast.rs): Dilithium3
+ * over `content + "\n" + timestamp`, the signature in hex. Null when this page
+ * is not signed in or signing failed.
+ */
+async function tradeRestAuth(content) {
+  if (!tradeSignedIn() || !tradeIdentity || typeof window.pqSignMessage !== 'function') return null;
+  const timestamp = Date.now();
+  const sig = await window.pqSignMessage(tradeIdentity.dilithiumSecret, new TextEncoder().encode(content + '\n' + timestamp));
+  if (!sig) return null;
+  return { key: tradeIdentity.dilithiumPublicHex, timestamp: timestamp, signature: bytesToHex(sig) };
+}
+
+const TRADE_NOT_SIGNED_IN = 'This page is not signed in to the server. Open Chat in this browser first.';
 
 function searchOrderBook() {
   var itemType = (document.getElementById('ob-search-item').value || '').trim();
@@ -406,7 +666,7 @@ function renderOrderBook(orders, itemType, marketPrice) {
   html += '</tr></thead><tbody>';
   orders.forEach(function(o) {
     var sellerLabel = o.seller_key.slice(0, 12) + '...';
-    var isMine = o.seller_key === tradeMyKey;
+    var isMine = !!tradeMyKey && o.seller_key === tradeMyKey;
     html += '<tr>';
     html += '<td>' + escHtml(sellerLabel) + (isMine ? ' <em>(you)</em>' : '') + '</td>';
     html += '<td>' + escHtml(o.item_type) + (o.item_id ? ' (' + escHtml(o.item_id) + ')' : '') + '</td>';
@@ -417,7 +677,7 @@ function renderOrderBook(orders, itemType, marketPrice) {
     html += '<td>';
     if (isMine) {
       html += '<button class="cancel-order-btn" onclick="cancelOrder(' + o.id + ')">Cancel</button>';
-    } else if (tradeMyKey && !tradeMyKey.startsWith('viewer_')) {
+    } else if (tradeSignedIn()) {
       html += '<button class="buy-btn" onclick="promptBuyOrder(' + o.id + ',' + o.remaining_qty + ',' + o.price_per_unit + ')">Buy</button>';
     }
     html += '</td>';
@@ -436,25 +696,15 @@ function promptBuyOrder(orderId, maxQty, pricePerUnit) {
 }
 
 async function fillOrder(orderId, quantity) {
-  if (!tradeMyKey || tradeMyKey.startsWith('viewer_')) { alert('Not authenticated.'); return; }
-  var timestamp = Date.now();
-  var sigContent = 'fill_order\n' + orderId + '\n' + quantity + '\n' + timestamp;
-  var signature = '';
-  try {
-    var backup = JSON.parse(localStorage.getItem('humanity_key_backup') || 'null');
-    if (backup && backup.privateKeyHex) {
-      var privBytes = hexToBytes(backup.privateKeyHex);
-      var keyPair = nacl.sign.keyPair.fromSeed(privBytes.slice(0, 32));
-      var msgBytes = new TextEncoder().encode(sigContent);
-      signature = bytesToHex(nacl.sign.detached(msgBytes, keyPair.secretKey));
-    }
-  } catch(e) { alert('Could not sign request.'); return; }
+  if (!tradeSignedIn()) { alert(TRADE_NOT_SIGNED_IN); return; }
+  var auth = await tradeRestAuth('fill_order\n' + orderId + '\n' + quantity);
+  if (!auth) { alert('Could not sign the request.'); return; }
 
   try {
     var resp = await fetch('/api/trade/orders/' + orderId + '/fill', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ public_key: tradeMyKey, timestamp: timestamp, signature: signature, quantity: quantity })
+      body: JSON.stringify({ public_key: auth.key, timestamp: auth.timestamp, signature: auth.signature, quantity: quantity })
     });
     var data = await resp.json();
     if (resp.ok) {
@@ -468,7 +718,7 @@ async function fillOrder(orderId, quantity) {
 }
 
 async function createSellOrder() {
-  if (!tradeMyKey || tradeMyKey.startsWith('viewer_')) { alert('Not authenticated.'); return; }
+  if (!tradeSignedIn()) { alert(TRADE_NOT_SIGNED_IN); return; }
   var itemType = (document.getElementById('ob-create-item').value || '').trim();
   var qty = parseInt(document.getElementById('ob-create-qty').value) || 0;
   var price = parseFloat(document.getElementById('ob-create-price').value) || 0;
@@ -478,25 +728,16 @@ async function createSellOrder() {
   if (qty <= 0) { alert('Quantity must be positive.'); return; }
   if (price <= 0) { alert('Price must be positive.'); return; }
 
-  var timestamp = Date.now();
-  var sigContent = 'trade_order\n' + itemType + '\n' + qty + '\n' + price + '\n' + timestamp;
-  var signature = '';
-  try {
-    var backup = JSON.parse(localStorage.getItem('humanity_key_backup') || 'null');
-    if (backup && backup.privateKeyHex) {
-      var privBytes = hexToBytes(backup.privateKeyHex);
-      var keyPair = nacl.sign.keyPair.fromSeed(privBytes.slice(0, 32));
-      var msgBytes = new TextEncoder().encode(sigContent);
-      signature = bytesToHex(nacl.sign.detached(msgBytes, keyPair.secretKey));
-    }
-  } catch(e) { alert('Could not sign request.'); return; }
+  // The relay signs over format!("trade_order\n{}\n{}\n{}", item_type, quantity, price_per_unit).
+  var auth = await tradeRestAuth('trade_order\n' + itemType + '\n' + qty + '\n' + price);
+  if (!auth) { alert('Could not sign the request.'); return; }
 
   try {
     var resp = await fetch('/api/trade/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        public_key: tradeMyKey, timestamp: timestamp, signature: signature,
+        public_key: auth.key, timestamp: auth.timestamp, signature: auth.signature,
         item_type: itemType, quantity: qty, price_per_unit: price, currency: currency
       })
     });
@@ -513,23 +754,13 @@ async function createSellOrder() {
 
 async function cancelOrder(orderId) {
   if (!await holdConfirm('Cancel this sell order?', { seconds: 3 })) return;
-  if (!tradeMyKey || tradeMyKey.startsWith('viewer_')) { alert('Not authenticated.'); return; }
-  var timestamp = Date.now();
-  var sigContent = 'cancel_order\n' + orderId + '\n' + timestamp;
-  var signature = '';
-  try {
-    var backup = JSON.parse(localStorage.getItem('humanity_key_backup') || 'null');
-    if (backup && backup.privateKeyHex) {
-      var privBytes = hexToBytes(backup.privateKeyHex);
-      var keyPair = nacl.sign.keyPair.fromSeed(privBytes.slice(0, 32));
-      var msgBytes = new TextEncoder().encode(sigContent);
-      signature = bytesToHex(nacl.sign.detached(msgBytes, keyPair.secretKey));
-    }
-  } catch(e) { alert('Could not sign request.'); return; }
+  if (!tradeSignedIn()) { alert(TRADE_NOT_SIGNED_IN); return; }
+  var auth = await tradeRestAuth('cancel_order\n' + orderId);
+  if (!auth) { alert('Could not sign the request.'); return; }
 
   try {
-    var resp = await fetch('/api/trade/orders/' + orderId + '?key=' + encodeURIComponent(tradeMyKey) +
-      '&timestamp=' + timestamp + '&sig=' + encodeURIComponent(signature), { method: 'DELETE' });
+    var resp = await fetch('/api/trade/orders/' + orderId + '?key=' + encodeURIComponent(auth.key) +
+      '&timestamp=' + auth.timestamp + '&sig=' + encodeURIComponent(auth.signature), { method: 'DELETE' });
     var data = await resp.json();
     if (resp.ok) {
       searchOrderBook();
@@ -540,7 +771,7 @@ async function cancelOrder(orderId) {
 }
 
 function loadTradeHistory() {
-  if (!tradeMyKey || tradeMyKey.startsWith('viewer_')) return;
+  if (!tradeSignedIn()) return;
   fetch('/api/trade/history?key=' + encodeURIComponent(tradeMyKey) + '&limit=20')
     .then(function(r) { return r.json(); })
     .then(function(history) { renderTradeHistory(history); })
@@ -572,12 +803,6 @@ function renderTradeHistory(history) {
   container.innerHTML = html;
 }
 
-// Hex utilities for signing
-function hexToBytes(hex) {
-  var bytes = new Uint8Array(hex.length / 2);
-  for (var i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
-  return bytes;
-}
 function bytesToHex(bytes) {
   return Array.from(bytes).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
 }
@@ -588,4 +813,4 @@ document.getElementById('trade-request-modal').addEventListener('click', functio
 });
 
 // Start
-tradeConnect();
+tradeStart();
