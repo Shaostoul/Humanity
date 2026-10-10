@@ -922,3 +922,18 @@ test("messages drawn before the warnings file arrived get their warnings when it
   const asked = failing.fetches.filter((u) => u === W.WARNINGS_URL).length;
   assert.equal(asked, 1, "a failed file is not asked for again at once");
 });
+
+// A phrase pasted as a numbered list, the way backup screens show it, is stopped too
+// (2026-10-10, found by the desktop build; the same rule as src/net/warnings.rs
+// holds_phrase_run). Seen red 2026-10-10 with the number-only filter removed from
+// phraseRunFound: "a numbered list".
+test("a numbered list of the recovery phrase is stopped", () => {
+  const { phraseRunFound } = require(path.join(WEB, "shared", "warnings.js"));
+  const phrase = "abandon ability able about above absent absorb abstract absurd abuse access accident " +
+    "account accuse achieve acid acoustic acquire across act action actor actress actual";
+  assert.ok(phraseRunFound("1. abandon 2. ability 3. able 4. about", phrase), "a numbered list");
+  assert.ok(phraseRunFound("5) above\n6) absent\n7) absorb\n8) abstract", phrase), "numbers with brackets, one per line");
+  assert.ok(phraseRunFound("#9 absurd #10 abuse #11 access #12 accident", phrase), "numbers with a hash");
+  assert.ok(!phraseRunFound("1. abandon 2. ability 3. able", phrase), "three numbered words still go");
+  assert.ok(!phraseRunFound("abandon able ability about", phrase), "out of order still goes");
+});

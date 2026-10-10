@@ -124,7 +124,10 @@
     const words = (Array.isArray(phrase) ? phrase.map(warningNormalize).join(' ') : warningNormalize(phrase))
       .split(' ').filter(Boolean);
     if (words.length < need) return false;
-    const norm = warningNormalize(text);
+    // Number-only tokens are left out (2026-10-10, as on the desktop): a phrase pasted as a
+    // numbered list, the way backup screens show it ("1. word 2. word"), has a number between
+    // every pair of words, so without this no four of its words stood next to each other.
+    const norm = warningNormalize(text).split(' ').filter((w) => w && !/^\p{N}+$/u.test(w)).join(' ');
     if (!norm) return false;
     for (let i = 0; i + need <= words.length; i++) {
       if (containsWords(norm, words.slice(i, i + need).join(' '))) return true;

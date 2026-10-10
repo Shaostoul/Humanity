@@ -637,16 +637,16 @@ When you change any of these in code, update this table + status in the same com
 
 READ THE ORDER OFF `web/chat/index.html`, never off this list: it is load-bearing
 for an IIFE shell and it has drifted before (this block named `chat-voice.js`,
-which was split into five files, and omitted nine that exist). As of 2026-10-09:
+which was split into five files, and omitted nine that exist). As of 2026-10-10:
 
 `twemoji` → `/shared/icons.js` → `/shared/events.js` → `/shared/hold-confirm.js` →
 `/shared/shell.js` → `/shared/defaults.js` → `/shared/settings.js` → `bip39-english.js` →
 `/shared/friend-pass.js` → `/shared/reach.js` → `/shared/block.js` → `/shared/report.js` →
-`crypto.js` → `pq.js` → `chat-dm-store.js` → `view/timestampPill.js` → `view/messageRow.js` →
+`/shared/warnings.js` → `crypto.js` → `pq.js` → `chat-dm-store.js` → `view/timestampPill.js` → `view/messageRow.js` →
 `app.js` → `chat-messages.js` → `chat-dms.js` → `chat-social.js` → `chat-groups-p2p.js` →
 `chat-ui.js` → `chat-voice-rooms.js` → `chat-voice-calls.js` → `chat-voice-webrtc.js` →
 `chat-voice-streaming.js` → `chat-live.js` → `chat-voice-modal.js` → `chat-profile.js` →
-`chat-privacy.js` → `chat-game-admin.js` → `chat-reports.js` → `chat-fleet.js` →
+`chat-privacy.js` → `chat-game-admin.js` → `chat-reports.js` → `chat-warnings.js` → `chat-fleet.js` →
 `chat-onboarding.js` → `qrcode.js` → `chat-p2p.js`
 
 ## REST routes (a WORKING SUBSET, not all of them)

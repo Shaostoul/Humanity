@@ -182,7 +182,13 @@ pub fn holds_phrase_run(text: &str, phrase: &str) -> bool {
         return false;
     }
     let text = normalize(text);
-    let text_words: Vec<&str> = text.split(' ').filter(|w| !w.is_empty()).collect();
+    // Number-only tokens are left out (2026-10-10): a phrase pasted as a numbered list, as backup
+    // screens show it ("1. word 2. word"), has a number between every pair of words, so without
+    // this no four of its words ever stood next to each other and the guard let it through.
+    let text_words: Vec<&str> = text
+        .split(' ')
+        .filter(|w| !w.is_empty() && !w.chars().all(char::is_numeric))
+        .collect();
     if text_words.len() < PHRASE_RUN {
         return false;
     }
@@ -347,5 +353,20 @@ mod tests {
         assert!(!holds_phrase_run("absorb abstract absurd and abuse", phrase), "a word between");
         assert!(!holds_phrase_run("act action actor", "act action actor"), "a phrase too short to have a run");
         assert!(!holds_phrase_run("", phrase));
+    }
+
+    /// A phrase pasted as a numbered list, the way backup screens show it, is stopped too
+    /// (2026-10-10, found by the desktop build): the numbers between the words are not words of
+    /// the phrase and no longer break the run. Seen red 2026-10-10 with the number-only filter
+    /// removed: "a numbered list".
+    #[test]
+    fn a_numbered_list_of_the_phrase_is_stopped() {
+        let phrase = "abandon ability able about above absent absorb abstract absurd abuse access accident \
+                      account accuse achieve acid acoustic acquire across act action actor actress actual";
+        assert!(holds_phrase_run("1. abandon 2. ability 3. able 4. about", phrase), "a numbered list");
+        assert!(holds_phrase_run("5) above\n6) absent\n7) absorb\n8) abstract", phrase), "numbers with brackets, one per line");
+        assert!(holds_phrase_run("#9 absurd #10 abuse #11 access #12 accident", phrase), "numbers with a hash");
+        assert!(!holds_phrase_run("1. abandon 2. ability 3. able", phrase), "three numbered words still go");
+        assert!(!holds_phrase_run("abandon able ability about", phrase), "out of order still goes");
     }
 }

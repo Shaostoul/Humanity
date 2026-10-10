@@ -1387,7 +1387,9 @@ Persisted with the other safety settings on each client.
 write is sent (a direct message, a channel post, a reply, a group message, a contact request's
 name, a profile field), your own client checks it against your own recovery phrase: normalise
 both the same way as above; if the text contains a run of 4 or more of your phrase's words
-consecutively and in the phrase's order, the send is stopped and nothing leaves, with: "This is
+consecutively and in the phrase's order (words made only of digits are left out of the text
+first, so a phrase pasted as a numbered list, "1. word 2. word ...", the way backup screens show
+it, is still caught; added 2026-10-10), the send is stopped and nothing leaves, with: "This is
 your recovery phrase. Anyone who has it owns your identity and everything in it. Nobody
 legitimate will ever ask for it. Remove it to send the rest." The phrase is derived on the
 device from what the client already holds (never stored anywhere new, never sent anywhere).
@@ -1397,7 +1399,8 @@ and let the send go as today.
 **Proof:** on both clients, unit tests of the matcher on the examples above (including Unicode
 text, punctuation inside a phrase, and a near miss), the friends and strangers rule, the link
 line, the switch, and the guard (a run of 4 words stops the send, 3 words or the words out of
-order do not, the full phrase stops it, a locked identity sends). A cross-client test: a Node
+order do not, the full phrase stops it, the phrase as a numbered list stops it, a locked
+identity sends). A cross-client test: a Node
 test that runs the web matcher over a shared list of cases in `scripts/tests/fixtures/` and a
 Rust test that runs the native matcher over the same file, so the two cannot drift.
 
