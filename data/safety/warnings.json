@@ -3,65 +3,151 @@
   "warnings": [
     {
       "id": "money",
-      "applies_to": ["strangers", "friends"],
+      "applies_to": [
+        "strangers",
+        "friends"
+      ],
       "title": "Asking for money",
       "explain": "Scams almost always end in a request for money: gift cards, wire transfers, crypto, or an investment that cannot lose.",
       "advice": "Do not send money or gift card codes to someone you have not met in person. If a friend asks, check with them another way first.",
       "any": [
-        "gift card", "gift cards", "itunes card", "steam card", "google play card", "amazon card",
-        "wire transfer", "western union", "moneygram", "send money", "send me money",
-        "send crypto", "send bitcoin", "send btc", "send eth", "send usdt", "send sol",
-        "bitcoin wallet", "crypto wallet", "wallet address",
-        "guaranteed return", "guaranteed profit", "double your money", "cannot lose", "can't lose",
-        "investment opportunity", "pay a fee", "processing fee", "release fee", "unlock your funds"
+        "gift card",
+        "gift cards",
+        "itunes card",
+        "steam card",
+        "google play card",
+        "amazon card",
+        "wire transfer",
+        "western union",
+        "moneygram",
+        "send money",
+        "send me money",
+        "send crypto",
+        "send bitcoin",
+        "send btc",
+        "send eth",
+        "send usdt",
+        "send sol",
+        "bitcoin wallet",
+        "crypto wallet",
+        "wallet address",
+        "guaranteed return",
+        "guaranteed profit",
+        "double your money",
+        "cannot lose",
+        "can't lose",
+        "investment opportunity",
+        "pay a fee",
+        "processing fee",
+        "release fee",
+        "unlock your funds"
       ]
     },
     {
       "id": "recovery_phrase",
-      "applies_to": ["strangers", "friends"],
+      "applies_to": [
+        "strangers",
+        "friends"
+      ],
       "title": "Asking for your recovery phrase or keys",
       "explain": "Your recovery phrase is your identity. Anyone who has it owns your account and everything in it.",
       "advice": "Nobody from HumanityOS or any server will ever ask for your recovery phrase. Never type it into a message.",
       "any": [
-        "recovery phrase", "seed phrase", "secret phrase", "mnemonic", "your 24 words", "your twelve words",
-        "your 12 words", "wallet words", "private key", "secret key", "your passphrase", "verify your wallet",
-        "verify your account", "validate your wallet", "sync your wallet"
+        "recovery phrase",
+        "seed phrase",
+        "secret phrase",
+        "mnemonic",
+        "your 24 words",
+        "your twelve words",
+        "your 12 words",
+        "wallet words",
+        "private key",
+        "secret key",
+        "your passphrase",
+        "verify your wallet",
+        "verify your account",
+        "validate your wallet",
+        "sync your wallet"
       ]
     },
     {
       "id": "staff_claim",
-      "applies_to": ["strangers"],
+      "applies_to": [
+        "strangers"
+      ],
       "title": "Claiming to be staff",
       "explain": "Someone saying they are HumanityOS staff, support or a server admin may not be. A server's real roles show next to names in the member list.",
       "advice": "Check their role in the member list. Real admins never need your recovery phrase, passwords or money.",
       "any": [
-        "humanityos support", "humanityos staff", "humanityos team", "official support", "support team",
-        "i am an admin", "i'm an admin", "im an admin", "i am a moderator", "i'm a moderator", "account security team"
+        "humanityos support",
+        "humanityos staff",
+        "humanityos team",
+        "official support",
+        "support team",
+        "i am an admin",
+        "i'm an admin",
+        "im an admin",
+        "i am a moderator",
+        "i'm a moderator",
+        "account security team"
       ]
     },
     {
       "id": "move_elsewhere",
-      "applies_to": ["strangers"],
+      "applies_to": [
+        "strangers"
+      ],
       "title": "Moving the conversation somewhere else",
       "explain": "Asking to continue on another app, by phone or on a private video call moves you away from the tools here that protect you: Block, Report, and your safety settings.",
       "advice": "You can say no. Stay here until you know who they are.",
       "any": [
-        "add me on", "message me on", "text me on", "dm me on", "talk on telegram", "on telegram", "on whatsapp",
-        "on signal", "on snapchat", "on discord", "on kik", "on wickr", "your phone number", "my phone number",
-        "send me your number", "text me", "call me on", "video call me", "private video call", "go private"
+        "add me on",
+        "message me on",
+        "text me on",
+        "dm me on",
+        "talk on telegram",
+        "on telegram",
+        "on whatsapp",
+        "on signal",
+        "on snapchat",
+        "on discord",
+        "on kik",
+        "on wickr",
+        "your phone number",
+        "my phone number",
+        "send me your number",
+        "text me",
+        "call me on",
+        "video call me",
+        "private video call",
+        "go private"
       ]
     },
     {
       "id": "urgency_secrecy",
-      "applies_to": ["strangers"],
+      "applies_to": [
+        "strangers"
+      ],
       "title": "Pressure or secrecy",
       "explain": "Pressure to act right now, threats about your account, or asking you to keep something secret are common ways to stop people from thinking twice or asking someone they trust.",
       "advice": "Take your time. It is always fine to talk to someone you trust before doing anything.",
       "any": [
-        "right now", "immediately", "act now", "last chance", "within 24 hours", "your account will be closed",
-        "your account will be deleted", "your account will be suspended", "account suspended", "urgent",
-        "do not tell anyone", "don't tell anyone", "dont tell anyone", "keep this between us", "our secret",
-        "this is our secret", "don't tell your parents", "dont tell your parents", "do not tell your parents"
+        "act now",
+        "last chance",
+        "within 24 hours",
+        "your account will be closed",
+        "your account will be deleted",
+        "your account will be suspended",
+        "account suspended",
+        "do not tell anyone",
+        "don't tell anyone",
+        "dont tell anyone",
+        "keep this between us",
+        "our secret",
+        "this is our secret",
+        "don't tell your parents",
+        "dont tell your parents",
+        "do not tell your parents"
       ]
     }
   ]

@@ -1,0 +1,108 @@
+{
+  "about": "Shared cases for the message-warning matcher (docs/design/blocking-and-safe-mode.md 10g). Both clients run their matcher over these against data/safety/warnings.json: the web in scripts/tests (Node) and the desktop app in a Rust test, so the two cannot drift. `from` is `stranger` or `friend`; `expect` lists the warning ids that must show, in the data file's order, and nothing else.",
+  "cases": [
+    {
+      "text": "Hey, can you buy me a gift card? I'll pay you back.",
+      "from": "stranger",
+      "expect": [
+        "money"
+      ]
+    },
+    {
+      "text": "Hey, can you buy me a gift card? I'll pay you back.",
+      "from": "friend",
+      "expect": [
+        "money"
+      ]
+    },
+    {
+      "text": "I'm an admin. Please verify your wallet by sending your recovery phrase.",
+      "from": "stranger",
+      "expect": [
+        "recovery_phrase",
+        "staff_claim"
+      ]
+    },
+    {
+      "text": "I'm an admin. Please verify your wallet by sending your recovery phrase.",
+      "from": "friend",
+      "expect": [
+        "recovery_phrase"
+      ]
+    },
+    {
+      "text": "IM AN ADMIN!!!",
+      "from": "stranger",
+      "expect": [
+        "staff_claim"
+      ]
+    },
+    {
+      "text": "Let's talk on Telegram, it's easier.",
+      "from": "stranger",
+      "expect": [
+        "move_elsewhere"
+      ]
+    },
+    {
+      "text": "Let's talk on Telegram, it's easier.",
+      "from": "friend",
+      "expect": []
+    },
+    {
+      "text": "Your account will be suspended unless you act now. Don't tell anyone.",
+      "from": "stranger",
+      "expect": [
+        "urgency_secrecy"
+      ]
+    },
+    {
+      "text": "I administer the garden group and moderate on weekends.",
+      "from": "stranger",
+      "expect": []
+    },
+    {
+      "text": "Guaranteed   return, double-your-money!",
+      "from": "stranger",
+      "expect": [
+        "money"
+      ]
+    },
+    {
+      "text": "Ich schicke dir eine Gift-Card",
+      "from": "stranger",
+      "expect": [
+        "money"
+      ]
+    },
+    {
+      "text": "The tomatoes are ripe right now, come by any time.",
+      "from": "friend",
+      "expect": []
+    },
+    {
+      "text": "The tomatoes are ripe right now, come by any time.",
+      "from": "stranger",
+      "expect": []
+    },
+    {
+      "text": "Send BTC to this wallet address and I'll double your money.",
+      "from": "stranger",
+      "expect": [
+        "money"
+      ]
+    },
+    {
+      "text": "",
+      "from": "stranger",
+      "expect": []
+    },
+    {
+      "text": "This is URGENT, act now or lose access!",
+      "from": "stranger",
+      "expect": [
+        "urgency_secrecy"
+      ]
+    }
+  ]
+}
