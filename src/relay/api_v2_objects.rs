@@ -297,6 +297,7 @@ pub async fn post_object(
                     || msg.contains("offering author does not match")
                     || msg.contains("provider root is not stored")
                     || msg.contains("not a provider_v1")
+                    || msg.contains("group key refused")
                 {
                     Err(IngestError::InvalidPayload(msg))
                 } else {
@@ -599,7 +600,8 @@ pub async fn group_member_keys(
 }
 
 /// `GET /api/v2/groups/{group_id}/messages` — the group's encrypted messages
-/// (full signed objects; the relay cannot decrypt them). Oldest→newest, capped.
+/// (full signed objects; the relay cannot decrypt them): the newest 200, in
+/// time order, oldest first (storage `p2p_group_message_ids`).
 pub async fn group_messages(
     State(state): State<Arc<RelayState>>,
     Path(group_id): Path<String>,

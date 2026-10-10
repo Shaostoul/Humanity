@@ -14,6 +14,7 @@ use crate::relay::handlers::broadcast::*;
 use crate::relay::handlers::utils::*;
 use crate::relay::handlers::friend_passes::friend_pass;
 use crate::relay::handlers::reach::{self, DM_KNOCKS_PER_DAY};
+use crate::relay::handlers::dm_rate;
 
 // ── Sync handlers (raw JSON, not RelayMessage enum) ──
 
@@ -710,67 +711,13 @@ pub async fn handle_dm_put(
         }
     };
 
-    // Fibonacci rate limiting — ticked ONLY on the recipient-addressed
-    // copy so the paired self-copy of the same message doesn't double-
-    // count. (A client spamming self-copies only fills its own mailbox,
-    // which the TTL bounds.)
-    if !is_self_copy && user_role != "admin" {
-        let now = Instant::now();
-        let mut rate_limits = state.rate_limits.write().await;
-        let rl = rate_limits.entry(my_key.to_string()).or_insert_with(|| {
-            let unix_now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default().as_secs();
-            let reg_at = {
-                let conn = state.db.conn.lock().unwrap();
-                conn.query_row(
-                    "SELECT MIN(registered_at) FROM registered_names WHERE public_key = ?1",
-                    rusqlite::params![my_key],
-                    |row| row.get::<_, Option<i64>>(0),
-                ).ok().flatten().unwrap_or(unix_now as i64) as u64
-            };
-            let account_age = unix_now.saturating_sub(reg_at);
-            let first_seen = if account_age >= NEW_ACCOUNT_WINDOW_SECS {
-                now - std::time::Duration::from_secs(NEW_ACCOUNT_WINDOW_SECS + 1)
-            } else {
-                now - std::time::Duration::from_secs(account_age)
-            };
-            RateLimitState {
-                first_seen,
-                last_message_time: now - std::time::Duration::from_secs(60),
-                fib_index: 0,
-            }
-        });
-
-        let elapsed = now.duration_since(rl.last_message_time).as_secs();
-        let fib_delay = FIB_DELAYS[rl.fib_index];
-
-        let is_trusted = user_role == "verified" || user_role == "donor" || user_role == "mod" || user_role == "admin";
-        let account_age = now.duration_since(rl.first_seen).as_secs();
-        let new_account_delay = if !is_trusted && account_age < NEW_ACCOUNT_WINDOW_SECS {
-            NEW_ACCOUNT_DELAY_SECS
-        } else {
-            0
-        };
-
-        let required_delay = fib_delay.max(new_account_delay);
-
-        if elapsed < required_delay {
-            let wait = required_delay - elapsed;
-            let _ = state.broadcast_tx.send(RelayMessage::Private {
-                to: my_key.to_string(),
-                message: format!("⏳ Slow down! Please wait {} more second{}.", wait, if wait == 1 { "" } else { "s" }),
-            });
-            return;
-        }
-
-        if elapsed > required_delay {
-            rl.fib_index = 0;
-        } else {
-            rl.fib_index = (rl.fib_index + 1).min(FIB_DELAYS.len() - 1);
-        }
-
-        rl.last_message_time = now;
+    // The DM send limiter (handlers/dm_rate.rs, 2026-10-10): a bucket of quick sends per sender,
+    // its own and not channel chat's, so the apps' quick pairs (a follow then a friendship pass)
+    // land. Ticked ONLY on the recipient-addressed copy so the paired self-copy of the same message
+    // doesn't count twice. (A client spamming self-copies only fills its own mailbox, which the
+    // TTL bounds.)
+    if !is_self_copy && !dm_rate::allow(state, my_key, &user_role) {
+        return;
     }
     if !reach::pay(state, my_key, cost).await {
         return;
@@ -4304,7 +4251,7 @@ mod dm_mailbox_tests {
         // The ceiling still holds: the knock budget bounds a stranger's reach.
         for _ in 0..(DM_KNOCKS_PER_DAY + 5) {
             block(async {
-                st.rate_limits.write().await.remove("newcomer_key");
+                st.dm_rate.forget("newcomer_key");
                 handle_dm_put(&st, "newcomer_key", "stranger_key".to_string(), envelope(), None, reach::DmAsk::Ordinary).await;
             });
         }
@@ -4330,12 +4277,12 @@ mod dm_mailbox_tests {
         block(handle_dm_put(&st, "loner_key", "loner_key".to_string(), envelope(), None, reach::DmAsk::Ordinary));
         assert_eq!(st.db.mailbox_fetch("loner_key", 0, 10).unwrap().len(), 1);
         // Certless knocks land until the daily budget is spent, then stop.
-        // (The Fibonacci per-message limiter is reset between sends — it
+        // (The DM send limiter, handlers/dm_rate.rs, is reset between sends: it
         // is a separate mechanism with its own coverage; here we isolate
         // the knock budget.)
         for _ in 0..(DM_KNOCKS_PER_DAY + 5) {
             block(async {
-                st.rate_limits.write().await.remove("loner_key");
+                st.dm_rate.forget("loner_key");
                 handle_dm_put(&st, "loner_key", "stranger_key".to_string(), envelope(), None, reach::DmAsk::Ordinary).await;
             });
         }
@@ -4345,7 +4292,7 @@ mod dm_mailbox_tests {
         // spends knock budget instead of granting friend status — and the
         // budget is already spent, so nothing lands.
         block(async {
-            st.rate_limits.write().await.remove("loner_key");
+            st.dm_rate.forget("loner_key");
             handle_dm_put(
                 &st,
                 "loner_key",
@@ -4367,7 +4314,7 @@ mod dm_mailbox_tests {
         st.db.register_name("Recipient", &recipient_hex).unwrap();
         let (cert, _) = crate::relay::handlers::friend_passes::test_pass(&st, &recipient_seed, &recipient_hex, "loner_key");
         block(async {
-            st.rate_limits.write().await.remove("loner_key");
+            st.dm_rate.forget("loner_key");
             handle_dm_put(&st, "loner_key", recipient_hex.clone(), envelope(), Some(cert), reach::DmAsk::Ordinary).await;
         });
         assert_eq!(

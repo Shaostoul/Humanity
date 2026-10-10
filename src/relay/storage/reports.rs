@@ -136,20 +136,26 @@ impl Storage {
         })
     }
 
-    /// The reports in `state` ("open" or "decided"), newest first, at most `limit`.
-    pub fn reports_in_state(&self, state: &str, limit: usize) -> Result<Vec<ReportRow>, rusqlite::Error> {
+    /// The reports in `state` ("open" or "decided") that are not about `viewer`, newest first, at
+    /// most `limit`. Left out in the query, not after it, so reports about a staff member cannot
+    /// fill their list and hide the others (handlers/reports.rs: nobody sees a report about
+    /// themselves).
+    pub fn reports_in_state(&self, state: &str, viewer: &str, limit: usize) -> Result<Vec<ReportRow>, rusqlite::Error> {
         self.with_conn(|conn| {
-            let mut st = conn.prepare(&format!("SELECT {ROW_COLUMNS} FROM reports_v2 WHERE state = ?1 ORDER BY id DESC LIMIT ?2"))?;
-            let rows = st.query_map(params![state, limit as i64], row)?;
+            let mut st = conn.prepare(&format!(
+                "SELECT {ROW_COLUMNS} FROM reports_v2 WHERE state = ?1 AND target_key != ?2 ORDER BY id DESC LIMIT ?3"
+            ))?;
+            let rows = st.query_map(params![state, viewer, limit as i64], row)?;
             rows.collect()
         })
     }
 
-    /// The latest reports in any state, newest first, at most `limit` (the `/reports` command).
-    pub fn reports_latest(&self, limit: usize) -> Result<Vec<ReportRow>, rusqlite::Error> {
+    /// The latest reports in any state that are not about `viewer`, newest first, at most `limit`
+    /// (the `/reports` command).
+    pub fn reports_latest(&self, viewer: &str, limit: usize) -> Result<Vec<ReportRow>, rusqlite::Error> {
         self.with_conn(|conn| {
-            let mut st = conn.prepare(&format!("SELECT {ROW_COLUMNS} FROM reports_v2 ORDER BY id DESC LIMIT ?1"))?;
-            let rows = st.query_map(params![limit as i64], row)?;
+            let mut st = conn.prepare(&format!("SELECT {ROW_COLUMNS} FROM reports_v2 WHERE target_key != ?1 ORDER BY id DESC LIMIT ?2"))?;
+            let rows = st.query_map(params![viewer, limit as i64], row)?;
             rows.collect()
         })
     }
