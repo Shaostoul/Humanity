@@ -993,6 +993,62 @@ legal findings exist, and reports are kept 90 days after a decision.
 new device by scanning a code from one already signed in, NFC and RFID. See the journal entry of
 2026-10-09 for the first answer; they belong in an identity-on-every-device design.
 
+## 10b. Build order after the operator's answers (2026-10-09)
+
+Increment 0 shipped in v0.1465.0 (BUG-170 to BUG-173). The rest, in order, each its own
+release with its proof:
+
+**A. Friendship passes v2: no end date, a serial, and what the friend may do.** Replaces
+section 5.2's format:
+
+```text
+preimage = "hum/friend/v2\n{server}\n{issuer}\n{grantee}\n{serial}\n{may}"
+server   = the relay's own did:hum: (Storage::server_did, /api/server-info)
+serial   = 16 random bytes, lowercase hex, chosen by the issuer's client
+may      = the sorted, comma-joined subset of: call, invite, message, trade, voice_message
+cert     = {"v":2,"serial":"...","may":"...","sig":"<base64 Dilithium3 over the preimage>"}
+```
+
+- **No end date** (10a). Withdrawal is by serial: the issuer sends `cert_revoke {serial}` on its
+  own signed-in socket; the relay keeps `friend_cert_revocations (issuer_key, serial,
+  revoked_day)` until the issuer erases their account. A new table, so a plain
+  `CREATE TABLE IF NOT EXISTS` (BUG-046 concerns ALTER-added columns only).
+- **What the friend may do lives in the pass.** The relay rebuilds the preimage from its own
+  facts (its server DID, the recipient as issuer, the socket's key as grantee) plus the serial
+  and `may` the pass carries, checks the signature and that the serial is not withdrawn, and
+  learns which kinds of contact this sender may use. Changing what a friend may do is a new
+  pass (new serial) and a withdrawal of the old one.
+- **Defaults when two people become friends** (mutual follow): message, voice_message, invite,
+  trade. Not call: calls come only from people the person chooses (10a), so `call` is added
+  only for people they put on a "may call me" list.
+- **Every contact path carries the pass**: `dm_put` (as today), `trade_request` (the optional
+  `friend_cert` added in v0.1465.0), `voice_call`, and `dc_offer`. Until B ships the relay only
+  reads it; nothing is refused for lacking a capability except as today's knock budget does.
+- **Withdrawn on**: Unfollow, Block (increment C), Remove friend.
+- **v1 passes stop working outright**; each client re-mints for its current mutual follows on
+  first run (no compatibility branch, CLAUDE.md).
+- **Proof**: `pq_crypto` tests (pinned preimage, wrong server, wrong grantee, withdrawn serial,
+  a `may` that was not signed), the cross-client pin (a Node test reading the Rust pin and
+  comparing the web builder, as `scripts/tests/second-player.test.js` does for permits),
+  `scripts/pq-kat.mjs` (a pass minted by Rust from the KAT seed verified by the vendored web
+  bundle), relay tests at each handler, and the relay battery. CLAUDE.md's Cryptography row in
+  the same commit.
+
+**B. "Who can reach me".** The per-kind audience table (10a), stored as one signed setting per
+person and enforced by the relay at `dm_put`, `voice_call`, `dc_offer`, `trade_request` and
+group invitations, using the pass's `may` for the friend and chosen-list cases. A stranger who is
+refused gets the same sentence every non-friend gets, and may send a **contact request**
+(name only, rate limited). Settings > Safety on both clients (native first). Safe defaults for
+new and existing people alike (nobody uses the platform yet, CLAUDE.md). Proof: relay tests per
+handler under each audience; a pre-migration `Storage::open` test if a column is added; a
+headless snapshot of the Safety page.
+
+**C. Block, on both clients**, and the **Requests** list for strangers' messages where a person
+allows them (section 4, increment 1 and 2 of section 9).
+
+After C: reports (section 8), warnings, our own STUN and the forwarder (7.4), the protected
+setup.
+
 ## 11. Docs to update as each piece ships
 
 - `docs/accord/conformance_gaps.md` ("Contact consent cannot be withdrawn")
