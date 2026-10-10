@@ -39,6 +39,11 @@ pub mod reach;
 #[cfg(feature = "native")]
 pub mod block_list;
 
+/// Reports the admins can check (step D of docs/design/blocking-and-safe-mode.md, 2026-10-09):
+/// the signed report and its evidence, the evidence picker's choice, and the admins' list.
+#[cfg(feature = "native")]
+pub mod report;
+
 /// Native client → relay v2 signed-object submission + invite ticket helpers
 /// (P2P groups). HTTP via the same blocking-ureq pattern as image upload.
 #[cfg(feature = "native")]

@@ -445,6 +445,7 @@ pub(crate) fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut Gu
             }
         });
         super::reach::draw_refusal_notice(ui, theme, state, &key); // their gate refused us (step B)
+        super::report_dialog::draw_profile_report(ui, theme, state, &key); // Report (step D)
         super::blocking::draw_profile_block(ui, theme, state, &key); // Block / Unblock (step C)
 
         // (v0.845: the old "Watch Stream" button was a dead no-op — the native

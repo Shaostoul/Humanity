@@ -320,9 +320,13 @@ fn draw_user_row(
         state.chat_user_modal_name = name.to_string();
         state.chat_user_modal_key = public_key.to_string();
     }
-    // Right-click: Block or Unblock this person (step C; their profile has it too).
+    // Right-click: Report (step D) and Block or Unblock (step C) this person; their profile has
+    // both too.
     if !public_key.is_empty() && public_key != state.profile_public_key {
-        response.context_menu(|ui| super::blocking::member_menu(ui, state, public_key));
+        response.context_menu(|ui| {
+            super::report_dialog::member_menu(ui, state, public_key);
+            super::blocking::member_menu(ui, state, public_key);
+        });
     }
 }
 

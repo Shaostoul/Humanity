@@ -281,7 +281,9 @@ impl DmInner {
     }
 }
 
-fn sig_preimage(from_hex: &str, to_hex: &str, ts: u64, text: &str) -> String {
+/// The words a DM's inner signature covers. `pub(crate)` since step D so the report tests can
+/// check that a DM handed over as evidence verifies the way the relay checks it.
+pub(crate) fn sig_preimage(from_hex: &str, to_hex: &str, ts: u64, text: &str) -> String {
     format!("{DM_SIG_DOMAIN}\n{from_hex}\n{to_hex}\n{ts}\n{text}")
 }
 

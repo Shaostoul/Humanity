@@ -59,6 +59,9 @@ use modals::{
 mod reach;
 /// Block (step C): the DM header's, the profile's and the member row's Block buttons.
 mod blocking;
+/// Report (step D): the Report dialog and its buttons. See `chat/report_dialog.rs`.
+mod report_dialog;
+pub(crate) use report_dialog::draw_report_dialog;
 
 // Maximum messages kept in the local chat buffer (was hardcoded, now uses theme.max_messages if needed).
 
@@ -286,6 +289,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if state.chat_user_modal_open {
         draw_user_modal(ctx, theme, state);
     }
+    draw_report_dialog(ctx, theme, state); // the Report dialog, while open (step D)
 
     // 1:1 voice call surfaces (v0.703): the incoming-call Accept/Decline
     // modal + the in-call bar with Hang up.
@@ -423,6 +427,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             .color(theme.dm_accent())
                             .strong(),
                     );
+                    report_dialog::draw_dm_header_report(ui, theme, state, partner_key); // step D
                     blocking::draw_dm_header_block(ui, theme, state, partner_key); // step C
                 } else if let Some(gid) = ac.strip_prefix("p2pgroup:") {
                     // P2P group header: back button + name + a Copy-invite
@@ -703,8 +708,8 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 // Cancel flag — Cancel button in the inline editor sets this
                 // so we clear chat_edit_target after the loop ends.
                 let mut pending_edit_cancel = false;
-                // Report button clicks (from context menu) — buffered to send /report slash command.
-                let mut pending_reports: Vec<(String, String)> = Vec::new();
+                // Report clicks (from the context menu), buffered: each opens the Report dialog (step D).
+                let mut pending_reports: Vec<ChatMessage> = Vec::new();
                 let mut pending_blocks: Vec<String> = Vec::new(); // Block beside Report (step C)
                 // v0.281.0: Delete button clicks (from context menu) — buffered
                 // so the borrow on `state.chat_messages` ends before we mutate
@@ -1054,12 +1059,14 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 }
                             }
                             ui.separator();
-                            if ui.button("Report").clicked() {
-                                pending_reports.push((msg.sender_name.clone(), msg.content.clone()));
+                            // Report and Block name a person's own key only: never ours, never a
+                            // bridged line's server id.
+                            let a_person = !is_own && !msg.sender_key.is_empty() && msg.origin_server.is_empty();
+                            if a_person && ui.button("Report").on_hover_text(report_dialog::REPORT_TIP).clicked() {
+                                pending_reports.push(ChatMessage::clone(msg));
                                 ui.close_menu();
                             }
-                            // A person's own key only: never ours, never a bridged line's server id.
-                            if !is_own && !msg.sender_key.is_empty() && msg.origin_server.is_empty()
+                            if a_person
                                 && ui.button("Block").on_hover_text(blocking::BLOCK_TIP).clicked()
                             {
                                 pending_blocks.push(msg.sender_key.clone());
@@ -1509,32 +1516,10 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 for key in pending_blocks {
                     crate::engine::block::block(state, &key); // nothing is sent to them (step C)
                 }
-                // Send pending report slash commands.
-                for (sender_name, _content) in pending_reports {
-                    if let Some(ref client) = state.ws_client {
-                        if client.is_connected() {
-                            let ts = std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_millis() as u64;
-                            let report_cmd = format!("/report {}", sender_name);
-                            let mut m = serde_json::json!({
-                                "type": "chat",
-                                "from": state.profile_public_key,
-                                "from_name": state.user_name,
-                                "content": report_cmd,
-                                "timestamp": ts,
-                                "channel": state.chat_active_channel,
-                            });
-                            // Inc2.MED-1: Dilithium chat signature.
-                            if let Some(seed) = state.private_key_bytes.as_ref() {
-                                m["pq_signature"] = serde_json::Value::String(
-                                    crate::net::identity::pq_sign_chat(seed, &report_cmd, ts)
-                                );
-                            }
-                            client.send(&m.to_string());
-                        }
-                    }
+                // Step D: Report opens the Report dialog (reasons, evidence, a note, Also block
+                // them). It replaced a `/report <name>` slash command that dropped the message.
+                for msg in pending_reports {
+                    crate::engine::report::open_for_message(state, &msg);
                 }
 
                 // v0.281.0: send pending delete requests via WebSocket.
