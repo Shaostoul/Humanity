@@ -52,8 +52,14 @@
 // said):
 //  1: warnings.js warningNormalize without `.toLowerCase()`: "shared case 3 ("I'm an admin. ..."
 //     from a stranger) shows exactly its expect" (six tests failed with it, 2 to 5 and 8 too).
-//  2: warnings.js NOT_LETTER_OR_DIGIT as /[^a-z0-9]+/g: "Cyrillic letters are letters";
+//  2: warnings.js NOT_LETTER_OR_DIGIT as /[^a-z0-9]+/g: "Cyrillic letters are letters" (and,
+//     on the 17-case fixture, test 1's shared case 17);
 //     containsWords without the surrounding spaces: "admin never matches inside administer".
+//     And (same day, after 10g was corrected) NOT_LETTER_OR_DIGIT as the first version's
+//     /[^\p{L}\p{N}]+/gu, which splits a word at a combining mark Rust keeps in it: "shared case 17
+//     ("gift<U+0902> card" from a stranger) shows exactly its expect" in test 1 (seen on the
+//     merged fixture before the class was changed), and "an Alphabetic combining mark is part of
+//     the word, as in Rust" in test 2.
 //  3: warningSenderIsFriend using `store.following.has(key)` (one-way): "following them only is
 //     not a friend".
 //  4: drawMessageWarnings without the warningsDismissed check: "Got it holds when the
@@ -487,7 +493,7 @@ function phraseOf(seed, list) {
 test("the shared cases: exactly each case's expect, against the shipped warnings file", () => {
   const list = W.warningsFrom(SHIPPED_WARNINGS);
   assert.deepEqual(list.map((w) => w.id), SHIPPED_WARNINGS.warnings.map((w) => w.id), "every entry of the shipped file is read, in its order");
-  assert.ok(CASES.cases.length >= 16, "the shared cases are there");
+  assert.ok(CASES.cases.length >= 17, "the shared cases are there");
   CASES.cases.forEach((c, i) => {
     const got = W.warningMatches(c.text, c.from, list).map((w) => w.id);
     assert.deepEqual(got, c.expect, `shared case ${i + 1} (${JSON.stringify(c.text)} from a ${c.from}) shows exactly its expect`);
@@ -511,6 +517,11 @@ test("the matcher: 10g's examples, Unicode, punctuation inside a phrase, near mi
   assert.deepEqual(ids("I’m an admin"), ["staff_claim"], "a curly apostrophe is punctuation too");
   assert.deepEqual(ids("Ím an admin"), [], "near miss: an accented letter is a different letter");
   assert.equal(W.warningNormalize("½ price, ²nd chance"), "½ price ²nd chance", "number characters are kept");
+  // A combining mark that is Alphabetic (a Devanagari vowel sign) stays in its word, as Rust's
+  // char::is_alphanumeric keeps it: "giftं" is one word, not "gift" and a separator.
+  assert.equal(W.warningNormalize("Giftं card"), "giftं card", "an Alphabetic combining mark is part of the word, as in Rust");
+  assert.deepEqual(ids("giftं card"), [], "so it is not the phrase gift card");
+  assert.equal(W.warningNormalize("बीमा!"), "बीमा", "a Hindi word with its vowel signs stays whole");
   // Punctuation inside a phrase.
   assert.deepEqual(ids("You CAN'T LOSE."), ["money"], "can't lose");
   assert.deepEqual(ids("you can t lose"), ["money"], "the same words, spaced");

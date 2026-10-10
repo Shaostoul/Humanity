@@ -12,7 +12,8 @@
 // same to each phrase. A text matches an entry when " " + text + " " contains
 // " " + phrase + " " for any phrase in its `any`. So "I'm an admin!!" matches
 // "i'm an admin" (both become "i m an admin"), and "admin" never matches inside
-// "administer". Letters and digits are Unicode's (\p{L} and \p{N}).
+// "administer". Letters and digits are Unicode's, the same on both clients:
+// the JavaScript class \p{Alphabetic}\p{N} is Rust's char::is_alphanumeric.
 //
 // The guard uses the same normalising: a text that holds 4 or more of my
 // recovery phrase's words in a row, in the phrase's order, is never sent.
@@ -49,8 +50,12 @@
   }
 
   // ── Matching ──
-  // Every run of characters that are not a letter or a digit.
-  const NOT_LETTER_OR_DIGIT = /[^\p{L}\p{N}]+/gu;
+  // Every run of characters that are not a letter or a digit, exactly as the
+  // desktop app's Rust `char::is_alphanumeric` decides: the Alphabetic property
+  // or a numeric category. (Not \p{L}: that splits a word at a combining mark
+  // such as a Devanagari vowel sign, which Rust keeps in the word; the shared
+  // cases hold one that tells the two apart. 10g, corrected 2026-10-10.)
+  const NOT_LETTER_OR_DIGIT = /[^\p{Alphabetic}\p{N}]+/gu;
 
   /** A text as both clients compare it: lower-cased, runs of anything else one space, trimmed. */
   function warningNormalize(text) {
