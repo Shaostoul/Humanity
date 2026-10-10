@@ -218,7 +218,9 @@ function applyEditToDOM(fromKey, timestamp, newContent) {
   if (!msgEl) return;
   const bodyEl = msgEl.querySelector('.body');
   if (!bodyEl) return;
-  bodyEl.innerHTML = formatBody(newContent);
+  // Who wrote it goes along, so an edit cannot bring back a picture the
+  // protected setup does not show (10h).
+  bodyEl.innerHTML = formatBody(newContent, fromKey);
   // Add (edited) marker if not present.
   if (!bodyEl.querySelector('.edited-marker')) {
     const marker = document.createElement('span');
@@ -588,7 +590,7 @@ function openThreadPanel(fromKey, timestamp, author, body) {
   messagesDiv.innerHTML = `<div class="thread-msg thread-parent">
     <span class="thread-msg-author">${esc(author)}</span>
     <span class="thread-msg-time">${formatTime(timestamp)}</span>
-    <div class="thread-msg-body">${formatBody(body)}</div>
+    <div class="thread-msg-body">${formatBody(body, fromKey)}</div>
   </div>
   <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:var(--space-md);">Loading replies...</div>`;
   // Request thread from server.
@@ -612,7 +614,7 @@ function renderThreadMessages(messages) {
   const parentHtml = `<div class="thread-msg thread-parent">
     <span class="thread-msg-author">${esc(currentThread.author)}</span>
     <span class="thread-msg-time">${formatTime(currentThread.timestamp)}</span>
-    <div class="thread-msg-body">${formatBody(currentThread.body)}</div>
+    <div class="thread-msg-body">${formatBody(currentThread.body, currentThread.from)}</div>
   </div>`;
   let repliesHtml = '';
   if (messages.length === 0) {
@@ -622,7 +624,7 @@ function renderThreadMessages(messages) {
       repliesHtml += `<div class="thread-msg">
         <span class="thread-msg-author">${esc(m.from_name || 'Unknown')}</span>
         <span class="thread-msg-time">${formatTime(m.timestamp)}</span>
-        <div class="thread-msg-body">${formatBody(m.content)}</div>
+        <div class="thread-msg-body">${formatBody(m.content, m.from)}</div>
       </div>`;
     }
   }

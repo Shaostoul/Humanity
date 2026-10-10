@@ -1725,7 +1725,13 @@ var federatedRetryMs = 30000;
     // Property badges after the name match native's channel status icons
     // (src/gui/pages/chat.rs ~1027): eye = read-only, node-graph = federated,
     // both drawn in muted color.
-    const channelsHtml = channelList.map(ch => {
+    // With the protected setup on, only read-only rooms are listed, and one line
+    // says the rest are hidden (10h, /shared/protected.js).
+    const rooms = (typeof protectedChannelsShown === 'function' && typeof protectedCurrent === 'function')
+      ? protectedChannelsShown(channelList, protectedCurrent())
+      : { shown: channelList, hidden: 0 };
+    const roomsHiddenHtml = rooms.hidden && typeof protectedRoomsHiddenHtml === 'function' ? protectedRoomsHiddenHtml() : '';
+    const channelsHtml = rooms.shown.map(ch => {
       const isActive = ch.id === activeChannel && !activeDmPartner && !activeGroupId;
       const title = ch.description ? ` title="${esc(ch.description)}"` : '';
       const badges = (ch.read_only ? CH_BADGE_READONLY : '') + (ch.federated ? CH_BADGE_FEDERATED : '');
@@ -1774,11 +1780,13 @@ var federatedRetryMs = 30000;
         <span class="collapse-arrow">▼</span>
         <span class="srv-name">🟢 ${esc(location.host || 'united-humanity.us')}</span>
       </div>
-      <div class="server-group-channels">${channelsHtml}${createChannelBtn}</div>
+      <div class="server-group-channels">${channelsHtml}${roomsHiddenHtml}${createChannelBtn}</div>
     </div>`;
 
-    // Federated servers.
-    if (federatedServers.length > 0) {
+    // Federated servers. Each leads to another server's public rooms, so the
+    // protected setup hides them with this server's (10h).
+    const fedHidden = typeof protectedHidesRooms === 'function' && protectedHidesRooms();
+    if (federatedServers.length > 0 && !fedHidden) {
       html += '<div style="padding:var(--space-sm) var(--space-md) var(--space-xs);font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Federation</div>';
       for (const s of federatedServers) {
         const tierBadge = s.trust_tier === 3 ? '🟢' : s.trust_tier === 2 ? '🟡' : s.trust_tier === 1 ? '🔵' : '⚪';

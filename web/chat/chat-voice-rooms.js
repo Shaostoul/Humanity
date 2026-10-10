@@ -168,6 +168,11 @@ async function joinVoiceRoom(roomId) {
     addSystemMessage('Leave your current voice channel first.');
     return;
   }
+  // With the protected setup on, joining a voice room needs the PIN (10h,
+  // /shared/protected.js), also when rejoining after a reload. Leaving never does.
+  if (typeof protectedTake === 'function' && !protectedTake('join_voice_room')) {
+    return protectedAskThen('join_voice_room', () => joinVoiceRoom(roomId));
+  }
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   const id = String(roomId);
   ws.send(JSON.stringify({ type: 'voice_room', action: 'join', room_id: id }));

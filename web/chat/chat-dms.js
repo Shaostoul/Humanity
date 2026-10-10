@@ -221,7 +221,12 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
   // decrypt-on-view card, not raw text. The file's ciphertext is public but
   // useless; the key rode in this sealed message.
   const fileMeta = (typeof pqParseFileMarker === 'function') ? pqParseFileMarker(body) : null;
-  const bodyHtml = fileMeta ? encAttachmentPlaceholder(fileMeta) : formatBody(body);
+  // With the protected setup on, a file or picture from someone who is not a
+  // friend is not shown and never decrypted: one line in its place (10h,
+  // chat-protected.js). formatBody does the same for links to pictures.
+  const fileHidden = !!fileMeta && typeof protectedHidesPicturesFrom === 'function' && protectedHidesPicturesFrom(fromKey);
+  const bodyHtml = fileHidden ? protectedPictureHiddenHtml()
+    : fileMeta ? encAttachmentPlaceholder(fileMeta) : formatBody(body, fromKey);
 
   // Step F (2026-10-10, chat-warnings.js): a stranger's links are held until
   // the line under the message's Open is pressed, and the warnings the message
@@ -242,7 +247,7 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
   if (received && typeof addMessageSafetyLines === 'function') {
     addMessageSafetyLines(el, { text: body, from: fromKey, ts: timestamp, context: 'dm', name: author, liveBodyHtml: holdLinks ? bodyHtml : null });
   }
-  if (fileMeta) hydrateEncAttachment(el, fileMeta);
+  if (fileMeta && !fileHidden) hydrateEncAttachment(el, fileMeta);
   if (window.twemoji) twemoji.parse(el);
   return el;
 }
@@ -347,7 +352,10 @@ function renderDmList() {
     + '<span class="hold-hint">hold</span></div>';
   // Contact requests ("who can reach me", step B): name only, Accept and
   // Ignore, above the conversations (chat-privacy.js draws and wires them).
-  const requestsHtml = (typeof contactRequestsSidebarHtml === 'function') ? contactRequestsSidebarHtml() : '';
+  // Above them, while the protected setup is on, its always-visible line
+  // (10h, chat-protected.js): the person it protects is told.
+  const statusHtml = (typeof protectedStatusLineHtml === 'function') ? protectedStatusLineHtml('dm') : '';
+  const requestsHtml = statusHtml + ((typeof contactRequestsSidebarHtml === 'function') ? contactRequestsSidebarHtml() : '');
   if (dmConversations.length === 0) {
     list.innerHTML = requestsHtml + '<div style="font-size:0.7rem;color:var(--text-muted);padding:var(--space-sm) var(--space-md);">No conversations yet</div>' + purgeRow;
     if (typeof wireContactRequestButtons === 'function') wireContactRequestButtons(list);

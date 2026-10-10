@@ -99,6 +99,14 @@ function messageWarningsOn() {
 function setMessageWarningsOn(on) {
   const store = warnStore();
   if (!store) return false;
+  // With the protected setup on, turning warnings off needs the PIN (10h,
+  // /shared/protected.js); turning them on never does. The switch is drawn
+  // back as it was until the PIN is given.
+  if (!on && typeof protectedTake === 'function' && !protectedTake('warnings_off')) {
+    protectedAskThen('warnings_off', () => setMessageWarningsOn(false));
+    if (typeof renderSafetyPanel === 'function') renderSafetyPanel();
+    return false;
+  }
   store.setWarningsOn(!!on);
   applyWarningsSwitchToView();
   if (typeof renderSafetyPanel === 'function') renderSafetyPanel();
@@ -173,8 +181,16 @@ function addMessageSafetyLines(el, opts) {
 
 /** The warnings a message matches, under it, in the file's order. */
 function drawMessageWarnings(el, o) {
-  const who = warningSenderIsFriend(o.from) ? 'friends' : 'strangers';
-  const hits = warningMatches(o.text, who, messageWarnings || []);
+  const friend = warningSenderIsFriend(o.from);
+  // With the protected setup on, a friend's message is checked against the
+  // strangers' entries too (10h); otherwise each sender gets their own audience.
+  const audiences = (typeof protectedWarningAudiences === 'function' && typeof protectedCurrent === 'function')
+    ? protectedWarningAudiences(friend, protectedCurrent())
+    : [friend ? 'friends' : 'strangers'];
+  const list = messageWarnings || [];
+  const matched = new Set();
+  for (const who of audiences) for (const w of warningMatches(o.text, who, list)) matched.add(w.id);
+  const hits = list.filter((w) => matched.has(w.id)); // the file's order, each once
   if (!hits.length) return;
   const on = messageWarningsOn();
   const slot = messageSafetySlot(el);

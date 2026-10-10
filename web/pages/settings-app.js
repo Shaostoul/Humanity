@@ -418,6 +418,10 @@ function exportData() {
   a.click();
 }
 
+// Keys an imported backup never writes (see importData). Must name the same key
+// as /shared/protected.js PROTECTED_STORAGE_KEY (scripts/tests/protected-web.test.js checks).
+const IMPORT_NEVER_KEYS = ['humanity_protected_setup'];
+
 function importData(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -427,6 +431,10 @@ function importData(e) {
       const data = JSON.parse(ev.target.result);
       if (!await holdConfirm('Import this backup? It will overwrite matching local data.', { seconds: 3 })) return;
       Object.keys(data).forEach(k => {
+        // The protected setup (docs/design/blocking-and-safe-mode.md 10h) is kept
+        // on this device only and never exported, so a backup file can never turn
+        // it off or replace its PIN: an import skips it, whatever the file says.
+        if (IMPORT_NEVER_KEYS.includes(k)) return;
         if (data[k] !== null) localStorage.setItem(k, JSON.stringify(data[k]));
       });
       alert('Data imported successfully.');
