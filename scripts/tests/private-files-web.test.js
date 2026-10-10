@@ -1004,3 +1004,5 @@ test("a group's file is not sent anywhere when another conversation is opened wh
 //     never fetched".
 //  B14 chat-ui.js, sendComposedContent without its refusal of a marker in a public channel: test 9
 //     "a marker in a public channel is refused".
+//  B15 chat-dms.js, the failure line in other words ("Attachment unavailable."): test 0 "the page
+//     says 10k's line", test 6 "a wrong key: the line".
