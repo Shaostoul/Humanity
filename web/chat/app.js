@@ -96,14 +96,18 @@ if (savedName && location.hash.indexOf('devicelink=') === -1) {
 // connect box (src/gui/connections.rs ERASED_CONNECT_NOTE, which names its Connect button).
 // The flag holds 'erased', or 'unfinished' when part of the erase failed on the server (the
 // relay's `partial`): then the old account may still partly exist, so the note says to erase
-// again instead of promising a fresh sign-up (native: ERASE_UNFINISHED_NOTE).
+// again instead of promising a fresh sign-up (native: ERASE_UNFINISHED_NOTE). It holds
+// 'admin' when a server admin erased the account (`by_admin`, 10i of
+// docs/design/blocking-and-safe-mode.md): the note then says so in its own words
+// (/shared/admin-erase.js ERASED_BY_ADMIN_NOTE) instead of the self-erase words.
 const ERASED_FLAG = 'humanity_account_erased';
 const ERASED_ENTER_NOTE = 'Your account on this server was erased, so pressing Enter signs you up again as a new account on this server.';
 const ERASE_UNFINISHED_NOTE = 'The erase of your account on this server did not finish, so press Enter and use Erase account again.';
 function showErasedNote(kind) {
   const el = document.getElementById('login-note');
   if (!el) return;
-  const text = kind === 'unfinished' ? ERASE_UNFINISHED_NOTE : kind === 'erased' ? ERASED_ENTER_NOTE : '';
+  const byAdmin = typeof ERASED_BY_ADMIN_NOTE === 'string' ? ERASED_BY_ADMIN_NOTE : ERASED_ENTER_NOTE;
+  const text = kind === 'unfinished' ? ERASE_UNFINISHED_NOTE : kind === 'erased' ? ERASED_ENTER_NOTE : kind === 'admin' ? byAdmin : '';
   el.textContent = text;
   el.style.display = text ? 'block' : 'none';
 }
@@ -116,7 +120,7 @@ function showErasedNote(kind) {
 // and if the server still remembers the erase it says so and the note comes back. Mirrors
 // native src/gui/connections.rs `take_sign_up_again`.
 function signUpAgainChoice(how, erasedFlag) {
-  return how === 'enter' && (erasedFlag === 'erased' || erasedFlag === 'unfinished');
+  return how === 'enter' && (erasedFlag === 'erased' || erasedFlag === 'unfinished' || erasedFlag === 'admin');
 }
 try {
   if (!savedName) showErasedNote(localStorage.getItem(ERASED_FLAG));
@@ -1426,8 +1430,12 @@ async function handleMessage(msg) {
       // name, so a reload does not sign in. Every client of this identity gets this, so a
       // second tab stops too. The login screen's Enter is the way back, and says first that
       // it signs up again, or, when part of the erase failed (`partial`), to erase again
-      // (showErasedNote). Same steps as name_taken above.
-      const erasedKind = msg.partial === true ? 'unfinished' : 'erased';
+      // (showErasedNote). Same steps as name_taken above. `by_admin` (10i): a server admin
+      // erased it, and the note says so instead of the self-erase words (erasedKindOf,
+      // /shared/admin-erase.js; the fallback below only covers that file failing to load).
+      const erasedKind = typeof erasedKindOf === 'function'
+        ? erasedKindOf(msg)
+        : (msg.partial === true ? 'unfinished' : 'erased');
       clearTimeout(reconnectTimer);
       reconnectDelay = 1000;
       try {
@@ -1437,7 +1445,8 @@ async function handleMessage(msg) {
       identityConfirmed = false;
       endCallBeforeLeaving();
       if (ws) { ws.onclose = null; ws.close(); ws = null; }
-      setStatus('disconnected', erasedKind === 'unfinished' ? 'Erase not finished' : 'Account erased');
+      setStatus('disconnected', erasedKind === 'unfinished' ? 'Erase not finished'
+        : erasedKind === 'admin' ? 'Erased by a server admin' : 'Account erased');
       document.getElementById('login-screen').style.display = 'flex';
       document.getElementById('chat-screen').style.display = 'none';
       document.getElementById('login-error').style.display = 'none';
@@ -1445,6 +1454,10 @@ async function handleMessage(msg) {
       showErasedNote(erasedKind);
       break;
     }
+    case 'admin_erase_done':
+      // 10i: the receipt of an erase this admin asked for (chat-ui.js draws it).
+      if (typeof showAdminEraseReceipt === 'function') showAdminEraseReceipt(msg);
+      break;
   }
 }
 
