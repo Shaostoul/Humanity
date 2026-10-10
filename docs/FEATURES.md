@@ -541,7 +541,7 @@ Create, join, search, and manage guilds with invite codes.
 Points, levels, and leaderboard for community standing.
 - Server: `src/relay/storage/reputation.rs`
 
-### Safety: who can reach me, Block, reports, warnings (dual UI, v0.1465 to v0.1472)
+### Safety: who can reach me, Block, reports, warnings, protected setup (dual UI, v0.1465 to v0.1473)
 Design: `docs/design/blocking-and-safe-mode.md` (steps A to G, sections 10b to 10h). Settings >
 Safety on both clients. **Who can reach me** (v0.1467): one audience per kind (messages, calls,
 trades: Nobody, People I choose, Friends, Friends and people in my groups, Anyone), safe by
@@ -568,7 +568,7 @@ own recovery phrase's words in a row is stopped.
 - Server: `src/relay/handlers/reach.rs`, `src/relay/handlers/friend_passes.rs`,
   `src/relay/handlers/reports.rs`, `src/relay/call_forwarder.rs`, `src/relay/call_credentials.rs`
 - Data: `data/safety/` (warnings, report reasons, outside help), `data/gui/safety_presets.json`
-  (the protected setup, step G, being built)
+  (the protected setup, step G, v0.1473: a PIN lock on this device's safety settings, a review of who can already reach it, public rooms and non-friends' pictures hidden, never synced; native `src/net/protected.rs`, `src/engine/protected.rs`, `src/gui/pages/safety_protected.rs`; web `web/shared/protected.js`, `web/chat/chat-protected.js`)
 
 ---
 
