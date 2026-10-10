@@ -1151,8 +1151,15 @@ async function handleMessage(msg) {
       const inner = await pqOpenDmEnvelope(msg.content);
       if (window.hosDmStore && hosDmStore.ready && msg.id) hosDmStore.setHighWater(msg.id);
       if (!inner) break; // not ours / tampered / spoofed — never rendered
+      // A contact request (step B, 2026-10-09): a name, listed under Requests (chat-privacy.js).
+      if (inner.contact_request) {
+        if (typeof receiveContactRequest === 'function') receiveContactRequest({ name: inner.name });
+        break;
+      }
       // Social control messages (follows removal 2026-08-24): act, never render.
       if (typeof ingestDmControl === 'function' && await ingestDmControl(inner)) break;
+      // From someone my "who can reach me" settings refuse: a request, name only, its text dropped.
+      if (typeof reachScreenDm === 'function' && reachScreenDm(inner)) break;
       const isNew = (window.hosDmStore && hosDmStore.ready) ? await hosDmStore.insert(inner) : true;
       if (!isNew) break; // duplicate (echo of our own send, refetch, replay)
       const isFromMe = inner.from === myKey;
@@ -1182,7 +1189,12 @@ async function handleMessage(msg) {
         if (!item.content) continue;
         const inner = await pqOpenDmEnvelope(item.content);
         if (!inner) continue; // undecryptable/spoofed — skip, high-water still advances
+        if (inner.contact_request) {
+          if (typeof receiveContactRequest === 'function') receiveContactRequest({ name: inner.name });
+          continue;
+        }
         if (typeof ingestDmControl === 'function' && await ingestDmControl(inner)) continue;
+        if (typeof reachScreenDm === 'function' && reachScreenDm(inner)) continue;
         if (window.hosDmStore && hosDmStore.ready) {
           if (await hosDmStore.insert(inner)) ingested++;
         }

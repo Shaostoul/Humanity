@@ -954,6 +954,43 @@ function _dmSigPreimage(from, to, ts, text) {
   return `${DM_SIG_DOMAIN_V2}\n${from}\n${to}\n${ts}\n${text}`;
 }
 
+// Sealed plaintext size buckets (bytes). Must match native
+// net::dm_pq::DM_PAD_BUCKETS; the first is a contact request's exact size
+// (/shared/reach.js CONTACT_REQUEST_BYTES). scripts/tests/reach-web.test.js
+// holds all three to each other.
+const DM_PAD_BUCKETS = [256, 1024, 4096, 16384];
+
+// ── Contact requests ("who can reach me", step B, 2026-10-09) ──────────────
+// A person refused for messages may send one: a sealed DM at the smallest
+// padding bucket carrying only their name (/shared/reach.js
+// contactRequestJson), deposited with `"contact_request": true`, which the
+// relay lets through whatever the recipient's audience (unless it is
+// "nobody"), 5 a day per sender. No signature fits in 256 bytes, so the
+// recipient's client shows only the name and checks it against the member
+// list; it never shows any text. No self-copy: nothing in it is history.
+
+/**
+ * The `dm_put` frame for a contact request from `myNameWord` to `partnerKey`,
+ * or null when their DM key is not known here or the name is not a
+ * registered-name word.
+ */
+async function pqBuildContactRequest(partnerKey, myNameWord) {
+  try {
+    if (typeof window.pqDmSeal !== 'function') return null;
+    const peerKyber = getPeerEcdhPublic(partnerKey);
+    if (!peerKyber) return null;
+    const plain = typeof contactRequestJson === 'function' ? contactRequestJson(myNameWord) : null;
+    if (!plain) return null;
+    const sealed = await window.pqDmSeal(peerKyber, plain);
+    if (!sealed) return null;
+    const content = JSON.stringify({ v: 2, ek_ct_b64: sealed.ek_ct_b64, nonce_b64: sealed.nonce_b64, ct_b64: sealed.ct_b64 });
+    return { type: 'dm_put', to: partnerKey, content, contact_request: true };
+  } catch (e) {
+    console.warn('pqBuildContactRequest failed:', e && e.message);
+    return null;
+  }
+}
+
 function _hexToBytes(hex) {
   const out = new Uint8Array(hex.length / 2);
   for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
@@ -985,9 +1022,8 @@ async function pqBuildDmPuts(text, partnerKey, ts, opts) {
     // bucket so ciphertext length doesn't leak message length. Buckets
     // must match native (net::dm_pq::DM_PAD_BUCKETS).
     {
-      const buckets = [256, 1024, 4096, 16384];
       const bare = JSON.stringify(inner).length;
-      const bucket = buckets.find((b) => bare + 12 <= b) || (bare + 12);
+      const bucket = DM_PAD_BUCKETS.find((b) => bare + 12 <= b) || (bare + 12);
       inner.pad = ' '.repeat(Math.max(0, bucket - bare - 12));
     }
     const innerJson = JSON.stringify(inner);
@@ -1078,7 +1114,8 @@ window.FILE_MARKER = FILE_MARKER;
  * Open a v2 wire envelope with OUR OWN Kyber secret and VERIFY the inner
  * Dilithium signature against the claimed `from` key. Returns the inner
  * ({from,to,ts,text,sig}) or null — a spoofed/tampered sender must never
- * render as that sender.
+ * render as that sender. A contact request comes back as
+ * {contact_request: true, name} (no sender key, no text, no signature).
  */
 async function pqOpenDmEnvelope(contentStr) {
   try {
@@ -1088,6 +1125,10 @@ async function pqOpenDmEnvelope(contentStr) {
     if (!env || env.v !== 2 || !env.ek_ct_b64 || !env.nonce_b64 || !env.ct_b64) return null;
     const innerJson = await window.pqDmOpen(myKyberSecret, env.ek_ct_b64, env.nonce_b64, env.ct_b64);
     if (innerJson === null || innerJson === undefined) return null;
+    // A contact request carries a name and nothing else, unsigned (see
+    // pqBuildContactRequest): handed back as such, never as a message.
+    const request = typeof contactRequestParse === 'function' ? contactRequestParse(innerJson) : null;
+    if (request) return { contact_request: true, name: request.name };
     let inner;
     try { inner = JSON.parse(innerJson); } catch { return null; }
     if (!inner || inner.v !== 2 || !inner.from || !inner.to || !inner.sig) return null;

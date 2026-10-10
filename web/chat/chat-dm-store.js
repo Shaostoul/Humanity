@@ -40,6 +40,11 @@ const hosDmStore = {
   certsFrom: {},       // peer -> the pass THEY gave ME (v2 JSON), presented whenever I reach them
   certsSent: {},       // peer -> [{serial, may}] passes I gave them that still stand
   withdrawalsPending: [], // serials I withdrew that the relay has not confirmed yet
+  // ── Contact requests ("who can reach me", step B, 2026-10-09, 10c): people
+  // who asked to reach me, shown by name only with Accept and Ignore. Keyed by
+  // their key when it is known (a refused DM, or a name the member list
+  // resolves), else by "name:<lower-case name>". Never holds any text.
+  contactRequests: {}, // id -> {key, name, ts}
 
   async _sha256hex(s) {
     const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
@@ -112,6 +117,7 @@ const hosDmStore = {
       this.certsFrom = {};
       this.certsSent = {};
       this.withdrawalsPending = [];
+      this.contactRequests = {};
       // Meta first (high-water + read marks + social sets).
       const meta = await this._idb(this._tx('meta', 'readonly').get(this.scope)).catch(() => null);
       if (meta) {
@@ -125,6 +131,7 @@ const hosDmStore = {
           if (m && m.passesFrom && typeof m.passesFrom === 'object') this.certsFrom = m.passesFrom;
           if (m && m.passesSent && typeof m.passesSent === 'object') this.certsSent = m.passesSent;
           if (m && Array.isArray(m.withdrawalsPending)) this.withdrawalsPending = m.withdrawalsPending;
+          if (m && m.contactRequests && typeof m.contactRequests === 'object') this.contactRequests = m.contactRequests;
         }
       }
       // All records in this scope.
@@ -158,6 +165,7 @@ const hosDmStore = {
       passesFrom: this.certsFrom,
       passesSent: this.certsSent,
       withdrawalsPending: this.withdrawalsPending,
+      contactRequests: this.contactRequests,
     });
     await this._idb(this._tx('meta', 'readwrite').put({ scope: this.scope, hw: this.highWater, box })).catch(() => {});
   },
@@ -208,10 +216,66 @@ const hosDmStore = {
     this._persistMeta();
     return gone;
   },
+  /**
+   * Replace every pass I gave `peer` with this one (what a friend may do
+   * changed, and the new pass is already on its way). The old serials wait for
+   * the relay to confirm their withdrawal.
+   */
+  replacePassTo(peer, serial, may) {
+    const old = (this.certsSent[peer] || []).map((p) => p.serial).filter((s) => s !== serial);
+    this.certsSent[peer] = [{ serial, may }];
+    for (const s of old) if (!this.withdrawalsPending.includes(s)) this.withdrawalsPending.push(s);
+    this._persistMeta();
+    return old;
+  },
+  /** What the passes I gave `peer` that still stand let them do (sorted, comma-joined), or null when none stands. */
+  passMayTo(peer) {
+    const words = new Set();
+    for (const p of this.certsSent[peer] || []) for (const w of String(p.may || '').split(',')) if (w) words.add(w);
+    return words.size ? Array.from(words).sort().join(',') : null;
+  },
+  /**
+   * The relay confirmed a withdrawal. The serial also leaves the passes I gave,
+   * so another of my devices that still listed it (it learns of a withdrawal
+   * made elsewhere only from this answer) stops counting it as standing.
+   */
   withdrawalConfirmed(serial) {
+    let changed = false;
     const before = this.withdrawalsPending.length;
     this.withdrawalsPending = this.withdrawalsPending.filter((s) => s !== serial);
-    if (this.withdrawalsPending.length !== before) this._persistMeta();
+    if (this.withdrawalsPending.length !== before) changed = true;
+    for (const peer of Object.keys(this.certsSent)) {
+      const list = this.certsSent[peer] || [];
+      const kept = list.filter((p) => p.serial !== serial);
+      if (kept.length !== list.length) {
+        changed = true;
+        if (kept.length) this.certsSent[peer] = kept; else delete this.certsSent[peer];
+      }
+    }
+    if (changed) this._persistMeta();
+  },
+
+  // ── Contact requests (step B) ──
+  /** Add or refresh a request ({key?, name, ts}); returns true when it is new. Never stores text. */
+  addContactRequest(req) {
+    if (!req || (!req.key && !req.name)) return false;
+    const id = req.key || ('name:' + String(req.name).toLowerCase());
+    const isNew = !this.contactRequests[id];
+    this.contactRequests[id] = { key: req.key || null, name: String(req.name || ''), ts: Number(req.ts) || Date.now() };
+    this._persistMeta();
+    return isNew;
+  },
+  removeContactRequest(id) {
+    if (!this.contactRequests[id]) return false;
+    delete this.contactRequests[id];
+    this._persistMeta();
+    return true;
+  },
+  /** The requests, newest first, each with its id. */
+  contactRequestList() {
+    return Object.entries(this.contactRequests)
+      .map(([id, r]) => ({ id, key: r.key || null, name: r.name, ts: Number(r.ts) || 0 }))
+      .sort((a, b) => b.ts - a.ts);
   },
   /** Mutual follows with no standing pass from me: the ones the sweep mints for. */
   friendsWithoutPass() {

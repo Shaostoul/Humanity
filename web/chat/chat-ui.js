@@ -1266,14 +1266,15 @@ async function sendComposedContent(content) {
   // DM view -> Kyber E2EE, FAIL CLOSED. Never transmit plaintext to the
   // relay and never fall back to a public channel. Mirrors the text-DM path.
   if (activeDmPartner) {
-    // No-gatekeeper default (2026-09-06): no role gate, no hard friendship
-    // gate. Writing to someone who has not befriended you is a "knock" —
-    // it goes through, capped per day by the relay. We say so once per
-    // partner so the cap is not a surprise, then get out of the way.
+    // Writing to someone who has not befriended you depends on THEIR "who
+    // can reach me" setting (step B, 2026-10-09), which is theirs to know:
+    // if they take messages from anyone, it is a "knock", capped per day by
+    // the relay; if not, the relay refuses it and chat-privacy.js offers a
+    // contact request. We say so once per partner, then get out of the way.
     if (typeof isFriend === 'function' && !isFriend(activeDmPartner)
         && !knockNoticeShown.has(activeDmPartner)) {
       knockNoticeShown.add(activeDmPartner);
-      addSystemMessage('This person has not added you yet, so this is an introduction request. A limited number of these can be sent per day. Once they add you back, messages are unlimited.');
+      addSystemMessage('This person has not added you as a friend yet. If they accept messages from anyone, this counts toward a limited number you can send each day; if they accept messages only from people they know, it will not be delivered and you can send a contact request instead.');
     }
     const DM_PLAINTEXT_MAX = 2000;
     if (content.length > DM_PLAINTEXT_MAX) {
