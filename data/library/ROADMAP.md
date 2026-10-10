@@ -217,7 +217,22 @@ of your identity, and your identity is portable across all of them.
 
 - `[done]` Chat: channels, threaded replies, reactions, pins, search, and direct
   messages.
-- `[done]` Voice and video calling on the web (WebRTC peer-to-peer with screen share).
+- `[done]` Voice and video calling on the web (WebRTC with screen share). Since v0.1470 calls and
+  voice rooms go through the server's own call forwarder, so nobody in a call sees another
+  person's network address, and Google is no longer asked for anything (calls work once the
+  server's call port is opened).
+- `[done]` Safety tools, on both clients (v0.1465 to v0.1473, design
+  `docs/design/blocking-and-safe-mode.md`): safe by default, with "who can reach me" for
+  messages, calls and trades and a Message, Call and Trade tick per friend; Block (they are not
+  told); reports the admins can check against the sender's own signature; help outside the
+  server for a child or someone in danger; warnings on messages, checked on your device only;
+  your recovery phrase stopped before it is sent; and a protected setup, a PIN lock a parent can
+  put on a device's safety settings. Never described as making anyone safe, and it checks no
+  one's age (dated findings in `docs/reference/findings/`).
+- `[next]` Safety follow-ups: a report about a group reaching the group's creator, and an
+  admin tool to erase another person's data on a server.
+- `[planned]` Camera-safe sign-in: unlocking without typing a PIN or passphrase where a
+  camera or a stream could see it (options in PRIORITIES, waiting on the operator's pick).
 - `[done]` Peer-to-peer groups: signed objects, end-to-end encryption, and a group
   that behaves like a channel, on both web and native (Phases 1 and 2).
 - `[done]` Signed profile replication: your profile gossips between servers, so there
@@ -487,6 +502,11 @@ Newest first. This lists milestones, not every release (the project is past v0.1
 with more than 1,300 tagged releases); for the granular per-release history see
 `docs/history/`, the release notes, and `git log`.
 
+- `v0.1465.0` to `v0.1473.0` Safety tools on both clients: safe-by-default "who can reach
+  me" with a tick per friend, Block, reports the admins can check, help lines for a child or
+  someone in danger, warnings and a recovery-phrase guard, calls through the server so no one
+  sees your address, and a protected setup a parent can lock with a PIN. Started after the
+  operator asked for tools that let people protect themselves, and a mode for children.
 - `v0.1388.0` Your body keeps itself warm: a real heat balance (the Gagge two-node
   model) with clothing, wind, humidity, wet clothes, sweating and shivering, in
   Forgiving and Realistic modes. Before it, stepping outside at 15 C made you
