@@ -54,6 +54,10 @@ const hosDmStore = {
   // Notes to myself not sent yet (Block or Unblock while not connected),
   // oldest first, at most one per key: [{action, key}].
   blockNotesPending: [],
+  // ── Warnings on messages (step F, 2026-10-10, blocking-and-safe-mode.md
+  // 10g): the Safety switch, On unless the person turned it off. Kept here,
+  // encrypted, with the block list.
+  warningsOn: true,
 
   async _sha256hex(s) {
     const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
@@ -129,6 +133,7 @@ const hosDmStore = {
       this.contactRequests = {};
       this.blocked = {};
       this.blockNotesPending = [];
+      this.warningsOn = true;
       // Meta first (high-water + read marks + social sets).
       const meta = await this._idb(this._tx('meta', 'readonly').get(this.scope)).catch(() => null);
       if (meta) {
@@ -145,6 +150,7 @@ const hosDmStore = {
           if (m && m.contactRequests && typeof m.contactRequests === 'object') this.contactRequests = m.contactRequests;
           if (m && m.blocked && typeof m.blocked === 'object') this.blocked = m.blocked;
           if (m && Array.isArray(m.blockNotesPending)) this.blockNotesPending = m.blockNotesPending;
+          if (m && typeof m.warningsOn === 'boolean') this.warningsOn = m.warningsOn;
         }
       }
       // All records in this scope.
@@ -181,6 +187,7 @@ const hosDmStore = {
       contactRequests: this.contactRequests,
       blocked: this.blocked,
       blockNotesPending: this.blockNotesPending,
+      warningsOn: this.warningsOn,
     });
     await this._idb(this._tx('meta', 'readwrite').put({ scope: this.scope, hw: this.highWater, box })).catch(() => {});
   },
@@ -346,6 +353,16 @@ const hosDmStore = {
     const before = this.blockNotesPending.length;
     this.blockNotesPending = this.blockNotesPending.filter((n) => !(n.action === action && n.key === key));
     if (this.blockNotesPending.length !== before) this._persistMeta();
+  },
+
+  // ── Warnings on messages (step F) ──
+  /** Turn the warnings switch on or off. Returns true when it changed. */
+  setWarningsOn(on) {
+    const v = !!on;
+    if (this.warningsOn === v) return false;
+    this.warningsOn = v;
+    this._persistMeta();
+    return true;
   },
 
   setHighWater(id) {

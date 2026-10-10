@@ -307,13 +307,15 @@
     setStatus('Asked the server to release ' + (key.length > 16 ? 'the plot of ' + shortKey(key) : 'plot ' + key) + '.');
   }
 
-  function submitBan() {
+  async function submitBan() {
     var keyEl = document.getElementById('gameadmin-key');
     var reasonEl = document.getElementById('gameadmin-reason');
     var key = (keyEl.value || '').trim();
     var reason = (reasonEl.value || '').trim();
     if (!key) { setStatus('Enter the player public key to ban.'); return; }
-    sendGameBan(key, reason);
+    // Not sent (not connected, or the reason held my recovery phrase, step F):
+    // the fields stay so it can be fixed and sent again.
+    if (!await sendGameBan(key, reason)) { setStatus('The ban was not sent.'); return; }
     keyEl.value = '';
     reasonEl.value = '';
     setStatus('Sent a game ban for ' + shortKey(key) + '. Chat is unaffected.');

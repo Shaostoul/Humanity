@@ -109,6 +109,14 @@ function buildProfileUpdate(local) {
   };
 }
 
+/** Every field of the stored profile a person writes (for the recovery-phrase guard). */
+function profileFieldTexts(local) {
+  const out = [local.bio, local.avatar_url, local.banner_url, local.pronouns, local.location, local.website];
+  const socials = local.socials && typeof local.socials === 'object' ? local.socials : {};
+  for (const v of Object.values(socials)) out.push(v);
+  return out.filter((v) => typeof v === 'string' && v);
+}
+
 let profilePushTimer = null;
 
 /**
@@ -119,10 +127,17 @@ let profilePushTimer = null;
  * Self-throttled to one update per 30s (the server's rate limit). A save inside
  * that window is DEFERRED, not dropped, so the last edit always lands.
  */
-function pushProfileToRelay() {
+async function pushProfileToRelay() {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   const local = loadProfileLocal();
   if (!hasProfileData(local)) return;
+  // Never my recovery phrase in a profile field (step F, chat-warnings.js).
+  // Checked before the throttle below, which then runs without a pause, so
+  // two pushes at once still send once. Said here, in the chat, because the
+  // profile page itself holds no identity to check with.
+  if (typeof recoveryPhraseGuardStops === 'function'
+      && await recoveryPhraseGuardStops(profileFieldTexts(local), 'Your profile was not sent to this server.')) return;
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
   const waitMs = 30000 - (Date.now() - lastProfileUpdateSent);
   if (waitMs > 0) {
@@ -1239,6 +1254,9 @@ async function syncSystemProfile() {
     alert('No system profile saved yet. Click Save first.');
     return;
   }
+  // Never my recovery phrase in a field I typed (step F, chat-warnings.js).
+  if (typeof recoveryPhraseGuardStops === 'function'
+      && await recoveryPhraseGuardStops(Object.values(saved).map((v) => (typeof v === 'string' ? v : JSON.stringify(v))), 'Your system profile was not sent.')) return;
   const timestamp = Date.now();
   const sig = await pqSignChatMessage('system_profile', timestamp); // full-PQ: Dilithium3 over system_profile\nts
   if (!sig) { alert('Signing failed.'); return; }

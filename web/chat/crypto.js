@@ -448,7 +448,9 @@ async function openLinkDeviceModal() {
   }
 }
 
-function labelDevice(publicKey, label) {
+async function labelDevice(publicKey, label) {
+  // Never my recovery phrase (step F, chat-warnings.js).
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(label, 'The device name was not saved.')) return;
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'device_label', public_key: publicKey, label: label }));
   }

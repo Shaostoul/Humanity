@@ -534,6 +534,8 @@ function bindDataChannel(dc, peerKey) {
  * @param {string} text       - Plaintext message
  */
 async function sendP2PMessage(peerPubKey, text) {
+  // Never my recovery phrase (step F, chat-warnings.js), on a direct channel or through the relay.
+  if (typeof recoveryPhraseGuardStops === 'function' && await recoveryPhraseGuardStops(text)) return;
   const dc = p2pDataChannels[peerPubKey];
   const contact = p2pContacts[peerPubKey];
 
