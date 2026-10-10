@@ -38,7 +38,7 @@ fn connect(st: &Arc<RelayState>, key: &str) {
 fn dm(st: &Arc<RelayState>, from: &str, to: &str, pass: Option<&str>) {
     block(async {
         st.dm_rate.forget(from);
-        handle_dm_put(st, from, to.to_string(), envelope(), pass.map(str::to_string), reach::DmAsk::Ordinary).await;
+        handle_dm_put(st, from, to.to_string(), envelope(), pass.map(str::to_string), reach::DmAsk::Ordinary, None).await;
     });
 }
 

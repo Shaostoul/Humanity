@@ -17,6 +17,7 @@ use web_push_native::jwt_simple::prelude::ES256KeyPair;
 
 use crate::relay::handlers::*;
 use crate::relay::handlers::game_state::GameWorld;
+use crate::relay::handlers::chat_rate::RateLimitState;
 // Re-export start_federation_connections so main.rs can call relay::start_federation_connections.
 pub use crate::relay::handlers::start_federation_connections;
 
@@ -91,17 +92,6 @@ fn registration_default_open() -> bool {
 
 /// Flat rate limit for new accounts (seconds).
 pub const NEW_ACCOUNT_DELAY_SECS: u64 = 5;
-
-/// Per-key rate limit tracking state.
-#[derive(Debug, Clone)]
-pub struct RateLimitState {
-    /// When the key was first seen (for new-account slow mode).
-    pub first_seen: Instant,
-    /// When the last message was sent.
-    pub last_message_time: Instant,
-    /// Current position in the Fibonacci delay sequence.
-    pub fib_index: usize,
-}
 
 /// A connected peer, identified by their public key hex.
 #[derive(Debug, Clone)]
@@ -1266,7 +1256,26 @@ pub enum RelayMessage {
         /// both are in, unless they take messages from nobody, 3 a day (handlers/reach.rs, 10j).
         #[serde(default)]
         group_report: bool,
+        /// The sender's own id for this send (spec 10l, blocking-and-safe-mode.md): with one, a
+        /// put to someone else is answered to the sender alone with `dm_put_ok` or
+        /// `dm_put_refused`, so an app counts a friendship pass as given only once it is stored.
+        /// Read leniently (handlers/dm_answer.rs `lenient_put_ref`): a ref that is not text is no
+        /// ref and the put is still handled, never dropped. Never stored.
+        #[serde(default, rename = "ref", deserialize_with = "crate::relay::handlers::dm_answer::lenient_put_ref", skip_serializing_if = "Option::is_none")]
+        put_ref: Option<String>,
     },
+
+    /// Server -> the sender alone (spec 10l): their `dm_put` to someone else, carrying `ref`, is
+    /// stored in the mailbox. `sender` routes it, unsent.
+    #[serde(rename = "dm_put_ok")]
+    DmPutOk { #[serde(skip)] sender: String, #[serde(rename = "ref")] put_ref: String },
+
+    /// Server -> the sender alone (spec 10l): that `dm_put` was not stored. `reason` is one of
+    /// handlers/dm_answer.rs `DmPutRefusal`'s words: "rate", "reach", "size" or "other". The
+    /// notice or `reach_refused` the sender was always given still goes too. `sender` routes it,
+    /// unsent.
+    #[serde(rename = "dm_put_refused")]
+    DmPutRefused { #[serde(skip)] sender: String, #[serde(rename = "ref")] put_ref: String, reason: String },
 
     /// Client asks for its mailbox contents after a rowid high-water mark.
     #[serde(rename = "dm_fetch")]
@@ -3316,6 +3325,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
             if let RelayMessage::ReachSettings { to: ref who, .. } | RelayMessage::ReachRefused { sender: ref who, .. } = msg {
                 if who != &my_key_for_broadcast { continue; }
             }
+            // A dm_put's answer (spec 10l) to its sender alone: unrouted, every socket would be told
+            // each time anyone's private message was stored or refused.
+            if let RelayMessage::DmPutOk { sender: ref who, .. } | RelayMessage::DmPutRefused { sender: ref who, .. } = msg {
+                if who != &my_key_for_broadcast { continue; }
+            }
             // Reports (handlers/reports.rs): the receipt to its reporter, the list to whoever asked for it;
             // call forwarder credentials (call_credentials.rs) to whoever asked for them; an admin's
             // erase receipt (handlers/account_erase.rs) to that admin.
@@ -3588,6 +3602,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     let _ = state_clone.broadcast_tx.send(private);
                                     // A call client waits for its credentials reply: refuse at once (call_credentials.rs).
                                     if msg_type == "call_credentials" { crate::relay::call_credentials::refused_reply(&state_clone, &my_key_for_recv, &raw); }
+                                    // So does an app waiting on a dm_put's ref (spec 10l, handlers/dm_answer.rs).
+                                    if msg_type == "dm_put" { crate::relay::handlers::dm_answer::refuse_gated_dm_put(&state_clone, &my_key_for_recv, &raw); }
                                     continue;
                                 }
                             }
@@ -3815,67 +3831,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     }
                                 }
 
-                                // Rate limiting: skip for bots and admins.
-                                if !my_key_for_recv.starts_with("bot_") && user_role != "admin" {
-                                    let now = Instant::now();
-                                    let mut rate_limits = state_clone.rate_limits.write().await;
-                                    let rl = rate_limits.entry(my_key_for_recv.clone()).or_insert_with(|| {
-                                        // Use DB registered_at so relay restarts don't retroactively
-                                        // slow-mode established accounts (in-memory first_seen resets on restart).
-                                        // Read through dm_rate's account_age: registered_at is in milliseconds,
-                                        // and this inline copy used to subtract it from seconds (always 0), so
-                                        // every untrusted account was "new" for ten minutes after each restart.
-                                        let account_age = crate::relay::handlers::dm_rate::account_age(&state_clone, &my_key_for_recv);
-                                        let first_seen = if account_age >= NEW_ACCOUNT_WINDOW_SECS {
-                                            now - std::time::Duration::from_secs(NEW_ACCOUNT_WINDOW_SECS + 1)
-                                        } else {
-                                            now - std::time::Duration::from_secs(account_age)
-                                        };
-                                        RateLimitState {
-                                            first_seen,
-                                            last_message_time: now - std::time::Duration::from_secs(60), // allow first message
-                                            fib_index: 0,
-                                        }
-                                    });
-
-                                    let elapsed = now.duration_since(rl.last_message_time).as_secs();
-
-                                    // Determine required delay: Fibonacci backoff.
-                                    let fib_delay = FIB_DELAYS[rl.fib_index];
-
-                                    // New-account slow mode: if first seen < 10 min ago, min 5s delay.
-                                    // Skip for verified, mod, and admin users.
-                                    let is_trusted = user_role == "verified" || user_role == "donor" || user_role == "mod" || user_role == "admin";
-                                    let account_age = now.duration_since(rl.first_seen).as_secs();
-                                    let new_account_delay = if !is_trusted && account_age < NEW_ACCOUNT_WINDOW_SECS {
-                                        NEW_ACCOUNT_DELAY_SECS
-                                    } else {
-                                        0
-                                    };
-
-                                    // Use whichever delay is longer.
-                                    let required_delay = fib_delay.max(new_account_delay);
-
-                                    if elapsed < required_delay {
-                                        let wait = required_delay - elapsed;
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: format!("⏳ Slow down! Please wait {} more second{}.", wait, if wait == 1 { "" } else { "s" }),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                        continue;
-                                    }
-
-                                    // User waited long enough — check if we should reset or advance.
-                                    if elapsed > required_delay {
-                                        // User waited longer than needed — reset to position 0.
-                                        rl.fib_index = 0;
-                                    } else {
-                                        // User sent exactly at the boundary — advance Fibonacci.
-                                        rl.fib_index = (rl.fib_index + 1).min(FIB_DELAYS.len() - 1);
-                                    }
-
-                                    rl.last_message_time = now;
+                                // Channel chat's send limiter (handlers/chat_rate.rs); bots and admins skip it.
+                                if !crate::relay::handlers::chat_rate::allow(&state_clone, &my_key_for_recv, &user_role).await {
+                                    continue;
                                 }
 
                                 // Enforce max message length (admins: 10000, others: 2000).
@@ -5808,9 +5766,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 handle_profile_request(&state_clone, &my_key_for_recv, name, friend_cert).await;
                             }
                             // DM — deposit a sealed envelope into a mailbox.
-                            RelayMessage::DmPut { to, content, friend_cert, contact_request, group_report } => {
+                            RelayMessage::DmPut { to, content, friend_cert, contact_request, group_report, put_ref } => {
                                 let ask = crate::relay::handlers::reach::DmAsk::from_flags(contact_request, group_report);
-                                handle_dm_put(&state_clone, &my_key_for_recv, to, content, friend_cert, ask).await;
+                                handle_dm_put(&state_clone, &my_key_for_recv, to, content, friend_cert, ask, put_ref).await;
                             }
                             // DM fetch — page the caller's own mailbox.
                             RelayMessage::DmFetch { after_id } => {

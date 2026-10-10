@@ -217,7 +217,7 @@ fn trade_requests_share_the_knock_budget() {
     for _ in 0..(DM_KNOCKS_PER_DAY + 5) {
         block(async {
             st.dm_rate.forget(sender);
-            handle_dm_put(&st, sender, dm_target.to_string(), envelope(), None, reach::DmAsk::Ordinary).await;
+            handle_dm_put(&st, sender, dm_target.to_string(), envelope(), None, reach::DmAsk::Ordinary, None).await;
         });
     }
     assert_eq!(

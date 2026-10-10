@@ -43,9 +43,9 @@
 //!
 //! ### `group_epoch_key_v1`: one epoch's group key, sealed to each member
 //! An epoch that already has a key keeps it unless the new object is a re-seal of
-//! the group's latest epoch to everyone still in it (`epoch_key_refusal`,
-//! 2026-10-10): an app that could not read the current key used to overwrite an
-//! old epoch's key, and the history under it stopped opening.
+//! the group's latest epoch to everyone still in it whose Kyber key is on file here
+//! (`epoch_key_refusal`, 2026-10-10): an app that could not read the current key
+//! used to overwrite an old epoch's key, and the history under it stopped opening.
 //!
 //! ## Phase 1 scope / limitations (documented on purpose)
 //! - Only the creator can admit/remove (sole bootstrap admin). Delegated admins =
@@ -716,8 +716,9 @@ impl Storage {
     /// the stored one who is still an active member: a re-seal never drops anyone who is in the
     /// group. Someone who has left or been removed may be dropped, because the apps build a
     /// re-seal from the current member list, so holding them in would refuse every re-seal after
-    /// anyone left; they already hold that key, so dropping them changes nothing for them. A new
-    /// epoch, or the same object again, is never refused here.
+    /// anyone left; they already hold that key, so dropping them changes nothing for them. So may
+    /// a member with no Kyber key on file here, whom no app can seal to (see below). A new epoch,
+    /// or the same object again, is never refused here.
     pub(super) fn epoch_key_refusal(&self, object: &Object) -> Result<Option<String>, rusqlite::Error> {
         if object.object_type != "group_epoch_key_v1" {
             return Ok(None);
@@ -758,8 +759,21 @@ impl Storage {
         let Some(stored_payload) = self.get_signed_object(&stored)?.map(|r| r.payload) else {
             return Ok(None); // the stored key object is gone, so there is nothing a new one could take away
         };
-        let active: std::collections::HashSet<String> =
-            self.p2p_group_roster(group_id)?.into_iter().map(|m| m.member_fp).collect();
+        // Only an active member whose Kyber key is still on file can be left out (2026-10-10).
+        // Both apps can seal a key only to members whose Kyber key this server hands out, and that
+        // key goes with the member's registered name (a kick or ban, an erase, `/gc` of anyone
+        // with no public post in 90 days) while their group membership stays active. Counting
+        // such a member made every later re-seal "leave them out", so the share-history group's
+        // re-seal was refused for good and nobody who joined after got the key. Nobody can seal
+        // to them, so dropping them takes nothing they could have had; once they have a key on
+        // file again, a re-seal that leaves them out is refused as before.
+        let mut active = std::collections::HashSet::new();
+        for member in self.p2p_group_roster(group_id)? {
+            // registered_names keys are the lowercase hex of the Dilithium key, as hex::encode gives.
+            if self.get_kyber_public(&hex::encode(&member.member_pubkey))?.is_some() {
+                active.insert(member.member_fp);
+            }
+        }
         let sealed_to = epoch_recipient_fps(&object.payload);
         let left_out = epoch_recipient_fps(&stored_payload)
             .into_iter()

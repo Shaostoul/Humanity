@@ -4,6 +4,8 @@
 pub mod account_erase;
 pub mod announce;
 pub mod broadcast;
+pub mod chat_rate;
+pub mod dm_answer;
 pub mod dm_rate;
 pub mod federation;
 pub mod fleet_ledger;
