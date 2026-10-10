@@ -1071,6 +1071,86 @@ fn settings_panel(
     });
 }
 
+/// Reasons for the report snapshots, built here (the real list is data/safety/report_reasons.json,
+/// written by the relay half of step D): enough to show the list and one help text.
+fn snapshot_report_reasons() -> Vec<crate::net::report::ReportReason> {
+    crate::net::report::parse_reasons(
+        br#"[{"id":"spam","label":"Spam","help":"Unwanted ads or the same message again and again."},
+             {"id":"harassment","label":"Harassment","help":"Someone keeps contacting you after you asked them to stop, or tries to frighten or shame you."},
+             {"id":"threats","label":"Threats","help":"A threat of harm to you or anyone else."},
+             {"id":"child_danger","label":"A child may be in danger","help":"If anyone is in danger right now, contact your local emergency number. This server's admins are volunteers, not police."},
+             {"id":"other","label":"Something else","help":"Say what is happening in the note."}]"#,
+    )
+    .expect("the snapshot reasons")
+}
+
+// The Report dialog for a DM report (step D of docs/design/blocking-and-safe-mode.md 10e,
+// 2026-10-09): Harassment chosen with its help text, three of the person's messages with the
+// newest ticked, the line about messages with files, a note, and "Also block them" ticked as it
+// is by default for a DM report. Built in memory; nothing is sent or saved.
+#[test]
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_report_dialog() {
+    render_page_png("report_dialog", 760, 980, |ctx, theme, state| {
+        if state.reports.dialog.is_none() {
+            use crate::net::report::{DmCandidate, Evidence, ReportContext, ReportDialog};
+            state.profile_public_key = "me".to_string();
+            state.reports.reasons = snapshot_report_reasons();
+            let msg = |ts: u64, text: &str, ticked: bool| DmCandidate {
+                item: Evidence::Dm { from: "dana".into(), to: "me".into(), ts, text: text.into(), sig: "c2ln".into() },
+                ts,
+                text: text.into(),
+                ticked,
+            };
+            state.reports.dialog = Some(ReportDialog {
+                target: "dana".into(),
+                target_name: "Dana Okafor".into(),
+                context: Some(ReportContext::Dm),
+                reason: "harassment".into(),
+                note: "This started after I left the group on Tuesday.".into(),
+                candidates: vec![
+                    msg(1_791_503_600_000, "I know which building you live in.", true),
+                    msg(1_791_500_000_000, "Answer me. I will keep writing until you do.", false),
+                    msg(1_791_417_600_000, "Why did you leave the group?", false),
+                ],
+                also_block: true,
+                ..Default::default()
+            });
+        }
+        egui::CentralPanel::default().show(ctx, |_| {});
+        crate::gui::pages::chat::draw_report_dialog(ctx, theme, state);
+    });
+}
+
+// Server Settings > Moderator > Reports as an admin sees it (step D, 10e): an open DM report with
+// one item whose signature the server checked and one it could not prove, the sentence on what a
+// checked signature does not prove, and the decision buttons (Ban shown, as for an admin). Built
+// in memory; no `reports_list` is sent.
+#[test]
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_reports_page() {
+    render_page_png("reports_page", 960, 900, |ctx, theme, state| {
+        if state.reports.list.is_empty() {
+            state.profile_public_key = "me".to_string();
+            state.reports.reasons = snapshot_report_reasons();
+            state.reports.requested = true;
+            state.reports.list = crate::net::report::parse_reports(&serde_json::json!({ "type": "reports", "items": [
+                { "id": 12, "target": "dana0000000000000000", "target_name": "Dana Okafor", "context": "dm",
+                  "reason": "harassment", "reason_label": "Harassment", "note": "This started after I left the group on Tuesday.",
+                  "created_at": 1_791_504_000_000u64, "state": "open", "reporter": "me", "reporter_name": "Sam",
+                  "evidence": [
+                    { "kind": "dm", "from": "dana0000000000000000", "to": "me", "ts": 1_791_500_000_000u64,
+                      "text": "Answer me. I will keep writing until you do.", "checked": true },
+                    { "kind": "dm", "from": "dana0000000000000000", "to": "me", "ts": 1_791_503_600_000u64,
+                      "text": "I know which building you live in.", "checked": false } ] }
+            ]}));
+        }
+        settings_panel(ctx, theme, state, |ui, theme, state| {
+            crate::gui::pages::server_settings::reports::draw(ui, theme, state, true)
+        });
+    });
+}
+
 #[test]
     #[ignore = "GPU snapshot; run via `just snapshots`"]
     fn snapshot_credits_settings() {

@@ -227,6 +227,7 @@ impl GuiState {
         self.chat_muted_requested = false;
         self.game_bans_requested = false;
         self.backup_list_requested = false;
+        self.reports.forget_server(); // the Reports list is this server's (step D)
         self.chat_roles.clear();
         self.chat_banned_users.clear();
         self.chat_muted_users.clear();
@@ -445,6 +446,8 @@ impl GuiState {
         // Same for the Game Admin game-ban list (v0.474), and the Backups panel (v0.938).
         self.game_bans_requested = false;
         self.backup_list_requested = false;
+        // The Reports list (step D) is asked for again on the next socket.
+        self.reports.requested = false;
         // And the server's settings, if the answer to the last request never arrived.
         self.server_settings_requested = false;
         if !self.ws_manually_disconnected {

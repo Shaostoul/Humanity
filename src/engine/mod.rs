@@ -14,6 +14,9 @@ pub mod reach;
 /// Block (step C of docs/design/blocking-and-safe-mode.md, 2026-10-09): Block and Unblock, the
 /// notes to oneself, and the rules that hide a blocked key on every path in.
 pub mod block;
+/// Reports the admins can check (step D of docs/design/blocking-and-safe-mode.md, 2026-10-09):
+/// the Report dialog's opening and sending, and the relay's `report_received` and `reports`.
+pub mod report;
 pub mod editor;
 pub mod frame_lock;
 pub mod geom;

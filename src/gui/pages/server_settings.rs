@@ -29,6 +29,9 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::{GuiPage, GuiState};
 
+/// Reports the admins can check (step D, 2026-10-09): the Moderator section's Reports lists.
+pub(crate) mod reports;
+
 /// Section identity colors — match the nav bar grouping in escape_menu.rs.
 /// theme-exempt: these encode the privilege tier (red/green/blue) and are
 /// referenced by both `widgets::tinted_section` calls AND the design
@@ -471,33 +474,13 @@ fn draw_mod_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.separator();
         ui.add_space(theme.spacing_sm);
 
-        // ── Reports surface (merged from former Reports tab) ──
-        widgets::subsection_label(ui, theme, "Reports");
-        widgets::body_hint(
-            ui, theme,
-            "Queue of messages flagged via the Report button on a chat row. View shows the \
-             flagged content + reporter. Decide: Dismiss / Warn / Mute / Kick / Ban / Mark Bogus. \
-             Mark Bogus deducts trust from the reporter so abusive flagging gets self-corrected.",
-        );
-        ui.add_space(theme.spacing_xs);
-        widgets::body_hint(
-            ui, theme,
-            "Anti-abuse defenses: rate limit (max reports per hour), same-target cooldown \
-             (no spam-reporting one user), self-reports rejected, trust-score weighting on \
-             reporter rep, signed transparent log of all decisions, federation opt-in for \
-             cross-server escalation. See docs/design/report-system.md for the full design.",
-        );
+        // ── Reports (step D, 2026-10-09): the open and decided lists with their evidence and the
+        // decision buttons, in server_settings/reports.rs. It replaced a "View reports" button
+        // that typed /reports into the chat. ──
+        let is_admin = matches!(current_user_role(state).as_str(), "admin" | "owner");
+        reports::draw(ui, theme, state, is_admin);
         ui.add_space(theme.spacing_sm);
         ui.horizontal(|ui| {
-            if widgets::Button::secondary("View reports")
-                .tooltip("Open the report queue in chat (current implementation uses the \
-                          /reports slash command, UI surface lands in v0.194+).")
-                .show(ui, theme)
-            {
-                send_slash(state, "/reports");
-                state.server_settings_status = "Sent: /reports, check the active channel for results.".into();
-            }
-            ui.add_space(theme.spacing_sm);
             // /reports-clear had no button anywhere (v0.722 commands-to-buttons
             // pass). Admin-only server-side; the relay rejects others politely.
             if state.server_settings_confirm_action.as_deref() == Some("/reports-clear") {

@@ -40,6 +40,12 @@ pub struct StoredDm {
     pub ts: u64,
     pub text: String,
     pub dedupe: String,
+    /// The sender's base64 Dilithium3 signature over the DM v2 preimage, kept since step D
+    /// (2026-10-09, blocking-and-safe-mode.md 10e) so a message can be handed to a server's
+    /// admins as evidence they can check (net/report.rs). A message kept before then has none
+    /// and is not offered as evidence.
+    #[serde(default)]
+    pub sig: String,
 }
 
 /// The serialized body (what gets encrypted into the file).
@@ -224,6 +230,7 @@ impl DmStore {
             ts: inner.ts,
             text: inner.text.clone(),
             dedupe,
+            sig: inner.sig_b64.clone(),
         });
         // Keep sorted by the signed timestamp (arrival order can differ).
         list.sort_by_key(|m| m.ts);

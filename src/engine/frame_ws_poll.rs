@@ -1642,7 +1642,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                     _ => {
                         // Log unhandled message types to debug console
                         let msg_type = val.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
-                        crate::debug::push_debug(format!("Unhandled WS type: {}", msg_type));
+                        if !crate::engine::report::on_frame(&mut state.gui_state, &val) { crate::debug::push_debug(format!("Unhandled WS type: {}", msg_type)); } // report_received, reports: step D (engine/report.rs)
                     }
                 }
             }

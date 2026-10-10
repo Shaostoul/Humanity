@@ -247,7 +247,8 @@ pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         RichText::new(
             "Messages are end-to-end encrypted regardless of these settings; the server \
              also stores no record of who you message. These control what OTHER people \
-             can observe about you.",
+             can observe about you. Any direct message you send carries your signature, so \
+             the person you sent it to can prove to others that you wrote it.",
         )
         .size(theme.font_size_small)
         .color(theme.text_muted()),

@@ -2421,6 +2421,8 @@ pub struct GuiState {
     /// identity, NOT per server, loaded by `engine::block::ensure_block_list`. Kept across a
     /// server switch: a key is the same person on every server.
     pub block_list: Option<crate::net::block_list::BlockList>,
+    /// Reports (step D, 2026-10-09): the Report dialog, the reasons, and the admins' list.
+    pub reports: crate::net::report::ReportUi,
 
     // ── Cosmos page state (v0.203.0, Phase 3) ──
     /// Which view the Cosmos page is currently rendering.
@@ -3970,6 +3972,7 @@ impl Default for GuiState {
             dm_fetch_sent: false,
             reach: Default::default(),
             block_list: None,
+            reports: Default::default(),
             server_settings: None,
             server_settings_requested: false,
             erase_memory_days: None,
