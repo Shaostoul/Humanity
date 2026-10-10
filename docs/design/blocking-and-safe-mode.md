@@ -1697,9 +1697,11 @@ cannot: erasing is not undoable, and it is the admins who answer for the server.
 Settings' member list; web, the admin's member menu or admin page, whichever already holds kick
 and ban), an "Erase their data" action, shown only to admins and the owner, opening a confirm
 that says what it does and does not do: "This deletes everything this server stores about
-<name>: their messages, profile, uploads, membership and settings. It cannot be undone. It does
-not touch anything on their own devices, and it does not stop them joining again (ban them too
-for that)." with a field to type their name and an "Erase" button that is enabled only when the
+<name>: their messages, profile, uploads, membership and settings. Reports, bans and mutes about
+them are kept, as when someone erases their own account. It cannot be undone. It does not touch
+anything on their own devices, and it does not stop them joining again (ban them too for that)."
+(Corrected 2026-10-10 after the batch review: the first wording said "everything", but the erase
+keeps moderation records about the person, as the self-erase does and says.) with a field to type their name and an "Erase" button that is enabled only when the
 typed name matches. Show the receipt when `admin_erase_done` arrives.
 
 **Proof:** relay tests: every refusal (not an admin, a moderator, self, an admin target, an
