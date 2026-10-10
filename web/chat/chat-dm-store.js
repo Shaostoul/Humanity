@@ -58,6 +58,11 @@ const hosDmStore = {
   // 10g): the Safety switch, On unless the person turned it off. Kept here,
   // encrypted, with the block list.
   warningsOn: true,
+  // ── Reports about my groups (10j, 2026-10-10, blocking-and-safe-mode.md):
+  // reports members of a group I created sent me, each item already checked
+  // against my own copy of the group. Kept here, encrypted, until I dismiss
+  // them; never sent to any server.
+  groupReports: {},    // id -> {id, from, ts, group_id, group_name, target, reason, note, items, removed}
 
   async _sha256hex(s) {
     const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
@@ -134,6 +139,7 @@ const hosDmStore = {
       this.blocked = {};
       this.blockNotesPending = [];
       this.warningsOn = true;
+      this.groupReports = {};
       // Meta first (high-water + read marks + social sets).
       const meta = await this._idb(this._tx('meta', 'readonly').get(this.scope)).catch(() => null);
       if (meta) {
@@ -151,6 +157,7 @@ const hosDmStore = {
           if (m && m.blocked && typeof m.blocked === 'object') this.blocked = m.blocked;
           if (m && Array.isArray(m.blockNotesPending)) this.blockNotesPending = m.blockNotesPending;
           if (m && typeof m.warningsOn === 'boolean') this.warningsOn = m.warningsOn;
+          if (m && m.groupReports && typeof m.groupReports === 'object') this.groupReports = m.groupReports;
         }
       }
       // All records in this scope.
@@ -188,6 +195,7 @@ const hosDmStore = {
       blocked: this.blocked,
       blockNotesPending: this.blockNotesPending,
       warningsOn: this.warningsOn,
+      groupReports: this.groupReports,
     });
     await this._idb(this._tx('meta', 'readwrite').put({ scope: this.scope, hw: this.highWater, box })).catch(() => {});
   },
@@ -363,6 +371,34 @@ const hosDmStore = {
     this.warningsOn = v;
     this._persistMeta();
     return true;
+  },
+
+  // ── Reports about my groups (10j) ──
+  /** Keep a report (a checked record with its own id). Returns true when it is new. */
+  addGroupReport(rec) {
+    if (!rec || !rec.id || this.groupReports[rec.id]) return false;
+    this.groupReports[rec.id] = rec;
+    this._persistMeta();
+    return true;
+  },
+  /** Dismiss: the report is gone from this device. */
+  removeGroupReport(id) {
+    if (!this.groupReports[id]) return false;
+    delete this.groupReports[id];
+    this._persistMeta();
+    return true;
+  },
+  /** Mark that the reported person was removed from the group. */
+  setGroupReportRemoved(id) {
+    const r = this.groupReports[id];
+    if (!r) return false;
+    r.removed = true;
+    this._persistMeta();
+    return true;
+  },
+  /** Every kept report, newest first. */
+  groupReportList() {
+    return Object.values(this.groupReports).filter((r) => r && r.id).sort((a, b) => (Number(b.ts) || 0) - (Number(a.ts) || 0));
   },
 
   setHighWater(id) {

@@ -196,8 +196,14 @@ function renderGroupList() {
     const crown = g.is_creator
       ? `<span title="You created this group" style="margin-right:3px;display:inline-flex;vertical-align:middle;">${hosIcon('crown', 13, 'var(--warning)')}</span>`
       : '';
+    // Reports members sent me about a group I created (10j, chat-reports.js):
+    // their count, which opens Settings > Safety where they are listed.
+    const reports = typeof groupReportCountFor === 'function' ? groupReportCountFor(g.group_id) : 0;
+    const reportCount = reports
+      ? `<span class="group-report-count" data-group-reports="${esc(g.group_id)}" title="${esc(groupReportCountTitle(reports))}" aria-label="${esc(groupReportCountTitle(reports))}" style="font-size:0.6rem;font-weight:700;color:var(--danger);border:1px solid var(--danger);border-radius:var(--radius-sm);padding:0 4px;margin-left:var(--space-xs);">${reports}</span>`
+      : '';
     html += `<div class="channel-item${isActiveP2p ? ' active' : ''}" data-p2p-group-id="${esc(g.group_id)}" style="cursor:pointer;">
-      <span style="opacity:0.6">${hosIcon('users', 16)} </span>${crown}${esc(g.name)}
+      <span style="opacity:0.6">${hosIcon('users', 16)} </span>${crown}${esc(g.name)}${reportCount}
       <span style="font-size:0.6rem;color:var(--text-muted);margin-left:auto;">${(g.members || []).length}</span>
     </div>`;
   }
@@ -214,7 +220,13 @@ function renderGroupList() {
   // bugs, the menu is a tiny absolutely-positioned div that dismisses on
   // outside click, same pattern the legacy group menu uses below).
   container.querySelectorAll('[data-p2p-group-id]').forEach(el => {
-    el.onclick = () => {
+    el.onclick = (e) => {
+      // The report count opens the Safety page, where the reports are (10j).
+      const t = e && e.target;
+      if (t && typeof t.closest === 'function' && t.closest('[data-group-reports]') && typeof openSafetyPanel === 'function') {
+        openSafetyPanel();
+        return;
+      }
       const gid = el.dataset.p2pGroupId;
       const g = (window._p2pGroups || []).find(x => x.group_id === gid);
       if (g && typeof window.openP2pGroup === 'function') window.openP2pGroup(gid, g.name);
