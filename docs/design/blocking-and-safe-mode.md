@@ -1165,6 +1165,47 @@ storage test for the table, export and erase; client unit tests for the settings
 "show as request" rule; a headless snapshot of Settings > Safety (`just snapshot`), only when no
 other HumanityOS instance runs; `just verify`, `just verify-relay`.
 
+## 10d. Step C specification: Block, on both clients (2026-10-09)
+
+Steps A and B shipped (v0.1466.0, v0.1467.0). Block is client side (section 4.4's option A),
+with the relay already doing its part: blocking someone withdraws the pass you gave them, so
+under the safe defaults (10c) the relay refuses their messages, calls and trades from then on.
+
+**What Block does, at once and without a confirmation dialog** (it is undoable):
+1. Adds their identity key (never a name) to your block list.
+2. Withdraws every pass you gave them (`cert_revoke` for each serial, step A) and unfollows.
+3. Hides everything from them on every path in section 4.5's client column: DMs and knocks
+   (dropped before they are stored, and no notification), contact requests (dropped, never
+   listed), posts, replies, reactions and typing in channels (hidden by key), call rings
+   (ignored silently, no reject sent), trade requests (declined silently), direct-connection
+   offers (not answered), group messages (hidden by author key), and their figure and name in
+   the game where the client knows the key.
+4. Shows one line: "Blocked. You will not see anything from them. They are not told." Nothing is
+   ever sent to the blocked person (4.7).
+
+**Unblock** removes them from the list. It does not re-follow or re-issue a pass: becoming
+friends again is a fresh follow or contact request.
+
+**Your other devices learn it** through two sealed control notes addressed to yourself only (the
+same self-copy path follows use), so the list is the same everywhere without the server knowing
+it: `[[hum:block:v1]]<key>` and `[[hum:unblock:v1]]<key>`, constants beside `CTL_FOLLOW` in
+`src/net/dm_pq.rs` and the web equivalent in `web/chat/crypto.js` or `web/shared/`, which must
+match exactly. A note addressed to anyone but yourself is ignored. Web's old name-based block
+list is replaced outright (no compatibility code before launch).
+
+**Where Block appears** (native first, web mirrors): beside Report in a message's menu, in the
+DM conversation header, in the member list's menu for a person, on a contact request (Block
+instead of Ignore), and on a player's name in the game where that menu exists; web also takes
+`/block <name>` and `/unblock <name>`. **Settings > Safety > Blocked people**: the list by
+member-list name (or short key), each with Unblock and the date blocked.
+
+**Proof:** unit tests on both clients that a blocked key's DM is not stored or notified, a
+blocked key's contact request is dropped, a blocked key's channel post is hidden, a ring from a
+blocked key sends nothing back, Block withdraws the passes and unfollows, the self-sync notes
+round-trip between the two clients' builders (a Node test reading the Rust constants, as the pass
+test does), and a note addressed to someone else is ignored. A headless snapshot of Blocked
+people when no other HumanityOS instance runs. `just verify` and `just rig-tests`.
+
 ## 11. Docs to update as each piece ships
 
 - `docs/accord/conformance_gaps.md` ("Contact consent cannot be withdrawn")
