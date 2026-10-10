@@ -1227,6 +1227,8 @@ fn snapshot_chat_protected() {
     render_page_png("chat_protected", 1280, 900, |ctx, theme, state| {
         if state.protected.preset.is_none() {
             protected_fixture(state, true);
+            // The default state already lists these two; replace them rather than list each twice.
+            state.chat_channels.retain(|c| c.id != "announcements" && c.id != "general");
             state.chat_channels.push(ChatChannel { id: "announcements".into(), name: "announcements".into(), read_only: true, ..Default::default() });
             state.chat_channels.push(ChatChannel { id: "general".into(), name: "general".into(), ..Default::default() });
             state.chat_messages.push(ChatMessage {
