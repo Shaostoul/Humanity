@@ -207,3 +207,12 @@ what we will say about it.
   chat's "18 years or older" line at odds with a setup for children (the
   operator's decision). Whether COPPA reaches a free, donation-funded app at
   all is not answered by any source.
+- [`2026-10-10-california-ab-1043-age-signals.md`](2026-10-10-california-ab-1043-age-signals.md),
+  whether California's Digital Age Assurance Act (AB 1043, rewritten by AB 1856
+  in September 2026; both in force 1 January 2027) makes the desktop app ask
+  the operating system for an age signal. Only a "developer" with an app in a
+  "covered application store" must ask, and anyone not required to ask must
+  not (1798.501(e)). The project's website is not such a store; whether GitHub
+  Releases is one, no source answers. A listing on Flathub, Snap, WinGet,
+  Homebrew or F-Droid would very likely bring the app inside. Supersedes the
+  AB 1043 bullet of the children's online-safety finding of the same day.

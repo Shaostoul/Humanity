@@ -1607,6 +1607,13 @@ recovery phrase away from the person this protects."
 **Per device, never synced.** The setup's state lives only on this device: it is not put in the
 self-sync notes Block uses, not in the vault backup, and not in any export sent to a server.
 
+**Never asks the operating system for an age.** No call to Windows' `GetUserAgeRangeAsync`,
+Apple's Declared Age Range or any other age interface, not to switch the setup on, not "to be
+safe": California's Civil Code 1798.501(e) (in force 1 January 2027) forbids a person not
+required to request an age signal from requesting one, and the project is probably not required
+(`docs/reference/findings/2026-10-10-california-ab-1043-age-signals.md`). A store listing would
+change that answer and needs its own decision first.
+
 **Not in this step** (operator decisions or separate work, in PRIORITIES): the web chat's "18
 years or older" entry line and the project's age position; content rules on the project server's
 rules page; an admin tool to erase another person's data; the California AB 1043 finding.
