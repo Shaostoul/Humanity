@@ -23,7 +23,7 @@ const hosDmStore = {
   scope: null,         // SHA-256 hex tag of `${me}\n${server}`
   me: null,            // our identity hex
   highWater: 0,        // last fetched mailbox row id for this scope
-  conversations: new Map(), // peer -> [{from,to,ts,text,dedupe}] sorted by ts
+  conversations: new Map(), // peer -> [{from,to,ts,text,sig,dedupe}] sorted by ts
   lastRead: {},        // peer -> ts
   _seen: new Set(),    // dedupe tags in memory
   // ── Client-side social graph (follows removal, 2026-08-24): the server
@@ -364,7 +364,9 @@ const hosDmStore = {
     const dedupe = await this._sha256hex(inner.sig);
     if (this._seen.has(dedupe)) return false;
     this._seen.add(dedupe);
-    const rec = { from: inner.from, to: inner.to, ts: Number(inner.ts) || 0, text: String(inner.text ?? ''), dedupe };
+    // The signature is kept: it is what lets me hand a message to this server's
+    // admins as evidence they can check (Report, step D, blocking-and-safe-mode.md 10e).
+    const rec = { from: inner.from, to: inner.to, ts: Number(inner.ts) || 0, text: String(inner.text ?? ''), sig: inner.sig, dedupe };
     const peer = this.peerOf(inner);
     if (!this.conversations.has(peer)) this.conversations.set(peer, []);
     const list = this.conversations.get(peer);

@@ -432,13 +432,25 @@ function streamingBadge(isLive) {
 }
 
 // ── User Context Menu ──
-let ctxMenuTarget = null; // { name, publicKey }
+let ctxMenuTarget = null; // { name, publicKey, message } (message: the post or group message the menu was opened on)
 const ctxMenu = document.getElementById('user-context-menu');
 
-function showUserContextMenu(e, name, publicKey) {
+/**
+ * Point the menu's actions (blockFromCtx, dmFromCtx, followFromCtx, ctxCommand
+ * and the rest) at a person without opening the menu: the voice modal
+ * (chat-voice-modal.js withTarget) reuses them this way. `ctxMenuTarget` is a
+ * `let` of this script, not a property of window, so setting
+ * window.ctxMenuTarget from another script never reached it.
+ */
+function setCtxMenuTarget(name, publicKey) {
+  ctxMenuTarget = publicKey ? { name, publicKey, message: null } : null;
+}
+window.setCtxMenuTarget = setCtxMenuTarget;
+
+function showUserContextMenu(e, name, publicKey, message) {
   e.preventDefault();
   e.stopPropagation();
-  ctxMenuTarget = { name, publicKey };
+  ctxMenuTarget = { name, publicKey, message: message || null };
 
   // Role lookups
   const targetPeer = peerData[publicKey] || {};
@@ -572,22 +584,17 @@ function botCommand(cmd) {
   hideContextMenu();
 }
 
+// Report opens the Report dialog (chat-reports.js, step D): by key, with the
+// post (or the group message) the menu was opened on as evidence, or none when
+// it was opened on the member list.
 function reportUser() {
-  if (!ctxMenuTarget || !ws || ws.readyState !== WebSocket.OPEN) return;
-  const targetName = ctxMenuTarget.name;
+  if (!ctxMenuTarget) return;
+  const t = ctxMenuTarget;
   hideContextMenu();
-  const reason = prompt(`Report ${targetName}?\nEnter a reason (optional):`);
-  if (reason === null) return; // User cancelled
-  const content = reason ? `/report ${targetName} ${reason}` : `/report ${targetName}`;
-  const timestamp = Date.now();
-  ws.send(JSON.stringify({
-    type: 'chat',
-    from: myKey,
-    from_name: myName,
-    content: content,
-    timestamp: timestamp,
-    channel: activeChannel,
-  }));
+  if (typeof openReportDialog !== 'function') return;
+  const message = t.message || null;
+  const context = message ? (message.group ? 'group' : 'post') : 'profile';
+  openReportDialog({ target: t.publicKey, name: t.name, context, message });
 }
 
 // Block and Unblock act on the person's key (chat-privacy.js blockKey, step C).
@@ -1171,6 +1178,22 @@ sendMessage = async function() {
   if (val === '/blocklist') {
     input.value = '';
     showBlockList();
+    return;
+  }
+  // /report <name> opens the Report dialog (chat-reports.js, step D); /reports
+  // opens the Reports view for admins and mods (anyone else's goes to the
+  // relay, which says no).
+  if (val.startsWith('/report ') && typeof reportByName === 'function') {
+    const name = val.substring(8).trim();
+    if (name) {
+      input.value = '';
+      reportByName(name);
+      return;
+    }
+  }
+  if (val === '/reports' && typeof reportsAmStaff === 'function' && reportsAmStaff()) {
+    input.value = '';
+    openReportsView();
     return;
   }
   if (val === '/dms') {
@@ -2007,8 +2030,8 @@ handleMessage = function(msg) {
 // ── Improved Context Menu Positioning ──
 // Patch showUserContextMenu to prevent overflow on mobile.
 const _origShowCtxMenu = showUserContextMenu;
-showUserContextMenu = function(e, name, publicKey) {
-  _origShowCtxMenu(e, name, publicKey);
+showUserContextMenu = function(e, name, publicKey, message) {
+  _origShowCtxMenu(e, name, publicKey, message);
   // Reposition if overflowing.
   const menu = document.getElementById('user-context-menu');
   const rect = menu.getBoundingClientRect();
@@ -2139,6 +2162,9 @@ const CMD_PALETTE_ACTIONS = {
   openServerStats:       function() { window.open('/info', '_blank'); },
   openGameAdmin:         function() { if (typeof openGameAdminModal === 'function') openGameAdminModal(); },
   openFleetLedger:       function() { if (typeof openFleetLedger === 'function') openFleetLedger(); },
+  // The Reports view (chat-reports.js, step D). The Moderation section's View
+  // Reports item sends /reports, which opens it too (sendMessage above).
+  openReports:           function() { if (typeof openReportsView === 'function') openReportsView(); },
 };
 fetch('/data/commands.json', { cache: 'no-cache' })
   .then(function(r) { return r.ok ? r.json() : null; })

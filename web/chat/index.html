@@ -484,7 +484,7 @@
       <div class="cmd"><code>/link</code>, Generate a code to link another device</div>
       <div class="cmd"><code>/revoke &lt;key_prefix&gt;</code>, Remove a lost/stolen device from your name</div>
       <div class="cmd"><code>/users</code>, List all registered users (online/offline)</div>
-      <div class="cmd"><code>/report &lt;name&gt; [reason]</code>, Report a user</div>
+      <div class="cmd"><code>/report &lt;name&gt;</code>, Report someone to this server's admins (opens the report form)</div>
       <div class="cmd"><code>/export</code>, Download your identity backup file</div>
       <div class="cmd"><code>/recovery</code>, Reveal your 24-word recovery phrase (asks you to confirm first)</div>
       <div class="cmd"><code>/backup</code>, Download an encrypted backup of your identity</div>
@@ -542,7 +542,7 @@
       <div class="cmd"><code>/channel-reorder &lt;name&gt; &lt;pos&gt;</code>, Set channel sort position (lower = higher)</div>
       <div class="cmd"><code>/invite</code>, Generate an invite code for lockdown bypass</div>
       <div class="cmd"><code>/name-release &lt;name&gt;</code>, Release a name for re-registration</div>
-      <div class="cmd"><code>/reports</code>, View recent reports</div>
+      <div class="cmd"><code>/reports</code>, Open the Reports view (admins and moderators)</div>
       <div class="cmd"><code>/reports-clear</code>, Clear all reports</div>
     </div>
   </div>
@@ -683,26 +683,30 @@
   <!-- block.js: Block's note markers and words (step C, 2026-10-09), shared with Node
        tests that pin them to the desktop app. Before chat-privacy.js, which keeps the list. -->
   <script src="/shared/block.js?v=2"></script>
-  <script src="/chat/crypto.js?v=10"></script>
+  <!-- report.js: the words a report signs, its evidence and the Report dialog's words
+       (step D, 2026-10-09), shared with Node tests that pin it to the relay. Before
+       crypto.js (pqBuildReport) and chat-reports.js. -->
+  <script src="/shared/report.js?v=1"></script>
+  <script src="/chat/crypto.js?v=11"></script>
   <!-- pq.js: post-quantum (Dilithium3) identity, derived from the same
        BIP39 seed as the Ed25519 key. Must load before app.js calls
        attachPqIdentity(). Self-loads the vendored same-origin bundle. -->
-  <script src="/chat/pq.js?v=1"></script>
+  <script src="/chat/pq.js?v=2"></script>
   <!-- chat-dm-store.js: local encrypted DM history (sealed-sender cutover,
        2026-08-23). The relay no longer stores readable DM history; this
        IndexedDB store, keyed from the seed, is the archive. Load before
        app.js so the dm_new/dm_batch handlers can use it. -->
-  <script src="/chat/chat-dm-store.js?v=4"></script>
+  <script src="/chat/chat-dm-store.js?v=5"></script>
   <!-- Clean view modules (docs/design/chat-layout.md), one per native draw_*.
        Load before app.js so its renderers can call them. -->
   <script src="/chat/view/timestampPill.js?v=1"></script>
   <script src="/chat/view/messageRow.js?v=1"></script>
-  <script src="/chat/app.js?v=15"></script>
+  <script src="/chat/app.js?v=16"></script>
   <script src="/chat/chat-messages.js?v=6"></script>
-  <script src="/chat/chat-dms.js?v=8"></script>
+  <script src="/chat/chat-dms.js?v=9"></script>
   <script src="/chat/chat-social.js?v=11"></script>
   <script src="/chat/chat-groups-p2p.js?v=8"></script>
-  <script src="/chat/chat-ui.js?v=8"></script>
+  <script src="/chat/chat-ui.js?v=9"></script>
   <script src="/chat/chat-voice-rooms.js?v=3"></script>
   <script src="/chat/chat-voice-calls.js?v=3"></script>
   <script src="/chat/chat-voice-webrtc.js?v=1"></script>
@@ -710,14 +714,17 @@
   <!-- Live-now mirror of the native Chat live strip: /api/live directory, links to /watch (v0.1151) -->
   <script src="/chat/chat-live.js?v=1"></script>
   <!-- Per-user voice control modal: volume/mute/squelch + role-tiered actions -->
-  <script src="/chat/chat-voice-modal.js?v=2"></script>
+  <script src="/chat/chat-voice-modal.js?v=3"></script>
   <script src="/chat/chat-profile.js?v=6"></script>
   <!-- chat-privacy.js: privacy tiers (2026-08-23) — first-connect chooser
        (default: maximum privacy) + tier application. Needs chat-profile.js
        (profile privacy merge) loaded first. -->
-  <script src="/chat/chat-privacy.js?v=3"></script>
+  <script src="/chat/chat-privacy.js?v=4"></script>
   <!-- Game Admin: game-world bans (separate from chat moderation), admin-only -->
   <script src="/chat/chat-game-admin.js?v=2"></script>
+  <!-- Reports (step D, 2026-10-09): the Report dialog and the Reports view for admins
+       and moderators. After chat-privacy.js (Block, which the dialog can run). -->
+  <script src="/chat/chat-reports.js?v=1"></script>
   <!-- Your fleet ledger: the player's own used/given ledger from the server, read-only (command palette) -->
   <script src="/chat/chat-fleet.js?v=1"></script>
   <!-- Onboarding wizard: first-time user guide (ELI5 identity + recovery phrase) -->
