@@ -443,6 +443,7 @@ pub(crate) fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut Gu
                 }
             }
         });
+        super::reach::draw_refusal_notice(ui, theme, state, &key); // their gate refused us (step B)
 
         // (v0.845: the old "Watch Stream" button was a dead no-op — the native
         // roster carries no per-user stream URL and there's no native stream

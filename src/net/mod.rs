@@ -28,6 +28,12 @@ pub mod dm_pq;
 #[cfg(feature = "native")]
 pub mod dm_store;
 
+/// "Who can reach me" (step B of docs/design/blocking-and-safe-mode.md, 2026-10-09): the
+/// audiences per kind of contact, the relay's frames, the "show as a request" rule and the
+/// contact request itself, with no socket and no GUI so each rule is unit tested.
+#[cfg(feature = "native")]
+pub mod reach;
+
 /// Native client → relay v2 signed-object submission + invite ticket helpers
 /// (P2P groups). HTTP via the same blocking-ureq pattern as image upload.
 #[cfg(feature = "native")]

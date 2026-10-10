@@ -24,6 +24,7 @@ use aes_gcm::{
 use serde::{Deserialize, Serialize};
 
 use super::dm_pq::DmInner;
+use super::reach::{ContactRequest, ReachSettings};
 
 /// BLAKE3 domain for the at-rest encryption key. Distinct from every
 /// other seed-derived key (identity, kyber, dm-aes).
@@ -82,6 +83,20 @@ struct StoreBody {
     /// Resent on every connection until it does, so going offline cannot lose a withdrawal.
     #[serde(default)]
     withdrawals_pending: Vec<String>,
+    // ── Who can reach me (step B, 2026-10-09, blocking-and-safe-mode.md 10c) ──
+    /// What this server last said our audiences are (`reach_settings`). Kept so that a DM
+    /// fetched on the next connection, before the server has answered again, is judged by the
+    /// person's real choice rather than by the defaults.
+    #[serde(default)]
+    reach_settings: Option<ReachSettings>,
+    /// The Requests list: contact requests, and DMs our own settings would have refused (name
+    /// only, never their text). Kept until Accept or Ignore.
+    #[serde(default)]
+    requests: Vec<ContactRequest>,
+    /// Friends ticked in "People who may call me": the pass they hold from us is re-issued with
+    /// `call` in it (and without it when the tick is taken away).
+    #[serde(default)]
+    may_call: HashSet<String>,
 }
 
 /// A friendship pass I gave someone: what a withdrawal names, and what it allows.
@@ -366,6 +381,97 @@ impl DmStore {
         let mut out: Vec<String> = self.body.following.iter().filter(|p| self.is_follower(p) && !self.cert_sent_to(p)).cloned().collect();
         out.sort();
         out
+    }
+
+    /// Take back every pass I gave `peer` that `keep` does not keep: they leave the record and
+    /// their serials join the waiting withdrawals. Used once a re-issued pass has gone out (keep
+    /// the new serial) and when our other device's re-issue is echoed (keep its `may`).
+    pub fn withdraw_passes_to_except(&mut self, peer: &str, keep: impl Fn(&SentPass) -> bool) -> Vec<String> {
+        let Some(list) = self.body.certs_sent.get_mut(peer) else { return Vec::new() };
+        let gone: Vec<String> = list.iter().filter(|p| !keep(p)).map(|p| p.serial.clone()).collect();
+        list.retain(|p| keep(p));
+        if list.is_empty() {
+            self.body.certs_sent.remove(peer);
+        }
+        for s in &gone {
+            if !self.body.withdrawals_pending.contains(s) {
+                self.body.withdrawals_pending.push(s.clone());
+            }
+        }
+        gone
+    }
+
+    // ── Who can reach me (step B, 2026-10-09) ──
+
+    /// What this server last said our audiences are, if it has said.
+    pub fn reach_settings(&self) -> Option<ReachSettings> {
+        self.body.reach_settings
+    }
+    /// Keep what the server says (`reach_settings`): the only source of what the Safety page shows.
+    pub fn set_reach_settings(&mut self, settings: ReachSettings) {
+        self.body.reach_settings = Some(settings);
+    }
+    /// The Requests list, oldest first.
+    pub fn requests(&self) -> &[ContactRequest] {
+        &self.body.requests
+    }
+    /// File a request: one entry per person (by key), so a repeat moves its time on and keeps the
+    /// pass a contact request brought (a later refused DM brings none), and never makes a second
+    /// row. Returns true when it is a new entry.
+    pub fn add_request(&mut self, req: ContactRequest) -> bool {
+        if let Some(have) = self.body.requests.iter_mut().find(|r| r.key == req.key) {
+            have.ts = have.ts.max(req.ts);
+            if !req.pass.is_empty() {
+                have.pass = req.pass;
+            }
+            return false;
+        }
+        self.body.requests.push(req);
+        true
+    }
+    /// Take `key`'s request off the list (Accept or Ignore), returning it.
+    pub fn remove_request(&mut self, key: &str) -> Option<ContactRequest> {
+        let at = self.body.requests.iter().position(|r| r.key == key)?;
+        Some(self.body.requests.remove(at))
+    }
+    /// Is `peer` ticked in "People who may call me"?
+    pub fn may_call(&self, peer: &str) -> bool {
+        self.body.may_call.contains(peer)
+    }
+    pub fn set_may_call(&mut self, peer: &str, on: bool) {
+        if on {
+            self.body.may_call.insert(peer.to_string());
+        } else {
+            self.body.may_call.remove(peer);
+        }
+    }
+    /// The `may` a pass to `peer` should carry, canonical form.
+    pub fn intended_may_wire(&self, peer: &str) -> String {
+        super::reach::intended_may_wire(self.may_call(peer))
+    }
+    /// People holding a pass from us that does not allow what the person chose for them (a tick
+    /// added or taken away whose re-issue could not go out yet): the ones the pass sweep
+    /// re-issues for.
+    pub fn passes_out_of_step(&self) -> Vec<String> {
+        let mut out: Vec<String> = self
+            .body
+            .certs_sent
+            .iter()
+            .filter(|(peer, passes)| {
+                let want = self.intended_may_wire(peer);
+                passes.iter().any(|p| p.may != want)
+            })
+            .map(|(peer, _)| peer.clone())
+            .collect();
+        out.sort();
+        out
+    }
+    /// The "show as a request" rule (10c) for a DM from `from`: does our message setting (as
+    /// this server last said it, or the safe defaults) let them through? `shares_group` is
+    /// whether they are in a P2P group with us.
+    pub fn admits_dm_from(&self, from: &str, shares_group: bool) -> bool {
+        let rel = super::reach::Relation { is_me: from == self.me, passes: self.passes_sent_to(from), shares_group };
+        !super::reach::shows_as_request(&self.body.reach_settings.unwrap_or_default(), &rel)
     }
 
     /// For tests elsewhere in the crate: remove this store's file from disk.

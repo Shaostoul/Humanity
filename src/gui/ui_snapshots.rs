@@ -1016,6 +1016,39 @@ fn settings_panel(
     });
 }
 
+// Settings > Safety (step B of docs/design/blocking-and-safe-mode.md 10c, 2026-10-09): "Who
+// can reach me" as the server last said it (messages from anyone, the safe defaults for calls
+// and trades), three friends in "People who may call me" (one ticked, one ticked whose pass is
+// still being re-issued, one not), and two requests: one the member list names, one from someone
+// not on it right now. The store is built in memory and never saved, so nothing lands on disk.
+#[test]
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_safety_settings() {
+    render_page_png("safety_settings", 960, 900, |ctx, theme, state| {
+        if state.dm_store.is_none() {
+            use crate::net::dm_store::SentPass;
+            use crate::net::reach::{intended_may_wire, Audience, ContactRequest, ReachSettings};
+            state.profile_public_key = "me".to_string();
+            let mut store = crate::net::dm_store::DmStore::load(&[7u8; 32], "me", "wss://snapshot.safety.invalid");
+            store.set_reach_settings(ReachSettings { message: Audience::Anyone, ..ReachSettings::default() });
+            for (key, name, tick, pass_has_call) in [("ann", "Ann", false, false), ("ben", "Ben", true, true), ("cy", "Cy", true, false)] {
+                store.set_following(key, true);
+                store.set_follower(key, true);
+                store.set_may_call(key, tick);
+                store.record_pass_sent(key, SentPass { serial: format!("{key:0>32}"), may: intended_may_wire(pass_has_call) });
+                state.chat_users.push(crate::gui::ChatUser { name: name.into(), public_key: key.into(), role: String::new(), status: "online".into() });
+            }
+            state.chat_users.push(crate::gui::ChatUser { name: "Dana Okafor".into(), public_key: "dana".into(), role: String::new(), status: "online".into() });
+            store.add_request(ContactRequest { key: "dana".into(), ts: 1, pass: String::new() });
+            store.add_request(ContactRequest { key: "e1f2a3b4c5d6".into(), ts: 2, pass: String::new() });
+            state.dm_store = Some(store);
+        }
+        settings_panel(ctx, theme, state, |ui, theme, state| {
+            crate::gui::pages::safety::draw_safety_content(ui, theme, state, theme.info())
+        });
+    });
+}
+
 #[test]
     #[ignore = "GPU snapshot; run via `just snapshots`"]
     fn snapshot_credits_settings() {

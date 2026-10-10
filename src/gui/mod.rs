@@ -2414,6 +2414,9 @@ pub struct GuiState {
     pub dm_store: Option<crate::net::dm_store::DmStore>,
     /// Whether we've sent the initial `dm_fetch` on this connection.
     pub dm_fetch_sent: bool,
+    /// "Who can reach me" (step B, 2026-10-09): a change asked of the server and not yet
+    /// answered, and who refused our messages. The settings themselves live in `dm_store`.
+    pub reach: crate::net::reach::ReachUi,
 
     // ── Cosmos page state (v0.203.0, Phase 3) ──
     /// Which view the Cosmos page is currently rendering.
@@ -3961,6 +3964,7 @@ impl Default for GuiState {
             privacy_tier_prompt_open: false,
             dm_store: None,
             dm_fetch_sent: false,
+            reach: Default::default(),
             server_settings: None,
             server_settings_requested: false,
             erase_memory_days: None,
@@ -4223,6 +4227,8 @@ pub enum SettingsCategory {
     Gameplay,
     Controls,
     Privacy,
+    /// Who can reach me, who may call, and contact requests (step B, 2026-10-09).
+    Safety,
     /// Video on in-world screens: where ffmpeg is for converting a chosen
     /// file (2026-09-18). Named in the screen's own error text ("set its
     /// path in Settings > Media"), so the section must exist by this name.

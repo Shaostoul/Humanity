@@ -253,6 +253,8 @@ impl GuiState {
             store.save();
         }
         self.dm_fetch_sent = false;
+        // Who can reach me is per server too (step B): its settings live in that store.
+        self.reach = Default::default();
     }
 
     /// Close the ACTIVE server's connection on purpose: nothing reconnects it by itself

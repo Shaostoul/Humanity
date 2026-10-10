@@ -221,6 +221,7 @@ pub(super) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
 
             // ── DMs Section (red tint) ──
             draw_dm_section(ui, theme, state);
+            super::reach::draw_requests_section(ui, theme, state); // only when someone asked (step B)
 
             // ── Groups Section (green tint) ──
             draw_groups_section(ui, theme, state);
