@@ -66,7 +66,11 @@ fn on_reach_refused(gs: &mut GuiState, frame: &serde_json::Value) {
         // same way, and a notice for each would read as an error the person never made. The
         // conversation shows it where a message was written.
         Some(ReachKind::Message) => {
-            gs.reach.refused.entry(to.to_string()).or_insert(false);
+            // A report to a group's creator that their server did not let through (10j) is said
+            // as such, not turned into an offer of a contact request.
+            if !crate::engine::group_report::refused(gs, to) {
+                gs.reach.refused.entry(to.to_string()).or_insert(false);
+            }
         }
         Some(ReachKind::Trade) => {
             let line = format!(

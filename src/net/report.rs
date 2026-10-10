@@ -555,6 +555,9 @@ pub struct ReportDialog {
     /// The country the help outside this server shows (10e-ii): a listed code, or
     /// `outside_help::OTHER`. It stays on this device and is never part of the report.
     pub country: String,
+    /// A P2P group message's report (10j): its group, the message the group's creator checks,
+    /// who created the group, and "Send this report to" (net/group_report.rs). None otherwise.
+    pub group: Option<super::group_report::GroupTarget>,
 }
 
 /// Step D's part of the app state (`GuiState::reports`).
@@ -583,6 +586,9 @@ pub struct ReportUi {
     pub decide_notes: std::collections::HashMap<String, String>,
     /// One line about the list (a decision sent, not connected).
     pub status: String,
+    /// Reports about a group to its creator (10j): the creator lookups, the reports being checked
+    /// on arrival, removals under way (net/group_report.rs, engine/group_report.rs).
+    pub group: super::group_report::GroupReportUi,
 }
 
 impl ReportUi {

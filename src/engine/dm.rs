@@ -175,6 +175,12 @@ pub(crate) fn ingest_dm(gui_state: &mut GuiState, inner: &DmInner) -> bool {
         crate::engine::reach::ingest_contact_request(gui_state, inner);
         return false;
     }
+    // 10j: a report about a group I created, from one of its members, waits for its check against
+    // my own copy of the group and is listed under Safety, never stored or shown as a message.
+    // Before the rule below, because a group's members need not be my friends.
+    if crate::engine::group_report::ingest(gui_state, inner) {
+        return false;
+    }
     if crate::engine::reach::file_if_refused(gui_state, inner) {
         return false;
     }

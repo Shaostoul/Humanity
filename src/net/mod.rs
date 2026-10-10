@@ -44,6 +44,16 @@ pub mod block_list;
 #[cfg(feature = "native")]
 pub mod report;
 
+/// A report about a group reaches the group's creator (10j of docs/design/blocking-and-safe-mode.md,
+/// 2026-10-10): the marker and its limits, the dialog's choices, and the creator's checks.
+#[cfg(feature = "native")]
+pub mod group_report;
+
+/// Removing someone from a group I created (10j): a new group key for everyone else first, then
+/// the signed remove, so nobody is removed yet still able to read.
+#[cfg(feature = "native")]
+pub mod group_remove;
+
 /// Help outside this server, in the report dialog (step D follow-up, blocking-and-safe-mode.md
 /// 10e-ii, 2026-10-10): the per-country emergency numbers and child-report lines, and which
 /// country the block starts on.

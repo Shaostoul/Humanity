@@ -347,6 +347,11 @@ fn bg_screen(state: &mut EngineState, store: &mut crate::net::dm_store::DmStore,
         crate::engine::reach::contact_request_in(store, &state.gui_state.profile_public_key, inner);
         return true;
     }
+    // A report about a group (10j) waits in that server's store, checked once it is the active one.
+    if crate::net::group_report::is_report_text(&inner.text) {
+        crate::engine::group_report::take_into(store, &state.gui_state.profile_public_key, inner);
+        return true;
+    }
     let shares = crate::engine::reach::shares_group(&state.gui_state, &inner.from);
     crate::engine::reach::file_if_refused_in(store, shares, inner)
 }

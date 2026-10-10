@@ -734,13 +734,15 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             row_rect.left() + 12.0
                         };
                         // Group name
-                        ui.painter().text(
+                        let name_rect = ui.painter().text(
                             egui::pos2(name_x, cy),
                             egui::Align2::LEFT_CENTER,
                             &p.name,
                             egui::FontId::proportional(theme.body_size),
                             if is_active { theme.accent() } else { theme.text_primary() },
                         );
+                        // Reports members sent me about it (10j): a count that opens Safety.
+                        crate::gui::pages::safety_group_reports::group_count(ui, theme, state, name_rect, &p.group_id);
                         // Member count, right-aligned (left of the cog).
                         ui.painter().text(
                             egui::pos2(row_rect.right() - 28.0, cy),

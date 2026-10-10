@@ -14526,6 +14526,8 @@ mod native_app {
                     // keep parked links alive, store their traffic + unread
                     // (multi-connection stage 3, engine/bg_connections.rs).
                     crate::engine::bg_connections::pump_background_connections(state, dt);
+                    // Reports about groups (10j): lookups, checks and removals run off the frame.
+                    crate::engine::group_report::pump(&mut state.gui_state);
 
                     // Track page before egui frame for cursor grab transitions
                     let page_before_frame = state.gui_state.active_page;

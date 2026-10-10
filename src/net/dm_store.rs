@@ -106,6 +106,17 @@ struct StoreBody {
     /// is simply not read any more (no installed base to carry over, CLAUDE.md).
     #[serde(default)]
     friend_ticks: HashMap<String, FriendTicks>,
+    // ── Reports about my groups (10j, 2026-10-10, blocking-and-safe-mode.md) ──
+    /// Reports members of a group I created sent me, each item already checked against my own
+    /// copy of the group, newest last. Kept here, encrypted, until I dismiss them; never sent to
+    /// any server. Per server, like the groups themselves.
+    #[serde(default)]
+    group_reports: Vec<super::group_report::KeptReport>,
+    /// Reports that arrived and still wait for their check (it needs this server's group list
+    /// and the group's messages). Kept so closing the app before the check cannot lose one: the
+    /// mailbox has already moved past it.
+    #[serde(default)]
+    group_reports_pending: Vec<super::group_report::PendingReport>,
 }
 
 /// A friendship pass I gave someone: what a withdrawal names, and what it allows.
@@ -506,6 +517,64 @@ impl DmStore {
     pub fn admits_dm_from(&self, from: &str, shares_group: bool) -> bool {
         let rel = super::reach::Relation { is_me: from == self.me, passes: self.passes_sent_to(from), shares_group };
         !super::reach::shows_as_request(&self.body.reach_settings.unwrap_or_default(), &rel)
+    }
+
+    // ── Reports about my groups (10j) ──
+
+    /// Keep a report until its check: false when this report (by its id) is already waiting or
+    /// kept, so a mailbox that hands it over again changes nothing.
+    pub fn add_pending_group_report(&mut self, p: super::group_report::PendingReport) -> bool {
+        if self.body.group_reports_pending.iter().any(|x| x.id == p.id) || self.body.group_reports.iter().any(|x| x.id == p.id) {
+            return false;
+        }
+        self.body.group_reports_pending.push(p);
+        true
+    }
+    /// The reports waiting for their check.
+    pub fn pending_group_reports(&self) -> &[super::group_report::PendingReport] {
+        &self.body.group_reports_pending
+    }
+    /// A check finished: the report leaves the waiting list and, when it was kept, joins the
+    /// kept ones. True when a report was kept now (the caller says so once).
+    pub fn settle_group_report(&mut self, id: &str, kept: Option<super::group_report::KeptReport>) -> bool {
+        self.body.group_reports_pending.retain(|p| p.id != id);
+        match kept {
+            Some(k) if !self.body.group_reports.iter().any(|x| x.id == k.id) => {
+                self.body.group_reports.push(k);
+                true
+            }
+            _ => false,
+        }
+    }
+    /// Every kept report, newest first.
+    pub fn group_reports(&self) -> Vec<&super::group_report::KeptReport> {
+        let mut out: Vec<&super::group_report::KeptReport> = self.body.group_reports.iter().collect();
+        out.sort_by(|a, b| b.ts.cmp(&a.ts));
+        out
+    }
+    /// One kept report.
+    pub fn group_report(&self, id: &str) -> Option<&super::group_report::KeptReport> {
+        self.body.group_reports.iter().find(|r| r.id == id)
+    }
+    /// Dismiss: the report is gone from this device. True when there was one.
+    pub fn remove_group_report(&mut self, id: &str) -> bool {
+        let before = self.body.group_reports.len();
+        self.body.group_reports.retain(|r| r.id != id);
+        self.body.group_reports.len() != before
+    }
+    /// Mark that the person reported was removed from the group.
+    pub fn set_group_report_removed(&mut self, id: &str) -> bool {
+        match self.body.group_reports.iter_mut().find(|r| r.id == id) {
+            Some(r) => {
+                r.removed = true;
+                true
+            }
+            None => false,
+        }
+    }
+    /// How many kept reports are about this group (the count on it in the group list).
+    pub fn group_report_count(&self, group_id: &str) -> usize {
+        super::group_report::count(&self.body.group_reports, group_id)
     }
 
     /// For tests elsewhere in the crate: remove this store's file from disk.

@@ -607,6 +607,22 @@ test("the marker's exact shape, 20 items and 16 KB, and never a file", () => {
   void A;
 });
 
+// ── 3b. The text the desktop app is held to ─────────────────────────────
+// scripts/tests/fixtures/group-report-marker.json was generated from this builder and is read by
+// the desktop app's own test (src/net/group_report_tests.rs), which builds every text in it byte
+// for byte. Read here too, so a change to the web builder that the fixture does not follow fails
+// on this side as well, not only on the desktop's.
+
+test("the shared fixture: the web still builds every text the desktop app is held to", () => {
+  const shared = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts", "tests", "fixtures", "group-report-marker.json"), "utf8"));
+  assert.ok(shared.built.length >= 4 && shared.refused.length >= 9, "the fixture's cases are there");
+  for (const c of shared.built) {
+    assert.equal(gr.groupReportText(c.fields).text, c.text, c.name);
+    assert.ok(gr.groupReportParse(c.text), `${c.name}: it reads back`);
+  }
+  for (const c of shared.refused) assert.equal(gr.groupReportText(c.fields).error, c.error, c.name);
+});
+
 // ── 4. The creator's checks, over real signed objects ───────────────────
 
 test("the creator's checks against their own copy: found, not found, altered, wrong sender, wrong time, bad signature", async () => {
@@ -958,6 +974,8 @@ test("the creator's three actions: Remove them from the group, Block them, Dismi
 //   - the 21-item refusal off by one: "21 items are refused"; in groupReportParse: "and a received
 //     report with 21 is not read". The 16 KB limit off by one: "16 KB and one byte is refused";
 //     counted in characters, not bytes: "the limit counts UTF-8 bytes".
+//   - groupReportText leaving the note untrimmed (added with the desktop app's half, 2026-10-10):
+//     the shared fixture's "escapes, an upper-case key and id, a trimmed note".
 //   - groupReportItem without the file rule: "a group message with a file is never an item" (and
 //     the page's "a message with a file is no item"); groupReportText without it: "the builder
 //     refuses a file item put there by hand".
