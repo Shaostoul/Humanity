@@ -194,6 +194,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         // mentions never re-ding.
                         if sender_key != state.gui_state.profile_public_key
                             && state.gui_state.notif_mentions_enabled
+                            && crate::engine::protected::lists_commons_room(&state.gui_state, &channel) // no ding from a room the protected setup hides
                             && !state.gui_state.user_name.is_empty()
                             && content
                                 .to_lowercase()

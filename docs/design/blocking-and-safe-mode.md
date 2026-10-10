@@ -1619,6 +1619,32 @@ required to request an age signal from requesting one, and the project is probab
 (`docs/reference/findings/2026-10-10-california-ab-1043-age-signals.md`). A store listing would
 change that answer and needs its own decision first.
 
+**As built (both clients, 2026-10-10).** The extra words the screens needed live in the
+preset's `labels`. Choices where the spec was open, the same on both clients:
+- **An approved list.** While the setup is on, a pass is minted only for friends the PIN holder
+  let be one (kept in the review, or befriended with the PIN), so a follow made before the setup
+  and followed back later makes no friend without the PIN; Unfollow and Block take someone off.
+- A "friend" for the pictures rule is a mutual follow who also holds a pass from me; before the
+  local store loads, nobody counts.
+- Exactly one `reach_set`, at turn-on; none again on reconnect. Turning it on needs a live
+  connection, and turns warnings on.
+- Sending a contact request counts as making a friend. Narrowing a row also needs the PIN (the
+  spec's list, taken literally). Unblock is not locked.
+- A damaged stored state counts as ON with no PIN that matches (fail closed); only the recovery
+  phrase can then set a new PIN. A settings import (web) cannot turn it off or replace the PIN.
+- **Showing the recovery phrase needs the PIN**, and **"Forgot the PIN?" takes only the phrase
+  of the identity the setup was turned on under** (desktop first; the web follows): otherwise the
+  person it protects could read the phrase, or make a new identity, and set their own PIN.
+- Web hides the federated server list with public rooms (each entry leads to another server's
+  public rooms); the desktop app has no such list in the chat.
+
+**Known limits, said here so nobody mistakes them for promises.** Reach settings are per
+server: the `reach_set` goes to the server connected at turn-on, and the review lists that
+server's friends (a new server starts at the safe defaults, which equal the preset's, and its
+rows need the PIN to change). Deleting the app's settings file or the browser's site data
+removes the lock along with everything else on the device, which is what the preset's sentence
+about "this app on this device" says.
+
 **Not in this step** (operator decisions or separate work, in PRIORITIES): the web chat's "18
 years or older" entry line and the project's age position; content rules on the project server's
 rules page; an admin tool to erase another person's data; the California AB 1043 finding.
