@@ -12,6 +12,7 @@ pub mod home_plots;
 pub mod live_conns;
 pub mod move_check;
 pub mod msg_handlers;
+pub mod reach;
 pub mod server_settings_update;
 pub mod shared_build;
 pub mod ship_stores;

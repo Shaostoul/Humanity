@@ -182,6 +182,8 @@ pub struct RelayState {
     /// In-memory only, sender-scoped — deliberately never a pair graph.
     /// (Follows-graph removal, 2026-08-24.)
     pub dm_knocks: RwLock<HashMap<String, (i64, u32)>>,
+    /// "Who can reach me", in memory only: calls let through, contact requests sent today (handlers/reach.rs).
+    pub reach: crate::relay::handlers::reach::ReachState,
     /// Last account-export time per key, for the per-minute limit on
     /// POST /api/account/export. In-memory only: a missed limit after a
     /// restart is harmless, a persisted one would be a new per-user table
@@ -458,6 +460,7 @@ impl RelayState {
             http_client: reqwest::Client::new(),
             rate_limits: RwLock::new(HashMap::new()),
             dm_knocks: RwLock::new(HashMap::new()),
+            reach: Default::default(),
             account_export_last: RwLock::new(HashMap::new()),
             lockdown: RwLock::new(effective_lockdown),
             auto_lockdown: RwLock::new(false),
@@ -1246,6 +1249,10 @@ pub enum RelayMessage {
         /// strangers can reach out politely without flooding anyone.
         #[serde(default)]
         friend_cert: Option<String>,
+        /// A contact request: a signed sealed DM carrying the sender's pass for the recipient, let
+        /// through unless the recipient takes messages from nobody, 5 a day (handlers/reach.rs).
+        #[serde(default)]
+        contact_request: bool,
     },
 
     /// Client asks for its mailbox contents after a rowid high-water mark.
@@ -1329,6 +1336,16 @@ pub enum RelayMessage {
     /// `cert_revoke {serial}`, handlers/friend_passes.rs), so the client stops resending it.
     #[serde(rename = "cert_revoked")]
     CertRevoked { to: String, serial: String },
+
+    /// Server -> the person, on all their sockets: who can reach them, every kind filled in
+    /// (handlers/reach.rs), after identify and after every `reach_set`. `to` routes it, unsent.
+    #[serde(rename = "reach_settings")]
+    ReachSettings { #[serde(skip)] to: String, settings: crate::relay::handlers::reach::ReachSettings },
+
+    /// Server -> a sender refused by "who can reach me": `to` is the person they tried to reach,
+    /// `kind` "message" or "trade"; the same for everyone refused. `sender` routes it, unsent.
+    #[serde(rename = "reach_refused")]
+    ReachRefused { #[serde(skip)] sender: String, kind: String, to: String },
 
     /// Edit a message — identified by sender key + timestamp.
     #[serde(rename = "edit")]
@@ -3150,6 +3167,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     let vc_msg = build_voice_channel_list_msg(&state).await;
                     let _ = ws_tx.send(Message::Text(serde_json::to_string(&vc_msg).unwrap().into())).await;
                 }
+                // Who can reach them, every kind filled in (handlers/reach.rs, 10c).
+                let _ = ws_tx.send(Message::Text(serde_json::to_string(&crate::relay::handlers::reach::settings_message(&state, &public_key)).unwrap().into())).await;
 
                 // Announce to everyone — unless this member hides their
                 // presence (privacy tiers, 2026-08-23). Their kyber key
@@ -3241,6 +3260,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 if to != &my_key_for_broadcast {
                     continue;
                 }
+            }
+            // "Who can reach me": the settings to the person's own sockets, a refusal to its sender.
+            if let RelayMessage::ReachSettings { to: ref who, .. } | RelayMessage::ReachRefused { sender: ref who, .. } = msg {
+                if who != &my_key_for_broadcast { continue; }
             }
 
             // ProfileData: when target is set deliver only to that client; when None broadcast to all.
@@ -3552,6 +3575,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 continue;
                             }
                             Some("cert_revoke") => { crate::relay::handlers::friend_passes::handle_cert_revoke(&state_clone, &my_key_for_recv, &raw).await; continue; }
+                            Some("reach_set") => { crate::relay::handlers::reach::handle_reach_set(&state_clone, &my_key_for_recv, &raw).await; continue; }
                             // ── Trade messages ──
                             Some("trade_request") => {
                                 handle_trade_request(&state_clone, &my_key_for_recv, &raw).await;
@@ -5818,8 +5842,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 handle_profile_request(&state_clone, &my_key_for_recv, name, friend_cert).await;
                             }
                             // DM — deposit a sealed envelope into a mailbox.
-                            RelayMessage::DmPut { to, content, friend_cert } => {
-                                handle_dm_put(&state_clone, &my_key_for_recv, to, content, friend_cert).await;
+                            RelayMessage::DmPut { to, content, friend_cert, contact_request } => {
+                                handle_dm_put(&state_clone, &my_key_for_recv, to, content, friend_cert, contact_request).await;
                             }
                             // DM fetch — page the caller's own mailbox.
                             RelayMessage::DmFetch { after_id } => {
@@ -6283,115 +6307,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
     }
 }
 
+// The wire shapes of RelayMessage and the broadcast-lag tests (moved out under the file-size
+// ratchet, 2026-10-09).
 #[cfg(test)]
-mod channel_update_wire_tests {
-    use super::*;
-
-    // Guards the wire contract the native chat channel-edit modal now relies on.
-    // The modal used to send `{"type":"channel_edit", ...}` — a type the relay
-    // never had a handler for — so name, description, AND the voice/read-only
-    // toggles were all silently dropped on Save (operator: "I disabled voice on
-    // #announcements but it came back"). It now sends `channel_update`, which
-    // MUST deserialize into RelayMessage::ChannelUpdate with the flags set.
-    #[test]
-    fn channel_update_deserializes_with_flags() {
-        let json = r#"{
-            "type": "channel_update",
-            "channel_id": "announcements",
-            "name": "announcements",
-            "description": "Project updates and news",
-            "read_only": true,
-            "voice_enabled": false
-        }"#;
-        let msg: RelayMessage = serde_json::from_str(json).expect("channel_update must parse");
-        match msg {
-            RelayMessage::ChannelUpdate { channel_id, name, description, read_only, voice_enabled, federated } => {
-                assert_eq!(channel_id, "announcements");
-                assert_eq!(name.as_deref(), Some("announcements"));
-                assert_eq!(description.as_deref(), Some("Project updates and news"));
-                assert_eq!(read_only, Some(true));
-                assert_eq!(voice_enabled, Some(false));
-                // Omitted fields stay None so the relay leaves them unchanged.
-                assert_eq!(federated, None);
-            }
-            other => panic!("expected ChannelUpdate, got {other:?}"),
-        }
-    }
-
-    // The legacy `channel_edit` type must NOT map to ChannelUpdate — that's
-    // precisely why the old modal was a silent no-op for channel flags.
-    #[test]
-    fn legacy_channel_edit_is_not_a_channel_update() {
-        let json = r#"{"type":"channel_edit","channel_id":"x","name":"y","description":"z"}"#;
-        if let Ok(RelayMessage::ChannelUpdate { .. }) = serde_json::from_str::<RelayMessage>(json) {
-            panic!("channel_edit must not deserialize as ChannelUpdate");
-        }
-    }
-}
-
-
-#[cfg(test)]
-mod broadcast_lag_tests {
-    use super::*;
-
-    fn sys(n: usize) -> RelayMessage {
-        RelayMessage::System { message: format!("m{n}") }
-    }
-
-    /// The setup must genuinely overflow the ring buffer, or the test below would
-    /// pass against the very bug it exists to catch. This asserts the channel
-    /// that must move: a raw `recv()` on this receiver really does report
-    /// `Lagged`, which is the exact error the old `while let Ok(..)` swallowed as
-    /// a disconnect.
-    #[tokio::test]
-    async fn the_setup_really_does_lag() {
-        let (tx, mut rx) = broadcast::channel::<RelayMessage>(2);
-        for i in 0..5 {
-            tx.send(sys(i)).unwrap();
-        }
-        match rx.recv().await {
-            Err(broadcast::error::RecvError::Lagged(skipped)) => {
-                assert_eq!(skipped, 3, "5 sends into 2 slots should drop exactly 3");
-            }
-            other => panic!("expected Lagged, got {:?}", other.is_ok()),
-        }
-    }
-
-    /// The fix: a socket that fell behind keeps its connection and resumes at the
-    /// present. Against the previous inline `while let Ok(msg) = rx.recv().await`
-    /// this is the failing case -- that form yields no message and ends the loop,
-    /// which tore down the whole WebSocket and evicted the player from the game
-    /// world and chat alike.
-    #[tokio::test]
-    async fn a_lagged_socket_skips_ahead_instead_of_disconnecting() {
-        let (tx, mut rx) = broadcast::channel::<RelayMessage>(2);
-        for i in 0..5 {
-            tx.send(sys(i)).unwrap();
-        }
-        let got = recv_skipping_lag(&mut rx).await;
-        let Some(RelayMessage::System { message }) = got else {
-            panic!("a lagged socket must keep receiving, not be dropped");
-        };
-        // Oldest two survive in a 2-slot ring, so the resume point is m3.
-        assert_eq!(message, "m3", "should resume at the present, not replay stale frames");
-
-        // And it keeps working afterwards: lag is not a terminal state.
-        tx.send(sys(99)).unwrap();
-        let Some(RelayMessage::System { message }) = recv_skipping_lag(&mut rx).await else {
-            panic!("the receiver must stay usable after skipping");
-        };
-        assert_eq!(message, "m4");
-    }
-
-    /// A CLOSED channel is the one case that SHOULD end the forwarding loop:
-    /// the relay is shutting down and there is nothing left to send.
-    #[tokio::test]
-    async fn a_closed_channel_still_ends_the_loop() {
-        let (tx, mut rx) = broadcast::channel::<RelayMessage>(2);
-        drop(tx);
-        assert!(
-            recv_skipping_lag(&mut rx).await.is_none(),
-            "a closed channel must end the loop, or shutdown would spin forever"
-        );
-    }
-}
+#[path = "relay_wire_tests.rs"]
+mod wire_tests;

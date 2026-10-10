@@ -108,6 +108,17 @@ fn hidden_presence_gets_the_same_answer_online_or_not() {
     visible_member(&st, vis_off);
     connect(&st, caller);
     connect(&st, hid_on);
+    // This test is about presence, so "who can reach me" (handlers/reach.rs, tested in
+    // reach_tests.rs) is set out of its way: each target takes calls and trade requests from
+    // anyone and shares a voice room with the caller, which lets a direct-connection offer in.
+    for t in [hid_on, hid_off, vis_off] {
+        st.db.set_reach_settings(t, &[("call", "anyone"), ("trade", "anyone")]).unwrap();
+    }
+    let lounge = crate::relay::relay::VoiceRoom {
+        name: "Lounge".into(),
+        participants: [caller, hid_on, hid_off, vis_off].iter().map(|k| (k.to_string(), k.to_string())).collect(),
+    };
+    block(async { st.voice_rooms.write().await.insert("lounge".into(), lounge) });
 
     // A ring and a direct-connection offer.
     type SendFn = fn(&Arc<RelayState>, &str, &str);
@@ -189,6 +200,10 @@ fn trade_requests_share_the_knock_budget() {
     st.db.register_name("Target", &target).unwrap();
     connect(&st, sender);
     connect(&st, &target);
+    // Both take strangers' requests and mail (handlers/reach.rs), so the stranger's lane is the
+    // knock budget rather than a refusal.
+    st.db.set_reach_settings(&target, &[("trade", "anyone")]).unwrap();
+    st.db.set_reach_settings("dm_target_key", &[("message", "anyone")]).unwrap();
     let trades = |st: &Arc<RelayState>| st.db.get_trades_for_user(sender).unwrap().len();
 
     // Five trade requests, each a knock.
@@ -202,7 +217,7 @@ fn trade_requests_share_the_knock_budget() {
     for _ in 0..(DM_KNOCKS_PER_DAY + 5) {
         block(async {
             st.rate_limits.write().await.remove(sender);
-            handle_dm_put(&st, sender, dm_target.to_string(), envelope(), None).await;
+            handle_dm_put(&st, sender, dm_target.to_string(), envelope(), None, false).await;
         });
     }
     assert_eq!(
@@ -253,6 +268,7 @@ fn a_strangers_trade_note_is_cut_and_a_friends_is_not() {
     for (name, k) in [("Stranger", stranger), ("Friend", friend.as_str()), ("Target", target.as_str())] {
         st.db.register_name(name, k).unwrap();
         connect(&st, k);
+        st.db.set_reach_settings(k, &[("trade", "anyone")]).unwrap(); // strangers' requests let in (handlers/reach.rs)
     }
     let long_note: String = "é".repeat(200);
 
