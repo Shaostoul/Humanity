@@ -43,6 +43,8 @@ fn app(seed: &[u8], me: &str, tag: &str, friends: &[(Vec<u8>, String)]) -> (GuiS
     gs.block_list = Some(crate::net::block_list::BlockList::in_temp(seed, me, tag));
     let (client, sent) = crate::net::ws_client::WsClient::recording();
     gs.ws_client = Some(client);
+    // This connection's mailbox has been read (10n N7), so the pass sweep and passes run.
+    (gs.dm_fetch_sent, gs.dm_fetch_done) = (true, true);
     (gs, sent)
 }
 
@@ -59,6 +61,21 @@ fn frames(sent: &Receiver<String>) -> Vec<Value> {
 /// The `dm_put`s among `frames` addressed to `to`.
 fn puts_to(frames: &[Value], to: &str) -> Vec<Value> {
     frames.iter().filter(|v| v["type"] == "dm_put" && v["to"] == to).cloned().collect()
+}
+
+/// Our self-copies among `frames`: the `dm_put`s to our own mailbox (`me`, opened with our `seed`)
+/// that are not choice notes (10n), which go to our own mailbox too.
+fn self_copies(frames: &[Value], me: &str, seed: &[u8]) -> Vec<Value> {
+    puts_to(frames, me).into_iter().filter(|p| !crate::net::choice::ChoiceNote::is_note(&open(p, seed).text)).collect()
+}
+
+/// The choice notes (10n) among `frames`, read: each one's friend, `may` and signed time.
+fn notes_in(frames: &[Value], me: &str, seed: &[u8]) -> Vec<(crate::net::choice::ChoiceNote, u64)> {
+    puts_to(frames, me)
+        .iter()
+        .map(|p| open(p, seed))
+        .filter_map(|i| crate::net::choice::ChoiceNote::parse(&i.text).map(|n| (n, i.ts)))
+        .collect()
 }
 
 /// The serials `frames` asked the relay to withdraw.
@@ -120,7 +137,7 @@ fn a_pass_counts_as_given_only_once_the_server_took_it() {
     let new = pass_in(&to_ben[0], &ben.0);
     let want = gs.dm_store.as_ref().unwrap().intended_may_wire(&ben.1);
     assert_eq!(new.may, want, "allowing what is ticked now");
-    assert!(puts_to(&out, &me).is_empty() && revoked(&out).is_empty(), "no self-copy and no withdrawal yet");
+    assert!(self_copies(&out, &me, &seed).is_empty() && revoked(&out).is_empty(), "no self-copy and no withdrawal yet");
     let store = gs.dm_store.as_ref().unwrap();
     assert_eq!(store.passes_sent_to(&ben.1), [old.clone()], "nothing recorded until the server took it: the old pass stands");
     assert!(store.pending_withdrawals().is_empty());
@@ -364,3 +381,8 @@ fn a_pass_never_answered_is_taken_back_by_the_next_one_taken_and_by_block() {
 /// Section 10m (passes across my own devices, and the review of v0.1478 to v0.1481).
 #[path = "put_answer_devices_tests.rs"]
 mod devices;
+
+/// Section 10n (the choice for each friend syncs as its own note): each rule, and the five
+/// two-device sequences from the reviews. A child here so it shares this file's helpers.
+#[path = "choice_tests.rs"]
+mod choice;

@@ -56,6 +56,8 @@ fn a_sweep_owing_many_passes_keeps_to_the_servers_pace() {
     gs.block_list = Some(crate::net::block_list::BlockList::in_temp(&seed, &me, "pace"));
     let (client, sent) = crate::net::ws_client::WsClient::recording();
     gs.ws_client = Some(client);
+    // This connection's mailbox has been read (10n N7), so the pass sweep and passes run.
+    (gs.dm_fetch_sent, gs.dm_fetch_done) = (true, true);
 
     let t0 = Instant::now();
     sweep_friend_passes(&mut gs);

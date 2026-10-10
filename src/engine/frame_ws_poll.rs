@@ -433,6 +433,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                         "after_id": after_id,
                                     }).to_string());
                                     state.gui_state.dm_fetch_sent = true;
+                                    state.gui_state.dm_fetch_done = false; // 10n N7: the sweep waits for it
                                 }
                             }
                             // Show whatever local history we already have
@@ -888,7 +889,9 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         if ingested > 0 || dropped > 0 {
                             log::info!("DM batch: {ingested} new message(s), {dropped} undecryptable envelope(s) skipped");
                         }
-                        if !done {
+                        if done {
+                            crate::engine::dm::on_mailbox_read(&mut state.gui_state); // 10n N7: now the pass sweep
+                        } else {
                             let after_id = state.gui_state.dm_store.as_ref().map(|s| s.high_water()).unwrap_or(last_id);
                             if let Some(ref client) = state.gui_state.ws_client {
                                 if client.is_connected() {

@@ -31,6 +31,8 @@ fn app(me: &str, seed: &[u8], tag: &str) -> (GuiState, std::sync::mpsc::Receiver
     gs.block_list = Some(crate::net::block_list::BlockList::in_temp(seed, me, tag));
     let (client, sent) = crate::net::ws_client::WsClient::recording();
     gs.ws_client = Some(client);
+    // This connection's mailbox has been read (10n N7), so the pass sweep and passes run.
+    (gs.dm_fetch_sent, gs.dm_fetch_done) = (true, true);
     assert!(ensure_preset(&mut gs), "the preset loads");
     (gs, sent)
 }

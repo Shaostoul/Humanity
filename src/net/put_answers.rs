@@ -53,10 +53,9 @@ pub struct PendingPut {
     pub peer: String,
     /// The pass it carries: recorded as given on `dm_put_ok`, never before.
     pub pass: SentPass,
-    /// Our self-copy, sent on `dm_put_ok` and dropped otherwise. None when it already went out
-    /// beside theirs: a re-issue that takes something away (10m R2, engine/dm.rs `reissue_pass`)
-    /// tells my other devices the new choice at once, and it is never sent a second time.
-    pub self_copy: Option<serde_json::Value>,
+    /// Our self-copy, sent on `dm_put_ok` and dropped otherwise: every pass's, since 10n N5
+    /// withdrew 10m R2's early copy (the choice travels in its own note now, engine/choice.rs).
+    pub self_copy: serde_json::Value,
     pub held: Held,
     /// When it was written to the socket; ANSWER_WAIT after this it counts as not taken.
     pub at: Instant,
@@ -173,7 +172,7 @@ mod tests {
             reference: reference.into(),
             peer: "ben".into(),
             pass: SentPass { serial: "00".repeat(16), may: "message".into() },
-            self_copy: None,
+            self_copy: serde_json::Value::Null,
             held: Held::Pass { reissue: false },
             at,
         };

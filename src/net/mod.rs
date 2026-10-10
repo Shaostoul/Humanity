@@ -39,6 +39,11 @@ pub mod reach;
 #[cfg(feature = "native")]
 pub mod block_list;
 
+/// The choice for each friend as its own note to oneself (10n of docs/design/blocking-and-safe-mode.md,
+/// 2026-10-10): `[[hum:choice:v1]]<friend key>/<may>`, so a person's devices agree on it.
+#[cfg(feature = "native")]
+pub mod choice;
+
 /// Reports the admins can check (step D of docs/design/blocking-and-safe-mode.md, 2026-10-09):
 /// the signed report and its evidence, the evidence picker's choice, and the admins' list.
 #[cfg(feature = "native")]

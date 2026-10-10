@@ -340,10 +340,16 @@ fn forget_live(gs: &mut GuiState, key: &str) {
 /// our own DM key, signed at `at`), and the note's id (`DmInner::dedupe_key`), which this device
 /// remembers as it sends so the echo is not applied again. None while the identity is locked.
 pub(crate) fn note_put(gs: &GuiState, note: &BlockNote, at: u64) -> Option<(serde_json::Value, String)> {
+    note_put_text(gs, &note.text(), at)
+}
+
+/// [`note_put`] for any note to ourselves by its text: the choice notes of 10n (engine/choice.rs)
+/// travel exactly the way block notes do.
+pub(crate) fn note_put_text(gs: &GuiState, text: &str, at: u64) -> Option<(serde_json::Value, String)> {
     let seed = gs.private_key_bytes.as_ref()?;
     let me = &gs.profile_public_key;
     let mine = crate::net::dm_pq::DmPqKeypair::from_bip39_seed(seed).ok()?;
-    let inner = crate::net::dm_pq::build_signed_inner(seed, me, me, at, &note.text()).ok()?;
+    let inner = crate::net::dm_pq::build_signed_inner(seed, me, me, at, text).ok()?;
     let id = crate::net::dm_pq::parse_verify_inner(&inner).ok()?.dedupe_key();
     let sealed = crate::net::dm_pq::seal_v2(&mine.public_base64(), &inner).ok()?;
     Some((serde_json::json!({ "type": "dm_put", "to": me, "content": sealed }), id))
@@ -389,15 +395,20 @@ fn send_note(gs: &mut GuiState, note: &BlockNote, at: u64) -> usize {
         list.first_sight(&id); // our own note: its echo is not applied a second time
         list.save();
     }
-    let text = put.to_string();
+    to_my_mailboxes(gs, &put.to_string())
+}
+
+/// Send one `dm_put` to our own mailbox on every server we are connected to (the one we are on and
+/// the parked ones). Returns how many it went to.
+pub(crate) fn to_my_mailboxes(gs: &GuiState, text: &str) -> usize {
     let mut sent = 0;
     if let Some(client) = gs.ws_client.as_ref().filter(|c| c.is_connected()) {
-        client.send(&text);
+        client.send(text);
         sent += 1;
     }
     for conn in gs.connections.iter().filter(|c| c.identified) {
         if let Some(ws) = conn.ws.as_ref().filter(|w| w.is_connected()) {
-            ws.send(&text);
+            ws.send(text);
             sent += 1;
         }
     }
@@ -434,6 +445,8 @@ mod tests {
         store.set_pass_server(SERVER);
         gs.dm_store = Some(store);
         gs.block_list = Some(BlockList::in_temp(seed, me, tag));
+        // This connection's mailbox has been read (10n N7), so the pass sweep runs.
+        (gs.dm_fetch_sent, gs.dm_fetch_done) = (true, true);
         gs
     }
 

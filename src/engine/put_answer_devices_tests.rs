@@ -10,11 +10,13 @@ use crate::net::reach::{intended_may, intended_may_wire};
 use crate::relay::core::pq_crypto::build_friend_cert;
 
 /// What each frame was, in order: their copy of a pass put ("theirs"), our self-copy ("ours"), a
-/// withdrawal ("withdraw"), anything else by its type.
-fn kinds(frames: &[Value], me: &str) -> Vec<String> {
+/// choice note to our own mailbox ("note", 10n; told apart from a self-copy by opening it with our
+/// `seed`), a withdrawal ("withdraw"), anything else by its type.
+fn kinds(frames: &[Value], me: &str, seed: &[u8]) -> Vec<String> {
     frames
         .iter()
         .map(|f| match (f["type"].as_str(), f["to"].as_str()) {
+            (Some("dm_put"), Some(to)) if to == me && crate::net::choice::ChoiceNote::is_note(&open(f, seed).text) => "note".to_string(),
             (Some("dm_put"), Some(to)) if to == me => "ours".to_string(),
             (Some("dm_put"), _) => "theirs".to_string(),
             (Some("cert_revoke"), _) => "withdraw".to_string(),
@@ -39,64 +41,76 @@ fn confirmed(gs: &mut GuiState, serial: &str) {
     crate::engine::dm::withdrawal_confirmed(gs, &json!({ "type": "cert_revoked", "serial": serial }));
 }
 
-/// R2. A RE-ISSUE THAT TAKES SOMETHING AWAY TELLS MY OTHER DEVICES FIRST: unticking Message for Ben
-/// sends the new pass, its self-copy at once (not held for `dm_put_ok`), and only then the
-/// withdrawal of the old pass, so my other devices hear the new choice before they hear the old
-/// pass was withdrawn. The new pass still counts as given only once taken, and its self-copy is
-/// not sent a second time then. Refused, it records nothing, but my other devices already have the
-/// choice. An added tick keeps the held self-copy.
-/// Seen red 2026-10-10 with `reissue_pass` in its 10l order (withdraw first, self-copy held): "the
-/// new pass, its self-copy at once, then the withdrawal" failed (left ["withdraw", "theirs"]).
+/// 10n N5, WHICH WITHDREW 10m R2: EVERY PASS'S SELF-COPY WAITS FOR `dm_put_ok`. Unticking Message
+/// for Ben sends, in this order, the note telling my other devices the new choice (N1), the
+/// withdrawal of the pass that allowed messages (N4), and the new pass, with no self-copy beside
+/// it. Taken: the pass is recorded and exactly one self-copy follows, carrying it. Refused (Cy):
+/// nothing is recorded, no self-copy ever goes (so no device of mine can adopt a pass the server
+/// refused), Cy is still owed a pass, and the next sweep sends one carrying the same choice. An
+/// added tick is the same: no self-copy until taken, and the old pass withdrawn then.
+/// Seen red 2026-10-10 with `send_held` sending the self-copy at once beside theirs again (10m R2):
+/// "the note, the withdrawal, then the new pass, and no self-copy yet" failed (left ["note",
+/// "withdraw", "theirs", "ours"]).
 #[test]
-fn a_reissue_that_takes_something_away_tells_my_other_devices_first() {
+fn every_self_copy_waits_for_the_servers_answer() {
     crate::config::keep_saves_off_disk();
     let (seed, me) = identity(180);
     let (ben, cy) = (identity(181), identity(182));
-    let (mut gs, sent) = app(&seed, &me, "r2", &[ben.clone(), cy.clone()]);
+    let (mut gs, sent) = app(&seed, &me, "n5", &[ben.clone(), cy.clone()]);
     let (b0, c0) = (SentPass { serial: "31".repeat(16), may: intended_may_wire(FriendTicks::default()) }, SentPass { serial: "32".repeat(16), may: intended_may_wire(FriendTicks::default()) });
     gs.dm_store.as_mut().unwrap().record_pass_sent(&ben.1, b0.clone());
     gs.dm_store.as_mut().unwrap().record_pass_sent(&cy.1, c0.clone());
 
     crate::engine::reach::set_tick(&mut gs, &ben.1, ReachKind::Message, false);
     let out = frames(&sent);
-    assert_eq!(kinds(&out, &me), ["theirs", "ours", "withdraw"], "the new pass, its self-copy at once, then the withdrawal");
+    assert_eq!(kinds(&out, &me, &seed), ["note", "withdraw", "theirs"], "the note, the withdrawal, then the new pass, and no self-copy yet");
     let new = pass_in(&puts_to(&out, &ben.1)[0], &ben.0);
-    assert_eq!(pass_in(&puts_to(&out, &me)[0], &seed), new, "the self-copy carries the new pass");
-    assert_eq!(revoked(&out), [b0.serial.clone()], "and the old pass is withdrawn");
+    assert_eq!((new.may.as_str(), revoked(&out)), ("trade", vec![b0.serial.clone()]), "the new pass allows trades only; the old one is withdrawn");
     assert!(gs.dm_store.as_ref().unwrap().passes_sent_to(&ben.1).is_empty(), "the new pass counts as given only once taken (10l)");
-    answer(&mut gs, &puts_to(&out, &ben.1)[0], true, "");
-    assert_eq!(gs.dm_store.as_ref().unwrap().passes_sent_to(&ben.1), [new], "taken: recorded");
-    assert!(puts_to(&frames(&sent), &me).is_empty(), "its self-copy is not sent a second time");
     confirmed(&mut gs, &b0.serial); // the server confirms, so it is not resent below
+    answer(&mut gs, &puts_to(&out, &ben.1)[0], true, "");
+    let out = frames(&sent);
+    assert_eq!(kinds(&out, &me, &seed), ["ours"], "taken: exactly one self-copy");
+    assert_eq!(pass_in(&out[0], &seed), new, "carrying the new pass");
+    assert_eq!(gs.dm_store.as_ref().unwrap().passes_sent_to(&ben.1), [new], "and it is recorded");
 
-    // Refused: nothing recorded, and my other devices were told the choice all the same.
+    // Refused: nothing recorded, never a self-copy, still owed, sent again with the same choice.
     crate::engine::reach::set_tick(&mut gs, &cy.1, ReachKind::Trade, false);
     let out = frames(&sent);
-    assert_eq!(kinds(&out, &me), ["theirs", "ours", "withdraw"]);
-    answer(&mut gs, &puts_to(&out, &cy.1)[0], false, "rate");
-    assert!(gs.dm_store.as_ref().unwrap().passes_sent_to(&cy.1).is_empty(), "refused: nothing recorded");
+    assert_eq!(kinds(&out, &me, &seed), ["note", "withdraw", "theirs"]);
+    let refused = pass_in(&puts_to(&out, &cy.1)[0], &cy.0);
     confirmed(&mut gs, &c0.serial);
+    answer(&mut gs, &puts_to(&out, &cy.1)[0], false, "rate");
+    assert!(frames(&sent).is_empty(), "refused: no self-copy ever goes");
+    let store = gs.dm_store.as_ref().unwrap();
+    assert!(store.passes_sent_to(&cy.1).is_empty() && store.owed_passes().contains(&cy.1), "nothing recorded, and Cy is still owed a pass");
+    sweep(&mut gs);
+    let again = frames(&sent);
+    assert_eq!(kinds(&again, &me, &seed), ["theirs"], "the next sweep sends one, with no self-copy");
+    assert_eq!(pass_in(&again[0], &cy.0).may, refused.may, "carrying the same choice");
+    answer(&mut gs, &again[0], true, "");
+    let _ = frames(&sent);
 
-    // An added tick keeps the held self-copy until the server took theirs.
+    // An added tick keeps the self-copy until the server took theirs, and withdraws the old pass then.
     crate::engine::reach::set_tick(&mut gs, &ben.1, ReachKind::Call, true);
     let out = frames(&sent);
-    assert_eq!(kinds(&out, &me), ["theirs"], "an added tick: no self-copy and no withdrawal yet");
-    answer(&mut gs, &out[0], true, "");
-    assert_eq!(kinds(&frames(&sent), &me), ["ours", "withdraw"], "the self-copy once taken, then the old one withdrawn");
+    assert_eq!(kinds(&out, &me, &seed), ["note", "theirs"], "an added tick: no self-copy and no withdrawal yet");
+    answer(&mut gs, &puts_to(&out, &ben.1)[0], true, "");
+    assert_eq!(kinds(&frames(&sent), &me, &seed), ["ours", "withdraw"], "the self-copy once taken, then the old one withdrawn");
     tidy(&gs);
 }
 
 /// R3. A PASS WITHDRAWN BY MY OTHER DEVICE IS NOT REPLACED WITH THE DEFAULTS. The server confirms
 /// a serial this device holds as given but did not withdraw: it leaves the record, and Ben, left
 /// with no pass, is marked "changed on my other device": neither the sweep nor his follow-back
-/// sends him one, across a restart too, and People I choose keeps him, "(updating their pass)",
-/// as it keeps Fay (who does not follow us back) the same way. An echo of a pass to Ben clears the
+/// sends him one, across a restart too, and People I choose keeps him, "(updating their pass)".
+/// Fay, marked the same way but not following us back, is not listed (10n N6: a marked person who
+/// is no longer a mutual follow is not, the web's rule). An echo of a pass to Ben clears the
 /// mark; so does the person ticking for Cy here (whose pass then goes out at once); a new server
 /// identity clears it with the passes. A pass this device had on its way to Eve when hers was
 /// withdrawn elsewhere is withdrawn too, so its late `dm_put_ok` records nothing.
-/// Seen red 2026-10-10 two ways: with `send_owed_passes` not asking `left_alone`, "the sweep sends
-/// Ben no pass on its own" failed; and with `people_to_choose` not listing the marked, "People I
-/// choose keeps Fay" failed.
+/// Seen red 2026-10-10 with `send_owed_passes` not asking `left_alone`: "the sweep sends Ben no
+/// pass on its own" failed. (Seen red for 10n N6 at engine/choice_tests.rs, the marked friend.)
 #[test]
 fn a_pass_my_other_device_withdrew_is_not_replaced_with_the_defaults() {
     crate::config::keep_saves_off_disk();
@@ -122,10 +136,8 @@ fn a_pass_my_other_device_withdrew_is_not_replaced_with_the_defaults() {
     crate::engine::dm::send_friend_cert(&mut gs, &ben.1);
     assert!(puts_to(&frames(&sent), &ben.1).is_empty(), "the sweep sends Ben no pass on its own");
     let rows = crate::gui::pages::safety::chosen_rows(&gs);
-    for (name, who) in [("Ben", &ben.1), ("Fay", &fay.1)] {
-        let listed: Vec<(String, bool)> = rows.iter().map(|(_, n, _, updating)| (n.clone(), *updating)).collect();
-        assert!(rows.iter().any(|(k, _, _, updating)| k == who && *updating), "People I choose keeps {name}, updating their pass: {listed:?}");
-    }
+    assert!(rows.iter().any(|(k, _, _, updating)| k == &ben.1 && *updating), "People I choose keeps Ben, updating their pass");
+    assert!(!rows.iter().any(|(k, ..)| k == &fay.1), "but not Fay, who is no longer a mutual follow");
     gs.dm_store.as_ref().unwrap().save();
     let server = crate::gui::pages::chat::norm_server_url(&gs.server_url);
     gs.dm_store = Some(DmStore::load(&seed, &me, &server));
@@ -197,53 +209,6 @@ fn an_unanswered_pass_withdrawn_elsewhere_marks_the_friend_and_a_tick_frees_the_
     assert_eq!(to_gil.len(), 1, "a tick here issues a pass");
     assert_eq!(pass_in(&to_gil[0], &gil.0).may, want, "exactly what is ticked");
     assert!(!gs.dm_store.as_ref().unwrap().changed_elsewhere(&gil.1), "and frees the row");
-    tidy(&gs);
-}
-
-/// THIS DEVICE'S OWN PASS, ECHOED BEFORE ITS ANSWER OR AFTER A REFUSAL, RECORDS NOTHING (the web's
-/// `adoptEchoedPass`): an untick's self-copy goes out at once (R2), so it can come back here
-/// before the server answers. Ben's: echoed early, then refused, then echoed again (a mailbox
-/// fetch), also after a restart: nothing is recorded and he is still owed a pass, which the next
-/// sweep sends with the same `may`. Cy's: echoed early, then taken: recorded by its answer.
-/// Seen red 2026-10-10 two ways: with the echo arm's own-pass check taken out, "an early echo
-/// records nothing" failed; and with `not_taken` not remembering a refusal after the self-copy
-/// went out, "a refused pass's late echo records nothing" failed.
-#[test]
-fn my_own_passes_echo_records_nothing_until_the_server_took_it() {
-    crate::config::keep_saves_off_disk();
-    let (seed, me) = identity(174);
-    let (ben, cy) = (identity(175), identity(173));
-    let (mut gs, sent) = app(&seed, &me, "echo-own", &[ben.clone(), cy.clone()]);
-    for (p, s) in [(&ben, "a1"), (&cy, "a2")] {
-        gs.dm_store.as_mut().unwrap().record_pass_sent(&p.1, SentPass { serial: s.repeat(16), may: intended_may_wire(FriendTicks::default()) });
-    }
-    crate::engine::reach::set_tick(&mut gs, &ben.1, ReachKind::Message, false);
-    let out = frames(&sent);
-    let (theirs, ours) = (puts_to(&out, &ben.1), open(&puts_to(&out, &me)[0], &seed));
-    let p1 = pass_in(&theirs[0], &ben.0);
-    let owed = |gs: &GuiState| gs.dm_store.as_ref().unwrap().friends_without_pass().contains(&ben.1);
-    crate::engine::dm::ingest_dm(&mut gs, &ours);
-    assert!(gs.dm_store.as_ref().unwrap().passes_sent_to(&ben.1).is_empty() && owed(&gs), "an early echo records nothing");
-    answer(&mut gs, &theirs[0], false, "rate");
-    crate::engine::dm::ingest_dm(&mut gs, &DmInner { sig_b64: "fetched again".into(), ..ours.clone() });
-    assert!(gs.dm_store.as_ref().unwrap().passes_sent_to(&ben.1).is_empty() && owed(&gs), "a refused pass's late echo records nothing");
-    gs.dm_store.as_ref().unwrap().save();
-    gs.dm_store = Some(DmStore::load(&seed, &me, &crate::gui::pages::chat::norm_server_url(&gs.server_url)));
-    crate::engine::dm::ingest_dm(&mut gs, &DmInner { sig_b64: "after a restart".into(), ..ours.clone() });
-    assert!(owed(&gs), "nor after a restart");
-    let _ = frames(&sent);
-    sweep(&mut gs);
-    let again = puts_to(&frames(&sent), &ben.1);
-    assert_eq!(again.len(), 1, "the sweep still owes Ben a pass");
-    assert_eq!(pass_in(&again[0], &ben.0).may, p1.may, "with the same may");
-
-    crate::engine::reach::set_tick(&mut gs, &cy.1, ReachKind::Message, false);
-    let out = frames(&sent);
-    let (theirs, ours) = (puts_to(&out, &cy.1), open(&puts_to(&out, &me)[0], &seed));
-    crate::engine::dm::ingest_dm(&mut gs, &ours);
-    assert!(gs.dm_store.as_ref().unwrap().passes_sent_to(&cy.1).is_empty(), "Cy's early echo records nothing either");
-    answer(&mut gs, &theirs[0], true, "");
-    assert_eq!(gs.dm_store.as_ref().unwrap().passes_sent_to(&cy.1), [pass_in(&theirs[0], &cy.0)], "its answer records it");
     tidy(&gs);
 }
 

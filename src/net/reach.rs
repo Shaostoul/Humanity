@@ -316,6 +316,10 @@ impl Default for FriendTicks {
 }
 
 impl FriendTicks {
+    /// Nothing ticked: how "People I choose" draws a friend whose choice another of the person's
+    /// devices made and this one has not heard yet (10n N6).
+    pub const NONE: FriendTicks = FriendTicks { message: false, call: false, trade: false };
+
     pub fn get(&self, kind: ReachKind) -> bool {
         match kind {
             ReachKind::Message => self.message,
@@ -332,8 +336,8 @@ impl FriendTicks {
         }
     }
 
-    /// The ticks a pass's `may` (canonical or not) stands for: how this device learns a choice
-    /// made on another of the person's devices, from the echo of the pass that device re-issued.
+    /// The ticks a `may` (canonical or not) stands for: how the Safety page draws the choice kept
+    /// for a friend (10n: a `may` with its time, net/dm_store.rs `choices`).
     pub fn from_may(may: &str) -> Self {
         Self { message: may_names(may, ReachKind::Message), call: may_names(may, ReachKind::Call), trade: may_names(may, ReachKind::Trade) }
     }
@@ -377,7 +381,7 @@ pub fn intended_may_wire(ticks: FriendTicks) -> String {
 /// `want` does not? That is, would replacing it with a `want` pass TAKE something away? Only the
 /// kinds the relay enforces count: going from the all-unticked pass (`invite` alone) to one with
 /// Trade ticked drops `invite` on the wire, but takes nothing away anyone can feel, and must not
-/// withdraw the friend's only pass while the new one waits to go out (engine/dm.rs `reissue_pass`).
+/// withdraw the friend's only pass while the new one waits to go out (engine/dm.rs `follow_choice`).
 pub fn grants_beyond(may: &str, want: &str) -> bool {
     ReachKind::ALL.into_iter().any(|k| may_names(may, k) && !may_names(want, k))
 }
