@@ -197,3 +197,13 @@ what we will say about it.
   Whether a volunteer running a small server counts as a "provider" is not
   answered by any official source. Ends with what this means for the report
   flow, including three gaps seen in the code.
+- [`2026-10-10-childrens-online-safety-rules.md`](2026-10-10-childrens-online-safety-rules.md),
+  whether the protected setup (a parent's PIN lock on safety settings) is
+  allowed and what it may be called, under US COPPA (with the 2025 rule) and
+  the FTC Act, US state laws in brief, the UK Children's code and Online Safety
+  Act, and the EU Digital Services Act and GDPR. Nothing read forbids the
+  setup; nothing supports "kid safe", "child safe" or "compliant". Gives five
+  sentences the project may use, the words to avoid and why, and finds the web
+  chat's "18 years or older" line at odds with a setup for children (the
+  operator's decision). Whether COPPA reaches a free, donation-funded app at
+  all is not answered by any source.

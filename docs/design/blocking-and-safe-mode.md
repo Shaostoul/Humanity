@@ -1525,6 +1525,97 @@ identity sends). A cross-client test: a Node
 test that runs the web matcher over a shared list of cases in `scripts/tests/fixtures/` and a
 Rust test that runs the native matcher over the same file, so the two cannot drift.
 
+## 10h. Step G specification: the protected setup (2026-10-10)
+
+Sections 6.1, 6.2, 6.4 and 6.5 are the design; the dated finding
+`docs/reference/findings/2026-10-10-childrens-online-safety-rules.md` (read its section 6 and its
+last section) changes them where it disagrees, and this section is what gets built. Native first,
+web mirrors, built in parallel against these words.
+
+**What it is, in its own words.** A PIN lock on this device's safety settings, which a parent
+or carer can apply for someone they look after (or anyone for themselves). It never checks age,
+never tells any server anything, and is never described as making anything safe. The name stays
+"Protected setup" (10a). Settings > Safety gains a "Protected setup" section with the button
+"Turn on the protected setup" and, under it, the finding's sentence 1: "The protected setup locks
+these safety settings with a PIN on this device. It does not check anyone's age, and no setting
+can make an app, or the people in it, safe."
+
+**Words.** Everything on screen for this feature, and any public copy about it, avoids the
+finding's list (section 6, "Words and claims to avoid"): never "kid safe", "child safe", "safe for
+kids", "family safe", "safe space", "child-proof", "protects your child", "compliant", "certified",
+"approved", "verified", "filters", "blocks predators", "detects grooming", "moderated",
+"monitor", "collects no personal information", "anonymous", "parental consent", and never
+"for kids" or "for children". A test on each client holds the feature's strings to that list.
+
+**The preset is data:** `data/gui/safety_presets.json`, read by both clients (native embeds it
+in `src/embedded_data.rs`, web fetches `/data/gui/safety_presets.json`). One entry, `protected`,
+with: `reach` (`message: friends`, `call: chosen`, `trade: friends`), `warnings_on_friends: true`,
+`pictures_from_non_friends: "never"`, `public_rooms: "read_only_only"` (see below), and the
+on-screen sentences (`sentences`: the finding's sentences 1 to 5, then 6.5's sentences on
+encryption, new identities and the lock's reach, each exactly as written there).
+
+**Turning it on, in order:**
+1. **Read.** The sentences from the preset, in order, and "Continue".
+2. **Choose a PIN.** 4 to 12 digits, entered twice. Stored only on this device, as a verifier:
+   PBKDF2-SHA-256, 600,000 iterations, a random 16-byte salt (native in its config beside the
+   other safety settings, web in localStorage), never the PIN itself.
+3. **Review who can already reach this device** (closes the gap the finding names after the
+   Messenger Kids case: friends made before the setup would otherwise stay). One list each:
+   friends (everyone holding a pass from me), groups I am in, voice rooms saved or joined. Each
+   with Remove (for a friend: Unfollow, which withdraws their pass; for a group or room: Leave).
+   "Keep the rest" goes on. Only after this step may anything say "friends you approve".
+4. **Apply.** The preset's reach settings go out as an ordinary `reach_set` (any adult could send
+   the same); the rest is local. Nothing else is sent: no flag, no "protected" field, in any frame.
+
+**While it is on, these need the PIN** (a small PIN prompt; three wrong PINs in a row wait 60
+seconds before the next try): changing a "Who can reach me" row or a "People I choose" tick;
+making a friend in any way (Follow, Follow back, accepting a contact request, a friend code);
+joining a group by ticket; joining a voice room; turning warnings off or the pictures rule down;
+showing public rooms; changing the PIN; turning the setup off. **Never locked:** Block, Report,
+Unfollow, leaving a group or room, muting: anything that reduces who can reach this device.
+
+**What changes on screen while it is on:**
+- Warnings on messages show for friends too (the `friends` audience entries plus the
+  `strangers` ones), and cannot be switched off without the PIN.
+- Pictures and files from non-friends are not shown at all (a line says "A picture from someone
+  who is not a friend is not shown."); friends' still follow the click-to-load rule.
+- Public rooms: only read-only rooms (`read_only` channels, such as #announcements) are listed;
+  the rest are hidden, with one line in the channel list: "Public rooms are hidden by the
+  protected setup." Showing them needs the PIN, and the setup screen says what showing them
+  means: "Public rooms are public: anyone on that server can post there."
+- Contact requests show the name with "Accept (needs the PIN)" and "Ignore".
+- **An always-visible line** (the finding's ICO standard 11 point: the person is told), at the
+  top of Settings > Safety and as one line in the chat sidebar (native) or above the direct
+  message list (web): "The protected setup is on: only friends can message you, and adding a
+  friend needs the PIN." Its words do not depend on who turned it on.
+- The finding's sentence 2 (names the routes that stay open: public rooms, admins' notices) sits
+  in Settings > Safety while the setup is on, adjusted to what is true now: "With it on, only
+  friends you approved can send direct messages, and adding a friend, joining a group or joining
+  a voice room needs the PIN. Read-only rooms stay visible, and the server's admins can still
+  send notices."
+
+**Forgot the PIN.** "Forgot the PIN?" asks for this identity's recovery phrase; when it matches
+the phrase this device derives, a new PIN may be chosen (the setup stays on). The screen says so
+before the person starts: "Whoever keeps the recovery phrase can change the PIN. Keep the
+recovery phrase away from the person this protects."
+
+**Per device, never synced.** The setup's state lives only on this device: it is not put in the
+self-sync notes Block uses, not in the vault backup, and not in any export sent to a server.
+
+**Not in this step** (operator decisions or separate work, in PRIORITIES): the web chat's "18
+years or older" entry line and the project's age position; content rules on the project server's
+rules page; an admin tool to erase another person's data; the California AB 1043 finding.
+
+**Proof:** unit tests on both clients: the PIN verifier (right PIN opens, wrong PIN refused, the
+wait after three wrong ones, the PIN itself never stored); every locked action refused without
+the PIN and allowed with it; every never-locked action allowed without it; the preset applied from
+the real data file; the review step's Remove for each kind; turning it on sends exactly one
+`reach_set` with the preset's values and nothing else (a recorded-frames test); the public-rooms
+filter; the strings held to the words list; forgot-PIN with the right phrase lets a new PIN be
+chosen and a wrong one does not; the state absent from the self-sync notes and exports. Each test
+seen failing once. Native: snapshots of the setup's steps and of Settings > Safety with it on
+(render only when no other HumanityOS instance runs). `just verify`.
+
 ## 11. Docs to update as each piece ships
 
 - `docs/accord/conformance_gaps.md` ("Contact consent cannot be withdrawn")
