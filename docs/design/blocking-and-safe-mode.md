@@ -1226,7 +1226,12 @@ choose" list can <verb>.', and for Messages also "Anyone else can send a contact
 shows you only their name." The list holds everyone I have given a pass. While a friend's pass
 is being re-issued, their ticks are held still and the row says "(updating their pass)", so two
 quick clicks cannot race. With all three off, `invite` is the filler, so ticking Call from there
-gives `call` alone.
+gives `call` alone. Two differences on the desktop app, both deliberate: its list also keeps a
+mutual follow whose first pass has not gone out yet (shown "(updating their pass)"), and a tick
+changed while the new pass cannot go out is kept and applied by the pass sweep, with the old
+pass withdrawn at once when the change takes something away (Message, Call or Trade; dropping the
+`invite` filler takes nothing away). The web chat instead refuses such a change with "Could not
+change that now" and leaves the tick as it was.
 
 ## 10d. Step C specification: Block, on both clients (2026-10-09)
 
