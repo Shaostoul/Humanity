@@ -851,6 +851,11 @@
       "date": "2026-10-10",
       "decision": "v0.1483.0 carries 10n + 10o (relay dm_fetch ref echoed on dm_batch; parity fixes) and the operator's evening chat report: image viewer kept above its backdrop (move_to_top), composer grows upward to 45% then scrolls, uploads stream to a part file under a 1 GB route limit with an up-front Content-Length refusal and each person's upload_limit_mb on their own peer-list entry (private conversations stay 6 MB: the receiving side decrypts in memory). nginx change prepared in scripts/nginx/humanity.conf, NOT applied: outward-facing server config, asked the operator. Library A to Z (default) with a Suggested toggle given to an agent. Media showcase drafted as docs/design/media-showcase.md with three open questions.",
       "why": "The operator tested the desktop chat and reported each issue; every fix has a test that reproduced his symptom first (the viewer test found the backdrop layer at screen centre; the upload test reproduced the 400 multipart error with the route layer off). The nginx edge change affects what the public can send to the server, so it waits for his yes even though the relay now refuses oversize uploads itself."
+    },
+    {
+      "date": "2026-10-11",
+      "decision": "nginx /api/upload on the VPS changed with the operator's permission (\"You have my permission\"): client_max_body_size 6m -> 1025m, proxy_request_buffering off, client_body_timeout 300s, proxy send/read timeouts 900s. Backup at /root/humanity.nginx.bak-2026-10-11; nginx -t passed; reloaded; an 8 MB probe now reaches the relay (403 bad token) instead of nginx refusing it. Same change in scripts/nginx/humanity.conf.",
+      "why": "The relay now enforces each role's upload limit itself, refusing on the declared size before reading, and streams to a part file; the edge cap of 6 MB had kept every admin upload above 6 MB from reaching it. Applied only after the v0.1483.0 relay was live."
     }
   ],
   "active_scopes_to_avoid": [
@@ -880,7 +885,7 @@
     "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-10-10",
+  "last_updated": "2026-10-11",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",

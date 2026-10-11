@@ -546,10 +546,16 @@ server {
         proxy_set_header Host $host;
     }
 
-    # Upload proxy
+    # Upload proxy. The size limit is the relay's: each role's limit in Server Settings > Roles,
+    # at most 1 GB per file. nginx only stops anything past that, and passes the body through as
+    # it arrives (no buffering) so the relay can refuse an oversize upload at once.
     location /api/upload {
         limit_req zone=upload burst=5 nodelay;
-        client_max_body_size 10M;
+        client_max_body_size 1025m;
+        proxy_request_buffering off;
+        client_body_timeout 300s;
+        proxy_send_timeout 900s;
+        proxy_read_timeout 900s;
         proxy_pass http://127.0.0.1:3210/api/upload;
         proxy_set_header Host $host;
     }
@@ -701,7 +707,8 @@ Clients auto-detect the server update and reload automatically.
 - Check server logs for rate limiting messages
 
 **Uploads failing:**
-- Ensure `client_max_body_size` is set in nginx
+- Ensure nginx's `client_max_body_size` for `/api/upload` is at least the largest role limit (the relay's own ceiling is 1 GB), with `proxy_request_buffering off`: a smaller nginx limit refuses big uploads before the relay sees them
+- Check the role's upload limit and the server-wide upload storage cap in Server Settings
 - Check data/uploads/ directory permissions
 - Users must be verified to upload
 
