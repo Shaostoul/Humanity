@@ -742,3 +742,7 @@ pub(crate) mod tests;
 #[cfg(test)]
 #[path = "media/uploads_tests.rs"]
 mod uploads_tests;
+
+#[cfg(test)]
+#[path = "media/relay_round3_tests.rs"]
+mod relay_round3_tests;
