@@ -1,0 +1,8 @@
+{
+  "_comment": "Content labels for the Media page (docs/design/media-showcase.md, 'Labels'). A labelled item stays hidden until the viewer clicks it, the protected setup always hides it, and the public never sees it without the click. `id` is what the relay stores and accepts (lower case, a to z and underscore; an item's labels are its ids joined by commas), `label` is what the apps show, `desc` is the line under it. The relay reads this file at start (src/relay/media.rs `labels`), so a label added here is accepted after a restart. Adult (NSFW) content is NOT a label: it is held back until it is researched into a dated findings document and the operator decides, so the server's rules do not allow it on the Media page.",
+  "labels": [
+    { "id": "spoiler",  "label": "Spoiler",          "desc": "Shows something people may want to find out for themselves" },
+    { "id": "flashing", "label": "Flashing lights",  "desc": "Rapid flashes or strobing that can affect people with photosensitive epilepsy" },
+    { "id": "graphic",  "label": "Graphic",          "desc": "Injury, blood or other content some people would rather not see unwarned" }
+  ]
+}

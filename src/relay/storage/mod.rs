@@ -1146,6 +1146,10 @@ impl Storage {
                 erased_accounts_cap       INTEGER NOT NULL DEFAULT 100000,
                 world_time_scale          REAL    NOT NULL DEFAULT 1,
                 fleet_supply_mode         TEXT    NOT NULL DEFAULT 'unlimited',
+                media_visibility          TEXT    NOT NULL DEFAULT 'public',
+                media_budget_mb           INTEGER NOT NULL DEFAULT 2048,
+                media_per_person_mb       INTEGER NOT NULL DEFAULT 512,
+                media_public_previews_only INTEGER NOT NULL DEFAULT 1,
                 updated_at                INTEGER NOT NULL DEFAULT 0,
                 updated_by                TEXT
             );
@@ -1289,6 +1293,23 @@ impl Storage {
             info!("Migration: added fleet_supply_mode (server_settings)");
         }
 
+        // Guarded ALTERs (the Media page, 2026-10-11; docs/design/media-showcase.md): who sees it,
+        // its storage budget, each person's share of it, and whether the public gets previews
+        // only. No index or trigger reads these columns (BUG-046); each DEFAULT is the CREATE
+        // TABLE's, and `ServerSettings::default()` matches it (storage/server_settings.rs
+        // `media_settings_default_and_round_trip`).
+        for (column, add) in [
+            ("media_visibility", "ALTER TABLE server_settings ADD COLUMN media_visibility TEXT NOT NULL DEFAULT 'public';"),
+            ("media_budget_mb", "ALTER TABLE server_settings ADD COLUMN media_budget_mb INTEGER NOT NULL DEFAULT 2048;"),
+            ("media_per_person_mb", "ALTER TABLE server_settings ADD COLUMN media_per_person_mb INTEGER NOT NULL DEFAULT 512;"),
+            ("media_public_previews_only", "ALTER TABLE server_settings ADD COLUMN media_public_previews_only INTEGER NOT NULL DEFAULT 1;"),
+        ] {
+            if conn.prepare(&format!("SELECT {column} FROM server_settings LIMIT 0")).is_err() {
+                conn.execute_batch(add)?;
+                info!("Migration: added {column} (server_settings)");
+            }
+        }
+
         // The fleet ledger (2026-10-04, storage/fleet_ledger.rs): what each player used from the
         // fleet and what they gave it. A new table in a batch of its own, every index over its
         // own CREATE TABLE columns, so a live database from before it simply gains it (BUG-046).
@@ -1372,6 +1393,58 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_reports_v2_reporter ON reports_v2(reporter_key, created_at);
             CREATE INDEX IF NOT EXISTS idx_reports_v2_state ON reports_v2(state, id);
             CREATE INDEX IF NOT EXISTS idx_reports_v2_decided ON reports_v2(decided_at);"
+        )?;
+
+        // The Media page (2026-10-11, storage/media.rs and relay/media.rs; docs/design/
+        // media-showcase.md "Increment 1, exact"): the items people published from their own
+        // uploads, the server's categories (row 1 is General, never removed, because a removed
+        // category's items move to it; seeded here, and put back if it is ever missing), the
+        // categories members suggested, and each person's picks. New tables in a batch of their
+        // own, every index over its own CREATE TABLE columns, so a live database from before them
+        // simply gains them (BUG-046 concerns ALTER-added columns only). In the account export;
+        // the erase takes a person's items, their picks and the picks of their items, and their
+        // suggestions (storage/account.rs).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS media_items (
+                id              INTEGER PRIMARY KEY,
+                upload_filename TEXT    NOT NULL UNIQUE,
+                uploader_key    TEXT    NOT NULL,
+                title           TEXT    NOT NULL DEFAULT '',
+                description     TEXT    NOT NULL DEFAULT '',
+                category_id     INTEGER NOT NULL,
+                kind            TEXT    NOT NULL,
+                labels          TEXT    NOT NULL DEFAULT '',
+                visibility      TEXT    NOT NULL DEFAULT 'public',
+                featured        INTEGER NOT NULL DEFAULT 0,
+                size_bytes      INTEGER NOT NULL,
+                views           INTEGER NOT NULL DEFAULT 0,
+                created_at      INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_media_items_uploader ON media_items(uploader_key, id);
+            CREATE INDEX IF NOT EXISTS idx_media_items_category ON media_items(category_id, id);
+            CREATE TABLE IF NOT EXISTS media_categories (
+                id          INTEGER PRIMARY KEY,
+                name        TEXT    NOT NULL,
+                description TEXT    NOT NULL DEFAULT '',
+                position    INTEGER NOT NULL DEFAULT 0
+            );
+            INSERT OR IGNORE INTO media_categories (id, name, description, position) VALUES (1, 'General', '', 0);
+            CREATE TABLE IF NOT EXISTS media_category_suggestions (
+                id            INTEGER PRIMARY KEY,
+                suggester_key TEXT    NOT NULL,
+                name          TEXT    NOT NULL,
+                note          TEXT    NOT NULL DEFAULT '',
+                created_at    INTEGER NOT NULL,
+                state         TEXT    NOT NULL DEFAULT 'open'
+            );
+            CREATE INDEX IF NOT EXISTS idx_media_suggestions_key ON media_category_suggestions(suggester_key, state);
+            CREATE TABLE IF NOT EXISTS media_picks (
+                picker_key TEXT    NOT NULL,
+                item_id    INTEGER NOT NULL,
+                picked_at  INTEGER NOT NULL,
+                PRIMARY KEY (picker_key, item_id)
+            ) WITHOUT ROWID;
+            CREATE INDEX IF NOT EXISTS idx_media_picks_item ON media_picks(item_id);"
         )?;
 
 
@@ -2576,8 +2649,8 @@ mod reviews;
 mod members;
 mod server_settings;
 pub use server_settings::{
-    clamp_world_time_scale, default_world_time_scale, fleet_supply_mode_of, ServerSettings,
-    DEFAULT_FLEET_SUPPLY_MODE,
+    clamp_world_time_scale, default_world_time_scale, fleet_supply_mode_of, media_visibility_of, ServerSettings,
+    DEFAULT_FLEET_SUPPLY_MODE, MEDIA_MB_RANGE,
     ERASED_ACCOUNTS_CAP_RANGE, ERASED_ACCOUNTS_TTL_DAYS_RANGE,
 };
 mod roles;
@@ -2618,6 +2691,8 @@ pub use friend_passes::{FriendCertWithdrawal, FRIEND_CERT_WITHDRAWALS_MAX};
 // "Who can reach me": the audience each person chose per kind of contact (2026-10-09, 10c).
 mod reach;
 pub mod reports;
+// The Media page (2026-10-11, docs/design/media-showcase.md): items, categories, suggestions, picks.
+pub mod media;
 pub mod docs_accord;
 
 pub use civilization::CivilizationStats;

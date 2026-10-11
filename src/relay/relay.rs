@@ -1128,6 +1128,16 @@ pub enum RelayMessage {
         /// The fleet's supply, "unlimited" or "stocked" (2026-10-04, handlers/fleet_ledger.rs).
         #[serde(default)]
         fleet_supply_mode: Option<String>,
+        /// The Media page (2026-10-11, relay/media.rs): "public" or "members", its budget and
+        /// each person's share in MB, and whether the public gets previews only.
+        #[serde(default)]
+        media_visibility: Option<String>,
+        #[serde(default)]
+        media_budget_mb: Option<i64>,
+        #[serde(default)]
+        media_per_person_mb: Option<i64>,
+        #[serde(default)]
+        media_public_previews_only: Option<bool>,
     },
 
     /// Typing indicator — broadcast to show who is composing a message.

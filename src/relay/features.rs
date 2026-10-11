@@ -234,6 +234,8 @@ const ROUTE_FEATURES: &[(&str, Feature)] = &[
     //    files please".
     ("/api/upload", Feature::Uploads),
     ("/api/uploads", Feature::Uploads),
+    // The Media page (2026-10-11, media.rs): published uploads, so the same switch.
+    ("/api/media", Feature::Uploads),
     ("/api/assets", Feature::Uploads),
     ("/uploads", Feature::Uploads),
     // ── Tasks + projects.
@@ -531,6 +533,10 @@ mod tests {
         assert_eq!(route_feature("/api/projects"), Some(Feature::Tasks));
         assert_eq!(route_feature("/api/upload"), Some(Feature::Uploads));
         assert_eq!(route_feature("/api/uploads/delete"), Some(Feature::Uploads));
+        // The Media page (2026-10-11). Seen red 2026-10-11 with its row taken out of
+        // ROUTE_FEATURES: "assertion `left == right` failed / left: None / right: Some(Uploads)".
+        assert_eq!(route_feature("/api/media"), Some(Feature::Uploads));
+        assert_eq!(route_feature("/api/media/suggestions/decide"), Some(Feature::Uploads));
         assert_eq!(route_feature("/api/assets/xyz"), Some(Feature::Uploads));
         assert_eq!(route_feature("/uploads/pic.png"), Some(Feature::Uploads));
         assert_eq!(route_feature("/api/turn-credentials"), Some(Feature::Voice));

@@ -241,6 +241,9 @@ pub struct UploadQuery {
     /// enforces the size, disk, role, and FIFO limits. A public URL to
     /// ciphertext is harmless: only the recipient holds the key.
     pub encrypted: Option<u8>,
+    /// A Media upload (2026-10-11, media.rs `upload_shelf`): out of the FIFO, held to the Media
+    /// budget, and in no list until it is published with POST /api/media. Never with `encrypted`.
+    pub media: Option<u8>,
 }
 
 /// Query params for GET /api/uploads (the shared-file library listing).
@@ -406,8 +409,7 @@ pub async fn upload_file(
     // role is known (see below). Fall back to defaults if the row is
     // missing.
     let server_settings = state.db.get_server_settings().unwrap_or_default();
-    let max_total_upload_bytes =
-        (server_settings.max_total_upload_mb.max(1) as u64) * 1024 * 1024;
+    let shelf = super::media::upload_shelf(query.share, query.media, query.encrypted)?;
 
     // M-4: Resolve upload token to public key.
     let public_key = if let Some(ref token) = query.token {
@@ -631,7 +633,7 @@ pub async fn upload_file(
         // GET /api/uploads listing and exempts it from the media FIFO. The
         // original filename travels along so the library shows a human name
         // instead of the timestamp-mangled stored one.
-        let share_fs = query.share.unwrap_or(0) == 1;
+        let (shelf_fs, settings_fs) = (shelf, server_settings.clone()); // the shelf: media.rs `upload_shelf`
         let original_name_fs = filename.clone();
         let fs_result = tokio::task::spawn_blocking(move || -> Result<(), (StatusCode, String)> {
             // Store in data/uploads/.
@@ -640,16 +642,12 @@ pub async fn upload_file(
                 (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create upload dir: {e}"))
             })?;
 
-            // Check global disk usage before writing.
-            let total_size = dir_total_size(upload_dir);
-            if total_size + data_len as u64 > max_total_upload_bytes {
+            // Room before writing: chat files against the general cap (Media's bytes apart), a
+            // Media upload against the Media budget and the person's share of it (media.rs).
+            let room = super::media::upload_room(&state_fs.db, &settings_fs, &public_key_fs, shelf_fs, dir_total_size(upload_dir), data_len as u64);
+            if let Err(refusal) = room {
                 body.discard();
-                return Err((
-                    StatusCode::INSUFFICIENT_STORAGE,
-                    format!("Upload storage full ({:.1} MB / {:.0} MB). Please try again later.",
-                        total_size as f64 / (1024.0 * 1024.0),
-                        max_total_upload_bytes as f64 / (1024.0 * 1024.0)),
-                ));
+                return Err(refusal);
             }
 
             let file_path = upload_dir.join(&unique_name_fs);
@@ -664,7 +662,7 @@ pub async fn upload_file(
                 &public_key_fs,
                 &unique_name_fs,
                 max_uploads_per_user,
-                share_fs,
+                shelf_fs,
                 &original_name_fs,
                 data_len as i64,
             ) {
