@@ -85,6 +85,9 @@ pub struct Button<'a> {
     /// Overrides the variant fill: any non-Primary variant flips to filled-accent.
     active: bool,
     tooltip: Option<&'a str>,
+    /// Where the tooltip opens: `None` at the pointer (egui's own), or above a bar whose top edge
+    /// is this screen y (`tooltip_above`).
+    tooltip_above: Option<f32>,
     /// Override the min-height. Rare — prefer `size`.
     min_height: Option<f32>,
 }
@@ -103,6 +106,7 @@ impl<'a> Button<'a> {
             disabled: false,
             active: false,
             tooltip: None,
+            tooltip_above: None,
             min_height: None,
         }
     }
@@ -193,6 +197,16 @@ impl<'a> Button<'a> {
     /// Show a tooltip on hover.
     pub fn tooltip(mut self, text: &'a str) -> Self {
         self.tooltip = Some(text);
+        self
+    }
+
+    /// Show a tooltip on hover ABOVE a bar whose top edge is `bar_top` (screen y), instead of at
+    /// the pointer: for buttons beside a text box, such as the chat composer's, so the hint never
+    /// covers what is being typed. (Operator, 2026-10-11: the Attach hint, still showing when the
+    /// file picker closed, sat over the chat bar.)
+    pub fn tooltip_above(mut self, text: &'a str, bar_top: f32) -> Self {
+        self.tooltip = Some(text);
+        self.tooltip_above = Some(bar_top);
         self
     }
 
@@ -287,14 +301,43 @@ impl<'a> Button<'a> {
             ui.add(btn)
         };
 
-        let response = if let Some(tip) = self.tooltip {
-            response.on_hover_text(tip)
-        } else {
-            response
+        let response = match (self.tooltip, self.tooltip_above) {
+            (Some(tip), Some(bar_top)) => {
+                show_tip_above(ui, &response, tip, bar_top);
+                response
+            }
+            (Some(tip), None) => response.on_hover_text(tip),
+            _ => response,
         };
 
         response.clicked() && !self.disabled
     }
+}
+
+/// The id under which the last tip shown above a bar keeps its rect, for the tests.
+pub(crate) const TIP_ABOVE_LAST: &str = "tip_above_last_rect";
+
+/// A hover tip opened above a bar (`Button::tooltip_above`): shown after egui's own tooltip
+/// delay once the pointer rests on the button, its bottom-left corner just above the bar's top
+/// edge at the button's left, kept on screen, and never taking the pointer.
+fn show_tip_above(ui: &Ui, response: &egui::Response, text: &str, bar_top: f32) {
+    let rested = ui.input(|i| i.pointer.time_since_last_movement() >= ui.style().interaction.tooltip_delay && !i.pointer.any_down());
+    if !response.hovered() || !rested {
+        return;
+    }
+    let shown = egui::Area::new(response.id.with("tip_above"))
+        .order(egui::Order::Tooltip)
+        .pivot(egui::Align2::LEFT_BOTTOM)
+        .fixed_pos(egui::pos2(response.rect.left(), bar_top - 4.0))
+        .interactable(false)
+        .constrain(true)
+        .show(ui.ctx(), |ui| {
+            egui::Frame::popup(ui.style()).show(ui, |ui| {
+                ui.set_max_width(ui.spacing().tooltip_width);
+                ui.label(text);
+            });
+        });
+    ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new(TIP_ABOVE_LAST), shown.response.rect));
 }
 
 // ─── Backward-compatibility free functions ──────────────────────────────

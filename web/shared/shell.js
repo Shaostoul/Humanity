@@ -1288,6 +1288,19 @@
 
       tip.innerHTML = html;
       tip.style.display = 'block';
+      // A control inside a bar marked data-tip-above (the chat composer) opens its hint above the
+      // whole bar, held there, never over the text being typed (operator, 2026-10-11: the attach
+      // hint, shown again when focus came back from the file picker, covered the chat bar).
+      var bar = el.closest ? el.closest('[data-tip-above]') : null;
+      if (bar) {
+        var b = bar.getBoundingClientRect(), r = el.getBoundingClientRect();
+        var bw = Math.min(320, tip.offsetWidth || 320), bh = tip.offsetHeight || 80;
+        tip.style.left = Math.max(8, Math.min(r.left, window.innerWidth - bw - 8)) + 'px';
+        tip.style.top = Math.max(8, b.top - bh - 8) + 'px';
+        tip.setAttribute('data-held', '1');
+        return;
+      }
+      tip.removeAttribute('data-held');
       // Keep tooltip inside viewport, prefer below-right of cursor
       var tw = 320, th = tip.offsetHeight || 80;
       var tx = x + 14;
@@ -1326,6 +1339,7 @@
     });
     document.addEventListener('mousemove', function(e) {
       if (tip.style.display !== 'block') return;
+      if (tip.getAttribute('data-held') === '1') return; // a hint above a bar stays put
       var tw = 320, th = tip.offsetHeight || 80;
       var tx = (e.clientX || 8) + 14, ty = (e.clientY || 8) + 14;
       if (tx + tw > window.innerWidth  - 8) tx = (e.clientX || 8) - tw - 8;

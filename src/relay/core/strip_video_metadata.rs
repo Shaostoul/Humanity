@@ -189,7 +189,8 @@ pub fn strip_video_metadata_in_place(path: &Path) -> io::Result<VideoStrip> {
     // Opening for reading and writing never shortens or grows the file.
     let mut file = OpenOptions::new().read(true).write(true).open(path)?;
     let len = file.metadata()?.len();
-    let report = strip_stream(&mut file, len)?;
+    // The zeros reach the disk before any box is renamed (see `strip_stream`).
+    let report = strip_stream(&mut file, len, |f| f.sync_all())?;
     if report.changed() {
         // Make sure the zeros are on the disk before anyone serves the file.
         file.sync_all()?;
@@ -201,7 +202,7 @@ pub fn strip_video_metadata_in_place(path: &Path) -> io::Result<VideoStrip> {
 /// disk). The buffer keeps its length; it cannot grow.
 pub fn strip_video_metadata_in_buffer(data: &mut [u8]) -> io::Result<VideoStrip> {
     let len = data.len() as u64;
-    strip_stream(&mut Cursor::new(data), len)
+    strip_stream(&mut Cursor::new(data), len, |_| Ok(()))
 }
 
 /// Fill `buf` from the reader, stopping early only at the end of the data.
@@ -220,7 +221,19 @@ fn read_up_to<R: Read>(reader: &mut R, buf: &mut [u8]) -> io::Result<usize> {
 
 /// The whole job on anything that can be read, written and moved around
 /// in: a file on disk, or bytes in memory. `len` is the data's length.
-fn strip_stream<F: Read + Write + Seek>(f: &mut F, len: u64) -> io::Result<VideoStrip> {
+/// `sync` makes what was written so far durable (`File::sync_all` for a
+/// file; nothing for memory). It runs between zeroing and renaming: every
+/// planned box is zeroed and synced FIRST, and only then renamed `free`. In
+/// the other order a crash between the two left a box already called `free`
+/// with the place still inside it, and a second run skips `free` boxes, so
+/// the file would be stored with its location (review, 2026-10-11). In this
+/// order a crash leaves a box with its old name and zeros inside, which the
+/// next run plans and finishes.
+fn strip_stream<F: Read + Write + Seek>(
+    f: &mut F,
+    len: u64,
+    mut sync: impl FnMut(&mut F) -> io::Result<()>,
+) -> io::Result<VideoStrip> {
     f.seek(SeekFrom::Start(0))?;
     let mut first = [0u8; 8];
     let got = read_up_to(f, &mut first)?;
@@ -248,19 +261,26 @@ fn strip_stream<F: Read + Write + Seek>(f: &mut F, len: u64) -> io::Result<Video
     }
     plans.sort_by_key(|p| p.offset);
 
-    // Step 2: rename each planned box `free` and zero what is inside it.
+    // The walk only plans boxes that lie wholly inside the data. This is a
+    // second lock on the same door: never write outside the file.
+    plans.retain(|p| p.end <= len && p.offset + 8 <= p.body_start && p.body_start <= p.end);
+
+    // Step 2: zero what is inside every planned box, and make it durable.
     let mut report = VideoStrip { kind, found_moov, neutralised: Vec::new(), bytes_zeroed: 0, stopped_early };
-    for p in plans {
-        // The walk only plans boxes that lie wholly inside the data. This
-        // is a second lock on the same door: never write outside the file.
-        if p.end > len || p.offset + 8 > p.body_start || p.body_start > p.end {
-            continue;
-        }
-        // The name sits after the 4-byte size, whichever size form is used.
-        f.seek(SeekFrom::Start(p.offset + 4))?;
-        f.write_all(b"free")?;
+    for p in &plans {
         write_zeros(f, p.body_start, p.end)?;
         report.bytes_zeroed += p.end - p.body_start;
+    }
+    if !plans.is_empty() {
+        f.flush()?;
+        sync(f)?;
+    }
+
+    // Step 3: only now rename each one `free`. The name sits after the
+    // 4-byte size, whichever size form is used.
+    for p in plans {
+        f.seek(SeekFrom::Start(p.offset + 4))?;
+        f.write_all(b"free")?;
         report.neutralised.push(NeutralisedBox { path: p.path, offset: p.offset, size: p.end - p.offset });
     }
     f.flush()?;
@@ -855,6 +875,60 @@ mod tests {
         assert!(r.complete());
         assert_only_reported_boxes_changed(&before, &after, &r);
         assert_playback_bytes_identical(&before, &after);
+    }
+
+    /// A writer that refuses to write the four letters `free`, standing in
+    /// for a crash between zeroing a box and renaming it.
+    struct CrashAtRename<'a>(Cursor<&'a mut [u8]>);
+    impl Read for CrashAtRename<'_> {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            self.0.read(buf)
+        }
+    }
+    impl Seek for CrashAtRename<'_> {
+        fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+            self.0.seek(pos)
+        }
+    }
+    impl Write for CrashAtRename<'_> {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            if buf == b"free" {
+                return Err(io::Error::new(io::ErrorKind::Other, "the power went out"));
+            }
+            self.0.write(buf)
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            self.0.flush()
+        }
+    }
+
+    /// A CRASH BETWEEN ZEROING AND RENAMING NEVER LEAVES THE PLACE BEHIND
+    /// (review, 2026-10-11): when the run dies as it renames the first box,
+    /// the coordinates are already gone, the box still has its old name,
+    /// and a second run plans it again and finishes. Seen red 2026-10-11 with
+    /// the zeroing step skipped before the renames: "the place is gone before
+    /// any box is renamed".
+    #[test]
+    fn a_crash_between_zeroing_and_renaming_leaves_no_place_behind() {
+        let ex = Extras { moov: vec![android_udta()], ..Extras::default() };
+        let mut data = movie(Layout::MoovFirst, ftyp_mp4(), &ex);
+        let len = data.len() as u64;
+        // Where the box with the place starts: its own size-and-name header.
+        let head = android_udta()[..8].to_vec();
+        let at = data.windows(8).position(|w| w == head.as_slice()).expect("test setup: the udta box");
+        let synced = std::cell::Cell::new(0);
+        let crashed = strip_stream(&mut CrashAtRename(Cursor::new(&mut data[..])), len, |_| {
+            synced.set(synced.get() + 1);
+            Ok(())
+        });
+        assert!(crashed.is_err(), "the stand-in crash happened");
+        assert_eq!(synced.get(), 1, "the zeros were made durable before the rename");
+        assert!(!contains(&data, PLACE), "the place is gone before any box is renamed");
+        assert_eq!(&data[at + 4..at + 8], b"udta", "and the box still has its old name");
+
+        let again = strip_video_metadata_in_buffer(&mut data).unwrap();
+        assert_eq!(again.paths(), vec!["moov/udta"], "a second run finishes the job");
+        assert_eq!(&data[at + 4..at + 8], b"free", "and renames the box");
     }
 
     /// Seen red: with the walk no longer stepping into `trak`, the report

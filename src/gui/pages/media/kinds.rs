@@ -24,9 +24,6 @@ struct KindsFile {
 /// The data file, relative to the data folder.
 pub const KINDS_FILE: &str = "media/kinds.json";
 
-/// The copy built into the exe, used when the data folder's copy cannot be read.
-const BUILT_IN: &str = include_str!("../../../../data/media/kinds.json");
-
 /// Read a kinds file: refused when it is not one, lists none, or has an empty id or name.
 pub fn parse_kinds(text: &str) -> Result<Vec<Kind>, String> {
     let file: KindsFile = serde_json::from_str(text).map_err(|e| format!("not a kinds file: {e}"))?;
@@ -47,7 +44,10 @@ pub fn kinds() -> &'static [Kind] {
         match std::fs::read_to_string(&path).map_err(|e| e.to_string()).and_then(|t| parse_kinds(&t)) {
             Ok(k) => k,
             Err(why) => {
-                log::warn!("Media: {} could not be used ({why}); the copy built into the app is used", path.display());
+                // The copy built into the exe, used when the data folder's copy cannot be, and
+                // said so the way every data file says it (the compiled-in check holds this).
+                crate::embedded_data::note_builtin_copy("media/kinds.json", format!("{} could not be used ({why})", path.display()));
+                const BUILT_IN: &str = include_str!("../../../../data/media/kinds.json");
                 parse_kinds(BUILT_IN).unwrap_or_default()
             }
         }
@@ -86,7 +86,7 @@ mod tests {
     /// \"video\", \"models\", \"file\"] / right: [\"picture\", \"video\", \"model\", \"file\"]".
     #[test]
     fn the_kinds_are_the_relays_kinds() {
-        let ours: Vec<String> = parse_kinds(BUILT_IN).expect("the built-in kinds parse").into_iter().map(|k| k.id).collect();
+        let ours: Vec<String> = parse_kinds(include_str!("../../../../data/media/kinds.json")).expect("the built-in kinds parse").into_iter().map(|k| k.id).collect();
         let relay: Vec<String> = crate::relay::storage::media::KINDS.iter().map(|k| k.to_string()).collect();
         assert_eq!(ours, relay);
         assert!(parse_kinds(r#"{"kinds": []}"#).is_err(), "an empty list is refused");
