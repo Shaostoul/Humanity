@@ -9,10 +9,18 @@
 //! 3. Ask: a picture from someone who is not a friend waits for a click, as in the chat
 //!    (gui/pages/chat/attach_view.rs; everything on this page comes from this server, so there is
 //!    no other-website case).
-//! 4. Load: the picture itself (until increment 4's previews), or the kind's mark.
+//! 4. TooBig: a picture larger than this app shows in place (the image cache's 16 MB) says so,
+//!    and opens its card, where Download takes it whatever its size.
+//! 5. Load: the picture itself (until increment 4's previews), or the kind's mark.
 //!
 //! A click on a Label or Ask tile is remembered in the image cache's "allowed" set, as the chat's
-//! click-to-load is: for this session, one item at a time.
+//! click-to-load is: for this session, one item at a time. A picture that could not be loaded
+//! says so and tries again on a click; a members-only one is also asked for again whenever the
+//! session's upload token changes (media.rs `note_token`), so a refusal never outlives the token
+//! it was given to.
+//!
+//! EVERY ACTION NAMES THE ITEM'S FILE (the relay's W5): `Item::reference`; an item whose file the
+//! server did not name is not acted on, and the page says why.
 
 use egui::{Color32, RichText, Rounding, Sense, Stroke, Vec2};
 
@@ -20,7 +28,7 @@ use super::api::{self, Item};
 use super::{kinds, signed_in_here, signer_or_say, spawn, Job};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
-use crate::gui::widgets::image_cache::{ImageStatus, PRIVATE_KEY_PREFIX};
+use crate::gui::widgets::image_cache::{ImageStatus, MAX_IMAGE_BYTES, PRIVATE_KEY_PREFIX};
 use crate::gui::GuiState;
 
 /// A tile's size, and its picture's.
@@ -31,6 +39,17 @@ const THUMB_H: f32 = 150.0;
 pub(crate) const LABEL_HIDDEN_LINE: &str = "Hidden: the protected setup leaves out items with a content label.";
 /// The second line of a labelled tile.
 pub(crate) const CLICK_TO_SHOW: &str = "Click to show.";
+/// What a picture that could not be loaded says.
+pub(crate) const COULD_NOT_LOAD: &str = "This picture could not be loaded. Click to try again.";
+
+/// What a picture too large to show in place says.
+pub(crate) fn too_big_words(item: &Item) -> String {
+    format!(
+        "This picture is {}, larger than this app shows in place ({}). Click to open it and download it.",
+        api::size_words(item.size_bytes),
+        api::size_words(MAX_IMAGE_BYTES as i64)
+    )
+}
 
 /// What a tile shows in place of its picture, or the picture.
 #[derive(Debug, Clone, PartialEq)]
@@ -41,6 +60,8 @@ pub(crate) enum Show {
     Label(Vec<String>),
     /// From someone who is not a friend: a click first.
     Ask,
+    /// A picture larger than the image cache shows: its card instead.
+    TooBig,
     /// The picture (or the kind's mark).
     Load,
 }
@@ -54,7 +75,7 @@ pub(crate) fn cache_key(state: &GuiState, item: &Item) -> String {
         let h = blake3::hash(format!("{}\n{}", state.media.server, item.id).as_bytes());
         format!("{PRIVATE_KEY_PREFIX}media-{}", &h.to_hex()[..32])
     } else {
-        api::file_url(&super::base_of(state), item, None)
+        api::file_url(&super::base_of(state), item)
     }
 }
 
@@ -66,6 +87,11 @@ pub(crate) fn label_names(state: &GuiState, item: &Item) -> Vec<String> {
             state.media.list.labels.iter().find(|l| &l.id == id).map(|l| l.label.clone()).filter(|n| !n.is_empty()).unwrap_or_else(|| id.clone())
         })
         .collect()
+}
+
+/// Whether `item` is a picture too large for the image cache to show in place.
+pub(crate) fn too_big(item: &Item) -> bool {
+    item.kind == "picture" && item.size_bytes > MAX_IMAGE_BYTES as i64
 }
 
 /// Decide what `item`'s tile shows (see the file header).
@@ -85,21 +111,27 @@ pub(crate) fn show_of(state: &GuiState, item: &Item) -> Show {
     if item.kind == "picture" && !own && !allowed && !crate::engine::protected::picture_friend(state, &item.uploader_key) {
         return Show::Ask;
     }
+    if too_big(item) {
+        return Show::TooBig;
+    }
     Show::Load
 }
 
 /// Ask the image cache for `item`'s picture: a public one by its address, a members-only one
-/// through the members' file route with this session's upload token, on a worker thread.
+/// through the members' file route with this session's upload token in a header, on a worker
+/// thread. A picture too large to show is never asked for.
 pub(crate) fn request_picture(state: &mut GuiState, item: &Item) {
     let key = cache_key(state, item);
-    if !matches!(state.image_cache.status(&key), ImageStatus::Idle) {
+    if too_big(item) || !matches!(state.image_cache.status(&key), ImageStatus::Idle) {
         return;
     }
     if item.members_only() {
         let token = crate::gui::pages::chat::upload_token_here(state);
-        let url = api::file_url(&super::base_of(state), item, token.as_deref());
+        let url = api::file_url(&super::base_of(state), item);
+        let header = api::token_header(item, token.as_deref());
         state.image_cache.request_bytes(&key, move || {
-            crate::gui::widgets::image_cache::download_bytes(&url, crate::gui::widgets::image_cache::MAX_IMAGE_BYTES)
+            let header = header.as_ref().map(|(name, value)| (*name, value.as_str()));
+            crate::gui::widgets::image_cache::download_bytes_with(&url, MAX_IMAGE_BYTES, header)
         });
     } else {
         state.image_cache.request(&key);
@@ -109,6 +141,7 @@ pub(crate) fn request_picture(state: &mut GuiState, item: &Item) {
 /// The filters row: category, kind, person, My picks, and the search box.
 pub(crate) fn draw_filters(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let before = state.media.filters.clone();
+    let signed_in = signed_in_here(state);
     ui.horizontal_wrapped(|ui| {
         let m = &mut state.media;
         let cat_name = m.filters.category.and_then(|c| m.list.categories.iter().find(|x| x.id == c)).map(|c| c.name.clone()).unwrap_or_else(|| "All categories".into());
@@ -132,8 +165,9 @@ pub(crate) fn draw_filters(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiStat
                 ui.selectable_value(&mut m.filters.by, Some(key.clone()), name);
             }
         });
-        ui.checkbox(&mut m.filters.my_picks, "My picks")
-            .on_hover_text("Only the items you picked.");
+        if signed_in {
+            ui.checkbox(&mut m.filters.my_picks, "My picks").on_hover_text("Only the items you picked.");
+        }
         let resp = ui.add(egui::TextEdit::singleline(&mut m.search).hint_text("Search titles").desired_width(180.0));
         let enter = resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
         if enter || widgets::Button::secondary("Search").show(ui, theme) {
@@ -141,7 +175,7 @@ pub(crate) fn draw_filters(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiStat
         }
     });
     if state.media.filters != before {
-        super::reload(state);
+        super::reload_list(state);
     }
 }
 
@@ -186,6 +220,10 @@ pub(crate) fn draw_tile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, 
                     if item.featured {
                         ui.label(RichText::new("Featured").size(theme.font_size_small).color(theme.accent()));
                     }
+                    if item.kept {
+                        ui.label(RichText::new(KEPT_BADGE).size(theme.font_size_small).color(theme.success()))
+                            .on_hover_text("This server keeps it: it counts against the Media space, not against its uploader's share.");
+                    }
                     if item.members_only() {
                         ui.label(RichText::new("Members only").size(theme.font_size_small).color(theme.info()));
                     }
@@ -197,6 +235,9 @@ pub(crate) fn draw_tile(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, 
             });
         });
 }
+
+/// The badge of an item the server keeps.
+pub(crate) const KEPT_BADGE: &str = "Kept by the server";
 
 /// The picture area: what [`show_of`] decided.
 fn draw_face(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &Item, show: &Show) {
@@ -211,11 +252,14 @@ fn draw_face(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &Item
         painter.galley(egui::pos2(rect.left() + 8.0, top), galley, color);
         painter.text(egui::pos2(rect.left() + 8.0, rect.bottom() - 10.0 - theme.font_size_small / 2.0), egui::Align2::LEFT_CENTER, second, font.clone(), theme.text_muted());
     };
+    let wrapped = |text: &str, color: Color32| {
+        let galley = painter.layout(text.to_string(), font.clone(), color, width - 16.0);
+        painter.galley(egui::pos2(rect.left() + 8.0, rect.center().y - galley.size().y / 2.0), galley, color);
+    };
     let key = cache_key(state, item);
     match show {
         Show::Hidden(line) => {
-            let galley = painter.layout(line.clone(), font.clone(), theme.text_muted(), width - 16.0);
-            painter.galley(egui::pos2(rect.left() + 8.0, rect.center().y - galley.size().y / 2.0), galley, theme.text_muted());
+            wrapped(line, theme.text_muted());
             return;
         }
         Show::Label(names) => {
@@ -229,6 +273,12 @@ fn draw_face(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &Item
             two_lines(&first, CLICK_TO_SHOW, theme.text_primary());
             if resp.clicked() {
                 state.image_cache.allow(&key);
+            }
+        }
+        Show::TooBig => {
+            wrapped(&too_big_words(item), theme.text_secondary());
+            if resp.clicked() {
+                super::open::open_card(state, item);
             }
         }
         Show::Load => {
@@ -250,7 +300,11 @@ fn draw_face(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &Item
                         }
                     }
                     ImageStatus::Failed(_) => {
-                        painter.text(rect.center(), egui::Align2::CENTER_CENTER, "This picture could not be loaded.", font, theme.danger());
+                        wrapped(COULD_NOT_LOAD, theme.danger());
+                        if resp.clicked() {
+                            state.image_cache.retry(&key);
+                            return;
+                        }
                     }
                     ImageStatus::Fetching | ImageStatus::Idle => {
                         painter.text(rect.center(), egui::Align2::CENTER_CENTER, "Loading...", font, theme.text_muted());
@@ -284,70 +338,80 @@ fn paint_mark(painter: &egui::Painter, rect: egui::Rect, mark: &str, color: Colo
     }
 }
 
-/// A tile's buttons: Pick or Unpick (not on your own), Remove (yours, or any as an admin),
-/// Feature or Unfeature (admins), Report (not on your own).
+/// The item's reference for an action, or None with the reason said on the page.
+fn reference_or_say(state: &mut GuiState, item: &Item) -> Option<api::ItemRef> {
+    match item.reference() {
+        Ok(r) => Some(r),
+        Err(words) => {
+            state.media.status = words;
+            None
+        }
+    }
+}
+
+/// A tile's buttons: Pick or Unpick (not on your own), Remove (yours, or any as an admin), Feature
+/// or Unfeature (admins), Keep on the server or Stop keeping (admins and moderators), Report (not
+/// on your own).
 fn draw_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, item: &Item) {
     if !signed_in_here(state) {
         return;
     }
     let own = item.uploader_key == state.profile_public_key;
     let admin = super::is_admin(state);
-    let picked = state.media.picked.contains(&item.id);
+    let keeper = super::may_keep(state);
     let small = widgets::ButtonSize::Small;
     ui.horizontal_wrapped(|ui| {
         if !own {
+            let picked = item.picked_by_me;
             let label = if picked { "Unpick" } else { "Pick" };
             let tip = if picked { "Take it off your Picks." } else { "Add it to your Picks, the list on your profile. It stays theirs, credited to them." };
             if widgets::Button::secondary(label).size(small).tooltip(tip).show(ui, theme) {
-                if let Some(signer) = signer_or_say(state) {
-                    spawn(state, Job::Pick { id: item.id, on: !picked }, api::pick_request(&signer, item.id, !picked));
+                if let (Some(r), Some(signer)) = (reference_or_say(state, item), signer_or_say(state)) {
+                    spawn(state, Job::Pick { id: item.id, on: !picked }, api::pick_request(&signer, &r, !picked));
                 }
             }
         }
-        if own || admin {
-            if widgets::Button::danger("Remove").size(small).show(ui, theme) {
-                state.media.confirm_remove = Some(item.clone());
-            }
+        if (own || admin) && widgets::Button::danger("Remove").size(small).show(ui, theme) {
+            state.media.confirm_remove = Some(item.clone());
         }
         if admin {
             let label = if item.featured { "Unfeature" } else { "Feature" };
             if widgets::Button::secondary(label).size(small).tooltip("Featured items lead the Media page.").show(ui, theme) {
-                if let Some(signer) = signer_or_say(state) {
-                    spawn(state, Job::Feature { id: item.id, on: !item.featured }, api::feature_request(&signer, item.id, !item.featured));
+                if let (Some(r), Some(signer)) = (reference_or_say(state, item), signer_or_say(state)) {
+                    spawn(state, Job::Feature { id: item.id, on: !item.featured }, api::feature_request(&signer, &r, !item.featured));
+                }
+            }
+        }
+        if keeper {
+            let (label, tip) = if item.kept { (STOP_KEEPING, STOP_KEEPING_TIP) } else { (KEEP, KEEP_TIP) };
+            if widgets::Button::secondary(label).size(small).tooltip(tip).show(ui, theme) {
+                if let (Some(r), Some(signer)) = (reference_or_say(state, item), signer_or_say(state)) {
+                    spawn(state, Job::Keep { id: item.id, on: !item.kept, from_admin: false }, api::keep_request(&signer, &r, !item.kept));
                 }
             }
         }
         if !own && widgets::Button::ghost("Report").size(small).tooltip(REPORT_TIP).show(ui, theme) {
-            report(state, item);
+            crate::engine::report::open_for_media(state, item);
         }
     });
 }
 
+/// Keep on the server, and what it does.
+pub(crate) const KEEP: &str = "Keep on the server";
+pub(crate) const KEEP_TIP: &str = "This server carries it from now on: it stops counting against its uploader's share, so they can upload something new. It still counts against the Media space.";
+pub(crate) const STOP_KEEPING: &str = "Stop keeping";
+pub(crate) const STOP_KEEPING_TIP: &str = "It counts against its uploader's share again, even past it; nothing is deleted for that.";
+
 /// What Report says when hovered.
 pub(crate) const REPORT_TIP: &str = "Tell this server's admins and moderators about this item. They are not told who reported it.";
 
-/// The note a Media report carries: which item it is about. The relay's reports know no Media
-/// item yet (its contexts are dm, post, group and profile), so the report is about the person
-/// who put it there, and this note names the item for the admins.
-pub(crate) fn report_note(item: &Item) -> String {
-    format!("About their Media item \"{}\" (number {}, {}).", item.display_title(), item.id, item.url)
-}
-
-/// Open the existing report dialog about `item`'s uploader, its note naming the item.
-pub(crate) fn report(state: &mut GuiState, item: &Item) {
-    crate::engine::report::open_for_person(state, &item.uploader_key);
-    if let Some(d) = state.reports.dialog.as_mut() {
-        d.note = report_note(item);
-    }
-}
-
-/// The Remove confirmation, naming what happens to the file.
+/// The Remove confirmation, naming what happens to the file (the item's own `keeps_file`).
 pub(crate) fn draw_confirm_remove(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let Some(item) = state.media.confirm_remove.clone() else { return };
     let mut open = true;
     let mut confirmed = false;
     let mut cancelled = false;
-    let words = api::remove_words(&item, state.media.uploaded_here.contains(&item.id), state.media.put_here.contains(&item.id));
+    let words = api::remove_words(&item);
     widgets::dialog(ctx, theme, "media_confirm_remove", "Remove from Media", &mut open, |ui| {
         ui.label(RichText::new(item.display_title()).size(theme.font_size_body).color(theme.text_primary()).strong());
         ui.label(RichText::new(words).size(theme.font_size_body).color(theme.text_secondary()));
@@ -358,8 +422,8 @@ pub(crate) fn draw_confirm_remove(ctx: &egui::Context, theme: &Theme, state: &mu
         });
     });
     if confirmed {
-        if let Some(signer) = signer_or_say(state) {
-            let req = api::remove_request(&signer, &api::RemoveTarget::Item(item.id));
+        if let (Some(r), Some(signer)) = (reference_or_say(state, &item), signer_or_say(state)) {
+            let req = api::remove_request(&signer, &api::RemoveTarget::Item(r));
             spawn(state, Job::Remove { id: Some(item.id), from_admin: false }, req);
         }
     }

@@ -30,6 +30,10 @@ use crate::net::group_report::{self as gr, Dest, GroupTarget};
 use crate::net::outside_help;
 use crate::net::report::{ReportContext, FILES_NOT_INCLUDED, MAX_EVIDENCE_ITEMS, MAX_NOTE_CHARS, REASONS_FILE};
 
+/// What a Media item's report says about its evidence (the relay's A5).
+pub(crate) const MEDIA_EVIDENCE_LINE: &str =
+    "The server finds this item by its number and keeps a pointer to it for its admins and moderators: its title, kind, labels and who may see it, never the file itself.";
+
 /// What a Report button says when hovered.
 pub(crate) const REPORT_TIP: &str =
     "Tell this server's admins and moderators about them, with the messages you choose. They are not told who reported them.";
@@ -143,6 +147,13 @@ pub(crate) fn draw_report_dialog(ctx: &egui::Context, theme: &Theme, state: &mut
                         ui.label(RichText::new(one_line(&d.fixed_text, 300)).color(theme.text_secondary()));
                     });
                     widgets::body_hint(ui, theme, "The server already has this post, signed by its author, and finds it from its author and time.");
+                }
+                Some(ReportContext::Media) => {
+                    widgets::subsection_label(ui, theme, "The Media item");
+                    widgets::card(ui, theme, |ui| {
+                        ui.label(RichText::new(one_line(&d.fixed_text, 300)).color(theme.text_secondary()));
+                    });
+                    widgets::body_hint(ui, theme, MEDIA_EVIDENCE_LINE);
                 }
                 Some(ReportContext::Group) if d.fixed.is_none() => {
                     widgets::subsection_label(ui, theme, "The message");

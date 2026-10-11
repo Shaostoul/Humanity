@@ -81,28 +81,56 @@ pub(crate) struct AttachJob {
     pub limit: u64,
 }
 
-/// The most a file sent to `to` may be: in a private conversation `ATTACH_MAX_BYTES` (the
-/// receiving side decrypts in memory and refuses more); in a server's room, the person's own limit
-/// there (`server_limit`, from the server), or `ATTACH_MAX_BYTES` until the server has said.
-pub(crate) fn limit_for(server_limit: Option<u64>, to: Destination) -> u64 {
-    if to.encrypts_file() {
-        // Never over the person's own limit either, when the server allows them less.
-        server_limit.map_or(ATTACH_MAX_BYTES, |mine| mine.min(ATTACH_MAX_BYTES))
-    } else {
-        server_limit.unwrap_or(ATTACH_MAX_BYTES)
+/// The largest private file any server can allow, in bytes: the top of the range the relay keeps
+/// a role's `max_private_file_mb` in, read through the relay's own `with_limits_in_range` (the
+/// module naming the number is the relay's own). It is also what the receiving side will open
+/// (chat/attach_view.rs `max_ciphertext`): no path sends past it whatever a job says.
+pub(crate) fn private_ceiling() -> u64 {
+    let top = crate::relay::storage::RoleDef { max_private_file_mb: i64::MAX, ..Default::default() }.with_limits_in_range();
+    top.max_private_file_mb.max(1) as u64 * 1024 * 1024
+}
+
+/// The person's own upload limits on the server they are on, from their own entry of its peer
+/// list: `room` (`upload_limit_mb`, a file in a server's room) and `private` (`private_limit_mb`,
+/// a file in a private conversation, 2026-10-11). Each None until the server has said.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Limits {
+    pub room: Option<u64>,
+    pub private: Option<u64>,
+}
+
+impl Limits {
+    pub(crate) fn of(state: &GuiState) -> Self {
+        Limits { room: state.upload_limit_bytes, private: state.private_limit_bytes }
     }
 }
 
-/// Keep this person's own upload limit from their entry of the server's `peer_list`
-/// (`upload_limit_mb`, 2026-10-10). Another entry, or none, changes nothing.
+/// The most a file sent to `to` may be: in a private conversation the person's own private-file
+/// limit on this server (the relay holds an encrypted upload to it, not to the room limit); in a
+/// server's room, their own limit there. Either is `ATTACH_MAX_BYTES` until the server has said.
+pub(crate) fn limit_for(limits: Limits, to: Destination) -> u64 {
+    if to.encrypts_file() {
+        limits.private.unwrap_or(ATTACH_MAX_BYTES).min(private_ceiling())
+    } else {
+        limits.room.unwrap_or(ATTACH_MAX_BYTES)
+    }
+}
+
+/// Keep this person's own upload limits from their entry of the server's `peer_list`
+/// (`upload_limit_mb`, 2026-10-10; `private_limit_mb`, 2026-10-11). Another entry, or none,
+/// changes nothing.
 pub(crate) fn note_upload_limit(state: &mut GuiState, peer_list: &serde_json::Value) {
     let me = state.profile_public_key.clone();
     let mine = peer_list
         .get("peers")
         .and_then(|p| p.as_array())
         .and_then(|peers| peers.iter().find(|p| p.get("public_key").and_then(|k| k.as_str()) == Some(me.as_str())));
-    if let Some(mb) = mine.and_then(|p| p.get("upload_limit_mb")).and_then(|v| v.as_u64()) {
-        state.upload_limit_bytes = Some(mb.saturating_mul(1024 * 1024));
+    let mb_at = |field: &str| mine.and_then(|p| p.get(field)).and_then(|v| v.as_u64()).map(|mb| mb.saturating_mul(1024 * 1024));
+    if let Some(bytes) = mb_at("upload_limit_mb") {
+        state.upload_limit_bytes = Some(bytes);
+    }
+    if let Some(bytes) = mb_at("private_limit_mb") {
+        state.private_limit_bytes = Some(bytes);
     }
     // And this connection's upload token, kept with the server it is for.
     if let Some(token) = mine.and_then(|p| p.get("upload_token")).and_then(|v| v.as_str()).filter(|t| !t.is_empty()) {
@@ -124,7 +152,7 @@ pub(crate) fn too_large_line(filename: &str, len: u64, limit: u64, to: Destinati
     let mb = |b: u64| b as f64 / (1024.0 * 1024.0);
     if to.encrypts_file() {
         format!(
-            "{filename} is {:.1} MB. Files in a private conversation can be up to {} MB for now; a bigger one can go in a server's room, where your limit may be higher.",
+            "{filename} is {:.1} MB. Files in a private conversation can be up to {} MB for you on this server; an admin can raise it in Server Settings > Roles.",
             mb(len),
             limit / (1024 * 1024)
         )
@@ -153,7 +181,7 @@ pub(crate) fn attach_job(state: &mut GuiState, filename: &str, bytes: Vec<u8>) -
         state.ws_status = NOT_SIGNED_IN_YET.to_string();
         return None;
     };
-    let limit = limit_for(state.upload_limit_bytes, to);
+    let limit = limit_for(Limits::of(state), to);
     if bytes.len() as u64 > limit {
         log::warn!("Attach rejected: {filename} is {} bytes (max {limit})", bytes.len());
         state.ws_status = too_large_line(filename, bytes.len() as u64, limit, to);
@@ -182,7 +210,7 @@ pub(crate) fn attach_job(state: &mut GuiState, filename: &str, bytes: Vec<u8>) -
 pub(crate) fn paste_job(state: &GuiState, png: Vec<u8>) -> Option<AttachJob> {
     let to = Destination::of(&state.chat_active_channel);
     let token = upload_token_here(state)?;
-    let limit = limit_for(state.upload_limit_bytes, to);
+    let limit = limit_for(Limits::of(state), to);
     if png.len() as u64 > limit {
         log::warn!("Paste rejected: the image is {} bytes (max {limit})", png.len());
         return None;
@@ -208,8 +236,8 @@ where
     U: FnOnce(&str, &str, Upload) -> Result<String, String>,
 {
     // Checked again here, so no path can reach an upload past the cap (a private conversation's
-    // never past ATTACH_MAX_BYTES, whatever the job says).
-    let limit = job.limit.min(limit_for(Some(job.limit), job.to));
+    // never past `private_ceiling`, what the receiving side opens, whatever the job says).
+    let limit = if job.to.encrypts_file() { job.limit.min(private_ceiling()) } else { job.limit };
     if job.bytes.len() as u64 > limit {
         return Err(format!("the file is {} bytes, over the {limit} limit", job.bytes.len()));
     }
@@ -339,41 +367,28 @@ pub(crate) fn upload_file_blocking_ext(
     share: bool,
     encrypted: bool,
 ) -> Result<String, String> {
-    upload_flagged(server_url, token, filename, mime, bytes, UploadFlags { share, encrypted, media: false })
+    upload_flagged(server_url, token, filename, mime, bytes, UploadFlags { share, encrypted })
 }
 
 /// Which shelf an upload goes on, as `/api/upload`'s query names it (relay/media.rs
-/// `upload_shelf`): `share` the public Shared Files list, `encrypted` an opaque private file,
-/// `media` the Media page's own space (docs/design/media-showcase.md), where it waits to be
-/// published with `POST /api/media`. None of them: a chat file.
+/// `upload_shelf`): `share` the public Shared Files list, `encrypted` an opaque private file.
+/// Neither: a chat file. (A Media file goes in pieces instead: media/resumable.rs.)
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct UploadFlags {
     pub share: bool,
     pub encrypted: bool,
-    pub media: bool,
 }
 
-/// The query of one upload: this connection's token, then each flag that is set. A Media file
-/// is never sent encrypted (the relay refuses that pair: a private file can never be shown).
+/// The query of one upload: this connection's token, then each flag that is set.
 pub(crate) fn upload_query(token: &str, flags: UploadFlags) -> String {
     let mut q = format!("token={token}");
     if flags.share {
         q.push_str("&share=1");
     }
-    if flags.encrypted && !flags.media {
+    if flags.encrypted {
         q.push_str("&encrypted=1");
     }
-    if flags.media {
-        q.push_str("&media=1");
-    }
     q
-}
-
-/// Upload a file for the Media page (`?media=1`): it counts against the Media space and the
-/// person's share of it from the moment it is stored, and is deleted after a day unless it is
-/// published (the relay's F1). Returns its `/uploads/...` address. Runs on a worker thread.
-pub(crate) fn upload_media_file_blocking(server_url: &str, token: &str, filename: &str, mime: &str, bytes: Vec<u8>) -> Result<String, String> {
-    upload_flagged(server_url, token, filename, mime, bytes, UploadFlags { media: true, ..Default::default() })
 }
 
 /// The one multipart upload every kind of file goes through, with `flags` in its query.
@@ -418,9 +433,10 @@ fn upload_flagged(server_url: &str, token: &str, filename: &str, mime: &str, byt
 
 /// What a failed upload says to the person: the server's own words when it refused (its body:
 /// "File too large ... your limit on this server is N MB", "Your role isn't allowed ..."), or that
-/// the server could not be reached.
+/// the server could not be reached. Never the upload token: ureq's error text holds the whole
+/// address, `?token=` and all, and these words reach the screen and run.log (`hide_token`).
 pub(crate) fn upload_error_words(e: ureq::Error) -> String {
-    match e {
+    let words = match e {
         ureq::Error::Status(code, resp) => {
             let text = resp.into_string().unwrap_or_default();
             let text = text.trim();
@@ -431,7 +447,8 @@ pub(crate) fn upload_error_words(e: ureq::Error) -> String {
             }
         }
         other => format!("the server could not be reached ({other})."),
-    }
+    };
+    crate::gui::widgets::image_cache::hide_token(&words)
 }
 
 #[cfg(test)]

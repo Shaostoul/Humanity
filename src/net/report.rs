@@ -99,6 +99,9 @@ pub enum ReportContext {
     Group,
     /// A person's entry in the member list or their profile: no evidence.
     Profile,
+    /// An item on the Media page (2026-10-11, the relay's A5): evidence is the item by its number,
+    /// which the server looks up and keeps as a pointer, never the file.
+    Media,
 }
 
 impl ReportContext {
@@ -108,6 +111,7 @@ impl ReportContext {
             ReportContext::Post => "post",
             ReportContext::Group => "group",
             ReportContext::Profile => "profile",
+            ReportContext::Media => "media",
         }
     }
 }
@@ -122,6 +126,9 @@ pub enum Evidence {
     Post { from: String, timestamp: u64 },
     /// A P2P group message: kept unproven, and labelled so.
     GroupText { from: String, ts: u64, text: String },
+    /// A Media item by its number: the relay checks it is the reported person's and keeps its
+    /// title, kind, labels and visibility (never the file).
+    Media { id: i64 },
 }
 
 impl Evidence {
@@ -149,6 +156,10 @@ impl Evidence {
                 m.insert("kind".into(), Value::from("group_text"));
                 m.insert("text".into(), Value::from(text.as_str()));
                 m.insert("ts".into(), Value::from(*ts));
+            }
+            Evidence::Media { id } => {
+                m.insert("id".into(), Value::from(*id));
+                m.insert("kind".into(), Value::from("media"));
             }
         }
         Value::Object(m)
@@ -402,6 +413,33 @@ pub struct ListedEvidence {
     pub ts: u64,
     pub text: String,
     pub checked: bool,
+    /// A Media item's (`kind` "media", the relay's A5): its number, and, when the server checked
+    /// it, its title, its kind (picture, video, model, file), its labels and its visibility.
+    pub media: Option<ListedMedia>,
+}
+
+/// A Media item as a report keeps it: a pointer, never the file.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ListedMedia {
+    pub id: i64,
+    pub title: String,
+    pub kind: String,
+    pub labels: Vec<String>,
+    pub visibility: String,
+}
+
+/// Read a Media evidence item's pointer, if it is one.
+fn listed_media(e: &Value) -> Option<ListedMedia> {
+    if e.get("kind").and_then(|k| k.as_str()) != Some("media") {
+        return None;
+    }
+    Some(ListedMedia {
+        id: e.get("id").and_then(|x| x.as_i64())?,
+        title: str_at(e, "title"),
+        kind: str_at(e, "media_kind"),
+        labels: e.get("labels").and_then(|l| l.as_array()).map(|a| a.iter().filter_map(|x| x.as_str()).map(str::to_string).collect()).unwrap_or_default(),
+        visibility: str_at(e, "visibility"),
+    })
 }
 
 /// One report as the relay lists it (the relay half of step D fixed these names). `id` is kept
@@ -481,6 +519,7 @@ pub fn parse_reports(frame: &Value) -> Vec<ListedReport> {
                             ts: e.get("ts").or_else(|| e.get("timestamp")).and_then(|x| x.as_u64()).unwrap_or(0),
                             text: str_at(e, "text"),
                             checked: e.get("checked").and_then(|c| c.as_bool()).unwrap_or(false),
+                            media: listed_media(e),
                         })
                         .collect()
                 })
@@ -521,6 +560,7 @@ pub fn badge(e: &ListedEvidence, name: &str) -> String {
     match (e.checked, e.kind.as_str()) {
         (true, "dm") => format!("Signature checked: sent by {name} to the reporter"),
         (true, "post") => format!("Found on this server: posted by {name}"),
+        (true, "media") => format!("Found on this server: put on its Media page by {name}"),
         (true, _) => "Checked by the server".to_string(),
         (false, _) => "Not proven".to_string(),
     }

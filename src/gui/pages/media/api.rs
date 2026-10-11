@@ -1,17 +1,23 @@
 //! The Media page's requests to its server (the relay half is src/relay/media.rs; the design is
-//! docs/design/media-showcase.md, "Increment 2, exact"), and the server's answers read into
-//! plain structs.
+//! docs/design/media-showcase.md, "Increment 2, exact" and "Increment 2 follow-ups, exact"), and
+//! the server's answers read into plain structs.
 //!
 //! EVERY WRITE IS SIGNED the way the relay checks it (`check_signed`): Dilithium over
 //! `purpose\ntimestamp`, the same signature every other identity-keyed request of the desktop
 //! makes (`net::identity::pq_sign_chat`), with a purpose that names its target, so a signature is
 //! good for one thing (the relay's F5): `media_publish:<file name>`, `media_remove:<item id or
 //! file name>`, `media_pick:<item id>` (pick and unpick), `media_feature:<item id>`,
-//! `media_suggestions:<suggestion id>:<accept|decline>` and `media_categories:<BLAKE3 hex of the
-//! category list exactly as sent>`. A new suggestion keeps plain `media_suggest`, and the reads
-//! keep `media_list`, `media_usage` and `media_suggestions`. The relay also refuses a (key,
-//! purpose, timestamp) it has seen, so every signature here takes a fresh timestamp from
-//! [`next_timestamp`], which never hands out the same millisecond twice.
+//! `media_keep:<item id>:<on|off>`, `media_suggestions:<suggestion id>:<accept|decline>` and
+//! `media_categories:<BLAKE3 hex of the category list exactly as sent>`. A new suggestion keeps
+//! plain `media_suggest`, and the reads keep `media_list`, `media_usage`, `media_mine` and
+//! `media_suggestions`. The relay also refuses a (key, purpose, timestamp) it has seen, so every
+//! signature here takes a fresh timestamp from [`next_timestamp`], which never hands out the same
+//! millisecond twice.
+//!
+//! EVERY ACTION ON AN ITEM NAMES ITS FILE TOO (the relay's W5, 2026-10-11): remove by number,
+//! pick, unpick, feature and keep carry `filename`, the item's stored file name, so a tile left on
+//! a page that is out of date never acts on another item. The relay answers 409 when the number
+//! and the name do not belong together; the page then loads the list again and says so.
 //!
 //! A signed read goes in a POST body, never a URL: a Dilithium key and signature make an address
 //! of about 10 KB, which a proxy refuses (relay/media.rs).
@@ -39,12 +45,16 @@ pub struct Category {
     pub description: String,
 }
 
+/// The general category's number (the relay's `GENERAL_CATEGORY_ID`): an item published with no
+/// category goes there, and it can be renamed but never removed.
+pub const GENERAL_CATEGORY: i64 = 1;
+
 /// One Media item as every route gives it (relay/media.rs `item_json`).
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Item {
     pub id: i64,
     /// `/uploads/<name>` while public; `/api/media/file/<id>` for a members-only item, fetched
-    /// with this session's upload token.
+    /// with this session's upload token in a header ([`TOKEN_HEADER`]).
     pub url: String,
     pub title: String,
     pub description: String,
@@ -64,10 +74,22 @@ pub struct Item {
     pub uploader_key: String,
     pub uploader_name: String,
     pub picks: i64,
-    /// Where the upload was before it went on Media (0 a chat file, 1 Shared Files, 2 uploaded
-    /// for Media), when the server says. The relay does not send it today, so the Remove
-    /// confirmation works it out where it can ([`remove_words`]).
-    pub from_shelf: Option<i64>,
+    /// The uploader's own name for the file ('' when the server does not know it): what Download
+    /// saves it as.
+    pub original_name: String,
+    /// What Remove does to its file (the relay's A1): true gives it back where it came from (a
+    /// chat or Shared Files), false deletes it (it was uploaded for Media).
+    pub keeps_file: bool,
+    /// The server keeps it (A7): an admin or moderator chose to carry it, so it counts against the
+    /// Media space and not its uploader's share.
+    pub kept: bool,
+    /// In the members' view, whether this person picked it (A3). The public view has no such
+    /// field, and nothing there can be picked.
+    pub picked_by_me: bool,
+    /// The item's stored file name, which every action on it names (W5): the `filename` the server
+    /// sends, else the last part of its `/uploads/` address. Empty when the server says neither
+    /// (a members-only item from a server that does not send it).
+    pub stored: String,
 }
 
 fn s(v: &Value, k: &str) -> String {
@@ -78,14 +100,21 @@ fn i(v: &Value, k: &str) -> i64 {
     v.get(k).and_then(Value::as_i64).unwrap_or(0)
 }
 
+fn b(v: &Value, k: &str) -> bool {
+    v.get(k).and_then(Value::as_bool).unwrap_or(false)
+}
+
 impl Item {
     /// The item in `v`, or None when it has no id.
     pub fn from_json(v: &Value) -> Option<Item> {
         let id = v.get("id").and_then(Value::as_i64)?;
         let category = v.get("category").cloned().unwrap_or(Value::Null);
+        let url = s(v, "url");
+        let named = s(v, "filename");
+        let stored = if named.trim().is_empty() { upload_name_of(&url).unwrap_or("").to_string() } else { bare_name(&named).to_string() };
         Some(Item {
             id,
-            url: s(v, "url"),
+            url,
             title: s(v, "title"),
             description: s(v, "description"),
             category_id: i(&category, "id"),
@@ -97,7 +126,7 @@ impl Item {
                 .map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect())
                 .unwrap_or_default(),
             visibility: s(v, "visibility"),
-            featured: v.get("featured").and_then(Value::as_bool).unwrap_or(false),
+            featured: b(v, "featured"),
             size_bytes: i(v, "size_bytes"),
             views: i(v, "views"),
             uploaded_at: i(v, "uploaded_at"),
@@ -105,7 +134,11 @@ impl Item {
             uploader_key: s(v, "uploader_key"),
             uploader_name: s(v, "uploader_name"),
             picks: i(v, "picks"),
-            from_shelf: v.get("from_shelf").and_then(Value::as_i64),
+            original_name: s(v, "original_name"),
+            keeps_file: b(v, "keeps_file"),
+            kept: b(v, "kept"),
+            picked_by_me: b(v, "picked_by_me"),
+            stored,
         })
     }
 
@@ -116,13 +149,25 @@ impl Item {
 
     /// The stored file name of a public item (the last part of its `/uploads/` address).
     pub fn upload_name(&self) -> Option<&str> {
-        self.url.strip_prefix("/uploads/").filter(|n| !n.is_empty() && !n.contains('/'))
+        upload_name_of(&self.url)
     }
 
-    /// What the tile calls it: its title, else its file name, else the name of its kind.
+    /// What every action on this item names: its number and its stored file name (W5). Refused
+    /// with [`NO_FILE_NAME`] when the server did not say the name, rather than sent without it.
+    pub fn reference(&self) -> Result<ItemRef, String> {
+        if self.stored.trim().is_empty() {
+            return Err(NO_FILE_NAME.to_string());
+        }
+        Ok(ItemRef { id: self.id, filename: self.stored.clone() })
+    }
+
+    /// What the tile calls it: its title, else the uploader's own name for the file, else its
+    /// stored name, else the name of its kind.
     pub fn display_title(&self) -> String {
         if !self.title.trim().is_empty() {
             self.title.trim().to_string()
+        } else if !self.original_name.trim().is_empty() {
+            self.original_name.trim().to_string()
         } else if let Some(name) = self.upload_name() {
             name.to_string()
         } else {
@@ -140,7 +185,23 @@ impl Item {
     }
 }
 
-/// The list's answer (`GET /api/media`, `POST /api/media/list`, `GET /api/media/picks/{key}`).
+/// The last part of a `/uploads/` address.
+fn upload_name_of(url: &str) -> Option<&str> {
+    url.strip_prefix("/uploads/").filter(|n| !n.is_empty() && !n.contains('/'))
+}
+
+/// What is said when an item's file name is not known, so nothing can be asked of it.
+pub const NO_FILE_NAME: &str =
+    "The server did not say this item's file name, so this app cannot act on it safely. Load the page again; if it stays like this, the server needs updating.";
+
+/// What an action on an item names: its number and its stored file name (the relay's W5).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ItemRef {
+    pub id: i64,
+    pub filename: String,
+}
+
+/// The list's answer (`GET /api/media`, `POST /api/media/list`, `POST /api/media/picks`).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ListAnswer {
     pub items: Vec<Item>,
@@ -179,14 +240,19 @@ pub fn parse_labels(v: Option<&Value>) -> Vec<Label> {
         .unwrap_or_default()
 }
 
+/// Read a list of items under `key` of `v`.
+fn items_at(v: &Value, key: &str) -> Vec<Item> {
+    v.get(key).and_then(Value::as_array).map(|a| a.iter().filter_map(Item::from_json).collect()).unwrap_or_default()
+}
+
 /// Read the list's answer.
 pub fn parse_list(v: &Value) -> ListAnswer {
     ListAnswer {
-        items: v.get("items").and_then(Value::as_array).map(|a| a.iter().filter_map(Item::from_json).collect()).unwrap_or_default(),
+        items: items_at(v, "items"),
         next_before: v.get("next_before").and_then(Value::as_i64),
-        members_view: v.get("members_view").and_then(Value::as_bool).unwrap_or(false),
+        members_view: b(v, "members_view"),
         media_visibility: s(v, "media_visibility"),
-        members_only_for_you: v.get("members_only_for_you").and_then(Value::as_bool).unwrap_or(false),
+        members_only_for_you: b(v, "members_only_for_you"),
         categories: parse_categories(v.get("categories")),
         labels: parse_labels(v.get("labels")),
     }
@@ -231,10 +297,41 @@ pub fn parse_suggestions(v: &Value) -> Vec<Suggestion> {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Waiting {
     pub filename: String,
+    /// The uploader's own name for the file ('' when unknown).
+    pub original_name: String,
     pub uploader_name: String,
     pub size_bytes: i64,
     pub uploaded_at: i64,
     pub expires_at: i64,
+}
+
+impl Waiting {
+    /// The name shown for it: the uploader's own, else the stored one.
+    pub fn shown_name(&self) -> &str {
+        if self.original_name.trim().is_empty() {
+            &self.filename
+        } else {
+            self.original_name.trim()
+        }
+    }
+}
+
+fn parse_waiting(v: Option<&Value>) -> Vec<Waiting> {
+    v.and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .map(|w| Waiting {
+                    filename: s(w, "filename"),
+                    original_name: s(w, "original_name"),
+                    uploader_name: s(w, "uploader_name"),
+                    size_bytes: i(w, "size_bytes"),
+                    uploaded_at: i(w, "uploaded_at"),
+                    expires_at: i(w, "expires_at"),
+                })
+                .filter(|w| !w.filename.is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// The admins' numbers (`POST /api/media/usage`).
@@ -243,6 +340,8 @@ pub struct Usage {
     pub used_bytes: i64,
     pub budget_bytes: i64,
     pub per_person_bytes: i64,
+    /// What the items the server keeps take (A7): inside `used_bytes`, in nobody's share.
+    pub kept_bytes: i64,
     pub items: i64,
     pub largest: Vec<Item>,
     pub oldest: Vec<Item>,
@@ -252,30 +351,53 @@ pub struct Usage {
 
 /// Read the usage answer.
 pub fn parse_usage(v: &Value) -> Usage {
-    let items = |k: &str| v.get(k).and_then(Value::as_array).map(|a| a.iter().filter_map(Item::from_json).collect()).unwrap_or_default();
     Usage {
         used_bytes: i(v, "used_bytes"),
         budget_bytes: i(v, "budget_bytes"),
         per_person_bytes: i(v, "per_person_bytes"),
+        kept_bytes: i(v, "kept_bytes"),
         items: i(v, "items"),
-        largest: items("largest"),
-        oldest: items("oldest"),
-        least_viewed: items("least_viewed"),
-        waiting: v
-            .get("waiting")
-            .and_then(Value::as_array)
-            .map(|a| {
-                a.iter()
-                    .map(|w| Waiting {
-                        filename: s(w, "filename"),
-                        uploader_name: s(w, "uploader_name"),
-                        size_bytes: i(w, "size_bytes"),
-                        uploaded_at: i(w, "uploaded_at"),
-                        expires_at: i(w, "expires_at"),
-                    })
-                    .collect()
-            })
-            .unwrap_or_default(),
+        largest: items_at(v, "largest"),
+        oldest: items_at(v, "oldest"),
+        least_viewed: items_at(v, "least_viewed"),
+        waiting: parse_waiting(v.get("waiting")),
+    }
+}
+
+/// A member's own use of the Media space (`POST /api/media/mine`, the relay's A4), counted the
+/// way the server's own room check counts it.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Mine {
+    /// Their items and their uploads waiting to be published (items the server keeps left out).
+    pub used_bytes: i64,
+    pub share_bytes: i64,
+    /// What the whole Media space has left.
+    pub budget_left_bytes: i64,
+    /// Their resumable uploads still arriving, which a new upload's start counts as used.
+    pub in_progress_bytes: i64,
+    /// The largest Media file their role may send; 0 for none (up to the share).
+    pub file_limit_bytes: i64,
+    /// Their uploads waiting to be published.
+    pub waiting: Vec<Waiting>,
+}
+
+impl Mine {
+    /// What is left of their share for a new upload: the share less what is used and what is
+    /// still arriving.
+    pub fn share_left(&self) -> i64 {
+        (self.share_bytes - self.used_bytes - self.in_progress_bytes).max(0)
+    }
+}
+
+/// Read the `mine` answer.
+pub fn parse_mine(v: &Value) -> Mine {
+    Mine {
+        used_bytes: i(v, "used_bytes"),
+        share_bytes: i(v, "share_bytes"),
+        budget_left_bytes: i(v, "budget_left_bytes"),
+        in_progress_bytes: i(v, "in_progress_bytes"),
+        file_limit_bytes: i(v, "file_limit_bytes"),
+        waiting: parse_waiting(v.get("waiting")),
     }
 }
 
@@ -297,52 +419,60 @@ pub fn meter_words(used: i64, budget: i64) -> String {
     format!("{} of {} used", size_words(used), size_words(budget))
 }
 
-/// The line above the Add to Media form: "You have 412 MB of your 512 MB left".
-pub fn share_line(used: i64, share: i64) -> String {
-    format!("You have {} of your {} left", size_words((share - used).max(0)), size_words(share))
+/// The meter's line for the items the server keeps.
+pub fn kept_words(kept: i64) -> String {
+    format!("{} of it kept by the server: counted in the Media space, in nobody's share.", size_words(kept))
 }
 
-/// Why a file of `len` bytes cannot go: over the person's upload limit on this server
-/// (`role_limit`), or over what is left of their Media share (`left`, when known). None when
-/// it fits. Checked before a byte is sent, so an upload over the share never starts.
-pub fn room_problem(len: u64, role_limit: Option<u64>, left: Option<i64>) -> Option<String> {
-    if let Some(limit) = role_limit.filter(|l| len > *l) {
+/// The line above the Add to Media form: "You have 412 MB of your 512 MB left".
+pub fn share_line(mine: &Mine) -> String {
+    format!("You have {} of your {} left", size_words(mine.share_left()), size_words(mine.share_bytes))
+}
+
+/// Why a Media file of `len` bytes cannot go, from the server's own numbers (`mine`, when known):
+/// over the largest Media file the person's role may send, over what is left of their share, or
+/// over what is left of the whole Media space. None when it fits, or when the numbers are not
+/// known yet (the server checks them itself at the start). Checked before a byte is sent, so an
+/// upload over the share never starts.
+pub fn room_problem(len: u64, mine: Option<&Mine>) -> Option<String> {
+    let mine = mine?;
+    let len = len as i64;
+    if mine.file_limit_bytes > 0 && len > mine.file_limit_bytes {
         return Some(format!(
-            "This file is {}, over your {} upload limit on this server. An admin can raise it in Server Settings > Roles.",
-            size_words(len as i64),
-            size_words(limit as i64)
+            "This file is {}, over the largest Media file your role may send on this server ({}). An admin can raise it in Server Settings > Roles.",
+            size_words(len),
+            size_words(mine.file_limit_bytes)
         ));
     }
-    match left {
-        Some(left) if len as i64 > left => Some(format!(
+    if len > mine.share_left() {
+        return Some(format!(
             "This file is {}, more than the {} left of your share of this server's Media space, so it was not uploaded. Remove one of your items, or ask an admin to raise each person's share.",
-            size_words(len as i64),
-            size_words(left.max(0))
-        )),
-        _ => None,
+            size_words(len),
+            size_words(mine.share_left())
+        ));
     }
+    if len > mine.budget_left_bytes.max(0) {
+        return Some(format!(
+            "This file is {}, more than the {} left in this server's whole Media space, so it was not uploaded. Its admins can make more room.",
+            size_words(len),
+            size_words(mine.budget_left_bytes)
+        ));
+    }
+    None
 }
 
 /// The confirmation when a Remove takes the file away with the item.
 pub const REMOVE_DELETES: &str = "Remove from Media and delete the file.";
 /// The confirmation when the file stays where it came from (a chat or Shared Files).
 pub const REMOVE_KEEPS: &str = "Remove from Media. The file stays where it came from.";
-/// The confirmation when this app cannot tell which (the server does not say where an item's
-/// file came from; see `Item::from_shelf`).
-pub const REMOVE_EITHER: &str =
-    "Remove from Media. A file uploaded for Media is deleted with it; a file from a chat or Shared Files stays where it came from.";
 
-/// What Remove does to `item`'s file, in the words the confirmation shows. Only a file uploaded
-/// for Media loses its file (the relay's F2). A members-only item was uploaded for Media (only
-/// such a file can be members only, `was_public`); `uploaded_here` and `put_here` are this
-/// session's own Add to Media and Put on Media items.
-pub fn remove_words(item: &Item, uploaded_here: bool, put_here: bool) -> &'static str {
-    match item.from_shelf {
-        Some(2) => REMOVE_DELETES,
-        Some(_) => REMOVE_KEEPS,
-        None if item.members_only() || uploaded_here => REMOVE_DELETES,
-        None if put_here => REMOVE_KEEPS,
-        None => REMOVE_EITHER,
+/// What Remove does to `item`'s file, in the words the confirmation shows: the item's own
+/// `keeps_file`, which the server sends with every item (A1).
+pub fn remove_words(item: &Item) -> &'static str {
+    if item.keeps_file {
+        REMOVE_KEEPS
+    } else {
+        REMOVE_DELETES
     }
 }
 
@@ -406,7 +536,7 @@ pub fn signer_of(state: &crate::gui::GuiState) -> Option<Signer> {
     Some(Signer::new(&state.profile_public_key, seed))
 }
 
-/// The purpose of a signed list read.
+/// The purpose of a signed list read (and of a signed picks read).
 pub const LIST: &str = "media_list";
 /// The purpose of a new category suggestion.
 pub const SUGGEST: &str = "media_suggest";
@@ -414,6 +544,8 @@ pub const SUGGEST: &str = "media_suggest";
 pub const SUGGESTIONS: &str = "media_suggestions";
 /// The purpose of the admins' usage read.
 pub const USAGE: &str = "media_usage";
+/// The purpose of a member's own use read.
+pub const MINE: &str = "media_mine";
 
 /// The stored file name a request names: as given, or the last part of its `/uploads/` address.
 pub fn bare_name(given: &str) -> &str {
@@ -424,16 +556,17 @@ pub fn publish_purpose(filename: &str) -> String {
     format!("media_publish:{}", bare_name(filename))
 }
 
-/// What a removal names: a published item, or a Media upload waiting to be published.
+/// What a removal names: a published item (its number and file), or a Media upload waiting to be
+/// published (its file name alone).
 #[derive(Debug, Clone, PartialEq)]
 pub enum RemoveTarget {
-    Item(i64),
+    Item(ItemRef),
     Upload(String),
 }
 
 pub fn remove_purpose(target: &RemoveTarget) -> String {
     match target {
-        RemoveTarget::Item(id) => format!("media_remove:{id}"),
+        RemoveTarget::Item(r) => format!("media_remove:{}", r.id),
         RemoveTarget::Upload(name) => format!("media_remove:{}", bare_name(name)),
     }
 }
@@ -444,6 +577,10 @@ pub fn pick_purpose(id: i64) -> String {
 
 pub fn feature_purpose(id: i64) -> String {
     format!("media_feature:{id}")
+}
+
+pub fn keep_purpose(id: i64, kept: bool) -> String {
+    format!("media_keep:{id}:{}", if kept { "on" } else { "off" })
 }
 
 pub fn decide_purpose(id: i64, accept: bool) -> String {
@@ -493,18 +630,22 @@ pub struct Filters {
     pub q: String,
     /// The person's own picks instead of everything.
     pub my_picks: bool,
+    /// Only the featured items (the strip at the top, A2).
+    pub featured: bool,
+    /// One item by its number (the Reports page opens a reported item this way, A5).
+    pub id: Option<i64>,
 }
 
 /// How many items a page of the list asks for.
 pub const PAGE: i64 = 48;
 
 /// The list request for `filters`, one page older than `before`. With a signer (someone signed
-/// in to this server) it is the signed POST, which gets members-only items to a member; without
-/// one, the public GET. "My picks" is `GET /api/media/picks/{me}`, which takes a signature only
-/// in its address, too long for a proxy, so it is always the public view of them.
+/// in to this server) it is a signed POST, which gets members-only items to a member: the list,
+/// or for "My picks" the person's picks (`POST /api/media/picks` with `of`, A3). Without one, the
+/// public GET of either.
 pub fn list_request(filters: &Filters, before: Option<i64>, limit: i64, me: &str, signer: Option<&Signer>) -> Request {
     let q = filters.q.trim();
-    if filters.my_picks || signer.is_none() {
+    let Some(signer) = signer else {
         let mut query = vec![format!("limit={limit}")];
         if let Some(c) = filters.category {
             query.push(format!("category={c}"));
@@ -518,13 +659,18 @@ pub fn list_request(filters: &Filters, before: Option<i64>, limit: i64, me: &str
         if !q.is_empty() {
             query.push(format!("q={}", enc(q)));
         }
+        if filters.featured {
+            query.push("featured=1".to_string());
+        }
+        if let Some(id) = filters.id {
+            query.push(format!("id={id}"));
+        }
         if let Some(b) = before {
             query.push(format!("before={b}"));
         }
         let path = if filters.my_picks { format!("/api/media/picks/{}", enc(me)) } else { "/api/media".to_string() };
         return Request { method: Method::Get, path: format!("{path}?{}", query.join("&")), body: None, purpose: None };
-    }
-    let signer = signer.expect("checked above");
+    };
     let mut body = json!({ "limit": limit });
     if let Some(c) = filters.category {
         body["category"] = json!(c);
@@ -538,8 +684,18 @@ pub fn list_request(filters: &Filters, before: Option<i64>, limit: i64, me: &str
     if !q.is_empty() {
         body["q"] = json!(q);
     }
+    if filters.featured {
+        body["featured"] = json!(1);
+    }
+    if let Some(id) = filters.id {
+        body["id"] = json!(id);
+    }
     if let Some(b) = before {
         body["before"] = json!(b);
+    }
+    if filters.my_picks {
+        body["of"] = json!(me);
+        return post("/api/media/picks", LIST.to_string(), signer.signed(LIST, body));
     }
     post("/api/media/list", LIST.to_string(), signer.signed(LIST, body))
 }
@@ -551,7 +707,8 @@ pub struct PublishFields {
     pub filename: String,
     pub title: String,
     pub description: String,
-    pub category_id: Option<i64>,
+    /// Always sent: the category the form shows ([`GENERAL_CATEGORY`] when none was chosen).
+    pub category_id: i64,
     pub labels: Vec<String>,
     /// `public` or `members`.
     pub visibility: String,
@@ -560,38 +717,44 @@ pub struct PublishFields {
 pub fn publish_request(signer: &Signer, f: &PublishFields) -> Request {
     let name = bare_name(&f.filename).to_string();
     let purpose = publish_purpose(&name);
-    let mut body = json!({
+    let body = json!({
         "filename": name,
         "title": f.title.trim(),
         "description": f.description.trim(),
+        "category_id": f.category_id,
         "labels": f.labels,
         "visibility": if f.visibility == "members" { "members" } else { "public" },
     });
-    if let Some(c) = f.category_id {
-        body["category_id"] = json!(c);
-    }
     post("/api/media", purpose.clone(), signer.signed(&purpose, body))
 }
 
 pub fn remove_request(signer: &Signer, target: &RemoveTarget) -> Request {
     let purpose = remove_purpose(target);
     let body = match target {
-        RemoveTarget::Item(id) => json!({ "id": id }),
+        RemoveTarget::Item(r) => json!({ "id": r.id, "filename": bare_name(&r.filename) }),
         RemoveTarget::Upload(name) => json!({ "filename": bare_name(name) }),
     };
     post("/api/media/remove", purpose.clone(), signer.signed(&purpose, body))
 }
 
-/// Pick (`on`) or unpick item `id`: one purpose for both, as the relay checks it.
-pub fn pick_request(signer: &Signer, id: i64, on: bool) -> Request {
-    let purpose = pick_purpose(id);
+/// Pick (`on`) or unpick an item: one purpose for both, as the relay checks it.
+pub fn pick_request(signer: &Signer, item: &ItemRef, on: bool) -> Request {
+    let purpose = pick_purpose(item.id);
     let path = if on { "/api/media/pick" } else { "/api/media/unpick" };
-    post(path, purpose.clone(), signer.signed(&purpose, json!({ "id": id })))
+    post(path, purpose.clone(), signer.signed(&purpose, json!({ "id": item.id, "filename": bare_name(&item.filename) })))
 }
 
-pub fn feature_request(signer: &Signer, id: i64, featured: bool) -> Request {
-    let purpose = feature_purpose(id);
-    post("/api/media/feature", purpose.clone(), signer.signed(&purpose, json!({ "id": id, "featured": featured })))
+pub fn feature_request(signer: &Signer, item: &ItemRef, featured: bool) -> Request {
+    let purpose = feature_purpose(item.id);
+    let body = json!({ "id": item.id, "filename": bare_name(&item.filename), "featured": featured });
+    post("/api/media/feature", purpose.clone(), signer.signed(&purpose, body))
+}
+
+/// Keep an item on the server (`kept`) or stop keeping it (A7): admins and moderators.
+pub fn keep_request(signer: &Signer, item: &ItemRef, kept: bool) -> Request {
+    let purpose = keep_purpose(item.id, kept);
+    let body = json!({ "id": item.id, "filename": bare_name(&item.filename), "kept": kept });
+    post("/api/media/keep", purpose.clone(), signer.signed(&purpose, body))
 }
 
 pub fn suggest_request(signer: &Signer, name: &str, note: &str) -> Request {
@@ -609,6 +772,11 @@ pub fn decide_request(signer: &Signer, id: i64, accept: bool) -> Request {
 
 pub fn usage_request(signer: &Signer) -> Request {
     post("/api/media/usage", USAGE.to_string(), signer.signed(USAGE, json!({})))
+}
+
+/// A member's own use of the Media space, waiting uploads included (A4).
+pub fn mine_request(signer: &Signer) -> Request {
+    post("/api/media/mine", MINE.to_string(), signer.signed(MINE, json!({})))
 }
 
 /// One category in an admin's whole list: an existing one by id, or a new one with none.
@@ -644,12 +812,16 @@ pub fn categories_request(signer: &Signer, list: &[CategoryEdit]) -> Request {
     Request { method: Method::Post, path: "/api/media/categories".to_string(), body: Some(body), purpose: Some(purpose) }
 }
 
+/// The header the members' file route takes this session's upload token in (the relay's W3b).
+/// The token is never put in an address: an address ends up in error words, logs and lists.
+pub const TOKEN_HEADER: &str = "X-Upload-Token";
+
 /// Where a Media item's file is fetched from: its public address, or, for a members-only item,
-/// the members' file route with this session's upload token (`token`).
-pub fn file_url(base: &str, item: &Item, token: Option<&str>) -> String {
+/// the members' file route, asked with [`token_header`].
+pub fn file_url(base: &str, item: &Item) -> String {
     let base = base.trim_end_matches('/');
     if item.members_only() {
-        format!("{base}/api/media/file/{}?token={}", item.id, enc(token.unwrap_or("")))
+        format!("{base}/api/media/file/{}", item.id)
     } else if item.url.starts_with("http://") || item.url.starts_with("https://") {
         item.url.clone()
     } else {
@@ -657,11 +829,43 @@ pub fn file_url(base: &str, item: &Item, token: Option<&str>) -> String {
     }
 }
 
+/// The header a fetch of `item`'s file carries: this session's upload token for a members-only
+/// item, nothing for a public one.
+pub fn token_header(item: &Item, token: Option<&str>) -> Option<(&'static str, String)> {
+    item.members_only().then(|| (TOKEN_HEADER, token.unwrap_or("").to_string()))
+}
+
 // ── Sending ────────────────────────────────────────────────────────────────────────────────
 
+/// A request the server refused or could not be sent: the HTTP status (0 when the server could
+/// not be reached) and the words to show, with any upload token taken out of them.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Refusal {
+    pub status: u16,
+    pub words: String,
+}
+
+impl Refusal {
+    pub fn new(status: u16, words: impl Into<String>) -> Self {
+        Refusal { status, words: crate::gui::widgets::image_cache::hide_token(&words.into()) }
+    }
+
+    /// The relay's 409 to an action on an item: the tile was out of date (W5).
+    pub fn stale(&self) -> bool {
+        self.status == 409
+    }
+}
+
+impl std::fmt::Display for Refusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.words)
+    }
+}
+
 /// Send `req` to the server at `base` (an `https://host` address) and read its JSON answer. A
-/// refusal comes back as the server's own words. Blocking: call it on a worker thread.
-pub fn send(base: &str, req: &Request) -> Result<Value, String> {
+/// refusal comes back with its status and the server's own words. Blocking: call it on a worker
+/// thread.
+pub fn send(base: &str, req: &Request) -> Result<Value, Refusal> {
     let url = format!("{}{}", base.trim_end_matches('/'), req.path);
     let result = match (req.method, req.body.as_deref()) {
         (Method::Get, _) => ureq::get(&url).timeout(std::time::Duration::from_secs(30)).call(),
@@ -675,15 +879,15 @@ pub fn send(base: &str, req: &Request) -> Result<Value, String> {
             let text = r.into_string().unwrap_or_default();
             let text = text.trim();
             if text.is_empty() || text.starts_with('<') {
-                format!("The server refused it ({code}).")
+                Refusal::new(code, format!("The server refused it ({code})."))
             } else {
-                text.to_string()
+                Refusal::new(code, text)
             }
         }
-        other => format!("The server could not be reached ({other})."),
+        other => Refusal::new(0, format!("The server could not be reached ({other}).")),
     })?;
-    let text = resp.into_string().map_err(|e| format!("The answer could not be read ({e})."))?;
-    serde_json::from_str(&text).map_err(|e| format!("The answer was not understood ({e})."))
+    let text = resp.into_string().map_err(|e| Refusal::new(0, format!("The answer could not be read ({e}).")))?;
+    serde_json::from_str(&text).map_err(|e| Refusal::new(0, format!("The answer was not understood ({e}).")))
 }
 
 #[cfg(test)]

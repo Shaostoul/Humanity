@@ -15278,6 +15278,8 @@ mod native_app {
 
                                 // Drain any freshly-decoded chat images into egui textures.
                                 state.gui_state.image_cache.poll(ctx);
+                                // An Add to Media upload carries on whatever page is open.
+                                crate::gui::pages::media::poll_upload(ctx, &mut state.gui_state);
 
                                 // Universal help modal overlay — draws on top of any page
                                 // when state.gui_state.active_help_topic is Some.

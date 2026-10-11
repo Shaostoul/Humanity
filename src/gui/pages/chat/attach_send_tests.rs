@@ -224,46 +224,57 @@ fn a_private_files_marker_is_sent_only_to_the_conversation_it_was_made_for() {
     assert_eq!(gs.chat_messages[1].content, FAKE_URL);
 }
 
-/// EACH FILE GETS THE LIMIT FOR WHERE IT IS GOING (2026-10-10): in a server's room the person's
-/// own limit on that server, from their entry of its peer list (only theirs is read); until the
-/// server has said, 6 MB; in a private conversation 6 MB whatever the server allows (the
-/// receiving side decrypts in memory). A file over the limit is refused with a line saying why.
+/// EACH FILE GETS THE LIMIT FOR WHERE IT IS GOING: in a server's room the person's own limit on
+/// that server (`upload_limit_mb`, 2026-10-10); in a private conversation their own private-file
+/// limit there (`private_limit_mb`, 2026-10-11: the role's `max_private_file_mb`, which the relay
+/// holds an encrypted upload to instead of the room limit); each 6 MB until the server has said,
+/// and a private one never past what the receiving side opens. Only their own entry of the peer
+/// list is read. A file over the limit is refused with a line saying why.
 /// Seen red 2026-10-10 with `limit_for` returning the server's limit for private conversations
-/// too: "a DM keeps the 6 MB limit".
+/// too: "a DM keeps the 6 MB limit". Seen red 2026-10-11 with `note_upload_limit` not reading
+/// `private_limit_mb`: "my private limit is read from my own entry" (left: None / right:
+/// Some(20971520)).
 #[test]
 fn each_file_gets_the_limit_for_where_it_is_going() {
     let mb = 1024 * 1024;
-    assert_eq!(limit_for(Some(300 * mb), Destination::Public), 300 * mb, "a room: my limit on this server");
-    assert_eq!(limit_for(None, Destination::Public), ATTACH_MAX_BYTES, "until the server says, the fallback");
+    let room = |n: u64| Limits { room: Some(n * mb), private: None };
+    assert_eq!(limit_for(room(300), Destination::Public), 300 * mb, "a room: my limit on this server");
+    assert_eq!(limit_for(Limits::default(), Destination::Public), ATTACH_MAX_BYTES, "until the server says, the fallback");
     for private in [Destination::DirectMessage, Destination::Group, Destination::Scratchpad] {
-        assert_eq!(limit_for(Some(300 * mb), private), ATTACH_MAX_BYTES, "a DM keeps the 6 MB limit ({private:?})");
+        assert_eq!(limit_for(room(300), private), ATTACH_MAX_BYTES, "until the server says, 6 MB in a DM ({private:?})");
+        let both = Limits { room: Some(2 * mb), private: Some(20 * mb) };
+        assert_eq!(limit_for(both, private), 20 * mb, "the private limit, not the room's ({private:?})");
     }
+    let huge = Limits { room: None, private: Some(1 << 50) };
+    assert_eq!(limit_for(huge, Destination::DirectMessage), private_ceiling(), "never past what the receiving side opens");
+    assert_eq!(private_ceiling(), 1024 * mb, "the relay's own top of the range, 1 GB");
 
     let mut gs = viewing("general");
     gs.profile_public_key = "me".into();
     note_upload_limit(&mut gs, &serde_json::json!({ "type": "peer_list", "peers": [
-        { "public_key": "someone", "upload_limit_mb": 999 },
-        { "public_key": "me", "upload_limit_mb": 300 },
+        { "public_key": "someone", "upload_limit_mb": 999, "private_limit_mb": 999 },
+        { "public_key": "me", "upload_limit_mb": 300, "private_limit_mb": 20 },
     ] }));
     assert_eq!(gs.upload_limit_bytes, Some(300 * mb), "only my own entry is read");
+    assert_eq!(gs.private_limit_bytes, Some(20 * mb), "my private limit is read from my own entry");
     note_upload_limit(&mut gs, &serde_json::json!({ "type": "peer_list", "peers": [{ "public_key": "me" }] }));
-    assert_eq!(gs.upload_limit_bytes, Some(300 * mb), "a list without it changes nothing");
+    assert_eq!((gs.upload_limit_bytes, gs.private_limit_bytes), (Some(300 * mb), Some(20 * mb)), "a list without them changes nothing");
 
     let ten_mb = vec![7u8; 10 * mb as usize];
     assert!(attach_job(&mut gs, "clip.mp4", ten_mb.clone()).is_some(), "a 10 MB video goes into a room");
     let mut dm = viewing("dm:abc");
     dm.upload_limit_bytes = Some(300 * mb);
-    assert!(attach_job(&mut dm, "clip.mp4", ten_mb).is_none(), "but not into a DM");
+    assert!(attach_job(&mut dm, "clip.mp4", ten_mb.clone()).is_none(), "but not into a DM before the server says");
     assert!(dm.ws_status.contains("private conversation can be up to 6 MB"), "and the person is told why: {}", dm.ws_status);
+    dm.private_limit_bytes = Some(20 * mb);
+    assert!(attach_job(&mut dm, "clip.mp4", ten_mb).is_some(), "and into a DM once the server allows 20 MB");
 }
 
 /// EVERY UPLOAD CARRIES THIS CONNECTION'S TOKEN, never the person's key (the upload review,
 /// 2026-10-11: a bare `?key=` proved nothing about the sender). The token comes from this person's
 /// own entry of the server's peer list and is kept with that server; on another server, or before
-/// it arrives, nothing is sent and the person is told why. And a private conversation's limit is
-/// never over the person's own limit. Seen red 2026-10-11 two ways: with `upload_token_here`
-/// ignoring the server, "on another server the token does not count"; with `limit_for` giving
-/// private conversations 6 MB whatever the role, "never over my own 2 MB".
+/// it arrives, nothing is sent and the person is told why. Seen red 2026-10-11 with
+/// `upload_token_here` ignoring the server: "on another server the token does not count".
 #[test]
 fn every_upload_carries_this_connections_token_for_this_server() {
     let mut gs = viewing("general");
@@ -280,8 +291,25 @@ fn every_upload_carries_this_connections_token_for_this_server() {
     assert_eq!(upload_token_here(&gs), None, "on another server the token does not count");
     assert!(attach_job(&mut gs, "note.txt", b"hello".to_vec()).is_none(), "so nothing is sent there");
     assert_eq!(gs.ws_status, NOT_SIGNED_IN_YET, "and the person is told why");
+}
 
-    let mb = 1024 * 1024;
-    assert_eq!(limit_for(Some(2 * mb), Destination::DirectMessage), 2 * mb, "never over my own 2 MB");
-    assert_eq!(limit_for(Some(300 * mb), Destination::DirectMessage), ATTACH_MAX_BYTES, "and never over 6 MB");
+/// NO UPLOAD TOKEN IN WHAT A FAILED UPLOAD SAYS (the 2026-10-11 review of the Media page): an
+/// upload carries the token in its address (`?token=`), ureq writes the whole address into its
+/// error words, and those words reach the screen and run.log. The words keep the address, with
+/// the token taken out.
+/// Seen red 2026-10-11 with `upload_error_words` returning ureq's words as they were: "the token
+/// is not in the words" (they held "token=SECRET-TOKEN-1234&encrypted=1").
+#[test]
+fn no_upload_token_in_what_a_failed_upload_says() {
+    // A closed port on this machine: the upload fails at once with a transport error.
+    let err = upload_file_blocking_ext("http://127.0.0.1:9", "SECRET-TOKEN-1234", "a.png", "image/png", vec![1, 2, 3], false, true)
+        .expect_err("nothing listens there");
+    assert!(!err.contains("SECRET-TOKEN-1234"), "the token is not in the words: {err}");
+    assert!(err.contains("could not be reached"), "they still say what went wrong: {err}");
+    // And the rule itself, on the shapes it meets: a query, a token last, two in one text.
+    use crate::gui::widgets::image_cache::hide_token;
+    assert_eq!(hide_token("http://h/api/upload?token=abc&share=1"), "http://h/api/upload?token=(hidden)&share=1");
+    assert_eq!(hide_token("GET http://h/x?token=abc: refused"), "GET http://h/x?token=(hidden) refused");
+    assert_eq!(hide_token("token=a token=b"), "token=(hidden) token=(hidden)");
+    assert_eq!(hide_token("no secrets here"), "no secrets here");
 }

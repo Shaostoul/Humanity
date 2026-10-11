@@ -27,6 +27,7 @@ fn context_words(context: &str) -> &str {
         "post" => "Public post",
         "group" => "Group message",
         "profile" => "Profile",
+        "media" => "Media item",
         other => other,
     }
 }
@@ -50,7 +51,7 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, is_ad
     widgets::body_hint(
         ui,
         theme,
-        "Reports members sent from a message, a conversation or a person's profile, with the evidence they chose. \
+        "Reports members sent from a message, a conversation, a person's profile or a Media item, with the evidence they chose. \
          The person reported is never told who reported them, and moderators see the reporter only as a member.",
     );
     ui.add_space(theme.spacing_xs);
@@ -155,8 +156,14 @@ fn draw_report(
     if r.evidence.is_empty() {
         widgets::body_hint(ui, theme, "No messages attached.");
     }
+    let mut open_media = None;
     for e in &r.evidence {
-        draw_evidence(ui, theme, state, r, e, &target_name);
+        if let Some(id) = draw_evidence(ui, theme, state, r, e, &target_name) {
+            open_media = Some(id);
+        }
+    }
+    if let Some(id) = open_media {
+        crate::gui::pages::media::open_item_by_number(state, id);
     }
 
     if r.is_decided() {
@@ -205,10 +212,13 @@ fn draw_report(
 }
 
 /// One piece of evidence: its badge, then its text, and for a direct message the time it
-/// carries (the sender's own clock).
-fn draw_evidence(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, r: &ListedReport, e: &ListedEvidence, target_name: &str) {
+/// carries (the sender's own clock). A Media item (the relay's A5) shows what the server kept of
+/// it (its title, kind, labels and who may see it) and an Open that shows the item on the Media
+/// page: returns its number when Open was pressed.
+fn draw_evidence(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, r: &ListedReport, e: &ListedEvidence, target_name: &str) -> Option<i64> {
     let sender = if e.from == r.target || e.from.is_empty() { target_name.to_string() } else { name_for(state, &e.from, "") };
     let badge = report::badge(e, &sender);
+    let mut open = None;
     widgets::card(ui, theme, |ui| {
         ui.set_min_width(ui.available_width());
         ui.label(
@@ -217,6 +227,15 @@ fn draw_evidence(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, r: &ListedR
                 .color(if e.checked { theme.success() } else { theme.warning() })
                 .strong(),
         );
+        if let Some(m) = e.media.as_ref() {
+            // Label ids by the names the Media page knows them by, when it has them.
+            let label_name = |id: &str| state.media.list.labels.iter().find(|l| l.id == id).map(|l| l.label.clone()).unwrap_or_else(|| id.to_string());
+            ui.label(RichText::new(media_words(m, label_name)).color(theme.text_primary()));
+            if widgets::Button::secondary(OPEN_ITEM).tooltip("Show this item on the Media page, if it is still there.").show(ui, theme) {
+                open = Some(m.id);
+            }
+            return;
+        }
         let text = if e.text.is_empty() { "(no text kept)".to_string() } else { crate::engine::dm::dm_preview_text(&e.text) };
         ui.label(RichText::new(text).color(theme.text_primary()));
         if e.ts > 0 {
@@ -225,4 +244,79 @@ fn draw_evidence(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, r: &ListedR
             ui.label(RichText::new(format!("{when}{clock}")).size(theme.font_size_small).color(theme.text_muted()));
         }
     });
+    open
+}
+
+/// The button on a reported Media item (the list's own Open tab is another thing).
+pub(crate) const OPEN_ITEM: &str = "Open the item";
+
+/// A reported Media item in words: "Media item 12: "Dusk", a video, labelled Flashing lights,
+/// members only". Only its number when the server could not check it.
+pub(crate) fn media_words(m: &report::ListedMedia, label_name: impl Fn(&str) -> String) -> String {
+    let mut words = format!("Media item {}", m.id);
+    if !m.title.trim().is_empty() {
+        words.push_str(&format!(": \"{}\"", m.title.trim()));
+    }
+    if !m.kind.is_empty() {
+        let kind = crate::gui::pages::media::kinds::one_name(&m.kind).to_lowercase();
+        let article = if kind.starts_with(['a', 'e', 'i', 'o', 'u']) { "an" } else { "a" };
+        words.push_str(&format!(", {article} {kind}"));
+    }
+    if !m.labels.is_empty() {
+        let names: Vec<String> = m.labels.iter().map(|l| label_name(l)).collect();
+        words.push_str(&format!(", labelled {}", names.join(", ")));
+    }
+    match m.visibility.as_str() {
+        "members" => words.push_str(", members only"),
+        "public" => words.push_str(", public"),
+        _ => {}
+    }
+    words
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gui::screen_surface::find_text_in_shapes;
+
+    /// A REPORTED MEDIA ITEM SHOWS WHAT THE SERVER KEPT OF IT, WITH AN OPEN THAT SHOWS IT (the
+    /// relay's A5): its number, title, kind, labels and who may see it, the checked badge, and Open,
+    /// which takes the admin to the Media page showing that item alone (`id=<n>` on the list).
+    ///
+    /// Seen red 2026-10-11 with media evidence drawn as text like any other: "the item is
+    /// described" (the card said "(no text kept)").
+    #[test]
+    fn a_reported_media_item_is_described_and_opens() {
+        crate::config::keep_saves_off_disk();
+        let ctx = egui::Context::default();
+        crate::gui::fonts::install_font_fallbacks(&ctx);
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        let mut state = GuiState::default();
+        state.server_url = "http://127.0.0.1:9".into();
+        state.profile_public_key = "me".into();
+        state.reports.reasons_error = Some("not needed here".into());
+        state.reports.list = report::parse_reports(&serde_json::json!({ "type": "reports", "state": "open", "items": [{
+            "id": 5, "target": "k2", "target_name": "Ann", "context": "media", "reason": "spam", "reason_label": "Spam", "created_at": 1,
+            "evidence": [{"kind": "media", "id": 12, "uploader": "k2", "title": "Dusk", "media_kind": "video", "labels": ["flashing"], "visibility": "members", "checked": true}]
+        }] }));
+        let run = |state: &mut GuiState, events: Vec<egui::Event>| {
+            let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1100.0, 1400.0))), events, ..Default::default() };
+            ctx.run(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| draw(ui, &theme, state, true));
+            })
+        };
+        let out = run(&mut state, Vec::new());
+        let out = if find_text_in_shapes(&out.shapes, "Media item 12").is_some() { out } else { run(&mut state, Vec::new()) };
+        assert!(find_text_in_shapes(&out.shapes, "Media item 12: \"Dusk\", a video, labelled flashing, members only").is_some(), "the item is described");
+        assert!(find_text_in_shapes(&out.shapes, "Found on this server: put on its Media page by Ann").is_some(), "with the checked badge");
+        assert!(find_text_in_shapes(&out.shapes, "Media item").is_some_and(|f| f.matches >= 2), "and the context says Media item");
+        let open = find_text_in_shapes(&out.shapes, OPEN_ITEM).expect("an Open the item").rect.center();
+        let m = egui::Modifiers::default();
+        run(&mut state, vec![egui::Event::PointerMoved(open)]);
+        run(&mut state, vec![egui::Event::PointerButton { pos: open, button: egui::PointerButton::Primary, pressed: true, modifiers: m }]);
+        run(&mut state, vec![egui::Event::PointerButton { pos: open, button: egui::PointerButton::Primary, pressed: false, modifiers: m }]);
+        assert_eq!(state.active_page, crate::gui::GuiPage::Media, "Open goes to the Media page");
+        assert_eq!(state.media.filters.id, Some(12), "showing that item alone");
+    }
 }

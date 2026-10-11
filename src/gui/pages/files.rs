@@ -54,6 +54,10 @@ pub struct FileBrowserState {
     pub tree: widgets::TreeState,
 
     // ── Shared-files manager (v0.710): add/remove files on the SERVER ──
+    /// The server (normalised address) the shared list below is for: on another, it is forgotten
+    /// and asked for again ([`forget_other_server`]), so a row of one server's list can never be
+    /// put on another's Media page.
+    pub shared_server: String,
     /// The server's public shared-file library (GET /api/uploads).
     pub shared_files: Vec<SharedFileRow>,
     /// One-line feedback for the shared section (uploading/removing/errors).
@@ -79,6 +83,7 @@ impl Default for FileBrowserState {
             status_message: String::new(),
             initialized: false,
             tree: widgets::TreeState::new(),
+            shared_server: String::new(),
             shared_files: Vec::new(),
             shared_status: String::new(),
             shared_loaded: false,
@@ -87,6 +92,22 @@ impl Default for FileBrowserState {
             shared_picker: None,
         }
     }
+}
+
+/// The shared list belongs to one server: when the app is on another (`here`, normalised), the
+/// list, its status and any answer still on its way are forgotten, and the list is asked for
+/// again. Before 2026-10-11 the old server's rows stayed, and Put on Media on one of them named a
+/// file the new server does not have.
+pub(crate) fn forget_other_server(fs: &mut FileBrowserState, here: &str) {
+    if fs.shared_server == here {
+        return;
+    }
+    fs.shared_server = here.to_string();
+    fs.shared_files.clear();
+    fs.shared_status.clear();
+    fs.shared_loaded = false;
+    fs.shared_list_rx = None;
+    fs.shared_action_rx = None;
 }
 
 /// Blocking GET /api/uploads -> the shared-file library. Runs on a worker
@@ -278,9 +299,11 @@ fn draw_shared_files_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
         .map(|u| u.role == "admin")
         .unwrap_or(false);
 
-    // Drain in-flight results + auto-load once.
+    // Drain in-flight results + auto-load once (once per server: another server's list goes).
     let mut trigger_refresh = false;
+    let here = crate::gui::pages::chat::norm_server_url(&server);
     with_state(|fs| {
+        forget_other_server(fs, &here);
         if !fs.shared_loaded && fs.shared_list_rx.is_none() && !server.is_empty() {
             trigger_refresh = true;
         }
@@ -645,4 +668,31 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 });
             });
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// ANOTHER SERVER'S SHARED LIST IS FORGOTTEN (the 2026-10-11 review of the Media page): on a
+    /// server switch the list, its status and any answer still on its way go, and it is asked for
+    /// again; the same server keeps what it has.
+    ///
+    /// Seen red 2026-10-11 with `forget_other_server` keeping the rows: "the old server's rows go"
+    /// (left: 1 / right: 0).
+    #[test]
+    fn another_servers_shared_list_is_forgotten() {
+        let mut fs = FileBrowserState::default();
+        forget_other_server(&mut fs, "https://a.example");
+        fs.shared_files.push(SharedFileRow { url: "/uploads/1_a.glb".into(), name: "a.glb".into(), size_bytes: 1, uploader_key: "me".into(), uploader_name: "Me".into() });
+        fs.shared_loaded = true;
+        fs.shared_status = "1 file(s) on the server".into();
+        forget_other_server(&mut fs, "https://a.example");
+        assert_eq!(fs.shared_files.len(), 1, "the same server keeps its list");
+        let (_tx, rx) = std::sync::mpsc::channel();
+        fs.shared_list_rx = Some(rx);
+        forget_other_server(&mut fs, "https://b.example");
+        assert_eq!(fs.shared_files.len(), 0, "the old server's rows go");
+        assert!(!fs.shared_loaded && fs.shared_list_rx.is_none() && fs.shared_status.is_empty(), "and it is asked for again, its old answer dropped");
+    }
 }
