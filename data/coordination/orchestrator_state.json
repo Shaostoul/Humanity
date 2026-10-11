@@ -866,6 +866,11 @@
       "date": "2026-10-11",
       "decision": "After v0.1484.0 went live (a bare-key upload now 400 on the live server), the nginx /api/upload block was set back to 1025m with request buffering off (from /root/humanity.nginx.1025m-2026-10-11; the 6m version kept at /root/humanity.nginx.6m-2026-10-11). nginx -t passed; an 8 MB probe reaches the relay (403 bad token). Media increment 1 merged locally (680d2587d), reviewed, and its fixes (F1 to F7 in docs/design/media-showcase.md) are with an agent; not pushed.",
       "why": "The operator approved the 1 GB edge limit; it was paused only while the bare-key hole was open."
+    },
+    {
+      "date": "2026-10-11",
+      "decision": "Media: merged the increment 1 review fixes (F1 to F7). Decided the fix agent's open question: a file already public (a chat upload, shelf 0, or a Shared Files one, shelf 1) goes on Media as public only; members only is refused at publish and at the switch (storage::media::was_public, ALREADY_PUBLIC), so only files uploaded for Media can be members only. Wrote \"Resumable uploads, exact\" (Media only, 8 MiB pieces, sessions per key not per token, blake3 check at finish, reconciliation at start, 24 h idle expiry) and logged BUG-190 (phone videos keep their location). Dispatched four worktree agents: increment 2 desktop, increment 2 web, resumable relay, MP4 metadata strip (new file only; wiring after the resumable merge).",
+      "why": "Moving an already-public file into the members folder broke the chat message that carries it and could not take back copies already saved, so members only would promise what it cannot keep. The design doc had promised resumable uploads with increment 2 but the increment 2 spec did not include them. The video location gap is live today for every phone video sent to a public channel."
     }
   ],
   "active_scopes_to_avoid": [
