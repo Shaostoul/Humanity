@@ -2,8 +2,10 @@
 //! videos, 3D models and files people on this server chose to show, in a grid. The web mirrors
 //! it (web/pages/media.html); the relay half is src/relay/media.rs.
 //!
-//! What it has, top to bottom: an offer to carry on an upload a restart cut off; the person's own
-//! uploads waiting to be published; a strip of every featured item (`featured=1`); the filters
+//! What it has, top to bottom: the uploads in progress, each with its bar (media/uploading.rs),
+//! and the offers to carry on ones a restart or a switch cut off; the person's own uploads waiting
+//! to be published, and the server's unfinished ones this app lost track of (media/waiting.rs); a
+//! strip of every featured item (`featured=1`); the filters
 //! (category, kind, person, My picks, a search over titles); the grid, newest first, with More for
 //! the next page; each tile's actions (Pick, Remove, Feature, Keep on the server, Report). Add to
 //! Media (a file from this computer, sent in pieces: media/resumable.rs) and Put on Media (a file
@@ -22,8 +24,8 @@
 //! setup hides labelled items altogether.
 //!
 //! THE STATE BELONGS TO ONE SERVER AND ONE PERSON: when either changes (another server, or a
-//! restore from a recovery phrase), all of it is forgotten ([`sync_server`]), except an upload that
-//! did not finish, which says which server and person it is for.
+//! restore from a recovery phrase), all of it is forgotten ([`sync_server`]), except the records of
+//! uploads that did not finish, which say which server and person each is for.
 //!
 //! NOTHING RUNS ON THE FRAME BUT DRAWING: every request goes to a worker thread ([`spawn`]) and
 //! its answer is read on a later frame ([`poll`]), the way the Files and Watch pages do theirs.
@@ -31,7 +33,6 @@
 //! publish carry on while the person is elsewhere. The admins' half (the Media section of Server
 //! Settings, server_settings/media.rs) uses the same jobs.
 
-use std::collections::HashSet;
 use std::sync::mpsc::Receiver;
 
 use egui::RichText;
@@ -47,14 +48,24 @@ pub(crate) mod api;
 pub(crate) mod kinds;
 /// Add to Media's upload, in pieces (and kept in the config when a restart cuts it off).
 pub(crate) mod resumable;
+/// How the upload waits: Pause, allowances, back-off, a server error that will not clear.
+pub(crate) mod upload_waits;
+/// The page's handle on one running upload: its phase, bar and words.
+pub(crate) mod upload_run;
 /// The grid's tiles: what each shows, and its actions.
 mod tiles;
 /// The Add to Media, Put on Media and Suggest a category forms.
 mod add;
-/// The upload under way: its progress, its controls, and the offer to carry one on.
+/// The uploads in progress, a list of their own, and the records of unfinished ones.
 mod uploading;
+/// Putting a file on Media, and undoing it on Cancel even after a switch.
+mod publishing;
+/// The person's waiting uploads and the server's unfinished ones.
+mod waiting;
 /// An opened item: a video playing, a model's or file's card with Download.
 pub(crate) mod open;
+/// Tickets: a members-only file watched or downloaded without a token in any address (R3-8).
+pub(crate) mod ticket;
 
 pub(crate) use add::put_on_media;
 pub(crate) use tiles::{KEEP as KEEP_LABEL, KEEP_TIP as KEEP_LABEL_TIP};
@@ -71,14 +82,14 @@ pub(crate) enum Job {
     /// The person's own use of the Media space and their waiting uploads.
     Mine,
     /// A publish of `filename`: uploaded here just now, a waiting Media upload, or a file already
-    /// public on the server.
-    Publish { of: add::Of, filename: String },
+    /// public on the server; `who` is the upload's or the form's number its answer goes to.
+    Publish { of: add::Of, filename: String, who: u64 },
     Remove { id: Option<i64>, from_admin: bool },
     Pick { id: i64, on: bool },
     Feature { id: i64, on: bool },
     Keep { id: i64, on: bool, from_admin: bool },
     Suggest,
-    /// An unfinished upload, cancelled on the server.
+    /// An unfinished upload (a record's, or one the server listed), cancelled on the server.
     Discard,
     /// The admins' section: the categories (a signed list read), saving them, the suggestions,
     /// a decision, and the usage.
@@ -165,13 +176,15 @@ pub struct MediaState {
     /// An opened video, model or file.
     pub open: Option<open::Opened>,
     pub admin: MediaAdmin,
-    /// The Add to Media upload under way, on its worker thread.
-    pub upload: Option<resumable::Run>,
-    /// An upload that did not finish, kept in the app's config (it says which server and person
-    /// it is for, so it survives a change of either).
-    pub unfinished: Option<resumable::Unfinished>,
-    /// Uploads whose publish was cancelled while on its way: taken off again when it lands.
-    pub cancelled_publishes: HashSet<String>,
+    /// The uploads in progress, each on its worker thread, each published by what its own form
+    /// said (uploading.rs).
+    pub uploads: Vec<uploading::Entry>,
+    /// The uploads the server has named that did not finish, kept in the app's config (each says
+    /// which server and person it is for, so it survives a change of either).
+    pub unfinished: Vec<resumable::Unfinished>,
+    /// The publishes on their way, by the number of the upload or form that asked: Cancel reaches
+    /// them through this (publishing.rs).
+    pub publishes: Vec<(u64, publishing::Fate)>,
     /// A fingerprint of the upload token members-only pictures were last asked for with: when it
     /// changes (a reconnect), a refusal under the old one is forgotten.
     pub token_mark: String,
@@ -238,11 +251,17 @@ pub(crate) fn sync_server(state: &mut GuiState) -> bool {
         return false;
     }
     let old = std::mem::take(&mut state.media);
-    if let Some(run) = old.upload.as_ref() {
-        run.ctl.abandon();
-    }
+    uploading::abandon_all(&old.uploads);
     state.media = MediaState { server: here, key: state.profile_public_key.clone(), unfinished: old.unfinished, ..Default::default() };
     true
+}
+
+/// A number no other upload or form on this page has had in this run: what a publish's answer
+/// finds its upload or form by.
+pub(crate) fn next_id() -> u64 {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    NEXT.fetch_add(1, Ordering::SeqCst)
 }
 
 /// Run `req` on a worker thread; its answer is read by [`poll`].
@@ -263,10 +282,11 @@ pub(crate) fn spawn_with(state: &mut GuiState, job: Job, work: impl FnOnce() -> 
 
 /// Every frame, whatever page is open (src/lib.rs): forget another server's or person's state,
 /// read the answers that came back, keep an upload under way going, and hand it the current
-/// upload token. Once per run it also clears the folder "Play here" fetches into, of anything a
-/// run that did not close cleanly left there.
+/// upload token. Once per run it also clears the folder "Play here" fetches into, and the
+/// downloads folder's unfinished part files, of anything a run that did not close cleanly left.
 pub(crate) fn poll_upload(ctx: &egui::Context, state: &mut GuiState) {
     open::sweep_temp_once();
+    crate::gui::widgets::part_file::sweep_downloads_once();
     sync_server(state);
     poll(ctx, state);
     note_token(state);
@@ -309,8 +329,8 @@ fn note_token(state: &mut GuiState) {
             state.image_cache.retry(&key);
         }
     }
-    if let Some(run) = state.media.upload.as_ref() {
-        run.ctl.set_token(token);
+    for e in &state.media.uploads {
+        e.run.ctl.set_token(token.clone());
     }
 }
 
@@ -366,7 +386,7 @@ pub(crate) fn on_done(state: &mut GuiState, job: Job, result: Result<Value, Refu
             log::warn!("Media: this person's own use could not be read: {e}");
             state.media.mine_failed = true;
         }
-        (Job::Publish { of, filename }, result) => uploading::published(state, of, &filename, result),
+        (Job::Publish { of, filename, who }, result) => publishing::published(state, of, who, &filename, result),
         (Job::Remove { id, from_admin }, Ok(_)) => {
             if let Some(id) = id {
                 state.media.list.items.retain(|i| i.id != id);
@@ -423,7 +443,10 @@ pub(crate) fn on_done(state: &mut GuiState, job: Job, result: Result<Value, Refu
             state.media.status = SUGGESTION_SENT.to_string();
         }
         (Job::Suggest, Err(e)) => state.media.status = e.words,
-        (Job::Discard, Ok(_)) => state.media.status = "The unfinished upload was cancelled.".to_string(),
+        (Job::Discard, Ok(_)) => {
+            state.media.status = "The unfinished upload was cancelled.".to_string();
+            refresh_mine(state);
+        }
         (Job::Discard, Err(e)) => log::warn!("Media: the unfinished upload could not be cancelled on the server ({e}); it goes after a day."),
         (Job::AdminCategories, Ok(v)) => {
             let answer = api::parse_list(&v);
@@ -606,7 +629,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
     add::draw_dialogs(ctx, theme, state);
     tiles::draw_confirm_remove(ctx, theme, state);
-    uploading::draw_confirm_waiting(ctx, theme, state);
+    waiting::draw_confirm_waiting(ctx, theme, state);
     open::draw(ctx, theme, state);
     // A Report pressed on a tile opens the existing report dialog, drawn here while this page is
     // on screen (the chat page draws it on its own).
@@ -619,13 +642,7 @@ pub(crate) fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
         ui.label(RichText::new("Media").size(theme.font_size_title).color(theme.text_primary()));
         ui.add_space(theme.spacing_md);
         let signed_in = signed_in_here(state);
-        let busy = state.media.upload.is_some();
-        if signed_in
-            && widgets::Button::primary("Add to Media")
-                .disabled(busy)
-                .tooltip(if busy { "One upload at a time: wait for the one under way." } else { "Upload a picture, video, model or file and show it here." })
-                .show(ui, theme)
-        {
+        if signed_in && widgets::Button::primary("Add to Media").tooltip("Upload a picture, video, model or file and show it here.").show(ui, theme) {
             add::begin_add(state);
         }
         if signed_in && widgets::Button::secondary("Suggest a category").tooltip("Ask this server's admins for a new category.").show(ui, theme) {
@@ -663,7 +680,8 @@ pub(crate) fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     if state.media.answered && !state.media.list.members_view {
         ui.label(RichText::new(SIGN_IN_LINE).size(theme.font_size_small).color(theme.warning()));
     }
-    uploading::draw_on_page(ui, theme, state);
+    uploading::draw_list(ui, theme, state);
+    waiting::draw(ui, theme, state);
     ui.add_space(theme.spacing_sm);
 
     if let Some(id) = state.media.filters.id {
@@ -720,3 +738,7 @@ pub(crate) fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 #[cfg(test)]
 #[path = "media/page_tests.rs"]
 pub(crate) mod tests;
+
+#[cfg(test)]
+#[path = "media/uploads_tests.rs"]
+mod uploads_tests;

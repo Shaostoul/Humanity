@@ -9,9 +9,9 @@ use crate::gui::theme::Theme;
 
 /// A server address that answers nothing at once (a closed port on this machine), so a picture a
 /// test lets load fails fast instead of reaching anywhere.
-const SERVER: &str = "http://127.0.0.1:9";
+pub(crate) const SERVER: &str = "http://127.0.0.1:9";
 
-fn ctx_and_theme() -> (egui::Context, Theme) {
+pub(crate) fn ctx_and_theme() -> (egui::Context, Theme) {
     let ctx = egui::Context::default();
     crate::gui::fonts::install_font_fallbacks(&ctx);
     let theme = crate::gui::theme::load_theme();
@@ -31,14 +31,14 @@ fn frame(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, events: Vec<e
 
 /// Draw a few frames and return the last: a window measures its size on one frame and is placed
 /// by it on the next, so a form whose height just changed needs more than two to stand still.
-fn settled(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) -> egui::FullOutput {
+pub(crate) fn settled(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) -> egui::FullOutput {
     for _ in 0..3 {
         frame(ctx, theme, state, Vec::new());
     }
     frame(ctx, theme, state, Vec::new())
 }
 
-fn click(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, text: &str) {
+pub(crate) fn click(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, text: &str) {
     let out = settled(ctx, theme, state);
     let pos = find_text_in_shapes(&out.shapes, text).unwrap_or_else(|| panic!("{text:?} is drawn")).rect.center();
     let m = egui::Modifiers::default();
@@ -47,7 +47,7 @@ fn click(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, text: &str) {
     frame(ctx, theme, state, vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: m }]);
 }
 
-fn shows(out: &egui::FullOutput, text: &str) -> bool {
+pub(crate) fn shows(out: &egui::FullOutput, text: &str) -> bool {
     find_text_in_shapes(&out.shapes, text).is_some()
 }
 
@@ -277,7 +277,7 @@ fn a_file_over_the_share_is_stopped_before_it_starts() {
     std::fs::write(&file, vec![0u8; 300 * 1024]).unwrap();
 
     add::picked(&mut state, &file);
-    assert!(state.media.form.is_none() && state.media.upload.is_none(), "nothing is uploaded: an upload still arriving counts");
+    assert!(state.media.form.is_none() && state.media.uploads.is_empty(), "nothing is uploaded: an upload still arriving counts");
     assert!(state.media.status.contains("This file is 0.3 MB, more than the 0.1 MB left of your share"), "it says why: {}", state.media.status);
 
     // The form opened before the numbers were known; now they are, and too small.
@@ -287,15 +287,16 @@ fn a_file_over_the_share_is_stopped_before_it_starts() {
     assert!(shows(&out, "You have 0.1 MB of your 1 MB left"), "the share is shown above the form");
     assert!(shows(&out, "more than the 0.1 MB left of your share"), "the form says why it cannot go");
     click(&ctx, &theme, &mut state, "Upload and add to Media");
-    assert!(state.media.upload.is_none(), "pressing it starts nothing");
+    assert!(state.media.uploads.is_empty(), "pressing it starts nothing");
 
     // The control: with room the same press starts the upload, so the press above did land on
     // the button (it goes nowhere here: nothing listens at the test's address).
     state.media.mine.as_mut().unwrap().share_bytes = 10 * 1024 * 1024;
     click(&ctx, &theme, &mut state, "Upload and add to Media");
-    assert!(state.media.upload.is_some(), "with room, the press starts the upload (form: {:?})", state.media.form);
-    assert_eq!(state.media.unfinished.as_ref().map(|u| u.size), Some(300 * 1024), "and keeps a record of it");
-    state.media.upload.as_ref().unwrap().ctl.abandon();
+    assert_eq!(state.media.uploads.len(), 1, "with room, the press starts the upload (form: {:?})", state.media.form);
+    assert_eq!(state.media.uploads[0].record.size, 300 * 1024, "carrying what its form said");
+    assert!(state.media.form.is_none(), "and the form is done: the upload is in the list");
+    uploading::abandon_all(&state.media.uploads);
 }
 
 /// PUT ON MEDIA OFFERS PUBLIC ONLY: from a Shared Files row, the form opens on the Media page
@@ -423,13 +424,13 @@ fn my_picks_come_from_the_items_themselves() {
 fn another_identity_forgets_the_page() {
     let mut state = page_state(demo_answer(), true);
     state.media.mine = Some(Mine::default());
-    state.media.unfinished = Some(resumable::Unfinished { id: "abc".into(), server: state.media.server.clone(), key: "me".into(), ..Default::default() });
+    state.media.unfinished = vec![resumable::Unfinished { id: "abc".into(), server: state.media.server.clone(), key: "me".into(), ..Default::default() }];
     assert!(!sync_server(&mut state), "the same server and person keep everything");
     state.profile_public_key = "someone else".into();
     assert!(sync_server(&mut state), "another identity is a change");
     assert!(state.media.list.items.is_empty() && state.media.mine.is_none() && state.media.featured.is_empty(), "another person's page is forgotten");
-    assert_eq!(state.media.unfinished.as_ref().map(|u| u.key.as_str()), Some("me"), "the unfinished upload's record stays");
-    assert!(uploading::offered(&state).is_none(), "but is not offered to someone else");
+    assert_eq!(state.media.unfinished.iter().map(|u| u.key.as_str()).collect::<Vec<_>>(), vec!["me"], "the unfinished upload's record stays");
+    assert!(uploading::offered(&state).is_empty(), "but is not offered to someone else");
 }
 
 /// A MEMBERS-ONLY PICTURE REFUSED UNDER ONE TOKEN IS ASKED FOR AGAIN UNDER THE NEXT (the review: a
@@ -530,55 +531,49 @@ fn kept_items_say_so_and_moderators_may_keep() {
     assert!(state.media.list.items.iter().find(|i| i.id == 4).unwrap().kept, "the answer lands on the tile");
 }
 
-/// CANCEL STOPS THE UPLOAD, AND THE PUBLISH (the review: Cancel during "Uploading..." let the
-/// worker publish anyway): before the file is up, the server is told and nothing is published;
-/// once its publish is on its way, the publish's answer is followed by the upload's removal.
+/// CANCEL STOPS THE UPLOAD (the review: Cancel during "Uploading..." let the worker publish
+/// anyway): before the file is up, the server is told and nothing is published. (Cancel once its
+/// publish is on its way: uploads_tests.rs.)
 ///
 /// Seen red 2026-10-11 with `uploading::cancel` leaving the upload running: "the upload stops"
-/// (the run finished and a publish was sent); and with `published` ignoring a cancelled publish:
-/// "a publish cancelled on its way is taken off again" (no removal was sent).
+/// (the run finished and a publish was sent).
 #[test]
-fn cancel_stops_the_upload_and_the_publish() {
+fn cancel_stops_the_upload() {
     let (ctx, _theme) = ctx_and_theme();
     let mut state = page_state(demo_answer(), true);
     state.private_key_bytes = Some(vec![7u8; 32]);
     let file = crate::test_temp::file("media_cancel", "webm");
     std::fs::write(&file, vec![5u8; 40_000]).unwrap();
-    let form = add::Form { sending: true, ..add::Form::new(add::Source::Picked { path: file.to_path_buf(), name: "clip.webm".into(), len: 40_000 }) };
+    let form = add::Form::new(add::Source::Picked { path: file.to_path_buf(), name: "clip.webm".into(), len: 40_000 });
     let fake = resumable::tests::Fake::new(8192);
     state.upload_token = Some((SERVER.to_string(), resumable::tests::TOKEN.to_string()));
+    // Every piece waits for an allowance an hour away, so the upload sits started and unfinished.
+    fake.s().allowance_forever = Some((upload_waits::now_ms() + 3_600_000, Some(3600.0)));
     uploading::start_with(&mut state, &form, fake.clone()).expect("it starts");
-    state.media.form = Some(form.clone());
-    state.media.upload.as_ref().unwrap().ctl.pause(true);
-    // Wait for it to start and pause, then Cancel.
+    let local = state.media.uploads[0].local;
+    // Wait for it to start and wait, then Cancel.
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-    while state.media.upload.as_ref().is_some_and(|r| r.phase != resumable::Phase::Paused) {
+    while state.media.uploads.iter().any(|e| !matches!(e.run.phase, resumable::Phase::Waiting { .. }) || e.record.id.is_empty()) {
         uploading::poll(&ctx, &mut state);
-        assert!(std::time::Instant::now() < deadline, "the upload paused");
+        assert!(std::time::Instant::now() < deadline, "the upload started and waits");
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
-    assert!(state.media.unfinished.as_ref().is_some_and(|u| !u.id.is_empty()), "its record was kept once the server named it");
-    uploading::cancel(&mut state, &form);
-    while state.media.upload.is_some() {
+    assert!(state.media.unfinished.iter().any(|u| !u.id.is_empty()), "its record was kept once the server named it");
+    uploading::cancel(&mut state, local);
+    while !state.media.uploads.is_empty() {
         uploading::poll(&ctx, &mut state);
         assert!(std::time::Instant::now() < deadline, "the upload stops");
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
     assert!(fake.s().cancelled, "the server was told");
     assert!(state.media.jobs.iter().all(|(j, _)| !matches!(j, Job::Publish { .. })), "nothing is published");
-    assert!(state.media.unfinished.is_none(), "and its record is forgotten");
-    assert_eq!(state.media.status, uploading::CANCELLED_LINE);
-
-    // Cancelled while its publish was on its way: the answer is followed by its removal.
-    state.media.cancelled_publishes.insert("1700_clip.webm".into());
-    on_done(&mut state, Job::Publish { of: add::Of::Upload, filename: "1700_clip.webm".into() }, Ok(serde_json::json!({ "ok": true, "item": {"id": 50, "url": "/uploads/1700_clip.webm"} })));
-    assert!(state.media.jobs.iter().any(|(j, _)| *j == Job::Remove { id: None, from_admin: false }), "a publish cancelled on its way is taken off again");
+    assert!(state.media.unfinished.is_empty(), "and its record is forgotten");
     assert_eq!(state.media.status, uploading::CANCELLED_LINE);
 }
 
 /// AN UPLOAD A RESTART CUT OFF IS OFFERED AGAIN, AND CARRIES ON WITH ONLY THE REST: the page
-/// shows it with Carry on, which reopens the form with what it said and sends what the server does
-/// not have; a file changed since is not carried on.
+/// shows it with Carry on, which puts it back in the uploads list with what its form said and
+/// sends what the server does not have; a file changed since is not carried on.
 ///
 /// Seen red 2026-10-11 with the offer drawn only while an upload runs: "the page offers to carry
 /// it on" (no shape held "An upload did not finish").
@@ -602,7 +597,7 @@ fn an_upload_a_restart_cut_off_is_offered_again() {
         category_id: 1,
         ..Default::default()
     };
-    state.media.unfinished = Some(record.clone());
+    state.media.unfinished = vec![record.clone()];
     let out = settled(&ctx, &theme, &mut state);
     assert!(shows(&out, "An upload did not finish: clip.webm"), "the page offers to carry it on");
     assert!(shows(&out, "Carry on") && shows(&out, "Cancel it"));
@@ -615,23 +610,23 @@ fn an_upload_a_restart_cut_off_is_offered_again() {
         s.blake3 = blake3::hash(&bytes).to_hex().to_string();
         s.data = bytes[..8192].to_vec();
     }
-    uploading::resume_with(&mut state, fake.clone());
-    assert_eq!(state.media.form.as_ref().map(|f| f.title.as_str()), Some("Dusk"), "the form reopens with what it said");
-    let run = state.media.upload.as_ref().expect("it carries on");
-    assert_eq!(run.id.as_deref(), Some(record.id.as_str()));
+    uploading::resume_with(&mut state, &record.id, fake.clone());
+    let entry = state.media.uploads.first().expect("it carries on, in the list");
+    assert_eq!(entry.record.title, "Dusk", "with what its form said");
+    assert_eq!(entry.run.id.as_deref(), Some(record.id.as_str()));
+    assert!(uploading::offered(&state).is_empty(), "and is no longer offered while it runs");
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
     while !fake.s().log.iter().any(|l| l.starts_with("piece 8192")) {
         assert!(std::time::Instant::now() < deadline, "it sends the rest: {:?}", fake.s().log);
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
     assert!(!fake.s().log.iter().any(|l| l == "start" || l.starts_with("piece 0+")), "nothing new started, nothing sent twice");
-    state.media.upload.as_ref().unwrap().ctl.abandon();
-    state.media.upload = None;
+    uploading::abandon_all(&state.media.uploads);
+    state.media.uploads.clear();
 
     // A file changed since is not carried on: the record goes, and the person is told.
     std::fs::write(&file, b"something else").unwrap();
-    state.media.unfinished = Some(record);
-    uploading::resume_with(&mut state, fake);
-    assert!(state.media.upload.is_none() && state.media.unfinished.is_none(), "a changed file is not carried on");
+    uploading::resume_with(&mut state, &record.id, fake);
+    assert!(state.media.uploads.is_empty() && state.media.unfinished.is_empty(), "a changed file is not carried on");
     assert_eq!(state.media.status, resumable::FILE_CHANGED);
 }

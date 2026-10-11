@@ -153,7 +153,7 @@ fn nothing_over_the_size_cap_is_uploaded_on_any_path() {
             token: "tok".into(),
             filename: "big.png".into(),
             mime: "image/png".into(),
-            bytes: big.clone(),
+            body: Body::Bytes(big.clone()),
             share: false,
             to: Destination::of(channel),
             limit: ATTACH_MAX_BYTES,
@@ -255,19 +255,95 @@ fn each_file_gets_the_limit_for_where_it_is_going() {
         { "public_key": "someone", "upload_limit_mb": 999, "private_limit_mb": 999 },
         { "public_key": "me", "upload_limit_mb": 300, "private_limit_mb": 20 },
     ] }));
-    assert_eq!(gs.upload_limit_bytes, Some(300 * mb), "only my own entry is read");
-    assert_eq!(gs.private_limit_bytes, Some(20 * mb), "my private limit is read from my own entry");
+    assert_eq!(Limits::of(&gs).room, Some(300 * mb), "only my own entry is read");
+    assert_eq!(Limits::of(&gs).private, Some(20 * mb), "my private limit is read from my own entry");
     note_upload_limit(&mut gs, &serde_json::json!({ "type": "peer_list", "peers": [{ "public_key": "me" }] }));
-    assert_eq!((gs.upload_limit_bytes, gs.private_limit_bytes), (Some(300 * mb), Some(20 * mb)), "a list without them changes nothing");
+    assert_eq!(Limits::of(&gs), Limits { room: Some(300 * mb), private: Some(20 * mb) }, "a list without them changes nothing");
 
     let ten_mb = vec![7u8; 10 * mb as usize];
     assert!(attach_job(&mut gs, "clip.mp4", ten_mb.clone()).is_some(), "a 10 MB video goes into a room");
     let mut dm = viewing("dm:abc");
-    dm.upload_limit_bytes = Some(300 * mb);
+    note_upload_limit(&mut dm, &serde_json::json!({ "peers": [{ "public_key": "me", "upload_limit_mb": 300 }] }));
     assert!(attach_job(&mut dm, "clip.mp4", ten_mb.clone()).is_none(), "but not into a DM before the server says");
     assert!(dm.ws_status.contains("private conversation can be up to 6 MB"), "and the person is told why: {}", dm.ws_status);
-    dm.private_limit_bytes = Some(20 * mb);
+    note_upload_limit(&mut dm, &serde_json::json!({ "peers": [{ "public_key": "me", "private_limit_mb": 20 }] }));
     assert!(attach_job(&mut dm, "clip.mp4", ten_mb).is_some(), "and into a DM once the server allows 20 MB");
+}
+
+/// THE LIMITS BELONG TO ONE SERVER AND ONE IDENTITY (round 3 of docs/design/media-showcase.md, the
+/// review's finding 10): a private-file limit one server told this person was kept after a switch
+/// to another server, or a restore from a recovery phrase, and let a file past what that server or
+/// person may send. Now they count only where they were told, the 6 MB fallback elsewhere, and a
+/// list from another server or identity starts them again.
+///
+/// Seen red 2026-10-11 with `Limits::of` reading the limits whoever and wherever they were told
+/// (as the two bare fields of round 2 did): "another server: the fallback" (left: Some(20971520) /
+/// right: None).
+#[test]
+fn the_limits_belong_to_one_server_and_one_identity() {
+    let mb = 1024 * 1024;
+    let mut gs = viewing("dm:abc");
+    note_upload_limit(&mut gs, &serde_json::json!({ "peers": [{ "public_key": "me", "upload_limit_mb": 300, "private_limit_mb": 20 }] }));
+    assert_eq!(Limits::of(&gs).private, Some(20 * mb), "told here");
+
+    gs.server_url = "https://other.example".into();
+    assert_eq!(Limits::of(&gs).private, None, "another server: the fallback");
+    assert_eq!(room_limit_here(&gs), None);
+    note_upload_limit(&mut gs, &serde_json::json!({ "peers": [{ "public_key": "me", "upload_limit_mb": 50 }] }));
+    assert_eq!(Limits::of(&gs), Limits { room: Some(50 * mb), private: None }, "its own list starts again: nothing of the first server's");
+
+    gs.server_url = "https://chat.example".into();
+    note_upload_limit(&mut gs, &serde_json::json!({ "peers": [{ "public_key": "me", "private_limit_mb": 20 }] }));
+    gs.profile_public_key = "restored".into();
+    assert_eq!(Limits::of(&gs), Limits::default(), "another identity: the fallback");
+}
+
+/// A PICKED FILE IS READ BY THE WORKER, NEVER ON THE FRAME, AND KEPT TO ONE COPY (round 3, the
+/// review's finding 8: a 1 GB private file was read on the UI thread, then held as plaintext,
+/// ciphertext and the upload's own copy at once). The job holds the path and size; `run` reads it;
+/// the encryption is done in that same buffer; and the multipart body streams its framing around
+/// the buffer instead of copying it.
+///
+/// Seen red 2026-10-11, once for each copy it guards: with `attach_file_job` reading the file as
+/// round 2's `start_attach` did (`std::fs::read` on the frame), "the job holds the path, not the
+/// bytes" (left: Bytes([102, 105, 114, ...]), the file read already); with
+/// `encrypt_attachment_in_place` making its ciphertext in a new buffer, "the ciphertext is the
+/// file's own buffer" (left: 0x2bfb5f1ead0 / right: 0x2bfb5f1eaa0); and with `Multipart::new`
+/// copying the bytes, "never copied into a second buffer with its framing" (two addresses).
+#[test]
+fn a_picked_file_is_read_by_the_worker_and_kept_to_one_copy() {
+    let mut gs = viewing("dm:abc");
+    let path = crate::test_temp::file("attach_worker_read", "txt");
+    std::fs::write(&path, b"first version").unwrap();
+    let job = attach_file_job(&mut gs, &path).expect("a job");
+    assert_eq!(job.body, Body::File { path: path.to_path_buf(), len: 13 }, "the job holds the path, not the bytes");
+    std::fs::write(&path, b"second, later").unwrap();
+    let (out, seen) = run_recorded(job);
+    let up = seen.expect("uploaded");
+    let att = parse_file_marker(&out.unwrap()).expect("a marker");
+    assert_eq!(decrypt_attachment(&up.bytes, &att.k, &att.n).unwrap(), b"second, later", "the worker reads what is there when it runs");
+
+    // In place: the ciphertext is the very buffer the file was read into.
+    let mut buf = attach_body::read(Body::File { path: path.to_path_buf(), len: 13 }, 1000).unwrap();
+    let before = buf.as_ptr();
+    let (k, n) = crate::net::dm_pq::encrypt_attachment_in_place(&mut buf).unwrap();
+    assert_eq!(buf.as_ptr(), before, "the ciphertext is the file's own buffer");
+    assert_eq!(decrypt_attachment(&buf, &k, &n).unwrap(), b"second, later");
+
+    // Streamed: the body is the framing around that same buffer, and reads as the whole request.
+    let ptr = buf.as_ptr();
+    let body = attach_body::Multipart::new("a.enc", "application/octet-stream", buf);
+    assert_eq!(body.file.get_ref().as_ptr(), ptr, "never copied into a second buffer with its framing");
+    let (len, boundary) = (body.len(), body.boundary.clone());
+    let mut sent = Vec::new();
+    std::io::Read::read_to_end(&mut body.reader(), &mut sent).unwrap();
+    assert_eq!(sent.len() as u64, len, "Content-Length is the body's length");
+    assert!(sent.starts_with(format!("--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.enc\"").as_bytes()));
+    assert!(sent.ends_with(format!("\r\n--{boundary}--\r\n").as_bytes()));
+
+    // A file that grew past the cap since it was picked is refused, not read whole.
+    std::fs::write(&path, vec![1u8; 2000]).unwrap();
+    assert!(attach_body::read(Body::File { path: path.to_path_buf(), len: 13 }, 1000).is_err());
 }
 
 /// EVERY UPLOAD CARRIES THIS CONNECTION'S TOKEN, never the person's key (the upload review,

@@ -1,51 +1,58 @@
 //! Add to Media's upload, sent in pieces (the relay half is src/relay/resumable.rs; the design is
-//! docs/design/media-showcase.md, "Resumable uploads, exact" and its As built note). The
-//! operator's question was "What if I want to upload a multi-GB file?": one request carries at
-//! most 1 GB, and a connection that drops at 900 MB loses all of it. Here a file goes a piece at
-//! a time; the server writes and counts each before the next is sent, so after a drop the app asks
-//! how far the server got and carries on from there.
+//! docs/design/media-showcase.md, "Resumable uploads, exact", its As built notes and round 3).
+//! The operator's question was "What if I want to upload a multi-GB file?": one request carries
+//! at most 1 GB, and a connection that drops at 900 MB loses all of it. Here a file goes a piece
+//! at a time; the server writes and counts each before the next is sent, so after a drop the app
+//! asks how far the server got and carries on from there.
 //!
 //! THE STEPS, all on a worker thread ([`work`]):
 //! 1. The file's BLAKE3 hash, read a megabyte at a time (the server checks the finished file
 //!    against it, so a resume that went wrong is caught, not stored).
-//! 2. The start: `POST /api/upload/resumable?token=` with `{filename, size, content_type, media:
-//!    1, blake3}`, answered `{id, offset: 0, size, chunk_max}`. The page keeps the id (and the
-//!    file's path, size and modification time) in the app's config, so an upload cut off by a
-//!    restart can be carried on ([`Unfinished`]).
-//! 3. The pieces: `PATCH .../{id}?token=&offset=<n>`, each at most the server's `chunk_max`.
-//!    A 409 with an `offset` says where the server is; a 409 `busy` means another piece is being
-//!    written, so it waits and asks. A dropped connection or a server error waits a little longer
-//!    each time, asks where the server got (`GET .../{id}`), and carries on. A 429 is the role's
-//!    day or hour allowance: its own words and when it resets are shown, and the upload carries on
-//!    by itself then (or at Resume). A 507 at the finish is no room left: the file is kept on the
-//!    server for a day, and Retry sends the empty piece at the end, which tries the finish again.
-//!    A finish whose answer was lost is found in the status answer's `done`.
+//! 2. The start: `POST /api/upload/resumable` with `{filename, size, content_type, media: 1,
+//!    blake3}`, answered `{id, offset: 0, size, chunk_max}`. The page keeps the id (and the file's
+//!    path, size and modification time) in the app's config, so an upload cut off by a restart can
+//!    be carried on ([`Unfinished`]).
+//! 3. The pieces: `PATCH .../{id}?offset=<n>`, each at most the server's `chunk_max` (held to
+//!    64 MiB, upload_waits.rs `piece_size`). A 409 with an `offset` says where the server is; a 409
+//!    `busy` means another piece is being written, so it waits and asks. A dropped connection or a
+//!    server error waits a little longer each time, asks where the server got (`GET .../{id}`), and
+//!    carries on; ten of the same server error in a row stop it with the server's words and Retry.
+//!    A 429 with the allowance's JSON is the role's day or hour allowance: its own words and when
+//!    it resets are shown, a piece is cut to `left_bytes` when that still fits, and the upload
+//!    carries on by itself after the server's own `resets_in_s` (or at Resume). A 429 without it
+//!    is waited out like a server error. A 507 is no room: the file is kept on the server for a
+//!    day, and Retry sends the empty piece at the end, which tries the finish again. A finish whose
+//!    answer was lost is found in the status answer's `done`.
 //! 4. The finished upload's answer (`{url, filename, size, type}`) goes back to the page, which
-//!    publishes it then (signed then: a signature is good for five minutes, and an upload can
-//!    take hours).
+//!    publishes it then (signed then: a signature is good for five minutes, and an upload can take
+//!    hours).
 //!
 //! The token: each connection to the server has its own upload token, and a reconnect replaces it
 //! (the relay's C). The page hands the worker the current one every frame ([`Control::set_token`]);
-//! a session belongs to the person, so any of their tokens carries it on. The token rides in the
-//! address here, because these routes read it there; every word shown is said without it
+//! a session belongs to the person, so any of their tokens carries it on. It rides in the
+//! `X-Upload-Token` header (R3-9), never in an address, and every word shown is said without it
 //! (`hide_token`).
 //!
 //! Pause, Resume, Retry and Cancel reach the worker through [`Control`]; it never touches the
-//! page's state. The network is behind [`Transport`], so the tests run the whole flow against a
-//! server simulated in memory (resumable_tests.rs).
+//! page's state. Every request waits while paused (upload_waits.rs `hold`). The network is behind
+//! [`Transport`], so the tests run the whole flow against a server simulated in memory
+//! (resumable_tests.rs).
 
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::mpsc::Sender;
+use std::sync::{Condvar, Mutex};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+use super::upload_waits::{self as waits, Backoff, Streak};
 use crate::gui::widgets::image_cache::hide_token;
 
-/// An upload that did not finish, kept in the app's config (`AppConfig::media_unfinished_upload`)
+pub(crate) use super::upload_run::{stored_name_of, Phase, Run};
+
+/// An upload that did not finish, kept in the app's config (`AppConfig::media_unfinished_uploads`)
 /// so it can be carried on after the app restarts. It is carried on only on the same server, by
 /// the same person, from the same file unchanged (its size and modification time).
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
@@ -96,9 +103,6 @@ pub const RECONNECTING: &str = "The connection to the server dropped. The upload
 /// What is said while the server has not signed this person in again yet (a reconnect).
 pub const WAITING_FOR_SIGN_IN: &str = "Waiting for this server to sign you in again; the upload carries on then.";
 
-/// The piece size until the server states its own (`chunk_max`, 8 MiB on the relay).
-const DEFAULT_CHUNK: u64 = 8 * 1024 * 1024;
-
 // ── What the worker reports ─────────────────────────────────────────────────────────────────
 
 /// What happened, sent from the worker to the page.
@@ -115,10 +119,12 @@ pub enum Event {
     Sending,
     /// The role's day or hour allowance is used (429): its words, and when it resets (Unix ms).
     Waiting { words: String, resets_at: i64 },
-    /// No room at the finish (507): the file is kept on the server; Retry tries the finish again.
+    /// No room (507): the file is kept on the server; Retry tries again.
     NoRoom { words: String },
     /// The connection dropped, or the server needs a moment: carrying on as soon as it can.
     Reconnecting { words: String },
+    /// The same server error ten times running: its words; Retry tries again.
+    Stuck { words: String },
     /// Stored: the single request's answer, `{url, filename, size, type}`.
     Done { answer: Value },
     /// Stopped for good: the words, and whether the upload is gone from the server (so there is
@@ -131,15 +137,16 @@ pub enum Event {
 // ── Pause, Resume, Retry, Cancel and the token ──────────────────────────────────────────────
 
 #[derive(Debug, Clone, Default)]
-struct Flags {
-    paused: bool,
-    cancelled: bool,
+pub(crate) struct Flags {
+    pub paused: bool,
+    pub cancelled: bool,
     /// Stopped without telling the server (the page moved to another server or person): the
     /// server keeps the upload a day, and the kept record offers it again there.
-    abandoned: bool,
-    /// Retry pressed (after no room) or Resume pressed while waiting for an allowance.
-    retry: bool,
-    token: Option<String>,
+    pub abandoned: bool,
+    /// Retry pressed (after no room, or a server error that would not clear) or Resume pressed
+    /// while waiting for an allowance.
+    pub retry: bool,
+    pub token: Option<String>,
 }
 
 /// How the page steers the worker. Every change wakes it.
@@ -147,7 +154,9 @@ pub struct Control {
     flags: Mutex<Flags>,
     wake: Condvar,
     /// The first wait after a dropped connection; each one after doubles, up to 30 times this.
-    pace: Duration,
+    pub(crate) pace: Duration,
+    /// The least an allowance wait lasts (5 s; the tests that wait one out use less).
+    pub(crate) allowance_min: Duration,
 }
 
 impl Control {
@@ -157,7 +166,13 @@ impl Control {
 
     /// A control whose waits after a failure start at `pace` (the tests use a millisecond).
     pub fn with_pace(token: Option<String>, pace: Duration) -> Self {
-        Control { flags: Mutex::new(Flags { token, ..Default::default() }), wake: Condvar::new(), pace }
+        Self::with_waits(token, pace, waits::ALLOWANCE_WAIT_MIN)
+    }
+
+    /// A control with its waits set: after a failure from `pace`, and an allowance at least
+    /// `allowance_min`.
+    pub fn with_waits(token: Option<String>, pace: Duration, allowance_min: Duration) -> Self {
+        Control { flags: Mutex::new(Flags { token, ..Default::default() }), wake: Condvar::new(), pace, allowance_min }
     }
 
     fn change(&self, f: impl FnOnce(&mut Flags)) {
@@ -187,7 +202,8 @@ impl Control {
         });
     }
 
-    /// Try the finish again (after no room), or carry on now (while waiting for an allowance).
+    /// Try again now (after no room or a server error that would not clear), or carry on now
+    /// (while waiting for an allowance).
     pub fn retry(&self) {
         self.change(|f| f.retry = true);
     }
@@ -208,13 +224,13 @@ impl Control {
         self.flags().cancelled
     }
 
-    fn flags(&self) -> Flags {
+    pub(crate) fn flags(&self) -> Flags {
         self.flags.lock().unwrap_or_else(|p| p.into_inner()).clone()
     }
 
     /// Wait while `keep_waiting` says so, at most `timeout` (None: until woken and done), and
     /// return the flags as they are then.
-    fn wait(&self, timeout: Option<Duration>, keep_waiting: impl Fn(&Flags) -> bool) -> Flags {
+    pub(crate) fn wait(&self, timeout: Option<Duration>, keep_waiting: impl Fn(&Flags) -> bool) -> Flags {
         let deadline = timeout.map(|t| std::time::Instant::now() + t);
         let mut flags = self.flags.lock().unwrap_or_else(|p| p.into_inner());
         while keep_waiting(&flags) {
@@ -232,7 +248,7 @@ impl Control {
         flags.clone()
     }
 
-    fn take_retry(&self) -> bool {
+    pub(crate) fn take_retry(&self) -> bool {
         let mut flags = self.flags.lock().unwrap_or_else(|p| p.into_inner());
         std::mem::replace(&mut flags.retry, false)
     }
@@ -298,10 +314,13 @@ impl Http {
         Http { base: base.trim_end_matches('/').to_string(), agent }
     }
 
-    fn url(&self, tail: &str, token: &str) -> String {
-        let enc: String = url::form_urlencoded::byte_serialize(token.as_bytes()).collect();
-        let sep = if tail.contains('?') { '&' } else { '?' };
-        format!("{}/api/upload/resumable{tail}{sep}token={enc}", self.base)
+    /// A route's address. The token is not in it: it rides in a header ([`Http::with_token`]).
+    pub(crate) fn url(&self, tail: &str) -> String {
+        format!("{}/api/upload/resumable{tail}", self.base)
+    }
+
+    fn with_token(req: ureq::Request, token: &str) -> ureq::Request {
+        req.set(super::api::TOKEN_HEADER, token)
     }
 
     fn answer(result: Result<ureq::Response, ureq::Error>) -> Result<Reply, String> {
@@ -318,17 +337,18 @@ impl Http {
 
 impl Transport for Http {
     fn start(&self, token: &str, body: &Value) -> Result<Reply, String> {
-        Self::answer(self.agent.post(&self.url("", token)).set("Content-Type", "application/json").send_string(&body.to_string()))
+        let req = Self::with_token(self.agent.post(&self.url("")), token);
+        Self::answer(req.set("Content-Type", "application/json").send_string(&body.to_string()))
     }
     fn status(&self, token: &str, id: &str) -> Result<Reply, String> {
-        Self::answer(self.agent.get(&self.url(&format!("/{id}"), token)).call())
+        Self::answer(Self::with_token(self.agent.get(&self.url(&format!("/{id}"))), token).call())
     }
     fn piece(&self, token: &str, id: &str, offset: u64, bytes: &[u8]) -> Result<Reply, String> {
-        let url = self.url(&format!("/{id}?offset={offset}"), token);
-        Self::answer(self.agent.request("PATCH", &url).set("Content-Type", "application/octet-stream").send_bytes(bytes))
+        let req = Self::with_token(self.agent.request("PATCH", &self.url(&format!("/{id}?offset={offset}"))), token);
+        Self::answer(req.set("Content-Type", "application/octet-stream").send_bytes(bytes))
     }
     fn cancel(&self, token: &str, id: &str) -> Result<Reply, String> {
-        Self::answer(self.agent.delete(&self.url(&format!("/{id}"), token)).call())
+        Self::answer(Self::with_token(self.agent.delete(&self.url(&format!("/{id}"))), token).call())
     }
 }
 
@@ -351,15 +371,15 @@ pub fn start_body(plan: &Plan, blake3: &str) -> Value {
     json!({ "filename": plan.name, "size": plan.size, "content_type": plan.content_type, "media": 1, "blake3": blake3 })
 }
 
-/// The file's BLAKE3 hash in lowercase hex, read a megabyte at a time, reporting progress; None
-/// when cancelled on the way.
-pub fn hash_file(path: &Path, ctl: &Control, mut progress: impl FnMut(u64)) -> Result<Option<String>, String> {
+/// The file's BLAKE3 hash in lowercase hex, read a megabyte at a time, reporting progress and
+/// waiting while paused; None when cancelled on the way.
+pub fn hash_file(path: &Path, ctl: &Control, tx: &Sender<Event>) -> Result<Option<String>, String> {
     let mut f = std::fs::File::open(path).map_err(|e| format!("The file could not be read ({e})."))?;
     let mut hasher = blake3::Hasher::new();
     let mut buf = vec![0u8; 1 << 20];
     let mut done = 0u64;
     loop {
-        if ctl.is_cancelled() {
+        if !waits::hold(ctl, tx) {
             return Ok(None);
         }
         let n = f.read(&mut buf).map_err(|e| format!("The file could not be read ({e})."))?;
@@ -368,42 +388,17 @@ pub fn hash_file(path: &Path, ctl: &Control, mut progress: impl FnMut(u64)) -> R
         }
         hasher.update(&buf[..n]);
         done += n as u64;
-        progress(done);
+        let _ = tx.send(Event::Hashing { done });
     }
     Ok(Some(hasher.finalize().to_hex().to_string()))
 }
 
 fn read_piece(path: &Path, at: u64, len: u64) -> Result<Vec<u8>, String> {
-    let mut f = std::fs::File::open(path).map_err(|e| format!("The file could not be read ({e})."))?;
-    f.seek(SeekFrom::Start(at)).map_err(|e| format!("The file could not be read ({e})."))?;
+    let mut f = std::fs::File::open(path).map_err(|e| format!("The file could not be read any more, so the upload stopped ({e})."))?;
+    f.seek(SeekFrom::Start(at)).map_err(|e| format!("The file could not be read any more, so the upload stopped ({e})."))?;
     let mut bytes = vec![0u8; len as usize];
-    f.read_exact(&mut bytes).map_err(|e| format!("The file could not be read: it may have changed ({e})."))?;
+    f.read_exact(&mut bytes).map_err(|e| format!("The file could not be read any more: it may have changed or been moved, so the upload stopped ({e})."))?;
     Ok(bytes)
-}
-
-fn now_ms() -> i64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
-}
-
-/// Waits after a failure: `pace`, then twice that, up to thirty times it.
-struct Backoff {
-    pace: Duration,
-    next: Duration,
-}
-
-impl Backoff {
-    fn new(pace: Duration) -> Self {
-        Backoff { pace, next: pace }
-    }
-    fn reset(&mut self) {
-        self.next = self.pace;
-    }
-    /// Wait out the next step (woken early by Pause, Cancel or a new token).
-    fn wait(&mut self, ctl: &Control) {
-        let token = ctl.flags().token;
-        ctl.wait(Some(self.next), |f| !f.cancelled && !f.paused && f.token == token);
-        self.next = (self.next * 2).min(self.pace * 30);
-    }
 }
 
 /// The current token, waiting while there is none or while it is the one the server refused.
@@ -436,331 +431,300 @@ fn cancel_on_server(t: &dyn Transport, ctl: &Control, id: &str) {
     }
 }
 
-/// Wait while an allowance is used up: until it resets, or Resume, Pause or Cancel.
-fn wait_for_allowance(ctl: &Control, resets_at: i64) -> Flags {
-    let left = Duration::from_millis((resets_at - now_ms()).max(0) as u64);
-    ctl.wait(Some(left), |f| !f.cancelled && !f.retry && !f.paused)
+/// What a request's answer means for the worker, the same for all three requests (start, status,
+/// piece); each handles [`Answer::Other`] in its own way.
+enum Answer {
+    Ok(Value),
+    TokenRefused,
+    Allowance(waits::Allowance),
+    /// A 429 that is not an allowance: waited out (its words).
+    Busy(String),
+    /// A 507: no room (its words).
+    NoRoom(String),
+    /// Any other 5xx.
+    ServerError(Reply),
+    /// No answer at all.
+    Lost,
+    Other(Reply),
+}
+
+fn answer_of(result: Result<Reply, String>, ctl: &Control) -> Answer {
+    let r = match result {
+        Ok(r) => r,
+        Err(_) => return Answer::Lost,
+    };
+    match r.status {
+        200..=299 => Answer::Ok(r.json()),
+        _ if r.token_refused() => Answer::TokenRefused,
+        429 => match waits::allowance_of(&r, ctl.allowance_min) {
+            Some(a) => Answer::Allowance(a),
+            None => Answer::Busy(waits::busy_words(&r)),
+        },
+        507 => Answer::NoRoom(r.words()),
+        500..=599 => Answer::ServerError(r),
+        _ => Answer::Other(r),
+    }
+}
+
+/// The worker's waits and counts, shared by the start and the pieces.
+struct Waits<'a> {
+    ctl: &'a Control,
+    tx: &'a Sender<Event>,
+    backoff: Backoff,
+    streak: Streak,
+}
+
+impl Waits<'_> {
+    fn send(&self, e: Event) {
+        let _ = self.tx.send(e);
+    }
+
+    /// A dropped connection, or a 429 that is not an allowance: say so and wait a little longer
+    /// each time.
+    fn after_trouble(&mut self, words: &str) {
+        self.streak.clear();
+        self.send(Event::Reconnecting { words: words.to_string() });
+        self.backoff.wait(self.ctl);
+    }
+
+    /// A server error: wait, or, after ten of the same, show its words and wait for Retry.
+    /// False when cancelled meanwhile.
+    fn after_server_error(&mut self, r: &Reply) -> bool {
+        if self.streak.note(r) >= waits::STUCK_AFTER {
+            self.send(Event::Stuck { words: r.words() });
+            let flags = waits::wait_for_retry(self.ctl);
+            self.streak.clear();
+            self.backoff.reset();
+            if flags.cancelled {
+                return false;
+            }
+            self.send(Event::Sending);
+            return true;
+        }
+        self.send(Event::Reconnecting { words: waits::SERVER_TROUBLE.to_string() });
+        self.backoff.wait(self.ctl);
+        true
+    }
+
+    /// An allowance used up: say so and wait the server's own number, or Resume.
+    fn after_allowance(&mut self, a: &waits::Allowance) {
+        self.streak.clear();
+        self.send(Event::Waiting { words: a.words.clone(), resets_at: a.resets_at() });
+        let flags = waits::wait_for_allowance(self.ctl, a);
+        if !flags.cancelled && !flags.paused {
+            self.send(Event::Sending);
+        }
+    }
+
+    /// No room: show the words and wait for Retry. False when cancelled meanwhile.
+    fn after_no_room(&mut self, words: String) -> bool {
+        self.streak.clear();
+        self.send(Event::NoRoom { words });
+        let flags = waits::wait_for_retry(self.ctl);
+        if flags.cancelled {
+            return false;
+        }
+        self.send(Event::Sending);
+        true
+    }
+
+    fn fine(&mut self) {
+        self.streak.clear();
+        self.backoff.reset();
+    }
 }
 
 /// Upload `plan` through `t`, reporting on `tx`. Blocking: run it on a worker thread. Ends with
 /// `Done`, `Failed` or `Cancelled`.
 pub fn work(t: &dyn Transport, ctl: &Control, plan: &Plan, tx: &Sender<Event>) {
-    let send = |e: Event| {
-        let _ = tx.send(e);
-    };
+    let mut w = Waits { ctl, tx, backoff: Backoff::new(ctl.pace), streak: Streak::default() };
     let mut refused: Option<String> = None;
-    let mut chunk = DEFAULT_CHUNK;
-    let mut backoff = Backoff::new(ctl.pace);
+    let mut chunk = waits::DEFAULT_CHUNK;
 
     // 1 and 2: the hash and the start, unless carrying on with an upload already started.
     let id = match plan.resume.clone() {
         Some(id) => id,
         None => {
-            let hash = match hash_file(&plan.path, ctl, |done| send(Event::Hashing { done })) {
+            let hash = match hash_file(&plan.path, ctl, tx) {
                 Ok(Some(h)) => h,
-                Ok(None) => return send(Event::Cancelled),
-                Err(words) => return send(Event::Failed { words, gone: true }),
+                Ok(None) => return w.send(Event::Cancelled),
+                Err(words) => return w.send(Event::Failed { words, gone: true }),
             };
             let body = start_body(plan, &hash);
             loop {
-                if ctl.is_cancelled() {
-                    return send(Event::Cancelled);
+                if !waits::hold(ctl, tx) {
+                    return w.send(Event::Cancelled);
                 }
-                let Some(token) = token_for(ctl, &refused, tx) else { return send(Event::Cancelled) };
-                match t.start(&token, &body) {
-                    Ok(r) if r.status == 200 || r.status == 201 => {
-                        let v = r.json();
+                let Some(token) = token_for(ctl, &refused, tx) else { return w.send(Event::Cancelled) };
+                if !waits::hold(ctl, tx) {
+                    return w.send(Event::Cancelled);
+                }
+                match answer_of(t.start(&token, &body), ctl) {
+                    Answer::Ok(v) => {
                         let Some(id) = v.get("id").and_then(Value::as_str).map(str::to_string) else {
-                            return send(Event::Failed { words: "The server's answer to the start was not understood.".into(), gone: true });
+                            return w.send(Event::Failed { words: "The server's answer to the start was not understood.".into(), gone: true });
                         };
-                        chunk = v.get("chunk_max").and_then(Value::as_u64).filter(|c| *c > 0).unwrap_or(DEFAULT_CHUNK);
-                        send(Event::Started { id: id.clone() });
+                        chunk = waits::piece_size(v.get("chunk_max").and_then(Value::as_u64));
+                        w.fine();
+                        w.send(Event::Started { id: id.clone() });
                         break id;
                     }
-                    Ok(r) if r.status == 429 && r.json().get("resets_at").is_some() => {
-                        let resets_at = r.json().get("resets_at").and_then(Value::as_i64).unwrap_or(0);
-                        send(Event::Waiting { words: r.words(), resets_at });
-                        let flags = wait_for_allowance(ctl, resets_at);
-                        ctl.take_retry();
-                        if !flags.cancelled && !flags.paused {
-                            send(Event::Sending);
+                    Answer::TokenRefused => refused = Some(token),
+                    Answer::Allowance(a) => w.after_allowance(&a),
+                    Answer::Busy(words) => w.after_trouble(&words),
+                    Answer::NoRoom(words) => {
+                        if !w.after_no_room(words) {
+                            return w.send(Event::Cancelled);
                         }
                     }
-                    Ok(r) if r.token_refused() => refused = Some(token),
-                    Ok(r) if r.status >= 500 && r.status != 507 => {
-                        send(Event::Reconnecting { words: RECONNECTING.to_string() });
-                        backoff.wait(ctl);
+                    Answer::ServerError(r) => {
+                        if !w.after_server_error(&r) {
+                            return w.send(Event::Cancelled);
+                        }
                     }
-                    Ok(r) => return send(Event::Failed { words: r.words(), gone: true }),
-                    Err(_) => {
-                        send(Event::Reconnecting { words: RECONNECTING.to_string() });
-                        backoff.wait(ctl);
-                    }
+                    Answer::Lost => w.after_trouble(RECONNECTING),
+                    Answer::Other(r) => return w.send(Event::Failed { words: r.words(), gone: true }),
                 }
             }
         }
     };
 
-    // 3: the pieces. `offset` None means "ask the server where it got": what an upload carried
-    // on after a restart starts with; a new one starts at 0, as its start said.
+    // 3: the pieces. `offset` None means "ask the server where it got": what an upload carried on
+    // after a restart starts with; a new one starts at 0, as its start said. `cap` is what is left
+    // of an allowance's window, when that is less than a piece.
     let mut offset: Option<u64> = if plan.resume.is_some() { None } else { Some(0) };
+    let mut cap: Option<u64> = None;
     loop {
-        let flags = ctl.flags();
-        if flags.cancelled {
+        if !waits::hold(ctl, tx) {
             cancel_on_server(t, ctl, &id);
-            return send(Event::Cancelled);
-        }
-        if flags.paused {
-            send(Event::Paused);
-            let flags = ctl.wait(None, |f| f.paused && !f.cancelled);
-            ctl.take_retry();
-            if !flags.cancelled {
-                send(Event::Sending);
-            }
-            continue;
+            return w.send(Event::Cancelled);
         }
         let Some(token) = token_for(ctl, &refused, tx) else { continue };
+        if !waits::hold(ctl, tx) {
+            continue; // cancelled meanwhile: the top of the loop tells the server
+        }
         let at = match offset {
             Some(at) => at,
-            None => match t.status(&token, &id) {
-                Ok(r) if r.status == 200 => {
-                    let v = r.json();
+            None => match answer_of(t.status(&token, &id), ctl) {
+                Answer::Ok(v) => {
                     if let Some(done) = v.get("done").filter(|d| !d.is_null()) {
-                        return send(Event::Done { answer: done.clone() });
+                        return w.send(Event::Done { answer: done.clone() });
                     }
-                    chunk = v.get("chunk_max").and_then(Value::as_u64).filter(|c| *c > 0).unwrap_or(chunk);
+                    chunk = waits::piece_size(v.get("chunk_max").and_then(Value::as_u64).or(Some(chunk)));
                     let at = v.get("offset").and_then(Value::as_u64).unwrap_or(0);
-                    send(Event::Progress { offset: at });
+                    w.send(Event::Progress { offset: at });
                     offset = Some(at);
                     at
                 }
-                Ok(r) if r.status == 404 => return send(Event::Failed { words: UPLOAD_GONE.to_string(), gone: true }),
-                Ok(r) if r.token_refused() => {
+                Answer::Other(r) if r.status == 404 => return w.send(Event::Failed { words: UPLOAD_GONE.to_string(), gone: true }),
+                Answer::TokenRefused => {
                     refused = Some(token);
                     continue;
                 }
-                Ok(r) if r.status >= 500 => {
-                    send(Event::Reconnecting { words: RECONNECTING.to_string() });
-                    backoff.wait(ctl);
+                Answer::Allowance(a) => {
+                    w.after_allowance(&a);
                     continue;
                 }
-                Ok(r) => return send(Event::Failed { words: r.words(), gone: false }),
-                Err(_) => {
-                    send(Event::Reconnecting { words: RECONNECTING.to_string() });
-                    backoff.wait(ctl);
+                Answer::Busy(words) => {
+                    w.after_trouble(&words);
                     continue;
                 }
+                Answer::NoRoom(words) => {
+                    w.after_no_room(words);
+                    continue;
+                }
+                Answer::ServerError(r) => {
+                    w.after_server_error(&r);
+                    continue; // cancelled meanwhile or not, the top of the loop decides
+                }
+                Answer::Lost => {
+                    w.after_trouble(RECONNECTING);
+                    continue;
+                }
+                Answer::Other(r) => return w.send(Event::Failed { words: r.words(), gone: false }),
             },
         };
-        // The next piece; at the end, the empty piece that (tries the) finish.
-        let len = chunk.min(plan.size.saturating_sub(at));
+        if !waits::hold(ctl, tx) {
+            continue; // paused between the status and the piece, then cancelled
+        }
+        // The next piece (at most what is left of an allowance's window); at the end, the empty
+        // piece that (tries the) finish.
+        let len = chunk.min(cap.unwrap_or(u64::MAX)).min(plan.size.saturating_sub(at));
         let bytes = match read_piece(&plan.path, at, len) {
             Ok(b) => b,
             Err(words) => {
                 cancel_on_server(t, ctl, &id);
-                return send(Event::Failed { words, gone: true });
+                return w.send(Event::Failed { words, gone: true });
             }
         };
-        match t.piece(&token, &id, at, &bytes) {
-            Ok(r) if r.status == 200 => {
-                let v = r.json();
+        match answer_of(t.piece(&token, &id, at, &bytes), ctl) {
+            Answer::Ok(v) => {
                 if v.get("url").is_some() {
-                    return send(Event::Done { answer: v });
+                    return w.send(Event::Done { answer: v });
                 }
                 let got = v.get("offset").and_then(Value::as_u64).unwrap_or(at + len);
                 offset = Some(got);
-                backoff.reset();
-                send(Event::Progress { offset: got });
+                cap = cap.map(|c| c.saturating_sub(got.saturating_sub(at))).filter(|c| *c > 0);
+                w.fine();
+                w.send(Event::Progress { offset: got });
             }
-            Ok(r) if r.status == 409 => {
+            Answer::Other(r) if r.status == 409 => {
                 let v = r.json();
-                if v.get("busy").and_then(Value::as_bool) == Some(true) {
-                    backoff.wait(ctl);
+                let there = v.get("offset").and_then(Value::as_u64);
+                if v.get("busy").and_then(Value::as_bool) == Some(true) || there.is_none() || there == Some(at) {
+                    // Another piece is being written, or the server named no other place: wait
+                    // and ask, never at once (a 409 at the same place again would loop).
+                    w.backoff.wait(ctl);
                     offset = None;
                 } else {
-                    offset = v.get("offset").and_then(Value::as_u64);
+                    offset = there;
                 }
             }
-            Ok(r) if r.status == 429 => {
-                let v = r.json();
-                let resets_at = v.get("resets_at").and_then(Value::as_i64).unwrap_or_else(|| now_ms() + 60_000);
-                send(Event::Waiting { words: r.words(), resets_at });
-                let flags = wait_for_allowance(ctl, resets_at);
-                ctl.take_retry();
-                offset = v.get("offset").and_then(Value::as_u64).or(offset);
-                if !flags.cancelled && !flags.paused {
-                    send(Event::Sending);
+            Answer::Allowance(a) => {
+                offset = a.offset.or(offset);
+                match a.left.filter(|left| *left > 0 && *left < len) {
+                    // What still fits goes now: the review's finding 5 (an allowance smaller than
+                    // a piece never moved, because every piece was a whole `chunk_max`).
+                    Some(left) => cap = Some(left),
+                    None => {
+                        w.after_allowance(&a);
+                        cap = None;
+                    }
                 }
             }
-            Ok(r) if r.status == 507 => {
-                // No room at the finish: the server keeps the whole file for a day. Wait for Retry.
-                send(Event::NoRoom { words: r.words() });
-                let flags = ctl.wait(None, |f| !f.cancelled && !f.retry);
-                ctl.take_retry();
-                offset = None;
-                if !flags.cancelled {
-                    send(Event::Sending);
-                }
-            }
-            Ok(r) if r.status == 404 => return send(Event::Failed { words: UPLOAD_GONE.to_string(), gone: true }),
-            Ok(r) if r.status == 410 || r.status == 422 => return send(Event::Failed { words: r.words(), gone: true }),
-            Ok(r) if r.token_refused() => refused = Some(token),
-            Ok(r) if r.status >= 500 => {
-                send(Event::Reconnecting { words: RECONNECTING.to_string() });
-                backoff.wait(ctl);
+            Answer::Busy(words) => {
+                w.after_trouble(&words);
                 offset = None;
             }
-            Ok(r) => {
+            Answer::NoRoom(words) => {
+                // The server keeps the whole file for a day. Retry sends the empty piece again.
+                offset = None;
+                if !w.after_no_room(words) {
+                    continue;
+                }
+            }
+            Answer::Other(r) if r.status == 404 => return w.send(Event::Failed { words: UPLOAD_GONE.to_string(), gone: true }),
+            Answer::Other(r) if r.status == 410 || r.status == 422 => return w.send(Event::Failed { words: r.words(), gone: true }),
+            Answer::TokenRefused => refused = Some(token),
+            Answer::ServerError(r) => {
+                offset = None;
+                if !w.after_server_error(&r) {
+                    continue;
+                }
+            }
+            Answer::Lost => {
+                // The answer was lost: the server may or may not have the piece. Ask it.
+                w.after_trouble(RECONNECTING);
+                offset = None;
+            }
+            Answer::Other(r) => {
                 // Anything else (a piece the server will not take, a role that may no longer
                 // upload) cannot be carried on: the server is told, and the person why.
                 cancel_on_server(t, ctl, &id);
-                return send(Event::Failed { words: r.words(), gone: true });
-            }
-            Err(_) => {
-                // The answer was lost: the server may or may not have the piece. Ask it.
-                send(Event::Reconnecting { words: RECONNECTING.to_string() });
-                backoff.wait(ctl);
-                offset = None;
+                return w.send(Event::Failed { words: r.words(), gone: true });
             }
         }
     }
-}
-
-// ── The page's handle on a running upload ───────────────────────────────────────────────────
-
-/// Where a running upload is, as the page shows it.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Phase {
-    Hashing,
-    Sending,
-    Paused,
-    Waiting { words: String, resets_at: i64 },
-    NoRoom { words: String },
-    Reconnecting { words: String },
-    /// Stored; the page publishes it.
-    Done { filename: String },
-    Failed { words: String },
-    Cancelled,
-}
-
-/// An upload running on its worker thread.
-pub struct Run {
-    pub ctl: Arc<Control>,
-    rx: Receiver<Event>,
-    pub name: String,
-    pub size: u64,
-    /// The server's id, once it started.
-    pub id: Option<String>,
-    /// How much of the file the server has, and how much was hashed.
-    pub sent: u64,
-    pub hashed: u64,
-    pub phase: Phase,
-}
-
-impl Run {
-    /// Start `plan` on a worker thread through `t`.
-    pub fn start(t: Arc<dyn Transport>, plan: Plan, ctl: Arc<Control>) -> Run {
-        let (tx, rx) = std::sync::mpsc::channel();
-        let (name, size, id) = (plan.name.clone(), plan.size, plan.resume.clone());
-        let phase = if id.is_some() { Phase::Sending } else { Phase::Hashing };
-        let worker_ctl = ctl.clone();
-        std::thread::Builder::new()
-            .name("media-upload".into())
-            .spawn(move || work(t.as_ref(), &worker_ctl, &plan, &tx))
-            .ok();
-        Run { ctl, rx, name, size, id, sent: 0, hashed: 0, phase }
-    }
-
-    /// Read what the worker reported since the last frame, keeping `phase` and the counts, and
-    /// return the events the page acts on (`Started`, `Done`, `Failed`, `Cancelled`).
-    pub fn poll(&mut self) -> Vec<Event> {
-        let mut out = Vec::new();
-        while let Ok(e) = self.rx.try_recv() {
-            match &e {
-                Event::Hashing { done } => self.hashed = *done,
-                Event::Started { id } => {
-                    self.id = Some(id.clone());
-                    self.phase = Phase::Sending;
-                    out.push(e.clone());
-                }
-                Event::Progress { offset } => {
-                    self.sent = *offset;
-                    if !matches!(self.phase, Phase::Paused) {
-                        self.phase = Phase::Sending;
-                    }
-                }
-                Event::Paused => self.phase = Phase::Paused,
-                Event::Sending => self.phase = Phase::Sending,
-                Event::Waiting { words, resets_at } => self.phase = Phase::Waiting { words: words.clone(), resets_at: *resets_at },
-                Event::NoRoom { words } => self.phase = Phase::NoRoom { words: words.clone() },
-                Event::Reconnecting { words } => self.phase = Phase::Reconnecting { words: words.clone() },
-                Event::Done { answer } => {
-                    let filename = stored_name_of(answer);
-                    self.sent = self.size;
-                    self.phase = Phase::Done { filename };
-                    out.push(e.clone());
-                }
-                Event::Failed { words, .. } => {
-                    self.phase = Phase::Failed { words: words.clone() };
-                    out.push(e.clone());
-                }
-                Event::Cancelled => {
-                    self.phase = Phase::Cancelled;
-                    out.push(e.clone());
-                }
-            }
-        }
-        out
-    }
-
-    /// How far along: the hash first, then the pieces.
-    pub fn fraction(&self) -> f32 {
-        let size = self.size.max(1) as f32;
-        match self.phase {
-            Phase::Hashing => self.hashed as f32 / size,
-            _ => self.sent as f32 / size,
-        }
-    }
-
-    /// The line beside the progress bar.
-    pub fn words(&self) -> String {
-        use super::api::size_words;
-        let of = |n: u64| format!("{} of {}", size_words(n as i64), size_words(self.size as i64));
-        match &self.phase {
-            Phase::Hashing => format!("Checking the file before it goes: {}", of(self.hashed)),
-            Phase::Sending => format!("Uploading: {}", of(self.sent)),
-            Phase::Paused => format!("Paused at {}", of(self.sent)),
-            Phase::Waiting { words, resets_at } => format!("{words} It carries on by itself {}, or press Resume.", when_words(*resets_at)),
-            Phase::NoRoom { words } => words.clone(),
-            Phase::Reconnecting { words } => words.clone(),
-            Phase::Done { .. } => "Uploaded. Putting it on the Media page...".to_string(),
-            Phase::Failed { words } => words.clone(),
-            Phase::Cancelled => "Cancelled.".to_string(),
-        }
-    }
-}
-
-/// "at 14:00 UTC" style words for when an allowance resets, or "now" once it has.
-fn when_words(resets_at: i64) -> String {
-    let left = resets_at - now_ms();
-    if left <= 0 {
-        return "now".to_string();
-    }
-    let minutes = (left + 59_999) / 60_000;
-    match (minutes / 60, minutes % 60) {
-        (0, m) => format!("in {m} minute{}", if m == 1 { "" } else { "s" }),
-        (h, 0) => format!("in {h} hour{}", if h == 1 { "" } else { "s" }),
-        (h, m) => format!("in {h} hour{} {m} minute{}", if h == 1 { "" } else { "s" }, if m == 1 { "" } else { "s" }),
-    }
-}
-
-/// The stored file name in a finished upload's answer (`filename`, else its address's last part).
-pub fn stored_name_of(answer: &Value) -> String {
-    let named = answer.get("filename").and_then(Value::as_str).unwrap_or("");
-    if !named.is_empty() {
-        return named.to_string();
-    }
-    answer.get("url").and_then(Value::as_str).map(|u| super::api::bare_name(u).to_string()).unwrap_or_default()
 }
 
 #[cfg(test)]

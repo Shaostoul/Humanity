@@ -238,15 +238,29 @@ pub struct DmAttachment {
 /// `(ciphertext, key_b64, nonce_b64)`. The key never leaves the client
 /// except inside the sealed DM envelope.
 pub fn encrypt_attachment(bytes: &[u8]) -> Result<(Vec<u8>, String, String), String> {
+    let mut ct = Vec::with_capacity(bytes.len() + 16);
+    ct.extend_from_slice(bytes);
+    let (k, n) = encrypt_attachment_in_place(&mut ct)?;
+    Ok((ct, k, n))
+}
+
+/// [`encrypt_attachment`] in the file's own buffer: `buf` holds the file and becomes its
+/// ciphertext (the same bytes [`encrypt_attachment`] makes), so a large file is never held twice
+/// (round 3 of docs/design/media-showcase.md, the review's finding 8: sending a 1 GB private file
+/// held its plaintext, its ciphertext and the upload's copy, about 3 GB, at once). The 16 bytes of
+/// the tag are reserved first, so the buffer is not moved. Returns `(key_b64, nonce_b64)`.
+pub fn encrypt_attachment_in_place(buf: &mut Vec<u8>) -> Result<(String, String), String> {
     use aes_gcm::aead::rand_core::RngCore;
+    use aes_gcm::aead::AeadInPlace;
     let mut raw_key = [0u8; 32];
     AesOsRng.fill_bytes(&mut raw_key);
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&raw_key));
     let nonce_bytes = Aes256Gcm::generate_nonce(&mut AesOsRng);
-    let ct = cipher
-        .encrypt(Nonce::from_slice(nonce_bytes.as_slice()), bytes)
+    buf.reserve_exact(16);
+    cipher
+        .encrypt_in_place(Nonce::from_slice(nonce_bytes.as_slice()), b"", buf)
         .map_err(|e| format!("attachment seal: {e}"))?;
-    Ok((ct, B64.encode(raw_key), B64.encode(nonce_bytes.as_slice())))
+    Ok((B64.encode(raw_key), B64.encode(nonce_bytes.as_slice())))
 }
 
 /// Decrypt an attachment's ciphertext with the key + nonce from its marker.

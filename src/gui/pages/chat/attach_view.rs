@@ -52,9 +52,20 @@ pub(crate) fn file_in(msg: &ChatMessage) -> Option<DmAttachment> {
     crate::net::dm_pq::parse_file_marker(&msg.content)
 }
 
-/// Whether the file is drawn as a picture rather than a card.
+/// Whether the file is a picture type the image decoder reads.
 pub(crate) fn is_inline(att: &DmAttachment) -> bool {
     INLINE_TYPES.contains(&att.mime.to_ascii_lowercase().as_str())
+}
+
+/// Whether the file is drawn as a picture in place rather than a card with Save: a picture type,
+/// and no larger than the image cache shows (round 3 of docs/design/media-showcase.md, the
+/// review's finding 4: a private picture over 16 MB went to the in-place path, whose fetch refused
+/// it, and showed only "This file could not be opened." with no Save, so it could be neither
+/// opened nor saved). Routed by the size the marker states: the sender's app writes the true size
+/// (attach_send.rs), and a marker that understates it fails the in-place fetch, as any file that
+/// does not open does.
+pub(crate) fn shows_in_place(att: &DmAttachment) -> bool {
+    is_inline(att) && att.size <= crate::gui::widgets::image_cache::MAX_IMAGE_BYTES as u64
 }
 
 /// The name a private file goes by in the image cache: a hash of its address, key and nonce. The
@@ -145,55 +156,26 @@ pub(crate) fn save_name(name: &str) -> String {
     }
 }
 
-/// A new file in `dir` for `name` made safe, never over an existing one ("x (2).pdf", "x (3).pdf"
-/// and so on): its path and the file, open for writing.
-fn create_free(dir: &std::path::Path, name: &str) -> Result<(std::path::PathBuf, std::fs::File), String> {
-    std::fs::create_dir_all(dir).map_err(|e| format!("folder: {e}"))?;
-    let name = save_name(name);
-    let (stem, ext) = match name.rfind('.') {
-        Some(i) if i > 0 => (&name[..i], &name[i..]),
-        _ => (name.as_str(), ""),
-    };
-    for n in 1..=999 {
-        let candidate = if n == 1 { name.clone() } else { format!("{stem} ({n}){ext}") };
-        let path = dir.join(candidate);
-        match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
-            Ok(f) => return Ok((path, f)),
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(e) => return Err(format!("create: {e}")),
-        }
-    }
-    Err("no free file name".to_string())
-}
-
 /// What Save does, on its worker thread: fetch the ciphertext with `fetch` straight to a hidden
-/// file in `dir` (at most `max_ciphertext`, written as it arrives), decrypt it from there into
-/// the file it is saved as (net/dm_file_stream.rs: the tag over the whole file first, then the
-/// plaintext a megabyte at a time, so a file of up to a gigabyte is never held in memory), and
-/// remove the hidden file. A file that cannot be opened writes nothing.
+/// part file in `dir` (at most `max_ciphertext`, written as it arrives), decrypt it from there into
+/// a second part file (net/dm_file_stream.rs: the tag over the whole file first, then the plaintext
+/// a megabyte at a time, so a file of up to a gigabyte is never held in memory), and only then
+/// give that its name, made safe and never over an existing one ("x (2).pdf" and so on, claimed,
+/// widgets/part_file.rs). Round 3 (the review's finding 6): the decryption used to write into the
+/// final name, so the app quitting mid-way left a partial file there, and the hidden ciphertext
+/// file was left behind too. Both are part files now, deleted on any failure, at the app's exit,
+/// and, for what a crash left, at the next start. A file that cannot be opened writes nothing.
 pub(crate) fn save_file<F>(url: &str, k: &str, n: &str, name: &str, dir: &std::path::Path, fetch: F) -> Result<std::path::PathBuf, String>
 where
     F: FnOnce(&str, u64, &mut std::fs::File) -> Result<u64, String>,
 {
-    std::fs::create_dir_all(dir).map_err(|e| format!("folder: {e}"))?;
-    let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-    let part = dir.join(format!(".humanityos-{stamp:x}-{:?}.part", std::thread::current().id()).replace(['(', ')'], ""));
-    let saved = (|| {
-        let mut f = std::fs::File::create(&part).map_err(|e| format!("create: {e}"))?;
-        fetch(url, max_ciphertext(), &mut f)?;
-        drop(f);
-        let (path, mut out) = create_free(dir, name)?;
-        match crate::net::dm_file_stream::decrypt_file(&part, &mut out, k, n) {
-            Ok(_) => Ok(path),
-            Err(e) => {
-                drop(out);
-                let _ = std::fs::remove_file(&path);
-                Err(e)
-            }
-        }
-    })();
-    let _ = std::fs::remove_file(&part);
-    saved
+    use crate::gui::widgets::part_file::Part;
+    let mut sealed = Part::create(dir)?;
+    fetch(url, max_ciphertext(), sealed.file())?;
+    let mut plain = Part::create(dir)?;
+    crate::net::dm_file_stream::decrypt_file(sealed.path(), plain.file(), k, n)?;
+    drop(sealed); // the ciphertext goes as soon as it is decrypted
+    plain.finish(dir, &save_name(name))
 }
 
 /// A file's size in plain words.
@@ -269,7 +251,7 @@ pub(super) fn draw(
     if plan.show == Show::Hidden {
         return; // the row already carries the protected setup's line; nothing is fetched
     }
-    if is_inline(att) {
+    if shows_in_place(att) {
         match &plan.show {
             Show::AskNotFriend => {
                 let first = format!("{sender_name} is not your friend. Pictures show only when you choose.");

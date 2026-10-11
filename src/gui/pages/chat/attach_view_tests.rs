@@ -284,6 +284,65 @@ fn a_file_is_a_card_whose_save_writes_the_decrypted_file() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// A PRIVATE PICTURE TOO LARGE TO SHOW IN PLACE IS A CARD WITH SAVE (round 3 of
+/// docs/design/media-showcase.md, the review's finding 4): routed by the size its marker states,
+/// a picture over the image cache's 16 MB is never fetched into memory; its card offers Save,
+/// which streams it to disk. Before, it went to the in-place path, whose capped fetch failed, and
+/// the row said only "This file could not be opened.": no picture and no Save.
+///
+/// Seen red 2026-10-11 with `draw` routing by the type alone (`is_inline`, as in round 2): "a
+/// card with Save" (the frame drew ["Opening panorama.png…"]).
+#[test]
+fn a_private_picture_over_16_mb_is_a_card_with_save() {
+    let (mut att, _) = sealed(&png(8, 8), "/uploads/big.enc", "panorama.png", "image/png");
+    att.size = 20 * 1024 * 1024;
+    assert!(is_inline(&att) && !shows_in_place(&att), "a picture, but not one shown in place");
+    let ctx = egui::Context::default();
+    let mut cache = ImageCache::new();
+    let plan = Plan { key: cache_key(&att), url: "http://127.0.0.1:9/uploads/big.enc".into(), show: Show::Load };
+    let (texts, _) = draw_frame(&ctx, &mut cache, "Ann", &att, &plan);
+    assert!(texts.iter().any(|t| t == "Save"), "a card with Save: {texts:?}");
+    assert!(texts.iter().any(|t| t == "panorama.png") && texts.iter().any(|t| t == "20.0 MB"), "named, with its size: {texts:?}");
+    assert!(matches!(cache.status(&plan.key), ImageStatus::Idle), "nothing is fetched into memory");
+    let (small, _) = sealed(&png(8, 8), "/uploads/s.enc", "s.png", "image/png");
+    assert!(shows_in_place(&small), "a small picture is still shown in place");
+}
+
+/// SAVE WRITES THROUGH PART FILES THE EXIT DELETES (round 3, finding 6): the ciphertext arrives in
+/// a hidden part file this run lists, so the app's exit deletes it if it is cut off there; the
+/// decrypted file is a part too until it is complete; and a Save that fails leaves nothing.
+///
+/// Seen red 2026-10-11 with part files not listed for the exit (as round 2's own `.humanityos-*.part`
+/// was not): "the ciphertext is in a part the exit deletes" failed.
+#[test]
+fn save_writes_through_part_files_the_exit_deletes() {
+    let body = b"long ride notes ".repeat(64);
+    let (att, ct) = sealed(&body, "/uploads/p.enc", "notes.txt", "text/plain");
+    let dir = crate::test_temp::dir("attach_save_parts");
+    let (k, n) = (att.k.clone(), att.n.clone());
+    let saved = save_file("u", &k, &n, "notes.txt", &dir, |_, _, f| {
+        let entries: Vec<std::path::PathBuf> = std::fs::read_dir(&*dir).unwrap().flatten().map(|e| e.path()).collect();
+        assert_eq!(entries.len(), 1, "only the arriving ciphertext: {entries:?}");
+        let name = entries[0].file_name().unwrap().to_string_lossy().to_string();
+        assert!(crate::gui::widgets::part_file::is_part_name(&name), "it is a hidden part: {name}");
+        assert!(crate::gui::widgets::part_file::is_listed(&entries[0]), "the ciphertext is in a part the exit deletes");
+        write_all(f, &ct)
+    })
+    .expect("saved");
+    assert_eq!(std::fs::read(&saved).unwrap(), body);
+    let names: Vec<String> = std::fs::read_dir(&*dir).unwrap().flatten().map(|e| e.file_name().to_string_lossy().to_string()).collect();
+    assert_eq!(names, vec!["notes.txt".to_string()], "only the saved file is left");
+
+    // Cut off half way: nothing at all is left.
+    let failed = save_file("u", &k, &n, "cut.txt", &dir, |_, _, f| {
+        write_all(f, &ct[..ct.len() / 2])?;
+        Err("the connection dropped".to_string())
+    });
+    assert!(failed.is_err());
+    let names: Vec<String> = std::fs::read_dir(&*dir).unwrap().flatten().map(|e| e.file_name().to_string_lossy().to_string()).collect();
+    assert_eq!(names, vec!["notes.txt".to_string()], "a failed Save leaves nothing");
+}
+
 /// The name a sender chose cannot leave the downloads folder or make a name Windows refuses.
 /// Seen red 2026-10-10 with `save_name` returning the name as given: the first case failed.
 #[test]
