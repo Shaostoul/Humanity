@@ -1913,19 +1913,19 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         && ui.input(|i| i.key_pressed(egui::Key::Enter) && !i.modifiers.shift);
 
                     // Search button — opens the message search modal.
-                    if widgets::Button::ghost("🔍").tooltip("Search messages in this channel").show(ui, theme) {
+                    if widgets::Button::ghost("🔍").tooltip_above("Search messages in this channel", input_rect.top()).show(ui, theme) {
                         state.chat_search_open = true;
                     }
 
                     // Pins button — shows pin count + opens the pins modal.
                     let pin_count = state.chat_pins.get(&state.chat_active_channel).map(|p| p.len()).unwrap_or(0);
                     let pin_label = if pin_count > 0 { format!("📌 {}", pin_count) } else { "📌".to_string() };
-                    if widgets::Button::ghost(&pin_label).tooltip("Pinned messages in this channel").show(ui, theme) {
+                    if widgets::Button::ghost(&pin_label).tooltip_above("Pinned messages in this channel", input_rect.top()).show(ui, theme) {
                         state.chat_pins_open = true;
                     }
 
                     // Help button (?) - opens slash commands reference
-                    if widgets::Button::ghost("?").tooltip("Slash-command reference and formatting tips").show(ui, theme) {
+                    if widgets::Button::ghost("?").tooltip_above("Slash-command reference and formatting tips", input_rect.top()).show(ui, theme) {
                         state.show_help_modal = !state.show_help_modal;
                     }
 
@@ -1937,13 +1937,13 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                          3D files from a server's room are also published to its Shared Files library.",
                         attach_limit / (1024 * 1024)
                     );
-                    if widgets::Button::secondary("Attach").tooltip(&attach_tip).show(ui, theme) {
+                    if widgets::Button::secondary("Attach").tooltip_above(&attach_tip, input_rect.top()).show(ui, theme) {
                         state.chat_attach_picker = Some(
                             crate::gui::widgets::file_browser::FilePickerState::new(ATTACH_EXTS, attach_limit),
                         );
                     }
                     let send_clicked = widgets::Button::primary("Send")
-                        .tooltip("Send the message (or press Enter)")
+                        .tooltip_above("Send the message (or press Enter)", input_rect.top())
                         .show(ui, theme);
                     // Everything on this row that is not the text area: the
                     // box's own margins beyond its desired width, the spacing,

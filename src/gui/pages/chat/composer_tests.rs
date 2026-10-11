@@ -71,3 +71,40 @@ fn one_long_wrapping_line_grows_the_composer_upward_too() {
     assert!(wrapped.bottom() <= SCREEN.y + 0.5, "the wrapped paragraph stays on screen: {wrapped:?}");
     assert!(wrapped.top() < one.top() - 30.0, "and the box grew upward to show its rows: {one:?} then {wrapped:?}");
 }
+
+/// THE COMPOSER'S HINTS OPEN ABOVE IT (operator, 2026-10-11: the Attach hint, still up when the
+/// file picker closed, covered the chat bar). Resting the pointer on each button to the right of
+/// the text box in turn, the first hint that opens sits wholly above the box and does not
+/// overlap it. Seen red 2026-10-11 with the hint above never shown (`show_tip_above` returning
+/// at once): "no hint opened above the composer".
+#[test]
+fn the_composers_hints_open_above_it() {
+    let ctx = egui::Context::default();
+    let theme = crate::gui::theme::load_theme();
+    let mut state = GuiState::default();
+    state.chat_active_channel = "general".into();
+    for _ in 0..3 {
+        frame(&ctx, &theme, &mut state);
+    }
+    let boxed = composer(&ctx);
+    let y = boxed.center().y;
+    let mut t = 0.0;
+    let mut x = boxed.right() + 6.0;
+    let mut found = None;
+    while x < SCREEN.x - 4.0 && found.is_none() {
+        // Move onto the spot, then rest there past the tooltip delay.
+        for step in 0..4 {
+            t += if step == 0 { 0.01 } else { 0.4 };
+            let mut input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, SCREEN)), time: Some(t), ..Default::default() };
+            if step == 0 {
+                input.events.push(egui::Event::PointerMoved(egui::pos2(x, y)));
+            }
+            let _ = ctx.run(input, |ctx| draw(ctx, &theme, &mut state));
+        }
+        found = ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::new(crate::gui::widgets::button::TIP_ABOVE_LAST)));
+        x += 8.0;
+    }
+    let tip = found.expect("no hint opened above the composer");
+    assert!(tip.bottom() <= boxed.top(), "the hint sits above the text box: hint {tip:?}, box {boxed:?}");
+    assert!(!tip.intersects(boxed), "and does not overlap it: hint {tip:?}, box {boxed:?}");
+}

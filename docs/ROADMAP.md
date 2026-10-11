@@ -243,6 +243,12 @@ of your identity, and your identity is portable across all of them.
   operator-run relay, end-to-end federation testing, then vetted third-party peers.
 - `[planned]` Peer-to-peer groups Phases 3 to 5: relay-independent transport (a group
   survives even if its home relay dies) and serverless discovery.
+- `[planned]` Everyone on Earth (`docs/design/eight-billion.md`, 2026-10-11): every feature
+  works with no server, with one small one, and across many; sealed mailboxes delivered
+  between servers, a signed "where to reach me" record and a directory spread across
+  servers to find anyone by their key, live streams carried by a fan-out tree of servers,
+  and big calls through a forwarding unit. The desktop app already is a server, so anyone
+  can host their household, club or town.
 - `[done]` Native voice: mic capture, Opus over WebRTC, and per-channel voice rooms
   that interoperate with the web client for live two-way audio, with RNNoise noise
   suppression and selectable transmit modes (open mic, push-to-talk, voice-activated,
@@ -456,8 +462,9 @@ Every operator gets the same sovereignty tools, not just the original.
   watchdog with self-heal, and multi-channel alerting.
 - `[done]` Abuse resistance: fail2ban, per-key rate limits, signed-request anti-replay,
   and per-author submission quotas (the security sprint, v0.420 to v0.422).
-- `[done]` Distribution: GitHub plus a self-hosted Forgejo mirror plus a BitTorrent
-  seeder.
+- `[done]` Distribution: GitHub plus a self-hosted Forgejo mirror. A BitTorrent seeder
+  for release downloads is built but not serving today: the release manifest carries no
+  magnet links (checked 2026-09-14, `docs/admin/torrent-infrastructure.md`).
 - `[done]` Release-signing pipeline verified end to end (a release dual-signed
   Ed25519 + Dilithium3, the fail-closed updater offering it) plus a `check-signing`
   health gate so an unsigned latest release can never again silently freeze auto-update
@@ -477,15 +484,24 @@ Every operator gets the same sovereignty tools, not just the original.
   (candidates floated 2026-06-30: public.guide, shaostoul.com, project.universe,
   our.universe) off the same relay/exe rather than standing up separate
   infrastructure per site.
-- `[future]` Relay-hosted file sharing as torrents: beyond seeding release binaries
-  (the `[done]` BitTorrent seeder above), let the operator share arbitrary files from
-  their relay as torrents for the community to pull.
+- `[planned]` Files at scale (`docs/design/file-transfer-at-scale.md`, 2026-10-11):
+  files as pieces under one BLAKE3 fingerprint (resume from anyone, identical files stored
+  once), big private files sent device to device with the receiver accepting, groups
+  sharing a file among their members instead of each downloading it from the server,
+  public Media seeded by the people watching it (opt-in), shares of the server's disk and
+  bandwidth that shrink fairly as it fills, and a ledger of what each person used and
+  contributed. The server is a mailbox, not an archive; many servers, not one big one.
 - `[planned]` Device mesh: a "My Devices" dashboard, backup designation, restore flow,
   and direct LAN sync, so your own devices back each other up.
 - `[planned]` Litestream continuous replication (roughly 1-minute recovery point) and
   a quarterly backup-restore drill.
 - `[planned]` GitHub branch + tag protection and required signed commits on `main`
   (deploy auto-pushes to the live relay today with no approval gate).
+- `[future]` Between planets (`docs/design/interplanetary.md`, 2026-10-11): designing for
+  light speed (minutes to hours each way, two weeks of silence when Mars is behind the Sun) gives
+  six rules that help on Earth now: self-contained signed bundles, no round trips, no single
+  "now" (hybrid logical clocks, data that merges by rule), read near you, send only what the
+  other side is missing, and honest delivery steps.
 - `[future]` FederationBundle: one signed-object bundle that travels over any medium
   (USB, QR, LoRa, sneakernet), so identity and knowledge move with no internet at all.
 - `[future]` Continuity Capsule: self-sovereign succession via a Shamir-split seed
