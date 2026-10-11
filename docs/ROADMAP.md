@@ -243,6 +243,12 @@ of your identity, and your identity is portable across all of them.
   operator-run relay, end-to-end federation testing, then vetted third-party peers.
 - `[planned]` Peer-to-peer groups Phases 3 to 5: relay-independent transport (a group
   survives even if its home relay dies) and serverless discovery.
+- `[planned]` Everyone on Earth (`docs/design/eight-billion.md`, 2026-10-11): every feature
+  works with no server, with one small one, and across many; sealed mailboxes delivered
+  between servers, a signed "where to reach me" record and a directory spread across
+  servers to find anyone by their key, live streams carried by a fan-out tree of servers,
+  and big calls through a forwarding unit. The desktop app already is a server, so anyone
+  can host their household, club or town.
 - `[done]` Native voice: mic capture, Opus over WebRTC, and per-channel voice rooms
   that interoperate with the web client for live two-way audio, with RNNoise noise
   suppression and selectable transmit modes (open mic, push-to-talk, voice-activated,

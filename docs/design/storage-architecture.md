@@ -118,7 +118,7 @@ Bob's client
 | **A few hundred users on one server** | One SQLite file handles it easily. WAL mode = concurrent reads. |
 | **Many servers, many users** | Federation: each server is independent, gossips signed_objects, maintains its OWN per-issuer trust matrix from its OWN observations. No global view required. |
 | **Disaster / no-internet zone** | Phase 7b LoRa transport: high-priority objects (recovery_request, vouch, vote, proposal) propagate over radio at ~50kbps. Mesh syncs to internet when it returns. |
-| **Billions of users** | Sharding on `did[:2]` (256 buckets) is built-in for hot tables. Litestream replication for durability. Federation = no single bottleneck. |
+| **Billions of users** | Federation = no single bottleneck: millions of small servers, not one big one. Sharding hot tables on `did[:2]` (256 buckets) is an idea, NOT built (no sharding code exists, checked 2026-10-11). The whole picture, capability by capability, is [eight-billion.md](eight-billion.md). |
 
 ---
 

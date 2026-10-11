@@ -79,6 +79,10 @@ same "contribute what you can" rule as the rest of the project.
   ([p2p-groups.md](p2p-groups.md)).
 - The call forwarder that keeps addresses private (`src/relay/call_forwarder.rs`; its port opens
   when the operator opens it).
+- An earlier forward design for content-addressed P2P file sharing,
+  [network/file_sharing.md](../network/file_sharing.md) (`file_manifest`, `block_have`,
+  `block_request`): not built. It is the first draft of layers 1 to 3 here; when they are built,
+  reconcile the two (its Ed25519 signing becomes Dilithium3, its hashes BLAKE3).
 - A BitTorrent seeder for release downloads ([torrent-infrastructure.md](../admin/torrent-infrastructure.md)),
   built but not serving today: the release manifest carries no magnet links (checked 2026-09-14).
 
