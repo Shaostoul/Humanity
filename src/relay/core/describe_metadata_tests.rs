@@ -55,7 +55,8 @@ fn every_fixture_gets_the_webs_answer_from_memory_and_from_disk() {
     }
 }
 
-/// The attach step's words for a phone photo, word for word, and nothing for a clean one.
+/// The attach step's words for a phone photo, word for word, and nothing for a clean one. Seen red
+/// 2026-10-11 with the camera's name left out of its words: the "(Apple iPhone 15 Pro)" assertion.
 #[test]
 fn a_phone_photo_says_where_it_was_taken_and_which_camera() {
     let bytes = std::fs::read(fixtures().join("jpeg-phone.jpg")).unwrap();

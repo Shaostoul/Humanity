@@ -63,7 +63,8 @@ fn the_cap_keeps_the_most_recently_opened() {
     assert!(!none.put("/e", "k", "n", &file(4)).unwrap(), "a cap of 0 keeps nothing");
 }
 
-/// "Clear kept files" empties the folder and says how much.
+/// "Clear kept files" empties the folder and says how much. Seen red 2026-10-11 with `clear` not
+/// counting what it removed: (0, 182) against (2, 182).
 #[test]
 fn clear_empties_the_folder() {
     let dir = crate::test_temp::dir("kept_clear");

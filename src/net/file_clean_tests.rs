@@ -27,7 +27,8 @@ fn a_phone_photo_and_a_phone_video_leave_saying_nothing() {
 }
 
 /// A HEIC photo (an iPhone's, built byte by byte by the HEIF strip's own test builder) is cleaned on
-/// the desktop with the relay's HEIF strip: its Exif item zeroed in place.
+/// the desktop with the relay's HEIF strip: its Exif item zeroed in place. Seen red 2026-10-11 with
+/// the HEIF strip handed nothing to strip: the assertion "{c:?}" failed (not changed, unchecked).
 #[test]
 fn a_heic_photo_is_cleaned_in_place() {
     let built = crate::relay::core::strip_heif_metadata::build::iphone_heic();
@@ -64,6 +65,7 @@ fn what_could_not_be_checked() {
 }
 
 /// The look from disk (what the attach step shows) agrees with the clean on every shared fixture.
+/// Seen red 2026-10-11 with the look calling a GIF unchecked: "gif.gif".
 #[test]
 fn the_look_from_disk_agrees_with_the_clean() {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/describe");

@@ -55,8 +55,12 @@ impl std::fmt::Debug for KeptFiles {
     }
 }
 
-/// The folder kept files live in: beside the DM history, in the app's own data folder.
+/// The folder kept files live in: beside the DM history, in the app's own data folder. (A test
+/// build keeps them in the temp folder, so no test ever writes into a real app's kept files.)
 pub fn kept_dir() -> PathBuf {
+    if cfg!(test) {
+        return std::env::temp_dir().join(format!("hum_test_kept_files_{}", std::process::id()));
+    }
     let dms = crate::net::dm_store::DmStore::store_dir();
     dms.parent().map(|p| p.join("kept-files")).unwrap_or_else(|| PathBuf::from("kept-files"))
 }

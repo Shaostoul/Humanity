@@ -70,6 +70,8 @@ pub struct FileBrowserState {
     pub shared_action_rx: Option<std::sync::mpsc::Receiver<ActionResult>>,
     /// Open file picker for uploading to the server.
     pub shared_picker: Option<widgets::file_browser::FilePickerState>,
+    /// A picked file being looked at before it uploads (files_upload_step.rs, 2026-10-11).
+    pub shared_step: Option<super::files_upload_step::UploadStep>,
 }
 
 impl Default for FileBrowserState {
@@ -90,6 +92,7 @@ impl Default for FileBrowserState {
             shared_list_rx: None,
             shared_action_rx: None,
             shared_picker: None,
+            shared_step: None,
         }
     }
 }
@@ -483,29 +486,15 @@ fn draw_shared_files_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
                     .and_then(|n| n.to_str())
                     .unwrap_or("file")
                     .to_string();
-                match std::fs::read(&path) {
+                // Its size only, now: the file is read, cleaned and uploaded by a worker after its
+                // look (files_upload_step.rs, 2026-10-11), never on the frame.
+                match std::fs::metadata(&path).map(|m| m.len()) {
                     Ok(_) if upload_token.is_none() => {
                         with_state(|fs| fs.shared_status = crate::gui::pages::chat::NOT_SIGNED_IN_YET.to_string());
                     }
-                    Ok(bytes) if (bytes.len() as u64) <= upload_limit => {
-                        // The file's real type, so a picture gets its metadata strip on the server
-                        // (it was always sent as application/octet-stream, 2026-10-11).
-                        let mime = crate::gui::pages::chat::mime_for_filename(&filename).to_string();
-                        let server = server.clone();
-                        let key = upload_token.clone().unwrap_or_default();
-                        let (tx, rx) = std::sync::mpsc::channel();
-                        std::thread::spawn(move || {
-                            // share=true: this file joins the public library.
-                            let res = crate::gui::pages::chat::upload_file_blocking(
-                                &server, &key, &filename, &mime, bytes, true,
-                            )
-                            .map(|url| format!("uploaded {url}"));
-                            let _ = tx.send(res);
-                        });
-                        with_state(|fs| {
-                            fs.shared_action_rx = Some(rx);
-                            fs.shared_status = "Uploading...".to_string();
-                        });
+                    Ok(len) if len <= upload_limit => {
+                        let step = super::files_upload_step::start(state, path.clone(), filename);
+                        with_state(|fs| fs.shared_step = Some(step));
                     }
                     Ok(_) => {
                         with_state(|fs| fs.shared_status =
@@ -516,6 +505,21 @@ fn draw_shared_files_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
                     }
                 }
             }
+        }
+    }
+
+    // The picked file's step: what is hidden in it and the switch, when it has something to say;
+    // the upload starts on Upload, or at once for a file with nothing hidden in it.
+    if let Some(mut step) = with_state(|fs| fs.shared_step.take()) {
+        use super::files_upload_step::Outcome;
+        let token = upload_token.clone().unwrap_or_default();
+        match super::files_upload_step::draw(ui, theme, state, &mut step, &server, &token) {
+            Outcome::Waiting => with_state(|fs| fs.shared_step = Some(step)),
+            Outcome::Uploading(rx) => with_state(|fs| {
+                fs.shared_action_rx = Some(rx);
+                fs.shared_status = "Uploading...".to_string();
+            }),
+            Outcome::Cancelled => {}
         }
     }
 }

@@ -143,7 +143,11 @@ pub fn look_file(path: &Path, name: &str) -> std::io::Result<Look> {
 
 /// Where cleaned copies of big files wait to be uploaded: beside the DM history, in the app's own
 /// data folder. A copy stays only while its upload is unfinished (the Media page sweeps the rest).
+/// (A test build uses the temp folder.)
 pub fn cleaned_dir() -> PathBuf {
+    if cfg!(test) {
+        return std::env::temp_dir().join(format!("hum_test_cleaned_uploads_{}", std::process::id()));
+    }
     let dms = crate::net::dm_store::DmStore::store_dir();
     dms.parent().map(|p| p.join("cleaned-uploads")).unwrap_or_else(|| PathBuf::from("cleaned-uploads"))
 }

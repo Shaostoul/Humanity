@@ -195,6 +195,11 @@ pub struct MediaState {
     /// A fingerprint of the upload token members-only pictures were last asked for with: when it
     /// changes (a reconnect), a refusal under the old one is forgotten.
     pub token_mark: String,
+    /// What the picked file of the open Add to Media form says (the form's number and its look,
+    /// worked out on a worker; the files section of docs/design/media-showcase.md, 2026-10-11).
+    pub look: Option<(u64, crate::gui::pages::chat::attach_step::Looking)>,
+    /// When the cleaned copies of uploads were last swept (uploading.rs `sweep_cleaned`).
+    pub last_sweep: Option<std::time::Instant>,
 }
 
 /// The server this page is for: the one the connection was dialled for and signs in to, never an

@@ -147,6 +147,9 @@ pub enum Event {
     /// Cancelled at the person's word, and what the server said to it (round 4, D4-2: the page
     /// says "Cancelled" only for [`Told::Gone`]).
     Cancelled { told: Told },
+    /// The file was cleaned into a copy, which is what goes up: where it is, its size and its
+    /// modification time (the page keeps them in the upload's record, 2026-10-11).
+    Cleaned { path: PathBuf, size: u64, modified_ms: u64 },
 }
 
 // ── Pause, Resume, Retry, Cancel and the token ──────────────────────────────────────────────
@@ -412,11 +415,43 @@ pub struct Plan {
     /// the upload started): it is carried on only when the server has every piece, and then
     /// finished from the server's copy; otherwise it is cancelled (round 4, D4-1).
     pub file_changed: bool,
+    /// Remove location and camera details first (the files section of docs/design/
+    /// media-showcase.md, 2026-10-11): before the hash, the worker cleans a COPY of the file
+    /// (net/file_clean.rs `clean_copy`), never the person's own, and uploads the copy; the page is
+    /// told where it is (`Event::Cleaned`), so an upload carried on after a restart reads the same
+    /// bytes. A file that could not be checked is not sent (Media is a public shelf).
+    pub clean: bool,
+    /// The person kept the file's hidden details by choice: the start says `keep_metadata: 1`, and
+    /// the relay then skips its own strip.
+    pub keep_metadata: bool,
 }
 
 /// The start's body (the relay's `StartBody`).
 pub fn start_body(plan: &Plan, blake3: &str) -> Value {
-    json!({ "filename": plan.name, "size": plan.size, "content_type": plan.content_type, "media": 1, "blake3": blake3 })
+    let mut body = json!({ "filename": plan.name, "size": plan.size, "content_type": plan.content_type, "media": 1, "blake3": blake3 });
+    if plan.keep_metadata {
+        body["keep_metadata"] = json!(1);
+    }
+    body
+}
+
+/// Why a Media upload was not sent: its file could not be checked for hidden location, and Media is
+/// a public shelf (the relay would refuse it too).
+pub const NOT_CHECKED_MEDIA: &str = "This file could not be read all the way through, so where it was taken may still be in it. It was not sent: Media is public. To send it exactly as it is, turn off \"Remove location and camera details\".";
+
+/// The cleaning step of `work`: a cleaned copy to upload instead of `plan.path` (its path, size and
+/// modification time), None to upload the file itself, or Err with the words to stop with.
+pub fn clean_first(plan: &Plan, dir: &Path) -> Result<Option<(PathBuf, u64, u64)>, String> {
+    match crate::net::file_clean::clean_copy(&plan.path, &plan.name, dir) {
+        Ok((Some(copy), _)) => {
+            let size = std::fs::metadata(&copy).map(|m| m.len()).map_err(|e| format!("The cleaned copy could not be read ({e})."))?;
+            let modified = modified_ms(&copy);
+            Ok(Some((copy, size, modified)))
+        }
+        Ok((None, c)) if c.unchecked => Err(NOT_CHECKED_MEDIA.to_string()),
+        Ok((None, _)) => Ok(None),
+        Err(e) => Err(format!("The file could not be read ({e}).")),
+    }
 }
 
 /// The file's BLAKE3 hash in lowercase hex, read a megabyte at a time, reporting progress and
@@ -594,6 +629,21 @@ impl Waits<'_> {
 /// `Done`, `Failed` or `Cancelled`.
 pub fn work(t: &dyn Transport, ctl: &Control, plan: &Plan, tx: &Sender<Event>) {
     let mut w = Waits { ctl, tx, backoff: Backoff::new(ctl.pace), streak: Streak::default() };
+    // 0: cleaned on this device first (a new upload only: one carried on already reads its copy).
+    let cleaned_plan;
+    let plan = if plan.clean && plan.resume.is_none() {
+        match clean_first(plan, &crate::net::file_clean::cleaned_dir()) {
+            Ok(Some((path, size, modified_ms))) => {
+                w.send(Event::Cleaned { path: path.clone(), size, modified_ms });
+                cleaned_plan = Plan { path, size, ..plan.clone() };
+                &cleaned_plan
+            }
+            Ok(None) => plan,
+            Err(words) => return w.send(Event::Failed { words, gone: true }),
+        }
+    } else {
+        plan
+    };
     let mut refused: Option<String> = None;
     let mut chunk = waits::DEFAULT_CHUNK;
 
@@ -799,3 +849,6 @@ pub fn work(t: &dyn Transport, ctl: &Control, plan: &Plan, tx: &Sender<Event>) {
 #[cfg(test)]
 #[path = "resumable_tests.rs"]
 pub(crate) mod tests;
+#[cfg(test)]
+#[path = "resumable_clean_tests.rs"]
+mod clean_tests;

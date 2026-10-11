@@ -75,11 +75,15 @@ pub(crate) struct Form {
     pub problem: String,
     /// The publish of a file already on the server is under way (an upload's never holds a form).
     pub sending: bool,
+    /// "Remove location and camera details" for a picked file (the files section of
+    /// docs/design/media-showcase.md, 2026-10-11): cleaned on this device before it goes, or kept
+    /// by choice (`keep_metadata`). Starts as last chosen; always on under the protected setup.
+    pub remove: bool,
 }
 
 impl Form {
     pub(crate) fn new(source: Source) -> Self {
-        Form { id: super::next_id(), source, title: String::new(), description: String::new(), category: None, labels: BTreeSet::new(), members_only: false, problem: String::new(), sending: false }
+        Form { id: super::next_id(), source, title: String::new(), description: String::new(), category: None, labels: BTreeSet::new(), members_only: false, problem: String::new(), sending: false, remove: true }
     }
 
     /// A file picked on this computer (not one already on the server).
@@ -163,7 +167,11 @@ pub(crate) fn picked(state: &mut GuiState, path: &std::path::Path) {
         state.media.status = problem;
         return;
     }
-    state.media.form = Some(Form::new(Source::Picked { path: path.to_path_buf(), name, len }));
+    // What the file says is worked out on a worker while the form is filled in (2026-10-11).
+    let looking = crate::gui::pages::chat::attach_step::Looking::of_file(path.to_path_buf(), name.clone());
+    let form = Form { remove: crate::gui::pages::chat::attach_step::remove_at_start(state), ..Form::new(Source::Picked { path: path.to_path_buf(), name, len }) };
+    state.media.look = Some((form.id, looking));
+    state.media.form = Some(form);
 }
 
 /// Put a file already on the server (a Shared Files row of the Files page) on the Media page:
@@ -202,6 +210,13 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
     let categories = state.media.list.categories.clone();
     let labels = state.media.list.labels.clone();
     let title = if form.is_picked() { "Add to Media" } else { "Put on Media" };
+    // A picked file's look (what is hidden in it), its switch, and whether it may go (2026-10-11).
+    let mut look = state.media.look.take().filter(|(id, _)| *id == form.id);
+    if let (None, Source::Picked { path, name, .. }) = (&look, &form.source) {
+        look = Some((form.id, crate::gui::pages::chat::attach_step::Looking::of_file(path.clone(), name.clone())));
+    }
+    let protected = crate::engine::protected::is_on(state);
+    let mut may_go = !form.is_picked();
     let mut open = true;
     let mut submit = false;
     let mut cancel = false;
@@ -209,6 +224,9 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
         ui.set_max_width(520.0);
         let (name, len) = form.file();
         ui.label(RichText::new(format!("{name} ({})", api::size_words(len as i64))).size(theme.font_size_body).color(theme.text_primary()).strong());
+        if let (true, Some((_, looking))) = (form.is_picked() && !form.sending, look.as_mut()) {
+            may_go = crate::gui::pages::chat::attach_step::draw_look(ui, theme, looking, &mut form.remove, protected, false).can_send;
+        }
         // The person's share, above the form, as the server counts it.
         let share_text = match (&mine, mine_failed) {
             (Some(m), _) => api::share_line(m),
@@ -268,7 +286,7 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
         ui.add_space(theme.spacing_sm);
         ui.horizontal(|ui| {
             let waiting = mine.is_none() && !mine_failed && form.is_picked();
-            let ready = problem.is_none() && !waiting && !form.sending;
+            let ready = problem.is_none() && !waiting && !form.sending && may_go;
             ui.add_enabled_ui(ready, |ui| {
                 submit = widgets::Button::primary(submit_words(&form)).show(ui, theme);
             });
@@ -279,9 +297,13 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
             cancel = widgets::Button::secondary("Cancel").tooltip(tip).show(ui, theme);
         });
     });
-    if submit && problem.is_none() && !form.sending && send_form(state, &mut form, members_server) {
+    if submit && problem.is_none() && !form.sending && may_go && send_form(state, &mut form, members_server) {
+        if form.is_picked() {
+            crate::gui::pages::chat::attach_step::remember_switch(state, form.remove);
+        }
         return; // an upload started: it is in the list on the page now, and the form is done
     }
+    state.media.look = look;
     if cancel {
         // A Cancel while its publish is on its way undoes the publish when it lands.
         if form.sending {

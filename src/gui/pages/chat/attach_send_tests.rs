@@ -30,9 +30,16 @@ fn run_recorded(job: AttachJob) -> (Result<String, String>, Option<Upload>) {
     (out, seen)
 }
 
-/// A file's bytes that cannot appear by chance in ciphertext or framing.
+/// A file's bytes that cannot appear by chance in ciphertext or framing: a real (if tiny) JPEG with
+/// nothing hidden in it, since every file is now cleaned before it leaves (2026-10-11) and a ".jpg"
+/// that is not a JPEG could not be checked. Its words sit in the scan, which no strip reads.
 fn file_bytes() -> Vec<u8> {
-    b"PRIVATE-PICTURE-BYTES ".repeat(40)
+    let mut b = vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10];
+    b.extend_from_slice(b"JFIF\0\x01\x01\0\0\x01\0\x01\0\0");
+    b.extend_from_slice(&[0xFF, 0xDA]);
+    b.extend_from_slice(&b"PRIVATE-PICTURE-BYTES ".repeat(40));
+    b.extend_from_slice(&[0xFF, 0xD9]);
+    b
 }
 
 /// A private upload: ciphertext under a neutral name and type, `encrypted=1`, never shared, and
@@ -157,6 +164,8 @@ fn nothing_over_the_size_cap_is_uploaded_on_any_path() {
             share: false,
             to: Destination::of(channel),
             limit: ATTACH_MAX_BYTES,
+            clean: true,
+            allow_unchecked: false,
         };
         let out = run(job, |_, _, _| panic!("{channel}: the uploader was called over the cap"));
         assert!(out.is_err(), "{channel}");

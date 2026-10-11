@@ -136,7 +136,17 @@ pub(crate) fn start_with(state: &mut GuiState, form: &Form, t: Arc<dyn Transport
         labels: fields.labels,
         members_only: form.members_only,
     };
-    let plan = Plan { path: path.clone(), name: name.clone(), size: *len, content_type: crate::gui::pages::chat::mime_for_filename(name).to_string(), resume: None, file_changed: false };
+    // The form's switch: cleaned on this device first, or kept by choice (keep_metadata).
+    let plan = Plan {
+        path: path.clone(),
+        name: name.clone(),
+        size: *len,
+        content_type: crate::gui::pages::chat::mime_for_filename(name).to_string(),
+        resume: None,
+        file_changed: false,
+        clean: form.remove,
+        keep_metadata: !form.remove,
+    };
     let run = Run::start(t.clone(), plan, Arc::new(Control::new(Some(token))));
     state.media.uploads.push(Entry { local: super::next_id(), run, record, after: After::Uploading, cancelling: false, transport: t });
     Ok(())
@@ -144,6 +154,7 @@ pub(crate) fn start_with(state: &mut GuiState, form: &Form, t: Arc<dyn Transport
 
 /// Read what every upload's worker reported, and act on it. Every frame (media.rs `poll_upload`).
 pub(crate) fn poll(ctx: &egui::Context, state: &mut GuiState) {
+    sweep_cleaned(state);
     if state.media.uploads.is_empty() {
         return;
     }
@@ -157,6 +168,19 @@ pub(crate) fn poll(ctx: &egui::Context, state: &mut GuiState) {
     for (local, ev) in events {
         on_event(state, local, ev);
     }
+}
+
+/// Remove the cleaned copies no upload uses any more (an upload published, cancelled or forgotten),
+/// once a minute: in use are the copies of the uploads running and of the unfinished records kept in
+/// the config; a copy untouched for ten minutes that neither names is removed (2026-10-11).
+pub(crate) fn sweep_cleaned(state: &mut GuiState) {
+    let minute = std::time::Duration::from_secs(60);
+    if state.media.last_sweep.is_some_and(|t| t.elapsed() < minute) {
+        return;
+    }
+    state.media.last_sweep = Some(std::time::Instant::now());
+    let in_use: Vec<std::path::PathBuf> = state.media.uploads.iter().map(|e| e.record.path.clone()).chain(state.media.unfinished.iter().map(|u| u.path.clone())).collect();
+    crate::net::file_clean::sweep_cleaned(&crate::net::file_clean::cleaned_dir(), &in_use, 10 * minute);
 }
 
 /// One event from upload `local`'s worker.
@@ -201,6 +225,14 @@ pub(crate) fn on_event(state: &mut GuiState, local: u64, e: Event) {
                 Told::NotConfirmed(why) => state.media.status = upload_cancel::not_cancelled_words(&why),
             }
             super::refresh_mine(state);
+        }
+        // The worker cleaned the file into a copy, which is what goes up: the record follows the
+        // copy, so an upload carried on after a restart reads the same bytes (2026-10-11).
+        Event::Cleaned { path, size, modified_ms } => {
+            let Some(entry) = entry(state, local) else { return };
+            entry.record.path = path;
+            entry.record.size = size;
+            entry.record.modified_ms = modified_ms;
         }
         _ => {}
     }
@@ -427,7 +459,9 @@ pub(crate) fn resume_with(state: &mut GuiState, id: &str, t: Arc<dyn Transport>)
         return;
     };
     let content_type = crate::gui::pages::chat::mime_for_filename(&u.name).to_string();
-    let plan = Plan { path: u.path.clone(), name: u.name.clone(), size: u.size, content_type, resume: Some(u.id.clone()), file_changed: !u.file_unchanged() };
+    // Carried on: the server already has the start (and with it any keep_metadata), and the record
+    // points at the cleaned copy when there is one, so nothing is cleaned again.
+    let plan = Plan { path: u.path.clone(), name: u.name.clone(), size: u.size, content_type, resume: Some(u.id.clone()), file_changed: !u.file_unchanged(), clean: false, keep_metadata: false };
     let run = Run::start(t.clone(), plan, Arc::new(Control::new(Some(token))));
     state.media.uploads.push(Entry { local: super::next_id(), run, record: u, after: After::Uploading, cancelling: false, transport: t });
     super::refresh_mine(state);

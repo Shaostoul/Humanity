@@ -289,6 +289,30 @@ pub fn parse_file_marker(text: &str) -> Option<DmAttachment> {
     serde_json::from_slice(&json).ok()
 }
 
+/// The FILE_MARKER for a file the sender's app could not check for hidden location and sent
+/// anyway (docs/design/media-showcase.md, the files section, part 2; the operator's answer 5): the
+/// same fields in the same order, then `"unchecked": true`, which the recipient's app shows as one
+/// line under the file. Both apps write and read this field (the web's `pqBuildFileMarker`); the
+/// shared fixture is scripts/tests/fixtures/file-marker-unchecked.json. A marker without it (every marker
+/// before 2026-10-11) is a checked file, and an app that does not know the field ignores it.
+pub fn build_file_marker_unchecked(att: &DmAttachment) -> String {
+    #[derive(serde::Serialize)]
+    struct Unchecked<'a> {
+        #[serde(flatten)]
+        att: &'a DmAttachment,
+        unchecked: bool,
+    }
+    let json = serde_json::to_string(&Unchecked { att, unchecked: true }).unwrap_or_default();
+    format!("{FILE_MARKER}{}", B64.encode(json.as_bytes()))
+}
+
+/// Whether a FILE_MARKER says its sender's app could not check the file (`"unchecked": true`).
+pub fn file_marker_unchecked(text: &str) -> bool {
+    let Some(rest) = text.strip_prefix(FILE_MARKER) else { return false };
+    let Ok(json) = B64.decode(rest.trim()) else { return false };
+    serde_json::from_slice::<serde_json::Value>(&json).ok().and_then(|v| v.get("unchecked").and_then(|u| u.as_bool())).unwrap_or(false)
+}
+
 impl DmInner {
     /// Stable dedupe key for a message: the same inner payload arrives
     /// twice on a sender's own device (live echo of the self-copy + the
@@ -417,6 +441,10 @@ pub fn parse_verify_inner(inner_json: &str) -> Result<DmInner, String> {
     let cert = v.get("cert").and_then(|x| x.as_str()).map(|s| s.to_string());
     Ok(DmInner { from, to, ts, text, sig_b64, cert })
 }
+
+#[cfg(test)]
+#[path = "dm_pq_marker_tests.rs"]
+mod marker_tests;
 
 #[cfg(test)]
 mod tests {

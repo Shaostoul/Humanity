@@ -88,6 +88,11 @@ pub struct FilesInMessages {
     pub remove_details: bool,
     /// How much of the private files the person opened this device keeps, in MB (0 keeps none).
     pub kept_cap_mb: u64,
+    /// "Accept files from" was changed on this device and the server has not been told yet (a
+    /// choice made offline still goes). Only while this is set does a profile update carry
+    /// `accepts_files`; otherwise the server keeps its word, and a different word the server holds
+    /// is another device's newer choice, which this device takes (the web's rule, 2026-10-11).
+    pub accept_unsent: bool,
 }
 
 impl Default for FilesInMessages {
@@ -98,9 +103,38 @@ impl Default for FilesInMessages {
             attach_button: true,
             remove_details: true,
             kept_cap_mb: KEPT_CAP_DEFAULT_MB,
+            accept_unsent: false,
         }
     }
 }
+
+impl AcceptFrom {
+    /// How open a choice is: Nobody 0, Friends 1, Anyone 2 (the protected setup never takes a more
+    /// open one from elsewhere, and never widens one without being turned off first).
+    pub fn openness(self) -> u8 {
+        match self {
+            AcceptFrom::Nobody => 0,
+            AcceptFrom::Friends => 1,
+            AcceptFrom::Anyone => 2,
+        }
+    }
+}
+
+/// What this device does with the word its server holds for it (`accepts_files` in its own
+/// profile), given its own setting: None to keep its own (a choice of its own is waiting to go, the
+/// words agree, the word is unknown, or the server's is more open while the protected setup is on),
+/// or the choice to take (another device's newer choice).
+pub fn adopt_from_server(mine: &FilesInMessages, server_word: &str, protected: bool) -> Option<AcceptFrom> {
+    let theirs = AcceptFrom::from_word(server_word)?;
+    if mine.accept_unsent || theirs == mine.accept_from || (protected && theirs.openness() > mine.accept_from.openness()) {
+        return None;
+    }
+    Some(theirs)
+}
+
+/// The words when the protected setup will not send a file that could not be checked (the web's
+/// rule: the setup's promise is that location is always removed, so not even to a DM).
+pub const PROTECTED_UNCHECKED: &str = "This file could not be read all the way through, so where it was taken may still be in it. The protected setup does not send such a file.";
 
 /// Whether a file from someone is fetched without asking: always our own; otherwise as the
 /// setting says, `friend` being whether they are a friend (the pictures rule's own test).
@@ -123,7 +157,7 @@ pub fn shows_picture(show: ShowPictures, protected: bool, own: bool, friend: boo
 pub fn not_accepted_line(sender: &str, from: AcceptFrom) -> String {
     match from {
         AcceptFrom::Friends => format!("{sender} sent a file. You accept files only from friends. Accept this one?"),
-        AcceptFrom::Nobody | AcceptFrom::Anyone => format!("{sender} sent a file. You do not accept files from anyone. Accept this one?"),
+        AcceptFrom::Nobody | AcceptFrom::Anyone => format!("{sender} sent a file. You do not accept files in messages. Accept this one?"),
     }
 }
 
@@ -134,8 +168,8 @@ pub fn sender_line(name: &str, word: &str, friend: bool) -> Option<String> {
     match AcceptFrom::from_word(word)? {
         AcceptFrom::Anyone => None,
         AcceptFrom::Friends if friend => None,
-        AcceptFrom::Friends => Some(format!("{name} accepts files only from friends. They will be asked whether to accept this one.")),
-        AcceptFrom::Nobody => Some(format!("{name} does not accept files from anyone. They will be asked whether to accept this one.")),
+        AcceptFrom::Friends => Some(format!("{name} accepts files only from friends. Their app will ask them before it downloads this one.")),
+        AcceptFrom::Nobody => Some(format!("{name} does not accept files in messages. Their app will ask them before it downloads this one.")),
     }
 }
 

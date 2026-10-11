@@ -455,6 +455,12 @@ pub struct AppConfig {
     /// only: never looked up from their location, never sent with a report or anywhere else.
     #[serde(default)]
     pub outside_help_country: String,
+    /// Settings > Privacy, Files in messages, with the attach step's remembered switch and the
+    /// kept files cap of Settings > Data (docs/design/media-showcase.md, the files section,
+    /// 2026-10-11). A config written before it existed reads as the defaults (Friends, Friends,
+    /// the attach button on, details removed, 1 GB kept).
+    #[serde(default)]
+    pub files_in_messages: crate::net::files_policy::FilesInMessages,
     /// The Add to Media uploads that did not finish (docs/design/media-showcase.md, resumable
     /// uploads and round 3, 2026-10-11): for each, the server's id, the file's path, size and
     /// modification time, and what its form said, so the Media page can offer to carry it on after
@@ -1520,6 +1526,7 @@ impl AppConfig {
             privacy_tier: state.settings.privacy_tier.clone(),
             warnings_on_messages: state.settings.warnings_on_messages,
             outside_help_country: state.settings.outside_help_country.clone(),
+            files_in_messages: state.settings.files_in_messages.clone(),
             media_unfinished_uploads: state.media.unfinished.clone(),
             protected_setup: Some(state.protected.setup.clone()),
             font_size: state.settings.font_size,
@@ -1702,6 +1709,7 @@ impl AppConfig {
         state.settings.privacy_tier = self.privacy_tier.clone();
         state.settings.warnings_on_messages = self.warnings_on_messages;
         state.settings.outside_help_country = self.outside_help_country.clone();
+        state.settings.files_in_messages = self.files_in_messages.clone();
         state.media.unfinished = self.media_unfinished_uploads.clone();
         // The protected setup is NOT applied from here: it lives in its own file, which boot reads
         // whether or not config.json exists or reads (`load_protected_setup`, lib.rs).
@@ -2359,6 +2367,25 @@ mod play_mode_tests {
             back.apply_to_gui_state(&mut fresh);
             assert_eq!(fresh.settings.outside_help_country, pick, "the pick survives a restart");
         }
+    }
+
+    /// Files in messages (docs/design/media-showcase.md, the files section): the defaults for a
+    /// config written before it existed, and every choice survives a save and a load. Seen red
+    /// 2026-10-11 with `apply_to_gui_state` not reading it: "the choices survive a restart".
+    #[test]
+    fn files_in_messages_survives_a_restart() {
+        use crate::net::files_policy::{AcceptFrom, FilesInMessages, ShowPictures};
+        let old: AppConfig = serde_json::from_str(r#"{"server_url":""}"#).unwrap();
+        assert_eq!(old.files_in_messages, FilesInMessages::default(), "the defaults in an old config");
+        let mut state = crate::gui::GuiState::default();
+        assert_eq!(state.settings.files_in_messages, FilesInMessages::default(), "the defaults in a fresh app");
+        let chosen = FilesInMessages { accept_from: AcceptFrom::Nobody, show_pictures_from: ShowPictures::Nobody, attach_button: false, remove_details: false, kept_cap_mb: 7, accept_unsent: true };
+        state.settings.files_in_messages = chosen.clone();
+        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        let mut fresh = crate::gui::GuiState::default();
+        back.apply_to_gui_state(&mut fresh);
+        assert_eq!(fresh.settings.files_in_messages, chosen, "the choices survive a restart");
     }
 
     /// The two realism switches (BUG-136 carrying weight, and body heat,

@@ -21,6 +21,8 @@
 use super::*;
 use crate::gui::widgets::image_cache::{route_image, ImageCache, ImageRoute, ImageStatus, PRIVATE_KEY_PREFIX};
 use crate::net::dm_pq::DmAttachment;
+use crate::net::files_policy as policy;
+use crate::net::kept_files::KeptFiles;
 
 /// The one line shown when a private file cannot be fetched or decrypted.
 pub(crate) const CANNOT_OPEN: &str = "This file could not be opened.";
@@ -81,26 +83,39 @@ pub(crate) fn cache_key(att: &DmAttachment) -> String {
 pub(crate) enum Show {
     /// The protected setup leaves it out; the message row says so.
     Hidden,
-    /// From someone who is not a friend: waits for a click.
+    /// From someone this person does not accept files from (Settings > Privacy, "Accept files
+    /// from", the files section of docs/design/media-showcase.md): nothing is fetched, a picture
+    /// or not; the card asks (these words), and Accept fetches that one file.
+    NotAccepted(String),
+    /// A picture from someone who is not a friend: waits for a click.
     AskNotFriend,
+    /// A friend's picture while pictures show without asking from nobody (the setting, or the
+    /// protected setup, which is always Nobody): waits for a click.
+    AskPicture,
     /// Its ciphertext sits on another website, named here: waits for a click.
     AskOtherWebsite(String),
     /// Fetched, decrypted and drawn now.
     Load,
 }
 
-/// What `draw` needs: the cache key, the full address of the ciphertext, and how it is shown.
+/// What `draw` needs: the cache key, the full address of the ciphertext, how it is shown, whether
+/// its sender's app could not check it (the marker's `unchecked`), and where an opened copy is kept.
 #[derive(Debug, Clone)]
 pub(crate) struct Plan {
     pub key: String,
     pub url: String,
     pub show: Show,
+    pub unchecked: bool,
+    /// This device's kept private files (None without an identity): opening looks here first, and
+    /// what is fetched is kept (part 4).
+    pub kept: Option<KeptFiles>,
 }
 
 /// Decide how `att`, carried by `msg`, is shown. The protected setup's rule comes first and
-/// nothing overrides it; then a click already given; then another website's address; then
-/// whether the sender is a friend (the pictures rule's own test, `picture_friend`). Our own
-/// files load by themselves.
+/// nothing overrides it; then a click already given; then another website's address; then the
+/// person's own Files in messages settings (net/files_policy.rs): files only from the people they
+/// accept files from, and pictures without a click only from friends (or nobody). Who is a friend
+/// is the pictures rule's own test, `picture_friend`. Our own files load by themselves.
 pub(crate) fn plan(state: &GuiState, msg: &ChatMessage, att: &DmAttachment) -> Plan {
     let key = cache_key(att);
     // The server this message came through, as for any picture in a message.
@@ -108,18 +123,28 @@ pub(crate) fn plan(state: &GuiState, msg: &ChatMessage, att: &DmAttachment) -> P
     let route = route_image(&att.url, server);
     let url = route.url().to_string();
     let own = !msg.sender_key.is_empty() && msg.sender_key == state.profile_public_key;
+    let prefs = &state.settings.files_in_messages;
+    let friend = crate::engine::protected::picture_friend(state, &msg.sender_key);
+    let protected = crate::engine::protected::is_on(state);
     let show = if crate::engine::protected::hides_pictures_from(state, &msg.sender_key) {
         Show::Hidden
     } else if state.image_cache.is_allowed(&key) {
         Show::Load
     } else if let ImageRoute::AskFirst { host, .. } = route {
         Show::AskOtherWebsite(host)
-    } else if !own && !crate::engine::protected::picture_friend(state, &msg.sender_key) {
-        Show::AskNotFriend
+    } else if !policy::accepts(prefs.accept_from, own, friend) {
+        Show::NotAccepted(policy::not_accepted_line(&msg.sender_name, prefs.accept_from))
+    } else if !policy::shows_picture(prefs.show_pictures_from, protected, own, friend) {
+        if friend {
+            Show::AskPicture
+        } else {
+            Show::AskNotFriend
+        }
     } else {
         Show::Load
     };
-    Plan { key, url, show }
+    let kept = state.private_key_bytes.as_ref().map(|seed| KeptFiles::for_seed(seed, prefs.kept_cap_mb.saturating_mul(1024 * 1024)));
+    Plan { key, url, show, unchecked: crate::net::dm_pq::file_marker_unchecked(&msg.content), kept }
 }
 
 /// Fetch the ciphertext at `url` with `fetch` (capped at what a picture shown in place may be)
@@ -129,8 +154,31 @@ pub(crate) fn open<F>(url: &str, k: &str, n: &str, fetch: F) -> Result<Vec<u8>, 
 where
     F: FnOnce(&str, usize) -> Result<Vec<u8>, String>,
 {
+    open_kept(url, k, n, None, fetch)
+}
+
+/// [`open`], looking in this device's kept files first (part 4: a file opened once still opens
+/// after the server's copy is gone) and keeping what it fetches. A kept copy that does not open
+/// (changed on disk) is forgotten and the server is asked instead.
+pub(crate) fn open_kept<F>(url: &str, k: &str, n: &str, kept: Option<&KeptFiles>, fetch: F) -> Result<Vec<u8>, String>
+where
+    F: FnOnce(&str, usize) -> Result<Vec<u8>, String>,
+{
+    if let Some(store) = kept {
+        if let Some(ciphertext) = store.get(url, k, n, MAX_INLINE_CIPHERTEXT as u64) {
+            match crate::net::dm_pq::decrypt_attachment(&ciphertext, k, n) {
+                Ok(plain) => return Ok(plain),
+                Err(_) => store.forget(url, k, n),
+            }
+        }
+    }
     let ciphertext = fetch(url, MAX_INLINE_CIPHERTEXT)?;
-    crate::net::dm_pq::decrypt_attachment(&ciphertext, k, n)
+    let plain = crate::net::dm_pq::decrypt_attachment(&ciphertext, k, n)?;
+    if let Some(store) = kept {
+        // Only a file that opened is kept; a failure to keep it changes nothing for the person now.
+        let _ = store.put(url, k, n, &ciphertext);
+    }
+    Ok(plain)
 }
 
 /// A file name safe to write in the downloads folder: the sender chose it, so only its last part
@@ -165,16 +213,39 @@ pub(crate) fn save_name(name: &str) -> String {
 /// final name, so the app quitting mid-way left a partial file there, and the hidden ciphertext
 /// file was left behind too. Both are part files now, deleted on any failure, at the app's exit,
 /// and, for what a crash left, at the next start. A file that cannot be opened writes nothing.
-pub(crate) fn save_file<F>(url: &str, k: &str, n: &str, name: &str, dir: &std::path::Path, fetch: F) -> Result<std::path::PathBuf, String>
+///
+/// With `kept` (part 4 of the files section, 2026-10-11): the ciphertext comes from this device's
+/// kept copy when there is one (so a file saved once saves again after the server's copy left), and
+/// otherwise what is fetched is kept, once it decrypted. A kept copy that does not open is
+/// forgotten and the server is asked instead.
+pub(crate) fn save_file<F>(url: &str, k: &str, n: &str, name: &str, dir: &std::path::Path, kept: Option<&KeptFiles>, fetch: F) -> Result<std::path::PathBuf, String>
 where
     F: FnOnce(&str, u64, &mut std::fs::File) -> Result<u64, String>,
 {
     use crate::gui::widgets::part_file::Part;
+    use std::io::{Seek, SeekFrom};
+    if let Some(store) = kept.filter(|s| s.has(url, k, n)) {
+        let mut sealed = Part::create(dir)?;
+        if store.get_into(url, k, n, sealed.file()) {
+            let mut plain = Part::create(dir)?;
+            if crate::net::dm_file_stream::decrypt_file(sealed.path(), plain.file(), k, n).is_ok() {
+                drop(sealed);
+                return plain.finish(dir, &save_name(name));
+            }
+        }
+        store.forget(url, k, n);
+    }
     let mut sealed = Part::create(dir)?;
     fetch(url, max_ciphertext(), sealed.file())?;
     let mut plain = Part::create(dir)?;
     crate::net::dm_file_stream::decrypt_file(sealed.path(), plain.file(), k, n)?;
-    drop(sealed); // the ciphertext goes as soon as it is decrypted
+    if let Some(store) = kept {
+        let f = sealed.file();
+        if let (Ok(len), Ok(_)) = (f.metadata().map(|m| m.len()), f.seek(SeekFrom::Start(0))) {
+            let _ = store.put_from(url, k, n, f, len);
+        }
+    }
+    drop(sealed); // the ciphertext goes as soon as it is decrypted (and kept)
     plain.finish(dir, &save_name(name))
 }
 
@@ -251,10 +322,41 @@ pub(super) fn draw(
     if plan.show == Show::Hidden {
         return; // the row already carries the protected setup's line; nothing is fetched
     }
+    draw_file(ui, theme, cache, viewer, sender_name, att, plan, row_bg);
+    // Answer 5: the sender sent it although their app could not check it for hidden location.
+    if plan.unchecked {
+        draw_line(ui, theme, row_bg, policy::UNCHECKED_LINE, theme.warning());
+    }
+}
+
+/// [`draw`]'s file: the question when it is not accepted, the picture in place, or the card.
+#[allow(clippy::too_many_arguments)]
+fn draw_file(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    cache: &mut ImageCache,
+    viewer: &mut Option<String>,
+    sender_name: &str,
+    att: &DmAttachment,
+    plan: &Plan,
+    row_bg: Color32,
+) {
+    // Not accepted (Settings > Privacy, "Accept files from"): nothing is fetched, picture or not,
+    // until Accept, which lets this one file in (the same click a picture's question takes).
+    if let Show::NotAccepted(first) = &plan.show {
+        if draw_ask_box(ui, theme, row_bg, INDENT, first, &format!("Click to accept {}.", att.name)) {
+            cache.allow(&plan.key);
+        }
+        return;
+    }
     if shows_in_place(att) {
         match &plan.show {
-            Show::AskNotFriend => {
-                let first = format!("{sender_name} is not your friend. Pictures show only when you choose.");
+            Show::AskNotFriend | Show::AskPicture => {
+                let first = if plan.show == Show::AskNotFriend {
+                    format!("{sender_name} is not your friend. Pictures show only when you choose.")
+                } else {
+                    format!("Pictures from {sender_name} show only when you choose.")
+                };
                 if draw_ask_box(ui, theme, row_bg, INDENT, &first, &format!("Click to show {}.", att.name)) {
                     cache.allow(&plan.key);
                 }
@@ -266,12 +368,12 @@ pub(super) fn draw(
                 }
                 return;
             }
-            Show::Load | Show::Hidden => {}
+            Show::Load | Show::Hidden | Show::NotAccepted(_) => {}
         }
         if matches!(cache.status(&plan.key), ImageStatus::Idle) {
-            let (url, k, n) = (plan.url.clone(), att.k.clone(), att.n.clone());
+            let (url, k, n, kept) = (plan.url.clone(), att.k.clone(), att.n.clone(), plan.kept.clone());
             cache.request_bytes(&plan.key, move || {
-                open(&url, &k, &n, crate::gui::widgets::image_cache::download_bytes)
+                open_kept(&url, &k, &n, kept.as_ref(), crate::gui::widgets::image_cache::download_bytes)
             });
         }
         match cache.status(&plan.key) {
@@ -352,10 +454,10 @@ fn draw_file_card(ui: &mut egui::Ui, theme: &Theme, cache: &mut ImageCache, att:
                 });
         });
     if save {
-        let (url, k, n, name) = (plan.url.clone(), att.k.clone(), att.n.clone(), att.name.clone());
+        let (url, k, n, name, kept) = (plan.url.clone(), att.k.clone(), att.n.clone(), att.name.clone(), plan.kept.clone());
         let dir = crate::gui::widgets::image_cache::default_downloads_dir();
         cache.save_with(&plan.key, move || {
-            save_file(&url, &k, &n, &name, &dir, |url, max, file| crate::gui::widgets::image_cache::download_to(url, max, file))
+            save_file(&url, &k, &n, &name, &dir, kept.as_ref(), |url, max, file| crate::gui::widgets::image_cache::download_to(url, max, file))
         });
     }
 }
@@ -363,3 +465,6 @@ fn draw_file_card(ui: &mut egui::Ui, theme: &Theme, cache: &mut ImageCache, att:
 #[cfg(test)]
 #[path = "attach_view_tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "attach_view_kept_tests.rs"]
+mod kept_tests;
