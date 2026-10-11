@@ -128,7 +128,8 @@ Verbatim, then what it means for the build.
   1 GB ceiling: a dropped connection loses the whole upload. Media uploads use **resumable
   uploads** instead (the file sent in pieces, an interrupted one picking up where it stopped; the
   tus protocol's approach), and with them the per-file ceiling becomes the Media budget and the
-  role's limit. Built with increment 2.
+  role's limit. Specified below ("Resumable uploads, exact"); the relay half is built beside
+  increment 2 and the apps switch to it right after.
 
 ## Questions still open
 
@@ -299,3 +300,79 @@ target), headless egui tests for the page's states (empty, items, a labelled til
 clicked, members-only line, over-share stop), snapshots of the page and the settings section
 rendered and read (no other HumanityOS instance running). Web: node tests of the same states and
 requests, with a fake DOM that answers "not there". Each seen failing once.
+
+## Resumable uploads, exact (relay; 2026-10-11)
+
+The operator's "What if I want to upload a multi-GB file?" One request carries at most 1 GB, and a
+connection that drops at 900 MB loses all of it. A resumable upload sends the file in pieces; each
+piece is written and counted before the next is sent, so after a drop the app asks the server how
+far it got and carries on from there. The approach is the tus protocol's (an open, published
+protocol for exactly this); the wire format here is our own small version of it, so neither app
+needs a library for it.
+
+**Scope.** Media uploads only (`media: 1`): chat and Shared Files keep the single request and its
+limits. Large files in private conversations wait for the operator's answer on that question.
+
+**Routes** (all under the existing nginx `/api/upload` location, so no nginx change: a piece is far
+under its 1025m body limit):
+
+- `POST /api/upload/resumable?token=<session upload token>`, JSON
+  `{filename, size, content_type, media: 1, blake3?}`. Answers 201
+  `{id, offset: 0, size, chunk_max}`. Before anything is written: the token names a key; the role
+  may upload (`upload_role_check`); the same type rules as `POST /api/upload` (blocked and allowed
+  extensions and types, the image and file sharing switches), shared with it in one function, not
+  copied; a picture over `PICTURE_MAX_BYTES` is refused here; the Media room check
+  (`upload_room` on the Media shelf) with the person's other open sessions counted as already used,
+  so two uploads that fit alone but not together cannot both start; at most 3 open sessions per
+  person. There is no 1 GB ceiling: the limit is the room in the Media budget and the person's
+  share, with a sanity ceiling of 64 GiB.
+- `GET /api/upload/resumable/{id}?token=` answers `{offset, size}`: how far the server got.
+- `PATCH /api/upload/resumable/{id}?token=&offset=<n>`, body the next piece
+  (`application/octet-stream`, at most `chunk_max`, 8 MiB, which the server states so neither app
+  hardcodes it). `offset` must be the server's offset, or 409 with `{offset}`; nothing past `size`
+  is taken. The piece is appended and synced to disk, then the offset is stored. One piece at a
+  time per session: a second PATCH while one is being written gets 409. Answers `{offset, size}`,
+  or, for the last piece, the finished upload (below).
+- `DELETE /api/upload/resumable/{id}?token=` cancels: the row and the file go.
+- A session belongs to the person (the key), not the connection: upload tokens change on every
+  reconnect, and any current token of the same key continues it. Another person's token gets 404,
+  the same answer as a session that does not exist.
+
+**Finishing** (when the offset reaches `size`), off the async executor: if a `blake3` was given at
+start, the file's hash must match (refused 422 and the session removed when it does not: a resume
+went wrong and the file is not the one the app has); a picture is read back for its magic bytes and
+the metadata strip, as in the single request; then `store_upload` (the room check again, under its
+lock, which is the one that counts) moves the file into `data/uploads/` under the same naming rule
+as the single request. The answer is the same JSON as `POST /api/upload`, so the apps then publish it
+with `POST /api/media` exactly as before.
+
+**Storage.** Table `upload_sessions (id TEXT PRIMARY KEY, public_key, filename, content_type, size,
+offset, shelf, blake3, created_at, touched_at)`: `id` is 32 random hex characters. Pieces go to
+`data/uploads-resume/<id>.part`, a folder `clear_part_files` does not touch. At start the relay
+reconciles the two: a file with no row is deleted, a row with no file is deleted, and a file longer
+than its stored offset (a crash between the write and the offset update) is cut back to the offset.
+Sessions untouched for 24 hours are removed in the expiry pass, row and file. An account erase
+removes the person's sessions and their files; the export lists open sessions (file name, size,
+offset), since they are the person's.
+
+**Proof.** Relay tests, each seen failing once: a file sent in three pieces finishes on the Media
+shelf with its size and the single request's answer shape; a wrong offset gets 409 with the right
+one; a different token of the same key continues the session and another person's token gets 404;
+a file over the share is refused at start with the share words; two sessions that fit alone but not
+together, the second refused; a piece past `size` refused; a blocked extension refused at start; a
+`blake3` mismatch refused and cleaned up; a picture's location data stripped at finish; DELETE
+cleans up; an idle session expires (row and file); the start-up reconciliation cuts a long file back
+to its offset and removes orphans; an account erase removes sessions. The `upload_sessions` table
+added with a pre-existing-database open test (CLAUDE.md BUG-046 rule).
+
+**The apps** (a follow-up to increment 2, once this is live): Add to Media sends every Media file
+this way, with a progress bar, a Pause and Resume, and a resume after a dropped connection; the
+desktop app also offers to resume an unfinished upload after a restart (it keeps the session id and
+the file's path).
+
+**Found while writing this: a phone video keeps its location.** The metadata strip covers pictures
+only. Phone cameras write the recording's location into an MP4's metadata (Apple's
+`com.apple.quicktime.location.ISO6709` key, the `©xyz` atom on Android and others), so a video
+uploaded to chat or Media today publishes where it was filmed. A video metadata strip (the same
+whole-box removal approach, no re-encode) is its own increment, ahead of the Media page going
+public.
