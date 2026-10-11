@@ -241,3 +241,50 @@ A read-only review of the merged relay half found these; each is fixed before in
 - **F7. Fail closed.** A settings read that fails, or a visibility word the relay does not know,
   counts as members only. `views` waits for increment 2's viewer. The stale comment about a nonce
   on `delete_shared_upload` is corrected.
+
+## Increment 2, exact (both apps; drafted 2026-10-11)
+
+Native first, web mirrors it (CLAUDE.md "Dual-UI parity"); both against the relay as it stands after
+the increment 1 fixes (signed purposes with targets, F5; members-only files through
+`GET /api/media/file/{id}?token=`, F3).
+
+**Where.** A **Media** page beside Watch and Studio (native `GuiPage::Media`, `src/gui/pages/media.rs`
+and its children; web `web/pages/media.html` + `media-app.js`, with its row in docs/PAGES.md and
+the nav, the page-parity lint satisfied). Shared Files stays as it is; the Media page links to it.
+
+**The page.**
+- A strip of featured items at the top when there are any.
+- Filters: category (from `GET /api/media/categories`), kind (Pictures, Videos, Models, Files), a
+  person (by name, from the list's uploader names), "My picks", and a search box over titles.
+- A grid of tiles, newest first, paged by "More" (`before`): pictures and video posters as
+  thumbnails (until increment 4's previews, the picture itself, loaded under the chat's
+  click-to-load rule for people who are not friends on the desktop, and only from this server
+  on the web); a label badge for Spoiler, Flashing lights and Graphic, and a labelled tile shows
+  its label instead of its picture until clicked; a pick count; the uploader's name.
+- Opening a tile: pictures in the existing image viewer; videos in the existing media player (the
+  web: a `<video>` element); models and files: name, size and Download.
+- Actions on a tile: Pick and Unpick (not on your own); Remove (yours, or any as an admin, with a
+  confirmation naming what happens: "Remove from Media. The file stays where it came from." or
+  "Remove from Media and delete the file."); Feature and Unfeature (admins); Report (the existing
+  report dialog, a Media item as its context).
+- **Add to Media**: the file picker, then a short form: title (optional), category, description
+  (optional), labels (the three, as ticks), visibility (Public or Members only; when the server
+  is members only, Members only and the choice hidden). The file uploads with `?media=1`, then
+  publishes with `POST /api/media`. The person's own share is shown above the form ("You have
+  412 MB of your 512 MB left"), and an upload over it is stopped before it starts.
+- **Suggest a category** for members: a name and a note; the answer comes as a notice.
+- Members-only items are fetched through the token route; a person who is not signed in to the
+  server sees only public items and a line "Sign in to this server to see its members' media."
+
+**Admins (Server Settings, a Media section, both apps).** Visibility (Public / Members only) with
+the F3 sentence under it; Media budget and each person's share (MB); "Public visitors get
+previews only"; the category list (add, rename, reorder, remove; General stays); suggestions
+waiting (Accept / Decline, the suggester named); and the **meter**: "12.4 GB of 50 GB used", a
+bar, and the prune lists (largest, oldest, least viewed, waiting to be published) each with
+Remove.
+
+**Proof.** Native: unit tests for the request and signing helpers (each signed purpose with its
+target), headless egui tests for the page's states (empty, items, a labelled tile hidden until
+clicked, members-only line, over-share stop), snapshots of the page and the settings section
+rendered and read (no other HumanityOS instance running). Web: node tests of the same states and
+requests, with a fake DOM that answers "not there". Each seen failing once.
