@@ -32,3 +32,9 @@ Justfile    text eol=lf
 *.mp4       binary
 *.vob       binary
 *.VOB       binary
+
+# The describe fixtures (tests/fixtures/describe/, written by
+# scripts/make-describe-fixtures.js): pictures and videos built byte by byte,
+# some with no zero byte for git to see them as binary by, and both apps' tests
+# compare them byte for byte. Never normalise any of them.
+tests/fixtures/describe/** -text
