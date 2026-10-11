@@ -12,7 +12,8 @@
 //! - [`finish_picture_as`]: a picture's magic bytes checked and its hidden metadata stripped,
 //!   unless the person chose to keep it (B4);
 //! - [`finish_file_as`]: where a video was filmed removed from it, in place (BUG-190), and a
-//!   HEIC or AVIF photo refused (R7), unless the person chose to keep everything (B4);
+//!   HEIC or AVIF photo's Exif and XMP zeroed in place (2026-10-11; refused only when it cannot
+//!   be read through, R7), unless the person chose to keep everything (B4);
 //! - [`FileLimit`], [`allowance_at_start`], [`allowance_for_piece`] and [`count_upload`]: the
 //!   size limits (the role's, a private file's, a Media file's) and the day's and the hour's
 //!   allowances (B1 to B3, 2026-10-11);
@@ -34,6 +35,8 @@ type Refused = (StatusCode, String);
 /// when it does not know: such a file is judged by its extension instead.
 pub(crate) const ALLOWED_TYPES: &[&str] = &[
     "image/png", "image/jpeg", "image/gif", "image/webp",
+    // HEIC and AVIF photos: stored as plain files, their Exif and XMP zeroed (finish_file_as).
+    "image/heic", "image/heif", "image/avif",
     "audio/mpeg", "audio/ogg", "audio/wav", "audio/webm", "audio/mp4",
     "video/mp4", "video/webm", "video/ogg",
     "application/pdf", "text/plain", "text/markdown",
@@ -46,6 +49,7 @@ pub(crate) const ALLOWED_TYPES: &[&str] = &[
 /// Extensions an upload may have (one of these, or one of [`ALLOWED_TYPES`], is enough).
 pub(crate) const ALLOWED_EXTENSIONS: &[&str] = &[
     "png", "jpg", "jpeg", "gif", "webp",
+    "heic", "heif", "avif",
     "mp3", "ogg", "wav", "mp4", "webm",
     "pdf", "txt", "md", "json", "zip", "tar.gz", "gz",
     "blend", "stl", "obj", "gltf", "glb",
@@ -163,15 +167,34 @@ pub(crate) fn sharing_check(s: &ServerSettings, role: &RoleDef, content_type: &s
     Ok(())
 }
 
+/// The declared types of a HEIC or AVIF photo.
+const HEIF_TYPES: &[&str] = &["image/heic", "image/heif", "image/avif"];
+
+/// The extensions of a HEIC or AVIF photo.
+const HEIF_EXTENSIONS: &[&str] = &["heic", "heif", "avif"];
+
 impl FileKind {
     /// The picture type the file is (upload_limits.rs `picture_type`), or None: never for an
-    /// encrypted file.
+    /// encrypted file, and never for a HEIC or AVIF photo, which is kept as a plain file (the
+    /// apps do not show those inline) and cleaned by [`finish_file_as`] instead.
     pub(crate) fn picture(&self, content_type: &str, encrypted: bool) -> Option<&'static str> {
-        if encrypted {
+        if encrypted || self.heif_photo(content_type) {
             None
         } else {
             super::upload_limits::picture_type(content_type, &self.ext)
         }
+    }
+
+    /// True when the upload says it is a HEIC or AVIF photo: by its declared type, or by its
+    /// extension when the declared type says nothing else (`application/octet-stream`, or a
+    /// type not on the allowed list). A `.heic` declared `image/jpeg` is judged as a JPEG, and
+    /// refused when its first bytes are not a JPEG's.
+    pub(crate) fn heif_photo(&self, content_type: &str) -> bool {
+        if HEIF_TYPES.contains(&content_type) {
+            return true;
+        }
+        let declared_other = ALLOWED_TYPES.contains(&content_type) && content_type != "application/octet-stream";
+        !declared_other && HEIF_EXTENSIONS.contains(&self.ext.as_str())
     }
 
     /// The extension the file is stored under: `enc` for ciphertext, `tar.gz` for a tarball, the
@@ -189,6 +212,9 @@ impl FileKind {
             "image/jpeg" => "jpg",
             "image/gif" => "gif",
             "image/webp" => "webp",
+            "image/heic" => "heic",
+            "image/heif" => "heif",
+            "image/avif" => "avif",
             "audio/mpeg" => "mp3",
             "audio/ogg" => "ogg",
             "audio/wav" => "wav",
@@ -205,11 +231,16 @@ impl FileKind {
     }
 }
 
-/// The kind the upload's answer reports (`type`): what the apps show it as.
+/// The kind the upload's answer reports (`type`): what the apps show it as. A HEIC or AVIF
+/// photo is a "document", a plain file to download, like any other file the apps do not show
+/// inline (both apps show PNG, JPEG, GIF and WebP inline, nothing else), whatever image type it
+/// came with.
 pub(crate) fn file_type(content_type: &str, stored_ext: &str, encrypted: bool) -> &'static str {
     let ext = stored_ext;
     if encrypted {
         "encrypted"
+    } else if HEIF_EXTENSIONS.contains(&ext) {
+        "document"
     } else if content_type.starts_with("image/") {
         "image"
     } else if content_type.starts_with("audio/") || ["mp3", "ogg", "wav"].contains(&ext) {
@@ -295,9 +326,10 @@ pub(crate) fn upload_answer(stored_name: &str, size: u64, file_type: &str) -> se
 
 // ── The hidden information a person chose to keep (B4, 2026-10-11) ──
 
-/// What is said for a HEIC or AVIF photo (R7, 2026-10-11): its location sits in a top-level `meta`
-/// box, the same box that holds the picture itself, so the video strip leaves it alone and nothing
-/// else here can clean it yet.
+/// What is said for a HEIC or AVIF photo whose item tables could not be read all the way through
+/// (R7, 2026-10-11), so its Exif and XMP could not be cleaned with certainty. A well-formed one is
+/// cleaned in place and stored (relay/core/strip_heif_metadata.rs). The words predate that strip
+/// and are kept as they were: for the photos still refused, they say what to do.
 pub(crate) const HEIF_REFUSED: &str = "HEIC and AVIF photos cannot be cleaned of where they were taken yet. Save it as a JPEG and send that.";
 
 /// A picture's last step, honouring the person's choice to keep its hidden information
@@ -313,7 +345,7 @@ pub(crate) fn finish_picture_as(picture: &str, data: Vec<u8>, keep_metadata: boo
 }
 
 /// Anything that is neither a picture nor encrypted, before it is stored: a video's hidden
-/// metadata removed (BUG-190, 2026-10-11), and a HEIC or AVIF photo refused (R7).
+/// metadata removed (BUG-190, 2026-10-11), and a HEIC or AVIF photo's too (2026-10-11).
 ///
 /// Phone cameras write where a recording was made into an MP4's metadata (Apple's location key,
 /// the `©xyz` atom, the 3GPP `loci` box, XMP), so a phone video published as it arrived told
@@ -322,30 +354,54 @@ pub(crate) fn finish_picture_as(picture: &str, data: Vec<u8>, keep_metadata: boo
 /// plays as before and a file of many GB costs only a walk over its box headers. A file whose
 /// first bytes are not an MP4-family file is only looked at, never opened for writing.
 ///
-/// Refused, and not stored: a file whose walk had to stop early on a box size that made no sense
+/// A HEIC or AVIF photo is in the same box family with no movie in it: its location is in an
+/// `Exif` item (and sometimes an XMP one) inside the top-level `meta` box, beside the picture's
+/// own items. The video strip clears a top-level XMP box in it and leaves `meta` alone; then the
+/// HEIF strip (relay/core/strip_heif_metadata.rs) overwrites the Exif and XMP items' bytes with
+/// zeros where they stand, in place, the file's size unchanged and every other item untouched.
+///
+/// Refused, and not stored: a video whose walk had to stop early on a box size that made no sense
 /// (422 [`VIDEO_UNREADABLE`]: the boxes behind it could still hold the location; a damaged file
-/// is rarely a playable one), and a file in the MP4 family with no movie in it, which is a HEIC
-/// or AVIF still photo whose location sits in the box that also holds the picture, so the strip
-/// leaves it alone (422 [`HEIF_REFUSED`]). A read or write failure is a 500, which a resumable
-/// upload keeps its session for (R3). Not caught: a location recorded inside the video stream
-/// itself (GoPro, DJI, some dashcams), which only a re-encode or dropping that track removes.
+/// is rarely a playable one), and so is a file in the MP4 family with no movie and no HEIF brand,
+/// a video cut off before its movie box; a HEIC or AVIF photo whose item tables could not be read
+/// all the way through, or one of whose Exif or XMP items could not be found with certainty (422
+/// [`HEIF_REFUSED`]). A read or write failure is a 500, which a resumable upload keeps its session
+/// for (R3). Not caught: a location recorded inside the video stream itself (GoPro, DJI, some
+/// dashcams), which only a re-encode or dropping that track removes.
 ///
 /// With `keep_metadata` (B4) none of this runs and the file is taken as it is: the person chose
-/// to keep everything, so there is nothing to check, a file the strip could not read through and
-/// a HEIC photo included. BLOCKING (file reads and writes), so a route calls it in
-/// `spawn_blocking`.
+/// to keep everything, so there is nothing to check, a file the strips could not read through
+/// included. BLOCKING (file reads and writes), so a route calls it in `spawn_blocking`.
 pub(crate) fn finish_file_as(path: &std::path::Path, keep_metadata: bool) -> Result<(), Refused> {
+    use crate::relay::core::{strip_heif_metadata as heif, strip_video_metadata as video};
     if keep_metadata {
         return Ok(());
     }
-    let report = crate::relay::core::strip_video_metadata::strip_video_metadata_in_place(path)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to check the file's hidden information: {e}")))?;
+    let failed = |e: std::io::Error| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to check the file's hidden information: {e}"));
+    let report = video::strip_video_metadata_in_place(path).map_err(failed)?;
+    if report.kind == video::VideoKind::Mp4Family && !report.found_moov {
+        // No movie in it: a HEIC or AVIF photo, or a video cut off before its movie box.
+        let still = heif::strip_heif_metadata_in_place(path).map_err(failed)?;
+        if still.kind == heif::HeifKind::Still {
+            if !still.complete() || !report.stopped_early.is_empty() {
+                let why = [report.stopped_early.as_slice(), still.stopped_early.as_slice()].concat();
+                tracing::info!("Upload HEIF strip: refused a photo it could not read through ({})", why.join("; "));
+                return Err((StatusCode::UNPROCESSABLE_ENTITY, HEIF_REFUSED.to_string()));
+            }
+            if report.changed() || still.changed() {
+                let items: Vec<String> = still.items_zeroed.iter().map(|(id, kind, n)| format!("item {id} ({kind}, {n} bytes)")).collect();
+                tracing::info!("Upload HEIF strip: cleared {}", [report.paths().join(", "), items.join(", ")].join(" ").trim());
+            }
+            return Ok(());
+        }
+        // Not a HEIF photo: a video whose movie box never arrived. It would not play, and where
+        // it was filmed cannot be ruled out, since the movie box is where that is kept.
+        tracing::info!("Upload video strip: refused a video with no movie box ({})", report.stopped_early.join("; "));
+        return Err((StatusCode::UNPROCESSABLE_ENTITY, VIDEO_UNREADABLE.to_string()));
+    }
     if !report.stopped_early.is_empty() {
         tracing::info!("Upload video strip: refused a file whose boxes stop early ({})", report.stopped_early.join("; "));
         return Err((StatusCode::UNPROCESSABLE_ENTITY, VIDEO_UNREADABLE.to_string()));
-    }
-    if report.kind == crate::relay::core::strip_video_metadata::VideoKind::Mp4Family && !report.found_moov {
-        return Err((StatusCode::UNPROCESSABLE_ENTITY, HEIF_REFUSED.to_string()));
     }
     if report.changed() {
         tracing::info!("Upload video strip: cleared {} ({} bytes)", report.paths().join(", "), report.bytes_zeroed);
