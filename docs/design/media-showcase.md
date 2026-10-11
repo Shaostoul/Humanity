@@ -1410,3 +1410,49 @@ once against a deliberate break, recorded at the test.
 - Only the header carries the token on the resumable routes: a relay from before round 3 refuses
   them (no compatibility before launch).
 - No snapshot was taken this round (the page's new rows are checked by the headless tests above).
+
+## Round 4: fixes from the round 3 review (2026-10-11)
+
+Two critics read round 3 (relay fbfa814cc, web 888a220fd, desktop 51b24aca2 and 95d59f16f) and
+found 12 defects, smaller than the rounds before. One decision for all three: **a cancel means
+nothing stays.** `DELETE /api/upload/resumable/<id>` on a session that finished but whose file is
+not yet published removes that stored file from the waiting folder too, and answers
+`{ok: true, removed_stored: true}`; on a session whose file was already published it leaves the
+item (publishing was the person's own choice) and answers `{ok: true, published: true}`; while a
+piece or the finish is being written it still answers 409 `{busy: true}`, and the apps ask again
+until it is not busy.
+
+**Relay.**
+- R4-1 (review 2): tickets: at most 16 live per person; each ticket stores a short fingerprint of
+  the key, not the key's 3,904 characters; the relay-wide pool is large (500,000) and, when full,
+  drops its OLDEST tickets rather than refusing anyone, so no number of accounts can lock others
+  out.
+- R4-2 (review 4): the cancel above.
+- R4-3 (review 6): a piece counted and then cut back at start-up (the relay stopped between the
+  write and the offset) gives its bytes back to the window it was counted in.
+- R4-4 (review 7): moving a staged pieces file back never copies under the room lock: a rename
+  only, and a file that cannot be renamed back stays staged (round 3 already keeps it).
+- R4-5 (review 8): the expiry pass and the account erase remove a staged pieces file with its
+  session.
+
+**Web.**
+- W4-1 (review 1): every wait (`nap`) returns at once when the upload is stopping, so Cancel or
+  Pause during the start, a 429 or a 5xx takes effect immediately.
+- W4-2 (review 3): a refused ticket renewal shows the relay's words on the video.
+- W4-3 (review 4): Cancel uses the new cancel answer (asks again while busy; nothing to remove by
+  hand).
+- W4-4 (review 5): the opened-picture cache re-inserts an entry when it finishes, so eviction
+  holds the 128 MB bound.
+
+**Desktop.**
+- D4-1 (review 1): the empty piece that only asks the server to finish never reads the local file,
+  and a missing local file never cancels a session whose pieces are all on the server (offset ==
+  size): Retry and Carry on finish it from the server's copy.
+- D4-2 (review 2): Cancel asks again while the server says busy, uses the new cancel answer, and
+  says "Cancelled" only when the server confirmed; a cancel that could not reach the server says so
+  (and the unfinished-uploads list keeps the row until it is confirmed).
+- D4-3 (review 3): the Media page follows the CONNECTED server (the one the socket is signed in
+  to), never the text in a server address field being typed, so a draft address never abandons
+  uploads.
+- D4-4 (review 4): Resume clears its retry flag when it is used, so a stale one never skips the
+  ten-in-a-row stop or a wait.
