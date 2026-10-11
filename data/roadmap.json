@@ -639,6 +639,11 @@
         {
           "status": "future",
           "version": null,
+          "text": "Between planets (docs/design/interplanetary.md, 2026-10-11): designing for light speed (minutes to hours each way, two weeks of silence when Mars is behind the Sun) gives six rules that help on Earth now: self-contained signed bundles, no round trips, no single \"now\" (hybrid logical clocks, data that merges by rule), read near you, send only what the other side is missing, and honest delivery steps."
+        },
+        {
+          "status": "future",
+          "version": null,
           "text": "FederationBundle: one signed-object bundle that travels over any medium (USB, QR, LoRa, sneakernet), so identity and knowledge move with no internet at all."
         },
         {
@@ -658,7 +663,7 @@
         }
       ],
       "done": 6,
-      "total": 16
+      "total": 17
     }
   ],
   "recent": [
@@ -995,6 +1000,6 @@
   ],
   "summary": {
     "done": 51,
-    "total": 114
+    "total": 115
   }
 }

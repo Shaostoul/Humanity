@@ -76,6 +76,13 @@ These are cheap now and expensive to retrofit, so new work follows them:
    between servers without trusting the one that delivered it.
 5. Every new feature answers: does it work with no server, with one small one, and across many?
 
+## Beyond Earth
+
+Light speed adds minutes to hours between worlds, and a fortnight of silence when Mars is behind
+the Sun. The six rules that follow from it (self-contained signed bundles, no round trips, no
+single "now", read near you, send only what is missing, say honestly where a thing is) each pay
+off on Earth first: [interplanetary.md](interplanetary.md).
+
 ## Order of work (the roadmap carries the dates)
 
 1. Federation activation (the roadmap's `[next]`): servers that find, trust and talk to each other.

@@ -497,6 +497,11 @@ Every operator gets the same sovereignty tools, not just the original.
   a quarterly backup-restore drill.
 - `[planned]` GitHub branch + tag protection and required signed commits on `main`
   (deploy auto-pushes to the live relay today with no approval gate).
+- `[future]` Between planets (`docs/design/interplanetary.md`, 2026-10-11): designing for
+  light speed (minutes to hours each way, two weeks of silence when Mars is behind the Sun) gives
+  six rules that help on Earth now: self-contained signed bundles, no round trips, no single
+  "now" (hybrid logical clocks, data that merges by rule), read near you, send only what the
+  other side is missing, and honest delivery steps.
 - `[future]` FederationBundle: one signed-object bundle that travels over any medium
   (USB, QR, LoRa, sneakernet), so identity and knowledge move with no internet at all.
 - `[future]` Continuity Capsule: self-sovereign succession via a Shamir-split seed
