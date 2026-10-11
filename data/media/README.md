@@ -29,3 +29,4 @@ fails, naming the script, if they differ.
 
 - `ingest.json`: the rules the in-app Open picker and the ffmpeg search follow (`src/media/transcode.rs`).
 - `labels.json`: the content labels the Media page accepts (Spoiler, Flashing lights, Graphic), read by the relay at start (`src/relay/media.rs`, design: `docs/design/media-showcase.md`). A labelled item stays hidden until it is clicked.
+- `kinds.json`: the kinds of item on the Media page (pictures, videos, models, files), the name each goes by and the mark a tile without a thumbnail shows, read by the desktop's Media page (`src/gui/pages/media/kinds.rs`). The ids are the relay's (`src/relay/storage/media.rs` `KINDS`); a test holds the two together.

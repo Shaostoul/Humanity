@@ -1,0 +1,9 @@
+{
+  "_comment": "The kinds of item on the Media page (docs/design/media-showcase.md, 'Increment 2, exact'): the filter's choices and the name a tile shows for its kind. `id` is the word the relay stores and filters by (src/relay/storage/media.rs `kind_of` decides it from the file's type, and `KINDS` lists the same four), `label` the filter's name for the kind, `one` the name of one item of it, and `mark` the picture a tile without a thumbnail shows (the desktop app paints it: picture, play, box or page; an unknown mark paints the page). A kind the relay does not know is refused by its list filter, so a kind is added in the relay and here together.",
+  "kinds": [
+    { "id": "picture", "label": "Pictures", "one": "Picture", "mark": "picture" },
+    { "id": "video",   "label": "Videos",   "one": "Video",   "mark": "play" },
+    { "id": "model",   "label": "Models",   "one": "3D model", "mark": "box" },
+    { "id": "file",    "label": "Files",    "one": "File",    "mark": "page" }
+  ]
+}

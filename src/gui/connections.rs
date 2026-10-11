@@ -516,7 +516,12 @@ impl GuiState {
         let Some(s) = frame.get("settings") else { return };
         self.erase_memory_days = s.get("erased_accounts_ttl_days").and_then(|v| v.as_i64()).filter(|d| *d > 0);
         match serde_json::from_value::<crate::relay::storage::ServerSettings>(s.clone()) {
-            Ok(settings) => {
+            Ok(mut settings) => {
+                // The line under the Media switch is the relay's own words, which the parse
+                // skips (it is never read from a client): taken from the frame instead.
+                if let Some(note) = s.get("media_members_note").and_then(|v| v.as_str()).filter(|n| !n.trim().is_empty()) {
+                    settings.media_members_note = note.to_string();
+                }
                 log::info!(
                     "Server settings updated (max_chars: u={} v={} m={} a={})",
                     settings.max_chars_unverified, settings.max_chars_verified,

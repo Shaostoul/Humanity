@@ -408,6 +408,8 @@ pub enum GuiPage {
     /// lists what is live from /api/live and plays a selected MJPEG stream.
     /// Mirrors the web `/watch` page.
     Watch,
+    /// The Media page (docs/design/media-showcase.md): what people chose to show; pages/media.rs.
+    Media,
     Quests,
     /// Server / group administration settings page. Opened from the cog
     /// menu on the server or group row in the chat sidebar.
@@ -1224,6 +1226,8 @@ pub struct GuiState {
     pub watch_last_fetch: f64,
     /// Manual "watch by name" entry on the Watch page.
     pub watch_input: String,
+    /// The Media page (pages/media.rs) and its Server Settings section, for the server on screen.
+    pub media: crate::gui::pages::media::MediaState,
 
     /// Top-nav button presentation (v0.859): icon+text / icon-only / text-only.
     /// Mirrors the web header's Aa toggle. Cycled by the nav's mode button.
@@ -3527,6 +3531,7 @@ impl Default for GuiState {
             watch_streams_rx: None,
             watch_last_fetch: 0.0,
             watch_input: String::new(),
+            media: Default::default(),
             nav_display_mode: NavDisplayMode::default(),
             toasts: Vec::new(),
             underwater: false,

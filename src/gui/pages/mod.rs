@@ -53,6 +53,8 @@ pub mod donate;
 pub mod tools;
 pub mod studio;
 pub mod watch;
+/// The Media page (docs/design/media-showcase.md, increment 2, 2026-10-11).
+pub mod media;
 // passphrase_modal moved to widgets/ in v0.115.0 (it's a modal, not a page).
 // Re-export from its new location to keep callers compiling.
 pub use crate::gui::widgets::passphrase_modal;

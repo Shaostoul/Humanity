@@ -145,6 +145,8 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 let studio_items = [
                     NavItem { label: "Studio", page: GuiPage::Studio, description: "" },
                     NavItem { label: "Watch", page: GuiPage::Watch, description: "" },
+                    // The Media page beside Watch (docs/design/media-showcase.md, increment 2).
+                    NavItem { label: "Media", page: GuiPage::Media, description: "" },
                 ];
                 nav_group(ui, &studio_items, theme.nav_legacy_red(), text_muted, theme, state);
 

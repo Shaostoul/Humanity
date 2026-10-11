@@ -37,6 +37,9 @@ pub(crate) mod reports;
 pub(crate) mod admin_erase;
 use crate::net::admin_erase as admin_erase_rules;
 
+/// The Media page's admin section (docs/design/media-showcase.md, increment 2, 2026-10-11).
+pub(crate) mod media;
+
 /// Section identity colors — match the nav bar grouping in escape_menu.rs.
 /// theme-exempt: these encode the privilege tier (red/green/blue) and are
 /// referenced by both `widgets::tinted_section` calls AND the design
@@ -1050,6 +1053,13 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
         // ── Server policy (v0.200.0): per-role limits, sharing toggles ──
         draw_server_policy_admin(ui, theme, state);
+
+        ui.add_space(theme.spacing_md);
+        ui.separator();
+        ui.add_space(theme.spacing_sm);
+
+        // ── Media (2026-10-11): who sees it, its space, categories, suggestions, the meter ──
+        media::draw_admin(ui, theme, state);
 
         ui.add_space(theme.spacing_md);
         ui.separator();
@@ -2824,54 +2834,65 @@ fn send_server_settings_update(
 ) {
     if let Some(ref client) = state.ws_client {
         if client.is_connected() {
-            let msg = serde_json::json!({
-                "type": "server_settings_update",
-                "max_chars_unverified": draft.max_chars_unverified,
-                "max_chars_verified":   draft.max_chars_verified,
-                "max_chars_mod":        draft.max_chars_mod,
-                "max_chars_admin":      draft.max_chars_admin,
-                "image_sharing_enabled": draft.image_sharing_enabled,
-                "file_sharing_enabled":  draft.file_sharing_enabled,
-                // v0.201: per-role upload caps. Legacy single
-                // max_upload_mb omitted — server's v0.201 handler
-                // applies the per-role values directly.
-                "max_upload_mb_unverified": draft.max_upload_mb_unverified,
-                "max_upload_mb_verified":   draft.max_upload_mb_verified,
-                "max_upload_mb_mod":        draft.max_upload_mb_mod,
-                "max_upload_mb_admin":      draft.max_upload_mb_admin,
-                "voice_channels_enabled":  draft.voice_channels_enabled,
-                "video_streaming_enabled": draft.video_streaming_enabled,
-                "allowed_file_extensions": draft.allowed_file_extensions,
-                // v0.237 server-wide disk cap + v0.238 per-role FIFO.
-                "max_total_upload_mb":     draft.max_total_upload_mb,
-                "max_uploads_per_user_unverified": draft.max_uploads_per_user_unverified,
-                "max_uploads_per_user_verified":   draft.max_uploads_per_user_verified,
-                "max_uploads_per_user_mod":        draft.max_uploads_per_user_mod,
-                "max_uploads_per_user_admin":      draft.max_uploads_per_user_admin,
-                // PQ Increment 3: gated hard-enforcement toggle.
-                "require_pq_signatures":           draft.require_pq_signatures,
-                // Server→Services (v0.262.16): P2P-distribution soft gate.
-                "p2p_distribution_enabled":        draft.p2p_distribution_enabled,
-                // Server description shown in the launcher (v0.478.1).
-                "server_description":              draft.server_description,
-                // Server display name (v0.480).
-                "server_name":                    draft.server_name,
-                // Sealed-sender DM mailbox TTL (2026-08-23).
-                "dm_mailbox_ttl_days":            draft.dm_mailbox_ttl_days,
-                // Public message retention (2026-08-24).
-                "message_retention_days":         draft.message_retention_days,
-                // Erased accounts remembered: days and cap (BUG-135, 2026-10-04).
-                "erased_accounts_ttl_days":       draft.erased_accounts_ttl_days,
-                "erased_accounts_cap":            draft.erased_accounts_cap,
-                // Guaranteed local-only room toggle (v0.1132).
-                "local_channel_enabled":           draft.local_channel_enabled,
-            });
-            client.send(&msg.to_string());
+            client.send(&settings_update_frame(draft).to_string());
             state.server_settings_status = "Server policy update sent.".into();
         } else {
             state.server_settings_status = "Not connected, can't save.".into();
         }
     }
+}
+
+/// The `server_settings_update` frame for `draft`: every setting the Save buttons send, the
+/// Media section's four included (server_settings/media.rs).
+pub(crate) fn settings_update_frame(draft: &crate::relay::storage::ServerSettings) -> serde_json::Value {
+    serde_json::json!({
+        "type": "server_settings_update",
+        "max_chars_unverified": draft.max_chars_unverified,
+        "max_chars_verified":   draft.max_chars_verified,
+        "max_chars_mod":        draft.max_chars_mod,
+        "max_chars_admin":      draft.max_chars_admin,
+        "image_sharing_enabled": draft.image_sharing_enabled,
+        "file_sharing_enabled":  draft.file_sharing_enabled,
+        // v0.201: per-role upload caps. Legacy single
+        // max_upload_mb omitted — server's v0.201 handler
+        // applies the per-role values directly.
+        "max_upload_mb_unverified": draft.max_upload_mb_unverified,
+        "max_upload_mb_verified":   draft.max_upload_mb_verified,
+        "max_upload_mb_mod":        draft.max_upload_mb_mod,
+        "max_upload_mb_admin":      draft.max_upload_mb_admin,
+        "voice_channels_enabled":  draft.voice_channels_enabled,
+        "video_streaming_enabled": draft.video_streaming_enabled,
+        "allowed_file_extensions": draft.allowed_file_extensions,
+        // v0.237 server-wide disk cap + v0.238 per-role FIFO.
+        "max_total_upload_mb":     draft.max_total_upload_mb,
+        "max_uploads_per_user_unverified": draft.max_uploads_per_user_unverified,
+        "max_uploads_per_user_verified":   draft.max_uploads_per_user_verified,
+        "max_uploads_per_user_mod":        draft.max_uploads_per_user_mod,
+        "max_uploads_per_user_admin":      draft.max_uploads_per_user_admin,
+        // PQ Increment 3: gated hard-enforcement toggle.
+        "require_pq_signatures":           draft.require_pq_signatures,
+        // Server→Services (v0.262.16): P2P-distribution soft gate.
+        "p2p_distribution_enabled":        draft.p2p_distribution_enabled,
+        // Server description shown in the launcher (v0.478.1).
+        "server_description":              draft.server_description,
+        // Server display name (v0.480).
+        "server_name":                    draft.server_name,
+        // Sealed-sender DM mailbox TTL (2026-08-23).
+        "dm_mailbox_ttl_days":            draft.dm_mailbox_ttl_days,
+        // Public message retention (2026-08-24).
+        "message_retention_days":         draft.message_retention_days,
+        // Erased accounts remembered: days and cap (BUG-135, 2026-10-04).
+        "erased_accounts_ttl_days":       draft.erased_accounts_ttl_days,
+        "erased_accounts_cap":            draft.erased_accounts_cap,
+        // Guaranteed local-only room toggle (v0.1132).
+        "local_channel_enabled":           draft.local_channel_enabled,
+        // The Media page (2026-10-11): who sees it, its space, each person's share, and
+        // whether the public gets previews only (server_settings/media.rs).
+        "media_visibility":                draft.media_visibility,
+        "media_budget_mb":                 draft.media_budget_mb,
+        "media_per_person_mb":             draft.media_per_person_mb,
+        "media_public_previews_only":      draft.media_public_previews_only,
+    })
 }
 
 /// Send a `role_upsert` WS message for the given role definition.
