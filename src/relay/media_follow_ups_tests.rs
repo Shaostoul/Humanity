@@ -324,7 +324,7 @@ async fn the_members_file_opens_with_the_token_in_a_header() {
     assert_eq!(by_header.status().as_u16(), 200, "the header opens the file");
     let bytes = axum::body::to_bytes(by_header.into_body(), 1 << 20).await.unwrap();
     assert_eq!(&bytes[..], b"0123456789");
-    let by_query = file_from(&state, d.folders(), item.id, TokenQuery { token: Some("tok_ann".into()) }, file_request(item.id, None)).await;
+    let by_query = file_from(&state, d.folders(), item.id, TokenQuery { token: Some("tok_ann".into()), ..Default::default() }, file_request(item.id, None)).await;
     assert_eq!(by_query.status().as_u16(), 200, "the query still works");
     let forged = file_from(&state, d.folders(), item.id, TokenQuery::default(), file_request(item.id, Some("forged"))).await;
     assert_eq!(forged.status().as_u16(), 403);
@@ -346,7 +346,7 @@ fn an_upload_is_copied_into_place_outside_the_room_lock() {
     let db = &state.db;
     let d = dirs("mfu_r5");
     let s = db.get_server_settings().unwrap();
-    let u = NewUpload { key: "ann", shelf: 0, name: "1_a.png", original_name: "a.png", len: 5, keep: 4, private_held_limit: None };
+    let u = NewUpload { key: "ann", shelf: 0, name: "1_a.png", original_name: "a.png", len: 5, keep: 4, private_held_limit: None, allowance: None, session: None };
     let mut free_while_putting = false;
     let mut staged_name = String::new();
     store_upload(
@@ -419,7 +419,7 @@ fn a_media_upload_waits_where_nothing_serves_it() {
     db.join_server(&ann.key, "Ann").unwrap();
     let s = db.get_server_settings().unwrap();
     let put = |name: &'static str, shelf: i64| {
-        let u = NewUpload { key: &ann.key, shelf, name, original_name: name, len: 4, keep: 4, private_held_limit: None };
+        let u = NewUpload { key: &ann.key, shelf, name, original_name: name, len: 4, keep: 4, private_held_limit: None, allowance: None, session: None };
         store_upload(db, &s, d.folders(), &u, |p| std::fs::write(p, b"data"), |p| {
             let _ = std::fs::remove_file(p);
         })
@@ -461,7 +461,7 @@ fn private_files_have_their_own_room_and_lifetime() {
     let d = dirs("mfu_b5");
     let s = db.get_server_settings().unwrap();
     let put = |name: &'static str, len: u64, limit: Option<u64>, keep: i64| {
-        let u = NewUpload { key: "ann", shelf: 0, name, original_name: name, len, keep, private_held_limit: limit };
+        let u = NewUpload { key: "ann", shelf: 0, name, original_name: name, len, keep, private_held_limit: limit, allowance: None, session: None };
         store_upload(db, &s, d.folders(), &u, |p| std::fs::write(p, vec![1u8; len as usize]), |p| {
             let _ = std::fs::remove_file(p);
         })

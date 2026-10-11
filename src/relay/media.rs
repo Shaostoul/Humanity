@@ -16,8 +16,9 @@
 //! (`storage::MEDIA_MEMBERS_NOTE`). A members-only item's file is not in the public uploads
 //! folder: it is in `data/media-members/`, served only by `GET /api/media/file/{id}` to a member
 //! with the session's upload token, in the `X-Upload-Token` header (W3b, 2026-10-11) or, for
-//! now, `?token=` (F3). A Media upload not yet published waits in `data/media-waiting/`, which
-//! nothing serves (R6).
+//! now, `?token=` (F3), or with a ten-minute ticket for that one file (`?ticket=`, R3-8,
+//! relay/media_ticket.rs), which a video player or a download can use as its address. A Media
+//! upload not yet published waits in `data/media-waiting/`, which nothing serves (R6).
 //!
 //! EVERY WRITE IS SIGNED: Dilithium over `purpose\ntimestamp`, as `delete_shared_upload` is,
 //! plus what that route does not have: a timestamp at most five minutes old and at most 30
@@ -205,7 +206,7 @@ fn is_admin(db: &Storage, key: &str) -> bool {
 }
 
 /// A member of this server who is not banned from it.
-fn is_member(db: &Storage, key: &str) -> bool {
+pub(crate) fn is_member(db: &Storage, key: &str) -> bool {
     db.is_member(key) && !db.is_banned(key).unwrap_or(true)
 }
 
@@ -218,6 +219,7 @@ fn refusal(e: MediaError) -> Refused {
                 Refusal::NotFound => StatusCode::NOT_FOUND,
                 Refusal::Conflict => StatusCode::CONFLICT,
                 Refusal::Full => StatusCode::INSUFFICIENT_STORAGE,
+                Refusal::TooLarge => StatusCode::PAYLOAD_TOO_LARGE,
             },
             words,
         ),
@@ -341,6 +343,37 @@ pub struct NewUpload<'a> {
     /// once (their role's `max_private_held_mb`, B5, 2026-10-11), checked with the room; None for
     /// any other file, or a role with no limit.
     pub private_held_limit: Option<u64>,
+    /// The day's and the hour's allowances this upload is checked against and counted in when it
+    /// is stored (R3-1): a single request's. None for a resumable upload's finish, whose bytes
+    /// were counted piece by piece and whose start counted the upload.
+    pub allowance: Option<Allowance<'a>>,
+    /// The resumable session whose pieces file this is (R3-5), which names the file while it waits
+    /// to be stored (storage/upload_sessions.rs `staged_part_name`); None for a single request.
+    pub session: Option<&'a str>,
+}
+
+/// What a single request's upload is held to and counted in when it is stored (R3-1, 2026-10-11):
+/// the uploader's role's day and hour allowances, read and counted at the store time, under the
+/// room lock, inside the store's blocking work. Checked and counted there, several requests sent
+/// at once can no longer all pass on one allowance (each used to check at its start and count
+/// after it was stored); a connection closed during the store no longer leaves the file stored
+/// and uncounted (the count was in the request's future, which is dropped, while the blocking
+/// work is not); and an upload that crosses midnight UTC counts in the day it was stored.
+#[derive(Clone, Copy)]
+pub struct Allowance<'a> {
+    pub role: &'a crate::relay::storage::RoleDef,
+    /// The bytes that arrived (before a picture's strip), counted against the day.
+    pub bytes: u64,
+    /// Unix ms now: the relay's clock (relay.rs `RelayState::upload_now_ms`).
+    pub clock: &'a dyn Fn() -> i64,
+}
+
+/// The allowance check for `u` at `now`, if it has one, as an upload refusal.
+fn allowance_for(db: &Storage, u: &NewUpload, now: i64) -> Result<(), Refused> {
+    match &u.allowance {
+        Some(a) => crate::relay::upload_rules::allowance_at_store(db, u.key, a.role, now, a.bytes).map_err(|over| over.refused()),
+        None => Ok(()),
+    }
 }
 
 /// "10 November 2026": a Unix-ms time as a date people read (UTC).
@@ -399,6 +432,11 @@ fn room_for(db: &Storage, s: &ServerSettings, folders: Folders, u: &NewUpload) -
 /// handed the hidden file to undo it (move it back where it came from, or delete the copy), so
 /// nothing half-stored is ever left at a public address; a failed `put` has its partial copy
 /// removed here.
+///
+/// A single request's allowances (R3-1) are looked at with the room first, and checked and
+/// counted with the room check that counts, at that time, under the same lock. A resumable
+/// upload's pieces file is staged under its session's name (R3-5), so a relay that stops while
+/// it waits for the lock puts it back with its session at the next start.
 pub fn store_upload(
     db: &Storage,
     s: &ServerSettings,
@@ -407,19 +445,27 @@ pub fn store_upload(
     put: impl FnOnce(&std::path::Path) -> std::io::Result<()>,
     unstage: impl FnOnce(&std::path::Path),
 ) -> Result<Vec<String>, Refused> {
+    let now = || u.allowance.as_ref().map_or(0, |a| (a.clock)());
     {
         let _room = room_lock();
         room_for(db, s, folders, u)?;
+        allowance_for(db, u, now())?;
     }
     let dest = if u.shelf == MEDIA_SHELF { folders.waiting } else { folders.uploads };
     std::fs::create_dir_all(dest).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create upload dir: {e}")))?;
-    let staged = dest.join(staged_name());
+    let staged = dest.join(match u.session {
+        Some(id) => crate::relay::storage::upload_sessions::staged_part_name(id),
+        None => staged_name(),
+    });
     if let Err(e) = put(&staged) {
         let _ = std::fs::remove_file(&staged);
         return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write file: {e}")));
     }
+    #[cfg(test)]
+    hold::wait_at(u.original_name);
     let _room = room_lock();
-    if let Err(refused) = room_for(db, s, folders, u) {
+    let stored_at = now();
+    if let Err(refused) = room_for(db, s, folders, u).and_then(|_| allowance_for(db, u, stored_at)) {
         unstage(&staged);
         return Err(refused);
     }
@@ -427,11 +473,68 @@ pub fn store_upload(
         unstage(&staged);
         return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write file: {e}")));
     }
-    match db.record_upload(u.key, u.name, u.keep, u.shelf, u.original_name, u.len as i64) {
-        Ok(old) => Ok(old),
-        Err(e) => {
-            tracing::error!("Failed to record upload: {e}");
-            Ok(Vec::new())
+    let old = db.record_upload(u.key, u.name, u.keep, u.shelf, u.original_name, u.len as i64).unwrap_or_else(|e| {
+        tracing::error!("Failed to record upload: {e}");
+        Vec::new()
+    });
+    // Stored: the bytes that arrived count against the day's allowance and the upload against the
+    // hour's, at the store time, still under the lock (R3-1).
+    if let Some(a) = &u.allowance {
+        crate::relay::upload_rules::count_upload(db, u.key, stored_at, a.bytes, true);
+    }
+    Ok(old)
+}
+
+/// Tests only: a store of an upload whose own file name a test has held ([`hold::gate`]) waits
+/// after its file is in the destination folder under its hidden name and before the room lock
+/// (R3-1's dropped connection, R3-5's failed move back), until the test opens the gate. A
+/// resumable piece waits the same way once its allowance is decided and before it is written,
+/// when the test held `piece:<file name>` (relay/resumable.rs `write_counted`, R3-1's pieces sent
+/// at once).
+#[cfg(test)]
+pub(crate) mod hold {
+    use std::sync::{Arc, Condvar, Mutex};
+
+    /// One held name: how many have reached it, and whether the test has let them go.
+    #[derive(Default)]
+    pub(crate) struct Gate {
+        state: Mutex<(usize, bool)>,
+        changed: Condvar,
+    }
+
+    impl Gate {
+        /// Whether a store (or a piece) has reached the gate.
+        pub(crate) fn reached(&self) -> bool {
+            self.arrivals() > 0
+        }
+        /// How many have reached the gate.
+        pub(crate) fn arrivals(&self) -> usize {
+            self.state.lock().unwrap_or_else(|p| p.into_inner()).0
+        }
+        /// Let the store go on.
+        pub(crate) fn open(&self) {
+            self.state.lock().unwrap_or_else(|p| p.into_inner()).1 = true;
+            self.changed.notify_all();
+        }
+    }
+
+    static GATES: Mutex<Vec<(String, Arc<Gate>)>> = Mutex::new(Vec::new());
+
+    /// Hold every store of an upload with this own file name, until the gate is opened.
+    pub(crate) fn gate(name: &str) -> Arc<Gate> {
+        let gate = Arc::new(Gate::default());
+        GATES.lock().unwrap_or_else(|p| p.into_inner()).push((name.to_string(), gate.clone()));
+        gate
+    }
+
+    pub(crate) fn wait_at(name: &str) {
+        let found = GATES.lock().unwrap_or_else(|p| p.into_inner()).iter().find(|(n, _)| n == name).map(|(_, g)| g.clone());
+        let Some(gate) = found else { return };
+        let mut state = gate.state.lock().unwrap_or_else(|p| p.into_inner());
+        state.0 += 1;
+        gate.changed.notify_all();
+        while !state.1 {
+            state = gate.changed.wait(state).unwrap_or_else(|p| p.into_inner());
         }
     }
 }
@@ -693,8 +796,10 @@ pub async fn publish(State(state): State<Arc<RelayState>>, Json(b): Json<Publish
 }
 
 /// Publish for the proven `b.key` (a member, not banned): one of their own uploads, never an
-/// encrypted one, within the Media budget and their share of it, under the room lock (F4). A
-/// members-only item's file moves out of the public folder before the item is committed (F3).
+/// encrypted one, no bigger than their role's largest Media file (R3-3: a file uploaded to chat or
+/// Shared Files was only held to the role's per-file limit), within the Media budget and their
+/// share of it, under the room lock (F4). A members-only item's file moves out of the public
+/// folder before the item is committed (F3).
 pub fn publish_core(db: &Storage, s: &ServerSettings, known: &[MediaLabel], folders: Folders, b: &PublishBody) -> Answer {
     if !is_member(db, &b.key) {
         return Err(forbidden("Only members of this server can put things on its Media page."));
@@ -712,6 +817,7 @@ pub fn publish_core(db: &Storage, s: &ServerSettings, known: &[MediaLabel], fold
             .ok_or_else(|| (StatusCode::BAD_REQUEST, "Visibility is \"public\" or \"members\".".to_string()))?,
     };
     let labels = normalize_labels(&b.labels, known).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    let max_file_mb = db.role_def(&db.get_role(&b.key).unwrap_or_default()).max_media_file_mb;
     let _room = room_lock();
     let disk_size = folders.find(filename).and_then(|p| std::fs::metadata(p).ok()).map(|m| m.len() as i64);
     // Where the file was before this publish moved it (R6: a Media upload waits in a folder
@@ -727,6 +833,7 @@ pub fn publish_core(db: &Storage, s: &ServerSettings, known: &[MediaLabel], fold
             category_id: b.category_id,
             labels: &labels,
             visibility,
+            max_file_mb,
         },
         s.media_budget_mb.max(1) * MIB,
         s.media_per_person_mb.max(1) * MIB,
@@ -1196,14 +1303,21 @@ pub async fn mine_post(State(state): State<Arc<RelayState>>, Json(b): Json<Signe
 /// keeps are not in it), `share_bytes`, `budget_left_bytes` (what the whole Media budget has
 /// left), `in_progress_bytes` (their resumable uploads still arriving, which a new resumable
 /// upload's start counts as used), `file_limit_bytes` (their role's largest Media file, B1; 0 is
-/// none: up to the share) and `waiting` (their uploads not yet published, with the names they had
-/// on their device).
+/// none: up to the share), `waiting` (their uploads not yet published, with the names they had
+/// on their device) and `uploads_in_progress` (R3-7, 2026-10-11: their resumable uploads still
+/// arriving, `[{id, filename, size, offset, touched_at}]`, oldest first, so an app can show and
+/// cancel one it lost track of; a finished one is in `waiting` instead).
 pub fn mine_core(db: &Storage, s: &ServerSettings, key: &str) -> Answer {
     if !is_member(db, key) {
         return Err(forbidden("Only members of this server have a share of its Media space."));
     }
     let budget = s.media_budget_mb.max(1) * MIB;
-    let in_progress: i64 = db.upload_sessions_of(key).map_err(db_err)?.iter().filter(|s| !s.finished()).map(|s| s.size).sum();
+    let sessions: Vec<_> = db.upload_sessions_of(key).map_err(db_err)?.into_iter().filter(|s| !s.finished()).collect();
+    let in_progress: i64 = sessions.iter().map(|s| s.size).sum();
+    let uploads_in_progress: Vec<Value> = sessions
+        .iter()
+        .map(|s| json!({ "id": s.id, "filename": s.filename, "size": s.size, "offset": s.offset, "touched_at": s.touched_at }))
+        .collect();
     let role = db.role_def(&db.get_role(key).unwrap_or_default());
     Ok(Json(json!({
         "used_bytes": db.media_bytes(Some(key)),
@@ -1212,22 +1326,31 @@ pub fn mine_core(db: &Storage, s: &ServerSettings, key: &str) -> Answer {
         "in_progress_bytes": in_progress,
         "file_limit_bytes": crate::relay::upload_rules::media_file_limit(&role).unwrap_or(0),
         "waiting": db.media_waiting_of(key).map_err(db_err)?,
+        "uploads_in_progress": uploads_in_progress,
     })))
 }
 
 // ── GET /api/media/file/{id}?token= ──
 
-/// The session's upload token, the one `POST /api/upload` takes.
+/// The session's upload token, the one `POST /api/upload` takes, or a ticket for one file (R3-8,
+/// relay/media_ticket.rs).
 #[derive(Debug, Default, Deserialize)]
 pub struct TokenQuery {
     pub token: Option<String>,
+    pub ticket: Option<String>,
 }
 
 /// The header the members' file route also takes the session's upload token in (W3b,
 /// 2026-10-11): an app fetches with it and shows the file through an address of its own, so the
 /// token is never in an `<img src>`, a Download link, a browser's downloads list or a server log.
-/// `?token=` still works for now; the apps move to the header.
+/// `?token=` still works for now; the apps move to the header. The resumable upload's routes
+/// (R3-9) and the ticket route (R3-8) read it too.
 pub const UPLOAD_TOKEN_HEADER: &str = "x-upload-token";
+
+/// The session's upload token from the [`UPLOAD_TOKEN_HEADER`] header, if the request has one.
+pub(crate) fn header_token(headers: &axum::http::HeaderMap) -> Option<String> {
+    headers.get(UPLOAD_TOKEN_HEADER).and_then(|v| v.to_str().ok()).map(str::trim).filter(|t| !t.is_empty()).map(str::to_string)
+}
 
 pub async fn file(
     State(state): State<Arc<RelayState>>,
@@ -1238,18 +1361,24 @@ pub async fn file(
     file_from(&state, Folders::live(), id, q, req).await
 }
 
-/// [`file`] with the folders named: the token from the [`UPLOAD_TOKEN_HEADER`] header when the
-/// request has one, else from `?token=`.
+/// [`file`] with the folders named. A ticket (`?ticket=`, R3-8) opens the one item it was given
+/// for; otherwise the token from the [`UPLOAD_TOKEN_HEADER`] header when the request has one,
+/// else from `?token=`. A refused ticket falls back to a token when there is one.
 pub async fn file_from(state: &RelayState, folders: Folders<'_>, id: i64, q: TokenQuery, req: axum::extract::Request) -> Response {
-    let from_header = req.headers().get(UPLOAD_TOKEN_HEADER).and_then(|v| v.to_str().ok()).map(str::trim).filter(|t| !t.is_empty()).map(str::to_string);
-    let token = from_header.or(q.token);
+    let token = header_token(req.headers()).or(q.token);
+    if let Some(ticket) = q.ticket.as_deref().filter(|t| !t.is_empty()) {
+        match crate::relay::media_ticket::admitted(state, ticket, id, std::time::Instant::now()) {
+            Ok(item) => return serve_item(folders, &item, req).await.unwrap_or_else(IntoResponse::into_response),
+            Err(refused) if token.is_none() => return refused.into_response(),
+            Err(_) => {}
+        }
+    }
     file_core(state, folders, id, token.as_deref(), req).await.unwrap_or_else(IntoResponse::into_response)
 }
 
 /// A Media item's file, to a member of this server who is not banned, proven by the session's
 /// upload token (F3): the way a members-only item's file is fetched, since it is not in the
-/// public folder. Ranges work (a video seeks), and like `/uploads` it is sent as an attachment
-/// (relay/mod.rs `security_headers`) and kept out of shared caches.
+/// public folder.
 pub async fn file_core(state: &RelayState, folders: Folders<'_>, id: i64, token: Option<&str>, req: axum::extract::Request) -> Result<Response, Refused> {
     let token = token
         .filter(|t| !t.is_empty())
@@ -1265,6 +1394,12 @@ pub async fn file_core(state: &RelayState, folders: Folders<'_>, id: i64, token:
         return Err(forbidden("Only members of this server who are not banned can open members-only Media files."));
     }
     let item = state.db.media_item(id).map_err(db_err)?.ok_or_else(|| (StatusCode::NOT_FOUND, "There is no Media item with that number.".to_string()))?;
+    serve_item(folders, &item, req).await
+}
+
+/// `item`'s file, answering `req`. Ranges work (a video seeks), and like `/uploads` it is sent as
+/// an attachment (relay/mod.rs `security_headers`) and kept out of shared caches.
+async fn serve_item(folders: Folders<'_>, item: &MediaItem, req: axum::extract::Request) -> Result<Response, Refused> {
     let path = folders
         .find(&item.upload_filename)
         .ok_or_else(|| (StatusCode::NOT_FOUND, "That Media item's file is missing.".to_string()))?;
@@ -1286,3 +1421,8 @@ mod tests;
 #[cfg(test)]
 #[path = "media_follow_ups_tests.rs"]
 mod follow_ups_tests;
+
+// Round 3, the fixes from the round 2 review (2026-10-11): R3-3, R3-7, R3-8.
+#[cfg(test)]
+#[path = "media_round3_tests.rs"]
+mod round3_tests;

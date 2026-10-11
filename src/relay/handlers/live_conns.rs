@@ -100,6 +100,53 @@ pub async fn forget_upload_token(state: &RelayState, token: Option<&str>) {
     }
 }
 
+/// The peer list a socket is sent when it signs in: everyone signed in, presence-hidden members
+/// left out (the live list is pure presence; they still appear masked in the full user list),
+/// and the person themselves always. Their own entry carries THIS socket's upload token
+/// (`own_token`) and their role's upload limits.
+///
+/// R3-2 (2026-10-11): the own entry's token was read from the identity's registration in
+/// `peers`, which belongs to whichever socket signed in last. Two sockets of one person
+/// reconnecting together could then both be sent the second one's token, and closing that socket
+/// (`forget_upload_token`) broke the other's uploads. Each socket's own token is the one it was
+/// given and the one its close forgets.
+pub async fn peer_list_for(state: &RelayState, public_key: &str, own_token: &str) -> Vec<crate::relay::relay::PeerInfo> {
+    let hidden_peers = state.db.hidden_presence_keys();
+    let peers: Vec<crate::relay::relay::Peer> = state
+        .peers
+        .read()
+        .await
+        .values()
+        .filter(|p| p.public_key_hex == public_key || !hidden_peers.contains(&p.public_key_hex))
+        .cloned()
+        .collect();
+    let statuses = state.user_statuses.read().await;
+    peers
+        .into_iter()
+        .map(|p| {
+            let role = state.db.get_role(&p.public_key_hex).unwrap_or_default();
+            let own = p.public_key_hex == public_key;
+            let own_role = own.then(|| state.db.role_def(&role));
+            let name_lower = p.display_name.as_ref().map(|n| n.to_lowercase()).unwrap_or_default();
+            let (status, status_text) = statuses.get(&name_lower).cloned().unwrap_or(("online".to_string(), String::new()));
+            // Kyber DM key: from the in-memory peer (if online) or the database.
+            let kyber_public = p.kyber_public.clone().or_else(|| state.db.get_kyber_public(&p.public_key_hex).ok().flatten());
+            crate::relay::relay::PeerInfo {
+                public_key: p.public_key_hex.clone(),
+                display_name: p.display_name.clone(),
+                role,
+                upload_token: own.then(|| own_token.to_string()),
+                status,
+                status_text,
+                kyber_public,
+                upload_limit_mb: own_role.as_ref().map(|d| crate::relay::upload_limits::role_upload_limit(d) / (1024 * 1024)),
+                private_limit_mb: own_role.as_ref().map(crate::relay::upload_rules::private_limit_mb),
+                private_held_limit_mb: own_role.as_ref().map(|d| d.max_private_held_mb.max(0) as u64),
+            }
+        })
+        .collect()
+}
+
 /// This socket joined the game world: its close is now the identity's game
 /// departure. A later join from another socket (the game reconnecting on a
 /// fresh socket) takes the seat over, so a dying old socket leaves it alone.
@@ -298,6 +345,35 @@ mod tests {
             Some("Grace"),
             "a real offered name is used as is"
         );
+    }
+
+    /// R3-2 (2026-10-11). EACH SOCKET IS SENT ITS OWN UPLOAD TOKEN: two sockets of one person
+    /// sign in together, and the identity's registration in `peers` already belongs to the
+    /// newer one (token "tok_newer") when the older one builds its peer list. Its own entry
+    /// carries ITS token ("tok_older"), the one its close forgets, never the other socket's;
+    /// nobody else's entry carries a token or the upload limits.
+    ///
+    /// Seen red 2026-10-11 with the token read from the registration again, as merged: "the
+    /// older socket is sent its own token / left: Some(\"tok_newer\") / right: Some(\"tok_older\")".
+    #[tokio::test]
+    async fn the_peer_list_carries_this_sockets_own_upload_token() {
+        let state = fresh_state("own_token");
+        state.db.set_role("ann_key", "verified").unwrap();
+        {
+            let mut peers = state.peers.write().await;
+            let mut ann = peer("ann_key", Some("Ann"), 2);
+            ann.upload_token = Some("tok_newer".into());
+            peers.insert("ann_key".into(), ann);
+            let mut bob = peer("bob_key", Some("Bob"), 3);
+            bob.upload_token = Some("tok_bob".into());
+            peers.insert("bob_key".into(), bob);
+        }
+        let list = peer_list_for(&state, "ann_key", "tok_older").await;
+        let own = list.iter().find(|p| p.public_key == "ann_key").expect("you always see yourself");
+        assert_eq!(own.upload_token.as_deref(), Some("tok_older"), "the older socket is sent its own token");
+        assert!(own.upload_limit_mb.is_some() && own.private_limit_mb.is_some(), "and its own limits");
+        let bob = list.iter().find(|p| p.public_key == "bob_key").expect("bob is listed");
+        assert_eq!((bob.upload_token.as_deref(), bob.upload_limit_mb), (None, None), "nobody else's token or limits");
     }
 
     /// With no other socket open, the name registered to the key is used.

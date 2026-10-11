@@ -776,8 +776,13 @@ fn choose(items: &[ItemInfo], entries: &[Location], idat: Option<(u64, u64)>, md
 
     // The bytes of every other item, which must never be written. A length
     // of 0 means "to the end of the data", so it guards everything after.
+    // Whatever its data reference (R3-4, 2026-10-11): 0 is this file, and so
+    // is any entry of `dinf/dref` that is a self-contained `url ` (flag 1).
+    // The `dref` table is not read, so every item is taken to be in this
+    // file; one that is really elsewhere only guards bytes it does not have,
+    // which can refuse a photo but never damage one.
     let mut guarded = Vec::new();
-    for e in entries.iter().filter(|e| !metadata.contains_key(&e.id) && e.data_ref == 0) {
+    for e in entries.iter().filter(|e| !metadata.contains_key(&e.id)) {
         let (area_start, area_end) = match (e.method, idat) {
             (0, _) => (0, len),
             (1, Some(area)) => area,
@@ -1443,6 +1448,36 @@ mod tests {
         let (after, r) = strip_file(&bytes);
         assert_eq!(after, bytes);
         assert!(r.stopped_early[0].contains("length 0"), "{:?}", r.stopped_early);
+    }
+
+    /// R3-4 (2026-10-11). AN ITEM KEPT THROUGH A DATA REFERENCE IS STILL
+    /// PROTECTED: a self-contained `url ` entry (flag 1) in `dinf/dref`
+    /// means its bytes are in THIS file, so an Exif extent over them is
+    /// refused, not zeroed. Here the picture (item 1) names data reference 1
+    /// and the Exif's extent is pointed into the picture's bytes: the
+    /// picture is untouched, the photo is not called clean, and the report
+    /// says the Exif overlaps another item.
+    ///
+    /// Seen red 2026-10-11 with the guard built only from items whose data
+    /// reference is 0, as merged: "the picture's bytes are untouched".
+    #[test]
+    fn an_item_kept_through_a_data_reference_is_still_protected() {
+        let b = iphone_heic();
+        let mut bytes = b.bytes.clone();
+        let pic = find_iloc_entry(&bytes, 1);
+        bytes[pic + 4..pic + 6].copy_from_slice(&1u16.to_be_bytes()); // after id (2) and method (2)
+        let exif = find_iloc_entry(&bytes, 3);
+        let into_picture = b.ranges_of(1)[0].start as u32 + 10;
+        bytes[exif + 8..exif + 12].copy_from_slice(&into_picture.to_be_bytes()); // the extent's offset
+        let (after, r) = strip_file(&bytes);
+        let picture = b.ranges_of(1)[0].clone();
+        assert_eq!(after[picture.clone()], bytes[picture], "the picture's bytes are untouched");
+        assert!(!r.complete(), "{:?}", r.stopped_early);
+        assert!(
+            r.stopped_early.iter().any(|w| w.contains("item 3 (Exif)") && w.contains("overlaps another item")),
+            "{:?}",
+            r.stopped_early
+        );
     }
 
     /// Where item `id`'s entry starts in the iloc of a file built with the
