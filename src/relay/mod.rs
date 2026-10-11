@@ -644,6 +644,13 @@ pub async fn run_relay() {
         }
     }
 
+    // Part files left by uploads a restart or a crash cut off (upload_limits.rs): none can be in
+    // progress yet, so all of them go.
+    let parts = upload_limits::clear_part_files(std::path::Path::new(upload_limits::UPLOAD_PART_DIR));
+    if parts > 0 {
+        tracing::info!("Removed {parts} unfinished upload part file(s)");
+    }
+
     // Generate or load server Ed25519 keypair for federation.
     match db.get_or_create_server_keypair() {
         Ok((pk, _)) => tracing::info!("Server public key: {pk}"),

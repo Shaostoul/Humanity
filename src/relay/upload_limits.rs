@@ -41,9 +41,11 @@ impl UploadBody {
         match self {
             UploadBody::Bytes(b) => std::fs::write(path, b),
             UploadBody::Part(p) => std::fs::rename(p, path).or_else(|_| {
-                // A part directory on another disk: copy, then remove the part.
-                std::fs::copy(p, path)?;
-                std::fs::remove_file(p)
+                // A part directory on another disk: copy, then remove the part (whether the copy
+                // worked or not: a part file is never left behind).
+                let copied = std::fs::copy(p, path);
+                let _ = std::fs::remove_file(p);
+                copied.map(|_| ())
             }),
         }
     }
@@ -98,6 +100,61 @@ pub(crate) async fn stream_to_part(field: &mut axum::extract::multipart::Field<'
         return Err(e);
     }
     Ok(PartFile { path, len })
+}
+
+/// The largest picture taken: a picture is read into memory for its magic check and its metadata
+/// strip (which copies it), unlike any other file, which streams to disk. A bigger one can go as a
+/// file in an archive.
+pub const PICTURE_MAX_BYTES: usize = 64 * 1024 * 1024;
+
+/// The picture type an upload is, from its declared type or else its extension (a client may send
+/// a photo as application/octet-stream), or None for anything that is not a picture.
+pub fn picture_type(content_type: &str, ext: &str) -> Option<&'static str> {
+    match content_type {
+        "image/png" => return Some("image/png"),
+        "image/jpeg" => return Some("image/jpeg"),
+        "image/gif" => return Some("image/gif"),
+        "image/webp" => return Some("image/webp"),
+        _ => {}
+    }
+    match ext {
+        "png" => Some("image/png"),
+        "jpg" | "jpeg" => Some("image/jpeg"),
+        "gif" => Some("image/gif"),
+        "webp" => Some("image/webp"),
+        _ if content_type.starts_with("image/") => Some("image/unknown"),
+        _ => None,
+    }
+}
+
+/// The refusal for a picture over PICTURE_MAX_BYTES.
+pub(crate) fn picture_too_large(len: u64) -> (StatusCode, String) {
+    (StatusCode::PAYLOAD_TOO_LARGE, format!(
+        "Picture too large ({:.1} MB; pictures can be up to {} MB here. Put a bigger one in a .zip to send it as a file).",
+        len as f64 / (1024.0 * 1024.0),
+        PICTURE_MAX_BYTES / (1024 * 1024)
+    ))
+}
+
+/// The role's own switch (Server Settings > Roles, "upload"), which was shown there but never
+/// checked: a role with it off cannot upload at all.
+pub(crate) fn upload_role_check(role_def: &crate::relay::storage::RoleDef) -> Result<(), (StatusCode, String)> {
+    if role_def.can_upload {
+        Ok(())
+    } else {
+        Err((StatusCode::FORBIDDEN, "Your role isn't allowed to upload files here. Ask an admin.".into()))
+    }
+}
+
+/// Remove every part file left in `dir` (an upload cut off by a restart or a crash): called at
+/// start, when no upload can be in progress. Returns how many were removed.
+pub fn clear_part_files(dir: &std::path::Path) -> usize {
+    let Ok(entries) = std::fs::read_dir(dir) else { return 0 };
+    entries
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("part"))
+        .filter(|e| std::fs::remove_file(e.path()).is_ok())
+        .count()
 }
 
 /// The refusal for a file over the uploader's limit, in words a person can act on.

@@ -126,3 +126,60 @@ fn a_file_streams_to_a_part_file_and_is_refused_mid_stream_past_the_limit() {
     assert_eq!(left.len(), 1, "only the accepted file's part is there; the refused one was removed: {left:?}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A PICTURE IS KNOWN BY ITS TYPE OR ITS EXTENSION (the upload review, 2026-10-11: the desktop's
+/// Files page sent every photo as application/octet-stream, so it skipped the metadata strip and
+/// kept its GPS position), and is held to PICTURE_MAX_BYTES since it is read into memory. Seen red
+/// 2026-10-11 with the extension half removed: "a .jpg sent as octet-stream is a picture".
+#[test]
+fn a_picture_is_known_by_its_type_or_its_extension() {
+    assert_eq!(picture_type("image/png", "bin"), Some("image/png"));
+    assert_eq!(picture_type("application/octet-stream", "jpg"), Some("image/jpeg"), "a .jpg sent as octet-stream is a picture");
+    assert_eq!(picture_type("application/octet-stream", "webp"), Some("image/webp"));
+    assert_eq!(picture_type("image/bmp", "bmp"), Some("image/unknown"), "an image type we do not take fails the magic check");
+    assert_eq!(picture_type("video/mp4", "mp4"), None);
+    assert_eq!(picture_type("application/octet-stream", "pdf"), None);
+    let (status, words) = picture_too_large(PICTURE_MAX_BYTES as u64 + 1);
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+    assert!(words.contains("pictures can be up to 64 MB"), "{words}");
+}
+
+/// THE ROLE'S UPLOAD SWITCH IS CHECKED (Server Settings > Roles, "upload": shown, never enforced
+/// until 2026-10-11). Seen red with the check always passing: "a role with upload off is refused".
+#[test]
+fn a_role_with_upload_off_is_refused() {
+    let mut role = crate::relay::storage::RoleDef::default();
+    role.can_upload = false;
+    let (status, words) = upload_role_check(&role).expect_err("a role with upload off is refused");
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(words.contains("isn't allowed to upload"), "{words}");
+    role.can_upload = true;
+    assert!(upload_role_check(&role).is_ok());
+}
+
+/// LEFTOVER PART FILES GO AT START (an upload cut off by a restart or a crash never leaves one for
+/// good), and only part files. Seen red with the extension filter dropped: "both part files
+/// removed" (three were).
+#[test]
+fn leftover_part_files_are_cleared_at_start() {
+    let dir = scratch("parts");
+    std::fs::write(dir.join("abc.part"), b"half").unwrap();
+    std::fs::write(dir.join("def.part"), b"half").unwrap();
+    std::fs::write(dir.join("keep.txt"), b"not a part").unwrap();
+    assert_eq!(clear_part_files(&dir), 2, "both part files removed");
+    let left: Vec<String> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+    assert_eq!(left, vec!["keep.txt".to_string()], "the other file stays");
+    assert_eq!(clear_part_files(&dir.join("missing")), 0, "no folder, nothing to do");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// THE UPLOAD ROUTE KEEPS ITS OWN BODY LIMIT (the review found no test that fails if the layer in
+/// src/relay/mod.rs is removed, and without it every upload over 2 MB fails again).
+#[test]
+fn the_upload_route_keeps_its_own_body_limit() {
+    let router = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/relay/mod.rs")).unwrap();
+    assert!(
+        router.contains(r#".route("/api/upload", post(api::upload_file).layer(axum::extract::DefaultBodyLimit::max(api::UPLOAD_BODY_LIMIT)))"#),
+        "the /api/upload route carries DefaultBodyLimit::max(UPLOAD_BODY_LIMIT)"
+    );
+}

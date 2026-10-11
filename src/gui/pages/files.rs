@@ -263,6 +263,8 @@ fn with_state<R>(f: impl FnOnce(&mut FileBrowserState) -> R) -> R {
 fn draw_shared_files_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let server = state.server_url.clone();
     let my_key = state.profile_public_key.clone();
+    // This connection's upload token: every upload carries it (2026-10-11).
+    let upload_token = crate::gui::pages::chat::upload_token_here(state);
     let seed = state.private_key_bytes.clone();
     // My own upload limit on this server (its peer list says; 2026-10-10), the chat's fallback until then.
     let upload_limit = state.upload_limit_bytes.unwrap_or(crate::gui::pages::chat::ATTACH_MAX_BYTES);
@@ -445,10 +447,15 @@ fn draw_shared_files_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
                     .unwrap_or("file")
                     .to_string();
                 match std::fs::read(&path) {
+                    Ok(_) if upload_token.is_none() => {
+                        with_state(|fs| fs.shared_status = crate::gui::pages::chat::NOT_SIGNED_IN_YET.to_string());
+                    }
                     Ok(bytes) if (bytes.len() as u64) <= upload_limit => {
-                        let mime = "application/octet-stream".to_string();
+                        // The file's real type, so a picture gets its metadata strip on the server
+                        // (it was always sent as application/octet-stream, 2026-10-11).
+                        let mime = crate::gui::pages::chat::mime_for_filename(&filename).to_string();
                         let server = server.clone();
-                        let key = my_key.clone();
+                        let key = upload_token.clone().unwrap_or_default();
                         let (tx, rx) = std::sync::mpsc::channel();
                         std::thread::spawn(move || {
                             // share=true: this file joins the public library.

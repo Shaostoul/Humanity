@@ -789,6 +789,10 @@ pub struct GuiState {
     /// until the server says (`chat::ATTACH_MAX_BYTES` then). Private conversations keep
     /// `ATTACH_MAX_BYTES` (chat/attach_send.rs `limit_for`).
     pub upload_limit_bytes: Option<u64>,
+    /// This connection's upload token, with the server it is for (its own entry of that server's
+    /// peer list, `upload_token`): every upload carries it (`?token=`). The bare `?key=` the
+    /// desktop used to send proved nothing about who was sending and is gone (2026-10-11).
+    pub upload_token: Option<(String, String)>,
     /// Onboarding step 1's "Connect" button (v0.643) used to just set
     /// `server_connected = true` unconditionally with no real check -- the
     /// full WS identify handshake genuinely can't happen yet at this step
@@ -3326,6 +3330,7 @@ impl Default for GuiState {
             server_field_draft: false,
             server_connected: false,
             upload_limit_bytes: None,
+            upload_token: None,
             server_check_rx: None,
             history_rx: None,
             server_check_error: String::new(),

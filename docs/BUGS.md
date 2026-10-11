@@ -5507,3 +5507,24 @@ the file streams to a part file outside the served folder, each person's peer-li
 their own `upload_limit_mb`, and both apps check against it in a server's room (6 MB stays for
 private conversations, whose files are decrypted in memory on the receiving side). The nginx cap
 (`scripts/nginx/humanity.conf`) changes on the server only with the operator's approval.
+
+## BUG-189: anyone could upload as anyone connected, and delete any asset as an admin, by naming their key (FIXED v0.1484.0, found 2026-10-11)
+
+A read-only review of the new upload path (v0.1483.0) found that `POST /api/upload?key=<key>` only
+checked that the key was connected, never that the sender owned it, and anyone can list the
+connected keys (`GET /api/peers`). So anyone could upload as anyone connected, with their role's
+limit and under their name (`&share=1` publishing it in the Shared Files library as theirs), and push
+their own uploads out of the keep-N list. `DELETE /api/assets/{id}?key=<key>` and the marketplace's
+listing-image routes trusted a bare key the same way; naming an admin's key deleted any asset. The
+hole was old; the 6 MB edge cap and axum's 2 MB default had kept uploads small, and v0.1483.0 raised
+both. The live upload cap was put back to 6 MB within the hour, before anything was fixed; the
+server's log showed no upload but the review's own probes.
+
+Fixed: uploads, asset deletes and listing images take the session's upload token only (each person
+gets it in their own peer-list entry); the desktop app now keeps and sends it, and the web never falls
+back to the key. Also from the review: the Roles "upload" switch is enforced; a picture is known by
+its extension too (the desktop's Files page sent photos as application/octet-stream, so they skipped
+the metadata strip and kept their GPS position) and is held to 64 MB and processed off the async
+executor; part files are removed on every error path and at start; the desktop shows the server's
+refusal to the person instead of only logging it; a private conversation's limit is never over the
+person's own.

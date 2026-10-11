@@ -4718,4 +4718,46 @@ mod tests {
         }
         server.abort();
     }
+
+    /// A BARE KEY PROVES NOTHING (the upload review, 2026-10-11): an upload and an asset delete
+    /// that name a connected admin's key instead of carrying a session token are refused, before a
+    /// byte of the file is read. Anyone can list the connected keys (GET /api/peers), so the old
+    /// `?key=` let anyone upload as anyone connected (with their role's limit, under their name)
+    /// and delete any asset as an admin. Seen red 2026-10-11 against the handler before the fix: "an upload with
+    /// only a key is refused" got HTTP/1.1 200 OK, the file stored as the admin's.
+    #[tokio::test]
+    async fn a_bare_key_is_refused_for_uploads_and_asset_deletes() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let path = plots_db("bare_key");
+        let (state, port, server) = relay_on(&path).await;
+        let (sock, admin_key) = bind_socket(&state, port, [151u8; 32], Some("KeyAdmin"), 1).await;
+        state.db.set_role(&admin_key, "admin").unwrap();
+
+        // One raw HTTP request; the status line of the answer and its body.
+        let ask = |method: &'static str, target: String, body: Vec<u8>, content_type: &'static str| async move {
+            let mut s = tokio::net::TcpStream::connect(("127.0.0.1", port)).await.unwrap();
+            let head = format!(
+                "{method} {target} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\n\r\n",
+                body.len()
+            );
+            s.write_all(head.as_bytes()).await.unwrap();
+            let _ = s.write_all(&body).await;
+            let mut out = Vec::new();
+            let _ = s.read_to_end(&mut out).await;
+            String::from_utf8_lossy(&out).to_string()
+        };
+
+        let boundary = "bareKeyBoundary";
+        let form = format!("--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.txt\"\r\nContent-Type: text/plain\r\n\r\nhello\r\n--{boundary}--\r\n").into_bytes();
+        let up = ask("POST", format!("/api/upload?key={admin_key}"), form, "multipart/form-data; boundary=bareKeyBoundary").await;
+        assert!(up.starts_with("HTTP/1.1 400"), "an upload with only a key is refused: {up}");
+        assert!(up.contains("Missing required 'token'"), "{up}");
+
+        let del = ask("DELETE", format!("/api/assets/whatever?key={admin_key}"), Vec::new(), "text/plain").await;
+        assert!(del.starts_with("HTTP/1.1 400"), "an asset delete with only a key is refused: {del}");
+        assert!(del.contains("Missing token"), "{del}");
+
+        drop(sock);
+        server.abort();
+    }
 }

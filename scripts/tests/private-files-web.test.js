@@ -550,6 +550,7 @@ async function loadChat(me, opts = {}) {
   const sock = fakeSocket();
   vm.runInContext(`(s, me, name, sk, kyber, seed) => {
     ws = s; myKey = me; myName = name; activeChannel = 'general'; identityConfirmed = true;
+    myUploadToken = 'tok-test'; // this session's upload token, as the peer list gives it
     myDilithiumPublicHex = me; myDilithiumSecret = sk;
     myKyberPublicBase64 = kyber; myKyberSecret = new Uint8Array(4);
     myIdentity = { publicKeyHex: me, seed32: seed, canSign: true };
@@ -1391,4 +1392,21 @@ test("a room takes a file up to my own limit on the server; with no limit said, 
   await paste(page, picture("big.png", ten));
   assert.equal(page.uploads.length, 1, "a 10 MB picture goes into a room within my 300 MB limit");
   assert.ok(!/encrypted=1/.test(page.uploads[0].query), "as a room's plain upload");
+});
+
+// Every upload carries this session's token; before the server has sent one nothing is uploaded
+// and the person is told why (the upload review, 2026-10-11: a bare key proved nothing about the
+// sender and the server no longer takes it). Seen red 2026-10-11 against the web before this: "no
+// upload is made without a token" (it fell back to ?key=).
+test("no upload goes without this session's token, and every one carries it", async () => {
+  const fx = await fixture();
+  const page = await loadChat(fx.ann);
+  page.set("() => { myUploadToken = ''; }");
+  await paste(page, picture("image.png"));
+  assert.equal(page.uploads.length, 0, "no upload is made without a token");
+  assert.ok(page.systemLines.some((l) => l.includes("has not finished signing you in yet")), "and the person is told why");
+  page.set("() => { myUploadToken = 'tok-later'; }");
+  await paste(page, picture("image.png"));
+  assert.equal(page.uploads.length, 1);
+  assert.ok(/(^|&)token=tok-later(&|$)/.test(page.uploads[0].query) && !/(^|&)key=/.test(page.uploads[0].query), "carrying the token, never the key: " + page.uploads[0].query);
 });

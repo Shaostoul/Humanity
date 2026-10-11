@@ -8,7 +8,7 @@
 //! - GET  /api/messages — poll recent message history
 //! - GET  /api/peers   — list connected peers
 
-use super::upload_limits::{declared_too_large, role_upload_limit, stream_to_part, UploadBody, UPLOAD_PART_DIR};
+use super::upload_limits::{declared_too_large, picture_too_large, picture_type, role_upload_limit, stream_to_part, upload_role_check, UploadBody, PICTURE_MAX_BYTES, UPLOAD_PART_DIR};
 pub use super::upload_limits::{UPLOAD_BODY_LIMIT, UPLOAD_HARD_CEILING};
 use axum::{
     Json,
@@ -224,9 +224,7 @@ pub async fn get_stats(
 /// Query params for POST /api/upload.
 #[derive(Debug, Deserialize)]
 pub struct UploadQuery {
-    /// Legacy: public key (deprecated, use token).
-    pub key: Option<String>,
-    /// Per-session upload token (M-4: required for uploads).
+    /// Per-session upload token (M-4: required for uploads; the old `?key=` is gone, 2026-10-11).
     pub token: Option<String>,
     /// Shared-file library (v0.675): `?share=1` publishes this upload in the
     /// public GET /api/uploads listing AND exempts it from the per-user media
@@ -419,17 +417,10 @@ pub async fn upload_file(
             Some(key) => key.clone(),
             None => return Err((StatusCode::FORBIDDEN, "Invalid upload token.".into())),
         }
-    } else if let Some(ref k) = query.key {
-        // Legacy fallback: accept key param but verify it's connected.
-        if k.is_empty() {
-            return Err((StatusCode::BAD_REQUEST, "Missing upload token or key.".into()));
-        }
-        let peers = state.peers.read().await;
-        if !peers.contains_key(k) {
-            return Err((StatusCode::FORBIDDEN, "Upload denied: key is not connected.".into()));
-        }
-        k.clone()
     } else {
+        // The per-session token only (2026-10-11): a bare `?key=` proved nothing about who was
+        // asking, since anyone can list the connected keys (GET /api/peers), so anyone could upload
+        // as anyone connected, with their role's limit and under their name.
         return Err((StatusCode::BAD_REQUEST, "Missing required 'token' query parameter.".into()));
     };
 
@@ -443,6 +434,7 @@ pub async fn upload_file(
     // server_settings tier hop). Resolve once; reuse for FIFO retention
     // here + the per-role upload-size cap inside the field loop.
     let uploader_rdef = state.db.role_def(&uploader_role);
+    upload_role_check(&uploader_rdef)?;
     let max_uploads_per_user = uploader_rdef.max_uploads_kept.max(1);
     // Max size for ONE upload = the uploader's per-role max_upload_mb, bounded only by the 1 GB
     // ceiling (`role_upload_limit`). A request that says up front it is bigger is refused before a
@@ -516,21 +508,36 @@ pub async fn upload_file(
         // front, or said it wrongly).
         let part = stream_to_part(&mut field, max_size as usize, std::path::Path::new(UPLOAD_PART_DIR)).await?;
 
-        // An image is read back (images are small) for the magic check and the metadata strip
-        // below; anything else is moved into place as it arrived.
-        let is_image = content_type.starts_with("image/") && !is_encrypted;
+        // A picture is read back for the magic check and the metadata strip below; anything else
+        // is moved into place as it arrived. A picture is known by its type OR its extension (the
+        // desktop's Files page used to send every file as application/octet-stream, so a photo
+        // skipped the strip and kept its GPS position), and is held to PICTURE_MAX_BYTES, since it
+        // is read into memory (twice, with the strip) on a worker thread.
+        let image_type = if is_encrypted { None } else { picture_type(&content_type, &file_ext) };
+        let is_image = image_type.is_some();
         let data = if is_image {
-            let bytes = tokio::fs::read(&part.path).await;
-            let _ = tokio::fs::remove_file(&part.path).await;
+            if part.len > PICTURE_MAX_BYTES {
+                let _ = tokio::fs::remove_file(&part.path).await;
+                return Err(picture_too_large(part.len as u64));
+            }
+            let path = part.path.clone();
+            let bytes = tokio::task::spawn_blocking(move || {
+                let read = std::fs::read(&path);
+                let _ = std::fs::remove_file(&path);
+                read
+            })
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Upload task failed: {e}")))?;
             axum::body::Bytes::from(bytes.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read the upload back: {e}")))?)
         } else {
             axum::body::Bytes::new()
         };
+        let image_type = image_type.unwrap_or("");
 
         // Validate magic bytes for images (strict). Encrypted blobs match no
         // magic and are exempt (they are opaque ciphertext by design).
         if is_image {
-            let magic_ok = match content_type.as_str() {
+            let magic_ok = match image_type {
                 "image/png"  => data.len() >= 4 && &data[..4] == b"\x89PNG",
                 "image/jpeg" => data.len() >= 3 && &data[..3] == b"\xFF\xD8\xFF",
                 "image/gif"  => data.len() >= 6 && (&data[..6] == b"GIF87a" || &data[..6] == b"GIF89a"),
@@ -549,13 +556,16 @@ pub async fn upload_file(
         // no re-encode); fails open to the original bytes on any parse
         // trouble. See relay/core/strip_metadata.rs.
         let data = if is_image {
-            let stripped = crate::relay::core::strip_metadata::strip_image_metadata(&content_type, &data);
-            let stripped: Vec<u8> = stripped.into();
-            if stripped.len() != data.len() {
+            let original = data.len();
+            let kind = image_type.to_string();
+            let stripped: Vec<u8> = tokio::task::spawn_blocking(move || crate::relay::core::strip_metadata::strip_image_metadata(&kind, &data).into())
+                .await
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Upload task failed: {e}")))?;
+            if stripped.len() != original {
                 tracing::info!(
                     "Upload metadata strip: {} shed {} bytes of embedded metadata",
-                    content_type,
-                    data.len().saturating_sub(stripped.len())
+                    image_type,
+                    original.saturating_sub(stripped.len())
                 );
             }
             axum::body::Bytes::from(stripped)
@@ -623,6 +633,7 @@ pub async fn upload_file(
         // fails closed as a 500 (it never silently "succeeds").
         // What goes to disk: an image's (stripped) bytes, or anything else's part file, moved.
         let body = if is_image { UploadBody::Bytes(data) } else { UploadBody::Part(part.path.clone()) };
+        let part_path_after = part.path.clone();
         let data_len = if is_image { body.len_hint() } else { part.len };
         let state_fs = state.clone();
         let public_key_fs = public_key.clone();
@@ -637,6 +648,7 @@ pub async fn upload_file(
             // Store in data/uploads/.
             let upload_dir = std::path::Path::new("data/uploads");
             std::fs::create_dir_all(upload_dir).map_err(|e| {
+                body.discard(); // a part file is never left behind
                 (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create upload dir: {e}"))
             })?;
 
@@ -686,7 +698,11 @@ pub async fn upload_file(
             Ok(())
         })
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Upload task failed: {e}")))?;
+        .map_err(|e| {
+            // The task panicked: its part file (if any) is removed here instead.
+            let _ = std::fs::remove_file(&part_path_after);
+            (StatusCode::INTERNAL_SERVER_ERROR, format!("Upload task failed: {e}"))
+        })?;
         // Propagate the fs section's own error → HTTP status (unchanged mapping).
         fs_result?;
 
@@ -1725,7 +1741,6 @@ pub struct CreateAssetRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct AssetDeleteQuery {
-    pub key: Option<String>,
     pub token: Option<String>,
 }
 
@@ -1792,14 +1807,13 @@ pub async fn delete_asset(
     axum::extract::Path(asset_id): axum::extract::Path<String>,
     Query(query): Query<AssetDeleteQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    // Resolve key from token or key param
+    // The per-session token only (2026-10-11): a bare `?key=` naming an admin's key let anyone
+    // delete any asset as that admin.
     let public_key = if let Some(ref token) = query.token {
         let tokens = state.upload_tokens.read().await;
         tokens.get(token).cloned().ok_or_else(|| (StatusCode::FORBIDDEN, "Invalid token.".into()))?
-    } else if let Some(ref k) = query.key {
-        k.clone()
     } else {
-        return Err((StatusCode::BAD_REQUEST, "Missing key or token.".into()));
+        return Err((StatusCode::BAD_REQUEST, "Missing token.".into()));
     };
 
     let is_admin = {

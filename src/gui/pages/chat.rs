@@ -76,6 +76,7 @@ pub(crate) use voice_room::set_voice_room;
 mod attach_send;
 pub(crate) use attach_send::upload_file_blocking;
 pub(crate) use attach_send::note_upload_limit; // the server tells each person their own upload limit (2026-10-10)
+pub(crate) use attach_send::{upload_token_here, NOT_SIGNED_IN_YET};
 /// Showing a private file (10k): the picture inline, or a card with Save. See `chat/attach_view.rs`.
 mod attach_view;
 #[cfg(test)]
@@ -2981,7 +2982,7 @@ pub(crate) fn composer_extra_of(galley: &egui::Galley) -> f32 {
 }
 
 /// Best-effort MIME from the filename extension (server re-checks anyway).
-fn mime_for_filename(name: &str) -> &'static str {
+pub(crate) fn mime_for_filename(name: &str) -> &'static str {
     let lower = name.to_lowercase();
     let ext = lower.rsplit('.').next().unwrap_or("");
     match ext {

@@ -68,7 +68,8 @@ impl Destination {
 #[derive(Debug, Clone)]
 pub(crate) struct AttachJob {
     pub server: String,
-    pub public_key: String,
+    /// This connection's upload token (`upload_token_here`).
+    pub token: String,
     pub filename: String,
     pub mime: String,
     pub bytes: Vec<u8>,
@@ -85,7 +86,8 @@ pub(crate) struct AttachJob {
 /// there (`server_limit`, from the server), or `ATTACH_MAX_BYTES` until the server has said.
 pub(crate) fn limit_for(server_limit: Option<u64>, to: Destination) -> u64 {
     if to.encrypts_file() {
-        ATTACH_MAX_BYTES
+        // Never over the person's own limit either, when the server allows them less.
+        server_limit.map_or(ATTACH_MAX_BYTES, |mine| mine.min(ATTACH_MAX_BYTES))
     } else {
         server_limit.unwrap_or(ATTACH_MAX_BYTES)
     }
@@ -102,7 +104,20 @@ pub(crate) fn note_upload_limit(state: &mut GuiState, peer_list: &serde_json::Va
     if let Some(mb) = mine.and_then(|p| p.get("upload_limit_mb")).and_then(|v| v.as_u64()) {
         state.upload_limit_bytes = Some(mb.saturating_mul(1024 * 1024));
     }
+    // And this connection's upload token, kept with the server it is for.
+    if let Some(token) = mine.and_then(|p| p.get("upload_token")).and_then(|v| v.as_str()).filter(|t| !t.is_empty()) {
+        state.upload_token = Some((super::norm_server_url(&state.server_url), token.to_string()));
+    }
 }
+
+/// The upload token for the server this person is on now, if it has sent one.
+pub(crate) fn upload_token_here(state: &GuiState) -> Option<String> {
+    let here = super::norm_server_url(&state.server_url);
+    state.upload_token.as_ref().filter(|(server, _)| *server == here).map(|(_, t)| t.clone())
+}
+
+/// What is said when a file cannot go because this server has not signed this person in yet.
+pub(crate) const NOT_SIGNED_IN_YET: &str = "The file was not sent: this server has not finished signing you in yet. Try again in a moment.";
 
 /// The line shown when a file is over the limit for where it is going.
 pub(crate) fn too_large_line(filename: &str, len: u64, limit: u64, to: Destination) -> String {
@@ -134,6 +149,10 @@ pub(crate) struct Upload {
 /// text cannot read it, so it is checked here).
 pub(crate) fn attach_job(state: &mut GuiState, filename: &str, bytes: Vec<u8>) -> Option<AttachJob> {
     let to = Destination::of(&state.chat_active_channel);
+    let Some(token) = upload_token_here(state) else {
+        state.ws_status = NOT_SIGNED_IN_YET.to_string();
+        return None;
+    };
     let limit = limit_for(state.upload_limit_bytes, to);
     if bytes.len() as u64 > limit {
         log::warn!("Attach rejected: {filename} is {} bytes (max {limit})", bytes.len());
@@ -147,7 +166,7 @@ pub(crate) fn attach_job(state: &mut GuiState, filename: &str, bytes: Vec<u8>) -
         && crate::gui::widgets::file_browser::name_matches_ext(filename, SHARE_EXTS);
     Some(AttachJob {
         server: state.server_url.clone(),
-        public_key: state.profile_public_key.clone(),
+        token,
         filename: filename.to_string(),
         mime: mime_for_filename(filename).to_string(),
         bytes,
@@ -162,6 +181,7 @@ pub(crate) fn attach_job(state: &mut GuiState, filename: &str, bytes: Vec<u8>) -
 /// the server after the upload.
 pub(crate) fn paste_job(state: &GuiState, png: Vec<u8>) -> Option<AttachJob> {
     let to = Destination::of(&state.chat_active_channel);
+    let token = upload_token_here(state)?;
     let limit = limit_for(state.upload_limit_bytes, to);
     if png.len() as u64 > limit {
         log::warn!("Paste rejected: the image is {} bytes (max {limit})", png.len());
@@ -169,7 +189,7 @@ pub(crate) fn paste_job(state: &GuiState, png: Vec<u8>) -> Option<AttachJob> {
     }
     Some(AttachJob {
         server: state.server_url.clone(),
-        public_key: state.profile_public_key.clone(),
+        token,
         filename: "pasted-image.png".to_string(),
         mime: "image/png".to_string(),
         bytes: png,
@@ -195,7 +215,7 @@ where
     }
     if !job.to.encrypts_file() {
         let plain = Upload { filename: job.filename, mime: job.mime, bytes: job.bytes, share: job.share, encrypted: false };
-        return upload(&job.server, &job.public_key, plain);
+        return upload(&job.server, &job.token, plain);
     }
     let size = job.bytes.len() as u64;
     let (ciphertext, k, n) = crate::net::dm_pq::encrypt_attachment(&job.bytes)?;
@@ -206,7 +226,7 @@ where
         share: false,
         encrypted: true,
     };
-    let url = upload(&job.server, &job.public_key, sealed)?;
+    let url = upload(&job.server, &job.token, sealed)?;
     Ok(crate::net::dm_pq::build_file_marker(&crate::net::dm_pq::DmAttachment {
         url,
         k,
@@ -278,6 +298,8 @@ pub(super) fn drain(ctx: &egui::Context, state: &mut GuiState) {
         Ok(Err(e)) => {
             state.clipboard_upload = None;
             log::warn!("Attachment upload failed: {e}");
+            // Said to the person too (the server's own words when it refused), not only logged.
+            state.pending_notices.push(format!("The file was not sent: {e}"));
         }
         Err(std::sync::mpsc::TryRecvError::Disconnected) => {
             state.clipboard_upload = None;
@@ -289,20 +311,20 @@ pub(super) fn drain(ctx: &egui::Context, state: &mut GuiState) {
     }
 }
 
-/// Blocking multipart upload of any file to `<server_url>/api/upload?key=<pk>`
+/// Blocking multipart upload of any file to `<server_url>/api/upload?token=<this connection's token>`
 /// (v0.708; `share=true` adds `&share=1` so 3D/model files publish to the
 /// public Shared Files library, matching the web client). Returns the URL
 /// from the JSON response. Runs on a worker thread at every call site, so
 /// blocking here never freezes a frame. nginx caps the body at 6 MB.
 pub(crate) fn upload_file_blocking(
     server_url: &str,
-    public_key: &str,
+    token: &str,
     filename: &str,
     mime: &str,
     bytes: Vec<u8>,
     share: bool,
 ) -> Result<String, String> {
-    upload_file_blocking_ext(server_url, public_key, filename, mime, bytes, share, false)
+    upload_file_blocking_ext(server_url, token, filename, mime, bytes, share, false)
 }
 
 /// As `upload_file_blocking`, plus an `encrypted` flag. When set, the body is
@@ -310,7 +332,7 @@ pub(crate) fn upload_file_blocking(
 /// (`?encrypted=1`). Used for files in private conversations.
 pub(crate) fn upload_file_blocking_ext(
     server_url: &str,
-    public_key: &str,
+    token: &str,
     filename: &str,
     mime: &str,
     bytes: Vec<u8>,
@@ -320,7 +342,7 @@ pub(crate) fn upload_file_blocking_ext(
     let base = server_url.trim_end_matches('/');
     let share_q = if share { "&share=1" } else { "" };
     let enc_q = if encrypted { "&encrypted=1" } else { "" };
-    let upload_url = format!("{base}/api/upload?key={key}{share_q}{enc_q}", base = base, key = public_key);
+    let upload_url = format!("{base}/api/upload?token={token}{share_q}{enc_q}", base = base, token = token);
     let boundary = format!("HumanityOSBoundary{}",
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -346,7 +368,7 @@ pub(crate) fn upload_file_blocking_ext(
     let resp = ureq::post(&upload_url)
         .set("Content-Type", &format!("multipart/form-data; boundary={}", boundary))
         .send_bytes(&body)
-        .map_err(|e| format!("HTTP POST failed: {e}"))?;
+        .map_err(upload_error_words)?;
     let body_str = resp.into_string()
         .map_err(|e| format!("read response: {e}"))?;
     let val: serde_json::Value = serde_json::from_str(&body_str)
@@ -355,6 +377,24 @@ pub(crate) fn upload_file_blocking_ext(
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
         .ok_or_else(|| format!("response missing 'url' field: {body_str}"))
+}
+
+/// What a failed upload says to the person: the server's own words when it refused (its body:
+/// "File too large ... your limit on this server is N MB", "Your role isn't allowed ..."), or that
+/// the server could not be reached.
+pub(crate) fn upload_error_words(e: ureq::Error) -> String {
+    match e {
+        ureq::Error::Status(code, resp) => {
+            let text = resp.into_string().unwrap_or_default();
+            let text = text.trim();
+            if text.is_empty() || text.starts_with('<') {
+                format!("the server refused it ({code}).")
+            } else {
+                text.to_string()
+            }
+        }
+        other => format!("the server could not be reached ({other})."),
+    }
 }
 
 #[cfg(test)]

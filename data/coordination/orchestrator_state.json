@@ -856,6 +856,11 @@
       "date": "2026-10-11",
       "decision": "nginx /api/upload on the VPS changed with the operator's permission (\"You have my permission\"): client_max_body_size 6m -> 1025m, proxy_request_buffering off, client_body_timeout 300s, proxy send/read timeouts 900s. Backup at /root/humanity.nginx.bak-2026-10-11; nginx -t passed; reloaded; an 8 MB probe now reaches the relay (403 bad token) instead of nginx refusing it. Same change in scripts/nginx/humanity.conf.",
       "why": "The relay now enforces each role's upload limit itself, refusing on the declared size before reading, and streams to a part file; the edge cap of 6 MB had kept every admin upload above 6 MB from reaching it. Applied only after the v0.1483.0 relay was live."
+    },
+    {
+      "date": "2026-10-11",
+      "decision": "v0.1484.0 (BUG-189): the upload review. Bare ?key= removed from /api/upload, DELETE /api/assets/{id} and the listing-image routes (token only); desktop keeps (server, token) from its own peer-list entry and sends ?token=; web never falls back to the key; Roles can_upload enforced; picture_type by type or extension, 64 MB picture cap, read and strip in spawn_blocking; part files removed on all error paths and at start (clear_part_files); desktop shows the server refusal (upload_error_words); private limit min(6 MB, own). The live nginx upload cap was restored to 6 MB at once (backup of the 1025m version at /root/humanity.nginx.1025m-2026-10-11) and is re-raised after the v0.1484.0 deploy.",
+      "why": "The critic found the old bare-key hole made large by the new limits: anyone could upload as the admin (500 MB) or delete any asset. Restoring the previous cap was the immediate, reversible mitigation, within the change the operator had approved; the server log showed only the review probes, so nothing was abused."
     }
   ],
   "active_scopes_to_avoid": [

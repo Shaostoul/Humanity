@@ -248,17 +248,9 @@ async fn resolve_upload_key(state: &Arc<RelayState>, query: &UploadQuery) -> Res
             Some(key) => Ok(key.clone()),
             None => Err((StatusCode::FORBIDDEN, "Invalid upload token.".into())),
         }
-    } else if let Some(ref k) = query.key {
-        if k.is_empty() {
-            return Err((StatusCode::BAD_REQUEST, "Missing upload token or key.".into()));
-        }
-        let peers = state.peers.read().await;
-        if !peers.contains_key(k) {
-            return Err((StatusCode::FORBIDDEN, "Key is not connected.".into()));
-        }
-        Ok(k.clone())
     } else {
-        Err((StatusCode::BAD_REQUEST, "Missing required 'token' or 'key' query parameter.".into()))
+        // The per-session token only (2026-10-11): a bare `?key=` proved nothing about the sender.
+        Err((StatusCode::BAD_REQUEST, "Missing required 'token' query parameter.".into()))
     }
 }
 

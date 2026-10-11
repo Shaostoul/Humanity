@@ -14,6 +14,8 @@ fn viewing(channel: &str) -> GuiState {
     gs.server_url = "https://chat.example".into();
     gs.profile_public_key = "me".into();
     gs.chat_active_channel = channel.into();
+    // Signed in: the server sent this connection its upload token (2026-10-11).
+    gs.upload_token = Some(("https://chat.example".into(), "tok-chat-example".into()));
     gs
 }
 
@@ -21,7 +23,7 @@ fn viewing(channel: &str) -> GuiState {
 fn run_recorded(job: AttachJob) -> (Result<String, String>, Option<Upload>) {
     let mut seen = None;
     let out = run(job, |server, key, up| {
-        assert_eq!((server, key), ("https://chat.example", "me"), "the job's server and identity");
+        assert_eq!((server, key), ("https://chat.example", "tok-chat-example"), "the job's server and this connection's upload token");
         seen = Some(up);
         Ok(FAKE_URL.to_string())
     });
@@ -148,7 +150,7 @@ fn nothing_over_the_size_cap_is_uploaded_on_any_path() {
         assert!(paste_job(&gs, big.clone()).is_none(), "{channel}: a pasted image over the cap");
         let job = AttachJob {
             server: gs.server_url.clone(),
-            public_key: "me".into(),
+            token: "tok".into(),
             filename: "big.png".into(),
             mime: "image/png".into(),
             bytes: big.clone(),
@@ -253,4 +255,33 @@ fn each_file_gets_the_limit_for_where_it_is_going() {
     dm.upload_limit_bytes = Some(300 * mb);
     assert!(attach_job(&mut dm, "clip.mp4", ten_mb).is_none(), "but not into a DM");
     assert!(dm.ws_status.contains("private conversation can be up to 6 MB"), "and the person is told why: {}", dm.ws_status);
+}
+
+/// EVERY UPLOAD CARRIES THIS CONNECTION'S TOKEN, never the person's key (the upload review,
+/// 2026-10-11: a bare `?key=` proved nothing about the sender). The token comes from this person's
+/// own entry of the server's peer list and is kept with that server; on another server, or before
+/// it arrives, nothing is sent and the person is told why. And a private conversation's limit is
+/// never over the person's own limit. Seen red 2026-10-11 two ways: with `upload_token_here`
+/// ignoring the server, "on another server the token does not count"; with `limit_for` giving
+/// private conversations 6 MB whatever the role, "never over my own 2 MB".
+#[test]
+fn every_upload_carries_this_connections_token_for_this_server() {
+    let mut gs = viewing("general");
+    gs.upload_token = None;
+    note_upload_limit(&mut gs, &serde_json::json!({ "type": "peer_list", "peers": [
+        { "public_key": "someone", "upload_token": "theirs" },
+        { "public_key": "me", "upload_token": "mine", "upload_limit_mb": 2 },
+    ] }));
+    assert_eq!(upload_token_here(&gs).as_deref(), Some("mine"), "my own entry's token");
+    let job = attach_job(&mut gs, "note.txt", b"hello".to_vec()).expect("a small file goes");
+    assert_eq!(job.token, "mine", "carrying my token");
+
+    gs.server_url = "https://other.example".into();
+    assert_eq!(upload_token_here(&gs), None, "on another server the token does not count");
+    assert!(attach_job(&mut gs, "note.txt", b"hello".to_vec()).is_none(), "so nothing is sent there");
+    assert_eq!(gs.ws_status, NOT_SIGNED_IN_YET, "and the person is told why");
+
+    let mb = 1024 * 1024;
+    assert_eq!(limit_for(Some(2 * mb), Destination::DirectMessage), 2 * mb, "never over my own 2 MB");
+    assert_eq!(limit_for(Some(300 * mb), Destination::DirectMessage), ATTACH_MAX_BYTES, "and never over 6 MB");
 }
