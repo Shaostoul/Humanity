@@ -201,3 +201,43 @@ five minutes, a fresh nonce), with the purpose named per route:
 
 Account export includes a person's Media items, picks and suggestions; erasing an account removes
 their items (and files), their picks and suggestions.
+
+## Increment 1 fixes, from its review (2026-10-11)
+
+A read-only review of the merged relay half found these; each is fixed before increment 1 ships.
+
+- **F1. An unpublished Media upload expires.** A `media=1` upload not published within 24 hours is
+  deleted, file and row (the expiry sweep, `storage/expiry.rs`, and at start). Until then its owner
+  or an admin can remove it (`POST /api/media/remove` with its file name instead of an item id), and
+  the admin's usage lists it under "waiting to be published" with its size. It never makes room
+  for a chat file: a `media=1` file is a Media file.
+- **F2. Removing an item never takes a file something else uses.** An item remembers where its
+  upload was before it was published (`media_items.from_shelf`: 0 a chat file, 1 a Shared Files
+  file, 2 uploaded for Media). Removing an item from Media gives the upload back to that place
+  and keeps the file; only an upload made for Media (2) loses its file. An admin's removal of
+  someone's chat photo from Media therefore never breaks the chat message.
+- **F3. Members only means members only, and says what a member is.**
+  - A members-only item's file is moved out of the public folder into `data/media-members/` and
+    served only by `GET /api/media/file/{id}?token=<the session's upload token>`, to a member who is
+    not banned; public items stay at their `/uploads/` address. Making an item public again moves
+    it back.
+  - A Shared Files file published as members only leaves the public Shared Files list while it is
+    published (it returns when it is removed from Media).
+  - On a members-only server the categories list and the labels are members only too.
+  - "Member" is anyone signed in to the server, as everywhere else on the relay. On an open server
+    anyone can become one by signing in, so the Settings line under the switch says so plainly:
+    "Members are everyone signed in to this server. To keep it to people you let in, turn on
+    lockdown."
+- **F4. Budgets hold when uploads finish together:** the room check, the file's move into place
+  and its row are done under one lock.
+- **F5. A signature is good for one thing, once.** Timestamps more than 30 seconds ahead are
+  refused (the replay memory covers the whole window), and each signed purpose names its target:
+  `media_publish:<file name>`, `media_remove:<item id or file name>`, `media_pick:<item id>`,
+  `media_feature:<item id>`, `media_suggestions:<suggestion id>:<accept|decline>`,
+  `media_categories:<BLAKE3 hex of the request's category list as sent>`. Reads keep `media_list`,
+  `media_usage` and `media_suggestions`.
+- **F6. Sizes come from the file.** Publishing an upload whose recorded size is 0 records its size
+  on disk, so the budget counts it.
+- **F7. Fail closed.** A settings read that fails, or a visibility word the relay does not know,
+  counts as members only. `views` waits for increment 2's viewer. The stale comment about a nonce
+  on `delete_shared_upload` is corrected.
