@@ -683,13 +683,14 @@ pub async fn run_relay() {
     // in an order that loses nothing (storage/upload_sessions.rs `settle_uploads_at_start`): a
     // pieces file a finish had staged goes back with its session (R3-5: it is the only copy),
     // copies cut off part way into the uploads or the Media waiting folder are removed (R5), and
-    // the resume folder's files and the sessions' rows are made to agree (a file with no session
-    // goes, a session with no file goes, a file longer than its stored offset is cut back).
+    // the resume folder's files and the sessions' rows are made to agree (a piece counted and
+    // never stored gives its bytes back, R4-3; a file with no session goes, a session with no file
+    // goes, a file longer than its stored offset is cut back).
     match db.settle_uploads_at_start(storage::media::Folders::live()) {
         Ok(s) if s == storage::upload_sessions::Settled::default() => {}
         Ok(storage::upload_sessions::Settled { restored, staged_cleared, reconciled: r }) => tracing::info!(
-            "Uploads at start: put {restored} pieces file(s) back with their sessions, removed {staged_cleared} half-copied file(s); resumable uploads: removed {} stray file(s) and {} session(s) with no file, cut {} file(s) back to their offset, lowered {} offset(s)",
-            r.files_removed, r.rows_removed, r.cut_back, r.offset_lowered
+            "Uploads at start: put {restored} pieces file(s) back with their sessions, removed {staged_cleared} half-copied file(s); resumable uploads: removed {} stray file(s) and {} session(s) with no file, cut {} file(s) back to their offset, lowered {} offset(s), gave back the count of {} piece(s) never stored",
+            r.files_removed, r.rows_removed, r.cut_back, r.offset_lowered, r.given_back
         ),
         Err(e) => tracing::error!("Uploads at start: the check failed: {e}"),
     }

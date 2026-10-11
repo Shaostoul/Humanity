@@ -668,14 +668,6 @@ pub(crate) fn allowance_for_piece(db: &Storage, key: &str, role: &RoleDef, now_m
     Ok(())
 }
 
-/// Take `bytes` counted at `now_ms` back off the day's count: a resumable piece counted before it
-/// was written whose write then failed (R3-1).
-pub(crate) fn take_back_upload(db: &Storage, key: &str, now_ms: i64, bytes: u64) {
-    if let Err(e) = db.take_back_upload_count(key, crate::relay::storage::upload_counts::Span::Day, now_ms, bytes as i64) {
-        tracing::error!("Upload allowance: could not take back {bytes} bytes ({e})");
-    }
-}
-
 /// Count an upload against the allowances: `bytes` against the day, and one upload started
 /// against the hour when `started`. A count that cannot be written is logged: the upload itself
 /// already happened. Every caller counts under the room lock, with the check that went before

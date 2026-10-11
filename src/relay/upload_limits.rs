@@ -48,17 +48,21 @@ impl UploadBody {
         }
     }
     /// Undo [`UploadBody::put`] when the upload was refused after it: a part file that was moved
-    /// goes back where it was ([`move_file`]: a rename, else a copy that is whole before it takes
-    /// the name); a copy, or written bytes, are deleted.
+    /// goes back where it was by a RENAME only; a copy, or written bytes, are deleted.
     ///
-    /// A part file that cannot go back is KEPT where it is, under its hidden name, never deleted
-    /// (R3-5, 2026-10-11): for a resumable upload it is the only copy of what was sent, and its
-    /// name says whose it is (storage/upload_sessions.rs `staged_part_name`), so the next finish
-    /// or the next start puts it back with its session. A single request's is cleared at start.
+    /// This runs under the room lock (media.rs `store_upload`), which every other upload's store
+    /// and every publish waits on, so it never copies (R4-4, 2026-10-11): round 3 fell back to a
+    /// copy of up to 64 GiB when the rename back failed, with every other upload waiting behind
+    /// it. A part file that `put` moved was renamed, so it is on the same disk and a rename takes
+    /// it back; one that cannot be renamed back is KEPT where it is, under its hidden name, never
+    /// deleted (R3-5): for a resumable upload it is the only copy of what was sent, and its name
+    /// says whose it is (storage/upload_sessions.rs `staged_part_name`), so the next finish or the
+    /// next start puts it back with its session, outside the lock. A single request's is cleared
+    /// at start.
     pub(crate) fn unstage(&self, path: &std::path::Path) {
         match self {
             UploadBody::Part(p) if !p.exists() => {
-                if let Err(e) = move_file(path, p) {
+                if let Err(e) = std::fs::rename(path, p) {
                     tracing::error!("An upload refused after it was put in place could not go back yet ({e}); it is kept under its hidden name");
                 }
             }
@@ -78,7 +82,9 @@ impl UploadBody {
 /// Move the file at `from` to `to`, losing nothing on the way (R3-5, 2026-10-11): a rename when
 /// it can; otherwise (another disk) a copy to a name beside `to` that is renamed onto `to` only
 /// once it is whole, and only then is `from` removed. A failure part way leaves `from` as it was,
-/// and no half copy under `to`'s name.
+/// and no half copy under `to`'s name. Called only where no lock is held (storage/
+/// upload_sessions.rs `restore_staged_part`, at a finish's start and at relay start), never under
+/// the room lock, since its copy can take as long as the file is big (R4-4).
 pub(crate) fn move_file(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {
     if std::fs::rename(from, to).is_ok() {
         return Ok(());

@@ -73,33 +73,42 @@ impl Storage {
     /// Add `amount` to `key`'s count of `span` in the window holding `now_ms`, and delete every
     /// row of a window that has ended (anyone's).
     pub fn add_upload_count(&self, key: &str, span: Span, now_ms: i64, amount: i64) -> Result<(), rusqlite::Error> {
-        if amount <= 0 {
-            return Ok(());
-        }
-        let starts = span.starts_at(now_ms);
-        self.with_conn(|conn| {
-            conn.execute(
-                "INSERT INTO upload_counts (public_key, span, starts_at, amount) VALUES (?1, ?2, ?3, ?4)
-                 ON CONFLICT (public_key, span, starts_at) DO UPDATE SET amount = amount + excluded.amount",
-                params![key, span.word(), starts, amount],
-            )?;
-            conn.execute("DELETE FROM upload_counts WHERE span = ?1 AND starts_at < ?2", params![span.word(), starts])?;
-            Ok(())
-        })
+        self.with_conn(|conn| add_count_on(conn, key, span, now_ms, amount))
     }
 
     /// Take `amount` back off `key`'s count of `span` in the window holding `now_ms`, never below 0:
     /// a resumable piece counted before it was written, whose write failed (R3-1, 2026-10-11).
     pub fn take_back_upload_count(&self, key: &str, span: Span, now_ms: i64, amount: i64) -> Result<(), rusqlite::Error> {
-        if amount <= 0 {
-            return Ok(());
-        }
-        self.with_conn(|conn| {
-            conn.execute(
-                "UPDATE upload_counts SET amount = MAX(amount - ?4, 0) WHERE public_key = ?1 AND span = ?2 AND starts_at = ?3",
-                params![key, span.word(), span.starts_at(now_ms), amount],
-            )
-            .map(|_| ())
-        })
+        self.with_conn(|conn| take_back_on(conn, key, span, now_ms, amount))
     }
+}
+
+/// [`Storage::add_upload_count`] on a connection the caller holds, so a resumable piece's count
+/// and the record of it on its session go in one transaction (R4-3, storage/upload_sessions.rs
+/// `count_upload_piece`).
+pub(super) fn add_count_on(conn: &rusqlite::Connection, key: &str, span: Span, now_ms: i64, amount: i64) -> Result<(), rusqlite::Error> {
+    if amount <= 0 {
+        return Ok(());
+    }
+    let starts = span.starts_at(now_ms);
+    conn.execute(
+        "INSERT INTO upload_counts (public_key, span, starts_at, amount) VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT (public_key, span, starts_at) DO UPDATE SET amount = amount + excluded.amount",
+        params![key, span.word(), starts, amount],
+    )?;
+    conn.execute("DELETE FROM upload_counts WHERE span = ?1 AND starts_at < ?2", params![span.word(), starts])?;
+    Ok(())
+}
+
+/// [`Storage::take_back_upload_count`] on a connection the caller holds (R4-3): the window is the
+/// one holding `at_ms`, the time the amount was counted, which may be an earlier day than now.
+pub(super) fn take_back_on(conn: &rusqlite::Connection, key: &str, span: Span, at_ms: i64, amount: i64) -> Result<(), rusqlite::Error> {
+    if amount <= 0 {
+        return Ok(());
+    }
+    conn.execute(
+        "UPDATE upload_counts SET amount = MAX(amount - ?4, 0) WHERE public_key = ?1 AND span = ?2 AND starts_at = ?3",
+        params![key, span.word(), span.starts_at(at_ms), amount],
+    )
+    .map(|_| ())
 }
