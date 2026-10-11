@@ -1,15 +1,24 @@
 //! Putting something on the Media page, and asking for a category.
 //!
 //! ADD TO MEDIA: the file picker, then a short form (title, category, description, labels,
-//! visibility). The file uploads with `?media=1` (chat/attach_send.rs, the same upload every file
-//! takes, with the Media flag) and is then published with `POST /api/media`. Above the form is
-//! what is left of the person's share of the Media space ("You have 412 MB of your 512 MB
-//! left"), and a file over it is stopped before a byte is sent.
+//! visibility). The file goes up in pieces (media/resumable.rs, with a progress bar, Pause,
+//! Resume and Cancel; the page's side is media/uploading.rs) and is then published with
+//! `POST /api/media`, signed then. Above the form is what is left of the person's share of the
+//! Media space, as the server counts it (`/api/media/mine`: "You have 412 MB of your 512 MB
+//! left"), and a file over it, over the largest Media file their role may send, or over what is
+//! left of the whole space is stopped before a byte is sent.
 //!
 //! PUT ON MEDIA: the same form for a file already on the server (a Shared Files row on the Files
 //! page), without the picker. Such a file is already public where it was shared, so it goes on
 //! Media as public only: the visibility choice is not offered, and a line says why (the relay
 //! refuses members only for it, `storage::media::was_public`).
+//!
+//! A WAITING UPLOAD (one of the person's Media uploads whose publish failed or never happened,
+//! listed on the page) opens the same form too, with the visibility choice: it was uploaded for
+//! Media.
+//!
+//! THE CATEGORY SENT IS THE CATEGORY SHOWN: with none chosen, the form shows the general category
+//! (the relay's `GENERAL_CATEGORY_ID`, whatever an admin renamed it) and sends its number.
 //!
 //! SUGGEST A CATEGORY: a name and a note for the admins; their answer comes as a notice.
 
@@ -18,8 +27,8 @@ use std::path::PathBuf;
 
 use egui::RichText;
 
-use super::api::{self, PublishFields};
-use super::{signer_here, spawn, spawn_with, Job};
+use super::api::{self, Category, PublishFields};
+use super::{signer_here, spawn, uploading, Job};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::{GuiPage, GuiState};
@@ -27,10 +36,23 @@ use crate::gui::{GuiPage, GuiState};
 /// Where the form's file is.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Source {
-    /// A file on this computer, picked with Add to Media: uploaded, then published.
+    /// A file on this computer, picked with Add to Media: uploaded in pieces, then published.
     Picked { path: PathBuf, name: String, len: u64 },
-    /// A file already on the server (its stored name), published as it is: public only.
+    /// A file already public on the server (its stored name), published as it is: public only.
     Existing { filename: String, name: String, len: u64 },
+    /// One of the person's own Media uploads waiting to be published: published as it is.
+    Waiting { filename: String, name: String, len: u64 },
+}
+
+/// What kind of file a publish puts on Media, so its answer is handled the right way.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Of {
+    /// Uploaded here just now (the upload under way is done with when it answers).
+    Upload,
+    /// A Media upload already on the server, waiting to be published.
+    Waiting,
+    /// A file already public in Shared Files or a chat.
+    Shared,
 }
 
 /// The Add to Media or Put on Media form.
@@ -39,11 +61,11 @@ pub(crate) struct Form {
     pub source: Source,
     pub title: String,
     pub description: String,
-    /// None: the server's first category (General).
+    /// None: the general category, which the form shows by name.
     pub category: Option<i64>,
     /// The ticked label ids.
     pub labels: BTreeSet<String>,
-    /// Members only (only for a file picked here, on a public page).
+    /// Members only (only for a file uploaded for Media, on a public page).
     pub members_only: bool,
     /// Why the last press did not go.
     pub problem: String,
@@ -61,10 +83,23 @@ impl Form {
         matches!(self.source, Source::Picked { .. })
     }
 
+    /// A file uploaded for Media (here, now or before), which may be members only.
+    pub(crate) fn for_media(&self) -> bool {
+        !matches!(self.source, Source::Existing { .. })
+    }
+
     /// The file's name and size.
     pub(crate) fn file(&self) -> (&str, u64) {
         match &self.source {
-            Source::Picked { name, len, .. } | Source::Existing { name, len, .. } => (name, *len),
+            Source::Picked { name, len, .. } | Source::Existing { name, len, .. } | Source::Waiting { name, len, .. } => (name, *len),
+        }
+    }
+
+    /// The stored name of a file already on the server (None for one still on this computer).
+    pub(crate) fn stored(&self) -> Option<&str> {
+        match &self.source {
+            Source::Existing { filename, .. } | Source::Waiting { filename, .. } => Some(filename),
+            Source::Picked { .. } => None,
         }
     }
 }
@@ -73,43 +108,44 @@ impl Form {
 pub(crate) const ALREADY_PUBLIC_LINE: &str = "This file is already public where it was shared.";
 /// The line where a members-only server leaves no choice.
 pub(crate) const MEMBERS_SERVER_LINE: &str = "This server's Media page is for members only, so this item is too.";
-/// While the share's use is being added up.
+/// While the share's use is being asked for.
 pub(crate) const WORKING_OUT_LINE: &str = "Working out how much of your share is left...";
 
-/// This person's share of the Media space in bytes, from the server's settings.
-pub(crate) fn share_bytes(state: &GuiState) -> Option<i64> {
-    state.server_settings.as_ref().map(|s| s.media_per_person_mb.max(1) * 1024 * 1024)
+/// The category the form shows and sends: the one chosen, if the server still lists it, else
+/// the general category, named as the server names it.
+pub(crate) fn shown_category(form: &Form, categories: &[Category]) -> (i64, String) {
+    let id = form.category.filter(|c| categories.iter().any(|x| x.id == *c)).unwrap_or(api::GENERAL_CATEGORY);
+    let name = categories.iter().find(|x| x.id == id).map(|x| x.name.clone()).filter(|n| !n.trim().is_empty()).unwrap_or_else(|| "General".to_string());
+    (id, name)
 }
 
-/// What is left of it, once the person's use is known.
-pub(crate) fn share_left(state: &GuiState) -> Option<i64> {
-    Some(share_bytes(state)? - state.media.my_use?)
-}
-
-/// Why `form`'s file cannot go now, if it cannot: over the person's upload limit (a file from
-/// this computer only), or over what is left of their share.
+/// Why `form`'s file cannot go now, if it cannot: over the role's largest Media file, the
+/// person's share, or the whole space (`api::room_problem`). A waiting upload already counts.
 pub(crate) fn form_problem(state: &GuiState, form: &Form) -> Option<String> {
+    if matches!(form.source, Source::Waiting { .. }) {
+        return None;
+    }
     let (_, len) = form.file();
-    let role_limit = if form.is_picked() { state.upload_limit_bytes } else { None };
-    api::room_problem(len, role_limit, share_left(state))
+    api::room_problem(len, state.media.mine.as_ref())
 }
 
-/// Add to Media was pressed: the file picker opens, and the person's share starts being added up.
+/// Add to Media was pressed: the file picker opens, and the person's own use is asked for.
 pub(crate) fn begin_add(state: &mut GuiState) {
     if signer_here(state).is_none() {
         state.media.status = "Unlock your identity and sign in to this server to add to its Media page.".to_string();
         return;
     }
-    let limit = state.upload_limit_bytes.unwrap_or(0);
+    // The role's largest Media file, when the server has said and there is one (0: no limit).
+    let limit = state.media.mine.as_ref().map(|m| m.file_limit_bytes.max(0) as u64).unwrap_or(0);
     state.media.picker = Some(
         widgets::file_browser::FilePickerState::new(crate::gui::pages::chat::ATTACH_EXTS, limit).with_pick_verb("Choose"),
     );
-    super::add_up_my_use(state);
+    super::refresh_mine(state);
 }
 
-/// The picker chose `path`. Its size is checked before anything is read: a file over the
-/// person's upload limit, or over what is left of their share when that is known, is stopped
-/// here with the numbers, and nothing is uploaded. Otherwise the form opens.
+/// The picker chose `path`. Its size is checked before anything is read: a file over what the
+/// server's numbers allow is stopped here with them, and nothing is uploaded. Otherwise the form
+/// opens.
 pub(crate) fn picked(state: &mut GuiState, path: &std::path::Path) {
     let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("file").to_string();
     let len = match std::fs::metadata(path) {
@@ -119,7 +155,7 @@ pub(crate) fn picked(state: &mut GuiState, path: &std::path::Path) {
             return;
         }
     };
-    if let Some(problem) = api::room_problem(len, state.upload_limit_bytes, share_left(state)) {
+    if let Some(problem) = api::room_problem(len, state.media.mine.as_ref()) {
         state.media.status = problem;
         return;
     }
@@ -132,7 +168,7 @@ pub(crate) fn put_on_media(state: &mut GuiState, filename: &str, name: &str, len
     super::sync_server(state);
     let source = Source::Existing { filename: api::bare_name(filename).to_string(), name: name.to_string(), len };
     state.media.form = Some(Form::new(source));
-    super::add_up_my_use(state);
+    super::refresh_mine(state);
     state.push_nav_to(GuiPage::Media);
 }
 
@@ -153,10 +189,10 @@ pub(crate) fn draw_dialogs(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
 /// The Add to Media or Put on Media form, while open.
 pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let Some(mut form) = state.media.form.take() else { return };
-    let problem = form_problem(state, &form);
+    let problem = if form.sending { None } else { form_problem(state, &form) };
     let members_server = super::members_only_server(state);
-    let share = share_bytes(state);
-    let (my_use, use_failed) = (state.media.my_use, state.media.my_use_failed);
+    let mine = state.media.mine.clone();
+    let mine_failed = state.media.mine_failed;
     let categories = state.media.list.categories.clone();
     let labels = state.media.list.labels.clone();
     let title = if form.is_picked() { "Add to Media" } else { "Put on Media" };
@@ -167,12 +203,11 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
         ui.set_max_width(520.0);
         let (name, len) = form.file();
         ui.label(RichText::new(format!("{name} ({})", api::size_words(len as i64))).size(theme.font_size_body).color(theme.text_primary()).strong());
-        // The person's share, above the form.
-        let share_text = match (share, my_use) {
-            (Some(share), Some(used)) => api::share_line(used, share),
-            (None, _) => "This server's Media share is not known yet.".to_string(),
-            (_, None) if use_failed => "Your share could not be checked here; the server checks it.".to_string(),
-            (_, None) => WORKING_OUT_LINE.to_string(),
+        // The person's share, above the form, as the server counts it.
+        let share_text = match (&mine, mine_failed) {
+            (Some(m), _) => api::share_line(m),
+            (None, true) => "Your share could not be checked here; the server checks it.".to_string(),
+            (None, false) => WORKING_OUT_LINE.to_string(),
         };
         ui.label(RichText::new(share_text).size(theme.font_size_small).color(theme.text_secondary()));
         if let Some(p) = problem.as_deref() {
@@ -183,15 +218,12 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
             ui.add(egui::TextEdit::singleline(&mut form.title).desired_width(300.0).char_limit(120));
         });
         widgets::form_row(ui, theme, "Category", |ui| {
-            let shown = form
-                .category
-                .and_then(|c| categories.iter().find(|x| x.id == c))
-                .or_else(|| categories.first())
-                .map(|c| c.name.clone())
-                .unwrap_or_else(|| "General".to_string());
+            let (shown_id, shown) = shown_category(&form, &categories);
             egui::ComboBox::from_id_salt("media_form_category").selected_text(shown).show_ui(ui, |ui| {
                 for c in &categories {
-                    ui.selectable_value(&mut form.category, Some(c.id), &c.name).on_hover_text(&c.description);
+                    if ui.selectable_label(c.id == shown_id, &c.name).on_hover_text(&c.description).clicked() {
+                        form.category = Some(c.id);
+                    }
                 }
             });
         });
@@ -214,7 +246,7 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
             });
         }
         ui.add_space(theme.spacing_xs);
-        if !form.is_picked() {
+        if !form.for_media() {
             ui.label(RichText::new(ALREADY_PUBLIC_LINE).size(theme.font_size_small).color(theme.text_secondary()));
         } else if members_server {
             ui.label(RichText::new(MEMBERS_SERVER_LINE).size(theme.font_size_small).color(theme.text_secondary()));
@@ -227,24 +259,36 @@ pub(crate) fn draw_form(ctx: &egui::Context, theme: &Theme, state: &mut GuiState
         if !form.problem.is_empty() {
             ui.label(RichText::new(&form.problem).size(theme.font_size_small).color(theme.danger()));
         }
+        if form.sending && form.is_picked() {
+            ui.add_space(theme.spacing_xs);
+            uploading::draw_progress(ui, theme, state);
+        }
         ui.add_space(theme.spacing_sm);
         ui.horizontal(|ui| {
-            let waiting = share.is_some() && my_use.is_none() && !use_failed;
+            let waiting = mine.is_none() && !mine_failed && form.is_picked();
             let ready = problem.is_none() && !waiting && !form.sending;
             ui.add_enabled_ui(ready, |ui| {
                 submit = widgets::Button::primary(submit_words(&form)).show(ui, theme);
             });
-            if form.sending {
-                let doing = if form.is_picked() { "Uploading..." } else { "Publishing..." };
-                ui.label(RichText::new(doing).size(theme.font_size_small).color(theme.text_muted()));
+            if form.sending && !form.is_picked() {
+                ui.label(RichText::new("Publishing...").size(theme.font_size_small).color(theme.text_muted()));
             }
-            cancel = widgets::Button::secondary("Cancel").show(ui, theme);
+            let tip = if form.sending { "Stop the upload and the publish: nothing of it stays on the server." } else { "Close this without putting anything on Media." };
+            cancel = widgets::Button::secondary("Cancel").tooltip(tip).show(ui, theme);
         });
     });
     if submit && problem.is_none() && !form.sending {
         send_form(state, &mut form, members_server);
     }
-    if open && !cancel {
+    if cancel {
+        // A Cancel while sending stops the upload, and the publish when it is already on its way.
+        if form.sending {
+            uploading::cancel(state, &form);
+        }
+        return;
+    }
+    // The window's own close does nothing while something is being sent: only Cancel stops it.
+    if open || form.sending {
         state.media.form = Some(form);
     }
 }
@@ -258,21 +302,22 @@ pub(crate) fn submit_words(form: &Form) -> &'static str {
     }
 }
 
-/// The publish the form describes, for `filename` (its stored name or address).
-pub(crate) fn fields_of(form: &Form, filename: &str, members_server: bool) -> PublishFields {
-    // Only a file uploaded for Media can be members only; on a members-only server it is.
-    let visibility = if form.is_picked() && (members_server || form.members_only) { "members" } else { "public" };
+/// The publish the form describes, for `filename` (its stored name or address): the category
+/// shown, and members only only for a file uploaded for Media (always, on a members-only server).
+pub(crate) fn fields_of(form: &Form, filename: &str, categories: &[Category], members_server: bool) -> PublishFields {
+    let visibility = if form.for_media() && (members_server || form.members_only) { "members" } else { "public" };
     PublishFields {
         filename: filename.to_string(),
         title: form.title.clone(),
         description: form.description.clone(),
-        category_id: form.category,
+        category_id: shown_category(form, categories).0,
         labels: form.labels.iter().cloned().collect(),
         visibility: visibility.to_string(),
     }
 }
 
-/// Send the form: upload (a picked file) and publish, on a worker thread.
+/// Send the form: a picked file starts its upload (published when it is up); a file already on
+/// the server is published now.
 fn send_form(state: &mut GuiState, form: &mut Form, members_server: bool) {
     let (name, _) = form.file();
     let name = name.to_string();
@@ -285,29 +330,17 @@ fn send_form(state: &mut GuiState, form: &mut Form, members_server: bool) {
         return;
     };
     form.problem.clear();
-    form.sending = true;
-    match &form.source {
-        Source::Existing { filename, .. } => {
-            let req = api::publish_request(&signer, &fields_of(form, filename, members_server));
-            spawn(state, Job::Publish { uploaded: false }, req);
+    match form.stored().map(str::to_string) {
+        Some(filename) => {
+            form.sending = true;
+            let of = if matches!(form.source, Source::Waiting { .. }) { Of::Waiting } else { Of::Shared };
+            let fields = fields_of(form, &filename, &state.media.list.categories, members_server);
+            spawn(state, Job::Publish { of, filename }, api::publish_request(&signer, &fields));
         }
-        Source::Picked { path, .. } => {
-            let Some(token) = crate::gui::pages::chat::upload_token_here(state) else {
-                form.sending = false;
-                form.problem = crate::gui::pages::chat::NOT_SIGNED_IN_YET.to_string();
-                return;
-            };
-            let (path, base) = (path.clone(), super::base_of(state));
-            let mime = crate::gui::pages::chat::mime_for_filename(&name).to_string();
-            let template = fields_of(form, "", members_server);
-            spawn_with(state, Job::Publish { uploaded: true }, move || {
-                let bytes = std::fs::read(&path).map_err(|e| format!("{name} could not be read ({e})."))?;
-                let url = crate::gui::pages::chat::upload_media_file_blocking(&base, &token, &name, &mime, bytes)?;
-                // Signed only now, after the upload: a signature is good for five minutes.
-                let fields = PublishFields { filename: url, ..template };
-                api::send(&base, &api::publish_request(&signer, &fields))
-            });
-        }
+        None => match uploading::start(state, form) {
+            Ok(()) => form.sending = true,
+            Err(words) => form.problem = words,
+        },
     }
 }
 

@@ -132,6 +132,19 @@ impl ImageCache {
         self.allowed.contains(url)
     }
 
+    /// Forget that `key` failed, so the next request fetches it again: a picture refused with an
+    /// upload token that has since been replaced (a reconnect), or a Try again pressed.
+    pub fn retry(&mut self, key: &str) {
+        self.errors.remove(key);
+    }
+
+    /// Mark `key` as failed with `err`, for the tests that need a refusal already cached.
+    #[cfg(test)]
+    pub fn fail_for_test(&mut self, key: &str, err: &str) {
+        self.fetching.remove(key);
+        self.errors.insert(key.to_string(), err.to_string());
+    }
+
     /// Request an image fetch. No-op if already fetching or loaded.
     pub fn request(&mut self, url: &str) {
         if self.textures.contains_key(url) || self.fetching.contains(url) {
@@ -356,18 +369,28 @@ fn decode_bytes(bytes: &[u8], max_pixels: u32) -> Result<(u32, u32, Vec<u8>), St
 /// a small cap so they can prove the refusal against a loopback server
 /// without pushing 16 MB through a socket.
 pub(crate) fn download_bytes(url: &str, max_bytes: usize) -> Result<Vec<u8>, String> {
-    let resp = ureq::get(url)
-        .timeout(std::time::Duration::from_secs(20))
-        .call()
-        .map_err(|e| format!("GET {}: {}", url, e))?;
+    download_bytes_with(url, max_bytes, None)
+}
+
+/// [`download_bytes`] with one request header (`header`: its name and value), which is how a
+/// members-only Media picture is fetched: the session's upload token rides in a header, never in
+/// the address. Every error is said without any upload token in it ([`hide_token`]): ureq's own
+/// error text holds the whole address, and these words reach the screen and run.log.
+pub(crate) fn download_bytes_with(url: &str, max_bytes: usize, header: Option<(&str, &str)>) -> Result<Vec<u8>, String> {
+    let shown = hide_token(url);
+    let mut req = ureq::get(url).timeout(std::time::Duration::from_secs(20));
+    if let Some((name, value)) = header {
+        req = req.set(name, value);
+    }
+    let resp = req.call().map_err(|e| hide_token(&format!("GET {shown}: {e}")))?;
     if resp.status() != 200 {
-        return Err(format!("GET {}: HTTP {}", url, resp.status()));
+        return Err(format!("GET {shown}: HTTP {}", resp.status()));
     }
     // Check 1: an honest server tells us up front.
     if let Some(declared) = resp.header("Content-Length").and_then(|v| v.trim().parse::<usize>().ok()) {
         if declared > max_bytes {
             return Err(format!(
-                "GET {url}: image is {declared} bytes, over the {} MB limit",
+                "GET {shown}: image is {declared} bytes, over the {} MB limit",
                 max_bytes / (1024 * 1024)
             ));
         }
@@ -377,9 +400,58 @@ pub(crate) fn download_bytes(url: &str, max_bytes: usize) -> Result<Vec<u8>, Str
     let mut bytes = Vec::with_capacity(64 * 1024);
     std::io::Read::read_to_end(&mut reader, &mut bytes).map_err(|e| format!("read body: {e}"))?;
     if bytes.len() > max_bytes {
-        return Err(format!("GET {url}: image exceeds the {} MB limit", max_bytes / (1024 * 1024)));
+        return Err(format!("GET {shown}: image exceeds the {} MB limit", max_bytes / (1024 * 1024)));
     }
     Ok(bytes)
+}
+
+/// A whole file from `url` written into `out` as it arrives, refusing more than `max_bytes`
+/// (a declared length over it before a byte is read; a body that runs past it as soon as it
+/// does). For a private file's Save (chat/attach_view.rs `save_file`), which may be up to a
+/// gigabyte: no limit on the whole transfer's time, only on a connection that will not open or
+/// goes quiet for a minute. Returns how many bytes came. The words never hold an upload token.
+pub(crate) fn download_to(url: &str, max_bytes: u64, out: &mut dyn std::io::Write) -> Result<u64, String> {
+    let shown = hide_token(url);
+    let agent = ureq::AgentBuilder::new()
+        .timeout_connect(std::time::Duration::from_secs(30))
+        .timeout_read(std::time::Duration::from_secs(60))
+        .build();
+    let resp = agent.get(url).call().map_err(|e| hide_token(&format!("GET {shown}: {e}")))?;
+    if let Some(declared) = resp.header("Content-Length").and_then(|v| v.trim().parse::<u64>().ok()) {
+        if declared > max_bytes {
+            return Err(format!("GET {shown}: the file is {declared} bytes, over the {} MB limit", max_bytes / (1024 * 1024)));
+        }
+    }
+    let mut reader = std::io::Read::take(resp.into_reader(), max_bytes + 1);
+    let n = std::io::copy(&mut reader, out).map_err(|e| format!("read body: {e}"))?;
+    if n > max_bytes {
+        return Err(format!("GET {shown}: the file exceeds the {} MB limit", max_bytes / (1024 * 1024)));
+    }
+    Ok(n)
+}
+
+/// `text` with every upload token taken out: whatever follows `token=` (up to the next `&`,
+/// space, quote or bracket) becomes "(hidden)". The second guard behind sending the token in a
+/// header (the 2026-10-11 review of the Media page): an upload still carries it in its address
+/// (`/api/upload?token=`), and ureq writes the whole address into its error words, which reach
+/// the screen and run.log. A token is this session's key to upload as this person.
+pub(crate) fn hide_token(text: &str) -> String {
+    const MARK: &str = "token=";
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(i) = rest.find(MARK) {
+        out.push_str(&rest[..i + MARK.len()]);
+        let after = &rest[i + MARK.len()..];
+        let end = after
+            .find(|c: char| c == '&' || c.is_whitespace() || matches!(c, '"' | '\'' | ')' | ']' | '>' | ',' | ';' | '#'))
+            .unwrap_or(after.len());
+        if end > 0 {
+            out.push_str("(hidden)");
+        }
+        rest = &after[end..];
+    }
+    out.push_str(rest);
+    out
 }
 
 #[cfg(test)]

@@ -25,9 +25,20 @@ use crate::net::dm_pq::DmAttachment;
 /// The one line shown when a private file cannot be fetched or decrypted.
 pub(crate) const CANNOT_OPEN: &str = "This file could not be opened.";
 
-/// The largest ciphertext fetched: the send cap plus AES-GCM's 16-byte tag. A marker pointing at
-/// something bigger is refused before it is buffered.
-const MAX_CIPHERTEXT: usize = ATTACH_MAX_BYTES as usize + 16;
+/// The largest ciphertext Save fetches: the largest private file any server can allow
+/// (attach_send.rs `private_ceiling`, since each server now sets its own per role, 2026-10-11)
+/// plus the 4 KiB the relay allows on top for the encryption's own bytes. A marker pointing at
+/// something bigger is refused before it is written. Until 2026-10-11 every fetch was capped at
+/// the old built-in 6 MB, which left a file sent under a server's higher limit unopenable here.
+/// Save streams it to disk and decrypts it a megabyte at a time (net/dm_file_stream.rs), so
+/// even a gigabyte is never held in memory.
+pub(crate) fn max_ciphertext() -> u64 {
+    super::attach_send::private_ceiling() + 4096
+}
+
+/// The largest ciphertext shown in place as a picture (fetched into memory, decrypted, decoded):
+/// what the image cache shows (`MAX_IMAGE_BYTES`) plus the tag. A bigger picture is a Save.
+pub(crate) const MAX_INLINE_CIPHERTEXT: usize = crate::gui::widgets::image_cache::MAX_IMAGE_BYTES + 16;
 
 /// Picture types drawn inline: what the image decoder reads. Any other type is a card.
 const INLINE_TYPES: &[&str] = &["image/png", "image/jpeg", "image/gif", "image/webp"];
@@ -100,13 +111,14 @@ pub(crate) fn plan(state: &GuiState, msg: &ChatMessage, att: &DmAttachment) -> P
     Plan { key, url, show }
 }
 
-/// Fetch the ciphertext at `url` with `fetch` (capped) and decrypt it with the marker's key and
-/// nonce. Any failure is an error; the caller shows `CANNOT_OPEN`, never the error.
+/// Fetch the ciphertext at `url` with `fetch` (capped at what a picture shown in place may be)
+/// and decrypt it in memory with the marker's key and nonce: the in-place picture. Any failure is
+/// an error; the caller shows `CANNOT_OPEN`, never the error.
 pub(crate) fn open<F>(url: &str, k: &str, n: &str, fetch: F) -> Result<Vec<u8>, String>
 where
     F: FnOnce(&str, usize) -> Result<Vec<u8>, String>,
 {
-    let ciphertext = fetch(url, MAX_CIPHERTEXT)?;
+    let ciphertext = fetch(url, MAX_INLINE_CIPHERTEXT)?;
     crate::net::dm_pq::decrypt_attachment(&ciphertext, k, n)
 }
 
@@ -133,10 +145,9 @@ pub(crate) fn save_name(name: &str) -> String {
     }
 }
 
-/// Write `bytes` into `dir` under `name` made safe, never over an existing file: "x (2).pdf",
-/// "x (3).pdf" and so on. Returns where it went.
-pub(crate) fn save_to(dir: &std::path::Path, name: &str, bytes: &[u8]) -> Result<std::path::PathBuf, String> {
-    use std::io::Write;
+/// A new file in `dir` for `name` made safe, never over an existing one ("x (2).pdf", "x (3).pdf"
+/// and so on): its path and the file, open for writing.
+fn create_free(dir: &std::path::Path, name: &str) -> Result<(std::path::PathBuf, std::fs::File), String> {
     std::fs::create_dir_all(dir).map_err(|e| format!("folder: {e}"))?;
     let name = save_name(name);
     let (stem, ext) = match name.rfind('.') {
@@ -147,10 +158,7 @@ pub(crate) fn save_to(dir: &std::path::Path, name: &str, bytes: &[u8]) -> Result
         let candidate = if n == 1 { name.clone() } else { format!("{stem} ({n}){ext}") };
         let path = dir.join(candidate);
         match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
-            Ok(mut f) => {
-                f.write_all(bytes).map_err(|e| format!("write: {e}"))?;
-                return Ok(path);
-            }
+            Ok(f) => return Ok((path, f)),
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
             Err(e) => return Err(format!("create: {e}")),
         }
@@ -158,14 +166,34 @@ pub(crate) fn save_to(dir: &std::path::Path, name: &str, bytes: &[u8]) -> Result
     Err("no free file name".to_string())
 }
 
-/// What Save does, on its worker thread: fetch with `fetch`, decrypt, and write the decrypted
-/// file into `dir` (`save_to`). A file that cannot be opened writes nothing.
+/// What Save does, on its worker thread: fetch the ciphertext with `fetch` straight to a hidden
+/// file in `dir` (at most `max_ciphertext`, written as it arrives), decrypt it from there into
+/// the file it is saved as (net/dm_file_stream.rs: the tag over the whole file first, then the
+/// plaintext a megabyte at a time, so a file of up to a gigabyte is never held in memory), and
+/// remove the hidden file. A file that cannot be opened writes nothing.
 pub(crate) fn save_file<F>(url: &str, k: &str, n: &str, name: &str, dir: &std::path::Path, fetch: F) -> Result<std::path::PathBuf, String>
 where
-    F: FnOnce(&str, usize) -> Result<Vec<u8>, String>,
+    F: FnOnce(&str, u64, &mut std::fs::File) -> Result<u64, String>,
 {
-    let bytes = open(url, k, n, fetch)?;
-    save_to(dir, name, &bytes)
+    std::fs::create_dir_all(dir).map_err(|e| format!("folder: {e}"))?;
+    let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let part = dir.join(format!(".humanityos-{stamp:x}-{:?}.part", std::thread::current().id()).replace(['(', ')'], ""));
+    let saved = (|| {
+        let mut f = std::fs::File::create(&part).map_err(|e| format!("create: {e}"))?;
+        fetch(url, max_ciphertext(), &mut f)?;
+        drop(f);
+        let (path, mut out) = create_free(dir, name)?;
+        match crate::net::dm_file_stream::decrypt_file(&part, &mut out, k, n) {
+            Ok(_) => Ok(path),
+            Err(e) => {
+                drop(out);
+                let _ = std::fs::remove_file(&path);
+                Err(e)
+            }
+        }
+    })();
+    let _ = std::fs::remove_file(&part);
+    saved
 }
 
 /// A file's size in plain words.
@@ -345,7 +373,7 @@ fn draw_file_card(ui: &mut egui::Ui, theme: &Theme, cache: &mut ImageCache, att:
         let (url, k, n, name) = (plan.url.clone(), att.k.clone(), att.n.clone(), att.name.clone());
         let dir = crate::gui::widgets::image_cache::default_downloads_dir();
         cache.save_with(&plan.key, move || {
-            save_file(&url, &k, &n, &name, &dir, crate::gui::widgets::image_cache::download_bytes)
+            save_file(&url, &k, &n, &name, &dir, |url, max, file| crate::gui::widgets::image_cache::download_to(url, max, file))
         });
     }
 }

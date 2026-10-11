@@ -42,12 +42,13 @@ fn shows(out: &egui::FullOutput, text: &str) -> bool {
 }
 
 fn item(id: i64, title: &str, size: i64) -> api::Item {
-    api::Item { id, title: title.into(), url: format!("/uploads/{id}_x.png"), visibility: "public".into(), size_bytes: size, uploader_key: "k2".into(), uploader_name: "Ann".into(), ..Default::default() }
+    api::Item { id, title: title.into(), url: format!("/uploads/{id}_x.png"), stored: format!("{id}_x.png"), visibility: "public".into(), size_bytes: size, uploader_key: "k2".into(), uploader_name: "Ann".into(), ..Default::default() }
 }
 
 /// An admin on `SERVER` with the server's settings, its categories, a suggestion and the usage
 /// already in (nothing is asked of the network).
 pub(crate) fn admin_state() -> GuiState {
+    crate::config::keep_saves_off_disk();
     let mut state = GuiState::default();
     state.server_url = SERVER.to_string();
     state.profile_public_key = "me".to_string();
@@ -72,11 +73,12 @@ pub(crate) fn admin_state() -> GuiState {
         used_bytes: 12 * 1024 * MB + 410 * MB,
         budget_bytes: 50 * 1024 * MB,
         per_person_bytes: 512 * MB,
+        kept_bytes: 3 * MB,
         items: 2,
         largest: vec![item(9, "Contact staff, slow spin", 900 * MB), item(8, "Garden", 2 * MB)],
         oldest: vec![item(8, "Garden", 2 * MB)],
         least_viewed: vec![],
-        waiting: vec![api::Waiting { filename: "1700_clip.webm".into(), uploader_name: "Ben".into(), size_bytes: 40 * MB, uploaded_at: 1, expires_at: 2 }],
+        waiting: vec![api::Waiting { filename: "1700_clip.webm".into(), uploader_name: "Ben".into(), size_bytes: 40 * MB, uploaded_at: 1, expires_at: 2, ..Default::default() }],
     });
     state
 }
@@ -156,7 +158,7 @@ fn the_meter_and_the_prune_lists() {
     click(&ctx, &theme, &mut state, "Remove");
     assert!(state.media.jobs.is_empty(), "Remove asks first");
     assert!(shows(&frame(&ctx, &theme, &mut state, Vec::new()), "Remove it?"), "it asks");
-    assert!(matches!(state.media.admin.confirm, Some(api::RemoveTarget::Item(9))), "about the largest item");
+    assert!(matches!(&state.media.admin.confirm, Some(api::RemoveTarget::Item(r)) if r.id == 9 && r.filename == "9_x.png"), "about the largest item, named with its file");
 
     state.media.admin.prune_tab = 3;
     state.media.admin.confirm = None;
@@ -183,4 +185,62 @@ fn the_categories_and_the_suggestions() {
     click(&ctx, &theme, &mut state, "Add");
     assert_eq!(state.media.admin.cats.last().map(|c| (c.id, c.name.as_str())), Some((None, "Builds")), "a new category has no id until saved");
     assert!(state.media.admin.cats_dirty, "and Save is offered");
+}
+
+/// UNSAVED CATEGORY EDITS SURVIVE A REFRESH (the review: an answer from the server threw an
+/// admin's edits away): while the list is edited, an answer updates what the page knows but not
+/// the working copy; Discard goes back to the server's list.
+///
+/// Seen red 2026-10-11 with the answer always replacing the working copy: "an edit survives the
+/// answer" (left: "General" / right: "Everything").
+#[test]
+fn unsaved_category_edits_survive_a_refresh() {
+    let (ctx, theme) = ctx_and_theme();
+    let mut state = admin_state();
+    state.media.admin.cats[0].name = "Everything".into();
+    state.media.admin.cats_dirty = true;
+    let answer = serde_json::json!({ "items": [], "categories": [{"id": 1, "name": "General"}, {"id": 2, "name": "Fire flow arts"}] });
+    crate::gui::pages::media::on_done(&mut state, Job::AdminCategories, Ok(answer.clone()));
+    assert_eq!(state.media.admin.cats[0].name, "Everything", "an edit survives the answer");
+    assert_eq!(state.media.list.categories[0].name, "General", "while the page knows the server's list");
+    state.media.admin.usage = None;
+    click(&ctx, &theme, &mut state, "Discard changes");
+    assert!(!state.media.admin.cats_dirty, "Discard ends the edit");
+    assert_eq!(state.media.admin.cats[0].name, "General", "and goes back to the server's list");
+}
+
+/// THE MEDIA SETTINGS SAY WHEN THE SERVER'S CHANGED UNDER AN UNSAVED EDIT, as Server policy does
+/// (Save sends the whole copy and would undo that change).
+///
+/// Seen red 2026-10-11 without the note in `draw_settings`: "the Media settings say so" (no shape
+/// held "This server's settings changed while you were editing").
+#[test]
+fn the_media_settings_say_when_the_server_changed_underneath() {
+    let (ctx, theme) = ctx_and_theme();
+    let mut state = admin_state();
+    let mut draft = state.server_settings.clone().unwrap();
+    draft.media_per_person_mb = 77;
+    state.server_settings_draft = Some(draft);
+    state.server_settings_changed_underneath = true;
+    let out = frame(&ctx, &theme, &mut state, Vec::new());
+    assert!(shows(&out, "This server's settings changed while you were editing"), "the Media settings say so");
+    state.server_settings_changed_underneath = false;
+    let out = frame(&ctx, &theme, &mut state, Vec::new());
+    assert!(!shows(&out, "This server's settings changed while you were editing"), "and only then");
+}
+
+/// WHAT THE SERVER KEEPS HAS ITS OWN LINE ON THE METER, AND A PRUNE ROW OFFERS KEEP ON THE SERVER
+/// (the relay's A7; kept items are in no prune list).
+///
+/// Seen red 2026-10-11 with the meter drawn without `kept_bytes`: "the kept line" (no shape held
+/// "3 MB of it kept by the server").
+#[test]
+fn the_meter_says_what_the_server_keeps_and_rows_offer_keep() {
+    let (ctx, theme) = ctx_and_theme();
+    let mut state = admin_state();
+    state.media.admin.cats.clear();
+    let out = frame(&ctx, &theme, &mut state, Vec::new());
+    assert!(shows(&out, "3 MB of it kept by the server"), "the kept line");
+    click(&ctx, &theme, &mut state, crate::gui::pages::media::KEEP_LABEL);
+    assert!(state.media.jobs.iter().any(|(j, _)| *j == Job::Keep { id: 9, on: true, from_admin: true }), "Keep on the server is sent for the row's item");
 }

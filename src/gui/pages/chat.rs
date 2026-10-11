@@ -74,7 +74,7 @@ mod voice_room;
 pub(crate) use voice_room::set_voice_room;
 /// Sending a file (10k): encrypted for a DM or a group, plain for a public channel. See `chat/attach_send.rs`.
 mod attach_send;
-pub(crate) use attach_send::{upload_file_blocking, upload_media_file_blocking, upload_query, UploadFlags};
+pub(crate) use attach_send::upload_file_blocking;
 pub(crate) use attach_send::note_upload_limit; // the server tells each person their own upload limit (2026-10-10)
 pub(crate) use attach_send::{upload_token_here, NOT_SIGNED_IN_YET};
 /// Showing a private file (10k): the picture inline, or a card with Save. See `chat/attach_view.rs`.
@@ -1931,7 +1931,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
                     // In-app file attach (v0.708, all-in-one direction: our
                     // OWN browser widget, not an OS dialog).
-                    let attach_limit = attach_send::limit_for(state.upload_limit_bytes, attach_send::Destination::of(&state.chat_active_channel));
+                    let attach_limit = attach_send::limit_for(attach_send::Limits::of(state), attach_send::Destination::of(&state.chat_active_channel));
                     let attach_tip = format!(
                         "Attach a file from your computer (images, documents, video, 3D models - up to {} MB here). \
                          3D files from a server's room are also published to its Shared Files library.",
@@ -2954,11 +2954,9 @@ pub(crate) const ATTACH_EXTS: &[&str] = &[
 /// (upload with ?share=1), exactly like the web client.
 const SHARE_EXTS: &[&str] = &["blend", "stl", "obj", "gltf", "glb"];
 
-/// The largest file sent into a private conversation (a DM, a P2P group, the scratchpad), and the
-/// fallback limit for a public one until the server says the person's own
-/// (`GuiState::upload_limit_bytes`). A private file is decrypted in memory on the receiving side,
-/// which refuses anything bigger (chat/attach_view.rs `MAX_CIPHERTEXT`), so a bigger one would
-/// upload and never open.
+/// The limit on a file, private or public, until the server says the person's own
+/// (`GuiState::upload_limit_bytes` and `private_limit_bytes`, from its peer list; the relay's
+/// default private limit is this same 6 MB). chat/attach_send.rs `limit_for`.
 pub(crate) const ATTACH_MAX_BYTES: u64 = 6 * 1024 * 1024;
 
 /// Where the composer's measured extra height (its lines beyond the first) is kept between frames.

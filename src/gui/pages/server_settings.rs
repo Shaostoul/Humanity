@@ -40,6 +40,9 @@ use crate::net::admin_erase as admin_erase_rules;
 /// The Media page's admin section (docs/design/media-showcase.md, increment 2, 2026-10-11).
 pub(crate) mod media;
 
+/// Each role's upload limits, under the roles table (the Media follow-ups B1 to B5, 2026-10-11).
+pub(crate) mod role_limits;
+
 /// Section identity colors — match the nav bar grouping in escape_menu.rs.
 /// theme-exempt: these encode the privilege tier (red/green/blue) and are
 /// referenced by both `widgets::tinted_section` calls AND the design
@@ -2552,6 +2555,11 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
         });
 
+    // Each role's upload limits, beside the per-file limit: the same working copies, one Save.
+    if let Some(role) = role_limits::draw(ui, theme, state) {
+        pending_save = Some(role);
+    }
+
     // ── Add a custom role ──
     ui.add_space(theme.spacing_md);
     widgets::body_hint(ui, theme, "Add a custom role:");
@@ -2597,6 +2605,7 @@ fn draw_roles_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             nr.max_chars = c;
                             nr.max_upload_mb = mb;
                             nr.max_uploads_kept = k;
+                            role_limits::prefill(nr, t);
                         }
                     }
                 });
@@ -2900,10 +2909,8 @@ fn send_role_upsert(state: &GuiState, role: &crate::relay::storage::RoleDef) {
     if let Some(ref client) = state.ws_client {
         if client.is_connected() {
             // Serialize the RoleDef (its serde shape matches the relay's).
-            if let Ok(role_json) = serde_json::to_value(role) {
-                let msg = serde_json::json!({ "type": "role_upsert", "role": role_json });
-                client.send(&msg.to_string());
-            }
+            // The whole role, its five upload limits included (role_limits.rs).
+            client.send(&role_limits::upsert_frame(role).to_string());
         }
     }
 }

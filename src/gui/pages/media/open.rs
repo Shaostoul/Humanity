@@ -1,17 +1,30 @@
-//! Opening a Media tile. A picture goes to the app's image viewer (widgets/image_cache_view.rs),
-//! the one the chat uses. Anything else opens a card here: its name, who put it there, its size
-//! and description, Download, and for a video, Play here, which fetches it to a temporary file
-//! and plays it in the app's own media player (`crate::media::VideoPlayer`, the one in-world
-//! screens use: WebM with AV1 video plays; anything else says why it cannot and can still be
-//! downloaded). The video plays without sound for now: this page has no audio mixer to hand it.
+//! Opening a Media tile. A public picture the image cache can show goes to the app's image viewer
+//! (widgets/image_cache_view.rs), the one the chat uses. Anything else opens a card here: its
+//! name, who put it there, its size and description, Download, and for a video, Play here, which
+//! fetches it to a temporary file and plays it in the app's own media player
+//! (`crate::media::VideoPlayer`, the one in-world screens use: WebM with AV1 video plays; anything
+//! else says why it cannot and can still be downloaded). The video plays without sound for now:
+//! this page has no audio mixer to hand it. A members-only picture opens the card too (with the
+//! picture in it and View full size), because the viewer offers no Download for a file fetched
+//! with the session's token; and so does a picture too large for the image cache, which Download
+//! takes whatever its size.
 //!
-//! Fetches and downloads run on worker threads and stream to disk, so a large file never sits in
-//! memory whole; a members-only item's file comes through the members' file route with this
-//! session's upload token.
+//! FETCHES AND DOWNLOADS run on worker threads and stream to disk, so a large file never sits in
+//! memory whole. A members-only item's file comes through the members' file route with this
+//! session's upload token in a header ([`api::TOKEN_HEADER`]), never in an address. There is no
+//! limit on a whole transfer's time, only on a connection that will not open or goes quiet
+//! ([`transfer_agent`]): a 2 GB video takes longer than any fixed limit on a slow line. A failed
+//! or stopped fetch leaves no partial file.
+//!
+//! TEMPORARY FILES: Play here's copy lives in the system's temporary folder
+//! (`HumanityOS-media`) and is deleted when its card closes (`Drop for Opened`), when the app
+//! exits (engine/quit.rs calls [`forget_temp_files`]), and, for whatever a run that did not close
+//! cleanly left, once at the start of the next ([`sweep_temp_once`]).
 
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;
+use std::time::Duration;
 
 use egui::RichText;
 
@@ -24,7 +37,12 @@ use crate::gui::GuiState;
 /// The most a fetch or a download takes (the Media budget's own ceiling is far below).
 const MAX_FETCH: u64 = 64 * 1024 * 1024 * 1024;
 
-/// An opened item that is not a picture.
+/// The folder Play here's copies go in.
+pub(crate) fn temp_dir() -> PathBuf {
+    std::env::temp_dir().join("HumanityOS-media")
+}
+
+/// An opened item: its card.
 pub(crate) struct Opened {
     pub item: Item,
     /// A video being fetched to play here.
@@ -36,46 +54,117 @@ pub(crate) struct Opened {
     save_rx: Option<Receiver<Result<PathBuf, String>>>,
     /// Where Download put it, or why it did not.
     pub saved: String,
+    /// The temporary copy Play here fetched, deleted with the card.
+    pub temp: Option<PathBuf>,
 }
 
 impl Opened {
     pub(crate) fn new(item: Item) -> Self {
-        Opened { item, fetch_rx: None, player: None, texture: None, problem: String::new(), save_rx: None, saved: String::new() }
+        Opened { item, fetch_rx: None, player: None, texture: None, problem: String::new(), save_rx: None, saved: String::new(), temp: None }
     }
 }
 
-/// A tile was clicked: a picture opens in the image viewer, anything else in the card.
+impl Drop for Opened {
+    /// The card closed (or the page went): the player lets go of the file first, then the
+    /// temporary copy goes.
+    fn drop(&mut self) {
+        self.player = None;
+        if let Some(path) = self.temp.take() {
+            if let Err(e) = std::fs::remove_file(&path) {
+                if e.kind() != std::io::ErrorKind::NotFound {
+                    log::warn!("Media: a temporary video could not be deleted yet ({e}); it goes at the next start.");
+                }
+            }
+        }
+    }
+}
+
+/// Delete everything in the temporary folder, once per run (the first frame): what a run that did
+/// not close cleanly left there.
+pub(crate) fn sweep_temp_once() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static DONE: AtomicBool = AtomicBool::new(false);
+    if !DONE.swap(true, Ordering::SeqCst) {
+        sweep(&temp_dir());
+    }
+}
+
+/// Delete every file in `dir` (best effort: a file another program still holds stays).
+pub(crate) fn sweep(dir: &Path) {
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for e in entries.flatten() {
+            let _ = std::fs::remove_file(e.path());
+        }
+    }
+}
+
+/// The app is exiting (engine/quit.rs): close the card, whose copy goes with it, and clear the
+/// folder.
+pub(crate) fn forget_temp_files(state: &mut GuiState) {
+    state.media.open = None;
+    sweep(&temp_dir());
+}
+
+/// A tile was clicked: a public picture the image cache can show opens in the image viewer;
+/// anything else opens its card.
 pub(crate) fn open_item(state: &mut GuiState, item: &Item) {
-    if item.kind == "picture" {
+    if item.kind == "picture" && !item.members_only() && !super::tiles::too_big(item) {
         super::tiles::request_picture(state, item);
         state.image_viewer_url = Some(super::tiles::cache_key(state, item));
     } else {
-        state.media.open = Some(Opened::new(item.clone()));
+        open_card(state, item);
     }
 }
 
-/// Write what `url` serves into `dest`, streamed, refusing more than `max` bytes.
-pub(crate) fn fetch_to(url: &str, dest: &Path, max: u64) -> Result<PathBuf, String> {
-    let resp = ureq::get(url).timeout(std::time::Duration::from_secs(600)).call().map_err(|e| match e {
-        ureq::Error::Status(code, r) => {
-            let text = r.into_string().unwrap_or_default();
-            if text.trim().is_empty() || text.trim_start().starts_with('<') { format!("The server refused it ({code}).") } else { text.trim().to_string() }
-        }
-        other => format!("The server could not be reached ({other})."),
+/// Open `item`'s card.
+pub(crate) fn open_card(state: &mut GuiState, item: &Item) {
+    if item.kind == "picture" {
+        super::tiles::request_picture(state, item);
+    }
+    state.media.open = Some(Opened::new(item.clone()));
+}
+
+/// A client for whole files: no limit on a whole transfer's time (a big file on a slow line
+/// takes as long as it takes), only on a connection that will not open or goes quiet for `idle`.
+pub(crate) fn transfer_agent(idle: Duration) -> ureq::Agent {
+    ureq::AgentBuilder::new().timeout_connect(Duration::from_secs(30)).timeout_read(idle).timeout_write(idle).build()
+}
+
+/// Write what `url` serves into `dest`, streamed, refusing more than `max` bytes, with `header`
+/// on the request (a members-only file's token). Any failure, once `dest` was made, removes it:
+/// no partial file is left. The words never hold a token.
+pub(crate) fn fetch_to(agent: &ureq::Agent, url: &str, header: Option<(&str, &str)>, dest: &Path, max: u64) -> Result<PathBuf, String> {
+    let mut req = agent.get(url);
+    if let Some((name, value)) = header {
+        req = req.set(name, value);
+    }
+    let resp = req.call().map_err(|e| {
+        let words = match e {
+            ureq::Error::Status(code, r) => {
+                let text = r.into_string().unwrap_or_default();
+                if text.trim().is_empty() || text.trim_start().starts_with('<') { format!("The server refused it ({code}).") } else { text.trim().to_string() }
+            }
+            other => format!("The server could not be reached ({other})."),
+        };
+        crate::gui::widgets::image_cache::hide_token(&words)
     })?;
     if let Some(parent) = dest.parent() {
         std::fs::create_dir_all(parent).map_err(|e| format!("The folder could not be made ({e})."))?;
     }
-    let mut file = std::fs::File::create(dest).map_err(|e| format!("The file could not be written ({e})."))?;
-    let mut reader = resp.into_reader().take(max + 1);
-    let n = std::io::copy(&mut reader, &mut file).map_err(|e| format!("The download stopped ({e})."))?;
-    file.flush().ok();
-    if n > max {
-        drop(file);
+    let result = (|| {
+        let mut file = std::fs::File::create(dest).map_err(|e| format!("The file could not be written ({e})."))?;
+        let mut reader = resp.into_reader().take(max + 1);
+        let n = std::io::copy(&mut reader, &mut file).map_err(|e| format!("The download stopped ({e})."))?;
+        file.flush().map_err(|e| format!("The file could not be written ({e})."))?;
+        if n > max {
+            return Err("The file is larger than this app fetches.".to_string());
+        }
+        Ok(dest.to_path_buf())
+    })();
+    if result.is_err() {
         let _ = std::fs::remove_file(dest);
-        return Err("The file is larger than this app fetches.".to_string());
     }
-    Ok(dest.to_path_buf())
+    result.map_err(|e| crate::gui::widgets::image_cache::hide_token(&e))
 }
 
 /// A file name safe to write: letters, digits, spaces, dots, dashes and underscores, at most 80
@@ -103,12 +192,17 @@ pub(crate) fn free_path(dir: &Path, name: &str) -> PathBuf {
         .unwrap_or_else(|| dir.join(format!("{stem}-{}{ext}", api::next_timestamp())))
 }
 
-/// The name Download saves `item` under: its stored file name when public, else its title.
-fn download_name(item: &Item) -> String {
-    match item.upload_name() {
-        Some(name) => safe_name(name),
-        None => format!("{}-{}", safe_name(&item.display_title()), item.id),
+/// The name Download saves `item` under: the uploader's own name for the file (the relay's A1,
+/// so a members-only file keeps its extension), else its stored name, else its title and number
+/// with the extension of its stored name when one is known.
+pub(crate) fn download_name(item: &Item) -> String {
+    if !item.original_name.trim().is_empty() {
+        return safe_name(&item.original_name);
     }
+    if !item.stored.trim().is_empty() {
+        return safe_name(&item.stored);
+    }
+    format!("{}-{}", safe_name(&item.display_title()), item.id)
 }
 
 fn clock(seconds: f64) -> String {
@@ -121,7 +215,8 @@ pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let Some(mut opened) = state.media.open.take() else { return };
     let base = super::base_of(state);
     let token = crate::gui::pages::chat::upload_token_here(state);
-    let url = api::file_url(&base, &opened.item, token.as_deref());
+    let url = api::file_url(&base, &opened.item);
+    let header = api::token_header(&opened.item, token.as_deref());
 
     // Finished fetches and downloads.
     if let Some(rx) = opened.fetch_rx.as_ref() {
@@ -161,13 +256,15 @@ pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         }
     }
     if opened.fetch_rx.is_some() || opened.save_rx.is_some() {
-        ctx.request_repaint_after(std::time::Duration::from_millis(200));
+        ctx.request_repaint_after(Duration::from_millis(200));
     }
 
     let mut open = true;
     let mut fetch = false;
     let mut save = false;
+    let mut view = false;
     let item = opened.item.clone();
+    let picture_key = super::tiles::cache_key(state, &item);
     widgets::dialog_scrolling(ctx, theme, "media_open_item", &item.display_title(), &mut open, |ui| {
         ui.set_max_width(700.0);
         ui.label(
@@ -179,6 +276,20 @@ pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.label(RichText::new(item.description.trim()).size(theme.font_size_body).color(theme.text_primary()));
         }
         ui.add_space(theme.spacing_sm);
+        if item.kind == "picture" {
+            if super::tiles::too_big(&item) {
+                widgets::body_hint(ui, theme, &format!("This picture is {}, larger than this app shows in place. Download it to see it.", api::size_words(item.size_bytes)));
+            } else if let Some(tex) = state.image_cache.get_texture(&picture_key) {
+                let [w, h] = tex.size();
+                let aspect = w.max(1) as f32 / h.max(1) as f32;
+                let width = ui.available_width().min(640.0);
+                ui.add(egui::Image::new((tex.id(), egui::vec2(width, width / aspect))));
+                view = widgets::Button::secondary("View full size").show(ui, theme);
+            } else {
+                ui.label(RichText::new("Loading...").size(theme.font_size_small).color(theme.text_muted()));
+                ui.ctx().request_repaint_after(Duration::from_millis(200));
+            }
+        }
         if item.kind == "video" {
             if let (Some(tex), Some(player)) = (opened.texture.as_ref(), opened.player.as_mut()) {
                 let [w, h] = tex.size();
@@ -206,7 +317,7 @@ pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.label(RichText::new("Fetching the video...").size(theme.font_size_small).color(theme.text_muted()));
             } else if opened.player.is_some() {
                 ui.label(RichText::new("Starting...").size(theme.font_size_small).color(theme.text_muted()));
-                ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
+                ui.ctx().request_repaint_after(Duration::from_millis(100));
             } else if opened.problem.is_empty() {
                 fetch = widgets::Button::primary("Play here").tooltip("Fetch the video and play it in the app.").show(ui, theme);
             }
@@ -228,13 +339,20 @@ pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         }
     });
 
+    let owned_header = header.clone();
     if fetch {
         let h = blake3::hash(format!("{}\n{}", state.media.server, item.id).as_bytes());
-        let dest = std::env::temp_dir().join("HumanityOS-media").join(format!("{}.video", &h.to_hex()[..24]));
+        let dest = temp_dir().join(format!("{}.video", &h.to_hex()[..24]));
+        opened.temp = Some(dest.clone());
         let (tx, rx) = std::sync::mpsc::channel();
-        let url = url.clone();
+        let (url, header) = (url.clone(), owned_header.clone());
         std::thread::spawn(move || {
-            let _ = tx.send(fetch_to(&url, &dest, MAX_FETCH));
+            let header = header.as_ref().map(|(n, v)| (*n, v.as_str()));
+            let fetched = fetch_to(&transfer_agent(Duration::from_secs(60)), &url, header, &dest, MAX_FETCH);
+            // The card closed while it was fetching: nobody will play it, so it goes now.
+            if let Err(std::sync::mpsc::SendError(Ok(path))) = tx.send(fetched) {
+                let _ = std::fs::remove_file(path);
+            }
         });
         opened.fetch_rx = Some(rx);
         opened.problem.clear();
@@ -243,12 +361,20 @@ pub(crate) fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         let dest = free_path(&crate::gui::widgets::image_cache::default_downloads_dir(), &download_name(&item));
         let (tx, rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
-            let _ = tx.send(fetch_to(&url, &dest, MAX_FETCH));
+            let header = owned_header.as_ref().map(|(n, v)| (*n, v.as_str()));
+            let _ = tx.send(fetch_to(&transfer_agent(Duration::from_secs(60)), &url, header, &dest, MAX_FETCH));
         });
         opened.save_rx = Some(rx);
         opened.saved.clear();
+    }
+    if view {
+        state.image_viewer_url = Some(picture_key);
     }
     if open {
         state.media.open = Some(opened);
     }
 }
+
+#[cfg(test)]
+#[path = "open_tests.rs"]
+mod tests;

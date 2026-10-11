@@ -788,9 +788,11 @@ pub struct GuiState {
     pub server_connected: bool,
     /// The most this person may upload in one file on the connected server, in bytes: their own
     /// role's limit, from their own entry of the server's peer list (`upload_limit_mb`). None
-    /// until the server says (`chat::ATTACH_MAX_BYTES` then). Private conversations keep
-    /// `ATTACH_MAX_BYTES` (chat/attach_send.rs `limit_for`).
+    /// until the server says (`chat::ATTACH_MAX_BYTES` then).
     pub upload_limit_bytes: Option<u64>,
+    /// The same for a file in a private conversation (`private_limit_mb`, the role's
+    /// `max_private_file_mb`; chat/attach_send.rs `limit_for`). None until the server says.
+    pub private_limit_bytes: Option<u64>,
     /// This connection's upload token, with the server it is for (its own entry of that server's
     /// peer list, `upload_token`): every upload carries it (`?token=`). The bare `?key=` the
     /// desktop used to send proved nothing about who was sending and is gone (2026-10-11).
@@ -3334,6 +3336,7 @@ impl Default for GuiState {
             server_field_draft: false,
             server_connected: false,
             upload_limit_bytes: None,
+            private_limit_bytes: None,
             upload_token: None,
             server_check_rx: None,
             history_rx: None,

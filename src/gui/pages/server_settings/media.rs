@@ -6,11 +6,15 @@
 //! - The Media space (its budget in MB) and each person's share of it, and "Public visitors get
 //!   previews only". These four are server settings: they edit the page's one working copy and
 //!   go with the same `server_settings_update` frame the other Save buttons send.
+//!   Like the Server policy section, it says when the server's settings changed under unsaved
+//!   edits, since Save sends the whole copy.
 //! - The categories: add, rename, reorder, remove (General stays: it holds the items of a
-//!   removed category), saved as one whole list (`POST /api/media/categories`).
+//!   removed category), saved as one whole list (`POST /api/media/categories`). Unsaved edits
+//!   stay until Save or Discard: a Refresh never throws them away.
 //! - The category suggestions waiting, each with who suggested it, Accept and Decline.
-//! - The meter, "12.4 GB of 50 GB used" with a bar, and the prune lists (largest, oldest, least
-//!   viewed, waiting to be published), each row with Remove.
+//! - The meter, "12.4 GB of 50 GB used" with a bar and a line for what the server keeps, and the
+//!   prune lists (largest, oldest, least viewed, waiting to be published), each row with Remove,
+//!   and an item's row with Keep on the server (a kept item is in no prune list).
 //!
 //! The requests and their answers are the Media page's (pages/media.rs `spawn`, `poll`), so an
 //! answer lands whichever of the two pages is open.
@@ -82,6 +86,8 @@ fn draw_settings(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         .on_hover_text("Members get the originals and downloads. The previews themselves come in a later version.");
     let dirty = draft != cached;
     let mut save = false;
+    // As in Server policy: Save sends the whole copy, so say when the server's changed under it.
+    super::draw_changed_underneath_note(ui, theme, state, dirty);
     ui.horizontal(|ui| {
         ui.add_enabled_ui(dirty, |ui| {
             save = widgets::Button::primary("Save Media settings")
@@ -155,9 +161,23 @@ fn draw_categories(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
     let dirty = a.cats_dirty;
     let mut save = false;
-    ui.add_enabled_ui(dirty, |ui| {
-        save = widgets::Button::primary("Save categories").tooltip("Removing a category moves its items to General.").show(ui, theme);
+    let mut discard = false;
+    ui.horizontal(|ui| {
+        ui.add_enabled_ui(dirty, |ui| {
+            save = widgets::Button::primary("Save categories").tooltip("Removing a category moves its items to General.").show(ui, theme);
+            discard = widgets::Button::secondary("Discard changes").tooltip("Go back to the server's list.").show(ui, theme);
+        });
+        if dirty {
+            ui.label(RichText::new("Unsaved changes.").size(theme.font_size_small).color(theme.warning()));
+        }
     });
+    if discard {
+        // Back to the list as the server last sent it, and asked for again.
+        state.media.admin.cats =
+            state.media.list.categories.iter().map(|c| api::CategoryEdit { id: Some(c.id), name: c.name.clone(), description: c.description.clone() }).collect();
+        state.media.admin.cats_dirty = false;
+        page::refresh_admin(state);
+    }
     if save {
         if let Some(signer) = page::signer_or_say(state) {
             let req = api::categories_request(&signer, &state.media.admin.cats);
@@ -214,6 +234,9 @@ fn draw_meter(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let fraction = if usage.budget_bytes > 0 { usage.used_bytes as f32 / usage.budget_bytes as f32 } else { 0.0 };
     ui.label(RichText::new(&words).size(theme.font_size_body).color(if fraction >= 0.9 { theme.warning() } else { theme.text_primary() }));
     widgets::progress_bar(ui, theme, fraction, None);
+    if usage.kept_bytes > 0 {
+        ui.label(RichText::new(api::kept_words(usage.kept_bytes)).size(theme.font_size_small).color(theme.text_secondary()));
+    }
     ui.label(
         RichText::new(format!("{} items. Each person may use up to {}.", usage.items, api::size_words(usage.per_person_bytes)))
             .size(theme.font_size_small)
@@ -225,11 +248,13 @@ fn draw_meter(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             ui.selectable_value(&mut state.media.admin.prune_tab, i, *name);
         }
     });
+    widgets::body_hint(ui, theme, "Items the server keeps are in none of these lists.");
     let mut asked: Option<api::RemoveTarget> = None;
+    let mut keep: Option<api::Item> = None;
     let confirm = state.media.admin.confirm.clone();
     let mut confirmed = false;
     let mut cancelled = false;
-    let mut row = |ui: &mut egui::Ui, target: api::RemoveTarget, text: String| {
+    let mut row = |ui: &mut egui::Ui, target: api::RemoveTarget, item: Option<&api::Item>, text: String| {
         ui.horizontal_wrapped(|ui| {
             ui.label(RichText::new(text).size(theme.font_size_small).color(theme.text_primary()));
             let small = widgets::ButtonSize::Small;
@@ -237,8 +262,15 @@ fn draw_meter(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.label(RichText::new("Remove it?").size(theme.font_size_small).color(theme.warning()));
                 confirmed |= widgets::Button::danger("Yes, remove").size(small).show(ui, theme);
                 cancelled |= widgets::Button::secondary("Cancel").size(small).show(ui, theme);
-            } else if widgets::Button::danger("Remove").size(small).show(ui, theme) {
+                return;
+            }
+            if widgets::Button::danger("Remove").size(small).show(ui, theme) {
                 asked = Some(target);
+            }
+            if let Some(item) = item {
+                if widgets::Button::secondary(page::KEEP_LABEL).size(small).tooltip(page::KEEP_LABEL_TIP).show(ui, theme) {
+                    keep = Some(item.clone());
+                }
             }
         });
     };
@@ -254,7 +286,7 @@ fn draw_meter(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
         for w in &usage.waiting {
             let who = if w.uploader_name.trim().is_empty() { "a member" } else { w.uploader_name.trim() };
-            row(ui, api::RemoveTarget::Upload(w.filename.clone()), format!("{} by {who}, {}, deleted after a day unless published", w.filename, api::size_words(w.size_bytes)));
+            row(ui, api::RemoveTarget::Upload(w.filename.clone()), None, format!("{} by {who}, {}, deleted after a day unless published", w.shown_name(), api::size_words(w.size_bytes)));
         }
     } else {
         if items.is_empty() {
@@ -262,7 +294,13 @@ fn draw_meter(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
         for item in items {
             let text = format!("{} by {}, {}, {} views", item.display_title(), item.by_name(), api::size_words(item.size_bytes), item.views);
-            row(ui, api::RemoveTarget::Item(item.id), text);
+            match item.reference() {
+                Ok(r) => row(ui, api::RemoveTarget::Item(r), Some(item), text),
+                // The server did not name its file: nothing can be asked of it from here.
+                Err(_) => {
+                    ui.label(RichText::new(text).size(theme.font_size_small).color(theme.text_muted()));
+                }
+            }
         }
     }
     if let Some(target) = asked {
@@ -273,8 +311,13 @@ fn draw_meter(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
     if confirmed {
         if let (Some(target), Some(signer)) = (state.media.admin.confirm.take(), page::signer_or_say(state)) {
-            let id = if let api::RemoveTarget::Item(id) = target { Some(id) } else { None };
+            let id = if let api::RemoveTarget::Item(r) = &target { Some(r.id) } else { None };
             page::spawn(state, Job::Remove { id, from_admin: true }, api::remove_request(&signer, &target));
+        }
+    }
+    if let Some(item) = keep {
+        if let (Ok(r), Some(signer)) = (item.reference(), page::signer_or_say(state)) {
+            page::spawn(state, Job::Keep { id: item.id, on: true, from_admin: true }, api::keep_request(&signer, &r, true));
         }
     }
 }

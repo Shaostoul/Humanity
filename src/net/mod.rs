@@ -22,6 +22,11 @@ pub mod bip39_wordlist;
 #[cfg(feature = "native")]
 pub mod dm_pq;
 
+/// A private file's Save, decrypted a megabyte at a time from disk to disk (2026-10-11): the
+/// same AES-256-GCM as `dm_pq::decrypt_attachment`, never the whole file in memory.
+#[cfg(feature = "native")]
+pub mod dm_file_stream;
+
 /// Local encrypted DM history (sealed-sender cutover, 2026-08-23): the
 /// relay's mailbox is a delivery window that expires, so long-term DM
 /// history lives on-device, AES-GCM-encrypted under a seed-derived key.

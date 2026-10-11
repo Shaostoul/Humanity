@@ -782,3 +782,111 @@ above; parts marked (apps) are the next app increment.
      the other's network address, so between people who are not friends it goes through the call
      forwarder (the server's bandwidth, never its disk, and capped per transfer like a call).
    (relay) B5 (the per-person cap). (apps) the device-to-device transfer is its own increment.
+
+## As built (desktop, round 2; 2026-10-11)
+
+The desktop app's half of the follow-ups and the operator's answers 1 to 3, the resumable upload,
+and the fixes from the review of the desktop Media page. Native first; the web mirrors it in its
+own round. Every test below was seen failing once against a deliberate break, noted at the test.
+
+**Every action names the item's file (W5).** Remove by number, Pick, Unpick, Feature and Keep send
+`filename`, the item's stored name: the item's own `filename` field when the server sends it (the
+relay adds it to every item for members-only items, whose `url` holds no name), else the name in
+its `/uploads/` address (`Item::stored`, `Item::reference`). An item whose name is not known is not
+acted on, and the page says why. A 409 to any of these reloads the list, the strip and the share
+and says "That item changed since this page was loaded, so nothing was done. The page has been
+loaded again." (`STALE_LINE`). Requests return a `Refusal` (status and words) so the page can tell a
+409 from any other refusal.
+
+**No upload token in any words.** The members' file route is asked with the token in the
+`X-Upload-Token` header (pictures through `image_cache::download_bytes_with`, the card's Download
+and Play here through `open::fetch_to`), never in an address. Every error said or logged (the
+upload's `upload_error_words`, the image cache's fetch, the Media requests, the resumable routes,
+which read the token from the address) goes through `image_cache::hide_token`, which turns
+`token=...` into `token=(hidden)`.
+
+**Cancel stops the upload and the publish; Remove's words are the item's own.** Before the file is
+up, Cancel stops the worker, which tells the server (`DELETE`); once it is up and its publish is on
+its way, the publish's answer is followed at once by the upload's removal by name. The window's
+own close does nothing while something is being sent: only Cancel stops it. Remove's confirmation
+reads `keeps_file`. A publish that fails after the upload turns the form into a publish of the
+waiting upload, so pressing again does not upload again.
+
+**The share is the server's count.** `POST /api/media/mine` (signed `media_mine`) answers "You have
+X of your Y left" (share less used less what is still arriving) and the stop before a byte is
+sent, which also stops a file over the role's largest Media file or over what the whole space has
+left. It is asked again when the form opens and after every upload, publish and remove. Its
+`waiting` uploads are listed on the page with Put it on Media (the form, visibility choice and
+all) and Remove (by file name, after a confirmation).
+
+**Picks, featured, kept.** My picks is `POST /api/media/picks` with the signed list body and `of`,
+paged by More like the list; Pick or Unpick reads each item's `picked_by_me` and a pick updates
+every copy of the item on the page. The strip is every featured item (`featured=1`, up to ten pages
+of 48). A kept item shows "Kept by the server"; admins and moderators get Keep on the server and
+Stop keeping on tiles, admins Keep on the prune rows; the meter has a line for `kept_bytes`.
+
+**The category sent is the category shown.** With none chosen the form shows the general category
+(id 1, by the name the server gives it) and sends its number; a category the server no longer
+lists falls back to it, shown and sent.
+
+**Unsaved category edits survive a refresh** (an answer updates what the page knows, not the
+working copy) until Save or Discard changes. **The Media settings say when the server's settings
+changed under unsaved edits**, as Server policy does.
+
+**The page belongs to one server and one identity.** A restore from a recovery phrase (or any
+change of key) forgets it as a server change does (`sync_server` compares both). An upload under
+way is stopped where it is (`Control::abandon`: the server keeps it a day), and the record of an
+unfinished upload says whose it is, so it is offered only to that person on that server. The Files
+page's shared list is forgotten on a server switch too (`files::forget_other_server`).
+
+**Pictures and files.** A members-only picture refused under one upload token is asked for again
+when the token changes (a reconnect), and any failed picture says so and tries again on a click.
+A picture over the image cache's 16 MB says so and opens its card, whose Download takes any size;
+a members-only picture opens its card too (with the picture and View full size), since the image
+viewer offers no Download for a token-fetched file. Download is named by `original_name`, so a
+members-only file keeps its extension. Download and Play here have no limit on a whole transfer's
+time, only on a connection that will not open or goes quiet for a minute. Play here's temporary
+copy is deleted when its card closes, at exit (engine/quit.rs) and, for what a crash left, at the
+next start; a failed or cut-off fetch leaves no partial file.
+
+**Report.** A tile's Report opens the existing dialog with the context `media` and the evidence
+`{kind: "media", id}`. The Reports page shows such evidence as what the server kept ("Media item
+12: "Dusk", a video, labelled Flashing lights, members only") with Open the item, which opens the
+Media page on that item alone (`id=<n>` on the list) with Show everything.
+
+**Roles.** Server Settings > Roles has an "Upload limits per role" table under the roles table:
+Per file (the existing `max_upload_mb`), Media file (0 = up to the share), Private file, Private
+held, A day and An hour (0 = no limit), with the line about private files under it. It edits the
+same working copies as the roles table, and every role save sends the whole role, the five
+included. Their ranges are read through the relay's own `RoleDef::with_limits_in_range`. The add-role
+form's Prefill sets them by tier as the relay's defaults do.
+
+**The chat's private-file limit is the server's.** Each person's own peer-list entry's
+`private_limit_mb` is the limit on a file in a DM, a group or the scratchpad (6 MB until the server
+says; never past 1 GB). The receiving side now takes a file up to the relay's 1 GB ceiling plus its
+4 KiB: a picture shown in place is still fetched into memory, up to the image cache's 16 MB; Save
+streams the ciphertext to a hidden file in the downloads folder and decrypts it from there a
+megabyte at a time (`net/dm_file_stream.rs`: GHASH over the whole file first, so nothing is written
+unless the tag holds, then AES in counter mode), so a gigabyte is never held in memory. It uses
+`ctr` and `ghash`, the versions aes-gcm itself already pulled in (Cargo.lock gained two dependency
+lines and no crate); the tests hold it to `decrypt_attachment` on the same bytes.
+
+**Add to Media is the resumable upload** (`media/resumable.rs` the work, `media/uploading.rs` the
+page's side). On a worker: the file's BLAKE3 a megabyte at a time, the start (`media: 1`,
+`blake3`), then pieces of the server's `chunk_max`; a 409 with an `offset` is followed, a 409
+`busy` waits and asks; a dropped connection or a 5xx waits a little longer each time (1 s doubling
+to 30 s), asks the status and carries on; a 429 shows the server's words and when it resets, and
+carries on by itself then (or at Resume); a 507 at the finish shows its words and Retry sends the
+empty piece at the end; a finish whose answer was lost is found in the status answer's `done`; a
+refused token (a reconnect) waits for the page's new one. A progress bar with Pause and Resume; the
+publish happens after the upload, signed then; the upload carries on whatever page is open
+(`poll_upload`, every frame). When the server gives the upload its id, the app's config keeps
+`media_unfinished_upload` (server, identity, id, path, size, modification time, and what the form
+said); after a restart the page offers Carry on, which reopens the form and sends only the rest,
+and only from the same file unchanged (otherwise the server is told to drop it and the person
+why). One upload at a time: starting a new one cancels an older unfinished one.
+
+**Not in this round** (the operator's answers 4, 5, 6, 9 and 10): the sender's own strip of
+hidden information with its switch, the "could not be checked" prompt for DMs, the Files in
+messages settings, the local copies of opened private files, and device-to-device transfer. They
+are their own increments.

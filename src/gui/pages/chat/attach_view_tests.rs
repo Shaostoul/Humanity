@@ -27,6 +27,12 @@ fn sealed(bytes: &[u8], url: &str, name: &str, mime: &str) -> (DmAttachment, Vec
     (DmAttachment { url: url.into(), k, n, name: name.into(), mime: mime.into(), size: bytes.len() as u64 }, ct)
 }
 
+/// What a Save's fetch does with the ciphertext it was handed: writes it into the file.
+fn write_all(f: &mut std::fs::File, bytes: &[u8]) -> Result<u64, String> {
+    use std::io::Write;
+    f.write_all(bytes).map(|_| bytes.len() as u64).map_err(|e| e.to_string())
+}
+
 /// A message in `channel` from `from` carrying `att`'s marker.
 fn carrying(channel: &str, from: &str, name: &str, att: &DmAttachment) -> ChatMessage {
     ChatMessage {
@@ -115,7 +121,7 @@ fn a_marker_in_a_group_message_decrypts_and_shows_inline() {
     let served = ct.clone();
     let opened = open("http://127.0.0.1:9/uploads/aa.enc", &found.k, &found.n, |url, cap| {
         assert_eq!(url, "http://127.0.0.1:9/uploads/aa.enc");
-        assert!(cap >= served.len() && cap <= ATTACH_MAX_BYTES as usize + 16, "the fetch is capped");
+        assert!(cap >= served.len() && cap <= MAX_INLINE_CIPHERTEXT, "the fetch is capped at what is shown in place");
         Ok(served.clone())
     });
     assert_eq!(opened.expect("the ciphertext opens"), picture, "the opened bytes are the picture");
@@ -173,7 +179,7 @@ fn a_tampered_key_or_ciphertext_gives_the_failure_line() {
     let (k, n, d) = (att.k.clone(), att.n.clone(), dir.clone());
     let mut tampered_ct = ct.clone();
     tampered_ct[0] ^= 0x80;
-    cache.save_with("save-key", move || save_file("u", &k, &n, "photo.png", &d, |_, _| Ok(tampered_ct)));
+    cache.save_with("save-key", move || save_file("u", &k, &n, "photo.png", &d, |_, _, f| write_all(f, &tampered_ct)));
     for _ in 0..500 {
         cache.poll(&ctx);
         if !cache.is_saving("save-key") {
@@ -262,7 +268,7 @@ fn a_file_is_a_card_whose_save_writes_the_decrypted_file() {
     for round in 0..2 {
         let (k, n, d, c) = (att.k.clone(), att.n.clone(), dir.clone(), ct.clone());
         let key = format!("save-{round}");
-        cache.save_with(&key, move || save_file("u", &k, &n, "route-notes.pdf", &d, |_, _| Ok(c)));
+        cache.save_with(&key, move || save_file("u", &k, &n, "route-notes.pdf", &d, |_, _, f| write_all(f, &c)));
         for _ in 0..500 {
             cache.poll(&ctx);
             if !cache.is_saving(&key) {
@@ -294,4 +300,31 @@ fn a_senders_file_name_is_made_safe_to_save() {
     assert_eq!(size_words(400), "400 bytes");
     assert_eq!(size_words(48 * 1024), "48 KB");
     assert_eq!(size_words(3 * 1024 * 1024 / 2), "1.5 MB");
+}
+
+/// A FILE SENT UNDER A SERVER'S HIGHER PRIVATE LIMIT OPENS (2026-10-11): each server now sets its
+/// own per role, up to 1 GB (plus 4 KiB for the encryption's bytes), so Save takes a file of up to
+/// that, streamed to disk and decrypted from there; nothing of it but the saved file is left.
+///
+/// Seen red 2026-10-11 with Save's fetch still capped at the old built-in 6 MB plus the tag: "a
+/// 7 MB file sent under a higher limit opens" (the fetch refused it: "7340048 bytes, over the
+/// 6291472 cap").
+#[test]
+fn a_file_sent_under_a_higher_limit_opens() {
+    let body: Vec<u8> = (0..7 * 1024 * 1024).map(|i| (i % 249) as u8).collect();
+    let (att, ct) = sealed(&body, "/uploads/big.enc", "long-ride.mp4", "video/mp4");
+    let dir = std::env::temp_dir().join(format!("hos-attach-big-{}-{}", std::process::id(), line!()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let saved = save_file("u", &att.k, &att.n, "long-ride.mp4", &dir, |_, cap, f| {
+        if ct.len() as u64 > cap {
+            return Err(format!("{} bytes, over the {cap} cap", ct.len()));
+        }
+        write_all(f, &ct)
+    });
+    let path = saved.unwrap_or_else(|e| panic!("a 7 MB file sent under a higher limit opens: {e}"));
+    assert_eq!(std::fs::read(&path).unwrap(), body, "Save writes the decrypted file");
+    let left: Vec<String> = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name().to_string_lossy().to_string()).collect();
+    assert_eq!(left, vec!["long-ride.mp4".to_string()], "the downloaded ciphertext is not left behind");
+    assert_eq!(max_ciphertext(), 1024 * 1024 * 1024 + 4096, "Save's cap is the relay's 1 GB ceiling and its 4 KiB");
+    let _ = std::fs::remove_dir_all(&dir);
 }

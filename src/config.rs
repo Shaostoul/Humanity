@@ -455,6 +455,12 @@ pub struct AppConfig {
     /// only: never looked up from their location, never sent with a report or anywhere else.
     #[serde(default)]
     pub outside_help_country: String,
+    /// An Add to Media upload that did not finish (docs/design/media-showcase.md, resumable
+    /// uploads, 2026-10-11): the server's id for it, the file's path, size and modification time,
+    /// and what the form said, so the Media page can offer to carry it on after a restart (only on
+    /// the same server, by the same person, from the same file unchanged). None when there is none.
+    #[serde(default)]
+    pub media_unfinished_upload: Option<crate::gui::pages::media::resumable::Unfinished>,
     /// Settings > Safety, the protected setup (step G of blocking-and-safe-mode.md 10h,
     /// 2026-10-10), carried here only on its way to ITS OWN FILE beside config.json
     /// (net/protected_store.rs): never serialized into config.json. Kept apart because an
@@ -1514,6 +1520,7 @@ impl AppConfig {
             privacy_tier: state.settings.privacy_tier.clone(),
             warnings_on_messages: state.settings.warnings_on_messages,
             outside_help_country: state.settings.outside_help_country.clone(),
+            media_unfinished_upload: state.media.unfinished.clone(),
             protected_setup: Some(state.protected.setup.clone()),
             font_size: state.settings.font_size,
             dark_mode: state.settings.dark_mode,
@@ -1695,6 +1702,7 @@ impl AppConfig {
         state.settings.privacy_tier = self.privacy_tier.clone();
         state.settings.warnings_on_messages = self.warnings_on_messages;
         state.settings.outside_help_country = self.outside_help_country.clone();
+        state.media.unfinished = self.media_unfinished_upload.clone();
         // The protected setup is NOT applied from here: it lives in its own file, which boot reads
         // whether or not config.json exists or reads (`load_protected_setup`, lib.rs).
         // Clamp the ranges the UI enforces, so a hand-edited config cannot
