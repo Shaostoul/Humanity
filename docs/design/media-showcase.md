@@ -1990,3 +1990,138 @@ test files are `scripts/tests/file-bytes.js`, copied from strip-metadata.test.js
 that changed with the behaviour are named at the end of private-files-web.test.js; the older Media
 tests run without the cleaning (`clean: null` in media-web-harness.js), because their stand-in
 files are zeros named as videos. The four new test files are not in `just rig-tests` yet.
+
+## As built (desktop, files)
+
+The desktop app's half of parts 1 to 4 above, built 2026-10-11 against the relay's `accepts_files`
+and the web's half (the two sections before this one), in one worktree.
+
+**The shared describe.** `src/relay/core/describe_metadata.rs` is a port of the web's
+`HosStrip.describe`, function for function, beside the three strips (which are unchanged), so the
+desktop's attach step says the web's words. It uses the standard library only. JavaScript's text
+rules are reproduced where they matter: the browser's UTF-8 decoding (a byte-order mark dropped),
+runs of control characters made one space, JavaScript's own list of white space for trimming,
+limits counted in UTF-16 units, `parseFloat`, and the regular expressions written out by hand in
+their "first match wins" order. The one difference left is a lone UTF-16 surrogate (half an emoji
+cut by a length limit, or a broken UTF-16 place name), which Rust cannot hold: dropped at a cut,
+replaced inside a name. `describe_file` reads an MP4, MOV, 3GP or HEIF file by its box headers and
+loads only the metadata boxes (each up to 64 MB), so a multi-GB video is described without reading
+its frames; a picture is read whole up to 64 MB (`PICTURE_READ_MAX`).
+- Held together two ways. `tests/fixtures/describe/` holds 58 files built by
+  `scripts/lib/describe-corpus.js` with the web's own answer for each in `expected.json`
+  (`node scripts/make-describe-fixtures.js` rewrites them, only when the web's describe changes on
+  purpose); the Rust's tests and `scripts/tests/describe-agree.test.js` both require those answers.
+  The agreement test also compiles the Rust file with rustc alone and requires the same answer as
+  the web on 6,058 files (the fixtures and 6,000 generated: text with accents, emoji, control
+  characters and byte-order marks, GPS in every ISO 6709 and XMP notation, random cuts and flipped
+  bytes), and the same answer from disk as from memory. Its first version passed a deliberately
+  broken ISO 6709 reader, because its generated positions almost never came in the
+  degrees-and-minutes form where the readings differ; the generator now writes all three forms. It
+  is not in `just rig-tests` yet. `.gitattributes` marks the fixtures `-text`.
+- HEIC and AVIF: the desktop cleans them (the relay's own HEIF strip), the web cannot yet. Both
+  describes report a HEIF photo's top-level XMP the same way; neither reads its Exif item, so the
+  attach step says nothing for a typical iPhone HEIC on either app, while the desktop still removes
+  it. Reading the HEIF Exif item in both describes is a small later change.
+
+**Part 1, cleaned on this device.** `src/net/file_clean.rs`: `clean_bytes` (a file in memory),
+`look_file` (what the attach step shows: the describe plus whether the file can be checked) and
+`clean_copy` (a big file on disk, cleaned in a COPY under the app's data folder,
+`cleaned-uploads/`, never the person's own file). The verdict on a file that could not be checked is
+the relay's own `finish_file_as`: a picture the strip cannot walk, a movie whose boxes stop early,
+an MP4-family file with no movie and no HEIF picture, a HEIF whose item tables cannot be read with
+certainty, or a file named as one of the cleaned kinds whose bytes are not one.
+- Every upload path: the chat's Attach (a room, a DM, a group, the scratch pad; `attach_send::run`
+  cleans before it encrypts or uploads, on the upload's worker), a pasted picture (a PNG this app
+  encoded, cleaned without a step since nothing can be hidden in it), the Files page's upload to
+  Shared Files (`src/gui/pages/files_upload_step.rs`: the file is now read on a worker, not on the
+  frame as before), and Add to Media (`media/resumable.rs` `work` cleans a copy before the hash and
+  sends `Event::Cleaned`, so the upload's record, kept in the config for carrying on after a
+  restart, follows the copy; copies no upload uses are swept after ten idle minutes,
+  `uploading.rs sweep_cleaned`). The desktop has no drag and drop into the chat.
+- The attach step (`src/gui/pages/chat/attach_step.rs`) follows the web's rule: it shows only when
+  there is something to say or decide (hidden details, a file that could not be checked, a line
+  about the recipient, or a file that could not be read); otherwise the file goes at once with the
+  remembered switch. The look runs on a worker; "Checking the file for hidden details..." shows only
+  if it takes over 0.6 s. The same look and switch are drawn by the Files page's step and by the Add
+  to Media form (`draw_look`). The switch is `FilesInMessages::remove_details` in the app's config,
+  remembered when a file is sent; under the protected setup it is not shown, a line says the setup
+  removes them, and they are removed whatever was last chosen.
+- Kept by choice: `&keep_metadata=1` on a single upload (`UploadFlags::keep_metadata`), and
+  `"keep_metadata": 1` in the resumable start (`start_body`).
+
+**Part 2, a file that could not be checked.** In a DM, a group or the scratch pad the step says
+"This file could not be read all the way through, so where it was taken may still be in it. Send it
+anyway?" with Send anyway; the file goes cleaned as far as the strips got, and its marker carries
+`"unchecked":true` (`dm_pq::build_file_marker_unchecked`, the fields in their order then the flag,
+byte for byte the web's `scripts/tests/fixtures/file-marker-unchecked.json`, read with `include_str!`
+by `src/net/dm_pq_marker_tests.rs`; `file_marker_unchecked` reads it, only JSON true counting; the
+`DmAttachment` struct is unchanged, so no other code changed). A room, Shared Files and Media do not
+send it, with words saying that turning the switch off sends it exactly as it is. As on the web,
+the protected setup sends such a file nowhere, a DM included. The recipient sees "The sender's app
+could not check this file for hidden location." under the file (`attach_view.rs`).
+
+**Part 3, Files in messages.** Settings > Privacy has a "Files in messages" card
+(`src/gui/pages/files_settings.rs`): Accept files from (Nobody / Friends / Anyone I talk to), Show
+pictures without asking from (Friends / Nobody; under the protected setup a line, always Nobody),
+Show the attach button in private conversations, and the switch. One AppConfig field,
+`files_in_messages` (`net/files_policy.rs` `FilesInMessages`), so the settings persistence lint now
+also scans `files_settings.rs` and `attach_step.rs` (without them it never saw the setting; seen red
+with its save leg removed).
+- Receiving (`attach_view.rs plan`), in this order: the protected setup's own rule (a non-friend's
+  file left out), a click already given, a file on another website, then "Accept files from" (a
+  file not accepted is never fetched, picture or not: "Ann sent a file. You accept files only from
+  friends. Accept this one?", Accept letting that one file in), then the pictures setting ("Pictures
+  from Ann show only when you choose." for a friend's picture under Nobody or the protected setup).
+  "Friends" is the click-to-load rule's friend (`picture_friend`); "Anyone I talk to" is anyone
+  whose message reached this person. Our own files always open.
+- The attach button is hidden in a DM or a group when turned off, and a paste there says where it
+  is turned off; the scratch pad keeps it.
+- The sender's line: opening a DM asks the server once for that person's `accepts_files`
+  (`GET /api/members/{key}`, which also gives their name), and the attach step says "Ann accepts
+  files only from friends. They will be asked whether to accept this one." when it applies.
+- Publishing, by the web's rules: `accepts_files` goes only while a choice made on this device waits
+  (`accept_unsent`, kept in the config, so a choice made offline still goes), at most once every 31
+  seconds (the relay's limit is one profile update per 30). Because the relay saves a profile update
+  whole, the update carries the whole profile: this device's bio and picture where it has them, the
+  server's copy for the rest (`/api/members/{key}` for bio, picture and place, `/api/profile/{key}`
+  for banner, pronouns, website and socials), so it never wipes a profile written elsewhere. While
+  nothing waits, a different word in the server's copy is another device's newer choice and is
+  taken (`files_policy::adopt_from_server`), never a more open one under the protected setup.
+- Differences from the web, each for a reason. The desktop reads its own profile from the server by
+  REST, refreshed every ten minutes while the chat page or Settings > Privacy is open, instead of
+  from its own `profile_data`: that frame is handled in `src/engine/frame_ws_poll.rs`, outside this
+  increment's files (and that handler takes every `profile_data` for the person's own, which a
+  later change should fix). Under the protected setup "Accept files from" can be closed but not
+  opened here (the more open choices are greyed out); the web asks for the PIN instead, which on
+  the desktop needs an arm in `engine::protected::perform`.
+- P2P groups: the group object carries only its name and roster (`P2pGroupInfo`), so the owner's
+  "Files allowed" and "Largest file (MB)" wait for a group-settings increment; each member's own
+  settings apply in groups already.
+- Unchanged and worth knowing: the Profile page's Save and the privacy tier chooser still send the
+  profile from this device's own fields (an empty local bio is saved empty, banner, pronouns and
+  website are left out and saved empty). They leave `accepts_files` out, which the relay keeps.
+
+**Part 4, a copy of each private file opened.** `src/net/kept_files.rs`. What is kept is the
+server's ciphertext of the file (sealed with the file's own key, which lives only in the marker
+inside the encrypted DM history), encrypted again with AES-256 in counter mode under
+`BLAKE3.derive_key("hum/kept-files/v1", seed)`: a random 16-byte counter start, then the bytes. So a
+kept copy opens only with both the identity and the marker, a 1 GB file is kept and read a megabyte
+at a time, and any changed byte is caught by the file's own AES-GCM tag when it is opened. Names are
+a keyed hash of the file's address, key and nonce (`kept-files/<hash>.kept` beside the DM history).
+A picture shown in place (`open_kept`) and a Save (`save_file`) look for a kept copy first, keep
+what they fetched once it decrypts, and forget a copy that does not open. Settings > Data, "Kept
+files": what they take, "Keep up to (MB)" (0 to 64 GB, 1 GB by default), the files opened longest
+ago going first (opening one touches its time), and "Clear kept files". The web keeps its copies in
+IndexedDB with the DM store's key instead, a different mechanism to the same end.
+
+**Tests**, each seen failing once against a single break (the doc comment on each names the break
+and what it saw): `relay::core::describe_metadata` (3: the fixtures from memory and from disk, the
+words, nothing left after the strips), `net::file_clean` (5), `net::files_policy` (6),
+`net::kept_files` (3), `net::dm_pq::marker_tests` (the shared fixture), `config::...files_in_messages`,
+`gui::pages::chat::attach_step` (4), `attach_send::clean_tests` (2), `attach_view::kept_tests` (2),
+`attach_view::tests::the_click_to_load...` (rewritten for the accept and pictures settings),
+`gui::pages::files_settings` (2), `gui::pages::files_upload_step` (1),
+`media::resumable::clean_tests` (2), and `scripts/tests/describe-agree.test.js`. Older tests that
+changed with the behaviour: `attach_send_tests.rs file_bytes` is now a real (clean) JPEG, since a
+".jpg" that is not one could not be checked, and the Media share test's stand-in file is named
+`.dat`, not `.png`, for the same reason.

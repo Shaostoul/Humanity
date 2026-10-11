@@ -233,7 +233,7 @@ pub(crate) fn file(len: usize) -> (crate::test_temp::TempPath, Plan, Vec<u8>) {
     let path = crate::test_temp::file(&format!("media_resumable_{n}"), "webm");
     let bytes: Vec<u8> = (0..len).map(|i| (i * 7 % 251) as u8).collect();
     std::fs::write(&path, &bytes).unwrap();
-    let plan = Plan { path: path.to_path_buf(), name: "clip.webm".into(), size: len as u64, content_type: "video/webm".into(), resume: None, file_changed: false };
+    let plan = Plan { path: path.to_path_buf(), name: "clip.webm".into(), size: len as u64, content_type: "video/webm".into(), resume: None, file_changed: false, clean: false, keep_metadata: false };
     (path, plan, bytes)
 }
 

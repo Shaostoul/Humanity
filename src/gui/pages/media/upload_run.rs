@@ -97,6 +97,11 @@ impl Run {
                     self.phase = Phase::Cancelled;
                     out.push(e.clone());
                 }
+                // Cleaned into a copy (2026-10-11): the copy's size is what goes up.
+                Event::Cleaned { size, .. } => {
+                    self.size = *size;
+                    out.push(e.clone());
+                }
             }
         }
         out

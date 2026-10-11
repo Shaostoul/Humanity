@@ -11,6 +11,9 @@
 //! This crate has no network code and no storage code.
 //! It is the foundation that all other Humanity crates build on.
 
+/// What a picture's or video's hidden information says, in plain words, for the attach step
+/// (2026-10-11): a port of the web's `HosStrip.describe`, held to it by shared fixtures.
+pub mod describe_metadata;
 pub mod did;
 pub mod encoding;
 pub mod error;

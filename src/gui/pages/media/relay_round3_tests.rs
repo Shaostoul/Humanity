@@ -121,7 +121,7 @@ fn clip(tag: &str, n: usize) -> (crate::test_temp::TempPath, resumable::Plan, Ve
     let path = crate::test_temp::file(tag, "mp4");
     let data = bytes(n);
     std::fs::write(&path, &data).unwrap();
-    let plan = resumable::Plan { path: path.to_path_buf(), name: "clip.mp4".into(), size: n as u64, content_type: "video/mp4".into(), resume: None, file_changed: false };
+    let plan = resumable::Plan { path: path.to_path_buf(), name: "clip.mp4".into(), size: n as u64, content_type: "video/mp4".into(), resume: None, file_changed: false, clean: false, keep_metadata: false };
     (path, plan, data)
 }
 

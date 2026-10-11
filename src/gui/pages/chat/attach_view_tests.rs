@@ -169,7 +169,7 @@ fn a_tampered_key_or_ciphertext_gives_the_failure_line() {
     let (k, n) = (att.k.clone(), att.n.clone());
     cache.request_bytes(&key, move || open("u", &k, &n, |_, _| Ok(flipped)));
     assert!(matches!(settle(&mut cache, &ctx, &key), ImageStatus::Failed(_)), "the cache records the failure");
-    let plan = Plan { key: key.clone(), url: "http://127.0.0.1:9/uploads/bb.enc".into(), show: Show::Load };
+    let plan = Plan { key: key.clone(), url: "http://127.0.0.1:9/uploads/bb.enc".into(), show: Show::Load, unchecked: false, kept: None };
     let (texts, meshes) = draw_frame(&ctx, &mut cache, "Ann", &att, &plan);
     assert_eq!(texts, vec![CANNOT_OPEN.to_string()], "the failure line, and only it");
     assert!(meshes.iter().all(|t| *t == egui::TextureId::default()), "no picture is drawn");
@@ -179,7 +179,7 @@ fn a_tampered_key_or_ciphertext_gives_the_failure_line() {
     let (k, n, d) = (att.k.clone(), att.n.clone(), dir.clone());
     let mut tampered_ct = ct.clone();
     tampered_ct[0] ^= 0x80;
-    cache.save_with("save-key", move || save_file("u", &k, &n, "photo.png", &d, |_, _, f| write_all(f, &tampered_ct)));
+    cache.save_with("save-key", move || save_file("u", &k, &n, "photo.png", &d, None, |_, _, f| write_all(f, &tampered_ct)));
     for _ in 0..500 {
         cache.poll(&ctx);
         if !cache.is_saving("save-key") {
@@ -210,18 +210,37 @@ fn the_click_to_load_and_protected_setup_rules_apply_to_a_private_picture() {
     assert_eq!(show(&gs, "p2pgroup:g1", "me", &att), Show::Load, "our own loads");
     assert_eq!(show(&gs, "p2pgroup:g1", "ann", &att), Show::Load, "a friend's loads");
     assert_eq!(show(&gs, "dm:ann", "ann", &att), Show::Load, "a friend's in a DM loads");
-    assert_eq!(show(&gs, "p2pgroup:g1", "cy", &att), Show::AskNotFriend, "a stranger's waits for a click");
-    assert_eq!(show(&gs, "dm:cy", "cy", &att), Show::AskNotFriend, "a stranger's DM too");
-    assert_eq!(show(&gs, "p2pgroup:g1", "ivy", &att), Show::AskNotFriend, "a one-way follow is not a friend");
+    // Files in messages (2026-10-11): by default files are accepted only from friends, so a
+    // stranger's (a one-way follow included) is not fetched at all until Accept.
+    let not_accepted = Show::NotAccepted("X sent a file. You accept files only from friends. Accept this one?".into());
+    assert_eq!(show(&gs, "p2pgroup:g1", "cy", &att), not_accepted, "a stranger's waits for Accept");
+    assert_eq!(show(&gs, "dm:cy", "cy", &att), not_accepted, "a stranger's DM too");
+    assert_eq!(show(&gs, "p2pgroup:g1", "ivy", &att), not_accepted, "a one-way follow is not a friend");
 
-    // Waiting for the click draws the question and fetches nothing.
+    // Waiting for Accept draws the question and fetches nothing.
     let ctx = egui::Context::default();
     let stranger = carrying("p2pgroup:g1", "cy", "Cy", &att);
     let p = plan(&gs, &stranger, &att);
     let (texts, _) = draw_frame(&ctx, &mut gs.image_cache, "Cy", &att, &p);
+    assert!(texts.iter().any(|t| t == "Cy sent a file. You accept files only from friends. Accept this one?"), "{texts:?}");
+    assert!(texts.iter().any(|t| t == "Click to accept map.png."), "{texts:?}");
+    assert!(matches!(gs.image_cache.status(&p.key), ImageStatus::Idle), "nothing is fetched before Accept");
+
+    // Accepting files from anyone: a stranger's picture still waits for the pictures rule's click.
+    gs.settings.files_in_messages.accept_from = crate::net::files_policy::AcceptFrom::Anyone;
+    assert_eq!(show(&gs, "p2pgroup:g1", "cy", &att), Show::AskNotFriend, "a stranger's picture waits for a click");
+    let p = plan(&gs, &stranger, &att);
+    let (texts, _) = draw_frame(&ctx, &mut gs.image_cache, "Cy", &att, &p);
     assert!(texts.iter().any(|t| t == "Cy is not your friend. Pictures show only when you choose."), "{texts:?}");
     assert!(texts.iter().any(|t| t == "Click to show map.png."), "{texts:?}");
-    assert!(matches!(gs.image_cache.status(&p.key), ImageStatus::Idle), "nothing is fetched before the click");
+    // Pictures without asking from nobody: a friend's waits too; files from nobody: not even a
+    // friend's is fetched; our own always loads.
+    gs.settings.files_in_messages.show_pictures_from = crate::net::files_policy::ShowPictures::Nobody;
+    assert_eq!(show(&gs, "p2pgroup:g1", "ann", &att), Show::AskPicture, "a friend's picture waits under Nobody");
+    gs.settings.files_in_messages.accept_from = crate::net::files_policy::AcceptFrom::Nobody;
+    assert_eq!(show(&gs, "dm:ann", "ann", &att), Show::NotAccepted("X sent a file. You do not accept files in messages. Accept this one?".into()));
+    assert_eq!(show(&gs, "p2pgroup:g1", "me", &att), Show::Load, "our own always loads");
+    gs.settings.files_in_messages = Default::default();
 
     // The click lets it load.
     gs.image_cache.allow(&cache_key(&att));
@@ -239,6 +258,8 @@ fn the_click_to_load_and_protected_setup_rules_apply_to_a_private_picture() {
     assert_eq!(show(&gs, "p2pgroup:g1", "ann", &att), Show::Load, "a friend's still loads");
     assert_eq!(show(&gs, "p2pgroup:g1", "me", &att), Show::Load, "our own still loads");
     let (fresh, _) = sealed(&png(8, 8), "/uploads/ee.enc", "y.png", "image/png");
+    // Its pictures rule is always Nobody (2026-10-11): a friend's picture not yet clicked waits.
+    assert_eq!(show(&gs, "p2pgroup:g1", "ann", &fresh), Show::AskPicture, "a friend's new picture waits under the protected setup");
     let hidden = plan(&gs, &carrying("p2pgroup:g1", "cy", "Cy", &fresh), &fresh);
     let (texts, meshes) = draw_frame(&ctx, &mut gs.image_cache, "Cy", &fresh, &hidden);
     assert!(texts.is_empty() && meshes.iter().all(|t| *t == egui::TextureId::default()), "nothing drawn: {texts:?}");
@@ -257,7 +278,7 @@ fn a_file_is_a_card_whose_save_writes_the_decrypted_file() {
     assert!(!is_inline(&att), "a PDF is a card");
     let ctx = egui::Context::default();
     let mut cache = ImageCache::new();
-    let plan = Plan { key: cache_key(&att), url: "http://127.0.0.1:9/uploads/ff.enc".into(), show: Show::AskNotFriend };
+    let plan = Plan { key: cache_key(&att), url: "http://127.0.0.1:9/uploads/ff.enc".into(), show: Show::AskNotFriend, unchecked: false, kept: None };
     let (texts, _) = draw_frame(&ctx, &mut cache, "Cy", &att, &plan);
     for want in ["route-notes.pdf", "400 bytes", "Save"] {
         assert!(texts.iter().any(|t| t == want), "the card shows {want}: {texts:?}");
@@ -268,7 +289,7 @@ fn a_file_is_a_card_whose_save_writes_the_decrypted_file() {
     for round in 0..2 {
         let (k, n, d, c) = (att.k.clone(), att.n.clone(), dir.clone(), ct.clone());
         let key = format!("save-{round}");
-        cache.save_with(&key, move || save_file("u", &k, &n, "route-notes.pdf", &d, |_, _, f| write_all(f, &c)));
+        cache.save_with(&key, move || save_file("u", &k, &n, "route-notes.pdf", &d, None, |_, _, f| write_all(f, &c)));
         for _ in 0..500 {
             cache.poll(&ctx);
             if !cache.is_saving(&key) {
@@ -299,7 +320,7 @@ fn a_private_picture_over_16_mb_is_a_card_with_save() {
     assert!(is_inline(&att) && !shows_in_place(&att), "a picture, but not one shown in place");
     let ctx = egui::Context::default();
     let mut cache = ImageCache::new();
-    let plan = Plan { key: cache_key(&att), url: "http://127.0.0.1:9/uploads/big.enc".into(), show: Show::Load };
+    let plan = Plan { key: cache_key(&att), url: "http://127.0.0.1:9/uploads/big.enc".into(), show: Show::Load, unchecked: false, kept: None };
     let (texts, _) = draw_frame(&ctx, &mut cache, "Ann", &att, &plan);
     assert!(texts.iter().any(|t| t == "Save"), "a card with Save: {texts:?}");
     assert!(texts.iter().any(|t| t == "panorama.png") && texts.iter().any(|t| t == "20.0 MB"), "named, with its size: {texts:?}");
@@ -320,7 +341,7 @@ fn save_writes_through_part_files_the_exit_deletes() {
     let (att, ct) = sealed(&body, "/uploads/p.enc", "notes.txt", "text/plain");
     let dir = crate::test_temp::dir("attach_save_parts");
     let (k, n) = (att.k.clone(), att.n.clone());
-    let saved = save_file("u", &k, &n, "notes.txt", &dir, |_, _, f| {
+    let saved = save_file("u", &k, &n, "notes.txt", &dir, None, |_, _, f| {
         let entries: Vec<std::path::PathBuf> = std::fs::read_dir(&*dir).unwrap().flatten().map(|e| e.path()).collect();
         assert_eq!(entries.len(), 1, "only the arriving ciphertext: {entries:?}");
         let name = entries[0].file_name().unwrap().to_string_lossy().to_string();
@@ -334,7 +355,7 @@ fn save_writes_through_part_files_the_exit_deletes() {
     assert_eq!(names, vec!["notes.txt".to_string()], "only the saved file is left");
 
     // Cut off half way: nothing at all is left.
-    let failed = save_file("u", &k, &n, "cut.txt", &dir, |_, _, f| {
+    let failed = save_file("u", &k, &n, "cut.txt", &dir, None, |_, _, f| {
         write_all(f, &ct[..ct.len() / 2])?;
         Err("the connection dropped".to_string())
     });
@@ -374,7 +395,7 @@ fn a_file_sent_under_a_higher_limit_opens() {
     let (att, ct) = sealed(&body, "/uploads/big.enc", "long-ride.mp4", "video/mp4");
     let dir = std::env::temp_dir().join(format!("hos-attach-big-{}-{}", std::process::id(), line!()));
     let _ = std::fs::remove_dir_all(&dir);
-    let saved = save_file("u", &att.k, &att.n, "long-ride.mp4", &dir, |_, cap, f| {
+    let saved = save_file("u", &att.k, &att.n, "long-ride.mp4", &dir, None, |_, cap, f| {
         if ct.len() as u64 > cap {
             return Err(format!("{} bytes, over the {cap} cap", ct.len()));
         }

@@ -73,12 +73,15 @@ mod protected;
 mod voice_room;
 pub(crate) use voice_room::set_voice_room;
 /// Sending a file (10k): encrypted for a DM or a group, plain for a public channel. See `chat/attach_send.rs`.
-mod attach_send;
+pub(crate) mod attach_send;
 /// A sent file's bytes kept to one copy: read on the worker, encrypted in place, streamed (round 3).
 mod attach_body;
 pub(crate) use attach_send::upload_file_blocking;
 pub(crate) use attach_send::note_upload_limit; // the server tells each person their own upload limit (2026-10-10)
 pub(crate) use attach_send::{room_limit_here, upload_token_here, UploadLimits, NOT_SIGNED_IN_YET};
+/// The attach step: what is hidden in a file, the switch, Send anyway (2026-10-11). See `chat/attach_step.rs`.
+pub(crate) mod attach_step;
+pub use attach_step::FilesFlow;
 /// Showing a private file (10k): the picture inline, or a card with Save. See `chat/attach_view.rs`.
 mod attach_view;
 #[cfg(test)]
@@ -127,6 +130,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             FilePickerResult::Picked(path) => attach_send::start_attach(state, &path),
         }
     }
+    attach_step::draw(ctx, theme, state); // the picked file's attach step, until Send or Cancel
 
     if std::mem::take(&mut state.pending_clipboard_paste) {
         // Grab the PNG on the main thread (clipboard access); the upload runs on a
@@ -1939,7 +1943,8 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                          3D files from a server's room are also published to its Shared Files library.",
                         attach_limit / (1024 * 1024)
                     );
-                    if widgets::Button::secondary("Attach").tooltip_above(&attach_tip, input_rect.top()).show(ui, theme) {
+                    // Hidden in a DM or a group when the person turned it off ("receive only").
+                    if !attach_step::attach_off_here(state) && widgets::Button::secondary("Attach").tooltip_above(&attach_tip, input_rect.top()).show(ui, theme) {
                         state.chat_attach_picker = Some(
                             crate::gui::widgets::file_browser::FilePickerState::new(ATTACH_EXTS, attach_limit),
                         );

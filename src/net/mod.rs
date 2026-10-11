@@ -33,6 +33,18 @@ pub mod dm_file_stream;
 #[cfg(feature = "native")]
 pub mod dm_store;
 
+/// Files in messages (2026-10-11, docs/design/media-showcase.md, the files section): who files are
+/// taken from, whose pictures show, the attach button, the remembered switch and the words.
+#[cfg(feature = "native")]
+pub mod files_policy;
+/// A file cleaned on the sender's device before it leaves, with the relay's own strips, and what
+/// the attach step shows about it first (the shared `describe`, and whether it could be checked).
+#[cfg(feature = "native")]
+pub mod file_clean;
+/// The private files a person opened, kept on the device, encrypted under their identity's key.
+#[cfg(feature = "native")]
+pub mod kept_files;
+
 /// "Who can reach me" (step B of docs/design/blocking-and-safe-mode.md, 2026-10-09): the
 /// audiences per kind of contact, the relay's frames, the "show as a request" rule and the
 /// contact request itself, with no socket and no GUI so each rule is unit tested.

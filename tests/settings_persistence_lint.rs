@@ -56,6 +56,12 @@ const SETTINGS_FILES: &[&str] = &[
     "src/gui/pages/settings.rs",
     "src/gui/pages/safety.rs",
     "src/gui/pages/chat/report_dialog.rs",
+    // Settings > Privacy's Files in messages and Settings > Data's Kept files (2026-10-11), and the
+    // attach step's remembered switch, all one `files_in_messages` setting. Without these two the
+    // scan never saw it: with its save leg removed, it then failed "files_in_messages: never
+    // written by from_gui_state".
+    "src/gui/pages/files_settings.rs",
+    "src/gui/pages/chat/attach_step.rs",
 ];
 
 /// Pull every `state.settings.<field>` that the Settings files bind to a widget

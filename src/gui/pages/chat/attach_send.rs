@@ -83,6 +83,12 @@ pub(crate) struct AttachJob {
     pub to: Destination,
     /// The most this job may upload: `limit_for` its destination.
     pub limit: u64,
+    /// Remove location and camera details before it leaves (the attach step's switch, 2026-10-11).
+    /// Off: sent exactly as it is, with `keep_metadata=1` on a public upload.
+    pub clean: bool,
+    /// The person said Send anyway to a file that could not be checked (private conversations
+    /// only): its marker then says `unchecked`. Without it such a file is not sent.
+    pub allow_unchecked: bool,
 }
 
 /// The largest private file any server can allow, in bytes: the top of the range the relay keeps
@@ -204,6 +210,8 @@ pub(crate) struct Upload {
     pub bytes: Vec<u8>,
     pub share: bool,
     pub encrypted: bool,
+    /// The person chose to keep the file's hidden details (`keep_metadata=1`, a public upload only).
+    pub keep_metadata: bool,
 }
 
 /// The job for a file picked with Attach, sent to the conversation on screen. None, with
@@ -256,6 +264,8 @@ fn job_for(state: &mut GuiState, filename: &str, body: Body) -> Option<AttachJob
         share,
         to,
         limit,
+        clean: true,
+        allow_unchecked: false,
     })
 }
 
@@ -279,6 +289,10 @@ pub(crate) fn paste_job(state: &GuiState, png: Vec<u8>) -> Option<AttachJob> {
         share: false,
         to,
         limit,
+        // A pasted picture is a PNG this app encoded itself, with nothing hidden in it; it is still
+        // cleaned, which changes nothing.
+        clean: true,
+        allow_unchecked: false,
     })
 }
 
@@ -298,8 +312,25 @@ where
         return Err(format!("the file is {} bytes, over the {limit} limit", job.body.len()));
     }
     let mut bytes = attach_body::read(job.body, limit)?;
+    // Part 1 of the files section of docs/design/media-showcase.md: the file is cleaned HERE, on the
+    // sender's device, before it is encrypted or uploaded, so a DM's or a group's file (which the
+    // server only ever sees sealed) leaves without where it was taken too.
+    let mut unchecked = false;
+    if job.clean {
+        let (cleaned, c) = crate::net::file_clean::clean_bytes(bytes, &job.filename);
+        bytes = cleaned;
+        if c.unchecked {
+            if !job.to.encrypts_file() {
+                return Err(NOT_CHECKED_PUBLIC.to_string());
+            }
+            if !job.allow_unchecked {
+                return Err(NOT_CHECKED.to_string());
+            }
+            unchecked = true;
+        }
+    }
     if !job.to.encrypts_file() {
-        let plain = Upload { filename: job.filename, mime: job.mime, bytes, share: job.share, encrypted: false };
+        let plain = Upload { filename: job.filename, mime: job.mime, bytes, share: job.share, encrypted: false, keep_metadata: !job.clean };
         return upload(&job.server, &job.token, plain);
     }
     let size = bytes.len() as u64;
@@ -310,39 +341,48 @@ where
         bytes, // now the ciphertext, in the same buffer
         share: false,
         encrypted: true,
+        keep_metadata: false,
     };
     let url = upload(&job.server, &job.token, sealed)?;
-    Ok(crate::net::dm_pq::build_file_marker(&crate::net::dm_pq::DmAttachment {
-        url,
-        k,
-        n,
-        name: job.filename,
-        mime: job.mime,
-        size,
-    }))
+    let att = crate::net::dm_pq::DmAttachment { url, k, n, name: job.filename, mime: job.mime, size };
+    Ok(if unchecked { crate::net::dm_pq::build_file_marker_unchecked(&att) } else { crate::net::dm_pq::build_file_marker(&att) })
 }
+
+/// Why a file that could not be checked was not sent to a private conversation: the person did not
+/// say Send anyway (the attach step asks).
+pub(crate) const NOT_CHECKED: &str = "it could not be read all the way through, so where it was taken may still be in it.";
+/// Why one was not sent to a public place (the server would refuse it too).
+pub(crate) const NOT_CHECKED_PUBLIC: &str =
+    "it could not be read all the way through, so where it was taken may still be in it, and a public place does not take such a file.";
 
 /// Start sending `job` to the conversation on screen: the upload on a worker thread, its result
 /// drained by `drain` on a later frame.
-fn start(state: &mut GuiState, job: AttachJob) {
+pub(super) fn start(state: &mut GuiState, job: AttachJob) {
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let _ = tx.send(run(job, |server, key, up| {
-            upload_file_blocking_ext(server, key, &up.filename, &up.mime, up.bytes, up.share, up.encrypted)
+            let flags = UploadFlags { share: up.share, encrypted: up.encrypted, keep_metadata: up.keep_metadata };
+            upload_flagged(server, key, &up.filename, &up.mime, up.bytes, flags)
         }));
     });
     state.clipboard_upload = Some((state.chat_active_channel.clone(), rx));
 }
 
-/// The Attach picker chose `path`: start sending it (the worker reads it).
+/// The Attach picker chose `path`: its attach step opens (chat/attach_step.rs), which shows what is
+/// hidden in it and sends it on Send (the worker reads it).
 pub(super) fn start_attach(state: &mut GuiState, path: &std::path::Path) {
     if let Some(job) = attach_file_job(state, path) {
-        start(state, job);
+        super::attach_step::open(state, job, path);
     }
 }
 
-/// An image was pasted (Ctrl+V with a picture on the clipboard): start sending it.
+/// An image was pasted (Ctrl+V with a picture on the clipboard): start sending it, unless sending
+/// files is off in private conversations and this is one (Settings > Privacy, Files in messages).
 pub(super) fn start_paste(state: &mut GuiState, png: Vec<u8>) {
+    if super::attach_step::attach_off_here(state) {
+        state.pending_notices.push(crate::net::files_policy::ATTACH_OFF.to_string());
+        return;
+    }
     if let Some(job) = paste_job(state, png) {
         start(state, job);
     }
@@ -418,7 +458,7 @@ pub(crate) fn upload_file_blocking_ext(
     share: bool,
     encrypted: bool,
 ) -> Result<String, String> {
-    upload_flagged(server_url, token, filename, mime, bytes, UploadFlags { share, encrypted })
+    upload_flagged(server_url, token, filename, mime, bytes, UploadFlags { share, encrypted, keep_metadata: false })
 }
 
 /// Which shelf an upload goes on, as `/api/upload`'s query names it (relay/media.rs
@@ -428,6 +468,8 @@ pub(crate) fn upload_file_blocking_ext(
 pub(crate) struct UploadFlags {
     pub share: bool,
     pub encrypted: bool,
+    /// The person chose to keep the file's hidden details (B4): the relay then skips its own strip.
+    pub keep_metadata: bool,
 }
 
 /// The query of one upload: this connection's token, then each flag that is set.
@@ -439,13 +481,16 @@ pub(crate) fn upload_query(token: &str, flags: UploadFlags) -> String {
     if flags.encrypted {
         q.push_str("&encrypted=1");
     }
+    if flags.keep_metadata {
+        q.push_str("&keep_metadata=1");
+    }
     q
 }
 
 /// The one multipart upload every kind of file goes through, with `flags` in its query. The body
 /// is streamed around the file's own buffer (attach_body.rs `Multipart`), its length set so it is
 /// sent as it is: the file is never copied into a second buffer with its framing.
-fn upload_flagged(server_url: &str, token: &str, filename: &str, mime: &str, bytes: Vec<u8>, flags: UploadFlags) -> Result<String, String> {
+pub(crate) fn upload_flagged(server_url: &str, token: &str, filename: &str, mime: &str, bytes: Vec<u8>, flags: UploadFlags) -> Result<String, String> {
     let base = server_url.trim_end_matches('/');
     let upload_url = format!("{base}/api/upload?{}", upload_query(token, flags));
     let body = attach_body::Multipart::new(filename, mime, bytes);
@@ -487,3 +532,6 @@ pub(crate) fn upload_error_words(e: ureq::Error) -> String {
 #[cfg(test)]
 #[path = "attach_send_tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "attach_send_clean_tests.rs"]
+mod clean_tests;

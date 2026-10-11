@@ -1,0 +1,1527 @@
+{
+ "jpeg-phone.jpg": {
+  "nameOrType": "IMG_0001.JPG",
+  "answer": {
+   "kind": "jpeg",
+   "claimed": "jpeg",
+   "hasLocation": true,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was taken"
+    },
+    {
+     "key": "camera",
+     "words": "Which camera or phone took it (Apple iPhone 15 Pro)"
+    },
+    {
+     "key": "serial",
+     "words": "The camera's own serial number"
+    },
+    {
+     "key": "lens",
+     "words": "Which lens was used"
+    },
+    {
+     "key": "time",
+     "words": "When it was taken"
+    },
+    {
+     "key": "software",
+     "words": "Which program or app made or edited it"
+    }
+   ],
+   "summary": "This photo says where it was taken and which camera took it.",
+   "complete": true,
+   "coordinates": {
+    "latitude": 37.334900000000005,
+    "longitude": -122.009
+   },
+   "place": null
+  }
+ },
+ "jpeg-phone-bigendian.jpg": {
+  "nameOrType": "image/jpeg",
+  "answer": {
+   "kind": "jpeg",
+   "claimed": "jpeg",
+   "hasLocation": true,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was taken"
+    },
+    {
+     "key": "camera",
+     "words": "Which camera or phone took it (Canon EOS R5)"
+    },
+    {
+     "key": "serial",
+     "words": "The camera's own serial number"
+    },
+    {
+     "key": "lens",
+     "words": "Which lens was used"
+    },
+    {
+     "key": "time",
+     "words": "When it was taken"
+    },
+    {
+     "key": "software",
+     "words": "Which program or app made or edited it"
+    }
+   ],
+   "summary": "This photo says where it was taken and which camera took it.",
+   "complete": true,
+   "coordinates": {
+    "latitude": -37.334900000000005,
+    "longitude": 122.009
+   },
+   "place": null
+  }
+ },
+ "jpeg-camera-only.jpg": {
+  "nameOrType": "photo.jpeg",
+  "answer": {
+   "kind": "jpeg",
+   "claimed": "jpeg",
+   "hasLocation": false,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "camera",
+     "words": "Which camera or phone took it (NIKON CORPORATION NIKON Z 6)"
+    },
+    {
+     "key": "serial",
+     "words": "The camera's own serial number"
+    },
+    {
+     "key": "lens",
+     "words": "Which lens was used"
+    },
+    {
+     "key": "time",
+     "words": "When it was taken"
+    },
+    {
+     "key": "software",
+     "words": "Which program or app made or edited it"
+    }
+   ],
+   "summary": "This photo says which camera took it.",
+   "complete": true,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "jpeg-gps-zero-denominator.jpg": {
+  "nameOrType": "a.jpg",
+  "answer": {
+   "kind": "jpeg",
+   "claimed": "jpeg",
+   "hasLocation": true,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was taken"
+    },
+    {
+     "key": "camera",
+     "words": "Which camera or phone took it (Apple iPhone 15 Pro)"
+    },
+    {
+     "key": "serial",
+     "words": "The camera's own serial number"
+    },
+    {
+     "key": "lens",
+     "words": "Which lens was used"
+    },
+    {
+     "key": "time",
+     "words": "When it was taken"
+    },
+    {
+     "key": "software",
+     "words": "Which program or app made or edited it"
+    }
+   ],
+   "summary": "This photo says where it was taken and which camera took it.",
+   "complete": true,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "jpeg-xmp.jpg": {
+  "nameOrType": "x.jpg",
+  "answer": {
+   "kind": "jpeg",
+   "claimed": "jpeg",
+   "hasLocation": true,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was taken"
+    },
+    {
+     "key": "place-name",
+     "words": "The name of a place (an address, a city or a country)"
+    },
+    {
+     "key": "camera",
+     "words": "Which camera or phone took it (Apple iPhone 15 Pro)"
+    },
+    {
+     "key": "serial",
+     "words": "The camera's own serial number"
+    },
+    {
+     "key": "lens",
+     "words": "Which lens was used"
+    },
+    {
+     "key": "time",
+     "words": "When it was taken"
+    },
+    {
+     "key": "person",
+     "words": "A person's name (who made it or who owns the camera)"
+    },
+    {
+     "key": "software",
+     "words": "Which program or app made or edited it"
+    }
+   ],
+   "summary": "This photo says where it was taken and which camera took it.",
+   "complete": true,
+   "coordinates": {
+    "latitude": 37.3349,
+    "longitude": -122.009
+   },
+   "place": "Cupertino"
+  }
+ },
+ "jpeg-xmp-decimal-gps.jpg": {
+  "nameOrType": "x.jpg",
+  "answer": {
+   "kind": "jpeg",
+   "claimed": "jpeg",
+   "hasLocation": true,
+   "hasCamera": false,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was taken"
+    }
+   ],
+   "summary": "This photo says where it was taken.",
+   "complete": true,
+   "coordinates": {
+    "latitude": -33.8568,
+    "longitude": 151.2153
+   },
+   "place": null
+  }
+ },
+ "jpeg-xmp-drone.jpg": {
+  "nameOrType": "x.jpg",
+  "answer": {
+   "kind": "jpeg",
+   "claimed": "jpeg",
+   "hasLocation": true,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was taken"
+    },
+    {
+     "key": "camera",
+     "words": "Which camera or phone took it (DJI)"
+    }
+   ],
+   "summary": "This photo says where it was taken and which camera took it.",
+   "complete": true,
+   "coordinates": {
+    "latitude": 22.5431,
+    "longitude": 113.9437
+   },
+   "place": null
+  }
+ },
+ "jpeg-xmp-extension.jpg": {
+  "nameOrType": "x.jpg",
+  "answer": {
+   "kind": "jpeg",
+   "claimed": "jpeg",
+   "hasLocation": true,
+   "hasCamera": false,
+   "details": [
+    {
+     "key": "place-name",
+     "words": "The name of a place (an address, a city or a country)"
+    }
+   ],
+   "summary": "This photo says where it was taken.",
+   "complete": true,
+   "coordinates": null,
+   "place": "Old Town"
+  }
+ },
+ "jpeg-iptc.jpg": {
+  "nameOrType": "x.jpg",
+  "answer": {
+   "kind": "jpeg",
+   "claimed": "jpeg",
+   "hasLocation": true,
+   "hasCamera": false,
+   "details": [
+    {
+     "key": "place-name",
+     "words": "The name of a place (an address, a city or a country)"
+    },
+    {
+     "key": "time",
+     "words": "When it was taken"
+    },
+    {
+     "key": "person",
+     "words": "A person's name (who made it or who owns the camera)"
+    },
+    {
+     "key": "comment",
+     "words": "A title, caption or comment"
+    },
+    {
+     "key": "text",
+     "words": "Text notes stored inside the file"
+    }
+   ],
+   "summary": "This photo says where it was taken.",
+   "complete": true,
+   "coordinates": null,
+   "place": "Lisbon"
+  }
+ },
+ "jpeg-comment.jpg": {
+  "nameOrType": "x.jpg",
+  "answer": {
+   "kind": "jpeg",
+   "claimed": "jpeg",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [
+    {
+     "key": "comment",
+     "words": "A title, caption or comment"
+    }
+   ],
+   "summary": "This photo carries other hidden details.",
+   "complete": true,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "jpeg-blank-comment.jpg": {
+  "nameOrType": "x.jpg",
+  "answer": {
+   "kind": "jpeg",
+   "claimed": "jpeg",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [],
+   "summary": null,
+   "complete": true,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "jpeg-unknown-app1.jpg": {
+  "nameOrType": "x.jpg",
+  "answer": {
+   "kind": "jpeg",
+   "claimed": "jpeg",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [
+    {
+     "key": "other",
+     "words": "Other hidden details"
+    }
+   ],
+   "summary": "This photo carries other hidden details.",
+   "complete": true,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "jpeg-after-end.jpg": {
+  "nameOrType": "x.jpg",
+  "answer": {
+   "kind": "jpeg",
+   "claimed": "jpeg",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [
+    {
+     "key": "other",
+     "words": "Other hidden details"
+    }
+   ],
+   "summary": "This photo carries other hidden details.",
+   "complete": true,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "jpeg-clean.jpg": {
+  "nameOrType": "x.jpg",
+  "answer": {
+   "kind": "jpeg",
+   "claimed": "jpeg",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [],
+   "summary": null,
+   "complete": true,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "jpeg-lost-sync.jpg": {
+  "nameOrType": "x.jpg",
+  "answer": {
+   "kind": "jpeg",
+   "claimed": "jpeg",
+   "hasLocation": true,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was taken"
+    },
+    {
+     "key": "camera",
+     "words": "Which camera or phone took it (Apple iPhone 15 Pro)"
+    },
+    {
+     "key": "serial",
+     "words": "The camera's own serial number"
+    },
+    {
+     "key": "lens",
+     "words": "Which lens was used"
+    },
+    {
+     "key": "time",
+     "words": "When it was taken"
+    },
+    {
+     "key": "software",
+     "words": "Which program or app made or edited it"
+    }
+   ],
+   "summary": "This photo says where it was taken and which camera took it.",
+   "complete": false,
+   "coordinates": {
+    "latitude": 37.334900000000005,
+    "longitude": -122.009
+   },
+   "place": null
+  }
+ },
+ "jpeg-cut.jpg": {
+  "nameOrType": "x.jpg",
+  "answer": {
+   "kind": "jpeg",
+   "claimed": "jpeg",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [],
+   "summary": null,
+   "complete": false,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "jpeg-unicode-camera.jpg": {
+  "nameOrType": "x.jpg",
+  "answer": {
+   "kind": "jpeg",
+   "claimed": "jpeg",
+   "hasLocation": true,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was taken"
+    },
+    {
+     "key": "camera",
+     "words": "Which camera or phone took it (École  caméra Modèle 📷 X)"
+    },
+    {
+     "key": "serial",
+     "words": "The camera's own serial number"
+    },
+    {
+     "key": "lens",
+     "words": "Which lens was used"
+    },
+    {
+     "key": "time",
+     "words": "When it was taken"
+    },
+    {
+     "key": "software",
+     "words": "Which program or app made or edited it"
+    }
+   ],
+   "summary": "This photo says where it was taken and which camera took it.",
+   "complete": true,
+   "coordinates": {
+    "latitude": 37.334900000000005,
+    "longitude": -122.009
+   },
+   "place": null
+  }
+ },
+ "png-exif.png": {
+  "nameOrType": "image/png",
+  "answer": {
+   "kind": "png",
+   "claimed": "png",
+   "hasLocation": true,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was taken"
+    },
+    {
+     "key": "camera",
+     "words": "Which camera or phone took it (Apple iPhone 15 Pro)"
+    },
+    {
+     "key": "serial",
+     "words": "The camera's own serial number"
+    },
+    {
+     "key": "lens",
+     "words": "Which lens was used"
+    },
+    {
+     "key": "time",
+     "words": "When it was taken"
+    },
+    {
+     "key": "software",
+     "words": "Which program or app made or edited it"
+    }
+   ],
+   "summary": "This photo says where it was taken and which camera took it.",
+   "complete": true,
+   "coordinates": {
+    "latitude": 37.334900000000005,
+    "longitude": -122.009
+   },
+   "place": null
+  }
+ },
+ "png-exif-prefixed.png": {
+  "nameOrType": "p.png",
+  "answer": {
+   "kind": "png",
+   "claimed": "png",
+   "hasLocation": true,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was taken"
+    },
+    {
+     "key": "camera",
+     "words": "Which camera or phone took it (Apple iPhone 15 Pro)"
+    },
+    {
+     "key": "serial",
+     "words": "The camera's own serial number"
+    },
+    {
+     "key": "lens",
+     "words": "Which lens was used"
+    },
+    {
+     "key": "time",
+     "words": "When it was taken"
+    },
+    {
+     "key": "software",
+     "words": "Which program or app made or edited it"
+    }
+   ],
+   "summary": "This photo says where it was taken and which camera took it.",
+   "complete": true,
+   "coordinates": {
+    "latitude": 37.334900000000005,
+    "longitude": -122.009
+   },
+   "place": null
+  }
+ },
+ "png-text.png": {
+  "nameOrType": "p.png",
+  "answer": {
+   "kind": "png",
+   "claimed": "png",
+   "hasLocation": false,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "camera",
+     "words": "Which camera or phone took it (Pixel 8)"
+    },
+    {
+     "key": "time",
+     "words": "When it was taken"
+    },
+    {
+     "key": "changed-time",
+     "words": "When it was last changed"
+    },
+    {
+     "key": "person",
+     "words": "A person's name (who made it or who owns the camera)"
+    },
+    {
+     "key": "software",
+     "words": "Which program or app made or edited it"
+    },
+    {
+     "key": "comment",
+     "words": "A title, caption or comment"
+    },
+    {
+     "key": "text",
+     "words": "Text notes stored inside the file"
+    }
+   ],
+   "summary": "This photo says which camera took it.",
+   "complete": true,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "png-itxt-xmp.png": {
+  "nameOrType": "p.png",
+  "answer": {
+   "kind": "png",
+   "claimed": "png",
+   "hasLocation": true,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was taken"
+    },
+    {
+     "key": "place-name",
+     "words": "The name of a place (an address, a city or a country)"
+    },
+    {
+     "key": "camera",
+     "words": "Which camera or phone took it (Apple iPhone 15 Pro)"
+    },
+    {
+     "key": "serial",
+     "words": "The camera's own serial number"
+    },
+    {
+     "key": "lens",
+     "words": "Which lens was used"
+    },
+    {
+     "key": "time",
+     "words": "When it was taken"
+    },
+    {
+     "key": "person",
+     "words": "A person's name (who made it or who owns the camera)"
+    },
+    {
+     "key": "software",
+     "words": "Which program or app made or edited it"
+    }
+   ],
+   "summary": "This photo says where it was taken and which camera took it.",
+   "complete": true,
+   "coordinates": {
+    "latitude": 37.3349,
+    "longitude": -122.009
+   },
+   "place": "Cupertino"
+  }
+ },
+ "png-itxt-compressed.png": {
+  "nameOrType": "p.png",
+  "answer": {
+   "kind": "png",
+   "claimed": "png",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [
+    {
+     "key": "unread",
+     "words": "Packed details this app could not open (they may say where it was taken)"
+    }
+   ],
+   "summary": "This photo carries other hidden details.",
+   "complete": true,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "png-ztxt.png": {
+  "nameOrType": "p.png",
+  "answer": {
+   "kind": "png",
+   "claimed": "png",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [
+    {
+     "key": "unread",
+     "words": "Packed details this app could not open (they may say where it was taken)"
+    }
+   ],
+   "summary": "This photo carries other hidden details.",
+   "complete": true,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "png-raw-profile.png": {
+  "nameOrType": "p.png",
+  "answer": {
+   "kind": "png",
+   "claimed": "png",
+   "hasLocation": true,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was taken"
+    },
+    {
+     "key": "camera",
+     "words": "Which camera or phone took it (Apple iPhone 15 Pro)"
+    },
+    {
+     "key": "serial",
+     "words": "The camera's own serial number"
+    },
+    {
+     "key": "lens",
+     "words": "Which lens was used"
+    },
+    {
+     "key": "time",
+     "words": "When it was taken"
+    },
+    {
+     "key": "software",
+     "words": "Which program or app made or edited it"
+    }
+   ],
+   "summary": "This photo says where it was taken and which camera took it.",
+   "complete": true,
+   "coordinates": {
+    "latitude": 37.334900000000005,
+    "longitude": -122.009
+   },
+   "place": null
+  }
+ },
+ "png-after-iend.png": {
+  "nameOrType": "p.png",
+  "answer": {
+   "kind": "png",
+   "claimed": "png",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [
+    {
+     "key": "other",
+     "words": "Other hidden details"
+    }
+   ],
+   "summary": "This photo carries other hidden details.",
+   "complete": true,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "png-cut.png": {
+  "nameOrType": "p.png",
+  "answer": {
+   "kind": "png",
+   "claimed": "png",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [],
+   "summary": null,
+   "complete": false,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "png-clean.png": {
+  "nameOrType": "p.png",
+  "answer": {
+   "kind": "png",
+   "claimed": "png",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [],
+   "summary": null,
+   "complete": true,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "webp-exif.webp": {
+  "nameOrType": "image/webp",
+  "answer": {
+   "kind": "webp",
+   "claimed": "webp",
+   "hasLocation": true,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was taken"
+    },
+    {
+     "key": "camera",
+     "words": "Which camera or phone took it (Apple iPhone 15 Pro)"
+    },
+    {
+     "key": "serial",
+     "words": "The camera's own serial number"
+    },
+    {
+     "key": "lens",
+     "words": "Which lens was used"
+    },
+    {
+     "key": "time",
+     "words": "When it was taken"
+    },
+    {
+     "key": "software",
+     "words": "Which program or app made or edited it"
+    }
+   ],
+   "summary": "This photo says where it was taken and which camera took it.",
+   "complete": true,
+   "coordinates": {
+    "latitude": 37.334900000000005,
+    "longitude": -122.009
+   },
+   "place": null
+  }
+ },
+ "webp-xmp.webp": {
+  "nameOrType": "w.webp",
+  "answer": {
+   "kind": "webp",
+   "claimed": "webp",
+   "hasLocation": true,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was taken"
+    },
+    {
+     "key": "place-name",
+     "words": "The name of a place (an address, a city or a country)"
+    },
+    {
+     "key": "camera",
+     "words": "Which camera or phone took it (Apple iPhone 15 Pro)"
+    },
+    {
+     "key": "serial",
+     "words": "The camera's own serial number"
+    },
+    {
+     "key": "lens",
+     "words": "Which lens was used"
+    },
+    {
+     "key": "time",
+     "words": "When it was taken"
+    },
+    {
+     "key": "person",
+     "words": "A person's name (who made it or who owns the camera)"
+    },
+    {
+     "key": "software",
+     "words": "Which program or app made or edited it"
+    }
+   ],
+   "summary": "This photo says where it was taken and which camera took it.",
+   "complete": true,
+   "coordinates": {
+    "latitude": 37.3349,
+    "longitude": -122.009
+   },
+   "place": "Cupertino"
+  }
+ },
+ "webp-trailing.webp": {
+  "nameOrType": "w.webp",
+  "answer": {
+   "kind": "webp",
+   "claimed": "webp",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [
+    {
+     "key": "other",
+     "words": "Other hidden details"
+    }
+   ],
+   "summary": "This photo carries other hidden details.",
+   "complete": true,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "webp-broken.webp": {
+  "nameOrType": "w.webp",
+  "answer": {
+   "kind": "webp",
+   "claimed": "webp",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [
+    {
+     "key": "other",
+     "words": "Other hidden details"
+    }
+   ],
+   "summary": "This photo carries other hidden details.",
+   "complete": false,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "gif.gif": {
+  "nameOrType": "g.gif",
+  "answer": {
+   "kind": "gif",
+   "claimed": "gif",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [],
+   "summary": null,
+   "complete": true,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "webm.webm": {
+  "nameOrType": "clip.webm",
+  "answer": {
+   "kind": "webm",
+   "claimed": "webm",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [],
+   "summary": null,
+   "complete": false,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "other.txt": {
+  "nameOrType": "notes.txt",
+  "answer": {
+   "kind": "other",
+   "claimed": null,
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [],
+   "summary": null,
+   "complete": false,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "named-jpeg-not-one.jpg": {
+  "nameOrType": "IMG_0002.JPG",
+  "answer": {
+   "kind": "other",
+   "claimed": "jpeg",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [],
+   "summary": null,
+   "complete": false,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "mov-apple.mov": {
+  "nameOrType": "IMG_0003.MOV",
+  "answer": {
+   "kind": "mp4",
+   "claimed": "mp4",
+   "hasLocation": true,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was filmed"
+    },
+    {
+     "key": "place-name",
+     "words": "The name of a place (an address, a city or a country)"
+    },
+    {
+     "key": "camera",
+     "words": "Which camera or phone filmed it (Apple iPhone 15 Pro)"
+    },
+    {
+     "key": "lens",
+     "words": "Which lens was used"
+    },
+    {
+     "key": "time",
+     "words": "When it was filmed"
+    },
+    {
+     "key": "software",
+     "words": "Which program or app made or edited it"
+    },
+    {
+     "key": "other",
+     "words": "Other hidden details"
+    }
+   ],
+   "summary": "This video says where it was filmed and which camera filmed it.",
+   "complete": true,
+   "coordinates": {
+    "latitude": 37.3349,
+    "longitude": -122.009
+   },
+   "place": "Infinite Loop"
+  }
+ },
+ "mp4-apple-iso-meta.mp4": {
+  "nameOrType": "video/mp4",
+  "answer": {
+   "kind": "mp4",
+   "claimed": "mp4",
+   "hasLocation": true,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was filmed"
+    },
+    {
+     "key": "place-name",
+     "words": "The name of a place (an address, a city or a country)"
+    },
+    {
+     "key": "camera",
+     "words": "Which camera or phone filmed it (Apple iPhone 15 Pro)"
+    },
+    {
+     "key": "lens",
+     "words": "Which lens was used"
+    },
+    {
+     "key": "time",
+     "words": "When it was filmed"
+    },
+    {
+     "key": "software",
+     "words": "Which program or app made or edited it"
+    },
+    {
+     "key": "other",
+     "words": "Other hidden details"
+    }
+   ],
+   "summary": "This video says where it was filmed and which camera filmed it.",
+   "complete": true,
+   "coordinates": {
+    "latitude": 37.3349,
+    "longitude": -122.009
+   },
+   "place": "Infinite Loop"
+  }
+ },
+ "mp4-android.mp4": {
+  "nameOrType": "VID_1.mp4",
+  "answer": {
+   "kind": "mp4",
+   "claimed": "mp4",
+   "hasLocation": true,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was filmed"
+    },
+    {
+     "key": "camera",
+     "words": "Which camera or phone filmed it (Google Pixel 8)"
+    },
+    {
+     "key": "software",
+     "words": "Which program or app made or edited it"
+    }
+   ],
+   "summary": "This video says where it was filmed and which camera filmed it.",
+   "complete": true,
+   "coordinates": {
+    "latitude": 37.3349,
+    "longitude": -122.009
+   },
+   "place": null
+  }
+ },
+ "mp4-ilst-items.mp4": {
+  "nameOrType": "v.mp4",
+  "answer": {
+   "kind": "mp4",
+   "claimed": "mp4",
+   "hasLocation": true,
+   "hasCamera": false,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was filmed"
+    },
+    {
+     "key": "time",
+     "words": "When it was filmed"
+    },
+    {
+     "key": "person",
+     "words": "A person's name (who made it or who owns the camera)"
+    },
+    {
+     "key": "software",
+     "words": "Which program or app made or edited it"
+    },
+    {
+     "key": "comment",
+     "words": "A title, caption or comment"
+    },
+    {
+     "key": "other",
+     "words": "Other hidden details"
+    }
+   ],
+   "summary": "This video says where it was filmed.",
+   "complete": true,
+   "coordinates": {
+    "latitude": 48.8584,
+    "longitude": 2.2945
+   },
+   "place": null
+  }
+ },
+ "3gp-loci.3gp": {
+  "nameOrType": "video/3gpp",
+  "answer": {
+   "kind": "mp4",
+   "claimed": "mp4",
+   "hasLocation": true,
+   "hasCamera": false,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was filmed"
+    },
+    {
+     "key": "place-name",
+     "words": "The name of a place (an address, a city or a country)"
+    }
+   ],
+   "summary": "This video says where it was filmed.",
+   "complete": true,
+   "coordinates": {
+    "latitude": 37.33489990234375,
+    "longitude": -122.00898742675781
+   },
+   "place": "Grandma's house"
+  }
+ },
+ "3gp-loci-utf16.3gp": {
+  "nameOrType": "c.3gp",
+  "answer": {
+   "kind": "mp4",
+   "claimed": "mp4",
+   "hasLocation": true,
+   "hasCamera": false,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was filmed"
+    },
+    {
+     "key": "place-name",
+     "words": "The name of a place (an address, a city or a country)"
+    }
+   ],
+   "summary": "This video says where it was filmed.",
+   "complete": true,
+   "coordinates": {
+    "latitude": -33.85679626464844,
+    "longitude": 151.2152862548828
+   },
+   "place": "Café Zoë"
+  }
+ },
+ "mp4-xmp-uuid.mp4": {
+  "nameOrType": "v.mp4",
+  "answer": {
+   "kind": "mp4",
+   "claimed": "mp4",
+   "hasLocation": true,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was filmed"
+    },
+    {
+     "key": "place-name",
+     "words": "The name of a place (an address, a city or a country)"
+    },
+    {
+     "key": "camera",
+     "words": "Which camera or phone filmed it (Apple iPhone 15 Pro)"
+    },
+    {
+     "key": "serial",
+     "words": "The camera's own serial number"
+    },
+    {
+     "key": "lens",
+     "words": "Which lens was used"
+    },
+    {
+     "key": "time",
+     "words": "When it was filmed"
+    },
+    {
+     "key": "person",
+     "words": "A person's name (who made it or who owns the camera)"
+    },
+    {
+     "key": "software",
+     "words": "Which program or app made or edited it"
+    }
+   ],
+   "summary": "This video says where it was filmed and which camera filmed it.",
+   "complete": true,
+   "coordinates": {
+    "latitude": 37.3349,
+    "longitude": -122.009
+   },
+   "place": "Cupertino"
+  }
+ },
+ "mp4-udta-xmp.mp4": {
+  "nameOrType": "v.mp4",
+  "answer": {
+   "kind": "mp4",
+   "claimed": "mp4",
+   "hasLocation": false,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "camera",
+     "words": "Which camera or phone filmed it (GoPro HERO12)"
+    }
+   ],
+   "summary": "This video says which camera filmed it.",
+   "complete": true,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "mp4-trak-meta.mp4": {
+  "nameOrType": "v.mp4",
+  "answer": {
+   "kind": "mp4",
+   "claimed": "mp4",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [
+    {
+     "key": "other",
+     "words": "Other hidden details"
+    }
+   ],
+   "summary": "This video carries other hidden details.",
+   "complete": true,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "mp4-camera-items.mp4": {
+  "nameOrType": "v.mp4",
+  "answer": {
+   "kind": "mp4",
+   "claimed": "mp4",
+   "hasLocation": false,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "serial",
+     "words": "The camera's own serial number"
+    },
+    {
+     "key": "lens",
+     "words": "Which lens was used"
+    },
+    {
+     "key": "software",
+     "words": "Which program or app made or edited it"
+    }
+   ],
+   "summary": "This video says which camera filmed it.",
+   "complete": true,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "m4a-recording.m4a": {
+  "nameOrType": "audio/mp4",
+  "answer": {
+   "kind": "mp4",
+   "claimed": "mp4",
+   "hasLocation": false,
+   "hasCamera": true,
+   "details": [
+    {
+     "key": "camera",
+     "words": "Which device recorded it (Zoom)"
+    }
+   ],
+   "summary": "This recording says which device recorded it.",
+   "complete": true,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "mp4-64bit.mp4": {
+  "nameOrType": "v.mp4",
+  "answer": {
+   "kind": "mp4",
+   "claimed": "mp4",
+   "hasLocation": true,
+   "hasCamera": false,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was filmed"
+    }
+   ],
+   "summary": "This video says where it was filmed.",
+   "complete": true,
+   "coordinates": {
+    "latitude": -12.5,
+    "longitude": 45.25
+   },
+   "place": null
+  }
+ },
+ "mp4-top-meta.mp4": {
+  "nameOrType": "v.mp4",
+  "answer": {
+   "kind": "mp4",
+   "claimed": "mp4",
+   "hasLocation": true,
+   "hasCamera": false,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was filmed"
+    }
+   ],
+   "summary": "This video says where it was filmed.",
+   "complete": true,
+   "coordinates": {
+    "latitude": 10,
+    "longitude": 20
+   },
+   "place": null
+  }
+ },
+ "mp4-broken-box.mp4": {
+  "nameOrType": "v.mp4",
+  "answer": {
+   "kind": "mp4",
+   "claimed": "mp4",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [],
+   "summary": null,
+   "complete": false,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "mp4-no-moov.mp4": {
+  "nameOrType": "v.mp4",
+  "answer": {
+   "kind": "mp4",
+   "claimed": "mp4",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [],
+   "summary": null,
+   "complete": false,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "mp4-clean.mp4": {
+  "nameOrType": "v.mp4",
+  "answer": {
+   "kind": "mp4",
+   "claimed": "mp4",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [],
+   "summary": null,
+   "complete": true,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "heic-xmp.heic": {
+  "nameOrType": "IMG_0004.HEIC",
+  "answer": {
+   "kind": "heif",
+   "claimed": "heif",
+   "hasLocation": true,
+   "hasCamera": false,
+   "details": [
+    {
+     "key": "location",
+     "words": "Where it was taken"
+    }
+   ],
+   "summary": "This photo says where it was taken.",
+   "complete": false,
+   "coordinates": {
+    "latitude": 1.0333333333333334,
+    "longitude": 3.066666666666667
+   },
+   "place": null
+  }
+ },
+ "heic-plain.heic": {
+  "nameOrType": "image/heic",
+  "answer": {
+   "kind": "heif",
+   "claimed": "heif",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [],
+   "summary": null,
+   "complete": false,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "mp4-cut-20.mp4": {
+  "nameOrType": "v.mp4",
+  "answer": {
+   "kind": "mp4",
+   "claimed": "mp4",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [],
+   "summary": null,
+   "complete": false,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "mp4-cut-60.mp4": {
+  "nameOrType": "v.mp4",
+  "answer": {
+   "kind": "mp4",
+   "claimed": "mp4",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [],
+   "summary": null,
+   "complete": false,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "mp4-cut-140.mp4": {
+  "nameOrType": "v.mp4",
+  "answer": {
+   "kind": "mp4",
+   "claimed": "mp4",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [],
+   "summary": null,
+   "complete": false,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "mp4-cut-200.mp4": {
+  "nameOrType": "v.mp4",
+  "answer": {
+   "kind": "mp4",
+   "claimed": "mp4",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [],
+   "summary": null,
+   "complete": false,
+   "coordinates": null,
+   "place": null
+  }
+ },
+ "mp4-cut-300.mp4": {
+  "nameOrType": "v.mp4",
+  "answer": {
+   "kind": "mp4",
+   "claimed": "mp4",
+   "hasLocation": false,
+   "hasCamera": false,
+   "details": [],
+   "summary": null,
+   "complete": false,
+   "coordinates": null,
+   "place": null
+  }
+ }
+}

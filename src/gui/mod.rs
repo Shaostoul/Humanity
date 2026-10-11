@@ -2164,6 +2164,8 @@ pub struct GuiState {
     /// the signing key).
     #[cfg(feature = "native")]
     pub clipboard_upload: Option<(String, std::sync::mpsc::Receiver<Result<String, String>>)>,
+    /// A file's attach step, people's `accepts_files`, kept files (pages/chat/attach_step.rs).
+    pub files_flow: crate::gui::pages::chat::FilesFlow,
     /// PIN entry buffer (active digit-only field on the PinSetup /
     /// PinUnlock / PinChange modal forms).
     pub pin_input: String,
@@ -3950,6 +3952,7 @@ impl Default for GuiState {
             pin_unlock_rx: None,
             #[cfg(feature = "native")]
             clipboard_upload: None,
+            files_flow: Default::default(),
             pin_input: String::new(),
             pin_confirm: String::new(),
             pin_old_input: String::new(),
@@ -4622,6 +4625,8 @@ pub struct SettingsState {
     /// The report dialog's "Help outside this server" country, last picked on this device (10e-ii):
     /// a code, "other", or empty (never picked). Kept here only; never sent anywhere.
     pub outside_help_country: String,
+    /// Files in messages, the attach step's switch, the kept files cap (net/files_policy.rs).
+    pub files_in_messages: crate::net::files_policy::FilesInMessages,
     // Data
     pub seed_phrase_visible: bool,
     // Restoring from the recovery phrase
@@ -4728,6 +4733,7 @@ impl Default for SettingsState {
             privacy_tier: String::new(),
             warnings_on_messages: true,
             outside_help_country: String::new(),
+            files_in_messages: Default::default(),
             seed_phrase_visible: false,
             seed_phrase_input: String::new(),
             seed_phrase_recovery_status: String::new(),

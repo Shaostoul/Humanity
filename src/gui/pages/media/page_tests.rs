@@ -273,7 +273,9 @@ fn a_file_over_the_share_is_stopped_before_it_starts() {
     let (ctx, theme) = ctx_and_theme();
     let mut state = page_state(demo_answer(), true);
     state.media.mine = Some(Mine { used_bytes: 600 * 1024, in_progress_bytes: 300 * 1024, share_bytes: 1024 * 1024, budget_left_bytes: 1 << 40, ..Default::default() });
-    let file = crate::test_temp::file("media_over_share", "png");
+    // A stand-in of zeros, so not named as a picture: a ".png" that is not one could not be checked
+    // for hidden location and is not sent to Media at all (2026-10-11).
+    let file = crate::test_temp::file("media_over_share", "dat");
     std::fs::write(&file, vec![0u8; 300 * 1024]).unwrap();
 
     add::picked(&mut state, &file);
@@ -281,7 +283,11 @@ fn a_file_over_the_share_is_stopped_before_it_starts() {
     assert!(state.media.status.contains("This file is 0.3 MB, more than the 0.1 MB left of your share"), "it says why: {}", state.media.status);
 
     // The form opened before the numbers were known; now they are, and too small.
-    state.media.form = Some(add::Form::new(add::Source::Picked { path: file.to_path_buf(), name: "big.png".into(), len: 300 * 1024 }));
+    let form = add::Form::new(add::Source::Picked { path: file.to_path_buf(), name: "big.dat".into(), len: 300 * 1024 });
+    // What the file says, already worked out (the worker's answer, so the frames do not race it).
+    let look = crate::net::file_clean::look_file(&file, "big.dat").map_err(|e| e.to_string());
+    state.media.look = Some((form.id, crate::gui::pages::chat::attach_step::Looking::known(look)));
+    state.media.form = Some(form);
     state.private_key_bytes = Some(vec![7u8; 32]);
     let out = settled(&ctx, &theme, &mut state);
     assert!(shows(&out, "You have 0.1 MB of your 1 MB left"), "the share is shown above the form");
