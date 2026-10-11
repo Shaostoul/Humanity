@@ -4,7 +4,8 @@
 //! lands in the checkout's data folder, nothing leaves the machine), and the app's own clients
 //! talking to them: the resumable upload (`resumable::Http`), the ticket (`ticket::ask`) and the
 //! download (`open::fetch_to`). The other round 3 tests answer with stand-ins written from the
-//! design's shapes; these hold the app to what the relay actually answers. Each was seen to fail
+//! design's shapes; these hold the app to what the relay actually answers. Since round 4 they
+//! hold the app's cancel to the relay's R4-2 answer too (the last test). Each was seen to fail
 //! once before it passed; what it saw red is in its comment.
 
 use super::*;
@@ -237,6 +238,76 @@ fn the_servers_unfinished_upload_is_listed_and_cancelled_on_the_real_relay() {
         assert!(Instant::now() < deadline, "its Cancel ends the relay's session");
         std::thread::sleep(Duration::from_millis(20));
     }
+}
+
+/// Upload `n` bytes as `tag` through the real relay with the app's own client, to the end: the
+/// server's id for it and the stored file's name.
+fn upload_whole(r: &Relay, tag: &str, n: usize) -> (String, String) {
+    let (_f, plan, _) = clip(tag, n);
+    let ctl = Arc::new(resumable::Control::with_pace(Some("tok_ann".into()), Duration::from_millis(5)));
+    let (tx, rx) = std::sync::mpsc::channel();
+    let (worker_ctl, base) = (ctl.clone(), r.base.clone());
+    let handle = std::thread::spawn(move || resumable::work(&resumable::Http::new(&base), &worker_ctl, &plan, &tx));
+    let mut id = String::new();
+    loop {
+        match rx.recv_timeout(Duration::from_secs(20)).expect("the upload goes") {
+            resumable::Event::Started { id: started } => id = started,
+            resumable::Event::Done { answer } => {
+                handle.join().unwrap();
+                return (id, resumable::stored_name_of(&answer));
+            }
+            e @ (resumable::Event::Failed { .. } | resumable::Event::Cancelled { .. }) => panic!("the upload ended: {e:?}"),
+            _ => {}
+        }
+    }
+}
+
+/// Cancel the server's upload `id` from the page, as its Cancel does, and read the answer.
+fn cancel_from_the_page(r: &Relay, id: &str) -> GuiState {
+    let mut state = super::tests::page_state(Default::default(), false);
+    state.server_url = r.base.clone();
+    sync_server(&mut state);
+    state.media.requested = true;
+    state.upload_token = Some((r.base.clone(), "tok_ann".into()));
+    assert!(uploading::cancel_on_server(&mut state, id), "the cancel is asked");
+    let ctx = egui::Context::default();
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while state.media.jobs.iter().any(|(j, _)| matches!(j, Job::Discard { .. })) {
+        poll(&ctx, &mut state);
+        assert!(Instant::now() < deadline, "the relay answers the cancel");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    state
+}
+
+/// A CANCEL OF A FINISHED UPLOAD LEAVES NOTHING ON THE REAL RELAY, AND ONE ALREADY ON MEDIA STAYS
+/// (round 4: R4-2 and D4-2): an upload whose every piece arrived and was stored, but not
+/// published, is cancelled from the page (the relay's own `DELETE`, the token in the header); the
+/// relay answers `removed_stored`, its stored file and session are gone, and the page says
+/// "Cancelled". One already published is answered `published`: the item stays, and the page says
+/// so, never "Cancelled".
+///
+/// Seen red 2026-10-11 with `upload_cancel::settle` reading `published` under another name
+/// ("on_media"): "the page says the item stays" (left: "Cancelled: nothing of it stays on the
+/// server.").
+#[test]
+fn a_finished_upload_cancelled_on_the_real_relay_leaves_nothing() {
+    let r = relay("desk_r4_cancel");
+    r.person("ann", "tok_ann");
+    let (id, stored) = upload_whole(&r, "desk_r4_cancel_a", 300_000);
+    assert!(r.dirs.waiting.join(&stored).exists(), "stored, waiting to be published");
+    let state = cancel_from_the_page(&r, &id);
+    assert_eq!(state.media.status, uploading::CANCELLED_LINE, "confirmed by the relay");
+    assert!(!r.dirs.waiting.join(&stored).exists(), "the stored file is gone");
+    assert!(r.state.db.upload_session(&id).unwrap().is_none(), "and the session");
+
+    let (id, stored) = upload_whole(&r, "desk_r4_cancel_b", 300_000);
+    let settings = r.state.db.get_server_settings().unwrap();
+    let body = crate::relay::media::PublishBody { key: "ann".into(), filename: stored.clone(), ..Default::default() };
+    crate::relay::media::publish_core(&r.state.db, &settings, &[], r.dirs.folders(), &body).expect("published");
+    let state = cancel_from_the_page(&r, &id);
+    assert_eq!(state.media.status, upload_cancel::ALREADY_ON_MEDIA, "the page says the item stays");
+    assert!(r.state.db.media_item_for_upload(&stored).unwrap().is_some(), "and it does");
 }
 
 /// A MEMBERS-ONLY FILE COMES THROUGH A TICKET FROM THE REAL RELAY (R3-8): the app asks the relay's

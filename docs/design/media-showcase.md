@@ -1531,12 +1531,18 @@ the cancel answer exactly as stated at the top of this round before the relay's 
 tested against stand-in answers in those shapes (the server simulated in resumable_tests.rs now
 answers a cancel as R4-2 says: `{ok: true}`, `{ok: true, removed_stored: true}` for a finished
 upload, removing its stored file, `{ok: true, published: true}`, and 409 `{busy: true}` when a test
-scripts it). Code: gui/pages/media/ `upload_cancel.rs` (new), `resumable.rs`, `upload_waits.rs`,
-`uploading.rs`, `publishing.rs`, `waiting.rs`, `upload_run.rs`, `add.rs`, `open.rs`, `tiles.rs`,
-media.rs; gui/pages/server_settings/media.rs; gui/connections.rs (`GuiState::active_server`).
-Tests: gui/pages/media/`round4_tests.rs` (new, 11 tests) and one in `upload_cancel.rs`, each seen
-failing once against a deliberate break of the code it guards (the break and what it saw red are
-written at the test); and the round 3 tests whose expectations this round changes, each saying how
+scripts it), then run against the relay's own cancel once its round 4 landed (the note just
+above): relay_round3_tests.rs `a_finished_upload_cancelled_on_the_real_relay_leaves_nothing`
+uploads to the relay's own routes on a loopback port and cancels from the page, and the relay's
+`removed_stored` and `published` answers read as built here, nothing changed for them. Its 500
+with plain words, when the stored file cannot be deleted, is asked again like any 5xx and, after
+the ceiling, shown in the relay's words. Code: gui/pages/media/ `upload_cancel.rs` (new),
+`resumable.rs`, `upload_waits.rs`, `uploading.rs`, `publishing.rs`, `waiting.rs`, `upload_run.rs`,
+`add.rs`, `open.rs`, `tiles.rs`, media.rs; gui/pages/server_settings/media.rs; gui/connections.rs
+(`GuiState::active_server`). Tests: gui/pages/media/`round4_tests.rs` (new, 11 tests), one in
+`upload_cancel.rs` and the real relay's one above, each seen failing once against a deliberate
+break of the code it guards (the break and what it saw red are written at the test); and the
+round 3 tests whose expectations this round changes, each saying how
 (page_tests.rs `an_upload_a_restart_cut_off_is_offered_again`, uploads_tests.rs
 `the_servers_unfinished_uploads_are_shown_with_cancel`, and resumable_tests.rs
 `a_file_that_can_no_longer_be_read_ends_the_upload`, which cut the file at `Started` and was seen
@@ -1610,4 +1616,5 @@ cuts the file while the upload waits for an allowance).
   round 3). When its worker's take-off is then refused, the page says so and points to Remove, but
   the uploads list no longer offers it.
 - Against a relay from before R4-2, a cancel of a finished upload answers a plain `{ok: true}` and
-  leaves its stored file in the waiting folder for a day, while the app says "Cancelled".
+  leaves its stored file in the waiting folder for a day, while the app says "Cancelled" (no
+  compatibility before launch: the live relay runs R4-2 once this round is deployed).
