@@ -44,11 +44,14 @@ Each one is required between planets, and each one already pays off on Earth.
 3. **There is no single "now".** Clocks disagree, and a message written later can arrive first.
    So the order of things comes from what each author had seen when they wrote (logical clocks),
    and edits made apart merge without asking anyone (the family of techniques called CRDTs, data
-   that merges by rule). *On Earth now:* this is exactly the two-devices problem the friendship
-   choices just hit (blocking-and-safe-mode.md 10m and 10n): the same person on a phone and a PC,
-   each offline for a while. Today's rule there, "newer signed time wins", trusts device clocks;
-   a hybrid logical clock (wall time plus a counter that only moves forward) keeps the simplicity
-   and stops a wrong clock from winning.
+   that merges by rule). *On Earth now:* this is the two-devices problem the friendship choices hit
+   (blocking-and-safe-mode.md 10m and 10n): the same person on a phone and a PC, each offline for a
+   while. The choice notes already use the core of a hybrid logical clock: a new choice is dated
+   after the newest one the device has seen for that friend, even when its own clock is behind
+   (`DmStore::choose` in src/net/dm_store.rs, and the web's chat-dm-store.js). Signed profiles do
+   not: the relay keeps the one with the latest timestamp and accepts timestamps up to 24 hours
+   ahead (src/relay/storage/signed_profiles.rs), so a device whose clock runs two hours fast
+   publishes a profile that silently beats every edit from a correct device for those two hours.
 4. **Read near you, sync across the gap.** Each planet (on Earth: each region, each community)
    keeps its own servers with copies of what its people read, and syncs with the others by
    exchanging bundles. Nobody on Mars waits 44 minutes for a page that is already on Mars. *On
@@ -83,8 +86,9 @@ Each one is required between planets, and each one already pays off on Earth.
 
 1. Keep every new protocol in the signed-bundle shape (rule 1) and one-way where it can be
    (rule 2). This is already the house pattern; it becomes a written rule here.
-2. Replace "newer signed time wins" with a hybrid logical clock where ordering matters between a
-   person's devices (rule 3), starting with the friendship choice notes.
+2. Date every "latest wins" record after the newest one already seen (rule 3), as the choice
+   notes do: first signed profiles (the app reads its own current profile's timestamp before
+   signing an edit), then anything else a person edits from more than one device.
 3. Show delivery honestly (rule 6), starting with DMs and file transfers.
 4. Build sync as "compare fingerprints, send what is missing" (rule 5) when cross-server mailboxes
    and file pieces are built (eight-billion.md and file-transfer-at-scale.md).
