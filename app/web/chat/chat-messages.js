@@ -438,20 +438,25 @@ function loadImage(placeholder, url) {
 }
 
 // The largest file sent into a private conversation (a DM, a group, the
-// scratch pad), and the fallback for a server's room until the server says my
-// own limit (window.myUploadLimitBytes, from my peer-list entry, 2026-10-10).
-// A private file is decrypted in memory on the receiving side, which refuses
-// more (the desktop app's chat/attach_view.rs MAX_CIPHERTEXT), so a bigger one
-// would upload and never open.
+// scratch pad) until the server has said my own private limit, and the
+// fallback for a server's room until it has said my upload limit. The server
+// says both in my own peer-list entry: `upload_limit_mb` (my role's limit for
+// one file in a room, window.myUploadLimitBytes, 2026-10-10) and
+// `private_limit_mb` (my role's largest file in a private conversation,
+// window.myPrivateLimitBytes, 2026-10-11, Server Settings > Roles), which the
+// server holds an encrypted upload to instead of the room's limit.
 const MAX_ATTACHMENT_BYTES = 6 * 1024 * 1024;
 
 /** The most a file may be for where it is going now: the desktop app's attach_send.rs limit_for. */
 function attachmentLimit() {
+  const known = (n) => Number.isFinite(n) && n > 0;
+  // A private conversation: my role's private limit, once the server has said it.
+  if (privateConversationNow()) {
+    const priv = Number(window.myPrivateLimitBytes);
+    return known(priv) ? priv : MAX_ATTACHMENT_BYTES;
+  }
   const mine = Number(window.myUploadLimitBytes);
-  const known = Number.isFinite(mine) && mine > 0;
-  // A private conversation: never over 6 MB, and never over my own limit either.
-  if (privateConversationNow()) return known ? Math.min(mine, MAX_ATTACHMENT_BYTES) : MAX_ATTACHMENT_BYTES;
-  return known ? mine : MAX_ATTACHMENT_BYTES;
+  return known(mine) ? mine : MAX_ATTACHMENT_BYTES;
 }
 
 /** The upload address with this session's token, or null before the server has sent one: a bare
@@ -470,7 +475,7 @@ function attachmentTooLarge(file) {
     const sizeMB = (file.size / 1024 / 1024).toFixed(1);
     const limitMB = Math.round(limit / 1024 / 1024);
     addSystemMessage(privateConversationNow()
-      ? `"${file.name}" is ${sizeMB} MB. Files in a private conversation can be up to ${limitMB} MB for now; a bigger one can go in a server's room, where your limit may be higher.`
+      ? `"${file.name}" is ${sizeMB} MB. Files in a private conversation can be up to ${limitMB} MB for your role on this server. An admin can change that in Server Settings > Roles.`
       : `"${file.name}" is ${sizeMB} MB, over your ${limitMB} MB limit on this server. An admin can raise it in Server Settings > Roles.`);
     return true;
   }
@@ -478,7 +483,7 @@ function attachmentTooLarge(file) {
 }
 
 async function uploadImage(file) {
-  // Client-side size guard: abort before uploading anything over the 6 MB cap.
+  // Client-side size guard: abort before uploading anything over my limit here (attachmentLimit).
   if (attachmentTooLarge(file)) return null;
   // The file's name goes to the server with it: never my recovery phrase
   // (step F, chat-warnings.js).
@@ -574,8 +579,8 @@ async function sendEncryptedAttachment(file) {
   // holds the key, so it would make the file public).
   const target = privateConversationNow();
   if (!target) return;
-  // Same 6 MB cap applies to encrypted attachments (the ciphertext upload
-  // hits the same nginx body limit). Guard before encrypting/uploading.
+  // My role's private limit (attachmentLimit), which the server holds an
+  // encrypted upload to. Guard before encrypting/uploading.
   if (attachmentTooLarge(file)) return;
   // The file's name rides in the sealed message: never my recovery phrase
   // (step F, chat-warnings.js).
@@ -594,12 +599,19 @@ async function sendEncryptedAttachment(file) {
   const indicator = document.getElementById('upload-indicator');
   try {
     if (indicator) { indicator.textContent = `Encrypting ${file.name}…`; indicator.style.display = 'block'; }
-    const bytes = new Uint8Array(await file.arrayBuffer());
+    // WebCrypto's AES-GCM takes the whole file and gives the whole ciphertext, so while it
+    // encrypts the page holds both. After that only one copy is kept at a time (round 3,
+    // review 7): the plain bytes are let go before the upload, and the ciphertext once the
+    // upload's Blob holds its own copy of it.
+    let bytes = new Uint8Array(await file.arrayBuffer());
     const enc = await pqEncryptFile(bytes);
+    bytes = null;
     if (indicator) indicator.textContent = `Uploading ${file.name}…`;
     const uploadBase = `${uploadBase0}&encrypted=1`;
+    const sealed = new Blob([enc.cipherBytes], { type: 'application/octet-stream' });
+    enc.cipherBytes = null;
     const fd = new FormData();
-    fd.append('file', new Blob([enc.cipherBytes], { type: 'application/octet-stream' }), 'attachment.enc');
+    fd.append('file', sealed, 'attachment.enc');
     const resp = await fetch(uploadBase, { method: 'POST', body: fd });
     if (!resp.ok) { addSystemMessage(`Upload failed: ${await resp.text()}`); return; }
     const data = await resp.json();

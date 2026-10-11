@@ -301,6 +301,8 @@
     // exact mirror of the app header. Web-only pages still light up where sensible.
     if (p === '/') active = 'humanity';
     else if (p.startsWith('/chat'))      active = 'chat';
+    // Media sits beside Watch, and Watch lights the Chat tab (watch.html).
+    else if (p.startsWith('/media'))     active = 'chat';
     else if (p.startsWith('/studio'))    active = 'studio';
     else if (p.startsWith('/profile'))   active = 'profile';
     else if (p.startsWith('/identity'))   active = 'identity';
@@ -1083,6 +1085,9 @@
       // Live streams broadcast from the desktop app's Studio page, fanned out by our
       // own relay. No third-party platform, and no sign-up needed to watch. (v0.855)
       mobileLink('/watch',   'Watch') +
+      // The Media page (2026-10-11): pictures, videos, 3D models and files people
+      // on this server chose to share; beside Watch, as on the desktop app.
+      mobileLink('/media',   'Media') +
       mobileLink('/wallet',    'Wallet') +
       mobileLink('/market',    'Market') +
       mobileLink('/trade',     'Trade') +
@@ -1283,6 +1288,19 @@
 
       tip.innerHTML = html;
       tip.style.display = 'block';
+      // A control inside a bar marked data-tip-above (the chat composer) opens its hint above the
+      // whole bar, held there, never over the text being typed (operator, 2026-10-11: the attach
+      // hint, shown again when focus came back from the file picker, covered the chat bar).
+      var bar = el.closest ? el.closest('[data-tip-above]') : null;
+      if (bar) {
+        var b = bar.getBoundingClientRect(), r = el.getBoundingClientRect();
+        var bw = Math.min(320, tip.offsetWidth || 320), bh = tip.offsetHeight || 80;
+        tip.style.left = Math.max(8, Math.min(r.left, window.innerWidth - bw - 8)) + 'px';
+        tip.style.top = Math.max(8, b.top - bh - 8) + 'px';
+        tip.setAttribute('data-held', '1');
+        return;
+      }
+      tip.removeAttribute('data-held');
       // Keep tooltip inside viewport, prefer below-right of cursor
       var tw = 320, th = tip.offsetHeight || 80;
       var tx = x + 14;
@@ -1321,6 +1339,7 @@
     });
     document.addEventListener('mousemove', function(e) {
       if (tip.style.display !== 'block') return;
+      if (tip.getAttribute('data-held') === '1') return; // a hint above a bar stays put
       var tw = 320, th = tip.offsetHeight || 80;
       var tx = (e.clientX || 8) + 14, ty = (e.clientY || 8) + 14;
       if (tx + tw > window.innerWidth  - 8) tx = (e.clientX || 8) - tw - 8;
@@ -1877,7 +1896,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.1484.0';
+    var CURRENT_VERSION = '0.1485.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

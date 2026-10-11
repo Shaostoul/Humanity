@@ -28,7 +28,7 @@
   <link rel="stylesheet" href="/chat/base.css?v=3">
   <link rel="stylesheet" href="/chat/layout.css?v=3">
   <link rel="stylesheet" href="/chat/sidebar.css?v=3">
-  <link rel="stylesheet" href="/chat/messages.css?v=5">
+  <link rel="stylesheet" href="/chat/messages.css?v=6">
   <link rel="stylesheet" href="/chat/modals.css?v=4">
   <link rel="stylesheet" href="/chat/voice.css?v=3">
   <link rel="stylesheet" href="/chat/inputs.css?v=3">
@@ -405,7 +405,7 @@
         <div id="cmd-palette-overlay" onclick="closeCmdPalette()">
           <div id="cmd-palette" onclick="event.stopPropagation()"></div>
         </div>
-        <div id="input-area">
+        <div id="input-area" data-tip-above>
           <button id="cmd-palette-btn" onclick="toggleCmdPalette()"
             data-tip-title="Command Palette"
             data-tip-hotkey="Ctrl + K"
@@ -414,8 +414,8 @@
           <button id="attach-btn" onclick="document.getElementById('file-upload-input').click()"
             data-tip-title="Attach File"
             data-tip-desc="Upload an image or file to share in this channel."
-            data-tip-detail="Supports images, video, audio, PDF, text, JSON, ZIP (up to 6 MB)"><span class="pg-ico" data-icon="clip" data-size="16"></span></button>
-          <input type="file" id="file-upload-input" style="display:none;" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.md,.json,.zip,.tar.gz,.mp3,.mp4,.webm,.ogg,.wav,.blend,.stl,.obj,.gltf,.glb" onchange="handleFileAttachment(event)">
+            data-tip-detail="Images, video, audio, PDF, text, JSON, ZIP and 3D models. The size limit is your role's on this server, and smaller in private conversations."><span class="pg-ico" data-icon="clip" data-size="16"></span></button>
+          <input type="file" id="file-upload-input" style="display:none;" accept=".png,.jpg,.jpeg,.gif,.webp,.heic,.heif,.avif,.pdf,.txt,.md,.json,.zip,.tar.gz,.mp3,.mp4,.webm,.ogg,.wav,.blend,.stl,.obj,.gltf,.glb" onchange="handleFileAttachment(event)">
           <textarea id="msg-input" placeholder="Type a message…" rows="1" disabled></textarea>
           <button id="send-btn" onclick="sendMessage()"
             data-tip-title="Send Message"
@@ -686,7 +686,7 @@
   <!-- report.js: the words a report signs, its evidence and the Report dialog's words
        (step D, 2026-10-09), shared with Node tests that pin it to the relay. Before
        crypto.js (pqBuildReport) and chat-reports.js. -->
-  <script src="/shared/report.js?v=2"></script>
+  <script src="/shared/report.js?v=3"></script>
   <!-- group-report.js: a report about a group reaches the group's creator (10j, 2026-10-10): the
        marker, the limits, the dialog's choices and words, and the creator's checks against their
        own copy of the group, shared with Node tests. After report.js (its file rule), before
@@ -719,9 +719,9 @@
        Load before app.js so its renderers can call them. -->
   <script src="/chat/view/timestampPill.js?v=1"></script>
   <script src="/chat/view/messageRow.js?v=1"></script>
-  <script src="/chat/app.js?v=24"></script>
-  <script src="/chat/chat-messages.js?v=11"></script>
-  <script src="/chat/chat-dms.js?v=13"></script>
+  <script src="/chat/app.js?v=25"></script>
+  <script src="/chat/chat-messages.js?v=13"></script>
+  <script src="/chat/chat-dms.js?v=14"></script>
   <script src="/chat/chat-social.js?v=17"></script>
   <script src="/chat/chat-groups-p2p.js?v=16"></script>
   <script src="/chat/chat-ui.js?v=14"></script>
@@ -742,7 +742,7 @@
   <script src="/chat/chat-game-admin.js?v=3"></script>
   <!-- Reports (step D, 2026-10-09): the Report dialog and the Reports view for admins
        and moderators. After chat-privacy.js (Block, which the dialog can run). -->
-  <script src="/chat/chat-reports.js?v=5"></script>
+  <script src="/chat/chat-reports.js?v=6"></script>
   <!-- Warnings on messages and the recovery-phrase guard (step F, 2026-10-10): warnings under
        received DMs and group messages, the stranger link line, the Safety switch, and the check
        every send path runs before anything I wrote leaves. -->

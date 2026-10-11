@@ -269,6 +269,11 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
 //    link from them is (app.js formatBody);
 //  - anything else is a card with its name and size and a Save button, which
 //    fetches and opens it only when pressed;
+//  - by size (round 3, review 7): a picture is shown in place only up to
+//    16 MB (larger, it is a Save card saying so), Save opens a file up to
+//    512 MB, and a larger file is a card saying to open it in the desktop app,
+//    with nothing fetched; a picture opened once is kept for this page, so a
+//    conversation drawn again does not download it again;
 //  - a fetch or an opening that fails says "This file could not be opened.",
 //    and the ciphertext is never shown.
 // Only a file on this server is fetched (a `/uploads/` path, which is what the
@@ -284,6 +289,52 @@ const PRIVATE_FILE_PICTURE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'ima
 // The files the reader chose to load, by address, for this page only, so a
 // conversation drawn again (a group redraws on each new message) keeps them.
 const privateFilesLoaded = new Set();
+
+// What a browser can hold (docs/design/media-showcase.md round 3, review 7). A
+// private file is fetched whole and opened at once (WebCrypto's AES-GCM takes
+// the whole ciphertext and gives the whole file), so the page holds it about
+// twice while it opens: pictures are shown in place up to 16 MB, any file is
+// saved up to 512 MB, and a larger one is a card saying to open it in the
+// desktop app, which reads it in pieces. The sizes are the marker's (the
+// sender's word), and the server's own length is held to them as well.
+const PRIVATE_PICTURE_INLINE_MAX = 16 * 1024 * 1024;
+const PRIVATE_FILE_SAVE_MAX = 512 * 1024 * 1024;
+// AES-GCM adds its 16-byte tag; a little more is allowed for nothing else.
+const PRIVATE_FILE_SEAL_BYTES = 1024;
+// Opened pictures kept for redraws, at most this much of them.
+const PRIVATE_OPENED_KEEP_BYTES = 128 * 1024 * 1024;
+const _mbWords = (n) => Math.round(n / (1024 * 1024)) + ' MB';
+
+/** The file's size as its marker says it, 0 when it does not. */
+function privateFileSize(meta) {
+  const n = Number(meta && meta.size);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/**
+ * How a private file is offered: 'picture' (shown in place, at once for a
+ * friend, else on a click), 'save' (a card with Save: any other file, and a
+ * picture over 16 MB) or 'desktop' (over 512 MB: a card saying to open it in
+ * the desktop app, nothing fetched).
+ */
+function privateFileWay(meta) {
+  const size = privateFileSize(meta);
+  if (size > PRIVATE_FILE_SAVE_MAX) return 'desktop';
+  if (privateFileIsPicture(meta) && size <= PRIVATE_PICTURE_INLINE_MAX) return 'picture';
+  return 'save';
+}
+
+/** The card's note for a file too large to show or to open here, or ''. */
+function privateFileNote(meta) {
+  const way = privateFileWay(meta);
+  if (way === 'desktop') {
+    return 'This file is ' + _fmtBytes(privateFileSize(meta)) + ', more than a browser can open (up to ' + _mbWords(PRIVATE_FILE_SAVE_MAX) + '). Open it in the HumanityOS desktop app.';
+  }
+  if (way === 'save' && privateFileIsPicture(meta)) {
+    return 'This picture is ' + _fmtBytes(privateFileSize(meta)) + ', larger than is shown here (up to ' + _mbWords(PRIVATE_PICTURE_INLINE_MAX) + '). Save it to see it.';
+  }
+  return '';
+}
 
 function _fmtBytes(n) {
   n = Number(n) || 0;
@@ -319,39 +370,97 @@ function privateFileHidden(fromKey) {
 /** The body of a message that is a file: the protected setup's line, or the card. */
 function privateFileHtml(meta, fromKey) {
   if (privateFileHidden(fromKey) && typeof protectedPictureHiddenHtml === 'function') return protectedPictureHiddenHtml();
-  const isPicture = privateFileIsPicture(meta);
-  const now = isPicture && (privateFileFromFriend(fromKey) || privateFilesLoaded.has(meta.url));
+  const way = privateFileWay(meta);
+  const now = way === 'picture' && (privateFileFromFriend(fromKey) || privateFilesLoaded.has(meta.url));
+  // The note's words (a picture too large to show here, a file too large for a browser) are
+  // written by hydratePrivateFile with textContent.
+  const note = privateFileNote(meta) ? '<div class="enc-attach-note"></div>' : '';
   return `<div class="enc-attach" data-enc="1">
     <div class="enc-attach-head">${hosIcon('lock', 12)} <span>${esc(meta.name || 'file')}</span>
       <span class="enc-attach-size">${_fmtBytes(meta.size)}</span></div>
-    <div class="enc-attach-body">${!isPicture
-      ? '<button type="button" class="enc-attach-dl">Save</button>'
-      : now
-        ? '<div class="enc-attach-loading">Opening image…</div>'
-        : '<button type="button" class="enc-attach-load">' + hosIcon('image', 14) + ' Image (click to load)</button>'}</div>
+    <div class="enc-attach-body">${way === 'desktop'
+      ? note
+      : way === 'save'
+        ? note + '<button type="button" class="enc-attach-dl">Save</button>'
+        : now
+          ? '<div class="enc-attach-loading">Opening image…</div>'
+          : '<button type="button" class="enc-attach-load">' + hosIcon('image', 14) + ' Image (click to load)</button>'}</div>
   </div>`;
 }
 
 /**
  * Fetch a file's ciphertext from this server and open it with the key in its
  * marker. A Blob of the opened bytes, or null when the address is not a file
- * on this server, the fetch fails, or the bytes do not open (a wrong key or
- * altered bytes): the caller then says the file could not be opened.
+ * on this server, the fetch fails, the file is larger than `max` (the marker's
+ * size is the sender's word, so the server's own length is checked too), or the
+ * bytes do not open (a wrong key or altered bytes): the caller then says the
+ * file could not be opened. The ciphertext is let go as soon as it is opened.
  */
-async function openPrivateFile(meta) {
+async function openPrivateFile(meta, max) {
   try {
     const url = meta && typeof meta.url === 'string' ? meta.url : '';
     if (!/^\/uploads\/[^\s?#\\]+$/.test(url) || url.includes('..')) return null;
+    const limit = (Number(max) || PRIVATE_FILE_SAVE_MAX) + PRIVATE_FILE_SEAL_BYTES;
     const resp = await fetch(url);
     if (!resp || !resp.ok) return null;
-    const ct = new Uint8Array(await resp.arrayBuffer());
+    const said = resp.headers && typeof resp.headers.get === 'function' ? Number(resp.headers.get('content-length')) : NaN;
+    if (Number.isFinite(said) && said > limit) {
+      try { if (resp.body && typeof resp.body.cancel === 'function') resp.body.cancel(); } catch (e) { /* already closed */ }
+      return null;
+    }
+    let ct = new Uint8Array(await resp.arrayBuffer());
+    if (ct.length > limit) return null;
     const plain = await pqDecryptFile(ct, meta.k, meta.n);
+    ct = null;
     if (!plain) return null;
-    const type = privateFileIsPicture(meta) ? String(meta.mime).toLowerCase() : 'application/octet-stream';
+    const type = privateFileWay(meta) === 'picture' ? String(meta.mime).toLowerCase() : 'application/octet-stream';
     return new Blob([plain], { type });
   } catch (e) {
     return null;
   }
+}
+
+/**
+ * A picture opened once is kept for this page (its object URL, by address and
+ * key), so a conversation drawn again (a group redraws on every new message,
+ * a DM on every open) shows it without downloading it again. At most
+ * PRIVATE_OPENED_KEEP_BYTES of them; the oldest beyond that are let go.
+ */
+const privateFilesOpened = new Map(); // address + '\n' + key -> {url, size} or {pending: Promise}
+let privateOpenedBytes = 0;
+
+async function openPrivatePicture(meta) {
+  const key = String(meta.url) + '\n' + String(meta.k);
+  const have = privateFilesOpened.get(key);
+  if (have && have.pending) return have.pending;
+  if (have) {
+    // Kept as the newest: the one just shown is the last to go.
+    privateFilesOpened.delete(key);
+    privateFilesOpened.set(key, have);
+    return have.url;
+  }
+  const pending = (async () => {
+    const blob = await openPrivateFile(meta, PRIVATE_PICTURE_INLINE_MAX);
+    if (!blob) { privateFilesOpened.delete(key); return null; }
+    const url = URL.createObjectURL(blob);
+    // Taken out and put back, so it is the newest: a Map keeps a key where it was first set, and
+    // its placeholder was set when it was asked for. Left there, a picture that finished after
+    // later ones sat before them, the sweep below stopped at it, and nothing was let go (round 4,
+    // W4-4: 20 pictures finishing in reverse kept 320 MB against the 128 MB bound).
+    privateFilesOpened.delete(key);
+    privateFilesOpened.set(key, { url, size: blob.size });
+    privateOpenedBytes += blob.size;
+    for (const [k, v] of privateFilesOpened) {
+      if (privateOpenedBytes <= PRIVATE_OPENED_KEEP_BYTES || k === key) break;
+      if (v.pending) continue;
+      privateFilesOpened.delete(k);
+      privateOpenedBytes -= v.size;
+      try { URL.revokeObjectURL(v.url); } catch (e) { /* already gone */ }
+    }
+    return url;
+  })();
+  privateFilesOpened.set(key, { pending });
+  return pending;
 }
 
 /** Wire a drawn file card: show a picture (now, or on its click), or Save. Never runs while the file is hidden. */
@@ -361,15 +470,24 @@ async function hydratePrivateFile(el, meta, fromKey) {
   const bodyEl = card && card.querySelector('.enc-attach-body');
   if (!bodyEl) return;
   const failed = () => { bodyEl.innerHTML = '<div class="enc-attach-failed">' + esc(PRIVATE_FILE_FAILED) + '</div>'; };
+  const way = privateFileWay(meta);
+  const words = privateFileNote(meta);
+  if (words) {
+    const note = bodyEl.querySelector('.enc-attach-note');
+    if (note) note.textContent = words;
+  }
 
-  if (!privateFileIsPicture(meta)) {
+  // Too large for a browser to open: the note says where it can be opened, and nothing is fetched.
+  if (way === 'desktop') return;
+
+  if (way === 'save') {
     const btn = bodyEl.querySelector('.enc-attach-dl');
     if (!btn) return;
     btn.onclick = async (e) => {
       if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
       btn.disabled = true;
       btn.textContent = 'Saving…';
-      const blob = await openPrivateFile(meta);
+      const blob = await openPrivateFile(meta, PRIVATE_FILE_SAVE_MAX);
       if (!blob) { failed(); return; }
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -387,9 +505,8 @@ async function hydratePrivateFile(el, meta, fromKey) {
 
   const show = async () => {
     bodyEl.innerHTML = '<div class="enc-attach-loading">Opening image…</div>';
-    const blob = await openPrivateFile(meta);
-    if (!blob) { failed(); return; }
-    const url = URL.createObjectURL(blob);
+    const url = await openPrivatePicture(meta);
+    if (!url) { failed(); return; }
     const img = document.createElement('img');
     img.src = url;
     img.alt = meta.name || 'image';

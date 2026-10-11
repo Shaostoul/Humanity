@@ -22,6 +22,9 @@
 //       signature against the reported person's key (from = them, to = me)
 //   {"kind":"post","from","timestamp"}             a public post; the relay looks it up
 //   {"kind":"group_text","from","ts","text"}       from a P2P group; never proven
+//   {"kind":"media","id"}                         an item on the Media page (2026-10-11,
+//       docs/design/media-showcase.md A5); the relay looks it up and keeps a
+//       pointer to it (its title, kind, labels and visibility), never the file
 // At most 20 items and 64 KB of evidence in all; a note of at most 500 characters.
 // Never a message with a file: its text carries the key that opens the file
 // (see REPORT_NO_FILES below).
@@ -34,7 +37,7 @@
 
   const REPORT_DOMAIN = 'hum/report/v1';
   // Where the report was made. Must match the relay's list.
-  const REPORT_CONTEXTS = ['dm', 'post', 'group', 'profile'];
+  const REPORT_CONTEXTS = ['dm', 'post', 'group', 'profile', 'media'];
   // What an admin or mod can decide. Must match the relay's list.
   const REPORT_DECISIONS = ['dismiss', 'warn', 'mute', 'kick', 'ban', 'delete_post'];
   const REPORT_DECISION_LABELS = Object.freeze({
@@ -50,6 +53,7 @@
     post: 'A public post',
     group: 'A group',
     profile: 'Their profile',
+    media: 'The Media page',
   });
   const REPORT_MAX_ITEMS = 20;
   const REPORT_MAX_EVIDENCE_BYTES = 64 * 1024;
@@ -87,6 +91,14 @@
   /** The badge on a post the server found: it holds the post, signed by its author. */
   function reportPostFoundBadge(name) {
     return 'Checked: posted by ' + name + ' on this server';
+  }
+  /** The badge on a Media item the server found, put there by the person reported. */
+  function reportMediaFoundBadge(name) {
+    return 'Checked: on the Media page, put there by ' + name;
+  }
+  /** Where the Reports view opens a reported Media item: the Media page, which loads it by number. */
+  function reportMediaHref(id) {
+    return '/media?id=' + encodeURIComponent(String(id));
   }
 
   // An identity key as the relay and both clients write it: lowercase hex.
@@ -147,6 +159,16 @@
     return { kind: 'post', from: String(from), timestamp: Number(timestamp) || 0 };
   }
 
+  /**
+   * A Media item as evidence, by its number (A5): the relay looks it up and
+   * keeps a pointer to it, never the file. Null for a number that is not one.
+   */
+  function mediaEvidenceItem(id) {
+    const n = Number(id);
+    if (!Number.isSafeInteger(n) || n <= 0) return null;
+    return { kind: 'media', id: n };
+  }
+
   /** Words seen in a P2P group as evidence: never proven. Null when they carry a file. */
   function groupEvidenceItem(from, ts, text) {
     const t = String(text == null ? '' : text);
@@ -166,6 +188,8 @@
         if (typeof it.from !== 'string' || typeof it.timestamp !== 'number') return 'The post is not named.';
       } else if (it.kind === 'group_text') {
         if (typeof it.from !== 'string' || typeof it.text !== 'string' || typeof it.ts !== 'number') return 'The group message is not named.';
+      } else if (it.kind === 'media') {
+        if (!Number.isSafeInteger(it.id) || it.id <= 0) return 'The Media item is not named.';
       } else {
         return 'An item of evidence is of a kind this server does not take.';
       }
@@ -283,6 +307,14 @@
         ts: reportMs(e.kind === 'post' ? (e.timestamp != null ? e.timestamp : e.ts) : e.ts),
         text: String(e.text == null ? '' : e.text),
         checked: e.checked === true,
+        // A Media item (A5): what the relay kept about it, never the file.
+        mediaId: e.kind === 'media' && Number.isSafeInteger(Number(e.id)) ? Number(e.id) : null,
+        uploader: String(e.uploader || ''),
+        title: String(e.title == null ? '' : e.title),
+        mediaKind: String(e.media_kind || ''),
+        labels: Array.isArray(e.labels) ? e.labels.map(String)
+          : (typeof e.labels === 'string' && e.labels ? e.labels.split(',') : []),
+        visibility: String(e.visibility || ''),
       })),
     };
   }
@@ -291,6 +323,7 @@
   function reportEvidenceBadge(ev, name) {
     if (!ev || ev.checked !== true) return { checked: false, text: REPORT_NOT_PROVEN };
     if (ev.kind === 'post') return { checked: true, text: reportPostFoundBadge(name) };
+    if (ev.kind === 'media') return { checked: true, text: reportMediaFoundBadge(name) };
     return { checked: true, text: reportCheckedBadge(name) };
   }
 
@@ -456,8 +489,9 @@
     REPORT_MAX_ITEMS, REPORT_MAX_EVIDENCE_BYTES, REPORT_NOTE_MAX, REPORT_REASONS_URL,
     REPORT_PRIVACY_SENTENCE, REPORT_RECEIVED_LINE, REPORT_SIGNATURE_LIMITS, REPORT_NOT_PROVEN,
     REPORT_GROUP_UNPROVEN, REPORT_DM_EVIDENCE_HELP, REPORT_FILE_MARKER_PREFIX, REPORT_NO_FILES,
-    reportTextHasFile, reportCheckedBadge, reportPostFoundBadge, reportKeyNorm, reportPreimage, reportEvidenceJson,
-    reportNoteNorm, dmEvidenceItem, postEvidenceItem, groupEvidenceItem, reportEvidenceProblem,
+    reportTextHasFile, reportCheckedBadge, reportPostFoundBadge, reportMediaFoundBadge, reportMediaHref, reportKeyNorm,
+    reportPreimage, reportEvidenceJson,
+    reportNoteNorm, dmEvidenceItem, postEvidenceItem, groupEvidenceItem, mediaEvidenceItem, reportEvidenceProblem,
     buildReportFrame, reportReasonsFrom, reportItemView, reportEvidenceBadge, reportMs,
     OUTSIDE_HELP_URL, OUTSIDE_HELP_REASONS, OUTSIDE_HELP_OTHER, OUTSIDE_HELP_SAVED_KEY, OUTSIDE_HELP_TITLE,
     OUTSIDE_HELP_OTHER_LABEL, OUTSIDE_HELP_FIND_HOTLINE, OUTSIDE_HELP_CHILD_LEAD,
