@@ -726,6 +726,20 @@ above; parts marked (apps) are the next app increment.
    the flag. (apps) both apps strip pictures and videos before upload with the same rules as the
    relay's strip (the desktop app uses the same Rust code; the web gets a JavaScript port held to
    the same test files), plus the switch.
+   **As built (the web's strip, 2026-10-11), not yet wired into any page.** `web/shared/strip-metadata.js`
+   puts `HosStrip` on `window` (and is a CommonJS module under Node). `stripFile(bytes, nameOrType)`
+   is a port of `strip_metadata.rs` and `strip_video_metadata.rs` with their rules: JPEG, PNG and
+   WebP lose whole segments or chunks, GIF passes through untouched as on the relay, and MP4, MOV
+   and 3GP boxes are zeroed and renamed `free` in a copy of the same length (the caller's bytes
+   are never written). A picture that cannot be walked comes back unchanged and a video that stops
+   early says where; both are marked `unfinished`, which is answer 5's "Send anyway?" case. HEIC
+   and AVIF are not cleaned (no HEIF strip on main yet) and the report says so. The bytes decide
+   the kind; the name or type is reported beside it. `describe(bytes, nameOrType)` gives the attach
+   step its sentence ("This photo says where it was taken and which camera took it.") and plain-word
+   details, only for what the strip removes, with coordinates only when asked for.
+   `scripts/tests/strip-metadata.test.js` mirrors the Rust tests, and where rustc is installed it
+   compiles a small program around the relay's two real source files and requires the same bytes
+   and the same reports on about 9,500 inputs; it is not yet in `just rig-tests`.
 5. **Files that cannot be fully cleaned.** "Refusal makes sense from a safety standpoint. But
    maybe there might be a reason to keep it? Maybe someone is trying to help someone else fix the
    file?" Public shelves keep refusing them: the server cannot ask every future viewer, and public
