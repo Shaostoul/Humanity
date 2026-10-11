@@ -45,6 +45,12 @@
 // Seen red, 2026-10-11: each with one break made in a fresh copy of web/ (pages, shared, chat)
 // under HOS_WEB_DIR, pq-relay-auth.js and chat-reports.js included, then green again on the real
 // web/: see the note above each test.
+//
+// Round 3 (2026-10-11, media-web-round3.test.js has the rest) changed what some of these hold the
+// page to, and each changed test says how: D and E (members-only Download and video go through a
+// ticket), N3 (Pause stops the piece on its way, the record carries a fingerprint), N4 (an
+// allowance waits the server's `resets_in_s` and carries on by itself), N8 (the form moves into
+// the uploads list), and every piece is its bytes with the token in the X-Upload-Token header.
 
 const test = require("node:test");
 const assert = require("node:assert");
@@ -56,7 +62,7 @@ const H = require("./media-web-harness.js");
 const {
   ROOT, WEB, media, upload, admin, report, ME, ANN, MIB, byId, text, everyElement, respond, fakeFetch, path0, at,
   queryOf, fakeSession, fakeStorage, settle, item, listAnswer, mineAnswer, listRoutes, openPage, openAdmin, usageAnswer,
-  BLAKE,
+  BLAKE, SHA256, fingerprintOf, bodyLen,
 } = H;
 
 const REASONS = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "safety", "report_reasons.json"), "utf8"));
@@ -259,15 +265,19 @@ test("C2. Publish on an upload that waits opens the form and publishes that file
 // Seen red 2026-10-11 with sweepBlobs taking nothing away: "the object URL of a file no longer
 // shown is revoked"; with downloadControl linking the members' file route instead of the fetched
 // file: "the viewer's Download is the fetched file".
+// Round 3 (R3-8): a members-only file's Download (not a picture already here) goes through a
+// ticket the browser saves itself, never through the page's memory. Seen red 2026-10-11 with
+// Download's press fetching the file into the page again (blobFor): "Download asks for a ticket".
 test("D. members-only files come by header through object URLs, no token anywhere, revoked when gone, saved under their own name", async () => {
   let showSeven = true;
   const seven = item({ id: 7, url: "/api/media/file/7", visibility: "members", title: "Members' photo", original_name: "IMG_0001.jpg" });
-  const nine = item({ id: 9, url: "/api/media/file/9", visibility: "members", kind: "file", title: "Plans", original_name: "Workshop plans.pdf", uploader_key: ANN });
+  const nine = item({ id: 9, url: "/api/media/file/9", visibility: "members", kind: "file", title: "Plans", original_name: "Workshop plans.pdf", uploader_key: ANN, filename: "9_plans.pdf" });
   const { doc, net, urls, saved, page } = await openPage({ routes: listRoutes(null, [
     [(c) => c.url === "/api/media/list" && c.body.featured !== 1 && !c.body.id, () => respond(200, listAnswer(showSeven ? [seven, nine] : [nine]))],
     [(c) => c.url === "/api/media/list" && c.body.featured === 1, () => respond(200, listAnswer([]))],
     [at("/api/media/file/7"), () => respond(200, "", new Uint8Array([1]))],
     [at("/api/media/file/9"), () => respond(200, "", new Uint8Array([2]))],
+    [at("/api/media/ticket", "POST"), (c) => respond(200, { url: "/api/media/file/" + c.body.id + "?ticket=t" + c.body.id, expires_in_s: 600 })],
   ]) });
   const img = tileOf(doc, 7).querySelector("img");
   assert.equal(img.src, "blob:test/1");
@@ -287,12 +297,16 @@ test("D. members-only files come by header through object URLs, no token anywher
   assert.equal(dl.href, "blob:test/1", "the viewer's Download is the fetched file");
   assert.equal(dl.getAttribute("download"), "IMG_0001.jpg", "under the name it had on the uploader's device");
   byId(doc, "media-viewer-close").click();
-  // A file (not shown on its tile): Download fetches it, then saves it under its own name.
+  // A file (not shown on its tile): Download asks for a ticket and saves through it under its own name.
   assert.equal(net.calls.filter((c) => path0(c.url) === "/api/media/file/9").length, 0, "a file is not fetched for its tile");
   tileOf(doc, 9).querySelector(".media-thumb").click();
   byId(doc, "media-download").click();
   await settle();
-  assert.deepEqual(saved, [{ url: "blob:test/2", name: "Workshop plans.pdf" }], "Download saves the fetched file");
+  const ticket = net.calls.find((c) => c.url === "/api/media/ticket");
+  assert.ok(ticket, "Download asks for a ticket");
+  assert.deepEqual([ticket.body, ticket.headers["X-Upload-Token"]], [{ id: 9, filename: "9_plans.pdf" }, "tok-1"], "a ticket for that one file, the token in the header");
+  assert.deepEqual(saved, [{ url: "/api/media/file/9?ticket=t9", name: "Workshop plans.pdf" }], "Download saves through the ticket");
+  assert.equal(net.calls.filter((c) => path0(c.url) === "/api/media/file/9").length, 0, "the page itself never fetches it");
   byId(doc, "media-viewer-close").click();
   // Item 7 leaves the page (a filter, a reload): its object URL is revoked.
   showSeven = false;
@@ -307,17 +321,20 @@ test("D. members-only files come by header through object URLs, no token anywher
 
 // Seen red 2026-10-11 with renderAll calling renderViewer() every time again: "the same video
 // element, still playing / the viewer was drawn again".
+// Round 3 (R3-8): a members-only video plays through a ticket, so the browser streams it. Seen red
+// 2026-10-11 with the viewer fetching the video into the page again (blobFor): "the video shows".
 test("E. a playing video is not drawn again when the session changes or the list reloads", async () => {
-  const clip = item({ id: 4, url: "/api/media/file/4", visibility: "members", kind: "video", title: "Fire show" });
+  const clip = item({ id: 4, url: "/api/media/file/4", visibility: "members", kind: "video", title: "Fire show", filename: "4_fire.mp4" });
   const pub = item({ id: 3, url: "/uploads/3_v.mp4", kind: "video", title: "Public clip" });
   const { doc, session, page } = await openPage({ routes: listRoutes(listAnswer([clip, pub]), [
     [at("/api/media/file/4"), () => respond(200, "", new Uint8Array([4]))],
+    [at("/api/media/ticket", "POST"), () => respond(200, { url: "/api/media/file/4?ticket=t4", expires_in_s: 600 })],
   ]) });
   tileOf(doc, 4).querySelector(".media-thumb").click();
   await settle();
   const video = byId(doc, "media-viewer-open").querySelector("video");
   assert.ok(video, "the video shows");
-  assert.equal(video.src, "blob:test/1");
+  assert.equal(video.src, "/api/media/file/4?ticket=t4");
   // The connection drops and comes back with a new token; the list reloads; a notice.
   session.state.status = "closed";
   session.state.uploadToken = "";
@@ -649,11 +666,12 @@ function resumableServer(size, hooks) {
     }],
     [(c) => path0(c.url) === "/api/upload/resumable/" + ID && c.init.method === "PATCH", async (c) => {
       const off = Number(queryOf(c.url).get("offset"));
-      s.pieces.push({ offset: off, len: c.init.body.size, token: queryOf(c.url).get("token") });
+      // Round 3: a piece is its bytes (read before it is sent), and the token is in the header (R3-9).
+      s.pieces.push({ offset: off, len: bodyLen(c.init.body), token: c.headers["X-Upload-Token"], inAddress: /token/i.test(c.url) });
       if (s.hooks.piece) { const r = await s.hooks.piece(c, off); if (r) return r; }
       if (s.done) return respond(200, s.done);
       if (off !== s.offset) return respond(409, { error: "This piece starts at byte " + off + ", but the server has " + s.offset + " bytes of the file. Send from there.", offset: s.offset, size: s.size });
-      s.offset += c.init.body.size;
+      s.offset += bodyLen(c.init.body);
       if (s.offset >= s.size) {
         if (s.hooks.finish) { const r = await s.hooks.finish(); if (r) return r; }
         s.done = done();
@@ -673,7 +691,7 @@ function uploaderFor(server, file, o) {
   const result = { done: null };
   const storage = opts.storage || fakeStorage();
   const u = upload.createUploader({
-    fetch: net.fetch, token: opts.token || (() => "tok-1"), file, owner: ME, storage,
+    fetch: net.fetch, token: opts.token || (() => "tok-1"), file, owner: ME, storage, digest: SHA256,
     sleep: opts.sleep || (() => Promise.resolve()), now: () => 1760000000000,
     onChange: (s) => phases.push(s.phase), onDone: (a) => { result.done = a; },
   });
@@ -689,7 +707,7 @@ test("N1. a file goes up in pieces of the server's size, each where the last end
   up.u.start();
   await settle();
   assert.deepEqual(server.pieces.map((p) => [p.offset, p.len]), [[0, 8 * MIB], [8 * MIB, 8 * MIB], [16 * MIB, 4 * MIB]], "three pieces, each where the last ended");
-  assert.ok(server.pieces.every((p) => p.token === "tok-1"));
+  assert.ok(server.pieces.every((p) => p.token === "tok-1" && !p.inAddress), "the token in the header, never in the address");
   assert.deepEqual(up.result.done, { url: "/uploads/1760_clip.mp4", filename: "1760_clip.mp4", size: 20 * MIB, type: "video/mp4" });
   assert.equal(up.u.state.phase, "done");
   assert.ok(up.phases.includes("sending"));
@@ -703,7 +721,7 @@ test("N2. a dropped connection: it waits, asks the server how far it got, and ca
   const server = resumableServer(20 * MIB, {
     // The second piece arrives, then the connection drops before its answer.
     piece: async (c, off) => {
-      if (off === 8 * MIB && drops-- > 0) { server.offset += c.init.body.size; throw new TypeError("Failed to fetch"); }
+      if (off === 8 * MIB && drops-- > 0) { server.offset += bodyLen(c.init.body); throw new TypeError("Failed to fetch"); }
       return null;
     },
   });
@@ -719,8 +737,12 @@ test("N2. a dropped connection: it waits, asks the server how far it got, and ca
 
 // Seen red 2026-10-11 with pause() never setting pauseWanted: "'done' == 'paused'" (it went on to
 // the end); and with rememberUpload taken out of begin(): "remembered with its session id while
-// it goes".
-test("N3. Pause stops after the piece on its way, Resume carries on", async () => {
+// it goes". Round 3: Pause stops the piece on its way at once (round 2 waited for it), the record
+// carries the file's fingerprint, and Resume first asks where the server got, since the stopped
+// piece may have arrived after all (here it did). Seen red 2026-10-11 with the request's signal
+// left off (the piece on its way never stopped): "paused at once, the piece on its way stopped /
+// 'pausing' !== 'paused'".
+test("N3. Pause stops the piece on its way, Resume asks where the server got and carries on", async () => {
   let release;
   const held = new Promise((r) => { release = r; });
   const server = resumableServer(20 * MIB, { piece: async (_c, off) => { if (off === 0) await held; return null; } });
@@ -728,39 +750,57 @@ test("N3. Pause stops after the piece on its way, Resume carries on", async () =
   up.u.start();
   await settle();
   const kept = JSON.parse(up.storage.getItem(upload.RESUME_KEY));
-  assert.deepEqual(kept, [{ owner: ME, id: ID, name: "clip.mp4", size: 20 * MIB, lastModified: 1700000000000, at: 1760000000000 }], "remembered with its session id while it goes");
+  assert.deepEqual(kept, [{ owner: ME, id: ID, name: "clip.mp4", size: 20 * MIB, lastModified: 1700000000000, fp: fingerprintOf(new Uint8Array(20 * MIB)), at: 1760000000000 }], "remembered with its session id while it goes");
   up.u.pause();
-  assert.equal(up.u.state.phase, "pausing");
+  await settle();
+  assert.equal(up.u.state.phase, "paused", "paused at once, the piece on its way stopped");
   release();
   await settle();
   assert.equal(up.u.state.phase, "paused");
   assert.equal(server.pieces.length, 1, "no piece after Pause");
-  assert.equal(up.u.state.offset, 8 * MIB);
+  const gets = () => up.net.calls.filter((c) => c.init.method === "GET").length;
+  const before = gets();
   up.u.resume();
   await settle();
   assert.equal(up.u.state.phase, "done");
+  assert.ok(gets() > before, "Resume asked the server where it got");
   assert.deepEqual(server.pieces.map((p) => p.offset), [0, 8 * MIB, 16 * MIB]);
 });
 
+// The uploads list's controls (round 3: each upload in the list names its parts by data attributes).
+const upPart = (doc, part) => byId(doc, "media-uploads").querySelector("[data-upload-" + part + "]");
+const upButton = (doc, action) => byId(doc, "media-uploads").querySelector('[data-upload-action="' + action + '"]');
+
 // Seen red 2026-10-11 with the 429 branch treated as a plain failure: "and when it resets, here"
-// (the words were the relay's, the time and Resume missing).
-test("N4. the role's allowance (429): the relay's words, when it resets, and Resume tries again", async () => {
+// (the words were the relay's, the time and Resume missing). Round 3 (R3-6): the wait is the
+// server's own `resets_in_s` and the upload carries on by itself after it; Pause and Cancel stay.
+// Seen red 2026-10-11 with the wait worked out from `resets_at` against this device's clock again:
+// "and when it resets, here".
+test("N4. the role's allowance (429): the relay's words, when it resets, and it carries on by itself", async () => {
   let refuse = true;
   const words = "Your role may upload 100 MB a day on this server, and you have uploaded 96 MB today, and this file would pass that. The allowance resets at midnight UTC, in 5 hours 12 minutes.";
-  const resets = Date.UTC(2026, 9, 12, 0, 0, 0);
   const server = resumableServer(20 * MIB, {
-    piece: async (_c, off) => (refuse && off === 8 * MIB ? respond(429, { error: words, allowance: "day", resets_at: resets, offset: 8 * MIB, size: 20 * MIB }) : null),
+    piece: async (_c, off) => (refuse && off === 8 * MIB ? respond(429, { error: words, allowance: "day", resets_at: 1, resets_in_s: 18720, left_bytes: 0, offset: 8 * MIB, size: 20 * MIB }) : null),
   });
-  const { doc } = await openPage({ routes: listRoutes(listAnswer([]), [...server.routes, [at("/api/media", "POST"), () => respond(200, { ok: true, item: item() })]]) });
+  const waits = [];
+  const wakes = [];
+  const { doc } = await openPage({
+    sleep: (ms) => { waits.push(ms); return new Promise((r) => wakes.push(r)); },
+    routes: listRoutes(listAnswer([]), [...server.routes, [at("/api/media", "POST"), () => respond(200, { ok: true, item: item() })]]),
+  });
   await pickFile(doc, aFile("clip.mp4", 20 * MIB));
   byId(doc, "media-form-go").click();
   await settle();
-  const said = text(byId(doc, "media-upload-words"));
+  const said = text(upPart(doc, "words"));
+  const resetsAt = 1760000000000 + 18720 * 1000;
   assert.ok(said.startsWith(words), "the allowance, in the relay's words");
-  assert.ok(said.includes(media.resetsWords(resets)) && media.resetsWords(resets).startsWith("That is "), "and when it resets, here");
-  assert.equal(byId(doc, "media-upload-bar").getAttribute("aria-valuenow"), "40", "the bar where it stopped");
+  assert.ok(said.includes(media.resetsWords(resetsAt)) && media.resetsWords(resetsAt).startsWith("That is "), "and when it resets, here");
+  assert.ok(said.endsWith(media.MEDIA_WORDS.uploadAllowanceThen), "and that it carries on by itself");
+  assert.deepEqual(waits, [18720 * 1000], "it waits the server's own seconds");
+  assert.equal(upPart(doc, "bar").getAttribute("aria-valuenow"), "40", "the bar where it stopped");
+  assert.ok(upButton(doc, "pause") && upButton(doc, "cancel"), "Pause and Cancel while it waits");
   refuse = false;
-  byId(doc, "media-upload-resume").click();
+  wakes.shift()();
   await settle();
   assert.equal(text(byId(doc, "media-notice").querySelector(".media-notice-text")), media.MEDIA_WORDS.published, "uploaded and published once allowed");
 });
@@ -774,7 +814,7 @@ test("N5. no room at the finish (507): the relay's words, and Retry sends the em
     finish: async () => (full ? respond(507, words) : null),
     piece: async (c, off) => {
       // The retry: an empty piece at the end tries the finish again.
-      if (off === server.size && c.init.body.size === 0 && !full) { server.done = { url: "/uploads/1760_clip.mp4", filename: "1760_clip.mp4", size: server.size, type: "video/mp4" }; return respond(200, server.done); }
+      if (off === server.size && bodyLen(c.init.body) === 0 && !full) { server.done = { url: "/uploads/1760_clip.mp4", filename: "1760_clip.mp4", size: server.size, type: "video/mp4" }; return respond(200, server.done); }
       return null;
     },
   });
@@ -782,10 +822,10 @@ test("N5. no room at the finish (507): the relay's words, and Retry sends the em
   await pickFile(doc, aFile("clip.mp4", 20 * MIB));
   byId(doc, "media-form-go").click();
   await settle();
-  assert.equal(text(byId(doc, "media-upload-words")), words);
+  assert.equal(text(upPart(doc, "words")), words);
   full = false;
   const sentBefore = server.pieces.length;
-  byId(doc, "media-upload-retry").click();
+  upButton(doc, "retry").click();
   await settle();
   assert.deepEqual(server.pieces.slice(sentBefore).map((x) => [x.offset, x.len]), [[20 * MIB, 0]], "Retry sends only the empty piece at the end, nothing again");
   assert.ok(net.calls.find((c) => c.url === "/api/media" && c.init.method === "POST"), "then publishes");
@@ -818,7 +858,8 @@ test("N6. the last piece's answer lost on the way: the server's `done` is taken 
 // the same name starts afresh"; and with openAddForm counting the upload's own bytes in progress
 // on top of themselves: "its own bytes in progress are not counted twice".
 test("N7. after a reload, picking the same file carries on; another file of that name starts afresh; storage that refuses changes nothing else", async () => {
-  const remembered = JSON.stringify([{ owner: ME, id: ID, name: "clip.mp4", size: 20 * MIB, lastModified: 1700000000000, at: 1760000000000 - 3600000 }]);
+  // Round 3: a record carries the file's fingerprint (its first and last megabyte).
+  const remembered = JSON.stringify([{ owner: ME, id: ID, name: "clip.mp4", size: 20 * MIB, lastModified: 1700000000000, fp: fingerprintOf(new Uint8Array(20 * MIB)), at: 1760000000000 - 3600000 }]);
   // Another file of the same name (another size, changed since): a new upload, the old one left be.
   const elsewhere = fakeStorage();
   elsewhere.setItem(upload.RESUME_KEY, remembered);
@@ -864,7 +905,9 @@ test("N7. after a reload, picking the same file carries on; another file of that
 });
 
 // Seen red 2026-10-11 with closeForm leaving the upload running (no cancel): "Cancel deletes the
-// upload on the server".
+// upload on the server". Round 3: the form moves into the uploads list when its upload starts
+// (its ids take the upload's number), and its parts are found there. Seen red 2026-10-11 with the
+// form left where it was (round 2's startUpload): "the upload's bar is in the list".
 test("N8. the page shows the progress with Pause and Resume, and Cancel deletes the upload on the server", async () => {
   let release;
   const held = new Promise((r) => { release = r; });
@@ -875,18 +918,22 @@ test("N8. the page shows the progress with Pause and Resume, and Cancel deletes 
   byId(doc, "media-form-title").dispatch("input");
   byId(doc, "media-form-go").click();
   await settle();
-  assert.equal(byId(doc, "media-upload-bar").getAttribute("aria-valuenow"), "40");
-  assert.equal(text(byId(doc, "media-upload-words")), "8 MB of 20 MB sent.");
-  const title = byId(doc, "media-form-title");
-  byId(doc, "media-upload-pause").click();
+  assert.ok(upPart(doc, "bar"), "the upload's bar is in the list");
+  assert.equal(upPart(doc, "bar").getAttribute("aria-valuenow"), "40");
+  assert.equal(text(upPart(doc, "words")), "8 MB of 20 MB sent.");
+  const title = byId(doc, "media-form-title-1");
+  assert.ok(title, "the form went into the uploads list with what was typed");
+  assert.equal(title.value, "Typed while it goes");
+  upButton(doc, "pause").click();
   release();
   await settle();
-  assert.equal(byId(doc, "media-form-title"), title, "the fields are not drawn again while it goes");
-  assert.ok(text(byId(doc, "media-upload-words")).endsWith(media.MEDIA_WORDS.uploadPaused));
-  assert.ok(byId(doc, "media-upload-resume"));
-  byId(doc, "media-form-cancel").click();
+  assert.equal(byId(doc, "media-form-title-1"), title, "the fields are not drawn again while it goes");
+  assert.ok(text(upPart(doc, "words")).endsWith(media.MEDIA_WORDS.uploadPaused));
+  assert.ok(upButton(doc, "resume"));
+  upButton(doc, "cancel").click();
   await settle();
   assert.equal(server.deleted, 1, "Cancel deletes the upload on the server");
+  assert.equal(byId(doc, "media-uploads").querySelector("[data-upload]"), null, "and it leaves the list");
   assert.equal(byId(doc, "media-form-go"), null);
 });
 
