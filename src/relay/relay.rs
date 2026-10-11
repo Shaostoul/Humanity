@@ -4797,9 +4797,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                 let parts: Vec<&str> = trimmed.splitn(3, char::is_whitespace).collect();
                                                 let key = parts.get(1).unwrap_or(&"").trim().to_lowercase();
                                                 let name = parts.get(2).map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
-                                                let key_ok = key.len() == 64 && key.chars().all(|c| c.is_ascii_hexdigit());
+                                                // Dilithium3 since 2026-09-06; 64 (Ed25519) refused every current key.
+                                                let key_ok = crate::relay::handlers::federation::is_server_key(&key);
                                                 if !key_ok {
-                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /server-add-key <64-hex-key> [name]\nGet the key from the other node's Host Node page (Federation key, Copy).".to_string() };
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /server-add-key <server-key> [name]\nA server key is 3,904 hex characters: copy it from the other node's Host Node page (Federation key, Copy).".to_string() };
                                                     let _ = state_clone.broadcast_tx.send(private);
                                                 } else {
                                                     let display_name = name.unwrap_or_else(|| format!("node-{}", &key[..8]));
@@ -4883,6 +4884,21 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                     tracing::error!("Failed to list servers: {e}");
                                                 }
                                             }
+                                        }
+                                        // Re-read a peer's key from its server-info and pin it (2026-10-11).
+                                        "/server-recheck" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            let message = if role != "admin" {
+                                                "Only admins can re-check a server's key.".to_string()
+                                            } else {
+                                                match trimmed.split_whitespace().nth(1) {
+                                                    None => "Usage: /server-recheck <server_id>".to_string(),
+                                                    Some(id) => crate::relay::handlers::federation::recheck_words(
+                                                        &crate::relay::handlers::federation::recheck_peer_key(&state_clone, id).await,
+                                                    ),
+                                                }
+                                            };
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::Private { to: my_key_for_recv.clone(), message });
                                         }
                                         "/server-trust" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();

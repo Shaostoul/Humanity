@@ -2814,10 +2814,15 @@ pub async fn post_admin_federation(
         // outbound dialer skips the row.
         "add_key" => {
             let key = req.public_key.clone().unwrap_or_default().trim().to_lowercase();
-            if key.len() != 64 || !key.chars().all(|c| c.is_ascii_hexdigit()) {
+            // Server keys are Dilithium3 since 2026-09-06 (3,904 hex characters); this check still
+            // asked for 64, the old Ed25519 length, and refused every current key until 2026-10-11.
+            if !crate::relay::handlers::federation::is_server_key(&key) {
                 return Err((
                     StatusCode::BAD_REQUEST,
-                    "Public key must be 64 hex characters (copy it from the other node's Host Node page).".into(),
+                    format!(
+                        "A server key is {} hex characters (copy it from the other node's Host Node page).",
+                        crate::relay::handlers::federation::SERVER_KEY_HEX_LEN
+                    ),
                 ));
             }
             let display_name = req
@@ -2864,6 +2869,19 @@ pub async fn post_admin_federation(
             }
         }
 
+        // Re-read a peer's key from its own server-info and pin it (2026-10-11): for a peer whose
+        // key changed, as every server's did on 2026-09-06.
+        "recheck" => {
+            let server_id = req.server_id.clone().unwrap_or_default();
+            let found = crate::relay::handlers::federation::recheck_peer_key(&state, &server_id).await;
+            if let Err(words) = &found {
+                if words == "No such server in the registry." {
+                    return Err((StatusCode::NOT_FOUND, words.clone()));
+                }
+            }
+            crate::relay::handlers::federation::recheck_words(&found)
+        }
+
         "remove" => {
             let server_id = req.server_id.clone().unwrap_or_default();
             match state.db.remove_federated_server(&server_id) {
@@ -2876,7 +2894,7 @@ pub async fn post_admin_federation(
         other => {
             return Err((
                 StatusCode::BAD_REQUEST,
-                format!("Unknown action '{other}'. Expected list, add, add_key, trust or remove."),
+                format!("Unknown action '{other}'. Expected list, add, add_key, trust, recheck or remove."),
             ))
         }
     };

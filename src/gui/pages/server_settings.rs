@@ -707,6 +707,19 @@ fn draw_federation_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
                 send_slash(state, &cmd);
                 state.server_settings_status = format!("Sent: {} - Refresh to confirm.", cmd);
             }
+            // Re-check its key (2026-10-11): re-read the key from its own server-info and pin it,
+            // for a peer whose key changed (every server's did on 2026-09-06). Only a peer added by
+            // a web address has somewhere to ask.
+            if row.url.starts_with("http") {
+                if widgets::Button::ghost("Re-check key")
+                    .tooltip("Fetch this server's key again from its own address and pin it. Use it when its key has changed and the link keeps dropping.")
+                    .show(ui, theme)
+                {
+                    let cmd = format!("/server-recheck {}", row.server_id);
+                    send_slash(state, &cmd);
+                    state.server_settings_status = format!("Sent: {} - the answer appears privately in Chat.", cmd);
+                }
+            }
             // Remove (confirm per row via the shared confirm slot).
             let confirm_key = format!("/server-remove {}", row.server_id);
             if state.server_settings_confirm_action.as_deref() == Some(confirm_key.as_str()) {

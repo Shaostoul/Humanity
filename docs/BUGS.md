@@ -5562,3 +5562,33 @@ timestamp wins" between servers with up to 24 hours ahead accepted, so a server 
 fast would win every conflict. The fix, with federation activation: the apps sign `profile_v1`
 themselves (Dilithium3, the preimage `verify_profile_signature` already checks) and date each edit
 after the newest one they have seen (`max(now, last + 1)`, as the friendship choice notes do).
+
+## BUG-192: chat between united-humanity.us and public.guide was down from 2026-09-06 to 2026-10-11 (FIXED, found 2026-10-11)
+
+public.guide is the operator's second relay, federated with united-humanity.us to keep chat alive if
+one goes down. When server identity moved from Ed25519 to Dilithium3 (2026-09-06), every server got
+a new key, and a peer pinned before that "must be re-pinned" (CLAUDE.md's Cryptography table). Nobody
+did: public.guide still ran v0.1147.0 from August, could check only the old kind of signature, and
+knew united-humanity.us only by its old key, so it refused every hello ("hello from unknown server").
+united-humanity.us reconnected every 6 seconds for five weeks (about 14,000 log lines a day), because
+its connection loop reset the wait to 5 s on every connect, and a link refused a second later counts
+as a connect. Found when the operator asked about the log noise after v0.1485.0.
+
+Fixed on 2026-10-11, with backups of both databases first:
+- public.guide updated to v0.1485.1 (the relay binary built on united-humanity.us, the repo checked
+  out at the release for its data files, the web root synced the way the deploy does it), its
+  migrations from v0.1147.0 ran cleanly; its watchdog, which had failed on every run because its
+  script is not executable in git, runs again (the repo now marks the script executable).
+- Each server's current key pinned on the other, read from the other's own /api/server-info over
+  HTTPS, the same discovery an add does. Both relays restarted; each accepted the other's hello, the
+  welcome carried #general and #announcements, and the link holds.
+- In code (released with the next version): the wait between tries doubles up to 5 minutes until a
+  link holds for a minute; the connection loop reads the pin fresh on every try; after three quick
+  drops in a row the log says the peer may not trust this server's current key and how to re-check;
+  a "Re-check key" action re-reads a peer's key from its server-info and pins it (Server Settings >
+  Federation on the desktop, the Admin page's federation list on the web, `/server-recheck`, and
+  the admin API's `recheck`); and adding a server by key accepts today's 3,904-character keys (it
+  still asked for 64, the old Ed25519 length, and refused every current key).
+
+Still open: public.guide is updated by hand. The deploy workflow updates united-humanity.us only, so
+public.guide falls behind again with the next release unless it is updated too (PRIORITIES).

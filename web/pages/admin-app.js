@@ -338,6 +338,8 @@
         + '<div class="fed-actions">'
         +   '<span class="fed-tier-note">Trust</span>'
         +   '<select data-fed-trust="' + id + '">' + options + '</select>'
+        // Re-check key (2026-10-11): only a peer added by a web address has somewhere to ask.
+        +   (s.url === 'outbound-only' ? '' : '<button type="button" data-fed-recheck="' + id + '" title="Fetch this server\'s key again from its own address and pin it, for when its key changed and the link keeps dropping.">Re-check key</button>')
         +   '<button type="button" class="danger" data-fed-remove="' + id + '">Remove</button>'
         + '</div>'
         + '</div>';
@@ -352,6 +354,12 @@
       });
     });
     renderSeedServers(servers);
+
+    container.querySelectorAll('[data-fed-recheck]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        fedAction({ action: 'recheck', server_id: btn.dataset.fedRecheck }, 'Re-checking its key...');
+      });
+    });
 
     container.querySelectorAll('[data-fed-remove]').forEach(function (btn) {
       btn.addEventListener('click', function () {
