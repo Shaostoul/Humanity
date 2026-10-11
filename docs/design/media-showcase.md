@@ -1749,3 +1749,56 @@ files" button.
 **Proof.** Each part with tests seen failing once, in each app and the relay; the two describes
 agree on shared fixtures; a marker with `unchecked` built by one app is read by the other (a
 shared fixture string in both test suites).
+
+## Device-to-device big files, exact (answer 10; 2026-10-11)
+
+A file bigger than the person's private file limit (the server's `private_limit_mb` for their role)
+never goes to the server's disk: in a DM it goes from one device to the other, while both are
+online, once the receiver has said yes. Groups come later (file-transfer-at-scale.md, layer 3).
+
+**What already exists.** Both apps open WebRTC data channels for direct messages (web
+`web/chat/chat-p2p.js`, `createDataChannel('dm')`; desktop `src/net/webrtc.rs` on str0m), with the
+relay carrying only the signalling (`dc_offer` and friends, which the relay lets through only with a
+friendship pass that allows it), and both can force every packet through the server's call
+forwarder (relay-only ICE), so neither side learns the other's network address.
+
+**The offer.** The sender's app sends a sealed DM control note (like the choice and block notes,
+never shown as a message): `[[hum:offer:v1]]` followed by JSON `{id, name, size, type, blake3,
+piece, pieces}`: a random 16-byte `id`, the file's name, size and type, the BLAKE3 of the whole file,
+the piece size (256 KiB) and the BLAKE3 of each piece, in order. The note is signed inside the DM
+like every DM, so the list of pieces is the sender's word for what the file is.
+
+**The receiver says yes.** The receiving app applies "Files in messages" first (a sender it does not
+accept files from gets the one-file Accept card), then shows "Ann wants to send you clip.mp4
+(2.3 GB). Accept?" with Accept and Decline. Its answer is another sealed note,
+`[[hum:offer-answer:v1]]{id, accept}`. An offer nobody answers expires with the DM mailbox.
+
+**The transfer.** Once accepted and both are online, the two apps open a data channel labelled
+`file:<id>` (ordered, reliable) through the existing signalling. Between people who are friends and
+both allow direct connections it may go direct; otherwise, by default, it goes through the call
+forwarder, so addresses stay private. The receiver asks for pieces by number; the sender sends each
+piece with its number; the receiver checks each piece against its BLAKE3 from the offer and writes
+it to a part file (desktop: beside the chosen folder, renamed when complete; web: pieces in
+IndexedDB, then a Blob saved through the browser, or the File System Access API where the browser
+has it so nothing is held in memory). After a drop either side can resume: the receiver asks again
+from the first piece it lacks. When every piece has arrived and the whole file's BLAKE3 matches, it
+is done; a piece that fails its check is asked for again, and three failures of one piece end the
+transfer with words.
+
+**On screen.** Both sides: a row in the conversation with the file's name, size, a progress bar,
+Pause, Resume and Cancel, and plain words for each state ("Waiting for Ann to accept", "Waiting for
+Ann to come online", "Sending through the server's call relay", "Sent", "Ann declined",
+"Cancelled"). The sender's attach step offers this automatically for a file over the limit, with a
+line saying why ("Files over 6 MB go straight to Ann's device instead of through the server.").
+
+**What it costs the server.** No disk. Bandwidth only when it goes through the forwarder, held to a
+per-person daily amount the admin sets (a new role limit beside the upload ones, "forwarded MB a
+day", 0 = no limit, Admin's default 0), counted by the forwarder.
+
+**Needs.** The forwarder's UDP port open on the server (as calls do, `docs/admin/call-forwarder.md`).
+Until it is, a transfer between people who may not go direct says so instead of starting.
+
+**Proof.** Each step with tests seen failing once: the offer note's bytes the same in both apps (a
+shared fixture), piece checking and resume against a stand-in peer, a decline and an expiry, the
+pause and cancel, the forwarder's per-person day amount, and one desktop-to-web transfer between two
+real apps through a local forwarder before release.
