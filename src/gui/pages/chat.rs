@@ -2945,7 +2945,7 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
 /// File types the chat attach picker offers -- mirrors the web client's
 /// accept list (web/chat/index.html #file-upload-input).
 pub(crate) const ATTACH_EXTS: &[&str] = &[
-    "png", "jpg", "jpeg", "gif", "webp", "pdf", "txt", "md", "json",
+    "png", "jpg", "jpeg", "gif", "webp", "heic", "heif", "avif", "pdf", "txt", "md", "json",
     "zip", "tar.gz", "mp3", "mp4", "webm", "ogg", "wav",
     "blend", "stl", "obj", "gltf", "glb",
 ];
@@ -2988,6 +2988,10 @@ pub(crate) fn mime_for_filename(name: &str) -> &'static str {
         "jpg" | "jpeg" => "image/jpeg",
         "gif" => "image/gif",
         "webp" => "image/webp",
+        // iPhone photos: the relay cleans their location and keeps them as plain files.
+        "heic" => "image/heic",
+        "heif" => "image/heif",
+        "avif" => "image/avif",
         "pdf" => "application/pdf",
         "txt" | "md" => "text/plain",
         "json" => "application/json",
