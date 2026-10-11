@@ -482,6 +482,7 @@ legal in `server` and `location`). Put the declarations in the vhost and
 # /etc/nginx/conf.d/humanity-limits.conf  <-- a separate file, http scope
 limit_req_zone $binary_remote_addr zone=general:10m rate=10r/s;
 limit_req_zone $binary_remote_addr zone=upload:10m rate=2r/m;
+limit_req_zone $binary_remote_addr zone=resumable:10m rate=120r/m;
 ```
 
 **nginx serves the website from disk; the relay is not a web server.** The relay
@@ -557,6 +558,20 @@ server {
         proxy_send_timeout 900s;
         proxy_read_timeout 900s;
         proxy_pass http://127.0.0.1:3210/api/upload;
+        proxy_set_header Host $host;
+    }
+
+    # Resumable Media uploads: a big Media file arrives as many pieces of at most 8 MiB, so this
+    # allows many small requests a minute where /api/upload allows a few big ones. nginx picks
+    # the longest matching prefix, so this block takes /api/upload/resumable.
+    location /api/upload/resumable {
+        limit_req zone=resumable burst=20 nodelay;
+        client_max_body_size 9m;
+        proxy_request_buffering off;
+        client_body_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 900s;
+        proxy_pass http://127.0.0.1:3210;
         proxy_set_header Host $host;
     }
 
